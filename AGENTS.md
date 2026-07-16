@@ -24,7 +24,7 @@ Use the smallest relevant set:
 
 | Situation | Read first |
 | --- | --- |
-| Helix / ShelfDeck architecture, Libra, Procurement, Arca, or current work | `docs/helix/README.md`, then `docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`, `docs/helix/CURRENT_STATUS.md`, and `docs/helix/CURRENT_PLAN.md`; for Level 7 business decisions also read non-canonical `docs/helix/LEVEL7_BUSINESS_DECISIONS.md`; for Architecture Review history read non-canonical `docs/helix/ARCHITECTURE_REVIEW.md` |
+| Helix / ShelfDeck architecture, Libra, Procurement, Arca, or current work | `docs/helix/README.md`, then `docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`, `docs/helix/CURRENT_STATUS.md`, and `docs/helix/CURRENT_PLAN.md`; for implementation governance or current Phase work also read `docs/helix/ENGINEERING_PLAYBOOK.md` and `docs/helix/implementation/CURRENT_PHASE.md`; for Level 7 business decisions also read non-canonical `docs/helix/LEVEL7_BUSINESS_DECISIONS.md`; for Architecture Review history read non-canonical `docs/helix/ARCHITECTURE_REVIEW.md` |
 | Current v3/Kairox legacy status or next task | `docs/v3/README.md`, then `docs/v3/CURRENT_STATUS.md` and `docs/v3/CURRENT_PLAN.md` |
 | Kairox closure / release history, whether a version is done, or worktree scope | `docs/v3/RELEASE_GOALS.md`, then `docs/v3/CURRENT_STATUS.md` |
 | Version naming, release tag, image tag, package version, or deployment identity | `docs/v3/VERSIONING.md`, then `docs/v3/CURRENT_STATUS.md` |
@@ -55,6 +55,7 @@ Use the smallest relevant set:
 - Kairox is a completed transitional architecture phase. `Kairox Beta` is its only accepted historical release goal; later Kairox roadmap names remain cancelled.
 - Mirex, Kairox, earlier source-separation phases, and earlier Helix schemas have no migration, dual-read, or compatibility entitlement in the clean design.
 - Current work is Design-only. Do not resume implementation, E2E, Docker image construction, or production deployment until the active Helix plan's implementation gate is explicitly cleared by the user.
+- Helix implementation governance uses one concise Master Plan at `docs/helix/CURRENT_PLAN.md` plus exactly one subordinate active Phase packet at `docs/helix/implementation/CURRENT_PHASE.md`. `docs/helix/ENGINEERING_PLAYBOOK.md` defines durable process rules, while `docs/helix/CURRENT_STATUS.md` reports facts only. Completed Phase packets move to `docs/helix/implementation/archive/`; audit and closure evidence belongs under `docs/helix/implementation/evidence/`.
 - E2E-discovered architecture gaps return to Design. A bug or test failure never authorizes moving a decision or fact across a confirmed boundary.
 - v3.x roadmap names, Docker image tags, Git release tags, and package versions are different concepts. Use `docs/v3/VERSIONING.md` only for historical/current deployment identity, not clean Helix business architecture.
 
@@ -99,8 +100,8 @@ Do not run `npm run dev` as a long-running blocking command from Codex. Tell the
 - Windows-only packages belong in `optionalDependencies`; Docker installs may use `--omit=optional`.
 - Docker FFmpeg paths come from `FFMPEG_PATH` and `FFPROBE_PATH`.
 - APIs are JSON in/out; GET has no side effects; PATCH is idempotent partial update.
-- Error shape: `{ error: { code: "ERROR_CODE", message: "..." } }`.
-- `GET /v1/health` is public. Other protected APIs use `X-Api-Key`.
+- Error shape: `{ error: { code: "ERROR_CODE", message: "...", details?: {...}, correlationId: "..." } }`; never expose Secret values.
+- `GET /v1/health` is public. Non-browser API clients use `X-Api-Key`; clean Admin Web exchanges it for a same-origin HttpOnly SameSite session and never stores the plaintext key in browser storage.
 - Desktop APIs are under `/v1/*`; Admin Web APIs are under `/v1/admin/*`.
 
 ## Change Discipline
@@ -111,7 +112,7 @@ Do not run `npm run dev` as a long-running blocking command from Codex. Tell the
 - No workarounds or silent fallbacks when debugging; find the precise root cause.
 - When changing API, config, scheduler, task admission, flow behavior, resource behavior, or architecture contracts, update relevant tests and docs.
 - v3/Kairox planning documents must not multiply. Keep the active Kairox legacy plan in `docs/v3/CURRENT_PLAN.md`, active status in `docs/v3/CURRENT_STATUS.md`, and move completed/superseded/evidence documents under `docs/v3/archive/`.
-- Helix planning documents must not multiply. Keep the active Helix plan in `docs/helix/CURRENT_PLAN.md`, active status in `docs/helix/CURRENT_STATUS.md`, and move superseded component-specific plans/evidence under historical archive paths.
+- Helix planning documents must not multiply. Keep the concise Master Plan in `docs/helix/CURRENT_PLAN.md`, facts in `docs/helix/CURRENT_STATUS.md`, and exactly one subordinate active Phase packet in `docs/helix/implementation/CURRENT_PHASE.md`. Do not create parallel active component or Work Package plans. After Phase Exit, move the frozen packet to `docs/helix/implementation/archive/`; store audits and acceptance evidence in `docs/helix/implementation/evidence/`.
 - Codex Plan Mode does not create new active plan documents. A confirmed plan updates `docs/v3/CURRENT_PLAN.md`; acceptance details update an existing file under `docs/v3/acceptance/`; do not create parallel active plan files.
 - Do not invent or reuse version names during implementation. For production deployments record the Docker image tag, git commit, SHA256, and E2E status in `docs/v3/CURRENT_STATUS.md`; reserve Git release tags for accepted releases.
 - Verify impact across service Windows, service Docker, and desktop Windows according to `docs/v2/DEVELOPMENT_WORKFLOW.md`.

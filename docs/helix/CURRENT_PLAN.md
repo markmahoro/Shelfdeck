@@ -1,114 +1,127 @@
-# ShelfDeck Architecture Current Plan
+# ShelfDeck Clean Helix Master Plan
 
-Status: Design only; Levels 0–10 accepted; final full-document architecture audit closed; implementation, E2E and production deployment paused.
+Status: Levels 0–10 accepted; clean-cut direction and engineering document package accepted; P1 planned; Implementation Gate closed; E2E, build and production paused.
 
 Last updated: 2026-07-16
 
-## Objective
+## 1. Role and authority
 
-以`TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`为唯一架构SSOT，从Level 0逐层形成clean Helix合同，再基于完整合同审计现有实现并制定一次性clean-cut实施计划。当前只允许架构设计、文档治理和只读实现盘点。
+本文是唯一Helix Master Plan，只维护：
 
-## Accepted baseline
+- clean-cut总决策；
+- P0–P14 Phase顺序、依赖和Exit Gate；
+- 当前Phase指针；
+- 授权边界和下一动作。
 
-- Level 0–9已经确认并固化为`ACCEPTED`；Level 3/5/6/7/8/9的Journey amendment不改变其用户确认业务边界。
-- Procurement、Libra、Arca、User Perception和People Management是五个一级业务域。
-- Collection Formation只有`Procurement → Libra`和`Libra → Arca`两次单向Business Handoff。
-- Level 3–6在2026-07-16完成首轮bounded change set回写、封闭审计和用户确认；Level 9 Journey Review的第二轮
-  bounded change set已应用并审计，Review台账已经关闭；Level 9已经由用户确认。
-- Level 7已经通过封闭审计；Level 8只能引用Level 0–7的Canonical Terms和Owner合同，不能借历史
-  Kairox/Mirex实现反向改写业务边界。
-- 生产容器继续停止；四库E2E、镜像构建、部署和破坏性样本测试均未获恢复授权。
+架构只由`TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`定义；工程过程只由`ENGINEERING_PLAYBOOK.md`定义；当前Phase的
+Work Package细节只存在于`implementation/CURRENT_PHASE.md`；当前事实只由`CURRENT_STATUS.md`报告。
 
-## Current design sequence
+本文不复制Phase执行细节，也不保存已完成审计全文。
 
-1. Level 7结构化设计、Level 0–6一致性审计、历史62项Capability Conservation Audit与Acceptance Closure
-   Audit已经完成；Level 7为`ACCEPTED`。
-2. Level 8 Logical and Physical Components已经完成结构化设计与封闭审计：逻辑组件、物理模块、Store/Facade、
-   Composition Root、单SQLite事务/Outbox、112项clean Capability contract、156张关系表约束、function-level
-   conservation ledger与clean-cut映射均已进入SSOT。
-3. Level 8已由用户确认；Level 9已从九条经典旅程推导普通产品表面/Advanced Diagnostics、九页信息
-   架构、Intent/Authorization、Policy/Automation/Settings、113个Admin HTTP method+path和1个public health route、Projection、Activity
-   Ledger、视觉/Accessibility合同。
-4. Level 9 Journey Reverse Audit确认的8项合同传播/物理闭合缺口，已经按
-   `Level 3/5/6 semantic propagation → Level 7 progress → Level 8 schema/transaction/catalog → Level 9 API/projection`
-   完成bounded回写并通过六类post-change audit。
-5. 当前8项Finding均可由Accepted合同唯一推导，没有新的用户业务Decision；只有真正改变产品含义的新增分叉
-   才进入对应Level的非Canonical Business Decision Register，纯工程映射
-   由内部审计收敛。
-6. Level 9已经由用户确认；Level 10 Operational Contract已完成结构化草案和内部审计。Level 0–10全部确认、
-   实现差距审计完成、clean-cut实施计划经用户确认前，不恢复代码实施。
-7. Level 10结构化正文、前序reservation覆盖、运行参数、negative path与Release Gate已经完成内部封闭审计；
-   用户已经确认Level 10。Level 0–10最终全文审计的三轮盲审、主审反证和全部确定性bounded change已经完成。
-8. `FA-04`已经由用户确认Exact continuity方案，并传播至Level 3/4/5/6/8；全文机械、Owner、Handoff、
-   Journey、Recovery和negative-path复审全部通过，最终架构审计关闭。
-9. 下一设计阶段只能先做现有实现差距审计和clean-cut实施计划；用户确认该计划前Implementation Gate不打开。
+## 2. Accepted implementation decision
 
-## Level 8 accepted contract and Level 9 entry discipline
+采用：
 
-- 采用“本层目标 → 总体结构 → 分层合同 → 跨层不变量 → 一致性审计 → Dictionary”的总分结构。
-- Level 8已经固化模块化单体、Domain package、Store/Facade、事务、clean Capability Catalog、依赖门禁和
-  clean-cut映射；Level 9不得用页面便利重新合并这些边界。
-- Level 8已确定一个物理`data/shelfdeck.db`承载严格隔离的Domain/Foundation表族；同库只用于关闭
-  Responsibility/Control原子提交窗口，不授予跨Domain Store访问。
-- Clean runtime物理根为`media-service/src/helix/`；旧Libra/Nexora/Kairox/Task/Gate实现只作为function-level
-  conservation输入，不能形成双轨主路径。
-- Level 9只允许调用Application Facade与Read-model Projection，不接触Domain Store、Planner、Capability、
-  Workflow Event或Material Control内部接口。
-- Level 9先从Level 1价值结果与Level 2 Canonical Owner推导用户旅程，再设计页面、API和设置；现有Admin Web
-  只能作为实施差距Evidence，不能成为产品合同来源。
-- Level 8仍是Accepted基线，Level 9 Journey Reverse Audit证明的物理合同缺口已经按确认语义bounded补全；
-  未改写Level 0–7 Owner/Handoff/Authorization。
+> 新`media-service/src/helix/`完整重建clean业务核心和产品表面；旧实现逐函数取证复用；完整验证后一次性切换
+> Composition Root；不在旧Libra/Nexora/Kairox/Task主路径上增量改造。
 
-## Level 10 accepted scope
+固定边界：
 
-Level 10是Operational Contract，不重新设计Business Domain、Process、Component、Schema、API或页面。Accepted正文把
-Level 0–9已经确认的合同转成可测量的运行标准、故障后果和发布门禁，并采用与Level 3–9一致的总分结构：
+- 五个一级Business Domain为Procurement、Libra、Arca、User Perception、People Management；
+- Collection Formation只有Procurement→Libra和Libra→Arca两次单向Handoff；
+- 一个`data/shelfdeck.db`不等于共享Store；Repository和Fact Owner保持隔离；
+- clean schema不迁移旧Runtime事实，不dual-read/write/run，不保留旧fallback；
+- 62个旧业务executor中0个可整体复制；复用只限登记后的pure/protocol/FFmpeg/file-transaction原子；
+- 完整clean root切换前只允许isolated fixture，不形成混合可运行产品；
+- `media-desktop`不属于本轮范围。
 
-1. Scope、继承关系与禁止越界；
-2. Runtime启动、Readiness、降级、故障和只读/拒绝写入状态；
-3. clean initialization、旧数据备份、配置导出/恢复和clean-cut安全步骤；
-4. restart/crash-window恢复、Reconciler、Effect/Outbox/Control收敛与断点续传；
-5. Resource Profile、容量、队列、背压、重试、超时和Circuit Breaker的精确运行参数；
-6. Workspace、Artifact、历史Fact、Audit、WAL、Projection和临时数据的保留与GC；
-7. HTTP、SQL、Event loop、内存、DB/WAL、Provider、Worker和全流程吞吐的SLA/SLO与测试Profile；
-8. Operational Health、指标、日志、告警、Advanced Diagnostics和故障Runbook；
-9. Secret、Admin credential、备份、不可逆操作和恢复过程的运行安全；
-10. Windows开发、Linux Docker、NAS、GPU/QSV/NVENC与Remote Worker的部署差异和Canary边界；
-11. 单元/合同/故障注入/真实来源/受限Profile/soak/发布验收矩阵与Beta Release Gate；
-12. Level 0–9运行维度反向审计、Canonical Dictionary与确认状态。
+实现差距基线和处置Evidence见
+`implementation/evidence/IMPLEMENTATION_GAP_AUDIT_4a16f0a9.md`。
 
-Level 10不是逐文件实施计划。内部审计没有发现需要用户选择的新增业务分叉；容量数字、重试预算、GC周期、
-SLA阈值和测试装置已经作为Operational Baseline提出，后续只能以真实环境Evidence校准且不得放宽Invariant。
+## 3. Current phase
 
-## Business decision handling
+| Field | Current value |
+| --- | --- |
+| Phase | P1 — Clean Skeleton and Architecture Guards |
+| Detailed packet | `implementation/CURRENT_PHASE.md` |
+| Status | planned / not started |
+| Entry blocker | Implementation Gate未被用户打开 |
+| Allowed now | 文档治理、只读审计、计划确认 |
+| Next authorized action | 用户明确授权`Local implementation only`后执行P1-00 |
 
-`LEVEL7_BUSINESS_DECISIONS.md`是已关闭的Level 7非Canonical业务决策Evidence，不属于Architecture Review，
-也不能覆盖SSOT。
+## 4. Master roadmap
 
-只有以下问题可以提交用户：
+| Phase | Outcome | Dependencies | Exit Gate summary |
+| --- | --- | --- | --- |
+| P0 Audit and disposition | `4a16f0a9`差距、旧模块处置、风险和clean-cut方向 | Level 0–10 accepted | **complete**；Evidence已冻结 |
+| P1 Clean skeleton and guards | 固定`src/helix/`、public/internal边界、唯一Root shell、机器架构门禁和manifest框架 | P0；Local Implementation Gate | clean→legacy import=0；跨域internal=0；旧Root未接线 |
+| P2 Contract and schema baseline | 112 Capability、96 Result、156 table合同与digest | P1 | 112/112、96/96、156/156机械审计通过 |
+| P3 Persistence and atomic foundation | 唯一Kernel、scoped UoW、Control、Commit Marker、Outbox/Inbox、Audit | P2 | canonical transaction全部“全成或全不成” |
+| P4 Execution and recovery foundation | Work/Plan/Event/Effect、Progress、Control Plane、Resource、Retry/Timeout/Circuit、startup recovery | P3 | 每种Effect crash window闭合；unknown Effect不供给普通Work |
+| P5 Platform and integrations | Secret/Mount/Workspace/Artifact/Resource/Worker及typed Provider/FFmpeg/file libraries | P3–P4 ports | Adapter不写Domain Fact；Secret和Material Handle安全合同通过 |
+| P6 Horizontal domains | Perception和People独立Store/Facade/Process/Projection | P3–P5 | 两域事实只由各自Owner写；Media-Cast不进入People Store |
+| P7 Procurement | Material Field、Observation、Region、Triage、Candidate Package | P3–P5 | `0..N` Field隔离；Related/Control和Candidate唯一性成立 |
+| P8 Handoff A and Libra front half | Handoff A、FA-04 continuity、Subject、Decision、Routing、Acceptance Spec | P6–P7 | Decision/Subject/Binding/Control/Receipt单事务 |
+| P9 Libra production and delivery | Run、Workspace、Product、Conformance、On-deck Package、Discard/Cleanup/Reclaimer | P4–P5、P8 | Libra只写Workspace；Promotion/Discard/Cleanup原子闭合 |
+| P10 Handoff B and On-deck | Shelf/Standard/Placement、Acceptance、Custody、Off-load、Inventory、Shelf Entry、Deck | P5、P9 | Handoff B不建Own；只有On-deck Commit建立/扩展Deck |
+| P11 Arca post-deck | Aftercare、Off-deck、Shelf Deregistration | P10 | 三种旅程/授权独立；Deregistration零Delete |
+| P12 Product surface | Projection/Activity、Facade、113 Admin route、Session/Auth、九页Admin Web | P6–P11 | 113/113+health；GET无副作用；九旅程和a11y通过 |
+| P13 Operational cutover | clean init/backup/restore/Safety、readiness；Root/API/UI一次切换；旧路径退役 | P2–P12 | mixed generation拒写；无dual path；本地完整验证通过 |
+| P14 Authorized verification/release | Real-source E2E、Windows/Linux/NAS、Docker、Canary、生产 | P13；每类独立授权 | Level 10 Release Gate；任一阶段失败停止后续 |
 
-- 改变用户真实业务旅程或可见业务结果；
-- 改变不可逆操作的授权语义；
-- 改变Business Domain、Owner、Business Handoff或业务对象连续性；
-- 存在两个都合法但产品含义不同的方案。
+P1–P13是逻辑实施Phase，不是版本名或自动部署节点。P14当前不在授权范围内。
 
-Level 7没有未关闭业务决策，`LEVEL7_BUSINESS_DECISIONS.md`已经关闭。Level 9反向审计没有发现需要用户
-选择的业务分叉；8项Finding均已由Codex按Accepted合同收敛。不能重新打开前序Level来承载页面布局、API命名
-或纯Schema选择争议。
+## 5. Hard dependency invariants
 
-## Prohibitions
+~~~text
+P1 package/guards
+  → P2 contracts/schema
+  → P3 atomic persistence
+  → P4 execution/recovery
+  → P5 platform/integration substrate
+  → P6/P7 horizontal domains and Procurement
+  → P8/P9 Handoff A and Libra
+  → P10/P11 Handoff B, Arca and post-deck
+  → P12 Projection/API/Admin Web
+  → P13 operational cutover
+  → P14 separately authorized external verification/release
+~~~
 
-- 不按旧Membership、Admission、maintenanceComplete或全局SourceBinding模型继续实现。
-- 不把Candidate Package、Subject和Shelf Entry写成同一对象的状态迁移。
-- 不让Procurement、Libra和Arca共享业务对象主键或Material Binding Store。
-- 不让Related Material、目录或Material Field范围隐式扩大Material Control Scope。
-- 不把Physical Material Manifest实现成全局可变对象、共享Binding Store或新的媒体业务主键。
-- 不让同一Physical Material进入两份并行可接收Candidate。
-- 不让Kairox、Mirex、旧Flow Executor或旧Task状态机反向决定clean Helix边界。
-- 不把`flowKind`恢复为Executor路由键，不建立全局业务Planner或全局Priority Engine。
-- 不恢复四库E2E、生产容器、镜像构建或部署。
-- 不修改`media-desktop`。
+禁止以以下方式缩短依赖链：
 
-## Implementation gate
+- 新Procurement接旧Membership；
+- 新Libra写旧`media_items`或Kairox Store；
+- 新Event Runtime驱动旧executor；
+- 新Admin Web调用旧Task/Library route；
+- clean database回退旧Service；
+- 先做Material副作用、后补Control/Effect recovery。
 
-Level 0–10全部确认、现有实现差距和能力守恒审计完成、用户确认clean-cut实施计划之前，不得恢复代码实施。测试通过只能作为实现Evidence，不能替代架构确认。
+## 6. Phase planning and transition
+
+- 任意时刻只有`implementation/CURRENT_PHASE.md`一份活动详细执行包；
+- 只细化当前Phase，后续Phase维持Outcome/Dependency/Exit Gate级别；
+- 当前Phase全部Work Package满足Done并通过独立Exit Audit后，执行包移动到`implementation/archive/`；
+- Evidence冻结并由`CURRENT_STATUS.md`链接后，才细化下一Phase；
+- Phase完成不自动打开下一类环境授权；
+- blocking架构缺口返回Design，不以兼容层、temporary Store或silent fallback解决。
+
+详细Ready/Done、Review、Reuse、Git/worktree和停线规则见`ENGINEERING_PLAYBOOK.md`。
+
+## 7. Authorization boundaries
+
+当前仅授权Design-only文档工作。后续权限必须逐层明确：
+
+1. Local implementation：本地代码、单元/合同/隔离fixture；
+2. Real-source E2E：明确来源和副作用范围；
+3. Build/Canary：明确Artifact和环境；
+4. Production：明确发布/部署/升级动作。
+
+确认本文、Playbook或Current Phase不自动授权下一层。E2E、Docker、NAS、生产和真实媒体副作用保持暂停，
+`media-desktop`保持排除。
+
+## 8. Business decision handling
+
+只有改变用户真实意图、可见业务结果、不可逆Authorization、Business Domain/Owner/Handoff或Object continuity的
+问题才提交用户。包结构、代码组织、测试工具、manifest格式、SQL实现和性能优化由工程内部在SSOT边界内决定。
+
+当前没有open business decision。当前下一决策只是是否打开`Local implementation only` Gate。

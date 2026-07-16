@@ -1,6 +1,6 @@
 # ShelfDeck / Helix Documentation Index
 
-Status: clean architecture redesign; Levels 0–10 accepted; final full-document architecture audit closed; implementation, E2E and production deployment paused.
+Status: clean architecture accepted; final audit closed; P0 implementation gap audit complete; P1 planned; Implementation Gate closed; E2E, build and production paused.
 
 ## Architecture authority
 
@@ -18,8 +18,11 @@ Status: clean architecture redesign; Levels 0–10 accepted; final full-document
 | `TOP_DOWN_ARCHITECTURE_CONFIRMATION.md` | 唯一架构SSOT；Level 0–10与最终全文审计均已关闭 |
 | `LEVEL7_BUSINESS_DECISIONS.md` | 已关闭的Level 7非Canonical业务决策Evidence；没有Open Decision |
 | `ARCHITECTURE_REVIEW.md` | 已关闭的非Canonical Review台账；Section 14记录最终全文审计、`FA-04`与Closure Evidence |
-| `CURRENT_PLAN.md` | 唯一活动计划与Design门禁 |
-| `CURRENT_STATUS.md` | 当前架构确认进度、实现差距与安全状态 |
+| `CURRENT_PLAN.md` | 唯一Master Plan；只维护Phase路线、依赖、Exit Gate、当前Phase指针和授权边界 |
+| `CURRENT_STATUS.md` | 当前Phase、Gate、Evidence、风险和安全状态；不保存详细执行计划 |
+| `ENGINEERING_PLAYBOOK.md` | 非Canonical长期工程规范；Work Package、Ready/Done、门禁、验证、Review、复用和停线规则 |
+| `implementation/CURRENT_PHASE.md` | 唯一活动Phase详细执行包；当前为P1，从属于Master Plan |
+| `implementation/evidence/IMPLEMENTATION_GAP_AUDIT_4a16f0a9.md` | 已关闭的`4a16f0a9`实现差距矩阵、处置与风险Evidence |
 | `CAPABILITY_CONSERVATION.md` | 已完成的Level 7能力守恒Evidence；62项历史能力逐项映射，不覆盖SSOT |
 | `KAIROX_CAPABILITY_CATALOG.md` | 62项历史Capability目录快照；不定义clean Owner或调用方向 |
 | `acceptance/FLOWPLAN_BUSINESS_PARITY.md` | 旧Kairox FlowPlan复刻验收Evidence；不定义clean业务流程 |
@@ -31,6 +34,8 @@ Status: clean architecture redesign; Levels 0–10 accepted; final full-document
 TOP_DOWN_ARCHITECTURE_CONFIRMATION.md
 CURRENT_STATUS.md
 CURRENT_PLAN.md
+ENGINEERING_PLAYBOOK.md（实施治理、代码变更或Phase验收时）
+implementation/CURRENT_PHASE.md（当前Phase计划、实施或验收时）
 LEVEL7_BUSINESS_DECISIONS.md（仅追溯已关闭的Level 7业务决策审计；非Canonical）
 ARCHITECTURE_REVIEW.md（仅追溯Architecture Review；非Canonical）
 ~~~
@@ -44,9 +49,23 @@ ARCHITECTURE_REVIEW.md（仅追溯Architecture Review；非Canonical）
 
 归档文档保持原样以便追溯。它们不再是活动合同、活动计划或当前状态来源。
 
+## Engineering document package
+
+Helix实施文档采用“一份Master Plan + 一份Current Phase执行包”的结构：
+
+- `CURRENT_PLAN.md`保持精简，不吸收Work Package细节；
+- `implementation/CURRENT_PHASE.md`是唯一活动详细计划；
+- 当前Phase通过Exit Gate后，执行包冻结到`implementation/archive/`，再为下一Phase重建稳定的Current Phase路径；
+- 审计、机械核对和验收结果进入`implementation/evidence/`，不能反向修改SSOT；
+- 禁止为并行组件、临时修复或单个Work Package创建第二份活动计划文档。
+
+`ENGINEERING_PLAYBOOK.md`是长期过程规则，不是第二份计划。`CURRENT_STATUS.md`只报告事实，不承担未来承诺。
+
 ## Conflict rule
 
 1. `TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`高于所有其他Helix、v3、v2和实现说明。
-2. `CURRENT_STATUS.md`只报告当前状态，`CURRENT_PLAN.md`只规定当前工作顺序；二者不得改写SSOT。
+2. `CURRENT_STATUS.md`只报告当前事实，`CURRENT_PLAN.md`只规定Master顺序，`implementation/CURRENT_PHASE.md`
+   只细化当前Phase；三者不得改写SSOT。
 3. Capability目录、历史实现和测试只提供Evidence，不能反向证明旧业务边界仍然有效。
-4. 当前不得依据归档文档恢复编码、E2E或生产部署。
+4. `ENGINEERING_PLAYBOOK.md`只规定实施过程；过程便利不能覆盖Owner、Handoff、Authorization或Object continuity。
+5. 当前不得依据计划、Evidence或归档文档恢复编码、E2E、构建或生产部署；必须遵守明确Gate。
