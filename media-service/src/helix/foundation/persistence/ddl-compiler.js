@@ -262,6 +262,11 @@ function compileSchema(inputContracts) {
       contractId: 'helix://contracts/tables/' + contract.tableId + '/v1',
       contractDigest: digest(contract),
       sqlDigest: digest([compiled.sql, ...indexes.map((index) => index.sql)].join('\n')),
+      columns: [
+        ...contract.columns.map((column) => column.name),
+        ...compiled.supportColumns.map((column) => column.name)
+      ],
+      immutable: contract.immutability.immutable,
       supportColumns: compiled.supportColumns.map((column) => ({ name: column.name, ruleOrdinal: column.ruleOrdinal })),
       indexes,
       sql: compiled.sql
