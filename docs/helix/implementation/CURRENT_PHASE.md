@@ -2,7 +2,7 @@
 
 Current phase: `P4 — Execution and Recovery Foundation`
 
-Status: in progress；P4-00–P4-01 complete；P4-02 next；P3 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P4-00–P4-02 complete；P4-03 next；P3 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-16
 
@@ -69,8 +69,8 @@ P4不形成“可运行半成品产品”；所有Runtime fixture必须在isolat
 | --- | --- | --- | --- |
 | P4-00 | P3 closure and isolated P4 baseline receipt | complete | P3 PASS |
 | P4-01 | Foundation public ports and runtime nominal contracts | complete | P4-00 |
-| P4-02 | Exact Capability Registry and typed dispatcher gate | next | P4-01；P2 Capability contracts |
-| P4-03 | Supporting Work admission and idempotent submission | pending | P4-01；P3 Persistence |
+| P4-02 | Exact Capability Registry and typed dispatcher gate | complete | P4-01；P2 Capability contracts |
+| P4-03 | Supporting Work admission and idempotent submission | next | P4-01；P3 Persistence |
 | P4-04 | Immutable normalized Plan and DAG validator | pending | P4-02–P4-03 |
 | P4-05 | Work Supply Controller and bounded backpressure | pending | P4-03–P4-04 |
 | P4-06 | Work Scheduler、dependency readiness and technical lease | pending | P4-04–P4-05 |
@@ -114,6 +114,12 @@ P4不形成“可运行半成品产品”；所有Runtime fixture必须在isolat
 - Register exactly frozen `capabilityRef@version` contracts；bind immutable scope、Effect Class、schemas、Fence、Resource and executor identity.
 - Catalog visibility is Domain + explicitly Shared only；no recommendation、fallback、version substitution or historical flow routing.
 - Unknown/unavailable contract、schema drift or executor mismatch fails before Work/Event supply.
+- Done: commit `758b92ad` registers exactly all 112 frozen refs with deterministic contract snapshots，Domain views limited to own +
+  Shared Foundation，and exact resolver rejection for missing/unknown/duplicate/version substitution/old executor/semantic-validator drift.
+  The typed dispatcher validates CapabilityExecutionContext、named inputs、parameters、Fence、Outcome、Result/Evidence and semantic hooks
+  before returning；forbidden authority fields and non-pure success without Effect Receipt fail closed. JSON Schema validation is closed、
+  non-coercing and nominal；`ajv/dist/2020` and `ajv-formats` are the only exact external modules authorized to `foundation.capability`.
+  Eight focused groups、full gate and fresh detached-worktree gate PASS；P2 contract aggregate unchanged，no fallback/internal HTTP/Store.
 
 ### P4-03 Supporting Work admission and idempotent submission
 

@@ -13,12 +13,12 @@ Last updated: 2026-07-16
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation |
 | Current phase | P4 — Execution and Recovery Foundation |
-| Current phase status | in progress；P4-00–P4-01 complete；P4-02 next；P3 Exit Audit PASS |
+| Current phase status | in progress；P4-00–P4-02 complete；P4-03 next；P3 Exit Audit PASS |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P3 phase closure `4a59356f3a89f1af38f594763aaaa0465e203b99` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p4` on `codex/helix-p4` |
-| Next action | P4-02 Exact Capability Registry and typed dispatcher gate |
+| Next action | P4-03 Supporting Work admission and idempotent submission |
 
 ## 2. Accepted implementation conclusion
 
@@ -166,4 +166,7 @@ Foundation public ports and runtime nominal contracts。P4-01已在`4a9b5a59`完
 `foundation.public` package，精确暴露7个Port且拒绝Repository/SQLite/Executor/generic dispatch；Runtime nominal
 state/Plan Resolution/Priority/七种Effect Class分别由P2表与112 Capability合同反向校验。Supporting Work Definition拒绝
 预选Capability/Executor/flow/path和非opaque引用。8组专项、218-test完整门禁及fresh detached-worktree均PASS，P2合同
-aggregate不变。下一检查点是P4-02 exact Capability Registry and typed dispatcher gate。没有需要用户决定的业务问题。
+aggregate不变。P4-02已在`758b92ad`完成：112项exact Registry、Domain+Shared可见性、schema/semantic/executor
+binding与typed Dispatcher全部fail closed；Context/input/parameters/Fence/Outcome/Result/Evidence逐层验证，拒绝版本替代、
+权限字段和非pure无Receipt success。`foundation.capability`只精确授权Ajv两个模块。8组专项、完整门禁及fresh detached
+worktree均PASS，P2 aggregate不变。下一检查点是P4-03 Supporting Work admission。没有需要用户决定的业务问题。
