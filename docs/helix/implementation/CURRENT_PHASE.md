@@ -1,8 +1,8 @@
 # ShelfDeck Clean Helix Current Phase Execution Packet
 
-Current phase: `P3 — Persistence and Atomic Foundation`
+Current phase: `P4 — Execution and Recovery Foundation`
 
-Status: in progress；P3-00–P3-09 complete；P3-10 next；P2 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P4-00 next；P3 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-16
 
@@ -13,225 +13,191 @@ Last updated: 2026-07-16
 1. `../TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`；
 2. `../CURRENT_PLAN.md`；
 3. `../ENGINEERING_PLAYBOOK.md`；
-4. P2冻结的112/96/156/18 machine-readable contract baseline。
+4. P2冻结的112/96/156/18合同与P3原子Persistence foundation。
 
-用户授权Codex自主推进P2–P13 Local Implementation。每个Phase在SSOT traceability、机器反例和Exit Audit全部PASS
-后自动归档并进入下一Phase。不得修改SSOT，不得引入compatibility、dual-read/write/run或旧Runtime fallback。
+SSOT仍是唯一架构Authority。用户授权Codex自主推进P2–P13 Local Implementation；每个Phase只有在traceability、
+机器反例和Exit Audit全部PASS后才自动归档。不得修改SSOT，不得引入compatibility、dual path或旧Runtime fallback。
 
-继续需要单独授权：真实来源E2E、Docker/Canary、生产、真实媒体副作用和`media-desktop`。
+继续需要单独授权：真实来源E2E、Docker/Canary、production、真实媒体副作用和`media-desktop`。
 
 ## 2. Phase objective
 
-以P2合同为唯一实现输入，建立clean `shelfdeck.db`的Persistence与原子提交基础：156表clean schema、唯一SQLite
-Kernel、Owner-scoped Repository/Unit of Work、Commit Marker、Command Receipt、Outbox/Inbox、Audit与Material Control CAS。
-18项canonical transaction必须在隔离临时数据库中证明“全部成立或全部不成立”。
+在P3 clean Persistence之上实现纯clean Execution Foundation：Supporting Work、Work Attempt、immutable normalized Plan、
+Workflow Event/Event Attempt、typed Capability dispatch、progress、Control Plane、Resource Governor、Retry/Timeout/Circuit和
+按七种Effect Class恢复。Runtime只形成技术执行事实，不创建Business Process、Decision、Run、Case、Handoff或Owner事实。
 
-P3不实现Work/Event Runtime、Domain业务行为、HTTP/API/UI，也不接旧产品Composition Root。
+P4的外部/文件/Provider/Worker效果全部由deterministic fake adapter与receipt模拟；不接产品startup或旧executor。
 
 ## 3. Baseline and protected workspace
 
 | Field | Value |
 | --- | --- |
 | P0 code audit baseline | `4a16f0a94ef23fcf732843e9547bd7b724d9c19d` |
-| P2 audited closure | `a735781010ee58c4119d93bb320bfe11bf1d4b7f` |
-| P3 implementation baseline | `e3b50f946956105b18ffcf0853c8c2a57ebb4db8` |
+| P3 audited implementation | `5f433d930ba3111c19b1589816b96c790d60e5f3` |
+| P3 Exit evidence | `evidence/P3_PHASE_EXIT_AUDIT_5F433D93.md` / digest `b7269dd7…` |
 | Integration branch | `codex/helix-clean` |
-| Phase branch/worktree | `codex/helix-p3` / `E:\my_project\emby_third_party-helix-p3` |
+| P4 phase branch/worktree | to be created by P4-00 from the exact P3 phase-closure commit |
 | Original workspace | `E:\my_project\emby_third_party` on `master`；dirty user work preserved |
-| Excluded | `media-desktop`、E2E、Docker/Canary、production、real media、legacy data migration |
+| Excluded | legacy Runtime/executors、product startup、API/UI、`media-desktop`、E2E、Docker/Canary、production、real effects |
 
 ## 4. In scope
 
-- deterministic clean DDL compilation from 156 P2 table contracts；
-- one SQLite Kernel and clean schema generation marker；
-- Owner-scoped Repository ports and Unit of Work；
-- Command Receipt、Commit Marker、Audit、Outbox/Inbox/Delivery；
-- Material Control current row/revision CAS；
-- typed Domain/Control/Foundation CommitParticipant registry；
-- 18 canonical transaction atomic/crash fixtures on disposable local DBs；
-- foreign-key、partial-unique、JSON/check/index and startup integrity validation。
+- Foundation public Work Submission/Query/Health ports without Repository or generic dispatch exposure；
+- exact 112 Capability Registry、contract/schema/Effect Class/Fence/Resource validation and typed dispatcher；
+- Work Admission、Supply Controller、Scheduler and normalized Work/Plan/Event persistence；
+- one Resource Governor capacity Owner、atomic Permit bundle、bounded waiter/defer and profile mapping；
+- Event Attempt、typed ExecutionContext、Fence、Progress、Outcome and Result binding；
+- seven Effect Class journals/reconcilers、Retry/Timeout/Compensation and startup recovery；
+- Pressure Guard、Circuit Breaker、readiness and invariant diagnostics；
+- isolated local crash/recovery fixtures using P3 DB and fake clocks/adapters only。
 
 ## 5. Out of scope
 
-- old DB migration、import、dual-read/write、compatibility views or fallback；
-- Runtime Work/Plan/Event/Effect execution and recovery loop；
-- real Domain aggregate behavior、Planner、Capability executor、Facade；
-- server startup wiring、HTTP、Admin Web、`media-desktop`；
-- real filesystem/media/network effects；
-- E2E、Docker、Canary or production。
+- real Domain Planner、Automation、Reconciler or Business Decision；
+- real Capability executor implementation、Provider/FFmpeg/Worker/filesystem/network adapter；
+- real Workspace/Secret/Mount/Artifact/Worker registries（P5）；
+- product Composition Root、Service startup、HTTP/API/Admin Web、`media-desktop`；
+- old Kairox/Task scheduler、flow、executor、queue、resource runtime or data；
+- E2E、Docker/Canary、production、real media and any external side effect。
 
-所有数据库fixture必须使用临时目录并在测试结束后销毁；不得打开原工作区`data/`或生产数据库。
+P4不形成“可运行半成品产品”；所有Runtime fixture必须在isolated temp DB中完成并销毁。
 
 ## 6. Work Package index
 
 | ID | Title | Status | Dependencies |
 | --- | --- | --- | --- |
-| P3-00 | P2 closure and isolated P3 baseline receipt | complete | P2 PASS |
-| P3-01 | Deterministic 156-table clean DDL compiler | complete | P3-00；P2 tables |
-| P3-02 | SQLite Kernel and clean schema generation gate | complete | P3-01 |
-| P3-03 | Owner-scoped Repository and Unit of Work boundaries | complete | P3-02 |
-| P3-04 | Commit Marker、Command Receipt and Audit foundation | complete | P3-03 |
-| P3-05 | Outbox、Delivery and Inbox atomic foundation | complete | P3-03–P3-04 |
-| P3-06 | Material Control CAS current/revision participant | complete | P3-03–P3-04 |
-| P3-07 | Typed Domain Commit Registry and participant coordinator | complete | P3-03–P3-06 |
-| P3-08 | 18 canonical transaction crash-window fixtures | complete | P3-07 |
-| P3-09 | Cross-persistence verification harness | complete | P3-01–P3-08 |
-| P3-10 | P3 Phase Exit Audit and evidence freeze | next | P3-00–P3-09 |
+| P4-00 | P3 closure and isolated P4 baseline receipt | next | P3 PASS |
+| P4-01 | Foundation public ports and runtime nominal contracts | pending | P4-00 |
+| P4-02 | Exact Capability Registry and typed dispatcher gate | pending | P4-01；P2 Capability contracts |
+| P4-03 | Supporting Work admission and idempotent submission | pending | P4-01；P3 Persistence |
+| P4-04 | Immutable normalized Plan and DAG validator | pending | P4-02–P4-03 |
+| P4-05 | Work Supply Controller and bounded backpressure | pending | P4-03–P4-04 |
+| P4-06 | Work Scheduler、dependency readiness and technical lease | pending | P4-04–P4-05 |
+| P4-07 | Resource Governor、Profile Mapper and atomic Permit bundle | pending | P4-05–P4-06 |
+| P4-08 | Event Runtime、Fence、Outcome/Result and Progress | pending | P4-02、P4-06–P4-07 |
+| P4-09 | Effect Journal and seven Effect-specific reconcilers | pending | P4-08；P3 atomic commits |
+| P4-10 | Retry、Timeout and declared Compensation | pending | P4-08–P4-09 |
+| P4-11 | Pressure Guard and persistent Circuit Breaker | pending | P4-05–P4-10 |
+| P4-12 | Startup recovery and Foundation readiness | pending | P4-09–P4-11 |
+| P4-13 | Cross-runtime crash/recovery verification harness | pending | P4-01–P4-12 |
+| P4-14 | P4 Phase Exit Audit and evidence freeze | pending | P4-00–P4-13 |
 
 ## 7. Work Package contracts
 
-### P3-00 P2 closure and isolated P3 baseline receipt
+### P4-00 P3 closure and isolated P4 baseline receipt
 
-- Fast-forward P2 closure into `codex/helix-clean` and create clean P3 branch/worktree from the exact commit.
-- Re-run frozen P2 contract gate and verify original dirty workspace/`media-desktop` remain untouched.
-- Record exact baseline; no Persistence code starts before receipt PASS.
-- Done: `codex/helix-clean` and isolated P3 worktree start at exact closure
-  `e3b50f946956105b18ffcf0853c8c2a57ebb4db8`；fresh checkout P2 gate is 112/96/156/18 PASS，191 refs / 0 unresolved，
-  original aggregate `ebbfda8885837170d48a0feb8f3aaad9a32aa35c44dc2db21704f820a6e3fc4a`；original dirty workspace unchanged.
-  P3-02的SSOT §8.5.9预审随后发现table semantic baseline不足，已由`d96464a7`修正并以新aggregate
-  `aab78271f712df7714233f0a79e24453e0c1a85c5d214ebf926dc6e71adba247`重新闭合；详见
-  `evidence/P2_TABLE_CONTRACT_SEMANTIC_REPAIR_D96464A7.md`。
+- Fast-forward the accepted P3 closure to `codex/helix-clean` and create an isolated P4 branch/worktree from that exact commit.
+- Re-run `P3_LOCAL_CROSS_PERSISTENCE` and P3 Exit Audit in fresh checkout；verify original dirty workspace remains unchanged.
+- Record exact closure baseline before Runtime code begins.
 
-### P3-01 Deterministic 156-table clean DDL compiler
+### P4-01 Foundation public ports and runtime nominal contracts
 
-- Compile only P2 table contracts into deterministic SQLite DDL, checks, indexes and FK declarations.
-- Emit no legacy table/view/trigger and no migration from old Runtime facts.
-- Every table/index/check maps back to one P2 contract and digest; unsupported contract shapes fail closed.
-- Done: implementation commits `c5b0822e` + `faf9fe48` + semantic repair `d96464a7` deterministically emit 156 clean tables and 72 indexes, including all 19 P2
-  partial-unique rules；three cross-table predicates use explicit technical guard columns with rule trace and no new Business Owner/fact.
-  final DDL digest `98e50feb79165844951ab5133f383eedc82848e83b0e4a2c4a58059121548b11`；156/156 generated table traces
-  retain the repaired exact P2 contract digest；57 closed state enums、168 SHA-256 checks、revision `>=1`及positive/negative compiler checks
-  （含Windows fresh-checkout行尾复现）和完整clean architecture gate PASS。No SQLite
-  connection、startup wiring、legacy schema、view、trigger or historical data path was introduced.
+- Publish only Work Submission/Query、typed Registry provider、Command/Control and Foundation Health contracts.
+- Freeze Work/Attempt/Plan/Event/Progress/Outcome/Effect Journal nominal state machines and transition ownership.
+- Public package must not expose Repository、SQLite、Executor instance or `dispatch(name,payload)`.
 
-### P3-02 SQLite Kernel and clean schema generation gate
+### P4-02 Exact Capability Registry and typed dispatcher gate
 
-- Implement the only SQLite connection/transaction Kernel with required PRAGMA and same-commit timestamp injection.
-- Validate schema generation、Catalog digest、`foreign_key_check` and partial-unique self-check before writable use.
-- Tests use disposable databases only；no server startup wiring or local `data/` access.
-- Done: commit `63e96c0e` opens only the caller-supplied clean path through the sole Kernel constructor；requires WAL、
-  `foreign_keys=ON`、NORMAL synchronous and 5000 ms busy timeout；initializes exactly one `helix-clean-v1` marker and validates
-  156 tables、72 indexes、19 partial unique indexes、Catalog digest、`integrity_check`、`foreign_key_check` and three cross-table
-  guard projections before writable use. Five fixture groups prove same-commit time、commit/rollback、nested rejection、legacy/mixed
-  refusal、DDL/marker/catalog/partial-index tamper refusal、FK corruption and guard drift. Fresh detached-worktree full gate PASS；all
-  databases were temporary and deleted；no startup wiring or local `data/` access.
+- Register exactly frozen `capabilityRef@version` contracts；bind immutable scope、Effect Class、schemas、Fence、Resource and executor identity.
+- Catalog visibility is Domain + explicitly Shared only；no recommendation、fallback、version substitution or historical flow routing.
+- Unknown/unavailable contract、schema drift or executor mismatch fails before Work/Event supply.
 
-### P3-03 Owner-scoped Repository and Unit of Work boundaries
+### P4-03 Supporting Work admission and idempotent submission
 
-- Expose scoped transaction contexts that can obtain only declared Owner/Foundation/Control participants.
-- Repository cannot write another aggregate/table set；Foundation cannot obtain Domain Repository.
-- Negative fixtures reject undeclared table、cross-Domain write、nested authority escape and raw SQL outside the Kernel/compiler.
-- Done: commit `e17e109e` adds manifest-bound Repository definitions whose SQL is generated only from registered Owner/table/column
-  statements；immutable UPDATE and arbitrary SQL are not representable. `SqliteUnitOfWork` permits at most one Business Domain plus
-  separately scoped Control/Foundation participants, injects one commit time and expires every participant context after synchronous use.
-  Seven focused positive/negative fixtures plus a production-source persistence guard reject cross-Domain authority、Foundation→Domain
-  Repository、unknown table/column/statement、raw driver/Kernel/SQL access、async/nested/context escape and prove full rollback. Fresh
-  detached-worktree gate and DDL rematerialization-zero-diff PASS；all DBs were disposable.
+- Admission validates typed definition、Owner scope、basis/fence、idempotency、active-scope uniqueness、hard cap and circuit state.
+- It creates technical Supporting Work only；never creates Business Process or chooses a Capability.
+- Same key/same digest replays；same key/different digest and concurrent duplicate scope reject atomically.
 
-### P3-04 Commit Marker、Command Receipt and Audit foundation
+### P4-04 Immutable normalized Plan and DAG validator
 
-- Commit Marker is immutable and globally unique；Audit is append-only.
-- Command Receipt is written with Owner modification and enforces same-key/same-digest replay vs same-key/different-digest rejection.
-- No receipt can survive without its canonical fact set.
-- Done: commit `14b0e89c` adds a command coordinator that checks Receipt under the same `BEGIN IMMEDIATE` before Domain execution：
-  same key/same digest returns the stored typed Result without Domain work，while same key/different digest fails stably. First execution
-  orders Owner participant before same-transaction Receipt、globally unique immutable Commit Marker and append-only Audit. Six fixture
-  groups prove one commit time、stable replay、digest conflict preemption、Domain crash rollback、Marker/Audit/16 KiB Result failure
-  rollback and no UPDATE/DELETE registration for Marker/Audit. Fresh detached-worktree full gate PASS；all DBs were disposable.
+- One Work Attempt owns exactly one immutable Plan Resolution；only `planned` contains executable normalized nodes/dependencies/bindings.
+- Validate acyclic graph、exact Capability versions、typed bindings、Effect Class non-escalation、resource demand and compensation declaration.
+- Plan JSON is bounded parameters only；hot state/dependency/result binding remains relational.
 
-### P3-05 Outbox、Delivery and Inbox atomic foundation
+### P4-05 Work Supply Controller and bounded backpressure
 
-- Freeze intended consumers in the producer transaction；Delivery/Inbox dedup is durable.
-- Ack/retry state never changes canonical Domain ownership and cannot write consumer Domain facts directly.
-- Crash fixtures cover commit-before-dispatch、duplicate delivery and consume-before-ack.
-- Done: commit `fed454cb` freezes sorted, non-empty intended consumers and one Delivery row per consumer in the producer Owner transaction；
-  payloads are canonical, 16 KiB-bounded ID/revision/digest references. Inbox consumption commits Consumer Domain fact and durable dedup
-  together；ack remains a later Foundation transaction so consume-before-ack recovers by replay without repeating Domain work. Delivery
-  retry/ack never receives Domain Repository authority. Six fixture groups prove producer/inbox dedup rollback、duplicate delivery、
-  consume-before-ack、last/duplicate ack and startup rejection of consumer-set or ack-without-Inbox tampering. Fresh detached-worktree full
-  gate PASS；all DBs were disposable.
+- Control only open Work、active Work Attempt and dispatch supply counts；do not plan、schedule or decide capacity.
+- Stable defer projection prevents queue oscillation；reserve progress for safety/handoff/control and minimum background work.
+- Backpressure never deletes Work、reverses Handoff or changes Business priority.
 
-### P3-06 Material Control CAS current/revision participant
+### P4-06 Work Scheduler、dependency readiness and technical lease
 
-- Enforce one current Control per Physical Material Identity and append-only revision history.
-- Acquire/transfer/release/replace require expected revision and exact scope digest；failed CAS rolls back all participants.
-- Material Identity、Binding and Control remain separate；no global media business ID is introduced.
-- Done: commit `f3ec7a81` recomputes `materialKey` from the canonical Physical Material tuple and validates exact Handle operation、
-  expected revision set and control-scope digest before issuing CAS. Acquire、cross-Domain transfer、release and mixed
-  `replace_control_set` update one current row and append one immutable revision per changed Identity；no Binding/Domain fact is created.
-  Five fixture groups prove full lifecycle、stale/wrong-scope rollback across Domain/Foundation participants、multi-Identity atomicity、
-  invalid Identity/expected set/scope digest rejection and startup current/history drift refusal. Fresh detached-worktree full gate PASS；
-  all DBs were disposable.
+- Select only admitted Work and dependency-satisfied ready Events using business priority class、local priority、retryAt、aging and FIFO.
+- Scheduler does not read Domain policy/spec/content facts and does not decide Permit capacity or Capability substitution.
+- Technical lease is fenced/expiring and never substitutes Reservation、Material Control or Authorization.
 
-### P3-07 Typed Domain Commit Registry and participant coordinator
+### P4-07 Resource Governor、Profile Mapper and atomic Permit bundle
 
-- Resolve only manifest-declared Owner/fact schema handles；no generic SQL participant or Executor Repository access.
-- Coordinate Domain、Material Control and Foundation participants inside one Kernel Unit of Work.
-- Handoff participants cannot obtain or write upstream Store.
-- Done: commit `d7f27848` adds a deterministic typed Registry keyed by exact Owner、aggregate/fact type and nominal fact schema；
-  every entry must predeclare `domain_fact_commit` Effect Class and a Domain revision fence. Handle/payload digest、participant Owner and
-  bound Business Owner are fail-closed；the coordinator accepts no caller-supplied Repository、SQL or generic participant，and composes only
-  Registry-resolved Domain、optional Material Control、immutable Commit Marker and same-Owner Outbox inside one scoped Unit of Work.
-  Six fixture groups prove deterministic registration、atomic fact/marker/outbox replay、unknown schema/payload/Owner rejection、revision
-  rollback、marker conflict preemption and optional Control CAS all-or-nothing. Full gate and fresh detached-worktree gate PASS；all DBs were
-  disposable，SSOT/contract digests unchanged，no Runtime/API/UI/startup or upstream Store write path was introduced.
+- One in-process Governor is the sole capacity Owner；multi-resource demand acquires atomically or acquires nothing.
+- One waiter per Event、bounded queue、durable resource defer with retryAt；all permits release in `finally` and disappear on restart.
+- Profile mapping changes only capacity/supply/weights，never Plan、priority、Outcome、Authorization or Control.
 
-### P3-08 18 canonical transaction crash-window fixtures
+### P4-08 Event Runtime、Fence、Outcome/Result and Progress
 
-- Implement all P2 transaction contracts on disposable DBs with fault injection before/after every participant and commit boundary.
-- Assert all-or-nothing fact sets、fences、CAS、receipt/outbox and forbidden write sets.
-- Filesystem/Provider effects remain mocked receipts；no real media side effect.
-- Done: commit `6bbf66ff` drives one test-only fault harness directly from the frozen 18-contract inventory and changes every one of
-  the 56 declared write tables through scoped Repository、actual Material Control and actual Outbox participants. It covers 132
-  before/after-participant and pre-COMMIT crash points、18 revision-fence failures、10 stale Control CAS failures and post-COMMIT
-  process-loss/reopen for every transaction；11 Outbox contracts use durable Outbox/Delivery writes. Every rollback compares complete
-  table snapshots，every successful post-COMMIT recovery proves the full declared write set changed，and forbidden tables/prefixes—including
-  Procurement/Libra upstream Stores at Handoff—remain unchanged. 66/66 focused tests、full gate and fresh detached-worktree gate PASS；
-  all DBs were disposable and no filesystem、Provider、network、Runtime、API/UI or real-media effect was invoked.
+- Create one Event Attempt opportunity, revalidate minimum Basis/Fence before dispatch and again before protected commits.
+- Build least-authority typed ExecutionContext；validate exact inputs/parameters/Outcome/Result/Evidence and immutable Result binding.
+- ProgressReporter writes bounded monotonic technical samples only；progress cannot extend auth、change result or create Business facts.
 
-### P3-09 Cross-persistence verification harness
+### P4-09 Effect Journal and seven Effect-specific reconcilers
 
-- One local command validates DDL digest、156 tables、FK/check/index contracts、Owner write gates and 18 atomic fixtures.
-- Harness fails on legacy schema、compatibility object、unknown table/participant or DB path outside its temp root.
-- It must not start Service、bind port、read credentials or invoke E2E/Docker.
-- Done: commit `bb8a797d` adds the single `npm run test:helix-persistence` / `node scripts/helix-p3-persistence-verify.js`
-  gate with explicit `P3_LOCAL_CROSS_PERSISTENCE` scope. It runs the full clean architecture/contract/Owner/atomic fixture gate，then
-  independently rematerializes an exact 156-table、72-index、19-partial-unique catalog under an owned temporary root and reports the
-  signed DDL/P2 aggregates. Five focused fixture groups reject outside/equal/non-DB paths、unknown participant modules、legacy tables、
-  compatibility views and external-action entry points；child execution receives only `NODE_ENV/NODE_PATH`，not ambient credentials.
-  Focused gate、aggregate command and fresh detached-worktree command all PASS；temporary DB root is removed and prohibited actions are empty.
+- Persist intent/started/external receipt/commit marker/reality evidence/terminal reconciliation without pretending external atomicity.
+- Implement deterministic recovery decisions for all seven Effect Classes：safe retry、reuse/cleanup、external observe、marker/revision check、
+  whole responsibility/control check、forward/declared rollback、forward-only destruction.
+- Unknown Effect Class or missing evidence remains blocked/faulted and cannot return to ordinary Work supply.
 
-### P3-10 P3 Phase Exit Audit and evidence freeze
+### P4-10 Retry、Timeout and declared Compensation
 
-- Reverse-audit from P2/SSOT contracts rather than implementation file counts.
-- Prove no Runtime/Domain/API/UI behavior、legacy migration、dual path or external side effect entered P3.
-- PASS archives this packet and opens P4 under standing authorization.
+- Event Attempt and Work Attempt budgets remain separate；retry cannot change inputs、Capability version、Effect Class、scope or auth.
+- Timeout isolates execution、releases permits，then reconciles Effect；it ends an Attempt, not Business responsibility.
+- Compensation must be predeclared Plan node and contract-bound；Runtime cannot invent generic rollback or rewrite canonical facts.
+
+### P4-11 Pressure Guard and persistent Circuit Breaker
+
+- Detect hard-cap、duplicate waiter、state oscillation、commit/fence/control invariant、write-rate、permit leak and starvation evidence.
+- Breaker blocks new normal/background and unstarted commit-capable effects in affected scope while preserving diagnostics、reconcile and
+  irreversible forward recovery；restart cannot clear it.
+- Closing requires invariant restoration plus explicit reconcile evidence；never queue deletion or fabricated success.
+
+### P4-12 Startup recovery and Foundation readiness
+
+- Scan durable nonterminal Work/Event/Effect/defer/circuit facts and classify by exact Effect Class before any normal supply.
+- Never reset all `executing` to `ready`；recover no in-memory permit/waiter/lease across restart.
+- Foundation readiness is fail-closed on unknown contracts/effects、orphan facts、integrity/fence/control drift or unavailable required reconciler.
+
+### P4-13 Cross-runtime crash/recovery verification harness
+
+- One local command verifies all state machines、Owner/port guards、DAG、priority/backpressure、Permit、Fence、Progress and seven recoveries.
+- Inject crash before/after durable transitions and fake effect boundaries；reopen disposable DB and prove stable recovery/no duplicate effect.
+- Harness cannot start Service、bind ports、read credentials、invoke old Runtime/E2E/Docker or perform real effects.
+
+### P4-14 P4 Phase Exit Audit and evidence freeze
+
+- Reverse-audit against SSOT Levels 6–8/10 and P2/P3 contracts, including unknown Effect and least-authority execution.
+- Prove no Business Domain/API/UI/P5 adapter、legacy runtime、dual path or real side effect entered P4.
+- PASS archives this packet and opens P5 under standing authorization.
 
 ## 8. Execution order
 
-~~~text
-P3-00 → P3-01 → P3-02 → P3-03 → P3-04 ─┬→ P3-05 ─┐
-                                           └→ P3-06 ─┴→ P3-07 → P3-08 → P3-09 → P3-10
-~~~
+```text
+P4-00 → P4-01 → P4-02 → P4-03 → P4-04 → P4-05 → P4-06 → P4-07
+                                                    └──────────────→ P4-08 → P4-09 → P4-10
+                                                                              └→ P4-11 → P4-12 → P4-13 → P4-14
+```
 
 ## 9. Exit Gate
 
-P3只有同时满足以下条件才能标记PASS：
+P4只有同时满足以下条件才能PASS：
 
-1. 156/156 schema contracts编译并通过SQLite integrity/FK/index/check验证；
-2. 唯一Kernel与Owner-scoped UoW没有跨Owner raw SQL escape；
-3. Command Receipt、Commit Marker、Audit、Outbox/Inbox和Material Control CAS负例全部通过；
-4. 18/18 canonical transaction在fault injection下全成或全不成；
-5. clean DB不包含legacy/compatibility/dual objects，不读取旧Runtime data；
-6. P2 contract gate和P3 persistence gate均PASS；
-7. Exit Audit确认未触碰SSOT、E2E、Docker/production、real media或`media-desktop`。
+1. Work/Attempt/Plan/Event/Progress/Effect/Circuit状态与Owner合同完整且非法转换fail closed；
+2. 112 exact Capability contracts可见性、schema、Effect Class、Fence和typed dispatch闭合；
+3. Admission、Supply、Scheduler、Governor四项责任不可互相越权；
+4. multi-resource Permit原子且无泄漏/重复waiter，backpressure稳定；
+5. 七种Effect Class全部覆盖unknown crash recovery，unknown Effect不进入普通供给；
+6. retry/timeout/compensation不改变Business Basis/Scope/Authorization且startup不统一reset；
+7. P3 gate、P4 integrated gate和fresh-worktree Exit Audit全部PASS；
+8. 未触碰SSOT、E2E/Docker/production/real effects/`media-desktop`。
 
 ## 10. Stop conditions
 
-只有以下情况暂停并询问用户：
-
-- P2合同无法唯一实现且与SSOT发生真实冲突；
-- 需要改变Business结果、Owner、Handoff或不可逆授权；
-- 需要扩大到E2E、Docker/Canary、production、real media或`media-desktop`。
-
-普通SQLite/DDL/Repository/测试工程选择由Codex自主处理。
+仅在SSOT真实冲突、Business Owner/Outcome/Handoff/Authorization需改变，或必须扩大到外部授权范围时询问用户。
+Runtime状态机、SQLite Repository、fake adapter、测试和性能工程选择由Codex自主处理。

@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Levels 0–10 accepted; P0–P2 complete; P3 in progress under standing P2–P13 Local Implementation authorization; E2E, Docker/Canary, production, real-media side effects and `media-desktop` changes paused.
+Status: Levels 0–10 accepted; P0–P3 complete; P4 in progress under standing P2–P13 Local Implementation authorization; E2E, Docker/Canary, production, real-media side effects and `media-desktop` changes paused.
 
 Last updated: 2026-07-16
 
@@ -11,14 +11,14 @@ Last updated: 2026-07-16
 | Architecture | `TOP_DOWN_ARCHITECTURE_CONFIRMATION.md` Level 0–10 accepted and final audit closed |
 | Open business decisions | none |
 | Implementation program | clean-cut Master Plan accepted as direction |
-| Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline |
-| Current phase | P3 — Persistence and Atomic Foundation |
-| Current phase status | in progress；P3-00–P3-09 complete；P3-10 next |
+| Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation |
+| Current phase | P4 — Execution and Recovery Foundation |
+| Current phase status | in progress；P4-00 next；P3 Exit Audit PASS |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
-| Integration baseline | P2 closure / P3 baseline `e3b50f946956105b18ffcf0853c8c2a57ebb4db8` |
-| Phase worktree | `E:\my_project\emby_third_party-helix-p3` on `codex/helix-p3` |
-| Next action | P3-10 P3 Phase Exit Audit and evidence freeze |
+| Integration baseline | P3 audited implementation `5f433d930ba3111c19b1589816b96c790d60e5f3`；phase closure pending P4-00 receipt |
+| Phase worktree | P4-00 will create isolated `codex/helix-p4` worktree；P3 worktree retained until handoff complete |
+| Next action | P4-00 P3 closure and isolated P4 baseline receipt |
 
 ## 2. Accepted implementation conclusion
 
@@ -89,7 +89,7 @@ P1与P2已关闭；clean root仍未接入`server.js`、`app.js`或任何旧Runti
 
 - `CURRENT_PLAN.md`：精简Master Roadmap和授权边界；
 - `ENGINEERING_PLAYBOOK.md`：Ready/Done、Work Package、门禁、测试、Review、复用、Git和停线规则；
-- `implementation/CURRENT_PHASE.md`：唯一活动P3详细执行包；
+- `implementation/CURRENT_PHASE.md`：唯一活动P4详细执行包；
 - `implementation/evidence/`：冻结审计与验收Evidence；
 - `implementation/archive/`：保存已冻结的P1执行包。
 
@@ -99,7 +99,7 @@ P1与P2已关闭；clean root仍未接入`server.js`、`app.js`或任何旧Runti
 
 - NAS ShelfDeck Docker `192.168.12.230:18080`保持生产边界，当前不接触；
 - 四库真实来源E2E保持停止；
-- P3本地实现已打开；不运行E2E、Admin Web构建或Docker构建；
+- P4本地实现已打开；不运行E2E、Admin Web构建或Docker构建；
 - 不部署、不初始化生产数据、不执行真实媒体副作用；
 - 当前旧`helixCleanState`/preflight不得用于clean切换或生产；
 - `media-desktop`继续排除并保留用户未提交修改；
@@ -155,4 +155,8 @@ conflict/Control CAS反例、完整门禁和fresh detached-worktree均PASS，SSO
 没有真实文件/Provider/网络/媒体副作用。P3-09已在`bb8a797d`完成：唯一`P3_LOCAL_CROSS_PERSISTENCE`命令聚合完整
 架构/合同/Owner/atomic fixture门禁，并在owned temp root重物化156表、72 index、19 partial unique exact catalog；5组专项
 反例拒绝越界/非DB路径、unknown participant module、legacy table、compatibility view和外部动作入口，子进程不继承ambient
-credentials。专项、聚合命令和fresh detached-worktree均PASS。下一检查点是P3-10 Phase Exit Audit。没有需要用户决定的业务问题。
+credentials。专项、聚合命令和fresh detached-worktree均PASS。P3 Exit Audit已对实现提交`5f433d930ba3111c19b1589816b96c790d60e5f3`
+完成正式与fresh detached-worktree双重复审：111 changed files全部属于6类允许范围，findings=0，evidence digest
+`b7269dd77b5d7d41cbd45cb80834f79254b1b1a7410834d80bc3e697c08260e1`。P3已归档，完整Evidence见
+`implementation/evidence/P3_PHASE_EXIT_AUDIT_5F433D93.md`。下一检查点是P4-00精确闭合提交与隔离P4 baseline receipt。
+没有需要用户决定的业务问题。

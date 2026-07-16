@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: Levels 0–10 accepted; P0–P2 complete; P3 in progress under standing P2–P13 Local Implementation authorization; external-environment actions and `media-desktop` remain paused.
+Status: Levels 0–10 accepted; P0–P3 complete; P4 in progress under standing P2–P13 Local Implementation authorization; external-environment actions and `media-desktop` remain paused.
 
 Last updated: 2026-07-16
 
@@ -42,13 +42,13 @@ Work Package细节只存在于`implementation/CURRENT_PHASE.md`；当前事实�
 
 | Field | Current value |
 | --- | --- |
-| Phase | P3 — Persistence and Atomic Foundation |
+| Phase | P4 — Execution and Recovery Foundation |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | in progress；P3-00–P3-09 complete；P3-10 next |
-| Implementation baseline | `e3b50f946956105b18ffcf0853c8c2a57ebb4db8` |
-| Phase branch/worktree | `codex/helix-p3` / `E:\my_project\emby_third_party-helix-p3` |
+| Status | in progress；P4-00 next；P3 Exit Audit PASS |
+| Implementation baseline | audited P3 implementation `5f433d930ba3111c19b1589816b96c790d60e5f3`；exact phase-closure baseline recorded by P4-00 |
+| Phase branch/worktree | P4-00 will create isolated `codex/helix-p4` worktree |
 | Allowed now | P2–P13本地代码、unit/contract/isolated fixture、文档与Phase自动转换 |
-| Next action | P3-10 P3 Phase Exit Audit and evidence freeze |
+| Next action | P4-00 P3 closure and isolated P4 baseline receipt |
 
 ## 4. Master roadmap
 
@@ -57,7 +57,7 @@ Work Package细节只存在于`implementation/CURRENT_PHASE.md`；当前事实�
 | P0 Audit and disposition | `4a16f0a9`差距、旧模块处置、风险和clean-cut方向 | Level 0–10 accepted | **complete**；Evidence已冻结 |
 | P1 Clean skeleton and guards | 固定`src/helix/`、public/internal边界、唯一Root shell、机器架构门禁和manifest框架 | P0；Local Implementation Gate | **complete**；Exit Audit PASS；Evidence frozen |
 | P2 Contract and schema baseline | 112 Capability、96 Result、156 table合同与digest | P1 | **complete**；112/96/156/18；Exit Audit PASS |
-| P3 Persistence and atomic foundation | 唯一Kernel、scoped UoW、Control、Commit Marker、Outbox/Inbox、Audit | P2 | canonical transaction全部“全成或全不成” |
+| P3 Persistence and atomic foundation | 唯一Kernel、scoped UoW、Control、Commit Marker、Outbox/Inbox、Audit | P2 | **complete**；18 transaction/132 crash points；Exit Audit PASS |
 | P4 Execution and recovery foundation | Work/Plan/Event/Effect、Progress、Control Plane、Resource、Retry/Timeout/Circuit、startup recovery | P3 | 每种Effect crash window闭合；unknown Effect不供给普通Work |
 | P5 Platform and integrations | Secret/Mount/Workspace/Artifact/Resource/Worker及typed Provider/FFmpeg/file libraries | P3–P4 ports | Adapter不写Domain Fact；Secret和Material Handle安全合同通过 |
 | P6 Horizontal domains | Perception和People独立Store/Facade/Process/Projection | P3–P5 | 两域事实只由各自Owner写；Media-Cast不进入People Store |
