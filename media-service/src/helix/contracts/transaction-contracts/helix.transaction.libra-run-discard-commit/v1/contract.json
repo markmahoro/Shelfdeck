@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.libra-run-discard-commit/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.libra-run-discard-commit",
+    "displayName": "Libra Run Discard Commit",
+    "ownerScope": "libra",
+    "commitClass": "responsibility_control_commit",
+    "atomicFactSet": "immutable Discard Decision + Run discarded + Pre-deck scope terminal + original Primary Input Control release + Workspace Cleanup Scope + receipt/Outbox",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "libra",
+        "access": "write",
+        "tables": [
+          "libra_run_discard_decisions",
+          "libra_runs",
+          "libra_workspace_cleanup_scopes",
+          "libra_workspace_cleanup_members",
+          "libra_run_discard_receipts"
+        ]
+      },
+      {
+        "participantKind": "material-control",
+        "owner": "material-control-authority",
+        "access": "write",
+        "tables": [
+          "fx_material_controls",
+          "fx_material_control_revisions"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_commit_markers",
+          "fx_outbox"
+        ]
+      }
+    ],
+    "writeTables": [
+      "libra_run_discard_decisions",
+      "libra_runs",
+      "libra_workspace_cleanup_scopes",
+      "libra_workspace_cleanup_members",
+      "libra_run_discard_receipts",
+      "fx_material_controls",
+      "fx_material_control_revisions",
+      "fx_commit_markers",
+      "fx_outbox"
+    ],
+    "readTables": [
+      "libra_material_bindings",
+      "libra_workspace_material_refs"
+    ],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": true,
+      "commitMarkerRequired": true,
+      "outboxRequired": true
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "libra-run-discard",
+        "faultInjectionPoints": "Decision前、Run terminal后、原始Input Control release前后、Cleanup Scope/Outbox前",
+        "requiredInvariant": "要么Run仍frozen且全部Control不变，要么discarded/原始Input released/Cleanup Scope完整成立；受Control Workspace Product不成为无Owner文件",
+        "source": {
+          "section": "8.9.7",
+          "line": 8417
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7214,
+      "lineDigest": "719467607b21baf19ad7b281a08ece5d1c89faac06c2562c1d6323d2cfb23087"
+    }
+  }
+}

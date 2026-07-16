@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.handoff-a-accepted/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.handoff-a-accepted",
+    "displayName": "Handoff A Accepted",
+    "ownerScope": "libra",
+    "commitClass": "responsibility_control_commit",
+    "atomicFactSet": "Acceptance Decision + frozen Subject Continuity Resolution + Subject create/extension + accepted continuity claim snapshot + Libra Binding + precise Control transfer + Handoff Receipt/Outbox",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "libra",
+        "access": "write",
+        "tables": [
+          "libra_intake_decisions",
+          "libra_subjects",
+          "libra_subject_season_continuity_claims",
+          "libra_material_bindings",
+          "libra_handoff_a_receipts"
+        ]
+      },
+      {
+        "participantKind": "material-control",
+        "owner": "material-control-authority",
+        "access": "write",
+        "tables": [
+          "fx_material_controls",
+          "fx_material_control_revisions"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_commit_markers",
+          "fx_outbox"
+        ]
+      }
+    ],
+    "writeTables": [
+      "libra_intake_decisions",
+      "libra_subjects",
+      "libra_subject_season_continuity_claims",
+      "libra_material_bindings",
+      "libra_handoff_a_receipts",
+      "fx_material_controls",
+      "fx_material_control_revisions",
+      "fx_commit_markers",
+      "fx_outbox"
+    ],
+    "readTables": [
+      "libra_subjects",
+      "libra_subject_season_continuity_claims",
+      "libra_material_bindings"
+    ],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [
+      "proc_"
+    ],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": true,
+      "commitMarkerRequired": true,
+      "outboxRequired": true
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "handoff-a-accepted",
+        "faultInjectionPoints": "continuity match前后、并发Subject/episode变化、Decision前、Subject/Binding participant后、Control participant前后、Outbox前",
+        "requiredInvariant": "exact claim唯一命中且zero overlap才extension；0/N命中、缺失或overlap新建Subject；竞态使Basis失效后重算；要么全部不存在，要么Decision/Subject/claim snapshot/Binding/Control/Receipt全部成立；Procurement只异步消费Receipt",
+        "source": {
+          "section": "8.9.7",
+          "line": 8412
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7210,
+      "lineDigest": "73503079bb76d649baac5fad1b5e34ff41a3d5555a1ed262e2648d94dc100794"
+    }
+  }
+}

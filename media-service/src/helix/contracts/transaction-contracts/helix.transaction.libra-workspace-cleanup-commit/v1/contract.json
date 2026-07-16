@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.libra-workspace-cleanup-commit/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.libra-workspace-cleanup-commit",
+    "displayName": "Libra Workspace Cleanup Commit",
+    "ownerScope": "libra",
+    "commitClass": "responsibility_control_commit",
+    "atomicFactSet": "verified Workspace/Product deletion Evidence + Cleanup member terminal + corresponding Libra Control release + cleanup receipt",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "libra",
+        "access": "write",
+        "tables": [
+          "libra_workspace_cleanup_members",
+          "libra_workspace_cleanup_scopes"
+        ]
+      },
+      {
+        "participantKind": "material-control",
+        "owner": "material-control-authority",
+        "access": "write",
+        "tables": [
+          "fx_material_controls",
+          "fx_material_control_revisions"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_commit_markers"
+        ]
+      }
+    ],
+    "writeTables": [
+      "libra_workspace_cleanup_members",
+      "libra_workspace_cleanup_scopes",
+      "fx_material_controls",
+      "fx_material_control_revisions",
+      "fx_commit_markers"
+    ],
+    "readTables": [
+      "fx_workspace_materials"
+    ],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": true,
+      "commitMarkerRequired": true,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "libra-workspace-cleanup",
+        "faultInjectionPoints": "删除intent后、文件删除后Evidence前、Cleanup/Control commit前后",
+        "requiredInvariant": "删除效果幂等；只有Deletion Evidence成立的受Control Product释放Control；重启恢复同一Cleanup member",
+        "source": {
+          "section": "8.9.7",
+          "line": 8418
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7215,
+      "lineDigest": "0ef98d8d31de4a30c7f34a98bd2e7fc5ba675bd973927f7d3ddfa30df83ccc84"
+    }
+  }
+}

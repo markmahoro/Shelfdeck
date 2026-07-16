@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.off-deck-per-entry-authorization-case/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.off-deck-per-entry-authorization-case",
+    "displayName": "Off-deck per-Entry Authorization/Case",
+    "ownerScope": "arca",
+    "commitClass": "domain_unit_of_work",
+    "atomicFactSet": "Batch Intent + one current Scope verification + per-Scope Authorization + one Case + one Shelf Entry `offdeck_in_progress`；每Entry独立事务、幂等向前恢复",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "arca",
+        "access": "write",
+        "tables": [
+          "arca_offdeck_authorizations",
+          "arca_offdeck_cases",
+          "arca_offdeck_reviews",
+          "arca_offdeck_reservations",
+          "arca_offdeck_scopes",
+          "arca_shelf_entries"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_commit_markers"
+        ]
+      }
+    ],
+    "writeTables": [
+      "arca_offdeck_authorizations",
+      "arca_offdeck_cases",
+      "arca_offdeck_reviews",
+      "arca_offdeck_reservations",
+      "arca_offdeck_scopes",
+      "arca_shelf_entries",
+      "fx_commit_markers"
+    ],
+    "readTables": [
+      "arca_offdeck_authorization_batches",
+      "arca_offdeck_selection_receipts"
+    ],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "offdeck-review-authorization",
+        "faultInjectionPoints": "Review、Reservation、Scope、selection/escalation、Authorization/Case各边界",
+        "requiredInvariant": "Authorization前不存在Case；Direct Intent不伪造Candidate；high-volume无独立Receipt不能授权；每Entry独立Scope/Case",
+        "source": {
+          "section": "8.9.7",
+          "line": 8422
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7221,
+      "lineDigest": "e4c3bc41ecb66e8a9d32433eb9626890f9e04770d6d967b5c0131efe88c3a8aa"
+    }
+  }
+}

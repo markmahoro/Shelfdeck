@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.rule-template-publish/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.rule-template-publish",
+    "displayName": "Rule Template Publish",
+    "ownerScope": "arca",
+    "commitClass": "domain_unit_of_work",
+    "atomicFactSet": "immutable Template revision + all currently bound Shelf effective Standard revisions + Template/Shelf current head switches + Outbox",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "arca",
+        "access": "write",
+        "tables": [
+          "arca_rule_template_revisions",
+          "arca_rule_templates",
+          "arca_shelf_standard_revisions",
+          "arca_shelves"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_commit_markers",
+          "fx_outbox"
+        ]
+      }
+    ],
+    "writeTables": [
+      "arca_rule_template_revisions",
+      "arca_rule_templates",
+      "arca_shelf_standard_revisions",
+      "arca_shelves",
+      "fx_commit_markers",
+      "fx_outbox"
+    ],
+    "readTables": [
+      "arca_rule_template_drafts"
+    ],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [
+      "libra_routing_policy_revisions",
+      "libra_field_routing_heads"
+    ],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": true
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "routing-template-publish",
+        "faultInjectionPoints": "Preview后、revision insert后、current head切换前后、Shelf Standard refresh前后",
+        "requiredInvariant": "Field只见一个current Routing Policy；Template current/binding可恢复；Arca不写Routing Priority",
+        "source": {
+          "section": "8.9.7",
+          "line": 8426
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7209,
+      "lineDigest": "c8ef6c73d0677af4507c86425da0dac719607c16e817fc918924e56dbe8e7e70"
+    }
+  }
+}

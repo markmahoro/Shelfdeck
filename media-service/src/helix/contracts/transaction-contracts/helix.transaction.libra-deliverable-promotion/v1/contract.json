@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.libra-deliverable-promotion/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.libra-deliverable-promotion",
+    "displayName": "Libra Deliverable Promotion",
+    "ownerScope": "libra",
+    "commitClass": "responsibility_control_commit",
+    "atomicFactSet": "On-deck Product Package + Product Material Identity set + newly produced Material的Libra Control acquire + delivery Outbox",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "libra",
+        "access": "write",
+        "tables": [
+          "libra_product_packages",
+          "libra_product_package_materials"
+        ]
+      },
+      {
+        "participantKind": "material-control",
+        "owner": "material-control-authority",
+        "access": "write",
+        "tables": [
+          "fx_material_controls",
+          "fx_material_control_revisions"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_commit_markers",
+          "fx_outbox"
+        ]
+      }
+    ],
+    "writeTables": [
+      "libra_product_packages",
+      "libra_product_package_materials",
+      "fx_material_controls",
+      "fx_material_control_revisions",
+      "fx_commit_markers",
+      "fx_outbox"
+    ],
+    "readTables": [
+      "libra_runs",
+      "libra_acceptance_specs",
+      "libra_product_fact_revisions"
+    ],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": true,
+      "commitMarkerRequired": true,
+      "outboxRequired": true
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "libra-deliverable-promotion",
+        "faultInjectionPoints": "Workspace Identity计算后、Package participant后、Control acquire前后",
+        "requiredInvariant": "Package可见时所有Product Material已有Libra Control；失败不发布Offer",
+        "source": {
+          "section": "8.9.7",
+          "line": 8416
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7213,
+      "lineDigest": "a71ab1170c2cae62ea3f3121da7f6d473c2ca624f6c14b1dc1ff2c68eb0e3ea8"
+    }
+  }
+}

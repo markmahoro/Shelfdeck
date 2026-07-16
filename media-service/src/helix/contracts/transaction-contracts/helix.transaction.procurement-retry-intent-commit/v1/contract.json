@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.procurement-retry-intent-commit/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.procurement-retry-intent-commit",
+    "displayName": "Procurement Retry Intent Commit",
+    "ownerScope": "procurement",
+    "commitClass": "domain_unit_of_work",
+    "atomicFactSet": "immutable user Retry Intent + failed Run/Basis reference + current eligibility precondition + Outbox",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "procurement",
+        "access": "write",
+        "tables": [
+          "proc_procurement_retry_intents"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_commit_markers",
+          "fx_outbox"
+        ]
+      }
+    ],
+    "writeTables": [
+      "proc_procurement_retry_intents",
+      "fx_commit_markers",
+      "fx_outbox"
+    ],
+    "readTables": [
+      "proc_procurement_runs",
+      "proc_material_fields",
+      "proc_field_materials"
+    ],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": true
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "procurement-failed-run-retry",
+        "faultInjectionPoints": "Retry Intent commit前后、新Run建立前后、Intent consume前后",
+        "requiredInvariant": "旧Run始终sealed；一个Intent最多建立一个新Run；观察不伪造Basis revision；失败不会自动连锁重试",
+        "source": {
+          "section": "8.9.7",
+          "line": 8414
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7207,
+      "lineDigest": "ecf96055eec8db2b0bcc680a514e3017967bb8ddacb5e52ce326a5f2d8ed017d"
+    }
+  }
+}

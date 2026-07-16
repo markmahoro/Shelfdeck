@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.off-deck-terminal/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.off-deck-terminal",
+    "displayName": "Off-deck terminal",
+    "ownerScope": "arca",
+    "commitClass": "responsibility_control_commit",
+    "atomicFactSet": "全部Deletion Evidence核对后的Deck Fact terminal + Control release + terminal receipt",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "arca",
+        "access": "write",
+        "tables": [
+          "arca_deck_fact_revisions",
+          "arca_shelf_entries",
+          "arca_offdeck_scopes",
+          "arca_offdeck_cases",
+          "arca_offdeck_terminal_receipts"
+        ]
+      },
+      {
+        "participantKind": "material-control",
+        "owner": "material-control-authority",
+        "access": "write",
+        "tables": [
+          "fx_material_controls",
+          "fx_material_control_revisions"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_commit_markers"
+        ]
+      }
+    ],
+    "writeTables": [
+      "arca_deck_fact_revisions",
+      "arca_shelf_entries",
+      "arca_offdeck_scopes",
+      "arca_offdeck_cases",
+      "arca_offdeck_terminal_receipts",
+      "fx_material_controls",
+      "fx_material_control_revisions",
+      "fx_commit_markers"
+    ],
+    "readTables": [
+      "arca_offdeck_deletion_evidence",
+      "arca_offdeck_authorizations"
+    ],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": true,
+      "commitMarkerRequired": true,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "offdeck-destruction",
+        "faultInjectionPoints": "Authorization后、逐Material delete、授权Identity被外部提前删除/被新Identity替换、Deletion verify、terminal commit",
+        "requiredInvariant": "授权Scope不扩张；已删Evidence不重做；授权Identity已不存在时Evidence必须证明精确absence且绝不触碰替代Identity；全部完成前Deck Fact不terminal，terminal时Control全部释放",
+        "source": {
+          "section": "8.9.7",
+          "line": 8423
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7222,
+      "lineDigest": "7dd0033bbb591666aee306f1ac5ec4ea1a987112608dc13ab5e84d5eb1cf0332"
+    }
+  }
+}

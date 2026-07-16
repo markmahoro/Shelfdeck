@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.handoff-b-accepted/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.handoff-b-accepted",
+    "displayName": "Handoff B Accepted",
+    "ownerScope": "arca",
+    "commitClass": "responsibility_control_commit",
+    "atomicFactSet": "Acceptance Decision + On-deck Material Custody + Arca Binding + precise Control transfer + Handoff Receipt/Outbox",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "arca",
+        "access": "write",
+        "tables": [
+          "arca_acceptance_decisions",
+          "arca_ondeck_custodies",
+          "arca_material_bindings",
+          "arca_handoff_b_receipts"
+        ]
+      },
+      {
+        "participantKind": "material-control",
+        "owner": "material-control-authority",
+        "access": "write",
+        "tables": [
+          "fx_material_controls",
+          "fx_material_control_revisions"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_commit_markers",
+          "fx_outbox"
+        ]
+      }
+    ],
+    "writeTables": [
+      "arca_acceptance_decisions",
+      "arca_ondeck_custodies",
+      "arca_material_bindings",
+      "arca_handoff_b_receipts",
+      "fx_material_controls",
+      "fx_material_control_revisions",
+      "fx_commit_markers",
+      "fx_outbox"
+    ],
+    "readTables": [
+      "arca_acceptance_attempts",
+      "arca_acceptance_checks"
+    ],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [
+      "libra_"
+    ],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": true,
+      "commitMarkerRequired": true,
+      "outboxRequired": true
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "handoff-b-accepted",
+        "faultInjectionPoints": "Acceptance Decision、Custody/Binding、Control transfer、Receipt/Outbox各边界",
+        "requiredInvariant": "Arca责任与Control一起成立；Libra Store不被Arca事务写入",
+        "source": {
+          "section": "8.9.7",
+          "line": 8419
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7212,
+      "lineDigest": "1140129b374858ff75be4bad8e3c3a0ec1b6e1889c4bcd15b1ed3fdaad3e23da"
+    }
+  }
+}

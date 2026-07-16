@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.aftercare-case-creation/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.aftercare-case-creation",
+    "displayName": "Aftercare Case Creation",
+    "ownerScope": "arca",
+    "commitClass": "domain_unit_of_work",
+    "atomicFactSet": "immutable Care Basis + relationized Basis inputs + Care Requirement Set + Case active + Outbox",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "arca",
+        "access": "write",
+        "tables": [
+          "arca_aftercare_cases",
+          "arca_aftercare_case_basis_inputs"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_commit_markers",
+          "fx_outbox"
+        ]
+      }
+    ],
+    "writeTables": [
+      "arca_aftercare_cases",
+      "arca_aftercare_case_basis_inputs",
+      "fx_commit_markers",
+      "fx_outbox"
+    ],
+    "readTables": [
+      "arca_aftercare_assessments",
+      "arca_aftercare_findings",
+      "arca_shelf_entries"
+    ],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": true
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "aftercare-basis-inventory",
+        "faultInjectionPoints": "Standard/Placement/Decision Fact变化、Case create、Workspace output、Stage/Switch、Settlement、Inventory/Control commit",
+        "requiredInvariant": "Case冻结完整Care Basis；旧Basis不能提交；原Shelf Entry/Identity/Deck持续；新Inventory revision与Control set一致",
+        "source": {
+          "section": "8.9.7",
+          "line": 8421
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7217,
+      "lineDigest": "6402976bd648c711162050e188e5b50b575fbcf11f1ae69ebef2a59ccb8c15f2"
+    }
+  }
+}

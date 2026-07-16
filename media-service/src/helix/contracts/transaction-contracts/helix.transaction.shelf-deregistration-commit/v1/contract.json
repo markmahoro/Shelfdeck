@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.shelf-deregistration-commit/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.shelf-deregistration-commit",
+    "displayName": "Shelf Deregistration Commit",
+    "ownerScope": "arca",
+    "commitClass": "responsibility_control_commit",
+    "atomicFactSet": "Shelf/Shelf Entry administrative terminal facts + precise Control release + release receipt",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "arca",
+        "access": "write",
+        "tables": [
+          "arca_deregistrations",
+          "arca_deregistration_releases",
+          "arca_deregistration_receipts",
+          "arca_shelves",
+          "arca_shelf_entries",
+          "arca_deck_fact_revisions"
+        ]
+      },
+      {
+        "participantKind": "material-control",
+        "owner": "material-control-authority",
+        "access": "write",
+        "tables": [
+          "fx_material_controls",
+          "fx_material_control_revisions"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_commit_markers"
+        ]
+      }
+    ],
+    "writeTables": [
+      "arca_deregistrations",
+      "arca_deregistration_releases",
+      "arca_deregistration_receipts",
+      "arca_shelves",
+      "arca_shelf_entries",
+      "arca_deck_fact_revisions",
+      "fx_material_controls",
+      "fx_material_control_revisions",
+      "fx_commit_markers"
+    ],
+    "readTables": [
+      "arca_inventory_materials"
+    ],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [
+      "arca_offdeck_deletion_evidence"
+    ],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [
+      "arca.offdeck.primary_material.delete@1",
+      "arca.offdeck.unreferenced_related.delete@1"
+    ],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": true,
+      "commitMarkerRequired": true,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "shelf-deregistration",
+        "faultInjectionPoints": "Release Manifest、逐Control CAS、administrative terminal commit",
+        "requiredInvariant": "不调用Delete；实际Physical data保持；Shelf/Entry terminal与Control release同事务",
+        "source": {
+          "section": "8.9.7",
+          "line": 8429
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7223,
+      "lineDigest": "b9fcc35f33ee61254788f9e023963bd2ad59075837e41ce005a239807a7502f3"
+    }
+  }
+}

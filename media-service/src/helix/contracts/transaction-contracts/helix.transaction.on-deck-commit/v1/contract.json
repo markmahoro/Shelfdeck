@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.on-deck-commit/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.on-deck-commit",
+    "displayName": "On-deck Commit",
+    "ownerScope": "arca",
+    "commitClass": "responsibility_control_commit",
+    "atomicFactSet": "Shelf Entry create/extend + Canonical Content Identity + Inventory Representation revision + Deck Fact + required Control acquire/release + Off-load Completion Outbox",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "arca",
+        "access": "write",
+        "tables": [
+          "arca_shelf_entries",
+          "arca_canonical_identity_revisions",
+          "arca_inventory_representations",
+          "arca_inventory_materials",
+          "arca_inventory_related_references",
+          "arca_inventory_product_facts",
+          "arca_inventory_person_relations",
+          "arca_deck_fact_revisions",
+          "arca_ondeck_commit_receipts",
+          "arca_offload_completions"
+        ]
+      },
+      {
+        "participantKind": "material-control",
+        "owner": "material-control-authority",
+        "access": "write",
+        "tables": [
+          "fx_material_controls",
+          "fx_material_control_revisions"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_commit_markers",
+          "fx_outbox"
+        ]
+      }
+    ],
+    "writeTables": [
+      "arca_shelf_entries",
+      "arca_canonical_identity_revisions",
+      "arca_inventory_representations",
+      "arca_inventory_materials",
+      "arca_inventory_related_references",
+      "arca_inventory_product_facts",
+      "arca_inventory_person_relations",
+      "arca_deck_fact_revisions",
+      "arca_ondeck_commit_receipts",
+      "arca_offload_completions",
+      "fx_material_controls",
+      "fx_material_control_revisions",
+      "fx_commit_markers",
+      "fx_outbox"
+    ],
+    "readTables": [
+      "arca_final_inventory_decisions",
+      "arca_ondeck_runs"
+    ],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": true,
+      "commitMarkerRequired": true,
+      "outboxRequired": true
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "ondeck-fixed-transaction",
+        "faultInjectionPoints": "Slot prepare、Stage、Switch、Final Primary verify、Settlement逐项、On-deck Commit",
+        "requiredInvariant": "已Settlement后只能向前恢复；Shelf Entry/Inventory/Deck/Control/Completion同一commit",
+        "source": {
+          "section": "8.9.7",
+          "line": 8420
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7216,
+      "lineDigest": "3456b10dfe92437e824176f7e6bf8770849a89ff06ae140593184abbe12715e4"
+    }
+  }
+}

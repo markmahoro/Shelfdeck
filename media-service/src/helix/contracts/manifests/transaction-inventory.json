@@ -4,8 +4,14 @@
   "manifestId": "helix.inventory.canonical-transactions",
   "kind": "transaction-inventory",
   "owner": "contracts",
-  "status": "framework_only",
-  "ssotRefs": ["8.5.4", "10.10.1"],
+  "status": "active",
+  "ssotRefs": [
+    "8.5.4",
+    "8.5.5",
+    "8.9.7"
+  ],
   "targetCount": 18,
-  "entries": []
+  "entryFiles": [
+    "transaction-inventory/entries-001-018.json"
+  ]
 }

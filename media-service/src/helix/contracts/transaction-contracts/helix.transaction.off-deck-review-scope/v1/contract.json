@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.off-deck-review-scope/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.off-deck-review-scope",
+    "displayName": "Off-deck Review Scope",
+    "ownerScope": "arca",
+    "commitClass": "domain_unit_of_work",
+    "atomicFactSet": "Review + per-Entry Reservation + immutable pre-authorization Destruction Scope + selection basis",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "arca",
+        "access": "write",
+        "tables": [
+          "arca_offdeck_reviews",
+          "arca_offdeck_reservations",
+          "arca_offdeck_scopes",
+          "arca_offdeck_scope_materials"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_commit_markers"
+        ]
+      }
+    ],
+    "writeTables": [
+      "arca_offdeck_reviews",
+      "arca_offdeck_reservations",
+      "arca_offdeck_scopes",
+      "arca_offdeck_scope_materials",
+      "fx_commit_markers"
+    ],
+    "readTables": [
+      "arca_shelf_entries",
+      "arca_inventory_materials"
+    ],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [
+      "arca_offdeck_authorizations",
+      "arca_offdeck_cases"
+    ],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "offdeck-review-authorization",
+        "faultInjectionPoints": "Review、Reservation、Scope、selection/escalation、Authorization/Case各边界",
+        "requiredInvariant": "Authorization前不存在Case；Direct Intent不伪造Candidate；high-volume无独立Receipt不能授权；每Entry独立Scope/Case",
+        "source": {
+          "section": "8.9.7",
+          "line": 8422
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7219,
+      "lineDigest": "d84e96ef7c300f188c7958c64da90cad90657ecdc8ba7aab1237058b1403e2e7"
+    }
+  }
+}
