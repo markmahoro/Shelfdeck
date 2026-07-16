@@ -288,9 +288,15 @@ function createEventRuntime(options) {
         const snapshot = readSnapshot(eventId);
         const entry = options.registry.resolve(snapshot.event.capability_ref, snapshot.event.owner_domain);
         if (snapshot.node.output_contract_ref !== entry.manifest.resultSchemaRef ||
+            snapshot.node.effect_class !== entry.manifest.effectClass ||
             snapshot.node.approval_requirement_ref !== (entry.manifest.approvalRequirementRef || null) ||
             snapshot.node.authorization_requirement_ref !== (entry.manifest.authorizationRequirementRef || null)) fail(
           'P4_EVENT_FROZEN_CONTRACT_MISMATCH', 'Durable Plan execution contracts do not match the exact Capability version.'
+        );
+        const requiresJournal = entry.manifest.effectClass !== 'pure_observation';
+        if (requiresJournal && (!options.effectJournal || typeof options.effectJournal.intend !== 'function' ||
+            typeof options.effectJournal.settle !== 'function' || typeof options.effectJournal.requireReconcile !== 'function')) fail(
+          'P4_EVENT_EFFECT_JOURNAL_REQUIRED', 'Every non-pure Event requires the Effect Journal before dispatch.'
         );
         const inputs = options.executionInputProvider.prepare(Object.freeze({ snapshot }));
         if ((snapshot.node.approval_requirement_ref !== null) !== (inputs.approvalHandle !== undefined) ||
@@ -329,6 +335,17 @@ function createEventRuntime(options) {
         }
         beginAttempt(snapshot, entry, attemptId, startedAtMs, inputs, commitFence);
         persistedAttemptId = attemptId;
+        let effect = null;
+        if (requiresJournal) {
+          effect = options.effectJournal.intend(Object.freeze({
+            eventAttemptId: attemptId, effectClass: entry.manifest.effectClass, idempotencyKey: inputs.idempotencyKey,
+            intentDigest: valueDigest({ eventId, capabilityRef: snapshot.event.capability_ref, contractVersion: snapshot.event.contract_version,
+              inputSnapshotDigest: valueDigest(inputs.namedInputs), fenceSnapshotDigest: commitFence.digest })
+          }));
+          if (!effect || effect.state !== 'intended' || effect.event_attempt_id !== attemptId) fail(
+            'P4_EVENT_EFFECT_RECOVERY_REQUIRED', 'An existing or terminal Effect intent must return to effect-specific recovery, not ordinary dispatch.'
+          );
+        }
         options.scheduler.release(request.schedulerLease); schedulerReleased = true;
         const context = {
           executionId: assertId(options.nextExecutionId(), 'execution'), workId: snapshot.work.work_id,
@@ -343,6 +360,13 @@ function createEventRuntime(options) {
         if (inputs.authorizationHandle !== undefined) context.authorizationHandle = inputs.authorizationHandle;
         if (inputs.deadlineAtMs !== undefined) context.deadlineAtMs = inputs.deadlineAtMs;
         const outcome = await options.dispatcher.dispatch({ capabilityRef: snapshot.event.capability_ref, context: Object.freeze(context), ownerDomain: snapshot.event.owner_domain });
+        if (effect) {
+          if (outcome.kind === 'succeeded') await options.effectJournal.settle(Object.freeze({
+            effectId: effect.effect_id, receipt: outcome.effectReceipt,
+            scope: Object.freeze({ ownerDomain: inputs.ownerScope.domain, scopeType: inputs.ownerScope.processType, scopeId: inputs.ownerScope.processId })
+          }));
+          else options.effectJournal.requireReconcile(effect.effect_id);
+        }
         resourceOutcome = outcome.kind;
         return complete(snapshot, attemptId, outcome);
       } finally {

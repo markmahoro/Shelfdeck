@@ -50,7 +50,7 @@ function fixture(run, settings = {}) {
       work_objective_version: 1, basis_digest: HASH_A, state: 'planned', diagnostic_classification: null });
     repository.invoke('node', { plan_id: 'plan', node_id: 'node', capability_ref: 'libra.test.observe@1', contract_version: 1,
       input_binding_schema_ref: 'helix://test/inputs', input_bindings_json: '{}', parameter_schema_ref: 'helix://test/parameters',
-      parameters_json: '{}', when_schema_ref: null, when_json: null, effect_class: 'pure_observation',
+      parameters_json: '{}', when_schema_ref: null, when_json: null, effect_class: settings.effectClass || 'pure_observation',
       fence_schema_ref: 'helix://test/fence', fence_basis_json: '{}',
       resource_demand_schema_ref: 'helix://test/resources', resource_demand_json: '{}',
       approval_requirement_ref: settings.approvalRequirementRef || null, authorization_requirement_ref: null,
@@ -76,7 +76,7 @@ function fixture(run, settings = {}) {
       repository.invoke('edge', { plan_id: 'plan', from_node_id: 'node', to_node_id: 'node-dependent', dependency_kind: 'success' });
     }
   } }]);
-  let schedulerReleased = 0; let governorReleased = 0; let dispatchContext;
+  let schedulerReleased = 0; let governorReleased = 0; let dispatchContext; const journalCalls = [];
   const lease = Object.freeze({ leaseId: 'lease', targetType: 'event', targetId: 'event', issuedAtMs: 1, expiresAtMs: 999999, fenceDigest: HASH_A });
   const scheduler = { assertCurrent(value) { assert.equal(value, lease); }, release(value) { assert.equal(value, lease); schedulerReleased += 1; } };
   const permit = Object.freeze({ permitId: 'permit', eventId: 'event', resources: Object.freeze([{ resourceKey: 'cpu_heavy', units: 1 }]), profileRevision: 1, issuedAtMs: 1000 });
@@ -86,13 +86,20 @@ function fixture(run, settings = {}) {
   const dispatcher = { async dispatch(request) {
     dispatchContext = request.context;
     assert.equal(schedulerReleased, 1, 'technical scheduler lease must end before Executor call');
+    if (settings.effectClass && settings.effectClass !== 'pure_observation') assert.equal(journalCalls[0], 'intend');
     if (settings.dispatchError) throw settings.dispatchError;
     return settings.outcome || { kind: 'succeeded', resultSchemaRef: 'helix://test/result', result: { value: 1 },
       evidenceSchemaRef: 'helix://test/evidence', evidence: { proof: true } };
   } };
   const runtime = createEventRuntime({ schemaManifest, unitOfWork, scheduler, governor,
     registry: { resolve: () => ({ manifest: { capabilityRef: 'libra.test.observe@1', resultSchemaRef: 'helix://test/result',
-      approvalRequirementRef: settings.approvalRequirementRef }, executor: { version: 1 } }) }, dispatcher,
+      effectClass: settings.effectClass || 'pure_observation', approvalRequirementRef: settings.approvalRequirementRef }, executor: { version: 1 } }) }, dispatcher,
+    ...(settings.effectJournal === false ? {} : { effectJournal: {
+      intend(request) { journalCalls.push('intend'); return { effect_id: request.eventAttemptId,
+        state: settings.effectIntentState || 'intended', event_attempt_id: settings.effectIntentAttemptId || request.eventAttemptId }; },
+      async settle() { journalCalls.push('settle'); },
+      requireReconcile() { journalCalls.push('reconcile'); }
+    } }),
     executionInputProvider: { prepare: () => ({ ownerScope: { domain: 'libra', processType: 'libra_run', processId: 'run', objectRefs: [] },
       basisRefs: [{ basisType: 'execution_basis', basisId: 'basis', revision: 1, digest: HASH_A }], namedInputs: {},
       idempotencyKey: 'event-attempt', traceContext: { traceId: 'trace', spanId: 'span' },
@@ -104,7 +111,7 @@ function fixture(run, settings = {}) {
     nextEventAttemptId: () => 'event-attempt', nextExecutionId: () => 'execution', nextResultId: () => 'result', now: () => 1000 });
   const cleanup = () => { kernel.close(); fs.rmSync(root, { recursive: true, force: true }); };
   try {
-    const result = run({ runtime, lease, databasePath, state: () => ({ schedulerReleased, governorReleased, dispatchContext }) });
+    const result = run({ runtime, lease, databasePath, state: () => ({ schedulerReleased, governorReleased, dispatchContext, journalCalls }) });
     if (result && typeof result.then === 'function') return result.finally(cleanup);
     cleanup(); return result;
   } catch (error) { cleanup(); throw error; }
@@ -178,6 +185,40 @@ test('Executor crash leaves durable executing Attempt for effect-specific recove
     assert.equal(facts.event.state, 'executing'); assert.equal(facts.attempt.state, 'executing'); assert.equal(facts.results, 0);
     assert.deepEqual({ schedulerReleased: state().schedulerReleased, governorReleased: state().governorReleased }, { schedulerReleased: 1, governorReleased: 1 });
   }, { dispatchError: new Error('executor crash') });
+});
+
+test('non-pure Event persists intent before dispatch and settles verified receipt before Result commit', async () => {
+  const effectReceipt = { effectReceiptId: 'receipt', effectId: 'event-attempt', effectClass: 'external_request', idempotencyKey: 'event-attempt' };
+  await fixture(async ({ runtime, lease, state, databasePath }) => {
+    assert.equal((await runtime.run({ schedulerLease: lease })).kind, 'succeeded');
+    assert.deepEqual(state().journalCalls, ['intend', 'settle']);
+    assert.equal(databaseFacts(databasePath).event.state, 'succeeded');
+  }, { effectClass: 'external_request', outcome: { kind: 'succeeded', resultSchemaRef: 'helix://test/result', result: { value: 1 },
+    evidenceSchemaRef: 'helix://test/evidence', evidence: { proof: true }, effectReceipt } });
+});
+
+test('non-pure Event fails before Attempt creation when Effect Journal is unavailable', async () => {
+  await fixture(async ({ runtime, lease, databasePath }) => {
+    await assert.rejects(runtime.run({ schedulerLease: lease }), { code: 'P4_EVENT_EFFECT_JOURNAL_REQUIRED' });
+    const database = new Database(databasePath, { readonly: true });
+    try { assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_event_attempts').get().count, 0); }
+    finally { database.close(); }
+  }, { effectClass: 'external_request', effectJournal: false });
+});
+
+test('non-pure deferred Outcome enters effect-specific reconciliation instead of ordinary retry', async () => {
+  await fixture(async ({ runtime, lease, state }) => {
+    assert.equal((await runtime.run({ schedulerLease: lease })).kind, 'deferred');
+    assert.deepEqual(state().journalCalls, ['intend', 'reconcile']);
+  }, { effectClass: 'external_request', outcome: { kind: 'deferred', reasonCode: 'PENDING', retryAfterMs: 1000, evidence: {} } });
+});
+
+test('existing non-pure intent cannot re-enter ordinary dispatch even with the same idempotency key', async () => {
+  await fixture(async ({ runtime, lease, state }) => {
+    await assert.rejects(runtime.run({ schedulerLease: lease }), { code: 'P4_EVENT_EFFECT_RECOVERY_REQUIRED' });
+    assert.equal(state().dispatchContext, undefined);
+    assert.deepEqual(state().journalCalls, ['intend']);
+  }, { effectClass: 'external_request', effectIntentState: 'reconcile_required', effectIntentAttemptId: 'older-attempt' });
 });
 
 test('resolved demand cannot claim another Event identity', async () => {
