@@ -2,7 +2,7 @@
 
 Current phase: `P1 — Clean Skeleton and Architecture Guards`
 
-Status: planned; not started; Implementation Gate closed.
+Status: in progress; P1-00 complete; Local Implementation Gate open for P1 only.
 
 Last updated: 2026-07-16
 
@@ -19,21 +19,21 @@ Last updated: 2026-07-16
 
 ## 2. Current authorization state
 
-用户已经授权形成工程文档包，但没有打开Implementation Gate。因此当前允许：
+用户已经打开`Local implementation only` Gate。当前允许：
 
-- 完善本文、Playbook、Status、Plan和Evidence；
-- 只读检查代码与工作区；
-- 讨论P1工程细节。
+- 在隔离worktree实现P1-01至P1-08；
+- 运行P1 unit/contract/isolated architecture fixture；
+- 同步本文、Playbook、Status、Plan和Evidence。
 
 当前禁止：
 
-- 创建`src/helix/`代码或修改package/test脚本；
-- 运行单元测试、E2E或Admin Web构建；
+- 实现P2及以后合同、Schema、Runtime、Domain、API或UI；
+- 运行E2E、Admin Web构建或Docker构建；
 - 构建Docker、部署或接触生产；
 - 修改`media-desktop`；
 - 移动、替换或删除任何真实媒体。
 
-只有用户明确授权打开Local Implementation Gate后，P1-00才能进入`in_progress`。
+本授权只覆盖P1，不自动覆盖P2或任何外部环境动作。
 
 ## 3. Phase objective
 
@@ -82,6 +82,19 @@ Gate打开时另行记录；默认应是“包含本工程文档包、且`media-
 
 P1不得在当前dirty工作区直接实施。
 
+### P1-00 baseline receipt
+
+| Field | Recorded value |
+| --- | --- |
+| P0 code audit baseline | `4a16f0a94ef23fcf732843e9547bd7b724d9c19d` |
+| Approved integration baseline | `c1c6bb0dc468c11bf34e7bd63b038fc1b197a689` |
+| Integration branch | `codex/helix-clean` |
+| Phase branch | `codex/helix-p1` |
+| Phase worktree | `E:\my_project\emby_third_party-helix-p1` |
+| Original worktree | `E:\my_project\emby_third_party` on `master` |
+| Protected original changes | six `media-desktop` files、`media-service/package.json`、untracked `media-service/scripts/analyze-movie-size-policy.js` |
+| Receipt result | original worktree restored to `master`; protected changes preserved; phase worktree clean |
+
 ## 6. Target package skeleton
 
 P1建立SSOT §8.1.2固定的物理结构：
@@ -128,8 +141,8 @@ Repository或未来Phase的占位Runtime。
 
 | ID | Title | Status | Dependencies |
 | --- | --- | --- | --- |
-| P1-00 | Isolated implementation workspace and baseline receipt | blocked by Implementation Gate | P0 audit closed |
-| P1-01 | Clean physical package skeleton | pending | P1-00 |
+| P1-00 | Isolated implementation workspace and baseline receipt | complete | P0 audit closed |
+| P1-01 | Clean physical package skeleton | next | P1-00 |
 | P1-02 | Domain public/internal boundary contract | pending | P1-01 |
 | P1-03 | Unique Composition Root shell | pending | P1-02 |
 | P1-04 | Import and dependency architecture guard | pending | P1-01、P1-02 |
@@ -301,7 +314,5 @@ P1关闭只允许进入P2 Contract and Schema Baseline，不自动授权E2E、Do
 
 ## 11. Current blockers and next action
 
-当前唯一阻塞是Implementation Gate未打开；这不是架构缺口或业务问题。
-
-下一步由用户明确决定是否授权`Local implementation only`。若授权，P1-00开始；若未授权，本文件保持planned，
-不得创建clean代码或运行验证命令。
+当前没有P1 entry blocker。下一步执行P1-01；任何需要P2能力、E2E、Docker、生产、真实媒体副作用或
+`media-desktop`修改的情况都必须停线并请求新授权。

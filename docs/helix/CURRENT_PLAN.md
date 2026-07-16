@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: Levels 0–10 accepted; clean-cut direction and engineering document package accepted; P1 planned; Implementation Gate closed; E2E, build and production paused.
+Status: Levels 0–10 accepted; P1 Local Implementation Gate open; P1 in progress; E2E, Docker, production, real-media side effects and `media-desktop` changes remain paused.
 
 Last updated: 2026-07-16
 
@@ -44,10 +44,11 @@ Work Package细节只存在于`implementation/CURRENT_PHASE.md`；当前事实�
 | --- | --- |
 | Phase | P1 — Clean Skeleton and Architecture Guards |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | planned / not started |
-| Entry blocker | Implementation Gate未被用户打开 |
-| Allowed now | 文档治理、只读审计、计划确认 |
-| Next authorized action | 用户明确授权`Local implementation only`后执行P1-00 |
+| Status | in progress；P1-00 complete |
+| Implementation baseline | `c1c6bb0dc468c11bf34e7bd63b038fc1b197a689` |
+| Phase branch/worktree | `codex/helix-p1` / `E:\my_project\emby_third_party-helix-p1` |
+| Allowed now | P1本地代码、unit/contract/isolated architecture fixture、文档同步 |
+| Next action | P1-01 Clean physical package skeleton |
 
 ## 4. Master roadmap
 
@@ -109,7 +110,7 @@ P1 package/guards
 
 ## 7. Authorization boundaries
 
-当前仅授权Design-only文档工作。后续权限必须逐层明确：
+当前已授权第1层`Local implementation`，且仅限P1。后续权限仍须逐层明确：
 
 1. Local implementation：本地代码、单元/合同/隔离fixture；
 2. Real-source E2E：明确来源和副作用范围；

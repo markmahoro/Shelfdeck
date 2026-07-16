@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Levels 0–10 accepted; final architecture audit closed; P0 implementation gap audit complete; P1 planned; Implementation Gate closed; E2E, build and production paused.
+Status: Levels 0–10 accepted; P0 complete; P1 Local Implementation Gate open; P1-00 complete; P1-01 next; E2E, Docker, production, real-media side effects and `media-desktop` changes paused.
 
 Last updated: 2026-07-16
 
@@ -13,10 +13,12 @@ Last updated: 2026-07-16
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phase | P0 — implementation gap audit and disposition |
 | Current phase | P1 — Clean Skeleton and Architecture Guards |
-| Current phase status | planned / not started |
-| Implementation Gate | closed |
-| Current allowed work | documentation governance and read-only audit only |
-| Next action | user explicitly authorizes `Local implementation only`, then P1-00 starts |
+| Current phase status | in progress；P1-00 complete |
+| Implementation Gate | open for `Local implementation only / P1` |
+| Current allowed work | P1本地代码、unit/contract/isolated architecture fixture、文档同步 |
+| Integration baseline | `c1c6bb0dc468c11bf34e7bd63b038fc1b197a689` |
+| Phase worktree | `E:\my_project\emby_third_party-helix-p1` on `codex/helix-p1` |
+| Next action | P1-01 Clean physical package skeleton |
 
 ## 2. Accepted implementation conclusion
 
@@ -57,8 +59,8 @@ P1详细Work Package只存在于`implementation/CURRENT_PHASE.md`。当前索引
 
 | Work Package | Status |
 | --- | --- |
-| P1-00 Isolated workspace and baseline receipt | blocked by Implementation Gate |
-| P1-01 Clean physical package skeleton | pending |
+| P1-00 Isolated workspace and baseline receipt | complete |
+| P1-01 Clean physical package skeleton | next |
 | P1-02 Domain public/internal boundary | pending |
 | P1-03 Unique Composition Root shell | pending |
 | P1-04 Import/dependency guard | pending |
@@ -83,7 +85,7 @@ P1详细Work Package只存在于`implementation/CURRENT_PHASE.md`。当前索引
 
 - NAS ShelfDeck Docker `192.168.12.230:18080`保持生产边界，当前不接触；
 - 四库真实来源E2E保持停止；
-- 不运行单元测试、Admin Web构建或Docker构建；
+- 只运行P1 unit/contract/isolated architecture fixture；不运行E2E、Admin Web构建或Docker构建；
 - 不部署、不初始化生产数据、不执行真实媒体副作用；
 - 当前旧`helixCleanState`/preflight不得用于clean切换或生产；
 - `media-desktop`继续排除并保留用户未提交修改；
@@ -98,13 +100,9 @@ P1详细Work Package只存在于`implementation/CURRENT_PHASE.md`。当前索引
 | R0 | 原子复用携带错误Owner/Store/Material权限 | function-level ledger；0 whole-executor reuse |
 | R0 | 当前误导性clean-init造成数据破坏 | 封存；P13按Level 10完全重写 |
 | R1 | 后续为进度创建新旧混合路径 | Master dependency invariant和Phase Exit Audit |
-| blocker | Local Implementation Gate未授权 | 等待用户明确授权；不推断 |
+| active control | P1不得提前进入P2或接旧产品主路径 | Current Phase Non-goals与Exit Gate |
 
 ## 8. Next checkpoint
 
-文档包完成一致性复核后，Design阶段没有其他工程前置缺口。下一检查点是用户是否授权：
-
-> `Local implementation only: P1 code + unit/contract/isolated architecture fixture; no E2E, Docker, production,
-> real-media side effect, or media-desktop change.`
-
-在收到明确授权前，P1保持planned，Implementation Gate保持关闭。
+P1-00已完成。下一检查点是P1-01物理骨架完成并由目录manifest与无startup side effect检查证明。P1授权不包含
+E2E、Docker、生产、真实媒体副作用或`media-desktop`修改。
