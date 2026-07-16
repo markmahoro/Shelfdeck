@@ -9,11 +9,11 @@ Audit date: 2026-07-16
 | Field | Value |
 | --- | --- |
 | P1 baseline | `c52e67fa2b49c605d0971f2150238ea37c50816a` |
-| Audited P2 implementation commit | `460e25f576fc7ca43f73f2181124985a5a7abb9a` |
+| Audited P2 closure commit | `a735781010ee58c4119d93bb320bfe11bf1d4b7f` |
 | Audit scope | local contract/schema baseline only |
 | SSOT | `TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`，unchanged |
 | P2 contract aggregate | `ebbfda8885837170d48a0feb8f3aaad9a32aa35c44dc2db21704f820a6e3fc4a` |
-| Exit evidence digest | `7c4ad30943f5da10d6b1427a8e8b821fede6ded26133ad509a7e9b1eed0b6c5d` |
+| Exit evidence digest | `f4ac678ce0b943e86b1317185866172e579ce273e2f6a6f515a16b76180f9352` |
 
 ## 2. Reverse traceability result
 
@@ -42,12 +42,18 @@ node media-service/scripts/helix-architecture-verify.js
 node media-service/scripts/helix-p2-exit-audit.js --require-clean
 → ok: true
 → scope: P2_EXIT_AUDIT_LOCAL_CONTRACT_ONLY
-→ changed files audited: 1369
+→ changed files audited: 1379
+→ tracked contract files: 1331
 → findings: 0
 ```
 
-Changed path classes：5 governance/phase documents、37 contract tooling files、1311 contract artifacts、16 isolated
+Changed path classes：7 governance/phase documents、37 contract tooling files、1319 contract artifacts、16 isolated
 contract fixture files。所有Capability package仍只有JSON合同文件，没有Executor。
+
+首次P3 fresh-worktree baseline曾发现`arca.offdeck.related_reference.release@1`目录命中仓库`release/` ignore规则，
+导致原worktree物理文件存在但Git未纳管。P2随即重开审计：强制纳管该8-file package，并新增“contracts root每个物理
+artifact都必须在`git ls-files`中”的Exit规则与负例。修正后的fresh checkout为112/112；本文件只记录修正后审计，
+不把首次不充分审计当作PASS Evidence。
 
 ## 4. Negative evidence
 
@@ -64,6 +70,7 @@ contract fixture files。所有Capability package仍只有JSON合同文件，没
 - Batch Authorization提前创建Case；
 - Shelf Deregistration进入Delete Capability；
 - P2 diff触碰SSOT、startup、DB/DDL、E2E/Docker或`media-desktop`。
+- contract artifact因Git ignore而未被纳管，导致fresh checkout不完整。
 
 ## 5. Scope and safety proof
 

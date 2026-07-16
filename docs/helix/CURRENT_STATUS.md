@@ -16,7 +16,7 @@ Last updated: 2026-07-16
 | Current phase status | in progress；P3-00 next |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
-| Integration baseline | P2 audited implementation `460e25f576fc7ca43f73f2181124985a5a7abb9a`；closure recorded by P3-00 |
+| Integration baseline | P2 audited closure `a735781010ee58c4119d93bb320bfe11bf1d4b7f`；exact closure recorded by P3-00 |
 | Phase worktree | P3-00 creates isolated `codex/helix-p3` worktree |
 | Next action | P3-00 isolated baseline receipt |
 
@@ -83,7 +83,7 @@ P1与P2已关闭；clean root仍未接入`server.js`、`app.js`或任何旧Runti
 | P2-05 156 table contract inventory | complete；156/156；148 inline FKs；30 JSON columns |
 | P2-06 18 canonical transaction inventory | complete；10 Control commits；19 crash bindings |
 | P2-07 Cross-inventory verification harness | complete；single P2 command；aggregate `ebbfda88…` |
-| P2-08 Phase Exit Audit | complete；audited `460e25f5`；evidence `7c4ad309…` |
+| P2-08 Phase Exit Audit | complete；audited `a7357810`；evidence `f4ac678c…`；1331 tracked contracts |
 
 ## 5. Engineering governance state
 
@@ -118,8 +118,10 @@ P1与P2已关闭；clean root仍未接入`server.js`、`app.js`或任何旧Runti
 
 ## 8. Next checkpoint
 
-P2 Exit Audit已PASS并归档。审计实现提交`460e25f576fc7ca43f73f2181124985a5a7abb9a`，合同aggregate digest为
+P2 Exit Audit已在fresh-worktree复现性修正后PASS并归档。审计闭合提交`a735781010ee58c4119d93bb320bfe11bf1d4b7f`，合同aggregate digest为
 `ebbfda8885837170d48a0feb8f3aaad9a32aa35c44dc2db21704f820a6e3fc4a`，Exit evidence digest为
-`7c4ad30943f5da10d6b1427a8e8b821fede6ded26133ad509a7e9b1eed0b6c5d`；1369个P2 changed files反向审计、findings=0。
+`f4ac678ce0b943e86b1317185866172e579ce273e2f6a6f515a16b76180f9352`；1379个P2 changed files与1331个tracked
+contract files反向审计、findings=0。P3首次baseline发现并促成修正了被`release/` ignore遗漏的8-file Capability package；
+现在Exit Audit会拒绝任何物理存在但Git未纳管的contract artifact。
 P2未修改SSOT、未执行DDL/SQLite、未接startup、未触碰E2E/Docker/production/real media/`media-desktop`。下一检查点是
 P3-00把P2 closure快进到integration branch并建立隔离P3 baseline；随后才开始156-table DDL compiler。没有需要用户决定的业务问题。

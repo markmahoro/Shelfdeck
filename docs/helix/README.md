@@ -24,7 +24,7 @@ Status: clean architecture accepted; P0–P2 complete; P3 in progress under stan
 | `implementation/CURRENT_PHASE.md` | 唯一活动P3详细执行包；Persistence and Atomic Foundation |
 | `implementation/evidence/IMPLEMENTATION_GAP_AUDIT_4a16f0a9.md` | 已关闭的`4a16f0a9`实现差距矩阵、处置与风险Evidence |
 | `implementation/evidence/P1_PHASE_EXIT_AUDIT_9a4d9b1f.md` | P1 Exit Audit、隔离验证结果、manifest digest和已知限制 |
-| `implementation/evidence/P2_PHASE_EXIT_AUDIT_460e25f5.md` | P2 Exit Audit、112/96/156/18 baseline、aggregate digest和安全边界 |
+| `implementation/evidence/P2_PHASE_EXIT_AUDIT_A7357810.md` | P2 Exit Audit、112/96/156/18 baseline、tracked-artifact复现性和安全边界 |
 | `CAPABILITY_CONSERVATION.md` | 已完成的Level 7能力守恒Evidence；62项历史能力逐项映射，不覆盖SSOT |
 | `KAIROX_CAPABILITY_CATALOG.md` | 62项历史Capability目录快照；不定义clean Owner或调用方向 |
 | `acceptance/FLOWPLAN_BUSINESS_PARITY.md` | 旧Kairox FlowPlan复刻验收Evidence；不定义clean业务流程 |

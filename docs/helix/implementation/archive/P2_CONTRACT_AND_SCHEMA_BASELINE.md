@@ -165,9 +165,10 @@ P2 Schema是实现合同，不是可运行数据库。不得创建空壳Reposito
 - Prove no implementation behavior、DDL execution、legacy compatibility or startup wiring entered P2.
 - Freeze baseline commit、commands、aggregate digest、known limitations and implementation commit.
 - PASS automatically archives this packet and opens P3 Local Implementation under the standing authorization.
-- Done: audited implementation commit `460e25f576fc7ca43f73f2181124985a5a7abb9a`；P2 aggregate digest
+- Done: audited closure commit `a735781010ee58c4119d93bb320bfe11bf1d4b7f`；P2 aggregate digest
   `ebbfda8885837170d48a0feb8f3aaad9a32aa35c44dc2db21704f820a6e3fc4a`；Exit evidence digest
-  `7c4ad30943f5da10d6b1427a8e8b821fede6ded26133ad509a7e9b1eed0b6c5d`；zero findings. P2 archived and P3 opened.
+  `f4ac678ce0b943e86b1317185866172e579ce273e2f6a6f515a16b76180f9352`；zero findings；1331/1331 physical contract
+  files tracked. P2 archived and P3 opened.
 
 ## 8. Execution order
 

@@ -33,7 +33,7 @@ P3不实现Work/Event Runtime、Domain业务行为、HTTP/API/UI，也不接旧�
 | Field | Value |
 | --- | --- |
 | P0 code audit baseline | `4a16f0a94ef23fcf732843e9547bd7b724d9c19d` |
-| P2 audited implementation | `460e25f576fc7ca43f73f2181124985a5a7abb9a` |
+| P2 audited closure | `a735781010ee58c4119d93bb320bfe11bf1d4b7f` |
 | P3 implementation baseline | P3-00 records the exact P2 closure commit |
 | Integration branch | `codex/helix-clean` |
 | Phase branch/worktree | P3-00 creates isolated `codex/helix-p3` worktree |
