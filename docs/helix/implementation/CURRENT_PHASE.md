@@ -2,7 +2,7 @@
 
 Current phase: `P3 — Persistence and Atomic Foundation`
 
-Status: in progress；P3-00–P3-01 complete；P3-02 next；P2 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P3-00–P3-02 complete；P3-03 next；P2 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-16
 
@@ -68,8 +68,8 @@ P3不实现Work/Event Runtime、Domain业务行为、HTTP/API/UI，也不接旧�
 | --- | --- | --- | --- |
 | P3-00 | P2 closure and isolated P3 baseline receipt | complete | P2 PASS |
 | P3-01 | Deterministic 156-table clean DDL compiler | complete | P3-00；P2 tables |
-| P3-02 | SQLite Kernel and clean schema generation gate | next | P3-01 |
-| P3-03 | Owner-scoped Repository and Unit of Work boundaries | pending | P3-02 |
+| P3-02 | SQLite Kernel and clean schema generation gate | complete | P3-01 |
+| P3-03 | Owner-scoped Repository and Unit of Work boundaries | next | P3-02 |
 | P3-04 | Commit Marker、Command Receipt and Audit foundation | pending | P3-03 |
 | P3-05 | Outbox、Delivery and Inbox atomic foundation | pending | P3-03–P3-04 |
 | P3-06 | Material Control CAS current/revision participant | pending | P3-03–P3-04 |
@@ -109,6 +109,12 @@ P3不实现Work/Event Runtime、Domain业务行为、HTTP/API/UI，也不接旧�
 - Implement the only SQLite connection/transaction Kernel with required PRAGMA and same-commit timestamp injection.
 - Validate schema generation、Catalog digest、`foreign_key_check` and partial-unique self-check before writable use.
 - Tests use disposable databases only；no server startup wiring or local `data/` access.
+- Done: commit `63e96c0e` opens only the caller-supplied clean path through the sole Kernel constructor；requires WAL、
+  `foreign_keys=ON`、NORMAL synchronous and 5000 ms busy timeout；initializes exactly one `helix-clean-v1` marker and validates
+  156 tables、72 indexes、19 partial unique indexes、Catalog digest、`integrity_check`、`foreign_key_check` and three cross-table
+  guard projections before writable use. Five fixture groups prove same-commit time、commit/rollback、nested rejection、legacy/mixed
+  refusal、DDL/marker/catalog/partial-index tamper refusal、FK corruption and guard drift. Fresh detached-worktree full gate PASS；all
+  databases were temporary and deleted；no startup wiring or local `data/` access.
 
 ### P3-03 Owner-scoped Repository and Unit of Work boundaries
 
