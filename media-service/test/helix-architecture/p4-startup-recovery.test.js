@@ -1,13 +1,149 @@
 'use strict';
-const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),test=require('node:test'),Database=require('better-sqlite3');
-const {createStartupRecovery}=require('../../src/helix/foundation/execution/startup-recovery'); const {openSqliteKernel}=require('../../src/helix/foundation/persistence/sqlite-kernel'); const {createSqliteUnitOfWork}=require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
-const g=path.resolve(__dirname,'../../src/helix/foundation/persistence/generated'),ddl=fs.readFileSync(path.join(g,'clean-schema.sql'),'utf8'),manifest=JSON.parse(fs.readFileSync(path.join(g,'clean-schema.manifest.json'),'utf8'));
-function fixture(run,settings={}){const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-startup-')),dbp=path.join(root,'db');const kernel=openSqliteKernel({Database,databasePath:dbp,schemaDdl:ddl,schemaManifest:manifest,now:()=>1700000005000});
- kernel.runPrimitive(t=>{t.prepare("INSERT INTO fx_supporting_works(work_id,state) VALUES('w','running')").run();t.prepare("INSERT INTO fx_work_attempts(attempt_id,work_id,state) VALUES('wa','w','running')").run();t.prepare("INSERT INTO fx_workflow_plans(plan_id,attempt_id,state) VALUES('p','wa','planned')").run();
- t.prepare("INSERT INTO fx_plan_nodes(plan_id,node_id,effect_class,retry_policy_ref,timeout_policy_ref) VALUES('p','n',?,?,?)").run(settings.effectClass||'pure_observation','r','t');t.prepare("INSERT INTO fx_workflow_events(event_id,plan_id,node_id,work_id,attempt_id,owner_domain,capability_ref,state) VALUES('e','p','n','w','wa','libra','libra.fixture@1','executing')").run();
- t.prepare("INSERT INTO fx_event_attempts(event_attempt_id,event_id,ordinal,state) VALUES('ea','e',1,'executing')").run();if(settings.journal)t.prepare("INSERT INTO fx_effect_journal(effect_id,event_attempt_id,effect_class,idempotency_key,intent_digest,state,updated_at_ms) VALUES('fx','ea',?,'k',?,'intended',1)").run(settings.effectClass,'a'.repeat(64));if(settings.circuit)t.prepare("INSERT INTO fx_circuit_states(circuit_key,state,reason_code,evidence_digest,opened_at_ms) VALUES('foundation/event-dispatch','open','X',?,1)").run('b'.repeat(64));});
- const recovery=createStartupRecovery({schemaManifest:manifest,unitOfWork:createSqliteUnitOfWork({kernel}),registry:{resolve:()=>({})},policyRegistry:{bindingFor:()=>({})},integrityVerifier:{verify:()=>({ok:settings.integrity!==false})},effectReconciler:{reconcile:async()=>({decision:'continue_forward',evidenceDigest:'c'.repeat(64)})}});try{return run(recovery);}finally{kernel.close();fs.rmSync(root,{recursive:true,force:true});}}
-test('bootstrapping blocks supply and pure crash classifies safe retry without resetting facts',async()=>fixture(async r=>{assert.equal(r.readiness().state,'bootstrapping');const x=await r.recover();assert.equal(x.state,'ready');assert.equal(x.actions[0].decision,'safe_retry');assert.equal(x.recoveredInMemoryPermits,0);}));
-test('non-pure executing Event uses exact effect reconciler',async()=>fixture(async r=>{const x=await r.recover();assert.equal(x.actions[0].decision,'continue_forward');},{effectClass:'material_commit',journal:true}));
-test('non-pure crash before durable intent is distinguished from unknown effect point',async()=>fixture(async r=>{const x=await r.recover();assert.equal(x.actions[0].decision,'safe_retry_before_intent');},{effectClass:'external_request'}));
-test('global Circuit and integrity failure keep normal supply faulted',async()=>{await fixture(async r=>{const x=await r.recover();assert.equal(x.state,'faulted');assert.equal(x.normalSupplyAllowed,false);},{circuit:true});await fixture(async r=>assert.equal((await r.recover()).state,'faulted'),{integrity:false});});
+
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const test = require('node:test');
+const Database = require('better-sqlite3');
+const { createStartupRecovery } = require('../../src/helix/foundation/execution/startup-recovery');
+const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
+const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
+
+const generated = path.resolve(__dirname, '../../src/helix/foundation/persistence/generated');
+const schemaDdl = fs.readFileSync(path.join(generated, 'clean-schema.sql'), 'utf8');
+const schemaManifest = JSON.parse(fs.readFileSync(path.join(generated, 'clean-schema.manifest.json'), 'utf8'));
+const HASH = 'a'.repeat(64);
+
+function fixture(run, settings = {}) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-startup-'));
+  const databasePath = path.join(root, 'shelfdeck.db');
+  const kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest, now: () => 1700000005000 });
+  if (settings.seedEvent !== false) kernel.runPrimitive((transaction) => {
+    const effectClass = settings.effectClass || 'pure_observation';
+    const eventState = settings.eventState || 'executing';
+    transaction.prepare("INSERT INTO fx_supporting_works(work_id,state) VALUES('work','running')").run();
+    transaction.prepare("INSERT INTO fx_work_attempts(attempt_id,work_id,state) VALUES('work-attempt','work','running')").run();
+    transaction.prepare("INSERT INTO fx_workflow_plans(plan_id,attempt_id,state) VALUES('plan','work-attempt','planned')").run();
+    transaction.prepare("INSERT INTO fx_plan_nodes(plan_id,node_id,effect_class,retry_policy_ref,timeout_policy_ref) VALUES('plan','node',?,'retry','timeout')")
+      .run(effectClass);
+    transaction.prepare("INSERT INTO fx_workflow_events(event_id,plan_id,node_id,work_id,attempt_id,owner_domain,capability_ref,state) VALUES('event','plan','node','work','work-attempt','libra','libra.fixture@1',?)")
+      .run(eventState);
+    const attemptState = eventState === 'executing' ? 'executing' : 'completed';
+    transaction.prepare("INSERT INTO fx_event_attempts(event_attempt_id,event_id,ordinal,state,outcome_kind,started_at_ms) VALUES('event-attempt','event',1,?,?,1)")
+      .run(attemptState, attemptState === 'completed' ? 'deferred' : null);
+    if (settings.journal) transaction.prepare("INSERT INTO fx_effect_journal(effect_id,event_attempt_id,effect_class,idempotency_key,intent_digest,state,updated_at_ms) VALUES('effect','event-attempt',?,'key',?, ?,1)")
+      .run(effectClass, HASH, settings.effectState || 'intended');
+    if (settings.secondJournal) transaction.prepare("INSERT INTO fx_effect_journal(effect_id,event_attempt_id,effect_class,idempotency_key,intent_digest,state,updated_at_ms) VALUES('effect-2','event-attempt',?,'key-2',?,'intended',1)")
+      .run(effectClass, HASH);
+    if (settings.defer) transaction.prepare("INSERT INTO fx_resource_defer(event_id,resource_key,queue_class,local_priority,enqueued_at_ms,retry_at_ms,state) VALUES('event','cpu','normal_foreground',0,1,2,'waiting')").run();
+    if (settings.circuit) transaction.prepare("INSERT INTO fx_circuit_states(circuit_key,state,reason_code,evidence_digest,opened_at_ms) VALUES(?, 'open','FAULT',?,1)")
+      .run(settings.circuit, 'b'.repeat(64));
+  });
+  if (settings.seedEvent === false && settings.circuit) kernel.runPrimitive((transaction) => {
+    transaction.prepare("INSERT INTO fx_circuit_states(circuit_key,state,reason_code,evidence_digest,opened_at_ms) VALUES(?, 'open','FAULT',?,1)")
+      .run(settings.circuit, 'b'.repeat(64));
+  });
+  const recovery = createStartupRecovery({
+    schemaManifest,
+    unitOfWork: createSqliteUnitOfWork({ kernel }),
+    registry: { resolve() { if (settings.unknownContract) throw new Error('unknown'); return {}; } },
+    policyRegistry: { bindingFor() { return { retryPolicyRef: 'retry', timeoutPolicyRef: 'timeout' }; } },
+    integrityVerifier: { verify: () => ({ ok: settings.integrity !== false }) },
+    catalogVerifier: { verify: () => settings.catalog !== false },
+    effectReconciler: { async reconcile() {
+      if (settings.reconcilerUnavailable) throw new Error('unavailable');
+      return { decision: 'continue_forward', evidenceDigest: 'c'.repeat(64) };
+    } }
+  });
+  try { return run(recovery); }
+  finally { kernel.close(); fs.rmSync(root, { recursive: true, force: true }); }
+}
+
+test('empty durable runtime becomes ready while bootstrapping never supplies normal Work', async () => fixture(async (recovery) => {
+  assert.equal(recovery.readiness().state, 'bootstrapping');
+  assert.equal(recovery.readiness().normalSupplyAllowed, false);
+  assert.deepEqual(await recovery.recover(), {
+    state: 'ready', normalSupplyAllowed: true, findings: [], actions: [], durableDefers: 0, nonterminalWorks: 0, nonterminalEvents: 0,
+    recoveredInMemoryLeases: 0, recoveredInMemoryPermits: 0, recoveredInMemoryWaiters: 0
+  });
+}, { seedEvent: false }));
+
+test('pure crash is classified safe_retry but readiness remains recovering until action converges', async () => fixture(async (recovery) => {
+  const result = await recovery.recover();
+  assert.equal(result.state, 'recovering');
+  assert.equal(result.normalSupplyAllowed, false);
+  assert.equal(result.actions[0].decision, 'safe_retry');
+}));
+
+test('non-pure recovery uses exact Effect reconciler and committed Effect is never rerun', async () => {
+  await fixture(async (recovery) => {
+    const result = await recovery.recover();
+    assert.equal(result.state, 'recovering');
+    assert.equal(result.actions[0].decision, 'continue_forward');
+  }, { effectClass: 'material_commit', journal: true });
+  await fixture(async (recovery) => {
+    assert.equal((await recovery.recover()).actions[0].decision, 'already_committed');
+  }, { effectClass: 'domain_fact_commit', journal: true, effectState: 'committed' });
+});
+
+test('crash before non-pure intent is distinct from unknown effect point', async () => fixture(async (recovery) => {
+  const result = await recovery.recover();
+  assert.equal(result.actions[0].decision, 'safe_retry_before_intent');
+  assert.equal(result.state, 'recovering');
+}, { effectClass: 'external_request' }));
+
+test('waiting external requires one Effect while resource wait requires one durable defer', async () => {
+  await fixture(async (recovery) => {
+    const result = await recovery.recover();
+    assert.equal(result.state, 'recovering');
+    assert.equal(result.actions[0].decision, 'continue_forward');
+  }, { eventState: 'waiting_for_external', effectClass: 'external_request', journal: true });
+  await fixture(async (recovery) => {
+    const result = await recovery.recover();
+    assert.equal(result.state, 'faulted');
+    assert.equal(result.findings[0], 'WAITING_EFFECT_MISSING:event');
+  }, { eventState: 'waiting_for_external', effectClass: 'external_request' });
+  await fixture(async (recovery) => {
+    const result = await recovery.recover();
+    assert.equal(result.state, 'ready');
+    assert.equal(result.durableDefers, 1);
+  }, { eventState: 'waiting_for_resource', defer: true });
+  await fixture(async (recovery) => {
+    assert.equal((await recovery.recover()).findings.includes('RESOURCE_DEFER_CARDINALITY:event'), true);
+  }, { eventState: 'waiting_for_resource' });
+});
+
+test('multiple effects, unavailable reconciler, unknown contract, global Circuit, and integrity drift fail closed', async () => {
+  for (const [settings, finding] of [
+    [{ effectClass: 'material_commit', journal: true, secondJournal: true }, 'MULTIPLE_EFFECTS_PER_ATTEMPT:event'],
+    [{ effectClass: 'material_commit', journal: true, reconcilerUnavailable: true }, 'RECONCILER_UNAVAILABLE:event'],
+    [{ unknownContract: true }, 'UNKNOWN_EVENT_CONTRACT:event']
+  ]) await fixture(async (recovery) => {
+    const result = await recovery.recover();
+    assert.equal(result.normalSupplyAllowed, false);
+    assert.equal(result.findings.includes(finding), true);
+  }, settings);
+  await fixture(async (recovery) => assert.equal((await recovery.recover()).state, 'faulted'), { circuit: 'foundation/event-dispatch' });
+  await fixture(async (recovery) => assert.equal((await recovery.recover()).state, 'faulted'), { integrity: false });
+  await fixture(async (recovery) => assert.equal((await recovery.recover()).findings.includes('PLAN_CATALOG_DRIFT:plan'), true), { catalog: false });
+  await fixture(async (recovery) => assert.equal((await recovery.recover()).findings.includes('ORPHAN_OR_UNKNOWN_EVENT_FACT:event'), true),
+    { effectClass: 'unknown_effect' });
+  await fixture(async (recovery) => assert.equal(
+    (await recovery.recover()).findings.includes('NONTERMINAL_EFFECT_WITHOUT_RECOVERY_EVENT:effect'), true),
+  { eventState: 'failed', effectClass: 'material_commit', journal: true });
+});
+
+test('scoped Circuit yields degraded fail-closed readiness and no in-memory guard resurrection', async () => fixture(async (recovery) => {
+  const result = await recovery.recover();
+  assert.equal(result.state, 'degraded');
+  assert.equal(result.normalSupplyAllowed, false);
+  assert.equal(result.recoveredInMemoryLeases + result.recoveredInMemoryPermits + result.recoveredInMemoryWaiters, 0);
+}, { seedEvent: false, circuit: 'owner/libra/event-dispatch' }));
+
+test('startup source is read-only classification and contains no bulk reset or in-memory guard restore', () => {
+  const source = fs.readFileSync(path.resolve(__dirname, '../../src/helix/foundation/execution/startup-recovery.js'), 'utf8').toLowerCase();
+  for (const forbidden of ["kind: 'update'", 'state: \'ready\'', 'recoverpermit', 'recoverwaiter', '../domains', 'fallback']) {
+    assert.equal(source.includes(forbidden), false, forbidden);
+  }
+});
