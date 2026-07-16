@@ -2,7 +2,7 @@
 
 Current phase: `P4 — Execution and Recovery Foundation`
 
-Status: in progress；P4-00–P4-10 complete；P4-11 next；P3 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P4-00–P4-11 complete；P4-12 next；P3 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-17
 
@@ -78,8 +78,8 @@ P4不形成“可运行半成品产品”；所有Runtime fixture必须在isolat
 | P4-08 | Event Runtime、Fence、Outcome/Result and Progress | complete | P4-02、P4-06–P4-07 |
 | P4-09 | Effect Journal and seven Effect-specific reconcilers | complete | P4-08；P3 atomic commits |
 | P4-10 | Retry、Timeout and declared Compensation | complete | P4-08–P4-09 |
-| P4-11 | Pressure Guard and persistent Circuit Breaker | next | P4-05–P4-10 |
-| P4-12 | Startup recovery and Foundation readiness | pending | P4-09–P4-11 |
+| P4-11 | Pressure Guard and persistent Circuit Breaker | complete | P4-05–P4-10 |
+| P4-12 | Startup recovery and Foundation readiness | next | P4-09–P4-11 |
 | P4-13 | Cross-runtime crash/recovery verification harness | pending | P4-01–P4-12 |
 | P4-14 | P4 Phase Exit Audit and evidence freeze | pending | P4-00–P4-13 |
 
@@ -233,6 +233,13 @@ P4不形成“可运行半成品产品”；所有Runtime fixture必须在isolat
 - Breaker blocks new normal/background and unstarted commit-capable effects in affected scope while preserving diagnostics、reconcile and
   irreversible forward recovery；restart cannot clear it.
 - Closing requires invariant restoration plus explicit reconcile evidence；never queue deletion or fabricated success.
+- Done: commit `1e5c6732` evaluates the exact SSOT correctness and pressure thresholds from closed Evidence samples and persists only
+  `fx_circuit_states`; it never mutates queues、Events、Results or Business facts. Circuit facts survive restart，same evidence replays
+  stably，conflicting evidence cannot be replaced silently，and closure requires `open → recovering → closed` plus explicit invariant and
+  reconcile proof. Open/recovering Circuits block new normal/background and unstarted commit-capable effects before Permit、Attempt or
+  effect intent，while preserving diagnostics、reconcile、started Control/Receipt convergence and already-irrevocable forward recovery.
+  Twenty-six focused tests，48-file full architecture gate，P3 persistence aggregate and fresh detached-worktree audit PASS with unchanged
+  P2/DDL digests and no real side effect.
 
 ### P4-12 Startup recovery and Foundation readiness
 
