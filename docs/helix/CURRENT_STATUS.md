@@ -13,12 +13,12 @@ Last updated: 2026-07-16
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline |
 | Current phase | P3 — Persistence and Atomic Foundation |
-| Current phase status | in progress；P3-00–P3-07 complete；P3-08 next |
+| Current phase status | in progress；P3-00–P3-08 complete；P3-09 next |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | P2 closure / P3 baseline `e3b50f946956105b18ffcf0853c8c2a57ebb4db8` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p3` on `codex/helix-p3` |
-| Next action | P3-08 18 canonical transaction crash-window fixtures |
+| Next action | P3-09 Cross-persistence verification harness |
 
 ## 2. Accepted implementation conclusion
 
@@ -148,5 +148,8 @@ P3-06已在`f3ec7a81`完成：canonical Physical Material Identity重算、expec
 Owner/aggregate/fact/schema Registry强制预声明`domain_fact_commit` Effect Class和revision fence，payload digest与participant
 Owner/bound Owner均fail-closed；coordinator不接受调用方Repository、SQL或generic participant，只在同一scoped UoW组合Domain、
 可选Material Control、Commit Marker与同Owner Outbox。6组原子/replay/unknown schema/payload drift/wrong Owner/revision/marker
-conflict/Control CAS反例、完整门禁和fresh detached-worktree均PASS，SSOT与P2合同digest未改变。下一检查点是P3-08的18项
-canonical transaction crash-window fixtures。没有需要用户决定的业务问题。
+conflict/Control CAS反例、完整门禁和fresh detached-worktree均PASS，SSOT与P2合同digest未改变。P3-08已在`6bbf66ff`
+完成：18项合同、56个声明写表、132个participant/COMMIT故障点、18个revision-fence反例、10个stale Control CAS反例和
+11个真实Outbox路径均使用disposable SQLite验证；COMMIT前任一点失败保持完整快照不变，COMMIT后进程丢失/reopen保持整套
+声明事实可见，Handoff上游prefix及其它forbidden write set不变。66/66专项测试、完整门禁和fresh detached-worktree均PASS，
+没有真实文件/Provider/网络/媒体副作用。下一检查点是P3-09 cross-persistence verification harness。没有需要用户决定的业务问题。

@@ -2,7 +2,7 @@
 
 Current phase: `P3 — Persistence and Atomic Foundation`
 
-Status: in progress；P3-00–P3-07 complete；P3-08 next；P2 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P3-00–P3-08 complete；P3-09 next；P2 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-16
 
@@ -74,8 +74,8 @@ P3不实现Work/Event Runtime、Domain业务行为、HTTP/API/UI，也不接旧�
 | P3-05 | Outbox、Delivery and Inbox atomic foundation | complete | P3-03–P3-04 |
 | P3-06 | Material Control CAS current/revision participant | complete | P3-03–P3-04 |
 | P3-07 | Typed Domain Commit Registry and participant coordinator | complete | P3-03–P3-06 |
-| P3-08 | 18 canonical transaction crash-window fixtures | next | P3-07 |
-| P3-09 | Cross-persistence verification harness | pending | P3-01–P3-08 |
+| P3-08 | 18 canonical transaction crash-window fixtures | complete | P3-07 |
+| P3-09 | Cross-persistence verification harness | next | P3-01–P3-08 |
 | P3-10 | P3 Phase Exit Audit and evidence freeze | pending | P3-00–P3-09 |
 
 ## 7. Work Package contracts
@@ -181,6 +181,13 @@ P3不实现Work/Event Runtime、Domain业务行为、HTTP/API/UI，也不接旧�
 - Implement all P2 transaction contracts on disposable DBs with fault injection before/after every participant and commit boundary.
 - Assert all-or-nothing fact sets、fences、CAS、receipt/outbox and forbidden write sets.
 - Filesystem/Provider effects remain mocked receipts；no real media side effect.
+- Done: commit `6bbf66ff` drives one test-only fault harness directly from the frozen 18-contract inventory and changes every one of
+  the 56 declared write tables through scoped Repository、actual Material Control and actual Outbox participants. It covers 132
+  before/after-participant and pre-COMMIT crash points、18 revision-fence failures、10 stale Control CAS failures and post-COMMIT
+  process-loss/reopen for every transaction；11 Outbox contracts use durable Outbox/Delivery writes. Every rollback compares complete
+  table snapshots，every successful post-COMMIT recovery proves the full declared write set changed，and forbidden tables/prefixes—including
+  Procurement/Libra upstream Stores at Handoff—remain unchanged. 66/66 focused tests、full gate and fresh detached-worktree gate PASS；
+  all DBs were disposable and no filesystem、Provider、network、Runtime、API/UI or real-media effect was invoked.
 
 ### P3-09 Cross-persistence verification harness
 
