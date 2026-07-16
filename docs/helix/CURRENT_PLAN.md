@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: Levels 0–10 accepted; P0–P3 complete; P4 in progress under standing P2–P13 Local Implementation authorization; external-environment actions and `media-desktop` remain paused.
+Status: Levels 0–10 accepted; P0–P4 complete; P5 in progress under standing P2–P13 Local Implementation authorization; external-environment actions and `media-desktop` remain paused.
 
 Last updated: 2026-07-17
 
@@ -42,13 +42,13 @@ Work Package细节只存在于`implementation/CURRENT_PHASE.md`；当前事实�
 
 | Field | Current value |
 | --- | --- |
-| Phase | P4 — Execution and Recovery Foundation |
+| Phase | P5 — Platform and Integrations |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | in progress；P4-00–P4-13 complete；P4-14 next；P3 Exit Audit PASS |
-| Implementation baseline | exact P3 phase closure `4a59356f3a89f1af38f594763aaaa0465e203b99` |
-| Phase branch/worktree | `codex/helix-p4` / `E:\my_project\emby_third_party-helix-p4` |
+| Status | in progress；P5-00 next；P4 Exit Audit PASS |
+| Implementation baseline | P4 audited implementation `fa8debb37cf118e39bb769f82336ecc0c0a1f2a3`；exact phase closure to freeze in P5-00 |
+| Phase branch/worktree | P5 isolated branch/worktree to be created by P5-00 |
 | Allowed now | P2–P13本地代码、unit/contract/isolated fixture、文档与Phase自动转换 |
-| Next action | P4-14 P4 Phase Exit Audit and evidence freeze |
+| Next action | P5-00 P4 closure and isolated P5 baseline receipt |
 
 ## 4. Master roadmap
 
@@ -58,7 +58,7 @@ Work Package细节只存在于`implementation/CURRENT_PHASE.md`；当前事实�
 | P1 Clean skeleton and guards | 固定`src/helix/`、public/internal边界、唯一Root shell、机器架构门禁和manifest框架 | P0；Local Implementation Gate | **complete**；Exit Audit PASS；Evidence frozen |
 | P2 Contract and schema baseline | 112 Capability、96 Result、156 table合同与digest | P1 | **complete**；112/96/156/18；Exit Audit PASS |
 | P3 Persistence and atomic foundation | 唯一Kernel、scoped UoW、Control、Commit Marker、Outbox/Inbox、Audit | P2 | **complete**；18 transaction/132 crash points；Exit Audit PASS |
-| P4 Execution and recovery foundation | Work/Plan/Event/Effect、Progress、Control Plane、Resource、Retry/Timeout/Circuit、startup recovery | P3 | 每种Effect crash window闭合；unknown Effect不供给普通Work |
+| P4 Execution and recovery foundation | Work/Plan/Event/Effect、Progress、Control Plane、Resource、Retry/Timeout/Circuit、startup recovery | P3 | **complete**；7 Effect Classes / 31 crash scenarios；Exit Audit PASS |
 | P5 Platform and integrations | Secret/Mount/Workspace/Artifact/Resource/Worker及typed Provider/FFmpeg/file libraries | P3–P4 ports | Adapter不写Domain Fact；Secret和Material Handle安全合同通过 |
 | P6 Horizontal domains | Perception和People独立Store/Facade/Process/Projection | P3–P5 | 两域事实只由各自Owner写；Media-Cast不进入People Store |
 | P7 Procurement | Material Field、Observation、Region、Triage、Candidate Package | P3–P5 | `0..N` Field隔离；Related/Control和Candidate唯一性成立 |
