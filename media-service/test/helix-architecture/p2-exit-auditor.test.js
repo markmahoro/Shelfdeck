@@ -10,6 +10,8 @@ test('allows only P2 contracts, isolated fixtures, contract tooling, and active 
     'media-service/scripts/helix-p2-contract-check.js',
     'media-service/scripts/helix-architecture/example.js',
     'media-service/test/helix-architecture/example.test.js',
+    'AGENTS.md',
+    'docs/helix/README.md',
     'docs/helix/CURRENT_STATUS.md'
   ]) assert.equal(classifyChangedPath(file).allowed, true, file);
   for (const file of [

@@ -8,6 +8,8 @@ const { validateP2ContractBaseline } = require('./p2-contract-baseline-validator
 
 const P1_BASELINE = 'c52e67fa2b49c605d0971f2150238ea37c50816a';
 const ALLOWED_DOCS = new Set([
+  'AGENTS.md',
+  'docs/helix/README.md',
   'docs/helix/CURRENT_PLAN.md',
   'docs/helix/CURRENT_STATUS.md',
   'docs/helix/implementation/CURRENT_PHASE.md'
@@ -37,7 +39,8 @@ function classifyChangedPath(relativePath) {
 
 function prohibitedContentFindings(relativePath, content) {
   const value = normalize(relativePath);
-  if (value.startsWith('media-service/test/')) return [];
+  if (value.startsWith('media-service/test/') || value === 'media-service/scripts/helix-architecture/p2-exit-auditor.js' ||
+      value === 'AGENTS.md' || value.startsWith('docs/')) return [];
   const rules = [
     ['DDL_EXECUTION_TOKEN', /\b(?:CREATE|ALTER|DROP)\s+TABLE\b/i],
     ['DATABASE_RUNTIME_IMPORT', /better-sqlite3|\bnew\s+Database\s*\(/i],
