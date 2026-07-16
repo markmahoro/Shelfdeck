@@ -135,7 +135,7 @@ function createCommandCommitCoordinator(options) {
       try {
         const results = options.unitOfWork.execute([
           {
-            participantId: 'command_preflight', owner: 'execution-foundation', repositories: [repositories.receipts],
+            participantId: 'command_preflight', owner: 'execution-foundation', boundBusinessOwner: command.ownerDomain, repositories: [repositories.receipts],
             execute(context) {
               const existing = context.repository('command_receipts').invoke('find_receipt', {
                 owner_domain: command.ownerDomain,
@@ -158,7 +158,7 @@ function createCommandCommitCoordinator(options) {
             }
           },
           {
-            participantId: 'commit_foundation', owner: 'execution-foundation',
+            participantId: 'commit_foundation', owner: 'execution-foundation', boundBusinessOwner: command.ownerDomain,
             repositories: [repositories.receipts, repositories.markers, repositories.audit],
             execute(context) {
               const envelope = request.resultEnvelope(domainResult);

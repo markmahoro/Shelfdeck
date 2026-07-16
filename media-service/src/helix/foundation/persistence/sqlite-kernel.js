@@ -137,6 +137,40 @@ function assertGuardConsistency(database) {
   }
 }
 
+function assertMessageConsistency(database) {
+  const messages = database.prepare(
+    'SELECT message_id,consumer_set_digest,intended_consumer_count,payload_json,payload_digest,state,all_acked_at_ms FROM fx_outbox'
+  ).all();
+  const deliveryStatement = database.prepare(
+    'SELECT consumer_domain,state FROM fx_outbox_deliveries WHERE message_id=? ORDER BY consumer_domain'
+  );
+  for (const message of messages) {
+    const deliveries = deliveryStatement.all(message.message_id);
+    const consumers = deliveries.map((delivery) => delivery.consumer_domain);
+    let payload;
+    try {
+      payload = JSON.parse(message.payload_json);
+    } catch (error) {
+      fail('P3_SQLITE_OUTBOX_PAYLOAD_DRIFT', 'Outbox payload is not valid JSON.', { messageId: message.message_id });
+    }
+    const canonicalPayload = JSON.stringify(payload, Object.keys(payload).sort());
+    const allAcked = deliveries.length > 0 && deliveries.every((delivery) => delivery.state === 'acked');
+    if (deliveries.length !== message.intended_consumer_count ||
+        digest(JSON.stringify(consumers)) !== message.consumer_set_digest ||
+        digest(canonicalPayload) !== message.payload_digest ||
+        (message.state === 'fully_acked') !== allAcked ||
+        (message.state === 'fully_acked') !== (message.all_acked_at_ms !== null)) {
+      fail('P3_SQLITE_OUTBOX_CONSISTENCY_DRIFT', 'Outbox payload, frozen consumer set, or ack projection is inconsistent.', {
+        messageId: message.message_id
+      });
+    }
+  }
+  const ackWithoutInbox = database.prepare(
+    "SELECT COUNT(*) count FROM fx_outbox_deliveries d LEFT JOIN fx_inbox i ON i.consumer_domain=d.consumer_domain AND i.message_id=d.message_id WHERE d.state='acked' AND i.message_id IS NULL"
+  ).get().count;
+  if (ackWithoutInbox !== 0) fail('P3_SQLITE_ACK_WITHOUT_INBOX', 'Acknowledged Delivery lacks durable Inbox consumption.', { count: ackWithoutInbox });
+}
+
 function assertIntegrity(database, manifest, expected) {
   const currentMarker = marker(database);
   if (currentMarker.generation !== GENERATION || currentMarker.schema_digest !== manifest.ddlDigest) {
@@ -156,6 +190,7 @@ function assertIntegrity(database, manifest, expected) {
     fail('P3_SQLITE_INTEGRITY_CHECK_FAILED', 'SQLite integrity_check failed.', { findings: integrity });
   }
   assertGuardConsistency(database);
+  assertMessageConsistency(database);
   return Object.freeze({
     generation: currentMarker.generation,
     schemaDigest: currentMarker.schema_digest,

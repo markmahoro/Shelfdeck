@@ -22,6 +22,7 @@ function validateParticipants(participants) {
   if (!Array.isArray(participants) || participants.length === 0) fail('P3_UOW_EMPTY_PARTICIPANTS', 'Unit of Work requires declared participants.');
   const participantIds = new Set();
   const owners = new Set();
+  const boundBusinessOwners = new Set();
   for (const participant of participants) {
     if (!participant || !IDENTIFIER.test(participant.participantId || '') || typeof participant.owner !== 'string' ||
         !Array.isArray(participant.repositories) || participant.repositories.length === 0 || typeof participant.execute !== 'function') {
@@ -30,6 +31,10 @@ function validateParticipants(participants) {
     if (participantIds.has(participant.participantId)) fail('P3_UOW_DUPLICATE_PARTICIPANT', 'Participant IDs must be unique.', { participantId: participant.participantId });
     participantIds.add(participant.participantId);
     owners.add(participant.owner);
+    if (participant.boundBusinessOwner !== undefined) {
+      if (!BUSINESS_OWNERS.has(participant.boundBusinessOwner)) fail('P3_UOW_INVALID_BOUND_OWNER', 'Participant bound Business Owner is invalid.');
+      boundBusinessOwners.add(participant.boundBusinessOwner);
+    }
     const repositoryIds = new Set();
     for (const repository of participant.repositories) {
       if (!repository || repository.owner !== participant.owner) fail('P3_UOW_REPOSITORY_OWNER_MISMATCH', 'Participant cannot obtain another Owner Repository.', {
@@ -43,6 +48,11 @@ function validateParticipants(participants) {
   }
   const businessOwners = [...owners].filter((owner) => BUSINESS_OWNERS.has(owner));
   if (businessOwners.length > 1) fail('P3_UOW_CROSS_DOMAIN_WRITE', 'One transaction cannot hold two Business Domain Repositories.', { businessOwners });
+  if (boundBusinessOwners.size > 0 && (businessOwners.length !== 1 || [...boundBusinessOwners].some((owner) => owner !== businessOwners[0]))) {
+    fail('P3_UOW_BOUND_OWNER_MISMATCH', 'Foundation participant is not bound to the transaction Business Owner.', {
+      businessOwners, boundBusinessOwners: [...boundBusinessOwners]
+    });
+  }
   if (owners.has('platform-settings') && owners.size > 1) fail('P3_UOW_PLATFORM_OWNER_MIX', 'Platform settings transactions cannot obtain Domain/Foundation Repositories.');
 }
 
