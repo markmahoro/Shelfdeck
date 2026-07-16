@@ -80,7 +80,7 @@ P1与P2已关闭；clean root仍未接入`server.js`、`app.js`或任何旧Runti
 | P2-02 Shared nominal type/envelope registry | complete；28 JSON Schema；registry digest `af6cb77b…` |
 | P2-03 112 Capability contract packages | complete；112 packages / 896 files；final digest `3ffa356d…` |
 | P2-04 96 Result family closure | complete；96/96 inventory；191 refs / 0 unresolved |
-| P2-05 156 table contract inventory | complete；156/156；148 inline FKs；30 JSON columns |
+| P2-05 156 table contract inventory | complete after semantic repair `d96464a7`；156/156；57 closed state enums；148 inline FKs；30 JSON columns |
 | P2-06 18 canonical transaction inventory | complete；10 Control commits；19 crash bindings |
 | P2-07 Cross-inventory verification harness | complete；single P2 command；aggregate `ebbfda88…` |
 | P2-08 Phase Exit Audit | complete；audited `a7357810`；evidence `f4ac678c…`；1331 tracked contracts |
@@ -119,7 +119,7 @@ P1与P2已关闭；clean root仍未接入`server.js`、`app.js`或任何旧Runti
 ## 8. Next checkpoint
 
 P2 Exit Audit已在fresh-worktree复现性修正后PASS并归档。审计闭合提交`a735781010ee58c4119d93bb320bfe11bf1d4b7f`，合同aggregate digest为
-`ebbfda8885837170d48a0feb8f3aaad9a32aa35c44dc2db21704f820a6e3fc4a`，Exit evidence digest为
+原始aggregate为`ebbfda8885837170d48a0feb8f3aaad9a32aa35c44dc2db21704f820a6e3fc4a`，Exit evidence digest为
 `f4ac678ce0b943e86b1317185866172e579ce273e2f6a6f515a16b76180f9352`；1379个P2 changed files与1331个tracked
 contract files反向审计、findings=0。P3首次baseline发现并促成修正了被`release/` ignore遗漏的8-file Capability package；
 现在Exit Audit会拒绝任何物理存在但Git未纳管的contract artifact。
@@ -127,7 +127,10 @@ P2未修改SSOT、未执行DDL/SQLite、未接startup、未触碰E2E/Docker/prod
 P3-00已完成：`codex/helix-clean`与隔离P3 worktree从精确闭合提交
 `e3b50f946956105b18ffcf0853c8c2a57ebb4db8`开始；fresh checkout P2 gate恢复112/96/156/18 PASS、191 refs / 0 unresolved，
 aggregate `ebbfda8885837170d48a0feb8f3aaad9a32aa35c44dc2db21704f820a6e3fc4a`。原dirty workspace与`media-desktop`
-保持不变。P3-01已在`c5b0822e` + `faf9fe48`完成：156/156 clean table traces保留精确P2 contract digest，生成72个index并覆盖19/19
-partial-unique规则；DDL digest为`66e0fc57887dd59ce73a7aa0dc52ac5da8ee052c6b6da3ea7e198e969c2d2752`，7项compiler
-正反例与完整clean architecture gate PASS。该WP未连接SQLite、未接startup、未生成旧schema/view/trigger。下一检查点是P3-02
+保持不变。P3-02预审发现原P2 table semantic baseline弱于SSOT §8.5.9；`d96464a7`已修正57个开放状态枚举、3个误判
+revision-set digest、6个整数版本/优先级字段、revision起点和168个SHA-256检查。替换后的P2 aggregate为
+`aab78271f712df7714233f0a79e24453e0c1a85c5d214ebf926dc6e71adba247`，fresh detached worktree全门禁及重物化零diff PASS。
+P3-01最终DDL digest为`98e50feb79165844951ab5133f383eedc82848e83b0e4a2c4a58059121548b11`，156表、72 index、19/19
+partial-unique保持闭合。详见`implementation/evidence/P2_TABLE_CONTRACT_SEMANTIC_REPAIR_D96464A7.md`。该WP未连接SQLite、
+未接startup、未生成旧schema/view/trigger。下一检查点是P3-02
 SQLite Kernel与clean schema generation gate。没有需要用户决定的业务问题。

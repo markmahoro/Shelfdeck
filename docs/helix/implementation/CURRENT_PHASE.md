@@ -87,17 +87,21 @@ P3不实现Work/Event Runtime、Domain业务行为、HTTP/API/UI，也不接旧�
 - Record exact baseline; no Persistence code starts before receipt PASS.
 - Done: `codex/helix-clean` and isolated P3 worktree start at exact closure
   `e3b50f946956105b18ffcf0853c8c2a57ebb4db8`；fresh checkout P2 gate is 112/96/156/18 PASS，191 refs / 0 unresolved，
-  aggregate `ebbfda8885837170d48a0feb8f3aaad9a32aa35c44dc2db21704f820a6e3fc4a`；original dirty workspace unchanged.
+  original aggregate `ebbfda8885837170d48a0feb8f3aaad9a32aa35c44dc2db21704f820a6e3fc4a`；original dirty workspace unchanged.
+  P3-02的SSOT §8.5.9预审随后发现table semantic baseline不足，已由`d96464a7`修正并以新aggregate
+  `aab78271f712df7714233f0a79e24453e0c1a85c5d214ebf926dc6e71adba247`重新闭合；详见
+  `evidence/P2_TABLE_CONTRACT_SEMANTIC_REPAIR_D96464A7.md`。
 
 ### P3-01 Deterministic 156-table clean DDL compiler
 
 - Compile only P2 table contracts into deterministic SQLite DDL, checks, indexes and FK declarations.
 - Emit no legacy table/view/trigger and no migration from old Runtime facts.
 - Every table/index/check maps back to one P2 contract and digest; unsupported contract shapes fail closed.
-- Done: implementation commits `c5b0822e` + `faf9fe48` deterministically emit 156 clean tables and 72 indexes, including all 19 P2
+- Done: implementation commits `c5b0822e` + `faf9fe48` + semantic repair `d96464a7` deterministically emit 156 clean tables and 72 indexes, including all 19 P2
   partial-unique rules；three cross-table predicates use explicit technical guard columns with rule trace and no new Business Owner/fact.
-  DDL digest `66e0fc57887dd59ce73a7aa0dc52ac5da8ee052c6b6da3ea7e198e969c2d2752`；156/156 generated table traces
-  retain the exact P2 contract digest；7 positive/negative compiler checks（含Windows fresh-checkout行尾复现）和完整clean architecture gate PASS。No SQLite
+  final DDL digest `98e50feb79165844951ab5133f383eedc82848e83b0e4a2c4a58059121548b11`；156/156 generated table traces
+  retain the repaired exact P2 contract digest；57 closed state enums、168 SHA-256 checks、revision `>=1`及positive/negative compiler checks
+  （含Windows fresh-checkout行尾复现）和完整clean architecture gate PASS。No SQLite
   connection、startup wiring、legacy schema、view、trigger or historical data path was introduced.
 
 ### P3-02 SQLite Kernel and clean schema generation gate
