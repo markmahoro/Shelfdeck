@@ -101,9 +101,20 @@ function fixture(run, settings = {}) {
       noteExternalPending() { journalCalls.push('external-receipt'); },
       requireReconcile() { journalCalls.push('reconcile'); }
     } }),
+    attemptPolicy: {
+      prepare: () => ({ deadlineAtMs: 2000 }),
+      decideFailure: () => settings.failurePolicyDecision || ({ decision: settings.effectClass && settings.effectClass !== 'pure_observation'
+        ? 'reconcile_required' : 'terminal_failure' }),
+      decideDeferred: () => settings.deferredPolicyDecision || ({ decision: 'observe', retryAtMs: 1700000031700 })
+    },
+    timeoutController: { async execute(request) {
+      if (settings.timeout) throw Object.assign(new Error('timeout'), { code: 'P4_EXECUTION_TIMEOUT' });
+      return request.operation();
+    } },
     executionInputProvider: { prepare: () => ({ ownerScope: { domain: 'libra', processType: 'libra_run', processId: 'run', objectRefs: [] },
       basisRefs: [{ basisType: 'execution_basis', basisId: 'basis', revision: 1, digest: HASH_A }], namedInputs: {},
       idempotencyKey: 'event-attempt', traceContext: { traceId: 'trace', spanId: 'span' },
+      ...(settings.inputDeadline !== undefined ? { deadlineAtMs: settings.inputDeadline } : {}),
       ...(settings.includeApprovalHandle ? { approvalHandle: { approvalId: 'approval' } } : {}) }) },
     fenceValidator: { validate: () => fences[fenceIndex++] },
     whenEvaluator: { evaluate: () => settings.whenDecision || 'run' },
@@ -164,6 +175,42 @@ test('failed Outcome is technical failure only and never creates Result', async 
     assert.deepEqual(databaseFacts(databasePath), { event: { state: 'failed', retry_at_ms: null, result_id: null },
       attempt: { state: 'completed', outcome_kind: 'failed', retry_after_ms: null, failure_class: 'integration', failure_code: 'DOWN' }, results: 0 });
   }, { outcome: { kind: 'failed', failureClass: 'integration', code: 'DOWN', message: 'down', retryDirective: 'never', evidence: {} } });
+});
+
+test('pure technical failure retries within frozen policy without changing Plan or Result', async () => {
+  await fixture(async ({ runtime, lease, databasePath }) => {
+    const completed = await runtime.run({ schedulerLease: lease });
+    assert.equal(completed.eventState, 'ready'); assert.equal(completed.retryAtMs, 1700000009000);
+    assert.equal(databaseFacts(databasePath).results, 0);
+  }, { failurePolicyDecision: { decision: 'retry', retryAtMs: 1700000009000 },
+    outcome: { kind: 'failed', failureClass: 'integration', code: 'DOWN', message: 'down', retryDirective: 'contract_policy', evidence: {} } });
+});
+
+test('hard timeout completes Attempt, releases Permit, and follows Effect-specific policy', async () => {
+  await fixture(async ({ runtime, lease, databasePath, state }) => {
+    const completed = await runtime.run({ schedulerLease: lease });
+    assert.equal(completed.eventState, 'ready');
+    assert.equal(databaseFacts(databasePath).attempt.failure_code, 'EXECUTION_TIMEOUT');
+    assert.equal(state().governorReleased, 1);
+  }, { timeout: true, failurePolicyDecision: { decision: 'retry', retryAtMs: 1700000009000 } });
+});
+
+test('non-pure timeout never retries before Effect reconciliation', async () => {
+  await fixture(async ({ runtime, lease, state }) => {
+    const completed = await runtime.run({ schedulerLease: lease });
+    assert.equal(completed.eventState, 'waiting_for_external');
+    assert.deepEqual(state().journalCalls, ['intend', 'reconcile']);
+    assert.equal(state().governorReleased, 1);
+  }, { effectClass: 'external_request', timeout: true });
+});
+
+test('caller cannot override deadline derived from immutable Timeout Policy', async () => {
+  await fixture(async ({ runtime, lease, databasePath }) => {
+    await assert.rejects(runtime.run({ schedulerLease: lease }), { code: 'P4_EVENT_TIMEOUT_POLICY_MISMATCH' });
+    const database = new Database(databasePath, { readonly: true });
+    try { assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_event_attempts').get().count, 0); }
+    finally { database.close(); }
+  }, { inputDeadline: 9999 });
 });
 
 test('Fence rejection before or after Permit records completed Attempt and never dispatches', async () => {

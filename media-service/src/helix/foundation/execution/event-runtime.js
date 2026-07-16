@@ -40,7 +40,7 @@ function definitions(schemaManifest) {
         'retry_policy_ref', 'timeout_policy_ref', 'output_contract_ref', 'compensation_for_event_id', 'compensation_contract_ref'
       ], keyColumns: ['plan_id', 'node_id'] },
       list: { kind: 'select-all', tableId: 'fx_plan_nodes', columns: [
-        'plan_id', 'node_id', 'when_schema_ref', 'when_json'
+        'plan_id', 'node_id', 'when_schema_ref', 'when_json', 'compensation_for_event_id', 'compensation_contract_ref'
       ], keyColumns: [] }
     } }),
     edges: createRepositoryDefinition({ repositoryId: 'runtime_edges', owner: 'execution-foundation', schemaManifest, statements: {
@@ -60,7 +60,9 @@ function definitions(schemaManifest) {
       ], keyColumns: ['plan_id'] }
     } }),
     eventAttempts: createRepositoryDefinition({ repositoryId: 'runtime_event_attempts', owner: 'execution-foundation', schemaManifest, statements: {
-      list: { kind: 'select-all', tableId: 'fx_event_attempts', columns: ['event_attempt_id', 'event_id', 'ordinal', 'state'], keyColumns: [] },
+      list: { kind: 'select-all', tableId: 'fx_event_attempts', columns: [
+        'event_attempt_id', 'event_id', 'ordinal', 'state', 'outcome_kind', 'failure_class', 'started_at_ms'
+      ], keyColumns: [] },
       insert: { kind: 'insert', tableId: 'fx_event_attempts', columns: [
         'event_attempt_id', 'event_id', 'ordinal', 'executor_ref', 'executor_version', 'input_snapshot_schema_ref', 'input_snapshot_digest',
         'fence_snapshot_digest', 'state', 'outcome_kind', 'retry_after_ms', 'failure_class', 'failure_code', 'evidence_digest',
@@ -93,6 +95,9 @@ function createEventRuntime(options) {
   const requiredFunctions = ['nextEventAttemptId', 'nextExecutionId', 'nextResultId', 'now'];
   if (!options || !options.schemaManifest || !options.unitOfWork || !options.scheduler || !options.governor || !options.registry ||
       !options.dispatcher || !options.executionInputProvider || !options.fenceValidator || !options.resourceDemandResolver ||
+      !options.attemptPolicy || typeof options.attemptPolicy.prepare !== 'function' ||
+      typeof options.attemptPolicy.decideFailure !== 'function' || typeof options.attemptPolicy.decideDeferred !== 'function' ||
+      !options.timeoutController || typeof options.timeoutController.execute !== 'function' ||
       !options.whenEvaluator || typeof options.whenEvaluator.evaluate !== 'function' ||
       requiredFunctions.some((name) => typeof options[name] !== 'function')) fail(
     'P4_EVENT_RUNTIME_DEPENDENCIES_REQUIRED', 'Event Runtime requires exact persistence, scheduler, Governor, Registry, Dispatcher, typed providers, IDs, and clock.'
@@ -122,6 +127,7 @@ function createEventRuntime(options) {
         else if (satisfied) {
           const node = nodeById.get(event.node_id);
           if (!node) fail('P4_EVENT_NODE_FACT_MISSING', 'Pending Event has no Plan Node.');
+          if (node.compensation_for_event_id !== null) continue;
           if (node.when_schema_ref === null) nextState = 'ready';
           else {
             const decision = options.whenEvaluator.evaluate(Object.freeze({
@@ -172,7 +178,7 @@ function createEventRuntime(options) {
             !['ready', 'running'].includes(work.state)) fail('P4_EVENT_RUNTIME_FACT_MISMATCH', 'Event, Plan, Work, and Capability facts are not mutually consistent.');
         const attempts = context.repository('runtime_event_attempts').invoke('list').filter((attempt) => attempt.event_id === eventId);
         if (attempts.some((attempt) => attempt.state === 'executing')) fail('P4_EVENT_ATTEMPT_ALREADY_EXECUTING', 'Event already has an executing Attempt.');
-        return Object.freeze({ event, node, work, workAttempt, plan, nextOrdinal: attempts.length + 1 });
+        return Object.freeze({ event, node, work, workAttempt, plan, attempts: Object.freeze(attempts), nextOrdinal: attempts.length + 1 });
       }
     }]).event_runtime_snapshot;
   }
@@ -233,7 +239,7 @@ function createEventRuntime(options) {
     }]);
   }
 
-  function complete(snapshot, attemptId, outcome) {
+  function complete(snapshot, attemptId, outcome, policyDecision = null) {
     return options.unitOfWork.execute([{
       participantId: 'event_runtime_complete', owner: 'execution-foundation', repositories: Object.values(repositories), execute(context) {
         const event = context.repository('runtime_events').invoke('find', { event_id: snapshot.event.event_id });
@@ -254,9 +260,18 @@ function createEventRuntime(options) {
           });
           eventState = 'succeeded';
         } else if (outcome.kind === 'deferred') {
-          eventState = 'waiting_for_external'; retryAtMs = finishedAtMs + outcome.retryAfterMs;
+          if (policyDecision && policyDecision.decision === 'observe') {
+            eventState = 'waiting_for_external'; retryAtMs = policyDecision.retryAtMs;
+          } else {
+            eventState = 'failed'; failureClass = 'observation';
+            failureCode = policyDecision && policyDecision.code || 'DEFERRED_NOT_DECLARED';
+          }
         } else {
-          eventState = 'failed'; failureClass = outcome.kind === 'failed' ? outcome.failureClass : 'fence';
+          if (policyDecision && policyDecision.decision === 'retry') {
+            eventState = 'ready'; retryAtMs = policyDecision.retryAtMs;
+          } else if (policyDecision && policyDecision.decision === 'reconcile_required') eventState = 'waiting_for_external';
+          else eventState = 'failed';
+          failureClass = outcome.kind === 'failed' ? outcome.failureClass : 'fence';
           failureCode = outcome.kind === 'failed' ? outcome.code : 'FENCE_REJECTED';
         }
         context.repository('runtime_event_attempts').invoke('complete', {
@@ -305,6 +320,14 @@ function createEventRuntime(options) {
           'P4_EVENT_REQUIRED_HANDLE_MISMATCH', 'Execution inputs must carry exactly the approval and authorization required by the durable Plan.'
         );
         const startedAtMs = clock();
+        const attemptContract = options.attemptPolicy.prepare(Object.freeze({
+          capabilityRef: snapshot.event.capability_ref, effectClass: snapshot.node.effect_class,
+          retryPolicyRef: snapshot.node.retry_policy_ref, timeoutPolicyRef: snapshot.node.timeout_policy_ref, startedAtMs
+        }));
+        if (!attemptContract || !Number.isSafeInteger(attemptContract.deadlineAtMs) || attemptContract.deadlineAtMs <= startedAtMs ||
+            (inputs.deadlineAtMs !== undefined && inputs.deadlineAtMs !== attemptContract.deadlineAtMs)) fail(
+          'P4_EVENT_TIMEOUT_POLICY_MISMATCH', 'Execution deadline must come only from the frozen Timeout Policy.'
+        );
         const attemptId = assertId(options.nextEventAttemptId(), 'event-attempt');
         const firstFence = options.fenceValidator.validate(Object.freeze({ phase: 'dispatch', snapshot, inputs }));
         if (!firstFence || firstFence.valid !== true) {
@@ -359,8 +382,20 @@ function createEventRuntime(options) {
         };
         if (inputs.approvalHandle !== undefined) context.approvalHandle = inputs.approvalHandle;
         if (inputs.authorizationHandle !== undefined) context.authorizationHandle = inputs.authorizationHandle;
-        if (inputs.deadlineAtMs !== undefined) context.deadlineAtMs = inputs.deadlineAtMs;
-        const outcome = await options.dispatcher.dispatch({ capabilityRef: snapshot.event.capability_ref, context: Object.freeze(context), ownerDomain: snapshot.event.owner_domain });
+        context.deadlineAtMs = attemptContract.deadlineAtMs;
+        let outcome;
+        try {
+          outcome = await options.timeoutController.execute(Object.freeze({
+            executionHandleId: attemptId, deadlineAtMs: attemptContract.deadlineAtMs,
+            operation: () => options.dispatcher.dispatch({ capabilityRef: snapshot.event.capability_ref,
+              context: Object.freeze(context), ownerDomain: snapshot.event.owner_domain })
+          }));
+        } catch (error) {
+          if (!error || error.code !== 'P4_EXECUTION_TIMEOUT') throw error;
+          outcome = Object.freeze({ kind: 'failed', failureClass: 'timeout', code: 'EXECUTION_TIMEOUT',
+            message: 'Capability execution exceeded its frozen timeout.', retryDirective: 'contract_policy',
+            evidence: Object.freeze({ deadlineAtMs: attemptContract.deadlineAtMs }) });
+        }
         if (effect) {
           if (outcome.kind === 'succeeded') await options.effectJournal.settle(Object.freeze({
             effectId: effect.effect_id, receipt: outcome.effectReceipt,
@@ -373,8 +408,25 @@ function createEventRuntime(options) {
             options.effectJournal.requireReconcile(effect.effect_id);
           }
         }
+        let policyDecision = null;
+        if (outcome.kind === 'failed') policyDecision = options.attemptPolicy.decideFailure(Object.freeze({
+          capabilityRef: snapshot.event.capability_ref, effectClass: snapshot.node.effect_class,
+          retryPolicyRef: snapshot.node.retry_policy_ref, timeoutPolicyRef: snapshot.node.timeout_policy_ref,
+          failureAttemptCount: snapshot.attempts.filter((attempt) => attempt.outcome_kind === 'failed').length + 1,
+          outcome, recoveryDecision: null
+        }));
+        if (outcome.kind === 'deferred') {
+          const prior = snapshot.attempts.filter((attempt) => attempt.outcome_kind === 'deferred');
+          policyDecision = options.attemptPolicy.decideDeferred(Object.freeze({
+            capabilityRef: snapshot.event.capability_ref, effectClass: snapshot.node.effect_class,
+            retryPolicyRef: snapshot.node.retry_policy_ref, timeoutPolicyRef: snapshot.node.timeout_policy_ref,
+            observationCount: prior.length + 1,
+            firstObservedAtMs: prior.length ? Math.min(...prior.map((attempt) => attempt.started_at_ms)) : startedAtMs,
+            retryAfterMs: outcome.retryAfterMs
+          }));
+        }
         resourceOutcome = outcome.kind;
-        return complete(snapshot, attemptId, outcome);
+        return complete(snapshot, attemptId, outcome, policyDecision);
       } finally {
         if (permit) {
           options.governor.release(permit);

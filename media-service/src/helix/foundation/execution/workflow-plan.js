@@ -5,7 +5,6 @@ const { createRepositoryDefinition } = require('../persistence/owner-repository'
 const { assertEffectClass, assertPlanResolution } = require('./runtime-contracts');
 
 const PLAN_SCHEMA = 'helix://foundation/types/WorkflowPlanDefinition/v1';
-const RETRY_PREFIX = 'helix://foundation/retry-policies/';
 const SHA256 = /^[0-9a-f]{64}$/;
 
 class WorkflowPlanError extends Error {
@@ -32,6 +31,13 @@ function canonical(value) {
 }
 
 function canonicalJson(value) { return JSON.stringify(canonical(value)); }
+
+function executionCatalogDigest(registry, policyRegistry) {
+  if (!registry || !Array.isArray(registry.snapshot) || !policyRegistry || !SHA256.test(policyRegistry.digest || '')) fail(
+    'P4_PLAN_CATALOG_SNAPSHOT_REQUIRED', 'Plan requires exact Capability and execution policy snapshots.'
+  );
+  return digest(canonicalJson({ capabilities: registry.snapshot, executionPolicyDigest: policyRegistry.digest }));
+}
 
 function exactObject(value, required, optional, code) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) fail(code, 'A closed object is required.');
@@ -62,13 +68,14 @@ function validateNode(node, plan, registry, contractValidator) {
   if (node.contractVersion !== 1 || !Array.isArray(node.dependsOn)) fail('P4_PLAN_NODE_FIELD_INVALID', 'Node version and dependencies are invalid.');
   const entry = registry.resolve(node.capabilityRef, plan.ownerDomain);
   const manifest = entry.manifest;
+  const policyBinding = plan.policyRegistry.bindingFor(node.capabilityRef, node.effectClass);
   if (node.contractVersion !== manifest.contractVersion || node.effectClass !== manifest.effectClass ||
       node.inputBindingsSchemaRef !== inputSchemaRef(manifest) || node.parametersSchemaRef !== manifest.parametersSchemaRef ||
       node.resourceDemandSchemaRef !== manifest.resourceDemandSchemaRef || node.fenceSchemaRef !== manifest.fenceSchemaRef ||
       node.outputContractRef !== manifest.resultSchemaRef ||
       node.approvalRequirementRef !== (manifest.approvalRequirementRef || null) ||
       node.authorizationRequirementRef !== (manifest.authorizationRequirementRef || null) ||
-      node.retryPolicyRef !== RETRY_PREFIX + manifest.effectClass + '/v1') {
+      node.retryPolicyRef !== policyBinding.retryPolicyRef || node.timeoutPolicyRef !== policyBinding.timeoutPolicyRef) {
     fail('P4_PLAN_CAPABILITY_CONTRACT_MISMATCH', 'Plan node does not preserve the exact frozen Capability contract.', { nodeId: node.nodeId });
   }
   assertEffectClass(node.effectClass);
@@ -138,7 +145,25 @@ function assertDag(nodes) {
   if (visited !== nodes.length) fail('P4_PLAN_DAG_CYCLE', 'Workflow Plan graph must be acyclic.');
 }
 
+function validateCompensations(nodes, policyRegistry) {
+  const byEvent = new Map(nodes.map((node) => [node.eventId, node]));
+  for (const node of nodes) {
+    if (node.compensationForEventId === undefined) continue;
+    const target = byEvent.get(node.compensationForEventId);
+    const targetBinding = policyRegistry.bindingFor(target.capabilityRef, target.effectClass);
+    const contract = policyRegistry.compensation(node.compensationContractRef);
+    if (!targetBinding.compensationContractRefs.includes(contract.ref) ||
+        !contract.targetEffectClasses.includes(target.effectClass) ||
+        !contract.compensationCapabilityRefs.includes(node.capabilityRef) || contract.requiredDecision !== 'compensate') fail(
+      'P4_PLAN_COMPENSATION_CONTRACT_MISMATCH', 'Compensation node is not declared by the target Capability policy contract.'
+    );
+  }
+}
+
 function validateWorkflowPlan(rawPlan, options) {
+  if (!options || !options.registry || !options.contractValidator || !options.policyRegistry) fail(
+    'P4_PLAN_VALIDATION_DEPENDENCIES_REQUIRED', 'Plan validation requires Capability, schema, and execution policy registries.'
+  );
   const required = [
     'schemaRef', 'schemaVersion', 'planId', 'workAttemptId', 'ownerDomain', 'plannerContractRef', 'plannerVersion',
     'workObjectiveTypeRef', 'workObjectiveVersion', 'executionBasisDigest', 'capabilityCatalogDigest', 'resolution',
@@ -152,14 +177,18 @@ function validateWorkflowPlan(rawPlan, options) {
     fail('P4_PLAN_FIELD_INVALID', 'Workflow Plan fields violate the nominal contract.');
   }
   for (const field of ['planId', 'workAttemptId', 'ownerDomain', 'plannerContractRef', 'workObjectiveTypeRef']) requiredText(rawPlan[field], field);
+  if (rawPlan.capabilityCatalogDigest !== executionCatalogDigest(options.registry, options.policyRegistry)) fail(
+    'P4_PLAN_CATALOG_DIGEST_MISMATCH', 'Plan Catalog digest does not bind the exact Capability and execution policy snapshots.'
+  );
   assertPlanResolution(rawPlan.resolution, rawPlan.nodes.length);
   if ((rawPlan.resolution === 'planned') !== (rawPlan.diagnosticClassification === null)) fail(
     'P4_PLAN_DIAGNOSTIC_RESOLUTION_MISMATCH', 'Only non-planned Resolution carries diagnostic classification.'
   );
   if (rawPlan.diagnosticClassification !== null) requiredText(rawPlan.diagnosticClassification, 'diagnosticClassification');
-  const planContext = { ownerDomain: rawPlan.ownerDomain };
+  const planContext = { ownerDomain: rawPlan.ownerDomain, policyRegistry: options.policyRegistry };
   const nodes = rawPlan.nodes.map((node) => validateNode(node, planContext, options.registry, options.contractValidator));
   assertDag(nodes);
+  validateCompensations(nodes, options.policyRegistry);
   const normalized = Object.freeze({ ...rawPlan, nodes: Object.freeze(nodes) });
   return Object.freeze({ plan: normalized, graphDigest: digest(canonicalJson(normalized)) });
 }
@@ -201,8 +230,8 @@ function definitions(schemaManifest) {
 }
 
 function createWorkflowPlanPublisher(options) {
-  if (!options || !options.schemaManifest || !options.unitOfWork || !options.registry || !options.contractValidator) {
-    fail('P4_PLAN_PUBLISHER_DEPENDENCIES_REQUIRED', 'P3 UoW, exact Registry, and Contract Validator are required.');
+  if (!options || !options.schemaManifest || !options.unitOfWork || !options.registry || !options.contractValidator || !options.policyRegistry) {
+    fail('P4_PLAN_PUBLISHER_DEPENDENCIES_REQUIRED', 'P3 UoW, exact Capability/Policy Registries, and Contract Validator are required.');
   }
   const repositories = definitions(options.schemaManifest);
   return Object.freeze({
@@ -274,4 +303,4 @@ function createWorkflowPlanPublisher(options) {
   });
 }
 
-module.exports = Object.freeze({ WorkflowPlanError, createWorkflowPlanPublisher, validateWorkflowPlan });
+module.exports = Object.freeze({ WorkflowPlanError, createWorkflowPlanPublisher, executionCatalogDigest, validateWorkflowPlan });
