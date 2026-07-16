@@ -2,7 +2,7 @@
 
 Current phase: `P3 — Persistence and Atomic Foundation`
 
-Status: in progress；P3-00–P3-02 complete；P3-03 next；P2 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P3-00–P3-03 complete；P3-04 next；P2 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-16
 
@@ -69,8 +69,8 @@ P3不实现Work/Event Runtime、Domain业务行为、HTTP/API/UI，也不接旧�
 | P3-00 | P2 closure and isolated P3 baseline receipt | complete | P2 PASS |
 | P3-01 | Deterministic 156-table clean DDL compiler | complete | P3-00；P2 tables |
 | P3-02 | SQLite Kernel and clean schema generation gate | complete | P3-01 |
-| P3-03 | Owner-scoped Repository and Unit of Work boundaries | next | P3-02 |
-| P3-04 | Commit Marker、Command Receipt and Audit foundation | pending | P3-03 |
+| P3-03 | Owner-scoped Repository and Unit of Work boundaries | complete | P3-02 |
+| P3-04 | Commit Marker、Command Receipt and Audit foundation | next | P3-03 |
 | P3-05 | Outbox、Delivery and Inbox atomic foundation | pending | P3-03–P3-04 |
 | P3-06 | Material Control CAS current/revision participant | pending | P3-03–P3-04 |
 | P3-07 | Typed Domain Commit Registry and participant coordinator | pending | P3-03–P3-06 |
@@ -121,6 +121,12 @@ P3不实现Work/Event Runtime、Domain业务行为、HTTP/API/UI，也不接旧�
 - Expose scoped transaction contexts that can obtain only declared Owner/Foundation/Control participants.
 - Repository cannot write another aggregate/table set；Foundation cannot obtain Domain Repository.
 - Negative fixtures reject undeclared table、cross-Domain write、nested authority escape and raw SQL outside the Kernel/compiler.
+- Done: commit `e17e109e` adds manifest-bound Repository definitions whose SQL is generated only from registered Owner/table/column
+  statements；immutable UPDATE and arbitrary SQL are not representable. `SqliteUnitOfWork` permits at most one Business Domain plus
+  separately scoped Control/Foundation participants, injects one commit time and expires every participant context after synchronous use.
+  Seven focused positive/negative fixtures plus a production-source persistence guard reject cross-Domain authority、Foundation→Domain
+  Repository、unknown table/column/statement、raw driver/Kernel/SQL access、async/nested/context escape and prove full rollback. Fresh
+  detached-worktree gate and DDL rematerialization-zero-diff PASS；all DBs were disposable.
 
 ### P3-04 Commit Marker、Command Receipt and Audit foundation
 

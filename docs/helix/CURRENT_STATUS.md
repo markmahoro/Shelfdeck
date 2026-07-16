@@ -13,12 +13,12 @@ Last updated: 2026-07-16
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline |
 | Current phase | P3 — Persistence and Atomic Foundation |
-| Current phase status | in progress；P3-00–P3-02 complete；P3-03 next |
+| Current phase status | in progress；P3-00–P3-03 complete；P3-04 next |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | P2 closure / P3 baseline `e3b50f946956105b18ffcf0853c8c2a57ebb4db8` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p3` on `codex/helix-p3` |
-| Next action | P3-03 Owner-scoped Repository and Unit of Work boundaries |
+| Next action | P3-04 Commit Marker、Command Receipt and Audit foundation |
 
 ## 2. Accepted implementation conclusion
 
@@ -134,4 +134,7 @@ P3-01最终DDL digest为`98e50feb79165844951ab5133f383eedc82848e83b0e4a2c4a58059
 partial-unique保持闭合。详见`implementation/evidence/P2_TABLE_CONTRACT_SEMANTIC_REPAIR_D96464A7.md`。P3-02已在
 `63e96c0e`完成：唯一Kernel、WAL/FK硬门禁、clean generation/Catalog/integrity/FK/partial-unique/guard self-check及
 same-commit timestamp全部通过5组disposable SQLite正反例和fresh detached-worktree完整门禁。未接startup、未访问本地
-`data/`，所有临时数据库已删除。下一检查点是P3-03 Owner-scoped Repository和Unit of Work边界。没有需要用户决定的业务问题。
+`data/`，所有临时数据库已删除。P3-03已在`e17e109e`完成：Repository statement只能从manifest登记的同Owner表/列生成，
+Unit of Work最多持有一个Business Domain并为Control/Foundation分别发放短生命周期context；7项正反例与静态guard拒绝跨域、
+raw SQL、未声明authority、immutable UPDATE、异步/嵌套/context逃逸，fresh detached-worktree与DDL重物化零diff PASS。
+下一检查点是P3-04 Commit Marker、Command Receipt和Audit foundation。没有需要用户决定的业务问题。
