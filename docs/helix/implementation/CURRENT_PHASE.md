@@ -2,7 +2,7 @@
 
 Current phase: `P4 — Execution and Recovery Foundation`
 
-Status: in progress；P4-00–P4-09 complete；P4-10 next；P3 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P4-00–P4-10 complete；P4-11 next；P3 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-17
 
@@ -77,8 +77,8 @@ P4不形成“可运行半成品产品”；所有Runtime fixture必须在isolat
 | P4-07 | Resource Governor、Profile Mapper and atomic Permit bundle | complete | P4-05–P4-06 |
 | P4-08 | Event Runtime、Fence、Outcome/Result and Progress | complete | P4-02、P4-06–P4-07 |
 | P4-09 | Effect Journal and seven Effect-specific reconcilers | complete | P4-08；P3 atomic commits |
-| P4-10 | Retry、Timeout and declared Compensation | next | P4-08–P4-09 |
-| P4-11 | Pressure Guard and persistent Circuit Breaker | pending | P4-05–P4-10 |
+| P4-10 | Retry、Timeout and declared Compensation | complete | P4-08–P4-09 |
+| P4-11 | Pressure Guard and persistent Circuit Breaker | next | P4-05–P4-10 |
 | P4-12 | Startup recovery and Foundation readiness | pending | P4-09–P4-11 |
 | P4-13 | Cross-runtime crash/recovery verification harness | pending | P4-01–P4-12 |
 | P4-14 | P4 Phase Exit Audit and evidence freeze | pending | P4-00–P4-13 |
@@ -216,6 +216,16 @@ P4不形成“可运行半成品产品”；所有Runtime fixture必须在isolat
 - Event Attempt and Work Attempt budgets remain separate；retry cannot change inputs、Capability version、Effect Class、scope or auth.
 - Timeout isolates execution、releases permits，then reconciles Effect；it ends an Attempt, not Business responsibility.
 - Compensation must be predeclared Plan node and contract-bound；Runtime cannot invent generic rollback or rewrite canonical facts.
+- Done: `06b80c15` first closes the deferred external receipt gap by persisting exact typed external identity before reconcile. Commit
+  `b84a8707` then adds an exact Execution Policy Registry whose versioned Retry、Timeout and Compensation bindings cover the same
+  Capability set and are included with the Capability snapshot in the immutable Plan catalog digest. Event failure、deferred observation
+  and Work Attempt replan use separate budgets；non-pure failure/timeout cannot retry without `safe_retry` recovery，and any Basis change
+  returns to the Domain Owner. Deadline is derived only from the frozen Timeout Policy；the injected isolation boundary must terminate and
+  isolate the execution handle before timeout is surfaced，then Event Attempt completes and Permit releases through `finally`. Ordinary DAG
+  advancement never activates a compensation node. Only the same-Plan predeclared target/contract，`compensate` decision，reality evidence
+  and restricted applicability can atomically make it ready；destructive rollback、dynamic action and mismatched policy fail closed. Thirty-
+  eight focused tests，47-file full architecture gate，P3 persistence aggregate and fresh detached-worktree audit PASS；P2/DDL digests remain
+  unchanged and no real executor side effect or external environment was used.
 
 ### P4-11 Pressure Guard and persistent Circuit Breaker
 
