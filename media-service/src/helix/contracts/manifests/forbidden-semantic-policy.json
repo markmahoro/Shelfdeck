@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 1,
+  "defaultDecision": "deny",
+  "scanExtensions": [
+    ".js",
+    ".cjs",
+    ".mjs",
+    ".json",
+    ".ts",
+    ".tsx",
+    ".jsx",
+    ".sql"
+  ],
+  "rules": [
+    {
+      "id": "legacy.membership",
+      "pattern": "membership",
+      "flags": "i",
+      "ssotRefs": ["8.8.3", "8.9.8"],
+      "rationale": "Clean facts use explicit Observation, Binding, Control, Subject, Shelf Entry, and Deck contracts."
+    },
+    {
+      "id": "legacy.admission",
+      "pattern": "(?<!work)(?<!work_)(?<!work-)(?<!work )admission",
+      "flags": "i",
+      "ssotRefs": ["7.2.3", "8.8.3"],
+      "rationale": "Only canonical Work Admission is valid; historical business Admission is not."
+    },
+    {
+      "id": "legacy.gate-fields",
+      "pattern": "targetGate|allowedTargetGates?|gateFacts?",
+      "flags": "i",
+      "ssotRefs": ["8.8.2", "9.7.6"],
+      "rationale": "Business progress cannot be represented by the historical target Gate chain."
+    },
+    {
+      "id": "legacy.maintenance-complete",
+      "pattern": "maintenanceComplete",
+      "flags": "i",
+      "ssotRefs": ["9.3.3", "9.9.2"],
+      "rationale": "Pre-deck completion cannot stand in for Shelf ownership or Aftercare state."
+    },
+    {
+      "id": "legacy.flow-routing",
+      "pattern": "flowKind|actionType|classificationToExecutor|complexExecutor",
+      "flags": "i",
+      "ssotRefs": ["7.3.4", "8.9.8"],
+      "rationale": "Execution routes only by capabilityRef@version, never by historical Flow classification."
+    },
+    {
+      "id": "legacy.source-binding",
+      "pattern": "sourceBinding",
+      "flags": "i",
+      "ssotRefs": ["4.3.1", "8.9.8"],
+      "rationale": "Physical identity, Domain-local Material Binding, and Material Control remain separate."
+    },
+    {
+      "id": "legacy.named-runtime",
+      "pattern": "kairox|nexora|mirex",
+      "flags": "i",
+      "ssotRefs": ["8.0.5", "8.8.2"],
+      "rationale": "Historical organizations have no clean Store, Facade, Runtime, or package identity."
+    },
+    {
+      "id": "legacy.media-item-identity",
+      "pattern": "mediaItemId|globalMediaId|mediaBusinessId|mediaItemStore|/media-items(?:/|\\b)",
+      "flags": "i",
+      "ssotRefs": ["4.3.1", "8.9.8"],
+      "rationale": "Clean Helix has no generic global media business identity or Store."
+    },
+    {
+      "id": "legacy.task-user-surface",
+      "pattern": "taskId|taskStore|taskRuntime|taskPriority|pauseTask|retryTask|executeTask|/tasks(?:/|\\b)",
+      "flags": "i",
+      "ssotRefs": ["7.1.1", "9.7.6"],
+      "rationale": "Users act on Domain processes; Foundation Work is not a generic Task control surface."
+    },
+    {
+      "id": "legacy.global-owner",
+      "pattern": "globalStore|crossDomainStore|sharedDomainStore|universalStore|priorityEngine|automationEngine",
+      "flags": "i",
+      "ssotRefs": ["8.1.1", "8.9.8"],
+      "rationale": "No cross-Domain Store, global business planner, or global Priority Owner is allowed."
+    },
+    {
+      "id": "legacy.compatibility-path",
+      "pattern": "dualRead|dualWrite|legacyFallback|compatibilityMode|compatRead|compatWrite",
+      "flags": "i",
+      "ssotRefs": ["8.8.4", "10.2.1"],
+      "rationale": "Historical facts have no migration, dual-path, compatibility, or fallback entitlement."
+    },
+    {
+      "id": "legacy.hidden-effect-routing",
+      "pattern": "hiddenPostEffect|postEffectHook|mediaTypeRouting|routeByMediaType",
+      "flags": "i",
+      "ssotRefs": ["7.4.3", "8.9.8"],
+      "rationale": "Effects and routing must be explicit in immutable Plans and typed capability contracts."
+    }
+  ],
+  "exemptions": [
+    {
+      "id": "semantic-policy-self-definition",
+      "relativePath": "contracts/manifests/forbidden-semantic-policy.json",
+      "purpose": "rule-definition",
+      "allowedLocationTypes": ["content"],
+      "allowedRuleIds": [
+        "legacy.membership",
+        "legacy.admission",
+        "legacy.gate-fields",
+        "legacy.maintenance-complete",
+        "legacy.flow-routing",
+        "legacy.source-binding",
+        "legacy.named-runtime",
+        "legacy.media-item-identity",
+        "legacy.task-user-surface",
+        "legacy.global-owner",
+        "legacy.compatibility-path",
+        "legacy.hidden-effect-routing"
+      ]
+    }
+  ]
+}
