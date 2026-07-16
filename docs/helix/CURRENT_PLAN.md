@@ -44,11 +44,11 @@ Work Package细节只存在于`implementation/CURRENT_PHASE.md`；当前事实�
 | --- | --- |
 | Phase | P1 — Clean Skeleton and Architecture Guards |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | in progress；P1-00–P1-06 complete |
+| Status | in progress；P1-00–P1-07 complete |
 | Implementation baseline | `c1c6bb0dc468c11bf34e7bd63b038fc1b197a689` |
 | Phase branch/worktree | `codex/helix-p1` / `E:\my_project\emby_third_party-helix-p1` |
 | Allowed now | P1本地代码、unit/contract/isolated architecture fixture、文档同步 |
-| Next action | P1-07 Isolated architecture verification harness |
+| Next action | P1-08 Phase Exit Audit and evidence freeze |
 
 ## 4. Master roadmap
 
