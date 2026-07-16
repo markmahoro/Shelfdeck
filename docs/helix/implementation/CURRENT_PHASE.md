@@ -2,7 +2,7 @@
 
 Current phase: `P4 — Execution and Recovery Foundation`
 
-Status: in progress；P4-00–P4-05 complete；P4-06 next；P3 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P4-00–P4-06 complete；P4-07 next；P3 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-16
 
@@ -73,8 +73,8 @@ P4不形成“可运行半成品产品”；所有Runtime fixture必须在isolat
 | P4-03 | Supporting Work admission and idempotent submission | complete | P4-01；P3 Persistence |
 | P4-04 | Immutable normalized Plan and DAG validator | complete | P4-02–P4-03 |
 | P4-05 | Work Supply Controller and bounded backpressure | complete | P4-03–P4-04 |
-| P4-06 | Work Scheduler、dependency readiness and technical lease | next | P4-04–P4-05 |
-| P4-07 | Resource Governor、Profile Mapper and atomic Permit bundle | pending | P4-05–P4-06 |
+| P4-06 | Work Scheduler、dependency readiness and technical lease | complete | P4-04–P4-05 |
+| P4-07 | Resource Governor、Profile Mapper and atomic Permit bundle | next | P4-05–P4-06 |
 | P4-08 | Event Runtime、Fence、Outcome/Result and Progress | pending | P4-02、P4-06–P4-07 |
 | P4-09 | Effect Journal and seven Effect-specific reconcilers | pending | P4-08；P3 atomic commits |
 | P4-10 | Retry、Timeout and declared Compensation | pending | P4-08–P4-09 |
@@ -162,6 +162,12 @@ P4不形成“可运行半成品产品”；所有Runtime fixture必须在isolat
 - Select only admitted Work and dependency-satisfied ready Events using business priority class、local priority、retryAt、aging and FIFO.
 - Scheduler does not read Domain policy/spec/content facts and does not decide Permit capacity or Capability substitution.
 - Technical lease is fenced/expiring and never substitutes Reservation、Material Control or Authorization.
+- Done: commit `2c79072e` reads only normalized Foundation Work/Event/Edge facts plus the Owner-published Business Priority
+  Projection. Five priority classes never cross；within a class effective local priority gains one aging unit per 60 seconds and then uses
+  durable FIFO/identity. Event dispatch revalidates ready state、retryAt and exact `success|terminal` dependency satisfaction. A fenced,
+  expiring process-local technical lease prevents duplicate local execution but is never persisted or interpreted as Permit、Reservation、
+  Control or Authorization. Six fixture groups prove strict ordering、dependency/retry gating、stale projection fail-closed、no priority
+  inversion under Supply defer and lease expiry/release/non-persistence. Focused、full architecture and fresh detached-worktree gates PASS.
 
 ### P4-07 Resource Governor、Profile Mapper and atomic Permit bundle
 
