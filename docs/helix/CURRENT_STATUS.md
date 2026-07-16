@@ -2,7 +2,7 @@
 
 Status: Levels 0–10 accepted; P0–P3 complete; P4 in progress under standing P2–P13 Local Implementation authorization; E2E, Docker/Canary, production, real-media side effects and `media-desktop` changes paused.
 
-Last updated: 2026-07-16
+Last updated: 2026-07-17
 
 ## 1. Current position
 
@@ -13,12 +13,12 @@ Last updated: 2026-07-16
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation |
 | Current phase | P4 — Execution and Recovery Foundation |
-| Current phase status | in progress；P4-00–P4-08 complete；P4-09 next；P3 Exit Audit PASS |
+| Current phase status | in progress；P4-00–P4-09 complete；P4-10 next；P3 Exit Audit PASS |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P3 phase closure `4a59356f3a89f1af38f594763aaaa0465e203b99` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p4` on `codex/helix-p4` |
-| Next action | P4-09 Effect Journal and seven Effect-specific reconcilers |
+| Next action | P4-10 Retry、Timeout and declared Compensation |
 
 ## 2. Accepted implementation conclusion
 
@@ -200,3 +200,13 @@ materializer。新SSOT/P2/DDL digest分别为`8b250ce4…`/`fe2f4433…`/`29a8e6
 Event Runtime、双Fence、exact approval/auth、四种Outcome、immutable Result、DAG/when推进、Progress和Resource timing
 全部闭合；Executor crash保留durable executing Attempt供P4-09恢复。29组专项、完整门禁及fresh detached worktree均PASS。
 下一检查点是P4-09 Effect Journal和七类Effect-specific Reconciler。没有需要用户决定的业务问题。
+P4-09已在`4aaa6450`完成：每个non-pure Event在Executor前先持久化Effect intent，Effect ID由Effect Class与
+idempotency key确定性生成，后续合法safe retry只能复用同一intent，不能建立第二条副作用通道；已存在、terminal或
+reconcile-required intent均不得返回ordinary dispatch。Effect Receipt先落`effect_observed`，再由class-specific fake
+reality verifier核验，最后才在同一Foundation事务写immutable Commit Marker并把Journal置为`committed`；崩溃、证据缺失、
+receipt/marker冲突保持`reconcile_required`或fail closed，不伪造外部原子事务或Result。七类Reconciler分别实现safe redo、
+Workspace reuse/declared cleanup、external identity observe、Fact marker/revision/Fence、whole responsibility/control、Material
+forward/declared rollback和destruction forward-only；unknown class、partial transfer和未授权rollback均阻断。26项专项测试、
+45-file完整架构门禁、P3 persistence aggregate及fresh detached-worktree审计全部PASS；P2 aggregate仍为`fe2f4433…`，
+DDL仍为`29a8e6b6…`，未触碰真实文件/Provider/Worker、E2E、Docker、production或`media-desktop`。下一检查点是P4-10
+Retry、Timeout和declared Compensation。没有需要用户决定的业务问题。

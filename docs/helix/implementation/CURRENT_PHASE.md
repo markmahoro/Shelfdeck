@@ -2,9 +2,9 @@
 
 Current phase: `P4 — Execution and Recovery Foundation`
 
-Status: in progress；P4-00–P4-08 complete；P4-09 next；P3 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P4-00–P4-09 complete；P4-10 next；P3 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
-Last updated: 2026-07-16
+Last updated: 2026-07-17
 
 ## 1. Authority and authorization
 
@@ -76,8 +76,8 @@ P4不形成“可运行半成品产品”；所有Runtime fixture必须在isolat
 | P4-06 | Work Scheduler、dependency readiness and technical lease | complete | P4-04–P4-05 |
 | P4-07 | Resource Governor、Profile Mapper and atomic Permit bundle | complete | P4-05–P4-06 |
 | P4-08 | Event Runtime、Fence、Outcome/Result and Progress | complete | P4-02、P4-06–P4-07 |
-| P4-09 | Effect Journal and seven Effect-specific reconcilers | next | P4-08；P3 atomic commits |
-| P4-10 | Retry、Timeout and declared Compensation | pending | P4-08–P4-09 |
+| P4-09 | Effect Journal and seven Effect-specific reconcilers | complete | P4-08；P3 atomic commits |
+| P4-10 | Retry、Timeout and declared Compensation | next | P4-08–P4-09 |
 | P4-11 | Pressure Guard and persistent Circuit Breaker | pending | P4-05–P4-10 |
 | P4-12 | Startup recovery and Foundation readiness | pending | P4-09–P4-11 |
 | P4-13 | Cross-runtime crash/recovery verification harness | pending | P4-01–P4-12 |
@@ -200,6 +200,16 @@ P4不形成“可运行半成品产品”；所有Runtime fixture必须在isolat
 - Implement deterministic recovery decisions for all seven Effect Classes：safe retry、reuse/cleanup、external observe、marker/revision check、
   whole responsibility/control check、forward/declared rollback、forward-only destruction.
 - Unknown Effect Class or missing evidence remains blocked/faulted and cannot return to ordinary Work supply.
+- Done: commit `4aaa6450` binds every non-pure Event to one durable intent before Executor dispatch. Effect identity is a deterministic
+  digest of exact Effect Class plus idempotency key，so a later safe retry can only reuse the first intent and cannot open a duplicate
+  effect channel；any existing non-fresh intent is rejected from ordinary dispatch. Receipt observation、class-specific fake reality
+  verification、immutable Commit Marker and terminal Journal transition are separated at the external boundary，while marker plus
+  `committed` transition remain one Foundation transaction. Seven exact reconcilers cover pure safe redo、Workspace reuse/declared cleanup、
+  external identity observation、Fact marker/revision/Fence、whole responsibility/control、Material forward/declared rollback and
+  forward-only destruction. Missing/malformed evidence、unknown class、partial transfer、scope/marker replay drift and undeclared rollback
+  fail closed；`already_committed` observation cannot fabricate terminal state without the matching Effect Receipt commit. Twenty-six
+  focused tests，the 45-file full architecture gate，P3 persistence aggregate and fresh detached-worktree audit PASS；P2/DDL digests remain
+  `fe2f4433…` / `29a8e6b6…`，with no real effect、legacy Runtime、E2E、Docker、production or `media-desktop` access.
 
 ### P4-10 Retry、Timeout and declared Compensation
 
