@@ -44,11 +44,11 @@ Work Package细节只存在于`implementation/CURRENT_PHASE.md`；当前事实�
 | --- | --- |
 | Phase | P3 — Persistence and Atomic Foundation |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | in progress；P3-00–P3-05 complete；P3-06 next |
+| Status | in progress；P3-00–P3-06 complete；P3-07 next |
 | Implementation baseline | `e3b50f946956105b18ffcf0853c8c2a57ebb4db8` |
 | Phase branch/worktree | `codex/helix-p3` / `E:\my_project\emby_third_party-helix-p3` |
 | Allowed now | P2–P13本地代码、unit/contract/isolated fixture、文档与Phase自动转换 |
-| Next action | P3-06 Material Control CAS current/revision participant |
+| Next action | P3-07 Typed Domain Commit Registry and participant coordinator |
 
 ## 4. Master roadmap
 

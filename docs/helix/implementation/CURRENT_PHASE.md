@@ -2,7 +2,7 @@
 
 Current phase: `P3 — Persistence and Atomic Foundation`
 
-Status: in progress；P3-00–P3-05 complete；P3-06 next；P2 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P3-00–P3-06 complete；P3-07 next；P2 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-16
 
@@ -72,8 +72,8 @@ P3不实现Work/Event Runtime、Domain业务行为、HTTP/API/UI，也不接旧�
 | P3-03 | Owner-scoped Repository and Unit of Work boundaries | complete | P3-02 |
 | P3-04 | Commit Marker、Command Receipt and Audit foundation | complete | P3-03 |
 | P3-05 | Outbox、Delivery and Inbox atomic foundation | complete | P3-03–P3-04 |
-| P3-06 | Material Control CAS current/revision participant | next | P3-03–P3-04 |
-| P3-07 | Typed Domain Commit Registry and participant coordinator | pending | P3-03–P3-06 |
+| P3-06 | Material Control CAS current/revision participant | complete | P3-03–P3-04 |
+| P3-07 | Typed Domain Commit Registry and participant coordinator | next | P3-03–P3-06 |
 | P3-08 | 18 canonical transaction crash-window fixtures | pending | P3-07 |
 | P3-09 | Cross-persistence verification harness | pending | P3-01–P3-08 |
 | P3-10 | P3 Phase Exit Audit and evidence freeze | pending | P3-00–P3-09 |
@@ -156,6 +156,12 @@ P3不实现Work/Event Runtime、Domain业务行为、HTTP/API/UI，也不接旧�
 - Enforce one current Control per Physical Material Identity and append-only revision history.
 - Acquire/transfer/release/replace require expected revision and exact scope digest；failed CAS rolls back all participants.
 - Material Identity、Binding and Control remain separate；no global media business ID is introduced.
+- Done: commit `f3ec7a81` recomputes `materialKey` from the canonical Physical Material tuple and validates exact Handle operation、
+  expected revision set and control-scope digest before issuing CAS. Acquire、cross-Domain transfer、release and mixed
+  `replace_control_set` update one current row and append one immutable revision per changed Identity；no Binding/Domain fact is created.
+  Five fixture groups prove full lifecycle、stale/wrong-scope rollback across Domain/Foundation participants、multi-Identity atomicity、
+  invalid Identity/expected set/scope digest rejection and startup current/history drift refusal. Fresh detached-worktree full gate PASS；
+  all DBs were disposable.
 
 ### P3-07 Typed Domain Commit Registry and participant coordinator
 
