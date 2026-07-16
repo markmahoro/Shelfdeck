@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/shared.face.cluster.compute/v1/parameters",
+  "title": "shared.face.cluster.compute@1 parameters",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {},
+  "required": []
+}

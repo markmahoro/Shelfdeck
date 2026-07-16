@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.acceptance.structure.verify/v1/inputs",
+  "title": "arca.acceptance.structure.verify@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "productManifest": {
+      "$ref": "#/$defs/productManifest"
+    },
+    "structureRequirement": {
+      "$ref": "#/$defs/structureRequirement"
+    }
+  },
+  "required": [
+    "productManifest",
+    "structureRequirement"
+  ],
+  "$defs": {
+    "productManifest": {
+      "$ref": "helix://contracts/domain-types/ProductManifest/v1",
+      "x-helix-typeExpression": "Product Manifest"
+    },
+    "structureRequirement": {
+      "$ref": "helix://contracts/domain-types/StructureRequirement/v1",
+      "x-helix-typeExpression": "Structure Requirement"
+    }
+  }
+}

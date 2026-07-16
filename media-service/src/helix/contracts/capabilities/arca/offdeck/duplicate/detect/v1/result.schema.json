@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.offdeck.duplicate.detect/v1/result",
+  "title": "arca.offdeck.duplicate.detect@1 succeeded result",
+  "$ref": "helix://contracts/types/DuplicateGroupEvidenceList/v1"
+}

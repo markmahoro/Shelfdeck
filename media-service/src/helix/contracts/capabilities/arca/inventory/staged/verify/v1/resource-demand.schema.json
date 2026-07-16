@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.inventory.staged.verify/v1/resource-demand",
+  "title": "arca.inventory.staged.verify@1 resource demand",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "resourceKinds": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "const": "cpu"
+        },
+        {
+          "const": "disk_io"
+        }
+      ],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "demandDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "resourceKinds",
+    "demandDigest"
+  ]
+}

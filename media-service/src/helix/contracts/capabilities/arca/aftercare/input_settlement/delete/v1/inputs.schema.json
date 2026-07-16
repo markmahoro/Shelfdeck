@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.aftercare.input_settlement.delete/v1/inputs",
+  "title": "arca.aftercare.input_settlement.delete@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "supersededInventoryHandleList": {
+      "$ref": "#/$defs/supersededInventoryHandleList"
+    },
+    "aftercareSettlementApproval": {
+      "$ref": "#/$defs/aftercareSettlementApproval"
+    }
+  },
+  "required": [
+    "supersededInventoryHandleList",
+    "aftercareSettlementApproval"
+  ],
+  "$defs": {
+    "supersededInventoryHandleList": {
+      "type": "array",
+      "items": {
+        "$ref": "helix://contracts/domain-types/SupersededInventoryHandles/v1"
+      },
+      "maxItems": 1024,
+      "x-helix-typeExpression": "Superseded Inventory handles"
+    },
+    "aftercareSettlementApproval": {
+      "$ref": "helix://contracts/domain-types/AftercareSettlementApproval/v1",
+      "x-helix-typeExpression": "Aftercare Settlement Approval"
+    }
+  }
+}

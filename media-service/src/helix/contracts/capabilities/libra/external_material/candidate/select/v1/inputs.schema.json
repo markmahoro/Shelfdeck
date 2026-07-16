@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.external_material.candidate.select/v1/inputs",
+  "title": "libra.external_material.candidate.select@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "candidates": {
+      "$ref": "#/$defs/candidates"
+    },
+    "selectionCriteria": {
+      "$ref": "#/$defs/selectionCriteria"
+    }
+  },
+  "required": [
+    "candidates",
+    "selectionCriteria"
+  ],
+  "$defs": {
+    "candidates": {
+      "type": "array",
+      "items": {
+        "$ref": "helix://contracts/domain-types/Candidates/v1"
+      },
+      "maxItems": 1024,
+      "x-helix-typeExpression": "Candidates"
+    },
+    "selectionCriteria": {
+      "$ref": "helix://contracts/domain-types/SelectionCriteria/v1",
+      "x-helix-typeExpression": "SelectionCriteria"
+    }
+  }
+}

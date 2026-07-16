@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.acceptance.identity.verify/v1/inputs",
+  "title": "arca.acceptance.identity.verify@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "packageIdentity": {
+      "$ref": "#/$defs/packageIdentity"
+    },
+    "shelfStandard": {
+      "$ref": "#/$defs/shelfStandard"
+    }
+  },
+  "required": [
+    "packageIdentity",
+    "shelfStandard"
+  ],
+  "$defs": {
+    "packageIdentity": {
+      "$ref": "helix://contracts/domain-types/PackageIdentity/v1",
+      "x-helix-typeExpression": "Package identity"
+    },
+    "shelfStandard": {
+      "$ref": "helix://contracts/domain-types/ShelfStandard/v1",
+      "x-helix-typeExpression": "Shelf Standard"
+    }
+  }
+}

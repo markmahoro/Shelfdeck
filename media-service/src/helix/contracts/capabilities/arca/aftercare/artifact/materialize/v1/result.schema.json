@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.aftercare.artifact.materialize/v1/result",
+  "title": "arca.aftercare.artifact.materialize@1 succeeded result",
+  "$ref": "helix://contracts/types/MaterialEffectReceipt/v1"
+}

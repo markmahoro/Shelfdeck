@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.offdeck.duplicate_group.commit/v1/inputs",
+  "title": "arca.offdeck.duplicate_group.commit@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "duplicateGroupEvidenceList": {
+      "$ref": "#/$defs/duplicateGroupEvidenceList"
+    },
+    "domainFactCommitHandle": {
+      "$ref": "#/$defs/domainFactCommitHandle"
+    }
+  },
+  "required": [
+    "duplicateGroupEvidenceList",
+    "domainFactCommitHandle"
+  ],
+  "$defs": {
+    "duplicateGroupEvidenceList": {
+      "$ref": "helix://contracts/domain-types/DuplicateGroupEvidenceList/v1",
+      "x-helix-typeExpression": "DuplicateGroupEvidenceList"
+    },
+    "domainFactCommitHandle": {
+      "$ref": "helix://contracts/types/DomainFactCommitHandle/v1",
+      "x-helix-typeExpression": "DomainFactCommitHandle"
+    }
+  }
+}

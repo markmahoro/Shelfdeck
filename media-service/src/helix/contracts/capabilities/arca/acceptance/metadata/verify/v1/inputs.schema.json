@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.acceptance.metadata.verify/v1/inputs",
+  "title": "arca.acceptance.metadata.verify@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "productMetadataArtifact": {
+      "$ref": "#/$defs/productMetadataArtifact"
+    },
+    "metadataRequirement": {
+      "$ref": "#/$defs/metadataRequirement"
+    }
+  },
+  "required": [
+    "productMetadataArtifact",
+    "metadataRequirement"
+  ],
+  "$defs": {
+    "productMetadataArtifact": {
+      "$ref": "helix://contracts/domain-types/ProductMetadataArtifact/v1",
+      "x-helix-typeExpression": "Product Metadata/Artifact"
+    },
+    "metadataRequirement": {
+      "$ref": "helix://contracts/domain-types/MetadataRequirement/v1",
+      "x-helix-typeExpression": "Metadata Requirement"
+    }
+  }
+}

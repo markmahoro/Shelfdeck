@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "perception.record.commit@1",
+  "contractVersion": 1,
+  "ownerScope": "perception",
+  "effectClass": "domain_fact_commit",
+  "inputPorts": {
+    "recordDrafts": {
+      "schemaRef": "helix://contracts/capabilities/perception.record.commit/v1/inputs#/$defs/recordDrafts",
+      "required": true,
+      "cardinality": "one"
+    },
+    "domainFactCommitHandle": {
+      "schemaRef": "helix://contracts/capabilities/perception.record.commit/v1/inputs#/$defs/domainFactCommitHandle",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/perception.record.commit/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/perception.record.commit/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/perception.record.commit/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/perception.record.commit/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/perception.record.commit/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/perception.record.commit/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/perception.record.commit/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.13",
+    "line": 7775,
+    "lineDigest": "a07471288610d479b9982871c1d76f6cd7854a8af6603c3d98b21e61a47dc544"
+  }
+}

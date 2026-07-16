@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/procurement.triage.structure.inspect/v1/inputs",
+  "title": "procurement.triage.structure.inspect@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "materialHandleList": {
+      "$ref": "#/$defs/materialHandleList"
+    },
+    "materialFieldContext": {
+      "$ref": "#/$defs/materialFieldContext"
+    }
+  },
+  "required": [
+    "materialHandleList",
+    "materialFieldContext"
+  ],
+  "$defs": {
+    "materialHandleList": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1"
+          },
+          {
+            "$ref": "helix://contracts/types/WorkspaceMaterialHandle/v1"
+          },
+          {
+            "$ref": "helix://contracts/types/ArtifactHandle/v1"
+          }
+        ]
+      },
+      "maxItems": 1024,
+      "x-helix-typeExpression": "Material handles"
+    },
+    "materialFieldContext": {
+      "$ref": "helix://contracts/domain-types/MaterialFieldContext/v1",
+      "x-helix-typeExpression": "MaterialFieldContext"
+    }
+  }
+}

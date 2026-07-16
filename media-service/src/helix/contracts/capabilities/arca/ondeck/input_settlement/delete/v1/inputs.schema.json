@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.ondeck.input_settlement.delete/v1/inputs",
+  "title": "arca.ondeck.input_settlement.delete@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "oldInputHandleList": {
+      "$ref": "#/$defs/oldInputHandleList"
+    },
+    "inputSettlementApproval": {
+      "$ref": "#/$defs/inputSettlementApproval"
+    }
+  },
+  "required": [
+    "oldInputHandleList",
+    "inputSettlementApproval"
+  ],
+  "$defs": {
+    "oldInputHandleList": {
+      "type": "array",
+      "items": {
+        "$ref": "helix://contracts/domain-types/OldInputHandles/v1"
+      },
+      "maxItems": 1024,
+      "x-helix-typeExpression": "Old Input handles"
+    },
+    "inputSettlementApproval": {
+      "$ref": "helix://contracts/domain-types/InputSettlementApproval/v1",
+      "x-helix-typeExpression": "Input Settlement Approval"
+    }
+  }
+}

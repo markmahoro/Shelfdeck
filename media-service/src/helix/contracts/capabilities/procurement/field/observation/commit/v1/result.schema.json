@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/procurement.field.observation.commit/v1/result",
+  "title": "procurement.field.observation.commit@1 succeeded result",
+  "$ref": "helix://contracts/types/ObservationCommitResult/v1"
+}

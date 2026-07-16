@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.inventory.staged.verify/v1/inputs",
+  "title": "arca.inventory.staged.verify@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "stagedManifest": {
+      "$ref": "#/$defs/stagedManifest"
+    },
+    "finalInventoryDecision": {
+      "$ref": "#/$defs/finalInventoryDecision"
+    }
+  },
+  "required": [
+    "stagedManifest",
+    "finalInventoryDecision"
+  ],
+  "$defs": {
+    "stagedManifest": {
+      "$ref": "helix://contracts/domain-types/StagedManifest/v1",
+      "x-helix-typeExpression": "Staged manifest"
+    },
+    "finalInventoryDecision": {
+      "$ref": "helix://contracts/domain-types/FinalInventoryDecision/v1",
+      "x-helix-typeExpression": "Final Inventory Decision"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.product_metadata.fetch/v1/parameters",
+  "title": "libra.product_metadata.fetch@1 parameters",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "contentProfile": {
+      "type": "string",
+      "enum": [
+        "movie",
+        "season",
+        "jav",
+        "western_adult"
+      ]
+    }
+  },
+  "required": [
+    "contentProfile"
+  ]
+}

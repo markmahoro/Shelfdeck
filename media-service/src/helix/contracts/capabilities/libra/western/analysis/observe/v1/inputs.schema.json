@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.western.analysis.observe/v1/inputs",
+  "title": "libra.western.analysis.observe@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "externalJobReceipt": {
+      "$ref": "#/$defs/externalJobReceipt"
+    }
+  },
+  "required": [
+    "externalJobReceipt"
+  ],
+  "$defs": {
+    "externalJobReceipt": {
+      "$ref": "helix://contracts/types/ExternalJobReceipt/v1",
+      "x-helix-typeExpression": "ExternalJobReceipt"
+    }
+  }
+}

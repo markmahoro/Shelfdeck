@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/procurement.field.page.observe/v1/inputs",
+  "title": "procurement.field.page.observe@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "fieldAccessHandle": {
+      "$ref": "#/$defs/fieldAccessHandle"
+    }
+  },
+  "required": [
+    "fieldAccessHandle"
+  ],
+  "$defs": {
+    "fieldAccessHandle": {
+      "$ref": "helix://contracts/types/FieldAccessHandle/v1",
+      "x-helix-typeExpression": "FieldAccessHandle"
+    }
+  }
+}

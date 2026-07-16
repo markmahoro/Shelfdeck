@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "libra.decision.query.resolve@1",
+  "contractVersion": 1,
+  "ownerScope": "libra",
+  "effectClass": "pure_observation",
+  "inputPorts": {
+    "canonicalQueryHandle": {
+      "schemaRef": "helix://contracts/capabilities/libra.decision.query.resolve/v1/inputs#/$defs/canonicalQueryHandle",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/libra.decision.query.resolve/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/libra.decision.query.resolve/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/libra.decision.query.resolve/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/libra.decision.query.resolve/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/libra.decision.query.resolve/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/libra.decision.query.resolve/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/libra.decision.query.resolve/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.5",
+    "line": 7613,
+    "lineDigest": "da53a0601b2e71cced3fcfc8b4226c97a8fdd931bbc8502cd98c75bea6296694"
+  }
+}

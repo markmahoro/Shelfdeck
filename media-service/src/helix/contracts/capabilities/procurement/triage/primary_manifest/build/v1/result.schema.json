@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/procurement.triage.primary_manifest.build/v1/result",
+  "title": "procurement.triage.primary_manifest.build@1 succeeded result",
+  "$ref": "helix://contracts/types/PrimaryInputManifest/v1"
+}

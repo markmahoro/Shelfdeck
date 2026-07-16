@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "arca.offdeck.primary_material.delete@1",
+  "contractVersion": 1,
+  "ownerScope": "arca",
+  "effectClass": "destructive_commit",
+  "inputPorts": {
+    "primaryHandle": {
+      "schemaRef": "helix://contracts/capabilities/arca.offdeck.primary_material.delete/v1/inputs#/$defs/primaryHandle",
+      "required": true,
+      "cardinality": "one"
+    },
+    "destructiveAuthorization": {
+      "schemaRef": "helix://contracts/capabilities/arca.offdeck.primary_material.delete/v1/inputs#/$defs/destructiveAuthorization",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/arca.offdeck.primary_material.delete/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/arca.offdeck.primary_material.delete/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/arca.offdeck.primary_material.delete/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/arca.offdeck.primary_material.delete/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/arca.offdeck.primary_material.delete/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/arca.offdeck.primary_material.delete/v1/resource-demand",
+  "authorizationRequirementRef": "helix://contracts/requirements/destructive-authorization/v1",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/arca.offdeck.primary_material.delete/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.12",
+    "line": 7757,
+    "lineDigest": "be9f81655da84bd5289a21e8bb09a6dc5aab08401128db57cfafef0d1941c169"
+  }
+}

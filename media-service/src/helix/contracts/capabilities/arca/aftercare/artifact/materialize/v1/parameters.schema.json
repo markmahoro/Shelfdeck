@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.aftercare.artifact.materialize/v1/parameters",
+  "title": "arca.aftercare.artifact.materialize@1 parameters",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {},
+  "required": []
+}

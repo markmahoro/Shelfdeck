@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/perception.record.normalize/v1/result",
+  "title": "perception.record.normalize@1 succeeded result",
+  "$ref": "helix://contracts/types/NormalizedPerceptionRecordDraftList/v1"
+}

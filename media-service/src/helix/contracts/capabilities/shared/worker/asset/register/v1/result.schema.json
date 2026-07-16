@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/shared.worker.asset.register/v1/result",
+  "title": "shared.worker.asset.register@1 succeeded result",
+  "$ref": "helix://contracts/types/WorkerAssetReceipt/v1"
+}

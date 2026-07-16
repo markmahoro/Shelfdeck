@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.media.frames.extract/v1/inputs",
+  "title": "libra.media.frames.extract@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "materialHandle": {
+      "$ref": "#/$defs/materialHandle"
+    },
+    "samplingPlan": {
+      "$ref": "#/$defs/samplingPlan"
+    }
+  },
+  "required": [
+    "materialHandle",
+    "samplingPlan"
+  ],
+  "$defs": {
+    "materialHandle": {
+      "oneOf": [
+        {
+          "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1"
+        },
+        {
+          "$ref": "helix://contracts/types/WorkspaceMaterialHandle/v1"
+        },
+        {
+          "$ref": "helix://contracts/types/ArtifactHandle/v1"
+        }
+      ],
+      "x-helix-typeExpression": "Material handle"
+    },
+    "samplingPlan": {
+      "$ref": "helix://contracts/domain-types/SamplingPlan/v1",
+      "x-helix-typeExpression": "SamplingPlan"
+    }
+  }
+}

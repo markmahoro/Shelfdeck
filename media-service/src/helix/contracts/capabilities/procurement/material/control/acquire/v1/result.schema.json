@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/procurement.material.control.acquire/v1/result",
+  "title": "procurement.material.control.acquire@1 succeeded result",
+  "$ref": "helix://contracts/types/ProcurementControlReceipt/v1"
+}

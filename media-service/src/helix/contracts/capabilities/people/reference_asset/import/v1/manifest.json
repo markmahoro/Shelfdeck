@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "people.reference_asset.import@1",
+  "contractVersion": 1,
+  "ownerScope": "people",
+  "effectClass": "workspace_write",
+  "inputPorts": {
+    "externalUserAssetHandle": {
+      "schemaRef": "helix://contracts/capabilities/people.reference_asset.import/v1/inputs#/$defs/externalUserAssetHandle",
+      "required": true,
+      "cardinality": "one"
+    },
+    "peopleWorkspace": {
+      "schemaRef": "helix://contracts/capabilities/people.reference_asset.import/v1/inputs#/$defs/peopleWorkspace",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/people.reference_asset.import/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/people.reference_asset.import/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/people.reference_asset.import/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/people.reference_asset.import/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/people.reference_asset.import/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/people.reference_asset.import/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/people.reference_asset.import/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.14",
+    "line": 7786,
+    "lineDigest": "be70fa3c68c7af336e86e27c9059ce4f7589c26c543a8906f79d178e74a95d04"
+  }
+}

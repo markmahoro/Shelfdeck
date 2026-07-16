@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "libra.transcode.input.verify@1",
+  "contractVersion": 1,
+  "ownerScope": "libra",
+  "effectClass": "pure_observation",
+  "inputPorts": {
+    "materialHandle": {
+      "schemaRef": "helix://contracts/capabilities/libra.transcode.input.verify/v1/inputs#/$defs/materialHandle",
+      "required": true,
+      "cardinality": "one"
+    },
+    "encodeIntent": {
+      "schemaRef": "helix://contracts/capabilities/libra.transcode.input.verify/v1/inputs#/$defs/encodeIntent",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/libra.transcode.input.verify/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/libra.transcode.input.verify/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/libra.transcode.input.verify/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/libra.transcode.input.verify/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/libra.transcode.input.verify/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/libra.transcode.input.verify/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/libra.transcode.input.verify/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.7",
+    "line": 7644,
+    "lineDigest": "7e3dd0dd3ad7d4bbb44093fd6a68fddf7c8fe8d45defdc22c44da21b3399c066"
+  }
+}

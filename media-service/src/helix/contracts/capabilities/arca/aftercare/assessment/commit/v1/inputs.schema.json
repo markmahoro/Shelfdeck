@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.aftercare.assessment.commit/v1/inputs",
+  "title": "arca.aftercare.assessment.commit@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "professionalAssessmentsSharingOneCareBasis": {
+      "$ref": "#/$defs/professionalAssessmentsSharingOneCareBasis"
+    },
+    "domainFactCommitHandle": {
+      "$ref": "#/$defs/domainFactCommitHandle"
+    }
+  },
+  "required": [
+    "professionalAssessmentsSharingOneCareBasis",
+    "domainFactCommitHandle"
+  ],
+  "$defs": {
+    "professionalAssessmentsSharingOneCareBasis": {
+      "type": "array",
+      "items": {
+        "$ref": "helix://contracts/domain-types/ProfessionalAssessmentsSharingOneCareBasis/v1"
+      },
+      "maxItems": 1024,
+      "x-helix-typeExpression": "Professional assessments sharing one Care Basis"
+    },
+    "domainFactCommitHandle": {
+      "$ref": "helix://contracts/types/DomainFactCommitHandle/v1",
+      "x-helix-typeExpression": "DomainFactCommitHandle"
+    }
+  }
+}

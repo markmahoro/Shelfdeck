@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/people.registration_evidence.observe/v1/inputs",
+  "title": "people.registration_evidence.observe@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "providerPersonHint": {
+      "$ref": "#/$defs/providerPersonHint"
+    },
+    "integrationHandle": {
+      "$ref": "#/$defs/integrationHandle"
+    }
+  },
+  "required": [
+    "providerPersonHint",
+    "integrationHandle"
+  ],
+  "$defs": {
+    "providerPersonHint": {
+      "$ref": "helix://contracts/domain-types/ProviderPersonHint/v1",
+      "x-helix-typeExpression": "Provider/person hint"
+    },
+    "integrationHandle": {
+      "$ref": "helix://contracts/types/IntegrationHandle/v1",
+      "x-helix-typeExpression": "IntegrationHandle"
+    }
+  }
+}

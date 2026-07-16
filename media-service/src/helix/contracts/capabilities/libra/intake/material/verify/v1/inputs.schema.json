@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.intake.material.verify/v1/inputs",
+  "title": "libra.intake.material.verify@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "materialHandleList": {
+      "$ref": "#/$defs/materialHandleList"
+    },
+    "candidateSnapshot": {
+      "$ref": "#/$defs/candidateSnapshot"
+    }
+  },
+  "required": [
+    "materialHandleList",
+    "candidateSnapshot"
+  ],
+  "$defs": {
+    "materialHandleList": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1"
+          },
+          {
+            "$ref": "helix://contracts/types/WorkspaceMaterialHandle/v1"
+          },
+          {
+            "$ref": "helix://contracts/types/ArtifactHandle/v1"
+          }
+        ]
+      },
+      "maxItems": 1024,
+      "x-helix-typeExpression": "Material handles"
+    },
+    "candidateSnapshot": {
+      "$ref": "helix://contracts/domain-types/CandidateSnapshot/v1",
+      "x-helix-typeExpression": "Candidate snapshot"
+    }
+  }
+}

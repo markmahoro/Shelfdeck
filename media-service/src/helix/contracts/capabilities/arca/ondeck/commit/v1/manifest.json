@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "arca.ondeck.commit@1",
+  "contractVersion": 1,
+  "ownerScope": "arca",
+  "effectClass": "responsibility_control_commit",
+  "inputPorts": {
+    "fulfillmentResult": {
+      "schemaRef": "helix://contracts/capabilities/arca.ondeck.commit/v1/inputs#/$defs/fulfillmentResult",
+      "required": true,
+      "cardinality": "one"
+    },
+    "responsibilityControlCommitHandle": {
+      "schemaRef": "helix://contracts/capabilities/arca.ondeck.commit/v1/inputs#/$defs/responsibilityControlCommitHandle",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/arca.ondeck.commit/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/arca.ondeck.commit/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/arca.ondeck.commit/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/arca.ondeck.commit/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/arca.ondeck.commit/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/arca.ondeck.commit/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/arca.ondeck.commit/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.10",
+    "line": 7712,
+    "lineDigest": "a7d6792bf16ac7a3eb34f89587c4f7b4dced573833b33d7e3d04b364194f8ef1"
+  }
+}

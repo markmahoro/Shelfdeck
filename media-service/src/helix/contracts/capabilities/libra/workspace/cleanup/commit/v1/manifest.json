@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "libra.workspace.cleanup.commit@1",
+  "contractVersion": 1,
+  "ownerScope": "libra",
+  "effectClass": "responsibility_control_commit",
+  "inputPorts": {
+    "verifiedWorkspaceDeletionEvidence": {
+      "schemaRef": "helix://contracts/capabilities/libra.workspace.cleanup.commit/v1/inputs#/$defs/verifiedWorkspaceDeletionEvidence",
+      "required": true,
+      "cardinality": "one"
+    },
+    "responsibilityControlCommitHandle": {
+      "schemaRef": "helix://contracts/capabilities/libra.workspace.cleanup.commit/v1/inputs#/$defs/responsibilityControlCommitHandle",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/libra.workspace.cleanup.commit/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/libra.workspace.cleanup.commit/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/libra.workspace.cleanup.commit/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/libra.workspace.cleanup.commit/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/libra.workspace.cleanup.commit/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/libra.workspace.cleanup.commit/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/libra.workspace.cleanup.commit/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.7",
+    "line": 7652,
+    "lineDigest": "0842f68a565f7bcf8021deafcfcd0380a4f62d5d25d672f57d20fc28940a74d5"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/shared.material.layout.observe/v1/evidence",
+  "title": "shared.material.layout.observe@1 evidence",
+  "$ref": "helix://contracts/types/EvidenceEnvelope/v1"
+}

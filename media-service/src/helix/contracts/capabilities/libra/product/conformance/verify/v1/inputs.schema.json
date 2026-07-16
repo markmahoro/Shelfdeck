@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.product.conformance.verify/v1/inputs",
+  "title": "libra.product.conformance.verify@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "productFacts": {
+      "$ref": "#/$defs/productFacts"
+    },
+    "acceptanceSpec": {
+      "$ref": "#/$defs/acceptanceSpec"
+    }
+  },
+  "required": [
+    "productFacts",
+    "acceptanceSpec"
+  ],
+  "$defs": {
+    "productFacts": {
+      "type": "array",
+      "items": {
+        "$ref": "helix://contracts/domain-types/ProductFacts/v1"
+      },
+      "maxItems": 1024,
+      "x-helix-typeExpression": "Product Facts"
+    },
+    "acceptanceSpec": {
+      "$ref": "helix://contracts/domain-types/AcceptanceSpec/v1",
+      "x-helix-typeExpression": "Acceptance Spec"
+    }
+  }
+}

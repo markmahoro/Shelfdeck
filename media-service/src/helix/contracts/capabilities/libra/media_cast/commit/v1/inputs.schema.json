@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.media_cast.commit/v1/inputs",
+  "title": "libra.media_cast.commit@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "mediaCastDraft": {
+      "$ref": "#/$defs/mediaCastDraft"
+    },
+    "domainFactCommitHandle": {
+      "$ref": "#/$defs/domainFactCommitHandle"
+    }
+  },
+  "required": [
+    "mediaCastDraft",
+    "domainFactCommitHandle"
+  ],
+  "$defs": {
+    "mediaCastDraft": {
+      "$ref": "helix://contracts/domain-types/MediaCastDraft/v1",
+      "x-helix-typeExpression": "MediaCastDraft"
+    },
+    "domainFactCommitHandle": {
+      "$ref": "helix://contracts/types/DomainFactCommitHandle/v1",
+      "x-helix-typeExpression": "DomainFactCommitHandle"
+    }
+  }
+}

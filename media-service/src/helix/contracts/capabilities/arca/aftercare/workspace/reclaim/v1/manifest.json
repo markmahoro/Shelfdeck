@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "arca.aftercare.workspace.reclaim@1",
+  "contractVersion": 1,
+  "ownerScope": "arca",
+  "effectClass": "workspace_write",
+  "inputPorts": {
+    "aftercareWorkspaceHandleList": {
+      "schemaRef": "helix://contracts/capabilities/arca.aftercare.workspace.reclaim/v1/inputs#/$defs/aftercareWorkspaceHandleList",
+      "required": true,
+      "cardinality": "many"
+    },
+    "referenceEvidence": {
+      "schemaRef": "helix://contracts/capabilities/arca.aftercare.workspace.reclaim/v1/inputs#/$defs/referenceEvidence",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/arca.aftercare.workspace.reclaim/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/arca.aftercare.workspace.reclaim/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/arca.aftercare.workspace.reclaim/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/arca.aftercare.workspace.reclaim/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/arca.aftercare.workspace.reclaim/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/arca.aftercare.workspace.reclaim/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/arca.aftercare.workspace.reclaim/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.11",
+    "line": 7735,
+    "lineDigest": "3c4893964425cbf3fc4fc42b5fd975ddc72b436dcfc619ce9c2818a264e73c42"
+  }
+}

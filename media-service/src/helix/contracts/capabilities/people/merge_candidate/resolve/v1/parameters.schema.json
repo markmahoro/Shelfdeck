@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/people.merge_candidate.resolve/v1/parameters",
+  "title": "people.merge_candidate.resolve@1 parameters",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {},
+  "required": []
+}

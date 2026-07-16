@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/shared.face.cluster.compute/v1/inputs",
+  "title": "shared.face.cluster.compute@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "faceEmbeddingSetHandle": {
+      "$ref": "#/$defs/faceEmbeddingSetHandle"
+    },
+    "clusterParameters": {
+      "$ref": "#/$defs/clusterParameters"
+    }
+  },
+  "required": [
+    "faceEmbeddingSetHandle",
+    "clusterParameters"
+  ],
+  "$defs": {
+    "faceEmbeddingSetHandle": {
+      "$ref": "helix://contracts/types/FaceEmbeddingSetHandle/v1",
+      "x-helix-typeExpression": "FaceEmbeddingSetHandle"
+    },
+    "clusterParameters": {
+      "$ref": "helix://contracts/domain-types/ClusterParameters/v1",
+      "x-helix-typeExpression": "ClusterParameters"
+    }
+  }
+}

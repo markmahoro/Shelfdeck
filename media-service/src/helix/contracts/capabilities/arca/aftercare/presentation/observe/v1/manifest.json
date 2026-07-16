@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "arca.aftercare.presentation.observe@1",
+  "contractVersion": 1,
+  "ownerScope": "arca",
+  "effectClass": "pure_observation",
+  "inputPorts": {
+    "careBasis": {
+      "schemaRef": "helix://contracts/capabilities/arca.aftercare.presentation.observe/v1/inputs#/$defs/careBasis",
+      "required": true,
+      "cardinality": "one"
+    },
+    "inventoryMetadataArtifactRefs": {
+      "schemaRef": "helix://contracts/capabilities/arca.aftercare.presentation.observe/v1/inputs#/$defs/inventoryMetadataArtifactRefs",
+      "required": true,
+      "cardinality": "one"
+    },
+    "standard": {
+      "schemaRef": "helix://contracts/capabilities/arca.aftercare.presentation.observe/v1/inputs#/$defs/standard",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/arca.aftercare.presentation.observe/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/arca.aftercare.presentation.observe/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/arca.aftercare.presentation.observe/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/arca.aftercare.presentation.observe/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/arca.aftercare.presentation.observe/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/arca.aftercare.presentation.observe/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/arca.aftercare.presentation.observe/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.11",
+    "line": 7723,
+    "lineDigest": "ef14d58689a9a1e3ad3b5658b3d3e59a100382e903323cc54cacd9374861f6cd"
+  }
+}

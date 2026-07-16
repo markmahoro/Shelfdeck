@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/perception.source.acquire/v1/parameters",
+  "title": "perception.source.acquire@1 parameters",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "cursor": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    }
+  },
+  "required": [
+    "cursor"
+  ]
+}

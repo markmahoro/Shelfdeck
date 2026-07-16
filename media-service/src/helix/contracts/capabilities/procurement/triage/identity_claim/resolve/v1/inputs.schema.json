@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/procurement.triage.identity_claim.resolve/v1/inputs",
+  "title": "procurement.triage.identity_claim.resolve@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "identityMetadata": {
+      "$ref": "#/$defs/identityMetadata"
+    },
+    "structureEvidence": {
+      "$ref": "#/$defs/structureEvidence"
+    }
+  },
+  "required": [
+    "identityMetadata",
+    "structureEvidence"
+  ],
+  "$defs": {
+    "identityMetadata": {
+      "$ref": "helix://contracts/domain-types/IdentityMetadata/v1",
+      "x-helix-typeExpression": "Identity Metadata"
+    },
+    "structureEvidence": {
+      "$ref": "helix://contracts/domain-types/StructureEvidence/v1",
+      "x-helix-typeExpression": "Structure Evidence"
+    }
+  }
+}

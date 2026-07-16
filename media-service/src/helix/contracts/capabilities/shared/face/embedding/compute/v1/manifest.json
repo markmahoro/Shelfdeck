@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "shared.face.embedding.compute@1",
+  "contractVersion": 1,
+  "ownerScope": "execution-foundation",
+  "effectClass": "workspace_write",
+  "inputPorts": {
+    "artifactHandleList": {
+      "schemaRef": "helix://contracts/capabilities/shared.face.embedding.compute/v1/inputs#/$defs/artifactHandleList",
+      "required": true,
+      "cardinality": "many"
+    },
+    "faceModelRef": {
+      "schemaRef": "helix://contracts/capabilities/shared.face.embedding.compute/v1/inputs#/$defs/faceModelRef",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/shared.face.embedding.compute/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/shared.face.embedding.compute/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/shared.face.embedding.compute/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/shared.face.embedding.compute/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/shared.face.embedding.compute/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/shared.face.embedding.compute/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/shared.face.embedding.compute/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.3",
+    "line": 7579,
+    "lineDigest": "303382e21b6ebf8ed4758e802fc0e190d1c36a4f73ce51f69707a659a04bbd3e"
+  }
+}

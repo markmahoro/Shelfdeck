@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/people.preference.commit/v1/inputs",
+  "title": "people.preference.commit@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "preferenceIntent": {
+      "$ref": "#/$defs/preferenceIntent"
+    },
+    "domainFactCommitHandle": {
+      "$ref": "#/$defs/domainFactCommitHandle"
+    }
+  },
+  "required": [
+    "preferenceIntent",
+    "domainFactCommitHandle"
+  ],
+  "$defs": {
+    "preferenceIntent": {
+      "$ref": "helix://contracts/domain-types/PreferenceIntent/v1",
+      "x-helix-typeExpression": "Preference intent"
+    },
+    "domainFactCommitHandle": {
+      "$ref": "helix://contracts/types/DomainFactCommitHandle/v1",
+      "x-helix-typeExpression": "DomainFactCommitHandle"
+    }
+  }
+}

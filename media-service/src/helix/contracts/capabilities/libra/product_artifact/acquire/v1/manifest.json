@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "libra.product_artifact.acquire@1",
+  "contractVersion": 1,
+  "ownerScope": "libra",
+  "effectClass": "workspace_write",
+  "inputPorts": {
+    "productMetadataDraft": {
+      "schemaRef": "helix://contracts/capabilities/libra.product_artifact.acquire/v1/inputs#/$defs/productMetadataDraft",
+      "required": true,
+      "cardinality": "one"
+    },
+    "integrationHandle": {
+      "schemaRef": "helix://contracts/capabilities/libra.product_artifact.acquire/v1/inputs#/$defs/integrationHandle",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/libra.product_artifact.acquire/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/libra.product_artifact.acquire/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/libra.product_artifact.acquire/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/libra.product_artifact.acquire/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/libra.product_artifact.acquire/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/libra.product_artifact.acquire/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/libra.product_artifact.acquire/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.6",
+    "line": 7634,
+    "lineDigest": "6f6499bab8bb10e7dcc8e9229beb062e533126492e652453ac2efc3143d84cf9"
+  }
+}

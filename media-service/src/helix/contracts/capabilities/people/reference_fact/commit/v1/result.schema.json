@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/people.reference_fact.commit/v1/result",
+  "title": "people.reference_fact.commit@1 succeeded result",
+  "$ref": "helix://contracts/types/PersonReferenceRevision/v1"
+}

@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.external_material.acquire.request/v1/result",
+  "title": "libra.external_material.acquire.request@1 succeeded result",
+  "$ref": "helix://contracts/types/ExternalJobReceipt/v1"
+}

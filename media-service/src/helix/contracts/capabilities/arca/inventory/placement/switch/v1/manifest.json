@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "arca.inventory.placement.switch@1",
+  "contractVersion": 1,
+  "ownerScope": "arca",
+  "effectClass": "material_commit",
+  "inputPorts": {
+    "verifiedStagedManifest": {
+      "schemaRef": "helix://contracts/capabilities/arca.inventory.placement.switch/v1/inputs#/$defs/verifiedStagedManifest",
+      "required": true,
+      "cardinality": "one"
+    },
+    "targetBindings": {
+      "schemaRef": "helix://contracts/capabilities/arca.inventory.placement.switch/v1/inputs#/$defs/targetBindings",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/arca.inventory.placement.switch/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/arca.inventory.placement.switch/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/arca.inventory.placement.switch/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/arca.inventory.placement.switch/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/arca.inventory.placement.switch/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/arca.inventory.placement.switch/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/arca.inventory.placement.switch/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.10",
+    "line": 7708,
+    "lineDigest": "2995f4709dc5a11cbe6cda9a44f16727c2e5249e314b81983e270b512def1d4c"
+  }
+}

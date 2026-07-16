@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.aftercare.presentation.observe/v1/inputs",
+  "title": "arca.aftercare.presentation.observe@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "careBasis": {
+      "$ref": "#/$defs/careBasis"
+    },
+    "inventoryMetadataArtifactRefs": {
+      "$ref": "#/$defs/inventoryMetadataArtifactRefs"
+    },
+    "standard": {
+      "$ref": "#/$defs/standard"
+    }
+  },
+  "required": [
+    "careBasis",
+    "inventoryMetadataArtifactRefs",
+    "standard"
+  ],
+  "$defs": {
+    "careBasis": {
+      "$ref": "helix://contracts/domain-types/CareBasis/v1",
+      "x-helix-typeExpression": "Care Basis"
+    },
+    "inventoryMetadataArtifactRefs": {
+      "$ref": "helix://contracts/domain-types/InventoryMetadataArtifactRefs/v1",
+      "x-helix-typeExpression": "Inventory/Metadata/Artifact refs"
+    },
+    "standard": {
+      "$ref": "helix://contracts/domain-types/Standard/v1",
+      "x-helix-typeExpression": "Standard"
+    }
+  }
+}

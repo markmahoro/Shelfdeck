@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.workspace.cleanup.commit/v1/inputs",
+  "title": "libra.workspace.cleanup.commit@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "verifiedWorkspaceDeletionEvidence": {
+      "$ref": "#/$defs/verifiedWorkspaceDeletionEvidence"
+    },
+    "responsibilityControlCommitHandle": {
+      "$ref": "#/$defs/responsibilityControlCommitHandle"
+    }
+  },
+  "required": [
+    "verifiedWorkspaceDeletionEvidence",
+    "responsibilityControlCommitHandle"
+  ],
+  "$defs": {
+    "verifiedWorkspaceDeletionEvidence": {
+      "$ref": "helix://contracts/domain-types/VerifiedWorkspaceDeletionEvidence/v1",
+      "x-helix-typeExpression": "Verified Workspace deletion evidence"
+    },
+    "responsibilityControlCommitHandle": {
+      "$ref": "helix://contracts/types/ResponsibilityControlCommitHandle/v1",
+      "x-helix-typeExpression": "ResponsibilityControlCommitHandle"
+    }
+  }
+}

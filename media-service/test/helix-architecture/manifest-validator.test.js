@@ -51,11 +51,11 @@ test('validates the complete P1 framework and produces a stable aggregate digest
 test('rejects duplicate entry IDs, unresolved owners, and illegal statuses', () => {
   const fixture = createFixture();
   try {
-    const filePath = manifestPath(fixture, 'capability-inventory.json');
+    const filePath = manifestPath(fixture, 'result-family-inventory.json');
     mutateJson(filePath, (manifest) => {
       const contract = { capabilityRef: 'fixture@1' };
       const base = {
-        id: 'capability.fixture',
+        id: 'result.fixture',
         version: 1,
         owner: 'missing-owner',
         status: 'invented-status',

@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/shared.material.media.probe/v1/inputs",
+  "title": "shared.material.media.probe@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "physicalMaterialReadHandleOrWorkspaceMaterialHandle": {
+      "$ref": "#/$defs/physicalMaterialReadHandleOrWorkspaceMaterialHandle"
+    }
+  },
+  "required": [
+    "physicalMaterialReadHandleOrWorkspaceMaterialHandle"
+  ],
+  "$defs": {
+    "physicalMaterialReadHandleOrWorkspaceMaterialHandle": {
+      "oneOf": [
+        {
+          "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1"
+        },
+        {
+          "$ref": "helix://contracts/types/WorkspaceMaterialHandle/v1"
+        }
+      ],
+      "x-helix-typeExpression": "PhysicalMaterialReadHandle|WorkspaceMaterialHandle"
+    }
+  }
+}

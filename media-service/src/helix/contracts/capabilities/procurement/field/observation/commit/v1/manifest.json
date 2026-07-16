@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "procurement.field.observation.commit@1",
+  "contractVersion": 1,
+  "ownerScope": "procurement",
+  "effectClass": "domain_fact_commit",
+  "inputPorts": {
+    "fieldObservationPage": {
+      "schemaRef": "helix://contracts/capabilities/procurement.field.observation.commit/v1/inputs#/$defs/fieldObservationPage",
+      "required": true,
+      "cardinality": "one"
+    },
+    "domainFactCommitHandle": {
+      "schemaRef": "helix://contracts/capabilities/procurement.field.observation.commit/v1/inputs#/$defs/domainFactCommitHandle",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/procurement.field.observation.commit/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/procurement.field.observation.commit/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/procurement.field.observation.commit/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/procurement.field.observation.commit/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/procurement.field.observation.commit/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/procurement.field.observation.commit/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/procurement.field.observation.commit/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.4",
+    "line": 7593,
+    "lineDigest": "21aae7367d16373f21bb34ae02f3366f65eeeba391cb8442f8d8634276318224"
+  }
+}

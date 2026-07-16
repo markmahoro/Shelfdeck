@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.decision_basis.commit/v1/inputs",
+  "title": "libra.decision_basis.commit@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "decisionInputSet": {
+      "$ref": "#/$defs/decisionInputSet"
+    },
+    "domainFactCommitHandle": {
+      "$ref": "#/$defs/domainFactCommitHandle"
+    }
+  },
+  "required": [
+    "decisionInputSet",
+    "domainFactCommitHandle"
+  ],
+  "$defs": {
+    "decisionInputSet": {
+      "$ref": "helix://contracts/domain-types/DecisionInputSet/v1",
+      "x-helix-typeExpression": "DecisionInputSet"
+    },
+    "domainFactCommitHandle": {
+      "$ref": "helix://contracts/types/DomainFactCommitHandle/v1",
+      "x-helix-typeExpression": "DomainFactCommitHandle"
+    }
+  }
+}

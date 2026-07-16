@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.western.metadata.normalize/v1/inputs",
+  "title": "libra.western.metadata.normalize@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "westernAnalysisVariant": {
+      "$ref": "#/$defs/westernAnalysisVariant"
+    }
+  },
+  "required": [
+    "westernAnalysisVariant"
+  ],
+  "$defs": {
+    "westernAnalysisVariant": {
+      "$ref": "helix://contracts/domain-types/WesternAnalysisVariant/v1",
+      "x-helix-typeExpression": "WesternAnalysisVariant"
+    }
+  }
+}

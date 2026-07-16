@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.aftercare.conformance.observe/v1/inputs",
+  "title": "arca.aftercare.conformance.observe@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "careBasis": {
+      "$ref": "#/$defs/careBasis"
+    },
+    "inventoryMediaEvidence": {
+      "$ref": "#/$defs/inventoryMediaEvidence"
+    },
+    "standard": {
+      "$ref": "#/$defs/standard"
+    },
+    "placement": {
+      "$ref": "#/$defs/placement"
+    }
+  },
+  "required": [
+    "careBasis",
+    "inventoryMediaEvidence",
+    "standard",
+    "placement"
+  ],
+  "$defs": {
+    "careBasis": {
+      "$ref": "helix://contracts/domain-types/CareBasis/v1",
+      "x-helix-typeExpression": "Care Basis"
+    },
+    "inventoryMediaEvidence": {
+      "$ref": "helix://contracts/domain-types/InventoryMediaEvidence/v1",
+      "x-helix-typeExpression": "Inventory media evidence"
+    },
+    "standard": {
+      "$ref": "helix://contracts/domain-types/Standard/v1",
+      "x-helix-typeExpression": "Standard"
+    },
+    "placement": {
+      "$ref": "helix://contracts/domain-types/Placement/v1",
+      "x-helix-typeExpression": "Placement"
+    }
+  }
+}

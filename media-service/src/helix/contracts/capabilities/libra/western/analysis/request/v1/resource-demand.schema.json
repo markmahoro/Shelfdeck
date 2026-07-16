@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.western.analysis.request/v1/resource-demand",
+  "title": "libra.western.analysis.request@1 resource demand",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "resourceKinds": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "const": "compute_device"
+        },
+        {
+          "const": "cpu"
+        },
+        {
+          "const": "network"
+        }
+      ],
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "demandDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "resourceKinds",
+    "demandDigest"
+  ]
+}

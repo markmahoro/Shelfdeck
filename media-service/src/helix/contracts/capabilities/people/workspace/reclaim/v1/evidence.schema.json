@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/people.workspace.reclaim/v1/evidence",
+  "title": "people.workspace.reclaim@1 evidence",
+  "$ref": "helix://contracts/types/EvidenceEnvelope/v1"
+}

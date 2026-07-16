@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "people.workspace.reclaim@1",
+  "contractVersion": 1,
+  "ownerScope": "people",
+  "effectClass": "workspace_write",
+  "inputPorts": {
+    "peopleWorkspaceHandleList": {
+      "schemaRef": "helix://contracts/capabilities/people.workspace.reclaim/v1/inputs#/$defs/peopleWorkspaceHandleList",
+      "required": true,
+      "cardinality": "many"
+    },
+    "referenceEvidence": {
+      "schemaRef": "helix://contracts/capabilities/people.workspace.reclaim/v1/inputs#/$defs/referenceEvidence",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/people.workspace.reclaim/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/people.workspace.reclaim/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/people.workspace.reclaim/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/people.workspace.reclaim/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/people.workspace.reclaim/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/people.workspace.reclaim/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/people.workspace.reclaim/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.14",
+    "line": 7792,
+    "lineDigest": "beced2784c1e277b20c4d5547149519e4cba307751d901ee3df5f29d59061d8c"
+  }
+}

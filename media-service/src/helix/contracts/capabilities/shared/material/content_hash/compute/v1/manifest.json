@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "shared.material.content_hash.compute@1",
+  "contractVersion": 1,
+  "ownerScope": "execution-foundation",
+  "effectClass": "pure_observation",
+  "inputPorts": {
+    "physicalMaterialReadHandle": {
+      "schemaRef": "helix://contracts/capabilities/shared.material.content_hash.compute/v1/inputs#/$defs/physicalMaterialReadHandle",
+      "required": true,
+      "cardinality": "one"
+    },
+    "hashProfile": {
+      "schemaRef": "helix://contracts/capabilities/shared.material.content_hash.compute/v1/inputs#/$defs/hashProfile",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/shared.material.content_hash.compute/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/shared.material.content_hash.compute/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/shared.material.content_hash.compute/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/shared.material.content_hash.compute/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/shared.material.content_hash.compute/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/shared.material.content_hash.compute/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/shared.material.content_hash.compute/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.3",
+    "line": 7573,
+    "lineDigest": "a49116ffe106a16d2ab00e928642626f5d43442beaa0b312971bac83445319da"
+  }
+}

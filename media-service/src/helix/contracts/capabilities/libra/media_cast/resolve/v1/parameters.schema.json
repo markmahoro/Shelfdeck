@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.media_cast.resolve/v1/parameters",
+  "title": "libra.media_cast.resolve@1 parameters",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {},
+  "required": []
+}

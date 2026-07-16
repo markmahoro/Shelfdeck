@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "people.preference.commit@1",
+  "contractVersion": 1,
+  "ownerScope": "people",
+  "effectClass": "domain_fact_commit",
+  "inputPorts": {
+    "preferenceIntent": {
+      "schemaRef": "helix://contracts/capabilities/people.preference.commit/v1/inputs#/$defs/preferenceIntent",
+      "required": true,
+      "cardinality": "one"
+    },
+    "domainFactCommitHandle": {
+      "schemaRef": "helix://contracts/capabilities/people.preference.commit/v1/inputs#/$defs/domainFactCommitHandle",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/people.preference.commit/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/people.preference.commit/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/people.preference.commit/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/people.preference.commit/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/people.preference.commit/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/people.preference.commit/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/people.preference.commit/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.14",
+    "line": 7791,
+    "lineDigest": "4ae0cbd3463df67c1ae83084d30ae44a5dd54aa9fedd41c732561a07ffe2343b"
+  }
+}

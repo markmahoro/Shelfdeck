@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.western.poster.render/v1/inputs",
+  "title": "libra.western.poster.render@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "personMatchEvidence": {
+      "$ref": "#/$defs/personMatchEvidence"
+    },
+    "frameArtifactSet": {
+      "$ref": "#/$defs/frameArtifactSet"
+    }
+  },
+  "required": [
+    "personMatchEvidence",
+    "frameArtifactSet"
+  ],
+  "$defs": {
+    "personMatchEvidence": {
+      "$ref": "helix://contracts/domain-types/PersonMatchEvidence/v1",
+      "x-helix-typeExpression": "PersonMatchEvidence"
+    },
+    "frameArtifactSet": {
+      "type": "array",
+      "items": {
+        "$ref": "helix://contracts/domain-types/FrameArtifactSet/v1"
+      },
+      "maxItems": 1024,
+      "x-helix-typeExpression": "FrameArtifactSet"
+    }
+  }
+}

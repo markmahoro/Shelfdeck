@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "arca.ondeck.input_settlement.delete@1",
+  "contractVersion": 1,
+  "ownerScope": "arca",
+  "effectClass": "destructive_commit",
+  "inputPorts": {
+    "oldInputHandleList": {
+      "schemaRef": "helix://contracts/capabilities/arca.ondeck.input_settlement.delete/v1/inputs#/$defs/oldInputHandleList",
+      "required": true,
+      "cardinality": "many"
+    },
+    "inputSettlementApproval": {
+      "schemaRef": "helix://contracts/capabilities/arca.ondeck.input_settlement.delete/v1/inputs#/$defs/inputSettlementApproval",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/arca.ondeck.input_settlement.delete/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/arca.ondeck.input_settlement.delete/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/arca.ondeck.input_settlement.delete/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/arca.ondeck.input_settlement.delete/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/arca.ondeck.input_settlement.delete/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/arca.ondeck.input_settlement.delete/v1/resource-demand",
+  "approvalRequirementRef": "helix://contracts/requirements/exact-settlement-approval/v1",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/arca.ondeck.input_settlement.delete/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.10",
+    "line": 7710,
+    "lineDigest": "e4b8b9a1d92268b0b51a6db2cba10025c17bc38c9ca45f33156b544e9bd300bb"
+  }
+}

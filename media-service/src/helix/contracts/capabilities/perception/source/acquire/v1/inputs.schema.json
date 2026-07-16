@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/perception.source.acquire/v1/inputs",
+  "title": "perception.source.acquire@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "perceptionSource": {
+      "$ref": "#/$defs/perceptionSource"
+    },
+    "integrationHandle": {
+      "$ref": "#/$defs/integrationHandle"
+    }
+  },
+  "required": [
+    "perceptionSource",
+    "integrationHandle"
+  ],
+  "$defs": {
+    "perceptionSource": {
+      "$ref": "helix://contracts/domain-types/PerceptionSource/v1",
+      "x-helix-typeExpression": "Perception Source"
+    },
+    "integrationHandle": {
+      "$ref": "helix://contracts/types/IntegrationHandle/v1",
+      "x-helix-typeExpression": "IntegrationHandle"
+    }
+  }
+}

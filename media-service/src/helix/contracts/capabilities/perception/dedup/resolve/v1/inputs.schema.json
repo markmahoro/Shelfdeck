@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/perception.dedup.resolve/v1/inputs",
+  "title": "perception.dedup.resolve@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "immutableRecords": {
+      "$ref": "#/$defs/immutableRecords"
+    },
+    "resolutionRuleRevision": {
+      "$ref": "#/$defs/resolutionRuleRevision"
+    }
+  },
+  "required": [
+    "immutableRecords",
+    "resolutionRuleRevision"
+  ],
+  "$defs": {
+    "immutableRecords": {
+      "type": "array",
+      "items": {
+        "$ref": "helix://contracts/domain-types/ImmutableRecords/v1"
+      },
+      "maxItems": 1024,
+      "x-helix-typeExpression": "Immutable records"
+    },
+    "resolutionRuleRevision": {
+      "$ref": "helix://contracts/domain-types/ResolutionRuleRevision/v1",
+      "x-helix-typeExpression": "Resolution rule revision"
+    }
+  }
+}

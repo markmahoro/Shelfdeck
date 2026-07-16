@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.media.frames.extract/v1/evidence",
+  "title": "libra.media.frames.extract@1 evidence",
+  "$ref": "helix://contracts/types/EvidenceEnvelope/v1"
+}

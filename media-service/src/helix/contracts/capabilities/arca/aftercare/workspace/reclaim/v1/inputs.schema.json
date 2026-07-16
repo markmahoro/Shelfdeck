@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.aftercare.workspace.reclaim/v1/inputs",
+  "title": "arca.aftercare.workspace.reclaim@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "aftercareWorkspaceHandleList": {
+      "$ref": "#/$defs/aftercareWorkspaceHandleList"
+    },
+    "referenceEvidence": {
+      "$ref": "#/$defs/referenceEvidence"
+    }
+  },
+  "required": [
+    "aftercareWorkspaceHandleList",
+    "referenceEvidence"
+  ],
+  "$defs": {
+    "aftercareWorkspaceHandleList": {
+      "type": "array",
+      "items": {
+        "$ref": "helix://contracts/domain-types/AftercareWorkspaceHandles/v1"
+      },
+      "maxItems": 1024,
+      "x-helix-typeExpression": "Aftercare Workspace handles"
+    },
+    "referenceEvidence": {
+      "$ref": "helix://contracts/domain-types/ReferenceEvidence/v1",
+      "x-helix-typeExpression": "ReferenceEvidence"
+    }
+  }
+}

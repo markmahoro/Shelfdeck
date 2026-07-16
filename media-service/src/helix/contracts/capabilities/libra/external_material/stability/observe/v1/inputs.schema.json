@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.external_material.stability.observe/v1/inputs",
+  "title": "libra.external_material.stability.observe@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "externalMaterialHandle": {
+      "$ref": "#/$defs/externalMaterialHandle"
+    }
+  },
+  "required": [
+    "externalMaterialHandle"
+  ],
+  "$defs": {
+    "externalMaterialHandle": {
+      "$ref": "helix://contracts/types/ExternalMaterialHandle/v1",
+      "x-helix-typeExpression": "ExternalMaterialHandle"
+    }
+  }
+}

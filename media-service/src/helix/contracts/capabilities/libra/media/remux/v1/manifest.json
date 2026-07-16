@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "libra.media.remux@1",
+  "contractVersion": 1,
+  "ownerScope": "libra",
+  "effectClass": "workspace_write",
+  "inputPorts": {
+    "materialHandle": {
+      "schemaRef": "helix://contracts/capabilities/libra.media.remux/v1/inputs#/$defs/materialHandle",
+      "required": true,
+      "cardinality": "one"
+    },
+    "remuxIntent": {
+      "schemaRef": "helix://contracts/capabilities/libra.media.remux/v1/inputs#/$defs/remuxIntent",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/libra.media.remux/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/libra.media.remux/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/libra.media.remux/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/libra.media.remux/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/libra.media.remux/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/libra.media.remux/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/libra.media.remux/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.7",
+    "line": 7645,
+    "lineDigest": "a8a78da685d0a729a7d56d4f58a82391317e0fab5e90a164d84f493c93d68af2"
+  }
+}

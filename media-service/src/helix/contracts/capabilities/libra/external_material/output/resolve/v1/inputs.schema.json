@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.external_material.output.resolve/v1/inputs",
+  "title": "libra.external_material.output.resolve@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "acquisitionObservation": {
+      "$ref": "#/$defs/acquisitionObservation"
+    },
+    "productStructure": {
+      "$ref": "#/$defs/productStructure"
+    }
+  },
+  "required": [
+    "acquisitionObservation",
+    "productStructure"
+  ],
+  "$defs": {
+    "acquisitionObservation": {
+      "$ref": "helix://contracts/domain-types/AcquisitionObservation/v1",
+      "x-helix-typeExpression": "AcquisitionObservation"
+    },
+    "productStructure": {
+      "$ref": "helix://contracts/domain-types/ProductStructure/v1",
+      "x-helix-typeExpression": "ProductStructure"
+    }
+  }
+}

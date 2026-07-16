@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/shared.integration.availability.observe/v1/resource-demand",
+  "title": "shared.integration.availability.observe@1 resource demand",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "resourceKinds": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "const": "network"
+        }
+      ],
+      "minItems": 1,
+      "maxItems": 1
+    },
+    "demandDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "resourceKinds",
+    "demandDigest"
+  ]
+}

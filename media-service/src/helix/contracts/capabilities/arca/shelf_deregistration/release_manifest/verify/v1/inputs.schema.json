@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.shelf_deregistration.release_manifest.verify/v1/inputs",
+  "title": "arca.shelf_deregistration.release_manifest.verify@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "releaseManifest": {
+      "$ref": "#/$defs/releaseManifest"
+    },
+    "currentInventoryControl": {
+      "$ref": "#/$defs/currentInventoryControl"
+    }
+  },
+  "required": [
+    "releaseManifest",
+    "currentInventoryControl"
+  ],
+  "$defs": {
+    "releaseManifest": {
+      "$ref": "helix://contracts/domain-types/ReleaseManifest/v1",
+      "x-helix-typeExpression": "Release Manifest"
+    },
+    "currentInventoryControl": {
+      "$ref": "helix://contracts/domain-types/CurrentInventoryControl/v1",
+      "x-helix-typeExpression": "current Inventory/Control"
+    }
+  }
+}

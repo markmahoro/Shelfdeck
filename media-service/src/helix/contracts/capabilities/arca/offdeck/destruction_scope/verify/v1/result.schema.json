@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.offdeck.destruction_scope.verify/v1/result",
+  "title": "arca.offdeck.destruction_scope.verify@1 succeeded result",
+  "$ref": "helix://contracts/types/ScopeVerification/v1"
+}

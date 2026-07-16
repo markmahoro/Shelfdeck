@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.aftercare.presentation.observe/v1/result",
+  "title": "arca.aftercare.presentation.observe@1 succeeded result",
+  "$ref": "helix://contracts/types/PresentationAssessmentEvidence/v1"
+}

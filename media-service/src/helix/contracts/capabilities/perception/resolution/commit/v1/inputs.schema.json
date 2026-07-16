@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/perception.resolution.commit/v1/inputs",
+  "title": "perception.resolution.commit@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "resolutionDraft": {
+      "$ref": "#/$defs/resolutionDraft"
+    },
+    "domainFactCommitHandle": {
+      "$ref": "#/$defs/domainFactCommitHandle"
+    }
+  },
+  "required": [
+    "resolutionDraft",
+    "domainFactCommitHandle"
+  ],
+  "$defs": {
+    "resolutionDraft": {
+      "$ref": "helix://contracts/domain-types/ResolutionDraft/v1",
+      "x-helix-typeExpression": "Resolution draft"
+    },
+    "domainFactCommitHandle": {
+      "$ref": "helix://contracts/types/DomainFactCommitHandle/v1",
+      "x-helix-typeExpression": "DomainFactCommitHandle"
+    }
+  }
+}

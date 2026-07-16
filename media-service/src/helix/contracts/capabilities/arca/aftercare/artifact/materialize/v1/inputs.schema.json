@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.aftercare.artifact.materialize/v1/inputs",
+  "title": "arca.aftercare.artifact.materialize@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "verifiedArtifact": {
+      "$ref": "#/$defs/verifiedArtifact"
+    },
+    "inventoryTargetHandle": {
+      "$ref": "#/$defs/inventoryTargetHandle"
+    }
+  },
+  "required": [
+    "verifiedArtifact",
+    "inventoryTargetHandle"
+  ],
+  "$defs": {
+    "verifiedArtifact": {
+      "$ref": "helix://contracts/domain-types/VerifiedArtifact/v1",
+      "x-helix-typeExpression": "Verified Artifact"
+    },
+    "inventoryTargetHandle": {
+      "$ref": "helix://contracts/types/TargetCommitSlotHandle/v1",
+      "x-helix-typeExpression": "Inventory target handle"
+    }
+  }
+}

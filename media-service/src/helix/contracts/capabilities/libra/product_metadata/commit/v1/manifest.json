@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "libra.product_metadata.commit@1",
+  "contractVersion": 1,
+  "ownerScope": "libra",
+  "effectClass": "domain_fact_commit",
+  "inputPorts": {
+    "productMetadataDraft": {
+      "schemaRef": "helix://contracts/capabilities/libra.product_metadata.commit/v1/inputs#/$defs/productMetadataDraft",
+      "required": true,
+      "cardinality": "one"
+    },
+    "verifiedArtifactManifest": {
+      "schemaRef": "helix://contracts/capabilities/libra.product_metadata.commit/v1/inputs#/$defs/verifiedArtifactManifest",
+      "required": true,
+      "cardinality": "one"
+    },
+    "domainFactCommitHandle": {
+      "schemaRef": "helix://contracts/capabilities/libra.product_metadata.commit/v1/inputs#/$defs/domainFactCommitHandle",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/libra.product_metadata.commit/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/libra.product_metadata.commit/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/libra.product_metadata.commit/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/libra.product_metadata.commit/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/libra.product_metadata.commit/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/libra.product_metadata.commit/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/libra.product_metadata.commit/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.6",
+    "line": 7635,
+    "lineDigest": "06245ff89a480cbdc9050739085acd3978824274b8d94fbbaf722adb71e3a502"
+  }
+}

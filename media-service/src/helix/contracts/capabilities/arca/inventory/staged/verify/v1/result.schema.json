@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.inventory.staged.verify/v1/result",
+  "title": "arca.inventory.staged.verify@1 succeeded result",
+  "$ref": "helix://contracts/types/StagedInventoryVerification/v1"
+}

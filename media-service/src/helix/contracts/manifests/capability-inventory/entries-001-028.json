@@ -1,0 +1,790 @@
+{
+  "schemaVersion": 1,
+  "manifestId": "helix.inventory.capabilities",
+  "entries": [
+    {
+      "id": "shared.material.filesystem_identity.observe@1",
+      "version": 1,
+      "owner": "execution-foundation",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.3"
+      ],
+      "sourceLocator": {
+        "section": "8.6.3",
+        "line": 7572,
+        "lineDigest": "3c779f1d39a3f72469291269540ce40cda287c01fbc2489f41de933adfaa67ad"
+      },
+      "targetLocator": {
+        "path": "capabilities/shared/material/filesystem_identity/observe/v1/manifest.json"
+      },
+      "contract": {
+        "packagePath": "capabilities/shared/material/filesystem_identity/observe/v1",
+        "packageDigest": "33479099cdf8c24e99606c2413fec9d3981e0073ebcab4e498bcbfaed935fb7d",
+        "effectClass": "pure_observation",
+        "inputSummary": "PhysicalMaterialReadHandle",
+        "outputFamily": "FilesystemIdentityEvidence"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "db6e3bd339bd782416eca7da7e2ba6a7c172ed5011cdab4a01c99dee626519e5"
+      }
+    },
+    {
+      "id": "shared.material.content_hash.compute@1",
+      "version": 1,
+      "owner": "execution-foundation",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.3"
+      ],
+      "sourceLocator": {
+        "section": "8.6.3",
+        "line": 7573,
+        "lineDigest": "a49116ffe106a16d2ab00e928642626f5d43442beaa0b312971bac83445319da"
+      },
+      "targetLocator": {
+        "path": "capabilities/shared/material/content_hash/compute/v1/manifest.json"
+      },
+      "contract": {
+        "packagePath": "capabilities/shared/material/content_hash/compute/v1",
+        "packageDigest": "3f4dbd1ca0343dd005d629f32286605fa58a8e61f6b8d771757420a472c4a8ab",
+        "effectClass": "pure_observation",
+        "inputSummary": "PhysicalMaterialReadHandle + HashProfile",
+        "outputFamily": "ContentHashEvidence"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "66d1630635c6ea7564746f3b6101466b824dc5d19df5d50460a19d37760c9724"
+      }
+    },
+    {
+      "id": "shared.material.media.probe@1",
+      "version": 1,
+      "owner": "execution-foundation",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.3"
+      ],
+      "sourceLocator": {
+        "section": "8.6.3",
+        "line": 7574,
+        "lineDigest": "21ce16e95b9e854aa907c3f2ea783e60c7cbdc71cc3b67ab7933301523cbaae4"
+      },
+      "targetLocator": {
+        "path": "capabilities/shared/material/media/probe/v1/manifest.json"
+      },
+      "contract": {
+        "packagePath": "capabilities/shared/material/media/probe/v1",
+        "packageDigest": "2c14f4476d9107aaded95b5bd0ad3573add6c80dd6294196439bf3de8038cf15",
+        "effectClass": "pure_observation",
+        "inputSummary": "PhysicalMaterialReadHandle|WorkspaceMaterialHandle",
+        "outputFamily": "MediaProbeEvidence"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "7537ad84d3e4c77abbeedcfe538007578544736ce5010428d93a7d7d258aa9b2"
+      }
+    },
+    {
+      "id": "shared.material.layout.observe@1",
+      "version": 1,
+      "owner": "execution-foundation",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.3"
+      ],
+      "sourceLocator": {
+        "section": "8.6.3",
+        "line": 7575,
+        "lineDigest": "2c9ef79a156c8efbaf548d3118dd00d614b415350dc86aa40299b10a0b936f49"
+      },
+      "targetLocator": {
+        "path": "capabilities/shared/material/layout/observe/v1/manifest.json"
+      },
+      "contract": {
+        "packagePath": "capabilities/shared/material/layout/observe/v1",
+        "packageDigest": "7782c6fe9ff4581311a337cce17be2c2ee0429e8855b1950be68ba223cc52a88",
+        "effectClass": "pure_observation",
+        "inputSummary": "PhysicalMaterialReadHandle + BoundedLayoutScope",
+        "outputFamily": "LayoutEvidence"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "6df19783496f9cd921da036532705dbb617c0d390a4d3a3a65b4d503a2477fd0"
+      }
+    },
+    {
+      "id": "shared.manifest.verify@1",
+      "version": 1,
+      "owner": "execution-foundation",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.3"
+      ],
+      "sourceLocator": {
+        "section": "8.6.3",
+        "line": 7576,
+        "lineDigest": "97c21353c211becce2a99b5af0bfe18cd75d0426615554a67e3c477f675cfef7"
+      },
+      "targetLocator": {
+        "path": "capabilities/shared/manifest/verify/v1/manifest.json"
+      },
+      "contract": {
+        "packagePath": "capabilities/shared/manifest/verify/v1",
+        "packageDigest": "d4cf248f3069d63d84827558ed59592398e35a214c95191e356dd84cdb97f76e",
+        "effectClass": "pure_observation",
+        "inputSummary": "TypedManifest + ManifestContract",
+        "outputFamily": "ManifestVerification"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "f248c204ae247e95e14919b6dd0e5133f0a7c30acc7bba157e43c03918e3f729"
+      }
+    },
+    {
+      "id": "shared.artifact.manifest.verify@1",
+      "version": 1,
+      "owner": "execution-foundation",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.3"
+      ],
+      "sourceLocator": {
+        "section": "8.6.3",
+        "line": 7577,
+        "lineDigest": "ac9a75f86797da9c187941deadc3781bee97cf9730a884c44292fa1b711db6c7"
+      },
+      "targetLocator": {
+        "path": "capabilities/shared/artifact/manifest/verify/v1/manifest.json"
+      },
+      "contract": {
+        "packagePath": "capabilities/shared/artifact/manifest/verify/v1",
+        "packageDigest": "e8b1348e832cb0677e9047c18d873f742259894ebd8f0abd63b30b72a57d6ef2",
+        "effectClass": "pure_observation",
+        "inputSummary": "ArtifactHandle[] + ArtifactRequirement",
+        "outputFamily": "ArtifactManifestVerification"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "67b5f126bfa9304f465f1cdefbce382b60960d7c836f6f50e9cb113cbbe1d68e"
+      }
+    },
+    {
+      "id": "shared.integration.availability.observe@1",
+      "version": 1,
+      "owner": "execution-foundation",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.3"
+      ],
+      "sourceLocator": {
+        "section": "8.6.3",
+        "line": 7578,
+        "lineDigest": "e697b3a09446676cbec3dccce50f5c87b03e001e38e125178bb13914c248d02b"
+      },
+      "targetLocator": {
+        "path": "capabilities/shared/integration/availability/observe/v1/manifest.json"
+      },
+      "contract": {
+        "packagePath": "capabilities/shared/integration/availability/observe/v1",
+        "packageDigest": "758939977dbfb0c0700b99bfc07504a71d4fd57d30fd75076b8025cf32963387",
+        "effectClass": "pure_observation",
+        "inputSummary": "IntegrationHandle",
+        "outputFamily": "IntegrationAvailabilityEvidence"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "007208c6a44c0de1357d6dc9e7a112c605c5b28b96e79a3b2e97b6989d9102a3"
+      }
+    },
+    {
+      "id": "shared.face.embedding.compute@1",
+      "version": 1,
+      "owner": "execution-foundation",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.3"
+      ],
+      "sourceLocator": {
+        "section": "8.6.3",
+        "line": 7579,
+        "lineDigest": "303382e21b6ebf8ed4758e802fc0e190d1c36a4f73ce51f69707a659a04bbd3e"
+      },
+      "targetLocator": {
+        "path": "capabilities/shared/face/embedding/compute/v1/manifest.json"
+      },
+      "contract": {
+        "packagePath": "capabilities/shared/face/embedding/compute/v1",
+        "packageDigest": "58cd4bf740baa4b9a218067bc64f57b81482403dd186c26bfb0f53b221173715",
+        "effectClass": "workspace_write",
+        "inputSummary": "ArtifactHandle[] + FaceModelRef",
+        "outputFamily": "FaceEmbeddingSetHandle"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "20c487dc0a35a0a7b0fae709c42d476bcb95467f5a87e41df82b2689de1db65d"
+      }
+    },
+    {
+      "id": "shared.face.cluster.compute@1",
+      "version": 1,
+      "owner": "execution-foundation",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.3"
+      ],
+      "sourceLocator": {
+        "section": "8.6.3",
+        "line": 7580,
+        "lineDigest": "ab99299f3dabcdbda44a14805e1f391fb7abe03dd5b066789d7b5d62b01edc8e"
+      },
+      "targetLocator": {
+        "path": "capabilities/shared/face/cluster/compute/v1/manifest.json"
+      },
+      "contract": {
+        "packagePath": "capabilities/shared/face/cluster/compute/v1",
+        "packageDigest": "dbdd6db32c3b4b9c9be6a3688556ee4e3e31a93f8ee7397166530d058203b963",
+        "effectClass": "workspace_write",
+        "inputSummary": "FaceEmbeddingSetHandle + ClusterParameters",
+        "outputFamily": "FaceClusterSetHandle"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "0375f0f5e7a26e2c6877595545e01040fcfad8047e16f73f3a8c971796f5d956"
+      }
+    },
+    {
+      "id": "shared.face.reference.match@1",
+      "version": 1,
+      "owner": "execution-foundation",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.3"
+      ],
+      "sourceLocator": {
+        "section": "8.6.3",
+        "line": 7581,
+        "lineDigest": "1787818297541762f93641ae752ac862fd31ee0f8c30d4a2e05377942453ee71"
+      },
+      "targetLocator": {
+        "path": "capabilities/shared/face/reference/match/v1/manifest.json"
+      },
+      "contract": {
+        "packagePath": "capabilities/shared/face/reference/match/v1",
+        "packageDigest": "d1bb3902594296621057bad471d5f851dd583009761cf8e4c2f600a449afa739",
+        "effectClass": "pure_observation",
+        "inputSummary": "FaceClusterSetHandle + PersonReferenceProjection",
+        "outputFamily": "PersonMatchEvidence"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "3e77055cf031e7035aeef5b29a91087c7af0bb55fd4dc0231b8b3af511e53d64"
+      }
+    },
+    {
+      "id": "shared.worker.asset.register@1",
+      "version": 1,
+      "owner": "execution-foundation",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.3"
+      ],
+      "sourceLocator": {
+        "section": "8.6.3",
+        "line": 7582,
+        "lineDigest": "65c0ce39384f0d7c72667cf36846fef0d0c2b8a6a24578aa5126bd8b21421fe9"
+      },
+      "targetLocator": {
+        "path": "capabilities/shared/worker/asset/register/v1/manifest.json"
+      },
+      "contract": {
+        "packagePath": "capabilities/shared/worker/asset/register/v1",
+        "packageDigest": "6c31c69d68b59aa5c0968621286e83922b29271d8846ce7b9a21b052a8d63907",
+        "effectClass": "external_request",
+        "inputSummary": "WorkspaceMaterialHandle|ArtifactHandle + WorkerHandle",
+        "outputFamily": "WorkerAssetReceipt"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "1adfcd969a5653fe0529649d4aba03fcdeafd745ce7ce5c98bfabc6ed93d544e"
+      }
+    },
+    {
+      "id": "shared.worker.asset.upload@1",
+      "version": 1,
+      "owner": "execution-foundation",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.3"
+      ],
+      "sourceLocator": {
+        "section": "8.6.3",
+        "line": 7583,
+        "lineDigest": "4e6913ce756b9cb2256e595c73663fecead0de82b66374dfe93f31bd282cd1fb"
+      },
+      "targetLocator": {
+        "path": "capabilities/shared/worker/asset/upload/v1/manifest.json"
+      },
+      "contract": {
+        "packagePath": "capabilities/shared/worker/asset/upload/v1",
+        "packageDigest": "fc4cb7e433bd96020ce16fcba9e7ed9c203114fde8a8aae778ad01ceb728f3f6",
+        "effectClass": "external_request",
+        "inputSummary": "WorkerAssetReceipt + MaterialHandle",
+        "outputFamily": "WorkerUploadReceipt"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "d399bc085c2e85bfd24559ef5106e8e24d60c4af6261d7af6f720dcc8ab6f697"
+      }
+    },
+    {
+      "id": "procurement.field.page.observe@1",
+      "version": 1,
+      "owner": "procurement",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.4"
+      ],
+      "sourceLocator": {
+        "section": "8.6.4",
+        "line": 7592,
+        "lineDigest": "5f7f8af17bc2fe1f7f804c35a37a8d93fddeba49c973ad28496948855d0f6c00"
+      },
+      "targetLocator": {
+        "path": "capabilities/procurement/field/page/observe/v1/manifest.json"
+      },
+      "contract": {
+        "packagePath": "capabilities/procurement/field/page/observe/v1",
+        "packageDigest": "244bb05e6308c5ed27bea7eb9e2f234c5b342ce1b5e6c3571a6db312fcf445aa",
+        "effectClass": "pure_observation",
+        "inputSummary": "FieldAccessHandle + cursor + pageBudget",
+        "outputFamily": "FieldObservationPage"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "ccf1cf53f2535bf4d67bbd8d09d5cec5b950d37472e6cc2ea776e7d26628fc8b"
+      }
+    },
+    {
+      "id": "procurement.field.observation.commit@1",
+      "version": 1,
+      "owner": "procurement",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.4"
+      ],
+      "sourceLocator": {
+        "section": "8.6.4",
+        "line": 7593,
+        "lineDigest": "21aae7367d16373f21bb34ae02f3366f65eeeba391cb8442f8d8634276318224"
+      },
+      "targetLocator": {
+        "path": "capabilities/procurement/field/observation/commit/v1/manifest.json"
+      },
+      "contract": {
+        "packagePath": "capabilities/procurement/field/observation/commit/v1",
+        "packageDigest": "8f2fa1ee9e8641c1ed1fc340bc92edcb087a9de84d1617cf12849da3966cf339",
+        "effectClass": "domain_fact_commit",
+        "inputSummary": "FieldObservationPage + DomainFactCommitHandle",
+        "outputFamily": "ObservationCommitResult"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "c45e332d823c356da55e65f65867a8393beb45034c3aead163ecd1fe3168089e"
+      }
+    },
+    {
+      "id": "procurement.material.control.acquire@1",
+      "version": 1,
+      "owner": "procurement",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.4"
+      ],
+      "sourceLocator": {
+        "section": "8.6.4",
+        "line": 7594,
+        "lineDigest": "95a7948fa00711b73ff02bbb1106415b813ef40471c335e0cbd8f3b7844cda19"
+      },
+      "targetLocator": {
+        "path": "capabilities/procurement/material/control/acquire/v1/manifest.json"
+      },
+      "contract": {
+        "packagePath": "capabilities/procurement/material/control/acquire/v1",
+        "packageDigest": "0254384a852ca2ac0e7562ca04982fca729ec995777c6487db5e22e8a8d59040",
+        "effectClass": "responsibility_control_commit",
+        "inputSummary": "SelectedFieldMaterialSet + ResponsibilityControlCommitHandle",
+        "outputFamily": "ProcurementControlReceipt"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "e3aa6943b19b12e56bf04e02a2b51c9ace4420d7de6778b657505e261d4e6835"
+      }
+    },
+    {
+      "id": "procurement.triage.playability.inspect@1",
+      "version": 1,
+      "owner": "procurement",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.4"
+      ],
+      "sourceLocator": {
+        "section": "8.6.4",
+        "line": 7595,
+        "lineDigest": "a2329f6d724683a6d51933b33aee7632892d760a02a785e33864c5191e0e5180"
+      },
+      "targetLocator": {
+        "path": "capabilities/procurement/triage/playability/inspect/v1/manifest.json"
+      },
+      "contract": {
+        "packagePath": "capabilities/procurement/triage/playability/inspect/v1",
+        "packageDigest": "96ceb1d34a0339fba2d3b28a98a60744e9f2f955b4a0e1cc9a34d88995a9e1e0",
+        "effectClass": "pure_observation",
+        "inputSummary": "PhysicalMaterialReadHandle[]",
+        "outputFamily": "PlayabilityEvidence"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "d6dbec215e27bd751cebf105f527f880cb79dc01d3dfd7f3e347aaa5b39d40d9"
+      }
+    },
+    {
+      "id": "procurement.triage.structure.inspect@1",
+      "version": 1,
+      "owner": "procurement",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.4"
+      ],
+      "sourceLocator": {
+        "section": "8.6.4",
+        "line": 7596,
+        "lineDigest": "bd1c216fa886a6ad43f4c844096e85afd14f8432be3aceb66c035a2300a51e24"
+      },
+      "targetLocator": {
+        "path": "capabilities/procurement/triage/structure/inspect/v1/manifest.json"
+      },
+      "contract": {
+        "packagePath": "capabilities/procurement/triage/structure/inspect/v1",
+        "packageDigest": "1eeabfe60b78418075d5ee0c29d497fda568c128de6282a96a6e05eaa53c1548",
+        "effectClass": "pure_observation",
+        "inputSummary": "Material handles + MaterialFieldContext",
+        "outputFamily": "TriageStructureEvidence"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "2fb5bb334c4de64a2fdba4669964db8bd7523ec0e20e0fc93b788ab39dd759a3"
+      }
+    },
+    {
+      "id": "procurement.triage.identity_claim.resolve@1",
+      "version": 1,
+      "owner": "procurement",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.4"
+      ],
+      "sourceLocator": {
+        "section": "8.6.4",
+        "line": 7597,
+        "lineDigest": "16507023239c854ccac8f3e3c80df0911008c0fafa5a8e044c9d2a8c37c473a7"
+      },
+      "targetLocator": {
+        "path": "capabilities/procurement/triage/identity_claim/resolve/v1/manifest.json"
+      },
+      "contract": {
+        "packagePath": "capabilities/procurement/triage/identity_claim/resolve/v1",
+        "packageDigest": "09de5db4a524fadd9015cc0c16c21e01d617232d02fbe1ffbda818dd86be2d7e",
+        "effectClass": "pure_observation",
+        "inputSummary": "Identity Metadata + Structure Evidence",
+        "outputFamily": "IdentityClaim"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "afc5826d704f373438378b62cf61da40afa0b360200a31aef045b7290a6c99cf"
+      }
+    },
+    {
+      "id": "procurement.triage.primary_manifest.build@1",
+      "version": 1,
+      "owner": "procurement",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.4"
+      ],
+      "sourceLocator": {
+        "section": "8.6.4",
+        "line": 7598,
+        "lineDigest": "7495689ae3ed2033d74069c5bb450f1bdb2ce324afed7fabeea1b906ee38ba8b"
+      },
+      "targetLocator": {
+        "path": "capabilities/procurement/triage/primary_manifest/build/v1/manifest.json"
+      },
+      "contract": {
+        "packagePath": "capabilities/procurement/triage/primary_manifest/build/v1",
+        "packageDigest": "c3ba33fa912e51892092bd682948d7880fdd3eb6224de707dba7718a43e65e5a",
+        "effectClass": "pure_observation",
+        "inputSummary": "Selected materials + roles + structure",
+        "outputFamily": "PrimaryInputManifest"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "6e0f47b685b93555e6e34dc4db4ccde4b4a55c7da00b671cf64435121d004dd6"
+      }
+    },
+    {
+      "id": "procurement.candidate.publish@1",
+      "version": 1,
+      "owner": "procurement",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.4"
+      ],
+      "sourceLocator": {
+        "section": "8.6.4",
+        "line": 7599,
+        "lineDigest": "b3027f80fc686599bc8a0e7930f8550091b5b1ea892ca6f222272deb152a11da"
+      },
+      "targetLocator": {
+        "path": "capabilities/procurement/candidate/publish/v1/manifest.json"
+      },
+      "contract": {
+        "packagePath": "capabilities/procurement/candidate/publish/v1",
+        "packageDigest": "0b49ba9cb7419d1380c92acdd3d446588c7c1e8d4c0705a7b0aa773f3d099849",
+        "effectClass": "domain_fact_commit",
+        "inputSummary": "CandidateDraft + DomainFactCommitHandle",
+        "outputFamily": "CandidatePackage"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "89dc772e3cb7c72a6a55701185ee2493e1d618df0af22c02e624bab030b9e276"
+      }
+    },
+    {
+      "id": "libra.intake.candidate.verify@1",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.5"
+      ],
+      "sourceLocator": {
+        "section": "8.6.5",
+        "line": 7608,
+        "lineDigest": "80d3ad778a5093af707b87b9893cb757e79ca240b3d7777ed63c081332101564"
+      },
+      "targetLocator": {
+        "path": "capabilities/libra/intake/candidate/verify/v1/manifest.json"
+      },
+      "contract": {
+        "packagePath": "capabilities/libra/intake/candidate/verify/v1",
+        "packageDigest": "4f88d88c2a13881cbbcd873dd183078c5c8592fee3538030a986c0d87a3ecb33",
+        "effectClass": "pure_observation",
+        "inputSummary": "CandidatePackage + PrimaryInputManifest",
+        "outputFamily": "CandidateContractVerification"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "a754275f41f60728df1a3eae3395964e7bfd5cc32d44cd18b4bfec23fab78d48"
+      }
+    },
+    {
+      "id": "libra.intake.material.verify@1",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.5"
+      ],
+      "sourceLocator": {
+        "section": "8.6.5",
+        "line": 7609,
+        "lineDigest": "00750b81f23ebc5d1cb55dd2444da4e49ec8f95b0d780a8456bd4d6c8f98d27c"
+      },
+      "targetLocator": {
+        "path": "capabilities/libra/intake/material/verify/v1/manifest.json"
+      },
+      "contract": {
+        "packagePath": "capabilities/libra/intake/material/verify/v1",
+        "packageDigest": "9c4b7e7fbedb28ef2987ca90c9421220a7e1938081f20abf1d76f920f66d9019",
+        "effectClass": "pure_observation",
+        "inputSummary": "Material handles + Candidate snapshot",
+        "outputFamily": "IntakeMaterialVerification"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "33425a75215fc70f672206b142648ed84e13d9cdcf8dde23801ba69365dffcb2"
+      }
+    },
+    {
+      "id": "libra.intake.binding.resolve@1",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.5"
+      ],
+      "sourceLocator": {
+        "section": "8.6.5",
+        "line": 7610,
+        "lineDigest": "9ed49b438179d81a0118b9ab99d22bdc701eccf1c59516e67ee23b7023a4b3b4"
+      },
+      "targetLocator": {
+        "path": "capabilities/libra/intake/binding/resolve/v1/manifest.json"
+      },
+      "contract": {
+        "packagePath": "capabilities/libra/intake/binding/resolve/v1",
+        "packageDigest": "cddfe601c996e9ae698c5c34e9f2b26015d49bac9bce11c0987987c7bc1c3f93",
+        "effectClass": "pure_observation",
+        "inputSummary": "Candidate material/location evidence",
+        "outputFamily": "LibraBindingDraft"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "89466feacf6b1c6207b0fa696463b7ed722bf680737cf863a6d51fd65337782f"
+      }
+    },
+    {
+      "id": "libra.intake.rejection.commit@1",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.5"
+      ],
+      "sourceLocator": {
+        "section": "8.6.5",
+        "line": 7611,
+        "lineDigest": "702f6f1271f91bc545e19f434997449f257d016ed329b98087bcf8b27516cfd2"
+      },
+      "targetLocator": {
+        "path": "capabilities/libra/intake/rejection/commit/v1/manifest.json"
+      },
+      "contract": {
+        "packagePath": "capabilities/libra/intake/rejection/commit/v1",
+        "packageDigest": "782a519db925987942ae7750cff07ee81e14659721a2da3c4da8b4f4a498f251",
+        "effectClass": "domain_fact_commit",
+        "inputSummary": "StructuredRejection + DomainFactCommitHandle",
+        "outputFamily": "RejectionReceipt"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "def32ce71d703fae80d4be76f7de8a27e6a4b5442953fcf8d241caecb2a2329b"
+      }
+    },
+    {
+      "id": "libra.intake.accept.commit@1",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.5"
+      ],
+      "sourceLocator": {
+        "section": "8.6.5",
+        "line": 7612,
+        "lineDigest": "ca73c7e69eca2b6d5b3267f58eeb3c3038f2edcf16a87133583bb56a59c561a1"
+      },
+      "targetLocator": {
+        "path": "capabilities/libra/intake/accept/commit/v1/manifest.json"
+      },
+      "contract": {
+        "packagePath": "capabilities/libra/intake/accept/commit/v1",
+        "packageDigest": "360b17bdf729357cb7dca5de4f8b62237e95548c5bcb35492ae5aad7c67f118e",
+        "effectClass": "responsibility_control_commit",
+        "inputSummary": "Accepted intake payload + ResponsibilityControlCommitHandle",
+        "outputFamily": "SubjectAndTransferReceipt"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "ce7709289f6f483d1bb775bad7c89812a69ba9d0f3588f118a667cafbc6adc38"
+      }
+    },
+    {
+      "id": "libra.decision.query.resolve@1",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.5"
+      ],
+      "sourceLocator": {
+        "section": "8.6.5",
+        "line": 7613,
+        "lineDigest": "da53a0601b2e71cced3fcfc8b4226c97a8fdd931bbc8502cd98c75bea6296694"
+      },
+      "targetLocator": {
+        "path": "capabilities/libra/decision/query/resolve/v1/manifest.json"
+      },
+      "contract": {
+        "packagePath": "capabilities/libra/decision/query/resolve/v1",
+        "packageDigest": "6b6e3593b25c3c6c64be765e7f595f653006bddac66aa791b70415f1a5cd4daf",
+        "effectClass": "pure_observation",
+        "inputSummary": "CanonicalQueryHandle",
+        "outputFamily": "VersionedQueryResult"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "ca57da51154ffac7d8df51c6c52fc88e949928a02c3710cdfbf6de4a8a8c4e69"
+      }
+    },
+    {
+      "id": "libra.product_identity.resolve@1",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.5"
+      ],
+      "sourceLocator": {
+        "section": "8.6.5",
+        "line": 7614,
+        "lineDigest": "6dce1265b0101081f5902721342d86b96e19ad4165b69dd8ef7b9cf241da261f"
+      },
+      "targetLocator": {
+        "path": "capabilities/libra/product_identity/resolve/v1/manifest.json"
+      },
+      "contract": {
+        "packagePath": "capabilities/libra/product_identity/resolve/v1",
+        "packageDigest": "94adda041b5cfd10f6e4949e92ca43630e0fb95110693df660465e134096e77f",
+        "effectClass": "pure_observation",
+        "inputSummary": "IdentityClaim + Decision Evidence + ProductStructure",
+        "outputFamily": "ResolvedProductIdentity"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "1b6de78d805d0bb0c0fa9c6a8dbe734acc106f2829f4e6ee672a2dcf12e4b92e"
+      }
+    },
+    {
+      "id": "libra.product_metadata.fetch@1",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.5"
+      ],
+      "sourceLocator": {
+        "section": "8.6.5",
+        "line": 7615,
+        "lineDigest": "b589704ed80956e2a8a5079066cb9fd7b137fbc0964ab85b0aa9d3da9bcbb094"
+      },
+      "targetLocator": {
+        "path": "capabilities/libra/product_metadata/fetch/v1/manifest.json"
+      },
+      "contract": {
+        "packagePath": "capabilities/libra/product_metadata/fetch/v1",
+        "packageDigest": "85fe46b6d45365a0c26951d1a5f140d14f80001d2b837d3257d6df2a2313f222",
+        "effectClass": "pure_observation",
+        "inputSummary": "ResolvedProductIdentity + contentProfile + IntegrationHandle",
+        "outputFamily": "MetadataObservation"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "8029072afb99c24254752c58c7698dcfc9afd03ec578e9ec3ebad6a4a1558175"
+      }
+    }
+  ]
+}

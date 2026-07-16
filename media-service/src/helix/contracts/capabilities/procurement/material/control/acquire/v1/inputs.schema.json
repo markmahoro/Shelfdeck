@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/procurement.material.control.acquire/v1/inputs",
+  "title": "procurement.material.control.acquire@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "selectedFieldMaterialSet": {
+      "$ref": "#/$defs/selectedFieldMaterialSet"
+    },
+    "responsibilityControlCommitHandle": {
+      "$ref": "#/$defs/responsibilityControlCommitHandle"
+    }
+  },
+  "required": [
+    "selectedFieldMaterialSet",
+    "responsibilityControlCommitHandle"
+  ],
+  "$defs": {
+    "selectedFieldMaterialSet": {
+      "type": "array",
+      "items": {
+        "$ref": "helix://contracts/domain-types/SelectedFieldMaterialSet/v1"
+      },
+      "maxItems": 1024,
+      "x-helix-typeExpression": "SelectedFieldMaterialSet"
+    },
+    "responsibilityControlCommitHandle": {
+      "$ref": "helix://contracts/types/ResponsibilityControlCommitHandle/v1",
+      "x-helix-typeExpression": "ResponsibilityControlCommitHandle"
+    }
+  }
+}

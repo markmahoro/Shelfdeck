@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.inventory.placement.switch/v1/inputs",
+  "title": "arca.inventory.placement.switch@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "verifiedStagedManifest": {
+      "$ref": "#/$defs/verifiedStagedManifest"
+    },
+    "targetBindings": {
+      "$ref": "#/$defs/targetBindings"
+    }
+  },
+  "required": [
+    "verifiedStagedManifest",
+    "targetBindings"
+  ],
+  "$defs": {
+    "verifiedStagedManifest": {
+      "$ref": "helix://contracts/domain-types/VerifiedStagedManifest/v1",
+      "x-helix-typeExpression": "Verified staged manifest"
+    },
+    "targetBindings": {
+      "$ref": "helix://contracts/domain-types/TargetBindings/v1",
+      "x-helix-typeExpression": "target bindings"
+    }
+  }
+}

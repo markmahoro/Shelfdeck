@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.shelf_deregistration.release_manifest.verify/v1/result",
+  "title": "arca.shelf_deregistration.release_manifest.verify@1 succeeded result",
+  "$ref": "helix://contracts/types/ReleaseVerification/v1"
+}

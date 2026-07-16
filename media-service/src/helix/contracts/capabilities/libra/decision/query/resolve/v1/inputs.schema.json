@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.decision.query.resolve/v1/inputs",
+  "title": "libra.decision.query.resolve@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "canonicalQueryHandle": {
+      "$ref": "#/$defs/canonicalQueryHandle"
+    }
+  },
+  "required": [
+    "canonicalQueryHandle"
+  ],
+  "$defs": {
+    "canonicalQueryHandle": {
+      "$ref": "helix://contracts/types/CanonicalQueryHandle/v1",
+      "x-helix-typeExpression": "CanonicalQueryHandle"
+    }
+  }
+}

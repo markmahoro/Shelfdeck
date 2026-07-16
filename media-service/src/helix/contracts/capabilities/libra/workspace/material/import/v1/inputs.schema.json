@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.workspace.material.import/v1/inputs",
+  "title": "libra.workspace.material.import@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "externalMaterialHandle": {
+      "$ref": "#/$defs/externalMaterialHandle"
+    },
+    "libraWorkspaceScope": {
+      "$ref": "#/$defs/libraWorkspaceScope"
+    }
+  },
+  "required": [
+    "externalMaterialHandle",
+    "libraWorkspaceScope"
+  ],
+  "$defs": {
+    "externalMaterialHandle": {
+      "$ref": "helix://contracts/types/ExternalMaterialHandle/v1",
+      "x-helix-typeExpression": "ExternalMaterialHandle"
+    },
+    "libraWorkspaceScope": {
+      "$ref": "helix://contracts/domain-types/LibraWorkspaceScope/v1",
+      "x-helix-typeExpression": "Libra Workspace scope"
+    }
+  }
+}

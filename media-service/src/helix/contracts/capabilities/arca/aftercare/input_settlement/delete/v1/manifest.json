@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "arca.aftercare.input_settlement.delete@1",
+  "contractVersion": 1,
+  "ownerScope": "arca",
+  "effectClass": "destructive_commit",
+  "inputPorts": {
+    "supersededInventoryHandleList": {
+      "schemaRef": "helix://contracts/capabilities/arca.aftercare.input_settlement.delete/v1/inputs#/$defs/supersededInventoryHandleList",
+      "required": true,
+      "cardinality": "many"
+    },
+    "aftercareSettlementApproval": {
+      "schemaRef": "helix://contracts/capabilities/arca.aftercare.input_settlement.delete/v1/inputs#/$defs/aftercareSettlementApproval",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/arca.aftercare.input_settlement.delete/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/arca.aftercare.input_settlement.delete/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/arca.aftercare.input_settlement.delete/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/arca.aftercare.input_settlement.delete/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/arca.aftercare.input_settlement.delete/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/arca.aftercare.input_settlement.delete/v1/resource-demand",
+  "approvalRequirementRef": "helix://contracts/requirements/exact-settlement-approval/v1",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/arca.aftercare.input_settlement.delete/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.11",
+    "line": 7732,
+    "lineDigest": "ca1b3365a91306a2c13443be2aa70169fd148a4c500915b7f26ef05027c8a888"
+  }
+}

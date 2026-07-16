@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "arca.offdeck.destruction_scope.verify@1",
+  "contractVersion": 1,
+  "ownerScope": "arca",
+  "effectClass": "pure_observation",
+  "inputPorts": {
+    "destructionScope": {
+      "schemaRef": "helix://contracts/capabilities/arca.offdeck.destruction_scope.verify/v1/inputs#/$defs/destructionScope",
+      "required": true,
+      "cardinality": "one"
+    },
+    "currentInventoryControl": {
+      "schemaRef": "helix://contracts/capabilities/arca.offdeck.destruction_scope.verify/v1/inputs#/$defs/currentInventoryControl",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/arca.offdeck.destruction_scope.verify/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/arca.offdeck.destruction_scope.verify/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/arca.offdeck.destruction_scope.verify/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/arca.offdeck.destruction_scope.verify/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/arca.offdeck.destruction_scope.verify/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/arca.offdeck.destruction_scope.verify/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/arca.offdeck.destruction_scope.verify/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.12",
+    "line": 7756,
+    "lineDigest": "5f1aba6f365de4e1b6b78c9151fd81b7c47c80410c917f93ac0493fbebb9507d"
+  }
+}

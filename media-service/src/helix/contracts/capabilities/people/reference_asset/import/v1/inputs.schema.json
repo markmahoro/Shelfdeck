@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/people.reference_asset.import/v1/inputs",
+  "title": "people.reference_asset.import@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "externalUserAssetHandle": {
+      "$ref": "#/$defs/externalUserAssetHandle"
+    },
+    "peopleWorkspace": {
+      "$ref": "#/$defs/peopleWorkspace"
+    }
+  },
+  "required": [
+    "externalUserAssetHandle",
+    "peopleWorkspace"
+  ],
+  "$defs": {
+    "externalUserAssetHandle": {
+      "$ref": "helix://contracts/types/ExternalMaterialHandle/v1",
+      "x-helix-typeExpression": "External/user asset handle"
+    },
+    "peopleWorkspace": {
+      "$ref": "helix://contracts/domain-types/PeopleWorkspace/v1",
+      "x-helix-typeExpression": "People Workspace"
+    }
+  }
+}

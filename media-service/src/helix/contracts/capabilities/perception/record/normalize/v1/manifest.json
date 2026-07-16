@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "perception.record.normalize@1",
+  "contractVersion": 1,
+  "ownerScope": "perception",
+  "effectClass": "pure_observation",
+  "inputPorts": {
+    "sourceObservation": {
+      "schemaRef": "helix://contracts/capabilities/perception.record.normalize/v1/inputs#/$defs/sourceObservation",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/perception.record.normalize/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/perception.record.normalize/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/perception.record.normalize/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/perception.record.normalize/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/perception.record.normalize/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/perception.record.normalize/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/perception.record.normalize/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.13",
+    "line": 7774,
+    "lineDigest": "e9319c6e662a1d2188eb3fd0a4bc881d41b15868385e9e06599f7f78b15918f2"
+  }
+}

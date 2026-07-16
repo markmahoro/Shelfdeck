@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/perception.record.normalize/v1/inputs",
+  "title": "perception.record.normalize@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "sourceObservation": {
+      "$ref": "#/$defs/sourceObservation"
+    }
+  },
+  "required": [
+    "sourceObservation"
+  ],
+  "$defs": {
+    "sourceObservation": {
+      "$ref": "helix://contracts/domain-types/SourceObservation/v1",
+      "x-helix-typeExpression": "Source observation"
+    }
+  }
+}

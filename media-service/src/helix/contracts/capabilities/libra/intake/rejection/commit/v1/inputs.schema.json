@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.intake.rejection.commit/v1/inputs",
+  "title": "libra.intake.rejection.commit@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "structuredRejection": {
+      "$ref": "#/$defs/structuredRejection"
+    },
+    "domainFactCommitHandle": {
+      "$ref": "#/$defs/domainFactCommitHandle"
+    }
+  },
+  "required": [
+    "structuredRejection",
+    "domainFactCommitHandle"
+  ],
+  "$defs": {
+    "structuredRejection": {
+      "$ref": "helix://contracts/domain-types/StructuredRejection/v1",
+      "x-helix-typeExpression": "StructuredRejection"
+    },
+    "domainFactCommitHandle": {
+      "$ref": "helix://contracts/types/DomainFactCommitHandle/v1",
+      "x-helix-typeExpression": "DomainFactCommitHandle"
+    }
+  }
+}

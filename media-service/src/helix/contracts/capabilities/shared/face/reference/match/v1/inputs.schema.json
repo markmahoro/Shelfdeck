@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/shared.face.reference.match/v1/inputs",
+  "title": "shared.face.reference.match@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "faceClusterSetHandle": {
+      "$ref": "#/$defs/faceClusterSetHandle"
+    },
+    "personReferenceProjection": {
+      "$ref": "#/$defs/personReferenceProjection"
+    }
+  },
+  "required": [
+    "faceClusterSetHandle",
+    "personReferenceProjection"
+  ],
+  "$defs": {
+    "faceClusterSetHandle": {
+      "$ref": "helix://contracts/types/FaceClusterSetHandle/v1",
+      "x-helix-typeExpression": "FaceClusterSetHandle"
+    },
+    "personReferenceProjection": {
+      "$ref": "helix://contracts/domain-types/PersonReferenceProjection/v1",
+      "x-helix-typeExpression": "PersonReferenceProjection"
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.shelf_deregistration.commit/v1/inputs",
+  "title": "arca.shelf_deregistration.commit@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "verifiedRelease": {
+      "$ref": "#/$defs/verifiedRelease"
+    },
+    "responsibilityControlCommitHandle": {
+      "$ref": "#/$defs/responsibilityControlCommitHandle"
+    }
+  },
+  "required": [
+    "verifiedRelease",
+    "responsibilityControlCommitHandle"
+  ],
+  "$defs": {
+    "verifiedRelease": {
+      "$ref": "helix://contracts/domain-types/VerifiedRelease/v1",
+      "x-helix-typeExpression": "Verified release"
+    },
+    "responsibilityControlCommitHandle": {
+      "$ref": "helix://contracts/types/ResponsibilityControlCommitHandle/v1",
+      "x-helix-typeExpression": "ResponsibilityControlCommitHandle"
+    }
+  }
+}

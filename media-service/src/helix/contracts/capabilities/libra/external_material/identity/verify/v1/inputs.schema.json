@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.external_material.identity.verify/v1/inputs",
+  "title": "libra.external_material.identity.verify@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "stableEvidence": {
+      "$ref": "#/$defs/stableEvidence"
+    },
+    "resolvedProductIdentity": {
+      "$ref": "#/$defs/resolvedProductIdentity"
+    }
+  },
+  "required": [
+    "stableEvidence",
+    "resolvedProductIdentity"
+  ],
+  "$defs": {
+    "stableEvidence": {
+      "$ref": "helix://contracts/domain-types/StableEvidence/v1",
+      "x-helix-typeExpression": "Stable evidence"
+    },
+    "resolvedProductIdentity": {
+      "$ref": "helix://contracts/domain-types/ResolvedProductIdentity/v1",
+      "x-helix-typeExpression": "ResolvedProductIdentity"
+    }
+  }
+}

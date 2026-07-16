@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.workspace.material.reclaim/v1/inputs",
+  "title": "libra.workspace.material.reclaim@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "workspaceHandleList": {
+      "$ref": "#/$defs/workspaceHandleList"
+    },
+    "referenceEvidence": {
+      "$ref": "#/$defs/referenceEvidence"
+    }
+  },
+  "required": [
+    "workspaceHandleList",
+    "referenceEvidence"
+  ],
+  "$defs": {
+    "workspaceHandleList": {
+      "type": "array",
+      "items": {
+        "$ref": "helix://contracts/types/WorkspaceMaterialHandle/v1"
+      },
+      "maxItems": 1024,
+      "x-helix-typeExpression": "Workspace handles"
+    },
+    "referenceEvidence": {
+      "$ref": "helix://contracts/domain-types/ReferenceEvidence/v1",
+      "x-helix-typeExpression": "ReferenceEvidence"
+    }
+  }
+}

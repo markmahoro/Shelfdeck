@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/procurement.candidate.publish/v1/result",
+  "title": "procurement.candidate.publish@1 succeeded result",
+  "$ref": "helix://contracts/types/CandidatePackage/v1"
+}

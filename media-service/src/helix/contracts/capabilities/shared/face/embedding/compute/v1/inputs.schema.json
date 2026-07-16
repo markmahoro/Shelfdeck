@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/shared.face.embedding.compute/v1/inputs",
+  "title": "shared.face.embedding.compute@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "artifactHandleList": {
+      "$ref": "#/$defs/artifactHandleList"
+    },
+    "faceModelRef": {
+      "$ref": "#/$defs/faceModelRef"
+    }
+  },
+  "required": [
+    "artifactHandleList",
+    "faceModelRef"
+  ],
+  "$defs": {
+    "artifactHandleList": {
+      "type": "array",
+      "items": {
+        "$ref": "helix://contracts/types/ArtifactHandle/v1"
+      },
+      "maxItems": 1024,
+      "x-helix-typeExpression": "ArtifactHandle[]"
+    },
+    "faceModelRef": {
+      "$ref": "helix://contracts/domain-types/FaceModelRef/v1",
+      "x-helix-typeExpression": "FaceModelRef"
+    }
+  }
+}

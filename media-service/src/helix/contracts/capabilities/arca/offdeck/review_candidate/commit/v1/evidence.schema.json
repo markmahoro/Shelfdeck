@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.offdeck.review_candidate.commit/v1/evidence",
+  "title": "arca.offdeck.review_candidate.commit@1 evidence",
+  "$ref": "helix://contracts/types/EvidenceEnvelope/v1"
+}

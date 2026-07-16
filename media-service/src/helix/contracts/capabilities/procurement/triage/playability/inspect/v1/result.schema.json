@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/procurement.triage.playability.inspect/v1/result",
+  "title": "procurement.triage.playability.inspect@1 succeeded result",
+  "$ref": "helix://contracts/types/PlayabilityEvidence/v1"
+}

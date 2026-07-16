@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.acceptance.rejection.commit/v1/result",
+  "title": "arca.acceptance.rejection.commit@1 succeeded result",
+  "$ref": "helix://contracts/types/RejectionReceipt/v1"
+}

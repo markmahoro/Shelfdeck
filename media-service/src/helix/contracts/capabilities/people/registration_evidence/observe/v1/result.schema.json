@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/people.registration_evidence.observe/v1/result",
+  "title": "people.registration_evidence.observe@1 succeeded result",
+  "$ref": "helix://contracts/types/PersonRegistrationEvidence/v1"
+}

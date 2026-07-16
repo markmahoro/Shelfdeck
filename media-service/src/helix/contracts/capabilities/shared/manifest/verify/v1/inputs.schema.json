@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/shared.manifest.verify/v1/inputs",
+  "title": "shared.manifest.verify@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "typedManifest": {
+      "$ref": "#/$defs/typedManifest"
+    },
+    "manifestContract": {
+      "$ref": "#/$defs/manifestContract"
+    }
+  },
+  "required": [
+    "typedManifest",
+    "manifestContract"
+  ],
+  "$defs": {
+    "typedManifest": {
+      "$ref": "helix://contracts/domain-types/TypedManifest/v1",
+      "x-helix-typeExpression": "TypedManifest"
+    },
+    "manifestContract": {
+      "$ref": "helix://contracts/domain-types/ManifestContract/v1",
+      "x-helix-typeExpression": "ManifestContract"
+    }
+  }
+}

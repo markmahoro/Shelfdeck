@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "procurement.candidate.publish@1",
+  "contractVersion": 1,
+  "ownerScope": "procurement",
+  "effectClass": "domain_fact_commit",
+  "inputPorts": {
+    "candidateDraft": {
+      "schemaRef": "helix://contracts/capabilities/procurement.candidate.publish/v1/inputs#/$defs/candidateDraft",
+      "required": true,
+      "cardinality": "one"
+    },
+    "domainFactCommitHandle": {
+      "schemaRef": "helix://contracts/capabilities/procurement.candidate.publish/v1/inputs#/$defs/domainFactCommitHandle",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/procurement.candidate.publish/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/procurement.candidate.publish/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/procurement.candidate.publish/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/procurement.candidate.publish/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/procurement.candidate.publish/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/procurement.candidate.publish/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/procurement.candidate.publish/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.4",
+    "line": 7599,
+    "lineDigest": "b3027f80fc686599bc8a0e7930f8550091b5b1ea892ca6f222272deb152a11da"
+  }
+}

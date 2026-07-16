@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.offdeck.destruction_scope.verify/v1/inputs",
+  "title": "arca.offdeck.destruction_scope.verify@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "destructionScope": {
+      "$ref": "#/$defs/destructionScope"
+    },
+    "currentInventoryControl": {
+      "$ref": "#/$defs/currentInventoryControl"
+    }
+  },
+  "required": [
+    "destructionScope",
+    "currentInventoryControl"
+  ],
+  "$defs": {
+    "destructionScope": {
+      "$ref": "helix://contracts/domain-types/DestructionScope/v1",
+      "x-helix-typeExpression": "Destruction Scope"
+    },
+    "currentInventoryControl": {
+      "$ref": "helix://contracts/domain-types/CurrentInventoryControl/v1",
+      "x-helix-typeExpression": "current Inventory/Control"
+    }
+  }
+}

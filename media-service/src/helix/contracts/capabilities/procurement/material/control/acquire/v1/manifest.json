@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "procurement.material.control.acquire@1",
+  "contractVersion": 1,
+  "ownerScope": "procurement",
+  "effectClass": "responsibility_control_commit",
+  "inputPorts": {
+    "selectedFieldMaterialSet": {
+      "schemaRef": "helix://contracts/capabilities/procurement.material.control.acquire/v1/inputs#/$defs/selectedFieldMaterialSet",
+      "required": true,
+      "cardinality": "many"
+    },
+    "responsibilityControlCommitHandle": {
+      "schemaRef": "helix://contracts/capabilities/procurement.material.control.acquire/v1/inputs#/$defs/responsibilityControlCommitHandle",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/procurement.material.control.acquire/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/procurement.material.control.acquire/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/procurement.material.control.acquire/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/procurement.material.control.acquire/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/procurement.material.control.acquire/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/procurement.material.control.acquire/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/procurement.material.control.acquire/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.4",
+    "line": 7594,
+    "lineDigest": "95a7948fa00711b73ff02bbb1106415b813ef40471c335e0cbd8f3b7844cda19"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.ondeck.commit/v1/result",
+  "title": "arca.ondeck.commit@1 succeeded result",
+  "$ref": "helix://contracts/types/OnDeckCommitResult/v1"
+}

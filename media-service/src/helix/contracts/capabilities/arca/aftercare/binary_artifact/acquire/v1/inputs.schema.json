@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.aftercare.binary_artifact.acquire/v1/inputs",
+  "title": "arca.aftercare.binary_artifact.acquire@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "stableProviderIdentity": {
+      "$ref": "#/$defs/stableProviderIdentity"
+    },
+    "integrationHandle": {
+      "$ref": "#/$defs/integrationHandle"
+    }
+  },
+  "required": [
+    "stableProviderIdentity",
+    "integrationHandle"
+  ],
+  "$defs": {
+    "stableProviderIdentity": {
+      "$ref": "helix://contracts/domain-types/StableProviderIdentity/v1",
+      "x-helix-typeExpression": "Stable Provider Identity"
+    },
+    "integrationHandle": {
+      "$ref": "helix://contracts/types/IntegrationHandle/v1",
+      "x-helix-typeExpression": "IntegrationHandle"
+    }
+  }
+}

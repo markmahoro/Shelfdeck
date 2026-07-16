@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "arca.aftercare.assessment.commit@1",
+  "contractVersion": 1,
+  "ownerScope": "arca",
+  "effectClass": "domain_fact_commit",
+  "inputPorts": {
+    "professionalAssessmentsSharingOneCareBasis": {
+      "schemaRef": "helix://contracts/capabilities/arca.aftercare.assessment.commit/v1/inputs#/$defs/professionalAssessmentsSharingOneCareBasis",
+      "required": true,
+      "cardinality": "many"
+    },
+    "domainFactCommitHandle": {
+      "schemaRef": "helix://contracts/capabilities/arca.aftercare.assessment.commit/v1/inputs#/$defs/domainFactCommitHandle",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/arca.aftercare.assessment.commit/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/arca.aftercare.assessment.commit/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/arca.aftercare.assessment.commit/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/arca.aftercare.assessment.commit/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/arca.aftercare.assessment.commit/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/arca.aftercare.assessment.commit/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/arca.aftercare.assessment.commit/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.11",
+    "line": 7725,
+    "lineDigest": "c42e638ea7f6d032304bb5ee32fbc102e3f1cc3f8fd42d63de59534b6c6fbc22"
+  }
+}

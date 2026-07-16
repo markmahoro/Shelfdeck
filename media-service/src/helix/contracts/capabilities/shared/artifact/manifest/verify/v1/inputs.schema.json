@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/shared.artifact.manifest.verify/v1/inputs",
+  "title": "shared.artifact.manifest.verify@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "artifactHandleList": {
+      "$ref": "#/$defs/artifactHandleList"
+    },
+    "artifactRequirement": {
+      "$ref": "#/$defs/artifactRequirement"
+    }
+  },
+  "required": [
+    "artifactHandleList",
+    "artifactRequirement"
+  ],
+  "$defs": {
+    "artifactHandleList": {
+      "type": "array",
+      "items": {
+        "$ref": "helix://contracts/types/ArtifactHandle/v1"
+      },
+      "maxItems": 1024,
+      "x-helix-typeExpression": "ArtifactHandle[]"
+    },
+    "artifactRequirement": {
+      "$ref": "helix://contracts/domain-types/ArtifactRequirement/v1",
+      "x-helix-typeExpression": "ArtifactRequirement"
+    }
+  }
+}

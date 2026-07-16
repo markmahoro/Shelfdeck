@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.product_package.publish/v1/inputs",
+  "title": "libra.product_package.publish@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "verifiedProduct": {
+      "$ref": "#/$defs/verifiedProduct"
+    },
+    "manifests": {
+      "$ref": "#/$defs/manifests"
+    },
+    "responsibilityControlCommitHandle": {
+      "$ref": "#/$defs/responsibilityControlCommitHandle"
+    }
+  },
+  "required": [
+    "verifiedProduct",
+    "manifests",
+    "responsibilityControlCommitHandle"
+  ],
+  "$defs": {
+    "verifiedProduct": {
+      "$ref": "helix://contracts/domain-types/VerifiedProduct/v1",
+      "x-helix-typeExpression": "Verified product"
+    },
+    "manifests": {
+      "$ref": "helix://contracts/domain-types/Manifests/v1",
+      "x-helix-typeExpression": "manifests"
+    },
+    "responsibilityControlCommitHandle": {
+      "$ref": "helix://contracts/types/ResponsibilityControlCommitHandle/v1",
+      "x-helix-typeExpression": "ResponsibilityControlCommitHandle"
+    }
+  }
+}

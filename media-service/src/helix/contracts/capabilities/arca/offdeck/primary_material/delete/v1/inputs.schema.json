@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.offdeck.primary_material.delete/v1/inputs",
+  "title": "arca.offdeck.primary_material.delete@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "primaryHandle": {
+      "$ref": "#/$defs/primaryHandle"
+    },
+    "destructiveAuthorization": {
+      "$ref": "#/$defs/destructiveAuthorization"
+    }
+  },
+  "required": [
+    "primaryHandle",
+    "destructiveAuthorization"
+  ],
+  "$defs": {
+    "primaryHandle": {
+      "$ref": "helix://contracts/domain-types/PrimaryHandle/v1",
+      "x-helix-typeExpression": "Primary handle"
+    },
+    "destructiveAuthorization": {
+      "$ref": "helix://contracts/domain-types/DestructiveAuthorization/v1",
+      "x-helix-typeExpression": "Destructive Authorization"
+    }
+  }
+}

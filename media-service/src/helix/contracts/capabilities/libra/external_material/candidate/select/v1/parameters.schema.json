@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.external_material.candidate.select/v1/parameters",
+  "title": "libra.external_material.candidate.select@1 parameters",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {},
+  "required": []
+}

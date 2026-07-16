@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.offdeck.primary_material.delete/v1/evidence",
+  "title": "arca.offdeck.primary_material.delete@1 evidence",
+  "$ref": "helix://contracts/types/EvidenceEnvelope/v1"
+}

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/people.person.commit/v1/inputs",
+  "title": "people.person.commit@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "registrationMergeDecision": {
+      "$ref": "#/$defs/registrationMergeDecision"
+    },
+    "domainFactCommitHandle": {
+      "$ref": "#/$defs/domainFactCommitHandle"
+    }
+  },
+  "required": [
+    "registrationMergeDecision",
+    "domainFactCommitHandle"
+  ],
+  "$defs": {
+    "registrationMergeDecision": {
+      "$ref": "helix://contracts/domain-types/RegistrationMergeDecision/v1",
+      "x-helix-typeExpression": "Registration/merge decision"
+    },
+    "domainFactCommitHandle": {
+      "$ref": "helix://contracts/types/DomainFactCommitHandle/v1",
+      "x-helix-typeExpression": "DomainFactCommitHandle"
+    }
+  }
+}

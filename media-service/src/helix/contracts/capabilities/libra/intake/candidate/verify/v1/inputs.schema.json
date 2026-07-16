@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.intake.candidate.verify/v1/inputs",
+  "title": "libra.intake.candidate.verify@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "candidatePackage": {
+      "$ref": "#/$defs/candidatePackage"
+    },
+    "primaryInputManifest": {
+      "$ref": "#/$defs/primaryInputManifest"
+    }
+  },
+  "required": [
+    "candidatePackage",
+    "primaryInputManifest"
+  ],
+  "$defs": {
+    "candidatePackage": {
+      "$ref": "helix://contracts/domain-types/CandidatePackage/v1",
+      "x-helix-typeExpression": "CandidatePackage"
+    },
+    "primaryInputManifest": {
+      "$ref": "helix://contracts/domain-types/PrimaryInputManifest/v1",
+      "x-helix-typeExpression": "PrimaryInputManifest"
+    }
+  }
+}

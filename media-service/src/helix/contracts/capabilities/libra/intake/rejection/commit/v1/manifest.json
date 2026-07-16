@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "libra.intake.rejection.commit@1",
+  "contractVersion": 1,
+  "ownerScope": "libra",
+  "effectClass": "domain_fact_commit",
+  "inputPorts": {
+    "structuredRejection": {
+      "schemaRef": "helix://contracts/capabilities/libra.intake.rejection.commit/v1/inputs#/$defs/structuredRejection",
+      "required": true,
+      "cardinality": "one"
+    },
+    "domainFactCommitHandle": {
+      "schemaRef": "helix://contracts/capabilities/libra.intake.rejection.commit/v1/inputs#/$defs/domainFactCommitHandle",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/libra.intake.rejection.commit/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/libra.intake.rejection.commit/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/libra.intake.rejection.commit/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/libra.intake.rejection.commit/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/libra.intake.rejection.commit/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/libra.intake.rejection.commit/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/libra.intake.rejection.commit/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.5",
+    "line": 7611,
+    "lineDigest": "702f6f1271f91bc545e19f434997449f257d016ed329b98087bcf8b27516cfd2"
+  }
+}

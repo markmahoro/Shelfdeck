@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.offdeck.primary_material.delete/v1/fence",
+  "title": "arca.offdeck.primary_material.delete@1 fence",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "basisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "inputSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "eventFenceDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "effectScopeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "basisDigest",
+    "inputSetDigest",
+    "eventFenceDigest",
+    "effectScopeDigest"
+  ]
+}

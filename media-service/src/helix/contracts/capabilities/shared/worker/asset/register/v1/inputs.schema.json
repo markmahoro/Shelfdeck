@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/shared.worker.asset.register/v1/inputs",
+  "title": "shared.worker.asset.register@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "workspaceMaterialHandleOrArtifactHandle": {
+      "$ref": "#/$defs/workspaceMaterialHandleOrArtifactHandle"
+    },
+    "workerHandle": {
+      "$ref": "#/$defs/workerHandle"
+    }
+  },
+  "required": [
+    "workspaceMaterialHandleOrArtifactHandle",
+    "workerHandle"
+  ],
+  "$defs": {
+    "workspaceMaterialHandleOrArtifactHandle": {
+      "oneOf": [
+        {
+          "$ref": "helix://contracts/types/WorkspaceMaterialHandle/v1"
+        },
+        {
+          "$ref": "helix://contracts/types/ArtifactHandle/v1"
+        }
+      ],
+      "x-helix-typeExpression": "WorkspaceMaterialHandle|ArtifactHandle"
+    },
+    "workerHandle": {
+      "$ref": "helix://contracts/types/WorkerHandle/v1",
+      "x-helix-typeExpression": "WorkerHandle"
+    }
+  }
+}

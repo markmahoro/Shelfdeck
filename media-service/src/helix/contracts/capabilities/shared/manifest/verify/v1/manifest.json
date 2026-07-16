@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "shared.manifest.verify@1",
+  "contractVersion": 1,
+  "ownerScope": "execution-foundation",
+  "effectClass": "pure_observation",
+  "inputPorts": {
+    "typedManifest": {
+      "schemaRef": "helix://contracts/capabilities/shared.manifest.verify/v1/inputs#/$defs/typedManifest",
+      "required": true,
+      "cardinality": "one"
+    },
+    "manifestContract": {
+      "schemaRef": "helix://contracts/capabilities/shared.manifest.verify/v1/inputs#/$defs/manifestContract",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/shared.manifest.verify/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/shared.manifest.verify/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/shared.manifest.verify/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/shared.manifest.verify/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/shared.manifest.verify/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/shared.manifest.verify/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/shared.manifest.verify/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.3",
+    "line": 7576,
+    "lineDigest": "97c21353c211becce2a99b5af0bfe18cd75d0426615554a67e3c477f675cfef7"
+  }
+}

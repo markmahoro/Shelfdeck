@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.ondeck.commit/v1/inputs",
+  "title": "arca.ondeck.commit@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "fulfillmentResult": {
+      "$ref": "#/$defs/fulfillmentResult"
+    },
+    "responsibilityControlCommitHandle": {
+      "$ref": "#/$defs/responsibilityControlCommitHandle"
+    }
+  },
+  "required": [
+    "fulfillmentResult",
+    "responsibilityControlCommitHandle"
+  ],
+  "$defs": {
+    "fulfillmentResult": {
+      "$ref": "helix://contracts/domain-types/FulfillmentResult/v1",
+      "x-helix-typeExpression": "Fulfillment result"
+    },
+    "responsibilityControlCommitHandle": {
+      "$ref": "helix://contracts/types/ResponsibilityControlCommitHandle/v1",
+      "x-helix-typeExpression": "ResponsibilityControlCommitHandle"
+    }
+  }
+}

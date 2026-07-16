@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/shared.material.layout.observe/v1/inputs",
+  "title": "shared.material.layout.observe@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "physicalMaterialReadHandle": {
+      "$ref": "#/$defs/physicalMaterialReadHandle"
+    },
+    "boundedLayoutScope": {
+      "$ref": "#/$defs/boundedLayoutScope"
+    }
+  },
+  "required": [
+    "physicalMaterialReadHandle",
+    "boundedLayoutScope"
+  ],
+  "$defs": {
+    "physicalMaterialReadHandle": {
+      "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1",
+      "x-helix-typeExpression": "PhysicalMaterialReadHandle"
+    },
+    "boundedLayoutScope": {
+      "$ref": "helix://contracts/domain-types/BoundedLayoutScope/v1",
+      "x-helix-typeExpression": "BoundedLayoutScope"
+    }
+  }
+}

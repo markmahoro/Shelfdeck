@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.acceptance.inventory_feasibility.observe/v1/inputs",
+  "title": "arca.acceptance.inventory_feasibility.observe@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "offLoadContext": {
+      "$ref": "#/$defs/offLoadContext"
+    },
+    "placementPolicy": {
+      "$ref": "#/$defs/placementPolicy"
+    },
+    "targetEndpoint": {
+      "$ref": "#/$defs/targetEndpoint"
+    }
+  },
+  "required": [
+    "offLoadContext",
+    "placementPolicy",
+    "targetEndpoint"
+  ],
+  "$defs": {
+    "offLoadContext": {
+      "$ref": "helix://contracts/domain-types/OffLoadContext/v1",
+      "x-helix-typeExpression": "Off-load Context"
+    },
+    "placementPolicy": {
+      "$ref": "helix://contracts/domain-types/PlacementPolicy/v1",
+      "x-helix-typeExpression": "Placement Policy"
+    },
+    "targetEndpoint": {
+      "$ref": "helix://contracts/domain-types/TargetEndpoint/v1",
+      "x-helix-typeExpression": "target Endpoint"
+    }
+  }
+}

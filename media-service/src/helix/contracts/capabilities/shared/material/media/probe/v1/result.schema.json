@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/shared.material.media.probe/v1/result",
+  "title": "shared.material.media.probe@1 succeeded result",
+  "$ref": "helix://contracts/types/MediaProbeEvidence/v1"
+}

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.acceptance.mandatory_media.verify/v1/inputs",
+  "title": "arca.acceptance.mandatory_media.verify@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "productMediaEvidence": {
+      "$ref": "#/$defs/productMediaEvidence"
+    },
+    "mandatoryRequirement": {
+      "$ref": "#/$defs/mandatoryRequirement"
+    }
+  },
+  "required": [
+    "productMediaEvidence",
+    "mandatoryRequirement"
+  ],
+  "$defs": {
+    "productMediaEvidence": {
+      "$ref": "helix://contracts/domain-types/ProductMediaEvidence/v1",
+      "x-helix-typeExpression": "Product media evidence"
+    },
+    "mandatoryRequirement": {
+      "$ref": "helix://contracts/domain-types/MandatoryRequirement/v1",
+      "x-helix-typeExpression": "Mandatory Requirement"
+    }
+  }
+}

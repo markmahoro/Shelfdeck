@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "procurement.triage.structure.inspect@1",
+  "contractVersion": 1,
+  "ownerScope": "procurement",
+  "effectClass": "pure_observation",
+  "inputPorts": {
+    "materialHandleList": {
+      "schemaRef": "helix://contracts/capabilities/procurement.triage.structure.inspect/v1/inputs#/$defs/materialHandleList",
+      "required": true,
+      "cardinality": "many"
+    },
+    "materialFieldContext": {
+      "schemaRef": "helix://contracts/capabilities/procurement.triage.structure.inspect/v1/inputs#/$defs/materialFieldContext",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/procurement.triage.structure.inspect/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/procurement.triage.structure.inspect/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/procurement.triage.structure.inspect/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/procurement.triage.structure.inspect/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/procurement.triage.structure.inspect/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/procurement.triage.structure.inspect/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/procurement.triage.structure.inspect/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.4",
+    "line": 7596,
+    "lineDigest": "bd1c216fa886a6ad43f4c844096e85afd14f8432be3aceb66c035a2300a51e24"
+  }
+}

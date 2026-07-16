@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.aftercare.text_artifact.render/v1/evidence",
+  "title": "arca.aftercare.text_artifact.render@1 evidence",
+  "$ref": "helix://contracts/types/EvidenceEnvelope/v1"
+}

@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "libra.western.poster.render@1",
+  "contractVersion": 1,
+  "ownerScope": "libra",
+  "effectClass": "workspace_write",
+  "inputPorts": {
+    "personMatchEvidence": {
+      "schemaRef": "helix://contracts/capabilities/libra.western.poster.render/v1/inputs#/$defs/personMatchEvidence",
+      "required": true,
+      "cardinality": "one"
+    },
+    "frameArtifactSet": {
+      "schemaRef": "helix://contracts/capabilities/libra.western.poster.render/v1/inputs#/$defs/frameArtifactSet",
+      "required": true,
+      "cardinality": "many"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/libra.western.poster.render/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/libra.western.poster.render/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/libra.western.poster.render/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/libra.western.poster.render/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/libra.western.poster.render/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/libra.western.poster.render/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/libra.western.poster.render/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.6",
+    "line": 7629,
+    "lineDigest": "09b01e07391da03beeefecfb505ca33d3f4aa0e89429ba3a3dc45c0171b89609"
+  }
+}

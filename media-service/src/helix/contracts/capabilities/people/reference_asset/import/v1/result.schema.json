@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/people.reference_asset.import/v1/result",
+  "title": "people.reference_asset.import@1 succeeded result",
+  "$ref": "helix://contracts/types/ArtifactHandle/v1"
+}

@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "arca.offdeck.duplicate.detect@1",
+  "contractVersion": 1,
+  "ownerScope": "arca",
+  "effectClass": "pure_observation",
+  "inputPorts": {
+    "activeShelfEntryIdentityProjection": {
+      "schemaRef": "helix://contracts/capabilities/arca.offdeck.duplicate.detect/v1/inputs#/$defs/activeShelfEntryIdentityProjection",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/arca.offdeck.duplicate.detect/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/arca.offdeck.duplicate.detect/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/arca.offdeck.duplicate.detect/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/arca.offdeck.duplicate.detect/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/arca.offdeck.duplicate.detect/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/arca.offdeck.duplicate.detect/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/arca.offdeck.duplicate.detect/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.12",
+    "line": 7753,
+    "lineDigest": "33fe97fdb742d737d0e0a0d741431293676a7eea82de795636ea4f8a818d6131"
+  }
+}

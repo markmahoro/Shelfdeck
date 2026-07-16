@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.aftercare.case.commit/v1/inputs",
+  "title": "arca.aftercare.case.commit@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "reassessedResult": {
+      "$ref": "#/$defs/reassessedResult"
+    },
+    "domainFactCommitHandle": {
+      "$ref": "#/$defs/domainFactCommitHandle"
+    }
+  },
+  "required": [
+    "reassessedResult",
+    "domainFactCommitHandle"
+  ],
+  "$defs": {
+    "reassessedResult": {
+      "$ref": "helix://contracts/domain-types/ReassessedResult/v1",
+      "x-helix-typeExpression": "Reassessed result"
+    },
+    "domainFactCommitHandle": {
+      "$ref": "helix://contracts/types/DomainFactCommitHandle/v1",
+      "x-helix-typeExpression": "DomainFactCommitHandle"
+    }
+  }
+}

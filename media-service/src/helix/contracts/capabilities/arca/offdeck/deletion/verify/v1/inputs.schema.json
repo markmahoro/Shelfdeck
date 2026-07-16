@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.offdeck.deletion.verify/v1/inputs",
+  "title": "arca.offdeck.deletion.verify@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "scope": {
+      "$ref": "#/$defs/scope"
+    },
+    "deletionEvidenceList": {
+      "$ref": "#/$defs/deletionEvidenceList"
+    }
+  },
+  "required": [
+    "scope",
+    "deletionEvidenceList"
+  ],
+  "$defs": {
+    "scope": {
+      "$ref": "helix://contracts/domain-types/Scope/v1",
+      "x-helix-typeExpression": "Scope"
+    },
+    "deletionEvidenceList": {
+      "type": "array",
+      "items": {
+        "$ref": "helix://contracts/domain-types/DeletionEvidence/v1"
+      },
+      "maxItems": 1024,
+      "x-helix-typeExpression": "Deletion Evidence[]"
+    }
+  }
+}

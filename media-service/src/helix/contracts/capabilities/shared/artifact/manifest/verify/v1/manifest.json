@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "shared.artifact.manifest.verify@1",
+  "contractVersion": 1,
+  "ownerScope": "execution-foundation",
+  "effectClass": "pure_observation",
+  "inputPorts": {
+    "artifactHandleList": {
+      "schemaRef": "helix://contracts/capabilities/shared.artifact.manifest.verify/v1/inputs#/$defs/artifactHandleList",
+      "required": true,
+      "cardinality": "many"
+    },
+    "artifactRequirement": {
+      "schemaRef": "helix://contracts/capabilities/shared.artifact.manifest.verify/v1/inputs#/$defs/artifactRequirement",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/shared.artifact.manifest.verify/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/shared.artifact.manifest.verify/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/shared.artifact.manifest.verify/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/shared.artifact.manifest.verify/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/shared.artifact.manifest.verify/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/shared.artifact.manifest.verify/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/shared.artifact.manifest.verify/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.3",
+    "line": 7577,
+    "lineDigest": "ac9a75f86797da9c187941deadc3781bee97cf9730a884c44292fa1b711db6c7"
+  }
+}

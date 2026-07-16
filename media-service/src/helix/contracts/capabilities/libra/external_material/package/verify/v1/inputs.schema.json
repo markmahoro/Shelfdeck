@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.external_material.package.verify/v1/inputs",
+  "title": "libra.external_material.package.verify@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "externalHandle": {
+      "$ref": "#/$defs/externalHandle"
+    },
+    "episodeDeliveryManifest": {
+      "$ref": "#/$defs/episodeDeliveryManifest"
+    },
+    "identityRequirement": {
+      "$ref": "#/$defs/identityRequirement"
+    }
+  },
+  "required": [
+    "externalHandle",
+    "episodeDeliveryManifest",
+    "identityRequirement"
+  ],
+  "$defs": {
+    "externalHandle": {
+      "$ref": "helix://contracts/domain-types/ExternalHandle/v1",
+      "x-helix-typeExpression": "External handle"
+    },
+    "episodeDeliveryManifest": {
+      "$ref": "helix://contracts/domain-types/EpisodeDeliveryManifest/v1",
+      "x-helix-typeExpression": "Episode Delivery Manifest"
+    },
+    "identityRequirement": {
+      "$ref": "helix://contracts/domain-types/IdentityRequirement/v1",
+      "x-helix-typeExpression": "Identity Requirement"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.offdeck.duplicate.detect/v1/inputs",
+  "title": "arca.offdeck.duplicate.detect@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "activeShelfEntryIdentityProjection": {
+      "$ref": "#/$defs/activeShelfEntryIdentityProjection"
+    }
+  },
+  "required": [
+    "activeShelfEntryIdentityProjection"
+  ],
+  "$defs": {
+    "activeShelfEntryIdentityProjection": {
+      "$ref": "helix://contracts/domain-types/ActiveShelfEntryIdentityProjection/v1",
+      "x-helix-typeExpression": "Active Shelf Entry identity projection"
+    }
+  }
+}

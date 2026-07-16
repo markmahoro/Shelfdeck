@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.decision.query.resolve/v1/result",
+  "title": "libra.decision.query.resolve@1 succeeded result",
+  "$ref": "helix://contracts/types/VersionedQueryResult/v1"
+}

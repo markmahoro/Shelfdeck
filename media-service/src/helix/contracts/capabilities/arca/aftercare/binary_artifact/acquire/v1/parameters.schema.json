@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.aftercare.binary_artifact.acquire/v1/parameters",
+  "title": "arca.aftercare.binary_artifact.acquire@1 parameters",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "artifactKind": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9_.-]{0,127}$"
+    }
+  },
+  "required": [
+    "artifactKind"
+  ]
+}

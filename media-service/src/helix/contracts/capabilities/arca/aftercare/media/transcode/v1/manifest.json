@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "arca.aftercare.media.transcode@1",
+  "contractVersion": 1,
+  "ownerScope": "arca",
+  "effectClass": "workspace_write",
+  "inputPorts": {
+    "inventoryMaterialHandle": {
+      "schemaRef": "helix://contracts/capabilities/arca.aftercare.media.transcode/v1/inputs#/$defs/inventoryMaterialHandle",
+      "required": true,
+      "cardinality": "one"
+    },
+    "careRequirement": {
+      "schemaRef": "helix://contracts/capabilities/arca.aftercare.media.transcode/v1/inputs#/$defs/careRequirement",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/arca.aftercare.media.transcode/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/arca.aftercare.media.transcode/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/arca.aftercare.media.transcode/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/arca.aftercare.media.transcode/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/arca.aftercare.media.transcode/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/arca.aftercare.media.transcode/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/arca.aftercare.media.transcode/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.11",
+    "line": 7730,
+    "lineDigest": "ded794686ed04fb831dfcd51ef6e541d53c0955145f7df68306728354ea9b308"
+  }
+}

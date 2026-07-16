@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/shared.worker.asset.upload/v1/inputs",
+  "title": "shared.worker.asset.upload@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "workerAssetReceipt": {
+      "$ref": "#/$defs/workerAssetReceipt"
+    },
+    "materialHandle": {
+      "$ref": "#/$defs/materialHandle"
+    }
+  },
+  "required": [
+    "workerAssetReceipt",
+    "materialHandle"
+  ],
+  "$defs": {
+    "workerAssetReceipt": {
+      "$ref": "helix://contracts/types/WorkerAssetReceipt/v1",
+      "x-helix-typeExpression": "WorkerAssetReceipt"
+    },
+    "materialHandle": {
+      "oneOf": [
+        {
+          "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1"
+        },
+        {
+          "$ref": "helix://contracts/types/WorkspaceMaterialHandle/v1"
+        },
+        {
+          "$ref": "helix://contracts/types/ArtifactHandle/v1"
+        }
+      ],
+      "x-helix-typeExpression": "MaterialHandle"
+    }
+  }
+}

@@ -68,7 +68,7 @@ function validateEnvelope(manifest, expected, owners, filePath, findings) {
     typeof manifest.owner === 'string' && owners.has(manifest.owner) &&
     hasStrings(manifest.ssotRefs) &&
     Number.isInteger(manifest.targetCount) && manifest.targetCount === expected.targetCount &&
-    (Array.isArray(manifest.entries) || (manifest.kind === 'legacy-reuse-ledger' && hasStrings(manifest.entryFiles))) &&
+    (Array.isArray(manifest.entries) || hasStrings(manifest.entryFiles)) &&
     (manifest.status === 'framework_only' || manifest.status === 'active');
   if (!valid) {
     findings.push(finding(
@@ -87,7 +87,7 @@ function validateEnvelope(manifest, expected, owners, filePath, findings) {
       }));
     }
   }
-  if (manifest.kind !== 'legacy-reuse-ledger' && (manifest.entries.length > manifest.targetCount || (manifest.status === 'active' && manifest.entries.length !== manifest.targetCount))) {
+  if (!manifest.entryFiles && manifest.kind !== 'legacy-reuse-ledger' && (manifest.entries.length > manifest.targetCount || (manifest.status === 'active' && manifest.entries.length !== manifest.targetCount))) {
     findings.push(finding('MANIFEST_TARGET_COUNT_MISMATCH', 'Active manifests must reach their target; framework manifests cannot exceed it.', {
       file: normalizePath(filePath), manifestId: manifest.manifestId,
       actualCount: manifest.entries.length, targetCount: manifest.targetCount
@@ -233,6 +233,31 @@ function loadReuseEntries(manifest, manifestDirectory, findings) {
   return entries;
 }
 
+function loadInventoryEntries(manifest, manifestDirectory, findings) {
+  if (!manifest.entryFiles) return manifest.entries || [];
+  const entries = [];
+  const paths = new Set();
+  for (const relativePath of manifest.entryFiles) {
+    if (!isBoundedRelativePath(relativePath) || paths.has(relativePath)) {
+      findings.push(finding('INVALID_INVENTORY_ENTRY_FILE', 'Inventory entry files must be unique bounded paths.', {
+        manifestId: manifest.manifestId, relativePath
+      }));
+      continue;
+    }
+    paths.add(relativePath);
+    const filePath = path.join(manifestDirectory, relativePath);
+    const shard = readJson(filePath, findings);
+    if (!shard || shard.schemaVersion !== 1 || shard.manifestId !== manifest.manifestId || !Array.isArray(shard.entries)) {
+      findings.push(finding('INVALID_INVENTORY_ENTRY_FILE', 'Inventory shard must identify its manifest and contain entries.', {
+        file: normalizePath(filePath), manifestId: manifest.manifestId
+      }));
+      continue;
+    }
+    entries.push(...shard.entries);
+  }
+  return entries;
+}
+
 function discoverPackageMarkers(rootPath) {
   const markers = [];
   const pending = [rootPath];
@@ -303,20 +328,28 @@ function validateManifestSet(options) {
       const filePath = path.join(manifestDirectory, expected.relativePath);
       const manifest = readJson(filePath, findings);
       if (!validateEnvelope(manifest, expected, owners, filePath, findings)) continue;
-      let entries = manifest.entries;
+      let entries = manifest.entries || [];
       if (manifest.kind === 'legacy-reuse-ledger') {
         entries = loadReuseEntries(manifest, manifestDirectory, findings);
         if (entries.length !== manifest.targetCount) findings.push(finding('MANIFEST_TARGET_COUNT_MISMATCH', 'Active reuse ledger must reach its target count.', {
           file: normalizePath(filePath), actualCount: entries.length, targetCount: manifest.targetCount
         }));
         validateReuseLedger({ ...manifest, entries }, owners, repositoryRoot, filePath, findings);
-      } else validateInventoryEntries(manifest, owners, filePath, findings);
+      } else {
+        entries = loadInventoryEntries(manifest, manifestDirectory, findings);
+        if (entries.length > manifest.targetCount || (manifest.status === 'active' && entries.length !== manifest.targetCount)) {
+          findings.push(finding('MANIFEST_TARGET_COUNT_MISMATCH', 'Active inventory must reach its target count.', {
+            file: normalizePath(filePath), manifestId: manifest.manifestId, actualCount: entries.length, targetCount: manifest.targetCount
+          }));
+        }
+        validateInventoryEntries({ ...manifest, entries }, owners, filePath, findings);
+      }
       manifestResults.push({
         manifestId: manifest.manifestId,
         status: manifest.status,
         entryCount: entries.length,
         targetCount: manifest.targetCount,
-        digest: canonicalDigest(manifest.kind === 'legacy-reuse-ledger' ? { manifest, entries } : manifest)
+        digest: canonicalDigest(manifest.entryFiles || manifest.kind === 'legacy-reuse-ledger' ? { manifest, entries } : manifest)
       });
     }
   }

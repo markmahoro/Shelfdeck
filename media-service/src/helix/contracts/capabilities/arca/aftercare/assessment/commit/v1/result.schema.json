@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.aftercare.assessment.commit/v1/result",
+  "title": "arca.aftercare.assessment.commit@1 succeeded result",
+  "$ref": "helix://contracts/types/AssessmentRevision/v1"
+}

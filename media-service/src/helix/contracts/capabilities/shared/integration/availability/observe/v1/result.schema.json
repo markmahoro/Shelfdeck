@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/shared.integration.availability.observe/v1/result",
+  "title": "shared.integration.availability.observe@1 succeeded result",
+  "$ref": "helix://contracts/types/IntegrationAvailabilityEvidence/v1"
+}

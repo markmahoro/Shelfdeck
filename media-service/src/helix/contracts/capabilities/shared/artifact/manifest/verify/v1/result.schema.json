@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/shared.artifact.manifest.verify/v1/result",
+  "title": "shared.artifact.manifest.verify@1 succeeded result",
+  "$ref": "helix://contracts/types/ArtifactManifestVerification/v1"
+}

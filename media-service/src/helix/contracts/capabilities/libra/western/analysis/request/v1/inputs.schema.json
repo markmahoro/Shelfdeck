@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.western.analysis.request/v1/inputs",
+  "title": "libra.western.analysis.request@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "workerUploadReceipt": {
+      "$ref": "#/$defs/workerUploadReceipt"
+    },
+    "analysisSpec": {
+      "$ref": "#/$defs/analysisSpec"
+    }
+  },
+  "required": [
+    "workerUploadReceipt",
+    "analysisSpec"
+  ],
+  "$defs": {
+    "workerUploadReceipt": {
+      "$ref": "helix://contracts/types/WorkerUploadReceipt/v1",
+      "x-helix-typeExpression": "WorkerUploadReceipt"
+    },
+    "analysisSpec": {
+      "$ref": "helix://contracts/domain-types/AnalysisSpec/v1",
+      "x-helix-typeExpression": "AnalysisSpec"
+    }
+  }
+}

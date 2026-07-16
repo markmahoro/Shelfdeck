@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "people.person.commit@1",
+  "contractVersion": 1,
+  "ownerScope": "people",
+  "effectClass": "domain_fact_commit",
+  "inputPorts": {
+    "registrationMergeDecision": {
+      "schemaRef": "helix://contracts/capabilities/people.person.commit/v1/inputs#/$defs/registrationMergeDecision",
+      "required": true,
+      "cardinality": "one"
+    },
+    "domainFactCommitHandle": {
+      "schemaRef": "helix://contracts/capabilities/people.person.commit/v1/inputs#/$defs/domainFactCommitHandle",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/people.person.commit/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/people.person.commit/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/people.person.commit/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/people.person.commit/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/people.person.commit/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/people.person.commit/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/people.person.commit/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.14",
+    "line": 7790,
+    "lineDigest": "612c71847ea040722959cb64e1a1809681f9e406c156538986ad4b420d7df8e5"
+  }
+}

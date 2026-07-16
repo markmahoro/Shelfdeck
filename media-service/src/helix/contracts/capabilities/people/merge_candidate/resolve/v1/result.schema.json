@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/people.merge_candidate.resolve/v1/result",
+  "title": "people.merge_candidate.resolve@1 succeeded result",
+  "$ref": "helix://contracts/types/MergeCandidateEvidence/v1"
+}

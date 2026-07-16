@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "libra.western.analysis.observe@1",
+  "contractVersion": 1,
+  "ownerScope": "libra",
+  "effectClass": "pure_observation",
+  "inputPorts": {
+    "externalJobReceipt": {
+      "schemaRef": "helix://contracts/capabilities/libra.western.analysis.observe/v1/inputs#/$defs/externalJobReceipt",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/libra.western.analysis.observe/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/libra.western.analysis.observe/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/libra.western.analysis.observe/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/libra.western.analysis.observe/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/libra.western.analysis.observe/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/libra.western.analysis.observe/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/libra.western.analysis.observe/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.6",
+    "line": 7628,
+    "lineDigest": "15a3590287fb1b6ecea2d6b438fef6cd583b20d0ad6ff89c20f7d9b46e97ddff"
+  }
+}

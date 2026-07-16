@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.acceptance.accept.commit/v1/inputs",
+  "title": "arca.acceptance.accept.commit@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "acceptedPayload": {
+      "$ref": "#/$defs/acceptedPayload"
+    },
+    "responsibilityControlCommitHandle": {
+      "$ref": "#/$defs/responsibilityControlCommitHandle"
+    }
+  },
+  "required": [
+    "acceptedPayload",
+    "responsibilityControlCommitHandle"
+  ],
+  "$defs": {
+    "acceptedPayload": {
+      "$ref": "helix://contracts/domain-types/AcceptedPayload/v1",
+      "x-helix-typeExpression": "Accepted payload"
+    },
+    "responsibilityControlCommitHandle": {
+      "$ref": "helix://contracts/types/ResponsibilityControlCommitHandle/v1",
+      "x-helix-typeExpression": "ResponsibilityControlCommitHandle"
+    }
+  }
+}

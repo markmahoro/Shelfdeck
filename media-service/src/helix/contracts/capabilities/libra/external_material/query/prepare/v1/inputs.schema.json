@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.external_material.query.prepare/v1/inputs",
+  "title": "libra.external_material.query.prepare@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "resolvedProductIdentity": {
+      "$ref": "#/$defs/resolvedProductIdentity"
+    },
+    "productStructure": {
+      "$ref": "#/$defs/productStructure"
+    }
+  },
+  "required": [
+    "resolvedProductIdentity",
+    "productStructure"
+  ],
+  "$defs": {
+    "resolvedProductIdentity": {
+      "$ref": "helix://contracts/domain-types/ResolvedProductIdentity/v1",
+      "x-helix-typeExpression": "ResolvedProductIdentity"
+    },
+    "productStructure": {
+      "$ref": "helix://contracts/domain-types/ProductStructure/v1",
+      "x-helix-typeExpression": "ProductStructure"
+    }
+  }
+}

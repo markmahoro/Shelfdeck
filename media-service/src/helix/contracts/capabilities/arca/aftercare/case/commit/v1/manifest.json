@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "arca.aftercare.case.commit@1",
+  "contractVersion": 1,
+  "ownerScope": "arca",
+  "effectClass": "domain_fact_commit",
+  "inputPorts": {
+    "reassessedResult": {
+      "schemaRef": "helix://contracts/capabilities/arca.aftercare.case.commit/v1/inputs#/$defs/reassessedResult",
+      "required": true,
+      "cardinality": "one"
+    },
+    "domainFactCommitHandle": {
+      "schemaRef": "helix://contracts/capabilities/arca.aftercare.case.commit/v1/inputs#/$defs/domainFactCommitHandle",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/arca.aftercare.case.commit/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/arca.aftercare.case.commit/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/arca.aftercare.case.commit/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/arca.aftercare.case.commit/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/arca.aftercare.case.commit/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/arca.aftercare.case.commit/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/arca.aftercare.case.commit/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.11",
+    "line": 7734,
+    "lineDigest": "1e7370361ed619740cc94e80a3b7d79f2a2a177126498eba7cc46d238de884bb"
+  }
+}

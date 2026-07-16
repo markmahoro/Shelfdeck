@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.aftercare.media.transcode/v1/inputs",
+  "title": "arca.aftercare.media.transcode@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "inventoryMaterialHandle": {
+      "$ref": "#/$defs/inventoryMaterialHandle"
+    },
+    "careRequirement": {
+      "$ref": "#/$defs/careRequirement"
+    }
+  },
+  "required": [
+    "inventoryMaterialHandle",
+    "careRequirement"
+  ],
+  "$defs": {
+    "inventoryMaterialHandle": {
+      "$ref": "helix://contracts/domain-types/InventoryMaterialHandle/v1",
+      "x-helix-typeExpression": "Inventory Material handle"
+    },
+    "careRequirement": {
+      "$ref": "helix://contracts/domain-types/CareRequirement/v1",
+      "x-helix-typeExpression": "Care Requirement"
+    }
+  }
+}

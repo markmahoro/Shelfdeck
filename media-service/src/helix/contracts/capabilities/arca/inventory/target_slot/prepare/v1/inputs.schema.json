@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.inventory.target_slot.prepare/v1/inputs",
+  "title": "arca.inventory.target_slot.prepare@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "finalInventoryDecision": {
+      "$ref": "#/$defs/finalInventoryDecision"
+    },
+    "targetHandle": {
+      "$ref": "#/$defs/targetHandle"
+    }
+  },
+  "required": [
+    "finalInventoryDecision",
+    "targetHandle"
+  ],
+  "$defs": {
+    "finalInventoryDecision": {
+      "$ref": "helix://contracts/domain-types/FinalInventoryDecision/v1",
+      "x-helix-typeExpression": "Final Inventory Decision"
+    },
+    "targetHandle": {
+      "$ref": "helix://contracts/types/TargetCommitSlotHandle/v1",
+      "x-helix-typeExpression": "target handle"
+    }
+  }
+}

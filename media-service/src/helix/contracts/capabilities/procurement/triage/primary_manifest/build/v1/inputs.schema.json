@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/procurement.triage.primary_manifest.build/v1/inputs",
+  "title": "procurement.triage.primary_manifest.build@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "selectedMaterialList": {
+      "$ref": "#/$defs/selectedMaterialList"
+    },
+    "roles": {
+      "$ref": "#/$defs/roles"
+    },
+    "structure": {
+      "$ref": "#/$defs/structure"
+    }
+  },
+  "required": [
+    "selectedMaterialList",
+    "roles",
+    "structure"
+  ],
+  "$defs": {
+    "selectedMaterialList": {
+      "type": "array",
+      "items": {
+        "$ref": "helix://contracts/domain-types/SelectedMaterials/v1"
+      },
+      "maxItems": 1024,
+      "x-helix-typeExpression": "Selected materials"
+    },
+    "roles": {
+      "$ref": "helix://contracts/domain-types/Roles/v1",
+      "x-helix-typeExpression": "roles"
+    },
+    "structure": {
+      "$ref": "helix://contracts/domain-types/Structure/v1",
+      "x-helix-typeExpression": "structure"
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/procurement.candidate.publish/v1/inputs",
+  "title": "procurement.candidate.publish@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "candidateDraft": {
+      "$ref": "#/$defs/candidateDraft"
+    },
+    "domainFactCommitHandle": {
+      "$ref": "#/$defs/domainFactCommitHandle"
+    }
+  },
+  "required": [
+    "candidateDraft",
+    "domainFactCommitHandle"
+  ],
+  "$defs": {
+    "candidateDraft": {
+      "$ref": "helix://contracts/domain-types/CandidateDraft/v1",
+      "x-helix-typeExpression": "CandidateDraft"
+    },
+    "domainFactCommitHandle": {
+      "$ref": "helix://contracts/types/DomainFactCommitHandle/v1",
+      "x-helix-typeExpression": "DomainFactCommitHandle"
+    }
+  }
+}

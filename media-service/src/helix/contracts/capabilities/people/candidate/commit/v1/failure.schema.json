@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/people.candidate.commit/v1/failure",
+  "title": "people.candidate.commit@1 failure",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "failureClass": {
+      "type": "string",
+      "minLength": 1
+    },
+    "code": {
+      "type": "string",
+      "minLength": 1
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "retryability": {
+      "type": "string",
+      "enum": [
+        "never",
+        "contract_policy"
+      ]
+    },
+    "evidenceRef": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "failureClass",
+    "code",
+    "message",
+    "retryability",
+    "evidenceRef"
+  ]
+}

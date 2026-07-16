@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/people.reference_fact.commit/v1/inputs",
+  "title": "people.reference_fact.commit@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "verifiedReferenceAsset": {
+      "$ref": "#/$defs/verifiedReferenceAsset"
+    },
+    "domainFactCommitHandle": {
+      "$ref": "#/$defs/domainFactCommitHandle"
+    }
+  },
+  "required": [
+    "verifiedReferenceAsset",
+    "domainFactCommitHandle"
+  ],
+  "$defs": {
+    "verifiedReferenceAsset": {
+      "$ref": "helix://contracts/domain-types/VerifiedReferenceAsset/v1",
+      "x-helix-typeExpression": "Verified reference asset"
+    },
+    "domainFactCommitHandle": {
+      "$ref": "helix://contracts/types/DomainFactCommitHandle/v1",
+      "x-helix-typeExpression": "DomainFactCommitHandle"
+    }
+  }
+}

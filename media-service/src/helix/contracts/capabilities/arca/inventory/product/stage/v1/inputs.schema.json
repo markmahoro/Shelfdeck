@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.inventory.product.stage/v1/inputs",
+  "title": "arca.inventory.product.stage@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "productMaterialHandleList": {
+      "$ref": "#/$defs/productMaterialHandleList"
+    },
+    "targetCommitSlotHandle": {
+      "$ref": "#/$defs/targetCommitSlotHandle"
+    }
+  },
+  "required": [
+    "productMaterialHandleList",
+    "targetCommitSlotHandle"
+  ],
+  "$defs": {
+    "productMaterialHandleList": {
+      "type": "array",
+      "items": {
+        "$ref": "helix://contracts/domain-types/ProductMaterialHandles/v1"
+      },
+      "maxItems": 1024,
+      "x-helix-typeExpression": "Product Material handles"
+    },
+    "targetCommitSlotHandle": {
+      "$ref": "helix://contracts/types/TargetCommitSlotHandle/v1",
+      "x-helix-typeExpression": "TargetCommitSlotHandle"
+    }
+  }
+}

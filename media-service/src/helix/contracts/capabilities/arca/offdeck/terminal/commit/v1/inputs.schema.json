@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.offdeck.terminal.commit/v1/inputs",
+  "title": "arca.offdeck.terminal.commit@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "verifiedDestruction": {
+      "$ref": "#/$defs/verifiedDestruction"
+    },
+    "responsibilityControlCommitHandle": {
+      "$ref": "#/$defs/responsibilityControlCommitHandle"
+    }
+  },
+  "required": [
+    "verifiedDestruction",
+    "responsibilityControlCommitHandle"
+  ],
+  "$defs": {
+    "verifiedDestruction": {
+      "$ref": "helix://contracts/domain-types/VerifiedDestruction/v1",
+      "x-helix-typeExpression": "Verified destruction"
+    },
+    "responsibilityControlCommitHandle": {
+      "$ref": "helix://contracts/types/ResponsibilityControlCommitHandle/v1",
+      "x-helix-typeExpression": "ResponsibilityControlCommitHandle"
+    }
+  }
+}

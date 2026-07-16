@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "shared.face.cluster.compute@1",
+  "contractVersion": 1,
+  "ownerScope": "execution-foundation",
+  "effectClass": "workspace_write",
+  "inputPorts": {
+    "faceEmbeddingSetHandle": {
+      "schemaRef": "helix://contracts/capabilities/shared.face.cluster.compute/v1/inputs#/$defs/faceEmbeddingSetHandle",
+      "required": true,
+      "cardinality": "one"
+    },
+    "clusterParameters": {
+      "schemaRef": "helix://contracts/capabilities/shared.face.cluster.compute/v1/inputs#/$defs/clusterParameters",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/shared.face.cluster.compute/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/shared.face.cluster.compute/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/shared.face.cluster.compute/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/shared.face.cluster.compute/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/shared.face.cluster.compute/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/shared.face.cluster.compute/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/shared.face.cluster.compute/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.3",
+    "line": 7580,
+    "lineDigest": "ab99299f3dabcdbda44a14805e1f391fb7abe03dd5b066789d7b5d62b01edc8e"
+  }
+}

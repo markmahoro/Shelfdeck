@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.media.transcode/v1/inputs",
+  "title": "libra.media.transcode@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "materialHandle": {
+      "$ref": "#/$defs/materialHandle"
+    },
+    "encodeIntent": {
+      "$ref": "#/$defs/encodeIntent"
+    }
+  },
+  "required": [
+    "materialHandle",
+    "encodeIntent"
+  ],
+  "$defs": {
+    "materialHandle": {
+      "oneOf": [
+        {
+          "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1"
+        },
+        {
+          "$ref": "helix://contracts/types/WorkspaceMaterialHandle/v1"
+        },
+        {
+          "$ref": "helix://contracts/types/ArtifactHandle/v1"
+        }
+      ],
+      "x-helix-typeExpression": "Material handle"
+    },
+    "encodeIntent": {
+      "$ref": "helix://contracts/domain-types/EncodeIntent/v1",
+      "x-helix-typeExpression": "EncodeIntent"
+    }
+  }
+}

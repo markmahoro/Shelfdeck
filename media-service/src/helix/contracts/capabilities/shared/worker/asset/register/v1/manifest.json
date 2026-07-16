@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "shared.worker.asset.register@1",
+  "contractVersion": 1,
+  "ownerScope": "execution-foundation",
+  "effectClass": "external_request",
+  "inputPorts": {
+    "workspaceMaterialHandleOrArtifactHandle": {
+      "schemaRef": "helix://contracts/capabilities/shared.worker.asset.register/v1/inputs#/$defs/workspaceMaterialHandleOrArtifactHandle",
+      "required": true,
+      "cardinality": "one"
+    },
+    "workerHandle": {
+      "schemaRef": "helix://contracts/capabilities/shared.worker.asset.register/v1/inputs#/$defs/workerHandle",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/shared.worker.asset.register/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/shared.worker.asset.register/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/shared.worker.asset.register/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/shared.worker.asset.register/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/shared.worker.asset.register/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/shared.worker.asset.register/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/shared.worker.asset.register/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.3",
+    "line": 7582,
+    "lineDigest": "65c0ce39384f0d7c72667cf36846fef0d0c2b8a6a24578aa5126bd8b21421fe9"
+  }
+}

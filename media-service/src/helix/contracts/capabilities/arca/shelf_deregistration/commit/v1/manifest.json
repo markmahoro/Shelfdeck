@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "arca.shelf_deregistration.commit@1",
+  "contractVersion": 1,
+  "ownerScope": "arca",
+  "effectClass": "responsibility_control_commit",
+  "inputPorts": {
+    "verifiedRelease": {
+      "schemaRef": "helix://contracts/capabilities/arca.shelf_deregistration.commit/v1/inputs#/$defs/verifiedRelease",
+      "required": true,
+      "cardinality": "one"
+    },
+    "responsibilityControlCommitHandle": {
+      "schemaRef": "helix://contracts/capabilities/arca.shelf_deregistration.commit/v1/inputs#/$defs/responsibilityControlCommitHandle",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/arca.shelf_deregistration.commit/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/arca.shelf_deregistration.commit/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/arca.shelf_deregistration.commit/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/arca.shelf_deregistration.commit/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/arca.shelf_deregistration.commit/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/arca.shelf_deregistration.commit/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/arca.shelf_deregistration.commit/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.12",
+    "line": 7763,
+    "lineDigest": "4f32f0b831684068ec70087974a9f5db8f2938b69c7b766a4bbd96dec4e4b979"
+  }
+}

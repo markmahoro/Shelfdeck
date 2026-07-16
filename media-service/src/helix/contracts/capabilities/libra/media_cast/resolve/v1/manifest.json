@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "libra.media_cast.resolve@1",
+  "contractVersion": 1,
+  "ownerScope": "libra",
+  "effectClass": "pure_observation",
+  "inputPorts": {
+    "metadataObservation": {
+      "schemaRef": "helix://contracts/capabilities/libra.media_cast.resolve/v1/inputs#/$defs/metadataObservation",
+      "required": true,
+      "cardinality": "one"
+    },
+    "personReferenceProjection": {
+      "schemaRef": "helix://contracts/capabilities/libra.media_cast.resolve/v1/inputs#/$defs/personReferenceProjection",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/libra.media_cast.resolve/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/libra.media_cast.resolve/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/libra.media_cast.resolve/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/libra.media_cast.resolve/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/libra.media_cast.resolve/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/libra.media_cast.resolve/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/libra.media_cast.resolve/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.6",
+    "line": 7631,
+    "lineDigest": "f95414fd25dcd1f64c09fca09c023ed13c3941d1a5dc63c820930cd57e96cd3e"
+  }
+}

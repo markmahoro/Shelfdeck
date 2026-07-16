@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "arca.ondeck.fulfillment.verify@1",
+  "contractVersion": 1,
+  "ownerScope": "arca",
+  "effectClass": "pure_observation",
+  "inputPorts": {
+    "finalReality": {
+      "schemaRef": "helix://contracts/capabilities/arca.ondeck.fulfillment.verify/v1/inputs#/$defs/finalReality",
+      "required": true,
+      "cardinality": "one"
+    },
+    "finalInventoryDecision": {
+      "schemaRef": "helix://contracts/capabilities/arca.ondeck.fulfillment.verify/v1/inputs#/$defs/finalInventoryDecision",
+      "required": true,
+      "cardinality": "one"
+    },
+    "shelfStandard": {
+      "schemaRef": "helix://contracts/capabilities/arca.ondeck.fulfillment.verify/v1/inputs#/$defs/shelfStandard",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/arca.ondeck.fulfillment.verify/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/arca.ondeck.fulfillment.verify/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/arca.ondeck.fulfillment.verify/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/arca.ondeck.fulfillment.verify/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/arca.ondeck.fulfillment.verify/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/arca.ondeck.fulfillment.verify/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/arca.ondeck.fulfillment.verify/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.10",
+    "line": 7711,
+    "lineDigest": "0fd32ca70f4341b73c50e6e249f0566cf972b467e0fa93e85f5be2948ad73cd4"
+  }
+}

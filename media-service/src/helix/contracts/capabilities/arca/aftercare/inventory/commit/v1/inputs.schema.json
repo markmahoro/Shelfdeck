@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.aftercare.inventory.commit/v1/inputs",
+  "title": "arca.aftercare.inventory.commit@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "verifiedCareInventoryChange": {
+      "$ref": "#/$defs/verifiedCareInventoryChange"
+    },
+    "responsibilityControlCommitHandle": {
+      "$ref": "#/$defs/responsibilityControlCommitHandle"
+    }
+  },
+  "required": [
+    "verifiedCareInventoryChange",
+    "responsibilityControlCommitHandle"
+  ],
+  "$defs": {
+    "verifiedCareInventoryChange": {
+      "$ref": "helix://contracts/domain-types/VerifiedCareInventoryChange/v1",
+      "x-helix-typeExpression": "Verified care inventory change"
+    },
+    "responsibilityControlCommitHandle": {
+      "$ref": "helix://contracts/types/ResponsibilityControlCommitHandle/v1",
+      "x-helix-typeExpression": "ResponsibilityControlCommitHandle"
+    }
+  }
+}

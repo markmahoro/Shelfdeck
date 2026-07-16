@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.aftercare.text_artifact.render/v1/inputs",
+  "title": "arca.aftercare.text_artifact.render@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "acceptedProductFacts": {
+      "$ref": "#/$defs/acceptedProductFacts"
+    },
+    "artifactProfile": {
+      "$ref": "#/$defs/artifactProfile"
+    }
+  },
+  "required": [
+    "acceptedProductFacts",
+    "artifactProfile"
+  ],
+  "$defs": {
+    "acceptedProductFacts": {
+      "type": "array",
+      "items": {
+        "$ref": "helix://contracts/domain-types/AcceptedProductFacts/v1"
+      },
+      "maxItems": 1024,
+      "x-helix-typeExpression": "Accepted Product Facts"
+    },
+    "artifactProfile": {
+      "$ref": "helix://contracts/domain-types/ArtifactProfile/v1",
+      "x-helix-typeExpression": "Artifact profile"
+    }
+  }
+}

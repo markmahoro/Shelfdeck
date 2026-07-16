@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.intake.accept.commit/v1/inputs",
+  "title": "libra.intake.accept.commit@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "acceptedIntakePayload": {
+      "$ref": "#/$defs/acceptedIntakePayload"
+    },
+    "responsibilityControlCommitHandle": {
+      "$ref": "#/$defs/responsibilityControlCommitHandle"
+    }
+  },
+  "required": [
+    "acceptedIntakePayload",
+    "responsibilityControlCommitHandle"
+  ],
+  "$defs": {
+    "acceptedIntakePayload": {
+      "$ref": "helix://contracts/domain-types/AcceptedIntakePayload/v1",
+      "x-helix-typeExpression": "Accepted intake payload"
+    },
+    "responsibilityControlCommitHandle": {
+      "$ref": "helix://contracts/types/ResponsibilityControlCommitHandle/v1",
+      "x-helix-typeExpression": "ResponsibilityControlCommitHandle"
+    }
+  }
+}

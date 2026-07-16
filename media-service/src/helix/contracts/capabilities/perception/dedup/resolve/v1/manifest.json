@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "perception.dedup.resolve@1",
+  "contractVersion": 1,
+  "ownerScope": "perception",
+  "effectClass": "pure_observation",
+  "inputPorts": {
+    "immutableRecords": {
+      "schemaRef": "helix://contracts/capabilities/perception.dedup.resolve/v1/inputs#/$defs/immutableRecords",
+      "required": true,
+      "cardinality": "many"
+    },
+    "resolutionRuleRevision": {
+      "schemaRef": "helix://contracts/capabilities/perception.dedup.resolve/v1/inputs#/$defs/resolutionRuleRevision",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/perception.dedup.resolve/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/perception.dedup.resolve/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/perception.dedup.resolve/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/perception.dedup.resolve/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/perception.dedup.resolve/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/perception.dedup.resolve/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/perception.dedup.resolve/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.13",
+    "line": 7776,
+    "lineDigest": "f6cb6ef1912321f296eec8fd5689f7e19034250abea626c493fdfdd1ec8808bb"
+  }
+}

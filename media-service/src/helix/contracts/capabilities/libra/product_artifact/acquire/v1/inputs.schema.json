@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.product_artifact.acquire/v1/inputs",
+  "title": "libra.product_artifact.acquire@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "productMetadataDraft": {
+      "$ref": "#/$defs/productMetadataDraft"
+    },
+    "integrationHandle": {
+      "$ref": "#/$defs/integrationHandle"
+    }
+  },
+  "required": [
+    "productMetadataDraft",
+    "integrationHandle"
+  ],
+  "$defs": {
+    "productMetadataDraft": {
+      "$ref": "helix://contracts/domain-types/ProductMetadataDraft/v1",
+      "x-helix-typeExpression": "ProductMetadataDraft"
+    },
+    "integrationHandle": {
+      "$ref": "helix://contracts/types/IntegrationHandle/v1",
+      "x-helix-typeExpression": "IntegrationHandle"
+    }
+  }
+}
