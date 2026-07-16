@@ -1,0 +1,152 @@
+{
+  "schemaVersion": 1,
+  "mapId": "helix.ssot-contract-source-map",
+  "category": "tables",
+  "startOrdinal": 131,
+  "endOrdinal": 143,
+  "entries": [
+    {
+      "id": "people_persons",
+      "owner": "people",
+      "columnsContract": "`person_id PK, status, current_revision, created_at_ms, terminal_at_ms`",
+      "constraintsContract": "`INDEX(status,person_id)`",
+      "source": {
+        "section": "8.5.13",
+        "line": 7489,
+        "lineDigest": "bd6c936deb239eb17eb530d84cfb49c7132bdc8f2a1d6b3bbd866899974da756"
+      }
+    },
+    {
+      "id": "people_person_revisions",
+      "owner": "people",
+      "columnsContract": "`person_id FK, revision, canonical_name, content_scope, fact_digest, committed_at_ms`",
+      "constraintsContract": "`PK(person_id,revision)`；immutable",
+      "source": {
+        "section": "8.5.13",
+        "line": 7490,
+        "lineDigest": "988b984fdec7fe60f95955d0624c6045a8e529fd2c3646b8833f0c50808c1c1d"
+      }
+    },
+    {
+      "id": "people_aliases",
+      "owner": "people",
+      "columnsContract": "`person_id FK, revision, alias_normalized, alias_display, provenance_digest`",
+      "constraintsContract": "`PK(person_id,revision,alias_normalized)`；`INDEX(alias_normalized)`",
+      "source": {
+        "section": "8.5.13",
+        "line": 7491,
+        "lineDigest": "ebb1b8f5b6f77bb8a527ac0e28d8f58236424294bbf293160dfebfefcfb1deaf"
+      }
+    },
+    {
+      "id": "people_provider_identities",
+      "owner": "people",
+      "columnsContract": "`person_id FK, revision, provider, namespace, provider_key, provenance_digest`",
+      "constraintsContract": "`PK(person_id,revision,provider,namespace,provider_key)`；stable identity active unique",
+      "source": {
+        "section": "8.5.13",
+        "line": 7492,
+        "lineDigest": "96dee2a40ef8da825ba7a83d3d11f9c8ed9205e26ce921e7ca2ea658c065b49f"
+      }
+    },
+    {
+      "id": "people_preference_revisions",
+      "owner": "people",
+      "columnsContract": "`person_id FK, revision, preference_level, reason, committed_at_ms`",
+      "constraintsContract": "`PK(person_id,revision)`；level枚举`-2..2`",
+      "source": {
+        "section": "8.5.13",
+        "line": 7493,
+        "lineDigest": "72edd867cc83204152751fa79dbb8617f33790161b5e76bde75af43738d88cb5"
+      }
+    },
+    {
+      "id": "people_reference_assets",
+      "owner": "people",
+      "columnsContract": "`reference_asset_id PK, person_id FK, artifact_handle_id, artifact_digest, state, created_at_ms`",
+      "constraintsContract": "`UNIQUE(person_id,artifact_digest)`",
+      "source": {
+        "section": "8.5.13",
+        "line": 7494,
+        "lineDigest": "adefa3197b448b4313ae7cdefbffd1804093bedc8249b85abd6893ce60f19656"
+      }
+    },
+    {
+      "id": "people_reference_faces",
+      "owner": "people",
+      "columnsContract": "`reference_face_id PK, person_id FK, reference_asset_id FK, embedding_handle_id, model_ref, state, created_at_ms`",
+      "constraintsContract": "`UNIQUE(person_id,embedding_handle_id,model_ref)`",
+      "source": {
+        "section": "8.5.13",
+        "line": 7495,
+        "lineDigest": "e09857484a3ed5c80b50e1a60d2903238c88bbd54f25ac7942131bb671aec5bf"
+      }
+    },
+    {
+      "id": "people_registration_candidates",
+      "owner": "people",
+      "columnsContract": "`registration_candidate_id PK, proposed_name, evidence_digest, candidate_schema_ref, candidate_json, state(open|accepted|dismissed|superseded), created_at_ms, terminal_at_ms`",
+      "constraintsContract": "Candidate JSON上限`16 KiB`且大Reference只含handle；相同evidence digest至多一个open Candidate；`INDEX(state,created_at_ms)`",
+      "source": {
+        "section": "8.5.13",
+        "line": 7496,
+        "lineDigest": "76480115734d7f5989b7f16b836099bf5162ca1a63f3c9d40458d6df54d298a6"
+      }
+    },
+    {
+      "id": "people_merge_candidates",
+      "owner": "people",
+      "columnsContract": "`merge_candidate_id PK, left_person_id FK, right_person_id FK, evidence_digest, state(open|accepted|dismissed|superseded), created_at_ms, terminal_at_ms`",
+      "constraintsContract": "normalized pair unique while open；dismiss只终结候选，不修改Person或媒体关系",
+      "source": {
+        "section": "8.5.13",
+        "line": 7497,
+        "lineDigest": "016be67d779ae4aee365cab774dc2e228da2e450dbbd8a95df1689048d31dd5e"
+      }
+    },
+    {
+      "id": "people_merge_records",
+      "owner": "people",
+      "columnsContract": "`merge_record_id PK, source_person_id FK, target_person_id FK, decision_digest, committed_at_ms`",
+      "constraintsContract": "一个source Person最多一个terminal merge target",
+      "source": {
+        "section": "8.5.13",
+        "line": 7498,
+        "lineDigest": "bf7dc5d332d701f84b9d19b39e487eaef3a33b6f2ea21ef1c30cd235a24ac5b4"
+      }
+    },
+    {
+      "id": "platform_schema_marker",
+      "owner": "platform-settings",
+      "columnsContract": "`schema_name PK, generation, schema_digest, catalog_digest, applied_at_ms`",
+      "constraintsContract": "clean generation唯一；旧/clean混合时拒绝可写启动",
+      "source": {
+        "section": "8.5.13",
+        "line": 7499,
+        "lineDigest": "d06a8cd33af03f954c384b2771fd441577baf04a88ab5ae33924af8161ebd711"
+      }
+    },
+    {
+      "id": "platform_mount_scopes",
+      "owner": "platform-settings",
+      "columnsContract": "`mount_scope_id PK, status, current_revision, created_at_ms, terminal_at_ms`",
+      "constraintsContract": "mount scope是Platform技术identity，不是Business Object；current revision显式FK；`INDEX(status,mount_scope_id)`",
+      "source": {
+        "section": "8.5.13",
+        "line": 7500,
+        "lineDigest": "6162e30b94f589f833a32257144132c84e1a911f602e2bc460e04c391f5079e5"
+      }
+    },
+    {
+      "id": "platform_mount_scope_revisions",
+      "owner": "platform-settings",
+      "columnsContract": "`mount_scope_id FK, revision, endpoint_id, mount_boundary, filesystem_type, stable_mount_fingerprint, inode_capability_digest, probe_evidence_digest, effective_at_ms`",
+      "constraintsContract": "`PK(mount_scope_id,revision)`；active fingerprint唯一；replacement发布新revision但在显式验证前不继承旧Identity资格",
+      "source": {
+        "section": "8.5.13",
+        "line": 7501,
+        "lineDigest": "273b56bfaa99425c128ab7407e2cbcd975c26901c46c0fe245e414472a8c35cb"
+      }
+    }
+  ]
+}

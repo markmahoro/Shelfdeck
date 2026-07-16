@@ -1,0 +1,592 @@
+{
+  "schemaVersion": 1,
+  "mapId": "helix.ssot-contract-source-map",
+  "category": "resultFamilies",
+  "startOrdinal": 49,
+  "endOrdinal": 96,
+  "entries": [
+    {
+      "id": "ObservationCommitResult",
+      "kind": "nominal-result",
+      "producedBy": [
+        "procurement.field.observation.commit@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 7964,
+        "lineDigest": "fa05f8dda885ab939c12758e7ffaea1ae4147a6bd2e6139ed4cd678cb5c86cf8"
+      }
+    },
+    {
+      "id": "OffdeckTerminalReceipt",
+      "kind": "nominal-result",
+      "producedBy": [
+        "arca.offdeck.terminal.commit@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 8025,
+        "lineDigest": "410ff01aa2ffc75d0cbf40b7a5752800ca066105726722ddbe62ced6cc5934cc"
+      }
+    },
+    {
+      "id": "OnDeckCommitResult",
+      "kind": "nominal-result",
+      "producedBy": [
+        "arca.ondeck.commit@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 8010,
+        "lineDigest": "b157bd3826037172216166d58ecd5207bad62d26028ae576552593ae739fbca8"
+      }
+    },
+    {
+      "id": "OnDeckProductPackage",
+      "kind": "nominal-result",
+      "producedBy": [
+        "libra.product_package.publish@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 7991,
+        "lineDigest": "61cd3d4f7c615fccbeb5e162e76fb75096e65b4b15f54142f0eca49625116469"
+      }
+    },
+    {
+      "id": "PeopleCandidateRevision",
+      "kind": "nominal-result",
+      "producedBy": [
+        "people.candidate.commit@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 8035,
+        "lineDigest": "cd82a1e6d688fad7b67978afd17853c89590ec431fe33aed115cd254b2e15903"
+      }
+    },
+    {
+      "id": "PerceptionObservationPage",
+      "kind": "nominal-result",
+      "producedBy": [
+        "perception.source.acquire@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 8028,
+        "lineDigest": "12adf7dcb5b4d9fca284255f5583d8422b96f5189f9b2018118c3993bf91b9d2"
+      }
+    },
+    {
+      "id": "PerceptionRecordCommitResult",
+      "kind": "nominal-result",
+      "producedBy": [
+        "perception.record.commit@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 8030,
+        "lineDigest": "09acb2b8e8e9fa9811d82be408121ef9b5c0b5606a3e08b9356f595b37165d04"
+      }
+    },
+    {
+      "id": "PerceptionResolutionDraft",
+      "kind": "nominal-result",
+      "producedBy": [
+        "perception.dedup.resolve@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 8031,
+        "lineDigest": "e74b1d92cd4a56b5983fd34e84d71adeafa7038d1f5046f94bb604b8bff4d570"
+      }
+    },
+    {
+      "id": "PerceptionResolutionRevision",
+      "kind": "nominal-result",
+      "producedBy": [
+        "perception.resolution.commit@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 8032,
+        "lineDigest": "4989d47cd61c7d526056b2063e1b579ab2e22e2734ce203c860a6b8c6677e3b1"
+      }
+    },
+    {
+      "id": "PersonMatchEvidence",
+      "kind": "nominal-result",
+      "producedBy": [
+        "shared.face.reference.match@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 7962,
+        "lineDigest": "797bcc09aa2b6cbfa79d1473b690fa683268427a5a7e0531fd01b3c50b5a5455"
+      }
+    },
+    {
+      "id": "PersonPreferenceRevision",
+      "kind": "nominal-result",
+      "producedBy": [
+        "people.preference.commit@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 8039,
+        "lineDigest": "c2c9c490acfa1e89ecd7f330cd72c0e92d9afa030824d85140d2f8d39720f6f4"
+      }
+    },
+    {
+      "id": "PersonReferenceRevision",
+      "kind": "nominal-result",
+      "producedBy": [
+        "people.reference_fact.commit@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 8036,
+        "lineDigest": "c41491c5679f3683690989d8dc59d0099136bf47edd50eb837ebb23bc008cdb9"
+      }
+    },
+    {
+      "id": "PersonRegistrationEvidence",
+      "kind": "nominal-result",
+      "producedBy": [
+        "people.registration_evidence.observe@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 8033,
+        "lineDigest": "d952a8d685645e19edbdf6ab35b3e7e96eb6f31fb59df5b551067197b262cfd6"
+      }
+    },
+    {
+      "id": "PersonRevision",
+      "kind": "nominal-result",
+      "producedBy": [
+        "people.person.commit@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 8038,
+        "lineDigest": "b62e23a60fb216ef76626381542dd80ef98dadea6a63402a385d5ba008a8b073"
+      }
+    },
+    {
+      "id": "PlacementSwitchReceipt",
+      "kind": "nominal-result",
+      "producedBy": [
+        "arca.inventory.placement.switch@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 8006,
+        "lineDigest": "af6fa5b25e63ed21cdb55f225039a5a2fbdb54729bbda841fca16f982f8b6e22"
+      }
+    },
+    {
+      "id": "PlayabilityEvidence",
+      "kind": "nominal-result",
+      "producedBy": [
+        "procurement.triage.playability.inspect@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 7966,
+        "lineDigest": "ed4927b8081aa345d2fa10cf066b204ee7cf7bf0443a7709f0d36a699d3d377c"
+      }
+    },
+    {
+      "id": "PresentationAssessmentEvidence",
+      "kind": "nominal-result",
+      "producedBy": [
+        "arca.aftercare.presentation.observe@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 8013,
+        "lineDigest": "86438dfbcfc7e68248c39d39e0cc146b0f2dce35a72bbea13f79eae98c044874"
+      }
+    },
+    {
+      "id": "PrimaryInputManifest",
+      "kind": "nominal-result",
+      "producedBy": [
+        "procurement.triage.primary_manifest.build@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 7969,
+        "lineDigest": "a10299af0cba07221ee8d668204720eb82d1cc06dbe3e2b0666f0207e7e6fb20"
+      }
+    },
+    {
+      "id": "ProcurementControlReceipt",
+      "kind": "nominal-result",
+      "producedBy": [
+        "procurement.material.control.acquire@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 7965,
+        "lineDigest": "d5f0349bf9ec68610bd9557bd7048553ee5440ef3da0b65e84c26166ad83e20a"
+      }
+    },
+    {
+      "id": "ProductConformanceEvidence",
+      "kind": "nominal-result",
+      "producedBy": [
+        "libra.product.conformance.verify@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 7990,
+        "lineDigest": "0e184bdaa23e168dd03f71f723f2d7353a8c5fe6e57619831d2ceded6cb89fd6"
+      }
+    },
+    {
+      "id": "ProductMediaVerification",
+      "kind": "nominal-result",
+      "producedBy": [
+        "libra.product_media.verify@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 7988,
+        "lineDigest": "50e7a545f1336433a2d37d922b4b0406465861e3533d6e20656621192452e771"
+      }
+    },
+    {
+      "id": "ProductMetadataDraft",
+      "kind": "nominal-result",
+      "producedBy": [
+        "libra.western.metadata.normalize@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 7982,
+        "lineDigest": "f679b613a562ed65e13c23130fa72c4083e9b1c148720531199d53dcc24401f5"
+      }
+    },
+    {
+      "id": "ProductMetadataFact",
+      "kind": "nominal-result",
+      "producedBy": [
+        "libra.product_metadata.commit@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 7985,
+        "lineDigest": "0bbd4d7525ca87d0062195ca6d312a7cc33d2f19e2a83387f80dc7291357200f"
+      }
+    },
+    {
+      "id": "ReclamationReceipt",
+      "kind": "nominal-result",
+      "producedBy": [
+        "libra.workspace.material.reclaim@1",
+        "arca.aftercare.workspace.reclaim@1",
+        "people.workspace.reclaim@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 7992,
+        "lineDigest": "15ac30894158416a2b22eda4c5d9067e2e00ebda67f528cc34f32095de9bafa9"
+      }
+    },
+    {
+      "id": "ReferenceReleaseResult",
+      "kind": "nominal-result",
+      "producedBy": [
+        "arca.offdeck.related_reference.release@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 8023,
+        "lineDigest": "c75f8eafd99cc1ed04e0229422c9d7aa849541f33565476c34e1dcae5debf566"
+      }
+    },
+    {
+      "id": "RejectionReceipt",
+      "kind": "nominal-result",
+      "producedBy": [
+        "libra.intake.rejection.commit@1",
+        "arca.acceptance.rejection.commit@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 7973,
+        "lineDigest": "7521cbc3001c0353596f71d826344fcc6936168cc4b224ba6f1ba248d06973dd"
+      }
+    },
+    {
+      "id": "ReleaseVerification",
+      "kind": "nominal-result",
+      "producedBy": [
+        "arca.shelf_deregistration.release_manifest.verify@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 8026,
+        "lineDigest": "19c91d60e72a46337127e00a18256062814e617b85f9187cbbf48cda44cf5cb6"
+      }
+    },
+    {
+      "id": "ResolvedProductIdentity",
+      "kind": "nominal-result",
+      "producedBy": [
+        "libra.product_identity.resolve@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 7976,
+        "lineDigest": "c8867f4004feb61a78f28adcc26b842299367f04af533a69a099bf4f1aa06109"
+      }
+    },
+    {
+      "id": "ReviewCandidateRevision",
+      "kind": "nominal-result",
+      "producedBy": [
+        "arca.offdeck.review_candidate.commit@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 8021,
+        "lineDigest": "9766bbd9dafd42a84f96168df9386129f0ce40e4a612e9a7511136439628d8a7"
+      }
+    },
+    {
+      "id": "ScopeVerification",
+      "kind": "nominal-result",
+      "producedBy": [
+        "arca.offdeck.destruction_scope.verify@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 8022,
+        "lineDigest": "bc4ec930158a82efce73c369ebb0c2d3d50a7f507ecdb7a72c0a6b4753bc1569"
+      }
+    },
+    {
+      "id": "SelectedCandidate",
+      "kind": "nominal-result",
+      "producedBy": [
+        "libra.external_material.candidate.select@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 7996,
+        "lineDigest": "3cdbef84c498a483c097e443d544030ad5d3debecc78db36401bd20f0b916e82"
+      }
+    },
+    {
+      "id": "SelectedWorkspaceProduct",
+      "kind": "nominal-result",
+      "producedBy": [
+        "libra.product_output.select@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 7989,
+        "lineDigest": "42f9138711758599397ebe5ef561610f07d93a028dccaa15e9f0b80c2a352fce"
+      }
+    },
+    {
+      "id": "SettlementDeletionEvidence",
+      "kind": "nominal-result",
+      "producedBy": [
+        "arca.ondeck.input_settlement.delete@1",
+        "arca.aftercare.input_settlement.delete@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 8008,
+        "lineDigest": "81360bcdf4896f3a43a20fab30f3ea6b4bfbe264048beb9df9bb4c0b94c869b8"
+      }
+    },
+    {
+      "id": "StableExternalMaterialEvidence",
+      "kind": "nominal-result",
+      "producedBy": [
+        "libra.external_material.stability.observe@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 7998,
+        "lineDigest": "87b8b8796dc836f7caf2ddfa9244f7a8ea1d61489f7da15c885d1baaf1239955"
+      }
+    },
+    {
+      "id": "StagedInventoryManifest",
+      "kind": "nominal-result",
+      "producedBy": [
+        "arca.inventory.product.stage@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 8004,
+        "lineDigest": "9ac9771de85165c623bcafb244faf1044ce36d2c852742eaf70f0addd3abc973"
+      }
+    },
+    {
+      "id": "StagedInventoryVerification",
+      "kind": "nominal-result",
+      "producedBy": [
+        "arca.inventory.staged.verify@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 8005,
+        "lineDigest": "21b9588ff9cfcdb9bf9ccc507c5163c683ef2ef9f954a0eccea1ab5302bdc810"
+      }
+    },
+    {
+      "id": "SubjectAndTransferReceipt",
+      "kind": "nominal-result",
+      "producedBy": [
+        "libra.intake.accept.commit@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 7974,
+        "lineDigest": "8611cf19a16c0ae7122626d5662280575b52b00fa0d7210c95ce02984d2244bb"
+      }
+    },
+    {
+      "id": "TargetCommitSlotHandle",
+      "kind": "direct-handle-result",
+      "producedBy": [
+        "arca.inventory.target_slot.prepare@1"
+      ],
+      "source": {
+        "section": "8.6.18",
+        "line": 7929,
+        "lineDigest": "d261d29175b5bedc89628d09e3b92479d958ab6e928ffb36ea618d47af0fd704"
+      }
+    },
+    {
+      "id": "TranscodeInputVerification",
+      "kind": "nominal-result",
+      "producedBy": [
+        "libra.transcode.input.verify@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 7986,
+        "lineDigest": "ac3c6a353b8492c6b92cf52d551710e7dae1a990157a4c012ac31a3ae3330d71"
+      }
+    },
+    {
+      "id": "TriageStructureEvidence",
+      "kind": "nominal-result",
+      "producedBy": [
+        "procurement.triage.structure.inspect@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 7967,
+        "lineDigest": "417b2f80ce752e06992ebb939e2800520ecb80a174f84abe1dffa3e7fc45a0d0"
+      }
+    },
+    {
+      "id": "VerifiedExternalPackage",
+      "kind": "nominal-result",
+      "producedBy": [
+        "libra.external_material.package.verify@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 8000,
+        "lineDigest": "2eb1805cfaeab242efb0126181f93b37ce5510409f3e187185ae478de2bb8a66"
+      }
+    },
+    {
+      "id": "VersionedQueryResult",
+      "kind": "nominal-result",
+      "producedBy": [
+        "libra.decision.query.resolve@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 7975,
+        "lineDigest": "1bd067f58b7699af77c588f32a5a8338e129998db8609d6304709f9330f5b3a9"
+      }
+    },
+    {
+      "id": "WesternAnalysisResult",
+      "kind": "nominal-result",
+      "producedBy": [
+        "libra.western.analysis.observe@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 7980,
+        "lineDigest": "a58dee3826560b99d5a6870dad3b90fc95b3364eb4924c71681ee6de8b2f10a6"
+      }
+    },
+    {
+      "id": "WorkerAssetReceipt",
+      "kind": "direct-handle-result",
+      "producedBy": [
+        "shared.worker.asset.register@1"
+      ],
+      "source": {
+        "section": "8.6.18",
+        "line": 7931,
+        "lineDigest": "b5c4872b2618370dfad3f9f26b8c0fcd9ffd1be2d17076401c2a6f64566f71f1"
+      }
+    },
+    {
+      "id": "WorkerUploadReceipt",
+      "kind": "direct-handle-result",
+      "producedBy": [
+        "shared.worker.asset.upload@1"
+      ],
+      "source": {
+        "section": "8.6.18",
+        "line": 7932,
+        "lineDigest": "eaebf26505642a4d6d1292a22d4bda5aace63bd441f13a370d4f63cf55ce7401"
+      }
+    },
+    {
+      "id": "WorkspaceCleanupCommitReceipt",
+      "kind": "nominal-result",
+      "producedBy": [
+        "libra.workspace.cleanup.commit@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 7993,
+        "lineDigest": "b16d6ac0e01ee7761a62b9d104031e0c88ecfbb9efa5d65e41515308ad7db104"
+      }
+    },
+    {
+      "id": "WorkspaceMaterialHandle",
+      "kind": "direct-handle-result",
+      "producedBy": [
+        "libra.workspace.material.import@1"
+      ],
+      "source": {
+        "section": "8.6.18",
+        "line": 7917,
+        "lineDigest": "c8da01a05ab13a1cac21c377d970fbb5591eca5a69f47164d2e01c551083fb4b"
+      }
+    },
+    {
+      "id": "WorkspaceMediaHandle",
+      "kind": "nominal-result",
+      "producedBy": [
+        "libra.media.remux@1",
+        "libra.media.transcode@1",
+        "arca.aftercare.media.remux@1",
+        "arca.aftercare.media.transcode@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 7987,
+        "lineDigest": "00af4225b8e38e45835bd733c51dacc36739d5d85058c94e9a70ad9c6aa50ba9"
+      }
+    }
+  ]
+}

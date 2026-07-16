@@ -1,0 +1,152 @@
+{
+  "schemaVersion": 1,
+  "mapId": "helix.ssot-contract-source-map",
+  "category": "tables",
+  "startOrdinal": 1,
+  "endOrdinal": 13,
+  "entries": [
+    {
+      "id": "fx_command_receipts",
+      "owner": "execution-foundation",
+      "columnsContract": "`command_receipt_id PK, owner_domain, command_contract, caller_scope, idempotency_key, request_digest, target_type, target_id, result_schema_ref, result_ref_json, result_digest, committed_at_ms`",
+      "constraintsContract": "`UNIQUE(owner_domain,command_contract,caller_scope,idempotency_key)`；同key不同request digest拒绝；Result JSON上限`16 KiB`且只含typed ref；与Owner修改同事务",
+      "source": {
+        "section": "8.5.10",
+        "line": 7341,
+        "lineDigest": "65b28623e605bfebb3d1f2cfa85be9094d04cbd42636b58ffd5a418dc5121ad9"
+      }
+    },
+    {
+      "id": "fx_supporting_works",
+      "owner": "execution-foundation",
+      "columnsContract": "`work_id PK, owner_domain, process_type, process_id, work_kind, basis_digest, priority_class, state, idempotency_key, created_at_ms, updated_at_ms`",
+      "constraintsContract": "`UNIQUE(owner_domain,idempotency_key)`；`INDEX(owner_domain,state,priority_class,created_at_ms,work_id)`",
+      "source": {
+        "section": "8.5.10",
+        "line": 7342,
+        "lineDigest": "1b3b12693bb082449223011fe595fb847378c9c59b9c1da6a4287a117f101eb7"
+      }
+    },
+    {
+      "id": "fx_work_attempts",
+      "owner": "execution-foundation",
+      "columnsContract": "`attempt_id PK, work_id FK, ordinal, basis_digest, state, started_at_ms, finished_at_ms, failure_code`",
+      "constraintsContract": "`UNIQUE(work_id,ordinal)`；同一Work至多一个`ready|running|blocked` attempt的partial unique index",
+      "source": {
+        "section": "8.5.10",
+        "line": 7343,
+        "lineDigest": "590c519812115490ed7e526e59b5648c8477ea21eb0921aa2725ee5418169617"
+      }
+    },
+    {
+      "id": "fx_workflow_plans",
+      "owner": "execution-foundation",
+      "columnsContract": "`plan_id PK, attempt_id FK, planner_ref, planner_version, catalog_digest, basis_digest, graph_digest, state, created_at_ms`",
+      "constraintsContract": "`UNIQUE(attempt_id)`；Plan发布后禁止更新Graph字段",
+      "source": {
+        "section": "8.5.10",
+        "line": 7344,
+        "lineDigest": "a6e5705c23a89a42b4fac68ca26061032b762286b554fb894d0114c069cccc30"
+      }
+    },
+    {
+      "id": "fx_plan_nodes",
+      "owner": "execution-foundation",
+      "columnsContract": "`plan_id FK, node_id, capability_ref, contract_version, input_binding_schema_ref, input_bindings_json, parameter_schema_ref, parameters_json, when_schema_ref, when_json, effect_class, fence_schema_ref, fence_basis_json, resource_demand_schema_ref, resource_demand_json`",
+      "constraintsContract": "`PK(plan_id,node_id)`；所有JSON分别受`16 KiB`上限；`INDEX(capability_ref,contract_version)`",
+      "source": {
+        "section": "8.5.10",
+        "line": 7345,
+        "lineDigest": "d284a64607e1bb3596c1671a8b1caf80fc2397281263e5fd88a743f02c1c8db8"
+      }
+    },
+    {
+      "id": "fx_plan_edges",
+      "owner": "execution-foundation",
+      "columnsContract": "`plan_id FK, from_node_id, to_node_id, dependency_kind`",
+      "constraintsContract": "`PK(plan_id,from_node_id,to_node_id)`；两个node均FK到同一Plan；DAG validator digest与Plan同时提交",
+      "source": {
+        "section": "8.5.10",
+        "line": 7346,
+        "lineDigest": "093dcd5f05c688d5aadd096c0f23bdbb9abb34770b6d744d648b5ece98f2efdc"
+      }
+    },
+    {
+      "id": "fx_workflow_events",
+      "owner": "execution-foundation",
+      "columnsContract": "`event_id PK, plan_id FK, node_id, work_id, attempt_id, owner_domain, capability_ref, contract_version, state, priority_class, ready_at_ms, retry_at_ms, result_id, current_progress_revision`",
+      "constraintsContract": "`UNIQUE(plan_id,node_id)`；`INDEX(state,priority_class,COALESCE(retry_at_ms,ready_at_ms),event_id)`；成功Event不可回退；current progress pointer显式FK",
+      "source": {
+        "section": "8.5.10",
+        "line": 7347,
+        "lineDigest": "83b0e6dfb2a6878be3e4df2e6aa3a3ec2f425950df361e9bf94338fdb9a55787"
+      }
+    },
+    {
+      "id": "fx_event_attempts",
+      "owner": "execution-foundation",
+      "columnsContract": "`event_attempt_id PK, event_id FK, ordinal, executor_ref, executor_version, input_snapshot_schema_ref, input_snapshot_digest, fence_snapshot_digest, state, outcome_kind, retry_after_ms, failure_class, failure_code, evidence_digest, started_at_ms, finished_at_ms`",
+      "constraintsContract": "`UNIQUE(event_id,ordinal)`；同一Event至多一个`executing` attempt；Permit/lease不持久化，资源等待与持有只由timing Evidence表达；deferred/fence evidence留在Attempt而非伪terminal Result",
+      "source": {
+        "section": "8.5.10",
+        "line": 7348,
+        "lineDigest": "0097660ac702afb40272a6ec5b7b7d4a44f5cf2f463e647316776ca6b1637ce7"
+      }
+    },
+    {
+      "id": "fx_event_progress",
+      "owner": "execution-foundation",
+      "columnsContract": "`event_id FK, event_attempt_id FK, revision, mode, current_value, total_value, unit, rate, eta_ms, source_sequence, progress_bucket, sampled_at_ms`",
+      "constraintsContract": "`PK(event_id,revision)`；`UNIQUE(event_attempt_id,source_sequence)` when sequence exists；只保留current及有界bucket history；数值必须满足non-negative/finite check",
+      "source": {
+        "section": "8.5.10",
+        "line": 7349,
+        "lineDigest": "8ca810eab68cf80cac99a48abdd4e126346134f1153aec0fc8ba8b5828e5d734"
+      }
+    },
+    {
+      "id": "fx_event_result_bindings",
+      "owner": "execution-foundation",
+      "columnsContract": "`result_id PK, event_id FK, outcome_kind, result_schema_ref, result_json, result_digest, evidence_schema_ref, evidence_json, evidence_digest, effect_receipt_id, committed_at_ms`",
+      "constraintsContract": "terminal Event至多一个current result：`UNIQUE(event_id)`；两个JSON各`64 KiB`，大Payload必须只含typed handle",
+      "source": {
+        "section": "8.5.10",
+        "line": 7350,
+        "lineDigest": "f538aed6832ab04ee36ab764ffeef0d1f8631bf15d08c1d962759a97ed3dfa3a"
+      }
+    },
+    {
+      "id": "fx_effect_journal",
+      "owner": "execution-foundation",
+      "columnsContract": "`effect_id PK, event_attempt_id FK, effect_class, idempotency_key, intent_digest, state, external_receipt_ref, output_digest, verified_at_ms, updated_at_ms`",
+      "constraintsContract": "`UNIQUE(effect_class,idempotency_key)`；`INDEX(state,updated_at_ms,effect_id)`供Effect Reconcile",
+      "source": {
+        "section": "8.5.10",
+        "line": 7351,
+        "lineDigest": "ab2bd36a36914142370c9e85292a017d085b0de7ba78dbc338bef61890079e80"
+      }
+    },
+    {
+      "id": "fx_commit_markers",
+      "owner": "execution-foundation",
+      "columnsContract": "`commit_marker PK, effect_id, owner_domain, scope_type, scope_id, commit_digest, committed_at_ms`",
+      "constraintsContract": "`commit_marker`全局唯一；不能更新或删除",
+      "source": {
+        "section": "8.5.10",
+        "line": 7352,
+        "lineDigest": "e81667fa0ae8b562f301f56b1d56a7841fd556e180794485e6def3a9cb327dd0"
+      }
+    },
+    {
+      "id": "fx_outbox",
+      "owner": "execution-foundation",
+      "columnsContract": "`message_id PK, producer_domain, message_kind, aggregate_type, aggregate_id, aggregate_revision, dedup_key, consumer_set_digest, intended_consumer_count, payload_schema_ref, payload_json, payload_digest, state, available_at_ms, created_at_ms, all_acked_at_ms`",
+      "constraintsContract": "payload上限`16 KiB`且只含ID/revision/digest；`UNIQUE(producer_domain,dedup_key)`；`INDEX(state,available_at_ms,message_id)`",
+      "source": {
+        "section": "8.5.10",
+        "line": 7353,
+        "lineDigest": "897caa669f444e1875bd964da8bf826848339c4e55ae1632f4e5b2d4b8959019"
+      }
+    }
+  ]
+}

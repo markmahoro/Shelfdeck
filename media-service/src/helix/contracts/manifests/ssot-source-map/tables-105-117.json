@@ -1,0 +1,152 @@
+{
+  "schemaVersion": 1,
+  "mapId": "helix.ssot-contract-source-map",
+  "category": "tables",
+  "startOrdinal": 105,
+  "endOrdinal": 117,
+  "entries": [
+    {
+      "id": "arca_offdeck_review_candidates",
+      "owner": "arca",
+      "columnsContract": "`candidate_id PK, shelf_entry_id FK, policy_id, policy_revision, reason_digest, state, created_at_ms`",
+      "constraintsContract": "相同`entry+policy revision+reason`至多一个open Candidate；`INDEX(state,created_at_ms)`",
+      "source": {
+        "section": "8.5.12",
+        "line": 7458,
+        "lineDigest": "12cc9ff353068ec82c2ccc25358d21e0ad708b49f1ae43222352b2c9143b0387"
+      }
+    },
+    {
+      "id": "arca_offdeck_suppressions",
+      "owner": "arca",
+      "columnsContract": "`suppression_id PK, shelf_entry_id FK, candidate_kind, reason, state(active|revoked|expired), effective_at_ms, expires_at_ms, revoked_at_ms`",
+      "constraintsContract": "`INDEX(shelf_entry_id,candidate_kind,state,expires_at_ms)`",
+      "source": {
+        "section": "8.5.12",
+        "line": 7459,
+        "lineDigest": "37b0fc7cacda52789a1aadf8fc525c56416bcda442f7c7a76977fac43b6cc9fd"
+      }
+    },
+    {
+      "id": "arca_offdeck_duplicate_groups",
+      "owner": "arca",
+      "columnsContract": "`duplicate_group_id PK, canonical_identity_digest, member_set_digest, state, detected_at_ms, superseded_at_ms`",
+      "constraintsContract": "`UNIQUE(canonical_identity_digest,member_set_digest)`；Group是Off-deck Evidence aggregate，不选择保留成员",
+      "source": {
+        "section": "8.5.12",
+        "line": 7460,
+        "lineDigest": "2ea29ec1242d920e488cfa644865edf2eadbfd2c9a47f89520e5b3c52995081d"
+      }
+    },
+    {
+      "id": "arca_offdeck_duplicate_group_members",
+      "owner": "arca",
+      "columnsContract": "`duplicate_group_id FK, shelf_entry_id FK, inventory_revision, member_digest`",
+      "constraintsContract": "`PK(duplicate_group_id,shelf_entry_id)`",
+      "source": {
+        "section": "8.5.12",
+        "line": 7461,
+        "lineDigest": "ecc853bb09c6cec484bca73f98a35dd59f67b481466ce9bb51300fd99d5b5955"
+      }
+    },
+    {
+      "id": "arca_offdeck_duplicate_whitelists",
+      "owner": "arca",
+      "columnsContract": "`whitelist_id PK, duplicate_group_id FK, member_set_digest, state(active|revoked|stale), actor_id, created_at_ms, revoked_at_ms`",
+      "constraintsContract": "当前Group/member set至多一份active；成员或Identity变化后旧Whitelist为stale",
+      "source": {
+        "section": "8.5.12",
+        "line": 7462,
+        "lineDigest": "756bfc233aee57e11d4135953ceea853fc9063ba4681f6cd400ab61cced3829f"
+      }
+    },
+    {
+      "id": "arca_offdeck_reviews",
+      "owner": "arca",
+      "columnsContract": "`review_id PK, origin_kind(candidate|duplicate_group|direct_intent|batch), origin_ref, state(open|selection_confirmed|cancelled|authorized), actor_id, created_at_ms, terminal_at_ms`",
+      "constraintsContract": "`INDEX(state,created_at_ms)`；Authorization前取消只终结Review并释放Reservation",
+      "source": {
+        "section": "8.5.12",
+        "line": 7463,
+        "lineDigest": "599fabeb0091d1dcda2441457cfd875c749581ac6ade12be29f9add4d54c5040"
+      }
+    },
+    {
+      "id": "arca_offdeck_reservations",
+      "owner": "arca",
+      "columnsContract": "`reservation_id PK, review_id FK, shelf_entry_id FK, inventory_revision, control_scope_digest, state(active|released|consumed|stale), created_at_ms, released_at_ms`",
+      "constraintsContract": "同一Shelf Entry至多一个active Off-deck Reservation；`INDEX(state,created_at_ms)`",
+      "source": {
+        "section": "8.5.12",
+        "line": 7464,
+        "lineDigest": "d9ec380f97236575796baeeb3e5ebdce5a3a60d11c825419eb07e7327a4b87c6"
+      }
+    },
+    {
+      "id": "arca_offdeck_scopes",
+      "owner": "arca",
+      "columnsContract": "`destruction_scope_id PK, reservation_id FK, shelf_entry_id FK, inventory_revision, scope_digest, state(draft|confirmed|authorized|stale|completed), created_at_ms`",
+      "constraintsContract": "`UNIQUE(reservation_id,scope_digest)`；pre-authorization immutable Scope由Reservation拥有，不依赖Case",
+      "source": {
+        "section": "8.5.12",
+        "line": 7465,
+        "lineDigest": "33e0776f40c6d93014fb3291623746e94cc939bee6f75b325dbffdb5d3306d3a"
+      }
+    },
+    {
+      "id": "arca_offdeck_scope_materials",
+      "owner": "arca",
+      "columnsContract": "`destruction_scope_id FK, ordinal, material_key, material_role, delete_condition, binding_revision`",
+      "constraintsContract": "`PK(destruction_scope_id,ordinal)`及`UNIQUE(destruction_scope_id,material_key,material_role)`",
+      "source": {
+        "section": "8.5.12",
+        "line": 7466,
+        "lineDigest": "84ca6df6a4203cd2f55d9007ef260daa01b437afeb3408bc8a5b7819fbd07e75"
+      }
+    },
+    {
+      "id": "arca_offdeck_selection_receipts",
+      "owner": "arca",
+      "columnsContract": "`selection_receipt_id PK, review_id FK, scope_set_digest, entry_count, primary_count, total_bytes, shelf_coverage_digest, deck_coverage_ratio, high_volume, actor_id, confirmed_at_ms`",
+      "constraintsContract": "`UNIQUE(review_id,scope_set_digest)`；服务端按当前Scope集合计算，不信任客户端阈值",
+      "source": {
+        "section": "8.5.12",
+        "line": 7467,
+        "lineDigest": "77ff625978aa23c853bd9e91791693fea79fba47a6af914ec93848082a37c464"
+      }
+    },
+    {
+      "id": "arca_offdeck_escalation_receipts",
+      "owner": "arca",
+      "columnsContract": "`escalation_receipt_id PK, selection_receipt_id FK, scope_set_digest, actor_id, confirmed_at_ms`",
+      "constraintsContract": "`UNIQUE(selection_receipt_id)`；只在high-volume时生成且必须来自独立第二次操作",
+      "source": {
+        "section": "8.5.12",
+        "line": 7468,
+        "lineDigest": "63661ab1e465cec55b486f8361793d31c5f38bf14b10b4f541dd19f3fae16945"
+      }
+    },
+    {
+      "id": "arca_offdeck_authorization_batches",
+      "owner": "arca",
+      "columnsContract": "`batch_id PK, review_id FK, selection_receipt_id FK, escalation_receipt_id, scope_set_digest, actor_id, authorized_at_ms`",
+      "constraintsContract": "`UNIQUE(review_id,scope_set_digest)`；high-volume时escalation receipt必填；Batch只是一份Envelope",
+      "source": {
+        "section": "8.5.12",
+        "line": 7469,
+        "lineDigest": "6f6a4f74e1e04cf563db3b897b459abc2d5c4cf59729dc0719c36067a4db059a"
+      }
+    },
+    {
+      "id": "arca_offdeck_authorizations",
+      "owner": "arca",
+      "columnsContract": "`authorization_id PK, destruction_scope_id FK, scope_digest, actor_id, batch_id FK, authorized_at_ms, state`",
+      "constraintsContract": "`UNIQUE(destruction_scope_id,scope_digest)`；授权后不可取消或改Scope",
+      "source": {
+        "section": "8.5.12",
+        "line": 7470,
+        "lineDigest": "db1e1f835efe4418958fd09657084cb2209614e665a8eb30a5b17da8f8dd27c8"
+      }
+    }
+  ]
+}

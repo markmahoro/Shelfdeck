@@ -1,0 +1,737 @@
+{
+  "schemaVersion": 1,
+  "mapId": "helix.ssot-contract-source-map",
+  "category": "capabilities",
+  "startOrdinal": 1,
+  "endOrdinal": 56,
+  "entries": [
+    {
+      "id": "shared.material.filesystem_identity.observe@1",
+      "contractVersion": 1,
+      "owner": "execution-foundation",
+      "inputSummary": "PhysicalMaterialReadHandle",
+      "outputFamily": "FilesystemIdentityEvidence",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.3",
+        "line": 7572,
+        "lineDigest": "3c779f1d39a3f72469291269540ce40cda287c01fbc2489f41de933adfaa67ad"
+      }
+    },
+    {
+      "id": "shared.material.content_hash.compute@1",
+      "contractVersion": 1,
+      "owner": "execution-foundation",
+      "inputSummary": "PhysicalMaterialReadHandle + HashProfile",
+      "outputFamily": "ContentHashEvidence",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.3",
+        "line": 7573,
+        "lineDigest": "a49116ffe106a16d2ab00e928642626f5d43442beaa0b312971bac83445319da"
+      }
+    },
+    {
+      "id": "shared.material.media.probe@1",
+      "contractVersion": 1,
+      "owner": "execution-foundation",
+      "inputSummary": "PhysicalMaterialReadHandle|WorkspaceMaterialHandle",
+      "outputFamily": "MediaProbeEvidence",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.3",
+        "line": 7574,
+        "lineDigest": "21ce16e95b9e854aa907c3f2ea783e60c7cbdc71cc3b67ab7933301523cbaae4"
+      }
+    },
+    {
+      "id": "shared.material.layout.observe@1",
+      "contractVersion": 1,
+      "owner": "execution-foundation",
+      "inputSummary": "PhysicalMaterialReadHandle + BoundedLayoutScope",
+      "outputFamily": "LayoutEvidence",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.3",
+        "line": 7575,
+        "lineDigest": "2c9ef79a156c8efbaf548d3118dd00d614b415350dc86aa40299b10a0b936f49"
+      }
+    },
+    {
+      "id": "shared.manifest.verify@1",
+      "contractVersion": 1,
+      "owner": "execution-foundation",
+      "inputSummary": "TypedManifest + ManifestContract",
+      "outputFamily": "ManifestVerification",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.3",
+        "line": 7576,
+        "lineDigest": "97c21353c211becce2a99b5af0bfe18cd75d0426615554a67e3c477f675cfef7"
+      }
+    },
+    {
+      "id": "shared.artifact.manifest.verify@1",
+      "contractVersion": 1,
+      "owner": "execution-foundation",
+      "inputSummary": "ArtifactHandle[] + ArtifactRequirement",
+      "outputFamily": "ArtifactManifestVerification",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.3",
+        "line": 7577,
+        "lineDigest": "ac9a75f86797da9c187941deadc3781bee97cf9730a884c44292fa1b711db6c7"
+      }
+    },
+    {
+      "id": "shared.integration.availability.observe@1",
+      "contractVersion": 1,
+      "owner": "execution-foundation",
+      "inputSummary": "IntegrationHandle",
+      "outputFamily": "IntegrationAvailabilityEvidence",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.3",
+        "line": 7578,
+        "lineDigest": "e697b3a09446676cbec3dccce50f5c87b03e001e38e125178bb13914c248d02b"
+      }
+    },
+    {
+      "id": "shared.face.embedding.compute@1",
+      "contractVersion": 1,
+      "owner": "execution-foundation",
+      "inputSummary": "ArtifactHandle[] + FaceModelRef",
+      "outputFamily": "FaceEmbeddingSetHandle",
+      "effectClass": "workspace_write",
+      "source": {
+        "section": "8.6.3",
+        "line": 7579,
+        "lineDigest": "303382e21b6ebf8ed4758e802fc0e190d1c36a4f73ce51f69707a659a04bbd3e"
+      }
+    },
+    {
+      "id": "shared.face.cluster.compute@1",
+      "contractVersion": 1,
+      "owner": "execution-foundation",
+      "inputSummary": "FaceEmbeddingSetHandle + ClusterParameters",
+      "outputFamily": "FaceClusterSetHandle",
+      "effectClass": "workspace_write",
+      "source": {
+        "section": "8.6.3",
+        "line": 7580,
+        "lineDigest": "ab99299f3dabcdbda44a14805e1f391fb7abe03dd5b066789d7b5d62b01edc8e"
+      }
+    },
+    {
+      "id": "shared.face.reference.match@1",
+      "contractVersion": 1,
+      "owner": "execution-foundation",
+      "inputSummary": "FaceClusterSetHandle + PersonReferenceProjection",
+      "outputFamily": "PersonMatchEvidence",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.3",
+        "line": 7581,
+        "lineDigest": "1787818297541762f93641ae752ac862fd31ee0f8c30d4a2e05377942453ee71"
+      }
+    },
+    {
+      "id": "shared.worker.asset.register@1",
+      "contractVersion": 1,
+      "owner": "execution-foundation",
+      "inputSummary": "WorkspaceMaterialHandle|ArtifactHandle + WorkerHandle",
+      "outputFamily": "WorkerAssetReceipt",
+      "effectClass": "external_request",
+      "source": {
+        "section": "8.6.3",
+        "line": 7582,
+        "lineDigest": "65c0ce39384f0d7c72667cf36846fef0d0c2b8a6a24578aa5126bd8b21421fe9"
+      }
+    },
+    {
+      "id": "shared.worker.asset.upload@1",
+      "contractVersion": 1,
+      "owner": "execution-foundation",
+      "inputSummary": "WorkerAssetReceipt + MaterialHandle",
+      "outputFamily": "WorkerUploadReceipt",
+      "effectClass": "external_request",
+      "source": {
+        "section": "8.6.3",
+        "line": 7583,
+        "lineDigest": "4e6913ce756b9cb2256e595c73663fecead0de82b66374dfe93f31bd282cd1fb"
+      }
+    },
+    {
+      "id": "procurement.field.page.observe@1",
+      "contractVersion": 1,
+      "owner": "procurement",
+      "inputSummary": "FieldAccessHandle + cursor + pageBudget",
+      "outputFamily": "FieldObservationPage",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.4",
+        "line": 7592,
+        "lineDigest": "5f7f8af17bc2fe1f7f804c35a37a8d93fddeba49c973ad28496948855d0f6c00"
+      }
+    },
+    {
+      "id": "procurement.field.observation.commit@1",
+      "contractVersion": 1,
+      "owner": "procurement",
+      "inputSummary": "FieldObservationPage + DomainFactCommitHandle",
+      "outputFamily": "ObservationCommitResult",
+      "effectClass": "domain_fact_commit",
+      "source": {
+        "section": "8.6.4",
+        "line": 7593,
+        "lineDigest": "21aae7367d16373f21bb34ae02f3366f65eeeba391cb8442f8d8634276318224"
+      }
+    },
+    {
+      "id": "procurement.material.control.acquire@1",
+      "contractVersion": 1,
+      "owner": "procurement",
+      "inputSummary": "SelectedFieldMaterialSet + ResponsibilityControlCommitHandle",
+      "outputFamily": "ProcurementControlReceipt",
+      "effectClass": "responsibility_control_commit",
+      "source": {
+        "section": "8.6.4",
+        "line": 7594,
+        "lineDigest": "95a7948fa00711b73ff02bbb1106415b813ef40471c335e0cbd8f3b7844cda19"
+      }
+    },
+    {
+      "id": "procurement.triage.playability.inspect@1",
+      "contractVersion": 1,
+      "owner": "procurement",
+      "inputSummary": "PhysicalMaterialReadHandle[]",
+      "outputFamily": "PlayabilityEvidence",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.4",
+        "line": 7595,
+        "lineDigest": "a2329f6d724683a6d51933b33aee7632892d760a02a785e33864c5191e0e5180"
+      }
+    },
+    {
+      "id": "procurement.triage.structure.inspect@1",
+      "contractVersion": 1,
+      "owner": "procurement",
+      "inputSummary": "Material handles + MaterialFieldContext",
+      "outputFamily": "TriageStructureEvidence",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.4",
+        "line": 7596,
+        "lineDigest": "bd1c216fa886a6ad43f4c844096e85afd14f8432be3aceb66c035a2300a51e24"
+      }
+    },
+    {
+      "id": "procurement.triage.identity_claim.resolve@1",
+      "contractVersion": 1,
+      "owner": "procurement",
+      "inputSummary": "Identity Metadata + Structure Evidence",
+      "outputFamily": "IdentityClaim",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.4",
+        "line": 7597,
+        "lineDigest": "16507023239c854ccac8f3e3c80df0911008c0fafa5a8e044c9d2a8c37c473a7"
+      }
+    },
+    {
+      "id": "procurement.triage.primary_manifest.build@1",
+      "contractVersion": 1,
+      "owner": "procurement",
+      "inputSummary": "Selected materials + roles + structure",
+      "outputFamily": "PrimaryInputManifest",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.4",
+        "line": 7598,
+        "lineDigest": "7495689ae3ed2033d74069c5bb450f1bdb2ce324afed7fabeea1b906ee38ba8b"
+      }
+    },
+    {
+      "id": "procurement.candidate.publish@1",
+      "contractVersion": 1,
+      "owner": "procurement",
+      "inputSummary": "CandidateDraft + DomainFactCommitHandle",
+      "outputFamily": "CandidatePackage",
+      "effectClass": "domain_fact_commit",
+      "source": {
+        "section": "8.6.4",
+        "line": 7599,
+        "lineDigest": "b3027f80fc686599bc8a0e7930f8550091b5b1ea892ca6f222272deb152a11da"
+      }
+    },
+    {
+      "id": "libra.intake.candidate.verify@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "CandidatePackage + PrimaryInputManifest",
+      "outputFamily": "CandidateContractVerification",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.5",
+        "line": 7608,
+        "lineDigest": "80d3ad778a5093af707b87b9893cb757e79ca240b3d7777ed63c081332101564"
+      }
+    },
+    {
+      "id": "libra.intake.material.verify@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "Material handles + Candidate snapshot",
+      "outputFamily": "IntakeMaterialVerification",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.5",
+        "line": 7609,
+        "lineDigest": "00750b81f23ebc5d1cb55dd2444da4e49ec8f95b0d780a8456bd4d6c8f98d27c"
+      }
+    },
+    {
+      "id": "libra.intake.binding.resolve@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "Candidate material/location evidence",
+      "outputFamily": "LibraBindingDraft",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.5",
+        "line": 7610,
+        "lineDigest": "9ed49b438179d81a0118b9ab99d22bdc701eccf1c59516e67ee23b7023a4b3b4"
+      }
+    },
+    {
+      "id": "libra.intake.rejection.commit@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "StructuredRejection + DomainFactCommitHandle",
+      "outputFamily": "RejectionReceipt",
+      "effectClass": "domain_fact_commit",
+      "source": {
+        "section": "8.6.5",
+        "line": 7611,
+        "lineDigest": "702f6f1271f91bc545e19f434997449f257d016ed329b98087bcf8b27516cfd2"
+      }
+    },
+    {
+      "id": "libra.intake.accept.commit@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "Accepted intake payload + ResponsibilityControlCommitHandle",
+      "outputFamily": "SubjectAndTransferReceipt",
+      "effectClass": "responsibility_control_commit",
+      "source": {
+        "section": "8.6.5",
+        "line": 7612,
+        "lineDigest": "ca73c7e69eca2b6d5b3267f58eeb3c3038f2edcf16a87133583bb56a59c561a1"
+      }
+    },
+    {
+      "id": "libra.decision.query.resolve@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "CanonicalQueryHandle",
+      "outputFamily": "VersionedQueryResult",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.5",
+        "line": 7613,
+        "lineDigest": "da53a0601b2e71cced3fcfc8b4226c97a8fdd931bbc8502cd98c75bea6296694"
+      }
+    },
+    {
+      "id": "libra.product_identity.resolve@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "IdentityClaim + Decision Evidence + ProductStructure",
+      "outputFamily": "ResolvedProductIdentity",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.5",
+        "line": 7614,
+        "lineDigest": "6dce1265b0101081f5902721342d86b96e19ad4165b69dd8ef7b9cf241da261f"
+      }
+    },
+    {
+      "id": "libra.product_metadata.fetch@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "ResolvedProductIdentity + contentProfile + IntegrationHandle",
+      "outputFamily": "MetadataObservation",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.5",
+        "line": 7615,
+        "lineDigest": "b589704ed80956e2a8a5079066cb9fd7b137fbc0964ab85b0aa9d3da9bcbb094"
+      }
+    },
+    {
+      "id": "libra.decision_basis.commit@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "DecisionInputSet + DomainFactCommitHandle",
+      "outputFamily": "DecisionBasisRevision",
+      "effectClass": "domain_fact_commit",
+      "source": {
+        "section": "8.6.5",
+        "line": 7616,
+        "lineDigest": "c2bee393c7c5ceb06c831e38901c577c13ddb5eb7838e2a8bf622737543c2af9"
+      }
+    },
+    {
+      "id": "libra.media.frames.extract@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "Material handle + SamplingPlan",
+      "outputFamily": "FrameArtifactSet",
+      "effectClass": "workspace_write",
+      "source": {
+        "section": "8.6.6",
+        "line": 7626,
+        "lineDigest": "ef60c01a679d1da9ffa5ef53961cac2705102f561a826dc413d55bdfe32cece2"
+      }
+    },
+    {
+      "id": "libra.western.analysis.request@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "WorkerUploadReceipt + AnalysisSpec",
+      "outputFamily": "ExternalJobReceipt",
+      "effectClass": "external_request",
+      "source": {
+        "section": "8.6.6",
+        "line": 7627,
+        "lineDigest": "2b82e44cc0c4d1b0d1016829669c832eedfbd3af8bf8ad11189d4f678e73dca9"
+      }
+    },
+    {
+      "id": "libra.western.analysis.observe@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "ExternalJobReceipt",
+      "outputFamily": "WesternAnalysisResult",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.6",
+        "line": 7628,
+        "lineDigest": "15a3590287fb1b6ecea2d6b438fef6cd583b20d0ad6ff89c20f7d9b46e97ddff"
+      }
+    },
+    {
+      "id": "libra.western.poster.render@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "PersonMatchEvidence + FrameArtifactSet",
+      "outputFamily": "ArtifactHandle",
+      "effectClass": "workspace_write",
+      "source": {
+        "section": "8.6.6",
+        "line": 7629,
+        "lineDigest": "09b01e07391da03beeefecfb505ca33d3f4aa0e89429ba3a3dc45c0171b89609"
+      }
+    },
+    {
+      "id": "libra.western.metadata.normalize@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "WesternAnalysisVariant",
+      "outputFamily": "ProductMetadataDraft",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.6",
+        "line": 7630,
+        "lineDigest": "87f1db07bb0699a6d907659194b9cc298b82105b0034e5240f56c8fff879c872"
+      }
+    },
+    {
+      "id": "libra.media_cast.resolve@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "MetadataObservation + PersonReferenceProjection",
+      "outputFamily": "MediaCastDraft",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.6",
+        "line": 7631,
+        "lineDigest": "f95414fd25dcd1f64c09fca09c023ed13c3941d1a5dc63c820930cd57e96cd3e"
+      }
+    },
+    {
+      "id": "libra.media_cast.commit@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "MediaCastDraft + DomainFactCommitHandle",
+      "outputFamily": "MediaCastFact",
+      "effectClass": "domain_fact_commit",
+      "source": {
+        "section": "8.6.6",
+        "line": 7632,
+        "lineDigest": "17a3f413babedf3af868f1772e9a19dd30003a53239a2e52d3da794313147bdf"
+      }
+    },
+    {
+      "id": "libra.product_sidecar.render@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "ProductMetadataDraft + SidecarProfile",
+      "outputFamily": "ArtifactHandle",
+      "effectClass": "workspace_write",
+      "source": {
+        "section": "8.6.6",
+        "line": 7633,
+        "lineDigest": "15a7d89c84badd6020622e0397e8d63040e7a16843bb2c209ba2ffc7b1225ad8"
+      }
+    },
+    {
+      "id": "libra.product_artifact.acquire@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "ProductMetadataDraft + artifactKind + IntegrationHandle",
+      "outputFamily": "ArtifactAcquisitionResult",
+      "effectClass": "workspace_write",
+      "source": {
+        "section": "8.6.6",
+        "line": 7634,
+        "lineDigest": "6f6499bab8bb10e7dcc8e9229beb062e533126492e652453ac2efc3143d84cf9"
+      }
+    },
+    {
+      "id": "libra.product_metadata.commit@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "ProductMetadataDraft + VerifiedArtifactManifest + DomainFactCommitHandle",
+      "outputFamily": "ProductMetadataFact",
+      "effectClass": "domain_fact_commit",
+      "source": {
+        "section": "8.6.6",
+        "line": 7635,
+        "lineDigest": "06245ff89a480cbdc9050739085acd3978824274b8d94fbbaf722adb71e3a502"
+      }
+    },
+    {
+      "id": "libra.transcode.input.verify@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "Material handle + EncodeIntent",
+      "outputFamily": "TranscodeInputVerification",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.7",
+        "line": 7644,
+        "lineDigest": "7e3dd0dd3ad7d4bbb44093fd6a68fddf7c8fe8d45defdc22c44da21b3399c066"
+      }
+    },
+    {
+      "id": "libra.media.remux@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "Material handle + RemuxIntent",
+      "outputFamily": "WorkspaceMediaHandle",
+      "effectClass": "workspace_write",
+      "source": {
+        "section": "8.6.7",
+        "line": 7645,
+        "lineDigest": "a8a78da685d0a729a7d56d4f58a82391317e0fab5e90a164d84f493c93d68af2"
+      }
+    },
+    {
+      "id": "libra.media.transcode@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "Material handle + EncodeIntent",
+      "outputFamily": "WorkspaceMediaHandle",
+      "effectClass": "workspace_write",
+      "source": {
+        "section": "8.6.7",
+        "line": 7646,
+        "lineDigest": "0e3dadb1b3a43510bf89001548fe717332e6fac6db5a58d84d8367eb7754aa9c"
+      }
+    },
+    {
+      "id": "libra.product_media.verify@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "MediaProbeEvidence + MediaRequirement",
+      "outputFamily": "ProductMediaVerification",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.7",
+        "line": 7647,
+        "lineDigest": "3582d4972fba747457c5b47843b8610f71a3d0bed71e8f61a14c145d17d1e1d1"
+      }
+    },
+    {
+      "id": "libra.product_output.select@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "ProductMediaVerification[]",
+      "outputFamily": "SelectedWorkspaceProduct",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.7",
+        "line": 7648,
+        "lineDigest": "aa0ccc698b6b1a39b1b73081dc529a55be544d0439505b5595b99a99c7058c25"
+      }
+    },
+    {
+      "id": "libra.product.conformance.verify@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "Product Facts + Acceptance Spec",
+      "outputFamily": "ProductConformanceEvidence",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.7",
+        "line": 7649,
+        "lineDigest": "1d672bc56d8ca9562a03e2ab9c3826f08e3ad9916940ea95532538aa098a2739"
+      }
+    },
+    {
+      "id": "libra.product_package.publish@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "Verified product + manifests + ResponsibilityControlCommitHandle",
+      "outputFamily": "OnDeckProductPackage",
+      "effectClass": "responsibility_control_commit",
+      "source": {
+        "section": "8.6.7",
+        "line": 7650,
+        "lineDigest": "7097afe7d6e29d4c0a9e91f2c5376d6c95f29e870460fa3ddf3f1ea27028b16a"
+      }
+    },
+    {
+      "id": "libra.workspace.material.reclaim@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "Workspace handles + ReferenceEvidence",
+      "outputFamily": "ReclamationReceipt",
+      "effectClass": "workspace_write",
+      "source": {
+        "section": "8.6.7",
+        "line": 7651,
+        "lineDigest": "cef92055ad512942b724f26178eb324deb2e6a954a151301ed1f8652e3a651cd"
+      }
+    },
+    {
+      "id": "libra.workspace.cleanup.commit@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "Verified Workspace deletion evidence + ResponsibilityControlCommitHandle",
+      "outputFamily": "WorkspaceCleanupCommitReceipt",
+      "effectClass": "responsibility_control_commit",
+      "source": {
+        "section": "8.6.7",
+        "line": 7652,
+        "lineDigest": "0842f68a565f7bcf8021deafcfcd0380a4f62d5d25d672f57d20fc28940a74d5"
+      }
+    },
+    {
+      "id": "libra.external_material.query.prepare@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "ResolvedProductIdentity + ProductStructure",
+      "outputFamily": "AcquisitionQuery",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.8",
+        "line": 7671,
+        "lineDigest": "cc34464295093a27cf0134e1887e5d488ebb6d1488ab2d90fb686892e4fce131"
+      }
+    },
+    {
+      "id": "libra.external_material.search@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "AcquisitionQuery + IntegrationHandle",
+      "outputFamily": "AcquisitionCandidates",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.8",
+        "line": 7672,
+        "lineDigest": "272ea3787ea7ee72a188edb57852075a8230470e04de7df600f0e01570a7ad72"
+      }
+    },
+    {
+      "id": "libra.external_material.candidate.select@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "Candidates + SelectionCriteria",
+      "outputFamily": "SelectedCandidate",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.8",
+        "line": 7673,
+        "lineDigest": "1b4eeedfe203459b1b943a25b9eb1c7b287c47c5461795de00299cdafd1f104c"
+      }
+    },
+    {
+      "id": "libra.external_material.acquire.request@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "SelectedCandidate + WorkspaceDeliveryContract + IntegrationHandle",
+      "outputFamily": "ExternalJobReceipt",
+      "effectClass": "external_request",
+      "source": {
+        "section": "8.6.8",
+        "line": 7674,
+        "lineDigest": "1fbaaf3302a2dd833ae99c0c9895bfdeb0fe051fffe5ad0a766e2a78828608cf"
+      }
+    },
+    {
+      "id": "libra.external_material.acquire.observe@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "ExternalJobReceipt + phase",
+      "outputFamily": "AcquisitionObservation",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.8",
+        "line": 7675,
+        "lineDigest": "35c13d0e6a1de81f0eff4fa972f7eb13668afe227bef6ad942a84b603473cc6b"
+      }
+    },
+    {
+      "id": "libra.external_material.output.resolve@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "AcquisitionObservation + ProductStructure",
+      "outputFamily": "ExternalMaterialHandle",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.8",
+        "line": 7676,
+        "lineDigest": "b568207325c6a7693b7356777dcd72cffce8db202fc8887e864b4cbbcd2c370f"
+      }
+    },
+    {
+      "id": "libra.external_material.stability.observe@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "ExternalMaterialHandle",
+      "outputFamily": "StableExternalMaterialEvidence",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.8",
+        "line": 7677,
+        "lineDigest": "fbc109a53424d1f92f01ee89e5a483cba98e06fdb1d056bdf7e698026e8af81f"
+      }
+    },
+    {
+      "id": "libra.external_material.identity.verify@1",
+      "contractVersion": 1,
+      "owner": "libra",
+      "inputSummary": "Stable evidence + ResolvedProductIdentity",
+      "outputFamily": "IdentityVerification",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.8",
+        "line": 7678,
+        "lineDigest": "680e753368172bd01c9a76add6645eea58e29e66ab6f339e4296b99b78e2ef94"
+      }
+    }
+  ]
+}
