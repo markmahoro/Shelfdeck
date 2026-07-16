@@ -1,8 +1,8 @@
 # ShelfDeck Clean Helix Current Phase Execution Packet
 
-Current phase: `P2 — Contract and Schema Baseline`
+Current phase: `P3 — Persistence and Atomic Foundation`
 
-Status: in progress；P2-00–P2-07 complete；P2-08 next；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P3-00 next；P2 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-16
 
@@ -12,183 +12,165 @@ Last updated: 2026-07-16
 
 1. `../TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`；
 2. `../CURRENT_PLAN.md`；
-3. `../ENGINEERING_PLAYBOOK.md`。
+3. `../ENGINEERING_PLAYBOOK.md`；
+4. P2冻结的112/96/156/18 machine-readable contract baseline。
 
 用户授权Codex自主推进P2–P13 Local Implementation。每个Phase在SSOT traceability、机器反例和Exit Audit全部PASS
-后，可自动归档并进入下一Phase。不得修改SSOT，不得引入compatibility、dual-read/write/run或旧Runtime fallback。
+后自动归档并进入下一Phase。不得修改SSOT，不得引入compatibility、dual-read/write/run或旧Runtime fallback。
 
-继续需要单独授权：真实来源E2E、Docker/Canary、生产、真实媒体副作用和`media-desktop`。只有真实业务决策或
-SSOT冲突向用户提问；工程选择由Codex负责。
+继续需要单独授权：真实来源E2E、Docker/Canary、生产、真实媒体副作用和`media-desktop`。
 
 ## 2. Phase objective
 
-把SSOT中已经Accepted的Capability、Result、relational table和canonical transaction合同转换为版本化、可计算
-digest、可由机器闭合引用的P2 contract/schema baseline。P2只冻结“后续实现必须满足什么”，不实现Repository、
-SQLite Kernel、Runtime、Domain行为、API或UI。
+以P2合同为唯一实现输入，建立clean `shelfdeck.db`的Persistence与原子提交基础：156表clean schema、唯一SQLite
+Kernel、Owner-scoped Repository/Unit of Work、Commit Marker、Command Receipt、Outbox/Inbox、Audit与Material Control CAS。
+18项canonical transaction必须在隔离临时数据库中证明“全部成立或全部不成立”。
 
-P2完成时必须成立：
-
-- 112/112 Capability ref各有唯一immutable v1 contract package；
-- 96/96 Result family和全部shared handle/envelope具有JSON Schema 2020-12定义；
-- 156/156 table具有Owner、prefix、columns、PK/FK、unique/index、revision/current-pointer、JSON limit和SSOT locator；
-- 18/18 canonical transaction具有Owner、participant、atomic fact set、required tables和crash fixture contract；
-- 所有`$ref`、Owner、Effect Class、Fence、Resource Demand、Approval/Authorization和transaction/table引用闭合；
-- Catalog、Schema和transaction aggregate digest稳定；
-- P3可以只按P2合同实现Persistence，不需要重新解释SSOT或借用旧Schema。
+P3不实现Work/Event Runtime、Domain业务行为、HTTP/API/UI，也不接旧产品Composition Root。
 
 ## 3. Baseline and protected workspace
 
 | Field | Value |
 | --- | --- |
 | P0 code audit baseline | `4a16f0a94ef23fcf732843e9547bd7b724d9c19d` |
-| P1 closure / P2 implementation baseline | `c52e67fa2b49c605d0971f2150238ea37c50816a` |
+| P2 audited implementation | `460e25f576fc7ca43f73f2181124985a5a7abb9a` |
+| P3 implementation baseline | P3-00 records the exact P2 closure commit |
 | Integration branch | `codex/helix-clean` |
-| Phase branch | `codex/helix-p2` |
-| Phase worktree | `E:\my_project\emby_third_party-helix-p2` |
+| Phase branch/worktree | P3-00 creates isolated `codex/helix-p3` worktree |
 | Original workspace | `E:\my_project\emby_third_party` on `master`；dirty user work preserved |
-| Excluded | `media-desktop`、user analysis script、E2E/Docker/production/real media |
+| Excluded | `media-desktop`、E2E、Docker/Canary、production、real media、legacy data migration |
 
 ## 4. In scope
 
-- machine-readable SSOT source locators and extraction fixtures；
-- shared nominal types、handles、Outcome/envelopes；
-- 112 Capability v1 package manifests and referenced schemas；
-- 96 Result family schemas；
-- 156 relational table contracts；
-- 18 canonical transaction contracts；
-- digest、duplicate、count、Owner、Effect、reference and schema validation；
-- isolated contract tests and Phase Exit Evidence。
+- deterministic clean DDL compilation from 156 P2 table contracts；
+- one SQLite Kernel and clean schema generation marker；
+- Owner-scoped Repository ports and Unit of Work；
+- Command Receipt、Commit Marker、Audit、Outbox/Inbox/Delivery；
+- Material Control current row/revision CAS；
+- typed Domain/Control/Foundation CommitParticipant registry；
+- 18 canonical transaction atomic/crash fixtures on disposable local DBs；
+- foreign-key、partial-unique、JSON/check/index and startup integrity validation。
 
 ## 5. Out of scope
 
-- DDL execution、migration、database connection、Repository or UoW implementation；
-- Work/Event/Effect Runtime、Resource Governor or recovery loop；
-- Domain aggregate behavior、Facade、Planner or Capability executor；
-- HTTP route、Auth、Projection or Admin Web；
-- old schema migration、dual-read/write、fallback or cutover；
-- real filesystem/media/network effects。
+- old DB migration、import、dual-read/write、compatibility views or fallback；
+- Runtime Work/Plan/Event/Effect execution and recovery loop；
+- real Domain aggregate behavior、Planner、Capability executor、Facade；
+- server startup wiring、HTTP、Admin Web、`media-desktop`；
+- real filesystem/media/network effects；
+- E2E、Docker、Canary or production。
 
-P2 Schema是实现合同，不是可运行数据库。不得创建空壳Repository、伪成功Executor或为了测试而连接旧Store。
+所有数据库fixture必须使用临时目录并在测试结束后销毁；不得打开原工作区`data/`或生产数据库。
 
 ## 6. Work Package index
 
 | ID | Title | Status | Dependencies |
 | --- | --- | --- | --- |
-| P2-00 | Standing authorization and isolated baseline receipt | complete | P1 PASS |
-| P2-01 | SSOT extraction oracle and source map | complete | P2-00 |
-| P2-02 | Shared nominal type and envelope registry | complete | P2-01 |
-| P2-03 | 112 Capability immutable contract packages | complete | P2-01、P2-02 |
-| P2-04 | 96 Result family schema closure | complete | P2-02、P2-03 |
-| P2-05 | 156 relational table contract inventory | complete | P2-01 |
-| P2-06 | 18 canonical transaction and participant inventory | complete | P2-05 |
-| P2-07 | Cross-inventory contract verification harness | complete | P2-02–P2-06 |
-| P2-08 | P2 Phase Exit Audit and evidence freeze | next | P2-00–P2-07 |
+| P3-00 | P2 closure and isolated P3 baseline receipt | next | P2 PASS |
+| P3-01 | Deterministic 156-table clean DDL compiler | pending | P3-00；P2 tables |
+| P3-02 | SQLite Kernel and clean schema generation gate | pending | P3-01 |
+| P3-03 | Owner-scoped Repository and Unit of Work boundaries | pending | P3-02 |
+| P3-04 | Commit Marker、Command Receipt and Audit foundation | pending | P3-03 |
+| P3-05 | Outbox、Delivery and Inbox atomic foundation | pending | P3-03–P3-04 |
+| P3-06 | Material Control CAS current/revision participant | pending | P3-03–P3-04 |
+| P3-07 | Typed Domain Commit Registry and participant coordinator | pending | P3-03–P3-06 |
+| P3-08 | 18 canonical transaction crash-window fixtures | pending | P3-07 |
+| P3-09 | Cross-persistence verification harness | pending | P3-01–P3-08 |
+| P3-10 | P3 Phase Exit Audit and evidence freeze | pending | P3-00–P3-09 |
 
 ## 7. Work Package contracts
 
-### P2-00 Standing authorization and isolated baseline receipt
+### P3-00 P2 closure and isolated P3 baseline receipt
 
-- Record standing authorization without broadening external-environment permission.
-- Create clean P2 branch/worktree from exact P1 closure commit.
-- Reconfirm original dirty workspace and excluded files remain untouched.
-- Done: baseline receipt committed and P2-01 can run without user input.
+- Fast-forward P2 closure into `codex/helix-clean` and create clean P3 branch/worktree from the exact commit.
+- Re-run frozen P2 contract gate and verify original dirty workspace/`media-desktop` remain untouched.
+- Record exact baseline; no Persistence code starts before receipt PASS.
 
-### P2-01 SSOT extraction oracle and source map
+### P3-01 Deterministic 156-table clean DDL compiler
 
-- Parse only the accepted SSOT ranges for Catalog、Result registry、table rows and canonical transactions.
-- Every extracted item receives stable ID、section/line locator、raw contract digest and Owner classification.
-- Hand-maintained manifest and extractor output must cross-check; SSOT prose is not modified.
-- Negative fixtures: duplicate row、missing locator、count drift、unknown section、ambiguous table/capability parse all fail closed.
+- Compile only P2 table contracts into deterministic SQLite DDL, checks, indexes and FK declarations.
+- Emit no legacy table/view/trigger and no migration from old Runtime facts.
+- Every table/index/check maps back to one P2 contract and digest; unsupported contract shapes fail closed.
 
-### P2-02 Shared nominal type and envelope registry
+### P3-02 SQLite Kernel and clean schema generation gate
 
-- Implement JSON Schema 2020-12 contracts for §8.6.18 handles and common Outcome/Evidence/Verification/Fact/Receipt/Manifest/Draft envelopes.
-- Enforce stable `$id`、`additionalProperties:false`、opaque identity、digest/time/revision constraints and bounded arrays/JSON.
-- No raw path、Config、Store、Facade、Planner、Runtime or unverified payload type is allowed.
+- Implement the only SQLite connection/transaction Kernel with required PRAGMA and same-commit timestamp injection.
+- Validate schema generation、Catalog digest、`foreign_key_check` and partial-unique self-check before writable use.
+- Tests use disposable databases only；no server startup wiring or local `data/` access.
 
-### P2-03 112 Capability immutable contract packages
+### P3-03 Owner-scoped Repository and Unit of Work boundaries
 
-- Each Catalog ref has exactly one `contracts/capabilities/<domain>/<name>/v1/` package with the eight SSOT-required files.
-- Manifest fixes Owner、Effect Class、named ports、schema refs、Fence、Resource、idempotency and optional Approval/Authorization.
-- Catalog summary input/output is translated to named typed ports without inventing Business decisions.
-- No Executor code or registration is created in P2.
-- Done: 112/112 Catalog refs materialized as 896 immutable contract files；Capability inventory active；package aggregate digest
-  `ce353a4ccb712d56354412824ad7793265a176240240521f3f90a3f61b2d97ae`；all package/manifest/architecture
-  fixtures PASS. The 235 intentionally unresolved domain/result refs are the explicit P2-04 input, not a closed graph claim.
+- Expose scoped transaction contexts that can obtain only declared Owner/Foundation/Control participants.
+- Repository cannot write another aggregate/table set；Foundation cannot obtain Domain Repository.
+- Negative fixtures reject undeclared table、cross-Domain write、nested authority escape and raw SQL outside the Kernel/compiler.
 
-### P2-04 96 Result family schema closure
+### P3-04 Commit Marker、Command Receipt and Audit foundation
 
-- Every Catalog output resolves to one accepted Result family or direct shared handle.
-- Every schema inherits the correct envelope and mandatory payload from §8.6.19.
-- `deferred|failed|fence_rejected` remain Outcome variants, never business Result variants.
-- Contract graph has zero unresolved `$ref` and zero undeclared output family.
-- Done: 96/96 Result inventory active；86 nominal Catalog Result schemas、9 direct shared Result types、one
-  `CapabilityOutcome` and three SSOT helper schemas are accounted for. Catalog inputs resolve through 26 bounded contracts and
-  59 accepted DTOs；191 referenced type IDs / zero unresolved refs. Result registry digest
-  `e5963ae477cd1181de935f92f09c1773279cafa4745ff10002fa82024505e004`；domain-input registry digest
-  `ac3bae51336b7ec7eda32a1f6dc19904ce6047989ba8cdd1fa4b253325deba69`.
+- Commit Marker is immutable and globally unique；Audit is append-only.
+- Command Receipt is written with Owner modification and enforces same-key/same-digest replay vs same-key/different-digest rejection.
+- No receipt can survive without its canonical fact set.
 
-### P2-05 156 relational table contract inventory
+### P3-05 Outbox、Delivery and Inbox atomic foundation
 
-- Convert §8.5.10–§8.5.13 rows into exact machine-readable table contracts.
-- Record sole Owner、prefix、columns、PK/FK、unique/partial unique、hot index、immutability、revision/current pointer、JSON schema/limit and delete restriction.
-- Foundation cannot FK to Domain；`platform_*` cannot reference Domain；`read_*` remains rebuildable and non-canonical.
-- P2 does not emit or execute migration SQL.
-- Done: 156/156 table contracts and inventory active across eight sole Owners；all PKs、148 inline FKs、30 JSON columns and
-  every current revision pointer close mechanically. Foundation/Platform reverse Domain FKs fail closed；all canonical FKs use
-  `ON DELETE RESTRICT`. Inventory contract digest
-  `90b5ecc43ba6dbfe59e3c36181d948f7df4b08139d39b0abacbf63017b364c88`. No DDL was emitted or executed.
+- Freeze intended consumers in the producer transaction；Delivery/Inbox dedup is durable.
+- Ack/retry state never changes canonical Domain ownership and cannot write consumer Domain facts directly.
+- Crash fixtures cover commit-before-dispatch、duplicate delivery and consume-before-ack.
 
-### P2-06 18 canonical transaction and participant inventory
+### P3-06 Material Control CAS current/revision participant
 
-- Record exact atomic fact set、Owner、Domain/Control/Foundation participants、required tables、CAS/fence、receipt/outbox and rollback invariant.
-- Cross-Domain Accepted writes receiving facts、Control and Outbox only；never upstream Store.
-- Crash fixture contract is declared for P3/P4 implementation, but no transaction executes in P2.
-- Done: 18/18 canonical transaction contracts active；10 Responsibility Control commits bind exact Domain、Material Control
-  and Foundation participants；19 crash-fixture bindings cover every transaction. Handoff upstream Store writes、Batch-before-Case
-  ordering and non-destructive Deregistration are machine-negative contracts. Inventory digest
-  `6e942ae353e6517632235d1ad4556f15173f8bb496b235c785d722575e851725`；no transaction executed.
+- Enforce one current Control per Physical Material Identity and append-only revision history.
+- Acquire/transfer/release/replace require expected revision and exact scope digest；failed CAS rolls back all participants.
+- Material Identity、Binding and Control remain separate；no global media business ID is introduced.
 
-### P2-07 Cross-inventory contract verification harness
+### P3-07 Typed Domain Commit Registry and participant coordinator
 
-- One local command checks 112/96/156/18 counts、unique IDs、all refs、Owner/prefix、Effect Class、handle restrictions and stable aggregate digest.
-- Every rule has positive and negative fixtures; parse/schema/reference failure returns non-zero.
-- Harness must not start service、open DB、create Runtime data、bind port or read credentials/media roots.
-- Done: `npm run test:helix-architecture` reports `P2_LOCAL_ISOLATED_CONTRACT_BASELINE` and validates all P1 guards plus
-  SSOT/source、type、Capability、table and transaction components in one process. Exact counts are 112/96/156/18，type refs
-  are 191/0 unresolved，and the frozen P2 aggregate digest is
-  `ebbfda8885837170d48a0feb8f3aaad9a32aa35c44dc2db21704f820a6e3fc4a`. Aggregate drift and CLI failure fixtures PASS.
+- Resolve only manifest-declared Owner/fact schema handles；no generic SQL participant or Executor Repository access.
+- Coordinate Domain、Material Control and Foundation participants inside one Kernel Unit of Work.
+- Handoff participants cannot obtain or write upstream Store.
 
-### P2-08 P2 Phase Exit Audit and evidence freeze
+### P3-08 18 canonical transaction crash-window fixtures
 
-- Reverse-audit from SSOT, not from generated file count.
-- Prove no implementation behavior、DDL execution、legacy compatibility or startup wiring entered P2.
-- Freeze baseline commit、commands、aggregate digest、known limitations and implementation commit.
-- PASS automatically archives this packet and opens P3 Local Implementation under the standing authorization.
+- Implement all P2 transaction contracts on disposable DBs with fault injection before/after every participant and commit boundary.
+- Assert all-or-nothing fact sets、fences、CAS、receipt/outbox and forbidden write sets.
+- Filesystem/Provider effects remain mocked receipts；no real media side effect.
+
+### P3-09 Cross-persistence verification harness
+
+- One local command validates DDL digest、156 tables、FK/check/index contracts、Owner write gates and 18 atomic fixtures.
+- Harness fails on legacy schema、compatibility object、unknown table/participant or DB path outside its temp root.
+- It must not start Service、bind port、read credentials or invoke E2E/Docker.
+
+### P3-10 P3 Phase Exit Audit and evidence freeze
+
+- Reverse-audit from P2/SSOT contracts rather than implementation file counts.
+- Prove no Runtime/Domain/API/UI behavior、legacy migration、dual path or external side effect entered P3.
+- PASS archives this packet and opens P4 under standing authorization.
 
 ## 8. Execution order
 
 ~~~text
-P2-00 → P2-01 → P2-02 ─┬→ P2-03 → P2-04 ─┐
-                         └→ P2-05 → P2-06 ─┤→ P2-07 → P2-08
+P3-00 → P3-01 → P3-02 → P3-03 → P3-04 ─┬→ P3-05 ─┐
+                                           └→ P3-06 ─┴→ P3-07 → P3-08 → P3-09 → P3-10
 ~~~
 
-P2-03/04与P2-05/06可以在P2-01 source map冻结后并行，但不得各自维护第二份type/Owner registry。发生冲突时以
-SSOT locator和single registry串行收敛，不使用alias、placeholder或temporary exception。
+## 9. Exit Gate
 
-## 9. Phase Exit Gate
+P3只有同时满足以下条件才能标记PASS：
 
-- 112/112 Capability、96/96 Result、156/156 table、18/18 transaction mechanically closed；
-- all item IDs unique；all Owners、locators、schema refs and transaction table refs resolved；
-- Effect Class/Fence/Resource/Approval/Authorization match SSOT；
-- table prefix、FK direction、immutable/revision/current pointer and JSON limits pass；
-- aggregate digest stable across repeated runs；
-- clean root has no P2→legacy import、Executor、Repository、DB connection、DDL execution or startup wiring；
-- no undocumented reuse、whole-executor reuse、compatibility or dual path；
-- isolated negative fixtures and reverse Exit Audit PASS；
-- diff excludes `media-desktop`、runtime data、generated build artifacts and original user changes。
+1. 156/156 schema contracts编译并通过SQLite integrity/FK/index/check验证；
+2. 唯一Kernel与Owner-scoped UoW没有跨Owner raw SQL escape；
+3. Command Receipt、Commit Marker、Audit、Outbox/Inbox和Material Control CAS负例全部通过；
+4. 18/18 canonical transaction在fault injection下全成或全不成；
+5. clean DB不包含legacy/compatibility/dual objects，不读取旧Runtime data；
+6. P2 contract gate和P3 persistence gate均PASS；
+7. Exit Audit确认未触碰SSOT、E2E、Docker/production、real media或`media-desktop`。
 
 ## 10. Stop conditions
 
-Only stop and ask the user when SSOT has a genuine contradiction or a decision changes user intent、visible business outcome、irreversible
-Authorization、Business Domain/Owner/Handoff or business-object continuity. Engineering ambiguity is resolved locally and documented.
+只有以下情况暂停并询问用户：
+
+- P2合同无法唯一实现且与SSOT发生真实冲突；
+- 需要改变Business结果、Owner、Handoff或不可逆授权；
+- 需要扩大到E2E、Docker/Canary、production、real media或`media-desktop`。
+
+普通SQLite/DDL/Repository/测试工程选择由Codex自主处理。
