@@ -7,7 +7,8 @@ const path = require('node:path');
 
 const P4_BASELINE = '4a59356f3a89f1af38f594763aaaa0465e203b99';
 const AUTHORIZED_SSOT_REPAIR = '4f3c41b9';
-const EXPECTED_SSOT_DIGEST = '8b250ce46f852c65b0843ef9a6e58dcf12d33258c22f3895ed7b0e513e5ba934';
+const EXPECTED_SSOT_BLOB_DIGEST = '962ff08531ce7f497d7939745784d469f576341d583fa8ba75d58e59b7554d2e';
+const EXPECTED_SSOT_AGGREGATE_DIGEST = '8b250ce46f852c65b0843ef9a6e58dcf12d33258c22f3895ed7b0e513e5ba934';
 const ALLOWED_DOCS = new Set([
   'docs/helix/CURRENT_PLAN.md', 'docs/helix/CURRENT_STATUS.md', 'docs/helix/implementation/CURRENT_PHASE.md',
   'docs/helix/implementation/evidence/P2_P4_IMMUTABLE_PLAN_PERSISTENCE_REPAIR_4F3C41B9.md'
@@ -91,9 +92,12 @@ function auditP4Exit(options) {
     const absolute = path.join(repositoryRoot, relativePath);
     if (fs.existsSync(absolute) && fs.statSync(absolute).isFile()) findings.push(...prohibitedProductionFindings(relativePath, fs.readFileSync(absolute, 'utf8')));
   }
-  const ssotPath = path.join(repositoryRoot, 'docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md');
-  const ssotDigest = sha256(fs.readFileSync(ssotPath));
-  if (ssotDigest !== EXPECTED_SSOT_DIGEST) findings.push({ code: 'P4_SSOT_DIGEST_NOT_AUTHORIZED', expected: EXPECTED_SSOT_DIGEST, actual: ssotDigest });
+  const ssotBlob = childProcess.spawnSync('git', ['show', 'HEAD:docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md'], { cwd: repositoryRoot }).stdout;
+  const ssotBlobDigest = sha256(ssotBlob);
+  const sourceMap = JSON.parse(fs.readFileSync(path.join(repositoryRoot, 'media-service/src/helix/contracts/manifests/ssot-source-map.json'), 'utf8'));
+  const ssotAggregateDigest = sourceMap.aggregateDigest;
+  if (ssotBlobDigest !== EXPECTED_SSOT_BLOB_DIGEST) findings.push({ code: 'P4_SSOT_BLOB_NOT_AUTHORIZED', expected: EXPECTED_SSOT_BLOB_DIGEST, actual: ssotBlobDigest });
+  if (ssotAggregateDigest !== EXPECTED_SSOT_AGGREGATE_DIGEST) findings.push({ code: 'P4_SSOT_AGGREGATE_DRIFT', expected: EXPECTED_SSOT_AGGREGATE_DIGEST, actual: ssotAggregateDigest });
   if (git(repositoryRoot, ['merge-base', '--is-ancestor', AUTHORIZED_SSOT_REPAIR, 'HEAD'], true).status !== 0) findings.push({ code: 'P4_AUTHORIZED_SSOT_REPAIR_MISSING' });
   if (!changedFiles.includes('docs/helix/implementation/evidence/P2_P4_IMMUTABLE_PLAN_PERSISTENCE_REPAIR_4F3C41B9.md')) findings.push({ code: 'P4_SSOT_REPAIR_EVIDENCE_MISSING' });
   if (changedFiles.some((file) => file.startsWith('media-desktop/'))) findings.push({ code: 'MEDIA_DESKTOP_TOUCHED_DURING_P4' });
@@ -107,7 +111,8 @@ function auditP4Exit(options) {
     baselineCommit: P4_BASELINE,
     auditedCommit: git(repositoryRoot, ['rev-parse', 'HEAD']).stdout,
     authorizedSsotRepair: AUTHORIZED_SSOT_REPAIR,
-    ssotDigest,
+    ssotBlobDigest,
+    ssotAggregateDigest,
     changedFileCount: changedFiles.length,
     changedPathClasses: classes,
     trackedFoundationFileCount: trackedFoundation.length,
@@ -120,4 +125,5 @@ function auditP4Exit(options) {
     evidenceDigest: digestValue(evidence), findings };
 }
 
-module.exports = Object.freeze({ P4_BASELINE, EXPECTED_SSOT_DIGEST, auditP4Exit, classifyChangedPath, prohibitedProductionFindings });
+module.exports = Object.freeze({ P4_BASELINE, EXPECTED_SSOT_BLOB_DIGEST, EXPECTED_SSOT_AGGREGATE_DIGEST,
+  auditP4Exit, classifyChangedPath, prohibitedProductionFindings });
