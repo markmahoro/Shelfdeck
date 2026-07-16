@@ -2,7 +2,7 @@
 
 Current phase: `P3 — Persistence and Atomic Foundation`
 
-Status: in progress；P3-00–P3-04 complete；P3-05 next；P2 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P3-00–P3-05 complete；P3-06 next；P2 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-16
 
@@ -71,8 +71,8 @@ P3不实现Work/Event Runtime、Domain业务行为、HTTP/API/UI，也不接旧�
 | P3-02 | SQLite Kernel and clean schema generation gate | complete | P3-01 |
 | P3-03 | Owner-scoped Repository and Unit of Work boundaries | complete | P3-02 |
 | P3-04 | Commit Marker、Command Receipt and Audit foundation | complete | P3-03 |
-| P3-05 | Outbox、Delivery and Inbox atomic foundation | next | P3-03–P3-04 |
-| P3-06 | Material Control CAS current/revision participant | pending | P3-03–P3-04 |
+| P3-05 | Outbox、Delivery and Inbox atomic foundation | complete | P3-03–P3-04 |
+| P3-06 | Material Control CAS current/revision participant | next | P3-03–P3-04 |
 | P3-07 | Typed Domain Commit Registry and participant coordinator | pending | P3-03–P3-06 |
 | P3-08 | 18 canonical transaction crash-window fixtures | pending | P3-07 |
 | P3-09 | Cross-persistence verification harness | pending | P3-01–P3-08 |
@@ -144,6 +144,12 @@ P3不实现Work/Event Runtime、Domain业务行为、HTTP/API/UI，也不接旧�
 - Freeze intended consumers in the producer transaction；Delivery/Inbox dedup is durable.
 - Ack/retry state never changes canonical Domain ownership and cannot write consumer Domain facts directly.
 - Crash fixtures cover commit-before-dispatch、duplicate delivery and consume-before-ack.
+- Done: commit `fed454cb` freezes sorted, non-empty intended consumers and one Delivery row per consumer in the producer Owner transaction；
+  payloads are canonical, 16 KiB-bounded ID/revision/digest references. Inbox consumption commits Consumer Domain fact and durable dedup
+  together；ack remains a later Foundation transaction so consume-before-ack recovers by replay without repeating Domain work. Delivery
+  retry/ack never receives Domain Repository authority. Six fixture groups prove producer/inbox dedup rollback、duplicate delivery、
+  consume-before-ack、last/duplicate ack and startup rejection of consumer-set or ack-without-Inbox tampering. Fresh detached-worktree full
+  gate PASS；all DBs were disposable.
 
 ### P3-06 Material Control CAS current/revision participant
 
