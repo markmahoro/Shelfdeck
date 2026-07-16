@@ -25,7 +25,7 @@ function definitions(schemaManifest) {
     events: createRepositoryDefinition({ repositoryId: 'runtime_events', owner: 'execution-foundation', schemaManifest, statements: {
       find: { kind: 'select-one', tableId: 'fx_workflow_events', columns: [
         'event_id', 'plan_id', 'node_id', 'work_id', 'attempt_id', 'owner_domain', 'capability_ref', 'contract_version',
-        'state', 'ready_at_ms', 'retry_at_ms', 'result_id'
+        'state', 'priority_class', 'ready_at_ms', 'retry_at_ms', 'result_id'
       ], keyColumns: ['event_id'] },
       list: { kind: 'select-all', tableId: 'fx_workflow_events', columns: [
         'event_id', 'plan_id', 'node_id', 'state', 'result_id'
@@ -98,6 +98,7 @@ function createEventRuntime(options) {
       !options.attemptPolicy || typeof options.attemptPolicy.prepare !== 'function' ||
       typeof options.attemptPolicy.decideFailure !== 'function' || typeof options.attemptPolicy.decideDeferred !== 'function' ||
       !options.timeoutController || typeof options.timeoutController.execute !== 'function' ||
+      !options.circuitBreaker || typeof options.circuitBreaker.allows !== 'function' ||
       !options.whenEvaluator || typeof options.whenEvaluator.evaluate !== 'function' ||
       requiredFunctions.some((name) => typeof options[name] !== 'function')) fail(
     'P4_EVENT_RUNTIME_DEPENDENCIES_REQUIRED', 'Event Runtime requires exact persistence, scheduler, Governor, Registry, Dispatcher, typed providers, IDs, and clock.'
@@ -319,6 +320,15 @@ function createEventRuntime(options) {
             (snapshot.node.authorization_requirement_ref !== null) !== (inputs.authorizationHandle !== undefined)) fail(
           'P4_EVENT_REQUIRED_HANDLE_MISMATCH', 'Execution inputs must carry exactly the approval and authorization required by the durable Plan.'
         );
+        for (const circuitKey of ['foundation/event-dispatch', 'owner/' + snapshot.event.owner_domain + '/event-dispatch']) {
+          const decision = options.circuitBreaker.allows(Object.freeze({ circuitKey, mode: 'ordinary',
+            priorityClass: snapshot.event.priority_class, effectClass: snapshot.node.effect_class,
+            started: false, irreversibleBoundaryCrossed: false }));
+          if (!decision || decision.allowed !== true) {
+            options.scheduler.release(request.schedulerLease); schedulerReleased = true;
+            return Object.freeze({ kind: 'circuit_deferred', eventId, circuitKey, reason: decision && decision.reason || 'circuit_fail_closed' });
+          }
+        }
         const startedAtMs = clock();
         const attemptContract = options.attemptPolicy.prepare(Object.freeze({
           capabilityRef: snapshot.event.capability_ref, effectClass: snapshot.node.effect_class,

@@ -111,6 +111,7 @@ function fixture(run, settings = {}) {
       if (settings.timeout) throw Object.assign(new Error('timeout'), { code: 'P4_EXECUTION_TIMEOUT' });
       return request.operation();
     } },
+    circuitBreaker: { allows: () => settings.circuitDecision || ({ allowed: true, reason: 'closed' }) },
     executionInputProvider: { prepare: () => ({ ownerScope: { domain: 'libra', processType: 'libra_run', processId: 'run', objectRefs: [] },
       basisRefs: [{ basisType: 'execution_basis', basisId: 'basis', revision: 1, digest: HASH_A }], namedInputs: {},
       idempotencyKey: 'event-attempt', traceContext: { traceId: 'trace', spanId: 'span' },
@@ -211,6 +212,16 @@ test('caller cannot override deadline derived from immutable Timeout Policy', as
     try { assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_event_attempts').get().count, 0); }
     finally { database.close(); }
   }, { inputDeadline: 9999 });
+});
+
+test('open Circuit blocks unstarted Event before Permit, Attempt, or effect intent', async () => {
+  await fixture(async ({ runtime, lease, databasePath, state }) => {
+    assert.equal((await runtime.run({ schedulerLease: lease })).kind, 'circuit_deferred');
+    assert.equal(state().governorReleased, 0); assert.deepEqual(state().journalCalls, []);
+    const database = new Database(databasePath, { readonly: true });
+    try { assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_event_attempts').get().count, 0); }
+    finally { database.close(); }
+  }, { effectClass: 'domain_fact_commit', circuitDecision: { allowed: false, reason: 'circuit_blocks_new_effect' } });
 });
 
 test('Fence rejection before or after Permit records completed Attempt and never dispatches', async () => {
