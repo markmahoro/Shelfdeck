@@ -2,7 +2,7 @@
 
 Current phase: `P4 — Execution and Recovery Foundation`
 
-Status: in progress；P4-00–P4-07 complete；P4-08 next；P3 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P4-00–P4-08 complete；P4-09 next；P3 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-16
 
@@ -75,8 +75,8 @@ P4不形成“可运行半成品产品”；所有Runtime fixture必须在isolat
 | P4-05 | Work Supply Controller and bounded backpressure | complete | P4-03–P4-04 |
 | P4-06 | Work Scheduler、dependency readiness and technical lease | complete | P4-04–P4-05 |
 | P4-07 | Resource Governor、Profile Mapper and atomic Permit bundle | complete | P4-05–P4-06 |
-| P4-08 | Event Runtime、Fence、Outcome/Result and Progress | next | P4-02、P4-06–P4-07 |
-| P4-09 | Effect Journal and seven Effect-specific reconcilers | pending | P4-08；P3 atomic commits |
+| P4-08 | Event Runtime、Fence、Outcome/Result and Progress | complete | P4-02、P4-06–P4-07 |
+| P4-09 | Effect Journal and seven Effect-specific reconcilers | next | P4-08；P3 atomic commits |
 | P4-10 | Retry、Timeout and declared Compensation | pending | P4-08–P4-09 |
 | P4-11 | Pressure Guard and persistent Circuit Breaker | pending | P4-05–P4-10 |
 | P4-12 | Startup recovery and Foundation readiness | pending | P4-09–P4-11 |
@@ -186,6 +186,13 @@ P4不形成“可运行半成品产品”；所有Runtime fixture必须在isolat
 - Create one Event Attempt opportunity, revalidate minimum Basis/Fence before dispatch and again before protected commits.
 - Build least-authority typed ExecutionContext；validate exact inputs/parameters/Outcome/Result/Evidence and immutable Result binding.
 - ProgressReporter writes bounded monotonic technical samples only；progress cannot extend auth、change result or create Business facts.
+- Done: authorized SSOT repair `4f3c41b9` first closed the discovered immutable Plan persistence gap without changing 156-table
+  ownership or business semantics；Evidence is `evidence/P2_P4_IMMUTABLE_PLAN_PERSISTENCE_REPAIR_4F3C41B9.md`. Commit
+  `3788d9fc` then implements ready-only Event dispatch，two Fence checks，exact approval/auth handles，atomic Event Attempt and immutable
+  Result binding，four Outcome paths，restricted DAG/when advancement，bounded Progress and Resource timing Evidence. Scheduler lease ends
+  immediately after durable Attempt creation；pull-mode Governor creates no orphan Permit，and every held Permit releases in `finally`.
+  Twenty-nine focused fixtures，full architecture gate and fresh detached-worktree gate PASS；Executor crash deliberately leaves one durable
+  executing Attempt for P4-09 effect-specific recovery rather than resetting or guessing.
 
 ### P4-09 Effect Journal and seven Effect-specific reconcilers
 

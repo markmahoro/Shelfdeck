@@ -13,12 +13,12 @@ Last updated: 2026-07-16
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation |
 | Current phase | P4 — Execution and Recovery Foundation |
-| Current phase status | in progress；P4-00–P4-07 complete；P4-08 next；P3 Exit Audit PASS |
+| Current phase status | in progress；P4-00–P4-08 complete；P4-09 next；P3 Exit Audit PASS |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P3 phase closure `4a59356f3a89f1af38f594763aaaa0465e203b99` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p4` on `codex/helix-p4` |
-| Next action | P4-08 Event Runtime、Fence、Outcome/Result and Progress |
+| Next action | P4-09 Effect Journal and seven Effect-specific reconcilers |
 
 ## 2. Accepted implementation conclusion
 
@@ -192,3 +192,11 @@ P4-07已在`ff72c6cd`完成：pure Profile Mapper精确实现`default|full`容�
 `fx_resource_defer + Event retryAt`，退避固定5s/30s/2min/10min。12组专项、40-file完整架构门禁及fresh detached worktree
 均PASS，semantic findings=0，P2 aggregate不变。下一检查点是P4-08 Event Runtime、Fence、Outcome/Result和Progress。
 没有需要用户决定的业务问题。
+P4-08前置审计发现immutable Plan完整合同无持久化位置；用户已明确授权返回Design。`4f3c41b9`以最小SSOT修正补齐
+Plan Objective及Node approval/auth/retry/timeout/output/compensation字段和compensation FK，并新增可复现source-map
+materializer。新SSOT/P2/DDL digest分别为`8b250ce4…`/`fe2f4433…`/`29a8e6b6…`；156表、72 index、19 partial unique、
+112/96/156/18及18 transaction/132 crash points保持PASS。历史Evidence未改写，完整传播记录见
+`implementation/evidence/P2_P4_IMMUTABLE_PLAN_PERSISTENCE_REPAIR_4F3C41B9.md`。P4-08随后在`3788d9fc`完成：ready-only
+Event Runtime、双Fence、exact approval/auth、四种Outcome、immutable Result、DAG/when推进、Progress和Resource timing
+全部闭合；Executor crash保留durable executing Attempt供P4-09恢复。29组专项、完整门禁及fresh detached worktree均PASS。
+下一检查点是P4-09 Effect Journal和七类Effect-specific Reconciler。没有需要用户决定的业务问题。
