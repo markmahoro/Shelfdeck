@@ -2,7 +2,7 @@
 
 Current phase: `P5 — Platform and Integrations`
 
-Status: in progress；P5-00–P5-03 complete；P5-04 next；P4 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P5-00–P5-04 complete；P5-05 next；P4 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-17
 
@@ -65,8 +65,8 @@ Registry、Resource/Worker Registry，以及Filesystem/Hash/FFmpeg/Provider/Work
 | P5-01 | Platform and Integration public nominal ports | complete | P5-00；P2 contracts |
 | P5-02 | Secret Reference and least-authority credential resolver | complete | P5-01；P3 Persistence |
 | P5-03 | Mount Scope and Workspace Root registries | complete | P5-01–P5-02 |
-| P5-04 | Physical Material Identity and binding-health primitives | next | P5-03 |
-| P5-05 | Artifact Registry and controlled payload handles | pending | P5-03–P5-04 |
+| P5-04 | Physical Material Identity and binding-health primitives | complete | P5-03 |
+| P5-05 | Artifact Registry and controlled payload handles | next | P5-03–P5-04 |
 | P5-06 | Typed External Provider protocol adapters | pending | P5-01–P5-02、P5-05 |
 | P5-07 | Filesystem transaction、probe/hash and FFmpeg atoms | pending | P5-03–P5-05 |
 | P5-08 | Resource、device and passive Worker registries/protocol | pending | P5-01–P5-03；P4 Governor |
@@ -125,6 +125,11 @@ Registry、Resource/Worker Registry，以及Filesystem/Hash/FFmpeg/Provider/Work
 - Derive identity only from explicit mount-scoped filesystem object key plus full content hash using the frozen algorithm contract.
 - Hash cache/revalidation is Evidence，not a global media object or Field membership；location-only change preserves identity.
 - Synthetic fixtures cover rename、content change、inode reuse、missing/unreadable and mount-scope separation.
+- Done: the pure factory reproduces and cross-validates P3's single canonical `materialKey` algorithm from exact Mount Scope + inode
+  + full SHA-256. Hash reuse requires all trustworthy stat-fence fields unchanged. Binding Health keeps endpoint、location、object
+  and hash reasons separate；endpoint outage never becomes false missing. Reliable exact-scope Evidence alone may evolve location while
+  unchanged Identity remains outside the Binding. Focused 10/10、full architecture and P3 persistence PASS. Evidence:
+  `evidence/P5_04_PHYSICAL_IDENTITY_AND_BINDING_HEALTH.md`.
 
 ### P5-05 Artifact Registry and controlled payload handles
 
