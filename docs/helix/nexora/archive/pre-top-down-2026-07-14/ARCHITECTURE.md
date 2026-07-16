@@ -1,9 +1,13 @@
-# Nexora Architecture
+# Nexora Architecture (Superseded Implementation Contract)
 
-> 2026-07-12 scope notice: Nexora属于Libra Pre-deck组织，只拥有Triage、Source observation
-> 和SourceBinding；不拥有Deck Inventory、Deck Health、Post-deck repair或collection ownership。
+> 2026-07-13 supersession notice：本文不再是目标架构合同。Procurement拥有Observation、Triage
+> 与Candidate Admission；Nexora目标业务仅为Libra Run内的Canonical Source修正与安全生产。
+> `SourceBinding`按共享Capability Evidence处理。本文仅用于当前代码迁移与能力守恒审计。
 
-Status: accepted Nexora capability contract under Helix Beta.
+> Historical 2026-07-12 scope（已失效）：当时曾把Triage、Source observation和SourceBinding
+> 归给Nexora；该Owner划分不得用于新设计。
+
+Status: superseded; historical implementation map only.
 
 Last updated: 2026-07-10
 

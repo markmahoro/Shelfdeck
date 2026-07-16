@@ -1,5 +1,8 @@
 # FlowPlan 业务复刻验收
 
+> Historical implementation evidence only. 当前业务边界与后续安置以
+> `../TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`为唯一SSOT；本文件不能恢复旧Kairox业务合同。
+
 状态：**未通过（1 个架构 blocker）**  
 日期：2026-07-11  
 范围：Kairox Basedata、Metadata、Optimize 的 Planner / Graph / Event Runtime；不包含真实四库 E2E 或生产部署。
@@ -28,7 +31,7 @@
 | Disc Remux + Transcode | 通过 | `container.remux` 产生统一 StagedMediaAsset 后进入共享链路 |
 | Movie Upgrade | 通过 | MoviePilot check、identity、search、approval/request、download/transfer observe、settle、strong identity、verify、shared replace |
 | Upgrade + Transcode 复合 Objective | 通过（验收中修复） | Upgrade 只验证其负责的 Objective gap；Transcode 明确依赖 Upgrade outcome，最终只发布一次 |
-| Organize / Artifact materialize | 通过 | Organize Graph 终止；Libra→Nexora rebind 后的新 admission 才能规划 materialize/layout/publish |
+| Organize / Artifact materialize | 通过 | 这是旧实现证据；clean Helix中正式Material的organize/materialize由Arca On-deck Run重新安置 |
 | No-op Optimize | 通过（验收中修复） | `optimization.objective.verify` 重新计算 gap，不再无条件返回 true |
 | Source incident / Offboarding fencing | 通过（验收中修复） | executing Event 被 durable cancel；late output 不能复活；commit_once 临提交再次检查 generation |
 | Season / Series Upgrade | **未通过** | 旧 Season 级精确 TMDB/季号搜索和整季替换没有被 Helix Episode Task 模型复刻 |
@@ -64,16 +67,16 @@ Helix 当前约束则是：Series/Season 只作为 Libra scope，Episode 才是 
 
 - Library hierarchy、scope 扩展和成员集合属于 Libra。
 - Upgrade Objective、candidate selection、download、verify、replace 仍属于 Kairox Optimize。
-- 替换后的 SourceBinding re-observe/rebind 属于 Nexora，由 Libra 协调。
+- 该段属于旧实现边界；clean Helix不再使用跨域SourceBinding re-observe/rebind闭环。Libra只生产Workspace内的产品，Arca负责On-deck Off-load及其域内Material Binding。
 
-因此不能把完整 Upgrade 移给 Nexora，也不能让 Libra 执行 MoviePilot/replace。待确认的设计点是：Kairox 是否允许一个由 Libra scope 授权的“季级维护对象”，并确保一个 scope 只有一个 Upgrade Run/Task，完成后再由 Libra/Nexora 刷新所有 Episode admission。
+因此这份历史报告不能决定clean Helix中的整季Upgrade Owner。当前SSOT已明确：Libra不得替换外部正式Material；Arca在Shelf Acceptance之后通过On-deck Run完成Off-load。整季产品的生产颗粒度与域内Kairox职责仍须服从SSOT后续Level，不能从本报告反推。
 
 ## 自动证据
 
 - Service：`221/221` 通过。
 - Admin Web：TypeScript + Vite production build 通过。
 - 本报告记录的是 Subject/Asset clean cut 之前的 50 项基线；当前 62 项 Catalog、Series Season Upgrade 与 multi-Episode Transcode 证据以 `CURRENT_STATUS.md` 为准。
-- 静态审计：Capability 不引用 Libra/Nexora，不写 Task/Event，不发跨域 signal，不调用另一 Capability，不包含旧复杂 Executor 路由或内部进度轮询。
+- 静态审计：Capability 不引用业务域Facade，不写 Task/Event，不发跨域 signal，不调用另一 Capability，不包含旧复杂 Executor 路由或内部进度轮询。
 - Runtime：重试不消耗 Task attempt、重启恢复、durable approval、conditional approval、Permit、cancel、late-output rejection、commit fencing 均有行为测试。
 
 ## 结论

@@ -1,34 +1,52 @@
 # ShelfDeck / Helix Documentation Index
 
-Status: business architecture redesign; implementation and E2E paused.
+Status: clean architecture redesign; Levels 0–10 accepted; final full-document architecture audit closed; implementation, E2E and production deployment paused.
 
-Helix不再被解释为整个ShelfDeck只包含Libra/Nexora/Kairox。当前已确认ShelfDeck还包含
-平级的Deck、Aftercare、User Perception和People Management业务域；正式命名待定。
+## Architecture authority
 
-## Current documents
+`TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`是ShelfDeck / Helix唯一架构SSOT。它从产品本体、价值系统、
+业务域和领域模型逐层向实现推导；后续Level必须引用前序Level的Canonical Dictionary，不能重新定义
+已经固化的术语。
+
+旧的处理链、Membership、全局SourceBinding和线性`onboarding → maintenance → offboarding`
+合同已经失效。旧合同只保留为历史证据，不能指导新实现。
+
+## Active documents
 
 | Document | Purpose |
 | --- | --- |
-| `ARCHITECTURE.md` | 当前最高优先级业务域、生命周期与事实Owner合同 |
-| `SERVICE_CONTRACTS.md` | 当前可确认的跨域交付方向；精确Schema待设计 |
-| `TRIAGE_SUBJECT_AND_POLICY.md` | Pre-deck Triage、Season Subject与信息递进；顶层Owner以ARCHITECTURE为准 |
-| `KAIROX_CAPABILITY_CATALOG.md` | 当前Kairox原子能力目录，等待Company/Department scope复审 |
-| `CURRENT_PLAN.md` | 唯一活动计划；当前只允许Design与文档审计 |
-| `CURRENT_STATUS.md` | 当前实现与架构差距 |
-| `nexora/ARCHITECTURE.md` | Nexora下层合同；不得覆盖顶层业务域合同 |
+| `TOP_DOWN_ARCHITECTURE_CONFIRMATION.md` | 唯一架构SSOT；Level 0–10与最终全文审计均已关闭 |
+| `LEVEL7_BUSINESS_DECISIONS.md` | 已关闭的Level 7非Canonical业务决策Evidence；没有Open Decision |
+| `ARCHITECTURE_REVIEW.md` | 已关闭的非Canonical Review台账；Section 14记录最终全文审计、`FA-04`与Closure Evidence |
+| `CURRENT_PLAN.md` | 唯一活动计划与Design门禁 |
+| `CURRENT_STATUS.md` | 当前架构确认进度、实现差距与安全状态 |
+| `CAPABILITY_CONSERVATION.md` | 已完成的Level 7能力守恒Evidence；62项历史能力逐项映射，不覆盖SSOT |
+| `KAIROX_CAPABILITY_CATALOG.md` | 62项历史Capability目录快照；不定义clean Owner或调用方向 |
+| `acceptance/FLOWPLAN_BUSINESS_PARITY.md` | 旧Kairox FlowPlan复刻验收Evidence；不定义clean业务流程 |
+| `acceptance/MOVIE_OPTIMIZE_POLICY_CALIBRATION.md` | Movie空间策略的历史校准证据；Level 5已将其结论收录为推荐Rule Template初始值 |
 
 ## Reading order
 
-```text
-ARCHITECTURE.md
+~~~text
+TOP_DOWN_ARCHITECTURE_CONFIRMATION.md
 CURRENT_STATUS.md
 CURRENT_PLAN.md
-SERVICE_CONTRACTS.md
-TRIAGE_SUBJECT_AND_POLICY.md
-```
+LEVEL7_BUSINESS_DECISIONS.md（仅追溯已关闭的Level 7业务决策审计；非Canonical）
+ARCHITECTURE_REVIEW.md（仅追溯Architecture Review；非Canonical）
+~~~
+
+只有在处理能力守恒或现有实现审计时，才继续读取Capability文档或历史归档。
+
+## Historical archives
+
+- `archive/pre-top-down-2026-07-14/`：Top-down SSOT之前的Helix架构、服务合同与Triage专题文档。
+- 组件专题归档：更早的架构、实施计划、切片和验收证据；不进入活动阅读顺序。
+
+归档文档保持原样以便追溯。它们不再是活动合同、活动计划或当前状态来源。
 
 ## Conflict rule
 
-1. `ARCHITECTURE.md`是当前最高优先级合同。
-2. 旧文档中的长期Membership、Policy、Person、offboarding语义若与其冲突，均视为superseded。
-3. 当前不得依据旧实施计划继续编码、E2E或生产部署。
+1. `TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`高于所有其他Helix、v3、v2和实现说明。
+2. `CURRENT_STATUS.md`只报告当前状态，`CURRENT_PLAN.md`只规定当前工作顺序；二者不得改写SSOT。
+3. Capability目录、历史实现和测试只提供Evidence，不能反向证明旧业务边界仍然有效。
+4. 当前不得依据归档文档恢复编码、E2E或生产部署。

@@ -1,0 +1,1223 @@
+# Helix Architecture Review Workbench
+
+Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED` — 2026-07-16；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与post-change audit均已完成。
+
+## 1. Purpose and authority
+
+本文是Helix架构Review的独立工作台账，用来记录：
+
+- 怀疑存在但尚未证明的架构问题；
+- 对问题进行全局审视时收集的SSOT Evidence；
+- 问题分类、讨论状态和关闭证据；
+- 已由用户确认的决定、bounded change set及其Closure Evidence。
+
+本文**不是架构合同**，不得覆盖、补充或改写
+`TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`。任何Review结论只有在完整回写SSOT正文、Canonical Dictionary和
+全部受影响Level，并通过一致性审计后，才成为正式合同。实现、测试和历史代码也不能引用本文中的开放
+问题或草案作为架构授权。
+
+本Review执行期间使用的Audit Guard（Review关闭后仅作历史Evidence）：
+
+- 在Audited Decision Backlog形成前，不向用户提出新的架构问题；
+- 不把任何Finding、盲审结论或已确认待审决定直接视为SSOT合同；
+- 不回写任何尚未关闭的架构决定；
+- Review关闭前不开始Level 7；实现、E2E、Docker或生产工作仍须遵守当前Implementation Gate；
+- Review台账由Codex自行维护；用户只接收经过审计的`DECISION_REQUIRED`问题。
+
+## 2. Review principles
+
+### 2.1 Review不是重新设计
+
+Review的第一目标是验证SSOT是否存在真实缺陷，不是因为某个Item被标为`OPEN`就重新发明对象、状态、
+Policy或流程。已有合同能够唯一推出答案时，只允许标记为`FALSE_POSITIVE`或`DOC_FIX`。
+
+### 2.2 Evidence先于问题
+
+向用户提出任何Review问题之前，必须先从该问题视角重新审视Level 0至当前Level的全部相关合同、
+Canonical Dictionary、Amendment、已确认历史决定和上下游引用。不得仅依赖Review Item标题、对话摘要、
+模型记忆或当前实现。
+
+### 2.3 `OPEN`不等于架构缺陷
+
+`OPEN`只表示尚未完成审计。只有完成Evidence Matrix并证明以下至少一项成立，才允许把它升级为需要用户
+讨论的问题：
+
+- SSOT对同一问题给出互相矛盾的答案；
+- 已确认上层合同无法推出下层必须作出的决定；
+- 某个用户旅程或业务责任没有合法Owner与收口路径；
+- 某项不变量在现有合同下无法同时成立。
+
+“表述不够顺”“实现不知道怎么写”“术语需要迁移”本身不构成新架构缺陷。
+
+### 2.4 全局审视而非局部补丁
+
+问题必须沿以下两个方向检查：
+
+```text
+向上：Product Ontology → Value → Domain → Object/Process
+向下：Handoff → Policy → Execution → 后续Foundation/Component/Product Surface影响
+```
+
+局部章节看似缺失，但前后文已经唯一限定答案时，不得新增合同。局部修正可能改变前序Level语义时，必须
+停止并回到术语首次定义的Level。
+
+### 2.5 一个术语只能有一个Canonical定义
+
+Review回写必须替换失效定义，不能在SSOT末尾追加“以新说明为准”并长期保留两套可读模型。工作决定可在
+本文暂存；正式关闭时必须消除旧术语、旧Owner和旧关系，而不是叠加解释。
+
+### 2.6 Level边界是硬门禁
+
+| Level | Review允许决定 | 不得提前混入 |
+| --- | --- | --- |
+| 0–2 | 产品本体、价值流、业务域Charter | Object Schema、状态机、组件 |
+| 3 | Business/Process Object、Identity、Fact Owner、Lifecycle、Domain Relation | DB字段、UI、扫描参数、Executor |
+| 4 | Deliverable、Acceptance、责任与Control转移 | Store/API、资源实现 |
+| 5 | Policy、Decision Input、Decision与Spec | Workflow节点、设备参数 |
+| 6 | Process启动、状态、Attempt、恢复、并发和Priority | 物理Store、页面布局 |
+| 7–10 | 按Top-down Level表逐层细化 | 反向改变已确认上层语义 |
+
+发现跨Level问题时只登记受影响Level，不允许在当前章节顺手补齐。
+
+### 2.7 只把真正的业务决策交给用户
+
+Review Finding通过证据分类后，还必须经过用户决策过滤：
+
+```text
+FALSE_POSITIVE      → 自行关闭
+DOC_FIX             → 自行准备有界文档修正
+ENGINEERING_CHOICE  → 延后到Level 7–10由Codex设计
+DECISION_REQUIRED   → 才允许提交用户讨论
+```
+
+只有涉及产品语义、用户旅程、Business/Fact/Policy Owner、Handoff责任、安全或不可逆业务取舍，且现有SSOT
+无法唯一推出答案的问题，才属于`DECISION_REQUIRED`。字段、Store、API、页面、扫描参数、Runtime算法和
+能够由既有合同推导的选择不得占用用户决策。
+
+### 2.8 Blind Review用于主动反证
+
+盲审不是表决机制，也不以数量决定架构。它用于让不继承当前对话结论的审阅者独立尝试：
+
+- 找出主审遗漏的跨Level冲突；
+- 证明候选问题其实已被SSOT回答；
+- 识别Review台账本身造成的锚定；
+- 验证问题是否真实影响用户旅程和责任收口。
+
+盲审次数、切分角度和反证强度由Codex根据风险内化管理。跨域Owner、Handoff、Material Control、破坏性
+操作和不可逆用户语义在提交用户前必须至少经过一次无本线程上下文的反方审查；盲审输出只作为Evidence，
+仍须由主审完成最终Evidence Matrix与分类。
+
+## 3. Status model
+
+| Status | Meaning |
+| --- | --- |
+| `SUSPECTED` | 只记录了疑点，尚未完成Evidence审计；不得向用户当作架构缺陷提问 |
+| `EVIDENCE_AUDIT` | 正在建立全局Evidence Matrix；不得形成新合同 |
+| `FALSE_POSITIVE` | SSOT已经唯一回答，问题不存在；保存审计理由后关闭 |
+| `DOC_FIX` | 业务答案已经唯一确定，只需术语、引用或结构修正；不得扩大语义 |
+| `ENGINEERING_CHOICE` | 业务合同已经足够，剩余选择属于Level 7–10工程细化；不向用户提问 |
+| `CONFLICT` | 已证明SSOT存在互相矛盾的正式合同，需要用户裁决 |
+| `TRUE_GAP` | 已证明现有合同不能推出必要答案，需要用户讨论新合同 |
+| `DECISION_REQUIRED` | `CONFLICT/TRUE_GAP`通过盲审反证和用户决策过滤后，确实需要产品Owner选择 |
+| `ON_HOLD` | 当前Decision因用户补充的跨范围架构输入而暂停，等待Impact Sweep |
+| `CONFIRMED_PENDING_APPLY` | 用户已经确认决定，但尚未完整回写SSOT并通过一致性审计 |
+| `CLOSED` | 正文、Dictionary和受影响Level均已回写，并保存审计证据 |
+| `PAUSED` | Review活动被显式停止；不得自动进入下一状态 |
+
+旧Register中的`OPEN`必须先降为`SUSPECTED`并完成Evidence审计，不能直接视为`TRUE_GAP`。
+
+## 4. Mandatory review process
+
+### Step 0 — Register without mutation
+
+只在本文登记疑点、来源和可能影响；不修改SSOT正文，不向实现派发工作，不预设解决方案。
+
+### Step 1 — Write the problem statement
+
+每个Item必须首先写清：
+
+```text
+Review ID
+Review Level
+用户旅程或业务场景
+怀疑违反的已确认不变量
+声称存在的缺陷
+如果缺陷真实，用户或业务会看到什么后果
+```
+
+不能用“可能不清晰”“似乎缺少组件”作为问题陈述。
+
+### Step 2 — Build the global Evidence Matrix
+
+向用户提问前必须完成：
+
+| Evidence dimension | Required content |
+| --- | --- |
+| Upstream contract | Level 0至本Level所有相关条款与Dictionary |
+| Same-level contract | Object、Process、Owner、Lifecycle与关系 |
+| Downstream use | 后续Level如何引用并是否已经唯一限定答案 |
+| Amendment history | 已确认Amendment及其是否已回写 |
+| Historical decision | 只用于证明曾讨论过什么，不覆盖SSOT |
+| Implementation evidence | 只用于暴露风险，不作为业务合同权威 |
+| Negative example | 至少一个能证明缺陷的实际业务旅程或边界Case |
+| Existing derivation | 是否能从现有合同无歧义推出答案 |
+
+工具输出被截断、只读到摘要或只检索一个关键词时，不得宣称完成全局审视。
+
+### Step 3 — Prove or reject the defect
+
+依次执行：
+
+1. **Existence test**：所需答案是否已经在任何前序或同层条款定义；
+2. **Derivation test**：即使未逐字写出，是否能从Owner、不变量和Handoff唯一推出；
+3. **Conflict test**：是否存在两个正式条款给出不同答案；
+4. **Journey test**：是否存在无法合法完成或收口的真实用户旅程；
+5. **Boundary test**：修正是否会移动Fact Owner、Policy Owner或Handoff责任；
+6. **Level test**：所谓缺口是否其实属于后续Level的实现细化。
+
+无法证明缺陷时，分类为`FALSE_POSITIVE`或`DOC_FIX`，不得向用户重新提问。
+
+### Step 4 — Classify before discussion
+
+每个准备讨论的Item必须明确标记：
+
+```text
+NEW CONTRACT         现有合同确实缺失，需要新增决定
+CONFLICT RESOLUTION  两项现有合同冲突，需要选择并删除另一项
+TERM MIGRATION       语义不变，只迁移术语或Owner名称
+DOC CORRECTION       引用、结构或遗漏回写修正
+```
+
+只有`NEW CONTRACT`和`CONFLICT RESOLUTION`允许向用户提出架构选择。
+
+### Step 5 — Challenge and produce an Audited Decision Backlog
+
+所有`CONFLICT/TRUE_GAP`必须先接受反证审查；高风险跨Level问题使用Blind Review。随后形成内部Backlog：
+
+| Final class | User-visible |
+| --- | --- |
+| `FALSE_POSITIVE` | no |
+| `DOC_FIX` | no |
+| `ENGINEERING_CHOICE` | no |
+| `DECISION_REQUIRED` | yes |
+
+Backlog由Codex持久维护，用户不需要审阅Review台账。只有`DECISION_REQUIRED`进入下一步。
+
+### Step 5A — Build one Decision Packet
+
+问题必须附带完整Evidence Matrix、无法由现有合同推出答案的原因、对用户旅程的影响、候选方案和跨Level
+影响。不能把实现字段、页面文案或运行参数包装成当前Level的架构问题。
+
+每个Decision Packet固定包含：
+
+```text
+Decision ID与所在Level
+大白话用户场景
+SSOT已经确定的部分
+无法继续推导的唯一分叉
+可选方案及用户旅程差异
+Codex建议与理由
+受影响条款
+明确不受影响的边界
+不决策时真正阻塞什么
+```
+
+一次只讨论一个主Decision。多个技术子问题如果能由同一业务原则推出，必须先合并，不拆成多次用户提问。
+
+用户质疑结论时，先重新核对Evidence；质疑不是结论错误的证据，也不能为了顺从而立即撤回或改写合同。
+
+### Step 5B — Route supplemental architecture input
+
+用户在讨论某一Decision时提出超出原问题范围的新架构意见，先记录为`Supplemental Architecture Input`，
+不得顺手合入当前Decision或SSOT。Codex执行Impact Sweep并分类：
+
+| Type | Meaning | Action |
+| --- | --- | --- |
+| `A-CLARIFICATION` | 澄清当前Decision语义 | 合并当前Decision |
+| `UPSTREAM-AMENDMENT` | 可能改变前序Level或Canonical术语 | 当前Decision置为`ON_HOLD`，先全局审计并重新表述问题 |
+| `SIBLING-ISSUE` | 暴露独立问题 | 写入Backlog；不影响当前问题时继续当前Decision |
+| `DOWNSTREAM-DETAIL` | 属于后续Level实现 | 延后处理，不扩张当前讨论 |
+| `ALREADY-COVERED` | SSOT已有答案 | 引用条款，不重新设计 |
+
+Impact Sweep必须回答：它是否推翻当前Decision前提、影响哪些已确认Level、当前问题是否仍存在、是否需要
+重新形成Decision Packet。用户补充意见本身不是自动生效的合同修改。
+
+### Step 6 — Prepare a bounded change set
+
+用户确认后，先列出而不执行：
+
+- 首次定义受影响术语的条款；
+- 所有Dictionary项；
+- 全部上下游引用；
+- 必须删除的旧定义；
+- 只作为历史保留的Amendment Evidence；
+- 不得变化的相邻合同；
+- 定向一致性检查与retired-term搜索。
+
+Change Set出现未讨论的新Object、状态、Policy、Handoff、配置或Schema时，立即停止。
+
+### Step 7 — Apply once, by replacement
+
+在一个有界修改中统一回写正文、Dictionary与引用。禁止先追加新定义、以后再清理旧定义；禁止让
+`CURRENT_PLAN`、`CURRENT_STATUS`或Review本文成为第二套架构说明。
+
+### Step 8 — Run post-change audits
+
+至少完成：
+
+1. Level内部一致性；
+2. 对全部前序Level的一致性；
+3. 后续Level引用一致性；
+4. Canonical term唯一性；
+5. Fact/Policy/Decision Owner唯一性；
+6. Handoff与Control连续性；
+7. Object、Process和Physical Material关系完整性；
+8. 典型及负向用户旅程复演；
+9. retired term、旧Owner和旧关系全文搜索；
+10. `git diff`检查是否引入超出Change Set的概念。
+
+### Step 9 — Close with evidence
+
+只有完成Step 7和Step 8才可标记`CLOSED`。仅用户口头确认、仅写入本文、仅修改状态文档，均只能是
+`CONFIRMED_PENDING_APPLY`。
+
+## 5. Review Item template
+
+```markdown
+### Lx-Rn — Short name
+
+Status: SUSPECTED
+Type: unclassified
+
+#### Problem statement
+- User journey:
+- Suspected invariant violation:
+- Observable consequence:
+
+#### Evidence Matrix
+| Dimension | Clause / evidence | Finding |
+| --- | --- | --- |
+
+#### Defect proof
+- Existence test:
+- Derivation test:
+- Conflict test:
+- Journey test:
+- Boundary test:
+- Level test:
+
+#### Classification
+FALSE_POSITIVE | DOC_FIX | CONFLICT | TRUE_GAP
+
+#### Confirmed decision
+Only after user confirmation.
+
+#### Bounded change set
+Only before apply.
+
+#### Closure evidence
+Only after SSOT rewrite and audit.
+```
+
+## 6. Active review register
+
+以下内容从SSOT迁出。除已经有完整Closure Evidence的项目外，所有旧`OPEN`问题都必须经过
+`SUSPECTED → EVIDENCE_AUDIT`，不能直接向用户提问；独立盲审发现关闭传播不完整时允许退回`DOC_FIX`。
+
+### Level 3
+
+| ID | Audited classification | Review subject | Required action |
+| --- | --- | --- | --- |
+| `L3-R1` | `CLOSED` | Aftercare当前材料事实不能改写Libra immutable Product Material Manifest | 已统一为历史Product Manifest provenance + 每个当前有效Inventory Representation的最新committed revision |
+| `L3-R2` | `FALSE_POSITIVE/CLOSED` | Recall-first Triage Claim纠正时Subject形状如何处理 | 既有Subject连续性合同已经闭合，不重开 |
+| `L3-R3` | `CLOSED` | 旧Source、Material Field、Observation、Hint与Routing术语/Owner关系 | D1–D4已作为替换型Amendment传播到Level 0–6并通过封闭审计 |
+| `L3-R4` | `CLOSED` | Shelf注销生命周期及活动责任影响 | DP-03已传播为Arca非破坏性Shelf Deregistration并通过封闭审计 |
+| `L3-R5` | `CLOSED` | Off-load Context、Artifact、Related Reference与当前Inventory边界 | 当前Primary/Related/Artifact只由每个当前有效Inventory Representation的最新committed revision表达，Schema留Level 8 |
+
+#### L3-R3 confirmed decisions applied and audited
+
+`L3-R3-D1 — Material Field is the physical file source`（2026-07-16，用户确认）：Material Field是
+Procurement拥有的文件源Business Object，Field Management管理多片Material Field。每片Field只有一个
+`fieldId`并持有当前Field Access Binding；产品界面可以称其为“文件源”。`Source`不再作为独立架构对象，
+不分配`sourceId`。
+
+`L3-R3-D2 — Emby is provider-only and storage-independent`（2026-07-16，用户确认）：Emby只作为可选
+External Provider，不提供Material Field目录发现、Physical Material盘点、Shelf Target选择、Emby Library
+映射、Off-load或刷新责任。用户在Emby中独立把ShelfDeck Target目录配置为Emby Library；ShelfDeck不保存
+该关系，也不以Emby状态建立Material、Inventory、Shelf Entry或Deck Fact。
+
+`L3-R3-D3 — One explicit physical target per Shelf`（2026-07-16，用户确认）：每座Shelf恰好拥有一个
+Physical Target Folder。Material Field与Shelf Target允许解析到同一Endpoint/rootLocation，但继续分别
+表达Procurement原料来源与Arca Inventory目标；路径重叠本身不授予重复采购资格。
+
+`L3-R3-D4 — Two directory roles and three control regions`（2026-07-16，用户确认）：Material Field与
+Shelf Physical Target Folder是两类物理目录角色。Production Region覆盖Libra当前控制的全部正式Input与
+Production Workspace材料；Finished Goods Region覆盖Arca当前控制的On-deck Custody、事务暂存与Inventory
+材料；Procurement Region是Material Field完整观察集合扣除前两者。三个Region按Physical Material Identity
+及Control动态投影，不按路径切割，也不新增Business Object、配置目录或路径锁。Extraction Eligibility只
+能在Procurement Region内继续依据可访问性、Extraction Policy、Reservation与Control可取得性计算。
+
+注意：D1–D4是用户已确认并完成回写、封闭审计的决定。曾提出的`D5/D6`不是有效Review决定，不进入台账。
+
+### Level 4
+
+| ID | Audited classification | Review subject | Required action |
+| --- | --- | --- | --- |
+| `L4-R1` | `FALSE_POSITIVE/CLOSED` | 通用Handoff曾错误要求Accepted每次新建Business Object | `L4-A6`已经允许建立Object、扩充范围、建立Process或Custody，不重开 |
+| `L4-R2` | `ENGINEERING_CHOICE` | Domain-local Binding之外是否需要全局Physical Material Control业务对象 | 不新增全局业务对象；Control索引、token、lease、Store和事务属于Level 7–8 |
+| `L4-R3` | `CLOSED` | Arca生成新Physical Material Identity时Control连续性 | 已明确受管Transformation在创建提交点取得本域Control；Fencing机制留Level 7–8 |
+| `L4-R4` | `CLOSED` | superseded Libra Run的未Accepted Offer资格 | 已明确未决Offer失去Accepted资格并在Transfer Point重验eligibility |
+| `L4-R5` | `FALSE_POSITIVE` | Accepted货品永久无法Off-load时责任终结 | `blocked + Arca Custody/Control + 自动恢复 + 禁止反向Handoff`已形成连续责任 |
+
+### Level 5
+
+| ID | Audited classification | Review subject | Required action |
+| --- | --- | --- | --- |
+| `L5-R1` | `FALSE_POSITIVE/CLOSED` | Shelf Standard、Placement Policy、Workspace与Off-load边界 | 固定事务已经闭合，不重开 |
+| `L5-R2` | `FALSE_POSITIVE` | 首次Spec没有强Identity但声明目标Product Identity | Spec可以声明最终Identity Requirement，不要求开单时已经拥有具体强Identity |
+| `L5-R3` | `CLOSED` | On-deck Canonical Content Identity错误后的Arca修正合同 | DP-01已传播：Beta只输出unsupported diagnostic，不提供自动或人工修正 |
+
+### Level 6
+
+| ID | Audited classification | Review subject | Required action |
+| --- | --- | --- | --- |
+| `L6-Q2` | `CLOSED` | active Run的Spec Basis失去Freshness且新Spec unresolved | 已传播有界suspended恢复、同/异Spec分支与frozen收口 |
+| `L6-Q3` | `CLOSED` | Input Settlement不可逆处置旧Input的授权来源 | DP-02已传播独立持续Authorization与逐Run精确Approval；产品默认留Level 9 |
+| `L6-Q4` | `CLOSED` | expedited是否随Spec变化传给替代Libra Run | 已传播加急Intent到合法替代Run，仍止于Handoff B |
+| `L6-R1` | `CLOSED` | Off-deck Reservation与同Entry Handoff/On-deck并发 | 已传播共享排他Fence和不可逆责任先行收口 |
+| `L6-R2` | `FALSE_POSITIVE/CLOSED` | User Perception是否主动发送Neutral Signal | Query-only边界完整，不重开 |
+| `L6-R3` | `FALSE_POSITIVE` | Off-load Completion Fact与Projection | Arca拥有Fact并发布只读Projection，不构成双Owner；仅做命名澄清 |
+| `L6-R4` | `ENGINEERING_CHOICE` | 自动运行与auto/manual用户表面 | Process自动启动矩阵已固定；页面入口属于Level 9，不建立新的业务模式 |
+| `L6-R5` | `FALSE_POSITIVE/CLOSED` | Off-load动作树与固定事务流程 | 已统一固定事务流程，不重开 |
+
+### Level 7 prerequisites
+
+这些不是已证明的前序架构缺陷，只在Level 7获准起草后验证：
+
+| ID | Status | Prerequisite |
+| --- | --- | --- |
+| `L7-P1` | `NOT_STARTED` | 验证`mountScopeId + inode + contentHash`在目标Linux/NAS挂载上的稳定性、成本与inode复用风险 |
+| `L7-P2` | `NOT_STARTED` | 设计Arca Target Commit Slot的同卷rename、跨卷copy、rollback、空间Reservation、恢复和性能合同 |
+
+## 7. Active audit gate
+
+Evidence审计、三组隔离盲审、主审交叉反证和Audited Decision Backlog已经完成。当前Gate为：
+
+1. `DP-01`–`DP-03`已经全部确认，不再向用户提出新的Review问题；
+2. 用户讨论中的补充意见先执行Supplemental Input Impact Sweep，不能直接覆盖当前问题；
+3. 三项决定确认后，连同`DOC_FIX`和已确认的`L3-R3-D1`–`D4`形成分层有界Change Set；
+4. Change Set审计通过后才允许一次性回写SSOT；
+5. 在Level 3–6恢复`ACCEPTED`前不开始Level 7。
+
+## 8. Independent blind review evidence — 2026-07-16
+
+Status: `EVIDENCE_ARCHIVED`。本节保存第一轮不继承本线程上下文的独立Clean Review原始快照；它不是新的
+Canonical合同，也不会自动把任何Finding升级为`TRUE_GAP`。本节分类已经由第9节三组隔离盲审与主审
+交叉反证完成校准；发生冲突时以第9–10节Review结论为准，但二者都不能覆盖SSOT。
+
+### 8.1 Review isolation and scope
+
+独立审阅者使用`fork_turns=none`启动，Phase A只完整读取：
+
+- 根`AGENTS.md`；
+- `docs/helix/README.md`；
+- `TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`全文。
+
+它先冻结Blind Findings，Phase B才读取本文、`CURRENT_PLAN.md`与`CURRENT_STATUS.md`做校准。未读取历史
+归档、Capability文档、实现代码或测试，未修改任何文件。
+
+审阅规则要求每项Finding执行Existence、Derivation、Conflict、Journey、Boundary与Level测试；能够由
+现有合同唯一推出、或明确属于Level 7–10细化的内容不得列为架构缺口。
+
+### 8.2 Executive verdict
+
+独立结论是：**当前SSOT不足以继续Level 7，但主干无需推倒重来。**
+
+阻断原因不是问题数量，而是少数合同会直接影响Level 7的Capability、Fencing、原子提交和破坏性操作：
+
+- stale/superseded Handoff Offer仍可能被Accepted；
+- Arca Input Settlement的业务授权边界未定义；
+- Accepted原子Control转移与上游Material Field延迟收口存在时点冲突；
+- Level 5仍残留Aftercare改写Libra immutable Product Material Manifest的条款；
+- Canonical Content Identity纠错、Spec unresolved收口和替代Run Priority尚未闭合。
+
+### 8.3 Blind findings
+
+下表是Phase A当时冻结的完整Finding集合，保留其原始分类供审计追溯；最终分类见第9.2节。
+
+| ID | Blind classification | Severity | Evidence and proven concern | Minimum affected scope |
+| --- | --- | --- | --- | --- |
+| `BF-01` | `TRUE_GAP` | HIGH | `3.4.7`允许同一Libra Run顺序发布多个Package且最多一个成功；Rejected和Spec变化可以产生新Package/Run，但通用幂等只约束单个Offer。SSOT没有withdraw/invalidate旧Offer或按Run/交付范围排他的合同，旧Offer可能在Run superseded后仍被Accepted | Handoff B Offer eligibility、withdrawal及同一交付范围Acceptance fencing；对应原`L4-R4` |
+| `BF-02` | `TRUE_GAP` | HIGH | Libra被禁止修改正式Input，Arca固定Off-load事务必须执行Placement Switch/Input Settlement，但SSOT明确把其Approval/Authorization留为未决。Material Control不自动等于破坏性业务授权 | Arca Placement Switch/Input Settlement效果授权与失效边界；对应原`L6-Q3` |
+| `BF-03` | `RESOLVED_MODEL_CONFLICT` | HIGH | 盲审按旧“Material Field=当前Procurement库存集合”定义推导出Accepted与Field membership冲突；经已确认的多Field物理文件源模型校准后，冲突只存在于旧文档表述，不存在于业务模型 | Handoff A Accepted原子结束Procurement Control/Procurement Region并建立Libra Control/Production Region；Material Field Observation持续存在，Receipt只幂等收口本域投影 |
+| `BF-04` | `DOC_FIX` | HIGH | Level 3已固定Product Material Manifest为Libra immutable历史交接单，Arca当前库存由Inventory Representation维护；Level 5仍要求Custody读取“当前Product Material Manifest revision”并让Aftercare更新Product Material Manifest | `5.8.2.1`、Care Basis、Case commit及相关Dictionary；原`L3-R1`关闭不完整 |
+| `BF-05` | `AMBIGUITY` | MEDIUM-HIGH | Inventory Representation保留历史revision且只有最新提交revision代表当前Inventory；Off-deck却称销毁“全部Inventory Representation中的Primary Material”，同时Destruction Scope又从最新Inventory生成，可能误删历史材料 | Off-deck Destruction Scope读取的Inventory revision语义；与原`L3-R5`局部相关 |
+| `BF-06` | `TRUE_GAP` | MEDIUM-HIGH | Arca拥有Canonical Content Identity，但SSOT只声明纠错另行定义；Duplicate、Off-deck、Aftercare都依赖该Identity。发现身份错误后没有合法Decision、Evidence Basis和Shelf Entry连续性合同 | Arca Identity Correction Decision；对应原`L5-R3` |
+| `BF-07` | `TRUE_GAP` | MEDIUM | Spec Basis失去Freshness且新Spec长期unresolved时，Level 5只禁止旧Basis提交；Level 6 Draft引入`suspended`但没有确定有界收口和最终frozen边界 | Libra Run在Spec unresolved下的责任与生命周期；对应原`L6-Q2` |
+| `BF-08` | `AMBIGUITY` | MEDIUM | Level 0–6把Source同时用于用户配置、Emby/Folder/NAS/MoviePilot、Observation、enabled和Source–Shelf Routing；无法唯一推出连接配置、Procurement观察资格与Libra Routing关系各自的Fact Owner | Source/Material Field/Observation/Routing词汇与Owner边界；对应`L3-R3`但不证明现有D1–D4可直接回写 |
+| `BF-09` | `AMBIGUITY` | LOW | Libra Run Priority止于Handoff B已明确，但Spec变化产生替代Run时`expedited`是否继承仍有两种合理语义，Level 7无法自行决定 | 替代Libra Run的Priority来源；对应原`L6-Q4` |
+| `BF-10` | `DOC_FIX` | LOW | Deck已固定为非Business Object的抽象成果，Collection Assurance应从Shelf Entry/Deck Fact出发；Level 1 Dictionary仍写“从Deck出发”，可能诱导全局Deck Aggregate | Level 1 Dictionary及直接继承文本 |
+| `BF-11` | `DOC_FIX` | LOW | `L3-A9`已经进入Amendment和Dictionary，但Level 3 Dictionary状态仍声称只应用`L3-A1–A8` | Level 3状态与Amendment摘要 |
+
+### 8.4 Independently judged clean areas
+
+盲审没有发现以下主干边界需要重做：
+
+- Deck是抽象成果、Shelf Entry是唯一Own事实，只有Arca On-deck Commit建立或扩充Deck Fact；
+- 五个一级业务域及Charter稳定，Kairox和Platform Foundation没有重新取得顶层业务Owner地位；
+- Collection Formation只有`Procurement → Libra → Arca`两次单向Handoff；
+- Candidate Package、Subject、Shelf Entry保持Domain-local，没有恢复全局MediaItem、Membership或SourceBinding；
+- Physical Material Identity、Domain-local Binding、Material Control与Manifest快照的概念分离成立；
+- Policy → Decision Preparation → Acceptance Spec → Libra Production → Arca Acceptance → On-deck Commit主链Owner唯一；
+- User Perception和People Management不直接推进消费者流程或修改媒体业务事实；
+- Aftercare与Off-deck的Process/Decision/Authorization分层总体成立，Capability成功没有冒充业务完成；
+- Level 6的Business Process、Supporting Work、Work Attempt、Freshness与bounded retry通用语法可追溯；
+- Workspace回收、Neutral Signal和Priority止于Libra Handoff B的边界连续。
+
+### 8.5 Workbench calibration
+
+#### Existing items supported by blind evidence
+
+- `BF-01 → L4-R4`
+- `BF-02 → L6-Q3`
+- `BF-06 → L5-R3`
+- `BF-07 → L6-Q2`
+- `BF-09 → L6-Q4`
+- `BF-08`部分支持重新审计`L3-R3`
+- `BF-03`要求把宽泛`L4-R2`窄化为明确的Accepted/Field收口时点冲突
+- `BF-05`揭示`L3-R5`尚未明确登记的破坏性revision歧义
+
+#### Previously closed item that requires DOC_FIX re-open
+
+`L3-R1`不能继续被视为全文传播完成：Level 3已经采用正确的Inventory Representation模型，但Level 5仍有
+改写/读取“当前Product Material Manifest revision”的残留。恢复Review时应只以`DOC_FIX`完成传播，不重新
+设计Fact Owner。
+
+#### New blind findings not precisely recorded before
+
+- `BF-03`：Accepted转移与Material Field当前库存延迟移除的Canonical时点冲突；
+- `BF-05`：Off-deck当前Inventory与历史revision的销毁范围歧义；
+- `BF-10`：Collection Assurance Dictionary仍写“从Deck出发”；
+- `BF-11`：Level 3状态漏记`L3-A9`。
+
+#### Existing suspected items that may be false positives
+
+- `L5-R2`：现有合同可能已经区分“目标Identity Requirement”和“当前Resolved Identity”；没有实际循环旅程前应倾向`FALSE_POSITIVE`；
+- `L4-R5`：Arca blocked、保留Control且不可反向Handoff可能已经完整表达永久不可Off-load责任；
+- `L6-R3`：Arca Canonical Fact及其只读Projection未必形成双Owner，可能只是`DOC_FIX`；
+- `L6-R4`：Process Owner自动化矩阵可能已经完整，auto/manual用户表面可能只是Level 9自由度；
+- 宽泛`L4-R2`不能因为未来需要Fencing/Store就直接推导出新的全局Control业务对象。
+
+#### Existing suspected items with enough preliminary evidence to retain
+
+- `L4-R3`：Arca复制产生新Physical Material Identity时的Control取得点需要审计；
+- `L6-R1`：Off-deck Reservation阻止Commit但未必阻止Handoff B Acceptance，存在新Custody悬挂风险；
+- `L3-R4`：Shelf lifecycle仍需要从完整用户旅程验证；
+- `L3-R5`：题目过宽，但Artifact、Related Reference与当前Inventory传播确有局部Evidence。
+
+#### Confirmed-but-unapplied D1–D4 caution
+
+独立审阅者没有读取本线程，Phase A只证明`BF-08`的旧Source模型存在真实歧义；它没有独立推出“多片
+Material Field、删除Source对象、每Shelf单Target、三个Region投影”这组具体方案。恢复Review时，D1–D4
+继续保留为用户已确认但未回写的决定，但仍须通过全局Evidence Matrix和有界Change Set审计，不能因
+“已经确认”直接修改SSOT。
+
+### 8.6 Independent suggested audit order（historical，已执行）
+
+1. 以`DOC_FIX`重新完成`L3-R1`全文传播，并一并检查`BF-05`、`BF-11`；
+2. 对`L3-R3`建立完整Evidence Matrix，校准`BF-08`与D1–D4；
+3. 审计Shelf lifecycle、Manifest/Related/Artifact和Arca Identity Correction；
+4. 审计Handoff/Control连续性：`BF-03`、窄化后的`L4-R2`、`L4-R3`、`BF-01/L4-R4`；
+5. 对`L4-R5`做false-positive审计；
+6. 审计破坏性与并发：`BF-02/L6-Q3`、`L6-R1`；
+7. 审计Run liveness与Priority：`BF-07/L6-Q2`、`BF-09/L6-Q4`；
+8. 校准`L6-R3`、`L6-R4`；
+9. 完成Level 0–6全文术语、Owner、Handoff、Control与用户旅程审计；
+10. Level 3–6恢复`ACCEPTED`后才进入Level 7。
+
+## 9. Multi-perspective clean audit — 2026-07-16
+
+### 9.1 Audit construction
+
+本轮Decision提炼使用四层证据链：
+
+1. 主审完整读取SSOT与现有Review台账，建立初始Finding映射；
+2. 第一轮无本线程上下文的全局独立盲审，冻结`BF-01`–`BF-11`；
+3. 第二轮使用三个互相隔离、只读且无本线程上下文的审阅者，分别从Domain/Handoff/Control、
+   Policy/Identity/Acceptance和Level 6 Execution三个视角完整读取SSOT后反证；
+4. 主审只保留无法由既有合同唯一推出、且会改变用户旅程或不可逆权限语义的分叉。
+
+盲审者没有读取实现、历史归档或彼此结论，也没有修改文件。各审阅者都必须同时执行Existence、
+Derivation、Conflict、Journey、Boundary与Level测试。两个方案如果只改变Store、Fencing、API、队列、
+状态名或页面表达，不得升级为用户架构决策。
+
+### 9.2 Audited Finding backlog
+
+| Finding / Review item | Final classification | Audited resolution |
+| --- | --- | --- |
+| `BF-01 / L4-R4` stale or superseded Offer | `DOC_FIX` | Run永久失去提交资格时，其未决Offer同步失去Accepted资格；Transfer Point重验eligibility，具体Fence留Level 7–8 |
+| `BF-02 / L6-Q3` old Input settlement authorization | `CONFIRMED_APPLIED_AUDITED` | 用户确认采用独立持续授权；Arca逐Run按精确Scope派生Approval，自动模式默认授权作为下游产品默认值 |
+| `BF-03 / L4-R2局部` Accepted与Field收口时点 | `DOC_FIX` | Accepted原子转移Control并使Identity离开Procurement Region、进入Production Region；Material Field Observation不结束，Receipt只做幂等投影收口 |
+| `BF-04 / L3-R1` Product Manifest被当作当前库存 | `DOC_FIX` | Product Material Manifest保持Libra immutable历史；Arca当前材料只由Inventory Representation revision表达 |
+| `BF-05 / L3-R5局部` Off-deck历史Inventory revision | `DOC_FIX` | Destruction Scope只读取每个当前有效Representation的最新revision；历史revision永不进入销毁范围 |
+| `BF-06 / L5-R3` Canonical Identity correction | `CONFIRMED_APPLIED_AUDITED` | 用户确认Beta不建设Identity Assurance或纠错流程；当前只记录能力缺口与禁止静默改写，未来另行设计 |
+| `BF-07 / L6-Q2` Spec长期unresolved | `DOC_FIX` | 有界`suspended`恢复耗尽后必须进入既有`frozen`合同；预算数值留工程层 |
+| `BF-08 / L3-R3` Source模型歧义 | `FALSE_POSITIVE` for current model | 旧模型本身可闭合；`D1`–`D4`是用户已确认的上游重设计，按Amendment Impact Sweep处理，不伪装成文档修正 |
+| `BF-09 / L6-Q4` replacement Run priority | `DOC_FIX` | 用户加急意图不因内部Spec revision变化消失；替代Run重新取得Run-local expedited，仍止于Handoff B |
+| `BF-10` Assurance从Deck出发 | `DOC_FIX` | 统一为从Shelf Entry与Deck Fact出发，不建立Deck Aggregate |
+| `BF-11` Level 3状态漏记A9 | `DOC_FIX` | 修正状态摘要和Dictionary传播 |
+| `L3-R4` Shelf lifecycle | `CONFIRMED_APPLIED_AUDITED` | 用户把删除定义为整座Shelf的非破坏性注销；原“空Shelf或draining”二选一作废，详见`DP-03` |
+| `L3-R5` Manifest/Related/Artifact边界 | `DOC_FIX` | 补齐当前Primary快照与Related/Artifact引用传播；不新增全局Manifest Store |
+| `L4-R2` global Control authority object | `ENGINEERING_CHOICE` | 不新增业务对象；Control registry/token/transaction属于Level 7–8 |
+| `L4-R3` new Physical Identity Control | `DOC_FIX` | Arca受管Transformation在创建提交点取得新Identity Control；实现机制留Level 7–8 |
+| `L4-R5` permanently blocked Off-load | `FALSE_POSITIVE` | Arca持续持有Custody、Control和恢复责任，不存在无Owner旅程 |
+| `L5-R2` strong Identity absent before first Spec | `FALSE_POSITIVE` | Spec可以声明最终Identity Requirement，不要求开单时已取得具体强Identity |
+| `L6-R1` Off-deck versus On-deck concurrency | `DOC_FIX` | Reservation/Authorization与Acceptance/On-deck共享排他Fence；已有责任按既有不可逆合同先收口 |
+| `L6-R3` Completion Fact versus Projection | `FALSE_POSITIVE` | Arca拥有Fact并公开只读Projection，不构成双Owner |
+| `L6-R4` auto/manual surface | `ENGINEERING_CHOICE` | Process自动启动资格已固定；显式入口与页面表达属于Level 9 |
+
+### 9.3 Disagreement resolution
+
+- Canonical Identity纠错：盲审曾在合同补全与用户安全分叉间存在不同判断；用户随后明确Beta完全不建设
+  Identity Assurance及纠错流程。该项已转为`CONFIRMED_APPLIED_AUDITED`，不再阻断Beta设计。
+- Shelf生命周期：盲审证明原合同缺少业务终点；用户随后把删除定义为整座Shelf的非破坏性注销，原
+  “空Shelf或draining”分叉作废。该项已转为`CONFIRMED_APPLIED_AUDITED`。
+- 替代Run Priority：审阅者对`DOC_FIX/ENGINEERING_CHOICE`标签有分歧，但既有“不陪诊”的用户意图和
+  Priority止于Handoff B合同可唯一推出延续语义，因此不占用用户决策。
+- Input Settlement：所有审阅者一致认为Material Control不能替代破坏性用户授权；用户已确认采用独立
+  持续授权，并补充自动模式默认启用该授权。
+
+## 10. Audited Decision Backlog
+
+### DP-01 — On-deck Canonical Content Identity correction authorization
+
+Status: `CLOSED`（2026-07-16；已应用并通过post-change封闭审计）。
+
+**用户旅程**：一项媒体已经成为Shelf Entry，后来强Evidence证明其TMDB/Series/JAV等Canonical Content
+Identity指向了错误内容。
+
+**确认决定**：Beta不建立Identity Assurance，不新增第四个Aftercare保障维度，不建设主动身份复核、
+Identity Correction Candidate、自动纠正或用户纠正流程。Canonical Content Identity在On-deck Commit后
+不允许被Beta Runtime静默或人工改写；检测到矛盾只能作为未支持诊断事实报告，不得伪装修正成功。
+
+Identity Assurance及Canonical Identity Correction整体延后，未来必须重新定义发现来源、Evidence门槛、
+Decision、Shelf Entry连续性和下游重算合同；本次决定不预先授权未来自动或人工纠错方案。
+
+### DP-02 — On-deck old Input destructive settlement authorization
+
+Status: `CLOSED`（2026-07-16；已应用并通过post-change封闭审计）。
+
+**用户旅程**：Arca已经Stage并验证最终产品，需要处置Handoff B明确接管、且不再承载最终Inventory的旧
+Primary Input，才能完成Input Settlement。
+
+**已经由合同确定**：Arca是唯一Owner；Final Primary必须先验证；只允许处理immutable Off-load Context
+Scope中的受控材料；未知碰撞、目录外材料和未交接文件必须阻断；Basis或Scope变化使旧Approval失效；
+Off-deck Authorization是另一条收藏退出合同。
+
+**确认决定**：采用清楚、独立、可审计的持续授权。Arca为每个On-deck Run依据当前Authorization revision、
+immutable Off-load Context、Final Inventory Decision与Freshness Basis派生精确Approval；授权不是目录级任意
+删除权，也不覆盖未知、未交接或Scope外材料。Scope/Basis变化使旧派生Approval失效；若持续授权仍有效，
+Arca可以基于新Scope重新派生，不要求逐媒体陪诊。
+
+**Supplemental downstream detail**：未来产品“自动模式”默认启用该持续授权。该默认值属于Level 9的模式
+预设与配置表达，不改变Level 6的Owner、Scope、Fencing和安全前置条件；不能把创建Shelf、Material Control
+或任意自动化资格本身解释成无限删除授权。手动模式的默认值、用户如何查看/变更以及配置生效时点留给
+Level 9统一设计。
+
+### DP-03 — Shelf deregistration lifecycle
+
+Status: `CLOSED`（2026-07-16；已应用并通过post-change封闭审计）。
+
+**用户旅程**：用户在ShelfDeck中“删除Shelf”的真实意图是注销整座Shelf。注销后普通用户视角中该Shelf
+如同从未存在，但任何已有正式媒体文件、Related Material与Target Folder都保持原样。
+
+**确认决定**：非空Shelf也允许注销。Shelf Deregistration是Arca拥有的独立管理流程，不是Collection Exit、
+批量Off-deck、Pause或长期`draining`。它使用`active → deregistering → deregistered`完成有限责任收口：
+
+1. 立即使Shelf失去新Routing和新Acceptance资格；
+2. 已有工作按现有不可逆Intent与Safety Liveness到安全边界，不建立反向Handoff；
+3. 依据当前有效Inventory冻结精确Deregistration Release Manifest；
+4. 原子终结该Shelf的活动Shelf Entry与Deck Fact、释放对应Physical Material Identity的Arca Control，并使
+   Finished Goods Region投影同步移除这些Identity；
+5. 不删除、移动、替换或重命名正式媒体，不删除Target Folder，也不按目录范围释放未知Material；
+6. 普通活动视图隐藏该Shelf，内部保留最小tombstone、历史Inventory与Control Release Evidence，不伪造历史；
+7. 被释放Material若位于有效Material Field中，随后可以独立回到Procurement Region；否则成为ShelfDeck
+   不再管理的External Material Reality。该变化不是Arca到Procurement的反向Handoff。
+
+这构成Shelf Entry/Deck Fact除Off-deck之外的第二种终结原因：Off-deck表示单项收藏退出并销毁媒体；Shelf
+Deregistration表示整座Shelf的行政注销并保留媒体。它不恢复逐媒体`retain_source`能力。
+
+### 10.1 Decision order and change gate
+
+`DP-01`–`DP-03`已经全部确认，`DOC_FIX`、`L3-R3-D1`–`D4`与三个Decision Amendment已按第11节有界
+Change Set一次性回写SSOT并通过post-change封闭审计；不得借后续用户复核扩张新语义。
+
+## 11. Bounded Change Set — 2026-07-16
+
+Status: `APPLIED_AND_AUDITED`。本节只保存本轮允许写回SSOT的边界和Closure Evidence，不是第二份
+架构合同。
+
+### 11.1 Change Set不变量
+
+本轮回写不得新增一级Business Domain、Business Handoff、全局媒体主键、全局Material Binding、全局
+Control Business Object、第四个Aftercare保障维度、Identity Correction Process或跨域通用状态机。
+两次单向Handoff、Deck不是Business Object、Accepted与On-deck Commit分离、Own只由有效Shelf Entry
+表达、Deliverable immutable、Material Control唯一以及各Domain Fact Owner不变。
+
+特别校准`BF-03`：`L3-R3-D1`–`D4`确认后，Material Field表示持续观察的文件源Business Object，不能再
+把Handoff A Accepted解释为删除Material Field observation membership。Transfer Point原子结束的是
+Procurement Control与Procurement Region资格，并建立Libra Control与Production Region；Receipt只做
+Procurement本域投影的幂等收口。该校准服从已确认上游模型，不重新占用Owner Decision。
+
+### 11.2 Change Group A — Material Field、External Provider与Control Region
+
+允许改写Level 0–6中仍把`Source`当作独立架构对象的合同，并统一为：
+
+- `Material Field`是用户配置的物理文件源Business Object；Procurement可以拥有`0..N`片Field，每片拥有
+  `fieldId`与当前`Field Access Binding`；
+- `External Material Reality`只表示ShelfDeck之外真实存在的材料、位置、状态与变化；
+- Emby只属于可选`External Provider`，不发现或拥有Physical Material、Inventory、Shelf Target、Off-load、
+  Shelf Entry或Deck Fact，也不建立Emby Library与Shelf/Target Folder映射；
+- `Material Field Observation Membership`、Domain-local Material Binding与Material Control是三件不同事实；
+- `Procurement Region`、`Production Region`、`Finished Goods Region`只按Physical Material Identity、Observation
+  与当前Control动态派生，不是Business Object、Store、用户配置目录或路径锁；
+- Material Field与Shelf Physical Target Folder可以解析到相同路径；目录重叠不产生重复采购资格；
+- 每座Shelf恰好拥有一个明确Physical Target Folder，不建立多Target Shelf或独立targetId。
+
+传播范围包括Level 0–2本体与Dictionary、Level 3对象图/物理关系/主键/基数/Owner/生命周期矩阵、Level 4
+两次Control transfer、Level 5 Extraction/Routing/Placement Decision、Level 6自动化/并发/Reality恢复及全部
+Canonical Dictionary。退役业务术语包括独立`Source`、`External Source Reality`、`Source Material Set`、
+`Source Context`、`Source Provenance`、`Source–Shelf`、`Source enabled|disabled`及“系统唯一Material Field”。
+
+### 11.3 Change Group B — Shelf Deregistration
+
+允许增加Arca拥有的`Shelf Deregistration Process`，但不得把它提升为新Value Flow或第三次Handoff：
+
+- Shelf生命周期为`active → deregistering → deregistered`，非空Shelf也允许注销；
+- 注销开始即失去新Routing与新Acceptance资格；已有不可逆责任按Safety Liveness到达安全边界；
+- Arca从当前有效Inventory冻结精确`Deregistration Release Manifest`，原子终结活动Shelf Entry/Deck Fact、
+  释放其中精确Physical Material Control并更新Finished Goods Region；
+- 不删除、移动、替换、重命名正式媒体、Related Material、Target Folder或Scope外材料；
+- 保留最小tombstone、历史Inventory与Control Release Evidence；
+- 被释放Identity只有仍属于有效Material Field observation set时才可重新进入Procurement Region，否则成为
+  不受ShelfDeck管理的External Material Reality；这不是反向Handoff；
+- Shelf Deregistration是Deck Fact的第二种终结原因；单项Off-deck仍表示授权销毁，不恢复逐项
+  `retain_source`语义。
+
+传播范围为Level 0的Deck Fact终结说明、Level 1的Value Flow非等价说明、Level 2 Arca Charter、Level 3
+对象/Process/Fact/Lifecycle、Level 4 Offer eligibility、Level 5 Routing/Acceptance eligibility与Decision、
+Level 6 Trigger/状态/恢复/自动化/并发/故障/Dictionary。
+
+### 11.4 Change Group C — Canonical Identity Beta boundary
+
+允许写入`DP-01`，且只能写入以下语义：Canonical Content Identity仍由Arca在On-deck Commit固化；Beta中
+此Identity此后不可由Runtime或用户改写；不建设Identity Assurance、第四保障维度、Correction Candidate、
+自动或人工Correction Process。矛盾Evidence只能形成unsupported diagnostic，不能伪装修复成功、替换
+Shelf Entry或触发身份重算。首次Shelf Acceptance的Identity Requirement与Level 1完整产品价值不得降低。
+
+传播范围为Level 3 Shelf Entry/Identity合同，Level 4 Accepted后矛盾Evidence边界，Level 5 Arca Decision与
+关闭状态，以及Level 6 Aftercare/Reality/失败/Dictionary。必须删除`L5-R3`开放引用。
+
+### 11.5 Change Group D — Input Settlement Authorization
+
+允许写入`DP-02`，并严格区分：
+
+1. 用户授予的、独立、可审计、带revision的持续`Input Settlement Authorization`；
+2. Arca按On-deck Run，基于当前Authorization revision、immutable Off-load Context、Final Inventory Decision
+   与Freshness Basis派生的精确`Input Settlement Approval`。
+
+Final Primary验证成功后才可Settlement。Approval只覆盖Handoff B明确接管且不再承载Final Inventory的旧
+Primary Input；未知碰撞、未交接、Scope外材料、Related引用与目录范围均不在授权内。Authorization、Basis
+或Scope变化使旧Approval失效；持续Authorization仍有效时可重新派生。Material Control、Shelf创建、
+自动化资格和Capability可用均不能替代Authorization；Off-deck Destructive Authorization是另一份合同。
+已进入持久化物理提交后只按Safety Liveness恢复。
+
+“产品自动模式默认启用该持续Authorization”只登记为Level 9待表达的已确认默认值；不得在Level 6制造
+auto/manual Business Mode或无限目录删除授权。
+
+### 11.6 Change Group E — Existing DOC_FIX propagation
+
+本批必须同时完成以下唯一答案的传播，不改变Owner或业务语义：
+
+- stale/superseded Libra Run永久失去提交资格时，全部未Accepted Offer同步失去Accepted资格；Transfer Point
+  重验Run、Package、Offer、Spec、Shelf lifecycle、Control与排他Fence eligibility；历史Offer继续immutable；
+- Domain受管Transformation在创建提交点取得新Physical Material Identity的本域Control；新Identity不继承
+  旧Identity Control，也不形成新Handoff；
+- Product Material Manifest始终是Libra immutable历史交接快照；Arca当前材料只由每个当前有效Inventory
+  Representation的最新committed revision表达；Aftercare提交新Inventory revision，不改写历史Manifest；
+- Off-deck Destruction Scope只读取上述最新当前revision；历史Inventory revision不进入销毁范围；
+- active Libra Run的Basis stale且新Spec unresolved时进入有界`suspended`；同Spec恢复、异Spec supersede并
+  建立替代Run，预算耗尽进入既有`frozen`；无Run的unresolved Subject不冻结；
+- 同一生产范围因Spec变化建立替代Run时，持续用户加急Intent使替代Run重新取得Run-local expedited；
+  Priority不挂Subject、不传Arca，仍止于Handoff B Accepted；
+- Off-deck Reservation/Authorization与同一Shelf Entry扩充、相交Material或相交目标范围的Acceptance/
+  On-deck Commit共享排他Fence；谁先跨越既有不可逆边界，谁先按原合同安全收口；
+- Collection Assurance Dictionary改为从Shelf Entry与Deck Fact出发；不建立Deck Aggregate；
+- Level 3状态摘要必须包含`L3-A9`。
+
+### 11.7 Mandatory post-apply audit
+
+回写后必须逐项审计：Level 3五张矩阵、Level 4五张交接矩阵、Level 5 Policy/Decision矩阵、Level 6
+Process/Automation/Priority/Concurrency/Failure/Recovery矩阵及Level 0–6全部Dictionary。正文不得残留
+`L3-R5`、`L5-R3`、`L6-Q2`、`L6-Q3`、`L6-Q4`或“待确认”引用。
+
+以下搜索结果必须为零，或只存在于明确标注的Historical Audit/Amendment Evidence：退役`Source`业务对象、
+`External Source Reality`、系统唯一Material Field、当前Product Material Manifest revision、改写Product
+Material Manifest、全部历史Inventory进入销毁范围、Shelf `draining/retire`、`retain_source`、`deckId`以及
+Emby Library映射。最终不变量仍是两次单向Handoff、无反向Handoff、Deck非对象、Manifest历史不可变、
+Inventory当前revision唯一、Beta Identity不可改写、Deregistration非破坏、Control Region只为动态Projection。
+
+### 11.8 Closure Evidence — 2026-07-16
+
+本Change Set已经完成回写和封闭审计，结论为：`CLOSED / NO_UNRESOLVED_BLOCKER / NO_NEW_OWNER_DECISION`。
+封闭时SSOT SHA256为：
+
+```text
+1229645EE5E99D54404506AEA6825C5B9F13734BB6D82A397F9CAD0E46B3BF30
+```
+
+审计Evidence：
+
+1. 主审逐项复核Level 3对象/Owner/基数/生命周期矩阵，Level 4 Handoff/Transfer/Control矩阵，Level 5
+   Policy/Decision覆盖矩阵，以及Level 6 Execution Context、Automation、Priority、Concurrency、Failure和
+   Recovery矩阵；两次Business Handoff、Canonical Owner和Material Control transfer没有发生漂移。
+2. 两轮相互隔离的post-apply blind review均完整读取冻结SSOT。第一轮未发现Blocker或新Owner Decision，
+   提出4项确定性DOC_FIX；第二轮识别出3项会阻断文档封闭的合同歧义和4项DOC_FIX。所有问题都可以由
+   已确认上游合同唯一推导，已完成修正，未引入新对象、Owner、Handoff、状态或用户旅程。
+3. 修正项覆盖：Extraction Eligibility与Control acquire时点、Perception Acquisition scope、Shelf
+   Deregistration与已Accepted On-deck责任的先后、Authorization所属Level、Inventory current-revision精确
+   表述、Level 5 Review状态、Level 6 Execution Context矩阵命名、Dictionary继承规则和Canonical term统一。
+4. 精确搜索确认正文不再残留bare `Product Package`、bare `Physical Target Folder`、`Shelf Target Folder`、
+   `External Reality`、`External Source Reality`、系统唯一Material Field、当前Product Material Manifest、
+   全部历史Inventory销毁、`retain_source`或Shelf `draining/retire`等活动合同漂移。`deckId`只保留在明确
+   “不分配deckId”的否定合同中；旧`L6-Q2`–`L6-Q4`只保留在已关闭状态记录中。
+5. Final invariant review确认：Deck不是Business Object；Collection Formation仍只有两次单向Handoff；
+   Product Material Manifest仍为Libra immutable历史；Arca当前现实只由每个当前有效Inventory
+   Representation的最新committed revision表达；Beta Identity不可改写；Shelf Deregistration非破坏；
+   三个Control Region仍只为按Observation与Control动态派生的Projection。
+
+Closure表示本轮bounded Change Set已经正确回写并通过审计。用户已于2026-07-16复核并确认Level 3–6为
+`ACCEPTED`，Architecture Review至此关闭。Level 7起草期间的业务决策只进入独立非Canonical
+`LEVEL7_BUSINESS_DECISIONS.md`，不重新占用本审计台账；实现、E2E与部署仍未授权。
+
+## 12. Level 9 Journey Reverse Audit — 2026-07-16
+
+### 12.1 Audit trigger、scope与mutation gate
+
+用户在Level 9接受前要求：从已经确认的九条经典用户旅程反向审计Level 0–8，证明每个用户可见结果、
+Command、长期配置和失败恢复都拥有完整的Owner、Fact、Process、Control、事务和Projection来源。
+
+本轮沿用第2–4节Evidence-first规则，并增加三次相互独立的阅读视角：
+
+1. **Journey pass**：只从用户开始、关闭浏览器、重启、并发修改及最终可验证结果出发；
+2. **Owner pass**：只检查每个Command、Decision、Authorization、Projection是否落在唯一Canonical Owner；
+3. **Physical closure pass**：只检查Level 8逐表、事务、Capability、Outbox和Read-model是否足以实现前两者。
+
+在本节关闭前：
+
+- Level 9不得标记`ACCEPTED`；
+- `9.10.5`–`9.10.6`原“无Blocking Gap”结论视为正在复核，不作为实施依据；
+- 本节Finding不得直接修改SSOT；先证明缺口、排除可由现有合同闭合的假阳性，再形成bounded change set；
+- 只有存在两个业务结果都合法的分叉才提交用户。已有Accepted合同能够唯一推导的修正由Codex收敛。
+
+### 12.2 Journey evidence matrix
+
+| Journey | Level 0–6 semantic basis | Level 7–8 physical closure | Audit result |
+| --- | --- | --- | --- |
+| A 建立系统 | Material Field、Shelf、Routing、Standard、Workspace和standing Authorization Owner均已定义 | Routing/Template aggregate head、standing Authorization及若干Platform设置没有完整持久合同 | `CONFIRMED_GAP` |
+| B 新材料上架 | 两次Handoff、Libra生产、Arca Acceptance/Off-load及Frozen语义完整 | Frozen discard事务和用户Activity progress持久来源不完整 | `CONFIRMED_GAP` |
+| C 浏览收藏 | Shelf Entry、Deck Fact、Inventory与三维Health语义完整 | Aftercare Assessment/Case没有完整冻结Care Basis，部分当前结果不能安全重建 | `CONFIRMED_GAP` |
+| D 健康与修复 | Aftercare三维评估、Case和专业复验闭环完整 | Placement变化与Decision Fact revision未完整进入Trigger/Basis/Schema | `CONFIRMED_GAP` |
+| E Standard变化 | Template-follow、Standard revision和同一Shelf Entry持续改善已明确 | Template active revision/binding/archive与Aftercare Basis物理合同不完整 | `CONFIRMED_GAP` |
+| F 感知与人物 | Perception immutable Record/Resolution及People Candidate/确认边界完整 | Registration Candidate没有Domain事实表；Merge Candidate缺少异步提交闭环 | `CONFIRMED_GAP` |
+| G 退出收藏 | Candidate、Reservation、Scope、Authorization、Case与批量升级语义完整 | Level 8缺少Review/Reservation/Whitelist/Batch/Escalation事实，且Scope/Case顺序与Level 6冲突 | `CONFIRMED_GAP` |
+| H 注销Shelf | 非破坏性行政终结、精确Control释放及恢复均完整 | Deregistration表、Capability与事务边界完整 | `PASS` |
+| I 系统与成果 | 系统故障、业务待处理、资源等待与业务成果已分离 | Activity progress及部分Platform运行事实缺少可重建来源 | `CONFIRMED_GAP` |
+
+这张矩阵不表示Levels 0–8整体失效。审计确认Level 0–6的五Domain、两次单向Handoff、Object continuity、
+Material Control、Frozen、Aftercare、Off-deck和Deregistration业务边界仍成立；缺口主要是Level 8没有把已经
+Accepted的业务合同完整投影为物理合同，以及Level 9少量公开接口没有反向验证这种缺失。
+
+### 12.3 Confirmed finding register
+
+#### L9-RA-01 — Frozen Libra Run discard没有责任与Control原子闭环
+
+- **Classification**：`DOC_FIX + ENGINEERING_CHOICE`；不需要新业务Decision。
+- **Existence evidence**：`5.6.7`、`6.4`和`9.5.3`已经唯一规定`frozen → discarded`、保留历史、释放原始
+  Primary Control、清理可销毁Workspace产物并允许全新Procurement流程。
+- **Gap evidence**：`8.5.4`没有Libra discard责任/Control事务；`8.5.11`只有`libra_runs.state`，没有不可变
+  discard Decision/Receipt或等价合同；`8.6`没有能原子终结Run并释放精确Control的typed commit；普通
+  `libra.workspace.material.reclaim`也没有定义已Promotion但未Accepted产品Material的Control收口顺序。
+- **Required correction boundary**：必须明确一个Domain-owned discard commit，把用户Decision、Run terminal、
+  原始Input Control release、Workspace cleanup eligibility与Outbox原子收口；实际文件清理由Libra Reclaimer
+  异步幂等执行，不能先释放Workspace Product Control后留下无Owner文件。
+
+#### L9-RA-02 — Shelf Placement变化没有进入Aftercare完整Basis
+
+- **Classification**：`DOC_FIX`；不需要新业务Decision。
+- **Derivation evidence**：`0.4`、`1.10`和`3.5.6`已经规定迁移NAS/路径只演进Inventory Representation，不能
+  改变Shelf Entry、Deck Fact或Canonical Identity；`2.6`把Collection Care交给Arca Aftercare。
+- **Gap evidence**：`9.4.4`承诺更改收藏位置后由Aftercare迁移，但`6.6.2` Trigger、`5.8.2.4` Care Basis、
+  `6.6.4` invalidation和`8.5.12` Assessment/Case唯一性都未包含Shelf Placement Policy revision或当前
+  Placement alignment。现有Conformance Capability输入也只写Standard。
+- **Required correction boundary**：Placement不是第二份Shelf Standard；Aftercare必须把当前Placement
+  alignment作为Arca-owned Care输入，冻结实际依赖的Placement revision，并在安全迁移后提交新的Inventory
+  Representation。不得回流Libra、重新Routing或创造新Shelf Entry。
+
+#### L9-RA-03 — Routing与Rule Template可变aggregate缺少current head及正确Owner映射
+
+- **Classification**：`DOC_FIX`；不需要新业务Decision。
+- **Routing evidence**：Level 9允许不同Field分别采用direct/sorting；`libra_routing_policy_revisions.mode`却位于
+  Policy revision本身，且没有Field到当前Policy revision的head/binding。`arca_shelves.routing_priority`又把
+  Libra拥有的Shelf Routing Priority写入Arca Store，与`5.4`和`9.6.1`冲突。
+- **Template evidence**：Level 5/9规定Shelf绑定Template后跟随其active revision，User Template可发布、恢复和
+  archive；`arca_rule_templates`只有immutable revision rows，没有Template aggregate head/status。当前
+  `arca_shelf_standard_revisions.rule_template_id + rule_template_revision`可以作为Shelf binding的历史快照，
+  但Level 8尚未明确它也是当前binding的权威来源，也没有支持Template active/archive lifecycle的current pointer。
+  依赖`MAX(revision)`会直接违反`8.5.9`current pointer规则。
+- **Public-surface evidence**：Level 9提供copy/preview/publish/archive，但没有明确可恢复Draft或publish payload
+  合同，尚不能证明用户完成“复制后编辑再发布”的旅程。
+- **Required correction boundary**：Routing仍归Libra、Template/Standard仍归Arca；补齐各自aggregate head、
+  binding与revision合同，删除Arca对Routing Priority的写权，并让公开编辑合同能在浏览器关闭后恢复。
+
+#### L9-RA-04 — Activity Ledger缺少durable progress source
+
+- **Classification**：`DOC_FIX + ENGINEERING_CHOICE`；详细动作可见性已经由用户确认，不再讨论是否需要。
+- **Existence evidence**：`7.9.4`要求长耗时Capability持续发布非业务progress sample；`9.1.2`与`9.8.4`要求
+  百分比、速度、耗时和合理ETA，且关闭浏览器/重启后可恢复。
+- **Gap evidence**：`fx_workflow_events`、`fx_event_attempts`和`fx_audit_records`均没有typed progress sample或
+  current progress字段；Audit只保存`evidence_digest`，不足以重建Level 9的`current/total/unit/rate/etaMs`。
+  `8.3.7`允许Projection Builder读取Foundation diagnostics，但没有定义Domain Process语义与technical Event
+  progress组合成Activity的versioned public summary合同。
+- **Required correction boundary**：Progress仍是Foundation技术事实，Activity仍是Read-model；不得把
+  progress写成Business Process状态，也不得让UI读取日志猜百分比。
+
+#### L9-RA-05 — Aftercare Assessment与Case没有持久化完整Care Basis
+
+- **Classification**：`DOC_FIX`；不需要新业务Decision。
+- **Existence evidence**：`5.8.2.4`要求Case冻结Standard、Canonical Identity、历史Package provenance、当前
+  Inventory、实际Decision Fact revision及Care Requirement Set；`6.6.4`要求任一实际依赖revision变化使旧Case
+  invalidated。
+- **Gap evidence**：`arca_aftercare_assessments`唯一键只有`inventory_revision + standard_revision + kind`，
+  Decision Fact或Placement变化时无法提交新的同维Assessment；`arca_aftercare_cases`没有`care_basis_digest`
+  或等价immutable Basis引用；Capability Result也只返回Inventory/Standard摘要。
+- **Required correction boundary**：Care Basis属于Arca Domain业务事实，不得只藏在Foundation
+  `fx_supporting_works.basis_digest`或大JSON Evidence中；Assessment/Case/Planner/commit必须引用同一Basis。
+
+#### L9-RA-06 — Level 9长期Platform设置和Arca standing Authorization缺少Canonical持久合同
+
+- **Classification**：`DOC_FIX + ENGINEERING_CHOICE`；不需要新业务Decision。
+- **Gap evidence**：`arca_ondeck_settlement_approvals`引用`standing_authorization_revision`，但Level 8没有拥有
+  该revision的Arca表；`platform_resource_profiles`不能单独表达“当前即时Profile + 每周Operating Schedule”；
+  其表合同同时把`profile_id`声明为PK又声称以`profile_id + revision`版本化，物理上不能形成多revision aggregate；
+  Level 9可管理Worker、设备允许状态和API credential，但Level 8没有相应durable aggregate或明确复用
+  `platform_integrations`的typed合同。Catalog还引用未定义的`WorkerHandle`。
+- **Journey consequence**：Journey A的Full Automation Readiness、资源时段、Worker与Security无法在重启后由
+  Canonical Fact确定；Journey I也无法可靠解释当前运行状态。
+- **Required correction boundary**：Input Settlement Authorization仍归Arca；Resource/Worker/Security仍归
+  Platform。不能以全局`config.json`或环境变量替代用户发布的revisioned设置。
+
+#### L9-RA-07 — People Registration/Merge Candidate缺少Domain事实闭环
+
+- **Classification**：`DOC_FIX`；不需要新业务Decision。
+- **Existence evidence**：`5.9.4`和`6.8.3`要求弱Identity只能形成Registration/Merge Candidate，用户确认后才
+  注册或合并。
+- **Gap evidence**：Level 8已有`people_merge_candidates`表，但没有Registration Candidate表；Catalog只有
+  Registration Evidence观察和Merge Candidate计算，也没有说明Domain completion callback如何把两类异步
+  结果提交为People-owned durable Candidate Fact。Foundation Event Result不能替代可被用户确认的People业务对象。
+- **Required correction boundary**：Candidate仍归People Management；它不能写Media-Cast Fact，也不能因候选
+  自动注册弱Identity。
+
+#### L9-RA-08 — Off-deck用户审阅链路的物理模型与Accepted顺序冲突
+
+- **Classification**：`DOC_FIX`；不可逆授权语义已经确认，不需要再次询问用户。
+- **Existence evidence**：`5.8.5`和`6.7`固定顺序为Candidate或Direct Intent → Reservation → immutable Scope →
+  Authorization → Off-deck Case；批量只是一份Envelope，高量级需要独立第二次确认，Authorization后不可取消。
+- **Gap evidence**：Level 8没有Reservation、Review、Duplicate Whitelist、Batch Envelope或High-volume Escalation
+  Receipt表；`arca_offdeck_cases.candidate_id`不能表达无需Candidate的Direct Intent；`arca_offdeck_scopes`反向
+  FK到Case，迫使Case在Authorization前存在，直接违反`6.7.1`“只有Authorization后创建Case”；
+  `arca_offdeck_policy_revisions`也没有current head或其他Owner pointer，自动评估不能在不使用`MAX(revision)`的
+  前提下确定当前Policy。
+- **Required correction boundary**：先以Review/Reservation拥有pre-authorization Scope，Authorization后再创建
+  每Entry独立Case；Direct Intent与Candidate路径在Scope前汇合；Scope freshness、批量Envelope和Escalation
+  Receipt必须durable，不能信任客户端布尔值。
+
+### 12.4 Rejected suspects and clean areas
+
+以下疑点经全局反证后不构成架构缺口：
+
+- **Material Field与Shelf Target路径重叠**：Levels 3、5、7、9已一致规定按Material Control派生Region；同路径
+  不会使On-deck材料重新采购。
+- **Overview是否需要新的Canonical Owner**：不需要。Overview是可重建Read-model，各Domain仍只发布自己的
+  Facts；确定性聚合不形成第六个Business Domain。
+- **Perception变化是否应Signal消费者**：不应。Level 5–6已经明确消费者只在自己的Decision/Freshness时点查询，
+  不由User Perception中断流程。
+- **Shelf Deregistration是否缺少物理闭环**：没有。Level 6状态/并发和Level 8表、Capability、原子Control release
+  已完整覆盖，且没有文件副作用Capability。
+- **Activity是否意味着恢复Task/Gate/Flow控制**：不意味着。Activity只读投影真实原子工作，不能成为Planner
+  路由键或用户技术控制入口。
+
+### 12.5 Audit classification result
+
+本轮尚未发现必须提交用户的新业务分叉。八项Confirmed Finding都能由已经Accepted的用户结果、Owner、
+Handoff、Authorization和Object continuity唯一推导；问题是合同传播和Level 8物理闭合不足，而不是需要重新
+讨论ShelfDeck做什么。
+
+因此当前状态为：
+
+```text
+LEVEL 9 ACCEPTANCE          BLOCKED
+CONFIRMED FINDINGS          8
+DECISION_REQUIRED           0
+UPSTREAM BUSINESS REDESIGN  0
+BOUNDED DOC/PHYSICAL FIX    REQUIRED
+IMPLEMENTATION AUTHORIZED   NO
+```
+
+该状态是回写前的审计结论；Section 13已经按此顺序完成bounded change set和六类post-change audit。Level 9
+现已重新进入用户Acceptance，但Implementation Gate仍未开放。
+
+## 13. Level 9 Journey Bounded Change Set and Closure — 2026-07-16
+
+### 13.1 Change-set invariants
+
+本轮只允许补齐Section 12已经证明的8项合同传播/物理闭合缺口，并保持：
+
+- 五个Business Domain和两次单向Handoff不变；
+- Procurement/Libra/Arca的Object identity、Domain-local Binding与Material Control分离不变；
+- Shelf Standard、Shelf Placement Policy、Routing Policy、Off-deck Policy继续由各自Owner分别维护；
+- Activity/progress不成为Business Process状态、Planner输入或用户技术控制；
+- Input Settlement Authorization、Aftercare Settlement Approval与Off-deck Destructive Authorization继续分离；
+- Off-deck Authorization之后Intent不可撤销，Case只在Authorization后建立；
+- 不新增兼容层、全局Config、跨Domain Store、Task/Gate/Flow写入口或第六Business Domain。
+
+### 13.2 Applied change groups
+
+| Change group | Finding | Applied SSOT scope | Result |
+| --- | --- | --- | --- |
+| A Run discard/control | `L9-RA-01` | Level 3/5/6 Run Discard Decision、Cleanup Scope；Level 8 transaction/schema/catalog；Level 9 Activity | closed |
+| B Placement care | `L9-RA-02` | Level 3 Inventory、Level 5 Placement/Conformance/Care Basis、Level 6 Trigger/invalidation、Level 8 schema/capability | closed |
+| C Routing/template aggregate | `L9-RA-03` | per-Field Routing head、移除Arca Routing Priority、Template aggregate/draft/current lifecycle、atomic publish、Level 9 draft API | closed |
+| D Durable progress | `L9-RA-04` | Level 7 Event Progress/Activity Summary、Level 8 Repository/table/port、Level 9 Activity source | closed |
+| E Care Basis persistence | `L9-RA-05` | relationized Case Basis inputs、Assessment uniqueness、Case creation transaction及typed DTO | closed |
+| F Platform/standing authorization | `L9-RA-06` | Arca Authorization head、Resource Operating Policy、Device/Worker/Credential/Secret scope及WorkerHandle | closed |
+| G People candidate | `L9-RA-07` | Registration Candidate table、generic People Candidate commit、durable UI target | closed |
+| H Off-deck review chain | `L9-RA-08` | Policy head、Duplicate Group/Whitelist、Review/Reservation/pre-auth Scope、Selection/Escalation/Batch、post-auth Case | closed |
+
+### 13.3 Post-amendment evidence
+
+六类审计结果：
+
+1. **Journey**：A–I均能从用户Intent走到durable结果；浏览器关闭、进程重启和Projection rebuild不依赖前端内存。
+2. **Owner**：Routing Priority只在Libra；Placement/Care/Off-deck只在Arca；People Candidate只在People；
+   Platform技术设置不进入Business Store。
+3. **Negative path**：Frozen discard、Placement conflict、Template publish conflict、Candidate确认、Scope stale及
+   Platform restart均有唯一收口路径，不使用silent fallback。
+4. **Restart**：Cleanup Scope、progress current pointer、Care Basis、Review/Reservation、Authorization、Worker/
+   Credential current revision均durable；Signal只负责唤醒。
+5. **Destructive safety**：原始Input release与Workspace Product cleanup分离；Off-deck Case只在Authorization
+   后创建；High-volume必须有独立Escalation Receipt；Input Settlement与Off-deck授权不复用。
+6. **Mechanical**：
+
+```text
+HEADINGS                     unique
+CAPABILITY REFS              112 / 112 unique
+RELATIONAL TABLES            147 / 147 unique
+HTTP METHOD+PATH ROUTES      109 / 109 unique
+MARKDOWN FENCES              balanced
+OLD OWNER/ORDER DRIFT        0
+DIFF CHECK                   pass
+```
+
+### 13.4 Closure result
+
+本轮结论为：
+
+```text
+CONFIRMED FINDINGS          8
+APPLIED                     8
+POST-AMENDMENT AUDIT        PASS
+DECISION_REQUIRED           0
+LEVEL 9 ACCEPTANCE          CONFIRMED / 2026-07-16
+IMPLEMENTATION AUTHORIZED   NO
+```
+
+该Closure在形成时只证明Level 9可以重新提交用户整体确认；用户随后已于2026-07-16确认Level 9。该确认不
+授权代码实现、E2E、Docker或生产部署，Level 10仍须独立设计与确认。本Review审计职责已经完成并转为
+`CLOSED`历史Evidence；当前Accepted状态只以SSOT Confirmation State为准，不需要让Review台账重新保持活动。
+
+## 14. Level 0–10 Final SSOT Audit — 2026-07-16
+
+### 14.1 Trigger、scope与blind-review isolation
+
+用户确认Level 10后，要求对唯一SSOT的全部Level 0–10做最终全面审计，并明确授权使用其他智能体执行盲审。
+本轮以三个互不继承当前线程结论、只读取SSOT的隔离视角进行反证：
+
+1. Business semantics、Owner、Object continuity与Handoff；
+2. Schema、Runtime、Recovery、Safety与Operational closure；
+3. 九条用户旅程、negative path、API与Projection闭环。
+
+盲审结论只登记为Candidate。主审仍须对每项执行Existence、Derivation、Conflict、Journey、Boundary与Level
+测试；严重度标签和审阅者数量都不能代替SSOT Evidence。没有证明的问题不得改写SSOT。
+
+### 14.2 Candidate register after deduplication
+
+| ID | Candidate | Initial class | Mutation rule |
+| --- | --- | --- | --- |
+| `FA-01` | Workspace新Material的Control取得条件把Workspace与Production Material Set混为一谈 | `DOC_FIX` | 只修正同域Workspace/Product Staging语义 |
+| `FA-02` | 目录、布局、命名同时被Shelf Standard与Shelf Placement Policy声明拥有 | `DOC_FIX` | 以既有Placement唯一Owner合同消除冲突 |
+| `FA-03` | 无Run unresolved Subject有放弃语义但无持久Decision、API与产品入口 | `DOC_FIX` | 传播既有唯一终结语义，不新增旅程分叉 |
+| `FA-04` | Series Handoff A未定义新建Season Subject与扩充既有Subject的确认判据 | `EVIDENCE_AUDIT` | 涉及Business Object continuity；证明后才能决定是否提交用户 |
+| `FA-05` | Beta Canonical Identity不可纠正是否违反Level 0真实性 | `SUSPECTED` | 先核对已确认Beta限制和unsupported diagnostic |
+| `FA-06` | 通用Handoff允许同一Deliverable多次顺序Decision，Handoff A schema只容纳一次 | `DOC_FIX` | 对齐Offer/Decision基数，不改变唯一Accepted |
+| `FA-07` | Business Handoff在Level 1与Level 4的适用范围同词异义 | `DOC_FIX` | 修正首次定义，保持Formation只有两次Handoff |
+| `FA-08` | sealed Procurement failure允许用户明确重试但无Intent、API与用户入口 | `DOC_FIX` | 传播既有重试语义，不伪造Fact revision |
+| `FA-09` | Journey E承诺全部标准Gap形成Aftercare Case，超出closed-world服务目录 | `DOC_FIX` | 收窄Journey文案，不新增外部采购路径 |
+| `FA-10` | mountScopeId没有稳定Registry、revision与启动能力验证 | `ENGINEERING_CHOICE` | 补技术身份Registry，不新增Business Object |
+| `FA-11` | 所有Command幂等要求没有同步Command的durable receipt | `ENGINEERING_CHOICE` | 增Foundation Command Receipt并与Owner事务原子提交 |
+| `FA-12` | Off-deck批量授权被物理合同写成跨Entry原子事务 | `DOC_FIX` | Batch Intent与per-Entry Authorization/Case分事务收口 |
+| `FA-13` | High-volume两次确认只有一个API动作 | `DOC_FIX` | 补独立第二次确认Command/API |
+| `FA-14` | `deferred`正常观察与failure retry budget混用 | `ENGINEERING_CHOICE` | 分离失败预算和有界观察期限 |
+| `FA-15` | 旧Snapshot恢复无法证明Snapshot之后的不可逆Effect | `ENGINEERING_CHOICE` | 增保守Safety Watermark/拒绝可写恢复合同 |
+| `FA-16` | Full Operational Backup没有SQLite与Workspace/Artifact一致切面 | `ENGINEERING_CHOICE` | 固定停机/quiesced backup |
+| `FA-17` | Outbox/Inbox没有consumer ack与Retention合同 | `ENGINEERING_CHOICE` | 补delivery/ack与有界GC，不让Projection依赖消息历史 |
+| `FA-18` | Production Canary引入上游不存在的媒体级授权 | `DOC_FIX` | 区分部署许可和既有业务Authorization |
+| `FA-19` | 无界fan-out原子事务与固定SQLite commit baseline不能同时闭合 | `ENGINEERING_CHOICE` | 明确supported scale、preflight与timeout语义 |
+| `FA-20` | HTTP总数漏计公共health route | `DOC_FIX` | Admin/public分别计数 |
+| `FA-21` | Process表的单一`work_id`与Process→Supporting Work `0..N`冲突 | `DOC_FIX` | 以Foundation owner/process反向关系为唯一链接 |
+| `FA-22` | 持久`resource_lease_id`与Permit纯内存合同冲突 | `DOC_FIX` | 删除权威lease持久字段，只保留timing Evidence |
+| `FA-23` | Physical contentHash算法、缓存与重新验证时点仍未闭合 | `ENGINEERING_CHOICE` | 固定Beta SHA-256与stat-fenced缓存 |
+| `FA-24` | 5星Movie的4K-class精确判据被保留到Level 8但未兑现 | `ENGINEERING_CHOICE` | 补可执行raster判据和Probe字段 |
+| `FA-25` | People Candidate有dismissed状态但无用户Command/API | `DOC_FIX` | 补统一dismiss动作，不改变注册/合并Owner |
+| `FA-26` | Security页面承诺active credential revoke但无安全恢复旅程 | `DOC_FIX` | 收窄为rotate与session logout |
+| `FA-27` | 已关闭Reservation仍有少量前瞻/旧术语文本 | `DOC_FIX` | 只做active text治理 |
+| `FA-28` | 后续Dictionary重复定义前序Canonical Term | `DOC_FIX` | 保留每Level字典，重复项改为明确引用而非第二定义 |
+| `FA-29` | Off-deck授权Identity已被外部删除/替换缺少强制fixture | `ENGINEERING_CHOICE` | 补测试矩阵，不新增授权分支 |
+
+本Register尚不是缺陷结论。`FA-04`若在全局审计后仍存在两个产品含义不同的合法方案，才形成唯一
+`DECISION_REQUIRED`；其他Candidate只有在既有合同能唯一推出修正时才允许bounded回写。
+
+### 14.3 Defect proof and classification result
+
+| ID | Final class | Evidence result |
+| --- | --- | --- |
+| `FA-01` | `DOC_FIX / APPLIED` | Level 3已把Production Material Set限定为外部Input、Workspace分为Working/Staging；Level 4误写“纳入Production Material Set才取得Control”。已替换为Workspace创建即域内Control、Promotion后进入Product Manifest。 |
+| `FA-02` | `DOC_FIX / APPLIED` | Level 3/5已唯一把Endpoint/location/layout/name交给Placement；Level 5一处“可进入Profile Rule Set”是冲突文本，已删除第二Owner。 |
+| `FA-03` | `DOC_FIX / APPLIED` | Level 5/6已有唯一用户终结语义；已传播Subject Abandon Decision/Receipt、原子Control release、fixture、Facade、页面、API和Attention。 |
+| `FA-04` | `CONFIRMED / APPLIED` | 用户确认Exact continuity方案：只有provider-season identity或持久Triage grouping lineage精确唯一命中且Episode零重叠才扩充，否则接管为新Subject。已传播Level 3/4/5/6/8。 |
+| `FA-05` | `FALSE_POSITIVE / CLOSED` | `L3-A12/L6-A9`是用户明确确认的Beta限制；矛盾Evidence进入unsupported/not_assessable且不伪造健康，仍可进入用户attention/off-deck。没有隐藏错误成功。 |
+| `FA-06` | `DOC_FIX / APPLIED` | Level 4允许同一Deliverable顺序Decision且最多一个Accepted；Handoff A表错误限制为一个Decision。已改为多Offer/单Offer单Decision/Deliverable单Accepted。 |
+| `FA-07` | `DOC_FIX / APPLIED` | Level 1措辞被误读为只允许inter-value-flow；已统一为Domain间责任交接，可位于同一或不同Value Flow，非责任协作仍不是Handoff。 |
+| `FA-08` | `DOC_FIX / APPLIED` | Level 6明确允许用户重试sealed failure；已补一次性Retry Intent、Run basis消费、fixture、页面、API和Attention，observe不再冒充retry。 |
+| `FA-09` | `DOC_FIX / APPLIED` | Aftercare closed-world边界唯一；Journey E已收窄为确定性Gap建Case，其余attention，不新增外部采购职责。 |
+| `FA-10` | `ENGINEERING_CHOICE / APPLIED` | Physical Identity依赖稳定mount scope；已补Platform Mount Scope Registry、revision、Field/Shelf opaque ref、启动probe与unsafe错误。 |
+| `FA-11` | `ENGINEERING_CHOICE / APPLIED` | 同步Command不用Work，旧revision重试无法仅靠Work幂等；已补与Owner事务同提交的Foundation Command Receipt及保留/fixture。 |
+| `FA-12` | `DOC_FIX / APPLIED` | Level 5禁止跨Entry原子Case；已拆为Batch Authorization Intent与per-Entry Authorization/Case独立事务。 |
+| `FA-13` | `DOC_FIX / APPLIED` | High-volume必须两次独立操作；已补`confirm-high-volume`，selection与escalation receipt不再由同一动作生成。 |
+| `FA-14` | `ENGINEERING_CHOICE / APPLIED` | deferred不是failure；已新增Observation Budget并与failure retry、hard timeout分离。 |
+| `FA-15` | `ENGINEERING_CHOICE / APPLIED` | 旧Snapshot无法自行证明post-snapshot destruction；已补先于不可逆点推进的外部Safety Watermark，不连续Restore保持faulted只读。 |
+| `FA-16` | `ENGINEERING_CHOICE / APPLIED` | Full Backup需要SQLite与可变文件一致切面；Beta固定stopped/quiesced backup gate和digest复验。 |
+| `FA-17` | `ENGINEERING_CHOICE / APPLIED` | 已补frozen consumer set、per-consumer delivery/ack、payload/tombstone retention；Projection rebuild仍只依赖Canonical Facts。 |
+| `FA-18` | `DOC_FIX / APPLIED` | Canary consent不是媒体业务Authorization；已改为部署许可加普通On-deck/Settlement/Aftercare/Off-deck合同。 |
+| `FA-19` | `ENGINEERING_CHOICE / APPLIED` | 原子fan-out不能无界；已固定Beta支持规模、preflight、writer busy与wall-clock含义，不以Recovery Sweep掩盖超限。 |
+| `FA-20` | `DOC_FIX / APPLIED` | 原109只统计Admin。新增遗漏动作后机械结果为113 Admin + 1 public health，已分别计数。 |
+| `FA-21` | `DOC_FIX / APPLIED` | Level 7固定Process→Work为0..N；已删除Process表单一work_id，以Foundation owner/process反向关系为唯一链接。 |
+| `FA-22` | `DOC_FIX / APPLIED` | Permit不持久化；已从Event Attempt移除resource lease字段，仅保留资源timing Evidence。 |
+| `FA-23` | `ENGINEERING_CHOICE / APPLIED` | Level 3保留项未兑现；已固定SHA-256、首次/Control前全Hash、stat-fenced缓存、变化重Hash和volume资源预算。 |
+| `FA-24` | `ENGINEERING_CHOICE / APPLIED` | 4K-class保留项未兑现；已固定display-raster long/short edge判据和MediaProbe必需字段。 |
+| `FA-25` | `DOC_FIX / APPLIED` | Candidate有dismissed生命周期但无Command；已补统一dismiss action、merge状态和无副作用语义。 |
+| `FA-26` | `DOC_FIX / APPLIED` | 单一active credential的直接revoke缺少恢复旅程；Beta页面收窄为rotate和session logout，revoked只作旧revision历史。 |
+| `FA-27` | `DOC_FIX / APPLIED` | 已修正Profile、retry/resource reservation、旧itemId示例和已兑现保留项文本。 |
+| `FA-28` | `DOC_FIX / APPLIED` | 重复定义均兼容但不够显式；Confirmation Protocol已固定typed refinement规则，后续重复项改为引用前序定义。 |
+| `FA-29` | `ENGINEERING_CHOICE / APPLIED` | 已补“授权Identity外部消失/被替代”的强制fixture：只能证明精确absence，不能触碰替代Identity。 |
+
+Bounded amendment后的机械证据：
+
+```text
+HEADINGS                    unique
+MARKDOWN FENCES             balanced
+CAPABILITY REFS             112 / 112 unique
+RELATIONAL TABLES           156 / 156 unique
+ADMIN METHOD+PATH ROUTES    113 / 113 unique
+PUBLIC HEALTH ROUTES        1 / 1 unique
+DIFF CHECK                  pass
+```
+
+### 14.4 Audited Decision Packet — `FA-04`
+
+**所在Level：** Level 3 Object continuity、Level 4 Handoff A、Level 5 Libra Intake Rules。
+
+**大白话场景：** ShelfDeck已经有一项Season Subject；以后又采购到一批声称属于同一Season的新Episode。
+Libra必须决定把它们追加给原Subject，还是创建新的Subject。这个决定不能等到Schema/代码阶段再猜。
+
+**SSOT已经确定：**
+
+- Subject的group粒度固定为Season；Episode是parent-local child；
+- 同一Season的非重叠Episode Candidate可以扩充既有Subject；
+- Triage Identity Claim是弱、recall-first、可纠正的，不等于Canonical Content Identity；
+- 一份Candidate只能Accepted到一个Subject，同一Episode范围不能重叠；
+- Beta不建设Canonical Identity correction或Subject split/merge流程。
+
+**唯一未确定分叉：** 什么Evidence足以让Libra说“这批Candidate已确认属于原来的Season”。
+
+**方案A（推荐）：Exact continuity claim。** Procurement在Candidate中提供稳定、可审计的Season Continuity
+Claim；只有稳定Provider season identity完全相同，或同一Triage grouping lineage的continuity key完全相同，
+并且Episode范围不重叠时才扩充。标题/年份/文件夹模糊相似只能用于Triage显示，不能合并Subject；无法证明时
+建立新Subject。优点是不会把错误Triage永久焊进一个无法拆分的Season Subject；代价是少数真实同Season可能
+暂时形成多个Pre-deck Subject，最终强Identity相同时仍可由Arca On-deck Commit扩充同一Shelf Entry。
+
+**方案B：Libra fuzzy continuity。** 允许Libra按规范化标题、年份、season number和Field context做模糊匹配，
+优先扩充既有Subject。优点是追剧场景更容易自动合并；代价是Recall-first Claim一旦误合并，Beta没有合法
+Subject split/identity correction路径，错误范围可能共同进入同一生产对象。
+
+**不建议方案C：每份Candidate永远新建Subject。** 它虽然最简单，但直接放弃已经确认的Season Subject可持续
+接管新Episode语义，不能视为实现选择。
+
+**推荐理由：** 方案A保持“弱Claim可以粗入库”与“对象范围扩充必须有确定Evidence”同时成立，把不确定性留在
+可继续处理的新Subject，而不是把不可逆错误合并进既有Subject。它不把Canonical Identity提前到Procurement，
+也不让Libra建设第二套Metadata中心。
+
+**影响范围：** `3.4.2`、`3.8.2`、`4.4.3/4.4.8`、`5.4.1`、`6.4.2`、Level 8 Candidate/Subject match schema与
+contract fixture。Domain、Handoff数量、Triage recall-first、Arca Canonical Identity和Shelf Entry continuity
+均不变化。
+
+Status: `CONFIRMED / APPLIED`（2026-07-16）。用户确认方案A；Section 14.5记录传播与关闭证据。
+
+### 14.5 `FA-04` bounded propagation and final closure
+
+用户确认的唯一业务规则固定为：Series Candidate只有在`provider_season_identity`或持久
+`triage_grouping_lineage`与恰好一个active Season Subject形成exact交集、且Episode范围完全不重叠时才扩充；
+claim缺失、零命中、多命中或任一重叠都不拒绝粗入库，而是建立新Subject。标题、年份、路径、目录和模糊
+相似度禁止用于Subject continuity。
+
+传播范围：
+
+1. Level 3补齐Candidate Claim、Subject continuity、基数、Owner与Canonical Dictionary；
+2. Level 4补齐Handoff A Acceptance范围、Subject Continuity Resolution和不变量；
+3. Level 5补齐Intake Decision Function、Basis digest、new/extension确定结果与Dictionary；
+4. Level 6补齐并发recheck、Basis失效与Accepted执行语义；
+5. Level 8补齐两张typed relation table、Intake Decision字段、Candidate DTO、Accepted atomic fact set和crash fixture；
+6. 不新增Business Domain、Handoff、Capability、API或用户陪诊动作；Triage recall-first与Arca Canonical Identity
+   边界保持不变。
+
+Post-change audit：
+
+```text
+HEADINGS                    unique
+MARKDOWN FENCES             balanced
+CAPABILITY REFS             112 / 112 unique
+RELATIONAL TABLES           156 / 156 unique
+TABLE PREFIX COUNTS         fx25 proc13 libra31 arca54 perception7 people10 platform16
+ADMIN METHOD+PATH ROUTES    113 / 113 unique
+PUBLIC HEALTH ROUTES        1 / 1 unique
+DICTIONARY REDEFINITION     0
+OWNER / HANDOFF DRIFT       0
+DIFF CHECK                  pass
+```
+
+Negative-path复演确认：无claim、0命中、N命中、Episode overlap均建立新Subject；唯一exact match才extension；
+并发Subject/Episode变化使旧Basis失效并重算；Resolved Product Identity新增provider anchor只影响未来Intake，
+不追溯合并Subject；相同Candidate幂等返回原Accepted结果。
+
+最终结论：`FINAL SSOT AUDIT PASS / ALL FINDINGS CLOSED / NO OPEN BUSINESS DECISION`。这只关闭架构审计，
+不授权代码实施、E2E、Docker或生产部署。

@@ -8,4 +8,5 @@ Current cross-domain implementation facts and Beta progress are recorded only in
 docs/helix/CURRENT_STATUS.md
 ```
 
-Nexora remains the source truth and onboarding/offboarding capability Service. Its earlier global Membership ownership is superseded by Libra LibraryMembership under the accepted Helix contract.
+旧Nexora仍实现Source truth与onboarding/offboarding能力，但该合同已被2026-07-13顶层设计取代：
+Procurement拥有Triage/Candidate；Nexora目标是Source修正安全生产；Off-deck独立属于Deck。

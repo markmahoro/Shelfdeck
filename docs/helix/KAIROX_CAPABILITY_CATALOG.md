@@ -1,8 +1,16 @@
 # Kairox 原子 Capability 目录
 
-状态：Canonical Catalog v1  
-代码事实源：`media-service/src/capabilityCatalog.js`  
-当前数量：62 项业务 Capability；另有 1 项 Runtime 阻断原语 `workflow.blocked`。
+> Historical capability catalog only. 本文保存当前/历史实现中的能力名称、接口和性能目标，不决定
+> clean Helix中的Business Domain、Fact Owner或调用方向。历史组织名、Source、Gate和Flow等旧归属
+> 必须由`TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`后续Level重新安置后才能成为新合同。
+
+状态：Historical Catalog snapshot v1（非clean Canonical合同）
+代码事实源：`media-service/src/capabilityCatalog.js`
+快照数量：62 项历史业务 Capability；另有 1 项 Runtime 阻断原语 `workflow.blocked`。
+
+2026-07-16 Level 7 Conservation Audit已经证明：本快照中的名称、数量、Effect、Owner和接口均不能原样
+进入clean Catalog；逐项去向以`CAPABILITY_CONSERVATION.md`为Evidence。所谓“原子”只描述该历史阶段的
+设计意图，不证明其符合当前Atomic Capability Contract。
 
 ## 为什么有 62 项
 

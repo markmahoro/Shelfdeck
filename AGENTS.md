@@ -4,7 +4,7 @@ This is the lean project memory for Codex in this repository. Keep it small. Put
 
 ## Project
 
-ShelfDeck (媒体库管家) manages an Emby media library through lifecycle gates, task targets, flow execution, resource events, and Admin Web / desktop clients.
+ShelfDeck (媒体库管家) establishes and operates a personal media collection from user-configured physical Material Fields. Emby is an optional External Provider, not ShelfDeck's storage or collection owner. The clean Helix model is defined only by the architecture SSOT below; current code still reflects historical processing models.
 
 Main modules:
 
@@ -24,7 +24,7 @@ Use the smallest relevant set:
 
 | Situation | Read first |
 | --- | --- |
-| Helix / Libra / Nexora architecture/process/current work | `docs/helix/README.md`, then `docs/helix/ARCHITECTURE.md`, `docs/helix/SERVICE_CONTRACTS.md`, `docs/helix/CURRENT_STATUS.md`, and `docs/helix/CURRENT_PLAN.md` |
+| Helix / ShelfDeck architecture, Libra, Procurement, Arca, or current work | `docs/helix/README.md`, then `docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`, `docs/helix/CURRENT_STATUS.md`, and `docs/helix/CURRENT_PLAN.md`; for Level 7 business decisions also read non-canonical `docs/helix/LEVEL7_BUSINESS_DECISIONS.md`; for Architecture Review history read non-canonical `docs/helix/ARCHITECTURE_REVIEW.md` |
 | Current v3/Kairox legacy status or next task | `docs/v3/README.md`, then `docs/v3/CURRENT_STATUS.md` and `docs/v3/CURRENT_PLAN.md` |
 | Kairox closure / release history, whether a version is done, or worktree scope | `docs/v3/RELEASE_GOALS.md`, then `docs/v3/CURRENT_STATUS.md` |
 | Version naming, release tag, image tag, package version, or deployment identity | `docs/v3/VERSIONING.md`, then `docs/v3/CURRENT_STATUS.md` |
@@ -39,27 +39,24 @@ Use the smallest relevant set:
 
 ## Architecture Memory
 
-- Kairox is a completed transitional architecture phase. `Kairox Beta` is achieved and is the only accepted Kairox release goal.
-- `Kairox Usable`, `Kairox Performance`, `Kairox GA Candidate`, and `Kairox GA` are cancelled. Do not use them as future worktree scope, release goals, Docker milestone names, or implementation plans.
-- The current architecture line is `Helix = Libra + Nexora + Kairox`. Libra is the Library Management / orchestration layer; Nexora is the Source Management capability; Kairox remains the In-Library Operation capability.
-- Helix is permanently a modular monolith inside `media-service`. Service boundaries are in-process JavaScript Facades and Store ownership boundaries, not internal microservices.
-- Libra owns LibraryMembership, Helix phase, quarantine, admission generation, and cross-domain reconciliation. Nexora owns source identity, SourceBinding, observation, and onboarding/offboarding execution. Kairox owns maintenance objectives, Task/Flow/Event, and maintenance projections.
-- Only the Libra composition root may depend on both Nexora Service and Kairox Service. Nexora and Kairox must not call each other or write each other's stores.
-- Helix documents live under `docs/helix/`; Nexora domain documents live under `docs/helix/nexora/`. Do not add new Nexora active plans, architecture contracts, acceptance plans, or implementation status under `docs/v3/`.
-- Nexora development uses three stages: Design, Implementation, Audit. Audit includes static audit, automated tests, and E2E / production-like evidence.
-- Nexora's earlier focused slices are historical evidence; current cross-domain work follows the sole Helix plan/status.
-- E2E-discovered architecture contract gaps must return to Design and be confirmed before code changes; implementation defects inside an accepted contract may be fixed directly with tests.
-- v3.x roadmap names, Kairox milestone names, Docker image tags, Git release tags, and package versions are different concepts. Use `docs/v3/VERSIONING.md` as the source of truth.
-- `docs/v2/ARCH_OVERVIEW.md` is a current implementation map, not an architecture contract. It must not override the relevant current architecture contract once Nexora exists.
-- Mirex is historical context before Kairox. Helix clean runtime has no Mirex migration, dual read, or compatibility path.
-- Kairox task semantics are inherited engineering legacy, not proof that Nexora must use lifecycle-first boundaries for Membership or SourceBinding.
-- Legacy `actionType`, operation-kind fields, and top-level selected-flow fields are Mirex remnants. They may only appear in historical docs or negative tests, not in clean runtime task identity.
-- Task / Flow / Event boundaries are hard:
-  - Task: one attempt to move one object across one target gate.
-  - Flow: implementation path selected by Flow Planner and stored as `flowPlan.flowKind`.
-  - Event: durable execution step inside that flow, usually tied to resource usage.
-- All automatic task creation must use unified TaskAdmission / Task Creator semantics. There must be no adult-library-only or background-only auto-enqueue path.
-- Each Library has exactly `libraryAutomationMode` and `maintenanceAutomationMode`. Kairox automatic maintenance follows Lifecycle's current `basedata|metadata|optimize` next gate; there is no per-gate automatic allow-list. Manual intent cannot bypass generation, duplicate, freshness, approval, or destructive safety.
+- `docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md` is the sole ShelfDeck / Helix architecture SSOT. Archived Helix, Kairox, v3, v2, and component-specific documents are historical evidence or implementation maps and cannot override it.
+- Levels 0–10 of the SSOT and the final full-document audit are accepted/closed as of 2026-07-16. The user confirmed `FA-04`: a Series Candidate extends an existing Season Subject only with an exact provider-season or persistent triage-grouping claim, exactly one active match, and zero Episode overlap; otherwise Intake accepts it as a new Subject. This does not authorize implementation.
+- `docs/helix/ARCHITECTURE_REVIEW.md` is the closed non-canonical review record. Section 14 contains the final-audit evidence, `FA-04` Decision Packet, bounded propagation, and closure. Review remains evidence-first and blind-review-assisted; a suspected item is not a defect until global SSOT audit proves it.
+- `docs/helix/LEVEL7_BUSINESS_DECISIONS.md` is the non-canonical Level 7 decision workspace. Only questions that change user intent, visible business outcomes, irreversible authorization, Business Domain/Owner/Handoff, or business-object continuity may be surfaced to the user. Codex owns engineering choices and must not turn implementation detail into a user decision.
+- The Level 7 historical capability conservation audit is complete: all 62 catalog capabilities are accounted for in `docs/helix/CAPABILITY_CONSERVATION.md`; this is evidence, not implementation authorization or a clean physical catalog.
+- The clean top-level business domains are Procurement, Libra, Arca, User Perception, and People Management. Collection Formation has only two one-way Business Handoffs: Procurement to Libra and Libra to Arca.
+- Procurement owns `0..N` Material Fields. Each Field is a user-configured physical file source with its own `fieldId` and current Field Access Binding; Emby is an External Provider only. Field Management maintains observations and eligibility, while current Material Control determines the derived Procurement, Production, and Finished Goods regions. Triage prepares immutable Candidate Packages. Related Materials travel only as references and do not get independent Field observation membership or control locks.
+- Libra owns Subject, Shelf Routing, Acceptance Spec, Libra Run, Production Workspace, and the On-deck Product Package. Libra only reads formal external inputs and writes changed products in its Workspace. Arca owns Shelf, Shelf Acceptance, On-deck Run/Off-load, Shelf Entry, Canonical Content Identity, and the Deck Fact. Handoff B Accepted transfers custody but does not establish Own; only Arca On-deck Commit establishes or expands Shelf Entry and Deck Fact.
+- Every Shelf has exactly one Shelf Physical Target Folder. Libra independently reclaims Workspace material by periodically checking Arca's durable Off-load Completion Projection; Arca signals only wake the reclaimer and need not be reliable or keyed by Shelf Entry. Expedited maintenance priority remains local to Libra, continues across a legitimate replacement Libra Run, and ends at Handoff B Accepted; Arca Off-load does not inherit it.
+- Shelf Deregistration is Arca's non-destructive whole-Shelf administrative lifecycle. It ends active Shelf Entries/Deck Facts and releases the exact current Material Control scope without deleting, moving, renaming, or otherwise modifying media files; it is not Off-deck or a third Business Handoff.
+- Physical Material Identity, Domain-local Material Binding, and Material Control are separate. There is no global media business ID, Membership, SourceBinding, or cross-domain Store.
+- Kairox is not a top-level domain. In accepted Level 8 it is only Libra's internal Production professional organization inside Workspace responsibility, with no independent Store, Business Object, Facade, runtime, or cross-domain authority. Historical ownership does not carry forward. The former source-oriented organization name has been removed from clean Helix and must not be reintroduced as a component or placeholder.
+- Helix remains a modular monolith inside `media-service`. Business boundaries use in-process Facades, separate fact ownership, and dependency rules, not internal HTTP or independent deployments.
+- Kairox is a completed transitional architecture phase. `Kairox Beta` is its only accepted historical release goal; later Kairox roadmap names remain cancelled.
+- Mirex, Kairox, earlier source-separation phases, and earlier Helix schemas have no migration, dual-read, or compatibility entitlement in the clean design.
+- Current work is Design-only. Do not resume implementation, E2E, Docker image construction, or production deployment until the active Helix plan's implementation gate is explicitly cleared by the user.
+- E2E-discovered architecture gaps return to Design. A bug or test failure never authorizes moving a decision or fact across a confirmed boundary.
+- v3.x roadmap names, Docker image tags, Git release tags, and package versions are different concepts. Use `docs/v3/VERSIONING.md` only for historical/current deployment identity, not clean Helix business architecture.
 
 ## Production Safety
 
@@ -109,10 +106,12 @@ Do not run `npm run dev` as a long-running blocking command from Codex. Tell the
 ## Change Discipline
 
 - Read the code before changing it. Prefer existing patterns and helpers.
+- A user challenge is a review trigger, not evidence that the current conclusion is wrong. Re-check the active SSOT and historical record, distinguish an already-decided duplicate from a genuine open contract gap, and then state the evidence-backed result. Do not concede, downgrade, close, or reopen an architecture issue merely to agree with the challenge; if a real gap remains, keep it open and discuss it explicitly.
+- A bug fix, test fix, performance fix, or recovery fix must never move a decision or fact into a component that does not own it. If the fix appears to require crossing a documented architecture boundary, stop implementation, return to the owning design contract, and obtain explicit user confirmation before changing that boundary. Passing tests or faster delivery never authorize boundary drift.
 - No workarounds or silent fallbacks when debugging; find the precise root cause.
 - When changing API, config, scheduler, task admission, flow behavior, resource behavior, or architecture contracts, update relevant tests and docs.
 - v3/Kairox planning documents must not multiply. Keep the active Kairox legacy plan in `docs/v3/CURRENT_PLAN.md`, active status in `docs/v3/CURRENT_STATUS.md`, and move completed/superseded/evidence documents under `docs/v3/archive/`.
-- Helix planning documents must not multiply. Keep the active Helix plan in `docs/helix/CURRENT_PLAN.md`, active status in `docs/helix/CURRENT_STATUS.md`, and move superseded Nexora-specific plans/evidence under `docs/helix/nexora/archive/` or `docs/helix/nexora/acceptance/`.
+- Helix planning documents must not multiply. Keep the active Helix plan in `docs/helix/CURRENT_PLAN.md`, active status in `docs/helix/CURRENT_STATUS.md`, and move superseded component-specific plans/evidence under historical archive paths.
 - Codex Plan Mode does not create new active plan documents. A confirmed plan updates `docs/v3/CURRENT_PLAN.md`; acceptance details update an existing file under `docs/v3/acceptance/`; do not create parallel active plan files.
 - Do not invent or reuse version names during implementation. For production deployments record the Docker image tag, git commit, SHA256, and E2E status in `docs/v3/CURRENT_STATUS.md`; reserve Git release tags for accepted releases.
 - Verify impact across service Windows, service Docker, and desktop Windows according to `docs/v2/DEVELOPMENT_WORKFLOW.md`.
