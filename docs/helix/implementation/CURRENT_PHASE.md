@@ -2,7 +2,7 @@
 
 Current phase: `P4 — Execution and Recovery Foundation`
 
-Status: in progress；P4-00–P4-02 complete；P4-03 next；P3 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P4-00–P4-03 complete；P4-04 next；P3 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-16
 
@@ -70,8 +70,8 @@ P4不形成“可运行半成品产品”；所有Runtime fixture必须在isolat
 | P4-00 | P3 closure and isolated P4 baseline receipt | complete | P3 PASS |
 | P4-01 | Foundation public ports and runtime nominal contracts | complete | P4-00 |
 | P4-02 | Exact Capability Registry and typed dispatcher gate | complete | P4-01；P2 Capability contracts |
-| P4-03 | Supporting Work admission and idempotent submission | next | P4-01；P3 Persistence |
-| P4-04 | Immutable normalized Plan and DAG validator | pending | P4-02–P4-03 |
+| P4-03 | Supporting Work admission and idempotent submission | complete | P4-01；P3 Persistence |
+| P4-04 | Immutable normalized Plan and DAG validator | next | P4-02–P4-03 |
 | P4-05 | Work Supply Controller and bounded backpressure | pending | P4-03–P4-04 |
 | P4-06 | Work Scheduler、dependency readiness and technical lease | pending | P4-04–P4-05 |
 | P4-07 | Resource Governor、Profile Mapper and atomic Permit bundle | pending | P4-05–P4-06 |
@@ -126,6 +126,12 @@ P4不形成“可运行半成品产品”；所有Runtime fixture必须在isolat
 - Admission validates typed definition、Owner scope、basis/fence、idempotency、active-scope uniqueness、hard cap and circuit state.
 - It creates technical Supporting Work only；never creates Business Process or chooses a Capability.
 - Same key/same digest replays；same key/different digest and concurrent duplicate scope reject atomically.
+- Done: commit `7efb760d` validates exact Supporting Work Definition and injected canonical Process/Basis eligibility，then reads
+  authoritative persisted Work/Event/Circuit facts inside one scoped Foundation transaction. It atomically writes Supporting Work +
+  typed Command Receipt；same key/digest replays，changed digest conflicts before writes，open concurrency scope/Work or Event hard cap/
+  Circuit returns `deferred` with zero writes，and invalid Definition/terminal Process returns `invalid_contract`. Insert failure rolls back
+  Receipt and no Business Domain table changes. Seven fixture groups、full gate and fresh detached-worktree gate PASS. The semantic guard
+  initially rejected shorthand `Admission`; implementation was renamed to canonical `WorkAdmission/work_admission` with no exemption.
 
 ### P4-04 Immutable normalized Plan and DAG validator
 
