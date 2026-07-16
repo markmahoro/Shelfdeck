@@ -2,7 +2,7 @@
 
 Current phase: `P4 — Execution and Recovery Foundation`
 
-Status: in progress；P4-00–P4-11 complete；P4-12 next；P3 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P4-00–P4-12 complete；P4-13 next；P3 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-17
 
@@ -79,8 +79,8 @@ P4不形成“可运行半成品产品”；所有Runtime fixture必须在isolat
 | P4-09 | Effect Journal and seven Effect-specific reconcilers | complete | P4-08；P3 atomic commits |
 | P4-10 | Retry、Timeout and declared Compensation | complete | P4-08–P4-09 |
 | P4-11 | Pressure Guard and persistent Circuit Breaker | complete | P4-05–P4-10 |
-| P4-12 | Startup recovery and Foundation readiness | next | P4-09–P4-11 |
-| P4-13 | Cross-runtime crash/recovery verification harness | pending | P4-01–P4-12 |
+| P4-12 | Startup recovery and Foundation readiness | complete | P4-09–P4-11 |
+| P4-13 | Cross-runtime crash/recovery verification harness | next | P4-01–P4-12 |
 | P4-14 | P4 Phase Exit Audit and evidence freeze | pending | P4-00–P4-13 |
 
 ## 7. Work Package contracts
@@ -246,6 +246,13 @@ P4不形成“可运行半成品产品”；所有Runtime fixture必须在isolat
 - Scan durable nonterminal Work/Event/Effect/defer/circuit facts and classify by exact Effect Class before any normal supply.
 - Never reset all `executing` to `ready`；recover no in-memory permit/waiter/lease across restart.
 - Foundation readiness is fail-closed on unknown contracts/effects、orphan facts、integrity/fence/control drift or unavailable required reconciler.
+- Done: `a2ebe66f` first introduced the read-only startup recovery gate；review then found that pending recovery actions could still
+  be misclassified ready. Commit `9dae2330` corrected readiness to remain fail-closed while any action or finding exists and expanded the
+  scan across Work/Attempt/Plan/Event/Event Attempt/Effect/resource defer/Circuit facts. Integrity、catalog and exact Registry/policy
+  bindings gate classification；pure and pre-intent crashes、committed Effects and all seven exact reconcilers are distinguished，while
+  unknown/orphan/multiple Effect、waiting contract drift、missing reconciler and global Circuit fault closed. Scoped Circuit is degraded；
+  no Event is bulk reset and no process-local Permit、waiter or lease is restored. Eight focused tests，49-file architecture gate，P3
+  persistence aggregate and fresh detached-worktree audit PASS；18 transactions/132 crash points and P2/DDL digests remain unchanged.
 
 ### P4-13 Cross-runtime crash/recovery verification harness
 
