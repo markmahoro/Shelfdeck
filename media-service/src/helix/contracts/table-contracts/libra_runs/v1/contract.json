@@ -51,7 +51,14 @@
         "ordinal": 6,
         "name": "state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "active",
+          "suspended",
+          "superseded",
+          "frozen",
+          "discarded",
+          "completed"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -98,7 +105,19 @@
     "partialUniqueRules": [
       "相同`subject+spec+scope`至多一个non-terminal Run"
     ],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "active",
+          "suspended",
+          "superseded",
+          "frozen",
+          "discarded",
+          "completed"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [],
       "currentPointerColumns": [],

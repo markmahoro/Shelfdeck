@@ -107,7 +107,12 @@
         "ordinal": 13,
         "name": "state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "pending",
+          "dispatching",
+          "fully_acked",
+          "tombstoned"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -154,7 +159,17 @@
       ]
     ],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "pending",
+          "dispatching",
+          "fully_acked",
+          "tombstoned"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
         "aggregate_revision"

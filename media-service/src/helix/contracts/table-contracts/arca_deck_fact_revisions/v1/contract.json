@@ -27,7 +27,12 @@
         "ordinal": 3,
         "name": "state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "active",
+          "offdeck_in_progress",
+          "offdecked",
+          "deregistered"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -74,7 +79,17 @@
     "uniqueConstraints": [],
     "hotIndexes": [],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "active",
+          "offdeck_in_progress",
+          "offdecked",
+          "deregistered"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
         "revision",

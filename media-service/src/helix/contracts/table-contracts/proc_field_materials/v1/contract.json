@@ -115,7 +115,11 @@
         "ordinal": 14,
         "name": "eligibility_state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "eligible",
+          "ineligible",
+          "unknown"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -145,7 +149,16 @@
       ]
     ],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "eligibility_state",
+        "enumValues": [
+          "eligible",
+          "ineligible",
+          "unknown"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
         "binding_revision"

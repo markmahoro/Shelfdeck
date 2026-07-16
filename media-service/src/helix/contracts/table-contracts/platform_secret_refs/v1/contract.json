@@ -63,7 +63,11 @@
         "ordinal": 7,
         "name": "state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "active",
+          "rotated",
+          "revoked"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -97,6 +101,14 @@
           "integration",
           "worker",
           "admin_credential"
+        ]
+      },
+      {
+        "column": "state",
+        "enumValues": [
+          "active",
+          "rotated",
+          "revoked"
         ]
       }
     ],

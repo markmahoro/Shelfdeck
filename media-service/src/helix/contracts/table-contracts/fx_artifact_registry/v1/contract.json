@@ -107,7 +107,11 @@
         "ordinal": 13,
         "name": "state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "active",
+          "gc_eligible",
+          "deleted"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -141,7 +145,16 @@
       ]
     ],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "active",
+          "gc_eligible",
+          "deleted"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
         "reference_revision"

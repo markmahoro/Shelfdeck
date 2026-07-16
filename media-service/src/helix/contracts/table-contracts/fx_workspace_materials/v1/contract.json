@@ -67,7 +67,13 @@
         "ordinal": 8,
         "name": "state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "working",
+          "product_staged",
+          "retained",
+          "deletion_pending",
+          "deleted"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       }
@@ -87,7 +93,18 @@
     ],
     "hotIndexes": [],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "working",
+          "product_staged",
+          "retained",
+          "deletion_pending",
+          "deleted"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
         "reference_revision"

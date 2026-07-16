@@ -83,7 +83,10 @@
         "ordinal": 10,
         "name": "state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "active",
+          "released"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -110,7 +113,15 @@
     ],
     "hotIndexes": [],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "active",
+          "released"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
         "control_revision"

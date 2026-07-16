@@ -42,7 +42,7 @@
       {
         "ordinal": 5,
         "name": "executor_version",
-        "logicalType": "TEXT",
+        "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
@@ -75,7 +75,10 @@
         "ordinal": 9,
         "name": "state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "executing",
+          "completed"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -152,7 +155,15 @@
     "partialUniqueRules": [
       "同一Event至多一个`executing` attempt"
     ],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "executing",
+          "completed"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [],
       "currentPointerColumns": [],

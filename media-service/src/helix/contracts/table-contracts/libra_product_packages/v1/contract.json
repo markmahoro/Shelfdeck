@@ -83,7 +83,9 @@
         "ordinal": 10,
         "name": "state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "published"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -118,7 +120,14 @@
       ]
     ],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "published"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [],
       "currentPointerColumns": [],

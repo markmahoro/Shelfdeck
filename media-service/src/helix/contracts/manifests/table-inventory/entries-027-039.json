@@ -107,11 +107,11 @@
         "tableId": "proc_field_materials",
         "owner": "procurement",
         "contractRef": "helix://contracts/tables/proc_field_materials/v1",
-        "contractDigest": "5df9e2dfae3921c287da362ba631845a8d32afc4ce25279019b0af28558b5fad"
+        "contractDigest": "c0460f5f93765c3092296d4f2995c45a5867ad818c76b6ac568eea66fdce3d4c"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "8329323d6e3d5d9a67301d4dcf15581aecefc077c6299c8ed5bb0ca9583e7597"
+        "value": "944e1facade401eda1f339b42751346f7ca77ac1b24726d4761f497f090dbdad"
       }
     },
     {
@@ -135,11 +135,11 @@
         "tableId": "proc_procurement_runs",
         "owner": "procurement",
         "contractRef": "helix://contracts/tables/proc_procurement_runs/v1",
-        "contractDigest": "593c3c8f11b65c3109c1b8b04d1ecd771f7ad1817b3c31b60ee5ef4663645543"
+        "contractDigest": "5f80f16651a13bfa485d6f3265bf863dd66ad1c0735a2ef718f84bb672f9778c"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "7895568e31ce12425cdb03dc81dabc3d1ac335f2c3a9073c1636778356505e23"
+        "value": "a76158e1e9a100ece664f6f9bcda9e84063a19f25489197ad8c0b43851628f7d"
       }
     },
     {
@@ -219,11 +219,11 @@
         "tableId": "proc_candidate_packages",
         "owner": "procurement",
         "contractRef": "helix://contracts/tables/proc_candidate_packages/v1",
-        "contractDigest": "746aa277861aca114f2832a86b79f66023083ea7761b215ff72ae3d44342ffc0"
+        "contractDigest": "a8a03e7b36db833546b0848cbf33b6d2535e9c9f86d07e5ed082073799ac5ae1"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "21678a121864ca4309bb5bba91938a45c8456ff9bea9a9a5130b41255b968d04"
+        "value": "c73aeb02f03b710ad774e35b2ba729d2ff364931d710551ae239eebfa32da5a5"
       }
     },
     {
@@ -331,11 +331,11 @@
         "tableId": "proc_candidate_deliveries",
         "owner": "procurement",
         "contractRef": "helix://contracts/tables/proc_candidate_deliveries/v1",
-        "contractDigest": "55ebca41e714a7f6c8fb2219fc83b1f43a28564f97e0d6e1e402426751ba1809"
+        "contractDigest": "91342f2fc8d8132acea655c41133792c68ffb7ec3174e2b0edb32158b88905f7"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "dd2b11922305be6e9353b0107475924691aca4b6856512390b8b9ccb909688cb"
+        "value": "206dad2686e158c4dd4bac0521f8e8bd9fea26f3905dd2fb046a18afb1211e1a"
       }
     },
     {

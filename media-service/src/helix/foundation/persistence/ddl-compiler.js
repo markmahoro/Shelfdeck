@@ -130,7 +130,12 @@ function checkClauses(column) {
     checks.push(quoted + ' IN (' + column.enumValues.map((value) => "'" + value.replaceAll("'", "''") + "'").join(', ') + ')');
   }
   if (column.logicalType === 'INTEGER_BOOLEAN') checks.push(quoted + ' IN (0, 1)');
-  if (column.logicalType === 'INTEGER' && /(?:_at_ms|_ms|_ns|_revision|^revision$|_count|_bytes|_ordinal|^ordinal$|^rank$|_slots$)/.test(column.name)) {
+  if (column.name.endsWith('_digest') || column.name === 'digest' || column.name.endsWith('digest_hex')) {
+    checks.push('length(' + quoted + ') = 64 AND ' + quoted + " NOT GLOB '*[^0-9a-f]*'");
+  }
+  if (column.logicalType === 'INTEGER' && (column.name === 'revision' || column.name.endsWith('_revision'))) {
+    checks.push(quoted + ' >= 1');
+  } else if (column.logicalType === 'INTEGER' && /(?:_at_ms|_ms|_ns|_count|_bytes|_ordinal|^ordinal$|^rank$|_slots$)/.test(column.name)) {
     checks.push(quoted + ' >= 0');
   }
   return checks;
@@ -174,6 +179,9 @@ function compileTable(contract, allContracts) {
   const columnNames = contract.columns.map((column) => column.name);
   if (new Set(columnNames).size !== columnNames.length) throw new Error('P3_DDL_DUPLICATE_COLUMN:' + contract.tableId);
   requireColumns(contract, contract.primaryKey, contract.tableId + ':primary-key');
+  for (const column of contract.columns.filter((item) => /(?:^|_)(?:state|status)$/.test(item.name))) {
+    if (column.enumValues.length === 0) throw new Error('P3_DDL_UNBOUNDED_STATE:' + contract.tableId + '.' + column.name);
+  }
 
   const definitions = contract.columns.map((column) => compileColumn(column, contract.primaryKey));
   const supportColumns = SUPPORT_COLUMNS[contract.tableId] || [];
@@ -270,6 +278,7 @@ function compileSchema(inputContracts) {
     manifest: {
       schemaVersion: 1,
       compilerContract: 'helix-p3-deterministic-sqlite-ddl/v1',
+      digestAlgorithm: 'sha256',
       tableCount: tables.length,
       tableContractAggregateDigest: digest(tables.map((table) => [table.tableId, table.contractDigest])),
       ddlDigest: digest(ddl),

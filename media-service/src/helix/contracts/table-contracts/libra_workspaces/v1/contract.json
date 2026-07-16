@@ -35,7 +35,11 @@
         "ordinal": 4,
         "name": "state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "active",
+          "reclaiming",
+          "reclaimed"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -59,7 +63,16 @@
     "uniqueConstraints": [],
     "hotIndexes": [],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "active",
+          "reclaiming",
+          "reclaimed"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
         "workspace_revision"

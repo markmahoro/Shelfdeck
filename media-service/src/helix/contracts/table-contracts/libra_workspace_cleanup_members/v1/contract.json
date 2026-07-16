@@ -51,7 +51,12 @@
         "ordinal": 6,
         "name": "state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "pending",
+          "deleted",
+          "released",
+          "blocked"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -95,7 +100,17 @@
       ]
     ],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "pending",
+          "deleted",
+          "released",
+          "blocked"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
         "expected_control_revision"

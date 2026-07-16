@@ -67,7 +67,11 @@
         "ordinal": 8,
         "name": "watched_state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "unknown",
+          "unwatched",
+          "watched"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -127,6 +131,14 @@
     ],
     "partialUniqueRules": [],
     "checkRules": [
+      {
+        "column": "watched_state",
+        "enumValues": [
+          "unknown",
+          "unwatched",
+          "watched"
+        ]
+      },
       {
         "rule": "rating非空时`CHECK 1..5`"
       }

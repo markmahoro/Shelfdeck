@@ -67,7 +67,11 @@
         "ordinal": 8,
         "name": "health_state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "active",
+          "stale",
+          "released"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -99,7 +103,16 @@
     "uniqueConstraints": [],
     "hotIndexes": [],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "health_state",
+        "enumValues": [
+          "active",
+          "stale",
+          "released"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
         "binding_revision"

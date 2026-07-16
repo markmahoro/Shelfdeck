@@ -42,7 +42,7 @@
       {
         "ordinal": 5,
         "name": "query_version",
-        "logicalType": "TEXT",
+        "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false

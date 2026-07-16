@@ -19,7 +19,11 @@
         "ordinal": 2,
         "name": "state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "closed",
+          "open",
+          "recovering"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -68,7 +72,16 @@
       ]
     ],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "closed",
+          "open",
+          "recovering"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [],
       "currentPointerColumns": [],

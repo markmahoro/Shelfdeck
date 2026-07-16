@@ -13,6 +13,76 @@ const OWNER_PREFIXES = Object.freeze({
   'platform-settings': ['platform_']
 });
 const BUSINESS_OWNERS = new Set(['procurement', 'libra', 'arca', 'perception', 'people']);
+// SSOT 8.5.9 requires every state/status column to be closed. Values named by
+// Level 6/7 lifecycles are preserved verbatim; unnamed technical projections
+// use the smallest Foundation/Platform lifecycle needed by those contracts.
+const ENUM_OVERRIDES = Object.freeze({
+  'fx_supporting_works.state': ['admitted', 'ready', 'running', 'blocked', 'succeeded', 'failed', 'cancelled'],
+  'fx_work_attempts.state': ['ready', 'running', 'blocked', 'succeeded', 'failed', 'cancelled'],
+  'fx_workflow_plans.state': ['planned', 'no_effect_required', 'temporarily_unplannable', 'contract_unplannable'],
+  'fx_workflow_events.state': ['pending', 'ready', 'waiting_for_resource', 'waiting_for_external', 'waiting_for_approval', 'executing', 'succeeded', 'skipped', 'failed', 'cancelled'],
+  'fx_event_attempts.state': ['executing', 'completed'],
+  'fx_effect_journal.state': ['intended', 'effect_observed', 'committed', 'reconcile_required', 'failed'],
+  'fx_outbox.state': ['pending', 'dispatching', 'fully_acked', 'tombstoned'],
+  'fx_resource_defer.state': ['waiting', 'released', 'cancelled', 'expired'],
+  'fx_circuit_states.state': ['closed', 'open', 'recovering'],
+  'fx_material_controls.state': ['active', 'released'],
+  'fx_workspace_registry.state': ['active', 'reclaiming', 'reclaimed'],
+  'fx_workspace_materials.state': ['working', 'product_staged', 'retained', 'deletion_pending', 'deleted'],
+  'fx_artifact_registry.state': ['active', 'gc_eligible', 'deleted'],
+  'fx_artifact_references.state': ['active', 'released'],
+  'proc_material_fields.status': ['active', 'disabled'],
+  'proc_field_materials.eligibility_state': ['eligible', 'ineligible', 'unknown'],
+  'proc_procurement_runs.state': ['active', 'waiting', 'sealed'],
+  'proc_candidate_packages.state': ['published'],
+  'proc_candidate_deliveries.state': ['open', 'accepted', 'rejected', 'stale'],
+  'libra_subjects.status': ['active', 'abandoned'],
+  'libra_material_bindings.health_state': ['active', 'stale', 'released'],
+  'libra_decision_basis_revisions.status': ['ready', 'unresolved', 'superseded'],
+  'libra_runs.state': ['active', 'suspended', 'superseded', 'frozen', 'discarded', 'completed'],
+  'libra_episode_delivery_members.state': ['pending', 'delivered', 'superseded'],
+  'libra_workspaces.state': ['active', 'reclaiming', 'reclaimed'],
+  'libra_workspace_cleanup_scopes.state': ['active', 'completed'],
+  'libra_workspace_cleanup_members.state': ['pending', 'deleted', 'released', 'blocked'],
+  'libra_product_packages.state': ['published'],
+  'arca_shelves.status': ['active', 'deregistering', 'deregistered'],
+  'arca_acceptance_attempts.state': ['active', 'waiting', 'accepted', 'rejected'],
+  'arca_ondeck_custodies.state': ['active', 'committed', 'released'],
+  'arca_material_bindings.health_state': ['active', 'stale', 'released'],
+  'arca_ondeck_runs.state': ['ready', 'offloading', 'blocked', 'committed'],
+  'arca_ondeck_settlement_approvals.state': ['active', 'consumed', 'stale'],
+  'arca_shelf_entries.status': ['active', 'offdeck_in_progress', 'offdecked', 'deregistered'],
+  'arca_deck_fact_revisions.state': ['active', 'offdeck_in_progress', 'offdecked', 'deregistered'],
+  'arca_aftercare_findings.state': ['open', 'resolved', 'superseded'],
+  'arca_aftercare_cases.state': ['active', 'resolved', 'invalidated', 'unresolved'],
+  'arca_aftercare_settlement_approvals.state': ['active', 'consumed', 'stale'],
+  'arca_offdeck_policy_heads.status': ['active', 'disabled'],
+  'arca_offdeck_review_candidates.state': ['open', 'selected', 'dismissed', 'stale'],
+  'arca_offdeck_duplicate_groups.state': ['open', 'resolved', 'whitelisted', 'stale'],
+  'arca_offdeck_authorizations.state': ['active', 'consumed', 'revoked', 'stale'],
+  'arca_offdeck_cases.state': ['ready', 'destroying', 'verifying', 'blocked', 'completed'],
+  'arca_deregistrations.state': ['active', 'committed'],
+  'perception_sources.status': ['active', 'disabled'],
+  'perception_records.watched_state': ['unknown', 'unwatched', 'watched'],
+  'people_persons.status': ['active', 'merged', 'archived'],
+  'people_reference_assets.state': ['active', 'superseded', 'rejected'],
+  'people_reference_faces.state': ['active', 'superseded', 'rejected'],
+  'platform_mount_scopes.status': ['active', 'disabled'],
+  'platform_integrations.state': ['active', 'disabled', 'faulted'],
+  'platform_secret_refs.state': ['active', 'rotated', 'revoked'],
+  'platform_workspace_roots.state': ['active', 'disabled', 'faulted'],
+  'platform_resource_profiles.status': ['active', 'archived'],
+  'platform_compute_devices.state': ['available', 'unavailable', 'disabled'],
+  'platform_workers.status': ['active', 'offline', 'disabled']
+});
+const INTEGER_COLUMN_OVERRIDES = new Set([
+  'fx_workflow_plans.planner_version',
+  'fx_plan_nodes.contract_version',
+  'fx_workflow_events.contract_version',
+  'fx_event_attempts.executor_version',
+  'fx_resource_defer.local_priority',
+  'libra_decision_basis_inputs.query_version'
+]);
 const FOREIGN_KEY_OVERRIDES = Object.freeze({
   'proc_procurement_retry_intents.failed_run_id': ['proc_procurement_runs', 'procurement_run_id'],
   'libra_subject_decision_heads.current_routing_decision_id': ['libra_routing_decisions', 'routing_decision_id'],
@@ -124,16 +194,17 @@ function stripCode(value) {
   return trimmed.startsWith('`') && trimmed.endsWith('`') ? trimmed.slice(1, -1) : trimmed;
 }
 
-function logicalType(name) {
+function logicalType(name, tableId = null) {
   if (name.endsWith('_json')) return 'TEXT_JSON';
-  if (/(?:_at_ms|_ms|_ns|_revision|^revision$|_count|_bytes|_ordinal|^ordinal$|^rank$|_slots$)/.test(name)) return 'INTEGER';
+  if (INTEGER_COLUMN_OVERRIDES.has(tableId + '.' + name)) return 'INTEGER';
+  if (/(?:_at_ms|_ms|_ns|_revision|_count|_bytes|_ordinal|_slots)$/.test(name) || ['revision', 'ordinal', 'rank'].includes(name)) return 'INTEGER';
   if (['enabled', 'current', 'completed', 'high_volume'].includes(name)) return 'INTEGER_BOOLEAN';
   if (['rate', 'deck_coverage_ratio', 'rating'].includes(name)) return 'REAL';
   if (['current_value', 'total_value', 'preference_level'].includes(name)) return 'INTEGER_OR_REAL';
   return 'TEXT';
 }
 
-function parseColumns(columnsContract) {
+function parseColumns(columnsContract, tableId = null) {
   const raw = stripCode(columnsContract);
   return splitBalanced(raw).map((token, ordinal) => {
     const match = token.match(/^([a-z][a-z0-9_]*)(?:\(([^)]*)\))?(?:\s+(PK\/FK|PK|FK))?$/);
@@ -142,8 +213,8 @@ function parseColumns(columnsContract) {
     return {
       ordinal: ordinal + 1,
       name: match[1],
-      logicalType: logicalType(match[1]),
-      enumValues: match[2] ? match[2].split('|') : [],
+      logicalType: logicalType(match[1], tableId),
+      enumValues: match[2] ? match[2].split('|') : (ENUM_OVERRIDES[tableId + '.' + match[1]] || []),
       primaryKeyPart: marker === 'PK' || marker === 'PK/FK',
       foreignKeyMarker: marker === 'FK' || marker === 'PK/FK'
     };
@@ -172,7 +243,7 @@ function primaryKey(columns, constraintsContract) {
 
 function parseTableRows(entries) {
   return entries.map((entry) => {
-    const columns = parseColumns(entry.columnsContract);
+    const columns = parseColumns(entry.columnsContract, entry.id);
     const clauses = semanticClauses(entry.constraintsContract);
     const key = primaryKey(columns, entry.constraintsContract);
     const jsonContracts = columns.filter((column) => column.name.endsWith('_json')).map((column) => {
@@ -261,5 +332,5 @@ function allowedForeignKey(sourceOwner, targetOwner) {
 }
 
 module.exports = Object.freeze({
-  BUSINESS_OWNERS, OWNER_PREFIXES, allowedForeignKey, buildTableContracts, digestValue, parseColumns, parseFunctionCalls, splitBalanced
+  BUSINESS_OWNERS, ENUM_OVERRIDES, INTEGER_COLUMN_OVERRIDES, OWNER_PREFIXES, allowedForeignKey, buildTableContracts, digestValue, parseColumns, parseFunctionCalls, splitBalanced
 });

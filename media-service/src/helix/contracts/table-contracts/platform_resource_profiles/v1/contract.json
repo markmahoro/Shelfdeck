@@ -46,7 +46,10 @@
         "ordinal": 5,
         "name": "status",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "active",
+          "archived"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -84,6 +87,13 @@
         "enumValues": [
           "default",
           "full"
+        ]
+      },
+      {
+        "column": "status",
+        "enumValues": [
+          "active",
+          "archived"
         ]
       }
     ],

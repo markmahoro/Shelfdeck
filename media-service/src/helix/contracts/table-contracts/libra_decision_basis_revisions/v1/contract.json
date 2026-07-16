@@ -51,7 +51,11 @@
         "ordinal": 6,
         "name": "status",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "ready",
+          "unresolved",
+          "superseded"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -85,7 +89,16 @@
       ]
     ],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "status",
+        "enumValues": [
+          "ready",
+          "unresolved",
+          "superseded"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
         "basis_revision"

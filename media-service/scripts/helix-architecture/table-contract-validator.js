@@ -62,6 +62,20 @@ function validateTableContracts(options) {
       'TABLE_OWNER_PREFIX_MISMATCH', 'Table prefix is incompatible with its sole Owner.', { tableId: entry.id, owner: contract.owner, prefix: contract.prefix }
     ));
     if (!Array.isArray(contract.primaryKey) || contract.primaryKey.length === 0) findings.push(finding('MISSING_TABLE_PRIMARY_KEY', 'Every canonical table requires a primary key.', { tableId: entry.id }));
+    for (const column of contract.columns || []) {
+      if (/(?:^|_)(?:state|status)$/.test(column.name) && (!Array.isArray(column.enumValues) || column.enumValues.length === 0)) {
+        findings.push(finding('UNBOUNDED_TABLE_STATE', 'Every state/status column requires an explicit enum.', { tableId: entry.id, column: column.name }));
+      }
+      if (column.name.endsWith('_id') && column.logicalType !== 'TEXT') findings.push(finding(
+        'INVALID_IDENTITY_COLUMN_TYPE', 'Opaque identity columns require TEXT.', { tableId: entry.id, column: column.name }
+      ));
+      if (/(?:_at_ms|_ms|_ns)$/.test(column.name) && column.logicalType !== 'INTEGER') findings.push(finding(
+        'INVALID_TIME_COLUMN_TYPE', 'UTC epoch time columns require INTEGER.', { tableId: entry.id, column: column.name }
+      ));
+      if ((column.name.endsWith('_digest') || column.name === 'digest' || column.name.endsWith('digest_hex')) && column.logicalType !== 'TEXT') {
+        findings.push(finding('INVALID_DIGEST_COLUMN_TYPE', 'SHA-256 digest columns require TEXT.', { tableId: entry.id, column: column.name }));
+      }
+    }
     for (const foreignKey of contract.foreignKeys || []) {
       const target = actualContracts.get(foreignKey.targetTable) || expectedById.get(foreignKey.targetTable);
       if (!foreignKey.targetTable || !target) findings.push(finding('UNRESOLVED_TABLE_FOREIGN_KEY', 'Declared FK target is unresolved.', {

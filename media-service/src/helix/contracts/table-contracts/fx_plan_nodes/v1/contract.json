@@ -34,7 +34,7 @@
       {
         "ordinal": 4,
         "name": "contract_version",
-        "logicalType": "TEXT",
+        "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false

@@ -35,7 +35,10 @@
         "ordinal": 4,
         "name": "state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "active",
+          "committed"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -65,7 +68,15 @@
     "uniqueConstraints": [],
     "hotIndexes": [],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "active",
+          "committed"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [],
       "currentPointerColumns": [],

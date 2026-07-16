@@ -34,7 +34,7 @@
       {
         "ordinal": 4,
         "name": "local_priority",
-        "logicalType": "TEXT",
+        "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
@@ -59,7 +59,12 @@
         "ordinal": 7,
         "name": "state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "waiting",
+          "released",
+          "cancelled",
+          "expired"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       }
@@ -82,7 +87,17 @@
       ]
     ],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "waiting",
+          "released",
+          "cancelled",
+          "expired"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [],
       "currentPointerColumns": [],

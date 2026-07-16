@@ -51,7 +51,13 @@
         "ordinal": 6,
         "name": "state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "ready",
+          "destroying",
+          "verifying",
+          "blocked",
+          "completed"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -86,7 +92,18 @@
     ],
     "hotIndexes": [],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "ready",
+          "destroying",
+          "verifying",
+          "blocked",
+          "completed"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [],
       "currentPointerColumns": [],

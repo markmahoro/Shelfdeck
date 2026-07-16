@@ -59,7 +59,12 @@
         "ordinal": 7,
         "name": "state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "active",
+          "consumed",
+          "revoked",
+          "stale"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       }
@@ -79,7 +84,17 @@
     ],
     "hotIndexes": [],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "active",
+          "consumed",
+          "revoked",
+          "stale"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [],
       "currentPointerColumns": [],

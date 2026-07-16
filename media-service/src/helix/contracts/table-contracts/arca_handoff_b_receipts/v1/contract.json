@@ -58,7 +58,7 @@
       {
         "ordinal": 7,
         "name": "control_revision_set_digest",
-        "logicalType": "INTEGER",
+        "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false

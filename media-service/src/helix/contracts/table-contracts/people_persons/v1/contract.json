@@ -19,7 +19,11 @@
         "ordinal": 2,
         "name": "status",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "active",
+          "merged",
+          "archived"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -60,7 +64,16 @@
       ]
     ],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "status",
+        "enumValues": [
+          "active",
+          "merged",
+          "archived"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
         "current_revision"

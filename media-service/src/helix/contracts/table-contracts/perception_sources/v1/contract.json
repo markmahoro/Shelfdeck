@@ -35,7 +35,10 @@
         "ordinal": 4,
         "name": "status",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "active",
+          "disabled"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -85,7 +88,15 @@
       ]
     ],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "status",
+        "enumValues": [
+          "active",
+          "disabled"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
         "config_revision",

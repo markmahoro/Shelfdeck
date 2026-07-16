@@ -51,7 +51,11 @@
         "ordinal": 6,
         "name": "state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "available",
+          "unavailable",
+          "disabled"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -81,7 +85,16 @@
       ]
     ],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "available",
+          "unavailable",
+          "disabled"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
         "current_probe_revision"

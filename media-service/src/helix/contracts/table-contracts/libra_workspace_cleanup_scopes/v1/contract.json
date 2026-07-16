@@ -54,7 +54,10 @@
         "ordinal": 6,
         "name": "state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "active",
+          "completed"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -101,6 +104,13 @@
         "enumValues": [
           "offload_completed",
           "run_discarded"
+        ]
+      },
+      {
+        "column": "state",
+        "enumValues": [
+          "active",
+          "completed"
         ]
       }
     ],

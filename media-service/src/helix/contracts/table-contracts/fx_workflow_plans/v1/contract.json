@@ -34,7 +34,7 @@
       {
         "ordinal": 4,
         "name": "planner_version",
-        "logicalType": "TEXT",
+        "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
@@ -67,7 +67,12 @@
         "ordinal": 8,
         "name": "state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "planned",
+          "no_effect_required",
+          "temporarily_unplannable",
+          "contract_unplannable"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -93,7 +98,17 @@
     ],
     "hotIndexes": [],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "planned",
+          "no_effect_required",
+          "temporarily_unplannable",
+          "contract_unplannable"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [],
       "currentPointerColumns": [],

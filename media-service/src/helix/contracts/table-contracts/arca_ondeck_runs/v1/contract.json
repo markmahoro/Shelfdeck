@@ -35,7 +35,12 @@
         "ordinal": 4,
         "name": "state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "ready",
+          "offloading",
+          "blocked",
+          "committed"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -70,7 +75,17 @@
       ]
     ],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "ready",
+          "offloading",
+          "blocked",
+          "committed"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [],
       "currentPointerColumns": [],

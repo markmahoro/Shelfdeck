@@ -27,7 +27,10 @@
         "ordinal": 3,
         "name": "status",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "active",
+          "disabled"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -84,7 +87,15 @@
       ]
     ],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "status",
+        "enumValues": [
+          "active",
+          "disabled"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
         "extraction_policy_revision",

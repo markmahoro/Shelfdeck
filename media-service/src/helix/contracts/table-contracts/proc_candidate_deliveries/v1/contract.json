@@ -43,7 +43,12 @@
         "ordinal": 5,
         "name": "state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "open",
+          "accepted",
+          "rejected",
+          "stale"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -94,7 +99,17 @@
     "partialUniqueRules": [
       "同一Candidate至多一个open Offer"
     ],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "open",
+          "accepted",
+          "rejected",
+          "stale"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [],
       "currentPointerColumns": [],

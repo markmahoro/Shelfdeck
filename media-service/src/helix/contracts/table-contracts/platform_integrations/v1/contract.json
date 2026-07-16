@@ -67,7 +67,11 @@
         "ordinal": 8,
         "name": "state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "active",
+          "disabled",
+          "faulted"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -92,7 +96,16 @@
     ],
     "hotIndexes": [],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "active",
+          "disabled",
+          "faulted"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
         "config_revision"

@@ -83,7 +83,12 @@
         "ordinal": 10,
         "name": "state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "active",
+          "resolved",
+          "invalidated",
+          "unresolved"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -120,7 +125,17 @@
     "partialUniqueRules": [
       "相同`care_basis+finding_set+requirement`至多一个non-terminal Case"
     ],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "active",
+          "resolved",
+          "invalidated",
+          "unresolved"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [],
       "currentPointerColumns": [],

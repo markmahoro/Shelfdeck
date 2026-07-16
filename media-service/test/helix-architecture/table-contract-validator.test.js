@@ -53,6 +53,26 @@ test('rejects missing PK, open JSON contract, and unresolved current pointer', (
   }
 });
 
+test('rejects unbounded state and invalid identity, time, or digest types', () => {
+  const root = fixture();
+  try {
+    mutate(contractPath(root, 'fx_supporting_works'), (document) => {
+      document.contract.columns.find((column) => column.name === 'state').enumValues = [];
+      document.contract.columns.find((column) => column.name === 'work_id').logicalType = 'INTEGER';
+      document.contract.columns.find((column) => column.name === 'created_at_ms').logicalType = 'TEXT';
+      document.contract.columns.find((column) => column.name === 'basis_digest').logicalType = 'INTEGER';
+    });
+    const result = validateTableContracts({ contractsRoot: root });
+    assert.equal(result.ok, false);
+    assert.ok(result.findings.some((item) => item.code === 'UNBOUNDED_TABLE_STATE'));
+    assert.ok(result.findings.some((item) => item.code === 'INVALID_IDENTITY_COLUMN_TYPE'));
+    assert.ok(result.findings.some((item) => item.code === 'INVALID_TIME_COLUMN_TYPE'));
+    assert.ok(result.findings.some((item) => item.code === 'INVALID_DIGEST_COLUMN_TYPE'));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('rejects Owner/prefix drift and forbidden Foundation to Domain FK', () => {
   const root = fixture();
   try {

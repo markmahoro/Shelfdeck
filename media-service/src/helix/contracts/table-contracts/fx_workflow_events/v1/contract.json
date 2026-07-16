@@ -66,7 +66,7 @@
       {
         "ordinal": 8,
         "name": "contract_version",
-        "logicalType": "TEXT",
+        "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
@@ -75,7 +75,18 @@
         "ordinal": 9,
         "name": "state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "pending",
+          "ready",
+          "waiting_for_resource",
+          "waiting_for_external",
+          "waiting_for_approval",
+          "executing",
+          "succeeded",
+          "skipped",
+          "failed",
+          "cancelled"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -141,7 +152,23 @@
       ]
     ],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "pending",
+          "ready",
+          "waiting_for_resource",
+          "waiting_for_external",
+          "waiting_for_approval",
+          "executing",
+          "succeeded",
+          "skipped",
+          "failed",
+          "cancelled"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
         "current_progress_revision"

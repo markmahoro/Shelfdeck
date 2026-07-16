@@ -59,7 +59,11 @@
         "ordinal": 7,
         "name": "status",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "active",
+          "deregistering",
+          "deregistered"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -108,7 +112,16 @@
       ]
     ],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "status",
+        "enumValues": [
+          "active",
+          "deregistering",
+          "deregistered"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
         "target_mount_scope_revision",

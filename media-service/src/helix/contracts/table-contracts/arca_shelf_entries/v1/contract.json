@@ -35,7 +35,12 @@
         "ordinal": 4,
         "name": "status",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "active",
+          "offdeck_in_progress",
+          "offdecked",
+          "deregistered"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -105,7 +110,17 @@
     "partialUniqueRules": [
       "Movie/JAV/Western可以重复，Season对active `(shelf_id,canonical_identity_key)`建立partial unique，保证后续Episode Run扩充同一Entry"
     ],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "status",
+        "enumValues": [
+          "active",
+          "offdeck_in_progress",
+          "offdecked",
+          "deregistered"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
         "canonical_identity_revision",

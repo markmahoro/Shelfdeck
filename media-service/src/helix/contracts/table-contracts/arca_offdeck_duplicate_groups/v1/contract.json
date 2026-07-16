@@ -35,7 +35,12 @@
         "ordinal": 4,
         "name": "state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "open",
+          "resolved",
+          "whitelisted",
+          "stale"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -68,7 +73,17 @@
     ],
     "hotIndexes": [],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "open",
+          "resolved",
+          "whitelisted",
+          "stale"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [],
       "currentPointerColumns": [],

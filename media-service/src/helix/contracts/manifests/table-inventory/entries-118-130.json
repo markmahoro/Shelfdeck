@@ -23,11 +23,11 @@
         "tableId": "arca_offdeck_cases",
         "owner": "arca",
         "contractRef": "helix://contracts/tables/arca_offdeck_cases/v1",
-        "contractDigest": "5e71ad0785ce7946e93163fb5762a90f0851147d6bbf0138301067d15442522d"
+        "contractDigest": "c8f6e9eafb41e1f72834af24d52096e9a86d36d0b8dd1326abf0e4b70de1a14f"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "0f017d75af7520e2cc6de407f18f64e6424e439a72f8d071912e551b5af9c822"
+        "value": "156f6fbd66f64f6c52f4e2909b7e75c665bdc170d3fbd4a200a63c1b2ed4d973"
       }
     },
     {
@@ -107,11 +107,11 @@
         "tableId": "arca_deregistrations",
         "owner": "arca",
         "contractRef": "helix://contracts/tables/arca_deregistrations/v1",
-        "contractDigest": "6cf3a719e687531fc108ef03f07f9c16c96ebc2a61fbda9410e5c1e8b02ff13d"
+        "contractDigest": "fb6fab91ed54d5f713e52afaacc2fd69803d2caecd75f83755d8a713bce1af17"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "e964c1539b392ccc2ded524657efca922db8f73a928699515641c2f8f34cfbcd"
+        "value": "cbe93abb8e7a1e3e7681632d1808f4ba2f970cda4e556c68d5d9541ffd53f053"
       }
     },
     {
@@ -191,11 +191,11 @@
         "tableId": "perception_sources",
         "owner": "perception",
         "contractRef": "helix://contracts/tables/perception_sources/v1",
-        "contractDigest": "14f473ec49096ea8068f76cc226c1f464737bfca7ba3e16f091c58dea43a6f89"
+        "contractDigest": "43f39249c616e9fab22c24f3aebd3ce88d7ba4cf7a2eff56626481b1902c38d6"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "13a6ac1e66a33bdecff33e4614e2fa30190e413f95d4f1f00b3ec98098abd4ae"
+        "value": "6f7b66ac1549a8955eb5aca74d53f72793965eb7ec69982830d8181698817170"
       }
     },
     {
@@ -247,11 +247,11 @@
         "tableId": "perception_records",
         "owner": "perception",
         "contractRef": "helix://contracts/tables/perception_records/v1",
-        "contractDigest": "f4dceafb14adb002a265229acb762e7f85e9f44b2473b355bc9a87e1e390d965"
+        "contractDigest": "df3c89192cd81dbe118547b6c5014e237e1bc00d015494b3b4114771864c122f"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "ed091d134904468eabc8739fa4a817505b416598280e8ea51483506eec67fe1f"
+        "value": "3e16ed1e2cc63a7b9ab399e2de68ffb82eb60cab70762001d100b04e61b47bf4"
       }
     },
     {

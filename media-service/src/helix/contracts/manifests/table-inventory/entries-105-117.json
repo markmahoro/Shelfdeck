@@ -23,11 +23,11 @@
         "tableId": "arca_offdeck_review_candidates",
         "owner": "arca",
         "contractRef": "helix://contracts/tables/arca_offdeck_review_candidates/v1",
-        "contractDigest": "e3363a7afe8ae56ecdd6af810ea876d6afdfca8b036f1bdac2d75ade5952fc37"
+        "contractDigest": "d9f9ad488330eb73465cd2cb0ca162e97d64d559e28f901ad7296c10af07d4a4"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "b3f1a5f03f2e83393adea2600fb5aa798932493ed05087e119d76bed67ea7a01"
+        "value": "49600b96653fa8bf45471e0e1396c33ca1711cbb6161d8e74d010febc313ff99"
       }
     },
     {
@@ -79,11 +79,11 @@
         "tableId": "arca_offdeck_duplicate_groups",
         "owner": "arca",
         "contractRef": "helix://contracts/tables/arca_offdeck_duplicate_groups/v1",
-        "contractDigest": "a366a84ba711b0c5c7c792bc1161040d2e79dbc31d945416bd38c86453c789d2"
+        "contractDigest": "9d849b978626b1d40595932c10791e007b2630bce2010592a9d071dae884d60b"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "a2ffd3a1b92b2b3910436e822789c8fa6a18a8f4700a60ccab5afa1e3e350d38"
+        "value": "6ac5463a07c5fed8ffa066a08db17b376d47e893dae043d0d5d2a05fdd5e1bfa"
       }
     },
     {
@@ -359,11 +359,11 @@
         "tableId": "arca_offdeck_authorizations",
         "owner": "arca",
         "contractRef": "helix://contracts/tables/arca_offdeck_authorizations/v1",
-        "contractDigest": "65ec36520dfedd36f582863ae5fe50e89525162468339d0e8fa7a2c0a1575167"
+        "contractDigest": "bbe6a839d0a10fc2b8e49802671e30771bbd848ff89213e6714a8c00fa26eeae"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "676c0329881d73cafb46dd1e64190ca72034808eb08b8297676d199e4f31c292"
+        "value": "32b4442303a72c638039da57722e8ce64e71fbcce16fea5445f8b6b0c4508889"
       }
     }
   ]

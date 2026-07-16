@@ -59,7 +59,12 @@
         "ordinal": 7,
         "name": "state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "active",
+          "waiting",
+          "accepted",
+          "rejected"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -96,7 +101,17 @@
     "partialUniqueRules": [
       "相同`package_digest+standard+placement`至多一个non-terminal attempt"
     ],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "active",
+          "waiting",
+          "accepted",
+          "rejected"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
         "standard_revision",

@@ -60,6 +60,11 @@ test('emits JSON validity and byte limits, enum checks, RESTRICT foreign keys, a
   assert.ok((ddl.match(/ON DELETE RESTRICT/g) || []).length <= foreignKeyCount);
   assert.ok((ddl.match(/ON DELETE RESTRICT/g) || []).length > 0);
   assert.match(ddl, /CHECK \("state" IN \('open', 'accepted', 'dismissed', 'superseded'\)\)/);
+  assert.match(ddl, /"revision" INTEGER CHECK \("revision" >= 1\)/);
+  assert.equal(manifest.digestAlgorithm, 'sha256');
+  const digestColumnCount = contracts.reduce((count, contract) => count + contract.columns
+    .filter((column) => column.name.endsWith('_digest') || column.name === 'digest' || column.name.endsWith('digest_hex')).length, 0);
+  assert.equal((ddl.match(/NOT GLOB '\*\[\^0-9a-f\]\*'/g) || []).length, digestColumnCount);
   assert.equal(manifest.tables.flatMap((table) => table.indexes).filter((index) => index.kind === 'hot').length,
     contracts.reduce((count, contract) => count + contract.hotIndexes.length, 0));
 });
@@ -83,4 +88,9 @@ test('fails closed on unresolved FK targets and unsupported logical types', () =
   const badExpression = structuredClone(contracts);
   badExpression[0].hotIndexes.push(['LOWER(state)']);
   assert.throws(() => compileSchema(badExpression), /P3_DDL_UNSUPPORTED_INDEX_EXPRESSION/);
+
+  const unboundedState = structuredClone(contracts);
+  unboundedState.find((contract) => contract.tableId === 'fx_supporting_works').columns
+    .find((column) => column.name === 'state').enumValues = [];
+  assert.throws(() => compileSchema(unboundedState), /P3_DDL_UNBOUNDED_STATE/);
 });

@@ -43,7 +43,14 @@
         "ordinal": 5,
         "name": "state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "ready",
+          "running",
+          "blocked",
+          "succeeded",
+          "failed",
+          "cancelled"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -88,7 +95,19 @@
     "partialUniqueRules": [
       "同一Work至多一个`ready|running|blocked` attempt的partial unique index"
     ],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "ready",
+          "running",
+          "blocked",
+          "succeeded",
+          "failed",
+          "cancelled"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [],
       "currentPointerColumns": [],

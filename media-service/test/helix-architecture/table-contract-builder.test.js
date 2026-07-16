@@ -29,6 +29,26 @@ test('parses inline PK/FK and enums without splitting parenthetical values', () 
   assert.deepEqual(columns[1].enumValues, ['open', 'accepted', 'dismissed']);
 });
 
+test('closes every SSOT state/status column to an explicit enum and keeps revision-set digests as TEXT', () => {
+  for (const contract of contracts) {
+    for (const column of contract.columns.filter((item) => /(?:^|_)(?:state|status)$/.test(item.name))) {
+      assert.ok(column.enumValues.length > 0, `${contract.tableId}.${column.name}`);
+    }
+  }
+  for (const tableId of ['libra_handoff_a_receipts', 'arca_handoff_b_receipts', 'arca_ondeck_commit_receipts']) {
+    assert.equal(contracts.find((contract) => contract.tableId === tableId).columns
+      .find((column) => column.name === 'control_revision_set_digest').logicalType, 'TEXT');
+  }
+  for (const [tableId, columnName] of [
+    ['fx_workflow_plans', 'planner_version'], ['fx_plan_nodes', 'contract_version'],
+    ['fx_workflow_events', 'contract_version'], ['fx_event_attempts', 'executor_version'],
+    ['fx_resource_defer', 'local_priority'], ['libra_decision_basis_inputs', 'query_version']
+  ]) {
+    assert.equal(contracts.find((contract) => contract.tableId === tableId).columns
+      .find((column) => column.name === columnName).logicalType, 'INTEGER', `${tableId}.${columnName}`);
+  }
+});
+
 test('parses nested hot-index expressions and composite keys at balanced commas', () => {
   assert.deepEqual(parseFunctionCalls('`INDEX(state,COALESCE(retry_at_ms,ready_at_ms),event_id)`', 'INDEX'), [
     ['state', 'COALESCE(retry_at_ms,ready_at_ms)', 'event_id']

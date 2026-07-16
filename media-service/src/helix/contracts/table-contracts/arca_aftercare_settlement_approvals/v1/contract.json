@@ -67,7 +67,11 @@
         "ordinal": 8,
         "name": "state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "active",
+          "consumed",
+          "stale"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       }
@@ -86,7 +90,16 @@
     ],
     "hotIndexes": [],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "active",
+          "consumed",
+          "stale"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
         "service_catalog_revision",

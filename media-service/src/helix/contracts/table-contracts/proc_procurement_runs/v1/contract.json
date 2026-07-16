@@ -43,7 +43,11 @@
         "ordinal": 5,
         "name": "state",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "active",
+          "waiting",
+          "sealed"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -89,7 +93,16 @@
     "partialUniqueRules": [
       "相同`field_id+run_basis_digest`至多一个non-terminal Run"
     ],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "active",
+          "waiting",
+          "sealed"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [],
       "currentPointerColumns": [],

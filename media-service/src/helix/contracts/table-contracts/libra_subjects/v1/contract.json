@@ -27,7 +27,10 @@
         "ordinal": 3,
         "name": "status",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "active",
+          "abandoned"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false
       },
@@ -76,7 +79,15 @@
       ]
     ],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "status",
+        "enumValues": [
+          "active",
+          "abandoned"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
         "current_identity_revision"
