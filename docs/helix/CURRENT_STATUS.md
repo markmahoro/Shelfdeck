@@ -13,12 +13,12 @@ Last updated: 2026-07-17
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation |
 | Current phase | P5 — Platform and Integrations |
-| Current phase status | in progress；P5-00–P5-02 complete；P5-03 next；P4 Exit Audit PASS |
+| Current phase status | in progress；P5-00–P5-03 complete；P5-04 next；P4 Exit Audit PASS |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P4 phase closure `5dd0b7094ea35cc04c7ba931fd109467462d0af6` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p5` on `codex/helix-p5` |
-| Next action | P5-03 Mount Scope and Workspace Root registries |
+| Next action | P5-04 Physical Material Identity and binding-health primitives |
 
 ## 2. Accepted implementation conclusion
 
@@ -262,3 +262,7 @@ P5-02已完成：Platform Repository只保存opaque Secret Reference metadata；
 scope/kind/revision/purpose、60秒内TTL与Fence，拒绝过期/重放/异步持有，并在同步调用后清零owned bytes。证据见
 `implementation/evidence/P5_02_SECRET_REFERENCE_AND_LEASE.md`。下一步P5-03 Mount Scope and Workspace Root
 registries。没有需要用户决定的业务问题。
+P5-03已完成：Mount Scope current-headed immutable revisions、active fingerprint uniqueness、Workspace Root exact CAS、
+full capability probe、Windows/POSIX canonical path、root互斥及Field/Shelf reserved-root反例全部PASS，证据见
+`implementation/evidence/P5_03_LOCATION_REGISTRIES.md`。下一步P5-04 Physical Material Identity and
+binding-health primitives。没有需要用户决定的业务问题。

@@ -2,7 +2,7 @@
 
 Current phase: `P5 — Platform and Integrations`
 
-Status: in progress；P5-00–P5-02 complete；P5-03 next；P4 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P5-00–P5-03 complete；P5-04 next；P4 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-17
 
@@ -64,8 +64,8 @@ Registry、Resource/Worker Registry，以及Filesystem/Hash/FFmpeg/Provider/Work
 | P5-00 | P4 closure and isolated P5 baseline receipt | complete | P4 PASS |
 | P5-01 | Platform and Integration public nominal ports | complete | P5-00；P2 contracts |
 | P5-02 | Secret Reference and least-authority credential resolver | complete | P5-01；P3 Persistence |
-| P5-03 | Mount Scope and Workspace Root registries | next | P5-01–P5-02 |
-| P5-04 | Physical Material Identity and binding-health primitives | pending | P5-03 |
+| P5-03 | Mount Scope and Workspace Root registries | complete | P5-01–P5-02 |
+| P5-04 | Physical Material Identity and binding-health primitives | next | P5-03 |
 | P5-05 | Artifact Registry and controlled payload handles | pending | P5-03–P5-04 |
 | P5-06 | Typed External Provider protocol adapters | pending | P5-01–P5-02、P5-05 |
 | P5-07 | Filesystem transaction、probe/hash and FFmpeg atoms | pending | P5-03–P5-05 |
@@ -114,6 +114,11 @@ Registry、Resource/Worker Registry，以及Filesystem/Hash/FFmpeg/Provider/Work
 - Platform owns stable Mount Scope、Endpoint and controlled Workspace Root technical facts；no Domain-local Binding ownership moves here.
 - Canonical containment rejects traversal、symlink escape、cross-scope path and unregistered root.
 - Registry revisions are typed and immutable/current-headed；location remains outside Physical Material Identity.
+- Done: Mount Scope uses atomic head/revision bootstrap and exact current+1 CAS；active fingerprints are unique and every field
+  must match synthetic probe evidence. Three exact Workspace Root kinds map to technical owner scopes and require resolved-path plus
+  create/write/atomic-rename/read/delete capability evidence. Canonical POSIX/Windows guards reject traversal、realpath drift、root
+  nesting and formal Material Field/Shelf target overlap. Focused 7/7、full architecture and P3 persistence gates PASS. Evidence:
+  `evidence/P5_03_LOCATION_REGISTRIES.md`.
 
 ### P5-04 Physical Material Identity and binding-health primitives
 
