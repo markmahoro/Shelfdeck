@@ -1,6 +1,6 @@
 # Helix Architecture Review Workbench
 
-Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED` — 2026-07-16；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与post-change audit均已完成。
+Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-17；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-02` bounded correction均已完成。
 
 ## 1. Purpose and authority
 
@@ -1243,3 +1243,56 @@ Status: `CLOSED / DOC_FIX APPLIED` — 2026-07-17
 
 该修正不重新打开Level 0–10，不改变五个顶层Business Domain、Handoff、Fact Owner、Schema或公开API，
 也不授权实施跨越现有Implementation Gate。自动架构检查必须把`platform/`视为SSOT要求的合法且必需顶层包。
+
+### 15.2 `PBF-02` — Perception Acquisition vertical contract closure
+
+Status: `CLOSED / DOC_FIX APPLIED_AND_AUDITED` — 2026-07-17
+
+P6-03实现合同审计证明，Level 3/6已经确定Perception Acquisition、immutable Record、来源内幂等、
+`supersedes|retracts`历史和consumer query-only边界，但Level 8的Capability、nominal type、关系表与Domain
+Commit恢复合同没有形成一条可执行的数据链。已确认的缺口为：
+
+1. `PerceptionObservationPage`只有ID/revision/digest，Normalize无法读取冻结事实内容；
+2. Record commit input没有Source/cursor transition，无法让Record与cursor head同事务成立；
+3. Record Draft缺少source revision/digest、observedAt与结构化Anchor；
+4. 实现草案使用`0..10`而Canonical schema与Level 5 Decision Fact固定`1..5`；这是实现漂移，不是业务选择；
+5. Accepted的`supersedes|retracts`与dedup关系没有正式Draft/Commit路径；
+6. Domain Fact Commit强制Outbox与Perception禁止consumer change Signal之间缺少“本域技术receipt不是业务Signal”的澄清；
+7. commit marker没有绑定durable typed result，commit后响应前崩溃无法恢复原始Result；
+8. Level 3的`perceptionAcquisitionId` Process Root没有传播到Level 8关系Schema。
+
+全局审计证明以上均可由Accepted合同唯一推导，不产生新的用户Decision。Bounded change set为：
+
+- Level 6把Acquisition固定为单Source/config revision、稳定Acquisition ID和逐页
+  `Acquire → Normalize → Atomic Commit`；
+- 外部Source经Acquire Capability形成Page；用户即时Intent由Owner从已验证Command payload形成同schema单页
+  Page，两者从Normalize开始共用同一提交链；
+- Observation item必须携带digest-bound bounded typed payload或immutable ArtifactHandle，Normalize禁止Provider二次读取；
+- Normalize输出完整`PerceptionAcquisitionCommitDraft`，Canonical rating固定`null|integer 1..5`，原始scale留Provenance；
+- page commit原子提交Acquisition/page、Record、Anchor、显式source-lineage Relation、cursor CAS、receipt、typed
+  Event Result、marker和Perception-internal Outbox；最后一页同时终结Acquisition；
+- `perception_dedup_relations`收束为通用immutable `perception_record_relations`；来源lineage由record commit提交，
+  `duplicate_of`由resolution commit提交，均不得按revision大小隐式推断；
+- 新增`perception_acquisitions`与`perception_acquisition_commits`，关系表总数由156变为158，
+  `perception_*`由7变为9；Capability ref仍为112，Result family仍为96；
+- 通用Domain Fact Commit Handle补齐result schema，commit marker引用同事务`fx_event_result_bindings`；重放
+  返回第一次保存的typed result，同marker不同payload稳定拒绝；
+- Level 8 transaction fixture与Level 10 fault matrix覆盖payload冻结、cursor CAS、typed result、marker和Outbox
+  全部崩溃窗口。
+
+Post-change audit：
+
+```text
+CAPABILITY REFS             112 / 112 unique
+RESULT FAMILIES             unchanged: 96
+RELATIONAL TABLES           158 / 158 unique
+TABLE PREFIX COUNTS         fx25 proc13 libra31 arca54 perception9 people10 platform16
+PERCEPTION PIPELINE         acquire → normalize → atomic commit closed
+CURSOR/RECORD ATOMICITY     closed
+TYPED COMMIT REPLAY         closed generically
+CONSUMER CHANGE SIGNAL      none
+NEW BUSINESS DECISION       none
+```
+
+该修正不改变User Perception Owner、消费者query-only关系、公开API、Shelf Standard或Rating业务语义；
+实现线程必须重新生成相关P2 schema/fixtures，禁止通过ambient Store、Provider二次读取或重放扫描猜测Result。
