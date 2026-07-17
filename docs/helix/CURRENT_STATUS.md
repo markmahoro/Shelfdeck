@@ -13,12 +13,12 @@ Last updated: 2026-07-17
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations |
 | Current phase | P6 — Horizontal Domains |
-| Current phase status | in progress；P6-00–P6-01 complete；P6-02 next；P5 Exit Audit PASS |
+| Current phase status | in progress；P6-00–P6-02 complete；P6-03 next；P5 Exit Audit PASS |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P5 phase closure `41470e47ec6bed7ba1cf81024130870eb2e57e92` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p6` on `codex/helix-p6` |
-| Next action | P6-02 User Perception scoped Store and atomic Repository |
+| Next action | P6-03 Perception Acquisition and immutable Record pipeline |
 
 ## 2. Accepted implementation conclusion
 
@@ -339,3 +339,12 @@ command及Person Reference Projection。Exact-shape factory拒绝extra/generic/M
 P5 10-family/31-scenario回归全部PASS，P2 aggregate不变，findings和prohibited actions为空。证据见
 `implementation/evidence/P6_01_HORIZONTAL_DOMAIN_PUBLIC_PORTS.md`。下一步P6-02 User Perception scoped Store and
 atomic Repository。没有需要用户决定的业务问题。
+
+P6-02已完成：User Perception Store严格分为`PerceptionRecordRepository`（5张Source/Cursor/Record/Anchor/Relation表）
+与`PerceptionResolutionRepository`（2张Revision/Head表），两者只注册`perception_`表。用户即时输入Source允许无
+Integration和cursor，首次sync再原子建立cursor revision 1；后续Source config、cursor和Resolution head均按expected
+revision CAS。Record/Anchor/Relation不可更新，rating `null|1..5`、watched enum、source identity唯一、normalized pair、
+found winner及no-`MAX` head全部fail closed。专项8/8、65-file architecture、55 files/67 dependencies、1438 semantic
+files和P3 156/72/19 + 18 transactions/132 fault points全部PASS。证据见
+`implementation/evidence/P6_02_PERCEPTION_SCOPED_STORE.md`。下一步P6-03 Perception Acquisition and immutable Record
+pipeline。没有需要用户决定的业务问题。

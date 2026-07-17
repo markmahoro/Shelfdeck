@@ -44,11 +44,11 @@ Work Package细节只存在于`implementation/CURRENT_PHASE.md`；当前事实�
 | --- | --- |
 | Phase | P6 — Horizontal Domains |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | in progress；P6-00–P6-01 complete；P6-02 next；P5 Exit Audit PASS |
+| Status | in progress；P6-00–P6-02 complete；P6-03 next；P5 Exit Audit PASS |
 | Implementation baseline | exact P5 phase closure `41470e47ec6bed7ba1cf81024130870eb2e57e92` |
 | Phase branch/worktree | `codex/helix-p6` / `E:\my_project\emby_third_party-helix-p6` |
 | Allowed now | P2–P13本地代码、unit/contract/isolated fixture、文档与Phase自动转换 |
-| Next action | P6-02 User Perception scoped Store and atomic Repository |
+| Next action | P6-03 Perception Acquisition and immutable Record pipeline |
 
 ## 4. Master roadmap
 

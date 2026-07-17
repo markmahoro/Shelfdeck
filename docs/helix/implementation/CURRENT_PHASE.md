@@ -2,7 +2,7 @@
 
 Current phase: `P6 — Horizontal Domains`
 
-Status: in progress；P6-00–P6-01 complete；P6-02 next；P5 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P6-00–P6-02 complete；P6-03 next；P5 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-17
 
@@ -80,8 +80,8 @@ Workspace行为只允许fake adapter、synthetic evidence和owned temp root。
 | --- | --- | --- | --- |
 | P6-00 | P5 closure and isolated P6 baseline receipt | complete | P5 PASS |
 | P6-01 | Horizontal-domain public ports and package guards | complete | P6-00；P2 contracts |
-| P6-02 | User Perception scoped Store and atomic Repository | next | P6-01；P3 Persistence |
-| P6-03 | Perception Acquisition and immutable Record pipeline | pending | P6-02；P4–P5 |
+| P6-02 | User Perception scoped Store and atomic Repository | complete | P6-01；P3 Persistence |
+| P6-03 | Perception Acquisition and immutable Record pipeline | next | P6-02；P4–P5 |
 | P6-04 | Perception dedup、Resolution and public query Facade | pending | P6-02–P6-03 |
 | P6-05 | People Registry and Candidate scoped Repositories | pending | P6-01；P3 Persistence |
 | P6-06 | Person Registration and Candidate lifecycle | pending | P6-05；P4–P5 |
@@ -120,6 +120,11 @@ Workspace行为只允许fake adapter、synthetic evidence和owned temp root。
 - Repository只注册7张`perception_`表；Source/Cursor、Record/Anchor/Relation、Resolution revision/head分别typed。
 - Record、Anchor、Relation和Resolution Revision不可变；source current cursor和resolution head使用显式expected revision CAS。
 - 固化rating `1..5`、source record唯一性、normalized relation pair、query contract/input digest/revision唯一性和payload bound。
+- Done: two exact Repository definitions implement the SSOT physical components: Record Repository owns five Source/Cursor/Record/
+  Anchor/Relation tables and Resolution Repository owns two Revision/Head tables. User-input Source may have no Integration or cursor;
+  cursor initialization and all later heads use atomic revision fences. Immutable rows、rating/watched bounds、source uniqueness、
+  normalized pair uniqueness、winner validation and no-`MAX` Resolution heads fail closed. Focused 8/8、65-file architecture and
+  P3 156/72/19 + 18/132 regression PASS. Evidence: `evidence/P6_02_PERCEPTION_SCOPED_STORE.md`。
 
 ### P6-03 Perception Acquisition and immutable Record pipeline
 
