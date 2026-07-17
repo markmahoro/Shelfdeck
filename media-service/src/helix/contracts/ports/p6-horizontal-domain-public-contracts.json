@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "contractVersion": 1,
+  "ssotRefs": ["3.6", "3.7", "4.6.2", "4.6.3", "8.2.4", "8.2.5", "8.4.4"],
+  "facades": [
+    {
+      "exportName": "PerceptionCommandFacade",
+      "packageId": "domains.perception.public",
+      "owner": "perception",
+      "kind": "command",
+      "methods": ["createRecord", "requestAcquisition"],
+      "authority": ["perception_record_append", "perception_acquisition_request"]
+    },
+    {
+      "exportName": "PerceptionResolutionFacade",
+      "packageId": "domains.perception.public",
+      "owner": "perception",
+      "kind": "query",
+      "methods": ["resolveDecisionFact"],
+      "authority": ["single_kind_found_or_not_found_resolution"]
+    },
+    {
+      "exportName": "PeopleCommandFacade",
+      "packageId": "domains.people.public",
+      "owner": "people",
+      "kind": "command",
+      "methods": [
+        "acceptMergeCandidate",
+        "acceptRegistrationCandidate",
+        "addReferenceAsset",
+        "createPerson",
+        "dismissCandidate",
+        "releaseReferenceAsset",
+        "revisePerson",
+        "setPreference"
+      ],
+      "authority": ["person_registry_command", "people_candidate_command", "person_reference_command", "person_preference_command"]
+    },
+    {
+      "exportName": "PersonReferenceQueryFacade",
+      "packageId": "domains.people.public",
+      "owner": "people",
+      "kind": "query",
+      "methods": ["getPersonReferenceProjection"],
+      "authority": ["person_identity_and_reference_projection_read"]
+    }
+  ],
+  "prohibitedAuthority": [
+    "repository",
+    "store",
+    "transaction",
+    "material_control",
+    "media_cast_write",
+    "content_identity_write",
+    "subject_write",
+    "shelf_entry_write",
+    "consumer_process_command",
+    "generic_command",
+    "generic_query"
+  ]
+}

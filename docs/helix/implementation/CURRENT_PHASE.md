@@ -2,7 +2,7 @@
 
 Current phase: `P6 — Horizontal Domains`
 
-Status: in progress；P6-00 complete；P6-01 next；P5 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P6-00–P6-01 complete；P6-02 next；P5 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-17
 
@@ -79,8 +79,8 @@ Workspace行为只允许fake adapter、synthetic evidence和owned temp root。
 | ID | Title | Status | Dependencies |
 | --- | --- | --- | --- |
 | P6-00 | P5 closure and isolated P6 baseline receipt | complete | P5 PASS |
-| P6-01 | Horizontal-domain public ports and package guards | next | P6-00；P2 contracts |
-| P6-02 | User Perception scoped Store and atomic Repository | pending | P6-01；P3 Persistence |
+| P6-01 | Horizontal-domain public ports and package guards | complete | P6-00；P2 contracts |
+| P6-02 | User Perception scoped Store and atomic Repository | next | P6-01；P3 Persistence |
 | P6-03 | Perception Acquisition and immutable Record pipeline | pending | P6-02；P4–P5 |
 | P6-04 | Perception dedup、Resolution and public query Facade | pending | P6-02–P6-03 |
 | P6-05 | People Registry and Candidate scoped Repositories | pending | P6-01；P3 Persistence |
@@ -110,6 +110,10 @@ Workspace行为只允许fake adapter、synthetic evidence和owned temp root。
   `PersonReferenceQueryFacade`的nominal versioned contracts；不得暴露Repository、Transaction、generic query/command。
 - 建立两个Domain的精确包依赖；互相只能依赖public Result/Projection contract，不能导入对方internal。
 - 机器拒绝Media-Cast/Subject/Shelf Entry/Control写权限、内部HTTP、旧Store和共享horizontal Store。
+- Done: one versioned contract catalog publishes exactly four Owner-scoped Facades with 12 closed named methods. Exact-shape
+  factories freeze the bound ports and reject extra/generic/Media-Cast authority. P1 skeleton now holds an exact per-Domain export
+  allowlist; dependency and semantic guards remain fail-closed. Focused 8/8、64-file architecture and P5 10-family/31-scenario
+  regression PASS with zero findings. Evidence: `evidence/P6_01_HORIZONTAL_DOMAIN_PUBLIC_PORTS.md`。
 
 ### P6-02 User Perception scoped Store and atomic Repository
 

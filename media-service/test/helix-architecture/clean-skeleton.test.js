@@ -47,9 +47,20 @@ test('clean package IDs exactly match the accepted P1 physical skeleton', () => 
 });
 
 test('each Domain exposes one frozen public package identity', () => {
+  const expectedExports = {
+    procurement: ['PACKAGE_ID'],
+    libra: ['PACKAGE_ID'],
+    arca: ['PACKAGE_ID'],
+    perception: ['PACKAGE_ID', 'PerceptionCommandFacade', 'PerceptionResolutionFacade'],
+    people: ['PACKAGE_ID', 'PeopleCommandFacade', 'PersonReferenceQueryFacade']
+  };
   for (const domain of domainNames) {
     const entry = require(path.join(helixRoot, 'domains', domain, 'public'));
-    assert.deepEqual(entry, { PACKAGE_ID: `domains.${domain}.public` });
+    assert.equal(entry.PACKAGE_ID, `domains.${domain}.public`);
+    assert.deepEqual(Object.keys(entry).sort(), expectedExports[domain].sort());
+    for (const exportName of expectedExports[domain].filter((name) => name !== 'PACKAGE_ID')) {
+      assert.equal(typeof entry[exportName], 'function');
+    }
     assert.equal(Object.isFrozen(entry), true);
   }
 });

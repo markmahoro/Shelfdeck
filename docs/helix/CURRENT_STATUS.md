@@ -13,12 +13,12 @@ Last updated: 2026-07-17
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations |
 | Current phase | P6 — Horizontal Domains |
-| Current phase status | in progress；P6-00 complete；P6-01 next；P5 Exit Audit PASS |
+| Current phase status | in progress；P6-00–P6-01 complete；P6-02 next；P5 Exit Audit PASS |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P5 phase closure `41470e47ec6bed7ba1cf81024130870eb2e57e92` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p6` on `codex/helix-p6` |
-| Next action | P6-01 Horizontal-domain public ports and package guards |
+| Next action | P6-02 User Perception scoped Store and atomic Repository |
 
 ## 2. Accepted implementation conclusion
 
@@ -331,3 +331,11 @@ evidence digest为`d17ace651cfea4b20a953ac4b0824e110c391d3559abbb97a17ccdb4b5d6c
 aggregate保持精确匹配，401个变更文件全部分类，findings和prohibited actions为空。原dirty workspace及
 `media-desktop`未写入。证据见`implementation/evidence/P6_00_BASELINE_RECEIPT.md`。下一步P6-01 Horizontal-domain
 public ports and package guards。没有需要用户决定的业务问题。
+
+P6-01已完成：唯一versioned horizontal public contract catalog精确登记4个Owner-scoped Facade与12个named methods；
+Perception只发布Record/Acquisition command和single-kind Resolution，People只发布Person/Candidate/Preference/Reference
+command及Person Reference Projection。Exact-shape factory拒绝extra/generic/Media-Cast/Store authority，P1 skeleton改为
+逐Domain精确出口allowlist而非放宽。专项8/8、64-file architecture、53 files/65 dependencies、1436 semantic files及
+P5 10-family/31-scenario回归全部PASS，P2 aggregate不变，findings和prohibited actions为空。证据见
+`implementation/evidence/P6_01_HORIZONTAL_DOMAIN_PUBLIC_PORTS.md`。下一步P6-02 User Perception scoped Store and
+atomic Repository。没有需要用户决定的业务问题。
