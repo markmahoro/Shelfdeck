@@ -19,8 +19,8 @@ Audit date: 2026-07-17
 - Repository保存`secret_ref + exact owner scope + kind + opaque locator + revision + state`，不保存secret value；
 - issue必须精确匹配owner scope type/id、secret kind、active revision和显式purpose policy；
 - TTL上限60秒，ID必须唯一，Fence必须是合法SHA-256 digest；
-- consume只允许原始Handle对象一次，过期、伪造、重复或异步consumer全部fail closed；
-- secret source只在consume时读取owned Buffer；同步调用结束后无条件清零；
+- consume/consumeAsync只允许原始Handle对象一次，过期、伪造或重复全部fail closed；同步入口拒绝Promise逃逸；
+- secret source只在consume时读取owned Buffer；同步调用或受控异步Promise settlement结束后均无条件清零；
 - source或consumer异常被转换为无secret、无locator的稳定错误；
 - 实现不读取`process.env`，测试只使用显式in-memory synthetic source。
 
@@ -28,7 +28,7 @@ Audit date: 2026-07-17
 
 ```text
 node --test p5-secret-lease + p5-public-ports
-→ 9/9 PASS
+→ 11/11 PASS
 
 npm run test:helix-architecture
 → fixture files: 53
@@ -44,7 +44,8 @@ npm run test:helix-persistence
 ```
 
 Negative fixtures覆盖wrong owner scope、wrong secret kind、stale revision、denied purpose、revoked reference、TTL超限、
-expiry、handle replay、consumer exception和async retention。数据库与Handle JSON均证明不含synthetic secret。
+expiry、handle replay、consumer exception、同步入口async逃逸、受控async成功/失败settlement和清零。数据库、Handle JSON、
+输出与脱敏错误均证明不含synthetic secret。
 
 ## 4. Scope proof
 

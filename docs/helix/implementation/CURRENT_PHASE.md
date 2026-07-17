@@ -2,7 +2,7 @@
 
 Current phase: `P5 — Platform and Integrations`
 
-Status: in progress；P5-00–P5-05 complete；P5-06 next；P4 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P5-00–P5-06 complete；P5-07 next；P4 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-17
 
@@ -68,8 +68,8 @@ Registry、Resource/Worker Registry，以及Filesystem/Hash/FFmpeg/Provider/Work
 | P5-03 | Mount Scope and Workspace Root registries | complete | P5-01–P5-02 |
 | P5-04 | Physical Material Identity and binding-health primitives | complete | P5-03 |
 | P5-05 | Artifact Registry and controlled payload handles | complete | P5-03–P5-04 |
-| P5-06 | Typed External Provider protocol adapters | next | P5-01–P5-02、P5-05 |
-| P5-07 | Filesystem transaction、probe/hash and FFmpeg atoms | pending | P5-03–P5-05 |
+| P5-06 | Typed External Provider protocol adapters | complete | P5-01–P5-02、P5-05 |
+| P5-07 | Filesystem transaction、probe/hash and FFmpeg atoms | next | P5-03–P5-05 |
 | P5-08 | Resource、device and passive Worker registries/protocol | pending | P5-01–P5-03；P4 Governor |
 | P5-09 | Material Access Handle issuer and Fence enforcement | pending | P5-03–P5-08；P3 Control、P4 Fence |
 | P5-10 | Cross-platform isolated integration verification harness | pending | P5-01–P5-09 |
@@ -94,7 +94,7 @@ Registry、Resource/Worker Registry，以及Filesystem/Hash/FFmpeg/Provider/Work
 - Publish only typed registry/query/resolve/execute ports；never expose credentials、raw SQLite、generic request or child-process handles.
 - Every port declares Owner、input/output schema、Effect Class、idempotency、Fence and payload bound.
 - Static guards reject Domain Fact writes、internal HTTP、global Store and legacy adapter imports.
-- Done: 17 immutable `@1` nominal contracts publish 9 Platform query/resolve ports、1 Foundation Artifact query port and 7 typed Integration execute ports.
+- Done: 19 immutable `@1` nominal contracts publish 9 Platform query/resolve ports、1 Foundation Artifact query port and 9 typed Integration execute ports.
   Every contract declares Owner、input/output schema refs、P4 Effect Class、idempotency、Fence and byte bounds. Exact-shape
   factories reject added Repository/SQLite/Domain-write/HTTP/generic-request/process authority. Focused 19/19 and full
   architecture gate PASS with 47 packages、52 fixture files、0 dependency/semantic findings and `prohibitedActionsRun=[]`.
@@ -106,8 +106,8 @@ Registry、Resource/Worker Registry，以及Filesystem/Hash/FFmpeg/Provider/Work
 - Resolve by exact integration/purpose/scope for one bounded invocation；unknown、wrong scope or stale revision fails closed.
 - Fixtures use synthetic in-memory secrets only and prove ambient environment credentials are not inherited.
 - Done: Platform-owned P3 Repository persists only exact opaque Secret Reference metadata. A one-shot lease broker requires exact
-  owner scope/kind/revision/purpose、caps TTL at 60 seconds、freezes a Fence digest、rejects replay/expiry/async retention and
-  wipes owned bytes after synchronous use. Wrong scope、stale revision、denied purpose、revoked state and error-redaction negative
+  owner scope/kind/revision/purpose、caps TTL at 60 seconds、freezes a Fence digest、rejects replay/expiry/sync Promise escape and
+  wipes owned bytes after synchronous or bounded asynchronous settlement. Wrong scope、stale revision、denied purpose、revoked state and error-redaction negative
   fixtures PASS；full architecture and P3 persistence regression remain PASS. Evidence: `evidence/P5_02_SECRET_REFERENCE_AND_LEASE.md`.
 
 ### P5-03 Mount Scope and Workspace Root registries
@@ -147,6 +147,11 @@ Registry、Resource/Worker Registry，以及Filesystem/Hash/FFmpeg/Provider/Work
 - Implement versioned provider-specific protocol atoms behind exact ports；External Provider remains information/service only.
 - Enforce request timeout/idempotency/payload bounds、typed receipt and redaction；no central Metadata business Store/cache.
 - Tests use deterministic fake transports only；no DNS、socket、credential or real provider request.
+- Done: all eight IntegrationHandle Capability contracts reverse-trace to a closed Provider operation matrix and unique
+  Provider-specific `protocolAtomId@1`. Three nominal ports preserve exact `pure_observation|workspace_write|external_request`
+  Effect Classes；Integration/Secret fences、request/response digest and byte bounds、timeout maxima、typed refs/Artifact/Job Receipt、
+  deep freeze and redaction fail closed. Focused 18/18 and full architecture/P3/P4 gates PASS. Evidence:
+  `evidence/P5_06_TYPED_EXTERNAL_PROVIDER_PROTOCOLS.md`.
 
 ### P5-07 Filesystem transaction、probe/hash and FFmpeg atoms
 

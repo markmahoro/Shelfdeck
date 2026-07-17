@@ -18,15 +18,16 @@ const PLATFORM_EXPORTS = [
   'WorkspaceRootResolverPort'
 ];
 const INTEGRATION_EXPORTS = [
-  'ContentHashPort', 'ExternalProviderPort', 'FilesystemObservationPort', 'MediaProbePort',
+  'ContentHashPort', 'ExternalProviderArtifactPort', 'ExternalProviderObservationPort', 'ExternalProviderRequestPort',
+  'FilesystemObservationPort', 'MediaProbePort',
   'MediaTransformPort', 'WorkerComputePort', 'WorkspaceFileEffectPort'
 ];
 
 test('P5 nominal port catalog is exact, typed, bounded, fenced, and owner-declared', () => {
   assert.equal(catalog.schemaVersion, 1);
-  assert.equal(catalog.contracts.length, 17);
-  assert.equal(new Set(catalog.contracts.map((contract) => contract.portId)).size, 17);
-  assert.equal(new Set(catalog.contracts.map((contract) => contract.exportName)).size, 17);
+  assert.equal(catalog.contracts.length, 19);
+  assert.equal(new Set(catalog.contracts.map((contract) => contract.portId)).size, 19);
+  assert.equal(new Set(catalog.contracts.map((contract) => contract.exportName)).size, 19);
 
   for (const contract of catalog.contracts) {
     assert.match(contract.portId, /@1$/);
@@ -71,7 +72,7 @@ test('nominal factories reject authority-shaped and generic extra methods', () =
       (error) => error.code === 'P5_PLATFORM_PORT_SHAPE_MISMATCH'
     );
     assert.throws(
-      () => integrations.ExternalProviderPort({ execute() {}, [extra]() {} }),
+      () => integrations.ExternalProviderRequestPort({ execute() {}, [extra]() {} }),
       (error) => error.code === 'P5_INTEGRATION_PORT_SHAPE_MISMATCH'
     );
   }

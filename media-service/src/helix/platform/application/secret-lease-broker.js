@@ -94,7 +94,32 @@ function createSecretLeaseBroker(options) {
     }
   }
 
-  return Object.freeze({ issue, consume });
+  async function consumeAsync(handle, consumer) {
+    if (!handle || typeof consumer !== 'function') fail('P5_SECRET_LEASE_CONSUMER_REQUIRED', 'Secret lease handle and consumer are required.');
+    const lease = leases.get(handle.handleId);
+    if (!lease || lease.handle !== handle) fail('P5_SECRET_LEASE_UNKNOWN', 'Secret lease is unknown or already consumed.');
+    leases.delete(handle.handleId);
+    const consumedAtMs = options.now();
+    if (!Number.isSafeInteger(consumedAtMs) || consumedAtMs < 0) fail('P5_SECRET_LEASE_TIME', 'Secret lease clock is invalid.');
+    if (consumedAtMs > handle.expiresAtMs) fail('P5_SECRET_LEASE_EXPIRED', 'Secret lease has expired.');
+    let bytes;
+    try {
+      bytes = options.secretSource.read(lease.secretLocator);
+    } catch (error) {
+      fail('P5_SECRET_SOURCE_READ_FAILED', 'Secret source could not satisfy the bounded invocation.');
+    }
+    if (!Buffer.isBuffer(bytes) || bytes.length === 0) fail('P5_SECRET_SOURCE_INVALID_RESULT', 'Secret source must return non-empty owned bytes.');
+    try {
+      return await consumer(bytes);
+    } catch (error) {
+      if (error instanceof SecretLeaseError) throw error;
+      fail('P5_SECRET_LEASE_INVOCATION_FAILED', 'Secret-backed invocation failed.');
+    } finally {
+      bytes.fill(0);
+    }
+  }
+
+  return Object.freeze({ issue, consume, consumeAsync });
 }
 
 module.exports = Object.freeze({ MAX_LEASE_MS, SecretLeaseError, createSecretLeaseBroker });

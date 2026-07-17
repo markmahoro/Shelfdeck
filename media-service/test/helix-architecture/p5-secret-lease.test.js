@@ -36,11 +36,18 @@ function fixture(run) {
       ownerScopeId === 'integration-1' && secretKind === 'access-token' && purpose === 'metadata-query' },
     secretSource: { read: (locator) => Buffer.from(sourceValues.get(locator)) }
   });
-  try {
-    return run({ broker, databasePath, repository, setNow: (value) => { now = value; } });
-  } finally {
+  const cleanup = () => {
     kernel.close();
     fs.rmSync(root, { recursive: true, force: true });
+  };
+  try {
+    const result = run({ broker, databasePath, repository, setNow: (value) => { now = value; } });
+    if (result && typeof result.then === 'function') return result.finally(cleanup);
+    cleanup();
+    return result;
+  } catch (error) {
+    cleanup();
+    throw error;
   }
 }
 
@@ -120,6 +127,36 @@ test('does not leak invocation failures and rejects asynchronous secret retentio
     );
     const second = broker.issue(exactRequest);
     assert.throws(() => broker.consume(second, async () => null), (error) => error.code === 'P5_SECRET_LEASE_ASYNC_CONSUMER');
+  });
+});
+
+test('bounded asynchronous invocation holds one lease until settlement and always wipes bytes', async () => {
+  await fixture(async ({ broker, repository }) => {
+    repository.save(activeReference);
+    const handle = broker.issue(exactRequest);
+    let retained;
+    const result = await broker.consumeAsync(handle, async (bytes) => {
+      retained = bytes;
+      await Promise.resolve();
+      assert.equal(bytes.toString('utf8'), 'synthetic-secret');
+      return Object.freeze({ requestId: 'provider-request-1' });
+    });
+    assert.deepEqual(result, { requestId: 'provider-request-1' });
+    assert.ok(retained.every((value) => value === 0));
+    assert.throws(() => broker.consume(handle, () => null), (error) => error.code === 'P5_SECRET_LEASE_UNKNOWN');
+  });
+});
+
+test('bounded asynchronous invocation redacts failure and wipes bytes', async () => {
+  await fixture(async ({ broker, repository }) => {
+    repository.save(activeReference);
+    const handle = broker.issue(exactRequest);
+    let retained;
+    await assert.rejects(() => broker.consumeAsync(handle, async (bytes) => {
+      retained = bytes;
+      throw new Error(bytes.toString('utf8'));
+    }), (error) => error.code === 'P5_SECRET_LEASE_INVOCATION_FAILED' && !error.message.includes('synthetic-secret'));
+    assert.ok(retained.every((value) => value === 0));
   });
 });
 

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "providerTypes": ["emby", "tmdb", "douban", "moviepilot", "adult-provider"],
+  "operations": [
+    {"operationId":"shared.integration.availability.observe@1","effectClass":"pure_observation","atoms":{"emby":"emby.system-info.observe@1","tmdb":"tmdb.configuration.observe@1","douban":"douban.identity.observe@1","moviepilot":"moviepilot.download-capability.observe@1","adult-provider":"adult-provider.capability.observe@1"},"inputKind":"empty","resultKind":"availability","maxTimeoutMs":15000,"maxResponseBytes":16384},
+    {"operationId":"perception.source.acquire@1","effectClass":"pure_observation","atoms":{"douban":"douban.interest-page.observe@1"},"inputKind":"perception-source","resultKind":"reference-list","maxTimeoutMs":60000,"maxResponseBytes":65536},
+    {"operationId":"people.registration_evidence.observe@1","effectClass":"pure_observation","atoms":{"emby":"emby.person.observe@1","tmdb":"tmdb.person.observe@1","adult-provider":"adult-provider.person.observe@1"},"inputKind":"person-hint","resultKind":"reference-list","maxTimeoutMs":30000,"maxResponseBytes":65536},
+    {"operationId":"libra.product_metadata.fetch@1","effectClass":"pure_observation","atoms":{"emby":"emby.item-metadata.observe@1","tmdb":"tmdb.product-metadata.observe@1","adult-provider":"adult-provider.product-metadata.observe@1"},"inputKind":"product-identity","resultKind":"reference","maxTimeoutMs":30000,"maxResponseBytes":65536},
+    {"operationId":"libra.external_material.search@1","effectClass":"pure_observation","atoms":{"moviepilot":"moviepilot.acquisition-search.observe@1","adult-provider":"adult-provider.acquisition-search.observe@1"},"inputKind":"acquisition-query","resultKind":"reference-list","maxTimeoutMs":30000,"maxResponseBytes":65536},
+    {"operationId":"libra.product_artifact.acquire@1","effectClass":"workspace_write","atoms":{"emby":"emby.product-artifact.acquire@1","tmdb":"tmdb.product-artifact.acquire@1","adult-provider":"adult-provider.product-artifact.acquire@1"},"inputKind":"artifact-target","resultKind":"artifact","maxTimeoutMs":60000,"maxResponseBytes":16384},
+    {"operationId":"arca.aftercare.binary_artifact.acquire@1","effectClass":"workspace_write","atoms":{"emby":"emby.binary-artifact.reacquire@1","tmdb":"tmdb.binary-artifact.reacquire@1","adult-provider":"adult-provider.binary-artifact.reacquire@1"},"inputKind":"artifact-target","resultKind":"artifact","maxTimeoutMs":60000,"maxResponseBytes":16384},
+    {"operationId":"libra.external_material.acquire.request@1","effectClass":"external_request","atoms":{"moviepilot":"moviepilot.acquisition.request@1"},"inputKind":"acquisition-request","resultKind":"job","maxTimeoutMs":30000,"maxResponseBytes":16384}
+  ]
+}

@@ -11,21 +11,25 @@ Audit date: 2026-07-17
 | §8.3.8 Platform owns typed technical aggregates and publishes short-lived handles | 9 `platform.public` query/resolve nominal ports；no Platform Store exposure |
 | §8.5.10 Artifact Registry is an Execution Foundation technical fact | `ArtifactQueryPort` is published by `foundation.public`, not Platform |
 | §8.5.6 external effects use Effect Journal semantics | every Integration operation declares one P4 Effect Class、idempotency and Fence source |
-| §8.6.16 immutable typed API metadata | 17 unique `@1` port contracts with stable input/output schema refs |
+| §8.6.16 immutable typed API metadata | 19 unique `@1` port contracts with stable input/output schema refs |
 | §8.6.17 dependencies are constructor-injected, not persisted Context | factories bind one exact method and expose no Runtime/Repository/Store |
 | §8.6.18 typed handles, no bare path or mutable object | resolver boundaries return only contract-specific typed refs/handles |
 | §8.7 dependency direction | callers can import `platform.public` or `integrations`; Platform internal layers remain inaccessible |
 
 Platform公开9个技术查询/解析端口：Integration、Integration Handle、Secret Lease Handle、Mount Scope、Workspace
-Root、Resource Profile、Compute Device、Worker Handle和Admin Credential revision。Foundation公开Artifact Query；Integrations公开7个
-效果类型端口：Filesystem Observation、Content Hash、Media Probe、Workspace File Effect、Media Transform、External
-Provider和passive Worker Compute。它们不创建或写入任何Business Object或Domain Fact。
+Root、Resource Profile、Compute Device、Worker Handle和Admin Credential revision。Foundation公开Artifact Query；Integrations公开9个
+效果类型端口：Filesystem Observation、Content Hash、Media Probe、Workspace File Effect、Media Transform、三种按Effect Class
+分离的External Provider port和passive Worker Compute。它们不创建或写入任何Business Object或Domain Fact。
 
 ## 2. Exact nominal contract
 
 每个port contract固定：`portId@1`、export name、package/Owner、唯一method、input/output schema ref、Effect Class、
 idempotency requirement/scope、Fence requirement/source及input/output byte bound。非pure operation全部要求幂等键；
-所有17个端口都要求明确Fence来源。大结果只能由后续Artifact/Handle合同承载，端口本身没有无界返回值。
+所有19个端口都要求明确Fence来源。大结果只能由后续Artifact/Handle合同承载，端口本身没有无界返回值。
+
+P5-06反向审计8个使用`IntegrationHandle`的Capability后，将原单一`ExternalProviderPort(external_request)`纠正为
+`Observation(pure_observation)`、`Artifact(workspace_write)`和`Request(external_request)`三个nominal ports。该修正
+消除了Effect Class混用，没有保留旧port兼容入口，也没有改变SSOT/P2 Capability合同。
 
 公开factory只接受合同声明的唯一method。缺少method或额外加入Repository、SQLite、Domain write、HTTP、generic
 request或process authority都会稳定返回shape mismatch；绑定结果被冻结。
