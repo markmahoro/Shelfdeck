@@ -1,6 +1,6 @@
 # Helix Architecture Review Workbench
 
-Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-17；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-03` bounded correction均已完成。
+Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-17；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-04` bounded correction均已完成。
 
 ## 1. Purpose and authority
 
@@ -1344,3 +1344,59 @@ NEW BUSINESS DECISION       none
 `PBF-03`关闭后，`PBF-02`的semantic direction与P6-03 contract-generation readiness才同时成立；这不打开
 SSOT的Implementation Gate。实现仍必须以
 生成的JSON Schema、SQLite DDL和second-acquisition crash/replay fixture证明遵守合同，不能以文档通过代替测试。
+
+### 15.4 `PBF-04` — Nominal Result identity与People Candidate payload continuity
+
+Status: `CLOSED / DOC_FIX APPLIED_AND_AUDITED` — 2026-07-17
+
+实现前schema生成反证发现两项表面问题，纵向审计后确认People链路还有同一根因下的三项关联缺口：
+
+1. `perception.dedup.resolve@1`把说明文字放进output type cell，机器会把
+   `PerceptionResolutionDraft(with explicit duplicate relation drafts)`抽成不存在的nominal Result；
+2. `people.candidate.commit@1`把`(registration|merge)`拼进nominal input名称，`people.person.commit@1`则使用
+   没有formal schema的`Registration/merge decision`；
+3. `PeopleCandidateDraft`只有payload digest，没有Candidate Commit必须保存的`proposedName`、Alias、Provider
+   Identity、Reference hint或normalized Person pair/evidence；
+4. Candidate没有immutable state revision，Level 9的expected-revision dismiss/accept无法映射到真实SQLite CAS；
+5. Candidate accepted到Person create/Merge、Preference冲突选择和Merge correlation没有一个formal typed input与
+   原子事务，若实现自行补齐，只能旁读Foundation Result、Provider、缓存或其他非正式来源。
+
+这些问题都属于既有People Owner、Candidate用户确认语义、immutable revision规则与Commit Participant边界的
+工程合同闭合，不新增用户业务Decision。Bounded change set为：
+
+- Capability表只保留精确nominal identity：Perception output固定为`PerceptionResolutionDraft`；说明文字移到
+  schema语义段；People input固定为`PeopleCandidateDraft`与`PeopleCandidateAcceptanceDecision`；
+- 原`people.merge_candidate.resolve@1`更名为`people.merge_evidence.resolve@1`，明确其只生产Evidence；真正的
+  `PeopleCandidateResolver`是People application内pure Decision Function，不被伪造成Capability；
+- Resolver正式消费typed Registration/Merge Evidence与`PeopleCandidatePolicyRef`，输出完整discriminated
+  `PeopleCandidateDraft | no_candidate`；Candidate payload直接携带Registration facts或normalized Merge pair、
+  精确Person revision、冲突和Evidence continuity，digest只覆盖该payload；
+- Candidate Commit只消费完整Draft，不得旁读Foundation/Provider/缓存；Registration/Merge各增加immutable
+  Candidate revision表，head保存immutable payload与current revision/state投影；
+- 新增formal `PeopleCandidateAcceptanceDecision`：绑定candidate revision/payload、decision origin、新Person ID或
+  source/target Person revision以及Preference选择；strong identity仍先建立Candidate，Preference冲突时禁止自动接受；
+- People Candidate Acceptance事务同时终结Candidate并完成Registration的Person/Alias/Provider Identity，或
+  Merge的target/source Person revision、Merge Record和必要Preference revision；Reference hint只保留为后续
+  Reference Maintenance输入，不伪造成已导入资产；
+- People API request discriminator、transaction/crash fixture和Level 10 fault matrix同步闭合。关系表新增两张
+  Candidate revision表，总数从158变为160，`people_*`从10变为12；Capability仍为112，Result family仍为96。
+
+Post-change audit：
+
+```text
+CAPABILITY REFS             112 / 112 unique
+RESULT FAMILIES             unchanged: 96
+RELATIONAL TABLES           160 / 160 unique
+TABLE PREFIX COUNTS         fx25 proc13 libra31 arca54 perception9 people12 platform16
+DECORATED NOMINAL OUTPUT    none
+SQLITE CANDIDATE FK/CAS     deferred head↔revision + registration/merge acceptance atomic probes pass
+PEOPLE CANDIDATE PAYLOAD    evidence → complete draft → immutable candidate closed
+CANDIDATE ACCEPTANCE        typed decision → candidate terminal + person facts atomic
+FOUNDATION/PROVIDER SIDEREAD forbidden; People-owned exact revision CAS only
+NEW BUSINESS DECISION       none
+```
+
+该修正不改变People Management业务目标、媒体Cast Fact Owner、用户确认语义、Domain/Handoff或公开路由数量。
+实现仍须用生成的Decision/Candidate/Person JSON Schema、SQLite FK/partial unique DDL、Candidate acceptance
+crash/replay fixture和nominal identity extractor证明遵守合同；不得通过生成器清洗类型名、Foundation旁读、
+Provider二次查询或兼容路径掩盖缺口。

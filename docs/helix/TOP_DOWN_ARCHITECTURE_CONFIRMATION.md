@@ -1,6 +1,6 @@
 # Helix Clean Top-down Architecture
 
-Status: ShelfDeck / Helix architecture SSOT; Levels 0–10 accepted; final full-document audit and post-baseline `PBF-01`–`PBF-03` bounded corrections closed; implementation not authorized by this document.
+Status: ShelfDeck / Helix architecture SSOT; Levels 0–10 accepted; final full-document audit and post-baseline `PBF-01`–`PBF-04` bounded corrections closed; implementation not authorized by this document.
 
 Last updated: 2026-07-17
 
@@ -3813,6 +3813,12 @@ People Management的Policy负责Person注册、Alias/Provider Identity、Referen
 - 用户确认Merge时保留目标personId，冲突偏好由用户选择；
 - 自动/半自动发现演员Candidate不能直接写Media-Cast Fact。
 
+People Candidate Resolution是People Management拥有的pure Decision Function。它只消费一份正式Registration/
+Merge Evidence和当前Person Registration/Merge Policy revision，输出`candidate|no_candidate`；candidate分支
+必须携带完整候选业务payload，不能只留下digest，也不能在Candidate Commit时重新查询Provider或技术执行
+Store。强Identity规则仍先建立可审计Candidate，再以明确的strong-identity决策来源完成接受；存在Preference
+冲突时不得自动接受。
+
 某部媒体由谁出演仍由拥有该媒体Metadata的Domain回答：Pre-deck归Libra，On-deck归Arca。抽帧比对、
 Provider抓取或其他识别可以复用People Reference Evidence，但不能把People Management变成媒体
 Metadata Owner。
@@ -4129,6 +4135,7 @@ Status: `ACCEPTED / JOURNEY-AMENDED`；下列术语已应用2026-07-16 bounded c
 | Placement Conformance Gap | 当前Inventory与Shelf Placement Policy所定义Final Inventory结果之间的Arca域内差异；由Aftercare评估和有界修复，不进入Shelf Standard或Libra Spec | 5.5.10、5.8.2 |
 | Reprocure from scratch | 用户discard后，Field Management对已释放Physical Material按当前Eligibility建立全新Procurement流程；不是恢复旧Run或反向Handoff | 5.3.7、5.6.7、L5-Q7 |
 | best-effort Perception Match | Beta在缺少共享强Identity时基于弱Identity Anchor形成的Perception Decision Fact Resolution；不得解释为身份确认 | 5.6.3、5.9.2、L5-Q1 |
+| People Candidate Resolution | People Management把正式Registration/Merge Evidence与当前People Policy revision映射为`candidate|no_candidate`的pure Decision Function；candidate必须携带完整People-owned业务payload | 5.9.4 |
 | Structured Rejection Category | Shelf Acceptance拒绝最终产品时使用的稳定业务原因类别 | 5.7.3 |
 
 ## Level 6 — Domain Execution Architecture
@@ -5168,6 +5175,26 @@ Person Registration、Merge和Reference Maintenance分别拥有自己的输入�
   或Off-deck Case；
 - Beta中的Person Preference只有Off-deck Policy可以消费，未来Shelf Standard扩展仍须遵守Level 5注册输入合同。
 
+异步Candidate链路固定为：
+
+~~~text
+typed Evidence Work Result
+  → PersonRegistrationCoordinator | PersonMergeCoordinator
+  → PeopleCandidateResolver (pure Decision Function)
+  → complete PeopleCandidateDraft
+  → people.candidate.commit@1
+  → immutable People-owned Candidate payload + open revision
+  → PeopleCandidateAcceptanceDecision (user | strong identity rule)
+  → people.person.commit@1
+  → Candidate accepted + Person facts in one People transaction
+~~~
+
+Coordinator可以通过Foundation public typed Work Result contract在重启后重新取得同一schema/digest的Evidence，
+但CommitParticipant不能旁读Foundation Event Result。Candidate Commit的全部事实必须包含在Draft中；Person
+Commit只能按Acceptance Decision中的candidate ref/revision/payload digest读取People自己持久化的immutable
+Candidate payload，并对当前Person revision执行CAS。Reference hint随Candidate payload保留，只能作为后续
+Reference Maintenance输入，不能在Person Commit中伪造成已导入Reference Asset。
+
 #### 6.8.4 Priority、失败与恢复
 
 横向采集和候选生成默认属于后台工作，不能饿死Handoff Acceptance或已授权安全提交。用户正在等待的
@@ -5431,6 +5458,8 @@ Status: `ACCEPTED / JOURNEY-AMENDED`。下列术语进入Level 6 Canonical Dicti
 | Safety Liveness | 对已开始原子责任转移或已授权破坏性提交保留恢复进展，避免系统长期停在半提交现实 | 6.9.2 |
 | Resource Operating Profile | 用户未来可按忙时/闲时选择、由Level 7映射为资源容量和并发的运行档位；切换不改变Business Process状态或资格 | 6.9.1 |
 | Durable Process Recovery | 环境中断后依据持久Object、Process、Basis、Decision、Receipt和commit evidence自动恢复未收口责任，而不要求用户重新开单或点击继续 | 6.10.3、L6-Q1 |
+| People Candidate Resolver | People Management中消费typed Registration/Merge Evidence和People Policy revision、输出完整Candidate Draft或`no_candidate`的pure Decision Function；不是Capability或Provider Adapter | 5.9.4、6.8.3 |
+| People Candidate Acceptance Decision | 用户或strong-identity规则对一个精确Candidate revision/payload作出的接受决定；它冻结Person创建或Merge所需目标、revision与Preference冲突选择 | 6.8.3 |
 | Upstream Contract Gap | 后续执行设计因前序Owner、Policy、Decision、Object或Handoff未定义而无法合法细化的阻断记录 | 6.0.1、6.11.3 |
 
 当前确认状态：
@@ -6945,6 +6974,7 @@ domains/people/
 ├─ application/
 │  ├─ PersonRegistrationCoordinator
 │  ├─ PersonMergeCoordinator
+│  ├─ PeopleCandidateResolver
 │  ├─ ReferenceAssetCoordinator
 │  └─ PersonPreferenceCoordinator
 ├─ planning/
@@ -6960,7 +6990,9 @@ People Management只维护Person、Alias、Provider Identity、Preference、Refe
 `PersonReferenceQueryFacade`发布只读Person Reference Projection。某项媒体“由谁出演”的Media-Cast Fact继续
 由处理该媒体内容的Domain闭环；People Management不能写Libra Product Metadata或Arca Media-Cast Fact。
 异步Evidence工作只能先提交Registration/Merge Candidate，再由对应Coordinator消费用户确认；Foundation
-Event Result不是可被用户确认的People业务对象。
+Event Result不是可被用户确认的People业务对象。`PeopleCandidateResolver`是People application内的pure
+Decision Function：它把正式typed Evidence与当前People Candidate Policy映射为完整Candidate Draft或
+`no_candidate`，不拥有Store、不调用Provider，也不被伪装成可调度Capability。
 
 ### 8.3 Execution Foundation物理组件
 
@@ -7278,6 +7310,8 @@ page、完整Workflow Graph和整项媒体详情禁止进入列表热记录。
 | --- | --- |
 | Domain Fact Commit | Owner-defined Canonical/Process Fact + revision fence + commit marker + durable typed result + contract-declared Outbox |
 | Perception Acquisition Page Commit | Acquisition/page fact + immutable Records/Anchors/explicit source-lineage Relations + source cursor revision/head CAS + page receipt + durable typed result + commit marker + Perception-internal Outbox；`hasMore=false`时同事务终结Acquisition |
+| People Candidate Commit | complete PeopleCandidateDraft + typed Candidate head + initial immutable `open` revision + durable typed result + commit marker + People-internal Outbox |
+| People Candidate Acceptance | current Candidate revision/payload digest CAS + Candidate terminal `accepted` revision + Person create或Merge完整fact set +必要Preference resolution + merge correlation + durable typed result + commit marker + People-internal Outbox |
 | Procurement Retry Intent Commit | immutable user Retry Intent + failed Run/Basis reference + current eligibility precondition + Outbox |
 | Field Routing Policy Publish | immutable per-Field Policy revision + target ranks + Field Routing head switch + Outbox |
 | Rule Template Publish | immutable Template revision + all currently bound Shelf effective Standard revisions + Template/Shelf current head switches + Outbox |
@@ -7574,16 +7608,18 @@ Plan node input/parameter/Fence/Resource Demand的Schema内容不重复存入`fx
 | `perception_record_relations` | `relation_id PK, relation_kind(duplicate_of|supersedes|retracts), source_perception_id FK, target_perception_id FK, rule_revision, evidence_digest, committed_at_ms` | immutable；source不得等于target；`UNIQUE(relation_kind,source_perception_id,target_perception_id)`；`duplicate_of`使用规范化pair，`supersedes|retracts`保持方向性 |
 | `perception_resolution_revisions` | `resolution_id PK, query_contract, query_input_digest, revision, result_kind, winning_perception_id, result_digest, resolved_at_ms` | `UNIQUE(query_contract,query_input_digest,revision)`；current pointer/index按query digest |
 | `perception_resolution_heads` | `query_contract, query_input_digest, current_resolution_id FK, current_revision, updated_at_ms` | `PK(query_contract,query_input_digest)`；Resolution Facade只读head，不在热路径计算`MAX(revision)` |
-| `people_persons` | `person_id PK, status, current_revision, created_at_ms, terminal_at_ms` | `INDEX(status,person_id)` |
-| `people_person_revisions` | `person_id FK, revision, canonical_name, content_scope, fact_digest, committed_at_ms` | `PK(person_id,revision)`；immutable |
-| `people_aliases` | `person_id FK, revision, alias_normalized, alias_display, provenance_digest` | `PK(person_id,revision,alias_normalized)`；`INDEX(alias_normalized)` |
-| `people_provider_identities` | `person_id FK, revision, provider, namespace, provider_key, provenance_digest` | `PK(person_id,revision,provider,namespace,provider_key)`；stable identity active unique |
-| `people_preference_revisions` | `person_id FK, revision, preference_level, reason, committed_at_ms` | `PK(person_id,revision)`；level枚举`-2..2` |
+| `people_persons` | `person_id PK, status(active|merged), current_revision, current_preference_revision NULL, created_at_ms, terminal_at_ms` | `current_revision`显式复合FK引用`people_person_revisions`；nullable Preference pointer显式复合FK引用`people_preference_revisions`；与两个child表的循环FK均`DEFERRABLE INITIALLY DEFERRED`；`INDEX(status,person_id)` |
+| `people_person_revisions` | `person_id FK, revision, person_status(active|merged), canonical_name, content_scope, merged_into_person_id NULL, origin_candidate_kind NULL, origin_candidate_id NULL, origin_candidate_revision NULL, origin_candidate_payload_digest NULL, fact_digest, committed_at_ms` | `PK(person_id,revision)`；immutable；Candidate acceptance创建的所有Person revision必须完整关联接受的Candidate revision/payload |
+| `people_aliases` | `person_id FK, revision, alias_normalized, alias_display, provenance_digest` | `PK(person_id,revision,alias_normalized)`；`FOREIGN KEY(person_id,revision)`引用精确Person revision；`INDEX(alias_normalized)` |
+| `people_provider_identities` | `person_id FK, revision, provider, namespace, provider_key, provenance_digest` | `PK(person_id,revision,provider,namespace,provider_key)`；`FOREIGN KEY(person_id,revision)`引用精确Person revision；stable identity active unique |
+| `people_preference_revisions` | `person_id FK, revision, preference_level, reason, origin_kind, origin_ref, committed_at_ms` | `PK(person_id,revision)`；level枚举`-2..2`；current pointer由`people_persons.current_preference_revision`维护，禁止热路径`MAX(revision)` |
 | `people_reference_assets` | `reference_asset_id PK, person_id FK, artifact_handle_id, artifact_digest, state, created_at_ms` | `UNIQUE(person_id,artifact_digest)` |
 | `people_reference_faces` | `reference_face_id PK, person_id FK, reference_asset_id FK, embedding_handle_id, model_ref, state, created_at_ms` | `UNIQUE(person_id,embedding_handle_id,model_ref)` |
-| `people_registration_candidates` | `registration_candidate_id PK, proposed_name, evidence_digest, candidate_schema_ref, candidate_json, state(open|accepted|dismissed|superseded), created_at_ms, terminal_at_ms` | Candidate JSON上限`16 KiB`且大Reference只含handle；相同evidence digest至多一个open Candidate；`INDEX(state,created_at_ms)` |
-| `people_merge_candidates` | `merge_candidate_id PK, left_person_id FK, right_person_id FK, evidence_digest, state(open|accepted|dismissed|superseded), created_at_ms, terminal_at_ms` | normalized pair unique while open；dismiss只终结候选，不修改Person或媒体关系 |
-| `people_merge_records` | `merge_record_id PK, source_person_id FK, target_person_id FK, decision_digest, committed_at_ms` | 一个source Person最多一个terminal merge target |
+| `people_registration_candidates` | `registration_candidate_id PK, current_revision, current_state, proposed_name, evidence_digest, candidate_schema_ref, candidate_json, candidate_payload_digest, created_at_ms, terminal_at_ms` | `candidate_json`保存Draft中精确Registration `candidatePayload`，其JCS digest必须等于`candidate_payload_digest`，且`proposed_name`以DDL CHECK匹配payload字段；payload在Candidate生命周期内immutable；JSON上限`16 KiB`且大Reference只含handle；`FOREIGN KEY(registration_candidate_id,current_revision,current_state)`显式引用revision表并`DEFERRABLE INITIALLY DEFERRED`；`UNIQUE(evidence_digest) WHERE current_state='open'`；`INDEX(current_state,created_at_ms)` |
+| `people_registration_candidate_revisions` | `registration_candidate_id FK, revision, state(open|accepted|dismissed|superseded), decision_origin NULL, decision_ref NULL, decision_digest NULL, committed_at_ms` | `PK(registration_candidate_id,revision)`加`UNIQUE(registration_candidate_id,revision,state)`供head复合FK；到head的FK同样deferred；revision 1固定为open；只允许`open → accepted|dismissed|superseded`一次terminal CAS；terminal revision保存正式Decision ID/digest；immutable |
+| `people_merge_candidates` | `merge_candidate_id PK, current_revision, current_state, left_person_id FK, left_person_revision, right_person_id FK, right_person_revision, evidence_digest, candidate_schema_ref, candidate_json, candidate_payload_digest, created_at_ms, terminal_at_ms` | `candidate_json`保存Draft中精确Merge `candidatePayload`，JCS digest匹配`candidate_payload_digest`，四个Person热字段以DDL CHECK匹配payload refs；Person pair按ID规范化；两个`(person_id,revision)`复合FK冻结精确Person revision，payload与该snapshot immutable；Candidate current复合FK `DEFERRABLE INITIALLY DEFERRED`；`UNIQUE(left_person_id,right_person_id) WHERE current_state='open'`；`INDEX(current_state,created_at_ms)` |
+| `people_merge_candidate_revisions` | `merge_candidate_id FK, revision, state(open|accepted|dismissed|superseded), decision_origin NULL, decision_ref NULL, decision_digest NULL, committed_at_ms` | `PK(merge_candidate_id,revision)`加`UNIQUE(merge_candidate_id,revision,state)`供head复合FK；到head的FK同样deferred；revision 1固定为open；只允许`open → accepted|dismissed|superseded`一次terminal CAS；terminal revision保存正式Decision ID/digest；immutable |
+| `people_merge_records` | `merge_record_id PK, merge_candidate_id FK, merge_candidate_revision, source_person_id FK, previous_source_person_revision, committed_source_person_revision, target_person_id FK, previous_target_person_revision, committed_target_person_revision, preference_resolution_digest, decision_digest, committed_at_ms` | Candidate及source/target的previous/committed revision均有显式复合FK；一个source Person最多一个terminal merge target；Candidate、source/target revision和Preference选择都可从record追溯 |
 | `platform_schema_marker` | `schema_name PK, generation, schema_digest, catalog_digest, applied_at_ms` | clean generation唯一；旧/clean混合时拒绝可写启动 |
 | `platform_mount_scopes` | `mount_scope_id PK, status, current_revision, created_at_ms, terminal_at_ms` | mount scope是Platform技术identity，不是Business Object；current revision显式FK；`INDEX(status,mount_scope_id)` |
 | `platform_mount_scope_revisions` | `mount_scope_id FK, revision, endpoint_id, mount_boundary, filesystem_type, stable_mount_fingerprint, inode_capability_digest, probe_evidence_digest, effective_at_ms` | `PK(mount_scope_id,revision)`；active fingerprint唯一；replacement发布新revision但在显式验证前不继承旧Identity资格 |
@@ -7868,12 +7904,13 @@ Shelf Deregistration Catalog中不存在任何文件写入或删除Capability。
 | `perception.source.acquire@1` | `PerceptionSourceSnapshot + IntegrationHandle + PerceptionAcquisitionCursor → PerceptionObservationPage` | `pure_observation` |
 | `perception.record.normalize@1` | `PerceptionObservationPage + PerceptionNormalizationRuleRef → PerceptionAcquisitionCommitDraft` | `pure_observation` |
 | `perception.record.commit@1` | `PerceptionAcquisitionCommitDraft + DomainFactCommitHandle → PerceptionRecordCommitResult` | `domain_fact_commit` |
-| `perception.dedup.resolve@1` | `Immutable records + Resolution rule revision → PerceptionResolutionDraft(with explicit duplicate relation drafts)` | `pure_observation` |
+| `perception.dedup.resolve@1` | `Immutable records + Resolution rule revision → PerceptionResolutionDraft` | `pure_observation` |
 | `perception.resolution.commit@1` | `PerceptionResolutionDraft + DomainFactCommitHandle → PerceptionResolutionRevision` | `domain_fact_commit` |
 
 `perception.source.acquire@1`只服务外部Integration Source；用户即时Intent由Perception Owner Application从
 已验证Command payload形成同schema单页Observation，不调用Provider。两条入口从Normalize开始完全相同。
-`perception.record.commit@1`只提交一个Source的一页Commit Draft；CommitParticipant不得读取Integration、重新
+`PerceptionResolutionDraft`内含显式duplicate relation drafts；该说明是Result schema语义，不属于nominal
+Result名称。`perception.record.commit@1`只提交一个Source的一页Commit Draft；CommitParticipant不得读取Integration、重新
 Normalize或按revision大小推断修正关系。`perception.resolution.commit@1`可以把Resolution revision与Draft中
 明确的`duplicate_of`关系同事务提交，但不得生成`supersedes|retracts`；后两者只来自Acquisition冻结的来源
 lineage evidence。Perception Query本身由public Resolution Facade直接读取已提交Resolution；不需要为每次消费创建Event。
@@ -7885,9 +7922,9 @@ lineage evidence。Perception Query本身由public Resolution Facade直接读取
 | `people.registration_evidence.observe@1` | `Provider/person hint + IntegrationHandle → PersonRegistrationEvidence` | `pure_observation` |
 | `people.reference_asset.import@1` | `External/user asset handle + People Workspace → ArtifactHandle` | `workspace_write` |
 | `people.reference_fact.commit@1` | `Verified reference asset + DomainFactCommitHandle → PersonReferenceRevision` | `domain_fact_commit` |
-| `people.merge_candidate.resolve@1` | `Person identities/aliases/references → MergeCandidateEvidence` | `pure_observation` |
-| `people.candidate.commit@1` | `PeopleCandidateDraft(registration|merge) + DomainFactCommitHandle → PeopleCandidateRevision` | `domain_fact_commit` |
-| `people.person.commit@1` | `Registration/merge decision + DomainFactCommitHandle → PersonRevision` | `domain_fact_commit` |
+| `people.merge_evidence.resolve@1` | `Person identities/aliases/references → MergeCandidateEvidence` | `pure_observation` |
+| `people.candidate.commit@1` | `PeopleCandidateDraft + DomainFactCommitHandle → PeopleCandidateRevision` | `domain_fact_commit` |
+| `people.person.commit@1` | `PeopleCandidateAcceptanceDecision + DomainFactCommitHandle → PersonRevision` | `domain_fact_commit` |
 | `people.preference.commit@1` | `Preference intent + DomainFactCommitHandle → PersonPreferenceRevision` | `domain_fact_commit` |
 | `people.workspace.reclaim@1` | `People Workspace handles + ReferenceEvidence → ReclamationReceipt` | `workspace_write` |
 
@@ -7895,7 +7932,24 @@ lineage evidence。Perception Query本身由public Resolution Facade直接读取
 Workflow；上述commit Capability只用于已经通过durable Supporting Work取得Evidence的异步路径。
 Registration与Merge Candidate共享“提交一项People-owned immutable Candidate”这一原子效果，因此使用一个
 带discriminator的`people.candidate.commit`，而不是复制两套近似Executor；两类Candidate仍写各自typed表，
-且只有对应Coordinator可以接受或终结。
+且只有对应Coordinator可以接受或终结。`PeopleCandidateDraft`中的discriminator属于Draft schema，不得拼进
+Capability nominal input名称。
+
+Candidate形成不是另一个Capability。`PeopleCandidateResolver`使用版本化
+`contracts/decisions/people-candidate/v1`合同，输入恰为`PersonRegistrationEvidence | MergeCandidateEvidence`
+与`PeopleCandidatePolicyRef`，输出恰为`candidate(PeopleCandidateDraft) | no_candidate(reasonCodes[])`。它不读
+Foundation Store；Coordinator只接收或按Foundation public typed Result contract恢复同一Evidence value。
+
+`people.candidate.commit@1`的`commitPayload`恰为完整`PeopleCandidateDraft`。Candidate CommitParticipant只消费
+该Draft和Handle，不得旁读Foundation Event Result、Provider、临时缓存或其他Store；Handle的aggregateId是
+本次新Candidate ID，factType按candidate kind固定。`people.person.commit@1`
+可以按`PeopleCandidateAcceptanceDecision`中的正式ref读取People自己持久化的immutable Candidate payload及
+精确Person/Preference revision；Registration Handle aggregateId必须等于Decision.newPersonId，Merge Handle
+aggregateId必须等于Decision.targetPersonId。这属于People Owner内的CAS，不是跨Owner旁读。接受事务必须
+同时终结Candidate并建立全部Person事实：Registration创建Person首revision、Alias和Provider Identity；Merge创建target新revision、
+source terminal revision、Merge Record及必要Preference resolution。任何candidate payload、Person revision或
+Preference revision不匹配都整体拒绝，禁止部分接受。Merge不会复制Reference Asset/Face；它们继续保留在
+source Person历史并通过Merge correlation解析，避免把同一受控Artifact伪造成两份资产。
 
 #### 8.6.15 Catalog合并与边界校验
 
@@ -8006,7 +8060,7 @@ Executor只能返回以下discriminated union，且每个variant都`additionalPr
 受限诊断Artifact，不进入普通Result/Audit热JSON。`succeeded`的Result与Evidence分别校验；Effect Class非
 `pure_observation`时还必须由Effect Journal提供匹配的`EffectReceipt`或可恢复的pending journal。
 
-#### 8.6.18 Shared handle与envelope字段合同
+#### 8.6.18 Shared handle、formal input DTO与envelope字段合同
 
 所有下表类型首先包含`schemaRef`和`schemaVersion=1`。字段名是mandatory，不允许用任意`payload`替代：
 
@@ -8032,6 +8086,8 @@ Executor只能返回以下discriminated union，且每个variant都`additionalPr
 | `WorkerUploadReceipt` | `workerAssetId, workerId, uploadReceipt, uploadedDigest, sizeBytes, completedAtMs` |
 | `FaceEmbeddingSetHandle` | `artifactHandleId, modelRef, sourceFrameSetDigest, vectorCount, dimension, digestHex`；向后续节点传handle而非向量数组 |
 | `FaceClusterSetHandle` | `artifactHandleId, modelRef, sourceEmbeddingDigest, clusterCount, digestHex` |
+| `PeopleCandidatePolicyRef` | `policyKind(registration|merge), policyRevision, ruleSchemaRef, ruleDigest`；Beta引用随Binary/Catalog发布的immutable system decision contract，不要求另建可变Policy head；只供People Candidate Resolver使用，不是用户可确认对象 |
+| `PeopleCandidateAcceptanceDecision` | 公共字段`decisionId,candidateKind,candidateId,expectedCandidateRevision,candidatePayloadDigest,decisionOrigin(user|strong_identity_rule),actorId?,ruleRevision?,decisionDigest`；Registration分支必须追加`newPersonId`；Merge分支必须追加`sourcePersonId,targetPersonId,expectedSourcePersonRevision,expectedTargetPersonRevision,expectedSourcePreferenceRevision(null|positive),expectedTargetPreferenceRevision(null|positive),preferenceResolution(keep_source|keep_target|set_explicit),explicitPreferenceLevel?`；target必须是规范化pair成员，`set_explicit`时level必为`-2..2`；`user`要求actorId，`strong_identity_rule`要求ruleRevision且遇Preference冲突不得签发；`decisionDigest=SHA-256(JCS(Decision excluding decisionDigest))` |
 
 通用结果envelope固定为：
 
@@ -8130,12 +8186,12 @@ Executor只能返回以下discriminated union，且每个variant都`additionalPr
 | `PerceptionRecordCommitResult` | `ReceiptEnvelope + acquisitionCommitReceiptId(=receiptId) + perceptionAcquisitionId + sourceId + committedCursorRevision + perceptionIds[] + relationIds[] + insertedCount + duplicateCount`；typed value内部不含自引用`resultDigest`；其canonical value由`fx_event_result_bindings.result_digest`及`perception_acquisition_commits.result_digest`按同一basis校验，第一次提交与marker同事务保存，重放不得重算 |
 | `PerceptionResolutionDraft` | `DraftEnvelope + queryContract + queryInputDigest + resultKind(found|not_found) + winningPerceptionId? + ruleRevision + duplicateRelationDrafts[{sourcePerceptionId,targetPerceptionId,ruleRevision,evidenceDigest}]`；duplicate pair必须规范化 |
 | `PerceptionResolutionRevision` | `DomainFactEnvelope + queryContract + queryInputDigest + resultKind + winningPerceptionId? + committedRelationIds[]` |
-| `PersonRegistrationEvidence` | `EvidenceEnvelope + proposedName + aliases[] + providerIdentities[] + referenceHints[]` |
-| `PeopleCandidateDraft` | `DraftEnvelope + candidateKind(registration|merge) + candidatePayloadDigest + evidenceDigest` |
-| `PeopleCandidateRevision` | `DomainFactEnvelope + candidateKind + candidateId + candidatePayloadDigest + state(open)` |
+| `PersonRegistrationEvidence` | `EvidenceEnvelope + proposedName + aliases[{aliasDisplay,aliasNormalized,provenanceDigest}] + providerIdentities[{provider,namespace,providerKey,provenanceDigest}] + referenceHints[{hintKind,referenceValue,provenanceDigest}]`；数组有界，大型引用只能使用typed handle/ref |
+| `PeopleCandidateDraft` | `DraftEnvelope + candidateKind(registration|merge) + evidenceDigest + candidatePayload + candidatePayloadDigest`；Registration payload恰为`{proposedName,aliases[],providerIdentities[],referenceHints[]}`并沿用`PersonRegistrationEvidence`成员schema；Merge payload恰为`{leftPersonRef{personId,revision,factDigest,preferenceRevision(null|positive)},rightPersonRef{personId,revision,factDigest,preferenceRevision(null|positive)},matchSignals[],conflictSummary,evidenceRefs[]}`且pair按personId规范化；`candidatePayloadDigest=SHA-256(JCS(candidatePayload))`，digest字段与Draft envelope均不进入该basis；完整Draft≤`16 KiB`，大Evidence只含handle/ref |
+| `PeopleCandidateRevision` | `DomainFactEnvelope + candidateKind + candidateId + candidateRevision + candidateSchemaRef + candidatePayloadDigest + evidenceDigest + state(open|accepted|dismissed|superseded)`；candidate revision与payload可由People Store精确恢复 |
 | `PersonReferenceRevision` | `DomainFactEnvelope + personId + referenceAssetIds[] + referenceFaceIds[]` |
-| `MergeCandidateEvidence` | `EvidenceEnvelope + personPair + matchSignals[] + conflictSummary` |
-| `PersonRevision` | `DomainFactEnvelope + personId + canonicalName + aliasSetDigest + providerIdentitySetDigest + mergeRecordRef?` |
+| `MergeCandidateEvidence` | `EvidenceEnvelope + personPair[{personId,revision,factDigest,preferenceRevision(null|positive)}] + matchSignals[] + conflictSummary + evidenceRefs[]`；pair按personId规范化，引用精确People revision；NULL明确表示当前没有Preference revision |
+| `PersonRevision` | `DomainFactEnvelope + operationKind(registration|merge) + personId(primary/new target) + canonicalName + aliasSetDigest + providerIdentitySetDigest + acceptedCandidateRef{candidateKind,candidateId,candidateRevision,candidatePayloadDigest} + affectedPersonRevisions[{personId,revision,status,factDigest}] + mergeRecordRef? + preferenceRevisionRef?`；Merge Result必须同时返回target新revision和source terminal revision，marker重放返回同一完整value |
 | `PersonPreferenceRevision` | `DomainFactEnvelope + personId + preferenceLevel(-2..2) + reason` |
 
 `FaceEmbeddingSetHandle`、`FaceClusterSetHandle`、`WorkerAssetReceipt`、`WorkerUploadReceipt`、`ArtifactHandle`、
@@ -8146,8 +8202,8 @@ Executor只能返回以下discriminated union，且每个variant都`additionalPr
 Catalog input使用三类schema：
 
 1. **Accepted Business DTO**：`CandidatePackage`、`PrimaryInputManifest`、`ShelfStandard`、`AcceptanceSpec`、
-   `FinalInventoryDecision`、`DestructionScope`等必须包含对象ID、revision、digest和Level 3–5定义的成员；Executor
-   只能读Plan冻结的DTO snapshot；
+   `FinalInventoryDecision`、`PeopleCandidateAcceptanceDecision`、`DestructionScope`等必须包含对象ID、revision、
+   digest和Level 3–5定义的成员；Executor只能读Plan冻结的DTO snapshot；
 2. **Typed Handle/Projection**：使用`8.6.18`字段或versioned public Query Projection；不得传Store row、裸路径
    或跨Domain可变对象；
 3. **Bounded Intent/Requirement**：`HashProfile`、`SamplingPlan`、`EncodeIntent`、`RemuxIntent`、
@@ -8459,7 +8515,7 @@ Standard与Care Basis派生，不创建新的用户Authorization。
 
 #### 8.9.5 Persistence closure audit
 
-逐表合同共有`158 tables / 158 unique names / 0 invalid prefix / 0 duplicate definition`：
+逐表合同共有`160 tables / 160 unique names / 0 invalid prefix / 0 duplicate definition`：
 
 ~~~text
 fx_          25
@@ -8467,7 +8523,7 @@ proc_        13
 libra_       31
 arca_        54
 perception_   9
-people_      10
+people_      12
 platform_    16
 ~~~
 
@@ -8525,7 +8581,7 @@ Level 8固定后续实现必须建立的可执行contract fixture，不把“以
 | Off-deck Review/Authorization | Review、Reservation、Scope、selection/escalation、Authorization/Case各边界 | Authorization前不存在Case；Direct Intent不伪造Candidate；high-volume无独立Receipt不能授权；每Entry独立Scope/Case |
 | Off-deck destruction | Authorization后、逐Material delete、授权Identity被外部提前删除/被新Identity替换、Deletion verify、terminal commit | 授权Scope不扩张；已删Evidence不重做；授权Identity已不存在时Evidence必须证明精确absence且绝不触碰替代Identity；全部完成前Deck Fact不terminal，terminal时Control全部释放 |
 | Perception Acquisition page | 第一次Source同步、第二次Acquisition首页、配置/scope不兼容重扫、Acquire后bounded inline payload冻结、Normalize前、Record/Anchor/Relation participant后、cursor head CAS前后、typed Result/marker/Outbox前后、响应前崩溃 | 仅从未存在cursor row时logical expected revision为0/storage pointer为NULL；后续Acquisition冻结真实head且revision永不重置；Normalize只读取digest-bound inline DTO，pure Acquire不创建Artifact；任一验证/CAS失败整页rollback；同来源事实不重复；cursor不越过未提交页；Handle digest不包含自身；同marker重放返回原`perceptionIds/insertedCount/duplicateCount`及相同storage result digest；Outbox不通知Libra/Arca |
-| People Candidate | Evidence完成后、Candidate commit前后、用户确认与Person commit前后 | Foundation Result不能替代Candidate；弱Identity未经确认不建立Person；重启不丢open Candidate |
+| People Candidate | typed Evidence恢复、Resolver产出complete Draft、Candidate head/open revision/typed Result/marker各边界；用户或strong rule接受前后；Registration Person/alias/provider identity与Merge target/source/preference/correlation提交各边界 | CommitParticipant不旁读Foundation/Provider；Candidate payload digest可重算；重启不丢open Candidate；candidate revision或任一Person/Preference revision变化时整体CAS失败；接受成功时Candidate terminal与全部Person facts同时成立，同marker重放返回同一PeopleCandidateRevision/PersonRevision；弱Identity未经用户确认不建立Person，Preference冲突不得strong-rule自动接受 |
 | Progress/Activity | sample commit、Attempt切换、Runtime重启、Projection rebuild | current progress可重建；旧Attempt sample不冒充新Attempt；Activity不写回Business Process |
 | Routing/Template publish | Preview后、revision insert后、current head切换前后、Shelf Standard refresh前后 | Field只见一个current Routing Policy；Template current/binding可恢复；Arca不写Routing Priority |
 | Platform settings | standing Authorization、Operating Policy、Worker/Credential rotate各revision/head边界 | 重启读取同一current revision；Secret不入普通表；Profile切换不改变Business state或形成Pause |
@@ -8604,16 +8660,18 @@ Status: `ACCEPTED / JOURNEY-AMENDED`（2026-07-16）。下列术语已经通过L
 | Platform Operating Policy | 在用户时区选择即时/按时段Resource Profile的revisioned技术配置；不形成业务Pause | 8.3.8、8.5.13 |
 | Perception Source Observation | Acquisition从一个Source冻结、含Normalize所需digest-bound bounded typed inline payload并可被重放读取的单项来源事实；pure Acquire不创建Artifact | 6.8.2、8.6.13、8.6.19 |
 | Perception Acquisition Commit Draft | Normalize为一个Source的一页生成、冻结完整Record/Anchor/显式lineage/cursor transition并由payload digest整体约束的Commit输入 | 6.8.2、8.6.13、8.6.19 |
+| People Candidate Payload | PeopleCandidateDraft中由candidate kind区分、完整承载Registration或Merge候选业务事实的bounded typed value；Candidate Commit不得从其他Store补齐 | 5.9.4、6.8.3、8.6.14、8.6.19 |
+| People Candidate Acceptance Commit | 对精确Candidate/Person/Preference revision执行CAS，并把Candidate terminal与Registration或Merge全部Person facts原子成立的People Owner事务 | 6.8.3、8.5.4、8.6.14 |
 | Canonical Digest Rule | typed JSON按合同命名basis执行UTF-8 RFC 8785 JCS后计算SHA-256 lowercase hex；字段不进入自身digest basis，同一typed Result只有一个storage digest | 8.5.4、8.6.18–8.6.19 |
 
 当前确认状态：
 
-- `8.0`–`8.10`：`ACCEPTED / JOURNEY-AMENDED / POST-BASELINE-DOC-CORRECTED`（2026-07-17；用户确认的基线保持，Level 9反向审计与`PBF-01`–`PBF-03` bounded修正已回写）；
+- `8.0`–`8.10`：`ACCEPTED / JOURNEY-AMENDED / POST-BASELINE-DOC-CORRECTED`（2026-07-17；用户确认的基线保持，Level 9反向审计与`PBF-01`–`PBF-04` bounded修正已回写）；
 - 当前没有开放的Level 8 Business Decision；
 - clean Catalog为`112 refs / 112 unique`，96个Result family均有typed contract；
-- 158张关系表的PK、revision、关键列、unique/partial unique、热路径索引和JSON上限已经固化；
+- 160张关系表的PK、revision、关键列、unique/partial unique、热路径索引和JSON上限已经固化；
 - 当前62项Capability registration、named helper和直接依赖已经完成function-level conservation；
-- Level 8 post-amendment closure audit、`PBF-02`纵向传播及`PBF-03`实现可实现性复审结果为`PASS / NO BLOCKING GAP / NO OPEN BUSINESS DECISION`；
+- Level 8 post-amendment closure audit、`PBF-02`纵向传播、`PBF-03` Perception实现可实现性与`PBF-04` People Candidate数据守恒复审结果为`PASS / NO BLOCKING GAP / NO OPEN BUSINESS DECISION`；
 - JSON Schema/DDL文件与contract fixture是未来Implementation交付物，其合同已经确定；
 - Level 9可以开始Public Interface and Product Surface结构化设计；
 - Implementation、E2E、Docker与生产部署继续暂停。
@@ -9612,6 +9670,16 @@ POST      /v1/admin/people/actions/dismiss-candidate
 `dismiss-candidate`携带candidate kind/id与expected revision，只把当前open Candidate终结为dismissed；它不
 注册/合并Person，也不删除Evidence历史。
 
+`actions/register`与`actions/merge`都使用明确discriminator：`operation=direct`处理用户直接创建/合并，
+`operation=accept_candidate`处理异步Candidate。Candidate接受请求必须携带`candidateKind,candidateId,
+expectedCandidateRevision,candidatePayloadDigest`；Registration由People Command Facade分配`newPersonId`并写入
+Decision，Merge请求只追加pair中的`targetPersonId`和Preference冲突选择。People Command Facade从冻结Candidate
+payload推导另一端source、两端expected Person/Preference revision并固化`PeopleCandidateAcceptanceDecision`，
+随后执行`8.5.4`定义的People Candidate Acceptance事务。
+客户端不得回传或改写Candidate payload、Alias、Provider Identity或Reference hint；这些事实只能来自已冻结的
+People Candidate。Direct命令和Candidate接受共享People Owner事务规则，但不得伪装成同一种输入或绕过Candidate
+revision CAS。
+
 #### 9.7.9 Platform settings与Diagnostics API
 
 ~~~text
@@ -10010,7 +10078,7 @@ USER ACTIVITY FAMILIES    22 / all projection-only
 ADMIN METHOD+PATH ROUTES  113 / 113 unique
 PUBLIC HEALTH ROUTES      1 / 1 unique
 CAPABILITY REFS           112 / 112 unique
-RELATIONAL TABLES         158 / 158 unique
+RELATIONAL TABLES         160 / 160 unique
 HEADING IDS               unique
 CONFIG OWNER MAPPING      complete
 GET SIDE-EFFECT AUDIT     pass
@@ -10108,9 +10176,10 @@ Profile、设备和平台只允许改变Baseline映射，不能改变Invariant�
 
 - 不新增Business Domain、Business Object、Business Handoff、Gate、Task或全局Automation Engine；
 - 不重新引入Membership、SourceBinding、Admission、maintenanceComplete、flowKind路由或complex Executor；
-- 不修改Level 8的112项Capability、Owner/Repository和一个SQLite物理库边界；最终全文审计只以已确认语义
+- 不改变Level 8的Capability数量、Owner/Repository和一个SQLite物理库边界；最终全文审计只以已确认语义
   唯一推导出的持久闭合项及已确认`FA-04` continuity关系，以及post-baseline `PBF-02` Perception Acquisition
-  纵向闭合与`PBF-03`实现可实现性修正，把关系表合同修正为158张；
+  纵向闭合、`PBF-03`实现可实现性与`PBF-04` People Candidate payload/revision continuity修正，把关系表合同
+  修正为160张并保持112项Capability；
 - 不修改Level 9的九页信息架构、Intent或Authorization语义；最终全文审计只补齐遗漏Command并把接口合同
   修正为113个Admin method+path加1个public health route；
 - 不把运行故障修复成跨Domain Store写入、静默Fallback、自动降级Outcome或媒体目录旁路写入；
@@ -10858,7 +10927,7 @@ Effect contract与Safety Watermark，无法证明时保持服务停止并向前�
 | Layer | Required evidence |
 | --- | --- |
 | Static architecture | import/owner/repository/schema/capability/API禁止依赖全部通过 |
-| Contract and schema | 112 Capability、96 Result family、158 table、113 Admin route、1 public health route及nominal handle验证 |
+| Contract and schema | 112 Capability、96 Result family、160 table、113 Admin route、1 public health route及nominal handle验证 |
 | Transaction fixture | Level 8全部Handoff、Control、Discard、Cleanup、On-deck、Aftercare、Off-deck、People、Progress、Platform crash-window |
 | Domain integration | 五Domain Process、两次Handoff、Query/Signal、Policy/Spec/Acceptance闭环 |
 | Foundation integration | Work/Plan/Event、Effect recovery、Permit、Retry、Timeout、Breaker、Progress |
@@ -10886,6 +10955,7 @@ Material，但不得直接写Domain Store、创建Work/Event、指定Capability�
 - Event等待资源、执行中、已产生Workspace output但Result未提交；
 - External request已发送但Receipt未持久化；
 - Perception首次/后续Acquisition的cursor head冻结、Observation inline DTO已冻结但Normalize未完成、Record/Anchor/Relation已写但cursor CAS/typed Result/marker尚未整体提交，以及commit成功但响应前；
+- People typed Evidence已完成但Candidate Draft未形成、Candidate head/open revision/typed Result/marker提交前后、Candidate接受时terminal revision与Registration/Merge Person fact set提交前后，以及commit成功但响应前；
 - Handoff A/B Decision、Control transfer与Receipt各边界；
 - Arca Stage、Switch、Final verify、Input Settlement和On-deck Commit；
 - Aftercare Inventory revision提交；
@@ -10952,7 +11022,7 @@ Beta Release Candidate不等于授权部署生产。生产部署、真实媒体�
 | 10.7 | Level 6业务健康、Level 9普通/Advanced边界 | preserved |
 | 10.8 | Level 5/6 Authorization、Level 8 typed Secret与Material safety | preserved |
 | 10.9 | 模块化单体、Physical File Source与Emby External Provider边界 | preserved |
-| 10.10 | 九条旅程、112 Capability、158 tables、113 Admin routes、1 public health route及clean-cut门禁 | preserved after bounded final-audit closure and `PBF-02`–`PBF-03` |
+| 10.10 | 九条旅程、112 Capability、160 tables、113 Admin routes、1 public health route及clean-cut门禁 | preserved after bounded final-audit closure and `PBF-02`–`PBF-04` |
 
 #### 10.11.2 前序Level 10 reservation覆盖审计
 
@@ -10994,7 +11064,7 @@ NEW BUSINESS DOMAIN          none
 NEW BUSINESS HANDOFF         none
 NEW BUSINESS OBJECT          none
 CAPABILITY REFS              unchanged: 112
-RELATIONAL TABLES            post-baseline corrected: 158
+RELATIONAL TABLES            post-baseline corrected: 160
 ADMIN METHOD+PATH ROUTES     final-audit baseline: 113
 PUBLIC HEALTH ROUTES         1
 RUNTIME STATES               derived, non-business
