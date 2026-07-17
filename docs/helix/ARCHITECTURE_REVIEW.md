@@ -1,6 +1,6 @@
 # Helix Architecture Review Workbench
 
-Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-17；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-02` bounded correction均已完成。
+Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-17；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-03` bounded correction均已完成。
 
 ## 1. Purpose and authority
 
@@ -1246,7 +1246,7 @@ Status: `CLOSED / DOC_FIX APPLIED` — 2026-07-17
 
 ### 15.2 `PBF-02` — Perception Acquisition vertical contract closure
 
-Status: `CLOSED / DOC_FIX APPLIED_AND_AUDITED` — 2026-07-17
+Status: `CLOSED / SEMANTIC FIX APPLIED / REALIZABILITY EXTENDED BY PBF-03` — 2026-07-17
 
 P6-03实现合同审计证明，Level 3/6已经确定Perception Acquisition、immutable Record、来源内幂等、
 `supersedes|retracts`历史和consumer query-only边界，但Level 8的Capability、nominal type、关系表与Domain
@@ -1280,7 +1280,7 @@ Commit恢复合同没有形成一条可执行的数据链。已确认的缺口�
 - Level 8 transaction fixture与Level 10 fault matrix覆盖payload冻结、cursor CAS、typed result、marker和Outbox
   全部崩溃窗口。
 
-Post-change audit：
+PBF-02当时的semantic post-change audit（实现可实现性结论由后续`PBF-03`补充，不单独作为P6-03 readiness证据）：
 
 ```text
 CAPABILITY REFS             112 / 112 unique
@@ -1296,3 +1296,51 @@ NEW BUSINESS DECISION       none
 
 该修正不改变User Perception Owner、消费者query-only关系、公开API、Shelf Standard或Rating业务语义；
 实现线程必须重新生成相关P2 schema/fixtures，禁止通过ambient Store、Provider二次读取或重放扫描猜测Result。
+
+### 15.3 `PBF-03` — Perception implementation realizability closure
+
+Status: `CLOSED / DOC_FIX APPLIED_AND_AUDITED` — 2026-07-17
+
+`PBF-02`完成语义纵向闭合后，P6-03实施前反证证明五项技术合同仍不能直接生成无歧义P2 schema/fixture：
+
+1. “首个page revision=0”混淆了首次Source同步与每次Acquisition首页，第二次Acquisition必然CAS失败；
+2. `current_cursor_revision=0`与revision从1开始的SQLite composite FK无法同时成立；
+3. Commit Handle的`payloadDigest`若覆盖包含Handle自身的完整named input，会形成自引用digest；
+4. `pure_observation` Acquire被要求在超限时创建Artifact，违反Effect Class；
+5. typed Result内部的`resultDigest`与“完整typed value digest”形成第二处自引用和双basis风险。
+
+这些是跨组件、持久化、Effect Class和恢复合同，不是实现Agent可自行选择的局部编码细节；但它们均可从
+Accepted Owner与Process语义唯一推导，不产生用户业务Decision。Bounded change set为：
+
+- Source storage head改成nullable composite FK pointer；Commit CAS仅在“从未存在cursor row”时使用逻辑sentinel
+  `expectedCursorRevision=0`；
+- 每个Acquisition冻结创建时真实head。配置/scope兼容时继承`cursorOut`，不兼容时从`cursorIn=null`重扫，
+  但revision仍从当前head继续递增；同Source至多一个active Acquisition；
+- `commitPayload`固定为全部typed input/parameter排除当前Commit Handle与Runtime context后的canonical object；
+  Perception Record Commit的payload恰好为`PerceptionAcquisitionCommitDraft`；
+- typed JSON统一使用UTF-8 RFC 8785 JCS + SHA-256 lowercase hex；digest字段不进入自己的basis；
+- Perception Acquire只输出Normalize所需的bounded inline DTO，禁止创建Artifact；Adapter通过字段投影和分页
+  满足`16 KiB/item`与`64 KiB/page`，无法满足时稳定失败且不推进cursor；
+- `PerceptionRecordCommitResult`删除内部`resultDigest`；`fx_event_result_bindings`与Acquisition receipt表对同一
+  `result_json`保存同一storage digest；
+- Transaction fixture补齐第二次Acquisition、配置/scope重扫、真实SQLite FK、digest self-reference和
+  pure-observation副作用反证。
+
+Post-change audit：
+
+```text
+SECOND ACQUISITION CURSOR   closed; first page uses frozen real head
+SQLITE OPTIONAL FK          realizable with nullable composite pointer
+SQLITE IN-MEMORY PROBE      first/second/reset CAS=1; invalid pointer rejected
+COMMIT PAYLOAD DIGEST       exact non-self-referential basis
+TYPED RESULT DIGEST         one storage basis; no inner self digest
+PURE OBSERVATION EFFECT     no Artifact creation path
+CAPABILITY REFS             112 / 112 unique
+RESULT FAMILIES             unchanged: 96
+RELATIONAL TABLES           158 / 158 unique
+NEW BUSINESS DECISION       none
+```
+
+`PBF-03`关闭后，`PBF-02`的semantic direction与P6-03 contract-generation readiness才同时成立；这不打开
+SSOT的Implementation Gate。实现仍必须以
+生成的JSON Schema、SQLite DDL和second-acquisition crash/replay fixture证明遵守合同，不能以文档通过代替测试。

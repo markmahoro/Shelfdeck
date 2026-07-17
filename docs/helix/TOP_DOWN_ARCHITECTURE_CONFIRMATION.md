@@ -1,6 +1,6 @@
 # Helix Clean Top-down Architecture
 
-Status: ShelfDeck / Helix architecture SSOT; Levels 0–10 accepted; final full-document audit and post-baseline `PBF-01`–`PBF-02` bounded corrections closed; implementation not authorized by this document.
+Status: ShelfDeck / Helix architecture SSOT; Levels 0–10 accepted; final full-document audit and post-baseline `PBF-01`–`PBF-03` bounded corrections closed; implementation not authorized by this document.
 
 Last updated: 2026-07-17
 
@@ -5118,9 +5118,13 @@ payload本身就是Owner已验证的来源Observation，由Perception Applicatio
 `PerceptionObservationPage`，不伪造IntegrationHandle，也不跳过Normalize和Atomic Commit；该单页
 `hasMore=false`并在成功事务中同时终结Acquisition。
 
-Acquire必须冻结Normalize实际读取的Observation内容：每项Observation只能携带有界typed inline payload，或
-携带与`sourceRecordDigest`精确绑定的immutable ArtifactHandle，二者恰好一种。只有ID、revision或digest而
-没有可读取内容的Observation不满足合同；Normalize也不得重新调用Provider取得第二份内容。
+Acquire必须冻结Normalize实际读取的Observation内容：每项Observation必须携带一个有界typed inline payload，
+其字段只包含Normalize合同所需的来源值、原始rating/scale、观看状态、Identity hint和Provenance引用，不保存
+完整Provider response。只有ID、revision或digest而没有可读取内容的Observation不满足合同；Normalize也不得
+重新调用Provider取得第二份内容。`perception.source.acquire@1`是`pure_observation`，不得创建Artifact、写
+Artifact Registry或隐藏任何Workspace副作用；Adapter必须通过字段投影和page budget使单项payload不超过
+`16 KiB`、整页Result不超过`64 KiB`。单项必要DTO仍超限时以稳定contract failure结束本页且不推进cursor，
+不能在Executor内部临时转存Artifact。
 
 Normalize是pure observation，只能读取本页冻结内容，并生成单Source、单page的完整Commit Draft。Canonical
 rating固定为`null | integer 1..5`；Provider原始rating与scale保留在Observation/Provenance，按版本化
@@ -5129,8 +5133,16 @@ normalization rule转换，禁止默认clamp、猜测scale或把`0`解释为有�
 
 一次page commit必须把Record、结构化Identity Anchor、来源明确声明的`supersedes|retracts`关系、cursor
 transition、page receipt、typed result、commit marker与本域Outbox在一个Domain transaction中整体成立或
-整体不成立。首个page的`expectedCursorRevision=0`且`cursorIn=null`；后续page必须CAS当前source cursor
-revision。`hasMore=false`的page同时终结Acquisition；任何Record/Anchor/Relation/Cursor验证失败都回滚整页。
+整体不成立。Acquisition创建时从Source current cursor head冻结`initialCursorRevision/value`：只有该Source
+从未提交过cursor row时二者才分别为逻辑值`0`和`null`；已有head时revision冻结为当前真实revision。若新
+Acquisition的source config revision与scope digest与head所属Acquisition兼容，初始value继承head的
+`cursorOut`；不兼容时初始value为`null`以重新起扫，但expected revision仍保持当前真实revision，绝不把
+revision重置为0。这里的“兼容”固定为source config revision与scope digest两者均和head所属Acquisition
+精确相同，不由Adapter自行放宽。Acquisition创建必须在Owner事务中从Source head直接形成immutable initial
+pair并建立active row；若head或active uniqueness在提交前变化则整次创建重试，不能发布基于过期head的
+Acquisition。任一Acquisition的第一页必须使用其冻结的initial pair；同一Acquisition的后续page使用
+上一页成功提交后的revision和`cursorOut`并CAS当前source head。`hasMore=false`的page同时终结Acquisition；
+任何Record/Anchor/Relation/Cursor验证失败都回滚整页。
 
 具体不变量如下：
 
@@ -5900,7 +5912,11 @@ consumerDomain/process、query contract、允许的输入、Correlation、expiry
 发布的typed Result/Evidence，不授予写权限，也不能让Consumer修改Provider Fact。
 
 Domain Fact Commit Handle只由当前Fact Owner签发，并绑定fact type、ownerDomain、expected revision、完整
-commit payload contract/digest、typed result contract、commit idempotency key与Event Fence。
+commit payload contract/digest、typed result contract、commit idempotency key与Event Fence。这里的
+`commitPayload`固定为Capability合同声明的全部typed input与typed parameter中，排除当前Commit Handle本身、
+ExecutionContext、Permit及Runtime envelope后剩余的canonical object；`payloadDigest`只计算该对象，不能把
+携带`payloadDigest`的Handle再次纳入自身digest。对于`perception.record.commit@1`，`commitPayload`恰好是
+`PerceptionAcquisitionCommitDraft`。
 `domain_fact_commit` Capability只能经该Handle提交已经由Owner合同允许的一个Fact效果；Handle不是Store引用，
 Capability success也不代替Owner的Business Decision。提交事务必须同时保存可由commit marker恢复的原始
 typed result reference/digest；不能只保存“已经提交”而丢失Capability Result。
@@ -6499,6 +6515,7 @@ Status: `ACCEPTED / JOURNEY-AMENDED`。下列术语进入Level 7 Canonical Dicti
 | Material Access Handle | 冻结Identity、Binding、Control、权限、containment与Fence revision的typed Material访问凭据 | 7.6.1 |
 | Canonical Query Handle | 只允许一个Event调用一项已声明跨域只读Query/Resolution合同的scoped typed凭据；不授予Fact写权限 | 7.5.1 |
 | Domain Fact Commit Handle | 由Fact Owner签发、只允许按确定fact type/payload/revision fence提交一个本域Fact效果的scoped typed凭据 | 7.5.1 |
+| Commit Payload | Capability合同声明的全部typed input/parameter排除当前Commit Handle与Runtime context后的canonical object；是Commit Handle payload digest的唯一basis | 7.5.1 |
 | Responsibility Control Commit Handle | 由Acceptance/Domain Owner在业务验证通过后签发、只允许把immutable Decision payload、责任Fact、Binding与精确Control acquire/transfer/release原子提交的scoped typed凭据 | 7.5.1 |
 | Material Control Authority | 按Physical Material Identity强制唯一Control及受控acquire/transfer/release的技术不变量服务 | 7.6.2 |
 | Effect Receipt | 证明一次非pure外部效果是否已经提交及其结果identity/revision的持久恢复依据 | 7.6.5 |
@@ -7297,10 +7314,16 @@ Event Runtime validates Commit Handle and Fence
 ~~~
 
 CommitParticipant不是一个可被Planner任意调用的Store API，也不出现在Executor依赖中。它只能处理manifest
-预声明的fact schema、Owner和Effect Class；Handle payload digest与完整Event named input不一致即拒绝。
+预声明的fact schema、Owner和Effect Class；Handle payload digest与合同定义的`commitPayload`不一致即拒绝。
 Domain participant返回的typed result必须在同一Unit of Work写入`fx_event_result_bindings`并由commit marker
 引用；Event state可以由Runtime随后收口，但崩溃重放必须先从marker恢复原始Result。这样既保留“Capability
 节点可调度、恢复和诊断”，又不让Executor直接写Store或让Foundation拥有业务SQL。
+
+所有typed JSON digest使用同一Canonical Digest Rule：对合同明确命名的digest basis执行UTF-8 RFC 8785
+JSON Canonicalization Scheme（JCS），再计算SHA-256并保存lowercase hex。一个字段不得包含在它自己的digest
+basis中；其他被basis正常包含的嵌套digest字段不被删除。`fx_event_result_bindings.result_digest`精确覆盖
+`result_json`中保存的typed Result value，digest列本身不进入JSON；Domain receipt表引用同一result value时
+必须保存相同digest，禁止为同一Result定义第二套basis。
 
 本表中的Outbox是合同声明的durable技术交付机制，不自动等于跨Domain Neutral Signal。Perception
 Acquisition Page Commit只允许写入`consumer_domain=perception`、面向自身Reconciler的page receipt；其
@@ -7343,7 +7366,6 @@ destructive commit按Authorization Scope和逐项Evidence继续完成。未知�
 ├─ libra/<libraRunId>/
 ├─ arca/ondeck/<onDeckRunId>/
 ├─ arca/aftercare/<aftercareCaseId>/
-├─ perception/<acquisitionWorkId>/          # only when binary artifacts are required
 └─ people/<referenceWorkId>/
 
 <dataDir>/artifacts/
@@ -7543,10 +7565,10 @@ Plan node input/parameter/Fence/Resource Demand的Schema内容不重复存入`fx
 
 | Table | Primary/core columns | Required uniqueness and hot indexes |
 | --- | --- | --- |
-| `perception_sources` | `perception_source_id PK, source_kind, integration_id, status, config_revision, current_cursor_revision, created_at_ms, updated_at_ms` | `current_cursor_revision=0`表示尚无cursor row；非零pointer显式FK；`INDEX(status,source_kind,perception_source_id)`；Integration ID为opaque platform reference |
-| `perception_acquisitions` | `perception_acquisition_id PK, perception_source_id FK, source_config_revision, scope_schema_ref, scope_json, scope_digest, initial_cursor_revision, initial_cursor_value, state(active|completed|failed), created_at_ms, terminal_at_ms` | 一次Acquisition只属于一个Source/config revision；Scope JSON上限`16 KiB`；同Source由Automation保证有界open work，Process历史不覆盖 |
-| `perception_source_cursors` | `perception_source_id FK, revision, perception_acquisition_id FK, cursor_in, cursor_out, observation_page_digest, has_more, committed_at_ms` | `PK(perception_source_id,revision)`；revision从1递增，source current pointer显式引用；首版`cursor_in=null`且expected revision为0；不覆盖历史 |
-| `perception_acquisition_commits` | `acquisition_commit_receipt_id PK, perception_acquisition_id FK, perception_source_id FK, page_ordinal, expected_cursor_revision, committed_cursor_revision, observation_page_digest, commit_marker, result_schema_ref, result_json, result_digest, committed_at_ms` | `UNIQUE(perception_acquisition_id,page_ordinal)`、`UNIQUE(commit_marker)`；Result JSON上限`64 KiB`且保存原始`perceptionIds/insertedCount/duplicateCount` typed result；与Record、Relation、cursor head、marker、Event Result和Outbox同事务 |
+| `perception_sources` | `perception_source_id PK, source_kind, integration_id, status, config_revision, current_cursor_revision NULL, created_at_ms, updated_at_ms` | `current_cursor_revision IS NULL`表示尚无cursor row；`FOREIGN KEY(perception_source_id,current_cursor_revision) REFERENCES perception_source_cursors(perception_source_id,revision)`，SQLite以NULL跳过尚不存在的optional pointer校验；`INDEX(status,source_kind,perception_source_id)`；Integration ID为opaque platform reference |
+| `perception_acquisitions` | `perception_acquisition_id PK, perception_source_id FK, source_config_revision, scope_schema_ref, scope_json, scope_digest, initial_cursor_revision, initial_cursor_value, state(active|completed|failed), created_at_ms, terminal_at_ms` | 一次Acquisition只属于一个Source/config revision；Scope JSON上限`16 KiB`；`UNIQUE(perception_source_id) WHERE state='active'`；`initial_cursor_revision=0`只是“创建时不存在cursor row”的逻辑CAS sentinel，不是FK pointer；Process历史不覆盖 |
+| `perception_source_cursors` | `perception_source_id FK, revision, perception_acquisition_id FK, cursor_in, cursor_out, observation_page_digest, has_more, committed_at_ms` | `PK(perception_source_id,revision)`；revision从1递增且不重置；Source current pointer显式复合FK引用；仅Source从未同步时expected revision为0，配置/scope不兼容的后续Acquisition可令`cursor_in=null`但仍CAS当前非零revision；不覆盖历史 |
+| `perception_acquisition_commits` | `acquisition_commit_receipt_id PK, perception_acquisition_id FK, perception_source_id FK, page_ordinal, expected_cursor_revision, committed_cursor_revision, observation_page_digest, commit_marker, result_schema_ref, result_json, result_digest, committed_at_ms` | `UNIQUE(perception_acquisition_id,page_ordinal)`、`UNIQUE(commit_marker)`；Result JSON上限`64 KiB`且保存不含自digest字段的原始`perceptionIds/insertedCount/duplicateCount` typed result，`result_digest=SHA-256(JCS(result_json))`并与Event Result相同；与Record、Relation、cursor head、marker、Event Result和Outbox同事务 |
 | `perception_records` | `perception_id PK, perception_source_id FK, perception_acquisition_id FK, acquisition_commit_receipt_id FK, record_kind(observation|correction|retraction), source_kind, source_record_key, source_record_revision, source_record_digest, normalization_rule_ref, rating, watched_state, observed_title, provenance_ref, provenance_digest, observed_at_ms, committed_at_ms` | immutable；`UNIQUE(perception_source_id,source_record_key,source_record_revision,source_record_digest)`；Canonical rating非空时`CHECK integer 1..5`，`0`禁止；CommitParticipant要求correction/retraction在同页各有匹配的outgoing `supersedes/retracts` relation；`INDEX(source_kind,source_record_key,committed_at_ms)` |
 | `perception_identity_anchors` | `perception_id FK, anchor_kind, anchor_value, confidence_class, evidence_digest` | `PK(perception_id,anchor_kind,anchor_value)`；结构化Anchor不可退化为字符串数组；`INDEX(anchor_kind,anchor_value)` |
 | `perception_record_relations` | `relation_id PK, relation_kind(duplicate_of|supersedes|retracts), source_perception_id FK, target_perception_id FK, rule_revision, evidence_digest, committed_at_ms` | immutable；source不得等于target；`UNIQUE(relation_kind,source_perception_id,target_perception_id)`；`duplicate_of`使用规范化pair，`supersedes|retracts`保持方向性 |
@@ -7998,7 +8020,7 @@ Executor只能返回以下discriminated union，且每个variant都`additionalPr
 | `IntegrationHandle` | `handleId, integrationId, integrationType, configRevision, secretRef, allowedOperation, expiresAtMs, fenceDigest` |
 | `WorkerHandle` | `handleId, workerId, workerRevision, protocolVersion, secretRef, capabilityDigest, allowedOperation, expiresAtMs, fenceDigest`；只由当前active Worker projection签发 |
 | `CanonicalQueryHandle` | `handleId, providerDomain, consumerDomain, queryContract, queryVersion, inputDigest, correlationId, expiresAtMs, fenceDigest` |
-| `DomainFactCommitHandle` | `handleId, ownerDomain, aggregateType, aggregateId, factType, factSchemaRef, expectedRevision, payloadDigest, resultSchemaRef, commitIdempotencyKey, eventFenceDigest`；payloadDigest绑定完整named commit input，resultSchemaRef绑定重放必须恢复的typed result |
+| `DomainFactCommitHandle` | `handleId, ownerDomain, aggregateType, aggregateId, factType, factSchemaRef, expectedRevision, payloadDigest, resultSchemaRef, commitIdempotencyKey, eventFenceDigest`；payloadDigest绑定合同声明的`commitPayload`（全部typed input/parameter排除本Handle及Runtime context），resultSchemaRef绑定重放必须恢复的typed result |
 | `ResponsibilityControlCommitHandle` | `handleId, operationKind(acquire|transfer|release|replace_control_set), ownerDomain, processType, processId, basisRef, basisDigest, canonicalFactSetDigest, bindingSetDigest, controlScopeDigest, expectedControlRevisions, receiptContract, eventFenceDigest, receivingDomain?, transferPoint?`；只有跨Domain transfer要求`receivingDomain+transferPoint`，Domain内promotion或Inventory revision仍使用相同CAS/atomic participant但不伪造Handoff |
 | `ApprovalHandle` | `approvalId, ownerDomain, processType, processId, eventId, exactEffectScopeDigest, approvalRevision, actorId, invalidatingFactDigests, approvedAtMs` |
 | `AuthorizationHandle` | `authorizationId, authorizationKind, ownerDomain, immutableScopeDigest, authorizationRevision, actorId, batchId?, invalidatingFactDigests, authorizedAtMs` |
@@ -8103,9 +8125,9 @@ Executor只能返回以下discriminated union，且每个variant都`additionalPr
 | `OffdeckTerminalReceipt` | `ReceiptEnvelope + offdeckCaseId + shelfEntryId + terminalDeckFactRevision + releasedControlSetDigest` |
 | `ReleaseVerification` | `VerificationEnvelope + deregistrationId + shelfId + releaseManifestDigest + controlRevisionSetDigest` |
 | `DeregistrationReceipt` | `ReceiptEnvelope + deregistrationId + shelfId + releasedControlSetDigest + terminalFactDigest` |
-| `PerceptionObservationPage` | `EvidenceEnvelope + perceptionAcquisitionId + pageOrdinal + source{sourceId,sourceKind,sourceConfigRevision} + cursor{expectedCursorRevision,cursorIn,cursorOut} + observations[{observationId,sourceRecordKey,sourceRecordRevision,sourceRecordDigest,observedAtMs,payloadSchemaRef,payloadDigest,inlinePayload?,artifactHandle?,provenanceDigest}] + observationPageDigest + hasMore`；每项Observation的`inlinePayload`（≤`16 KiB`）与immutable `ArtifactHandle`恰好一个，所指canonical bytes必须匹配payload/source record digest；数组有界且整页Result遵守`64 KiB`，超限内容必须转Artifact |
+| `PerceptionObservationPage` | `EvidenceEnvelope + perceptionAcquisitionId + pageOrdinal + source{sourceId,sourceKind,sourceConfigRevision} + cursor{expectedCursorRevision,cursorIn,cursorOut} + observations[{observationId,sourceRecordKey,sourceRecordRevision,sourceRecordDigest,observedAtMs,payloadSchemaRef,payloadDigest,inlinePayload,provenanceDigest}] + observationPageDigest + hasMore`；每项Observation必须包含Normalize所需的bounded typed `inlinePayload`且canonical bytes匹配`payloadDigest`；单项≤`16 KiB`、整页Result≤`64 KiB`。完整Provider response不进入Result；Adapter以字段投影/page budget满足限制，超限稳定失败且不推进cursor，禁止pure Acquire创建Artifact |
 | `PerceptionAcquisitionCommitDraft` | `DraftEnvelope + perceptionAcquisitionId + source{sourceId,sourceKind,sourceConfigRevision} + normalizationRuleRef + cursorTransition{pageOrdinal,expectedCursorRevision,cursorIn,cursorOut,observationPageDigest,hasMore} + records[{draftId,recordKind(observation|correction|retraction),sourceRecordKey,sourceRecordRevision,sourceRecordDigest,rating?,watchedState?,observedTitle,observedAtMs,identityAnchors[{anchorKind,anchorValue,confidenceClass,evidenceDigest}],provenanceRef,provenanceDigest}] + sourceLineageRelations[{relationKind(supersedes|retracts),sourceDraftId,targetSourceRecord{sourceRecordKey,sourceRecordRevision,sourceRecordDigest},ruleRevision,evidenceDigest}]`；单Draft只含一个Source的一页；Canonical rating仅`integer 1..5|null`；完整Draft digest是Commit Handle payloadDigest |
-| `PerceptionRecordCommitResult` | `ReceiptEnvelope + acquisitionCommitReceiptId(=receiptId) + perceptionAcquisitionId + sourceId + committedCursorRevision + perceptionIds[] + relationIds[] + insertedCount + duplicateCount + resultDigest`；第一次提交的完整typed value与marker同事务保存，重放不得重算 |
+| `PerceptionRecordCommitResult` | `ReceiptEnvelope + acquisitionCommitReceiptId(=receiptId) + perceptionAcquisitionId + sourceId + committedCursorRevision + perceptionIds[] + relationIds[] + insertedCount + duplicateCount`；typed value内部不含自引用`resultDigest`；其canonical value由`fx_event_result_bindings.result_digest`及`perception_acquisition_commits.result_digest`按同一basis校验，第一次提交与marker同事务保存，重放不得重算 |
 | `PerceptionResolutionDraft` | `DraftEnvelope + queryContract + queryInputDigest + resultKind(found|not_found) + winningPerceptionId? + ruleRevision + duplicateRelationDrafts[{sourcePerceptionId,targetPerceptionId,ruleRevision,evidenceDigest}]`；duplicate pair必须规范化 |
 | `PerceptionResolutionRevision` | `DomainFactEnvelope + queryContract + queryInputDigest + resultKind + winningPerceptionId? + committedRelationIds[]` |
 | `PersonRegistrationEvidence` | `EvidenceEnvelope + proposedName + aliases[] + providerIdentities[] + referenceHints[]` |
@@ -8463,8 +8485,9 @@ digest、FK、append-only、JSON byte limit与current pointer。审计中特别�
   Evidence，Permit本身仍不持久化；
 - Event current progress、Routing/Template/Off-deck/Resource current head、Care Basis、standing Authorization、
   People Candidate和Off-deck pre-authorization Review/Reservation/Scope均有显式关系事实；
-- Perception Acquisition、page/cursor CAS、Record/Anchor/Record Relation、typed page receipt与commit result形成
-  显式闭合链；Normalize不依赖Provider二次读取，Canonical rating只允许1–5或null；
+- Perception Acquisition、跨Acquisition cursor head、page CAS、Record/Anchor/Record Relation、typed page receipt与
+  commit result形成显式闭合链；Normalize不依赖Provider二次读取，pure Acquire不写Artifact，Canonical rating
+  只允许1–5或null，Commit/Result digest均有无自引用的唯一basis；
 - `read_*`继续可重建且无人引用，Level 9只定义具体页面Projection字段，不改变Canonical schema。
 
 #### 8.9.6 Function-level conservation closure audit
@@ -8501,7 +8524,7 @@ Level 8固定后续实现必须建立的可执行contract fixture，不把“以
 | Aftercare Basis/Inventory | Standard/Placement/Decision Fact变化、Case create、Workspace output、Stage/Switch、Settlement、Inventory/Control commit | Case冻结完整Care Basis；旧Basis不能提交；原Shelf Entry/Identity/Deck持续；新Inventory revision与Control set一致 |
 | Off-deck Review/Authorization | Review、Reservation、Scope、selection/escalation、Authorization/Case各边界 | Authorization前不存在Case；Direct Intent不伪造Candidate；high-volume无独立Receipt不能授权；每Entry独立Scope/Case |
 | Off-deck destruction | Authorization后、逐Material delete、授权Identity被外部提前删除/被新Identity替换、Deletion verify、terminal commit | 授权Scope不扩张；已删Evidence不重做；授权Identity已不存在时Evidence必须证明精确absence且绝不触碰替代Identity；全部完成前Deck Fact不terminal，terminal时Control全部释放 |
-| Perception Acquisition page | Acquire后payload/Artifact冻结、Normalize前、Record/Anchor/Relation participant后、cursor head CAS前后、typed Result/marker/Outbox前后、响应前崩溃 | Normalize只读取digest-bound冻结内容；任一验证/CAS失败整页rollback；同来源事实不重复；cursor不越过未提交页；同marker重放返回原`perceptionIds/insertedCount/duplicateCount`；Outbox不通知Libra/Arca |
+| Perception Acquisition page | 第一次Source同步、第二次Acquisition首页、配置/scope不兼容重扫、Acquire后bounded inline payload冻结、Normalize前、Record/Anchor/Relation participant后、cursor head CAS前后、typed Result/marker/Outbox前后、响应前崩溃 | 仅从未存在cursor row时logical expected revision为0/storage pointer为NULL；后续Acquisition冻结真实head且revision永不重置；Normalize只读取digest-bound inline DTO，pure Acquire不创建Artifact；任一验证/CAS失败整页rollback；同来源事实不重复；cursor不越过未提交页；Handle digest不包含自身；同marker重放返回原`perceptionIds/insertedCount/duplicateCount`及相同storage result digest；Outbox不通知Libra/Arca |
 | People Candidate | Evidence完成后、Candidate commit前后、用户确认与Person commit前后 | Foundation Result不能替代Candidate；弱Identity未经确认不建立Person；重启不丢open Candidate |
 | Progress/Activity | sample commit、Attempt切换、Runtime重启、Projection rebuild | current progress可重建；旧Attempt sample不冒充新Attempt；Activity不写回Business Process |
 | Routing/Template publish | Preview后、revision insert后、current head切换前后、Shelf Standard refresh前后 | Field只见一个current Routing Policy；Template current/binding可恢复；Arca不写Routing Priority |
@@ -8579,17 +8602,18 @@ Status: `ACCEPTED / JOURNEY-AMENDED`（2026-07-16）。下列术语已经通过L
 | Workspace Cleanup Scope | Libra按Off-load Completion或Run Discard事实建立、逐项持有Workspace回收资格和受Control Product清理责任的durable范围 | 8.5.11、8.6.7 |
 | Aftercare Inventory Commit | Arca Aftercare把已验证repair结果、新Inventory revision及Material Control acquire/release一起完成的原子提交 | 8.5.4、8.6.11 |
 | Platform Operating Policy | 在用户时区选择即时/按时段Resource Profile的revisioned技术配置；不形成业务Pause | 8.3.8、8.5.13 |
-| Perception Source Observation | Acquisition从一个Source冻结、含实际digest-bound typed payload或immutable ArtifactHandle并可被Normalize重放读取的单项来源事实 | 6.8.2、8.6.13、8.6.19 |
+| Perception Source Observation | Acquisition从一个Source冻结、含Normalize所需digest-bound bounded typed inline payload并可被重放读取的单项来源事实；pure Acquire不创建Artifact | 6.8.2、8.6.13、8.6.19 |
 | Perception Acquisition Commit Draft | Normalize为一个Source的一页生成、冻结完整Record/Anchor/显式lineage/cursor transition并由payload digest整体约束的Commit输入 | 6.8.2、8.6.13、8.6.19 |
+| Canonical Digest Rule | typed JSON按合同命名basis执行UTF-8 RFC 8785 JCS后计算SHA-256 lowercase hex；字段不进入自身digest basis，同一typed Result只有一个storage digest | 8.5.4、8.6.18–8.6.19 |
 
 当前确认状态：
 
-- `8.0`–`8.10`：`ACCEPTED / JOURNEY-AMENDED / POST-BASELINE-DOC-CORRECTED`（2026-07-17；用户确认的基线保持，Level 9反向审计与`PBF-01`–`PBF-02` bounded修正已回写）；
+- `8.0`–`8.10`：`ACCEPTED / JOURNEY-AMENDED / POST-BASELINE-DOC-CORRECTED`（2026-07-17；用户确认的基线保持，Level 9反向审计与`PBF-01`–`PBF-03` bounded修正已回写）；
 - 当前没有开放的Level 8 Business Decision；
 - clean Catalog为`112 refs / 112 unique`，96个Result family均有typed contract；
 - 158张关系表的PK、revision、关键列、unique/partial unique、热路径索引和JSON上限已经固化；
 - 当前62项Capability registration、named helper和直接依赖已经完成function-level conservation；
-- Level 8 post-amendment closure audit及`PBF-02`纵向传播复审结果为`PASS / NO BLOCKING GAP / NO OPEN BUSINESS DECISION`；
+- Level 8 post-amendment closure audit、`PBF-02`纵向传播及`PBF-03`实现可实现性复审结果为`PASS / NO BLOCKING GAP / NO OPEN BUSINESS DECISION`；
 - JSON Schema/DDL文件与contract fixture是未来Implementation交付物，其合同已经确定；
 - Level 9可以开始Public Interface and Product Surface结构化设计；
 - Implementation、E2E、Docker与生产部署继续暂停。
@@ -10086,7 +10110,7 @@ Profile、设备和平台只允许改变Baseline映射，不能改变Invariant�
 - 不重新引入Membership、SourceBinding、Admission、maintenanceComplete、flowKind路由或complex Executor；
 - 不修改Level 8的112项Capability、Owner/Repository和一个SQLite物理库边界；最终全文审计只以已确认语义
   唯一推导出的持久闭合项及已确认`FA-04` continuity关系，以及post-baseline `PBF-02` Perception Acquisition
-  纵向闭合修正，把关系表合同修正为158张；
+  纵向闭合与`PBF-03`实现可实现性修正，把关系表合同修正为158张；
 - 不修改Level 9的九页信息架构、Intent或Authorization语义；最终全文审计只补齐遗漏Command并把接口合同
   修正为113个Admin method+path加1个public health route；
 - 不把运行故障修复成跨Domain Store写入、静默Fallback、自动降级Outcome或媒体目录旁路写入；
@@ -10861,7 +10885,7 @@ Material，但不得直接写Domain Store、创建Work/Event、指定Capability�
 - Plan已提交但Event未dispatch；
 - Event等待资源、执行中、已产生Workspace output但Result未提交；
 - External request已发送但Receipt未持久化；
-- Perception Observation已冻结但Normalize未完成、Record/Anchor/Relation已写但cursor CAS/typed Result/marker尚未整体提交，以及commit成功但响应前；
+- Perception首次/后续Acquisition的cursor head冻结、Observation inline DTO已冻结但Normalize未完成、Record/Anchor/Relation已写但cursor CAS/typed Result/marker尚未整体提交，以及commit成功但响应前；
 - Handoff A/B Decision、Control transfer与Receipt各边界；
 - Arca Stage、Switch、Final verify、Input Settlement和On-deck Commit；
 - Aftercare Inventory revision提交；
@@ -10928,7 +10952,7 @@ Beta Release Candidate不等于授权部署生产。生产部署、真实媒体�
 | 10.7 | Level 6业务健康、Level 9普通/Advanced边界 | preserved |
 | 10.8 | Level 5/6 Authorization、Level 8 typed Secret与Material safety | preserved |
 | 10.9 | 模块化单体、Physical File Source与Emby External Provider边界 | preserved |
-| 10.10 | 九条旅程、112 Capability、158 tables、113 Admin routes、1 public health route及clean-cut门禁 | preserved after bounded final-audit closure and `PBF-02` |
+| 10.10 | 九条旅程、112 Capability、158 tables、113 Admin routes、1 public health route及clean-cut门禁 | preserved after bounded final-audit closure and `PBF-02`–`PBF-03` |
 
 #### 10.11.2 前序Level 10 reservation覆盖审计
 
