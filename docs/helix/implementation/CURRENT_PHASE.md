@@ -2,7 +2,7 @@
 
 Current phase: `P5 — Platform and Integrations`
 
-Status: in progress；P5-00–P5-07 complete；P5-08 next；P4 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P5-00–P5-08 complete；P5-09 next；P4 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-17
 
@@ -70,8 +70,8 @@ Registry、Resource/Worker Registry，以及Filesystem/Hash/FFmpeg/Provider/Work
 | P5-05 | Artifact Registry and controlled payload handles | complete | P5-03–P5-04 |
 | P5-06 | Typed External Provider protocol adapters | complete | P5-01–P5-02、P5-05 |
 | P5-07 | Filesystem transaction、probe/hash and FFmpeg atoms | complete | P5-03–P5-05 |
-| P5-08 | Resource、device and passive Worker registries/protocol | next | P5-01–P5-03；P4 Governor |
-| P5-09 | Material Access Handle issuer and Fence enforcement | pending | P5-03–P5-08；P3 Control、P4 Fence |
+| P5-08 | Resource、device and passive Worker registries/protocol | complete | P5-01–P5-03；P4 Governor |
+| P5-09 | Material Access Handle issuer and Fence enforcement | next | P5-03–P5-08；P3 Control、P4 Fence |
 | P5-10 | Cross-platform isolated integration verification harness | pending | P5-01–P5-09 |
 | P5-11 | P5 Phase Exit Audit and evidence freeze | pending | P5-00–P5-10 |
 
@@ -170,6 +170,13 @@ Registry、Resource/Worker Registry，以及Filesystem/Hash/FFmpeg/Provider/Work
 - Platform records versioned Resource Profile、validated device/volume/endpoint and passive Worker capabilities/health.
 - Worker accepts one typed job and returns Result/Receipt；it never polls Store、owns Work or writes Domain facts.
 - P4 Governor consumes only validated resource projections；unknown/unhealthy capacity remains zero.
+- Done: Platform-owned P3 Repository persists immutable/current-headed `default|full` Resource Profile、Operating Policy、Compute
+  Device probe and Worker revisions across the exact nine SSOT tables. Verified `available|unavailable` Device and `healthy|offline`
+  Worker states project to the existing P4 `ResourceProfileMapper`; unknown/unhealthy capacity is zero and no second Permit owner exists.
+  Current active Worker revision alone issues a ≤60-second `WorkerHandle`. Three closed `external_request` Worker atoms cover asset
+  registration、upload and analysis request with exact Secret Lease、request digest、receipt chain、bounds and redaction. Focused 13/13
+  Registry/protocol fixtures、4/4 nominal port fixtures and full architecture/P3/P4 gates PASS using synthetic probes/transport only.
+  Evidence: `evidence/P5_08_RESOURCE_DEVICE_WORKER.md`.
 
 ### P5-09 Material Access Handle issuer and Fence enforcement
 

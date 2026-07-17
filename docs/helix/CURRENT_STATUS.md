@@ -13,12 +13,12 @@ Last updated: 2026-07-17
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation |
 | Current phase | P5 — Platform and Integrations |
-| Current phase status | in progress；P5-00–P5-07 complete；P5-08 next；P4 Exit Audit PASS |
+| Current phase status | in progress；P5-00–P5-08 complete；P5-09 next；P4 Exit Audit PASS |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P4 phase closure `5dd0b7094ea35cc04c7ba931fd109467462d0af6` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p5` on `codex/helix-p5` |
-| Next action | P5-08 Resource、device and passive Worker registries/protocol |
+| Next action | P5-09 Material Access Handle issuer and Fence enforcement |
 
 ## 2. Accepted implementation conclusion
 
@@ -289,3 +289,12 @@ Inventory提交和破坏性删除使用新增的独立nominal ports，不能伪�
 旧`transcodeService`因混合自建并发、环境工具选择、fallback、直接替换及旧Task语义未导入clean root。证据见
 `implementation/evidence/P5_07_MEDIA_TOOL_PROTOCOLS.md`。下一步P5-08 Resource、device and passive Worker registries/protocol。
 没有需要用户决定的业务问题。
+P5-08已完成：Platform通过P3 Owner Repository持久化`default|full` Resource Profile、Operating Policy、Compute Device
+probe及Worker immutable revisions；显式`unavailable/offline`与未知资源投影为零容量，Permit仍只由P4
+`ResourceGovernor`拥有。当前active/healthy Worker revision才可签发≤60秒的`WorkerHandle`。asset register、upload和
+analysis request三个closed passive Worker atoms要求exact Secret Lease、request digest和上游Receipt链，返回typed
+Worker/External Job Receipt；不接受URL、argv、Store polling或Worker-owned queue。13项Registry/protocol专项、60-file
+完整架构、P3 persistence及P4 runtime门禁PASS；未连接真实Worker或执行真实媒体。旧`resourceGovernor.js`和当前
+`media-worker` server因自建容量/Job Map、raw FFmpeg args、binary/device选择及旧Task语义未导入clean root。证据见
+`implementation/evidence/P5_08_RESOURCE_DEVICE_WORKER.md`。下一步P5-09 Material Access Handle issuer and Fence
+enforcement。没有需要用户决定的业务问题。
