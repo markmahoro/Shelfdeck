@@ -13,12 +13,12 @@ Last updated: 2026-07-18
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains |
 | Current phase | P7 — Procurement |
-| Current phase status | in progress；P7-00 baseline receipt PASS；112/96/161/24；SSOT exact approved blob |
+| Current phase status | in progress；P7-00–P7-01 PASS；112/96/161/24；SSOT exact approved blob |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P6 phase closure `5831c53207d5e71ccdf4792da11ed71be3d47ae1` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p7` on `codex/helix-p7` |
-| Next action | P7-01 Procurement public ports and package guards |
+| Next action | P7-02 Material Field、Access Binding与Extraction Policy scoped repositories |
 
 ## 2. Accepted implementation conclusion
 
@@ -405,3 +405,8 @@ P6-12正式clean-tree Exit Audit对`0cc4d8bf86fcfcf0a329f15a3b4d34a23a399d09`返
 `d94a53f8b7741aefa8bd0d245db4aafcc70100e2ac3d42d1ee7eb2685261cc70`，Exit Evidence digest为
 `19377c01d465f5894ef6c3adf3b33c6c24b62bcda1a4605c202981be0ae4e114`。P6已归档，P7 Procurement详细包已打开；
 外部环境与`media-desktop`授权边界不变。
+
+P7-00至P7-01已完成：从P6 closure `5831c532`建立独立P7 worktree并fresh复跑P6 Exit PASS；Procurement唯一public
+package现精确暴露Command/Query/Candidate Delivery三个port与11个named methods。Store、Subject、Shelf、generic Task和Related
+Control authority反例全部拒绝。完整Architecture 76 fixtures、69 files/82 dependencies、1476 semantic files PASS；历史P6 Auditor
+已固定审计P6 closure，避免后续Phase合法Evidence被误判为P6越界。下一工作包P7-02。

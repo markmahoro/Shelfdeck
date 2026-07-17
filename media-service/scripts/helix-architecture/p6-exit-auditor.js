@@ -7,6 +7,7 @@ const path = require('node:path');
 const { validateP2ContractBaseline } = require('./p2-contract-baseline-validator');
 
 const P6_BASELINE = '41470e47ec6bed7ba1cf81024130870eb2e57e92';
+const P6_CLOSURE = '5831c53207d5e71ccdf4792da11ed71be3d47ae1';
 const APPROVED_ARCHITECTURE_COMMIT = 'f2846fd1';
 const AUTHORIZED_SSOT_COMMITS = Object.freeze([
   '314d85e28bbab9f71a3466cf86877f7a998a638b',
@@ -81,7 +82,9 @@ function evidencePresent(changedFiles, requirement) {
 function auditP6Exit(options) {
   const repositoryRoot = path.resolve(options.repositoryRoot);
   const findings = [];
-  const changedFiles = git(repositoryRoot, ['diff', '--name-only', `${P6_BASELINE}...HEAD`]).stdout.split(/\r?\n/).filter(Boolean).map(normalize);
+  const closureAvailable = git(repositoryRoot, ['merge-base', '--is-ancestor', P6_CLOSURE, 'HEAD'], true).status === 0;
+  const auditTarget = closureAvailable ? P6_CLOSURE : 'HEAD';
+  const changedFiles = git(repositoryRoot, ['diff', '--name-only', `${P6_BASELINE}...${auditTarget}`]).stdout.split(/\r?\n/).filter(Boolean).map(normalize);
   const classes = {};
   for (const relativePath of changedFiles) {
     const classification = classifyChangedPath(relativePath);
@@ -93,9 +96,9 @@ function auditP6Exit(options) {
   }
 
   const approvedSsot = git(repositoryRoot, ['show', `${APPROVED_ARCHITECTURE_COMMIT}:docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`]).stdout;
-  const currentSsot = git(repositoryRoot, ['show', 'HEAD:docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md']).stdout;
+  const currentSsot = git(repositoryRoot, ['show', `${auditTarget}:docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`]).stdout;
   if (currentSsot !== approvedSsot) findings.push({ code: 'P6_SSOT_NOT_EXACT_APPROVED_ARCHITECTURE_BLOB' });
-  const ssotCommits = git(repositoryRoot, ['log', '--format=%H', `${P6_BASELINE}..HEAD`, '--', 'docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md']).stdout.split(/\r?\n/).filter(Boolean);
+  const ssotCommits = git(repositoryRoot, ['log', '--format=%H', `${P6_BASELINE}..${auditTarget}`, '--', 'docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md']).stdout.split(/\r?\n/).filter(Boolean);
   if (JSON.stringify(ssotCommits.slice().sort()) !== JSON.stringify(AUTHORIZED_SSOT_COMMITS.slice().sort())) {
     findings.push({ code: 'P6_UNAUTHORIZED_SSOT_COMMIT_SET', expected: AUTHORIZED_SSOT_COMMITS, actual: ssotCommits });
   }
@@ -114,7 +117,7 @@ function auditP6Exit(options) {
 
   const evidence = {
     baselineCommit: P6_BASELINE,
-    auditedCommit: git(repositoryRoot, ['rev-parse', 'HEAD']).stdout,
+    auditedCommit: git(repositoryRoot, ['rev-parse', auditTarget]).stdout,
     approvedArchitectureCommit: git(repositoryRoot, ['rev-parse', APPROVED_ARCHITECTURE_COMMIT]).stdout,
     approvedSsotBlobDigest: sha256(Buffer.from(approvedSsot)),
     ssotAggregateDigest: sourceMap.aggregateDigest,
@@ -139,6 +142,7 @@ module.exports = Object.freeze({
   EXPECTED_CONTRACT_AGGREGATE_DIGEST,
   EXPECTED_SSOT_AGGREGATE_DIGEST,
   P6_BASELINE,
+  P6_CLOSURE,
   auditP6Exit,
   classifyChangedPath,
   collectDirtyPaths,

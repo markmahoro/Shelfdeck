@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix.ports.p7-procurement-public",
+  "owner": "procurement",
+  "ssotRefs": ["3.3", "8.1.4", "8.2.1", "9.7.1"],
+  "facades": [
+    {
+      "exportName": "ProcurementCommandFacade",
+      "packageId": "domains.procurement.public",
+      "kind": "command-facade",
+      "methods": [
+        "registerMaterialField",
+        "updateMaterialField",
+        "publishExtractionPolicy",
+        "requestFieldObservation",
+        "retryFailedPreparation",
+        "deregisterMaterialField"
+      ]
+    },
+    {
+      "exportName": "ProcurementQueryFacade",
+      "packageId": "domains.procurement.public",
+      "kind": "query-facade",
+      "methods": [
+        "listMaterialFields",
+        "getMaterialField",
+        "getExtractionPolicy",
+        "getCandidatePackage"
+      ]
+    },
+    {
+      "exportName": "CandidateDeliveryPort",
+      "packageId": "domains.procurement.public",
+      "kind": "handoff-delivery-port",
+      "methods": ["deliverCandidatePackage"]
+    }
+  ]
+}

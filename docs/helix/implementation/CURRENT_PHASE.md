@@ -1,6 +1,6 @@
 # P7 Procurement Detailed Plan
 
-Status: in progress; P7-00 complete; P7-01 active.
+Status: in progress; P7-00–P7-01 complete; P7-02 active.
 
 Last updated: 2026-07-18
 
@@ -52,6 +52,8 @@ socket、ambient credential、真实Material Field扫描、真实媒体/FFmpeg�
 
 - 建立唯一`ProcurementCommandFacade`、`ProcurementQueryFacade` public contracts及exact named methods。
 - public入口不得暴露Store、generic planner、raw filesystem、Libra/Arca internals或HTTP。
+- Done：三个public port与11个exact methods已冻结；Store/Subject/Shelf/Task/Related Control反例及完整Architecture
+  gate PASS。Evidence见`evidence/P7_01_PROCUREMENT_PUBLIC_PORTS.md`。
 
 ### P7-02 Material Field, Access Binding and Extraction Policy
 

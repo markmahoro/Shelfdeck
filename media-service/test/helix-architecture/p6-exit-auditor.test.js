@@ -6,6 +6,7 @@ const path = require('node:path');
 const {
   auditP6Exit,
   classifyChangedPath,
+  P6_CLOSURE,
   prohibitedProductionFindings
 } = require('../../scripts/helix-architecture/p6-exit-auditor');
 
@@ -31,5 +32,6 @@ test('P6 exit evidence is SSOT exact and has no scope findings', () => {
   assert.deepEqual(result.findings, []);
   assert.equal(result.evidence.capabilityCount, 112);
   assert.equal(result.evidence.transactionCount, 24);
+  assert.equal(result.evidence.auditedCommit, P6_CLOSURE);
   assert.deepEqual(result.evidence.prohibitedActionsRun, []);
 });
