@@ -2,7 +2,7 @@
 
 Current phase: `P6 — Horizontal Domains`
 
-Status: in progress；P6-00–P6-02 complete；P6-03 next；P5 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P6-00–P6-02 and P6-05 complete；P6-03 contract regeneration pending one reported SSOT nominal fix；P5 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-17
 
@@ -83,7 +83,7 @@ Workspace行为只允许fake adapter、synthetic evidence和owned temp root。
 | P6-02 | User Perception scoped Store and atomic Repository | complete | P6-01；P3 Persistence |
 | P6-03 | Perception Acquisition and immutable Record pipeline | next | P6-02；P4–P5 |
 | P6-04 | Perception dedup、Resolution and public query Facade | pending | P6-02–P6-03 |
-| P6-05 | People Registry and Candidate scoped Repositories | pending | P6-01；P3 Persistence |
+| P6-05 | People Registry and Candidate scoped Repositories | complete | P6-01；P3 Persistence |
 | P6-06 | Person Registration and Candidate lifecycle | pending | P6-05；P4–P5 |
 | P6-07 | Person Merge and Preference lifecycle | pending | P6-05–P6-06 |
 | P6-08 | Reference Asset/Face maintenance and Projection | pending | P6-05–P6-07；P5 Artifact/Workspace |
@@ -144,6 +144,10 @@ Workspace行为只允许fake adapter、synthetic evidence和owned temp root。
 - Repository只注册10张`people_`表，分别维护Person head/revisions、Alias、Provider Identity、Preference、Reference、Candidate和Merge。
 - stable provider identity active unique；同evidence最多一个open Registration Candidate；normalized pair最多一个open Merge Candidate。
 - Candidate不是Person；Foundation Work/Event Result不能被保存为待用户确认的People业务对象。
+- Done: exact `PersonRegistryRepository`（7 tables）and `PeopleCandidateRepository`（3 tables）implement the closed Owner boundary；
+  Person head/revision CAS、active Provider Identity、Preference range、Reference handle ownership、Candidate nominal identity/open uniqueness、
+  normalized Merge pair and one terminal source Merge Record fail closed. Focused 9/9 and combined boundary 33/33 PASS. Evidence:
+  `evidence/P6_05_PEOPLE_SCOPED_REPOSITORIES.md`。
 
 ### P6-06 Person Registration and Candidate lifecycle
 

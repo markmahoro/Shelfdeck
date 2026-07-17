@@ -13,12 +13,12 @@ Last updated: 2026-07-17
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations |
 | Current phase | P6 — Horizontal Domains |
-| Current phase status | in progress；P6-00–P6-02 complete；P6-03 next；P5 Exit Audit PASS |
+| Current phase status | in progress；P6-00–P6-02 and P6-05 complete；P6-03 contract regeneration pending reported SSOT nominal fix；P5 Exit Audit PASS |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P5 phase closure `41470e47ec6bed7ba1cf81024130870eb2e57e92` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p6` on `codex/helix-p6` |
-| Next action | P6-03 Perception Acquisition and immutable Record pipeline |
+| Next action | close reported Perception Result nominal identity；regenerate P2/P3/P4 contracts；resume P6-03 |
 
 ## 2. Accepted implementation conclusion
 
@@ -348,3 +348,12 @@ found winner及no-`MAX` head全部fail closed。专项8/8、65-file architecture
 files和P3 156/72/19 + 18 transactions/132 fault points全部PASS。证据见
 `implementation/evidence/P6_02_PERCEPTION_SCOPED_STORE.md`。下一步P6-03 Perception Acquisition and immutable Record
 pipeline。没有需要用户决定的业务问题。
+
+P6-05已独立完成：`PersonRegistryRepository`精确拥有7张Person/Identity/Preference/Reference表，
+`PeopleCandidateRepository`精确拥有3张Candidate/Merge表。Person immutable revision/head CAS、stable Provider Identity
+active unique、Preference `-2..2`、Reference handle同Person owner、Registration evidence open unique、normalized Merge pair
+open unique和one terminal source Merge Record全部fail closed；Foundation Capability Outcome/Work/Event Result不能保存为People
+Candidate。focused 9/9与合并边界33/33 PASS，证据见
+`implementation/evidence/P6_05_PEOPLE_SCOPED_REPOSITORIES.md`。该包不依赖P6-03，也不宣称P6-06/P6-07 lifecycle完成。
+当前P6-03仍等待Architecture Agent修正`perception.dedup.resolve@1`输出中的括号说明被误纳入nominal type identity，
+以及明确新增Perception Page Commit后的canonical transaction总数；实现线程未修改SSOT、未以生成器清洗绕过。
