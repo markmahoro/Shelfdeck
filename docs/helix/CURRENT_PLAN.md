@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: Levels 0–10 accepted; P0–P5 complete; P6 in progress under standing P2–P13 Local Implementation authorization; external-environment actions and `media-desktop` remain paused.
+Status: Levels 0–10 accepted; P0–P6 complete; P7 ready under standing P2–P13 Local Implementation authorization; external-environment actions and `media-desktop` remain paused.
 
 Last updated: 2026-07-18
 
@@ -42,13 +42,13 @@ Work Package细节只存在于`implementation/CURRENT_PHASE.md`；当前事实�
 
 | Field | Current value |
 | --- | --- |
-| Phase | P6 — Horizontal Domains |
+| Phase | P7 — Procurement |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | in progress；latest SSOT已重物化为112/96/160/22；P6-04–P6-07 complete；Perception Resolution与People Registration/Merge链路已闭合；P5 Exit Audit PASS |
-| Implementation baseline | exact P5 phase closure `41470e47ec6bed7ba1cf81024130870eb2e57e92` |
-| Phase branch/worktree | `codex/helix-p6` / `E:\my_project\emby_third_party-helix-p6` |
+| Status | ready；P6 Exit Audit PASS；latest SSOT与Architecture Agent `f2846fd1`原始blob一致；112/96/161/24 |
+| Implementation baseline | exact P6 phase closure（本次closure commit） |
+| Phase branch/worktree | pending `codex/helix-p7` / `E:\my_project\emby_third_party-helix-p7` |
 | Allowed now | P2–P13本地代码、unit/contract/isolated fixture、文档与Phase自动转换 |
-| Next action | P6-08 Reference Asset/Face maintenance and Projection；只保存Artifact/Embedding handle并发布People-owned只读Projection |
+| Next action | P7-00创建隔离P7 worktree并复跑P6 clean-tree Exit Audit |
 
 ## 4. Master roadmap
 
@@ -56,11 +56,11 @@ Work Package细节只存在于`implementation/CURRENT_PHASE.md`；当前事实�
 | --- | --- | --- | --- |
 | P0 Audit and disposition | `4a16f0a9`差距、旧模块处置、风险和clean-cut方向 | Level 0–10 accepted | **complete**；Evidence已冻结 |
 | P1 Clean skeleton and guards | 固定`src/helix/`、public/internal边界、唯一Root shell、机器架构门禁和manifest框架 | P0；Local Implementation Gate | **complete**；Exit Audit PASS；Evidence frozen |
-| P2 Contract and schema baseline | 112 Capability、96 Result、160 table合同与digest | P1 | **complete**；latest SSOT rematerialized 112/96/160/22；baseline gate PASS |
-| P3 Persistence and atomic foundation | 唯一Kernel、scoped UoW、Control、Commit Marker、Outbox/Inbox、Audit | P2 | **complete**；22 canonical transactions；baseline gate PASS |
+| P2 Contract and schema baseline | 112 Capability、96 Result、161 table合同与digest | P1 | **complete**；latest SSOT rematerialized 112/96/161/24；baseline gate PASS |
+| P3 Persistence and atomic foundation | 唯一Kernel、scoped UoW、Control、Commit Marker、Outbox/Inbox、Audit | P2 | **complete**；24 canonical transactions；baseline gate PASS |
 | P4 Execution and recovery foundation | Work/Plan/Event/Effect、Progress、Control Plane、Resource、Retry/Timeout/Circuit、startup recovery | P3 | **complete**；7 Effect Classes / 31 crash scenarios；Exit Audit PASS |
 | P5 Platform and integrations | Secret/Mount/Workspace/Artifact/Resource/Worker及typed Provider/FFmpeg/file libraries | P3–P4 ports | **complete**；10 fixture families / 31 recovery scenarios；Exit Audit PASS |
-| P6 Horizontal domains | Perception和People独立Store/Facade/Process/Projection | P3–P5 | 两域事实只由各自Owner写；Media-Cast不进入People Store |
+| P6 Horizontal domains | Perception和People独立Store/Facade/Process/Projection | P3–P5 | **complete**；Exit Audit PASS；两域Owner与cross-domain边界闭合 |
 | P7 Procurement | Material Field、Observation、Region、Triage、Candidate Package | P3–P5 | `0..N` Field隔离；Related/Control和Candidate唯一性成立 |
 | P8 Handoff A and Libra front half | Handoff A、FA-04 continuity、Subject、Decision、Routing、Acceptance Spec | P6–P7 | Decision/Subject/Binding/Control/Receipt单事务 |
 | P9 Libra production and delivery | Run、Workspace、Product、Conformance、On-deck Package、Discard/Cleanup/Reclaimer | P4–P5、P8 | Libra只写Workspace；Promotion/Discard/Cleanup原子闭合 |

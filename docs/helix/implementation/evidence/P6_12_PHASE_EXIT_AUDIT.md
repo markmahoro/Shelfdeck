@@ -1,6 +1,6 @@
 # P6 Phase Exit Audit Evidence
 
-Status: formal clean-tree audit pending evidence commit.
+Status: PASS; Evidence frozen.
 
 ## Scope
 
@@ -37,3 +37,16 @@ npm run test:helix-horizontal-exit
 ## Expected closure
 
 只有正式clean-tree命令返回`ok=true`、`findings=[]`和`prohibitedActionsRun=[]`后，本Evidence才可冻结，P6才可归档并自动进入P7。测试通过不替代SSOT Owner/边界反向审计。
+
+## Formal result
+
+- Audited commit: `0cc4d8bf86fcfcf0a329f15a3b4d34a23a399d09`。
+- Result: `ok=true`；`findings=[]`；`prohibitedActionsRun=[]`。
+- Architecture: 75 fixture files；69 source files；81 dependencies；1475 semantic files；0 findings。
+- Persistence: 161 tables；74 indexes；20 partial unique indexes；24 transactions；25 crash fixtures。
+- Changed scope: 515 files，全部归入phase docs、approved SSOT、contracts、horizontal domains、bounded Foundation、tooling或isolated fixtures。
+- Approved SSOT blob SHA-256: `4f13e31f6d0176f3ab01a56e7cd839b82800a10a2fa4d444524f79391cca5f7a`。
+- Evidence digest: `19377c01d465f5894ef6c3adf3b33c6c24b62bcda1a4605c202981be0ae4e114`。
+
+结论：P6全部Exit Criteria满足，可以归档并在standing Local Implementation authorization下进入P7。外部环境与
+`media-desktop`仍未授权。

@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Levels 0–10 accepted; P0–P5 complete; P6 in progress under standing P2–P13 Local Implementation authorization; E2E, Docker/Canary, production, real-media side effects and `media-desktop` changes paused.
+Status: Levels 0–10 accepted; P0–P6 complete; P7 ready under standing P2–P13 Local Implementation authorization; E2E, Docker/Canary, production, real-media side effects and `media-desktop` changes paused.
 
 Last updated: 2026-07-18
 
@@ -11,14 +11,14 @@ Last updated: 2026-07-18
 | Architecture | `TOP_DOWN_ARCHITECTURE_CONFIRMATION.md` Level 0–10 accepted and final audit closed |
 | Open business decisions | none |
 | Implementation program | clean-cut Master Plan accepted as direction |
-| Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations |
-| Current phase | P6 — Horizontal Domains |
-| Current phase status | in progress；latest SSOT已重物化为112/96/160/22；P6-04–P6-06 complete；Perception Resolution与People Registration链路已闭合；P5 Exit Audit PASS |
+| Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains |
+| Current phase | P7 — Procurement |
+| Current phase status | ready；P6 clean-tree Exit Audit PASS；112/96/161/24；SSOT exact approved blob |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
-| Integration baseline | exact P5 phase closure `41470e47ec6bed7ba1cf81024130870eb2e57e92` |
-| Phase worktree | `E:\my_project\emby_third_party-helix-p6` on `codex/helix-p6` |
-| Next action | P6-07 Person Merge and Preference lifecycle；精确Person/Preference CAS与Merge correlation原子闭合 |
+| Integration baseline | exact P6 phase closure（本次closure commit） |
+| Phase worktree | pending `E:\my_project\emby_third_party-helix-p7` on `codex/helix-p7` |
+| Next action | P7-00 isolated worktree and baseline receipt |
 
 ## 2. Accepted implementation conclusion
 
@@ -394,3 +394,14 @@ P6-04现已完成：旧ID-only DTO与Store旁读捷径均未保留；强Identity
 canonical crash `78/78`、Perception focused/integration `20/20 PASS`。证据见
 `implementation/evidence/P6_04_PERCEPTION_RESOLUTION.md`。P6整体Exit Audit尚未执行；下一工作包是P6-05最新12-table
 People Store clean rewrite。
+
+P6-08至P6-11已完成：Direct Person Registration和Reference Image单Face add/release原子闭合；5个Perception与8个People
+Capability按P2 digest注册；cross-domain consumer只能保存Owner/revision/digest Basis；统一isolated harness覆盖75个架构fixture、
+24项canonical transaction与25个crash fixture。最终合同为112 Capability、96 Result Family、161表、24 transaction，197个type ref
+全部解析。
+
+P6-12正式clean-tree Exit Audit对`0cc4d8bf86fcfcf0a329f15a3b4d34a23a399d09`返回`ok=true`、`findings=[]`、
+`prohibitedActionsRun=[]`。515个baseline后文件全部分类；SSOT精确等于Architecture Agent `f2846fd1`原始blob，P2 aggregate为
+`d94a53f8b7741aefa8bd0d245db4aafcc70100e2ac3d42d1ee7eb2685261cc70`，Exit Evidence digest为
+`19377c01d465f5894ef6c3adf3b33c6c24b62bcda1a4605c202981be0ae4e114`。P6已归档，P7 Procurement详细包已打开；
+外部环境与`media-desktop`授权边界不变。
