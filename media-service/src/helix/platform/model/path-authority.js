@@ -14,7 +14,7 @@ function fail(code, message, details) {
 }
 
 function createPathAuthority(pathAdapter) {
-  if (!pathAdapter || ['resolve', 'normalize', 'isAbsolute', 'relative'].some((name) => typeof pathAdapter[name] !== 'function')) {
+  if (!pathAdapter || ['resolve', 'normalize', 'isAbsolute', 'relative', 'join'].some((name) => typeof pathAdapter[name] !== 'function')) {
     fail('P5_PATH_ADAPTER_REQUIRED', 'An explicit platform path adapter is required.');
   }
 
@@ -41,7 +41,18 @@ function createPathAuthority(pathAdapter) {
     return contains(left, right) || contains(right, left);
   }
 
-  return Object.freeze({ canonicalize, contains, overlaps });
+  function resolveContained(root, relativePath) {
+    const canonicalRoot = canonicalize(root);
+    if (typeof relativePath !== 'string' || relativePath.length < 1 || relativePath.length > 4096 ||
+        relativePath.includes('\0') || pathAdapter.isAbsolute(relativePath) || relativePath.split(/[\\/]+/).includes('..')) {
+      fail('P5_PATH_RELATIVE_INVALID', 'Contained path must be a bounded relative path without parent traversal.');
+    }
+    const resolved = canonicalize(pathAdapter.join(canonicalRoot, relativePath));
+    if (!contains(canonicalRoot, resolved)) fail('P5_PATH_CONTAINMENT_ESCAPE', 'Resolved path escapes its declared root.');
+    return resolved;
+  }
+
+  return Object.freeze({ canonicalize, contains, overlaps, resolveContained });
 }
 
 module.exports = Object.freeze({ PathAuthorityError, createPathAuthority });

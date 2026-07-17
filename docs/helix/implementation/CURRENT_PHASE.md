@@ -2,7 +2,7 @@
 
 Current phase: `P5 — Platform and Integrations`
 
-Status: in progress；P5-00–P5-08 complete；P5-09 next；P4 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P5-00–P5-09 complete；P5-10 next；P4 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-17
 
@@ -71,8 +71,8 @@ Registry、Resource/Worker Registry，以及Filesystem/Hash/FFmpeg/Provider/Work
 | P5-06 | Typed External Provider protocol adapters | complete | P5-01–P5-02、P5-05 |
 | P5-07 | Filesystem transaction、probe/hash and FFmpeg atoms | complete | P5-03–P5-05 |
 | P5-08 | Resource、device and passive Worker registries/protocol | complete | P5-01–P5-03；P4 Governor |
-| P5-09 | Material Access Handle issuer and Fence enforcement | next | P5-03–P5-08；P3 Control、P4 Fence |
-| P5-10 | Cross-platform isolated integration verification harness | pending | P5-01–P5-09 |
+| P5-09 | Material Access Handle issuer and Fence enforcement | complete | P5-03–P5-08；P3 Control、P4 Fence |
+| P5-10 | Cross-platform isolated integration verification harness | next | P5-01–P5-09 |
 | P5-11 | P5 Phase Exit Audit and evidence freeze | pending | P5-00–P5-10 |
 
 ## 7. Work Package contracts
@@ -183,6 +183,12 @@ Registry、Resource/Worker Registry，以及Filesystem/Hash/FFmpeg/Provider/Work
 - Issue one invocation-scoped handle freezing identity、binding、Control、permission、containment and Fence revision.
 - Read/write/promote/delete authority is explicit and non-escalating；Related reference does not imply write or Control.
 - Stale Control/Binding/Auth、wrong Owner/purpose、scope escape and handle replay after expiry fail before effect.
+- Done: Foundation-owned invocation authority issues exact Physical/Workspace handles from injected Owner projections without owning a
+  Store or Domain facts. Primary freezes and rechecks exact Control revision；Related remains read-only and never synthesizes Control.
+  Closed grants distinguish observation、Workspace write、Arca Target Commit and destructive Approval/Authorization, derive targets only
+  inside current roots, recheck typed filesystem Reality immediately before P5-07 dispatch, and are ≤60-second one-shot credentials.
+  P5 focused 71/71、architecture/P3/P4 gates PASS with no real filesystem/media effect. Evidence:
+  `evidence/P5_09_MATERIAL_ACCESS_FENCE.md`.
 
 ### P5-10 Cross-platform isolated integration verification harness
 

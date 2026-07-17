@@ -13,12 +13,12 @@ Last updated: 2026-07-17
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation |
 | Current phase | P5 — Platform and Integrations |
-| Current phase status | in progress；P5-00–P5-08 complete；P5-09 next；P4 Exit Audit PASS |
+| Current phase status | in progress；P5-00–P5-09 complete；P5-10 next；P4 Exit Audit PASS |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P4 phase closure `5dd0b7094ea35cc04c7ba931fd109467462d0af6` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p5` on `codex/helix-p5` |
-| Next action | P5-09 Material Access Handle issuer and Fence enforcement |
+| Next action | P5-10 Cross-platform isolated integration verification harness |
 
 ## 2. Accepted implementation conclusion
 
@@ -298,3 +298,13 @@ Worker/External Job Receipt；不接受URL、argv、Store polling或Worker-owned
 `media-worker` server因自建容量/Job Map、raw FFmpeg args、binary/device选择及旧Task语义未导入clean root。证据见
 `implementation/evidence/P5_08_RESOURCE_DEVICE_WORKER.md`。下一步P5-09 Material Access Handle issuer and Fence
 enforcement。没有需要用户决定的业务问题。
+
+P5-09已完成：Execution Foundation新增无Store的invocation-scoped Material Access Authority，只组合Owner发布的Binding、
+Workspace、Control、Approval/Authorization、Target Slot和Event Fence projection，不接管Canonical Fact。Physical/
+Workspace Handle冻结exact revision、permission、containment、Basis及≤60秒内部lifetime；Primary重验Control revision，Related
+始终read-only且不生成Control。Operation Grant按Effect Class严格区分observation、Workspace write、Arca material commit和
+destructive commit，目标路径只能从当前Workspace/Target Handle派生；P5-07 dispatch前再次重验filesystem Reality与全部
+authority slice，Grant单次消费，stale/escape/replay均在effect前失败。P5专项71/71及完整architecture/P3/P4门禁PASS；仅使用
+synthetic Owner/Reality adapters，未触碰真实媒体。证据见
+`implementation/evidence/P5_09_MATERIAL_ACCESS_FENCE.md`。下一步P5-10 cross-platform isolated integration verification
+harness。没有需要用户决定的业务问题。

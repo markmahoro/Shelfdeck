@@ -181,6 +181,8 @@ test('path authority is deterministic for POSIX and Windows without filesystem a
   assert.equal(posix.contains('/srv/root', '/srv/other'), false);
   assert.equal(windows.contains('C:\\ShelfDeck\\work', 'c:\\ShelfDeck\\work\\child'), true);
   assert.equal(windows.overlaps('C:\\ShelfDeck\\work', 'C:\\ShelfDeck\\work2'), false);
+  assert.equal(posix.resolveContained('/srv/root', 'child/file.mkv'), '/srv/root/child/file.mkv');
+  assert.throws(() => posix.resolveContained('/srv/root', '../escape'), (error) => error.code === 'P5_PATH_RELATIVE_INVALID');
   assert.throws(() => windows.canonicalize('relative\\path'), (error) => error.code === 'P5_PATH_ABSOLUTE_REQUIRED');
 });
 
