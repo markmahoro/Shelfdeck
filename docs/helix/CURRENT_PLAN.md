@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: Levels 0–10 accepted; P0–P4 complete; P5 in progress under standing P2–P13 Local Implementation authorization; external-environment actions and `media-desktop` remain paused.
+Status: Levels 0–10 accepted; P0–P5 complete; P6 in progress under standing P2–P13 Local Implementation authorization; external-environment actions and `media-desktop` remain paused.
 
 Last updated: 2026-07-17
 
@@ -42,13 +42,13 @@ Work Package细节只存在于`implementation/CURRENT_PHASE.md`；当前事实�
 
 | Field | Current value |
 | --- | --- |
-| Phase | P5 — Platform and Integrations |
+| Phase | P6 — Horizontal Domains |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | in progress；P5-00–P5-10 complete；P5-11 next；P4 Exit Audit PASS |
-| Implementation baseline | exact P4 phase closure `5dd0b7094ea35cc04c7ba931fd109467462d0af6` |
-| Phase branch/worktree | `codex/helix-p5` / `E:\my_project\emby_third_party-helix-p5` |
+| Status | in progress；P6-00 next；P5 Exit Audit PASS |
+| Implementation baseline | P6-00从P5 closure commit冻结 |
+| Phase branch/worktree | planned `codex/helix-p6` / `E:\my_project\emby_third_party-helix-p6` |
 | Allowed now | P2–P13本地代码、unit/contract/isolated fixture、文档与Phase自动转换 |
-| Next action | P5-11 P5 Phase Exit Audit and evidence freeze |
+| Next action | P6-00 P5 closure and isolated P6 baseline receipt |
 
 ## 4. Master roadmap
 
@@ -59,7 +59,7 @@ Work Package细节只存在于`implementation/CURRENT_PHASE.md`；当前事实�
 | P2 Contract and schema baseline | 112 Capability、96 Result、156 table合同与digest | P1 | **complete**；112/96/156/18；Exit Audit PASS |
 | P3 Persistence and atomic foundation | 唯一Kernel、scoped UoW、Control、Commit Marker、Outbox/Inbox、Audit | P2 | **complete**；18 transaction/132 crash points；Exit Audit PASS |
 | P4 Execution and recovery foundation | Work/Plan/Event/Effect、Progress、Control Plane、Resource、Retry/Timeout/Circuit、startup recovery | P3 | **complete**；7 Effect Classes / 31 crash scenarios；Exit Audit PASS |
-| P5 Platform and integrations | Secret/Mount/Workspace/Artifact/Resource/Worker及typed Provider/FFmpeg/file libraries | P3–P4 ports | Adapter不写Domain Fact；Secret和Material Handle安全合同通过 |
+| P5 Platform and integrations | Secret/Mount/Workspace/Artifact/Resource/Worker及typed Provider/FFmpeg/file libraries | P3–P4 ports | **complete**；10 fixture families / 31 recovery scenarios；Exit Audit PASS |
 | P6 Horizontal domains | Perception和People独立Store/Facade/Process/Projection | P3–P5 | 两域事实只由各自Owner写；Media-Cast不进入People Store |
 | P7 Procurement | Material Field、Observation、Region、Triage、Candidate Package | P3–P5 | `0..N` Field隔离；Related/Control和Candidate唯一性成立 |
 | P8 Handoff A and Libra front half | Handoff A、FA-04 continuity、Subject、Decision、Routing、Acceptance Spec | P6–P7 | Decision/Subject/Binding/Control/Receipt单事务 |

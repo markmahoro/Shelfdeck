@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Levels 0–10 accepted; P0–P4 complete; P5 in progress under standing P2–P13 Local Implementation authorization; E2E, Docker/Canary, production, real-media side effects and `media-desktop` changes paused.
+Status: Levels 0–10 accepted; P0–P5 complete; P6 in progress under standing P2–P13 Local Implementation authorization; E2E, Docker/Canary, production, real-media side effects and `media-desktop` changes paused.
 
 Last updated: 2026-07-17
 
@@ -11,14 +11,14 @@ Last updated: 2026-07-17
 | Architecture | `TOP_DOWN_ARCHITECTURE_CONFIRMATION.md` Level 0–10 accepted and final audit closed |
 | Open business decisions | none |
 | Implementation program | clean-cut Master Plan accepted as direction |
-| Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation |
-| Current phase | P5 — Platform and Integrations |
-| Current phase status | in progress；P5-00–P5-10 complete；P5-11 next；P4 Exit Audit PASS |
+| Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations |
+| Current phase | P6 — Horizontal Domains |
+| Current phase status | in progress；P6-00 next；P5 Exit Audit PASS |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
-| Integration baseline | exact P4 phase closure `5dd0b7094ea35cc04c7ba931fd109467462d0af6` |
-| Phase worktree | `E:\my_project\emby_third_party-helix-p5` on `codex/helix-p5` |
-| Next action | P5-11 P5 Phase Exit Audit and evidence freeze |
+| Integration baseline | P6-00从P5 closure commit冻结 |
+| Phase worktree | planned `E:\my_project\emby_third_party-helix-p6` on `codex/helix-p6` |
+| Next action | P6-00 P5 closure and isolated P6 baseline receipt |
 
 ## 2. Accepted implementation conclusion
 
@@ -89,9 +89,9 @@ P1与P2已关闭；clean root仍未接入`server.js`、`app.js`或任何旧Runti
 
 - `CURRENT_PLAN.md`：精简Master Roadmap和授权边界；
 - `ENGINEERING_PLAYBOOK.md`：Ready/Done、Work Package、门禁、测试、Review、复用、Git和停线规则；
-- `implementation/CURRENT_PHASE.md`：唯一活动P4详细执行包；
+- `implementation/CURRENT_PHASE.md`：唯一活动P6详细执行包；
 - `implementation/evidence/`：冻结审计与验收Evidence；
-- `implementation/archive/`：保存已冻结的P1执行包。
+- `implementation/archive/`：保存已冻结的P1–P5执行包。
 
 工程文档不能覆盖架构SSOT。任意时刻禁止出现第二份活动Phase详细计划。
 
@@ -99,7 +99,7 @@ P1与P2已关闭；clean root仍未接入`server.js`、`app.js`或任何旧Runti
 
 - NAS ShelfDeck Docker `192.168.12.230:18080`保持生产边界，当前不接触；
 - 四库真实来源E2E保持停止；
-- P4本地实现已打开；不运行E2E、Admin Web构建或Docker构建；
+- P6本地实现已打开；不运行E2E、Admin Web构建或Docker构建；
 - 不部署、不初始化生产数据、不执行真实媒体副作用；
 - 当前旧`helixCleanState`/preflight不得用于clean切换或生产；
 - `media-desktop`继续排除并保留用户未提交修改；
@@ -316,3 +316,11 @@ allowlist漂移全部fail closed。统一命令、62-file architecture、P3 pers
 端口、读取ambient credential、调用真实network/binary/media、Docker或`media-desktop`。证据见
 `implementation/evidence/P5_10_ISOLATED_INTEGRATION_HARNESS.md`。下一步P5-11 P5 Phase Exit Audit and evidence freeze。
 没有需要用户决定的业务问题。
+
+P5-11已完成：正式clean-tree `npm run test:helix-platform-exit`审计实现`5d3bdde07bd95d5b228f46a3be16c17ea8211209`。
+399个baseline后文件全部分类；本线程未修改SSOT，唯一SSOT变化精确绑定Architecture Agent提交`a933463f`，当前SSOT blob、
+source-map与P2 aggregate均匹配。10个P5 fixture families、31个P4 recovery scenarios、63个architecture fixture files、
+P3 156 tables/72 indexes/19 partial unique及18 transactions/132 fault points全部PASS，findings和prohibited actions均为空。
+Evidence digest为`8817403970291024b145248dbf674165964cbf7c9af0d3d32abf6cdb14102d81`，详见
+`implementation/evidence/P5_PHASE_EXIT_AUDIT_5D3BDDE0.md`。P5已归档并自动打开P6；下一检查点是P6-00 P5 closure与
+隔离P6 baseline receipt。没有需要用户决定的业务问题。
