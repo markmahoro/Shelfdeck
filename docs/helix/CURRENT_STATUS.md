@@ -13,12 +13,12 @@ Last updated: 2026-07-17
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation |
 | Current phase | P5 — Platform and Integrations |
-| Current phase status | in progress；P5-00–P5-06 complete；P5-07 next；P4 Exit Audit PASS |
+| Current phase status | in progress；P5-00–P5-07 complete；P5-08 next；P4 Exit Audit PASS |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P4 phase closure `5dd0b7094ea35cc04c7ba931fd109467462d0af6` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p5` on `codex/helix-p5` |
-| Next action | P5-07 filesystem transaction、probe/hash and FFmpeg atoms |
+| Next action | P5-08 Resource、device and passive Worker registries/protocol |
 
 ## 2. Accepted implementation conclusion
 
@@ -254,8 +254,8 @@ P5-00已完成：`codex/helix-clean`前移到精确P4 phase closure `5dd0b7094ea
 并从该点创建隔离`codex/helix-p5` / `E:\my_project\emby_third_party-helix-p5`。fresh checkout的P4 Runtime总门禁
 恢复51个架构fixture、7类Effect/31个跨进程crash scenario，P3回归恢复156表/72 index/19 partial unique与18 transaction/
 132 crash points，全部PASS且`prohibitedActionsRun=[]`。原dirty workspace及`media-desktop`保持不变。下一检查点是
-P5-01已完成：19个immutable nominal ports完整声明Owner、schema refs、Effect Class、idempotency、Fence和payload
-bound；19个focused fixtures与完整architecture gate PASS，证据见
+P5-01已完成并经P5-07传播修正：21个immutable nominal ports完整声明Owner、schema refs、Effect Class、idempotency、Fence和payload
+bound；其中11个Integration ports分别覆盖pure observation、workspace write、external request、material commit和destructive commit，完整architecture gate PASS，证据见
 `implementation/evidence/P5_01_PUBLIC_NOMINAL_PORTS.md`。下一步P5-02 Secret Reference and least-authority
 credential resolver。没有需要用户决定的业务问题。
 P5-02已完成：Platform Repository只保存opaque Secret Reference metadata；one-shot lease要求exact
@@ -282,3 +282,10 @@ operation-specific timeout/input bound、request/response SHA-256、typed ref/Ar
 均fail closed；18项专项及完整架构/P3/P4聚合门禁PASS。旧Provider模块因混合network/fs/config/业务Owner未导入clean root。
 证据见`implementation/evidence/P5_06_TYPED_EXTERNAL_PROVIDER_PROTOCOLS.md`。下一步P5-07 filesystem transaction、probe/hash
 and FFmpeg atoms。没有需要用户决定的业务问题。
+P5-07已完成：20个关闭的filesystem/hash/FFprobe/FFmpeg operation atoms逐项反向绑定Capability与Effect Class；正式
+Inventory提交和破坏性删除使用新增的独立nominal ports，不能伪装为Workspace写。Operation Grant过期/Owner/路径containment、
+禁止覆盖、closed profile、Effect intent digest、argv-only命令、bounded result与错误脱敏均fail closed。9项protocol及4项port
+专项、58-file完整架构、P3 persistence和P4 runtime聚合门禁PASS；未调用已安装FFmpeg、未读取或修改真实媒体。
+旧`transcodeService`因混合自建并发、环境工具选择、fallback、直接替换及旧Task语义未导入clean root。证据见
+`implementation/evidence/P5_07_MEDIA_TOOL_PROTOCOLS.md`。下一步P5-08 Resource、device and passive Worker registries/protocol。
+没有需要用户决定的业务问题。

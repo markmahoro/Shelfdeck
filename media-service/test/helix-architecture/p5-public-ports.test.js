@@ -10,7 +10,7 @@ const integrations = require('../../src/helix/integrations');
 const foundationPublic = require('../../src/helix/foundation/public');
 const catalog = require('../../src/helix/contracts/ports/p5-public-port-contracts.json');
 
-const EFFECT_CLASSES = new Set(['pure_observation', 'workspace_write', 'external_request']);
+const EFFECT_CLASSES = new Set(['pure_observation', 'workspace_write', 'external_request', 'material_commit', 'destructive_commit']);
 const PLATFORM_EXPORTS = [
   'AdminCredentialRevisionQueryPort', 'ComputeDeviceQueryPort',
   'IntegrationHandleResolverPort', 'IntegrationQueryPort', 'MountScopeResolverPort',
@@ -19,15 +19,15 @@ const PLATFORM_EXPORTS = [
 ];
 const INTEGRATION_EXPORTS = [
   'ContentHashPort', 'ExternalProviderArtifactPort', 'ExternalProviderObservationPort', 'ExternalProviderRequestPort',
-  'FilesystemObservationPort', 'MediaProbePort',
+  'FilesystemDestructiveCommitPort', 'FilesystemMaterialCommitPort', 'FilesystemObservationPort', 'MediaProbePort',
   'MediaTransformPort', 'WorkerComputePort', 'WorkspaceFileEffectPort'
 ];
 
 test('P5 nominal port catalog is exact, typed, bounded, fenced, and owner-declared', () => {
   assert.equal(catalog.schemaVersion, 1);
-  assert.equal(catalog.contracts.length, 19);
-  assert.equal(new Set(catalog.contracts.map((contract) => contract.portId)).size, 19);
-  assert.equal(new Set(catalog.contracts.map((contract) => contract.exportName)).size, 19);
+  assert.equal(catalog.contracts.length, 21);
+  assert.equal(new Set(catalog.contracts.map((contract) => contract.portId)).size, 21);
+  assert.equal(new Set(catalog.contracts.map((contract) => contract.exportName)).size, 21);
 
   for (const contract of catalog.contracts) {
     assert.match(contract.portId, /@1$/);

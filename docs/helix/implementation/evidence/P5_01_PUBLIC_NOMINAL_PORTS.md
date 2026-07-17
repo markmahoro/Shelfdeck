@@ -11,7 +11,7 @@ Audit date: 2026-07-17
 | §8.3.8 Platform owns typed technical aggregates and publishes short-lived handles | 9 `platform.public` query/resolve nominal ports；no Platform Store exposure |
 | §8.5.10 Artifact Registry is an Execution Foundation technical fact | `ArtifactQueryPort` is published by `foundation.public`, not Platform |
 | §8.5.6 external effects use Effect Journal semantics | every Integration operation declares one P4 Effect Class、idempotency and Fence source |
-| §8.6.16 immutable typed API metadata | 19 unique `@1` port contracts with stable input/output schema refs |
+| §8.6.16 immutable typed API metadata | 21 unique `@1` port contracts with stable input/output schema refs |
 | §8.6.17 dependencies are constructor-injected, not persisted Context | factories bind one exact method and expose no Runtime/Repository/Store |
 | §8.6.18 typed handles, no bare path or mutable object | resolver boundaries return only contract-specific typed refs/handles |
 | §8.7 dependency direction | callers can import `platform.public` or `integrations`; Platform internal layers remain inaccessible |
@@ -25,11 +25,15 @@ Root、Resource Profile、Compute Device、Worker Handle和Admin Credential revi
 
 每个port contract固定：`portId@1`、export name、package/Owner、唯一method、input/output schema ref、Effect Class、
 idempotency requirement/scope、Fence requirement/source及input/output byte bound。非pure operation全部要求幂等键；
-所有19个端口都要求明确Fence来源。大结果只能由后续Artifact/Handle合同承载，端口本身没有无界返回值。
+所有21个端口都要求明确Fence来源。大结果只能由后续Artifact/Handle合同承载，端口本身没有无界返回值。
 
 P5-06反向审计8个使用`IntegrationHandle`的Capability后，将原单一`ExternalProviderPort(external_request)`纠正为
 `Observation(pure_observation)`、`Artifact(workspace_write)`和`Request(external_request)`三个nominal ports。该修正
 消除了Effect Class混用，没有保留旧port兼容入口，也没有改变SSOT/P2 Capability合同。
+
+P5-07进一步证明正式Inventory原子切换与不可撤销删除不能通过`WorkspaceFileEffectPort(workspace_write)`执行，因而补充
+`FilesystemMaterialCommitPort(material_commit)`与`FilesystemDestructiveCommitPort(destructive_commit)`。这是按SSOT
+Effect Class修正遗漏，不是兼容入口；当前共9 Platform、1 Foundation及11 Integration ports。
 
 公开factory只接受合同声明的唯一method。缺少method或额外加入Repository、SQLite、Domain write、HTTP、generic
 request或process authority都会稳定返回shape mismatch；绑定结果被冻结。
@@ -37,8 +41,8 @@ request或process authority都会稳定返回shape mismatch；绑定结果被冻
 ## 3. Machine evidence
 
 ```text
-node --test p5-public-ports + clean-skeleton + package-boundary-guard
-→ 19/19 PASS
+node --test p5-public-ports.test.js
+→ 4/4 PASS；21 port contracts
 
 npm run test:helix-architecture
 → fixture files: 52
