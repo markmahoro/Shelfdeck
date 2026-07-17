@@ -1,6 +1,6 @@
 # Helix Architecture Review Workbench
 
-Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-17；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-04` bounded correction均已完成。
+Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-17；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-05` bounded correction均已完成。
 
 ## 1. Purpose and authority
 
@@ -1400,3 +1400,59 @@ NEW BUSINESS DECISION       none
 实现仍须用生成的Decision/Candidate/Person JSON Schema、SQLite FK/partial unique DDL、Candidate acceptance
 crash/replay fixture和nominal identity extractor证明遵守合同；不得通过生成器清洗类型名、Foundation旁读、
 Provider二次查询或兼容路径掩盖缺口。
+
+### 15.5 `PBF-05` — Perception Resolution input closure与People Person schema conservation
+
+Status: `CLOSED / DOC_FIX APPLIED_AND_AUDITED` — 2026-07-17
+
+P6 schema实施反证发现两项新的可实现性缺口；主审沿Level 3→5→6→8纵向审计后确认第一项还关联三处同源
+合同断点：
+
+1. `perception.dedup.resolve@1`的正式输入只有Record identity/digest与Rule revision/digest，缺少请求fact kind、
+   Query Identity Evidence、Record value/Anchor/Provenance/lineage以及可执行Rule语义；pure Executor无法按
+   `5.9.2`选择winner，又被`8.7.1`禁止旁读Store；
+2. `CanonicalQueryHandle`的概念定义要求typed input，但mandatory字段只保留`inputDigest`，无法作为可读取Query；
+3. Resolution revision没有冻结`recordSetDigest/ruleDigest`或完整typed found/not_found结果，Facade无法证明返回
+   value/provenance对应哪份输入切片；
+4. winner matching与`duplicate_of` proof没有分离，存在把fuzzy match或相同值误提交为duplicate relation的风险；
+5. `people_person_revisions.content_scope`既不属于Level 3 Person模型，也不存在于Registration Candidate或
+   Acceptance Decision，People Commit无法从正式输入产生该字段。
+
+以上均属于Accepted User Perception/People Owner内部的typed input、决策可执行性与Schema数据守恒，不改变
+用户旅程、Domain、Handoff、公开API或不可逆授权。Bounded change set为：
+
+- `PerceptionResolutionInputAssembler`成为Perception Application内唯一Resolution输入准备组件；它可以读取
+  本域Repository并按同一Rule的retrieval clauses冻结完整候选超集，但不得决定winner、冲突或duplicate；
+- `perception.dedup.resolve@1`正式输入改为
+  `PerceptionResolutionQuery + PerceptionResolutionRecordSet + PerceptionResolutionRuleSnapshot`；三者均有
+  bounded typed schema和独立digest，Executor保持pure且禁止Store/Provider/Foundation旁读；
+- `CanonicalQueryHandle`补回bounded `typedInputSchemaRef + typedInput`并验证`inputDigest`，digest-only Handle不再
+  合法；
+- 版本化Rule Snapshot携带candidate retrieval、Anchor matcher/strength、同tier conflict、duplicate proof与
+  candidate bound的可执行声明式语义；Beta固定最高strength同值found、同tier冲突not_found，不按数组/DB顺序
+  猜winner；fuzzy match和相同value不能单独证明duplicate；
+- `perception_records.record_digest`冻结Record标量与Anchor set；Resolution revision持久化query/fact kind、
+  record/rule digests及完整typed Result，Resolution/head/duplicate relation/typed Result/marker同事务；
+- 增加Perception Resolution crash/contract fixture，覆盖retracted/superseded、缺kind、同值、同tier冲突、fuzzy
+  duplicate反证、三重digest freshness与重放；
+- 删除孤立的`people_person_revisions.content_scope`。Person继续是全局Registry，媒体content profile和
+  Media-Cast relation仍由媒体事实Owner维护，不新增默认值、support column或隐藏输入。
+
+Post-change audit：
+
+```text
+CAPABILITY REFS                 112 / 112 unique
+RESULT FAMILIES                 unchanged: 96
+RELATIONAL TABLES               unchanged: 160
+PERCEPTION RESOLVER INPUT       typed query + complete record set + executable rule snapshot
+PURE EXECUTOR STORE READ        forbidden; owner assembler is the only repository reader
+WINNER / DUPLICATE PROOF        separated and deterministic
+RESOLUTION COMMIT CONTINUITY    query/record/rule → draft → revision/head/result closed
+CANONICAL QUERY PAYLOAD         bounded typed value present; digest-only handle rejected
+PEOPLE CONTENT_SCOPE            removed; no orphan schema field or invented default
+NEW BUSINESS DECISION           none
+```
+
+该修正不打开Implementation Gate。实现必须通过generated JSON Schema、Resolver fixtures、SQLite Resolution
+commit/replay probe和orphan-column audit证明遵守合同；不得在Executor中查询Perception Store、按输入顺序挑
+winner、把fuzzy match写成duplicate，或为People自行补一个`content_scope`默认值。
