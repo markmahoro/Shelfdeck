@@ -1,6 +1,7 @@
 'use strict';
 
 const PORT_METHODS = Object.freeze({
+  ArtifactQueryPort: Object.freeze(['query']),
   WorkSubmissionPort: Object.freeze(['submit']),
   WorkQueryPort: Object.freeze(['getWork', 'listActivity']),
   CanonicalQueryRegistryPort: Object.freeze(['registerProvider']),
@@ -35,6 +36,7 @@ function bindPort(portName, implementation) {
 }
 
 function WorkSubmissionPort(implementation) { return bindPort('WorkSubmissionPort', implementation); }
+function ArtifactQueryPort(implementation) { return bindPort('ArtifactQueryPort', implementation); }
 function WorkQueryPort(implementation) { return bindPort('WorkQueryPort', implementation); }
 function CanonicalQueryRegistryPort(implementation) { return bindPort('CanonicalQueryRegistryPort', implementation); }
 function DomainCommitRegistryPort(implementation) { return bindPort('DomainCommitRegistryPort', implementation); }
@@ -43,6 +45,7 @@ function MaterialControlPort(implementation) { return bindPort('MaterialControlP
 function FoundationHealthPort(implementation) { return bindPort('FoundationHealthPort', implementation); }
 
 module.exports = Object.freeze({
+  ArtifactQueryPort,
   CanonicalQueryRegistryPort,
   CommandReceiptPort,
   DomainCommitRegistryPort,

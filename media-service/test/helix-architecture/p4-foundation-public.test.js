@@ -7,11 +7,11 @@ const test = require('node:test');
 const foundationPublic = require('../../src/helix/foundation/public');
 
 const expectedPorts = [
-  'CanonicalQueryRegistryPort', 'CommandReceiptPort', 'DomainCommitRegistryPort', 'FoundationHealthPort',
+  'ArtifactQueryPort', 'CanonicalQueryRegistryPort', 'CommandReceiptPort', 'DomainCommitRegistryPort', 'FoundationHealthPort',
   'MaterialControlPort', 'WorkQueryPort', 'WorkSubmissionPort'
 ];
 
-test('Foundation public package exposes exactly the seven SSOT ports', () => {
+test('Foundation public package preserves the seven P4 ports and adds the P5 Artifact query port', () => {
   assert.deepEqual(Object.keys(foundationPublic).sort(), expectedPorts);
   const submission = foundationPublic.WorkSubmissionPort({ submit: (definition) => definition.workId });
   assert.equal(submission.submit({ workId: 'work-1' }), 'work-1');

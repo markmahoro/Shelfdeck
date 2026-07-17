@@ -6,6 +6,7 @@ const path = require('node:path');
 const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
 
 const EXPECTED_MODULES = Object.freeze([
+  'artifact-repository.js',
   'commit-foundation.js',
   'ddl-compiler.js',
   'domain-commit-registry.js',

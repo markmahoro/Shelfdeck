@@ -7,11 +7,12 @@ const test = require('node:test');
 
 const platformPublic = require('../../src/helix/platform/public');
 const integrations = require('../../src/helix/integrations');
+const foundationPublic = require('../../src/helix/foundation/public');
 const catalog = require('../../src/helix/contracts/ports/p5-public-port-contracts.json');
 
 const EFFECT_CLASSES = new Set(['pure_observation', 'workspace_write', 'external_request']);
 const PLATFORM_EXPORTS = [
-  'AdminCredentialRevisionQueryPort', 'ArtifactQueryPort', 'ComputeDeviceQueryPort',
+  'AdminCredentialRevisionQueryPort', 'ComputeDeviceQueryPort',
   'IntegrationHandleResolverPort', 'IntegrationQueryPort', 'MountScopeResolverPort',
   'ResourceProfileQueryPort', 'SecretLeaseResolverPort', 'WorkerHandleResolverPort',
   'WorkspaceRootResolverPort'
@@ -29,8 +30,8 @@ test('P5 nominal port catalog is exact, typed, bounded, fenced, and owner-declar
 
   for (const contract of catalog.contracts) {
     assert.match(contract.portId, /@1$/);
-    assert.ok(['platform.public', 'integrations'].includes(contract.packageId));
-    assert.ok(['platform-settings', 'integration-boundary'].includes(contract.owner));
+    assert.ok(['platform.public', 'foundation.public', 'integrations'].includes(contract.packageId));
+    assert.ok(['platform-settings', 'execution-foundation', 'integration-boundary'].includes(contract.owner));
     assert.ok(['query', 'resolve', 'execute'].includes(contract.method));
     assert.match(contract.inputSchemaRef, /^helix:\/\/contracts\/ports\/.+\/v1\/input$/);
     assert.match(contract.outputSchemaRef, /^helix:\/\/contracts\/ports\/.+\/v1\/output$/);
@@ -48,13 +49,16 @@ test('P5 nominal port catalog is exact, typed, bounded, fenced, and owner-declar
 test('Platform and Integration entry points export only nominal factories plus package identity', () => {
   assert.deepEqual(Object.keys(platformPublic).filter((key) => key !== 'PACKAGE_ID').sort(), PLATFORM_EXPORTS);
   assert.deepEqual(Object.keys(integrations).filter((key) => key !== 'PACKAGE_ID').sort(), INTEGRATION_EXPORTS);
+  assert.equal(typeof foundationPublic.ArtifactQueryPort, 'function');
   assert.equal(platformPublic.PACKAGE_ID, 'platform.public');
   assert.equal(integrations.PACKAGE_ID, 'integrations');
 
   const platformPort = platformPublic.MountScopeResolverPort({ resolve: (input) => input });
   const integrationPort = integrations.ContentHashPort({ execute: (input) => input });
+  const artifactPort = foundationPublic.ArtifactQueryPort({ query: (input) => input });
   assert.deepEqual(platformPort.resolve({ scope: 'scope-1' }), { scope: 'scope-1' });
   assert.deepEqual(integrationPort.execute({ handle: 'handle-1' }), { handle: 'handle-1' });
+  assert.deepEqual(artifactPort.query({ artifactHandleId: 'artifact-1' }), { artifactHandleId: 'artifact-1' });
   assert.equal(Object.isFrozen(platformPort), true);
   assert.equal(Object.isFrozen(integrationPort), true);
 });

@@ -8,15 +8,16 @@ Audit date: 2026-07-17
 
 | SSOT contract | Implementation evidence |
 | --- | --- |
-| §8.3.8 Platform owns typed technical aggregates and publishes short-lived handles | 10 `platform.public` query/resolve nominal ports；no Platform Store exposure |
+| §8.3.8 Platform owns typed technical aggregates and publishes short-lived handles | 9 `platform.public` query/resolve nominal ports；no Platform Store exposure |
+| §8.5.10 Artifact Registry is an Execution Foundation technical fact | `ArtifactQueryPort` is published by `foundation.public`, not Platform |
 | §8.5.6 external effects use Effect Journal semantics | every Integration operation declares one P4 Effect Class、idempotency and Fence source |
 | §8.6.16 immutable typed API metadata | 17 unique `@1` port contracts with stable input/output schema refs |
 | §8.6.17 dependencies are constructor-injected, not persisted Context | factories bind one exact method and expose no Runtime/Repository/Store |
 | §8.6.18 typed handles, no bare path or mutable object | resolver boundaries return only contract-specific typed refs/handles |
 | §8.7 dependency direction | callers can import `platform.public` or `integrations`; Platform internal layers remain inaccessible |
 
-Platform公开10个技术查询/解析端口：Integration、Integration Handle、Secret Lease Handle、Mount Scope、Workspace
-Root、Artifact、Resource Profile、Compute Device、Worker Handle和Admin Credential revision。Integrations公开7个
+Platform公开9个技术查询/解析端口：Integration、Integration Handle、Secret Lease Handle、Mount Scope、Workspace
+Root、Resource Profile、Compute Device、Worker Handle和Admin Credential revision。Foundation公开Artifact Query；Integrations公开7个
 效果类型端口：Filesystem Observation、Content Hash、Media Probe、Workspace File Effect、Media Transform、External
 Provider和passive Worker Compute。它们不创建或写入任何Business Object或Domain Fact。
 

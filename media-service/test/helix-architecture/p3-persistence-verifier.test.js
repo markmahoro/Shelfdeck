@@ -8,6 +8,7 @@ const test = require('node:test');
 const Database = require('better-sqlite3');
 
 const {
+  EXPECTED_MODULES,
   assertIsolatedDatabasePath,
   verifyP3PersistenceBaseline
 } = require('../../scripts/helix-architecture/p3-persistence-verifier');
@@ -38,6 +39,7 @@ test('P3 verifier rematerializes the exact clean persistence catalog below its o
     assert.equal(result.tableCount, 156);
     assert.equal(result.indexCount, 72);
     assert.equal(result.partialUniqueCount, 19);
+    assert.deepEqual(result.persistenceModules, EXPECTED_MODULES);
   });
 });
 
