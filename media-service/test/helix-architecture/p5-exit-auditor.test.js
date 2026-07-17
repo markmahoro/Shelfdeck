@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { classifyChangedPath, prohibitedProductionFindings } = require('../../scripts/helix-architecture/p5-exit-auditor');
+const { classifyChangedPath, collectDirtyPaths, prohibitedProductionFindings } = require('../../scripts/helix-architecture/p5-exit-auditor');
 
 test('P5 Exit Audit allows only authorized propagation, Platform/Integration implementation, bounded Foundation, tooling, fixtures, and docs', () => {
   for (const file of [
@@ -38,4 +38,14 @@ test('P5 production audit rejects legacy/dual paths, startup, Domain internals, 
 test('P5 production audit does not treat scripts and negative fixtures as production adapters', () => {
   assert.deepEqual(prohibitedProductionFindings('media-service/scripts/helix-architecture/p5-example.js', "require('node:http')"), []);
   assert.deepEqual(prohibitedProductionFindings('media-service/test/helix-architecture/p5-example.test.js', 'kairox fallback'), []);
+});
+
+test('P5 clean-tree audit uses authoritative content and untracked scopes instead of porcelain stat noise', () => {
+  const outputs = new Map([
+    ['diff --name-only', 'tracked.js\nshared.js'],
+    ['diff --cached --name-only', 'staged.js\nshared.js'],
+    ['ls-files --others --exclude-standard', 'untracked.js']
+  ]);
+  const fakeGit = (_root, args) => ({ stdout: outputs.get(args.join(' ')) || '' });
+  assert.deepEqual(collectDirtyPaths('ignored', fakeGit), ['shared.js', 'staged.js', 'tracked.js', 'untracked.js']);
 });

@@ -94,6 +94,16 @@ function evidencePresent(changedFiles, requirement) {
     : changedFiles.some((file) => file.startsWith(prefix + requirement) && file.endsWith('.md'));
 }
 
+function collectDirtyPaths(repositoryRoot, runGit = git) {
+  const commands = [
+    ['diff', '--name-only'],
+    ['diff', '--cached', '--name-only'],
+    ['ls-files', '--others', '--exclude-standard']
+  ];
+  return [...new Set(commands.flatMap((args) => runGit(repositoryRoot, args).stdout
+    .split(/\r?\n/).filter(Boolean).map(normalize)))].sort();
+}
+
 function auditP5Exit(options) {
   const repositoryRoot = path.resolve(options.repositoryRoot);
   const findings = [];
@@ -128,8 +138,8 @@ function auditP5Exit(options) {
   if (changedFiles.some((file) => file.startsWith('tests/') || /(?:dockerfile|docker\/|deploy-nas|build-image)/i.test(file))) findings.push({ code: 'EXTERNAL_OR_DEPLOYMENT_SCOPE_TOUCHED_DURING_P5' });
   if (changedFiles.some((file) => /^media-service\/(?:src\/(?:server|app)\.js|web\/)/.test(file))) findings.push({ code: 'PRODUCT_API_UI_SCOPE_TOUCHED_DURING_P5' });
   if (changedFiles.some((file) => /^media-service\/src\/helix\/domains\//.test(file))) findings.push({ code: 'BUSINESS_DOMAIN_TOUCHED_DURING_P5' });
-  const status = git(repositoryRoot, ['status', '--porcelain']).stdout;
-  if (options.requireClean && status) findings.push({ code: 'P5_AUDIT_WORKTREE_NOT_CLEAN', status: status.split(/\r?\n/) });
+  const dirtyPaths = collectDirtyPaths(repositoryRoot);
+  if (options.requireClean && dirtyPaths.length > 0) findings.push({ code: 'P5_AUDIT_WORKTREE_NOT_CLEAN', paths: dirtyPaths });
   const trackedPlatform = git(repositoryRoot, ['ls-files', '--', 'media-service/src/helix/platform']).stdout.split(/\r?\n/).filter(Boolean);
   const trackedIntegrations = git(repositoryRoot, ['ls-files', '--', 'media-service/src/helix/integrations']).stdout.split(/\r?\n/).filter(Boolean);
   const evidence = {
@@ -163,5 +173,6 @@ module.exports = Object.freeze({
   P5_BASELINE,
   auditP5Exit,
   classifyChangedPath,
+  collectDirtyPaths,
   prohibitedProductionFindings
 });
