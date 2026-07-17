@@ -1,6 +1,6 @@
 # ShelfDeck / Helix Documentation Index
 
-Status: clean architecture accepted; P0–P6 complete; P7 ready under standing P2–P13 Local Implementation authorization; E2E, build, production and `media-desktop` changes paused.
+Status: clean architecture accepted; P0–P6 complete; P7 in progress under standing P2–P13 Local Implementation authorization; E2E, build, production and `media-desktop` changes paused.
 
 ## Architecture authority
 

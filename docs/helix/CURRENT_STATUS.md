@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Levels 0–10 accepted; P0–P6 complete; P7 ready under standing P2–P13 Local Implementation authorization; E2E, Docker/Canary, production, real-media side effects and `media-desktop` changes paused.
+Status: Levels 0–10 accepted; P0–P6 complete; P7 in progress under standing P2–P13 Local Implementation authorization; E2E, Docker/Canary, production, real-media side effects and `media-desktop` changes paused.
 
 Last updated: 2026-07-18
 
@@ -13,12 +13,12 @@ Last updated: 2026-07-18
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains |
 | Current phase | P7 — Procurement |
-| Current phase status | ready；P6 clean-tree Exit Audit PASS；112/96/161/24；SSOT exact approved blob |
+| Current phase status | in progress；P7-00 baseline receipt PASS；112/96/161/24；SSOT exact approved blob |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
-| Integration baseline | exact P6 phase closure（本次closure commit） |
-| Phase worktree | pending `E:\my_project\emby_third_party-helix-p7` on `codex/helix-p7` |
-| Next action | P7-00 isolated worktree and baseline receipt |
+| Integration baseline | exact P6 phase closure `5831c53207d5e71ccdf4792da11ed71be3d47ae1` |
+| Phase worktree | `E:\my_project\emby_third_party-helix-p7` on `codex/helix-p7` |
+| Next action | P7-01 Procurement public ports and package guards |
 
 ## 2. Accepted implementation conclusion
 

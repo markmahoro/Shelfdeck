@@ -1,6 +1,6 @@
 # P7 Procurement Detailed Plan
 
-Status: ready; P6 Exit Audit PASS; implementation starts only from exact P6 closure baseline.
+Status: in progress; P7-00 complete; P7-01 active.
 
 Last updated: 2026-07-18
 
@@ -45,6 +45,8 @@ socket、ambient credential、真实Material Field扫描、真实媒体/FFmpeg�
 
 - 从P6正式closure commit创建`codex/helix-p7`与独立worktree。
 - fresh clean checkout复跑P6 Exit Audit，冻结baseline、SSOT/P2 aggregate和禁止动作。
+- Done：`codex/helix-p7`独立worktree从`5831c532`创建；fresh P6 Exit Audit PASS，Evidence见
+  `evidence/P7_00_BASELINE_RECEIPT.md`。
 
 ### P7-01 Procurement public ports and package guards
 
