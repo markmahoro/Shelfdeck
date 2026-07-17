@@ -2,7 +2,7 @@
 
 Current phase: `P6 — Horizontal Domains`
 
-Status: in progress；P6-00 next；P5 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P6-00 complete；P6-01 next；P5 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-17
 
@@ -39,8 +39,8 @@ Workspace行为只允许fake adapter、synthetic evidence和owned temp root。
 | P0 code audit baseline | `4a16f0a94ef23fcf732843e9547bd7b724d9c19d` |
 | P5 audited implementation | `5d3bdde07bd95d5b228f46a3be16c17ea8211209` |
 | P5 Exit evidence | `evidence/P5_PHASE_EXIT_AUDIT_5D3BDDE0.md` / digest `88174039…` |
-| P6 exact phase baseline | P6-00从P5 closure commit冻结 |
-| Planned branch/worktree | `codex/helix-p6` / `E:\my_project\emby_third_party-helix-p6` |
+| P6 exact phase baseline | `41470e47ec6bed7ba1cf81024130870eb2e57e92` |
+| Phase branch/worktree | `codex/helix-p6` / `E:\my_project\emby_third_party-helix-p6` |
 | Original workspace | `E:\my_project\emby_third_party` on `master`；dirty user work preserved |
 | Excluded | Procurement/Libra/Arca实现、product startup、API/Admin Web、E2E、Docker、production、真实来源/媒体、`media-desktop` |
 
@@ -78,8 +78,8 @@ Workspace行为只允许fake adapter、synthetic evidence和owned temp root。
 
 | ID | Title | Status | Dependencies |
 | --- | --- | --- | --- |
-| P6-00 | P5 closure and isolated P6 baseline receipt | next | P5 PASS |
-| P6-01 | Horizontal-domain public ports and package guards | pending | P6-00；P2 contracts |
+| P6-00 | P5 closure and isolated P6 baseline receipt | complete | P5 PASS |
+| P6-01 | Horizontal-domain public ports and package guards | next | P6-00；P2 contracts |
 | P6-02 | User Perception scoped Store and atomic Repository | pending | P6-01；P3 Persistence |
 | P6-03 | Perception Acquisition and immutable Record pipeline | pending | P6-02；P4–P5 |
 | P6-04 | Perception dedup、Resolution and public query Facade | pending | P6-02–P6-03 |
@@ -99,6 +99,10 @@ Workspace行为只允许fake adapter、synthetic evidence和owned temp root。
 - Commit P5 Evidence、archive和P6 packet；freeze exact closure commit。
 - 从closure创建独立`codex/helix-p6` worktree，重跑P5 Exit Audit并确认原dirty workspace与`media-desktop`未变。
 - P6实现开始前记录branch、worktree、HEAD、SSOT blob/source-map和P2 aggregate。
+- Done: P5 closure `41470e47`冻结为P6 baseline，并创建独立`codex/helix-p6` /
+  `E:\my_project\emby_third_party-helix-p6`。Fresh checkout完整P5 Exit复审PASS：401个变更文件全部分类、10个P5 fixture
+  families、31个恢复场景、P3/P4/architecture回归全部通过，findings与prohibited actions均为空。原dirty workspace和
+  `media-desktop`未写入。Evidence: `evidence/P6_00_BASELINE_RECEIPT.md`。
 
 ### P6-01 Horizontal-domain public ports and package guards
 

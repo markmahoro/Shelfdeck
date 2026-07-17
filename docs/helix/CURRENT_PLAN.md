@@ -44,11 +44,11 @@ Work Package细节只存在于`implementation/CURRENT_PHASE.md`；当前事实�
 | --- | --- |
 | Phase | P6 — Horizontal Domains |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | in progress；P6-00 next；P5 Exit Audit PASS |
-| Implementation baseline | P6-00从P5 closure commit冻结 |
-| Phase branch/worktree | planned `codex/helix-p6` / `E:\my_project\emby_third_party-helix-p6` |
+| Status | in progress；P6-00 complete；P6-01 next；P5 Exit Audit PASS |
+| Implementation baseline | exact P5 phase closure `41470e47ec6bed7ba1cf81024130870eb2e57e92` |
+| Phase branch/worktree | `codex/helix-p6` / `E:\my_project\emby_third_party-helix-p6` |
 | Allowed now | P2–P13本地代码、unit/contract/isolated fixture、文档与Phase自动转换 |
-| Next action | P6-00 P5 closure and isolated P6 baseline receipt |
+| Next action | P6-01 Horizontal-domain public ports and package guards |
 
 ## 4. Master roadmap
 

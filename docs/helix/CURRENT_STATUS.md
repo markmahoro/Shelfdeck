@@ -13,12 +13,12 @@ Last updated: 2026-07-17
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations |
 | Current phase | P6 — Horizontal Domains |
-| Current phase status | in progress；P6-00 next；P5 Exit Audit PASS |
+| Current phase status | in progress；P6-00 complete；P6-01 next；P5 Exit Audit PASS |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
-| Integration baseline | P6-00从P5 closure commit冻结 |
-| Phase worktree | planned `E:\my_project\emby_third_party-helix-p6` on `codex/helix-p6` |
-| Next action | P6-00 P5 closure and isolated P6 baseline receipt |
+| Integration baseline | exact P5 phase closure `41470e47ec6bed7ba1cf81024130870eb2e57e92` |
+| Phase worktree | `E:\my_project\emby_third_party-helix-p6` on `codex/helix-p6` |
+| Next action | P6-01 Horizontal-domain public ports and package guards |
 
 ## 2. Accepted implementation conclusion
 
@@ -324,3 +324,10 @@ P3 156 tables/72 indexes/19 partial unique及18 transactions/132 fault points全
 Evidence digest为`8817403970291024b145248dbf674165964cbf7c9af0d3d32abf6cdb14102d81`，详见
 `implementation/evidence/P5_PHASE_EXIT_AUDIT_5D3BDDE0.md`。P5已归档并自动打开P6；下一检查点是P6-00 P5 closure与
 隔离P6 baseline receipt。没有需要用户决定的业务问题。
+
+P6-00已完成：从精确P5 phase closure `41470e47ec6bed7ba1cf81024130870eb2e57e92`创建独立
+`codex/helix-p6` / `E:\my_project\emby_third_party-helix-p6`。Fresh checkout完整P5 Exit复审再次PASS，closure
+evidence digest为`d17ace651cfea4b20a953ac4b0824e110c391d3559abbb97a17ccdb4b5d6c51f`；SSOT blob/source-map与P2
+aggregate保持精确匹配，401个变更文件全部分类，findings和prohibited actions为空。原dirty workspace及
+`media-desktop`未写入。证据见`implementation/evidence/P6_00_BASELINE_RECEIPT.md`。下一步P6-01 Horizontal-domain
+public ports and package guards。没有需要用户决定的业务问题。
