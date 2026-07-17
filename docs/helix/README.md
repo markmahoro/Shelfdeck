@@ -1,6 +1,6 @@
 # ShelfDeck / Helix Documentation Index
 
-Status: clean architecture accepted; P0–P3 complete; P4 in progress under standing P2–P13 Local Implementation authorization; E2E, build and production paused.
+Status: clean architecture accepted; P0–P5 complete; P6 in progress under standing P2–P13 Local Implementation authorization; E2E, build, production and `media-desktop` changes paused.
 
 ## Architecture authority
 
@@ -21,7 +21,8 @@ Status: clean architecture accepted; P0–P3 complete; P4 in progress under stan
 | `CURRENT_PLAN.md` | 唯一Master Plan；只维护Phase路线、依赖、Exit Gate、当前Phase指针和授权边界 |
 | `CURRENT_STATUS.md` | 当前Phase、Gate、Evidence、风险和安全状态；不保存详细执行计划 |
 | `ENGINEERING_PLAYBOOK.md` | 非Canonical长期工程规范；Work Package、Ready/Done、门禁、验证、Review、复用和停线规则 |
-| `implementation/CURRENT_PHASE.md` | 唯一活动P4详细执行包；Execution and Recovery Foundation |
+| `implementation/CURRENT_PHASE.md` | 唯一活动P6详细执行包；Horizontal Domains |
+| `FUTURE_PRODUCT_CAPABILITIES.md` | 非Canonical Post-Beta能力保留；不属于活动计划或实现授权 |
 | `implementation/evidence/IMPLEMENTATION_GAP_AUDIT_4a16f0a9.md` | 已关闭的`4a16f0a9`实现差距矩阵、处置与风险Evidence |
 | `implementation/evidence/P1_PHASE_EXIT_AUDIT_9a4d9b1f.md` | P1 Exit Audit、隔离验证结果、manifest digest和已知限制 |
 | `implementation/evidence/P2_PHASE_EXIT_AUDIT_A7357810.md` | P2 Exit Audit、112/96/156/18 baseline、tracked-artifact复现性和安全边界 |

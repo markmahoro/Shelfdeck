@@ -2,7 +2,7 @@
 
 Status: Levels 0–10 accepted; P0–P5 complete; P6 in progress under standing P2–P13 Local Implementation authorization; E2E, Docker/Canary, production, real-media side effects and `media-desktop` changes paused.
 
-Last updated: 2026-07-17
+Last updated: 2026-07-18
 
 ## 1. Current position
 

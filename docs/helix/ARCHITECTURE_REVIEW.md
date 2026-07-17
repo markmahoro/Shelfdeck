@@ -1456,3 +1456,98 @@ NEW BUSINESS DECISION           none
 该修正不打开Implementation Gate。实现必须通过generated JSON Schema、Resolver fixtures、SQLite Resolution
 commit/replay probe和orphan-column audit证明遵守合同；不得在Executor中查询Perception Store、按输入顺序挑
 winner、把fuzzy match写成duplicate，或为People自行补一个`content_scope`默认值。
+
+### 15.6 `PBF-06` — Reference Image、Person discovery、Media-Cast与Metadata闭合
+
+Status: `CLOSED / DOC_FIX APPLIED_AND_AUDITED` — 2026-07-18
+
+P6-08实现反证证明原Reference合同无法从通用`ArtifactHandle`唯一产生Reference Asset/Face事实：缺少业务
+discriminator、稳定ID、Face来源、Embedding/model、expected revision/state、Projection digest及正式Face命令。
+随后沿Person用户旅程、On-deck NFO人物发现、Media-Cast Owner和Product Metadata补齐链做纵向审计，确认还有
+四项同源的“概念存在但正式输入/交付不闭合”问题：
+
+1. 用户直接注册Person与Reference添加没有明确分成两个事务；
+2. “系统从Deck Facts发现Person”没有可执行的Arca Projection → People Candidate路径；
+3. Libra Media-Cast只交付digest摘要，Arca无法在不旁读Libra/People的情况下保存完整relation，未注册人物也
+   没有正式表示；
+4. `libra.product_metadata.fetch@1`没有表达Related NFO与Provider的单来源意图及Beta来源顺序。
+
+用户确认的产品语义为：
+
+- 用户只管理Reference Image；Reference Face是从一张图片内部派生的事实，不暴露增删命令；
+- 一张Reference Image必须恰好包含一张人脸，零张或多张均拒绝；
+- direct Person Registration先独立成立，Reference Image可随后上传或跳过，失败不回滚Person；
+- 系统周期消费Arca从On-deck NFO发布的人物Evidence；stable Provider Person Identity可自动接受强Candidate，
+  name/alias/image/face等弱Evidence只形成用户Candidate；
+- 联网搜索演员图片只是独立便利能力，不属于注册或Candidate，明确延后到Post-Beta并记录于
+  `FUTURE_PRODUCT_CAPABILITIES.md`；
+- Movie/Series Product Metadata固定Related NFO优先、TMDB补缺，JAV使用JAV Provider，Western Adult使用
+  Libra既有自建分析；不建设Metadata Center或隐藏fallback。
+
+Bounded change set保持五Domain、Owner、Handoff、112项Capability与113个Admin route不变：
+
+- 新增formal `DirectPersonRegistrationDecision`、`PeopleReferenceMaintenanceDecision`、
+  `MetadataFetchIntent`、`MetadataObservationSet`、`OnDeckPersonEvidenceProjection`与完整
+  `PersonReferenceProjection` typed合同；
+- `people.reference_fact.commit@1`只消费完整Reference Decision；add同时建立稳定Asset/Face，release同时终结
+  二者，CommitParticipant禁止旁读Artifact/Foundation/Workspace补字段；
+- 增加`people_reference_revisions`及Person current reference pointer，关系表由160变为161，`people_*`由12变为13；
+- Merge不复制Reference；target Projection按correlation展开source贡献并把每个source revision/digest计入
+  Projection digest；
+- People public命令只保留`addReferenceImage/releaseReferenceImage`，不存在Face命令；
+- Arca现有Presentation Assessment发布NFO人物Projection；People现有Planner/Coordinator/Candidate链消费；
+  Arca只按exact Provider identity、accepted Candidate origin Evidence或Merge correlation确定性修正自己拥有的
+  Media-Cast；
+- `MediaCastFact`与On-deck Product Package携带完整relation snapshot，未注册关系以`personId=null`保存；
+- 既有Production Planner选择来源并在每次durable Observation后重新计算Gap；一次metadata fetch只观察一个
+  来源，Provider Adapter不选择fallback、不写Fact。
+
+P6-08原始设计返回逐项复核：
+
+```text
+Asset/Face discriminator       CLOSED: add_image | release_image；Face随Image派生
+stable asset/face IDs          CLOSED: Coordinator预分配并进入digest-bound Decision
+Face source/embedding/model    CLOSED: exact Artifact + single FaceEmbeddingSet + modelRef
+expected revision/state        CLOSED: Person/reference CAS + active→released terminal
+Projection revision/digest     CLOSED: nullable local ref pointer + persisted projection checkpoint + named JCS bases
+Merge correlation projection  CLOSED: expand without copying; contributor revisions in digest
+Face facade command            CLOSED BY PRODUCT DECISION: no user/internal public Face command
+partial commit/replay          CLOSED IN CONTRACT: one People transaction + durable typed result
+CAPABILITY REFS                unchanged: 112
+RESULT FAMILIES                unchanged: 96
+RELATIONAL TABLES              161 / 161 unique
+NEW BUSINESS DOMAIN/HANDOFF    none
+OPEN BUSINESS DECISION         none
+```
+
+结论：`P6-08 architecture-blocking design return = RESOLVED`。该结论只表示SSOT已给出唯一可实现合同；P6-08仍须
+以generated schemas、SQLite deferred FK/CAS、zero/one/multi-face fixtures、add/release crash-replay、Merge
+Projection digest fixture及static boundary audit证明实现遵守合同。联网图片搜索不属于P6-08 Beta验收，不能
+用复用Registration Evidence或隐藏Provider调用的方式提前实现。
+
+### 15.7 `PBF-06-R1` — Reference Projection formal realizability follow-up
+
+Status: `CLOSED / BOUNDED DETAIL FIX APPLIED` — 2026-07-18
+
+PBF-06实现复审确认Reference add/release原子事务及原Design Return其余项目已经闭合，但指出三项不会改变产品
+语义或结构的formal-realizability gap：无Reference的Projection无法表达、四类Reference digest没有唯一basis、
+`projectionRevision`缺少初值和持久恢复规则。该问题不要求新的业务决策，也不改变Domain、Owner、Handoff、
+Capability、Facade命令、Face产品语义或关系表数量。
+
+有界修正固定为：
+
+- `PersonReferenceProjection.currentReferenceRevision`是`null|positive`并且只表示查询Person的local pointer；
+  从未提交local Reference时为JSON `null`，无Merge contribution才返回空数组，merged-source只读贡献不受该
+  null影响；曾有local Reference但active集合为空仍保存正整数revision和owner空集合Contribution；
+- Reference ID集合统一按exact ID的UTF-8 bytes升序；`activeAssetSetDigest`、`activeFaceSetDigest`和
+  `referenceSetDigest`分别使用带固定schema discriminator的命名JCS object；`factDigest`覆盖排除自身后的完整
+  `PersonReferenceRevision`，不得使用数据库行顺序、locale sort或另一套storage basis；
+- Projection semantic digest明确排除`projectionRevision`与`projectionDigest`，覆盖
+  `projectionContract/personId/personRevision/currentReferenceRevision/contributions`；
+- `people_persons`保存`current_reference_projection_revision/digest`技术checkpoint。Person成立时revision固定
+  为`1`；任何改变basis的People事务在同一事务内按digest变化CAS递增，GET不补写；进程重启或payload cache
+  重建必须由Canonical Facts与Merge correlation重算相同digest并复用checkpoint，缺失或不一致形成明确系统
+  invariant violation，禁止lazy default或revision reset。
+
+因此本修正仍是对既有PBF-06合同的细化，不新增表或架构结构。实现线程后续对null fixture、digest golden
+fixture、首次revision、Reference/Merge后递增及restart rebuild continuity进行验证即可反证本合同。
