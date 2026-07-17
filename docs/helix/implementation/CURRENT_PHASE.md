@@ -2,7 +2,7 @@
 
 Current phase: `P5 — Platform and Integrations`
 
-Status: in progress；P5-00–P5-09 complete；P5-10 next；P4 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；P5-00–P5-10 complete；P5-11 next；P4 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-17
 
@@ -72,8 +72,8 @@ Registry、Resource/Worker Registry，以及Filesystem/Hash/FFmpeg/Provider/Work
 | P5-07 | Filesystem transaction、probe/hash and FFmpeg atoms | complete | P5-03–P5-05 |
 | P5-08 | Resource、device and passive Worker registries/protocol | complete | P5-01–P5-03；P4 Governor |
 | P5-09 | Material Access Handle issuer and Fence enforcement | complete | P5-03–P5-08；P3 Control、P4 Fence |
-| P5-10 | Cross-platform isolated integration verification harness | next | P5-01–P5-09 |
-| P5-11 | P5 Phase Exit Audit and evidence freeze | pending | P5-00–P5-10 |
+| P5-10 | Cross-platform isolated integration verification harness | complete | P5-01–P5-09 |
+| P5-11 | P5 Phase Exit Audit and evidence freeze | next | P5-00–P5-10 |
 
 ## 7. Work Package contracts
 
@@ -195,6 +195,11 @@ Registry、Resource/Worker Registry，以及Filesystem/Hash/FFmpeg/Provider/Work
 - One local command verifies all registries、ports、redaction、containment、identity、Artifact、Provider、FFmpeg and Worker contracts.
 - Inject fake crashes around staged/observed/promoted/receipt boundaries and prove stable P4 recovery without duplicate fake effect.
 - Harness cannot read ambient credentials、start Service、bind ports、invoke real binaries/network or access non-temp media.
+- Done: `npm run test:helix-platform` runs the exact ten P5 fixture families and the accepted 31-scenario P4 cross-process recovery
+  matrix from one Node-only command. Named staged、observed、promoted and receipt boundaries each converge with one fake dispatch.
+  Exact fixture allowlist、owned OS temp root and static prohibited-import counterexamples prevent product startup、network、credentials、
+  real tools/media or legacy Runtime. Full architecture/P3/P4 gates PASS. Evidence:
+  `evidence/P5_10_ISOLATED_INTEGRATION_HARNESS.md`.
 
 ### P5-11 P5 Phase Exit Audit and evidence freeze
 

@@ -15,6 +15,7 @@
     "test:helix-persistence-exit": "node scripts/helix-p3-exit-audit.js --require-clean",
     "test:helix-runtime": "node scripts/helix-p4-runtime-verify.js",
     "test:helix-runtime-exit": "node scripts/helix-p4-exit-audit.js --require-clean",
+    "test:helix-platform": "node scripts/helix-p5-integration-verify.js",
     "build:web": "cd web && npm run build",
     "helix:clean-init": "node scripts/helix-clean-init.js",
     "dist:win": "node scripts/package-win.js"

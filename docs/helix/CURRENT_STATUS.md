@@ -13,12 +13,12 @@ Last updated: 2026-07-17
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation |
 | Current phase | P5 — Platform and Integrations |
-| Current phase status | in progress；P5-00–P5-09 complete；P5-10 next；P4 Exit Audit PASS |
+| Current phase status | in progress；P5-00–P5-10 complete；P5-11 next；P4 Exit Audit PASS |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P4 phase closure `5dd0b7094ea35cc04c7ba931fd109467462d0af6` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p5` on `codex/helix-p5` |
-| Next action | P5-10 Cross-platform isolated integration verification harness |
+| Next action | P5-11 P5 Phase Exit Audit and evidence freeze |
 
 ## 2. Accepted implementation conclusion
 
@@ -308,3 +308,11 @@ authority slice，Grant单次消费，stale/escape/replay均在effect前失败�
 synthetic Owner/Reality adapters，未触碰真实媒体。证据见
 `implementation/evidence/P5_09_MATERIAL_ACCESS_FENCE.md`。下一步P5-10 cross-platform isolated integration verification
 harness。没有需要用户决定的业务问题。
+
+P5-10已完成：新增`npm run test:helix-platform`跨平台Node-only isolated verification命令，精确运行10组P5 fixture
+family并复用P4既有31场景cross-process crash verifier，不建立第二套Runtime。Workspace staged/observed、Material promoted
+和External receipt四个命名边界均收敛为一次fake dispatch；缺场景、错误Decision、重复dispatch、非OS临时目录或fixture
+allowlist漂移全部fail closed。统一命令、62-file architecture、P3 persistence及P4 runtime门禁PASS；未启动Service、绑定
+端口、读取ambient credential、调用真实network/binary/media、Docker或`media-desktop`。证据见
+`implementation/evidence/P5_10_ISOLATED_INTEGRATION_HARNESS.md`。下一步P5-11 P5 Phase Exit Audit and evidence freeze。
+没有需要用户决定的业务问题。
