@@ -71,7 +71,7 @@ function orderedDomainTables(contract, owner) {
   const remaining = new Set(tables);
   const ordered = [];
   while (remaining.size > 0) {
-    const ready = [...remaining].filter((tableId) => tableContract(tableId).foreignKeys.every((foreignKey) =>
+    const ready = [...remaining].filter((tableId) => tableContract(tableId).foreignKeys.every((foreignKey) => foreignKey.deferrable ||
       !remaining.has(foreignKey.targetTable) || !foreignKey.columns.some((column) => tableContract(tableId).primaryKey.includes(column))
     )).sort();
     assert.ok(ready.length > 0, 'Domain fixture FK graph must be acyclic: ' + contract.transactionId);
@@ -96,6 +96,7 @@ function valueFor(tableId, column, definition, owner, sequence) {
   if (column.endsWith('_algorithm')) return 'sha256';
   if (column === 'owner_domain') return owner;
   if (definition.logicalType.startsWith('INTEGER')) return column.endsWith('_guard') ? 0 : 1;
+  if (definition.logicalType === 'REAL' || definition.logicalType === 'INTEGER_OR_REAL') return 1;
   return tableId + '-' + column + '-' + sequence;
 }
 
@@ -116,12 +117,45 @@ function domainRows(contract, owner) {
         row[column] = null;
         continue;
       }
+      if (foreignKey && !rows.has(foreignKey.targetTable)) {
+        row[column] = null;
+        continue;
+      }
       if (foreignKey && rows.has(foreignKey.targetTable)) {
         const offset = foreignKey.columns.indexOf(column);
         row[column] = rows.get(foreignKey.targetTable)[foreignKey.targetColumns[offset]];
         continue;
       }
       row[column] = valueFor(tableId, column, definition, owner, sequence);
+    }
+    if (tableId === 'people_registration_candidates') {
+      row.candidate_json = JSON.stringify({ proposedName: row.proposed_name });
+    }
+    if (tableId === 'people_merge_candidates') {
+      row.candidate_json = JSON.stringify({
+        leftPersonRef: { personId: row.left_person_id, revision: row.left_person_revision },
+        rightPersonRef: { personId: row.right_person_id, revision: row.right_person_revision }
+      });
+    }
+    if (tableId === 'people_person_revisions') {
+      const direct = contract.transactionId === 'helix.transaction.direct-person-registration';
+      row.origin_kind = direct ? 'direct' : 'candidate';
+      row.origin_decision_id = direct ? 'fixture-direct-registration' : null;
+      row.origin_decision_digest = direct ? digest('fixture-direct-registration') : null;
+      row.origin_candidate_kind = direct ? null : 'registration';
+      row.origin_candidate_id = direct ? null : 'fixture-registration-candidate';
+      row.origin_candidate_revision = direct ? null : 1;
+      row.origin_candidate_payload_digest = direct ? null : digest('fixture-registration-candidate');
+    }
+    if (tableId === 'people_reference_assets' || tableId === 'people_reference_faces') {
+      row.state = 'active';
+      row.released_reference_revision = null;
+      row.released_at_ms = null;
+    }
+    if (tableId === 'perception_resolution_revisions') {
+      row.result_kind = 'not_found';
+      row.winning_perception_id = null;
+      row.reason_code = 'no_matching_record';
     }
     rows.set(tableId, row);
   }
@@ -172,6 +206,51 @@ function markerParticipant(contract, owner, marker) {
       context.repository('fixture_marker').invoke('insert', {
         commit_marker: marker, effect_id: null, owner_domain: owner, scope_type: 'canonical_transaction',
         scope_id: contract.transactionId, commit_digest: digest(contract.transactionId), committed_at_ms: context.commitTimeMs
+      });
+    }
+  };
+}
+
+function resultBindingParticipant(contract, owner) {
+  const repository = createRepositoryDefinition({
+    repositoryId: 'fixture_result_binding', owner: 'execution-foundation', schemaManifest,
+    statements: { insert: { kind: 'insert', tableId: 'fx_event_result_bindings', columns: [
+      'result_id', 'event_id', 'outcome_kind', 'result_schema_ref', 'result_json', 'result_digest',
+      'evidence_schema_ref', 'evidence_json', 'evidence_digest', 'effect_receipt_id', 'committed_at_ms'
+    ] } }
+  });
+  return {
+    participantId: 'fixture_result_binding', owner: 'execution-foundation', boundBusinessOwner: owner, repositories: [repository],
+    execute(context) {
+      context.repository('fixture_result_binding').invoke('insert', {
+        result_id: 'result-' + digest(contract.transactionId).slice(0, 16), event_id: null, outcome_kind: 'succeeded',
+        result_schema_ref: 'helix://fixtures/CanonicalTransactionResult/v1', result_json: '{}', result_digest: digest('result/' + contract.transactionId),
+        evidence_schema_ref: 'helix://fixtures/CanonicalTransactionEvidence/v1', evidence_json: '{}',
+        evidence_digest: digest('evidence/' + contract.transactionId), effect_receipt_id: null, committed_at_ms: context.commitTimeMs
+      });
+    }
+  };
+}
+
+function commandReceiptParticipant(contract, owner) {
+  const repository = createRepositoryDefinition({
+    repositoryId: 'fixture_command_receipt', owner: 'execution-foundation', schemaManifest,
+    statements: { insert: { kind: 'insert', tableId: 'fx_command_receipts', columns: [
+      'command_receipt_id', 'owner_domain', 'command_contract', 'caller_scope', 'idempotency_key',
+      'request_digest', 'target_type', 'target_id', 'result_schema_ref', 'result_ref_json',
+      'result_digest', 'committed_at_ms'
+    ] } }
+  });
+  return {
+    participantId: 'fixture_command_receipt', owner: 'execution-foundation', boundBusinessOwner: owner, repositories: [repository],
+    execute(context) {
+      const id = contract.transactionId;
+      context.repository('fixture_command_receipt').invoke('insert', {
+        command_receipt_id: 'receipt-' + digest(id).slice(0, 16), owner_domain: owner,
+        command_contract: id, caller_scope: 'canonical-transaction-fixture', idempotency_key: id,
+        request_digest: digest('request/' + id), target_type: 'person', target_id: 'fixture-person',
+        result_schema_ref: 'helix://fixtures/CanonicalCommandResult/v1', result_ref_json: '{}',
+        result_digest: digest('command-result/' + id), committed_at_ms: context.commitTimeMs
       });
     }
   };
@@ -276,6 +355,8 @@ function participantsFor(contract, unitOfWork, options = {}) {
   const owner = businessOwner(contract);
   const result = [domainParticipant(contract, owner, options.expectedRevision || 0)];
   if (contract.fenceContract.materialControlCasRequired) result.push(controlParticipant(contract, owner, unitOfWork, options.staleControl));
+  if (contract.writeTables.includes('fx_event_result_bindings')) result.push(resultBindingParticipant(contract, owner));
+  if (contract.writeTables.includes('fx_command_receipts')) result.push(commandReceiptParticipant(contract, owner));
   result.push(markerParticipant(contract, owner, 'marker-' + digest(contract.transactionId).slice(0, 16)));
   if (contract.fenceContract.outboxRequired) result.push(outboxParticipant(contract, owner));
   return result;
@@ -322,13 +403,13 @@ function fixture(contract, run, options = {}) {
 
 const transactionContracts = contracts();
 
-test('P2 canonical transaction inventory drives exactly 18 isolated contracts', () => {
+test('P2 canonical transaction inventory drives exactly 24 isolated contracts', () => {
   const inventory = loadJson(path.join(serviceRoot, 'src/helix/contracts/manifests/transaction-inventory.json'));
   const inventoryEntries = inventory.entryFiles.flatMap((file) =>
     loadJson(path.join(serviceRoot, 'src/helix/contracts/manifests', file)).entries
   );
-  assert.equal(transactionContracts.length, 18);
-  assert.equal(inventory.targetCount, 18);
+  assert.equal(transactionContracts.length, 24);
+  assert.equal(inventory.targetCount, 24);
   assert.deepEqual(transactionContracts.map((contract) => contract.transactionId),
     [...inventoryEntries].sort((left, right) => left.id.localeCompare(right.id)).map((entry) => entry.id));
   for (const contract of transactionContracts) {

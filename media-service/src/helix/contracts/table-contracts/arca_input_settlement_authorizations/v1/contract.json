@@ -13,7 +13,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 2,
@@ -21,7 +22,8 @@
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 3,
@@ -32,7 +34,8 @@
           "revoked"
         ],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 4,
@@ -40,7 +43,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 5,
@@ -48,7 +52,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 6,
@@ -56,7 +61,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 7,
@@ -64,7 +70,8 @@
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 8,
@@ -72,7 +79,8 @@
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       }
     ],
     "primaryKey": [
@@ -125,7 +133,7 @@
     },
     "source": {
       "section": "8.5.12",
-      "line": 7449,
+      "line": 7733,
       "lineDigest": "f5152bf12357d5fcfaf6b833ce0d5a6ba8f6ea1775c5463be3fc9c1ae8176d57"
     },
     "foreignKeys": []

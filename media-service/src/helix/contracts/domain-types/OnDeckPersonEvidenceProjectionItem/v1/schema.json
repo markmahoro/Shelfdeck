@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/OnDeckPersonEvidenceProjectionItem/v1",
+  "title": "OnDeckPersonEvidenceProjectionItem@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "projectionItemId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "shelfEntryId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "inventoryRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "relationId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "relationDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "displayName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024
+    },
+    "displayNameNormalized": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024
+    },
+    "role": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "providerIdentities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "provider": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "namespace": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "providerKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "provenanceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "provider",
+          "namespace",
+          "providerKey",
+          "provenanceDigest"
+        ]
+      },
+      "maxItems": 128
+    },
+    "originEvidenceDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "nfoObservationDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "projectionRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "projectionItemDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "projectionItemId",
+    "shelfEntryId",
+    "inventoryRevision",
+    "relationId",
+    "relationDigest",
+    "displayName",
+    "displayNameNormalized",
+    "role",
+    "providerIdentities",
+    "originEvidenceDigest",
+    "nfoObservationDigest",
+    "projectionRevision",
+    "projectionItemDigest"
+  ]
+}

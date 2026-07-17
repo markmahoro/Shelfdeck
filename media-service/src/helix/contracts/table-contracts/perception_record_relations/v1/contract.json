@@ -1,0 +1,163 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/perception_record_relations/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "perception_record_relations",
+    "owner": "perception",
+    "prefix": "perception_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "relation_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "relation_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "duplicate_of",
+          "supersedes",
+          "retracts"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "source_perception_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "target_perception_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "rule_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "committed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "relation_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "source_perception_id",
+      "target_perception_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "relation_kind",
+        "source_perception_id",
+        "target_perception_id"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "relation_kind",
+        "enumValues": [
+          "duplicate_of",
+          "supersedes",
+          "retracts"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "rule_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "immutable"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "immutable",
+      "source不得等于target",
+      "`UNIQUE(relation_kind,source_perception_id,target_perception_id)`",
+      "`duplicate_of`使用规范化pair，`supersedes|retracts`保持方向性"
+    ],
+    "rawContract": {
+      "columns": "`relation_id PK, relation_kind(duplicate_of|supersedes|retracts), source_perception_id FK, target_perception_id FK, rule_revision, evidence_digest, committed_at_ms`",
+      "constraints": "immutable；source不得等于target；`UNIQUE(relation_kind,source_perception_id,target_perception_id)`；`duplicate_of`使用规范化pair，`supersedes|retracts`保持方向性"
+    },
+    "source": {
+      "section": "8.5.13",
+      "line": 7784,
+      "lineDigest": "0ad399b268cd03ae3b531454bc9ae2b22e060b9e7987c882e71c99f580ce6481"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "source_perception_id"
+        ],
+        "targetTable": "perception_records",
+        "targetColumns": [
+          "perception_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "target_perception_id"
+        ],
+        "targetTable": "perception_records",
+        "targetColumns": [
+          "perception_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

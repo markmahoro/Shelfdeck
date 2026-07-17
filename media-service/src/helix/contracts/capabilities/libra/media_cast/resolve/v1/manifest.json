@@ -5,8 +5,8 @@
   "ownerScope": "libra",
   "effectClass": "pure_observation",
   "inputPorts": {
-    "metadataObservation": {
-      "schemaRef": "helix://contracts/capabilities/libra.media_cast.resolve/v1/inputs#/$defs/metadataObservation",
+    "metadataObservationSet": {
+      "schemaRef": "helix://contracts/capabilities/libra.media_cast.resolve/v1/inputs#/$defs/metadataObservationSet",
       "required": true,
       "cardinality": "one"
     },
@@ -29,7 +29,7 @@
   },
   "sourceLocator": {
     "section": "8.6.6",
-    "line": 7643,
-    "lineDigest": "f95414fd25dcd1f64c09fca09c023ed13c3941d1a5dc63c820930cd57e96cd3e"
+    "line": 7936,
+    "lineDigest": "b11143627ceff09b1c5fc991f02ea7ffe219c366056c92cc876ca560734755b7"
   }
 }

@@ -13,7 +13,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": true,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 2,
@@ -21,7 +22,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": true
+        "foreignKeyMarker": true,
+        "nullable": false
       },
       {
         "ordinal": 3,
@@ -29,7 +31,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 4,
@@ -42,7 +45,8 @@
           "committed"
         ],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 5,
@@ -50,7 +54,8 @@
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 6,
@@ -58,7 +63,8 @@
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       }
     ],
     "primaryKey": [
@@ -112,7 +118,7 @@
     },
     "source": {
       "section": "8.5.12",
-      "line": 7447,
+      "line": 7731,
       "lineDigest": "4c7f239ddb36b56385d04e80213c4bc1e181c7c817758c89830bc8cbe1ade276"
     },
     "foreignKeys": [
@@ -124,7 +130,8 @@
         "targetColumns": [
           "custody_id"
         ],
-        "deletePolicy": "RESTRICT"
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
       }
     ]
   }

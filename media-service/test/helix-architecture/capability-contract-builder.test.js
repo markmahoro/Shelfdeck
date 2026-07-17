@@ -8,7 +8,7 @@ const test = require('node:test');
 const { extractSsotContracts } = require('../../scripts/helix-architecture/ssot-contract-extractor');
 const { buildCapabilityPackages } = require('../../scripts/helix-architecture/capability-contract-builder');
 
-const ssot = fs.readFileSync(path.resolve(__dirname, '../../../docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md'), 'utf8');
+const ssot = fs.readFileSync(process.env.HELIX_SSOT_PATH || path.resolve(__dirname, '../../../docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md'), 'utf8');
 const extracted = extractSsotContracts(ssot);
 
 test('builds exactly one immutable eight-file package for each Catalog ref', () => {
@@ -43,8 +43,10 @@ test('moves only SSOT-declared parameter tokens out of named inputs', () => {
   assert.deepEqual(Object.keys(observe['inputs.schema.json'].properties), ['fieldAccessHandle']);
 
   const fetch = packages.find((item) => item.capabilityRef === 'libra.product_metadata.fetch@1').files;
-  assert.ok(fetch['parameters.schema.json'].properties.contentProfile);
+  assert.deepEqual(fetch['parameters.schema.json'].properties, {});
   assert.equal(fetch['inputs.schema.json'].properties.contentProfile, undefined);
+  assert.ok(fetch['inputs.schema.json'].properties.metadataFetchIntent);
+  assert.ok(fetch['inputs.schema.json'].properties.physicalMaterialReadHandleOrIntegrationHandle);
   assert.equal(fetch['manifest.json'].effectClass, 'pure_observation');
 });
 
@@ -77,7 +79,7 @@ test('non-pure capabilities require event and effect-scope fences', () => {
 test('normalizes Catalog prose without inventing parenthetical or slash-split business types', () => {
   const packages = buildCapabilityPackages(extracted.capabilities);
   const people = packages.find((item) => item.capabilityRef === 'people.candidate.commit@1').files['inputs.schema.json'];
-  assert.equal(people.$defs.peopleCandidateDraftRegistrationOrMerge.$ref, 'helix://contracts/types/PeopleCandidateDraft/v1');
+  assert.equal(people.$defs.peopleCandidateDraft.$ref, 'helix://contracts/types/PeopleCandidateDraft/v1');
   assert.equal(JSON.stringify(people).includes('/Merge/v1'), false);
 
   const settlement = packages.find((item) => item.capabilityRef === 'arca.ondeck.input_settlement.delete@1').files['inputs.schema.json'];

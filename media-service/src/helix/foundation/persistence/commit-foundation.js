@@ -2,6 +2,7 @@
 
 const { digest } = require('./ddl-compiler');
 const { createRepositoryDefinition } = require('./owner-repository');
+const { createOutboxParticipant } = require('./outbox-inbox');
 
 const SHA256 = /^[0-9a-f]{64}$/;
 
@@ -119,7 +120,8 @@ function createCommandCommitCoordinator(options) {
   return Object.freeze({
     execute(request) {
       if (!request || !request.command || !request.domainParticipant || !request.commitMarker ||
-          !Array.isArray(request.auditRecords) || request.auditRecords.length === 0 || typeof request.resultEnvelope !== 'function') {
+          !Array.isArray(request.auditRecords) || request.auditRecords.length === 0 || typeof request.resultEnvelope !== 'function' ||
+          request.outboxMessages !== undefined && !Array.isArray(request.outboxMessages)) {
         fail('P3_COMMAND_INVALID_REQUEST', 'Command, Domain participant, marker, audit records, and Result encoder are required.');
       }
       const command = request.command;
@@ -133,6 +135,9 @@ function createCommandCommitCoordinator(options) {
       let domainResult;
       let receipt;
       try {
+        const outboxParticipant = request.outboxMessages && request.outboxMessages.length > 0
+          ? createOutboxParticipant({ schemaManifest: options.schemaManifest, producerDomain: command.ownerDomain,
+            participantId: 'command_outbox', messages: request.outboxMessages }) : null;
         const results = options.unitOfWork.execute([
           {
             participantId: 'command_preflight', owner: 'execution-foundation', boundBusinessOwner: command.ownerDomain, repositories: [repositories.receipts],
@@ -157,6 +162,7 @@ function createCommandCommitCoordinator(options) {
               return domainResult;
             }
           },
+          ...(outboxParticipant ? [outboxParticipant] : []),
           {
             participantId: 'commit_foundation', owner: 'execution-foundation', boundBusinessOwner: command.ownerDomain,
             repositories: [repositories.receipts, repositories.markers, repositories.audit],
@@ -225,7 +231,8 @@ function createCommandCommitCoordinator(options) {
             }
           }
         ]);
-        return Object.freeze({ replayed: false, receipt: results.commit_foundation, domainResult: results[request.domainParticipant.participantId] });
+        return Object.freeze({ replayed: false, receipt: results.commit_foundation,
+          domainResult: results[request.domainParticipant.participantId], outboxResult: results.command_outbox });
       } catch (error) {
         if (error instanceof ReplaySignal) return Object.freeze({ replayed: true, receipt: error.receipt, domainResult: undefined });
         throw error;

@@ -13,7 +13,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": true
+        "foreignKeyMarker": true,
+        "nullable": false
       },
       {
         "ordinal": 2,
@@ -21,39 +22,122 @@
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 3,
+        "name": "person_status",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "active",
+          "merged"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
         "name": "canonical_name",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
-      },
-      {
-        "ordinal": 4,
-        "name": "content_scope",
-        "logicalType": "TEXT",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 5,
+        "name": "merged_into_person_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 6,
+        "name": "origin_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "direct",
+          "candidate"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "origin_decision_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "origin_decision_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "origin_candidate_kind",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 10,
+        "name": "origin_candidate_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 11,
+        "name": "origin_candidate_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 12,
+        "name": "origin_candidate_payload_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 13,
         "name": "fact_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
-        "ordinal": 6,
+        "ordinal": 14,
         "name": "committed_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       }
     ],
     "primaryKey": [
@@ -66,10 +150,29 @@
     "uniqueConstraints": [],
     "hotIndexes": [],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "person_status",
+        "enumValues": [
+          "active",
+          "merged"
+        ]
+      },
+      {
+        "column": "origin_kind",
+        "enumValues": [
+          "direct",
+          "candidate"
+        ]
+      },
+      {
+        "rule": "CHECK禁止两种来源混合"
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
-        "revision"
+        "revision",
+        "origin_candidate_revision"
       ],
       "currentPointerColumns": [],
       "pointerTargets": [],
@@ -88,16 +191,20 @@
     },
     "semanticRules": [
       "`PK(person_id,revision)`",
-      "immutable"
+      "immutable",
+      "direct Registration保存完整Direct Decision ID/digest且Candidate列全NULL",
+      "Candidate acceptance保存Acceptance Decision ID/digest及精确Candidate revision/payload",
+      "CHECK禁止两种来源混合",
+      "Person是全局Registry，不持久化媒体`content_scope`"
     ],
     "rawContract": {
-      "columns": "`person_id FK, revision, canonical_name, content_scope, fact_digest, committed_at_ms`",
-      "constraints": "`PK(person_id,revision)`；immutable"
+      "columns": "`person_id FK, revision, person_status(active|merged), canonical_name, merged_into_person_id NULL, origin_kind(direct|candidate), origin_decision_id, origin_decision_digest, origin_candidate_kind NULL, origin_candidate_id NULL, origin_candidate_revision NULL, origin_candidate_payload_digest NULL, fact_digest, committed_at_ms`",
+      "constraints": "`PK(person_id,revision)`；immutable；direct Registration保存完整Direct Decision ID/digest且Candidate列全NULL；Candidate acceptance保存Acceptance Decision ID/digest及精确Candidate revision/payload；CHECK禁止两种来源混合；Person是全局Registry，不持久化媒体`content_scope`"
     },
     "source": {
       "section": "8.5.13",
-      "line": 7502,
-      "lineDigest": "988b984fdec7fe60f95955d0624c6045a8e529fd2c3646b8833f0c50808c1c1d"
+      "line": 7788,
+      "lineDigest": "ed43b3ad2a8d964927a2e3cc2f2bb006969c4a222f556470c21d7ef8dd576b33"
     },
     "foreignKeys": [
       {
@@ -108,7 +215,8 @@
         "targetColumns": [
           "person_id"
         ],
-        "deletePolicy": "RESTRICT"
+        "deletePolicy": "RESTRICT",
+        "deferrable": true
       }
     ]
   }

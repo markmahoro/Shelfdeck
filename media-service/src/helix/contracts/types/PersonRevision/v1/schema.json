@@ -55,6 +55,20 @@
       "type": "integer",
       "minimum": 0
     },
+    "operationKind": {
+      "type": "string",
+      "enum": [
+        "registration",
+        "merge"
+      ]
+    },
+    "registrationOrigin": {
+      "type": "string",
+      "enum": [
+        "direct",
+        "candidate"
+      ]
+    },
     "personId": {
       "type": "string",
       "minLength": 1,
@@ -74,10 +88,112 @@
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
+    "directDecisionRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "decisionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "decisionDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "decisionId",
+        "decisionDigest"
+      ]
+    },
+    "acceptedCandidateRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "candidateKind": {
+          "type": "string",
+          "enum": [
+            "registration",
+            "merge"
+          ]
+        },
+        "candidateId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "candidateRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "candidatePayloadDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "candidateKind",
+        "candidateId",
+        "candidateRevision",
+        "candidatePayloadDigest"
+      ]
+    },
+    "affectedPersonRevisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "personId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "merged"
+            ]
+          },
+          "factDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "personId",
+          "revision",
+          "status",
+          "factDigest"
+        ]
+      },
+      "maxItems": 2
+    },
     "mergeRecordRef": {
       "type": "string",
       "minLength": 1,
       "maxLength": 256
+    },
+    "preferenceRevisionRef": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "required": [
@@ -92,9 +208,11 @@
     "factDigest",
     "commitMarker",
     "committedAtMs",
+    "operationKind",
     "personId",
     "canonicalName",
     "aliasSetDigest",
-    "providerIdentitySetDigest"
+    "providerIdentitySetDigest",
+    "affectedPersonRevisions"
   ]
 }

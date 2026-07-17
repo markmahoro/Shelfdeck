@@ -13,7 +13,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": true,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 2,
@@ -21,7 +22,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": true
+        "foreignKeyMarker": true,
+        "nullable": false
       },
       {
         "ordinal": 3,
@@ -29,7 +31,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": true
+        "foreignKeyMarker": true,
+        "nullable": false
       },
       {
         "ordinal": 4,
@@ -37,7 +40,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 5,
@@ -45,7 +49,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 6,
@@ -53,7 +58,8 @@
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       }
     ],
     "primaryKey": [
@@ -96,7 +102,7 @@
     },
     "source": {
       "section": "8.5.12",
-      "line": 7488,
+      "line": 7772,
       "lineDigest": "ece31b95a4de939548e814885196b887f9a0f38c6507ec76e9eb2165896b7d33"
     },
     "foreignKeys": [
@@ -108,7 +114,8 @@
         "targetColumns": [
           "deregistration_id"
         ],
-        "deletePolicy": "RESTRICT"
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
       },
       {
         "columns": [
@@ -118,7 +125,8 @@
         "targetColumns": [
           "shelf_id"
         ],
-        "deletePolicy": "RESTRICT"
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
       }
     ]
   }

@@ -13,7 +13,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 2,
@@ -21,7 +22,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 3,
@@ -29,7 +31,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": true
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 4,
@@ -37,7 +40,8 @@
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 5,
@@ -45,16 +49,15 @@
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       }
     ],
     "primaryKey": [
       "query_contract",
       "query_input_digest"
     ],
-    "declaredForeignKeyColumns": [
-      "current_resolution_id"
-    ],
+    "declaredForeignKeyColumns": [],
     "uniqueConstraints": [],
     "hotIndexes": [],
     "partialUniqueRules": [],
@@ -70,16 +73,21 @@
       "pointerTargets": [
         {
           "sourceColumns": [
+            "query_contract",
+            "query_input_digest",
+            "current_revision",
             "current_resolution_id"
           ],
           "targetTable": "perception_resolution_revisions",
           "targetColumns": [
+            "query_contract",
+            "query_input_digest",
+            "revision",
             "resolution_id"
           ],
-          "consistencyColumns": [
-            "current_revision"
-          ],
-          "deletePolicy": "RESTRICT"
+          "consistencyColumns": [],
+          "deletePolicy": "RESTRICT",
+          "deferrable": false
         }
       ],
       "pointerRules": []
@@ -95,27 +103,36 @@
     },
     "semanticRules": [
       "`PK(query_contract,query_input_digest)`",
+      "四列显式复合FK引用同一`perception_resolution_revisions(query_contract,query_input_digest,revision,resolution_id)`",
+      "head CAS与新revision/typed result在同一Resolution Commit事务",
       "Resolution Facade只读head，不在热路径计算`MAX(revision)`"
     ],
     "rawContract": {
-      "columns": "`query_contract, query_input_digest, current_resolution_id FK, current_revision, updated_at_ms`",
-      "constraints": "`PK(query_contract,query_input_digest)`；Resolution Facade只读head，不在热路径计算`MAX(revision)`"
+      "columns": "`query_contract, query_input_digest, current_resolution_id, current_revision, updated_at_ms`",
+      "constraints": "`PK(query_contract,query_input_digest)`；四列显式复合FK引用同一`perception_resolution_revisions(query_contract,query_input_digest,revision,resolution_id)`；head CAS与新revision/typed result在同一Resolution Commit事务；Resolution Facade只读head，不在热路径计算`MAX(revision)`"
     },
     "source": {
       "section": "8.5.13",
-      "line": 7500,
-      "lineDigest": "e0e04bc5e7ea7d3507b9193415762a191e0ae743b4a5a7fd2a3486542dd7b047"
+      "line": 7786,
+      "lineDigest": "370fe0fe0d9cc2ac7afc1ee52ccfbbd77aae3f429732328708c53ed707821c38"
     },
     "foreignKeys": [
       {
         "columns": [
+          "query_contract",
+          "query_input_digest",
+          "current_revision",
           "current_resolution_id"
         ],
         "targetTable": "perception_resolution_revisions",
         "targetColumns": [
+          "query_contract",
+          "query_input_digest",
+          "revision",
           "resolution_id"
         ],
-        "deletePolicy": "RESTRICT"
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
       }
     ]
   }

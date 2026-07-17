@@ -13,7 +13,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": true
+        "foreignKeyMarker": true,
+        "nullable": false
       },
       {
         "ordinal": 2,
@@ -21,7 +22,8 @@
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 3,
@@ -29,7 +31,8 @@
         "logicalType": "INTEGER_OR_REAL",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 4,
@@ -37,15 +40,35 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 5,
+        "name": "origin_kind",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "origin_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
         "name": "committed_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       }
     ],
     "primaryKey": [
@@ -69,7 +92,9 @@
       ],
       "currentPointerColumns": [],
       "pointerTargets": [],
-      "pointerRules": []
+      "pointerRules": [
+        "current pointer由`people_persons.current_preference_revision`维护，禁止热路径`MAX(revision)`"
+      ]
     },
     "jsonContracts": [],
     "immutability": {
@@ -82,16 +107,17 @@
     },
     "semanticRules": [
       "`PK(person_id,revision)`",
-      "level枚举`-2..2`"
+      "level枚举`-2..2`",
+      "current pointer由`people_persons.current_preference_revision`维护，禁止热路径`MAX(revision)`"
     ],
     "rawContract": {
-      "columns": "`person_id FK, revision, preference_level, reason, committed_at_ms`",
-      "constraints": "`PK(person_id,revision)`；level枚举`-2..2`"
+      "columns": "`person_id FK, revision, preference_level, reason, origin_kind, origin_ref, committed_at_ms`",
+      "constraints": "`PK(person_id,revision)`；level枚举`-2..2`；current pointer由`people_persons.current_preference_revision`维护，禁止热路径`MAX(revision)`"
     },
     "source": {
       "section": "8.5.13",
-      "line": 7505,
-      "lineDigest": "72edd867cc83204152751fa79dbb8617f33790161b5e76bde75af43738d88cb5"
+      "line": 7791,
+      "lineDigest": "b4a09dbb667fe1048ff44b6f98529e82d1c3abd77d084d0d35760f75275c0977"
     },
     "foreignKeys": [
       {
@@ -102,7 +128,8 @@
         "targetColumns": [
           "person_id"
         ],
-        "deletePolicy": "RESTRICT"
+        "deletePolicy": "RESTRICT",
+        "deferrable": true
       }
     ]
   }

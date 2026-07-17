@@ -1,0 +1,205 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/people_reference_revisions/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "people_reference_revisions",
+    "owner": "people",
+    "prefix": "people_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "person_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "operation_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "add_image",
+          "release_image"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "reference_asset_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "reference_face_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "active_asset_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "active_face_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "reference_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "decision_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "fact_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "committed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "person_id",
+      "revision"
+    ],
+    "declaredForeignKeyColumns": [
+      "person_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "operation_kind",
+        "enumValues": [
+          "add_image",
+          "release_image"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": [
+        "`people_persons.current_reference_revision`显式FK指向current row"
+      ]
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "immutable"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(person_id,revision)`",
+      "immutable",
+      "`people_persons.current_reference_revision`显式FK指向current row",
+      "Reference commit以expected reference revision CAS并保存完整active set digest，不通过扫描时间猜current",
+      "三个set digest及`fact_digest`必须严格使用`PersonReferenceRevision` nominal合同声明的唯一basis"
+    ],
+    "rawContract": {
+      "columns": "`person_id FK, revision, operation_kind(add_image|release_image), reference_asset_id, reference_face_id, active_asset_set_digest, active_face_set_digest, reference_set_digest, decision_digest, fact_digest, committed_at_ms`",
+      "constraints": "`PK(person_id,revision)`；immutable；`people_persons.current_reference_revision`显式FK指向current row；Reference commit以expected reference revision CAS并保存完整active set digest，不通过扫描时间猜current；三个set digest及`fact_digest`必须严格使用`PersonReferenceRevision` nominal合同声明的唯一basis"
+    },
+    "source": {
+      "section": "8.5.13",
+      "line": 7794,
+      "lineDigest": "fd1af7799be92b38afe9241681728fd01a4c52590ca8323bc64c9f1471f6eecb"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "person_id"
+        ],
+        "targetTable": "people_persons",
+        "targetColumns": [
+          "person_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "reference_asset_id"
+        ],
+        "targetTable": "people_reference_assets",
+        "targetColumns": [
+          "reference_asset_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "reference_face_id"
+        ],
+        "targetTable": "people_reference_faces",
+        "targetColumns": [
+          "reference_face_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

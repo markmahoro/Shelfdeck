@@ -260,15 +260,24 @@ CREATE TABLE "arca_inventory_materials" (
 CREATE UNIQUE INDEX "uidx_arca_inventory_materials_partial_01" ON "arca_inventory_materials" ("material_key") WHERE "role" = 'primary' AND "active_guard" = 1;
 
 CREATE TABLE "arca_inventory_person_relations" (
+  "relation_id" TEXT,
   "shelf_entry_id" TEXT,
   "inventory_revision" INTEGER CHECK ("inventory_revision" >= 1),
   "person_id" TEXT,
   "display_name" TEXT,
+  "display_name_normalized" TEXT,
   "role" TEXT,
   "relation_source" TEXT,
+  "provider_identity_schema_ref" TEXT,
+  "provider_identity_json" TEXT,
+  "provider_identity_digest" TEXT CHECK (length("provider_identity_digest") = 64 AND "provider_identity_digest" NOT GLOB '*[^0-9a-f]*'),
+  "origin_evidence_digest" TEXT CHECK (length("origin_evidence_digest") = 64 AND "origin_evidence_digest" NOT GLOB '*[^0-9a-f]*'),
   "confidence_class" TEXT,
   "relation_digest" TEXT CHECK (length("relation_digest") = 64 AND "relation_digest" NOT GLOB '*[^0-9a-f]*'),
-  PRIMARY KEY ("shelf_entry_id", "inventory_revision", "person_id", "role", "relation_digest"),
+  PRIMARY KEY ("shelf_entry_id", "inventory_revision", "relation_id"),
+  UNIQUE ("shelf_entry_id", "inventory_revision", "relation_digest"),
+  CHECK (json_valid("provider_identity_json")),
+  CHECK (length(CAST("provider_identity_json" AS BLOB)) <= 4096),
   FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_arca_inventory_person_relations_hot_01" ON "arca_inventory_person_relations" ("person_id", "role", "shelf_entry_id");
@@ -796,7 +805,11 @@ CREATE TABLE "fx_commit_markers" (
   "scope_type" TEXT,
   "scope_id" TEXT,
   "commit_digest" TEXT CHECK (length("commit_digest") = 64 AND "commit_digest" NOT GLOB '*[^0-9a-f]*'),
-  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0)
+  "result_id" TEXT,
+  "result_schema_ref" TEXT,
+  "result_digest" TEXT CHECK (length("result_digest") = 64 AND "result_digest" NOT GLOB '*[^0-9a-f]*'),
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  FOREIGN KEY ("result_id") REFERENCES "fx_event_result_bindings" ("result_id") ON DELETE RESTRICT
 );
 
 CREATE TABLE "fx_effect_journal" (
@@ -883,7 +896,6 @@ CREATE TABLE "fx_event_result_bindings" (
   "evidence_digest" TEXT CHECK (length("evidence_digest") = 64 AND "evidence_digest" NOT GLOB '*[^0-9a-f]*'),
   "effect_receipt_id" TEXT,
   "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
-  UNIQUE ("event_id"),
   CHECK (json_valid("result_json")),
   CHECK (length(CAST("result_json" AS BLOB)) <= 65536),
   CHECK (json_valid("evidence_json")),
@@ -995,13 +1007,6 @@ CREATE TABLE "fx_plan_nodes" (
   "fence_basis_json" TEXT,
   "resource_demand_schema_ref" TEXT,
   "resource_demand_json" TEXT,
-  "approval_requirement_ref" TEXT,
-  "authorization_requirement_ref" TEXT,
-  "retry_policy_ref" TEXT,
-  "timeout_policy_ref" TEXT,
-  "output_contract_ref" TEXT,
-  "compensation_for_event_id" TEXT,
-  "compensation_contract_ref" TEXT,
   PRIMARY KEY ("plan_id", "node_id"),
   CHECK (json_valid("input_bindings_json")),
   CHECK (length(CAST("input_bindings_json" AS BLOB)) <= 16384),
@@ -1013,9 +1018,7 @@ CREATE TABLE "fx_plan_nodes" (
   CHECK (length(CAST("fence_basis_json" AS BLOB)) <= 16384),
   CHECK (json_valid("resource_demand_json")),
   CHECK (length(CAST("resource_demand_json" AS BLOB)) <= 16384),
-  CHECK (("compensation_for_event_id" IS NULL AND "compensation_contract_ref" IS NULL) OR ("compensation_for_event_id" IS NOT NULL AND "compensation_contract_ref" IS NOT NULL)),
-  FOREIGN KEY ("plan_id") REFERENCES "fx_workflow_plans" ("plan_id") ON DELETE RESTRICT,
-  FOREIGN KEY ("compensation_for_event_id") REFERENCES "fx_workflow_events" ("event_id") ON DELETE RESTRICT
+  FOREIGN KEY ("plan_id") REFERENCES "fx_workflow_plans" ("plan_id") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_fx_plan_nodes_hot_01" ON "fx_plan_nodes" ("capability_ref", "contract_version");
 
@@ -1088,13 +1091,10 @@ CREATE TABLE "fx_workflow_plans" (
   "attempt_id" TEXT,
   "planner_ref" TEXT,
   "planner_version" INTEGER,
-  "work_objective_type_ref" TEXT,
-  "work_objective_version" INTEGER,
   "catalog_digest" TEXT CHECK (length("catalog_digest") = 64 AND "catalog_digest" NOT GLOB '*[^0-9a-f]*'),
   "basis_digest" TEXT CHECK (length("basis_digest") = 64 AND "basis_digest" NOT GLOB '*[^0-9a-f]*'),
   "graph_digest" TEXT CHECK (length("graph_digest") = 64 AND "graph_digest" NOT GLOB '*[^0-9a-f]*'),
   "state" TEXT CHECK ("state" IN ('planned', 'no_effect_required', 'temporarily_unplannable', 'contract_unplannable')),
-  "diagnostic_classification" TEXT,
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
   UNIQUE ("attempt_id"),
   FOREIGN KEY ("attempt_id") REFERENCES "fx_work_attempts" ("attempt_id") ON DELETE RESTRICT
@@ -1333,6 +1333,8 @@ CREATE TABLE "libra_product_packages" (
   "acceptance_spec_id" TEXT,
   "product_identity_digest" TEXT CHECK (length("product_identity_digest") = 64 AND "product_identity_digest" NOT GLOB '*[^0-9a-f]*'),
   "product_manifest_digest" TEXT CHECK (length("product_manifest_digest") = 64 AND "product_manifest_digest" NOT GLOB '*[^0-9a-f]*'),
+  "media_cast_fact_id" TEXT,
+  "media_cast_fact_digest" TEXT CHECK (length("media_cast_fact_digest") = 64 AND "media_cast_fact_digest" NOT GLOB '*[^0-9a-f]*'),
   "offload_context_digest" TEXT CHECK (length("offload_context_digest") = 64 AND "offload_context_digest" NOT GLOB '*[^0-9a-f]*'),
   "package_digest" TEXT CHECK (length("package_digest") = 64 AND "package_digest" NOT GLOB '*[^0-9a-f]*'),
   "state" TEXT CHECK ("state" IN ('published')),
@@ -1565,51 +1567,104 @@ CREATE TABLE "people_aliases" (
   "alias_display" TEXT,
   "provenance_digest" TEXT CHECK (length("provenance_digest") = 64 AND "provenance_digest" NOT GLOB '*[^0-9a-f]*'),
   PRIMARY KEY ("person_id", "revision", "alias_normalized"),
-  FOREIGN KEY ("person_id") REFERENCES "people_persons" ("person_id") ON DELETE RESTRICT
+  FOREIGN KEY ("person_id", "revision") REFERENCES "people_person_revisions" ("person_id", "revision") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_people_aliases_hot_01" ON "people_aliases" ("alias_normalized");
 
+CREATE TABLE "people_merge_candidate_revisions" (
+  "merge_candidate_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 1),
+  "state" TEXT CHECK ("state" IN ('open', 'accepted', 'dismissed', 'superseded')),
+  "decision_origin" TEXT,
+  "decision_ref" TEXT,
+  "decision_digest" TEXT CHECK (length("decision_digest") = 64 AND "decision_digest" NOT GLOB '*[^0-9a-f]*'),
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  PRIMARY KEY ("merge_candidate_id", "revision"),
+  UNIQUE ("merge_candidate_id", "revision", "state"),
+  FOREIGN KEY ("merge_candidate_id") REFERENCES "people_merge_candidates" ("merge_candidate_id") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED
+);
+
 CREATE TABLE "people_merge_candidates" (
   "merge_candidate_id" TEXT PRIMARY KEY,
+  "current_revision" INTEGER CHECK ("current_revision" >= 1),
+  "current_state" TEXT CHECK ("current_state" IN ('open', 'accepted', 'dismissed', 'superseded')),
   "left_person_id" TEXT,
+  "left_person_revision" INTEGER CHECK ("left_person_revision" >= 1),
   "right_person_id" TEXT,
+  "right_person_revision" INTEGER CHECK ("right_person_revision" >= 1),
   "evidence_digest" TEXT CHECK (length("evidence_digest") = 64 AND "evidence_digest" NOT GLOB '*[^0-9a-f]*'),
-  "state" TEXT CHECK ("state" IN ('open', 'accepted', 'dismissed', 'superseded')),
+  "candidate_schema_ref" TEXT,
+  "candidate_json" TEXT,
+  "candidate_payload_digest" TEXT CHECK (length("candidate_payload_digest") = 64 AND "candidate_payload_digest" NOT GLOB '*[^0-9a-f]*'),
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
   "terminal_at_ms" INTEGER CHECK ("terminal_at_ms" >= 0),
-  FOREIGN KEY ("left_person_id") REFERENCES "people_persons" ("person_id") ON DELETE RESTRICT,
-  FOREIGN KEY ("right_person_id") REFERENCES "people_persons" ("person_id") ON DELETE RESTRICT
+  CHECK (json_valid("candidate_json")),
+  CHECK (length(CAST("candidate_json" AS BLOB)) <= 16384),
+  CHECK ("left_person_id" = json_extract("candidate_json", '$.leftPersonRef.personId')),
+  CHECK ("left_person_revision" = json_extract("candidate_json", '$.leftPersonRef.revision')),
+  CHECK ("right_person_id" = json_extract("candidate_json", '$.rightPersonRef.personId')),
+  CHECK ("right_person_revision" = json_extract("candidate_json", '$.rightPersonRef.revision')),
+  FOREIGN KEY ("left_person_id", "left_person_revision") REFERENCES "people_person_revisions" ("person_id", "revision") ON DELETE RESTRICT,
+  FOREIGN KEY ("right_person_id", "right_person_revision") REFERENCES "people_person_revisions" ("person_id", "revision") ON DELETE RESTRICT,
+  FOREIGN KEY ("merge_candidate_id", "current_revision", "current_state") REFERENCES "people_merge_candidate_revisions" ("merge_candidate_id", "revision", "state") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED
 );
-CREATE UNIQUE INDEX "uidx_people_merge_candidates_partial_01" ON "people_merge_candidates" (MIN("left_person_id", "right_person_id"), MAX("left_person_id", "right_person_id")) WHERE "state" = 'open';
+CREATE INDEX "idx_people_merge_candidates_hot_01" ON "people_merge_candidates" ("current_state", "created_at_ms");
+CREATE UNIQUE INDEX "uidx_people_merge_candidates_partial_01" ON "people_merge_candidates" ("left_person_id", "right_person_id") WHERE "current_state" = 'open';
 
 CREATE TABLE "people_merge_records" (
   "merge_record_id" TEXT PRIMARY KEY,
+  "merge_candidate_id" TEXT,
+  "merge_candidate_revision" INTEGER CHECK ("merge_candidate_revision" >= 1),
   "source_person_id" TEXT,
+  "previous_source_person_revision" INTEGER CHECK ("previous_source_person_revision" >= 1),
+  "committed_source_person_revision" INTEGER CHECK ("committed_source_person_revision" >= 1),
   "target_person_id" TEXT,
+  "previous_target_person_revision" INTEGER CHECK ("previous_target_person_revision" >= 1),
+  "committed_target_person_revision" INTEGER CHECK ("committed_target_person_revision" >= 1),
+  "preference_resolution_digest" TEXT CHECK (length("preference_resolution_digest") = 64 AND "preference_resolution_digest" NOT GLOB '*[^0-9a-f]*'),
   "decision_digest" TEXT CHECK (length("decision_digest") = 64 AND "decision_digest" NOT GLOB '*[^0-9a-f]*'),
   "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
-  FOREIGN KEY ("source_person_id") REFERENCES "people_persons" ("person_id") ON DELETE RESTRICT,
-  FOREIGN KEY ("target_person_id") REFERENCES "people_persons" ("person_id") ON DELETE RESTRICT
+  UNIQUE ("source_person_id"),
+  FOREIGN KEY ("merge_candidate_id", "merge_candidate_revision") REFERENCES "people_merge_candidate_revisions" ("merge_candidate_id", "revision") ON DELETE RESTRICT,
+  FOREIGN KEY ("source_person_id", "previous_source_person_revision") REFERENCES "people_person_revisions" ("person_id", "revision") ON DELETE RESTRICT,
+  FOREIGN KEY ("source_person_id", "committed_source_person_revision") REFERENCES "people_person_revisions" ("person_id", "revision") ON DELETE RESTRICT,
+  FOREIGN KEY ("target_person_id", "previous_target_person_revision") REFERENCES "people_person_revisions" ("person_id", "revision") ON DELETE RESTRICT,
+  FOREIGN KEY ("target_person_id", "committed_target_person_revision") REFERENCES "people_person_revisions" ("person_id", "revision") ON DELETE RESTRICT
 );
 
 CREATE TABLE "people_person_revisions" (
   "person_id" TEXT,
   "revision" INTEGER CHECK ("revision" >= 1),
+  "person_status" TEXT CHECK ("person_status" IN ('active', 'merged')),
   "canonical_name" TEXT,
-  "content_scope" TEXT,
+  "merged_into_person_id" TEXT,
+  "origin_kind" TEXT CHECK ("origin_kind" IN ('direct', 'candidate')),
+  "origin_decision_id" TEXT,
+  "origin_decision_digest" TEXT CHECK (length("origin_decision_digest") = 64 AND "origin_decision_digest" NOT GLOB '*[^0-9a-f]*'),
+  "origin_candidate_kind" TEXT,
+  "origin_candidate_id" TEXT,
+  "origin_candidate_revision" INTEGER CHECK ("origin_candidate_revision" >= 1),
+  "origin_candidate_payload_digest" TEXT CHECK (length("origin_candidate_payload_digest") = 64 AND "origin_candidate_payload_digest" NOT GLOB '*[^0-9a-f]*'),
   "fact_digest" TEXT CHECK (length("fact_digest") = 64 AND "fact_digest" NOT GLOB '*[^0-9a-f]*'),
   "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
   PRIMARY KEY ("person_id", "revision"),
-  FOREIGN KEY ("person_id") REFERENCES "people_persons" ("person_id") ON DELETE RESTRICT
+  CHECK (("origin_kind" = 'direct' AND "origin_decision_id" IS NOT NULL AND "origin_decision_digest" IS NOT NULL AND "origin_candidate_kind" IS NULL AND "origin_candidate_id" IS NULL AND "origin_candidate_revision" IS NULL AND "origin_candidate_payload_digest" IS NULL) OR ("origin_kind" = 'candidate' AND "origin_decision_id" IS NULL AND "origin_decision_digest" IS NULL AND "origin_candidate_kind" IS NOT NULL AND "origin_candidate_id" IS NOT NULL AND "origin_candidate_revision" IS NOT NULL AND "origin_candidate_payload_digest" IS NOT NULL)),
+  FOREIGN KEY ("person_id") REFERENCES "people_persons" ("person_id") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED
 );
 
 CREATE TABLE "people_persons" (
   "person_id" TEXT PRIMARY KEY,
-  "status" TEXT CHECK ("status" IN ('active', 'merged', 'archived')),
+  "status" TEXT CHECK ("status" IN ('active', 'merged')),
   "current_revision" INTEGER CHECK ("current_revision" >= 1),
+  "current_preference_revision" INTEGER CHECK ("current_preference_revision" >= 1),
+  "current_reference_revision" INTEGER CHECK ("current_reference_revision" >= 1),
+  "current_reference_projection_revision" INTEGER CHECK ("current_reference_projection_revision" >= 1),
+  "current_reference_projection_digest" TEXT CHECK (length("current_reference_projection_digest") = 64 AND "current_reference_projection_digest" NOT GLOB '*[^0-9a-f]*'),
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
   "terminal_at_ms" INTEGER CHECK ("terminal_at_ms" >= 0),
-  FOREIGN KEY ("person_id", "current_revision") REFERENCES "people_person_revisions" ("person_id", "revision") ON DELETE RESTRICT
+  FOREIGN KEY ("person_id", "current_reference_revision") REFERENCES "people_reference_revisions" ("person_id", "revision") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
+  FOREIGN KEY ("person_id", "current_revision") REFERENCES "people_person_revisions" ("person_id", "revision") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
+  FOREIGN KEY ("person_id", "current_preference_revision") REFERENCES "people_preference_revisions" ("person_id", "revision") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED
 );
 CREATE INDEX "idx_people_persons_hot_01" ON "people_persons" ("status", "person_id");
 
@@ -1618,9 +1673,11 @@ CREATE TABLE "people_preference_revisions" (
   "revision" INTEGER CHECK ("revision" >= 1),
   "preference_level" NUMERIC,
   "reason" TEXT,
+  "origin_kind" TEXT,
+  "origin_ref" TEXT,
   "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
   PRIMARY KEY ("person_id", "revision"),
-  FOREIGN KEY ("person_id") REFERENCES "people_persons" ("person_id") ON DELETE RESTRICT
+  FOREIGN KEY ("person_id") REFERENCES "people_persons" ("person_id") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED
 );
 
 CREATE TABLE "people_provider_identities" (
@@ -1632,7 +1689,7 @@ CREATE TABLE "people_provider_identities" (
   "provenance_digest" TEXT CHECK (length("provenance_digest") = 64 AND "provenance_digest" NOT GLOB '*[^0-9a-f]*'),
   "active_guard" INTEGER NOT NULL DEFAULT 0 CHECK ("active_guard" IN (0, 1)),
   PRIMARY KEY ("person_id", "revision", "provider", "namespace", "provider_key"),
-  FOREIGN KEY ("person_id") REFERENCES "people_persons" ("person_id") ON DELETE RESTRICT
+  FOREIGN KEY ("person_id", "revision") REFERENCES "people_person_revisions" ("person_id", "revision") ON DELETE RESTRICT
 );
 CREATE UNIQUE INDEX "uidx_people_provider_identities_partial_01" ON "people_provider_identities" ("provider", "namespace", "provider_key") WHERE "active_guard" = 1;
 
@@ -1641,10 +1698,15 @@ CREATE TABLE "people_reference_assets" (
   "person_id" TEXT,
   "artifact_handle_id" TEXT,
   "artifact_digest" TEXT CHECK (length("artifact_digest") = 64 AND "artifact_digest" NOT GLOB '*[^0-9a-f]*'),
-  "state" TEXT CHECK ("state" IN ('active', 'superseded', 'rejected')),
+  "state" TEXT CHECK ("state" IN ('active', 'released')),
+  "created_reference_revision" INTEGER CHECK ("created_reference_revision" >= 1),
+  "released_reference_revision" INTEGER CHECK ("released_reference_revision" >= 1),
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "released_at_ms" INTEGER CHECK ("released_at_ms" >= 0),
   UNIQUE ("person_id", "artifact_digest"),
-  FOREIGN KEY ("person_id") REFERENCES "people_persons" ("person_id") ON DELETE RESTRICT
+  CHECK (("state" = 'active' AND "released_reference_revision" IS NULL AND "released_at_ms" IS NULL) OR ("state" = 'released' AND "released_reference_revision" IS NOT NULL AND "released_at_ms" IS NOT NULL)),
+  FOREIGN KEY ("person_id", "created_reference_revision") REFERENCES "people_reference_revisions" ("person_id", "revision") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
+  FOREIGN KEY ("person_id", "released_reference_revision") REFERENCES "people_reference_revisions" ("person_id", "revision") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED
 );
 
 CREATE TABLE "people_reference_faces" (
@@ -1652,40 +1714,109 @@ CREATE TABLE "people_reference_faces" (
   "person_id" TEXT,
   "reference_asset_id" TEXT,
   "embedding_handle_id" TEXT,
+  "embedding_digest" TEXT CHECK (length("embedding_digest") = 64 AND "embedding_digest" NOT GLOB '*[^0-9a-f]*'),
   "model_ref" TEXT,
-  "state" TEXT CHECK ("state" IN ('active', 'superseded', 'rejected')),
+  "state" TEXT CHECK ("state" IN ('active', 'released')),
+  "created_reference_revision" INTEGER CHECK ("created_reference_revision" >= 1),
+  "released_reference_revision" INTEGER CHECK ("released_reference_revision" >= 1),
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "released_at_ms" INTEGER CHECK ("released_at_ms" >= 0),
+  UNIQUE ("reference_asset_id"),
   UNIQUE ("person_id", "embedding_handle_id", "model_ref"),
+  CHECK (("state" = 'active' AND "released_reference_revision" IS NULL AND "released_at_ms" IS NULL) OR ("state" = 'released' AND "released_reference_revision" IS NOT NULL AND "released_at_ms" IS NOT NULL)),
+  FOREIGN KEY ("reference_asset_id") REFERENCES "people_reference_assets" ("reference_asset_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("person_id", "created_reference_revision") REFERENCES "people_reference_revisions" ("person_id", "revision") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
+  FOREIGN KEY ("person_id", "released_reference_revision") REFERENCES "people_reference_revisions" ("person_id", "revision") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED
+);
+
+CREATE TABLE "people_reference_revisions" (
+  "person_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 1),
+  "operation_kind" TEXT CHECK ("operation_kind" IN ('add_image', 'release_image')),
+  "reference_asset_id" TEXT,
+  "reference_face_id" TEXT,
+  "active_asset_set_digest" TEXT CHECK (length("active_asset_set_digest") = 64 AND "active_asset_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "active_face_set_digest" TEXT CHECK (length("active_face_set_digest") = 64 AND "active_face_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "reference_set_digest" TEXT CHECK (length("reference_set_digest") = 64 AND "reference_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "decision_digest" TEXT CHECK (length("decision_digest") = 64 AND "decision_digest" NOT GLOB '*[^0-9a-f]*'),
+  "fact_digest" TEXT CHECK (length("fact_digest") = 64 AND "fact_digest" NOT GLOB '*[^0-9a-f]*'),
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  PRIMARY KEY ("person_id", "revision"),
   FOREIGN KEY ("person_id") REFERENCES "people_persons" ("person_id") ON DELETE RESTRICT,
-  FOREIGN KEY ("reference_asset_id") REFERENCES "people_reference_assets" ("reference_asset_id") ON DELETE RESTRICT
+  FOREIGN KEY ("reference_asset_id") REFERENCES "people_reference_assets" ("reference_asset_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("reference_face_id") REFERENCES "people_reference_faces" ("reference_face_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "people_registration_candidate_revisions" (
+  "registration_candidate_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 1),
+  "state" TEXT CHECK ("state" IN ('open', 'accepted', 'dismissed', 'superseded')),
+  "decision_origin" TEXT,
+  "decision_ref" TEXT,
+  "decision_digest" TEXT CHECK (length("decision_digest") = 64 AND "decision_digest" NOT GLOB '*[^0-9a-f]*'),
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  PRIMARY KEY ("registration_candidate_id", "revision"),
+  UNIQUE ("registration_candidate_id", "revision", "state"),
+  FOREIGN KEY ("registration_candidate_id") REFERENCES "people_registration_candidates" ("registration_candidate_id") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED
 );
 
 CREATE TABLE "people_registration_candidates" (
   "registration_candidate_id" TEXT PRIMARY KEY,
+  "current_revision" INTEGER CHECK ("current_revision" >= 1),
+  "current_state" TEXT CHECK ("current_state" IN ('open', 'accepted', 'dismissed', 'superseded')),
   "proposed_name" TEXT,
   "evidence_digest" TEXT CHECK (length("evidence_digest") = 64 AND "evidence_digest" NOT GLOB '*[^0-9a-f]*'),
   "candidate_schema_ref" TEXT,
   "candidate_json" TEXT,
-  "state" TEXT CHECK ("state" IN ('open', 'accepted', 'dismissed', 'superseded')),
+  "candidate_payload_digest" TEXT CHECK (length("candidate_payload_digest") = 64 AND "candidate_payload_digest" NOT GLOB '*[^0-9a-f]*'),
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
   "terminal_at_ms" INTEGER CHECK ("terminal_at_ms" >= 0),
   CHECK (json_valid("candidate_json")),
-  CHECK (length(CAST("candidate_json" AS BLOB)) <= 16384)
+  CHECK (length(CAST("candidate_json" AS BLOB)) <= 16384),
+  CHECK ("proposed_name" = json_extract("candidate_json", '$.proposedName')),
+  FOREIGN KEY ("registration_candidate_id", "current_revision", "current_state") REFERENCES "people_registration_candidate_revisions" ("registration_candidate_id", "revision", "state") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED
 );
-CREATE INDEX "idx_people_registration_candidates_hot_01" ON "people_registration_candidates" ("state", "created_at_ms");
-CREATE UNIQUE INDEX "uidx_people_registration_candidates_partial_01" ON "people_registration_candidates" ("evidence_digest") WHERE "state" = 'open';
+CREATE INDEX "idx_people_registration_candidates_hot_01" ON "people_registration_candidates" ("current_state", "created_at_ms");
+CREATE UNIQUE INDEX "uidx_people_registration_candidates_partial_01" ON "people_registration_candidates" ("evidence_digest") WHERE "current_state" = 'open';
 
-CREATE TABLE "perception_dedup_relations" (
-  "relation_id" TEXT PRIMARY KEY,
-  "left_perception_id" TEXT,
-  "right_perception_id" TEXT,
-  "rule_revision" INTEGER CHECK ("rule_revision" >= 1),
-  "relation" TEXT,
-  "evidence_digest" TEXT CHECK (length("evidence_digest") = 64 AND "evidence_digest" NOT GLOB '*[^0-9a-f]*'),
+CREATE TABLE "perception_acquisition_commits" (
+  "acquisition_commit_receipt_id" TEXT PRIMARY KEY,
+  "perception_acquisition_id" TEXT,
+  "perception_source_id" TEXT,
+  "page_ordinal" INTEGER CHECK ("page_ordinal" >= 0),
+  "expected_cursor_revision" INTEGER CHECK ("expected_cursor_revision" >= 0),
+  "committed_cursor_revision" INTEGER CHECK ("committed_cursor_revision" >= 1),
+  "observation_page_digest" TEXT CHECK (length("observation_page_digest") = 64 AND "observation_page_digest" NOT GLOB '*[^0-9a-f]*'),
+  "commit_marker" TEXT,
+  "result_schema_ref" TEXT,
+  "result_json" TEXT,
+  "result_digest" TEXT CHECK (length("result_digest") = 64 AND "result_digest" NOT GLOB '*[^0-9a-f]*'),
   "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
-  FOREIGN KEY ("left_perception_id") REFERENCES "perception_records" ("perception_id") ON DELETE RESTRICT,
-  FOREIGN KEY ("right_perception_id") REFERENCES "perception_records" ("perception_id") ON DELETE RESTRICT
+  UNIQUE ("perception_acquisition_id", "page_ordinal"),
+  UNIQUE ("commit_marker"),
+  CHECK (json_valid("result_json")),
+  CHECK (length(CAST("result_json" AS BLOB)) <= 65536),
+  FOREIGN KEY ("perception_acquisition_id") REFERENCES "perception_acquisitions" ("perception_acquisition_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("perception_source_id") REFERENCES "perception_sources" ("perception_source_id") ON DELETE RESTRICT
 );
+
+CREATE TABLE "perception_acquisitions" (
+  "perception_acquisition_id" TEXT PRIMARY KEY,
+  "perception_source_id" TEXT,
+  "source_config_revision" INTEGER CHECK ("source_config_revision" >= 1),
+  "scope_schema_ref" TEXT,
+  "scope_json" TEXT,
+  "scope_digest" TEXT CHECK (length("scope_digest") = 64 AND "scope_digest" NOT GLOB '*[^0-9a-f]*'),
+  "initial_cursor_revision" INTEGER CHECK ("initial_cursor_revision" >= 0),
+  "initial_cursor_value" TEXT,
+  "state" TEXT CHECK ("state" IN ('active', 'completed', 'failed')),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "terminal_at_ms" INTEGER CHECK ("terminal_at_ms" >= 0),
+  CHECK (json_valid("scope_json")),
+  CHECK (length(CAST("scope_json" AS BLOB)) <= 16384),
+  FOREIGN KEY ("perception_source_id") REFERENCES "perception_sources" ("perception_source_id") ON DELETE RESTRICT
+);
+CREATE UNIQUE INDEX "uidx_perception_acquisitions_partial_01" ON "perception_acquisitions" ("perception_source_id") WHERE "state" = 'active';
 
 CREATE TABLE "perception_identity_anchors" (
   "perception_id" TEXT,
@@ -1698,21 +1829,44 @@ CREATE TABLE "perception_identity_anchors" (
 );
 CREATE INDEX "idx_perception_identity_anchors_hot_01" ON "perception_identity_anchors" ("anchor_kind", "anchor_value");
 
+CREATE TABLE "perception_record_relations" (
+  "relation_id" TEXT PRIMARY KEY,
+  "relation_kind" TEXT CHECK ("relation_kind" IN ('duplicate_of', 'supersedes', 'retracts')),
+  "source_perception_id" TEXT,
+  "target_perception_id" TEXT,
+  "rule_revision" INTEGER CHECK ("rule_revision" >= 1),
+  "evidence_digest" TEXT CHECK (length("evidence_digest") = 64 AND "evidence_digest" NOT GLOB '*[^0-9a-f]*'),
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  UNIQUE ("relation_kind", "source_perception_id", "target_perception_id"),
+  FOREIGN KEY ("source_perception_id") REFERENCES "perception_records" ("perception_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("target_perception_id") REFERENCES "perception_records" ("perception_id") ON DELETE RESTRICT
+);
+
 CREATE TABLE "perception_records" (
   "perception_id" TEXT PRIMARY KEY,
   "perception_source_id" TEXT,
+  "perception_acquisition_id" TEXT,
+  "acquisition_commit_receipt_id" TEXT,
+  "record_kind" TEXT CHECK ("record_kind" IN ('observation', 'correction', 'retraction')),
   "source_kind" TEXT,
   "source_record_key" TEXT,
   "source_record_revision" INTEGER CHECK ("source_record_revision" >= 1),
   "source_record_digest" TEXT CHECK (length("source_record_digest") = 64 AND "source_record_digest" NOT GLOB '*[^0-9a-f]*'),
-  "rating" REAL,
-  "watched_state" TEXT CHECK ("watched_state" IN ('unknown', 'unwatched', 'watched')),
+  "normalization_rule_ref" TEXT,
+  "rating" INTEGER,
+  "watched_state" INTEGER CHECK ("watched_state" IN (0, 1)),
   "observed_title" TEXT,
+  "provenance_ref" TEXT,
   "provenance_digest" TEXT CHECK (length("provenance_digest") = 64 AND "provenance_digest" NOT GLOB '*[^0-9a-f]*'),
+  "record_digest" TEXT CHECK (length("record_digest") = 64 AND "record_digest" NOT GLOB '*[^0-9a-f]*'),
   "observed_at_ms" INTEGER CHECK ("observed_at_ms" >= 0),
   "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
   UNIQUE ("perception_source_id", "source_record_key", "source_record_revision", "source_record_digest"),
-  FOREIGN KEY ("perception_source_id") REFERENCES "perception_sources" ("perception_source_id") ON DELETE RESTRICT
+  CHECK ("rating" IS NULL OR ("rating" = CAST("rating" AS INTEGER) AND "rating" BETWEEN 1 AND 5)),
+  CHECK ("watched_state" IS NULL OR "watched_state" IN (0, 1)),
+  FOREIGN KEY ("perception_source_id") REFERENCES "perception_sources" ("perception_source_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("perception_acquisition_id") REFERENCES "perception_acquisitions" ("perception_acquisition_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("acquisition_commit_receipt_id") REFERENCES "perception_acquisition_commits" ("acquisition_commit_receipt_id") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_perception_records_hot_01" ON "perception_records" ("source_kind", "source_record_key", "committed_at_ms");
 
@@ -1723,29 +1877,45 @@ CREATE TABLE "perception_resolution_heads" (
   "current_revision" INTEGER CHECK ("current_revision" >= 1),
   "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
   PRIMARY KEY ("query_contract", "query_input_digest"),
-  FOREIGN KEY ("current_resolution_id") REFERENCES "perception_resolution_revisions" ("resolution_id") ON DELETE RESTRICT
+  FOREIGN KEY ("query_contract", "query_input_digest", "current_revision", "current_resolution_id") REFERENCES "perception_resolution_revisions" ("query_contract", "query_input_digest", "revision", "resolution_id") ON DELETE RESTRICT
 );
 
 CREATE TABLE "perception_resolution_revisions" (
   "resolution_id" TEXT PRIMARY KEY,
   "query_contract" TEXT,
+  "query_schema_ref" TEXT,
   "query_input_digest" TEXT CHECK (length("query_input_digest") = 64 AND "query_input_digest" NOT GLOB '*[^0-9a-f]*'),
+  "fact_kind" TEXT CHECK ("fact_kind" IN ('rating', 'watched')),
   "revision" INTEGER CHECK ("revision" >= 1),
-  "result_kind" TEXT,
+  "record_set_digest" TEXT CHECK (length("record_set_digest") = 64 AND "record_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "rule_revision" INTEGER CHECK ("rule_revision" >= 1),
+  "rule_digest" TEXT CHECK (length("rule_digest") = 64 AND "rule_digest" NOT GLOB '*[^0-9a-f]*'),
+  "result_kind" TEXT CHECK ("result_kind" IN ('found', 'not_found')),
   "winning_perception_id" TEXT,
+  "reason_code" TEXT CHECK ("reason_code" IN ('no_matching_record', 'requested_fact_absent', 'strongest_value_conflict')),
+  "result_schema_ref" TEXT,
+  "result_json" TEXT,
   "result_digest" TEXT CHECK (length("result_digest") = 64 AND "result_digest" NOT GLOB '*[^0-9a-f]*'),
   "resolved_at_ms" INTEGER CHECK ("resolved_at_ms" >= 0),
-  UNIQUE ("query_contract", "query_input_digest", "revision")
+  UNIQUE ("query_contract", "query_input_digest", "revision", "resolution_id"),
+  CHECK (json_valid("result_json")),
+  CHECK (length(CAST("result_json" AS BLOB)) <= 16384),
+  CHECK (("result_kind" = 'found' AND "winning_perception_id" IS NOT NULL AND "reason_code" IS NULL) OR ("result_kind" = 'not_found' AND "winning_perception_id" IS NULL AND "reason_code" IN ('no_matching_record', 'requested_fact_absent', 'strongest_value_conflict'))),
+  FOREIGN KEY ("winning_perception_id") REFERENCES "perception_records" ("perception_id") ON DELETE RESTRICT
 );
 
 CREATE TABLE "perception_source_cursors" (
   "perception_source_id" TEXT,
   "revision" INTEGER CHECK ("revision" >= 1),
-  "cursor_value" TEXT,
-  "observation_digest" TEXT CHECK (length("observation_digest") = 64 AND "observation_digest" NOT GLOB '*[^0-9a-f]*'),
+  "perception_acquisition_id" TEXT,
+  "cursor_in" TEXT,
+  "cursor_out" TEXT,
+  "observation_page_digest" TEXT CHECK (length("observation_page_digest") = 64 AND "observation_page_digest" NOT GLOB '*[^0-9a-f]*'),
+  "has_more" INTEGER,
   "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
   PRIMARY KEY ("perception_source_id", "revision"),
-  FOREIGN KEY ("perception_source_id") REFERENCES "perception_sources" ("perception_source_id") ON DELETE RESTRICT
+  FOREIGN KEY ("perception_source_id") REFERENCES "perception_sources" ("perception_source_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("perception_acquisition_id") REFERENCES "perception_acquisitions" ("perception_acquisition_id") ON DELETE RESTRICT
 );
 
 CREATE TABLE "perception_sources" (

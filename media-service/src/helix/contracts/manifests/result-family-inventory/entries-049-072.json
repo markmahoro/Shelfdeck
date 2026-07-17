@@ -3,36 +3,6 @@
   "manifestId": "helix.inventory.result-families",
   "entries": [
     {
-      "id": "ObservationCommitResult",
-      "version": 1,
-      "owner": "contracts",
-      "status": "contracted",
-      "ssotRefs": [
-        "8.6.19"
-      ],
-      "sourceLocator": {
-        "section": "8.6.19",
-        "line": 7976,
-        "lineDigest": "fa05f8dda885ab939c12758e7ffaea1ae4147a6bd2e6139ed4cd678cb5c86cf8"
-      },
-      "targetLocator": {
-        "path": "types/ObservationCommitResult/v1/schema.json"
-      },
-      "contract": {
-        "resultKind": "nominal-result",
-        "schemaId": "helix://contracts/types/ObservationCommitResult/v1",
-        "schemaPath": "types/ObservationCommitResult/v1/schema.json",
-        "producedBy": [
-          "procurement.field.observation.commit@1"
-        ],
-        "sourceSection": "8.6.19"
-      },
-      "contractDigest": {
-        "algorithm": "sha256",
-        "value": "51579d9e742d81dc216035c4271f020c7f71d1af9066fef3f8acfdfbfe4d4af0"
-      }
-    },
-    {
       "id": "OffdeckTerminalReceipt",
       "version": 1,
       "owner": "contracts",
@@ -42,7 +12,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 8037,
+        "line": 8420,
         "lineDigest": "410ff01aa2ffc75d0cbf40b7a5752800ca066105726722ddbe62ced6cc5934cc"
       },
       "targetLocator": {
@@ -72,7 +42,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 8022,
+        "line": 8405,
         "lineDigest": "b157bd3826037172216166d58ecd5207bad62d26028ae576552593ae739fbca8"
       },
       "targetLocator": {
@@ -102,8 +72,8 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 8003,
-        "lineDigest": "61cd3d4f7c615fccbeb5e162e76fb75096e65b4b15f54142f0eca49625116469"
+        "line": 8386,
+        "lineDigest": "09b4d1b148ea973811fc88e769b17dfda6cda74a64c1d6d6d55e055ba511b711"
       },
       "targetLocator": {
         "path": "types/OnDeckProductPackage/v1/schema.json"
@@ -132,8 +102,8 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 8047,
-        "lineDigest": "cd82a1e6d688fad7b67978afd17853c89590ec431fe33aed115cd254b2e15903"
+        "line": 8430,
+        "lineDigest": "dfbf544c2202f00e30eced9de53a3df6753824523f862774b6128e5d102e4e99"
       },
       "targetLocator": {
         "path": "types/PeopleCandidateRevision/v1/schema.json"
@@ -153,6 +123,36 @@
       }
     },
     {
+      "id": "PerceptionAcquisitionCommitDraft",
+      "version": 1,
+      "owner": "contracts",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.19"
+      ],
+      "sourceLocator": {
+        "section": "8.6.19",
+        "line": 8424,
+        "lineDigest": "33ecd520822c50274c6a50a95ab32350b1925afdb275e8fddc6077b85dac4638"
+      },
+      "targetLocator": {
+        "path": "types/PerceptionAcquisitionCommitDraft/v1/schema.json"
+      },
+      "contract": {
+        "resultKind": "nominal-result",
+        "schemaId": "helix://contracts/types/PerceptionAcquisitionCommitDraft/v1",
+        "schemaPath": "types/PerceptionAcquisitionCommitDraft/v1/schema.json",
+        "producedBy": [
+          "perception.record.normalize@1"
+        ],
+        "sourceSection": "8.6.19"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "31b075fcd188a6e25ef31fb12e08f6c7762db602875b1727c5a77d3b0b592c40"
+      }
+    },
+    {
       "id": "PerceptionObservationPage",
       "version": 1,
       "owner": "contracts",
@@ -162,8 +162,8 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 8040,
-        "lineDigest": "12adf7dcb5b4d9fca284255f5583d8422b96f5189f9b2018118c3993bf91b9d2"
+        "line": 8423,
+        "lineDigest": "6626847551461eaabf36bc5670675829946fc6edc31da9081488b41276437ec5"
       },
       "targetLocator": {
         "path": "types/PerceptionObservationPage/v1/schema.json"
@@ -192,8 +192,8 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 8042,
-        "lineDigest": "09acb2b8e8e9fa9811d82be408121ef9b5c0b5606a3e08b9356f595b37165d04"
+        "line": 8425,
+        "lineDigest": "8202910526d04f43693957b91e27f680ac8fb5651923067cfdc217a1142c6732"
       },
       "targetLocator": {
         "path": "types/PerceptionRecordCommitResult/v1/schema.json"
@@ -222,8 +222,8 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 8043,
-        "lineDigest": "e74b1d92cd4a56b5983fd34e84d71adeafa7038d1f5046f94bb604b8bff4d570"
+        "line": 8426,
+        "lineDigest": "dff760603183ae8ee4868b35dca576e46225f50283d4971ddc4deeb776db80ea"
       },
       "targetLocator": {
         "path": "types/PerceptionResolutionDraft/v1/schema.json"
@@ -252,8 +252,8 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 8044,
-        "lineDigest": "4989d47cd61c7d526056b2063e1b579ab2e22e2734ce203c860a6b8c6677e3b1"
+        "line": 8427,
+        "lineDigest": "1e80f1b2b09a41ad5f3d83fd58da0521428581e9dff06841c929c6b4532e9d57"
       },
       "targetLocator": {
         "path": "types/PerceptionResolutionRevision/v1/schema.json"
@@ -282,7 +282,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 7974,
+        "line": 8357,
         "lineDigest": "797bcc09aa2b6cbfa79d1473b690fa683268427a5a7e0531fd01b3c50b5a5455"
       },
       "targetLocator": {
@@ -312,7 +312,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 8051,
+        "line": 8434,
         "lineDigest": "c2c9c490acfa1e89ecd7f330cd72c0e92d9afa030824d85140d2f8d39720f6f4"
       },
       "targetLocator": {
@@ -342,8 +342,8 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 8048,
-        "lineDigest": "c41491c5679f3683690989d8dc59d0099136bf47edd50eb837ebb23bc008cdb9"
+        "line": 8431,
+        "lineDigest": "5eeee451eabf20b8b826ee0d0eb2c52ac3ee4e64477709e02b4af2473fc374e0"
       },
       "targetLocator": {
         "path": "types/PersonReferenceRevision/v1/schema.json"
@@ -372,8 +372,8 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 8045,
-        "lineDigest": "d952a8d685645e19edbdf6ab35b3e7e96eb6f31fb59df5b551067197b262cfd6"
+        "line": 8428,
+        "lineDigest": "3d9e16aa6e10b75844ddf294dcbfa97193e734998ce7333f60741c313c5322bd"
       },
       "targetLocator": {
         "path": "types/PersonRegistrationEvidence/v1/schema.json"
@@ -402,8 +402,8 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 8050,
-        "lineDigest": "b62e23a60fb216ef76626381542dd80ef98dadea6a63402a385d5ba008a8b073"
+        "line": 8433,
+        "lineDigest": "0662053484959f3cea1d64d762f834d250dec3c6452131fd92594e981ce1e013"
       },
       "targetLocator": {
         "path": "types/PersonRevision/v1/schema.json"
@@ -432,7 +432,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 8018,
+        "line": 8401,
         "lineDigest": "af6fa5b25e63ed21cdb55f225039a5a2fbdb54729bbda841fca16f982f8b6e22"
       },
       "targetLocator": {
@@ -462,7 +462,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 7978,
+        "line": 8361,
         "lineDigest": "ed4927b8081aa345d2fa10cf066b204ee7cf7bf0443a7709f0d36a699d3d377c"
       },
       "targetLocator": {
@@ -492,7 +492,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 8025,
+        "line": 8408,
         "lineDigest": "86438dfbcfc7e68248c39d39e0cc146b0f2dce35a72bbea13f79eae98c044874"
       },
       "targetLocator": {
@@ -522,7 +522,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 7981,
+        "line": 8364,
         "lineDigest": "a10299af0cba07221ee8d668204720eb82d1cc06dbe3e2b0666f0207e7e6fb20"
       },
       "targetLocator": {
@@ -552,7 +552,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 7977,
+        "line": 8360,
         "lineDigest": "d5f0349bf9ec68610bd9557bd7048553ee5440ef3da0b65e84c26166ad83e20a"
       },
       "targetLocator": {
@@ -582,7 +582,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 8002,
+        "line": 8385,
         "lineDigest": "0e184bdaa23e168dd03f71f723f2d7353a8c5fe6e57619831d2ceded6cb89fd6"
       },
       "targetLocator": {
@@ -612,7 +612,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 8000,
+        "line": 8383,
         "lineDigest": "50e7a545f1336433a2d37d922b4b0406465861e3533d6e20656621192452e771"
       },
       "targetLocator": {
@@ -642,8 +642,8 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 7994,
-        "lineDigest": "f679b613a562ed65e13c23130fa72c4083e9b1c148720531199d53dcc24401f5"
+        "line": 8377,
+        "lineDigest": "04219e9281a43a3c6a213591b520a89778d19683ab742a1ec4b52e11fa2588a2"
       },
       "targetLocator": {
         "path": "types/ProductMetadataDraft/v1/schema.json"
@@ -672,7 +672,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 7997,
+        "line": 8380,
         "lineDigest": "0bbd4d7525ca87d0062195ca6d312a7cc33d2f19e2a83387f80dc7291357200f"
       },
       "targetLocator": {
@@ -702,7 +702,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 8004,
+        "line": 8387,
         "lineDigest": "15ac30894158416a2b22eda4c5d9067e2e00ebda67f528cc34f32095de9bafa9"
       },
       "targetLocator": {

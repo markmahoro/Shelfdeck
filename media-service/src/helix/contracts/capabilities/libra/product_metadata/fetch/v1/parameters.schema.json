@@ -4,18 +4,6 @@
   "title": "libra.product_metadata.fetch@1 parameters",
   "type": "object",
   "additionalProperties": false,
-  "properties": {
-    "contentProfile": {
-      "type": "string",
-      "enum": [
-        "movie",
-        "season",
-        "jav",
-        "western_adult"
-      ]
-    }
-  },
-  "required": [
-    "contentProfile"
-  ]
+  "properties": {},
+  "required": []
 }

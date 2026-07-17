@@ -35,6 +35,7 @@
         "owner": "execution-foundation",
         "access": "write",
         "tables": [
+          "fx_event_result_bindings",
           "fx_commit_markers",
           "fx_outbox"
         ]
@@ -48,6 +49,7 @@
       "libra_handoff_a_receipts",
       "fx_material_controls",
       "fx_material_control_revisions",
+      "fx_event_result_bindings",
       "fx_commit_markers",
       "fx_outbox"
     ],
@@ -82,7 +84,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7222,
+      "line": 7494,
       "lineDigest": "73503079bb76d649baac5fad1b5e34ff41a3d5555a1ed262e2648d94dc100794"
     }
   }

@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/PeopleReferenceMaintenanceDecision/v1",
+  "title": "PeopleReferenceMaintenanceDecision@1",
+  "x-helix-ssotRefs": [
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "decisionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "operationKind": {
+          "const": "add_image"
+        },
+        "personId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "expectedPersonRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "expectedReferenceRevision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "actorId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "decisionDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "referenceAssetId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "referenceFaceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "artifactHandle": {
+          "$ref": "helix://contracts/types/ArtifactHandle/v1"
+        },
+        "artifactDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "faceEmbeddingSetHandle": {
+          "$ref": "helix://contracts/types/FaceEmbeddingSetHandle/v1"
+        },
+        "modelRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "initialState": {
+          "const": "active"
+        }
+      },
+      "required": [
+        "decisionId",
+        "operationKind",
+        "personId",
+        "expectedPersonRevision",
+        "expectedReferenceRevision",
+        "actorId",
+        "decisionDigest",
+        "referenceAssetId",
+        "referenceFaceId",
+        "artifactHandle",
+        "artifactDigest",
+        "faceEmbeddingSetHandle",
+        "modelRef",
+        "initialState"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "decisionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "operationKind": {
+          "const": "release_image"
+        },
+        "personId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "expectedPersonRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "expectedReferenceRevision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "actorId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "decisionDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "referenceAssetId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "referenceFaceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "expectedAssetState": {
+          "const": "active"
+        },
+        "expectedFaceState": {
+          "const": "active"
+        },
+        "terminalState": {
+          "const": "released"
+        },
+        "artifactDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "embeddingDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "modelRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        }
+      },
+      "required": [
+        "decisionId",
+        "operationKind",
+        "personId",
+        "expectedPersonRevision",
+        "expectedReferenceRevision",
+        "actorId",
+        "decisionDigest",
+        "referenceAssetId",
+        "referenceFaceId",
+        "expectedAssetState",
+        "expectedFaceState",
+        "terminalState",
+        "artifactDigest",
+        "embeddingDigest",
+        "modelRef"
+      ]
+    }
+  ]
+}

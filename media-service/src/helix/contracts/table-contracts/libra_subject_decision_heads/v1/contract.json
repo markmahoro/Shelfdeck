@@ -13,7 +13,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": true,
-        "foreignKeyMarker": true
+        "foreignKeyMarker": true,
+        "nullable": false
       },
       {
         "ordinal": 2,
@@ -21,7 +22,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": true
+        "foreignKeyMarker": true,
+        "nullable": false
       },
       {
         "ordinal": 3,
@@ -29,7 +31,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": true
+        "foreignKeyMarker": true,
+        "nullable": false
       },
       {
         "ordinal": 4,
@@ -37,7 +40,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": true
+        "foreignKeyMarker": true,
+        "nullable": false
       },
       {
         "ordinal": 5,
@@ -45,7 +49,8 @@
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       }
     ],
     "primaryKey": [
@@ -78,7 +83,8 @@
             "routing_decision_id"
           ],
           "consistencyColumns": [],
-          "deletePolicy": "RESTRICT"
+          "deletePolicy": "RESTRICT",
+          "deferrable": false
         },
         {
           "sourceColumns": [
@@ -89,7 +95,8 @@
             "decision_basis_id"
           ],
           "consistencyColumns": [],
-          "deletePolicy": "RESTRICT"
+          "deletePolicy": "RESTRICT",
+          "deferrable": false
         },
         {
           "sourceColumns": [
@@ -100,14 +107,15 @@
             "acceptance_spec_id"
           ],
           "consistencyColumns": [],
-          "deletePolicy": "RESTRICT"
+          "deletePolicy": "RESTRICT",
+          "deferrable": false
         }
       ],
       "pointerRules": []
     },
     "jsonContracts": [],
     "immutability": {
-      "immutable": true,
+      "immutable": false,
       "rules": [
         "每次切换与对应immutable Decision/Spec同事务成立"
       ]
@@ -126,7 +134,7 @@
     },
     "source": {
       "section": "8.5.11",
-      "line": 7415,
+      "line": 7699,
       "lineDigest": "44119a06333983fc844d29b0ed5e0798e55ef2997abf1329901750798aa4431a"
     },
     "foreignKeys": [
@@ -138,7 +146,8 @@
         "targetColumns": [
           "subject_id"
         ],
-        "deletePolicy": "RESTRICT"
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
       },
       {
         "columns": [
@@ -148,7 +157,8 @@
         "targetColumns": [
           "routing_decision_id"
         ],
-        "deletePolicy": "RESTRICT"
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
       },
       {
         "columns": [
@@ -158,7 +168,8 @@
         "targetColumns": [
           "decision_basis_id"
         ],
-        "deletePolicy": "RESTRICT"
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
       },
       {
         "columns": [
@@ -168,7 +179,8 @@
         "targetColumns": [
           "acceptance_spec_id"
         ],
-        "deletePolicy": "RESTRICT"
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
       }
     ]
   }

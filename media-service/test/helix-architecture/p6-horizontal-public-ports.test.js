@@ -39,6 +39,11 @@ test('People Facades reject Media-Cast and generic Store authority', () => {
   const implementation = Object.fromEntries(catalog.facades
     .find((item) => item.exportName === 'PeopleCommandFacade').methods.map((method) => [method, (input) => ({ method, input })]));
   const commands = people.PeopleCommandFacade(implementation);
+  assert.equal(commands.registerPerson({ decisionId: 'd-1' }).method, 'registerPerson');
+  assert.equal(commands.addReferenceImage({ personId: 'p-1' }).method, 'addReferenceImage');
+  assert.equal(commands.releaseReferenceImage({ personId: 'p-1' }).method, 'releaseReferenceImage');
+  assert.equal(commands.addReferenceAsset, undefined);
+  assert.equal(commands.addReferenceFace, undefined);
   assert.equal(commands.setPreference({ personId: 'p-1', level: -2 }).method, 'setPreference');
   assert.equal(Object.isFrozen(commands), true);
   assert.throws(() => people.PeopleCommandFacade({ ...implementation, writeMediaCast() {} }),

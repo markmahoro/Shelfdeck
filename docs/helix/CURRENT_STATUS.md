@@ -13,12 +13,12 @@ Last updated: 2026-07-17
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations |
 | Current phase | P6 — Horizontal Domains |
-| Current phase status | in progress；P6-00–P6-02 and P6-05 complete；P6-03 contract regeneration pending reported SSOT nominal fix；P5 Exit Audit PASS |
+| Current phase status | in progress；latest SSOT已重物化为112/96/160/22；P6-04–P6-06 complete；Perception Resolution与People Registration链路已闭合；P5 Exit Audit PASS |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P5 phase closure `41470e47ec6bed7ba1cf81024130870eb2e57e92` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p6` on `codex/helix-p6` |
-| Next action | close reported Perception Result nominal identity；regenerate P2/P3/P4 contracts；resume P6-03 |
+| Next action | P6-07 Person Merge and Preference lifecycle；精确Person/Preference CAS与Merge correlation原子闭合 |
 
 ## 2. Accepted implementation conclusion
 
@@ -340,20 +340,57 @@ P5 10-family/31-scenario回归全部PASS，P2 aggregate不变，findings和prohi
 `implementation/evidence/P6_01_HORIZONTAL_DOMAIN_PUBLIC_PORTS.md`。下一步P6-02 User Perception scoped Store and
 atomic Repository。没有需要用户决定的业务问题。
 
-P6-02已完成：User Perception Store严格分为`PerceptionRecordRepository`（5张Source/Cursor/Record/Anchor/Relation表）
-与`PerceptionResolutionRepository`（2张Revision/Head表），两者只注册`perception_`表。用户即时输入Source允许无
-Integration和cursor，首次sync再原子建立cursor revision 1；后续Source config、cursor和Resolution head均按expected
-revision CAS。Record/Anchor/Relation不可更新，rating `null|1..5`、watched enum、source identity唯一、normalized pair、
-found winner及no-`MAX` head全部fail closed。专项8/8、65-file architecture、55 files/67 dependencies、1438 semantic
-files和P3 156/72/19 + 18 transactions/132 fault points全部PASS。证据见
-`implementation/evidence/P6_02_PERCEPTION_SCOPED_STORE.md`。下一步P6-03 Perception Acquisition and immutable Record
-pipeline。没有需要用户决定的业务问题。
+P6-02已按PBF-02/PBF-03重新闭合：`PerceptionRecordRepository`拥有7张Source/Acquisition/Cursor/Page Commit/Record/Anchor/
+Relation表，`PerceptionResolutionRepository`拥有2张Revision/Head表。首次sync使用revision `0`逻辑sentinel但不伪造cursor
+row；active Acquisition partial unique，terminal后可重开；Source/cursor/Resolution均expected revision CAS。Page receipt、
+Record、Anchor、lineage、cursor和typed Result同事务，same marker replay与source identity duplicate计数收敛；stored Result tamper
+fail closed。专项`11/11 PASS`，P2/P3/People/Perception组合`59/59 PASS`，证据见
+`implementation/evidence/P6_02_PERCEPTION_SCOPED_STORE.md`。
 
-P6-05已独立完成：`PersonRegistryRepository`精确拥有7张Person/Identity/Preference/Reference表，
-`PeopleCandidateRepository`精确拥有3张Candidate/Merge表。Person immutable revision/head CAS、stable Provider Identity
-active unique、Preference `-2..2`、Reference handle同Person owner、Registration evidence open unique、normalized Merge pair
-open unique和one terminal source Merge Record全部fail closed；Foundation Capability Outcome/Work/Event Result不能保存为People
-Candidate。focused 9/9与合并边界33/33 PASS，证据见
-`implementation/evidence/P6_05_PEOPLE_SCOPED_REPOSITORIES.md`。该包不依赖P6-03，也不宣称P6-06/P6-07 lifecycle完成。
-当前P6-03仍等待Architecture Agent修正`perception.dedup.resolve@1`输出中的括号说明被误纳入nominal type identity，
-以及明确新增Perception Page Commit后的canonical transaction总数；实现线程未修改SSOT、未以生成器清洗绕过。
+P6-03已完成：Provider pure-observation port只交付bounded references，Observation Reader形成immutable
+`PerceptionObservationPage`，matching revisioned normalization rule形成`PerceptionAcquisitionCommitDraft`；P3 Domain Commit
+Coordinator在单一UoW提交Perception facts、cursor、typed Result、Foundation Result binding、Commit Marker和Outbox。focused
+`3/3`、P3/P6组合`22/22`、Domain input `8/8`与Architecture guards `21/21 PASS`。证据见
+`implementation/evidence/P6_03_PERCEPTION_ACQUISITION_PIPELINE.md`。
+
+旧P6-05 10-table实现已由clean rewrite完全取代：`PersonRegistryRepository`精确拥有7张Person/Identity/Preference/Reference
+表，`PeopleCandidateRepository`精确拥有Registration/Merge head+revision及Merge Record共5张表。Person是global Registry且
+不含`content_scope`；Preference使用显式current pointer；Candidate只保存完整typed payload并逐次形成immutable revision，
+Merge Candidate冻结精确Person fact与Preference revision。旧单行state API、digest-only Draft及无head Preference追加均删除，
+没有compatibility path。focused `9/9`、P2/P3/table/package组合`68/68`、canonical crash/semantic组合`103/103 PASS`。
+当前P2 aggregate为`65f96c638a668817085611035870c461f96a71209198b64eae62886ecc6549ac`。证据见
+`implementation/evidence/P6_05_PEOPLE_SCOPED_REPOSITORIES.md`；下一工作包P6-06。
+
+P6-06已完成：pure `PeopleCandidateResolver`只消费typed Evidence与immutable Policy catalog，产生complete Candidate Draft或
+bounded `no_candidate`；Candidate Commit通过P3 Coordinator原子写head/open revision、typed Result、marker与Outbox；
+Registration Acceptance以Candidate revision/payload CAS原子终结Candidate并创建global Person、Alias、Provider Identity。
+同marker重放返回首次typed Result；stale revision、payload/Decision tamper及stable Provider Identity冲突均整事务rollback。
+`dismiss-candidate`只追加terminal revision，不创建Person。Resolver `4/4`、lifecycle `6/6`、P2/P3/table/package/all-P6
+组合`95/95 PASS`。证据见`implementation/evidence/P6_06_PERSON_REGISTRATION_LIFECYCLE.md`；下一工作包P6-07。
+
+P6-07已完成：Merge Acceptance精确冻结Candidate、source/target Person revision/fact和nullable Preference pointer；同一P3事务内
+追加Candidate accepted revision、source terminal revision、target active revision、必要Preference resolution、immutable Merge
+Record、typed Result、marker和Outbox。target Person identity/canonical name保留，Alias/Provider Identity按target优先合并，Reference
+Asset/Face仍归source历史、不复制。strong identity rule遇到Preference差异或显式改值即拒绝，source terminal target由数据库
+`UNIQUE`硬约束。独立Preference Commit已删除合同外字段读取并验证Intent digest。focused `57/57`、targeted `26/26`、完整
+Architecture与P3 Persistence门禁PASS；P2 aggregate更新为
+`35695f240c93cbad14c2fc81d1df7c789db88966225fe7384dffaf44e9756f81`。证据见
+`implementation/evidence/P6_07_PERSON_MERGE_AND_PREFERENCE.md`；下一工作包P6-08。
+
+P6-08已在实现前审计中返回Design：SSOT要求维护并添加/删除Reference Image/Face，且两张People表分别需要稳定业务ID、
+Artifact/Embedding handle、model/source/state；但当前`people.reference_fact.commit@1` closed input只含通用
+`ArtifactHandle + DomainFactCommitHandle`，无法确定Asset/Face业务ID、Face事实或release语义，public合同也没有Face add/release
+named command。实现线程没有用Handle ID冒充业务ID、没有旁读Store或写推测性默认值。待Architecture Agent闭合正式Reference
+Maintenance DTO/Capability/Facade合同后继续。证据见
+`implementation/evidence/P6_08_REFERENCE_MAINTENANCE_DESIGN_RETURN.md`。本线程未修改SSOT。
+上述Perception Resolution与People Registration Design Return已由Architecture Agent提交`85752517`闭合，实现线程仅
+cherry-pick该原始SSOT delta，未手工修改SSOT。Perception现有正式链为`CanonicalQueryHandle → Input Assembler →
+PerceptionResolutionQuery/RecordSet/RuleSnapshot → pure Resolver → Draft → atomic Commit → Facade`；Resolution持久化完整typed
+结果并由四列复合外键约束Head，Record以scalar fields和排序Anchor计算`record_digest`。People的`content_scope`已从合同删除，
+Person明确为global Registry，不再等待业务值来源。
+
+P6-04现已完成：旧ID-only DTO与Store旁读捷径均未保留；强Identity tier按固定rank选择，只有同一最强tier一致时返回
+`found`，冲突或无匹配返回`not_found`，exact duplicate proof与普通Resolution匹配分离。P2合同门禁PASS，P3 DDL `7/7`、
+canonical crash `78/78`、Perception focused/integration `20/20 PASS`。证据见
+`implementation/evidence/P6_04_PERCEPTION_RESOLUTION.md`。P6整体Exit Audit尚未执行；下一工作包是P6-05最新12-table
+People Store clean rewrite。

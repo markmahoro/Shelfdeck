@@ -5,8 +5,8 @@
   "ownerScope": "people",
   "effectClass": "domain_fact_commit",
   "inputPorts": {
-    "registrationMergeDecision": {
-      "schemaRef": "helix://contracts/capabilities/people.person.commit/v1/inputs#/$defs/registrationMergeDecision",
+    "peopleCandidateAcceptanceDecision": {
+      "schemaRef": "helix://contracts/capabilities/people.person.commit/v1/inputs#/$defs/peopleCandidateAcceptanceDecision",
       "required": true,
       "cardinality": "one"
     },
@@ -29,7 +29,7 @@
   },
   "sourceLocator": {
     "section": "8.6.14",
-    "line": 7802,
-    "lineDigest": "612c71847ea040722959cb64e1a1809681f9e406c156538986ad4b420d7df8e5"
+    "line": 8128,
+    "lineDigest": "0f57cc3035a38feb0a59cf729c6f3dd4eea9738ad70fb6ae128de208499621e8"
   }
 }

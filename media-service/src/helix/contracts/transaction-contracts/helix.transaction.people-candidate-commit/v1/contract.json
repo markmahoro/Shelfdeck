@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.people-candidate-commit/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.people-candidate-commit",
+    "displayName": "People Candidate Commit",
+    "ownerScope": "people",
+    "commitClass": "domain_fact_commit",
+    "atomicFactSet": "complete PeopleCandidateDraft + typed Candidate head + initial immutable `open` revision + durable typed result + commit marker + People-internal Outbox",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "people",
+        "access": "write",
+        "tables": [
+          "people_registration_candidates",
+          "people_registration_candidate_revisions",
+          "people_merge_candidates",
+          "people_merge_candidate_revisions"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_event_result_bindings",
+          "fx_commit_markers",
+          "fx_outbox"
+        ]
+      }
+    ],
+    "writeTables": [
+      "people_registration_candidates",
+      "people_registration_candidate_revisions",
+      "people_merge_candidates",
+      "people_merge_candidate_revisions",
+      "fx_event_result_bindings",
+      "fx_commit_markers",
+      "fx_outbox"
+    ],
+    "readTables": [],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": true
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "people-candidate",
+        "faultInjectionPoints": "typed Evidence恢复、Resolver产出complete Draft、Candidate head/open revision/typed Result/marker各边界；用户或strong rule接受前后；Registration Person/alias/provider identity与Merge target/source/preference/correlation提交各边界",
+        "requiredInvariant": "CommitParticipant不旁读Foundation/Provider；Candidate payload digest可重算；重启不丢open Candidate；candidate revision或任一Person/Preference revision变化时整体CAS失败；接受成功时Candidate terminal与全部Person facts同时成立，同marker重放返回同一typed Result；弱Identity未经用户确认不建立Person，Preference冲突不得strong-rule自动接受",
+        "source": {
+          "section": "8.9.7",
+          "line": 8584
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7487,
+      "lineDigest": "d1d347c7d4a0dc22efdc62bde7b660e345cf3658c643f2de987222edd7373c8b"
+    }
+  }
+}

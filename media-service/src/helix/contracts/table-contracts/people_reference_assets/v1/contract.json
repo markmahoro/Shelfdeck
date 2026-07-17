@@ -13,7 +13,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": true,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 2,
@@ -21,7 +22,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": true
+        "foreignKeyMarker": true,
+        "nullable": false
       },
       {
         "ordinal": 3,
@@ -29,7 +31,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 4,
@@ -37,7 +40,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 5,
@@ -45,19 +49,47 @@
         "logicalType": "TEXT",
         "enumValues": [
           "active",
-          "superseded",
-          "rejected"
+          "released"
         ],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 6,
+        "name": "created_reference_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "released_reference_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 8,
         "name": "created_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "released_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
       }
     ],
     "primaryKey": [
@@ -79,13 +111,15 @@
         "column": "state",
         "enumValues": [
           "active",
-          "superseded",
-          "rejected"
+          "released"
         ]
       }
     ],
     "revisionContract": {
-      "revisionColumns": [],
+      "revisionColumns": [
+        "created_reference_revision",
+        "released_reference_revision"
+      ],
       "currentPointerColumns": [],
       "pointerTargets": [],
       "pointerRules": []
@@ -100,27 +134,47 @@
       "rules": []
     },
     "semanticRules": [
-      "`UNIQUE(person_id,artifact_digest)`"
+      "stable业务ID由`ReferenceAssetCoordinator`在Plan前分配",
+      "`artifact_handle_id/artifact_digest`必须分别等于Decision中`artifactHandle.artifactHandleId/digestHex`",
+      "`UNIQUE(person_id,artifact_digest)`",
+      "created/released revision都显式引用同Person的`people_reference_revisions`",
+      "released不可回到active"
     ],
     "rawContract": {
-      "columns": "`reference_asset_id PK, person_id FK, artifact_handle_id, artifact_digest, state, created_at_ms`",
-      "constraints": "`UNIQUE(person_id,artifact_digest)`"
+      "columns": "`reference_asset_id PK, person_id FK, artifact_handle_id, artifact_digest, state(active|released), created_reference_revision, released_reference_revision NULL, created_at_ms, released_at_ms NULL`",
+      "constraints": "stable业务ID由`ReferenceAssetCoordinator`在Plan前分配；`artifact_handle_id/artifact_digest`必须分别等于Decision中`artifactHandle.artifactHandleId/digestHex`；`UNIQUE(person_id,artifact_digest)`；created/released revision都显式引用同Person的`people_reference_revisions`；released不可回到active"
     },
     "source": {
       "section": "8.5.13",
-      "line": 7506,
-      "lineDigest": "adefa3197b448b4313ae7cdefbffd1804093bedc8249b85abd6893ce60f19656"
+      "line": 7792,
+      "lineDigest": "9310ae4780a034c017c0fe0e8027c30effa5b6c815bf631e8fe1bc6ff6b626cd"
     },
     "foreignKeys": [
       {
         "columns": [
-          "person_id"
+          "person_id",
+          "created_reference_revision"
         ],
-        "targetTable": "people_persons",
+        "targetTable": "people_reference_revisions",
         "targetColumns": [
-          "person_id"
+          "person_id",
+          "revision"
         ],
-        "deletePolicy": "RESTRICT"
+        "deletePolicy": "RESTRICT",
+        "deferrable": true
+      },
+      {
+        "columns": [
+          "person_id",
+          "released_reference_revision"
+        ],
+        "targetTable": "people_reference_revisions",
+        "targetColumns": [
+          "person_id",
+          "revision"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": true
       }
     ]
   }

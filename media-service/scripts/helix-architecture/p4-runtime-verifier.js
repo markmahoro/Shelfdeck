@@ -40,7 +40,7 @@ function seed(options, databasePath, effectClass) {
     transaction.prepare("INSERT INTO fx_supporting_works(work_id,state) VALUES('work','running')").run();
     transaction.prepare("INSERT INTO fx_work_attempts(attempt_id,work_id,state) VALUES('work-attempt','work','running')").run();
     transaction.prepare("INSERT INTO fx_workflow_plans(plan_id,attempt_id,state) VALUES('plan','work-attempt','planned')").run();
-    transaction.prepare("INSERT INTO fx_plan_nodes(plan_id,node_id,effect_class,retry_policy_ref,timeout_policy_ref) VALUES('plan','node',?,'retry','timeout')").run(effectClass);
+    transaction.prepare("INSERT INTO fx_plan_nodes(plan_id,node_id,effect_class) VALUES('plan','node',?)").run(effectClass);
     transaction.prepare("INSERT INTO fx_workflow_events(event_id,plan_id,node_id,work_id,attempt_id,owner_domain,capability_ref,state) VALUES('event','plan','node','work','work-attempt','libra','libra.fixture@1','executing')").run();
     transaction.prepare("INSERT INTO fx_event_attempts(event_attempt_id,event_id,ordinal,state,started_at_ms) VALUES('event-attempt','event',1,'executing',1)").run();
   });

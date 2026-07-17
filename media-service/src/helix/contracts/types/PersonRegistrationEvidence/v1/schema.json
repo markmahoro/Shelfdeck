@@ -49,26 +49,91 @@
     "aliases": {
       "type": "array",
       "items": {
-        "type": "string",
-        "minLength": 1
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "aliasDisplay": {
+            "type": "string",
+            "minLength": 1
+          },
+          "aliasNormalized": {
+            "type": "string",
+            "minLength": 1
+          },
+          "provenanceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "aliasDisplay",
+          "aliasNormalized",
+          "provenanceDigest"
+        ]
       },
-      "maxItems": 1024
+      "maxItems": 256
     },
     "providerIdentities": {
       "type": "array",
       "items": {
-        "type": "string",
-        "minLength": 1
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "provider": {
+            "type": "string",
+            "minLength": 1
+          },
+          "namespace": {
+            "type": "string",
+            "minLength": 1
+          },
+          "providerKey": {
+            "type": "string",
+            "minLength": 1
+          },
+          "provenanceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "provider",
+          "namespace",
+          "providerKey",
+          "provenanceDigest"
+        ]
       },
-      "maxItems": 1024
+      "maxItems": 256
     },
     "referenceHints": {
       "type": "array",
       "items": {
-        "type": "string",
-        "minLength": 1
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "hintKind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "referenceValue": {
+            "type": "string",
+            "minLength": 1
+          },
+          "provenanceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "hintKind",
+          "referenceValue",
+          "provenanceDigest"
+        ]
       },
-      "maxItems": 1024
+      "maxItems": 256
     }
   },
   "required": [

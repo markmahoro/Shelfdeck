@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/PerceptionAcquisitionCursor/v1",
+  "title": "PerceptionAcquisitionCursor@1",
+  "x-helix-ssotRefs": [
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/domain-types/PerceptionAcquisitionCursor/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "objectId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "digest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "perceptionAcquisitionId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "pageOrdinal": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "expectedCursorRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "cursorIn": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "pageBudget": {
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "objectId",
+    "revision",
+    "digest",
+    "perceptionAcquisitionId",
+    "pageOrdinal",
+    "expectedCursorRevision",
+    "cursorIn",
+    "pageBudget"
+  ]
+}

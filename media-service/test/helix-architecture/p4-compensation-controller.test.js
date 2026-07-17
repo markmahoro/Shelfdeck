@@ -27,7 +27,7 @@ function fixture(run, settings = {}) {
       .run(settings.targetEffectClass || 'workspace_write');
     transaction.prepare("INSERT INTO fx_workflow_events(event_id,plan_id,node_id,work_id,attempt_id,state) VALUES('target','plan','target-node','work','attempt',?)")
       .run(settings.targetState || 'failed');
-    transaction.prepare("INSERT INTO fx_plan_nodes(plan_id,node_id,capability_ref,effect_class,when_schema_ref,when_json,compensation_for_event_id,compensation_contract_ref) VALUES('plan','comp-node','libra.fixture.cleanup@1','workspace_write',?,?, 'target','helix://foundation/compensation/workspace-cleanup/v1')")
+    transaction.prepare("INSERT INTO fx_plan_nodes(plan_id,node_id,capability_ref,effect_class,when_schema_ref,when_json) VALUES('plan','comp-node','libra.fixture.cleanup@1','workspace_write',?,?)")
       .run(settings.withWhen ? 'helix://fixture/when/v1' : null, settings.withWhen ? '{}' : null);
     transaction.prepare("INSERT INTO fx_workflow_events(event_id,plan_id,node_id,work_id,attempt_id,state) VALUES('comp','plan','comp-node','work','attempt','pending')").run();
     transaction.prepare("INSERT INTO fx_plan_edges(plan_id,from_node_id,to_node_id,dependency_kind) VALUES('plan','target-node','comp-node','terminal')").run();
@@ -72,5 +72,5 @@ test('wrong recovery decision, missing evidence, nonterminal target, and destruc
 
 test('ordinary Event advancement cannot activate compensation node after target terminal', () => {
   const source = fs.readFileSync(path.resolve(__dirname, '../../src/helix/foundation/execution/event-runtime.js'), 'utf8');
-  assert.equal(source.includes('if (node.compensation_for_event_id !== null) continue;'), true);
+  assert.equal(source.includes("if (inbound.some((edge) => edge.dependency_kind === 'terminal')) continue;"), true);
 });

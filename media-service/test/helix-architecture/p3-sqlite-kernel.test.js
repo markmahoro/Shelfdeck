@@ -13,32 +13,54 @@ const generatedRoot = path.resolve(__dirname, '../../src/helix/foundation/persis
 const schemaDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 'utf8');
 const schemaManifest = JSON.parse(fs.readFileSync(path.join(generatedRoot, 'clean-schema.manifest.json'), 'utf8'));
 
+const temporaryRoots = new Set();
+
+function removeTemporaryRoot(root) {
+  let lastError;
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    try {
+      fs.rmSync(root, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      lastError = error;
+      if (error.code !== 'EPERM') throw error;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25);
+    }
+  }
+  throw lastError;
+}
+
+test.after(() => {
+  for (const root of temporaryRoots) removeTemporaryRoot(root);
+});
+
 function temporaryDatabase(run) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-sqlite-kernel-'));
+  temporaryRoots.add(root);
   const databasePath = path.join(root, 'shelfdeck.db');
-  try {
-    return run(databasePath);
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
+  return run(databasePath);
 }
 
 const open = (databasePath, options = {}) => openSqliteKernel({
   Database, databasePath, schemaDdl, schemaManifest, now: options.now
 });
 
-test('creates and reopens the only clean 156-table WAL generation with hard startup gates', () => {
+test('creates and reopens the only clean 161-table WAL generation with hard startup gates', () => {
   temporaryDatabase((databasePath) => {
-    const first = open(databasePath, { now: () => 1700000000000 });
-    assert.equal(first.generation.tableCount, 156);
-    assert.equal(first.generation.indexCount, 72);
-    assert.equal(first.generation.partialUniqueCount, 19);
-    assert.equal(first.generation.schemaDigest, schemaManifest.ddlDigest);
-    assert.deepEqual(first.diagnostics(), { foreignKeys: 1, journalMode: 'wal', synchronous: 1, busyTimeout: 5000 });
-    first.close();
+    let firstGeneration;
+    {
+      const first = open(databasePath, { now: () => 1700000000000 });
+      assert.equal(first.generation.tableCount, 161);
+      assert.equal(first.generation.indexCount, 74);
+      assert.equal(first.generation.partialUniqueCount, 20);
+      assert.equal(first.generation.schemaDigest, schemaManifest.ddlDigest);
+      assert.deepEqual(first.diagnostics(), { foreignKeys: 1, journalMode: 'wal', synchronous: 1, busyTimeout: 5000 });
+      firstGeneration = first.generation;
+      first.close();
+    }
 
     const second = open(databasePath);
-    assert.deepEqual(second.generation, first.generation);
+    assert.deepEqual(second.generation, firstGeneration);
     second.close();
   });
 });

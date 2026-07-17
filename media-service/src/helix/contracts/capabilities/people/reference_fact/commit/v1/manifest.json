@@ -5,8 +5,8 @@
   "ownerScope": "people",
   "effectClass": "domain_fact_commit",
   "inputPorts": {
-    "verifiedReferenceAsset": {
-      "schemaRef": "helix://contracts/capabilities/people.reference_fact.commit/v1/inputs#/$defs/verifiedReferenceAsset",
+    "peopleReferenceMaintenanceDecision": {
+      "schemaRef": "helix://contracts/capabilities/people.reference_fact.commit/v1/inputs#/$defs/peopleReferenceMaintenanceDecision",
       "required": true,
       "cardinality": "one"
     },
@@ -29,7 +29,7 @@
   },
   "sourceLocator": {
     "section": "8.6.14",
-    "line": 7799,
-    "lineDigest": "1b0ddda011899aec3306d70011eee6607435eb155210588bacee55f0b607cf4b"
+    "line": 8125,
+    "lineDigest": "685bdb0074fce95a1b9cc4ee9b06b7383b3561bb57c249b4f206016357f636f5"
   }
 }

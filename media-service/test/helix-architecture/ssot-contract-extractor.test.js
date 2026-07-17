@@ -11,7 +11,7 @@ const {
   splitMarkdownRow
 } = require('../../scripts/helix-architecture/ssot-contract-extractor');
 
-const sourcePath = path.resolve(__dirname, '../../../docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md');
+const sourcePath = process.env.HELIX_SSOT_PATH || path.resolve(__dirname, '../../../docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md');
 const source = fs.readFileSync(sourcePath, 'utf8');
 
 test('extracts the accepted P2 SSOT cardinalities with stable digests', () => {

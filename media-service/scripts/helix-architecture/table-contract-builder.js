@@ -13,6 +13,10 @@ const OWNER_PREFIXES = Object.freeze({
   'platform-settings': ['platform_']
 });
 const BUSINESS_OWNERS = new Set(['procurement', 'libra', 'arca', 'perception', 'people']);
+const UNIQUE_CONSTRAINT_OVERRIDES = Object.freeze({
+  // SSOT 8.5.13: one source Person can have at most one terminal merge target.
+  people_merge_records: [['source_person_id']]
+});
 // SSOT 8.5.9 requires every state/status column to be closed. Values named by
 // Level 6/7 lifecycles are preserved verbatim; unnamed technical projections
 // use the smallest Foundation/Platform lifecycle needed by those contracts.
@@ -63,8 +67,12 @@ const ENUM_OVERRIDES = Object.freeze({
   'arca_offdeck_cases.state': ['ready', 'destroying', 'verifying', 'blocked', 'completed'],
   'arca_deregistrations.state': ['active', 'committed'],
   'perception_sources.status': ['active', 'disabled'],
-  'perception_records.watched_state': ['unknown', 'unwatched', 'watched'],
-  'people_persons.status': ['active', 'merged', 'archived'],
+  'perception_resolution_revisions.fact_kind': ['rating', 'watched'],
+  'perception_resolution_revisions.result_kind': ['found', 'not_found'],
+  'perception_resolution_revisions.reason_code': ['no_matching_record', 'requested_fact_absent', 'strongest_value_conflict'],
+  'people_persons.status': ['active', 'merged'],
+  'people_registration_candidates.current_state': ['open', 'accepted', 'dismissed', 'superseded'],
+  'people_merge_candidates.current_state': ['open', 'accepted', 'dismissed', 'superseded'],
   'people_reference_assets.state': ['active', 'superseded', 'rejected'],
   'people_reference_faces.state': ['active', 'superseded', 'rejected'],
   'platform_mount_scopes.status': ['active', 'disabled'],
@@ -82,7 +90,14 @@ const INTEGER_COLUMN_OVERRIDES = new Set([
   'fx_workflow_events.contract_version',
   'fx_event_attempts.executor_version',
   'fx_resource_defer.local_priority',
-  'libra_decision_basis_inputs.query_version'
+  'libra_decision_basis_inputs.query_version',
+  'perception_source_cursors.has_more',
+  'perception_records.rating'
+]);
+const INTEGER_BOOLEAN_COLUMN_OVERRIDES = new Set(['perception_records.watched_state']);
+const NULLABLE_COLUMN_OVERRIDES = new Set([
+  'perception_records.rating',
+  'perception_records.watched_state'
 ]);
 const FOREIGN_KEY_OVERRIDES = Object.freeze({
   'fx_plan_nodes.compensation_for_event_id': ['fx_workflow_events', 'event_id'],
@@ -91,20 +106,74 @@ const FOREIGN_KEY_OVERRIDES = Object.freeze({
   'libra_subject_decision_heads.current_decision_basis_id': ['libra_decision_basis_revisions', 'decision_basis_id'],
   'libra_subject_decision_heads.current_acceptance_spec_id': ['libra_acceptance_specs', 'acceptance_spec_id'],
   'libra_routing_decisions.assessment_id': ['libra_routing_assessments', 'routing_assessment_id'],
-  'perception_dedup_relations.left_perception_id': ['perception_records', 'perception_id'],
-  'perception_dedup_relations.right_perception_id': ['perception_records', 'perception_id'],
-  'perception_resolution_heads.current_resolution_id': ['perception_resolution_revisions', 'resolution_id'],
+  'perception_record_relations.source_perception_id': ['perception_records', 'perception_id'],
+  'perception_record_relations.target_perception_id': ['perception_records', 'perception_id'],
   'people_merge_candidates.left_person_id': ['people_persons', 'person_id'],
   'people_merge_candidates.right_person_id': ['people_persons', 'person_id'],
   'people_merge_records.source_person_id': ['people_persons', 'person_id'],
   'people_merge_records.target_person_id': ['people_persons', 'person_id']
 });
+const EXPLICIT_FOREIGN_KEYS = Object.freeze({
+  people_aliases: [
+    { columns: ['person_id', 'revision'], targetTable: 'people_person_revisions', targetColumns: ['person_id', 'revision'] }
+  ],
+  people_provider_identities: [
+    { columns: ['person_id', 'revision'], targetTable: 'people_person_revisions', targetColumns: ['person_id', 'revision'] }
+  ],
+  people_merge_candidates: [
+    { columns: ['left_person_id', 'left_person_revision'], targetTable: 'people_person_revisions', targetColumns: ['person_id', 'revision'] },
+    { columns: ['right_person_id', 'right_person_revision'], targetTable: 'people_person_revisions', targetColumns: ['person_id', 'revision'] }
+  ],
+  people_merge_records: [
+    { columns: ['merge_candidate_id', 'merge_candidate_revision'], targetTable: 'people_merge_candidate_revisions', targetColumns: ['merge_candidate_id', 'revision'] },
+    { columns: ['source_person_id', 'previous_source_person_revision'], targetTable: 'people_person_revisions', targetColumns: ['person_id', 'revision'] },
+    { columns: ['source_person_id', 'committed_source_person_revision'], targetTable: 'people_person_revisions', targetColumns: ['person_id', 'revision'] },
+    { columns: ['target_person_id', 'previous_target_person_revision'], targetTable: 'people_person_revisions', targetColumns: ['person_id', 'revision'] },
+    { columns: ['target_person_id', 'committed_target_person_revision'], targetTable: 'people_person_revisions', targetColumns: ['person_id', 'revision'] }
+  ],
+  people_reference_assets: [
+    { columns: ['person_id', 'created_reference_revision'], targetTable: 'people_reference_revisions', targetColumns: ['person_id', 'revision'] },
+    { columns: ['person_id', 'released_reference_revision'], targetTable: 'people_reference_revisions', targetColumns: ['person_id', 'revision'] }
+  ],
+  people_reference_faces: [
+    { columns: ['person_id', 'created_reference_revision'], targetTable: 'people_reference_revisions', targetColumns: ['person_id', 'revision'] },
+    { columns: ['person_id', 'released_reference_revision'], targetTable: 'people_reference_revisions', targetColumns: ['person_id', 'revision'] }
+  ],
+  people_reference_revisions: [
+    { columns: ['reference_asset_id'], targetTable: 'people_reference_assets', targetColumns: ['reference_asset_id'] },
+    { columns: ['reference_face_id'], targetTable: 'people_reference_faces', targetColumns: ['reference_face_id'] }
+  ],
+  perception_resolution_revisions: [
+    { columns: ['winning_perception_id'], targetTable: 'perception_records', targetColumns: ['perception_id'] }
+  ],
+  perception_resolution_heads: [
+    {
+      columns: ['query_contract', 'query_input_digest', 'current_revision', 'current_resolution_id'],
+      targetTable: 'perception_resolution_revisions',
+      targetColumns: ['query_contract', 'query_input_digest', 'revision', 'resolution_id']
+    }
+  ]
+});
+const DEFERRED_FOREIGN_KEY_PAIRS = new Set([
+  'people_persons>people_person_revisions', 'people_person_revisions>people_persons',
+  'people_persons>people_preference_revisions', 'people_preference_revisions>people_persons',
+  'people_persons>people_reference_revisions',
+  'people_reference_assets>people_reference_revisions', 'people_reference_faces>people_reference_revisions',
+  'people_registration_candidates>people_registration_candidate_revisions',
+  'people_registration_candidate_revisions>people_registration_candidates',
+  'people_merge_candidates>people_merge_candidate_revisions',
+  'people_merge_candidate_revisions>people_merge_candidates'
+]);
 const JSON_SCHEMA_COLUMN_OVERRIDES = Object.freeze({
   'fx_command_receipts.result_ref_json': 'result_schema_ref',
   'fx_plan_nodes.input_bindings_json': 'input_binding_schema_ref',
   'fx_plan_nodes.parameters_json': 'parameter_schema_ref',
   'fx_plan_nodes.fence_basis_json': 'fence_schema_ref',
   'libra_product_fact_revisions.fact_json': 'schema_ref'
+});
+const JSON_LIMIT_OVERRIDES = Object.freeze({
+  'people_registration_candidates.candidate_json': 16 * 1024,
+  'people_merge_candidates.candidate_json': 16 * 1024
 });
 const CURRENT_POINTER_TARGETS = Object.freeze({
   fx_workflow_events: [[['event_id', 'current_progress_revision'], 'fx_event_progress', ['event_id', 'revision']]],
@@ -131,8 +200,23 @@ const CURRENT_POINTER_TARGETS = Object.freeze({
   ],
   arca_offdeck_policy_heads: [[['policy_id', 'current_revision'], 'arca_offdeck_policy_revisions', ['policy_id', 'revision']]],
   perception_sources: [[['perception_source_id', 'current_cursor_revision'], 'perception_source_cursors', ['perception_source_id', 'revision']]],
-  perception_resolution_heads: [[['current_resolution_id'], 'perception_resolution_revisions', ['resolution_id'], ['current_revision']]],
-  people_persons: [[['person_id', 'current_revision'], 'people_person_revisions', ['person_id', 'revision']]],
+  perception_resolution_heads: [[
+    ['query_contract', 'query_input_digest', 'current_revision', 'current_resolution_id'],
+    'perception_resolution_revisions', ['query_contract', 'query_input_digest', 'revision', 'resolution_id']
+  ]],
+  people_persons: [
+    [['person_id', 'current_revision'], 'people_person_revisions', ['person_id', 'revision']],
+    [['person_id', 'current_preference_revision'], 'people_preference_revisions', ['person_id', 'revision']],
+    [['person_id', 'current_reference_revision'], 'people_reference_revisions', ['person_id', 'revision']]
+  ],
+  people_registration_candidates: [[
+    ['registration_candidate_id', 'current_revision', 'current_state'],
+    'people_registration_candidate_revisions', ['registration_candidate_id', 'revision', 'state']
+  ]],
+  people_merge_candidates: [[
+    ['merge_candidate_id', 'current_revision', 'current_state'],
+    'people_merge_candidate_revisions', ['merge_candidate_id', 'revision', 'state']
+  ]],
   platform_mount_scopes: [[['mount_scope_id', 'current_revision'], 'platform_mount_scope_revisions', ['mount_scope_id', 'revision']]],
   platform_resource_profiles: [[['profile_id', 'current_revision'], 'platform_resource_profile_revisions', ['profile_id', 'revision']]],
   platform_resource_operating_policy: [[
@@ -198,6 +282,7 @@ function stripCode(value) {
 
 function logicalType(name, tableId = null) {
   if (name.endsWith('_json')) return 'TEXT_JSON';
+  if (INTEGER_BOOLEAN_COLUMN_OVERRIDES.has(tableId + '.' + name)) return 'INTEGER_BOOLEAN';
   if (INTEGER_COLUMN_OVERRIDES.has(tableId + '.' + name)) return 'INTEGER';
   if (/(?:_at_ms|_ms|_ns|_revision|_count|_bytes|_ordinal|_slots)$/.test(name) || ['revision', 'ordinal', 'rank'].includes(name)) return 'INTEGER';
   if (['enabled', 'current', 'completed', 'high_volume'].includes(name)) return 'INTEGER_BOOLEAN';
@@ -209,7 +294,7 @@ function logicalType(name, tableId = null) {
 function parseColumns(columnsContract, tableId = null) {
   const raw = stripCode(columnsContract);
   return splitBalanced(raw).map((token, ordinal) => {
-    const match = token.match(/^([a-z][a-z0-9_]*)(?:\(([^)]*)\))?(?:\s+(PK\/FK|PK|FK))?$/);
+    const match = token.match(/^([a-z][a-z0-9_]*)(?:\(([^)]*)\))?(?:\s+(PK\/FK|PK|FK))?(?:\s+(NULL))?$/);
     if (!match) throw new Error(`Unsupported column token: ${token}`);
     const marker = match[3] || null;
     return {
@@ -218,7 +303,8 @@ function parseColumns(columnsContract, tableId = null) {
       logicalType: logicalType(match[1], tableId),
       enumValues: match[2] ? match[2].split('|') : (ENUM_OVERRIDES[tableId + '.' + match[1]] || []),
       primaryKeyPart: marker === 'PK' || marker === 'PK/FK',
-      foreignKeyMarker: marker === 'FK' || marker === 'PK/FK'
+      foreignKeyMarker: marker === 'FK' || marker === 'PK/FK',
+      nullable: match[4] === 'NULL' || NULLABLE_COLUMN_OVERRIDES.has(tableId + '.' + match[1])
     };
   });
 }
@@ -228,7 +314,10 @@ function semanticClauses(constraintsContract) {
 }
 
 function jsonLimitFor(tableId, column, constraintsContract) {
-  const limits = [...constraintsContract.matchAll(/`?(16|64) KiB`?/g)].map((match) => Number(match[1]) * 1024);
+  if (JSON_LIMIT_OVERRIDES[`${tableId}.${column}`]) {
+    return { maxBytes: JSON_LIMIT_OVERRIDES[`${tableId}.${column}`], source: '8.6.19-typed-payload' };
+  }
+  const limits = [...constraintsContract.matchAll(/`?(4|16|64) KiB`?/g)].map((match) => Number(match[1]) * 1024);
   if (limits.length > 0) return { maxBytes: limits[0], source: 'table-row' };
   if (tableId === 'libra_routing_policy_targets' && column === 'match_rule_json') return { maxBytes: 16 * 1024, source: '8.5.9-hot-json' };
   if (tableId === 'arca_rule_template_drafts' && column === 'rules_json') return { maxBytes: 64 * 1024, source: '8.5.9-non-hot-json' };
@@ -257,6 +346,13 @@ function parseTableRows(entries) {
         requiresJsonValidCheck: true
       };
     });
+    const partialUniqueClauses = clauses.filter((clause) => /UNIQUE\([^)]*\)\s+WHERE\b/i.test(clause) || /partial unique|至多一个|最多一份|unique while open|active unique|全局exclusive/.test(clause));
+    const partialUniqueKeys = new Set(partialUniqueClauses.flatMap((clause) => parseFunctionCalls(clause, 'UNIQUE')).map((columns) => JSON.stringify(columns)));
+    const currentPointerColumns = columns.filter((column) =>
+      (/^current_(?:.*_)?(?:id|revision)$/.test(column.name) || column.name === 'canonical_identity_revision') &&
+      column.name !== 'current_reference_projection_revision')
+      .map((column) => column.name);
+    const immutableRules = clauses.filter((clause) => /immutable|append-only|禁止更新|不能更新|不可更新/.test(clause));
     return {
       tableId: entry.id,
       owner: entry.owner,
@@ -265,26 +361,29 @@ function parseTableRows(entries) {
       columns,
       primaryKey: key,
       declaredForeignKeyColumns: columns.filter((column) => column.foreignKeyMarker).map((column) => column.name),
-      uniqueConstraints: parseFunctionCalls(entry.constraintsContract, 'UNIQUE'),
+      uniqueConstraints: [...new Map([
+        ...parseFunctionCalls(entry.constraintsContract, 'UNIQUE').filter((item) => !partialUniqueKeys.has(JSON.stringify(item))),
+        ...(UNIQUE_CONSTRAINT_OVERRIDES[entry.id] || [])
+      ].map((item) => [JSON.stringify(item), item])).values()],
       hotIndexes: parseFunctionCalls(entry.constraintsContract, 'INDEX'),
-      partialUniqueRules: clauses.filter((clause) => /partial unique|至多一个|最多一份|unique while open|active unique|全局exclusive/.test(clause)),
+      partialUniqueRules: partialUniqueClauses,
       checkRules: [
         ...columns.filter((column) => column.enumValues.length > 0).map((column) => ({ column: column.name, enumValues: column.enumValues })),
         ...clauses.filter((clause) => /CHECK|check|non-negative|finite|枚举|范围/.test(clause)).map((clause) => ({ rule: clause }))
       ],
       revisionContract: {
         revisionColumns: columns.filter((column) => column.name === 'revision' || column.name.endsWith('_revision')).map((column) => column.name),
-        currentPointerColumns: columns.filter((column) => /^current_(?:.*_)?(?:id|revision)$/.test(column.name) || column.name === 'canonical_identity_revision')
-          .map((column) => column.name),
+        currentPointerColumns,
         pointerTargets: (CURRENT_POINTER_TARGETS[entry.id] || []).map(([sourceColumns, targetTable, targetColumns, consistencyColumns = []]) => ({
-          sourceColumns, targetTable, targetColumns, consistencyColumns, deletePolicy: 'RESTRICT'
+          sourceColumns, targetTable, targetColumns, consistencyColumns, deletePolicy: 'RESTRICT',
+          deferrable: DEFERRED_FOREIGN_KEY_PAIRS.has(`${entry.id}>${targetTable}`)
         })),
         pointerRules: clauses.filter((clause) => /(?:current|identity pointer|三个current).*(?:FK|指向|引用|pointer|revision)/i.test(clause))
       },
       jsonContracts,
       immutability: {
-        immutable: /immutable|append-only|禁止更新|不能更新|不可更新/.test(entry.constraintsContract),
-        rules: clauses.filter((clause) => /immutable|append-only|禁止更新|不能更新|不可更新/.test(clause))
+        immutable: currentPointerColumns.length === 0 && immutableRules.length > 0,
+        rules: immutableRules
       },
       deletion: {
         foreignKeyPolicy: 'ON DELETE RESTRICT',
@@ -305,20 +404,34 @@ function resolveForeignKeys(rows) {
     if (!simplePrimaryKeys.has(column)) simplePrimaryKeys.set(column, []);
     simplePrimaryKeys.get(column).push(row);
   }
-  return rows.map((row) => ({
-    ...row,
-    foreignKeys: row.declaredForeignKeyColumns.map((column) => {
+  return rows.map((row) => {
+    const explicit = (EXPLICIT_FOREIGN_KEYS[row.tableId] || []).map((foreignKey) => ({
+      ...foreignKey,
+      deletePolicy: 'RESTRICT',
+      deferrable: DEFERRED_FOREIGN_KEY_PAIRS.has(`${row.tableId}>${foreignKey.targetTable}`)
+    }));
+    const explicitlyCovered = new Set(explicit.flatMap((foreignKey) => foreignKey.columns));
+    const inferred = row.declaredForeignKeyColumns.filter((column) => !explicitlyCovered.has(column)).map((column) => {
       const override = FOREIGN_KEY_OVERRIDES[`${row.tableId}.${column}`];
-      if (override) return { columns: [column], targetTable: override[0], targetColumns: [override[1]], deletePolicy: 'RESTRICT' };
+      if (override) return {
+        columns: [column], targetTable: override[0], targetColumns: [override[1]], deletePolicy: 'RESTRICT',
+        deferrable: DEFERRED_FOREIGN_KEY_PAIRS.has(`${row.tableId}>${override[0]}`)
+      };
       let candidates = (simplePrimaryKeys.get(column) || []).filter((candidate) => candidate.tableId !== row.tableId);
       const sameOwner = candidates.filter((candidate) => candidate.owner === row.owner);
       if (sameOwner.length > 0) candidates = sameOwner;
       if (column === 'subject_id') candidates = candidates.filter((candidate) => candidate.tableId === 'libra_subjects');
       if (column === 'rule_template_id') candidates = candidates.filter((candidate) => candidate.tableId === 'arca_rule_templates');
-      if (candidates.length !== 1) return { columns: [column], targetTable: null, targetColumns: [column], resolutionCandidates: candidates.map((item) => item.tableId) };
-      return { columns: [column], targetTable: candidates[0].tableId, targetColumns: [column], deletePolicy: 'RESTRICT' };
-    })
-  }));
+      if (candidates.length !== 1) return {
+        columns: [column], targetTable: null, targetColumns: [column], resolutionCandidates: candidates.map((item) => item.tableId)
+      };
+      return {
+        columns: [column], targetTable: candidates[0].tableId, targetColumns: [column], deletePolicy: 'RESTRICT',
+        deferrable: DEFERRED_FOREIGN_KEY_PAIRS.has(`${row.tableId}>${candidates[0].tableId}`)
+      };
+    });
+    return { ...row, foreignKeys: [...inferred, ...explicit] };
+  });
 }
 
 function buildTableContracts(entries) {

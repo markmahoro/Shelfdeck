@@ -6,146 +6,146 @@
   "endOrdinal": 143,
   "entries": [
     {
-      "id": "people_persons",
-      "owner": "people",
-      "columnsContract": "`person_id PK, status, current_revision, created_at_ms, terminal_at_ms`",
-      "constraintsContract": "`INDEX(status,person_id)`",
+      "id": "perception_resolution_revisions",
+      "owner": "perception",
+      "columnsContract": "`resolution_id PK, query_contract, query_schema_ref, query_input_digest, fact_kind, revision, record_set_digest, rule_revision, rule_digest, result_kind, winning_perception_id NULL, reason_code NULL, result_schema_ref, result_json, result_digest, resolved_at_ms`",
+      "constraintsContract": "`UNIQUE(query_contract,query_input_digest,revision,resolution_id)`供head精确复合FK；`winning_perception_id`显式FK；found必须有winner且reason为NULL，not_found必须无winner并具有`no_matching_record|requested_fact_absent|strongest_value_conflict`之一；`result_json`保存完整typed `PerceptionResolutionRevision`且≤`16 KiB`，digest使用统一JCS basis；current pointer/index按query digest",
       "source": {
         "section": "8.5.13",
-        "line": 7501,
-        "lineDigest": "bd6c936deb239eb17eb530d84cfb49c7132bdc8f2a1d6b3bbd866899974da756"
+        "line": 7785,
+        "lineDigest": "f98a2d972824490f42e6689ac062318b46d0ef72ac2d5a24d9c4f8ab16096adf"
+      }
+    },
+    {
+      "id": "perception_resolution_heads",
+      "owner": "perception",
+      "columnsContract": "`query_contract, query_input_digest, current_resolution_id, current_revision, updated_at_ms`",
+      "constraintsContract": "`PK(query_contract,query_input_digest)`；四列显式复合FK引用同一`perception_resolution_revisions(query_contract,query_input_digest,revision,resolution_id)`；head CAS与新revision/typed result在同一Resolution Commit事务；Resolution Facade只读head，不在热路径计算`MAX(revision)`",
+      "source": {
+        "section": "8.5.13",
+        "line": 7786,
+        "lineDigest": "370fe0fe0d9cc2ac7afc1ee52ccfbbd77aae3f429732328708c53ed707821c38"
+      }
+    },
+    {
+      "id": "people_persons",
+      "owner": "people",
+      "columnsContract": "`person_id PK, status(active|merged), current_revision, current_preference_revision NULL, current_reference_revision NULL, current_reference_projection_revision, current_reference_projection_digest, created_at_ms, terminal_at_ms`",
+      "constraintsContract": "`current_revision`显式复合FK引用`people_person_revisions`；nullable Preference/Reference pointer分别显式复合FK引用对应revision表；`current_reference_revision IS NULL`表示尚无Reference revision，Commit逻辑expected `0`映射为“期望不存在”而不是存储revision 0；两个Projection checkpoint字段均`NOT NULL`，`CHECK(current_reference_projection_revision>=1)`且digest为64位lowercase hex；Person成立时以revision `1`和无Reference语义payload的digest初始化；与child表的循环FK均`DEFERRABLE INITIALLY DEFERRED`；`INDEX(status,person_id)`",
+      "source": {
+        "section": "8.5.13",
+        "line": 7787,
+        "lineDigest": "298821032aa54b23e61d203ae67007da4ef42079464bcde370ceccf897f6e2b3"
       }
     },
     {
       "id": "people_person_revisions",
       "owner": "people",
-      "columnsContract": "`person_id FK, revision, canonical_name, content_scope, fact_digest, committed_at_ms`",
-      "constraintsContract": "`PK(person_id,revision)`；immutable",
+      "columnsContract": "`person_id FK, revision, person_status(active|merged), canonical_name, merged_into_person_id NULL, origin_kind(direct|candidate), origin_decision_id, origin_decision_digest, origin_candidate_kind NULL, origin_candidate_id NULL, origin_candidate_revision NULL, origin_candidate_payload_digest NULL, fact_digest, committed_at_ms`",
+      "constraintsContract": "`PK(person_id,revision)`；immutable；direct Registration保存完整Direct Decision ID/digest且Candidate列全NULL；Candidate acceptance保存Acceptance Decision ID/digest及精确Candidate revision/payload；CHECK禁止两种来源混合；Person是全局Registry，不持久化媒体`content_scope`",
       "source": {
         "section": "8.5.13",
-        "line": 7502,
-        "lineDigest": "988b984fdec7fe60f95955d0624c6045a8e529fd2c3646b8833f0c50808c1c1d"
+        "line": 7788,
+        "lineDigest": "ed43b3ad2a8d964927a2e3cc2f2bb006969c4a222f556470c21d7ef8dd576b33"
       }
     },
     {
       "id": "people_aliases",
       "owner": "people",
       "columnsContract": "`person_id FK, revision, alias_normalized, alias_display, provenance_digest`",
-      "constraintsContract": "`PK(person_id,revision,alias_normalized)`；`INDEX(alias_normalized)`",
+      "constraintsContract": "`PK(person_id,revision,alias_normalized)`；`FOREIGN KEY(person_id,revision)`引用精确Person revision；`INDEX(alias_normalized)`",
       "source": {
         "section": "8.5.13",
-        "line": 7503,
-        "lineDigest": "ebb1b8f5b6f77bb8a527ac0e28d8f58236424294bbf293160dfebfefcfb1deaf"
+        "line": 7789,
+        "lineDigest": "bd43e6bd7b8f61d3edeb1afd1af2b94acccb8ba986a1cb2a3493948cf2997a51"
       }
     },
     {
       "id": "people_provider_identities",
       "owner": "people",
       "columnsContract": "`person_id FK, revision, provider, namespace, provider_key, provenance_digest`",
-      "constraintsContract": "`PK(person_id,revision,provider,namespace,provider_key)`；stable identity active unique",
+      "constraintsContract": "`PK(person_id,revision,provider,namespace,provider_key)`；`FOREIGN KEY(person_id,revision)`引用精确Person revision；stable identity active unique",
       "source": {
         "section": "8.5.13",
-        "line": 7504,
-        "lineDigest": "96dee2a40ef8da825ba7a83d3d11f9c8ed9205e26ce921e7ca2ea658c065b49f"
+        "line": 7790,
+        "lineDigest": "5d4f81f5886e3419c2a126e26572983be1a51a54e63e5483797cbd2f7bc76734"
       }
     },
     {
       "id": "people_preference_revisions",
       "owner": "people",
-      "columnsContract": "`person_id FK, revision, preference_level, reason, committed_at_ms`",
-      "constraintsContract": "`PK(person_id,revision)`；level枚举`-2..2`",
+      "columnsContract": "`person_id FK, revision, preference_level, reason, origin_kind, origin_ref, committed_at_ms`",
+      "constraintsContract": "`PK(person_id,revision)`；level枚举`-2..2`；current pointer由`people_persons.current_preference_revision`维护，禁止热路径`MAX(revision)`",
       "source": {
         "section": "8.5.13",
-        "line": 7505,
-        "lineDigest": "72edd867cc83204152751fa79dbb8617f33790161b5e76bde75af43738d88cb5"
+        "line": 7791,
+        "lineDigest": "b4a09dbb667fe1048ff44b6f98529e82d1c3abd77d084d0d35760f75275c0977"
       }
     },
     {
       "id": "people_reference_assets",
       "owner": "people",
-      "columnsContract": "`reference_asset_id PK, person_id FK, artifact_handle_id, artifact_digest, state, created_at_ms`",
-      "constraintsContract": "`UNIQUE(person_id,artifact_digest)`",
+      "columnsContract": "`reference_asset_id PK, person_id FK, artifact_handle_id, artifact_digest, state(active|released), created_reference_revision, released_reference_revision NULL, created_at_ms, released_at_ms NULL`",
+      "constraintsContract": "stable业务ID由`ReferenceAssetCoordinator`在Plan前分配；`artifact_handle_id/artifact_digest`必须分别等于Decision中`artifactHandle.artifactHandleId/digestHex`；`UNIQUE(person_id,artifact_digest)`；created/released revision都显式引用同Person的`people_reference_revisions`；released不可回到active",
       "source": {
         "section": "8.5.13",
-        "line": 7506,
-        "lineDigest": "adefa3197b448b4313ae7cdefbffd1804093bedc8249b85abd6893ce60f19656"
+        "line": 7792,
+        "lineDigest": "9310ae4780a034c017c0fe0e8027c30effa5b6c815bf631e8fe1bc6ff6b626cd"
       }
     },
     {
       "id": "people_reference_faces",
       "owner": "people",
-      "columnsContract": "`reference_face_id PK, person_id FK, reference_asset_id FK, embedding_handle_id, model_ref, state, created_at_ms`",
-      "constraintsContract": "`UNIQUE(person_id,embedding_handle_id,model_ref)`",
+      "columnsContract": "`reference_face_id PK, person_id FK, reference_asset_id FK, embedding_handle_id, embedding_digest, model_ref, state(active|released), created_reference_revision, released_reference_revision NULL, created_at_ms, released_at_ms NULL`",
+      "constraintsContract": "`embedding_handle_id/embedding_digest/model_ref`必须分别等于Decision中`faceEmbeddingSetHandle.artifactHandleId/digestHex/modelRef`；每个active Asset恰好一个active派生Face；Face与Asset同事务建立/释放；`UNIQUE(reference_asset_id)`及`UNIQUE(person_id,embedding_handle_id,model_ref)`；用户API不得按Face ID修改",
       "source": {
         "section": "8.5.13",
-        "line": 7507,
-        "lineDigest": "e09857484a3ed5c80b50e1a60d2903238c88bbd54f25ac7942131bb671aec5bf"
+        "line": 7793,
+        "lineDigest": "40b612dbfb17b8cdd516fa5e1268cd835947499b9b69229d3978aefe562d1782"
+      }
+    },
+    {
+      "id": "people_reference_revisions",
+      "owner": "people",
+      "columnsContract": "`person_id FK, revision, operation_kind(add_image|release_image), reference_asset_id, reference_face_id, active_asset_set_digest, active_face_set_digest, reference_set_digest, decision_digest, fact_digest, committed_at_ms`",
+      "constraintsContract": "`PK(person_id,revision)`；immutable；`people_persons.current_reference_revision`显式FK指向current row；Reference commit以expected reference revision CAS并保存完整active set digest，不通过扫描时间猜current；三个set digest及`fact_digest`必须严格使用`PersonReferenceRevision` nominal合同声明的唯一basis",
+      "source": {
+        "section": "8.5.13",
+        "line": 7794,
+        "lineDigest": "fd1af7799be92b38afe9241681728fd01a4c52590ca8323bc64c9f1471f6eecb"
       }
     },
     {
       "id": "people_registration_candidates",
       "owner": "people",
-      "columnsContract": "`registration_candidate_id PK, proposed_name, evidence_digest, candidate_schema_ref, candidate_json, state(open|accepted|dismissed|superseded), created_at_ms, terminal_at_ms`",
-      "constraintsContract": "Candidate JSON上限`16 KiB`且大Reference只含handle；相同evidence digest至多一个open Candidate；`INDEX(state,created_at_ms)`",
+      "columnsContract": "`registration_candidate_id PK, current_revision, current_state, proposed_name, evidence_digest, candidate_schema_ref, candidate_json, candidate_payload_digest, created_at_ms, terminal_at_ms`",
+      "constraintsContract": "`candidate_json`保存Draft中精确Registration `candidatePayload`，其JCS digest必须等于`candidate_payload_digest`，且`proposed_name`以DDL CHECK匹配payload字段；payload在Candidate生命周期内immutable；JSON上限`16 KiB`且大Reference只含handle；`FOREIGN KEY(registration_candidate_id,current_revision,current_state)`显式引用revision表并`DEFERRABLE INITIALLY DEFERRED`；`UNIQUE(evidence_digest) WHERE current_state='open'`；`INDEX(current_state,created_at_ms)`",
       "source": {
         "section": "8.5.13",
-        "line": 7508,
-        "lineDigest": "76480115734d7f5989b7f16b836099bf5162ca1a63f3c9d40458d6df54d298a6"
+        "line": 7795,
+        "lineDigest": "3d5f894e2f70f04a1a8fc462ca7708bec32f7938b3849e29a5570de47fb8fb35"
+      }
+    },
+    {
+      "id": "people_registration_candidate_revisions",
+      "owner": "people",
+      "columnsContract": "`registration_candidate_id FK, revision, state(open|accepted|dismissed|superseded), decision_origin NULL, decision_ref NULL, decision_digest NULL, committed_at_ms`",
+      "constraintsContract": "`PK(registration_candidate_id,revision)`加`UNIQUE(registration_candidate_id,revision,state)`供head复合FK；到head的FK同样deferred；revision 1固定为open；只允许`open → accepted|dismissed|superseded`一次terminal CAS；terminal revision保存正式Decision ID/digest；immutable",
+      "source": {
+        "section": "8.5.13",
+        "line": 7796,
+        "lineDigest": "a969b59ee206686028ad9e30b7c9e1f86fd9fee14e5e76cbec4c4d6fb50899e1"
       }
     },
     {
       "id": "people_merge_candidates",
       "owner": "people",
-      "columnsContract": "`merge_candidate_id PK, left_person_id FK, right_person_id FK, evidence_digest, state(open|accepted|dismissed|superseded), created_at_ms, terminal_at_ms`",
-      "constraintsContract": "normalized pair unique while open；dismiss只终结候选，不修改Person或媒体关系",
+      "columnsContract": "`merge_candidate_id PK, current_revision, current_state, left_person_id FK, left_person_revision, right_person_id FK, right_person_revision, evidence_digest, candidate_schema_ref, candidate_json, candidate_payload_digest, created_at_ms, terminal_at_ms`",
+      "constraintsContract": "`candidate_json`保存Draft中精确Merge `candidatePayload`，JCS digest匹配`candidate_payload_digest`，四个Person热字段以DDL CHECK匹配payload refs；Person pair按ID规范化；两个`(person_id,revision)`复合FK冻结精确Person revision，payload与该snapshot immutable；Candidate current复合FK `DEFERRABLE INITIALLY DEFERRED`；`UNIQUE(left_person_id,right_person_id) WHERE current_state='open'`；`INDEX(current_state,created_at_ms)`",
       "source": {
         "section": "8.5.13",
-        "line": 7509,
-        "lineDigest": "016be67d779ae4aee365cab774dc2e228da2e450dbbd8a95df1689048d31dd5e"
-      }
-    },
-    {
-      "id": "people_merge_records",
-      "owner": "people",
-      "columnsContract": "`merge_record_id PK, source_person_id FK, target_person_id FK, decision_digest, committed_at_ms`",
-      "constraintsContract": "一个source Person最多一个terminal merge target",
-      "source": {
-        "section": "8.5.13",
-        "line": 7510,
-        "lineDigest": "bf7dc5d332d701f84b9d19b39e487eaef3a33b6f2ea21ef1c30cd235a24ac5b4"
-      }
-    },
-    {
-      "id": "platform_schema_marker",
-      "owner": "platform-settings",
-      "columnsContract": "`schema_name PK, generation, schema_digest, catalog_digest, applied_at_ms`",
-      "constraintsContract": "clean generation唯一；旧/clean混合时拒绝可写启动",
-      "source": {
-        "section": "8.5.13",
-        "line": 7511,
-        "lineDigest": "d06a8cd33af03f954c384b2771fd441577baf04a88ab5ae33924af8161ebd711"
-      }
-    },
-    {
-      "id": "platform_mount_scopes",
-      "owner": "platform-settings",
-      "columnsContract": "`mount_scope_id PK, status, current_revision, created_at_ms, terminal_at_ms`",
-      "constraintsContract": "mount scope是Platform技术identity，不是Business Object；current revision显式FK；`INDEX(status,mount_scope_id)`",
-      "source": {
-        "section": "8.5.13",
-        "line": 7512,
-        "lineDigest": "6162e30b94f589f833a32257144132c84e1a911f602e2bc460e04c391f5079e5"
-      }
-    },
-    {
-      "id": "platform_mount_scope_revisions",
-      "owner": "platform-settings",
-      "columnsContract": "`mount_scope_id FK, revision, endpoint_id, mount_boundary, filesystem_type, stable_mount_fingerprint, inode_capability_digest, probe_evidence_digest, effective_at_ms`",
-      "constraintsContract": "`PK(mount_scope_id,revision)`；active fingerprint唯一；replacement发布新revision但在显式验证前不继承旧Identity资格",
-      "source": {
-        "section": "8.5.13",
-        "line": 7513,
-        "lineDigest": "273b56bfaa99425c128ab7407e2cbcd975c26901c46c0fe245e414472a8c35cb"
+        "line": 7797,
+        "lineDigest": "73d1ef0e5baeb5a12fd4429b23e6392a8f6ae2c490808a95111a0f5b283f408a"
       }
     }
   ]

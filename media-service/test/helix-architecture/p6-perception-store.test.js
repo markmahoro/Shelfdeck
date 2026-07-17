@@ -10,6 +10,11 @@ const Database = require('better-sqlite3');
 
 const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
+const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
+const { createPerceptionResolutionQuery } = require('../../src/helix/domains/perception/application/perception-resolution-query');
+const { createPerceptionResolutionInputAssembler } = require('../../src/helix/domains/perception/application/perception-resolution-input-assembler');
+const { createPerceptionResolutionCommitRegistration } = require('../../src/helix/domains/perception/capabilities/perception-resolution-lifecycle');
+const { resolvePerception } = require('../../src/helix/domains/perception/capabilities/perception-resolution-resolver');
 const { createPerceptionStore } = require('../../src/helix/domains/perception/persistence/perception-store');
 
 const generatedRoot = path.resolve(__dirname, '../../src/helix/foundation/persistence/generated');
@@ -22,186 +27,292 @@ function fixture(run) {
   const databasePath = path.join(root, 'shelfdeck.db');
   let now = 1_700_010_000_000;
   const kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest, now: () => now++ });
-  const store = createPerceptionStore({ schemaManifest, unitOfWork: createSqliteUnitOfWork({ kernel }) });
-  try { return run({ databasePath, store }); }
+  const unitOfWork = createSqliteUnitOfWork({ kernel });
+  const store = createPerceptionStore({ schemaManifest, unitOfWork });
+  try { return run({ databasePath, store, unitOfWork }); }
   finally { kernel.close(); fs.rmSync(root, { recursive: true, force: true }); }
 }
 
 function register(store, id = 'source-1') {
   return store.registerSource({
-    perceptionSourceId: id, sourceKind: 'douban', integrationId: 'integration-douban', status: 'active', configRevision: 1,
-    initialCursor: { revision: 1, cursorValue: 'cursor-1', observationDigest: hash(id + ':cursor:1') }
+    perceptionSourceId: id, sourceKind: 'douban', integrationId: 'integration-douban', status: 'active', configRevision: 1
   });
 }
 
-function record(id, sourceRecordKey = id, overrides = {}) {
+function start(store, overrides = {}) {
+  const scope = overrides.scope || { collection: 'watched', locale: 'zh-CN' };
+  return store.startAcquisition({
+    perceptionAcquisitionId: 'acquisition-1', perceptionSourceId: 'source-1', sourceConfigRevision: 1,
+    scopeSchemaRef: 'helix://contracts/types/PerceptionAcquisitionScope/v1', scope, scopeDigest: canonicalDigest(scope),
+    initialCursorRevision: 0, initialCursorValue: null, ...overrides, scope
+  });
+}
+
+function record(id, overrides = {}) {
   return {
-    perceptionId: id, perceptionSourceId: 'source-1', sourceKind: 'douban', sourceRecordKey, sourceRecordRevision: 1,
-    sourceRecordDigest: hash(id + ':source'), rating: 5, watchedState: 'watched', observedTitle: 'Example',
+    perceptionId: id, recordKind: 'observation', sourceKind: 'douban', sourceRecordKey: id,
+    sourceRecordRevision: 1, sourceRecordDigest: hash(id + ':source'), normalizationRuleRef: 'douban-normalize@1',
+    rating: 5, watchedState: true, observedTitle: 'Example ' + id, provenanceRef: 'page:' + id,
     provenanceDigest: hash(id + ':provenance'), observedAtMs: 1_700_000_000_000,
-    anchors: [{ anchorKind: 'provider_id', anchorValue: 'tmdb:' + id, confidenceClass: 'strong', evidenceDigest: hash(id + ':anchor') }],
+    anchors: [{ anchorKind: 'provider_id', anchorValue: 'douban:' + id, confidenceClass: 'strong', evidenceDigest: hash(id + ':anchor') }],
     ...overrides
   };
 }
 
-test('atomically bootstraps Source with cursor and advances explicit immutable cursor history', () => {
-  fixture(({ databasePath, store }) => {
+function page(store, overrides = {}) {
+  const records = overrides.records || [record('perception-1')];
+  return store.commitPage({
+    acquisitionCommitReceiptId: 'commit-1', perceptionAcquisitionId: 'acquisition-1', perceptionSourceId: 'source-1',
+    pageOrdinal: 0, expectedCursorRevision: 0, cursorIn: null, cursorOut: 'cursor-1',
+    observationPageDigest: hash('page-1'), hasMore: false, commitMarker: 'marker-1',
+    records, relations: [], ...overrides, records
+  });
+}
+
+function count(databasePath, table) {
+  const database = new Database(databasePath, { readonly: true });
+  try { return database.prepare(`SELECT COUNT(*) count FROM ${table}`).get().count; }
+  finally { database.close(); }
+}
+
+test('binds exactly two Owner repositories to all nine Perception tables', () => {
+  fixture(({ store }) => {
     assert.deepEqual(store.repositoryManifest.components, [
       {
         component: 'PerceptionRecordRepository', repositoryId: 'perception_record_repository',
-        tableIds: ['perception_dedup_relations', 'perception_identity_anchors', 'perception_records', 'perception_source_cursors', 'perception_sources']
+        tableIds: ['perception_acquisition_commits', 'perception_acquisitions', 'perception_identity_anchors',
+          'perception_record_relations', 'perception_records', 'perception_source_cursors', 'perception_sources']
       },
       {
         component: 'PerceptionResolutionRepository', repositoryId: 'perception_resolution_repository',
         tableIds: ['perception_resolution_heads', 'perception_resolution_revisions']
       }
     ]);
+  });
+});
+
+test('starts Source without a phantom cursor and freezes exact config, scope and cursor basis', () => {
+  fixture(({ store }) => {
     const source = register(store);
-    assert.equal(source.currentCursorRevision, 1);
-    assert.equal(store.getCurrentCursor('source-1').cursorValue, 'cursor-1');
-    store.advanceSourceCursor({
-      perceptionSourceId: 'source-1', revision: 2, cursorValue: 'cursor-2', observationDigest: hash('cursor-2')
-    }, 1);
-    assert.equal(store.getSource('source-1').currentCursorRevision, 2);
-    assert.equal(store.getCurrentCursor('source-1').cursorValue, 'cursor-2');
-    assert.throws(() => store.advanceSourceCursor({
-      perceptionSourceId: 'source-1', revision: 3, cursorValue: 'stale', observationDigest: hash('stale')
-    }, 1), (error) => error.code === 'P6_PERCEPTION_CURSOR_REVISION_CONFLICT');
-
-    const inspected = new Database(databasePath, { readonly: true });
-    const revisions = inspected.prepare('SELECT revision,cursor_value FROM perception_source_cursors ORDER BY revision').all();
-    inspected.close();
-    assert.deepEqual(revisions, [{ revision: 1, cursor_value: 'cursor-1' }, { revision: 2, cursor_value: 'cursor-2' }]);
-  });
-});
-
-test('revises Source config by exact CAS without moving its cursor head', () => {
-  fixture(({ store }) => {
-    register(store);
-    const revised = store.reviseSource({
-      perceptionSourceId: 'source-1', sourceKind: 'douban', integrationId: 'integration-douban-2', status: 'disabled', configRevision: 2
-    }, 1);
-    assert.equal(revised.configRevision, 2);
-    assert.equal(revised.status, 'disabled');
-    assert.equal(revised.currentCursorRevision, 1);
-    assert.throws(() => store.reviseSource({
-      perceptionSourceId: 'source-1', sourceKind: 'douban', integrationId: 'x', status: 'active', configRevision: 3
-    }, 1), (error) => error.code === 'P6_PERCEPTION_SOURCE_REVISION_CONFLICT');
-  });
-});
-
-test('supports a user-input Source without Integration or cursor and initializes cursor only when synchronization begins', () => {
-  fixture(({ store }) => {
-    const source = store.registerSource({
-      perceptionSourceId: 'source-user', sourceKind: 'user_input', integrationId: null,
-      status: 'active', configRevision: 1, initialCursor: null
-    });
-    assert.equal(source.integrationId, null);
     assert.equal(source.currentCursorRevision, null);
-    assert.equal(store.getCurrentCursor('source-user'), undefined);
-    store.advanceSourceCursor({
-      perceptionSourceId: 'source-user', revision: 1, cursorValue: 'local-sequence-1', observationDigest: hash('local-sequence-1')
-    }, null);
-    assert.equal(store.getSource('source-user').currentCursorRevision, 1);
-    assert.equal(store.getCurrentCursor('source-user').revision, 1);
+    const acquisition = start(store);
+    assert.equal(acquisition.initialCursorRevision, 0);
+    assert.equal(acquisition.initialCursorValue, null);
+    assert.equal(acquisition.scopeJson, '{"collection":"watched","locale":"zh-CN"}');
+    assert.throws(() => start(store, { perceptionAcquisitionId: 'acquisition-stale', sourceConfigRevision: 2 }),
+      (error) => error.code === 'P6_PERCEPTION_ACQUISITION_BASIS_STALE');
+    assert.throws(() => start(store, { perceptionAcquisitionId: 'acquisition-bad-scope', scopeDigest: hash('wrong') }),
+      (error) => error.code === 'P6_PERCEPTION_SCOPE_DIGEST_MISMATCH');
   });
 });
 
-test('appends immutable Records and bounded Identity Anchors under the Perception Owner only', () => {
+test('permits only one active Acquisition per Source and permits a new one after terminal commit', () => {
   fixture(({ store }) => {
-    register(store);
-    const saved = store.appendRecord(record('perception-1'));
-    assert.equal(Object.isFrozen(saved), true);
-    assert.equal(Object.isFrozen(saved.anchors), true);
-    assert.deepEqual(store.getRecord('perception-1'), saved);
-    assert.deepEqual(store.findRecordsByAnchor('provider_id', 'tmdb:perception-1').map((item) => item.perceptionId), ['perception-1']);
-    assert.equal(store.findRecordBySourceIdentity({
-      perceptionSourceId: 'source-1', sourceRecordKey: 'perception-1', sourceRecordRevision: 1,
-      sourceRecordDigest: hash('perception-1:source')
-    }).perceptionId, 'perception-1');
+    register(store); start(store);
+    assert.throws(() => start(store, { perceptionAcquisitionId: 'acquisition-overlap' }),
+      (error) => error.code === 'SQLITE_CONSTRAINT_UNIQUE');
+    page(store);
+    assert.equal(store.getAcquisition('acquisition-1').state, 'completed');
+    const nextScope = { collection: 'ratings' };
+    const next = start(store, {
+      perceptionAcquisitionId: 'acquisition-2', scope: nextScope, scopeDigest: canonicalDigest(nextScope),
+      initialCursorRevision: 1, initialCursorValue: null
+    });
+    assert.equal(next.initialCursorRevision, 1);
+    assert.equal(next.initialCursorValue, null);
   });
 });
 
-test('rejects invalid rating, duplicate anchors and duplicate source identity with atomic rollback', () => {
+test('atomically commits receipt, normalized records, anchors, cursor head and durable typed Result', () => {
   fixture(({ databasePath, store }) => {
-    register(store);
-    assert.throws(() => store.appendRecord(record('bad-rating', 'bad-rating', { rating: 6 })),
+    register(store); start(store);
+    const committed = page(store);
+    assert.equal(committed.cursor.revision, 1);
+    assert.deepEqual(committed.perceptionIds, ['perception-1']);
+    assert.equal(committed.commit.result.schemaRef, 'helix://contracts/types/PerceptionRecordCommitResult/v1');
+    assert.equal(committed.commit.result.insertedCount, 1);
+    assert.equal(committed.commit.result.duplicateCount, 0);
+    assert.equal(committed.commit.result.committedCursorRevision, 1);
+    assert.equal(committed.commit.resultDigest, canonicalDigest(committed.commit.result));
+    assert.equal(store.getSource('source-1').currentCursorRevision, 1);
+    assert.equal(store.getRecord('perception-1').normalizationRuleRef, 'douban-normalize@1');
+    assert.equal(count(databasePath, 'perception_acquisition_commits'), 1);
+    assert.equal(count(databasePath, 'perception_records'), 1);
+    assert.equal(count(databasePath, 'perception_identity_anchors'), 1);
+    assert.equal(count(databasePath, 'perception_source_cursors'), 1);
+  });
+});
+
+test('replays the original typed Result by commit marker and counts source-identity duplicates in a later Acquisition', () => {
+  fixture(({ databasePath, store }) => {
+    register(store); start(store);
+    const first = page(store);
+    const replay = page(store);
+    assert.equal(replay.replayed, true);
+    assert.deepEqual(replay.commit, first.commit);
+    assert.throws(() => page(store, { observationPageDigest: hash('drift') }),
+      (error) => error.code === 'P6_PERCEPTION_COMMIT_REPLAY_DRIFT');
+
+    const scope = { collection: 'replay-window' };
+    start(store, { perceptionAcquisitionId: 'acquisition-2', scope, scopeDigest: canonicalDigest(scope),
+      initialCursorRevision: 1, initialCursorValue: 'cursor-1' });
+    const duplicate = record('different-draft-id', {
+      sourceRecordKey: 'perception-1', sourceRecordDigest: hash('perception-1:source')
+    });
+    const second = page(store, { acquisitionCommitReceiptId: 'commit-2', perceptionAcquisitionId: 'acquisition-2', pageOrdinal: 1,
+      expectedCursorRevision: 1, cursorIn: 'cursor-1', cursorOut: 'cursor-2', commitMarker: 'marker-2', records: [duplicate] });
+    assert.equal(second.commit.result.insertedCount, 0);
+    assert.equal(second.commit.result.duplicateCount, 1);
+    assert.deepEqual(second.commit.result.perceptionIds, []);
+    assert.equal(count(databasePath, 'perception_records'), 1);
+  });
+});
+
+test('rolls the whole page back for invalid rating, duplicate anchors or stale cursor CAS', () => {
+  fixture(({ databasePath, store }) => {
+    register(store); start(store);
+    assert.throws(() => page(store, { records: [record('bad-rating', { rating: 0 })] }),
       (error) => error.code === 'P6_PERCEPTION_RATING_INVALID');
     const anchor = { anchorKind: 'provider_id', anchorValue: 'same', confidenceClass: 'strong', evidenceDigest: hash('same') };
-    assert.throws(() => store.appendRecord(record('bad-anchor', 'bad-anchor', { anchors: [anchor, anchor] })),
+    assert.throws(() => page(store, { records: [record('bad-anchor', { anchors: [anchor, anchor] })] }),
       (error) => error.code === 'P6_PERCEPTION_ANCHOR_DUPLICATE');
-    store.appendRecord(record('perception-1', 'same-source'));
-    assert.throws(() => store.appendRecord(record('perception-2', 'same-source', {
-      sourceRecordDigest: hash('perception-1:source')
-    })), (error) => error.code === 'SQLITE_CONSTRAINT_UNIQUE');
-    const inspected = new Database(databasePath, { readonly: true });
-    assert.equal(inspected.prepare('SELECT COUNT(*) count FROM perception_records').get().count, 1);
-    assert.equal(inspected.prepare('SELECT COUNT(*) count FROM perception_identity_anchors').get().count, 1);
-    inspected.close();
+    assert.throws(() => page(store, { expectedCursorRevision: 1, cursorIn: 'cursor-1' }),
+      (error) => error.code === 'P6_PERCEPTION_CURSOR_REVISION_CONFLICT');
+    for (const table of ['perception_acquisition_commits', 'perception_records', 'perception_identity_anchors', 'perception_source_cursors']) {
+      assert.equal(count(databasePath, table), 0);
+    }
+    assert.equal(store.getSource('source-1').currentCursorRevision, null);
   });
 });
 
-test('normalizes relation pairs and enforces one immutable relation per pair', () => {
-  fixture(({ store }) => {
-    register(store);
-    store.appendRecord(record('perception-a'));
-    store.appendRecord(record('perception-b'));
-    const relation = store.appendDedupRelation({
-      relationId: 'relation-1', leftPerceptionId: 'perception-b', rightPerceptionId: 'perception-a', ruleRevision: 1,
-      relation: 'duplicate', evidenceDigest: hash('relation-1')
+test('requires correction/retraction source lineage in the same page and preserves direction', () => {
+  fixture(({ databasePath, store }) => {
+    register(store); start(store); page(store);
+    const scope = { collection: 'watched-v2' };
+    start(store, { perceptionAcquisitionId: 'acquisition-2', scope, scopeDigest: canonicalDigest(scope), initialCursorRevision: 1, initialCursorValue: 'cursor-1' });
+    const correction = record('perception-2', { recordKind: 'correction', sourceRecordKey: 'perception-1', sourceRecordRevision: 2 });
+    assert.throws(() => page(store, {
+      acquisitionCommitReceiptId: 'commit-2', perceptionAcquisitionId: 'acquisition-2', pageOrdinal: 1,
+      expectedCursorRevision: 1, cursorIn: 'cursor-1', cursorOut: 'cursor-2', commitMarker: 'marker-2', records: [correction]
+    }), (error) => error.code === 'P6_PERCEPTION_LINEAGE_REQUIRED');
+    assert.equal(count(databasePath, 'perception_records'), 1);
+    const relation = { relationId: 'relation-supersedes', relationKind: 'supersedes', sourcePerceptionId: 'perception-2',
+      targetPerceptionId: 'perception-1', ruleRevision: 1, evidenceDigest: hash('relation-supersedes') };
+    const committed = page(store, {
+      acquisitionCommitReceiptId: 'commit-2', perceptionAcquisitionId: 'acquisition-2', pageOrdinal: 1,
+      expectedCursorRevision: 1, cursorIn: 'cursor-1', cursorOut: 'cursor-2', commitMarker: 'marker-2', records: [correction], relations: [relation]
     });
-    assert.equal(relation.leftPerceptionId, 'perception-a');
-    assert.equal(relation.rightPerceptionId, 'perception-b');
-    assert.throws(() => store.appendDedupRelation({
-      relationId: 'relation-2', leftPerceptionId: 'perception-a', rightPerceptionId: 'perception-b', ruleRevision: 2,
-      relation: 'distinct', evidenceDigest: hash('relation-2')
-    }), (error) => error.code === 'P6_PERCEPTION_RELATION_PAIR_CONFLICT');
+    assert.deepEqual(committed.relationIds, ['relation-supersedes']);
+    const database = new Database(databasePath, { readonly: true });
+    const saved = database.prepare('SELECT relation_kind,source_perception_id,target_perception_id FROM perception_record_relations').get();
+    database.close();
+    assert.deepEqual(saved, { relation_kind: 'supersedes', source_perception_id: 'perception-2', target_perception_id: 'perception-1' });
   });
 });
 
-test('publishes found and not_found Resolution revisions through an exact current head without MAX lookup', () => {
+test('permits duplicate relations only through Resolution Commit and rejects them in Acquisition', () => {
   fixture(({ databasePath, store }) => {
-    register(store);
-    store.appendRecord(record('perception-1'));
-    const queryDigest = hash('rating:tmdb:1');
-    store.publishResolution({
-      resolutionId: 'resolution-1', queryContract: 'perception.rating.resolve@1', queryInputDigest: queryDigest,
-      revision: 1, resultKind: 'found', winningPerceptionId: 'perception-1', resultDigest: hash('resolution-1')
-    }, null);
-    assert.equal(store.getCurrentResolution('perception.rating.resolve@1', queryDigest).winningPerceptionId, 'perception-1');
-    store.publishResolution({
-      resolutionId: 'resolution-2', queryContract: 'perception.rating.resolve@1', queryInputDigest: queryDigest,
-      revision: 2, resultKind: 'not_found', winningPerceptionId: null, resultDigest: hash('resolution-2')
-    }, 1);
-    const current = store.getCurrentResolution('perception.rating.resolve@1', queryDigest);
-    assert.equal(current.resultKind, 'not_found');
-    assert.equal(current.winningPerceptionId, null);
-    assert.equal(current.revision, 2);
-    assert.throws(() => store.publishResolution({
-      resolutionId: 'resolution-3', queryContract: 'perception.rating.resolve@1', queryInputDigest: queryDigest,
-      revision: 3, resultKind: 'not_found', winningPerceptionId: null, resultDigest: hash('resolution-3')
-    }, 1), (error) => error.code === 'P6_PERCEPTION_RESOLUTION_REVISION_CONFLICT');
-
-    const inspected = new Database(databasePath, { readonly: true });
-    assert.equal(inspected.prepare('SELECT COUNT(*) count FROM perception_resolution_revisions').get().count, 2);
-    assert.equal(inspected.prepare('SELECT current_revision FROM perception_resolution_heads').get().current_revision, 2);
-    inspected.close();
+    register(store); start(store);
+    page(store, { records: [record('perception-a'), record('perception-b')], hasMore: true });
+    assert.equal(store.appendDuplicateRelation, undefined);
+    assert.throws(() => page(store, {
+      acquisitionCommitReceiptId: 'commit-2', pageOrdinal: 1, expectedCursorRevision: 1, cursorIn: 'cursor-1', cursorOut: 'cursor-2',
+      commitMarker: 'marker-2', records: [], relations: [{ relationId: 'duplicate-2', relationKind: 'duplicate_of',
+        sourcePerceptionId: 'perception-a', targetPerceptionId: 'perception-b', ruleRevision: 2, evidenceDigest: hash('duplicate-2') }]
+    }), (error) => error.code === 'P6_PERCEPTION_PAGE_DUPLICATE_RELATION');
+    assert.equal(count(databasePath, 'perception_acquisition_commits'), 1);
   });
 });
 
-test('fails closed for missing Resolution winner and exposes no raw SQL or cross-Owner table reference', () => {
+test('fails closed when a durable typed Result is tampered after commit', () => {
   fixture(({ databasePath, store }) => {
-    register(store);
-    assert.throws(() => store.publishResolution({
-      resolutionId: 'resolution-1', queryContract: 'perception.rating.resolve@1', queryInputDigest: hash('missing'),
-      revision: 1, resultKind: 'found', winningPerceptionId: 'missing', resultDigest: hash('missing-result')
-    }, null), (error) => error.code === 'P6_PERCEPTION_RESOLUTION_WINNER_MISSING');
-    const inspected = new Database(databasePath, { readonly: true });
-    assert.equal(inspected.prepare('SELECT COUNT(*) count FROM perception_resolution_revisions').get().count, 0);
-    inspected.close();
+    register(store); start(store); page(store);
+    const database = new Database(databasePath);
+    database.prepare('UPDATE perception_acquisition_commits SET result_json=? WHERE acquisition_commit_receipt_id=?')
+      .run('{"schemaRef":"helix://contracts/types/PerceptionRecordCommitResult/v1"}', 'commit-1');
+    database.close();
+    assert.throws(() => store.getCommit('commit-1'), (error) => error.code === 'P6_PERCEPTION_STORED_RESULT_INVALID');
   });
+});
+
+test('exposes no direct Resolution write bypass, raw SQL, cross-Owner table or legacy Perception names', () => {
+  fixture(({ store }) => assert.equal(store.publishResolution, undefined));
   const source = fs.readFileSync(path.resolve(__dirname, '../../src/helix/domains/perception/persistence/perception-store.js'), 'utf8');
   assert.doesNotMatch(source, /\b(?:proc_|libra_|arca_|people_|platform_|fx_)\w*/);
   assert.doesNotMatch(source, /\b(?:SELECT|INSERT|UPDATE|DELETE)\s+/i);
-  assert.doesNotMatch(source, /MAX\s*\(/i);
+  assert.doesNotMatch(source, /\bMAX\s*\(/);
+  assert.doesNotMatch(source, /perception_dedup_relations|['"]cursor_value['"]|\bappendRecord\b|\badvanceSourceCursor\b/);
 });
+
+test('assembles, resolves and commits a complete typed Resolution without Facade side reads', () => {
+  fixture(({ databasePath, store, unitOfWork }) => {
+    register(store); start(store);
+    const commonAnchor={anchorKind:'provider_id',anchorValue:'douban:shared',confidenceClass:'strong',evidenceDigest:hash('shared-anchor')};
+    page(store, { records:[record('perception-a',{rating:5,anchors:[commonAnchor]}),record('perception-b',{rating:5,anchors:[commonAnchor]})] });
+    const { queryHandle, ruleSnapshot }=resolutionBasis(commonAnchor);
+    const inputs=createPerceptionResolutionInputAssembler({store}).assemble({queryHandle,ruleSnapshot});
+    const draft=resolvePerception(inputs,{draftId:'resolution-draft-1',producedAtMs:1_700_010_000_100});
+    assert.equal(draft.winningPerceptionId,'perception-a');
+    assert.equal(draft.duplicateRelationDrafts.length,1);
+    const aggregateId = 'perception-resolution:' + canonicalDigest({ queryContract:draft.queryContract, queryInputDigest:draft.queryInputDigest });
+    const handle = { ownerDomain:'perception', aggregateType:'perception-resolution', aggregateId,
+      factType:'PerceptionResolutionDraft', factSchemaRef:draft.schemaRef,
+      resultSchemaRef:'helix://contracts/types/PerceptionResolutionRevision/v1', expectedRevision:0,
+      handleId:'resolution-1', commitIdempotencyKey:'resolution-marker-1', payloadDigest:canonicalDigest(draft) };
+    const registration = createPerceptionResolutionCommitRegistration(store);
+    assert.equal(registration.factType, 'PerceptionResolutionDraft');
+    const result = unitOfWork.execute([registration.createParticipant({ handle, payload:draft })]).perception_resolution_commit;
+    assert.equal(result.schemaRef, 'helix://contracts/types/PerceptionResolutionRevision/v1');
+    assert.equal(result.revision, 1);
+    assert.equal(result.winningPerceptionId, 'perception-a');
+    assert.equal(result.committedRelationIds.length, 1);
+    assert.equal(store.getResolution(draft.queryContract, draft.queryInputDigest).revision, 1);
+    assert.equal(count(databasePath, 'perception_record_relations'), 1);
+
+    const query = createPerceptionResolutionQuery({ store, now:() => result.committedAtMs + 10, freshnessTtlMs:1000 });
+    const projection = query.resolveDecisionFact({ queryContract:draft.queryContract, queryInputDigest:draft.queryInputDigest });
+    assert.equal(projection.kind, 'found');
+    assert.deepEqual(projection.value, { factKind:'rating', value:5 });
+    assert.equal(projection.evidence[0].winningPerceptionId, 'perception-a');
+    assert.equal(Object.hasOwn(projection, 'records'), false);
+  });
+});
+
+test('fails closed on stale Resolution CAS, non-normalized duplicate pairs and uncommitted query state', () => {
+  fixture(({ databasePath, store, unitOfWork }) => {
+    register(store); start(store); page(store, { records:[record('perception-a'), record('perception-b')] });
+    const anchor=record('x').anchors[0]; const {queryHandle,ruleSnapshot}=resolutionBasis(anchor);
+    const inputs=createPerceptionResolutionInputAssembler({store}).assemble({queryHandle,ruleSnapshot});
+    const valid=resolvePerception(inputs,{draftId:'bad-draft',producedAtMs:1});
+    const draft={...valid,duplicateRelationDrafts:[{sourcePerceptionId:'perception-b',targetPerceptionId:'perception-a',ruleRevision:1,evidenceDigest:hash('duplicate')} ]};
+    draft.draftDigest=canonicalDigest(Object.fromEntries(Object.entries(draft).filter(([key])=>!['schemaRef','schemaVersion','draftId','draftKind','basisDigest','draftDigest','producedAtMs'].includes(key))));
+    const queryContract=draft.queryContract,queryInputDigest=draft.queryInputDigest;
+    const handle = { ownerDomain:'perception', aggregateType:'perception-resolution',
+      aggregateId:'perception-resolution:' + canonicalDigest({ queryContract, queryInputDigest }),
+      factType:'PerceptionResolutionDraft', factSchemaRef:draft.schemaRef,
+      resultSchemaRef:'helix://contracts/types/PerceptionResolutionRevision/v1', expectedRevision:0,
+      handleId:'bad-resolution', commitIdempotencyKey:'bad-marker', payloadDigest:canonicalDigest(draft) };
+    const participant = createPerceptionResolutionCommitRegistration(store).createParticipant;
+    assert.throws(() => participant({ handle, payload:draft }),
+      (error) => error.code === 'P6_PERCEPTION_DUPLICATE_RELATION_INVALID');
+    assert.equal(count(databasePath, 'perception_resolution_revisions'), 0);
+    assert.equal(count(databasePath, 'perception_record_relations'), 0);
+    const query = createPerceptionResolutionQuery({ store, now:() => 1, freshnessTtlMs:0 });
+    assert.throws(() => query.resolveDecisionFact({ queryContract, queryInputDigest }),
+      (error) => error.code === 'P6_PERCEPTION_RESOLUTION_NOT_COMMITTED');
+  });
+});
+
+function resolutionBasis(anchor){
+  const queryBody={queryContract:'perception.rating.resolve@1',queryVersion:1,
+    querySchemaRef:'helix://contracts/domain-types/PerceptionResolutionQuery/v1',factKind:'rating',identityEvidence:[anchor]};
+  const query={...queryBody,queryInputDigest:canonicalDigest(queryBody)};
+  const ruleBody={ruleContract:'perception-resolution-beta',ruleVersion:1,supportedFactKinds:['rating','watched'],
+    candidateRetrievalClauses:[{anchorKind:'provider_id',lookupMode:'exact',maxCandidates:256}],
+    anchorMatchers:[{anchorKind:'provider_id',matchMode:'exact',strengthRank:1,minConfidenceClass:'strong'}],
+    winnerOrder:'strongest_anchor_then_value_consensus_then_perception_id',equalStrengthConflict:'not_found',
+    duplicateProofMatchers:[{anchorKind:'provider_id',matchMode:'exact',minConfidenceClass:'strong',requireSameAnchorValue:true,requireSameFactKind:true,requireSameCanonicalValue:true}],maxCandidateRecords:256};
+  const ruleSnapshot={...ruleBody,ruleDigest:canonicalDigest(ruleBody)};
+  return {queryHandle:{providerDomain:'perception',consumerDomain:'libra',queryContract:query.queryContract,queryVersion:1,
+    typedInputSchemaRef:query.querySchemaRef,typedInput:query,inputDigest:query.queryInputDigest},ruleSnapshot};
+}

@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/PerceptionResolutionQuery/v1",
+  "title": "PerceptionResolutionQuery@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "queryContract": {
+      "type": "string",
+      "minLength": 1
+    },
+    "queryVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "querySchemaRef": {
+      "type": "string",
+      "minLength": 1
+    },
+    "factKind": {
+      "type": "string",
+      "enum": [
+        "rating",
+        "watched"
+      ]
+    },
+    "identityEvidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "anchorKind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "anchorValue": {
+            "type": "string",
+            "minLength": 1
+          },
+          "confidenceClass": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidenceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "anchorKind",
+          "anchorValue",
+          "confidenceClass",
+          "evidenceDigest"
+        ]
+      },
+      "maxItems": 16
+    },
+    "queryInputDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "queryContract",
+    "queryVersion",
+    "querySchemaRef",
+    "factKind",
+    "identityEvidence",
+    "queryInputDigest"
+  ]
+}

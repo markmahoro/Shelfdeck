@@ -13,7 +13,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": true,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 2,
@@ -21,55 +22,144 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 3,
+        "name": "query_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
         "name": "query_input_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
+        "name": "fact_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "rating",
+          "watched"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
         "name": "revision",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
-        "ordinal": 5,
-        "name": "result_kind",
+        "ordinal": 7,
+        "name": "record_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
-        "ordinal": 6,
+        "ordinal": 8,
+        "name": "rule_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "rule_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "result_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "found",
+          "not_found"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
         "name": "winning_perception_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": true
       },
       {
-        "ordinal": 7,
+        "ordinal": 12,
+        "name": "reason_code",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "no_matching_record",
+          "requested_fact_absent",
+          "strongest_value_conflict"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 13,
+        "name": "result_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 14,
+        "name": "result_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 15,
         "name": "result_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
-        "ordinal": 8,
+        "ordinal": 16,
         "name": "resolved_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       }
     ],
     "primaryKey": [
@@ -80,15 +170,40 @@
       [
         "query_contract",
         "query_input_digest",
-        "revision"
+        "revision",
+        "resolution_id"
       ]
     ],
     "hotIndexes": [],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "fact_kind",
+        "enumValues": [
+          "rating",
+          "watched"
+        ]
+      },
+      {
+        "column": "result_kind",
+        "enumValues": [
+          "found",
+          "not_found"
+        ]
+      },
+      {
+        "column": "reason_code",
+        "enumValues": [
+          "no_matching_record",
+          "requested_fact_absent",
+          "strongest_value_conflict"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
-        "revision"
+        "revision",
+        "rule_revision"
       ],
       "currentPointerColumns": [],
       "pointerTargets": [],
@@ -96,7 +211,15 @@
         "current pointer/index按query digest"
       ]
     },
-    "jsonContracts": [],
+    "jsonContracts": [
+      {
+        "column": "result_json",
+        "schemaRefColumn": "result_schema_ref",
+        "maxBytes": 16384,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
     "immutability": {
       "immutable": false,
       "rules": []
@@ -106,18 +229,33 @@
       "rules": []
     },
     "semanticRules": [
-      "`UNIQUE(query_contract,query_input_digest,revision)`",
+      "`UNIQUE(query_contract,query_input_digest,revision,resolution_id)`供head精确复合FK",
+      "`winning_perception_id`显式FK",
+      "found必须有winner且reason为NULL，not_found必须无winner并具有`no_matching_record|requested_fact_absent|strongest_value_conflict`之一",
+      "`result_json`保存完整typed `PerceptionResolutionRevision`且≤`16 KiB`，digest使用统一JCS basis",
       "current pointer/index按query digest"
     ],
     "rawContract": {
-      "columns": "`resolution_id PK, query_contract, query_input_digest, revision, result_kind, winning_perception_id, result_digest, resolved_at_ms`",
-      "constraints": "`UNIQUE(query_contract,query_input_digest,revision)`；current pointer/index按query digest"
+      "columns": "`resolution_id PK, query_contract, query_schema_ref, query_input_digest, fact_kind, revision, record_set_digest, rule_revision, rule_digest, result_kind, winning_perception_id NULL, reason_code NULL, result_schema_ref, result_json, result_digest, resolved_at_ms`",
+      "constraints": "`UNIQUE(query_contract,query_input_digest,revision,resolution_id)`供head精确复合FK；`winning_perception_id`显式FK；found必须有winner且reason为NULL，not_found必须无winner并具有`no_matching_record|requested_fact_absent|strongest_value_conflict`之一；`result_json`保存完整typed `PerceptionResolutionRevision`且≤`16 KiB`，digest使用统一JCS basis；current pointer/index按query digest"
     },
     "source": {
       "section": "8.5.13",
-      "line": 7499,
-      "lineDigest": "56cbf4c4b7660a191976d1e1b5976ac4cde8ae8b4178310f8bd8fc466925e1c5"
+      "line": 7785,
+      "lineDigest": "f98a2d972824490f42e6689ac062318b46d0ef72ac2d5a24d9c4f8ab16096adf"
     },
-    "foreignKeys": []
+    "foreignKeys": [
+      {
+        "columns": [
+          "winning_perception_id"
+        ],
+        "targetTable": "perception_records",
+        "targetColumns": [
+          "perception_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
   }
 }

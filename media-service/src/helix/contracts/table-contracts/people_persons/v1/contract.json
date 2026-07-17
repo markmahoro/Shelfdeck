@@ -13,7 +13,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": true,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 2,
@@ -21,11 +22,11 @@
         "logicalType": "TEXT",
         "enumValues": [
           "active",
-          "merged",
-          "archived"
+          "merged"
         ],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 3,
@@ -33,23 +34,62 @@
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 4,
+        "name": "current_preference_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 5,
+        "name": "current_reference_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 6,
+        "name": "current_reference_projection_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "current_reference_projection_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
         "name": "created_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
-        "ordinal": 5,
+        "ordinal": 9,
         "name": "terminal_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       }
     ],
     "primaryKey": [
@@ -69,17 +109,24 @@
         "column": "status",
         "enumValues": [
           "active",
-          "merged",
-          "archived"
+          "merged"
         ]
+      },
+      {
+        "rule": "两个Projection checkpoint字段均`NOT NULL`，`CHECK(current_reference_projection_revision>=1)`且digest为64位lowercase hex"
       }
     ],
     "revisionContract": {
       "revisionColumns": [
-        "current_revision"
+        "current_revision",
+        "current_preference_revision",
+        "current_reference_revision",
+        "current_reference_projection_revision"
       ],
       "currentPointerColumns": [
-        "current_revision"
+        "current_revision",
+        "current_preference_revision",
+        "current_reference_revision"
       ],
       "pointerTargets": [
         {
@@ -93,10 +140,43 @@
             "revision"
           ],
           "consistencyColumns": [],
-          "deletePolicy": "RESTRICT"
+          "deletePolicy": "RESTRICT",
+          "deferrable": true
+        },
+        {
+          "sourceColumns": [
+            "person_id",
+            "current_preference_revision"
+          ],
+          "targetTable": "people_preference_revisions",
+          "targetColumns": [
+            "person_id",
+            "revision"
+          ],
+          "consistencyColumns": [],
+          "deletePolicy": "RESTRICT",
+          "deferrable": true
+        },
+        {
+          "sourceColumns": [
+            "person_id",
+            "current_reference_revision"
+          ],
+          "targetTable": "people_reference_revisions",
+          "targetColumns": [
+            "person_id",
+            "revision"
+          ],
+          "consistencyColumns": [],
+          "deletePolicy": "RESTRICT",
+          "deferrable": true
         }
       ],
-      "pointerRules": []
+      "pointerRules": [
+        "`current_revision`显式复合FK引用`people_person_revisions`",
+        "`current_reference_revision IS NULL`表示尚无Reference revision，Commit逻辑expected `0`映射为“期望不存在”而不是存储revision 0",
+        "两个Projection checkpoint字段均`NOT NULL`，`CHECK(current_reference_projection_revision>=1)`且digest为64位lowercase hex"
+      ]
     },
     "jsonContracts": [],
     "immutability": {
@@ -108,16 +188,22 @@
       "rules": []
     },
     "semanticRules": [
+      "`current_revision`显式复合FK引用`people_person_revisions`",
+      "nullable Preference/Reference pointer分别显式复合FK引用对应revision表",
+      "`current_reference_revision IS NULL`表示尚无Reference revision，Commit逻辑expected `0`映射为“期望不存在”而不是存储revision 0",
+      "两个Projection checkpoint字段均`NOT NULL`，`CHECK(current_reference_projection_revision>=1)`且digest为64位lowercase hex",
+      "Person成立时以revision `1`和无Reference语义payload的digest初始化",
+      "与child表的循环FK均`DEFERRABLE INITIALLY DEFERRED`",
       "`INDEX(status,person_id)`"
     ],
     "rawContract": {
-      "columns": "`person_id PK, status, current_revision, created_at_ms, terminal_at_ms`",
-      "constraints": "`INDEX(status,person_id)`"
+      "columns": "`person_id PK, status(active|merged), current_revision, current_preference_revision NULL, current_reference_revision NULL, current_reference_projection_revision, current_reference_projection_digest, created_at_ms, terminal_at_ms`",
+      "constraints": "`current_revision`显式复合FK引用`people_person_revisions`；nullable Preference/Reference pointer分别显式复合FK引用对应revision表；`current_reference_revision IS NULL`表示尚无Reference revision，Commit逻辑expected `0`映射为“期望不存在”而不是存储revision 0；两个Projection checkpoint字段均`NOT NULL`，`CHECK(current_reference_projection_revision>=1)`且digest为64位lowercase hex；Person成立时以revision `1`和无Reference语义payload的digest初始化；与child表的循环FK均`DEFERRABLE INITIALLY DEFERRED`；`INDEX(status,person_id)`"
     },
     "source": {
       "section": "8.5.13",
-      "line": 7501,
-      "lineDigest": "bd6c936deb239eb17eb530d84cfb49c7132bdc8f2a1d6b3bbd866899974da756"
+      "line": 7787,
+      "lineDigest": "298821032aa54b23e61d203ae67007da4ef42079464bcde370ceccf897f6e2b3"
     },
     "foreignKeys": []
   }

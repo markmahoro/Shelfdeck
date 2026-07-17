@@ -28,9 +28,13 @@ function definitions(schemaManifest) {
     } }),
     nodes: createRepositoryDefinition({ repositoryId: 'compensation_nodes', owner: 'execution-foundation', schemaManifest, statements: {
       find: { kind: 'select-one', tableId: 'fx_plan_nodes', columns: [
-        'plan_id', 'node_id', 'capability_ref', 'effect_class', 'when_schema_ref', 'when_json',
-        'compensation_for_event_id', 'compensation_contract_ref'
+        'plan_id', 'node_id', 'capability_ref', 'effect_class', 'when_schema_ref', 'when_json'
       ], keyColumns: ['plan_id', 'node_id'] }
+    } }),
+    edges: createRepositoryDefinition({ repositoryId: 'compensation_edges', owner: 'execution-foundation', schemaManifest, statements: {
+      list: { kind: 'select-all', tableId: 'fx_plan_edges', columns: [
+        'plan_id', 'from_node_id', 'to_node_id', 'dependency_kind'
+      ], keyColumns: [] }
     } })
   });
 }
@@ -64,12 +68,18 @@ function createCompensationController(options) {
           const targetNode = context.repository('compensation_nodes').invoke('find', {
             plan_id: targetEvent.plan_id, node_id: targetEvent.node_id
           });
-          if (!compensationNode || !targetNode || compensationNode.compensation_for_event_id !== targetEvent.event_id ||
-              compensationNode.compensation_contract_ref === null || targetNode.effect_class === 'destructive_commit') fail(
+          const terminalEdge = context.repository('compensation_edges').invoke('list').some((edge) =>
+            edge.plan_id === targetEvent.plan_id && edge.from_node_id === targetEvent.node_id &&
+            edge.to_node_id === compensationEvent.node_id && edge.dependency_kind === 'terminal');
+          if (!compensationNode || !targetNode || !terminalEdge || targetNode.effect_class === 'destructive_commit') fail(
             'P4_COMPENSATION_PLAN_CONTRACT_MISMATCH', 'Only an exact predeclared non-destructive compensation pair may activate.'
           );
           const targetBinding = options.policyRegistry.bindingFor(targetNode.capability_ref, targetNode.effect_class);
-          const contract = options.policyRegistry.compensation(compensationNode.compensation_contract_ref);
+          const matchingContracts = targetBinding.compensationContractRefs.map((ref) => options.policyRegistry.compensation(ref))
+            .filter((candidate) => candidate.targetEffectClasses.includes(targetNode.effect_class) &&
+              candidate.compensationCapabilityRefs.includes(compensationNode.capability_ref) && candidate.requiredDecision === 'compensate');
+          if (matchingContracts.length !== 1) fail('P4_COMPENSATION_POLICY_MISMATCH', 'Compensation relation must resolve one exact policy contract.');
+          const contract = matchingContracts[0];
           if (!targetBinding.compensationContractRefs.includes(contract.ref) ||
               !contract.targetEffectClasses.includes(targetNode.effect_class) ||
               !contract.compensationCapabilityRefs.includes(compensationNode.capability_ref) || contract.requiredDecision !== 'compensate') fail(

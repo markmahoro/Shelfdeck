@@ -3,6 +3,11 @@
 const crypto = require('crypto');
 
 const crashFixtures = Object.freeze({
+  'perception-acquisition-page': ['第一次Source同步、第二次Acquisition首页、配置/scope不兼容重扫、Acquire后bounded inline payload冻结、Normalize前、Record/Anchor/Relation participant后、cursor head CAS前后、typed Result/marker/Outbox前后、响应前崩溃', '仅从未存在cursor row时logical expected revision为0/storage pointer为NULL；后续Acquisition冻结真实head且revision永不重置；Normalize只读取digest-bound inline DTO，pure Acquire不创建Artifact；任一验证/CAS失败整页rollback；同来源事实不重复；cursor不越过未提交页；同marker重放返回原typed Result及相同storage result digest；Outbox不通知Libra/Arca', 8527],
+  'perception-resolution': ['Query Handle验证、候选检索前后、Record/Relation snapshot后、pure Resolver前后、Resolution/head/duplicate relation participant后、typed Result/marker前后', 'Handle携带可读取typed query；Assembler只读Perception Store并按Rule取得完整候选超集，不决定winner；Executor不旁读Store；被retracted/superseded或缺少请求kind的Record不能获胜；最高strength同值稳定found、同tier冲突稳定not_found；fuzzy match不生成duplicate；任一query/record-set/rule digest变化形成新revision；同三重digest重放返回同一typed Resolution', 8643],
+  'people-candidate': ['typed Evidence恢复、Resolver产出complete Draft、Candidate head/open revision/typed Result/marker各边界；用户或strong rule接受前后；Registration Person/alias/provider identity与Merge target/source/preference/correlation提交各边界', 'CommitParticipant不旁读Foundation/Provider；Candidate payload digest可重算；重启不丢open Candidate；candidate revision或任一Person/Preference revision变化时整体CAS失败；接受成功时Candidate terminal与全部Person facts同时成立，同marker重放返回同一typed Result；弱Identity未经用户确认不建立Person，Preference冲突不得strong-rule自动接受', 8584],
+  'direct-person-registration': ['Direct Person Registration提交前、Person/Identity/初始Projection checkpoint写入后、command receipt/Outbox前后、响应前崩溃', 'Person首revision、Alias/Provider Identity、初始Reference Projection checkpoint、durable result、command receipt和Outbox必须全有或全无；重放返回同一结果且不经过Candidate或建立Reference Fact', 11228],
+  'people-reference-image': ['Reference Image导入后、Face检测/Embedding前后、Asset/Face/Reference head/Projection checkpoint各participant后、typed Result/marker/Outbox前后、响应前崩溃', '零Face、多Face、handle/digest/model不一致或stale Person/Reference revision整体失败；Asset与唯一Face同事务active或released；Reference revision和所有受影响Projection checkpoint连续；同marker重放返回原typed Result', 11228],
   'handoff-a-accepted': ['continuity match前后、并发Subject/episode变化、Decision前、Subject/Binding participant后、Control participant前后、Outbox前', 'exact claim唯一命中且zero overlap才extension；0/N命中、缺失或overlap新建Subject；竞态使Basis失效后重算；要么全部不存在，要么Decision/Subject/claim snapshot/Binding/Control/Receipt全部成立；Procurement只异步消费Receipt', 8412],
   'procurement-failed-run-retry': ['Retry Intent commit前后、新Run建立前后、Intent consume前后', '旧Run始终sealed；一个Intent最多建立一个新Run；观察不伪造Basis revision；失败不会自动连锁重试', 8414],
   'libra-subject-abandon': ['Decision前、Subject terminal后、Primary Control release前后、Receipt/Outbox前', '要么Subject仍active且Control不变，要么abandoned/Primary released/Receipt全部成立；已有Run时Command稳定拒绝', 8415],
@@ -23,9 +28,57 @@ const crashFixtures = Object.freeze({
 const definitions = Object.freeze({
   'Domain Fact Commit': {
     commitClass: 'domain_fact_commit',
-    writeTables: ['fx_commit_markers', 'fx_outbox'],
+    writeTables: ['fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox'],
     dynamicTableRequirements: [{ participant: 'domain', selector: 'DomainFactCommitHandle.factSchemaRef', ownerConstraint: 'execution_owner' }],
     readTables: [], fixtureRefs: ['command-idempotency', 'effect-outbox-recovery'], hasOutbox: true
+  },
+  'Perception Acquisition Page Commit': {
+    commitClass: 'domain_fact_commit',
+    writeTables: ['perception_acquisitions', 'perception_source_cursors', 'perception_acquisition_commits',
+      'perception_records', 'perception_identity_anchors', 'perception_record_relations',
+      'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox'],
+    readTables: ['perception_sources', 'perception_acquisitions', 'perception_source_cursors', 'perception_records'],
+    fixtureRefs: ['perception-acquisition-page'], hasOutbox: true
+  },
+  'Perception Resolution Commit': {
+    commitClass: 'domain_fact_commit',
+    writeTables: ['perception_resolution_revisions', 'perception_resolution_heads', 'perception_record_relations',
+      'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox'],
+    readTables: ['perception_records', 'perception_identity_anchors', 'perception_record_relations',
+      'perception_resolution_revisions', 'perception_resolution_heads'],
+    fixtureRefs: ['perception-resolution'], hasOutbox: true
+  },
+  'People Candidate Commit': {
+    commitClass: 'domain_fact_commit',
+    writeTables: ['people_registration_candidates', 'people_registration_candidate_revisions',
+      'people_merge_candidates', 'people_merge_candidate_revisions',
+      'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox'],
+    readTables: [], fixtureRefs: ['people-candidate'], hasOutbox: true
+  },
+  'People Candidate Acceptance': {
+    commitClass: 'domain_fact_commit',
+    writeTables: ['people_persons', 'people_person_revisions', 'people_aliases', 'people_provider_identities',
+      'people_preference_revisions', 'people_registration_candidates', 'people_registration_candidate_revisions',
+      'people_merge_candidates', 'people_merge_candidate_revisions', 'people_merge_records',
+      'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox'],
+    readTables: ['people_persons', 'people_person_revisions', 'people_preference_revisions',
+      'people_registration_candidates', 'people_registration_candidate_revisions',
+      'people_merge_candidates', 'people_merge_candidate_revisions'],
+    fixtureRefs: ['people-candidate'], hasOutbox: true
+  },
+  'Direct Person Registration': {
+    commitClass: 'domain_unit_of_work',
+    writeTables: ['people_persons', 'people_person_revisions', 'people_aliases', 'people_provider_identities',
+      'fx_event_result_bindings', 'fx_command_receipts', 'fx_commit_markers', 'fx_outbox'],
+    readTables: [], fixtureRefs: ['direct-person-registration'], hasOutbox: true
+  },
+  'People Reference Image Commit': {
+    commitClass: 'domain_fact_commit',
+    writeTables: ['people_persons', 'people_reference_assets', 'people_reference_faces', 'people_reference_revisions',
+      'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox'],
+    readTables: ['people_persons', 'people_reference_assets', 'people_reference_faces', 'people_reference_revisions',
+      'people_merge_records'],
+    fixtureRefs: ['people-reference-image'], hasOutbox: true
   },
   'Procurement Retry Intent Commit': {
     commitClass: 'domain_unit_of_work',
@@ -175,6 +228,10 @@ function buildTransactionContracts(entries) {
     const definition = definitions[entry.id];
     if (!definition) throw new Error(`Missing transaction contract definition: ${entry.id}`);
     const writeTables = [...definition.writeTables];
+    if (definition.commitClass === 'responsibility_control_commit' && !writeTables.includes('fx_event_result_bindings')) {
+      const markerIndex = writeTables.indexOf('fx_commit_markers');
+      writeTables.splice(markerIndex < 0 ? writeTables.length : markerIndex, 0, 'fx_event_result_bindings');
+    }
     const materialControlRequired = definition.commitClass === 'responsibility_control_commit';
     const participants = participantsFor(entry.owner, writeTables);
     for (const dynamic of definition.dynamicTableRequirements || []) participants.unshift({

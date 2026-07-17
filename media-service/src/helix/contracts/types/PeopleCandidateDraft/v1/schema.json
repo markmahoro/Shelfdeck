@@ -45,12 +45,311 @@
         "merge"
       ]
     },
-    "candidatePayloadDigest": {
+    "evidenceDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
-    "evidenceDigest": {
+    "candidatePayload": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "proposedName": {
+              "type": "string",
+              "minLength": 1
+            },
+            "aliases": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "aliasDisplay": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "aliasNormalized": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "provenanceDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "aliasDisplay",
+                  "aliasNormalized",
+                  "provenanceDigest"
+                ]
+              },
+              "maxItems": 256
+            },
+            "providerIdentities": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "namespace": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "providerKey": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "provenanceDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "provider",
+                  "namespace",
+                  "providerKey",
+                  "provenanceDigest"
+                ]
+              },
+              "maxItems": 256
+            },
+            "referenceHints": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "hintKind": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "referenceValue": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "provenanceDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "hintKind",
+                  "referenceValue",
+                  "provenanceDigest"
+                ]
+              },
+              "maxItems": 256
+            }
+          },
+          "required": [
+            "proposedName",
+            "aliases",
+            "providerIdentities",
+            "referenceHints"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "leftPersonRef": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "personId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "factDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "preferenceRevision": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "personId",
+                "revision",
+                "factDigest",
+                "preferenceRevision"
+              ]
+            },
+            "rightPersonRef": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "personId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "factDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "preferenceRevision": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "personId",
+                "revision",
+                "factDigest",
+                "preferenceRevision"
+              ]
+            },
+            "matchSignals": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "objectId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "revision": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "schemaRef": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "snapshotDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "objectKind": {
+                    "const": "person-match-signal"
+                  }
+                },
+                "required": [
+                  "objectId",
+                  "revision",
+                  "schemaRef",
+                  "snapshotDigest",
+                  "objectKind"
+                ]
+              },
+              "maxItems": 256
+            },
+            "conflictSummary": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "schemaRef": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "schemaVersion": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "recordKind": {
+                  "const": "merge-conflict-summary"
+                },
+                "recordDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "entries": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "key": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "value": {
+                        "type": [
+                          "string",
+                          "number",
+                          "integer",
+                          "boolean",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "key",
+                      "value"
+                    ]
+                  },
+                  "maxItems": 256
+                }
+              },
+              "required": [
+                "schemaRef",
+                "schemaVersion",
+                "recordKind",
+                "recordDigest",
+                "entries"
+              ]
+            },
+            "evidenceRefs": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "maxItems": 256
+            }
+          },
+          "required": [
+            "leftPersonRef",
+            "rightPersonRef",
+            "matchSignals",
+            "conflictSummary",
+            "evidenceRefs"
+          ]
+        }
+      ]
+    },
+    "candidatePayloadDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
@@ -65,7 +364,8 @@
     "draftDigest",
     "producedAtMs",
     "candidateKind",
-    "candidatePayloadDigest",
-    "evidenceDigest"
+    "evidenceDigest",
+    "candidatePayload",
+    "candidatePayloadDigest"
   ]
 }

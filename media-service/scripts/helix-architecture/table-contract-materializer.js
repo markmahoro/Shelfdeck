@@ -52,6 +52,9 @@ function materializeTableContracts(contractsRoot) {
 
   const inventoryRoot = path.join(contractsRoot, 'manifests', 'table-inventory');
   fs.mkdirSync(inventoryRoot, { recursive: true });
+  for (const fileName of fs.readdirSync(inventoryRoot)) {
+    if (/^entries-\d{3}-\d{3}\.json$/.test(fileName)) fs.rmSync(path.join(inventoryRoot, fileName));
+  }
   const entryFiles = [];
   for (let start = 0; start < entries.length; start += 13) {
     const end = Math.min(start + 13, entries.length);
@@ -69,7 +72,7 @@ function materializeTableContracts(contractsRoot) {
     owner: 'contracts',
     status: 'active',
     ssotRefs: ['8.5.9', '8.5.10', '8.5.11', '8.5.12', '8.5.13'],
-    targetCount: 156,
+    targetCount: entries.length,
     entryFiles
   };
   fs.writeFileSync(path.join(contractsRoot, 'manifests', 'table-inventory.json'), `${JSON.stringify(manifest, null, 2)}\n`);

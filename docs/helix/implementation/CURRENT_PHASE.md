@@ -2,7 +2,7 @@
 
 Current phase: `P6 — Horizontal Domains`
 
-Status: in progress；P6-00–P6-02 and P6-05 complete；P6-03 contract regeneration pending one reported SSOT nominal fix；P5 Exit Audit PASS；standing P2–P13 Local Implementation authorization active.
+Status: in progress；latest SSOT已重物化为112/96/161/24；P6-00–P6-11 complete；P6 Exit Audit pending；standing P2–P13 Local Implementation authorization active.
 
 Last updated: 2026-07-17
 
@@ -58,7 +58,7 @@ Workspace行为只允许fake adapter、synthetic evidence和owned temp root。
 ## 5. In scope
 
 - `domains/perception/`与`domains/people/`的public/application/planning/capabilities/persistence实现；
-- P2已冻结的7张`perception_`表与10张`people_`表对应P3 scoped Repository；
+- P2当前冻结的9张`perception_`表与12张`people_`表对应P3 scoped Repository；
 - Perception Source/Cursor、Acquisition、Record、Anchor、Dedup、Resolution Head/Revision；
 - Person revision、Alias、Provider Identity、Preference、Reference Asset/Face、Registration/Merge Candidate、Merge Record；
 - 5个Perception及8个People Capability Executor与P4 typed dispatch；
@@ -80,16 +80,16 @@ Workspace行为只允许fake adapter、synthetic evidence和owned temp root。
 | --- | --- | --- | --- |
 | P6-00 | P5 closure and isolated P6 baseline receipt | complete | P5 PASS |
 | P6-01 | Horizontal-domain public ports and package guards | complete | P6-00；P2 contracts |
-| P6-02 | User Perception scoped Store and atomic Repository | complete | P6-01；P3 Persistence |
-| P6-03 | Perception Acquisition and immutable Record pipeline | next | P6-02；P4–P5 |
-| P6-04 | Perception dedup、Resolution and public query Facade | pending | P6-02–P6-03 |
-| P6-05 | People Registry and Candidate scoped Repositories | complete | P6-01；P3 Persistence |
-| P6-06 | Person Registration and Candidate lifecycle | pending | P6-05；P4–P5 |
-| P6-07 | Person Merge and Preference lifecycle | pending | P6-05–P6-06 |
-| P6-08 | Reference Asset/Face maintenance and Projection | pending | P6-05–P6-07；P5 Artifact/Workspace |
-| P6-09 | Capability executors and Foundation runtime integration | pending | P6-03–P6-08；P4 contracts |
-| P6-10 | Cross-domain Resolution/Projection boundary verification | pending | P6-04、P6-08–P6-09 |
-| P6-11 | Horizontal-domain isolated integration harness | pending | P6-01–P6-10 |
+| P6-02 | User Perception scoped Store and atomic Repository | complete（PBF-02/PBF-03 rebaseline） | P6-01；P3 Persistence |
+| P6-03 | Perception Acquisition and immutable Record pipeline | complete | P6-02；P4–P5 |
+| P6-04 | Perception dedup、Resolution and public query Facade | complete | P6-02–P6-03 |
+| P6-05 | People Registry and Candidate scoped Repositories | complete（latest 12-table clean rewrite） | P6-01；P3 Persistence |
+| P6-06 | Person Registration and Candidate lifecycle | complete | P6-05；P4–P5 |
+| P6-07 | Person Merge and Preference lifecycle | complete | P6-05–P6-06 |
+| P6-08 | Reference Asset/Face maintenance and Projection | complete | P6-05–P6-07；P5 Artifact/Workspace |
+| P6-09 | Capability executors and Foundation runtime integration | complete | P6-03–P6-08；P4 contracts |
+| P6-10 | Cross-domain Resolution/Projection boundary verification | complete | P6-04、P6-08–P6-09 |
+| P6-11 | Horizontal-domain isolated integration harness | complete | P6-01–P6-10 |
 | P6-12 | P6 Phase Exit Audit and evidence freeze | pending | P6-00–P6-11 |
 
 ## 8. Work Package contracts
@@ -117,20 +117,21 @@ Workspace行为只允许fake adapter、synthetic evidence和owned temp root。
 
 ### P6-02 User Perception scoped Store and atomic Repository
 
-- Repository只注册7张`perception_`表；Source/Cursor、Record/Anchor/Relation、Resolution revision/head分别typed。
+- Repository只注册9张`perception_`表；Source/Acquisition/Cursor/Page Commit、Record/Anchor/Relation、Resolution revision/head分别typed。
 - Record、Anchor、Relation和Resolution Revision不可变；source current cursor和resolution head使用显式expected revision CAS。
 - 固化rating `1..5`、source record唯一性、normalized relation pair、query contract/input digest/revision唯一性和payload bound。
-- Done: two exact Repository definitions implement the SSOT physical components: Record Repository owns five Source/Cursor/Record/
-  Anchor/Relation tables and Resolution Repository owns two Revision/Head tables. User-input Source may have no Integration or cursor;
-  cursor initialization and all later heads use atomic revision fences. Immutable rows、rating/watched bounds、source uniqueness、
-  normalized pair uniqueness、winner validation and no-`MAX` Resolution heads fail closed. Focused 8/8、65-file architecture and
-  P3 156/72/19 + 18/132 regression PASS. Evidence: `evidence/P6_02_PERCEPTION_SCOPED_STORE.md`。
+- Done: Record Repository owns seven Source/Acquisition/Cursor/Commit/Record/Anchor/Relation tables and Resolution Repository owns two
+  Revision/Head tables. Active-Acquisition partial uniqueness、0 cursor sentinel、immutable lineage、rating integer bound、transactional
+  typed Result/JCS replay and no-`MAX` heads fail closed. Focused `11/11 PASS`. Evidence: `evidence/P6_02_PERCEPTION_SCOPED_STORE.md`。
 
 ### P6-03 Perception Acquisition and immutable Record pipeline
 
 - Planner/Coordinator冻结Source、cursor/window、Integration handle、normalization contract和idempotency basis。
 - `source.acquire`与`record.normalize`只产Evidence/Draft；`record.commit`在单一Domain事务内写Record、Anchor、cursor和Outbox。
 - 同一来源重放收敛为同一commit result；纠错/retract/supersede追加新Record/Relation，不覆盖历史。
+- Done: Provider reference page经bounded Observation Reader形成immutable Evidence，matching revisioned rule形成Commit Draft；P3 Domain
+  Commit Coordinator在一个UoW内提交Perception facts、cursor、typed Result、Marker和Outbox。Focused `3/3`、P3/P6组合`22/22 PASS`。
+  Evidence: `evidence/P6_03_PERCEPTION_ACQUISITION_PIPELINE.md`。
 
 ### P6-04 Perception dedup、Resolution and public query Facade
 
@@ -138,16 +139,22 @@ Workspace行为只允许fake adapter、synthetic evidence和owned temp root。
 - `resolution.commit`以query contract/input digest expected head CAS原子写revision/head/outbox。
 - Query一次只返回声明kind的`found|not_found`、providerDomain、contract/version、input anchors digest、revision、Evidence、
   resolvedAt和freshness；`not_found`、integration failure和invalid contract严格区分。
+- Done：Architecture Agent提交`85752517`闭合formal input semantics；实现线程原样同步后形成`CanonicalQueryHandle → Input
+  Assembler → PerceptionResolutionQuery/RecordSet/RuleSnapshot → pure Resolver → Draft → atomic Commit → Facade`完整链。
+- Done：强Identity tier固定rank、同tier consensus/conflict、single-kind `found|not_found`、exact duplicate proof分离、Record digest、
+  full typed Resolution persistence和四列Head FK均有机器反例；P2 PASS、DDL `7/7`、crash `78/78`、Perception `20/20 PASS`。
+- Evidence: `evidence/P6_04_PERCEPTION_RESOLUTION.md`。
 
 ### P6-05 People Registry and Candidate scoped Repositories
 
-- Repository只注册10张`people_`表，分别维护Person head/revisions、Alias、Provider Identity、Preference、Reference、Candidate和Merge。
+- Repository只注册当前12张`people_`表，分别维护Person head/revisions、Alias、Provider Identity、Preference、Reference、
+  Candidate head/immutable revisions和Merge correlation。
 - stable provider identity active unique；同evidence最多一个open Registration Candidate；normalized pair最多一个open Merge Candidate。
 - Candidate不是Person；Foundation Work/Event Result不能被保存为待用户确认的People业务对象。
-- Done: exact `PersonRegistryRepository`（7 tables）and `PeopleCandidateRepository`（3 tables）implement the closed Owner boundary；
-  Person head/revision CAS、active Provider Identity、Preference range、Reference handle ownership、Candidate nominal identity/open uniqueness、
-  normalized Merge pair and one terminal source Merge Record fail closed. Focused 9/9 and combined boundary 33/33 PASS. Evidence:
-  `evidence/P6_05_PEOPLE_SCOPED_REPOSITORIES.md`。
+- Done：旧10-table Store已被12-table clean rewrite完全取代；Person无`content_scope`，Preference有显式current pointer，
+  Registration/Merge Candidate均为immutable payload + revision/head，Merge冻结精确Person/Preference snapshot。
+- Done：P6-05 focused `9/9`、P2/P3/table/package组合`68/68`、canonical crash/semantic组合`103/103 PASS`；没有兼容层。
+- Evidence: `evidence/P6_05_PEOPLE_SCOPED_REPOSITORIES.md`。
 
 ### P6-06 Person Registration and Candidate lifecycle
 
@@ -155,18 +162,36 @@ Workspace行为只允许fake adapter、synthetic evidence和owned temp root。
 - 自动注册仅允许同一stable Person ID或同namespace stable Provider Identity；同名/Alias/face similarity只能形成Candidate。
 - 接受Candidate时由Registration Coordinator在原子事务中建立Person revision、identity facts、Candidate terminal和Outbox；
   dismiss/supersede不创建Person。
+- Latest SSOT已让`PeopleCandidateDraft`携带完整typed payload，且Architecture Agent提交`85752517`删除`content_scope`并明确
+  Person是global Registry；两个Registration formal-realizability gap均关闭，P6-06已在P6-05最新12-table clean rewrite上执行。
+- Done：pure Resolver输出complete Draft/`no_candidate`；Candidate Commit与Registration Acceptance均接入P3 durable typed
+  Result/marker/Outbox原子链，支持stable replay；dismiss只终结Candidate。组合`95/95 PASS`。
+- Evidence: `evidence/P6_06_PERSON_REGISTRATION_LIFECYCLE.md`。
 
 ### P6-07 Person Merge and Preference lifecycle
 
 - Merge Candidate使用normalized pair和immutable Evidence；接受Merge时保留target personId并形成唯一terminal Merge Record。
 - preference冲突要求已有显式用户选择输入；工程实现不得自行决定可见业务结果。
 - Person Preference revision只允许`-2..2`，由People拥有；不得直接改媒体事实、Shelf Entry或启动Off-deck。
+- Done：`people.person.commit@1`按正式Decision kind分派Registration/Merge；Merge以Candidate、source/target Person和nullable
+  Preference四组精确Fence，在一个P3事务内终结Candidate、形成source terminal/target active revisions、必要Preference和
+  immutable Merge Record。target identity/canonical name保留，Reference不复制。
+- Done：strong identity rule不能解决任何Preference差异或显式改值；source terminal target由
+  `UNIQUE(people_merge_records.source_person_id)`硬约束。独立Preference Commit严格匹配`PreferenceIntent`，不再读取合同外字段。
+- Done：focused `57/57`、package/runtime targeted `26/26`、完整Architecture与P3 Persistence gates PASS。
+  Evidence: `evidence/P6_07_PERSON_MERGE_AND_PREFERENCE.md`。
 
 ### P6-08 Reference Asset/Face maintenance and Projection
 
 - Reference Coordinator通过P5 Artifact/Workspace Handle导入、验证和回收Reference Asset/Face；Store只保存handle/digest/model ref。
 - 大图片、embedding或模型payload不进入hot JSON/DB；Workspace reclaim使用exact Reference Evidence和P4 Effect recovery。
 - `PersonReferenceQueryFacade`发布只读Person identity/reference Projection，带revision/freshness/provenance，不包含Media-Cast事实。
+- Design Return：当前`people.reference_fact.commit@1` closed input只有通用`ArtifactHandle + DomainFactCommitHandle`，无法表达
+  独立Reference Asset/Face业务ID、Face embedding/model/source Asset、add/release discriminator和终态；public合同也缺Face
+  add/release named command，与§8.5.13、§8.6.19和§9.4.9无法同时实现。不得用Handle ID冒充业务ID或旁读Store补值。
+  原Design Return已由Architecture Agent提交`f2846fd1`闭合。Direct registration、单Image/单Face add/release、stable ID、Artifact/
+  Embedding/Model ref、expected revision/state、JCS digest、Projection checkpoint与Merge展开已实现并有原子/篡改/GET零写反例。
+  Evidence: `evidence/P6_08_REFERENCE_IMAGE_MAINTENANCE.md`。
 
 ### P6-09 Capability executors and Foundation runtime integration
 
@@ -174,18 +199,24 @@ Workspace行为只允许fake adapter、synthetic evidence和owned temp root。
 - Executor只消费`CapabilityExecutionContext@1` named inputs和注入port，不持有Store/Facade/Planner/Runtime或generic Integration。
 - `pure_observation|workspace_write|domain_fact_commit`分别走P4正确Effect recovery；简单同步Command可直接Domain transaction，
   不强制伪造Workflow。
+- Done：5个Perception与8个People registration精确绑定P2 manifest；missing/extra/Owner/Effect/typed-port drift均fail closed。
+  Evidence: `evidence/P6_09_CAPABILITY_RUNTIME_REGISTRATION.md`。
 
 ### P6-10 Cross-domain Resolution/Projection boundary verification
 
 - synthetic Libra/Arca consumer只能通过public Resolution/Projection读取；保存的Basis copy必须保留Owner/revision/digest而非改写Fact。
 - Counterexample证明Perception不能push/interrupt/create Run/Case，People Candidate不能写Media-Cast，consumer不能写回Resolution/Person。
 - Neutral Signal只允许durable wake-up/reconcile语义；丢失、重复、乱序不改变Canonical结果。
+- Done：synthetic consumer只保留Owner/revision/digest Basis copy，无法写回Owner Fact或取得consumer process权限；`3/3 PASS`。
+  Evidence: `evidence/P6_10_CROSS_DOMAIN_PROJECTION_BOUNDARY.md`。
 
 ### P6-11 Horizontal-domain isolated integration harness
 
 - 单一Node-only命令覆盖两个Domain的Repository、Facade、13 Capability、transaction/crash/replay和边界反例。
 - 使用owned temp DB、fake Integration/Worker/clock和synthetic bytes；禁止Service startup、socket、ambient credential和真实文件/媒体。
 - 同时回归P2 contract、P3 persistence、P4 runtime和P5 platform exit gates。
+- Done：单一Node harness `ok=true`；74 fixture files、112/96/161/24、197 refs/0 unresolved、24 transaction/25 crash fixtures。
+  Evidence: `evidence/P6_11_ISOLATED_HORIZONTAL_HARNESS.md`。
 
 ### P6-12 P6 Phase Exit Audit and evidence freeze
 
@@ -207,7 +238,7 @@ P6-00 → P6-01 ─┬→ P6-02 → P6-03 → P6-04 ─┐
 
 P6只有同时满足以下条件才能PASS：
 
-1. SSOT traceability覆盖两个Domain的Object/Process/Decision、组件、17张表、13个Capability及cross-domain合同；
+1. SSOT traceability覆盖两个Domain的Object/Process/Decision、组件、19张表、13个Capability及cross-domain合同；
 2. 两域Repository前缀与Fact Owner隔离，所有revision/head/unique/state/transaction不变量有机器反例；
 3. Perception只发布single-kind `found|not_found` Resolution；People只发布Person Reference Projection；
 4. Media-Cast/Content Identity/Subject/Shelf Entry/Control和consumer process写入反例全部fail closed；

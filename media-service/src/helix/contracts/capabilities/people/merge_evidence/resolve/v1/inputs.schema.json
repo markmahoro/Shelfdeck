@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/people.merge_evidence.resolve/v1/inputs",
+  "title": "people.merge_evidence.resolve@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "personIdentitiesAliasesReferences": {
+      "$ref": "#/$defs/personIdentitiesAliasesReferences"
+    }
+  },
+  "required": [
+    "personIdentitiesAliasesReferences"
+  ],
+  "$defs": {
+    "personIdentitiesAliasesReferences": {
+      "$ref": "helix://contracts/domain-types/PersonIdentitiesAliasesReferences/v1",
+      "x-helix-typeExpression": "Person identities/aliases/references"
+    }
+  }
+}

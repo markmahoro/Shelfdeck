@@ -54,7 +54,9 @@ function validateCapabilityContracts(options) {
   const repositoryRoot = path.resolve(options.repositoryRoot);
   const contractsRoot = path.resolve(options.contractsRoot);
   const capabilitiesRoot = path.join(contractsRoot, 'capabilities');
-  const ssotPath = path.join(repositoryRoot, 'docs', 'helix', 'TOP_DOWN_ARCHITECTURE_CONFIRMATION.md');
+  const configuredSsotPath = process.env.HELIX_SSOT_PATH;
+  const ssotPath = configuredSsotPath && fs.existsSync(path.join(repositoryRoot, '.git'))
+    ? configuredSsotPath : path.join(repositoryRoot, 'docs', 'helix', 'TOP_DOWN_ARCHITECTURE_CONFIRMATION.md');
   const findings = [];
   let extracted;
   try {

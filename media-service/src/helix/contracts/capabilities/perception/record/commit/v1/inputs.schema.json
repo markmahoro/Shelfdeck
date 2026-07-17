@@ -5,21 +5,21 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "recordDrafts": {
-      "$ref": "#/$defs/recordDrafts"
+    "perceptionAcquisitionCommitDraft": {
+      "$ref": "#/$defs/perceptionAcquisitionCommitDraft"
     },
     "domainFactCommitHandle": {
       "$ref": "#/$defs/domainFactCommitHandle"
     }
   },
   "required": [
-    "recordDrafts",
+    "perceptionAcquisitionCommitDraft",
     "domainFactCommitHandle"
   ],
   "$defs": {
-    "recordDrafts": {
-      "$ref": "helix://contracts/types/NormalizedPerceptionRecordDraftList/v1",
-      "x-helix-typeExpression": "Record drafts"
+    "perceptionAcquisitionCommitDraft": {
+      "$ref": "helix://contracts/types/PerceptionAcquisitionCommitDraft/v1",
+      "x-helix-typeExpression": "PerceptionAcquisitionCommitDraft"
     },
     "domainFactCommitHandle": {
       "$ref": "helix://contracts/types/DomainFactCommitHandle/v1",

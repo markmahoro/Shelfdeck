@@ -7,7 +7,7 @@
     "displayName": "Aftercare Inventory Commit",
     "ownerScope": "arca",
     "commitClass": "responsibility_control_commit",
-    "atomicFactSet": "Aftercare repair result + Inventory Representation revision + required new Material Control acquire/old Control release + commit receipt",
+    "atomicFactSet": "Aftercare repair result + Inventory Representation/Product Fact/Media-Cast relation revision + required new Material Control acquire/old Control release（relation-only修正时两者均为空）+ commit receipt",
     "participants": [
       {
         "participantKind": "domain",
@@ -37,6 +37,7 @@
         "owner": "execution-foundation",
         "access": "write",
         "tables": [
+          "fx_event_result_bindings",
           "fx_commit_markers"
         ]
       }
@@ -51,6 +52,7 @@
       "arca_shelf_entries",
       "fx_material_controls",
       "fx_material_control_revisions",
+      "fx_event_result_bindings",
       "fx_commit_markers"
     ],
     "readTables": [
@@ -80,8 +82,8 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7230,
-      "lineDigest": "43f34fc37ff5ee9f65bd749f58bd6211d11bebef2c431651e668469908dc429c"
+      "line": 7502,
+      "lineDigest": "de1c51e6951176758387b3780a09d928791d6d06095421ee2b96ff6cf5d7c45e"
     }
   }
 }

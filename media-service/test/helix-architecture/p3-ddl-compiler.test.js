@@ -10,13 +10,13 @@ const { readFrozenTableContracts } = require('../../scripts/helix-architecture/p
 const contractsRoot = path.resolve(__dirname, '../../src/helix/contracts');
 const contracts = readFrozenTableContracts(contractsRoot);
 
-test('compiles all 156 frozen contracts deterministically without legacy schema artifacts', () => {
+test('compiles all 161 frozen contracts deterministically without legacy schema artifacts', () => {
   const first = compileSchema(contracts);
   const second = compileSchema([...contracts].reverse());
-  assert.equal(first.manifest.tableCount, 156);
+  assert.equal(first.manifest.tableCount, 161);
   assert.equal(first.ddl, second.ddl);
   assert.equal(first.manifest.ddlDigest, second.manifest.ddlDigest);
-  assert.equal((first.ddl.match(/CREATE TABLE/g) || []).length, 156);
+  assert.equal((first.ddl.match(/CREATE TABLE/g) || []).length, 161);
   assert.doesNotMatch(first.ddl, /\b(?:nexora_|kairox_|CREATE\s+(?:VIEW|TRIGGER)|MIGRAT)/i);
 });
 
@@ -26,7 +26,7 @@ test('retains the exact P2 contract digest for every generated table trace', () 
     JSON.parse(fs.readFileSync(path.join(contractsRoot, 'manifests', relativePath), 'utf8')).entries
   ).map((entry) => [entry.id, entry.contract.contractDigest]));
   const actual = compileSchema(contracts).manifest.tables;
-  assert.equal(expected.size, 156);
+  assert.equal(expected.size, 161);
   for (const table of actual) assert.equal(table.contractDigest, expected.get(table.tableId), table.tableId);
 });
 
@@ -41,13 +41,13 @@ test('keeps checked-in DDL and trace manifest reproducible from frozen inputs', 
 test('maps every P2 partial-unique rule and only the three cross-table predicates use support guards', () => {
   const expected = contracts.reduce((count, contract) => count + contract.partialUniqueRules.length, 0);
   const actual = Object.values(PARTIAL_UNIQUE).reduce((count, rules) => count + rules.length, 0);
-  assert.equal(expected, 19);
+  assert.equal(expected, 20);
   assert.equal(actual, expected);
   assert.deepEqual(Object.keys(SUPPORT_COLUMNS).sort(), [
     'arca_inventory_materials', 'people_provider_identities', 'proc_run_materials'
   ]);
   const compiled = compileSchema(contracts);
-  assert.equal(compiled.manifest.tables.flatMap((table) => table.indexes).filter((index) => index.kind === 'partial-unique').length, 19);
+  assert.equal(compiled.manifest.tables.flatMap((table) => table.indexes).filter((index) => index.kind === 'partial-unique').length, 20);
   assert.equal(compiled.manifest.tables.flatMap((table) => table.supportColumns).length, 3);
 });
 
@@ -61,8 +61,8 @@ test('emits JSON validity and byte limits, enum checks, RESTRICT foreign keys, a
   assert.ok((ddl.match(/ON DELETE RESTRICT/g) || []).length > 0);
   assert.match(ddl, /CHECK \("state" IN \('open', 'accepted', 'dismissed', 'superseded'\)\)/);
   assert.match(ddl, /"revision" INTEGER CHECK \("revision" >= 1\)/);
-  assert.match(ddl, /FOREIGN KEY \("compensation_for_event_id"\) REFERENCES "fx_workflow_events" \("event_id"\) ON DELETE RESTRICT/);
-  assert.match(ddl, /"compensation_for_event_id" IS NULL AND "compensation_contract_ref" IS NULL/);
+  assert.match(ddl, /FOREIGN KEY \("reference_asset_id"\) REFERENCES "people_reference_assets" \("reference_asset_id"\) ON DELETE RESTRICT/);
+  assert.match(ddl, /FOREIGN KEY \("reference_face_id"\) REFERENCES "people_reference_faces" \("reference_face_id"\) ON DELETE RESTRICT/);
   assert.equal(manifest.digestAlgorithm, 'sha256');
   const digestColumnCount = contracts.reduce((count, contract) => count + contract.columns
     .filter((column) => column.name.endsWith('_digest') || column.name === 'digest' || column.name.endsWith('digest_hex')).length, 0);

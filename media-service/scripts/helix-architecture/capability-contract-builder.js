@@ -75,7 +75,19 @@ function parameterName(expression) {
 }
 
 function splitSummary(inputSummary) {
-  return inputSummary.split(/\s+\+\s+/).map((value) => value.trim()).filter(Boolean);
+  const parts = [];
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index < inputSummary.length; index += 1) {
+    if (inputSummary[index] === '(') depth += 1;
+    else if (inputSummary[index] === ')') depth -= 1;
+    else if (inputSummary[index] === '+' && depth === 0) {
+      parts.push(inputSummary.slice(start, index).trim());
+      start = index + 1;
+    }
+  }
+  parts.push(inputSummary.slice(start).trim());
+  return parts.filter(Boolean);
 }
 
 function normalizedTypeName(value) {
@@ -94,7 +106,6 @@ function normalizedTypeName(value) {
     'PeopleCandidateDraft(registration|merge)': 'PeopleCandidateDraft',
     'Candidates': 'AcquisitionCandidates',
     'Fulfillment result': 'FulfillmentVerification',
-    'Record drafts': 'NormalizedPerceptionRecordDraftList',
     'Resolution draft': 'PerceptionResolutionDraft',
     'Stable evidence': 'StableExternalMaterialEvidence',
     'Staged manifest': 'StagedInventoryManifest',
@@ -140,6 +151,11 @@ function splitTopLevelUnion(expression) {
 }
 
 function expressionSchema(expression) {
+  if (expression === '(Provider person hint + IntegrationHandle) | OnDeckPersonEvidenceProjectionItem') {
+    return { oneOf: [object({ providerPersonHint: { $ref: typeRef('ProviderPersonHint') },
+      integrationHandle: { $ref: typeRef('IntegrationHandle') } }),
+    { $ref: typeRef('OnDeckPersonEvidenceProjectionItem') }], 'x-helix-typeExpression': expression };
+  }
   const exactHandle = {
     'Inventory Material handle': 'PhysicalMaterialReadHandle',
     'Primary handle': 'PhysicalMaterialReadHandle',
@@ -161,7 +177,9 @@ function expressionSchema(expression) {
     };
   }
   const isMany = /\[\]/.test(expression) || HANDLE_LIST_EXPRESSIONS.has(expression);
-  const unionParts = splitTopLevelUnion(expression.replace(/\[\]/g, '')).map((value) => normalizedTypeName(value));
+  let normalizedExpression = expression.replace(/\[\]/g, '').trim();
+  if (normalizedExpression.startsWith('(') && normalizedExpression.endsWith(')')) normalizedExpression = normalizedExpression.slice(1, -1).trim();
+  const unionParts = splitTopLevelUnion(normalizedExpression).map((value) => normalizedTypeName(value));
   let itemSchema;
   if (unionParts.length > 1) itemSchema = { oneOf: unionParts.map((name) => ({ $ref: typeRef(name) })) };
   else if (unionParts[0] === 'MaterialHandle') {

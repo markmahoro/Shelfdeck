@@ -18,7 +18,7 @@ function createFixture() {
   fs.mkdirSync(docsDirectory, { recursive: true });
   fs.mkdirSync(mapDirectory, { recursive: true });
   fs.copyFileSync(
-    path.join(repositoryRoot, 'docs', 'helix', 'TOP_DOWN_ARCHITECTURE_CONFIRMATION.md'),
+    process.env.HELIX_SSOT_PATH || path.join(repositoryRoot, 'docs', 'helix', 'TOP_DOWN_ARCHITECTURE_CONFIRMATION.md'),
     path.join(docsDirectory, 'TOP_DOWN_ARCHITECTURE_CONFIRMATION.md')
   );
   fs.copyFileSync(actualMapPath, path.join(mapDirectory, 'ssot-source-map.json'));
@@ -39,8 +39,8 @@ function codes(result) {
 test('committed source map exactly matches live SSOT extraction', () => {
   const result = validateSsotSourceMap({ repositoryRoot, mapPath: actualMapPath });
   assert.equal(result.ok, true);
-  assert.deepEqual(result.counts, { capabilities: 112, resultFamilies: 96, tables: 156, transactions: 18 });
-  assert.equal(result.shardCount, 17);
+  assert.deepEqual(result.counts, { capabilities: 112, resultFamilies: 96, tables: 161, transactions: 24 });
+  assert.equal(result.shardCount, 19);
 });
 
 test('fails closed when a mapped item drifts', () => {

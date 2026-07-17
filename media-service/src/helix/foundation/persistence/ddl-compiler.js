@@ -41,19 +41,65 @@ const PARTIAL_UNIQUE = Object.freeze({
   fx_work_attempts: [{ columns: ['work_id'], where: '"state" IN (\'ready\', \'running\', \'blocked\')' }],
   libra_intake_decisions: [{ columns: ['candidate_package_id', 'package_digest'], where: '"result" IN (\'new_subject\', \'season_extension\')' }],
   libra_runs: [{ columns: ['subject_id', 'acceptance_spec_id', 'run_scope_digest'], where: '"terminal_at_ms" IS NULL' }],
-  people_merge_candidates: [{ expression: 'MIN("left_person_id", "right_person_id"), MAX("left_person_id", "right_person_id")', where: '"state" = \'open\'' }],
+  people_merge_candidates: [{ columns: ['left_person_id', 'right_person_id'], where: '"current_state" = \'open\'' }],
   people_provider_identities: [{ columns: ['provider', 'namespace', 'provider_key'], where: '"active_guard" = 1' }],
-  people_registration_candidates: [{ columns: ['evidence_digest'], where: '"state" = \'open\'' }],
+  people_registration_candidates: [{ columns: ['evidence_digest'], where: '"current_state" = \'open\'' }],
+  perception_acquisitions: [{ columns: ['perception_source_id'], where: '"state" = \'active\'' }],
   proc_candidate_deliveries: [{ columns: ['candidate_package_id'], where: '"state" = \'open\'' }],
   proc_procurement_retry_intents: [{ columns: ['failed_run_id', 'failed_basis_digest'], where: '"state" = \'open\'' }],
   proc_procurement_runs: [{ columns: ['field_id', 'run_basis_digest'], where: '"finished_at_ms" IS NULL' }],
   proc_run_materials: [{ columns: ['material_key'], where: '"role" = \'primary\' AND "deliverable_guard" = 1' }]
 });
 
+const FOREIGN_KEY_OVERRIDES = Object.freeze({
+  people_persons: [{ columns: ['person_id', 'current_reference_revision'], targetTable: 'people_reference_revisions',
+    targetColumns: ['person_id', 'revision'], deletePolicy: 'RESTRICT', deferrable: true }],
+  people_reference_assets: [
+    { columns: ['person_id', 'created_reference_revision'], targetTable: 'people_reference_revisions', targetColumns: ['person_id', 'revision'], deletePolicy: 'RESTRICT', deferrable: true },
+    { columns: ['person_id', 'released_reference_revision'], targetTable: 'people_reference_revisions', targetColumns: ['person_id', 'revision'], deletePolicy: 'RESTRICT', deferrable: true }
+  ],
+  people_reference_faces: [
+    { columns: ['person_id', 'created_reference_revision'], targetTable: 'people_reference_revisions', targetColumns: ['person_id', 'revision'], deletePolicy: 'RESTRICT', deferrable: true },
+    { columns: ['person_id', 'released_reference_revision'], targetTable: 'people_reference_revisions', targetColumns: ['person_id', 'revision'], deletePolicy: 'RESTRICT', deferrable: true }
+  ],
+  people_reference_revisions: [
+    { columns: ['reference_asset_id'], targetTable: 'people_reference_assets', targetColumns: ['reference_asset_id'], deletePolicy: 'RESTRICT' },
+    { columns: ['reference_face_id'], targetTable: 'people_reference_faces', targetColumns: ['reference_face_id'], deletePolicy: 'RESTRICT' }
+  ]
+});
+
 const TABLE_CHECKS = Object.freeze({
-  fx_plan_nodes: [
-    '("compensation_for_event_id" IS NULL AND "compensation_contract_ref" IS NULL) OR ' +
-      '("compensation_for_event_id" IS NOT NULL AND "compensation_contract_ref" IS NOT NULL)'
+  perception_records: [
+    '"rating" IS NULL OR ("rating" = CAST("rating" AS INTEGER) AND "rating" BETWEEN 1 AND 5)',
+    '"watched_state" IS NULL OR "watched_state" IN (0, 1)'
+  ],
+  perception_resolution_revisions: [
+    '("result_kind" = \'found\' AND "winning_perception_id" IS NOT NULL AND "reason_code" IS NULL) OR ' +
+      '("result_kind" = \'not_found\' AND "winning_perception_id" IS NULL AND "reason_code" IN ' +
+      '(\'no_matching_record\', \'requested_fact_absent\', \'strongest_value_conflict\'))'
+  ],
+  people_registration_candidates: [
+    '"proposed_name" = json_extract("candidate_json", \'$.proposedName\')'
+  ],
+  people_merge_candidates: [
+    '"left_person_id" = json_extract("candidate_json", \'$.leftPersonRef.personId\')',
+    '"left_person_revision" = json_extract("candidate_json", \'$.leftPersonRef.revision\')',
+    '"right_person_id" = json_extract("candidate_json", \'$.rightPersonRef.personId\')',
+    '"right_person_revision" = json_extract("candidate_json", \'$.rightPersonRef.revision\')'
+  ],
+  people_person_revisions: [
+    '("origin_kind" = \'direct\' AND "origin_decision_id" IS NOT NULL AND "origin_decision_digest" IS NOT NULL AND ' +
+      '"origin_candidate_kind" IS NULL AND "origin_candidate_id" IS NULL AND "origin_candidate_revision" IS NULL AND "origin_candidate_payload_digest" IS NULL) OR ' +
+      '("origin_kind" = \'candidate\' AND "origin_decision_id" IS NULL AND "origin_decision_digest" IS NULL AND ' +
+      '"origin_candidate_kind" IS NOT NULL AND "origin_candidate_id" IS NOT NULL AND "origin_candidate_revision" IS NOT NULL AND "origin_candidate_payload_digest" IS NOT NULL)'
+  ],
+  people_reference_assets: [
+    '("state" = \'active\' AND "released_reference_revision" IS NULL AND "released_at_ms" IS NULL) OR ' +
+      '("state" = \'released\' AND "released_reference_revision" IS NOT NULL AND "released_at_ms" IS NOT NULL)'
+  ],
+  people_reference_faces: [
+    '("state" = \'active\' AND "released_reference_revision" IS NULL AND "released_at_ms" IS NULL) OR ' +
+      '("state" = \'released\' AND "released_reference_revision" IS NOT NULL AND "released_at_ms" IS NOT NULL)'
   ]
 });
 
@@ -140,7 +186,9 @@ function checkClauses(column) {
   if (column.name.endsWith('_digest') || column.name === 'digest' || column.name.endsWith('digest_hex')) {
     checks.push('length(' + quoted + ') = 64 AND ' + quoted + " NOT GLOB '*[^0-9a-f]*'");
   }
-  if (column.logicalType === 'INTEGER' && (column.name === 'revision' || column.name.endsWith('_revision'))) {
+  if (column.logicalType === 'INTEGER' && ['initial_cursor_revision', 'expected_cursor_revision'].includes(column.name)) {
+    checks.push(quoted + ' >= 0');
+  } else if (column.logicalType === 'INTEGER' && (column.name === 'revision' || column.name.endsWith('_revision'))) {
     checks.push(quoted + ' >= 1');
   } else if (column.logicalType === 'INTEGER' && /(?:_at_ms|_ms|_ns|_count|_bytes|_ordinal|^ordinal$|^rank$|_slots$)/.test(column.name)) {
     checks.push(quoted + ' >= 0');
@@ -160,11 +208,13 @@ function compileColumn(column, primaryKey) {
 function foreignKeysFor(contract) {
   const candidates = [
     ...contract.foreignKeys,
+    ...(FOREIGN_KEY_OVERRIDES[contract.tableId] || []),
     ...contract.revisionContract.pointerTargets.map((pointer) => ({
       columns: pointer.sourceColumns,
       targetTable: pointer.targetTable,
       targetColumns: pointer.targetColumns,
-      deletePolicy: pointer.deletePolicy
+      deletePolicy: pointer.deletePolicy,
+      deferrable: pointer.deferrable
     }))
   ];
   const seen = new Set();
@@ -187,7 +237,9 @@ function compileTable(contract, allContracts) {
   if (new Set(columnNames).size !== columnNames.length) throw new Error('P3_DDL_DUPLICATE_COLUMN:' + contract.tableId);
   requireColumns(contract, contract.primaryKey, contract.tableId + ':primary-key');
   for (const column of contract.columns.filter((item) => /(?:^|_)(?:state|status)$/.test(item.name))) {
-    if (column.enumValues.length === 0) throw new Error('P3_DDL_UNBOUNDED_STATE:' + contract.tableId + '.' + column.name);
+    if (column.enumValues.length === 0 && column.logicalType !== 'INTEGER_BOOLEAN') {
+      throw new Error('P3_DDL_UNBOUNDED_STATE:' + contract.tableId + '.' + column.name);
+    }
   }
 
   const definitions = contract.columns.map((column) => compileColumn(column, contract.primaryKey));
@@ -202,7 +254,7 @@ function compileTable(contract, allContracts) {
   }
   for (const json of contract.jsonContracts) {
     requireColumns(contract, [json.column], contract.tableId + ':json');
-    if (!json.requiresJsonValidCheck || ![16384, 65536].includes(json.maxBytes)) {
+    if (!json.requiresJsonValidCheck || ![4096, 16384, 65536].includes(json.maxBytes)) {
       throw new Error('P3_DDL_UNSUPPORTED_JSON_CONTRACT:' + contract.tableId + '.' + json.column);
     }
     definitions.push('CHECK (json_valid(' + quoteIdentifier(json.column) + '))');
@@ -215,7 +267,8 @@ function compileTable(contract, allContracts) {
     const target = allContracts.get(foreignKey.targetTable);
     if (!target) throw new Error('P3_DDL_UNKNOWN_FOREIGN_TABLE:' + contract.tableId + ':' + foreignKey.targetTable);
     requireColumns(target, foreignKey.targetColumns, contract.tableId + ':foreign-target');
-    definitions.push('FOREIGN KEY (' + foreignKey.columns.map(quoteIdentifier).join(', ') + ') REFERENCES ' + quoteIdentifier(foreignKey.targetTable) + ' (' + foreignKey.targetColumns.map(quoteIdentifier).join(', ') + ') ON DELETE RESTRICT');
+    definitions.push('FOREIGN KEY (' + foreignKey.columns.map(quoteIdentifier).join(', ') + ') REFERENCES ' + quoteIdentifier(foreignKey.targetTable) + ' (' + foreignKey.targetColumns.map(quoteIdentifier).join(', ') + ') ON DELETE RESTRICT' +
+      (foreignKey.deferrable ? ' DEFERRABLE INITIALLY DEFERRED' : ''));
   }
   const sql = 'CREATE TABLE ' + quoteIdentifier(contract.tableId) + ' (\n  ' + definitions.join(',\n  ') + '\n);';
   return { sql, supportColumns };

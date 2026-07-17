@@ -13,7 +13,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": true
+        "foreignKeyMarker": true,
+        "nullable": false
       },
       {
         "ordinal": 2,
@@ -21,7 +22,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 3,
@@ -29,7 +31,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 4,
@@ -37,7 +40,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 5,
@@ -45,7 +49,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       }
     ],
     "primaryKey": [
@@ -82,16 +87,17 @@
     },
     "semanticRules": [
       "`PK(perception_id,anchor_kind,anchor_value)`",
+      "结构化Anchor不可退化为字符串数组",
       "`INDEX(anchor_kind,anchor_value)`"
     ],
     "rawContract": {
       "columns": "`perception_id FK, anchor_kind, anchor_value, confidence_class, evidence_digest`",
-      "constraints": "`PK(perception_id,anchor_kind,anchor_value)`；`INDEX(anchor_kind,anchor_value)`"
+      "constraints": "`PK(perception_id,anchor_kind,anchor_value)`；结构化Anchor不可退化为字符串数组；`INDEX(anchor_kind,anchor_value)`"
     },
     "source": {
       "section": "8.5.13",
-      "line": 7497,
-      "lineDigest": "9dd08b94529e4e0e805e88b1947c20c812fab467d1711cb32c8ecce6ffb6baea"
+      "line": 7783,
+      "lineDigest": "5ba8fa35d17ba37da2917305f2d5a594609c85a4fc1975275b094524c6aa8352"
     },
     "foreignKeys": [
       {
@@ -102,7 +108,8 @@
         "targetColumns": [
           "perception_id"
         ],
-        "deletePolicy": "RESTRICT"
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
       }
     ]
   }

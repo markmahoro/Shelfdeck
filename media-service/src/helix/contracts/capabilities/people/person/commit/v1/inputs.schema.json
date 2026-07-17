@@ -5,21 +5,21 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "registrationMergeDecision": {
-      "$ref": "#/$defs/registrationMergeDecision"
+    "peopleCandidateAcceptanceDecision": {
+      "$ref": "#/$defs/peopleCandidateAcceptanceDecision"
     },
     "domainFactCommitHandle": {
       "$ref": "#/$defs/domainFactCommitHandle"
     }
   },
   "required": [
-    "registrationMergeDecision",
+    "peopleCandidateAcceptanceDecision",
     "domainFactCommitHandle"
   ],
   "$defs": {
-    "registrationMergeDecision": {
-      "$ref": "helix://contracts/domain-types/RegistrationMergeDecision/v1",
-      "x-helix-typeExpression": "Registration/merge decision"
+    "peopleCandidateAcceptanceDecision": {
+      "$ref": "helix://contracts/domain-types/PeopleCandidateAcceptanceDecision/v1",
+      "x-helix-typeExpression": "PeopleCandidateAcceptanceDecision"
     },
     "domainFactCommitHandle": {
       "$ref": "helix://contracts/types/DomainFactCommitHandle/v1",

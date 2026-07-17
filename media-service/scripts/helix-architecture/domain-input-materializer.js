@@ -25,7 +25,8 @@ function collectDomainRefs(node, refs = new Map(), capability) {
 }
 
 function expectedUsages(repositoryRoot) {
-  const ssot = fs.readFileSync(path.join(repositoryRoot, 'docs', 'helix', 'TOP_DOWN_ARCHITECTURE_CONFIRMATION.md'), 'utf8');
+  const ssotPath = process.env.HELIX_SSOT_PATH || path.join(repositoryRoot, 'docs', 'helix', 'TOP_DOWN_ARCHITECTURE_CONFIRMATION.md');
+  const ssot = fs.readFileSync(ssotPath, 'utf8');
   const packages = buildCapabilityPackages(extractSsotContracts(ssot).capabilities);
   const usages = new Map();
   for (const capability of packages) collectDomainRefs(capability.files['inputs.schema.json'], usages, capability);
@@ -43,7 +44,7 @@ function buildDomainInputRegistry({ contractsRoot, repositoryRoot }) {
     kind: 'domain-input-type-registry',
     owner: 'contracts',
     status: 'active',
-    targetCount: 85,
+    targetCount: Object.keys(schemas).length,
     ssotRefs: ['8.6.3', '8.6.14', '8.6.20'],
     entries: Object.keys(schemas).sort().map((name) => ({
       id: name,
@@ -59,6 +60,12 @@ function buildDomainInputRegistry({ contractsRoot, repositoryRoot }) {
 
 function materializeDomainInputs({ contractsRoot, repositoryRoot }) {
   const schemas = buildDomainInputSchemas();
+  const domainTypesRoot = path.join(contractsRoot, 'domain-types');
+  if (fs.existsSync(domainTypesRoot)) {
+    for (const entry of fs.readdirSync(domainTypesRoot, { withFileTypes: true })) {
+      if (entry.isDirectory() && !Object.hasOwn(schemas, entry.name)) fs.rmSync(path.join(domainTypesRoot, entry.name), { recursive: true });
+    }
+  }
   for (const [name, schema] of Object.entries(schemas)) {
     const directory = path.join(contractsRoot, 'domain-types', name, 'v1');
     fs.mkdirSync(directory, { recursive: true });

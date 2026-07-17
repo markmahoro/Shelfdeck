@@ -41,6 +41,10 @@ const special = {
   'HashProfile.fullContentRequired': { const: true },
   'IdentityRequirement.strengthClass': text(),
   'PlacementPolicy.targetEndpointIds': arrayOf(id(), 128),
+  'PerceptionAcquisitionCursor.pageBudget': positiveInteger(),
+  'PerceptionAcquisitionCursor.pageOrdinal': nonNegativeInteger(),
+  'PerceptionAcquisitionCursor.cursorIn': { anyOf: [text(), { type: 'null' }] },
+  'PerceptionNormalizationRuleRef.canonicalRatingScale': { const: 'integer_1_5' },
   'PreferenceIntent.preferenceLevel': { type: 'integer', minimum: -2, maximum: 2 },
   'SamplingPlan.maxFrames': positiveInteger(),
   'ShelfStandard.contentProfile': enumText('movie', 'season', 'jav', 'western_adult'),
@@ -62,7 +66,6 @@ const special = {
   'DestructionScope.materialKeys': arrayOf(digest(), 4096),
   'FinalBindings.bindings': arrayOf(snapshot('arca-material-binding'), 4096),
   'FinalInventoryDecision.members': arrayOf(snapshot('final-inventory-member'), 4096),
-  'ImmutableRecords.records': arrayOf(snapshot('immutable-perception-record'), 4096),
   'InventoryMetadataArtifactRefs.metadataFactRefs': arrayOf(id(), 1024),
   'InventoryMetadataArtifactRefs.artifactHandles': arrayOf(typeRef('ArtifactHandle'), 1024),
   'KnownBindings.bindings': arrayOf(snapshot('arca-material-binding'), 4096),
@@ -81,7 +84,6 @@ const special = {
   'ProfessionalAssessmentsSharingOneCareBasis.assessments': arrayOf(snapshot('professional-assessment'), 1024),
   'ProviderPersonHint.providerIdentities': arrayOf(snapshot('provider-person-identity'), 128),
   'ReferenceEvidence.references': arrayOf(snapshot('material-reference-evidence'), 4096),
-  'RegistrationMergeDecision.decisionKind': enumText('registration', 'merge'),
   'ReleaseManifest.materialKeys': arrayOf(digest(), 4096),
   'Roles.roles': arrayOf(text(), 128),
   'SelectedFieldMaterialSet.materialKeys': arrayOf(digest(), 4096),
@@ -155,19 +157,26 @@ const dtoContracts = {
   FinalInventoryDecision: 'onDeckRunId,shelfId,members,placementRevision,decisionDigest',
   FinalReality: 'shelfEntryId,inventoryRevision,realityDigest',
   IdentityMetadata: 'claimedTitle,contentProfileHint,providerHints,identityMetadataDigest',
-  ImmutableRecords: 'records,recordSetDigest',
   InventoryMetadataArtifactRefs: 'shelfEntryId,inventoryRevision,metadataFactRefs,artifactHandles',
   InventoryRevision: 'shelfEntryId,inventoryRevision,inventoryDigest',
   KnownBindings: 'shelfEntryId,bindings,bindingSetDigest',
   LibraWorkspaceScope: 'workspaceId,workspaceHandles,scopeDigest',
   Manifests: 'manifestRefs,manifestSetDigest',
   MaterialFieldContext: 'fieldRefs,contextDigest',
+  MetadataFetchIntent: '',
+  MetadataObservationSet: '',
   OffLoadContext: 'onDeckPackageId,materials,contextDigest',
+  OnDeckPersonEvidenceProjectionItem: '',
   PackageIdentity: 'onDeckPackageId,resolvedIdentityDigest,packageDigest',
   PeopleWorkspace: 'workspaceId,workspaceHandles,scopeDigest',
-  PerceptionSource: 'sourceId,sourceKind,sourceRevision,sourceDigest',
+  PerceptionSourceSnapshot: 'sourceId,sourceKind,integrationId,sourceConfigRevision,sourceScopeDigest',
+  PerceptionAcquisitionCursor: 'perceptionAcquisitionId,pageOrdinal,expectedCursorRevision,cursorIn,pageBudget',
+  PerceptionNormalizationRuleRef: 'ruleRef,ruleVersion,sourceKind,canonicalRatingScale,ruleDigest',
+  PerceptionResolutionQuery: '',
+  PerceptionResolutionRecordSet: '',
+  PerceptionResolutionRuleSnapshot: '',
   PersonIdentitiesAliasesReferences: 'people,peopleSetDigest',
-  PersonReferenceProjection: 'projectionRevision,people,projectionDigest',
+  PersonReferenceProjection: '',
   Placement: 'shelfEntryId,placementRevision,targetEndpointId,placementDigest',
   PolicyResult: 'policyRevision,resultCode,reasonDigest',
   ProductFacts: 'subjectId,factRefs,productFactSetDigest',
@@ -178,15 +187,15 @@ const dtoContracts = {
   ProviderPersonHint: 'proposedName,providerIdentities,hintDigest',
   ReassessedResult: 'aftercareCaseId,reassessmentDigest,resultState',
   ReferenceEvidence: 'references,referenceSetDigest',
-  RegistrationMergeDecision: 'decisionKind,candidateId,decisionDigest',
+  PeopleCandidateAcceptanceDecision: '',
+  DirectPersonRegistrationDecision: '',
+  PeopleReferenceMaintenanceDecision: '',
   RelatedReference: 'shelfEntryId,referenceId,materialKey,referenceDigest',
   ReleaseManifest: 'deregistrationId,shelfId,materialKeys,controlRevisionSetDigest,manifestDigest',
-  ResolutionRuleRevision: 'ruleSetId,ruleRevision,ruleDigest',
   Roles: 'roles,roleSetDigest',
   Scope: 'scopeId,materialKeys,scopeDigest',
   SelectedFieldMaterialSet: 'procurementRunId,fieldId,materialKeys,selectionDigest',
   SelectedMaterials: 'procurementRunId,materialKeys,selectionDigest',
-  SourceObservation: 'sourceId,observations,observationSetDigest',
   StableProviderIdentity: 'providerId,providerObjectId,identityRevision,identityDigest',
   Standard: 'standardId,standardRevision,standardDigest',
   Structure: 'structureKind,memberClaims,structureDigest',
@@ -214,6 +223,16 @@ function idField(name) {
 }
 
 function buildSchema(name, role, fields) {
+  if (name === 'PeopleCandidateAcceptanceDecision') return peopleCandidateAcceptanceDecisionSchema();
+  if (name === 'DirectPersonRegistrationDecision') return directPersonRegistrationDecisionSchema();
+  if (name === 'PeopleReferenceMaintenanceDecision') return peopleReferenceMaintenanceDecisionSchema();
+  if (name === 'PersonReferenceProjection') return personReferenceProjectionSchema();
+  if (name === 'MetadataFetchIntent') return metadataFetchIntentSchema();
+  if (name === 'MetadataObservationSet') return metadataObservationSetSchema();
+  if (name === 'OnDeckPersonEvidenceProjectionItem') return onDeckPersonEvidenceProjectionItemSchema();
+  if (name === 'PerceptionResolutionQuery') return perceptionResolutionQuerySchema();
+  if (name === 'PerceptionResolutionRecordSet') return perceptionResolutionRecordSetSchema();
+  if (name === 'PerceptionResolutionRuleSnapshot') return perceptionResolutionRuleSnapshotSchema();
   const identityField = role === 'bounded-contract' ? idField(name) : 'objectId';
   const properties = {
     schemaRef: { const: domainTypeId(name) }, schemaVersion: { const: 1 }, [identityField]: id(), revision: positiveInteger(), digest: digest()
@@ -232,6 +251,180 @@ function buildSchema(name, role, fields) {
     $schema: DRAFT, $id: domainTypeId(name), title: `${name}@1`, 'x-helix-ssotRefs': ['8.6.20'], 'x-helix-role': role,
     ...object(properties, required)
   };
+}
+
+const identityAnchor = () => object({
+  anchorKind: text(), anchorValue: text(), confidenceClass: text(), evidenceDigest: digest()
+});
+
+function exactDomainSchema(name, properties, required = Object.keys(properties), options = {}) {
+  return {
+    $schema: DRAFT, $id: domainTypeId(name), title: `${name}@1`,
+    'x-helix-ssotRefs': ['8.6.13', '8.6.18', '8.6.20'], 'x-helix-role': 'accepted-business-dto',
+    ...object(properties, required, options)
+  };
+}
+
+function perceptionResolutionQuerySchema() {
+  return exactDomainSchema('PerceptionResolutionQuery', {
+    queryContract: text(), queryVersion: positiveInteger(), querySchemaRef: text(),
+    factKind: enumText('rating', 'watched'), identityEvidence: arrayOf(identityAnchor(), 16), queryInputDigest: digest()
+  });
+}
+
+function perceptionResolutionRecordSetSchema() {
+  const facts = object({
+    rating: { type: 'integer', minimum: 1, maximum: 5 }, watchedState: bool()
+  }, [], { minProperties: 1 });
+  const record = object({
+    perceptionId: id(), recordKind: enumText('observation', 'correction', 'retraction'), sourceKind: text(),
+    sourceRecordKey: text(), sourceRecordRevision: positiveInteger(), recordDigest: digest(), facts,
+    observedTitle: text(), observedAtMs: nonNegativeInteger(), identityAnchors: arrayOf(identityAnchor(), 16),
+    provenanceRef: id(), provenanceDigest: digest()
+  });
+  const relation = object({
+    relationId: id(), relationKind: enumText('duplicate_of', 'supersedes', 'retracts'),
+    sourcePerceptionId: id(), targetPerceptionId: id(), ruleRevision: positiveInteger(), evidenceDigest: digest()
+  });
+  return exactDomainSchema('PerceptionResolutionRecordSet', {
+    queryInputDigest: digest(), records: arrayOf(record, 256), relations: arrayOf(relation, 1024), recordSetDigest: digest()
+  });
+}
+
+function optionalThresholdRule(fuzzyValue) {
+  return {
+    if: { properties: { matchMode: { const: fuzzyValue } }, required: ['matchMode'] },
+    then: { required: ['threshold'] }, else: { not: { required: ['threshold'] } }
+  };
+}
+
+function perceptionResolutionRuleSnapshotSchema() {
+  const retrieval = object({
+    anchorKind: text(), lookupMode: enumText('exact', 'normalized_exact', 'bounded_fuzzy'),
+    normalizationProfileRef: text(), threshold: { type: 'number', minimum: 0, maximum: 1 }, maxCandidates: positiveInteger()
+  }, ['anchorKind', 'lookupMode', 'maxCandidates'], { allOf: [{
+    if: { properties: { lookupMode: { const: 'bounded_fuzzy' } }, required: ['lookupMode'] },
+    then: { required: ['threshold'] }, else: { not: { required: ['threshold'] } }
+  }] });
+  const matcher = object({
+    anchorKind: text(), matchMode: enumText('exact', 'normalized_exact', 'fuzzy'), normalizationProfileRef: text(),
+    strengthRank: positiveInteger(), minConfidenceClass: text(), threshold: { type: 'number', minimum: 0, maximum: 1 }
+  }, ['anchorKind', 'matchMode', 'strengthRank', 'minConfidenceClass'], { allOf: [optionalThresholdRule('fuzzy')] });
+  const duplicateProof = object({
+    anchorKind: text(), matchMode: { const: 'exact' }, minConfidenceClass: text(), requireSameAnchorValue: { const: true },
+    requireSameFactKind: { const: true }, requireSameCanonicalValue: { const: true }
+  });
+  return exactDomainSchema('PerceptionResolutionRuleSnapshot', {
+    ruleContract: text(), ruleVersion: positiveInteger(), supportedFactKinds: arrayOf(enumText('rating', 'watched'), 2),
+    candidateRetrievalClauses: arrayOf(retrieval, 32), anchorMatchers: arrayOf(matcher, 32),
+    winnerOrder: { const: 'strongest_anchor_then_value_consensus_then_perception_id' },
+    equalStrengthConflict: { const: 'not_found' }, duplicateProofMatchers: arrayOf(duplicateProof, 32),
+    maxCandidateRecords: { const: 256 }, ruleDigest: digest()
+  });
+}
+
+function peopleCandidateAcceptanceDecisionSchema() {
+  const common = {
+    decisionId: id(), candidateKind: enumText('registration', 'merge'), candidateId: id(),
+    expectedCandidateRevision: positiveInteger(), candidatePayloadDigest: digest(),
+    decisionOrigin: enumText('user', 'strong_identity_rule'), actorId: id(), ruleRevision: positiveInteger(), decisionDigest: digest()
+  };
+  const originRule = { oneOf: [
+    { properties: { decisionOrigin: { const: 'user' } }, required: ['actorId'], not: { required: ['ruleRevision'] } },
+    { properties: { decisionOrigin: { const: 'strong_identity_rule' } }, required: ['ruleRevision'], not: { required: ['actorId'] } }
+  ] };
+  const commonRequired = ['decisionId', 'candidateKind', 'candidateId', 'expectedCandidateRevision',
+    'candidatePayloadDigest', 'decisionOrigin', 'decisionDigest'];
+  const registration = object(
+    { ...common, candidateKind: { const: 'registration' }, newPersonId: id() },
+    [...commonRequired, 'newPersonId'], { allOf: [originRule] }
+  );
+  const nullableRevision = { anyOf: [{ type: 'null' }, positiveInteger()] };
+  const merge = object({
+    ...common, candidateKind: { const: 'merge' }, sourcePersonId: id(), targetPersonId: id(),
+    expectedSourcePersonRevision: positiveInteger(), expectedTargetPersonRevision: positiveInteger(),
+    expectedSourcePreferenceRevision: nullableRevision, expectedTargetPreferenceRevision: nullableRevision,
+    preferenceResolution: enumText('keep_source', 'keep_target', 'set_explicit'),
+    explicitPreferenceLevel: { type: 'integer', minimum: -2, maximum: 2 }
+  }, [...commonRequired, 'sourcePersonId', 'targetPersonId', 'expectedSourcePersonRevision',
+    'expectedTargetPersonRevision', 'expectedSourcePreferenceRevision', 'expectedTargetPreferenceRevision',
+    'preferenceResolution'], { allOf: [originRule, {
+    if: { properties: { preferenceResolution: { const: 'set_explicit' } }, required: ['preferenceResolution'] },
+    then: { required: ['explicitPreferenceLevel'] }, else: { not: { required: ['explicitPreferenceLevel'] } }
+  }] });
+  return {
+    $schema: DRAFT, $id: domainTypeId('PeopleCandidateAcceptanceDecision'),
+    title: 'PeopleCandidateAcceptanceDecision@1', 'x-helix-ssotRefs': ['8.6.18', '8.6.20'],
+    'x-helix-role': 'accepted-business-dto', oneOf: [registration, merge]
+  };
+}
+
+const aliasSchema = () => object({ aliasDisplay: text({ maxLength: 1024 }), aliasNormalized: text({ maxLength: 1024 }), provenanceDigest: digest() });
+const providerIdentitySchema = () => object({ provider: text({ maxLength: 128 }), namespace: text({ maxLength: 256 }),
+  providerKey: text({ maxLength: 2048 }), provenanceDigest: digest() });
+
+function directPersonRegistrationDecisionSchema() {
+  return exactDomainSchema('DirectPersonRegistrationDecision', {
+    decisionId: id(), newPersonId: id(), canonicalName: text({ maxLength: 1024 }), aliases: arrayOf(aliasSchema(), 256),
+    providerIdentities: arrayOf(providerIdentitySchema(), 256), actorId: id(), decisionDigest: digest()
+  });
+}
+
+function peopleReferenceMaintenanceDecisionSchema() {
+  const common = { decisionId: id(), operationKind: enumText('add_image', 'release_image'), personId: id(),
+    expectedPersonRevision: positiveInteger(), expectedReferenceRevision: nonNegativeInteger(), actorId: id(), decisionDigest: digest() };
+  const commonRequired = Object.keys(common);
+  const add = object({ ...common, operationKind: { const: 'add_image' }, referenceAssetId: id(), referenceFaceId: id(),
+    artifactHandle: typeRef('ArtifactHandle'), artifactDigest: digest(), faceEmbeddingSetHandle: typeRef('FaceEmbeddingSetHandle'),
+    modelRef: text({ maxLength: 512 }), initialState: { const: 'active' }
+  }, [...commonRequired, 'referenceAssetId', 'referenceFaceId', 'artifactHandle', 'artifactDigest', 'faceEmbeddingSetHandle', 'modelRef', 'initialState']);
+  const release = object({ ...common, operationKind: { const: 'release_image' }, referenceAssetId: id(), referenceFaceId: id(),
+    expectedAssetState: { const: 'active' }, expectedFaceState: { const: 'active' }, terminalState: { const: 'released' },
+    artifactDigest: digest(), embeddingDigest: digest(), modelRef: text({ maxLength: 512 })
+  }, [...commonRequired, 'referenceAssetId', 'referenceFaceId', 'expectedAssetState', 'expectedFaceState', 'terminalState',
+    'artifactDigest', 'embeddingDigest', 'modelRef']);
+  return { $schema: DRAFT, $id: domainTypeId('PeopleReferenceMaintenanceDecision'), title: 'PeopleReferenceMaintenanceDecision@1',
+    'x-helix-ssotRefs': ['8.6.18', '8.6.20'], 'x-helix-role': 'accepted-business-dto', oneOf: [add, release] };
+}
+
+function personReferenceProjectionSchema() {
+  const asset = object({ referenceAssetId: id(), artifactHandleId: id(), artifactDigest: digest() });
+  const face = object({ referenceFaceId: id(), referenceAssetId: id(), embeddingHandleId: id(), embeddingDigest: digest(),
+    modelRef: text({ maxLength: 512 }) });
+  const contribution = object({ ownerPersonId: id(), ownerReferenceRevision: positiveInteger(), referenceSetDigest: digest(),
+    inheritedReadOnly: bool(), activeAssets: arrayOf(asset, 1024), activeFaces: arrayOf(face, 1024) });
+  return exactDomainSchema('PersonReferenceProjection', {
+    projectionContract: { const: 'people.person-reference-projection@1' }, projectionRevision: positiveInteger(), personId: id(),
+    personRevision: positiveInteger(), currentReferenceRevision: { anyOf: [{ type: 'null' }, positiveInteger()] },
+    contributions: arrayOf(contribution, 4096), projectionDigest: digest()
+  });
+}
+
+function metadataFetchIntentSchema() {
+  const common = { intentId: id(), sourceKind: enumText('related_nfo', 'provider'),
+    contentProfile: enumText('movie', 'season', 'jav', 'western_adult'), resolvedIdentityDigest: digest(),
+    requestedFields: arrayOf(text({ maxLength: 128 }), 256), intentDigest: digest() };
+  return { $schema: DRAFT, $id: domainTypeId('MetadataFetchIntent'), title: 'MetadataFetchIntent@1',
+    'x-helix-ssotRefs': ['8.6.18', '8.6.20'], 'x-helix-role': 'accepted-business-dto', oneOf: [
+      object({ ...common, sourceKind: { const: 'related_nfo' }, relatedReferenceId: id(), relatedReferenceDigest: digest(), expectedChecksum: digest() },
+        [...Object.keys(common), 'relatedReferenceId', 'relatedReferenceDigest', 'expectedChecksum']),
+      object({ ...common, sourceKind: { const: 'provider' }, providerKind: enumText('tmdb', 'jav'), integrationId: id(), configRevision: positiveInteger() },
+        [...Object.keys(common), 'providerKind', 'integrationId', 'configRevision'])
+    ] };
+}
+
+function metadataObservationSetSchema() {
+  return exactDomainSchema('MetadataObservationSet', { setId: id(),
+    contentProfile: enumText('movie', 'season', 'jav', 'western_adult'), resolvedIdentityDigest: digest(),
+    observations: arrayOf(typeRef('MetadataObservation'), 16), sourcePrecedence: arrayOf(text({ maxLength: 128 }), 16), setDigest: digest() });
+}
+
+function onDeckPersonEvidenceProjectionItemSchema() {
+  return exactDomainSchema('OnDeckPersonEvidenceProjectionItem', { projectionItemId: id(), shelfEntryId: id(),
+    inventoryRevision: positiveInteger(), relationId: id(), relationDigest: digest(), displayName: text({ maxLength: 1024 }),
+    displayNameNormalized: text({ maxLength: 1024 }), role: text({ maxLength: 256 }),
+    providerIdentities: arrayOf(providerIdentitySchema(), 128), originEvidenceDigest: digest(), nfoObservationDigest: digest(),
+    projectionRevision: positiveInteger(), projectionItemDigest: digest() });
 }
 
 function buildDomainInputSchemas() {

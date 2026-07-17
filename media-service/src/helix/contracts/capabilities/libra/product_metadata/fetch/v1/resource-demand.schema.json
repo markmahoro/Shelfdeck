@@ -9,7 +9,7 @@
       "type": "array",
       "prefixItems": [
         {
-          "const": "cpu"
+          "const": "disk_io"
         },
         {
           "const": "network"

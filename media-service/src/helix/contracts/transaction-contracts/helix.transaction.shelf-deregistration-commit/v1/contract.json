@@ -36,6 +36,7 @@
         "owner": "execution-foundation",
         "access": "write",
         "tables": [
+          "fx_event_result_bindings",
           "fx_commit_markers"
         ]
       }
@@ -49,6 +50,7 @@
       "arca_deck_fact_revisions",
       "fx_material_controls",
       "fx_material_control_revisions",
+      "fx_event_result_bindings",
       "fx_commit_markers"
     ],
     "readTables": [
@@ -83,7 +85,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7235,
+      "line": 7507,
       "lineDigest": "b9fcc35f33ee61254788f9e023963bd2ad59075837e41ce005a239807a7502f3"
     }
   }

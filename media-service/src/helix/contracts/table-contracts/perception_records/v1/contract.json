@@ -13,7 +13,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": true,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 2,
@@ -21,98 +22,165 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": true
+        "foreignKeyMarker": true,
+        "nullable": false
       },
       {
         "ordinal": 3,
+        "name": "perception_acquisition_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "acquisition_commit_receipt_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "record_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "observation",
+          "correction",
+          "retraction"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
         "name": "source_kind",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
-        "ordinal": 4,
+        "ordinal": 7,
         "name": "source_record_key",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
-        "ordinal": 5,
+        "ordinal": 8,
         "name": "source_record_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
-        "ordinal": 6,
+        "ordinal": 9,
         "name": "source_record_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
-        "ordinal": 7,
-        "name": "rating",
-        "logicalType": "REAL",
+        "ordinal": 10,
+        "name": "normalization_rule_ref",
+        "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
-        "ordinal": 8,
-        "name": "watched_state",
-        "logicalType": "TEXT",
-        "enumValues": [
-          "unknown",
-          "unwatched",
-          "watched"
-        ],
+        "ordinal": 11,
+        "name": "rating",
+        "logicalType": "INTEGER",
+        "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": true
       },
       {
-        "ordinal": 9,
+        "ordinal": 12,
+        "name": "watched_state",
+        "logicalType": "INTEGER_BOOLEAN",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 13,
         "name": "observed_title",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
-        "ordinal": 10,
+        "ordinal": 14,
+        "name": "provenance_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 15,
         "name": "provenance_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
-        "ordinal": 11,
+        "ordinal": 16,
+        "name": "record_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 17,
         "name": "observed_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
-        "ordinal": 12,
+        "ordinal": 18,
         "name": "committed_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       }
     ],
     "primaryKey": [
       "perception_id"
     ],
     "declaredForeignKeyColumns": [
-      "perception_source_id"
+      "perception_source_id",
+      "perception_acquisition_id",
+      "acquisition_commit_receipt_id"
     ],
     "uniqueConstraints": [
       [
@@ -132,15 +200,15 @@
     "partialUniqueRules": [],
     "checkRules": [
       {
-        "column": "watched_state",
+        "column": "record_kind",
         "enumValues": [
-          "unknown",
-          "unwatched",
-          "watched"
+          "observation",
+          "correction",
+          "retraction"
         ]
       },
       {
-        "rule": "rating非空时`CHECK 1..5`"
+        "rule": "Canonical rating非空时`CHECK integer 1..5`且`0`禁止，`watched_state`只允许`NULL|0|1`"
       }
     ],
     "revisionContract": {
@@ -164,18 +232,20 @@
     },
     "semanticRules": [
       "immutable",
+      "`record_digest`覆盖Record标量与按键排序的Identity Anchor set",
       "`UNIQUE(perception_source_id,source_record_key,source_record_revision,source_record_digest)`",
-      "rating非空时`CHECK 1..5`",
+      "Canonical rating非空时`CHECK integer 1..5`且`0`禁止，`watched_state`只允许`NULL|0|1`",
+      "CommitParticipant要求correction/retraction在同页各有匹配的outgoing `supersedes/retracts` relation",
       "`INDEX(source_kind,source_record_key,committed_at_ms)`"
     ],
     "rawContract": {
-      "columns": "`perception_id PK, perception_source_id FK, source_kind, source_record_key, source_record_revision, source_record_digest, rating, watched_state, observed_title, provenance_digest, observed_at_ms, committed_at_ms`",
-      "constraints": "immutable；`UNIQUE(perception_source_id,source_record_key,source_record_revision,source_record_digest)`；rating非空时`CHECK 1..5`；`INDEX(source_kind,source_record_key,committed_at_ms)`"
+      "columns": "`perception_id PK, perception_source_id FK, perception_acquisition_id FK, acquisition_commit_receipt_id FK, record_kind(observation|correction|retraction), source_kind, source_record_key, source_record_revision, source_record_digest, normalization_rule_ref, rating, watched_state, observed_title, provenance_ref, provenance_digest, record_digest, observed_at_ms, committed_at_ms`",
+      "constraints": "immutable；`record_digest`覆盖Record标量与按键排序的Identity Anchor set；`UNIQUE(perception_source_id,source_record_key,source_record_revision,source_record_digest)`；Canonical rating非空时`CHECK integer 1..5`且`0`禁止，`watched_state`只允许`NULL|0|1`；CommitParticipant要求correction/retraction在同页各有匹配的outgoing `supersedes/retracts` relation；`INDEX(source_kind,source_record_key,committed_at_ms)`"
     },
     "source": {
       "section": "8.5.13",
-      "line": 7496,
-      "lineDigest": "650b45a713d927dbd61fdd0fc9fe00a99f821b79742262b8c317dd3cfd163b6b"
+      "line": 7782,
+      "lineDigest": "8e303ca99674a3ca75bf36adb6174757f17d8bca03407b94cbe84c5014dbfcbb"
     },
     "foreignKeys": [
       {
@@ -186,7 +256,30 @@
         "targetColumns": [
           "perception_source_id"
         ],
-        "deletePolicy": "RESTRICT"
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "perception_acquisition_id"
+        ],
+        "targetTable": "perception_acquisitions",
+        "targetColumns": [
+          "perception_acquisition_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "acquisition_commit_receipt_id"
+        ],
+        "targetTable": "perception_acquisition_commits",
+        "targetColumns": [
+          "acquisition_commit_receipt_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
       }
     ]
   }

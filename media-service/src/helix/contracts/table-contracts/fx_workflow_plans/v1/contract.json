@@ -13,7 +13,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": true,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 2,
@@ -21,7 +22,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": true
+        "foreignKeyMarker": true,
+        "nullable": false
       },
       {
         "ordinal": 3,
@@ -29,7 +31,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 4,
@@ -37,50 +40,38 @@
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 5,
-        "name": "work_objective_type_ref",
-        "logicalType": "TEXT",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": false
-      },
-      {
-        "ordinal": 6,
-        "name": "work_objective_version",
-        "logicalType": "INTEGER",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": false
-      },
-      {
-        "ordinal": 7,
         "name": "catalog_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
-        "ordinal": 8,
+        "ordinal": 6,
         "name": "basis_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
-        "ordinal": 9,
+        "ordinal": 7,
         "name": "graph_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
-        "ordinal": 10,
+        "ordinal": 8,
         "name": "state",
         "logicalType": "TEXT",
         "enumValues": [
@@ -90,23 +81,17 @@
           "contract_unplannable"
         ],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
-        "ordinal": 11,
-        "name": "diagnostic_classification",
-        "logicalType": "TEXT",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": false
-      },
-      {
-        "ordinal": 12,
+        "ordinal": 9,
         "name": "created_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       }
     ],
     "primaryKey": [
@@ -143,7 +128,7 @@
     "immutability": {
       "immutable": true,
       "rules": [
-        "Plan发布后禁止更新Graph、Objective、Resolution或diagnostic字段"
+        "Plan发布后禁止更新Graph字段"
       ]
     },
     "deletion": {
@@ -152,17 +137,16 @@
     },
     "semanticRules": [
       "`UNIQUE(attempt_id)`",
-      "`state`持久化四种Plan Resolution",
-      "Plan发布后禁止更新Graph、Objective、Resolution或diagnostic字段"
+      "Plan发布后禁止更新Graph字段"
     ],
     "rawContract": {
-      "columns": "`plan_id PK, attempt_id FK, planner_ref, planner_version, work_objective_type_ref, work_objective_version, catalog_digest, basis_digest, graph_digest, state, diagnostic_classification, created_at_ms`",
-      "constraints": "`UNIQUE(attempt_id)`；`state`持久化四种Plan Resolution；Plan发布后禁止更新Graph、Objective、Resolution或diagnostic字段"
+      "columns": "`plan_id PK, attempt_id FK, planner_ref, planner_version, catalog_digest, basis_digest, graph_digest, state, created_at_ms`",
+      "constraints": "`UNIQUE(attempt_id)`；Plan发布后禁止更新Graph字段"
     },
     "source": {
       "section": "8.5.10",
-      "line": 7356,
-      "lineDigest": "43ac6e24efe088456b6edf540bcee00cb690418860312b2db786cbe0452b730c"
+      "line": 7640,
+      "lineDigest": "a6e5705c23a89a42b4fac68ca26061032b762286b554fb894d0114c069cccc30"
     },
     "foreignKeys": [
       {
@@ -173,7 +157,8 @@
         "targetColumns": [
           "attempt_id"
         ],
-        "deletePolicy": "RESTRICT"
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
       }
     ]
   }

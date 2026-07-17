@@ -13,7 +13,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": true,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 2,
@@ -21,7 +22,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": true
+        "foreignKeyMarker": true,
+        "nullable": false
       },
       {
         "ordinal": 3,
@@ -29,7 +31,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": true
+        "foreignKeyMarker": true,
+        "nullable": false
       },
       {
         "ordinal": 4,
@@ -37,35 +40,74 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 5,
+        "name": "embedding_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
         "name": "model_ref",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "state",
         "logicalType": "TEXT",
         "enumValues": [
           "active",
-          "superseded",
-          "rejected"
+          "released"
         ],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
+        "name": "created_reference_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "released_reference_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 10,
         "name": "created_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "released_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
       }
     ],
     "primaryKey": [
@@ -76,6 +118,9 @@
       "reference_asset_id"
     ],
     "uniqueConstraints": [
+      [
+        "reference_asset_id"
+      ],
       [
         "person_id",
         "embedding_handle_id",
@@ -89,13 +134,15 @@
         "column": "state",
         "enumValues": [
           "active",
-          "superseded",
-          "rejected"
+          "released"
         ]
       }
     ],
     "revisionContract": {
-      "revisionColumns": [],
+      "revisionColumns": [
+        "created_reference_revision",
+        "released_reference_revision"
+      ],
       "currentPointerColumns": [],
       "pointerTargets": [],
       "pointerRules": []
@@ -110,28 +157,22 @@
       "rules": []
     },
     "semanticRules": [
-      "`UNIQUE(person_id,embedding_handle_id,model_ref)`"
+      "`embedding_handle_id/embedding_digest/model_ref`必须分别等于Decision中`faceEmbeddingSetHandle.artifactHandleId/digestHex/modelRef`",
+      "每个active Asset恰好一个active派生Face",
+      "Face与Asset同事务建立/释放",
+      "`UNIQUE(reference_asset_id)`及`UNIQUE(person_id,embedding_handle_id,model_ref)`",
+      "用户API不得按Face ID修改"
     ],
     "rawContract": {
-      "columns": "`reference_face_id PK, person_id FK, reference_asset_id FK, embedding_handle_id, model_ref, state, created_at_ms`",
-      "constraints": "`UNIQUE(person_id,embedding_handle_id,model_ref)`"
+      "columns": "`reference_face_id PK, person_id FK, reference_asset_id FK, embedding_handle_id, embedding_digest, model_ref, state(active|released), created_reference_revision, released_reference_revision NULL, created_at_ms, released_at_ms NULL`",
+      "constraints": "`embedding_handle_id/embedding_digest/model_ref`必须分别等于Decision中`faceEmbeddingSetHandle.artifactHandleId/digestHex/modelRef`；每个active Asset恰好一个active派生Face；Face与Asset同事务建立/释放；`UNIQUE(reference_asset_id)`及`UNIQUE(person_id,embedding_handle_id,model_ref)`；用户API不得按Face ID修改"
     },
     "source": {
       "section": "8.5.13",
-      "line": 7507,
-      "lineDigest": "e09857484a3ed5c80b50e1a60d2903238c88bbd54f25ac7942131bb671aec5bf"
+      "line": 7793,
+      "lineDigest": "40b612dbfb17b8cdd516fa5e1268cd835947499b9b69229d3978aefe562d1782"
     },
     "foreignKeys": [
-      {
-        "columns": [
-          "person_id"
-        ],
-        "targetTable": "people_persons",
-        "targetColumns": [
-          "person_id"
-        ],
-        "deletePolicy": "RESTRICT"
-      },
       {
         "columns": [
           "reference_asset_id"
@@ -140,7 +181,34 @@
         "targetColumns": [
           "reference_asset_id"
         ],
-        "deletePolicy": "RESTRICT"
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "person_id",
+          "created_reference_revision"
+        ],
+        "targetTable": "people_reference_revisions",
+        "targetColumns": [
+          "person_id",
+          "revision"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": true
+      },
+      {
+        "columns": [
+          "person_id",
+          "released_reference_revision"
+        ],
+        "targetTable": "people_reference_revisions",
+        "targetColumns": [
+          "person_id",
+          "revision"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": true
       }
     ]
   }

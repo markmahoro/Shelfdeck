@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/DirectPersonRegistrationDecision/v1",
+  "title": "DirectPersonRegistrationDecision@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "decisionId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "newPersonId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "canonicalName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024
+    },
+    "aliases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "aliasDisplay": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "aliasNormalized": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "provenanceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "aliasDisplay",
+          "aliasNormalized",
+          "provenanceDigest"
+        ]
+      },
+      "maxItems": 256
+    },
+    "providerIdentities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "provider": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "namespace": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "providerKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "provenanceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "provider",
+          "namespace",
+          "providerKey",
+          "provenanceDigest"
+        ]
+      },
+      "maxItems": 256
+    },
+    "actorId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "decisionDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "decisionId",
+    "newPersonId",
+    "canonicalName",
+    "aliases",
+    "providerIdentities",
+    "actorId",
+    "decisionDigest"
+  ]
+}

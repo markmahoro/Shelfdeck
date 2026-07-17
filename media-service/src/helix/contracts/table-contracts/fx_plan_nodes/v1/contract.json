@@ -13,7 +13,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": true
+        "foreignKeyMarker": true,
+        "nullable": false
       },
       {
         "ordinal": 2,
@@ -21,7 +22,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 3,
@@ -29,7 +31,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 4,
@@ -37,7 +40,8 @@
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 5,
@@ -45,7 +49,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 6,
@@ -53,7 +58,8 @@
         "logicalType": "TEXT_JSON",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 7,
@@ -61,7 +67,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 8,
@@ -69,7 +76,8 @@
         "logicalType": "TEXT_JSON",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 9,
@@ -77,7 +85,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 10,
@@ -85,7 +94,8 @@
         "logicalType": "TEXT_JSON",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 11,
@@ -93,7 +103,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 12,
@@ -101,7 +112,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 13,
@@ -109,7 +121,8 @@
         "logicalType": "TEXT_JSON",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 14,
@@ -117,7 +130,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 15,
@@ -125,63 +139,8 @@
         "logicalType": "TEXT_JSON",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
-      },
-      {
-        "ordinal": 16,
-        "name": "approval_requirement_ref",
-        "logicalType": "TEXT",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": false
-      },
-      {
-        "ordinal": 17,
-        "name": "authorization_requirement_ref",
-        "logicalType": "TEXT",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": false
-      },
-      {
-        "ordinal": 18,
-        "name": "retry_policy_ref",
-        "logicalType": "TEXT",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": false
-      },
-      {
-        "ordinal": 19,
-        "name": "timeout_policy_ref",
-        "logicalType": "TEXT",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": false
-      },
-      {
-        "ordinal": 20,
-        "name": "output_contract_ref",
-        "logicalType": "TEXT",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": false
-      },
-      {
-        "ordinal": 21,
-        "name": "compensation_for_event_id",
-        "logicalType": "TEXT",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": true
-      },
-      {
-        "ordinal": 22,
-        "name": "compensation_contract_ref",
-        "logicalType": "TEXT",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       }
     ],
     "primaryKey": [
@@ -189,8 +148,7 @@
       "node_id"
     ],
     "declaredForeignKeyColumns": [
-      "plan_id",
-      "compensation_for_event_id"
+      "plan_id"
     ],
     "uniqueConstraints": [],
     "hotIndexes": [
@@ -245,10 +203,8 @@
       }
     ],
     "immutability": {
-      "immutable": true,
-      "rules": [
-        "Plan发布后这些执行合同字段不可更新"
-      ]
+      "immutable": false,
+      "rules": []
     },
     "deletion": {
       "foreignKeyPolicy": "ON DELETE RESTRICT",
@@ -257,18 +213,16 @@
     "semanticRules": [
       "`PK(plan_id,node_id)`",
       "所有JSON分别受`16 KiB`上限",
-      "`INDEX(capability_ref,contract_version)`",
-      "compensation两列必须同时为空或同时存在，target必须是同一Plan内的预声明Event",
-      "Plan发布后这些执行合同字段不可更新"
+      "`INDEX(capability_ref,contract_version)`"
     ],
     "rawContract": {
-      "columns": "`plan_id FK, node_id, capability_ref, contract_version, input_binding_schema_ref, input_bindings_json, parameter_schema_ref, parameters_json, when_schema_ref, when_json, effect_class, fence_schema_ref, fence_basis_json, resource_demand_schema_ref, resource_demand_json, approval_requirement_ref, authorization_requirement_ref, retry_policy_ref, timeout_policy_ref, output_contract_ref, compensation_for_event_id FK, compensation_contract_ref`",
-      "constraints": "`PK(plan_id,node_id)`；所有JSON分别受`16 KiB`上限；`INDEX(capability_ref,contract_version)`；compensation两列必须同时为空或同时存在，target必须是同一Plan内的预声明Event；Plan发布后这些执行合同字段不可更新"
+      "columns": "`plan_id FK, node_id, capability_ref, contract_version, input_binding_schema_ref, input_bindings_json, parameter_schema_ref, parameters_json, when_schema_ref, when_json, effect_class, fence_schema_ref, fence_basis_json, resource_demand_schema_ref, resource_demand_json`",
+      "constraints": "`PK(plan_id,node_id)`；所有JSON分别受`16 KiB`上限；`INDEX(capability_ref,contract_version)`"
     },
     "source": {
       "section": "8.5.10",
-      "line": 7357,
-      "lineDigest": "6151622005b1214fe2c393bc204aa1c9f1aa197b1b2534ac0c16a44b510a603f"
+      "line": 7641,
+      "lineDigest": "d284a64607e1bb3596c1671a8b1caf80fc2397281263e5fd88a743f02c1c8db8"
     },
     "foreignKeys": [
       {
@@ -279,17 +233,8 @@
         "targetColumns": [
           "plan_id"
         ],
-        "deletePolicy": "RESTRICT"
-      },
-      {
-        "columns": [
-          "compensation_for_event_id"
-        ],
-        "targetTable": "fx_workflow_events",
-        "targetColumns": [
-          "event_id"
-        ],
-        "deletePolicy": "RESTRICT"
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
       }
     ]
   }

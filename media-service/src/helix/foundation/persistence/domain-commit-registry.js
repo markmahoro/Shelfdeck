@@ -4,6 +4,7 @@ const { digest } = require('./ddl-compiler');
 const { createMaterialControlParticipant } = require('./material-control');
 const { createRepositoryDefinition } = require('./owner-repository');
 const { createOutboxParticipant } = require('./outbox-inbox');
+const { canonicalDigest, canonicalJson } = require('../../contracts/canonical-json');
 
 const BUSINESS_OWNERS = new Set(['procurement', 'libra', 'arca', 'perception', 'people']);
 const DOMAIN_FACT_EFFECT_CLASS = 'domain_fact_commit';
@@ -29,19 +30,6 @@ function fail(code, message, details) {
   throw new DomainCommitRegistryError(code, message, details);
 }
 
-function canonicalize(value) {
-  if (Array.isArray(value)) return value.map(canonicalize);
-  if (value && typeof value === 'object') return Object.keys(value).sort().reduce((result, key) => {
-    result[key] = canonicalize(value[key]);
-    return result;
-  }, {});
-  return value;
-}
-
-function canonicalJson(value) {
-  return JSON.stringify(canonicalize(value));
-}
-
 function key(value) {
   return [value.ownerDomain, value.aggregateType, value.factType, value.factSchemaRef].join('|');
 }
@@ -56,7 +44,7 @@ function validateHandle(handle) {
       !BUSINESS_OWNERS.has(handle.ownerDomain) || !Number.isSafeInteger(handle.expectedRevision) || handle.expectedRevision < 0) {
     fail('P3_DOMAIN_COMMIT_INVALID_HANDLE', 'Domain Fact Commit Handle is invalid.');
   }
-  for (const field of ['handleId', 'aggregateType', 'aggregateId', 'factType', 'factSchemaRef', 'commitIdempotencyKey']) text(handle[field], field);
+  for (const field of ['handleId', 'aggregateType', 'aggregateId', 'factType', 'factSchemaRef', 'resultSchemaRef', 'commitIdempotencyKey']) text(handle[field], field);
   for (const field of ['payloadDigest', 'eventFenceDigest']) {
     if (!SHA256.test(handle[field] || '')) fail('P3_DOMAIN_COMMIT_INVALID_DIGEST', 'Domain Commit digest must be lowercase SHA-256.', { field });
   }
@@ -120,15 +108,43 @@ function markerRepository(schemaManifest) {
     statements: {
       find: {
         kind: 'select-one', tableId: 'fx_commit_markers',
-        columns: ['commit_marker', 'owner_domain', 'scope_type', 'scope_id', 'commit_digest', 'committed_at_ms'],
+        columns: ['commit_marker', 'owner_domain', 'scope_type', 'scope_id', 'commit_digest', 'result_id', 'result_schema_ref', 'result_digest', 'committed_at_ms'],
         keyColumns: ['commit_marker']
       },
       insert: {
         kind: 'insert', tableId: 'fx_commit_markers',
-        columns: ['commit_marker', 'effect_id', 'owner_domain', 'scope_type', 'scope_id', 'commit_digest', 'committed_at_ms']
+        columns: ['commit_marker', 'effect_id', 'owner_domain', 'scope_type', 'scope_id', 'commit_digest', 'result_id', 'result_schema_ref', 'result_digest', 'committed_at_ms']
       }
     }
   });
+}
+
+function resultRepository(schemaManifest) {
+  return createRepositoryDefinition({
+    repositoryId: 'domain_commit_result', owner: 'execution-foundation', schemaManifest,
+    statements: {
+      find: { kind: 'select-one', tableId: 'fx_event_result_bindings', columns: [
+        'result_id', 'event_id', 'outcome_kind', 'result_schema_ref', 'result_json', 'result_digest',
+        'evidence_schema_ref', 'evidence_json', 'evidence_digest', 'effect_receipt_id', 'committed_at_ms'
+      ], keyColumns: ['result_id'] },
+      insert: { kind: 'insert', tableId: 'fx_event_result_bindings', columns: [
+        'result_id', 'event_id', 'outcome_kind', 'result_schema_ref', 'result_json', 'result_digest',
+        'evidence_schema_ref', 'evidence_json', 'evidence_digest', 'effect_receipt_id', 'committed_at_ms'
+      ] }
+    }
+  });
+}
+
+function parseStoredResult(row, marker) {
+  if (!row || row.result_schema_ref !== marker.result_schema_ref || row.result_digest !== marker.result_digest) {
+    fail('P3_DOMAIN_COMMIT_RESULT_BINDING_CORRUPT', 'Commit Marker does not resolve to its exact durable typed Result.');
+  }
+  let result;
+  try { result = JSON.parse(row.result_json); } catch { fail('P3_DOMAIN_COMMIT_RESULT_BINDING_CORRUPT', 'Stored typed Result is not JSON.'); }
+  if (canonicalDigest(result) !== row.result_digest || result.schemaRef !== row.result_schema_ref) {
+    fail('P3_DOMAIN_COMMIT_RESULT_BINDING_CORRUPT', 'Stored typed Result digest or nominal schema is invalid.');
+  }
+  return Object.freeze(result);
 }
 
 function createDomainCommitCoordinator(options) {
@@ -137,13 +153,31 @@ function createDomainCommitCoordinator(options) {
     fail('P3_DOMAIN_COMMIT_INVALID_COORDINATOR', 'Schema manifest, typed registry, and SqliteUnitOfWork are required.');
   }
   const marker = markerRepository(options.schemaManifest);
+  const resultBinding = resultRepository(options.schemaManifest);
   return Object.freeze({
     execute(request) {
-      if (!request || !request.handle || !request.commitMarker || !Array.isArray(request.outboxMessages) || request.outboxMessages.length === 0) {
-        fail('P3_DOMAIN_COMMIT_INVALID_REQUEST', 'Handle, commit marker, and Outbox messages are required.');
+      if (!request || !request.handle || !request.commitMarker || !request.resultBinding ||
+          !Array.isArray(request.outboxMessages) || request.outboxMessages.length === 0) {
+        fail('P3_DOMAIN_COMMIT_INVALID_REQUEST', 'Handle, durable typed Result binding, commit marker, and Outbox messages are required.');
       }
       const handle = request.handle;
-      const domainParticipant = options.registry.resolve(handle, request.payload);
+      const resolvedParticipant = options.registry.resolve(handle, request.payload);
+      let typedResult;
+      const domainParticipant = {
+        ...resolvedParticipant,
+        execute(context) {
+          typedResult = resolvedParticipant.execute(context);
+          if (!typedResult || typeof typedResult !== 'object' || Array.isArray(typedResult) || typedResult.schemaRef !== handle.resultSchemaRef) {
+            fail('P3_DOMAIN_COMMIT_RESULT_SCHEMA_MISMATCH', 'Domain participant must return the exact typed Result declared by its Handle.');
+          }
+          return typedResult;
+        }
+      };
+      const binding = request.resultBinding;
+      for (const field of ['resultId', 'eventId', 'evidenceSchemaRef']) text(binding[field], field);
+      if (!binding.evidence || typeof binding.evidence !== 'object' || Array.isArray(binding.evidence)) {
+        fail('P3_DOMAIN_COMMIT_EVIDENCE_REQUIRED', 'A typed Evidence value is required for the durable Result binding.');
+      }
       const commitMarkerId = text(request.commitMarker.commitMarker, 'commitMarker');
       const commitDigest = SHA256.test(request.commitMarker.commitDigest || '')
         ? request.commitMarker.commitDigest
@@ -152,7 +186,7 @@ function createDomainCommitCoordinator(options) {
         participantId: 'domain_commit_preflight',
         owner: 'execution-foundation',
         boundBusinessOwner: handle.ownerDomain,
-        repositories: [marker],
+        repositories: [marker, resultBinding],
         execute(context) {
           const existing = context.repository('domain_commit_marker').invoke('find', { commit_marker: commitMarkerId });
           if (!existing) return;
@@ -160,9 +194,29 @@ function createDomainCommitCoordinator(options) {
               existing.scope_id !== handle.aggregateId || existing.commit_digest !== commitDigest) {
             fail('P3_DOMAIN_COMMIT_MARKER_CONFLICT', 'Commit Marker already exists with a different signed commit.');
           }
-          throw new DomainCommitReplay(Object.freeze({ ...existing }));
+          throw new DomainCommitReplay(Object.freeze({ ...existing,
+            typedResult: parseStoredResult(context.repository('domain_commit_result').invoke('find', { result_id: existing.result_id }), existing)
+          }));
         }
-      }, domainParticipant];
+      }, domainParticipant, {
+        participantId: 'domain_commit_result', owner: 'execution-foundation', boundBusinessOwner: handle.ownerDomain,
+        repositories: [resultBinding],
+        execute(context) {
+          const resultJson = canonicalJson(typedResult);
+          const evidenceJson = canonicalJson(binding.evidence);
+          if (Buffer.byteLength(resultJson, 'utf8') > 65536 || Buffer.byteLength(evidenceJson, 'utf8') > 65536) {
+            fail('P3_DOMAIN_COMMIT_RESULT_TOO_LARGE', 'Typed Result and Evidence must each fit the 64 KiB storage contract.');
+          }
+          const resultDigest = canonicalDigest(typedResult);
+          context.repository('domain_commit_result').invoke('insert', {
+            result_id: binding.resultId, event_id: binding.eventId, outcome_kind: 'succeeded', result_schema_ref: handle.resultSchemaRef,
+            result_json: resultJson, result_digest: resultDigest, evidence_schema_ref: binding.evidenceSchemaRef,
+            evidence_json: evidenceJson, evidence_digest: canonicalDigest(binding.evidence),
+            effect_receipt_id: binding.effectReceiptId || null, committed_at_ms: context.commitTimeMs
+          });
+          return Object.freeze({ resultId: binding.resultId, resultSchemaRef: handle.resultSchemaRef, resultDigest });
+        }
+      }];
       if (request.control) participants.push(createMaterialControlParticipant({
         schemaManifest: options.schemaManifest,
         handle: request.control.handle,
@@ -183,6 +237,9 @@ function createDomainCommitCoordinator(options) {
             scope_type: handle.aggregateType,
             scope_id: handle.aggregateId,
             commit_digest: commitDigest,
+            result_id: binding.resultId,
+            result_schema_ref: handle.resultSchemaRef,
+            result_digest: canonicalDigest(typedResult),
             committed_at_ms: context.commitTimeMs
           });
         }
@@ -200,11 +257,13 @@ function createDomainCommitCoordinator(options) {
           domainResult: results[domainParticipant.participantId],
           controlResult: results.material_control,
           outboxResult: results.domain_commit_outbox,
-          commitMarker: commitMarkerId
+          commitMarker: commitMarkerId, typedResult: results[domainParticipant.participantId], resultBinding: results.domain_commit_result
         });
       } catch (error) {
         if (error instanceof DomainCommitReplay) return Object.freeze({
-          replayed: true, domainResult: undefined, controlResult: undefined, outboxResult: undefined, commitMarker: error.marker.commit_marker
+          replayed: true, domainResult: error.marker.typedResult, controlResult: undefined, outboxResult: undefined,
+          commitMarker: error.marker.commit_marker, typedResult: error.marker.typedResult,
+          resultBinding: Object.freeze({ resultId: error.marker.result_id, resultSchemaRef: error.marker.result_schema_ref, resultDigest: error.marker.result_digest })
         });
         throw error;
       }

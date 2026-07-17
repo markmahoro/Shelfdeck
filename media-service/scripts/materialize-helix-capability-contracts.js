@@ -8,9 +8,20 @@ const { buildCapabilityPackages, digestValue } = require('./helix-architecture/c
 const serviceRoot = path.resolve(__dirname, '..');
 const repositoryRoot = path.resolve(serviceRoot, '..');
 const contractsRoot = path.join(serviceRoot, 'src', 'helix', 'contracts');
-const ssot = fs.readFileSync(path.join(repositoryRoot, 'docs', 'helix', 'TOP_DOWN_ARCHITECTURE_CONFIRMATION.md'), 'utf8');
-const packages = buildCapabilityPackages(extractSsotContracts(ssot).capabilities);
+const ssotPath = process.env.HELIX_SSOT_PATH || path.join(repositoryRoot, 'docs', 'helix', 'TOP_DOWN_ARCHITECTURE_CONFIRMATION.md');
+const ssot = fs.readFileSync(ssotPath, 'utf8');
+const extracted = extractSsotContracts(ssot);
+const packages = buildCapabilityPackages(extracted.capabilities);
 const packageById = new Map(packages.map((item) => [item.capabilityRef, item]));
+const capabilityById = new Map(extracted.capabilities.map((item) => [item.id, item]));
+
+const capabilitiesRoot = path.join(contractsRoot, 'capabilities');
+for (const manifestPath of fs.readdirSync(capabilitiesRoot, { recursive: true })
+  .filter((name) => name.endsWith(`${path.sep}manifest.json`) || name === 'manifest.json')) {
+  const absolutePath = path.join(capabilitiesRoot, manifestPath);
+  const manifest = JSON.parse(fs.readFileSync(absolutePath, 'utf8'));
+  if (!packageById.has(manifest.capabilityRef)) fs.rmSync(path.dirname(absolutePath), { recursive: true, force: true });
+}
 
 for (const item of packages) {
   const directory = path.join(contractsRoot, item.relativePath);
@@ -22,15 +33,37 @@ for (const item of packages) {
 
 const inventoryRoot = path.join(contractsRoot, 'manifests', 'capability-inventory');
 for (const fileName of fs.readdirSync(inventoryRoot).filter((name) => name.endsWith('.json'))) {
-  const filePath = path.join(inventoryRoot, fileName);
-  const shard = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-  for (const entry of shard.entries) {
-    const item = packageById.get(entry.id);
-    if (!item) throw new Error(`Inventory entry is not in the SSOT Catalog: ${entry.id}`);
-    entry.contract.packageDigest = item.packageDigest;
-    entry.contractDigest = { algorithm: 'sha256', value: digestValue(entry.contract) };
-  }
-  fs.writeFileSync(filePath, `${JSON.stringify(shard, null, 2)}\n`);
+  fs.rmSync(path.join(inventoryRoot, fileName));
+}
+const entries = packages.map((item) => {
+  const capability = capabilityById.get(item.capabilityRef);
+  const contract = {
+    packagePath: item.relativePath,
+    packageDigest: item.packageDigest,
+    effectClass: capability.effectClass,
+    inputSummary: capability.inputSummary,
+    outputFamily: capability.outputFamily
+  };
+  return {
+    id: item.capabilityRef,
+    version: 1,
+    owner: capability.owner,
+    status: 'contracted',
+    ssotRefs: [capability.source.section],
+    sourceLocator: capability.source,
+    targetLocator: { path: `${item.relativePath}/manifest.json` },
+    contract,
+    contractDigest: { algorithm: 'sha256', value: digestValue(contract) }
+  };
+});
+for (let start = 0; start < entries.length; start += 28) {
+  const end = Math.min(start + 28, entries.length);
+  const fileName = `entries-${String(start + 1).padStart(3, '0')}-${String(end).padStart(3, '0')}.json`;
+  fs.writeFileSync(path.join(inventoryRoot, fileName), `${JSON.stringify({
+    schemaVersion: 1,
+    manifestId: 'helix.inventory.capabilities',
+    entries: entries.slice(start, end)
+  }, null, 2)}\n`);
 }
 
 process.stdout.write(`${JSON.stringify({ packageCount: packages.length }, null, 2)}\n`);

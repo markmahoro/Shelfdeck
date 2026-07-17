@@ -9,7 +9,7 @@ const { materializeSsotSourceMap } = require('../../scripts/helix-architecture/s
 const { validateSsotSourceMap } = require('../../scripts/helix-architecture/ssot-source-map-validator');
 
 const repositoryRoot = path.resolve(__dirname, '../../..');
-const sourcePath = path.join(repositoryRoot, 'docs', 'helix', 'TOP_DOWN_ARCHITECTURE_CONFIRMATION.md');
+const sourcePath = process.env.HELIX_SSOT_PATH || path.join(repositoryRoot, 'docs', 'helix', 'TOP_DOWN_ARCHITECTURE_CONFIRMATION.md');
 
 test('SSOT source map materializer emits deterministic complete shards accepted by validator', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-source-map-'));
@@ -24,7 +24,7 @@ test('SSOT source map materializer emits deterministic complete shards accepted 
       fs.readFileSync(path.join(manifestRoot, 'ssot-source-map', name), 'utf8'));
     const second = materializeSsotSourceMap({ sourcePath: path.join(docsRoot, 'TOP_DOWN_ARCHITECTURE_CONFIRMATION.md'),
       sourceRelativePath: 'docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md', outputRoot: path.join(manifestRoot, 'ssot-source-map') });
-    assert.deepEqual(first.manifest.counts, { capabilities: 112, resultFamilies: 96, tables: 156, transactions: 18 });
+    assert.deepEqual(first.manifest.counts, { capabilities: 112, resultFamilies: 96, tables: 161, transactions: 24 });
     assert.equal(first.manifest.aggregateDigest, second.manifest.aggregateDigest);
     assert.deepEqual(snapshot, fs.readdirSync(path.join(manifestRoot, 'ssot-source-map')).sort().map((name) =>
       fs.readFileSync(path.join(manifestRoot, 'ssot-source-map', name), 'utf8')));

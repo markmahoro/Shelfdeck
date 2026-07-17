@@ -13,7 +13,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": true,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 2,
@@ -21,7 +22,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 3,
@@ -29,7 +31,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 4,
@@ -40,7 +43,8 @@
           "disabled"
         ],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 5,
@@ -48,7 +52,8 @@
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 6,
@@ -56,7 +61,8 @@
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": true
       },
       {
         "ordinal": 7,
@@ -64,7 +70,8 @@
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 8,
@@ -72,7 +79,8 @@
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       }
     ],
     "primaryKey": [
@@ -117,10 +125,14 @@
             "revision"
           ],
           "consistencyColumns": [],
-          "deletePolicy": "RESTRICT"
+          "deletePolicy": "RESTRICT",
+          "deferrable": false
         }
       ],
-      "pointerRules": []
+      "pointerRules": [
+        "`current_cursor_revision IS NULL`表示尚无cursor row",
+        "`FOREIGN KEY(perception_source_id,current_cursor_revision) REFERENCES perception_source_cursors(perception_source_id,revision)`，SQLite以NULL跳过尚不存在的optional pointer校验"
+      ]
     },
     "jsonContracts": [],
     "immutability": {
@@ -132,18 +144,19 @@
       "rules": []
     },
     "semanticRules": [
-      "cursor pointer显式FK",
+      "`current_cursor_revision IS NULL`表示尚无cursor row",
+      "`FOREIGN KEY(perception_source_id,current_cursor_revision) REFERENCES perception_source_cursors(perception_source_id,revision)`，SQLite以NULL跳过尚不存在的optional pointer校验",
       "`INDEX(status,source_kind,perception_source_id)`",
       "Integration ID为opaque platform reference"
     ],
     "rawContract": {
-      "columns": "`perception_source_id PK, source_kind, integration_id, status, config_revision, current_cursor_revision, created_at_ms, updated_at_ms`",
-      "constraints": "cursor pointer显式FK；`INDEX(status,source_kind,perception_source_id)`；Integration ID为opaque platform reference"
+      "columns": "`perception_source_id PK, source_kind, integration_id, status, config_revision, current_cursor_revision NULL, created_at_ms, updated_at_ms`",
+      "constraints": "`current_cursor_revision IS NULL`表示尚无cursor row；`FOREIGN KEY(perception_source_id,current_cursor_revision) REFERENCES perception_source_cursors(perception_source_id,revision)`，SQLite以NULL跳过尚不存在的optional pointer校验；`INDEX(status,source_kind,perception_source_id)`；Integration ID为opaque platform reference"
     },
     "source": {
       "section": "8.5.13",
-      "line": 7494,
-      "lineDigest": "554e682c5985382d4d99178a83cf9fe7ef89af1ff04b560469408d1ad8e33402"
+      "line": 7778,
+      "lineDigest": "34bdf0c016622b6e972c4799b9a649b5fc923d7277a94298de102e9ece3182a5"
     },
     "foreignKeys": []
   }

@@ -44,7 +44,7 @@ function expectedCatalog(manifest) {
 
 function assertManifest(manifest, ddl) {
   if (!manifest || manifest.schemaVersion !== 1 || manifest.compilerContract !== 'helix-p3-deterministic-sqlite-ddl/v1' ||
-      manifest.tableCount !== 156 || !Array.isArray(manifest.tables) || manifest.tables.length !== 156) {
+      manifest.tableCount !== 161 || !Array.isArray(manifest.tables) || manifest.tables.length !== 161) {
     fail('P3_SQLITE_INVALID_SCHEMA_MANIFEST', 'The clean schema manifest is incomplete or unsupported.');
   }
   if (manifest.digestAlgorithm !== 'sha256' || digest(normalizedDdl(ddl)) !== manifest.ddlDigest) {
@@ -113,7 +113,7 @@ function assertCatalog(database, manifest, expected) {
       fail('P3_SQLITE_PARTIAL_UNIQUE_MISSING', 'A required partial unique index is absent or weakened.', item);
     }
   }
-  if (partialExpected.length !== 19) fail('P3_SQLITE_PARTIAL_UNIQUE_COUNT', 'The clean schema requires exactly 19 partial unique indexes.');
+  if (partialExpected.length !== 20) fail('P3_SQLITE_PARTIAL_UNIQUE_COUNT', 'The clean schema requires exactly 20 partial unique indexes.');
 }
 
 function assertGuardConsistency(database) {
@@ -228,7 +228,7 @@ function assertIntegrity(database, manifest, expected) {
     catalogDigest: currentMarker.catalog_digest,
     tableCount: expected.tables.size,
     indexCount: expected.indexes.size,
-    partialUniqueCount: 19,
+    partialUniqueCount: 20,
     appliedAtMs: currentMarker.applied_at_ms
   });
 }
@@ -295,6 +295,7 @@ function openSqliteKernel(options) {
         if (closed) return;
         if (transactionActive) fail('P3_SQLITE_CLOSE_DURING_TRANSACTION', 'Cannot close SQLite Kernel during a transaction.');
         database.close();
+        database = null;
         closed = true;
       }
     });

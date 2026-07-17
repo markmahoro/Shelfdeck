@@ -10,6 +10,7 @@ const { verifyP3PersistenceBaseline } = require('./helix-architecture/p3-persist
 
 const serviceRoot = path.resolve(__dirname, '..');
 const generatedRoot = path.join(serviceRoot, 'src/helix/foundation/persistence/generated');
+const transactionRoot = path.join(serviceRoot, 'src/helix/contracts/transaction-contracts');
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-p3-verify-'));
 let architecture;
 let persistence;
@@ -20,7 +21,10 @@ try {
     cwd: serviceRoot,
     encoding: 'utf8',
     maxBuffer: 20 * 1024 * 1024,
-    env: { NODE_ENV: 'test', NODE_PATH: process.env.NODE_PATH || '' }
+    env: {
+      NODE_ENV: 'test', NODE_PATH: process.env.NODE_PATH || '',
+      HELIX_SSOT_PATH: process.env.HELIX_SSOT_PATH || ''
+    }
   });
   try {
     architecture = JSON.parse(architectureRun.stdout);
@@ -55,14 +59,19 @@ const result = {
     contractAggregateDigest: architecture.contracts.aggregateDigest,
     manifestAggregateDigest: architecture.manifests.aggregateDigest
   },
-  canonicalTransactions: {
-    contractCount: 18,
-    declaredWriteTableCount: 56,
-    participantAndCommitFaultPoints: 132,
-    revisionFenceFailures: 18,
-    staleControlCasFailures: 10,
-    outboxContracts: 11
-  },
+  canonicalTransactions: (() => {
+    const contracts = fs.readdirSync(transactionRoot, { withFileTypes: true }).filter((entry) => entry.isDirectory())
+      .map((entry) => JSON.parse(fs.readFileSync(path.join(transactionRoot, entry.name, 'v1', 'contract.json'), 'utf8')).contract);
+    return {
+      contractCount: contracts.length,
+      distinctDeclaredWriteTableCount: new Set(contracts.flatMap((contract) => contract.writeTables)).size,
+      declaredParticipantCount: contracts.reduce((sum, contract) => sum + contract.participants.length, 0),
+      crashFixtureBindingCount: contracts.reduce((sum, contract) => sum + contract.crashFixtures.length, 0),
+      revisionFenceFailures: contracts.filter((contract) => contract.fenceContract.domainRevisionFenceRequired).length,
+      staleControlCasFailures: contracts.filter((contract) => contract.fenceContract.materialControlCasRequired).length,
+      outboxContracts: contracts.filter((contract) => contract.fenceContract.outboxRequired).length
+    };
+  })(),
   prohibitedActionsRun: [],
   failure
 };

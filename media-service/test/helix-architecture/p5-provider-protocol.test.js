@@ -117,7 +117,7 @@ test('operation catalog exactly traces all eight IntegrationHandle Capability co
       if (entry.isDirectory()) walk(target);
       else if (entry.name === 'manifest.json') {
         const manifest = JSON.parse(fs.readFileSync(target, 'utf8'));
-        if (Object.keys(manifest.inputPorts || {}).includes('integrationHandle')) manifests.push(manifest);
+        if (Object.keys(manifest.inputPorts || {}).some((name) => name.toLowerCase().includes('integrationhandle'))) manifests.push(manifest);
       }
     }
   })(manifestRoot);

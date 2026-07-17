@@ -5,17 +5,25 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "sourceObservation": {
-      "$ref": "#/$defs/sourceObservation"
+    "perceptionObservationPage": {
+      "$ref": "#/$defs/perceptionObservationPage"
+    },
+    "perceptionNormalizationRuleRef": {
+      "$ref": "#/$defs/perceptionNormalizationRuleRef"
     }
   },
   "required": [
-    "sourceObservation"
+    "perceptionObservationPage",
+    "perceptionNormalizationRuleRef"
   ],
   "$defs": {
-    "sourceObservation": {
-      "$ref": "helix://contracts/domain-types/SourceObservation/v1",
-      "x-helix-typeExpression": "Source observation"
+    "perceptionObservationPage": {
+      "$ref": "helix://contracts/types/PerceptionObservationPage/v1",
+      "x-helix-typeExpression": "PerceptionObservationPage"
+    },
+    "perceptionNormalizationRuleRef": {
+      "$ref": "helix://contracts/domain-types/PerceptionNormalizationRuleRef/v1",
+      "x-helix-typeExpression": "PerceptionNormalizationRuleRef"
     }
   }
 }

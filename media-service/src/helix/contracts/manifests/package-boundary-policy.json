@@ -4,6 +4,12 @@
   "defaultExternalDecision": "deny",
   "externalModuleRules": [
     {
+      "source": "contracts",
+      "allow": [
+        "node:crypto"
+      ]
+    },
+    {
       "source": "foundation.capability",
       "allow": [
         "ajv/dist/2020",

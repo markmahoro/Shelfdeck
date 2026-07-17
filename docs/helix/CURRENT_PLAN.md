@@ -44,11 +44,11 @@ Work Package细节只存在于`implementation/CURRENT_PHASE.md`；当前事实�
 | --- | --- |
 | Phase | P6 — Horizontal Domains |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | in progress；P6-00–P6-02 and P6-05 complete；P6-03 contract regeneration pending reported SSOT nominal fix；P5 Exit Audit PASS |
+| Status | in progress；latest SSOT已重物化为112/96/160/22；P6-04–P6-07 complete；Perception Resolution与People Registration/Merge链路已闭合；P5 Exit Audit PASS |
 | Implementation baseline | exact P5 phase closure `41470e47ec6bed7ba1cf81024130870eb2e57e92` |
 | Phase branch/worktree | `codex/helix-p6` / `E:\my_project\emby_third_party-helix-p6` |
 | Allowed now | P2–P13本地代码、unit/contract/isolated fixture、文档与Phase自动转换 |
-| Next action | close reported Perception Result nominal identity；regenerate P2/P3/P4 contracts；resume P6-03 |
+| Next action | P6-08 Reference Asset/Face maintenance and Projection；只保存Artifact/Embedding handle并发布People-owned只读Projection |
 
 ## 4. Master roadmap
 
@@ -56,8 +56,8 @@ Work Package细节只存在于`implementation/CURRENT_PHASE.md`；当前事实�
 | --- | --- | --- | --- |
 | P0 Audit and disposition | `4a16f0a9`差距、旧模块处置、风险和clean-cut方向 | Level 0–10 accepted | **complete**；Evidence已冻结 |
 | P1 Clean skeleton and guards | 固定`src/helix/`、public/internal边界、唯一Root shell、机器架构门禁和manifest框架 | P0；Local Implementation Gate | **complete**；Exit Audit PASS；Evidence frozen |
-| P2 Contract and schema baseline | 112 Capability、96 Result、156 table合同与digest | P1 | **complete**；112/96/156/18；Exit Audit PASS |
-| P3 Persistence and atomic foundation | 唯一Kernel、scoped UoW、Control、Commit Marker、Outbox/Inbox、Audit | P2 | **complete**；18 transaction/132 crash points；Exit Audit PASS |
+| P2 Contract and schema baseline | 112 Capability、96 Result、160 table合同与digest | P1 | **complete**；latest SSOT rematerialized 112/96/160/22；baseline gate PASS |
+| P3 Persistence and atomic foundation | 唯一Kernel、scoped UoW、Control、Commit Marker、Outbox/Inbox、Audit | P2 | **complete**；22 canonical transactions；baseline gate PASS |
 | P4 Execution and recovery foundation | Work/Plan/Event/Effect、Progress、Control Plane、Resource、Retry/Timeout/Circuit、startup recovery | P3 | **complete**；7 Effect Classes / 31 crash scenarios；Exit Audit PASS |
 | P5 Platform and integrations | Secret/Mount/Workspace/Artifact/Resource/Worker及typed Provider/FFmpeg/file libraries | P3–P4 ports | **complete**；10 fixture families / 31 recovery scenarios；Exit Audit PASS |
 | P6 Horizontal domains | Perception和People独立Store/Facade/Process/Projection | P3–P5 | 两域事实只由各自Owner写；Media-Cast不进入People Store |

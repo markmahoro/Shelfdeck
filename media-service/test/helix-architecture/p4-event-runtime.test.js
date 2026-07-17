@@ -27,13 +27,12 @@ function fixture(run, settings = {}) {
     ] },
     work_attempt: { kind: 'insert', tableId: 'fx_work_attempts', columns: ['attempt_id', 'work_id', 'basis_digest', 'state'] },
     plan: { kind: 'insert', tableId: 'fx_workflow_plans', columns: [
-      'plan_id', 'attempt_id', 'work_objective_type_ref', 'work_objective_version', 'basis_digest', 'state', 'diagnostic_classification'
+      'plan_id', 'attempt_id', 'basis_digest', 'state'
     ] },
     node: { kind: 'insert', tableId: 'fx_plan_nodes', columns: [
       'plan_id', 'node_id', 'capability_ref', 'contract_version', 'input_binding_schema_ref', 'input_bindings_json',
       'parameter_schema_ref', 'parameters_json', 'when_schema_ref', 'when_json', 'effect_class', 'fence_schema_ref', 'fence_basis_json',
-      'resource_demand_schema_ref', 'resource_demand_json', 'approval_requirement_ref', 'authorization_requirement_ref',
-      'retry_policy_ref', 'timeout_policy_ref', 'output_contract_ref', 'compensation_for_event_id', 'compensation_contract_ref'
+      'resource_demand_schema_ref', 'resource_demand_json'
     ] },
     event: { kind: 'insert', tableId: 'fx_workflow_events', columns: [
       'event_id', 'plan_id', 'node_id', 'work_id', 'attempt_id', 'owner_domain', 'capability_ref', 'contract_version',
@@ -46,17 +45,12 @@ function fixture(run, settings = {}) {
     repository.invoke('work', { work_id: 'work', owner_domain: 'libra', process_type: 'libra_run', process_id: 'run', basis_digest: HASH_A,
       priority_class: 'normal_foreground', state: 'running', idempotency_key: 'work' });
     repository.invoke('work_attempt', { attempt_id: 'work-attempt', work_id: 'work', basis_digest: HASH_A, state: 'running' });
-    repository.invoke('plan', { plan_id: 'plan', attempt_id: 'work-attempt', work_objective_type_ref: 'helix://libra/work/Test/v1',
-      work_objective_version: 1, basis_digest: HASH_A, state: 'planned', diagnostic_classification: null });
+    repository.invoke('plan', { plan_id: 'plan', attempt_id: 'work-attempt', basis_digest: HASH_A, state: 'planned' });
     repository.invoke('node', { plan_id: 'plan', node_id: 'node', capability_ref: 'libra.test.observe@1', contract_version: 1,
       input_binding_schema_ref: 'helix://test/inputs', input_bindings_json: '{}', parameter_schema_ref: 'helix://test/parameters',
       parameters_json: '{}', when_schema_ref: null, when_json: null, effect_class: settings.effectClass || 'pure_observation',
       fence_schema_ref: 'helix://test/fence', fence_basis_json: '{}',
-      resource_demand_schema_ref: 'helix://test/resources', resource_demand_json: '{}',
-      approval_requirement_ref: settings.approvalRequirementRef || null, authorization_requirement_ref: null,
-      retry_policy_ref: 'helix://foundation/retry-policies/pure_observation/v1',
-      timeout_policy_ref: 'helix://foundation/timeout-policies/test/v1', output_contract_ref: 'helix://test/result',
-      compensation_for_event_id: null, compensation_contract_ref: null });
+      resource_demand_schema_ref: 'helix://test/resources', resource_demand_json: '{}' });
     repository.invoke('event', { event_id: 'event', plan_id: 'plan', node_id: 'node', work_id: 'work', attempt_id: 'work-attempt',
       owner_domain: 'libra', capability_ref: 'libra.test.observe@1', contract_version: 1, priority_class: 'normal_foreground',
       state: 'ready', ready_at_ms: 1, retry_at_ms: null, result_id: null });
@@ -65,11 +59,7 @@ function fixture(run, settings = {}) {
         input_binding_schema_ref: 'helix://test/inputs', input_bindings_json: '{}', parameter_schema_ref: 'helix://test/parameters',
         parameters_json: '{}', when_schema_ref: settings.dependentWhen ? 'helix://test/when' : null,
         when_json: settings.dependentWhen ? '{}' : null, effect_class: 'pure_observation', fence_schema_ref: 'helix://test/fence',
-        fence_basis_json: '{}', resource_demand_schema_ref: 'helix://test/resources', resource_demand_json: '{}',
-        approval_requirement_ref: null, authorization_requirement_ref: null,
-        retry_policy_ref: 'helix://foundation/retry-policies/pure_observation/v1',
-        timeout_policy_ref: 'helix://foundation/timeout-policies/test/v1', output_contract_ref: 'helix://test/result',
-        compensation_for_event_id: null, compensation_contract_ref: null });
+        fence_basis_json: '{}', resource_demand_schema_ref: 'helix://test/resources', resource_demand_json: '{}' });
       repository.invoke('event', { event_id: 'event-dependent', plan_id: 'plan', node_id: 'node-dependent', work_id: 'work',
         attempt_id: 'work-attempt', owner_domain: 'libra', capability_ref: 'libra.test.observe@1', contract_version: 1,
         priority_class: 'normal_foreground', state: 'pending', ready_at_ms: null, retry_at_ms: null, result_id: null });
@@ -102,6 +92,8 @@ function fixture(run, settings = {}) {
       requireReconcile() { journalCalls.push('reconcile'); }
     } }),
     attemptPolicy: {
+      bindingFor: () => ({ retryPolicyRef: 'helix://foundation/retry-policies/pure_observation/v1',
+        timeoutPolicyRef: 'helix://foundation/timeout-policies/test/v1' }),
       prepare: () => ({ deadlineAtMs: 2000 }),
       decideFailure: () => settings.failurePolicyDecision || ({ decision: settings.effectClass && settings.effectClass !== 'pure_observation'
         ? 'reconcile_required' : 'terminal_failure' }),

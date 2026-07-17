@@ -102,11 +102,13 @@ const definitions = {
   }),
   CanonicalQueryHandle: () => nominal('CanonicalQueryHandle', {
     handleId: opaqueId(), providerDomain: text(), consumerDomain: text(), queryContract: text(), queryVersion: positiveInteger(),
+    typedInputSchemaRef: text(), typedInput: contractMap('Bounded typed query value validated against typedInputSchemaRef.'),
     inputDigest: digestHex(), correlationId: opaqueId(), expiresAtMs: nonNegativeInteger(), fenceDigest: digestHex()
   }),
   DomainFactCommitHandle: () => nominal('DomainFactCommitHandle', {
     handleId: opaqueId(), ownerDomain: text(), aggregateType: text(), aggregateId: opaqueId(), factType: text(), factSchemaRef: text(),
-    expectedRevision: nonNegativeInteger(), payloadDigest: digestHex(), commitIdempotencyKey: opaqueId(), eventFenceDigest: digestHex()
+    expectedRevision: nonNegativeInteger(), payloadDigest: digestHex(), resultSchemaRef: text(),
+    commitIdempotencyKey: opaqueId(), eventFenceDigest: digestHex()
   }),
   ResponsibilityControlCommitHandle: () => nominal('ResponsibilityControlCommitHandle', {
     handleId: opaqueId(), operationKind: enumText('acquire', 'transfer', 'release', 'replace_control_set'), ownerDomain: text(),
@@ -161,7 +163,7 @@ const definitions = {
     sizeBytes: nonNegativeInteger(), completedAtMs: nonNegativeInteger()
   }),
   FaceEmbeddingSetHandle: () => nominal('FaceEmbeddingSetHandle', {
-    artifactHandleId: opaqueId(), modelRef: text(), sourceFrameSetDigest: digestHex(), vectorCount: nonNegativeInteger(),
+    artifactHandleId: opaqueId(), modelRef: text(), sourceArtifactSetDigest: digestHex(), detectedFaceCount: nonNegativeInteger(), vectorCount: nonNegativeInteger(),
     dimension: positiveInteger(), digestHex: digestHex()
   }),
   FaceClusterSetHandle: () => nominal('FaceClusterSetHandle', {

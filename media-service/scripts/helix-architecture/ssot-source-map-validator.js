@@ -52,7 +52,9 @@ function validateSsotSourceMap(options) {
     return { ok: false, findings };
   }
 
-  const sourcePath = path.resolve(repositoryRoot, map.sourcePath);
+  const configuredSsotPath = process.env.HELIX_SSOT_PATH;
+  const sourcePath = configuredSsotPath && fs.existsSync(path.join(repositoryRoot, '.git'))
+    ? configuredSsotPath : path.resolve(repositoryRoot, map.sourcePath);
   let extracted;
   try {
     extracted = extractSsotContracts(fs.readFileSync(sourcePath, 'utf8'), { sourcePath: map.sourcePath });

@@ -23,10 +23,14 @@
       "type": "string",
       "minLength": 1
     },
-    "sourceFrameSetDigest": {
+    "sourceArtifactSetDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
+    },
+    "detectedFaceCount": {
+      "type": "integer",
+      "minimum": 0
     },
     "vectorCount": {
       "type": "integer",
@@ -47,7 +51,8 @@
     "schemaVersion",
     "artifactHandleId",
     "modelRef",
-    "sourceFrameSetDigest",
+    "sourceArtifactSetDigest",
+    "detectedFaceCount",
     "vectorCount",
     "dimension",
     "digestHex"

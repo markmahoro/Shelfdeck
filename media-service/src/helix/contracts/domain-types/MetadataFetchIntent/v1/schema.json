@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/MetadataFetchIntent/v1",
+  "title": "MetadataFetchIntent@1",
+  "x-helix-ssotRefs": [
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "intentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "sourceKind": {
+          "const": "related_nfo"
+        },
+        "contentProfile": {
+          "type": "string",
+          "enum": [
+            "movie",
+            "season",
+            "jav",
+            "western_adult"
+          ]
+        },
+        "resolvedIdentityDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "requestedFields": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "maxItems": 256
+        },
+        "intentDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "relatedReferenceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "relatedReferenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "expectedChecksum": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "intentId",
+        "sourceKind",
+        "contentProfile",
+        "resolvedIdentityDigest",
+        "requestedFields",
+        "intentDigest",
+        "relatedReferenceId",
+        "relatedReferenceDigest",
+        "expectedChecksum"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "intentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "sourceKind": {
+          "const": "provider"
+        },
+        "contentProfile": {
+          "type": "string",
+          "enum": [
+            "movie",
+            "season",
+            "jav",
+            "western_adult"
+          ]
+        },
+        "resolvedIdentityDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "requestedFields": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "maxItems": 256
+        },
+        "intentDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "providerKind": {
+          "type": "string",
+          "enum": [
+            "tmdb",
+            "jav"
+          ]
+        },
+        "integrationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "configRevision": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "intentId",
+        "sourceKind",
+        "contentProfile",
+        "resolvedIdentityDigest",
+        "requestedFields",
+        "intentDigest",
+        "providerKind",
+        "integrationId",
+        "configRevision"
+      ]
+    }
+  ]
+}

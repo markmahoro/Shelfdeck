@@ -13,54 +13,133 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": true,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 2,
+        "name": "merge_candidate_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "merge_candidate_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
         "name": "source_person_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": true
+        "foreignKeyMarker": true,
+        "nullable": false
       },
       {
-        "ordinal": 3,
+        "ordinal": 5,
+        "name": "previous_source_person_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "committed_source_person_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
         "name": "target_person_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": true
+        "foreignKeyMarker": true,
+        "nullable": false
       },
       {
-        "ordinal": 4,
+        "ordinal": 8,
+        "name": "previous_target_person_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "committed_target_person_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "preference_resolution_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
         "name": "decision_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
-        "ordinal": 5,
+        "ordinal": 12,
         "name": "committed_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       }
     ],
     "primaryKey": [
       "merge_record_id"
     ],
     "declaredForeignKeyColumns": [
+      "merge_candidate_id",
       "source_person_id",
       "target_person_id"
     ],
-    "uniqueConstraints": [],
+    "uniqueConstraints": [
+      [
+        "source_person_id"
+      ]
+    ],
     "hotIndexes": [],
     "partialUniqueRules": [],
     "checkRules": [],
     "revisionContract": {
-      "revisionColumns": [],
+      "revisionColumns": [
+        "merge_candidate_revision",
+        "previous_source_person_revision",
+        "committed_source_person_revision",
+        "previous_target_person_revision",
+        "committed_target_person_revision"
+      ],
       "currentPointerColumns": [],
       "pointerTargets": [],
       "pointerRules": []
@@ -75,37 +154,84 @@
       "rules": []
     },
     "semanticRules": [
-      "一个source Person最多一个terminal merge target"
+      "Candidate及source/target的previous/committed revision均有显式复合FK",
+      "一个source Person最多一个terminal merge target",
+      "Candidate、source/target revision和Preference选择都可从record追溯"
     ],
     "rawContract": {
-      "columns": "`merge_record_id PK, source_person_id FK, target_person_id FK, decision_digest, committed_at_ms`",
-      "constraints": "一个source Person最多一个terminal merge target"
+      "columns": "`merge_record_id PK, merge_candidate_id FK, merge_candidate_revision, source_person_id FK, previous_source_person_revision, committed_source_person_revision, target_person_id FK, previous_target_person_revision, committed_target_person_revision, preference_resolution_digest, decision_digest, committed_at_ms`",
+      "constraints": "Candidate及source/target的previous/committed revision均有显式复合FK；一个source Person最多一个terminal merge target；Candidate、source/target revision和Preference选择都可从record追溯"
     },
     "source": {
       "section": "8.5.13",
-      "line": 7510,
-      "lineDigest": "bf7dc5d332d701f84b9d19b39e487eaef3a33b6f2ea21ef1c30cd235a24ac5b4"
+      "line": 7799,
+      "lineDigest": "7f79630c8d883454f8e6d96375d6cec01673e6b2bbb00d7462f8cca8951e9a8d"
     },
     "foreignKeys": [
       {
         "columns": [
-          "source_person_id"
+          "merge_candidate_id",
+          "merge_candidate_revision"
         ],
-        "targetTable": "people_persons",
+        "targetTable": "people_merge_candidate_revisions",
         "targetColumns": [
-          "person_id"
+          "merge_candidate_id",
+          "revision"
         ],
-        "deletePolicy": "RESTRICT"
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
       },
       {
         "columns": [
-          "target_person_id"
+          "source_person_id",
+          "previous_source_person_revision"
         ],
-        "targetTable": "people_persons",
+        "targetTable": "people_person_revisions",
         "targetColumns": [
-          "person_id"
+          "person_id",
+          "revision"
         ],
-        "deletePolicy": "RESTRICT"
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "source_person_id",
+          "committed_source_person_revision"
+        ],
+        "targetTable": "people_person_revisions",
+        "targetColumns": [
+          "person_id",
+          "revision"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "target_person_id",
+          "previous_target_person_revision"
+        ],
+        "targetTable": "people_person_revisions",
+        "targetColumns": [
+          "person_id",
+          "revision"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "target_person_id",
+          "committed_target_person_revision"
+        ],
+        "targetTable": "people_person_revisions",
+        "targetColumns": [
+          "person_id",
+          "revision"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
       }
     ]
   }

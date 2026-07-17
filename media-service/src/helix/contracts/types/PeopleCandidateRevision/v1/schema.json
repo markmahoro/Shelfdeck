@@ -67,13 +67,33 @@
       "minLength": 1,
       "maxLength": 256
     },
+    "candidateRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "candidateSchemaRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
     "candidatePayloadDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
+    "evidenceDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
     "state": {
-      "const": "open"
+      "type": "string",
+      "enum": [
+        "open",
+        "accepted",
+        "dismissed",
+        "superseded"
+      ]
     }
   },
   "required": [
@@ -90,7 +110,10 @@
     "committedAtMs",
     "candidateKind",
     "candidateId",
+    "candidateRevision",
+    "candidateSchemaRef",
     "candidatePayloadDigest",
+    "evidenceDigest",
     "state"
   ]
 }

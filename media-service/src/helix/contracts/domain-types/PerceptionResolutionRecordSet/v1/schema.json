@@ -1,0 +1,202 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/PerceptionResolutionRecordSet/v1",
+  "title": "PerceptionResolutionRecordSet@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "queryInputDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "perceptionId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "recordKind": {
+            "type": "string",
+            "enum": [
+              "observation",
+              "correction",
+              "retraction"
+            ]
+          },
+          "sourceKind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sourceRecordKey": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sourceRecordRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "recordDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "facts": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "rating": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5
+              },
+              "watchedState": {
+                "type": "boolean"
+              }
+            },
+            "required": [],
+            "minProperties": 1
+          },
+          "observedTitle": {
+            "type": "string",
+            "minLength": 1
+          },
+          "observedAtMs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "identityAnchors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "anchorKind": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "anchorValue": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "confidenceClass": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "evidenceDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "required": [
+                "anchorKind",
+                "anchorValue",
+                "confidenceClass",
+                "evidenceDigest"
+              ]
+            },
+            "maxItems": 16
+          },
+          "provenanceRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "provenanceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "perceptionId",
+          "recordKind",
+          "sourceKind",
+          "sourceRecordKey",
+          "sourceRecordRevision",
+          "recordDigest",
+          "facts",
+          "observedTitle",
+          "observedAtMs",
+          "identityAnchors",
+          "provenanceRef",
+          "provenanceDigest"
+        ]
+      },
+      "maxItems": 256
+    },
+    "relations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "relationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "relationKind": {
+            "type": "string",
+            "enum": [
+              "duplicate_of",
+              "supersedes",
+              "retracts"
+            ]
+          },
+          "sourcePerceptionId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "targetPerceptionId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "ruleRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "evidenceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "relationId",
+          "relationKind",
+          "sourcePerceptionId",
+          "targetPerceptionId",
+          "ruleRevision",
+          "evidenceDigest"
+        ]
+      },
+      "maxItems": 1024
+    },
+    "recordSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "queryInputDigest",
+    "records",
+    "relations",
+    "recordSetDigest"
+  ]
+}

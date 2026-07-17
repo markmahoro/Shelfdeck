@@ -11,10 +11,10 @@ const contractsRoot = path.resolve(__dirname, '../../src/helix/contracts');
 const contracts = buildTransactionContracts(readTransactionSourceEntries(contractsRoot));
 const byName = new Map(contracts.map((contract) => [contract.displayName, contract]));
 
-test('builds all 18 canonical transactions with stable identities and crash fixtures', () => {
-  assert.equal(contracts.length, 18);
-  assert.equal(new Set(contracts.map((contract) => contract.transactionId)).size, 18);
-  assert.equal(contracts.reduce((sum, contract) => sum + contract.crashFixtures.length, 0), 19);
+test('builds all 24 canonical transactions with stable identities and crash fixtures', () => {
+  assert.equal(contracts.length, 24);
+  assert.equal(new Set(contracts.map((contract) => contract.transactionId)).size, 24);
+  assert.equal(contracts.reduce((sum, contract) => sum + contract.crashFixtures.length, 0), 25);
   for (const contract of contracts) {
     assert.ok(contract.crashFixtures.length > 0);
     assert.equal(contract.fenceContract.commitMarkerRequired, true);
@@ -50,7 +50,16 @@ test('models polymorphic Domain Fact ownership without generic SQL authority', (
   const dynamic = contract.participants.find((participant) => participant.dynamicTableSelector);
   assert.equal(dynamic.dynamicTableSelector, 'DomainFactCommitHandle.factSchemaRef');
   assert.equal(dynamic.owner, 'execution_owner');
-  assert.deepEqual(contract.writeTables, ['fx_commit_markers', 'fx_outbox']);
+  assert.deepEqual(contract.writeTables, ['fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox']);
+});
+
+test('freezes the Perception page as one typed-result transaction and keeps its Outbox internal', () => {
+  const contract = byName.get('Perception Acquisition Page Commit');
+  for (const table of ['perception_acquisitions', 'perception_source_cursors', 'perception_acquisition_commits',
+    'perception_records', 'perception_identity_anchors', 'perception_record_relations', 'fx_event_result_bindings',
+    'fx_commit_markers', 'fx_outbox']) assert.ok(contract.writeTables.includes(table), table);
+  assert.equal(contract.ownerScope, 'perception');
+  assert.ok(contract.crashFixtures[0].requiredInvariant.includes('Outbox不通知Libra/Arca'));
 });
 
 test('keeps Shelf Deregistration non-destructive and outside Off-deck', () => {

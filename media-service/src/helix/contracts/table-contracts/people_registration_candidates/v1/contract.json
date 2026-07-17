@@ -13,43 +13,21 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": true,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 2,
-        "name": "proposed_name",
-        "logicalType": "TEXT",
+        "name": "current_revision",
+        "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 3,
-        "name": "evidence_digest",
-        "logicalType": "TEXT",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": false
-      },
-      {
-        "ordinal": 4,
-        "name": "candidate_schema_ref",
-        "logicalType": "TEXT",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": false
-      },
-      {
-        "ordinal": 5,
-        "name": "candidate_json",
-        "logicalType": "TEXT_JSON",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": false
-      },
-      {
-        "ordinal": 6,
-        "name": "state",
+        "name": "current_state",
         "logicalType": "TEXT",
         "enumValues": [
           "open",
@@ -58,23 +36,71 @@
           "superseded"
         ],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "proposed_name",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "candidate_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 7,
+        "name": "candidate_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "candidate_payload_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
         "name": "created_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
-        "ordinal": 8,
+        "ordinal": 10,
         "name": "terminal_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       }
     ],
     "primaryKey": [
@@ -84,60 +110,91 @@
     "uniqueConstraints": [],
     "hotIndexes": [
       [
-        "state",
+        "current_state",
         "created_at_ms"
       ]
     ],
     "partialUniqueRules": [
-      "相同evidence digest至多一个open Candidate"
+      "`UNIQUE(evidence_digest) WHERE current_state='open'`"
     ],
     "checkRules": [
       {
-        "column": "state",
+        "column": "current_state",
         "enumValues": [
           "open",
           "accepted",
           "dismissed",
           "superseded"
         ]
+      },
+      {
+        "rule": "`candidate_json`保存Draft中精确Registration `candidatePayload`，其JCS digest必须等于`candidate_payload_digest`，且`proposed_name`以DDL CHECK匹配payload字段"
       }
     ],
     "revisionContract": {
-      "revisionColumns": [],
-      "currentPointerColumns": [],
-      "pointerTargets": [],
-      "pointerRules": []
+      "revisionColumns": [
+        "current_revision"
+      ],
+      "currentPointerColumns": [
+        "current_revision"
+      ],
+      "pointerTargets": [
+        {
+          "sourceColumns": [
+            "registration_candidate_id",
+            "current_revision",
+            "current_state"
+          ],
+          "targetTable": "people_registration_candidate_revisions",
+          "targetColumns": [
+            "registration_candidate_id",
+            "revision",
+            "state"
+          ],
+          "consistencyColumns": [],
+          "deletePolicy": "RESTRICT",
+          "deferrable": true
+        }
+      ],
+      "pointerRules": [
+        "`FOREIGN KEY(registration_candidate_id,current_revision,current_state)`显式引用revision表并`DEFERRABLE INITIALLY DEFERRED`"
+      ]
     },
     "jsonContracts": [
       {
         "column": "candidate_json",
         "schemaRefColumn": "candidate_schema_ref",
         "maxBytes": 16384,
-        "source": "table-row",
+        "source": "8.6.19-typed-payload",
         "requiresJsonValidCheck": true
       }
     ],
     "immutability": {
       "immutable": false,
-      "rules": []
+      "rules": [
+        "payload在Candidate生命周期内immutable"
+      ]
     },
     "deletion": {
       "foreignKeyPolicy": "ON DELETE RESTRICT",
       "rules": []
     },
     "semanticRules": [
-      "Candidate JSON上限`16 KiB`且大Reference只含handle",
-      "相同evidence digest至多一个open Candidate",
-      "`INDEX(state,created_at_ms)`"
+      "`candidate_json`保存Draft中精确Registration `candidatePayload`，其JCS digest必须等于`candidate_payload_digest`，且`proposed_name`以DDL CHECK匹配payload字段",
+      "payload在Candidate生命周期内immutable",
+      "JSON上限`16 KiB`且大Reference只含handle",
+      "`FOREIGN KEY(registration_candidate_id,current_revision,current_state)`显式引用revision表并`DEFERRABLE INITIALLY DEFERRED`",
+      "`UNIQUE(evidence_digest) WHERE current_state='open'`",
+      "`INDEX(current_state,created_at_ms)`"
     ],
     "rawContract": {
-      "columns": "`registration_candidate_id PK, proposed_name, evidence_digest, candidate_schema_ref, candidate_json, state(open|accepted|dismissed|superseded), created_at_ms, terminal_at_ms`",
-      "constraints": "Candidate JSON上限`16 KiB`且大Reference只含handle；相同evidence digest至多一个open Candidate；`INDEX(state,created_at_ms)`"
+      "columns": "`registration_candidate_id PK, current_revision, current_state, proposed_name, evidence_digest, candidate_schema_ref, candidate_json, candidate_payload_digest, created_at_ms, terminal_at_ms`",
+      "constraints": "`candidate_json`保存Draft中精确Registration `candidatePayload`，其JCS digest必须等于`candidate_payload_digest`，且`proposed_name`以DDL CHECK匹配payload字段；payload在Candidate生命周期内immutable；JSON上限`16 KiB`且大Reference只含handle；`FOREIGN KEY(registration_candidate_id,current_revision,current_state)`显式引用revision表并`DEFERRABLE INITIALLY DEFERRED`；`UNIQUE(evidence_digest) WHERE current_state='open'`；`INDEX(current_state,created_at_ms)`"
     },
     "source": {
       "section": "8.5.13",
-      "line": 7508,
-      "lineDigest": "76480115734d7f5989b7f16b836099bf5162ca1a63f3c9d40458d6df54d298a6"
+      "line": 7795,
+      "lineDigest": "3d5f894e2f70f04a1a8fc462ca7708bec32f7938b3849e29a5570de47fb8fb35"
     },
     "foreignKeys": []
   }

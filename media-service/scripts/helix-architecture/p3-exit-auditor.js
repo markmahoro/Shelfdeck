@@ -91,7 +91,7 @@ function auditP3Exit(options) {
   const manifest = JSON.parse(fs.readFileSync(path.join(
     repositoryRoot, 'media-service/src/helix/foundation/persistence/generated/clean-schema.manifest.json'
   ), 'utf8'));
-  if (manifest.tableCount !== 156) findings.push({ code: 'P3_GENERATED_TABLE_COUNT_DRIFT', actual: manifest.tableCount });
+  if (manifest.tableCount !== 161) findings.push({ code: 'P3_GENERATED_TABLE_COUNT_DRIFT', actual: manifest.tableCount });
   const evidence = {
     baselineCommit: P3_BASELINE,
     auditedCommit: git(repositoryRoot, ['rev-parse', 'HEAD']),
@@ -102,8 +102,8 @@ function auditP3Exit(options) {
     generatedTableCount: manifest.tableCount,
     generatedIndexCount: manifest.tables.flatMap((table) => table.indexes).length,
     partialUniqueCount: manifest.tables.flatMap((table) => table.indexes).filter((index) => index.kind === 'partial-unique').length,
-    canonicalTransactionCount: 18,
-    participantAndCommitFaultPoints: 132,
+    canonicalTransactionCount: 21,
+    participantAndCommitFaultPoints: 181,
     prohibitedActionsRun: []
   };
   return {

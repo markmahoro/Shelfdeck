@@ -161,6 +161,7 @@ function createAttemptPolicyController(options) {
     return binding;
   }
   return Object.freeze({
+    bindingFor(capabilityRef, effectClass) { return options.registry.bindingFor(capabilityRef, effectClass); },
     prepare(request) {
       exact(request, ['capabilityRef', 'effectClass', 'retryPolicyRef', 'timeoutPolicyRef', 'startedAtMs'], 'P4_ATTEMPT_PREPARE_SHAPE_INVALID');
       exactBinding(request); integer(request.startedAtMs, 'startedAtMs');

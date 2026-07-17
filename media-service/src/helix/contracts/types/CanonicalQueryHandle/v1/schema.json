@@ -35,6 +35,23 @@
       "type": "integer",
       "minimum": 1
     },
+    "typedInputSchemaRef": {
+      "type": "string",
+      "minLength": 1
+    },
+    "typedInput": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,127}$"
+      },
+      "patternProperties": {
+        "^[A-Za-z][A-Za-z0-9_.-]{0,127}$": {
+          "x-helix-requires-bound-schema": true
+        }
+      },
+      "additionalProperties": false,
+      "description": "Bounded typed query value validated against typedInputSchemaRef."
+    },
     "inputDigest": {
       "type": "string",
       "minLength": 1,
@@ -63,6 +80,8 @@
     "consumerDomain",
     "queryContract",
     "queryVersion",
+    "typedInputSchemaRef",
+    "typedInput",
     "inputDigest",
     "correlationId",
     "expiresAtMs",

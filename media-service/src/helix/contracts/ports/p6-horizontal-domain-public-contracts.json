@@ -27,10 +27,10 @@
       "methods": [
         "acceptMergeCandidate",
         "acceptRegistrationCandidate",
-        "addReferenceAsset",
-        "createPerson",
+        "addReferenceImage",
         "dismissCandidate",
-        "releaseReferenceAsset",
+        "registerPerson",
+        "releaseReferenceImage",
         "revisePerson",
         "setPreference"
       ],

@@ -1,0 +1,191 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/perception_acquisitions/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "perception_acquisitions",
+    "owner": "perception",
+    "prefix": "perception_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "perception_acquisition_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "perception_source_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "source_config_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "scope_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "scope_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "scope_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "initial_cursor_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "initial_cursor_value",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "active",
+          "completed",
+          "failed"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "terminal_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "perception_acquisition_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "perception_source_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [
+      "`UNIQUE(perception_source_id) WHERE state='active'`"
+    ],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "active",
+          "completed",
+          "failed"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "source_config_revision",
+        "initial_cursor_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "scope_json",
+        "schemaRefColumn": "scope_schema_ref",
+        "maxBytes": 16384,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "一次Acquisition只属于一个Source/config revision",
+      "Scope JSON上限`16 KiB`",
+      "`UNIQUE(perception_source_id) WHERE state='active'`",
+      "`initial_cursor_revision=0`只是“创建时不存在cursor row”的逻辑CAS sentinel，不是FK pointer",
+      "Process历史不覆盖"
+    ],
+    "rawContract": {
+      "columns": "`perception_acquisition_id PK, perception_source_id FK, source_config_revision, scope_schema_ref, scope_json, scope_digest, initial_cursor_revision, initial_cursor_value, state(active|completed|failed), created_at_ms, terminal_at_ms`",
+      "constraints": "一次Acquisition只属于一个Source/config revision；Scope JSON上限`16 KiB`；`UNIQUE(perception_source_id) WHERE state='active'`；`initial_cursor_revision=0`只是“创建时不存在cursor row”的逻辑CAS sentinel，不是FK pointer；Process历史不覆盖"
+    },
+    "source": {
+      "section": "8.5.13",
+      "line": 7779,
+      "lineDigest": "d4bfdbe0156ddb39ce060728f319fffe67e356241e77aed250f6fbb046790f3b"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "perception_source_id"
+        ],
+        "targetTable": "perception_sources",
+        "targetColumns": [
+          "perception_source_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

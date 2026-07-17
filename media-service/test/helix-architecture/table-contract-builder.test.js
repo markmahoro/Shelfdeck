@@ -10,15 +10,15 @@ const { readTableSourceEntries } = require('../../scripts/helix-architecture/tab
 const contractsRoot = path.resolve(__dirname, '../../src/helix/contracts');
 const contracts = buildTableContracts(readTableSourceEntries(contractsRoot));
 
-test('builds all 156 sole-Owner table contracts with accepted owner counts', () => {
-  assert.equal(contracts.length, 156);
-  assert.equal(new Set(contracts.map((contract) => contract.tableId)).size, 156);
+test('builds all 161 sole-Owner table contracts with accepted owner counts', () => {
+  assert.equal(contracts.length, 161);
+  assert.equal(new Set(contracts.map((contract) => contract.tableId)).size, 161);
   const counts = Object.fromEntries([...new Set(contracts.map((contract) => contract.owner))].map((owner) => [
     owner, contracts.filter((contract) => contract.owner === owner).length
   ]));
   assert.deepEqual(counts, {
     'execution-foundation': 23, 'material-control-authority': 2, procurement: 13, libra: 31,
-    arca: 54, perception: 7, people: 10, 'platform-settings': 16
+    arca: 54, perception: 9, people: 13, 'platform-settings': 16
   });
 });
 
@@ -29,10 +29,16 @@ test('parses inline PK/FK and enums without splitting parenthetical values', () 
   assert.deepEqual(columns[1].enumValues, ['open', 'accepted', 'dismissed']);
 });
 
+test('preserves an explicit nullable pointer marker from the SSOT table contract', () => {
+  const [pointer] = parseColumns('`current_cursor_revision NULL`');
+  assert.equal(pointer.nullable, true);
+  assert.equal(pointer.logicalType, 'INTEGER');
+});
+
 test('closes every SSOT state/status column to an explicit enum and keeps revision-set digests as TEXT', () => {
   for (const contract of contracts) {
     for (const column of contract.columns.filter((item) => /(?:^|_)(?:state|status)$/.test(item.name))) {
-      assert.ok(column.enumValues.length > 0, `${contract.tableId}.${column.name}`);
+      assert.ok(column.enumValues.length > 0 || column.logicalType === 'INTEGER_BOOLEAN', `${contract.tableId}.${column.name}`);
     }
   }
   for (const tableId of ['libra_handoff_a_receipts', 'arca_handoff_b_receipts', 'arca_ondeck_commit_receipts']) {
@@ -66,7 +72,7 @@ test('closes every PK, declared FK, JSON contract, and current revision pointer'
     }
     for (const json of contract.jsonContracts) {
       assert.ok(json.schemaRefColumn, `${contract.tableId}.${json.column}`);
-      assert.ok([16 * 1024, 64 * 1024].includes(json.maxBytes));
+      assert.ok([4 * 1024, 16 * 1024, 64 * 1024].includes(json.maxBytes));
     }
     const covered = new Set(contract.revisionContract.pointerTargets.flatMap((target) => [...target.sourceColumns, ...target.consistencyColumns]));
     for (const pointer of contract.revisionContract.currentPointerColumns) assert.ok(covered.has(pointer), `${contract.tableId}.${pointer}`);
@@ -77,16 +83,32 @@ test('freezes complete restart-recoverable Workflow Plan execution contracts', (
   const byId = new Map(contracts.map((contract) => [contract.tableId, contract]));
   const plan = byId.get('fx_workflow_plans');
   const node = byId.get('fx_plan_nodes');
-  for (const column of ['work_objective_type_ref', 'work_objective_version', 'diagnostic_classification']) {
+  for (const column of ['planner_ref', 'planner_version', 'catalog_digest', 'basis_digest', 'graph_digest']) {
     assert.ok(plan.columns.some((entry) => entry.name === column), column);
   }
-  for (const column of ['approval_requirement_ref', 'authorization_requirement_ref', 'retry_policy_ref', 'timeout_policy_ref',
-    'output_contract_ref', 'compensation_for_event_id', 'compensation_contract_ref']) {
+  for (const column of ['capability_ref', 'contract_version', 'input_binding_schema_ref', 'input_bindings_json',
+    'parameter_schema_ref', 'parameters_json', 'when_schema_ref', 'when_json', 'effect_class',
+    'fence_schema_ref', 'fence_basis_json', 'resource_demand_schema_ref', 'resource_demand_json']) {
     assert.ok(node.columns.some((entry) => entry.name === column), column);
   }
-  assert.equal(plan.immutability.immutable, true);
-  assert.equal(node.immutability.immutable, true);
-  assert.deepEqual(node.foreignKeys.find((entry) => entry.columns.includes('compensation_for_event_id')).targetTable, 'fx_workflow_events');
+  assert.deepEqual(node.primaryKey, ['plan_id', 'node_id']);
+  assert.equal(node.foreignKeys.find((entry) => entry.columns.includes('plan_id')).targetTable, 'fx_workflow_plans');
+});
+
+test('keeps Candidate payload immutable without misclassifying its revision head as an immutable row', () => {
+  const byId = new Map(contracts.map((contract) => [contract.tableId, contract]));
+  for (const kind of ['registration', 'merge']) {
+    const head = byId.get(`people_${kind}_candidates`);
+    const revisions = byId.get(`people_${kind}_candidate_revisions`);
+    assert.equal(head.immutability.immutable, false);
+    assert.deepEqual(head.revisionContract.currentPointerColumns, ['current_revision']);
+    assert.equal(revisions.immutability.immutable, true);
+  }
+});
+
+test('materializes the one-terminal-merge-target invariant as a database uniqueness constraint', () => {
+  const mergeRecords = contracts.find((contract) => contract.tableId === 'people_merge_records');
+  assert.deepEqual(mergeRecords.uniqueConstraints, [['source_person_id']]);
 });
 
 test('forbids Foundation and Platform FK ownership inversion', () => {

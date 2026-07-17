@@ -49,6 +49,10 @@
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
+    "resultSchemaRef": {
+      "type": "string",
+      "minLength": 1
+    },
     "commitIdempotencyKey": {
       "type": "string",
       "minLength": 1,
@@ -71,6 +75,7 @@
     "factSchemaRef",
     "expectedRevision",
     "payloadDigest",
+    "resultSchemaRef",
     "commitIdempotencyKey",
     "eventFenceDigest"
   ]

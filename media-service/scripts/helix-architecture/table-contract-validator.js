@@ -19,8 +19,8 @@ function readJson(filePath, findings) {
 
 function readInventoryEntries(contractsRoot, findings) {
   const manifest = readJson(path.join(contractsRoot, 'manifests', 'table-inventory.json'), findings);
-  if (!manifest || manifest.status !== 'active' || manifest.targetCount !== 156 || !Array.isArray(manifest.entryFiles)) {
-    findings.push(finding('INVALID_TABLE_INVENTORY_MANIFEST', 'Table inventory must be active with 156 sharded entries.'));
+  if (!manifest || manifest.status !== 'active' || manifest.targetCount !== 161 || !Array.isArray(manifest.entryFiles)) {
+    findings.push(finding('INVALID_TABLE_INVENTORY_MANIFEST', 'Table inventory must be active with 161 sharded entries.'));
     return [];
   }
   return manifest.entryFiles.flatMap((relativePath) => {
@@ -63,7 +63,8 @@ function validateTableContracts(options) {
     ));
     if (!Array.isArray(contract.primaryKey) || contract.primaryKey.length === 0) findings.push(finding('MISSING_TABLE_PRIMARY_KEY', 'Every canonical table requires a primary key.', { tableId: entry.id }));
     for (const column of contract.columns || []) {
-      if (/(?:^|_)(?:state|status)$/.test(column.name) && (!Array.isArray(column.enumValues) || column.enumValues.length === 0)) {
+      if (/(?:^|_)(?:state|status)$/.test(column.name) && column.logicalType !== 'INTEGER_BOOLEAN' &&
+          (!Array.isArray(column.enumValues) || column.enumValues.length === 0)) {
         findings.push(finding('UNBOUNDED_TABLE_STATE', 'Every state/status column requires an explicit enum.', { tableId: entry.id, column: column.name }));
       }
       if (column.name.endsWith('_id') && column.logicalType !== 'TEXT') findings.push(finding(
@@ -90,8 +91,8 @@ function validateTableContracts(options) {
       if (!json.schemaRefColumn || !contract.columns.some((column) => column.name === json.schemaRefColumn)) findings.push(finding(
         'JSON_SCHEMA_REF_MISSING', 'Every JSON column requires a fixed schema_ref column.', { tableId: entry.id, column: json.column }
       ));
-      if (![16 * 1024, 64 * 1024].includes(json.maxBytes) || json.requiresJsonValidCheck !== true) findings.push(finding(
-        'INVALID_JSON_COLUMN_CONTRACT', 'JSON columns require json_valid and a 16/64 KiB byte limit.', { tableId: entry.id, column: json.column }
+      if (![4 * 1024, 16 * 1024, 64 * 1024].includes(json.maxBytes) || json.requiresJsonValidCheck !== true) findings.push(finding(
+        'INVALID_JSON_COLUMN_CONTRACT', 'JSON columns require json_valid and a 4/16/64 KiB byte limit.', { tableId: entry.id, column: json.column }
       ));
     }
     const coveredPointers = new Set();

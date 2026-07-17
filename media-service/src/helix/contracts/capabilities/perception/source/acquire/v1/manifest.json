@@ -5,13 +5,18 @@
   "ownerScope": "perception",
   "effectClass": "pure_observation",
   "inputPorts": {
-    "perceptionSource": {
-      "schemaRef": "helix://contracts/capabilities/perception.source.acquire/v1/inputs#/$defs/perceptionSource",
+    "perceptionSourceSnapshot": {
+      "schemaRef": "helix://contracts/capabilities/perception.source.acquire/v1/inputs#/$defs/perceptionSourceSnapshot",
       "required": true,
       "cardinality": "one"
     },
     "integrationHandle": {
       "schemaRef": "helix://contracts/capabilities/perception.source.acquire/v1/inputs#/$defs/integrationHandle",
+      "required": true,
+      "cardinality": "one"
+    },
+    "perceptionAcquisitionCursor": {
+      "schemaRef": "helix://contracts/capabilities/perception.source.acquire/v1/inputs#/$defs/perceptionAcquisitionCursor",
       "required": true,
       "cardinality": "one"
     }
@@ -29,7 +34,7 @@
   },
   "sourceLocator": {
     "section": "8.6.13",
-    "line": 7785,
-    "lineDigest": "936aa5681db7e92d8ddcf5523c34096dfab8d4bf8ace295bdd914f5c2fca83b3"
+    "line": 8102,
+    "lineDigest": "b5aa853f6a29eb3fd38bf0e74583a7b0427b368d9d53d38ff982faa92e1e134b"
   }
 }

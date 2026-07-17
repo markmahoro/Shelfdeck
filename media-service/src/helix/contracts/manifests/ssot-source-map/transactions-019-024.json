@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "mapId": "helix.ssot-contract-source-map",
+  "category": "transactions",
+  "startOrdinal": 19,
+  "endOrdinal": 24,
+  "entries": [
+    {
+      "id": "Aftercare Inventory Commit",
+      "owner": "arca",
+      "atomicFactSet": "Aftercare repair result + Inventory Representation/Product Fact/Media-Cast relation revision + required new Material Control acquire/old Control release（relation-only修正时两者均为空）+ commit receipt",
+      "source": {
+        "section": "8.5.4",
+        "line": 7502,
+        "lineDigest": "de1c51e6951176758387b3780a09d928791d6d06095421ee2b96ff6cf5d7c45e"
+      }
+    },
+    {
+      "id": "Off-deck Review Scope",
+      "owner": "arca",
+      "atomicFactSet": "Review + per-Entry Reservation + immutable pre-authorization Destruction Scope + selection basis",
+      "source": {
+        "section": "8.5.4",
+        "line": 7503,
+        "lineDigest": "d84e96ef7c300f188c7958c64da90cad90657ecdc8ba7aab1237058b1403e2e7"
+      }
+    },
+    {
+      "id": "Off-deck Batch Authorization Intent",
+      "owner": "arca",
+      "atomicFactSet": "current Scope set verification + Selection Receipt + required High-volume Escalation Receipt + immutable Authorization Batch envelope；不创建跨Entry Case",
+      "source": {
+        "section": "8.5.4",
+        "line": 7504,
+        "lineDigest": "cae8451f709cd026085b9cb061981d31da7a71f040b5c417586bfa44b31cc22d"
+      }
+    },
+    {
+      "id": "Off-deck per-Entry Authorization/Case",
+      "owner": "arca",
+      "atomicFactSet": "Batch Intent + one current Scope verification + per-Scope Authorization + one Case + one Shelf Entry `offdeck_in_progress`；每Entry独立事务、幂等向前恢复",
+      "source": {
+        "section": "8.5.4",
+        "line": 7505,
+        "lineDigest": "e4c3bc41ecb66e8a9d32433eb9626890f9e04770d6d967b5c0131efe88c3a8aa"
+      }
+    },
+    {
+      "id": "Off-deck terminal",
+      "owner": "arca",
+      "atomicFactSet": "全部Deletion Evidence核对后的Deck Fact terminal + Control release + terminal receipt",
+      "source": {
+        "section": "8.5.4",
+        "line": 7506,
+        "lineDigest": "7dd0033bbb591666aee306f1ac5ec4ea1a987112608dc13ab5e84d5eb1cf0332"
+      }
+    },
+    {
+      "id": "Shelf Deregistration Commit",
+      "owner": "arca",
+      "atomicFactSet": "Shelf/Shelf Entry administrative terminal facts + precise Control release + release receipt",
+      "source": {
+        "section": "8.5.4",
+        "line": 7507,
+        "lineDigest": "b9fcc35f33ee61254788f9e023963bd2ad59075837e41ce005a239807a7502f3"
+      }
+    }
+  ]
+}

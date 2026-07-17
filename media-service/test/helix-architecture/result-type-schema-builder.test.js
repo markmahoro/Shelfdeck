@@ -44,3 +44,31 @@ test('flattens WorkspaceMediaHandle without accepting a raw nested workspace pay
   assert.equal(Object.hasOwn(schema.properties, 'workspaceMaterial'), false);
   assert.equal(schema.additionalProperties, false);
 });
+
+test('freezes the bounded Perception page, commit draft, typed result, and explicit relation contracts', () => {
+  assert.equal(schemas.NormalizedPerceptionRecordDraftList, undefined);
+  const page = schemas.PerceptionObservationPage;
+  assert.ok(page.required.includes('perceptionAcquisitionId'));
+  assert.deepEqual(page.properties.cursor.required, ['expectedCursorRevision', 'cursorIn', 'cursorOut']);
+  assert.equal(page.properties.observations.items.properties.inlinePayload.additionalProperties, false);
+  const draft = schemas.PerceptionAcquisitionCommitDraft;
+  assert.deepEqual(draft.properties.records.items.properties.recordKind.enum, ['observation', 'correction', 'retraction']);
+  assert.equal(draft.properties.records.items.properties.rating.anyOf[0].minimum, 1);
+  assert.equal(draft.properties.records.items.properties.rating.anyOf[0].maximum, 5);
+  assert.equal(draft.properties.records.items.required.includes('rating'), false);
+  assert.equal(draft.properties.records.items.required.includes('watchedState'), false);
+  assert.deepEqual(draft.properties.sourceLineageRelations.items.properties.relationKind.enum, ['supersedes', 'retracts']);
+  const result = schemas.PerceptionRecordCommitResult;
+  assert.ok(result.required.includes('acquisitionCommitReceiptId'));
+  assert.equal(Object.hasOwn(result.properties, 'resultDigest'), false);
+  assert.ok(schemas.PerceptionResolutionDraft.required.includes('duplicateRelationDrafts'));
+  assert.ok(schemas.PerceptionResolutionRevision.required.includes('committedRelationIds'));
+  for (const name of ['PerceptionResolutionDraft', 'PerceptionResolutionRevision']) {
+    const schema = schemas[name];
+    for (const field of ['querySchemaRef', 'factKind', 'recordSetDigest', 'ruleDigest']) assert.ok(schema.required.includes(field));
+    assert.deepEqual(schema.properties.factKind.enum, ['rating', 'watched']);
+    assert.equal(schema.properties.resolvedProvenance.properties.matchedAnchorEvidence.maxItems, 16);
+    assert.ok(schema.allOf[0].then.required.includes('resolvedValue'));
+    assert.ok(schema.allOf[0].else.required.includes('reasonCode'));
+  }
+});

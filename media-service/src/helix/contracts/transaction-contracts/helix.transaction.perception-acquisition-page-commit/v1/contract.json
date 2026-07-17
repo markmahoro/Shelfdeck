@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.perception-acquisition-page-commit/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.perception-acquisition-page-commit",
+    "displayName": "Perception Acquisition Page Commit",
+    "ownerScope": "perception",
+    "commitClass": "domain_fact_commit",
+    "atomicFactSet": "Acquisition/page fact + immutable Records/Anchors/explicit source-lineage Relations + source cursor revision/head CAS + page receipt + durable typed result + commit marker + Perception-internal Outbox；`hasMore=false`时同事务终结Acquisition",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "perception",
+        "access": "write",
+        "tables": [
+          "perception_acquisitions",
+          "perception_source_cursors",
+          "perception_acquisition_commits",
+          "perception_records",
+          "perception_identity_anchors",
+          "perception_record_relations"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_event_result_bindings",
+          "fx_commit_markers",
+          "fx_outbox"
+        ]
+      }
+    ],
+    "writeTables": [
+      "perception_acquisitions",
+      "perception_source_cursors",
+      "perception_acquisition_commits",
+      "perception_records",
+      "perception_identity_anchors",
+      "perception_record_relations",
+      "fx_event_result_bindings",
+      "fx_commit_markers",
+      "fx_outbox"
+    ],
+    "readTables": [
+      "perception_sources",
+      "perception_acquisitions",
+      "perception_source_cursors",
+      "perception_records"
+    ],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": true
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "perception-acquisition-page",
+        "faultInjectionPoints": "第一次Source同步、第二次Acquisition首页、配置/scope不兼容重扫、Acquire后bounded inline payload冻结、Normalize前、Record/Anchor/Relation participant后、cursor head CAS前后、typed Result/marker/Outbox前后、响应前崩溃",
+        "requiredInvariant": "仅从未存在cursor row时logical expected revision为0/storage pointer为NULL；后续Acquisition冻结真实head且revision永不重置；Normalize只读取digest-bound inline DTO，pure Acquire不创建Artifact；任一验证/CAS失败整页rollback；同来源事实不重复；cursor不越过未提交页；同marker重放返回原typed Result及相同storage result digest；Outbox不通知Libra/Arca",
+        "source": {
+          "section": "8.9.7",
+          "line": 8527
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7485,
+      "lineDigest": "acab0d1f4a68647d37ae2c4cee69f050fc8addfc0fb6f6e721e246605fa87043"
+    }
+  }
+}

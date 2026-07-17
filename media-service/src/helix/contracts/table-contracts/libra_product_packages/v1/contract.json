@@ -13,7 +13,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": true,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 2,
@@ -21,7 +22,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": true
+        "foreignKeyMarker": true,
+        "nullable": false
       },
       {
         "ordinal": 3,
@@ -29,7 +31,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": true
+        "foreignKeyMarker": true,
+        "nullable": false
       },
       {
         "ordinal": 4,
@@ -37,7 +40,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 5,
@@ -45,7 +49,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": true
+        "foreignKeyMarker": true,
+        "nullable": false
       },
       {
         "ordinal": 6,
@@ -53,7 +58,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 7,
@@ -61,41 +67,64 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 8,
+        "name": "media_cast_fact_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "media_cast_fact_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
         "name": "offload_context_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
-        "ordinal": 9,
+        "ordinal": 11,
         "name": "package_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
-        "ordinal": 10,
+        "ordinal": 12,
         "name": "state",
         "logicalType": "TEXT",
         "enumValues": [
           "published"
         ],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
-        "ordinal": 11,
+        "ordinal": 13,
         "name": "published_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       }
     ],
     "primaryKey": [
@@ -146,18 +175,19 @@
       "rules": []
     },
     "semanticRules": [
+      "`media_cast_fact_id/digest`必须引用同Run的完整Libra Media-Cast Product Fact snapshot",
       "`UNIQUE(libra_run_id,package_digest)`",
       "published Package immutable",
       "`INDEX(shelf_id,state,published_at_ms)`"
     ],
     "rawContract": {
-      "columns": "`on_deck_package_id PK, libra_run_id FK, subject_id FK, shelf_id, acceptance_spec_id FK, product_identity_digest, product_manifest_digest, offload_context_digest, package_digest, state, published_at_ms`",
-      "constraints": "`UNIQUE(libra_run_id,package_digest)`；published Package immutable；`INDEX(shelf_id,state,published_at_ms)`"
+      "columns": "`on_deck_package_id PK, libra_run_id FK, subject_id FK, shelf_id, acceptance_spec_id FK, product_identity_digest, product_manifest_digest, media_cast_fact_id, media_cast_fact_digest, offload_context_digest, package_digest, state, published_at_ms`",
+      "constraints": "`media_cast_fact_id/digest`必须引用同Run的完整Libra Media-Cast Product Fact snapshot；`UNIQUE(libra_run_id,package_digest)`；published Package immutable；`INDEX(shelf_id,state,published_at_ms)`"
     },
     "source": {
       "section": "8.5.11",
-      "line": 7426,
-      "lineDigest": "a502e6f674a603cddc29d5cac3d5659c3fc430a0bcb56f755953fc4fb3303bab"
+      "line": 7710,
+      "lineDigest": "5ee6af983eb9b2d958ff1651c80a6aa08c17d5a5a7c4ceac8155126ba3d55b1a"
     },
     "foreignKeys": [
       {
@@ -168,7 +198,8 @@
         "targetColumns": [
           "libra_run_id"
         ],
-        "deletePolicy": "RESTRICT"
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
       },
       {
         "columns": [
@@ -178,7 +209,8 @@
         "targetColumns": [
           "subject_id"
         ],
-        "deletePolicy": "RESTRICT"
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
       },
       {
         "columns": [
@@ -188,7 +220,8 @@
         "targetColumns": [
           "acceptance_spec_id"
         ],
-        "deletePolicy": "RESTRICT"
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
       }
     ]
   }

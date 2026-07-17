@@ -5,8 +5,13 @@
   "ownerScope": "perception",
   "effectClass": "pure_observation",
   "inputPorts": {
-    "sourceObservation": {
-      "schemaRef": "helix://contracts/capabilities/perception.record.normalize/v1/inputs#/$defs/sourceObservation",
+    "perceptionObservationPage": {
+      "schemaRef": "helix://contracts/capabilities/perception.record.normalize/v1/inputs#/$defs/perceptionObservationPage",
+      "required": true,
+      "cardinality": "one"
+    },
+    "perceptionNormalizationRuleRef": {
+      "schemaRef": "helix://contracts/capabilities/perception.record.normalize/v1/inputs#/$defs/perceptionNormalizationRuleRef",
       "required": true,
       "cardinality": "one"
     }
@@ -24,7 +29,7 @@
   },
   "sourceLocator": {
     "section": "8.6.13",
-    "line": 7786,
-    "lineDigest": "e9319c6e662a1d2188eb3fd0a4bc881d41b15868385e9e06599f7f78b15918f2"
+    "line": 8103,
+    "lineDigest": "2206f66ff49af564eb60aa0c359f124ff84f7dcce9a60df89ec053576f9e5a60"
   }
 }

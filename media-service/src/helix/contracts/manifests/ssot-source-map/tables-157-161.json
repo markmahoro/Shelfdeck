@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "mapId": "helix.ssot-contract-source-map",
+  "category": "tables",
+  "startOrdinal": 157,
+  "endOrdinal": 161,
+  "entries": [
+    {
+      "id": "platform_compute_device_probes",
+      "owner": "platform-settings",
+      "columnsContract": "`device_id FK, revision, capability_schema_ref, capability_json, capability_digest, probe_result, probed_at_ms`",
+      "constraintsContract": "`PK(device_id,revision)`；Capability JSON上限`16 KiB`；actual probe Evidence immutable",
+      "source": {
+        "section": "8.5.13",
+        "line": 7811,
+        "lineDigest": "3030b4d68bb0dc4ea91ab4c1c77aa9f86ca2265c987b72f542ad55861ba9daad"
+      }
+    },
+    {
+      "id": "platform_workers",
+      "owner": "platform-settings",
+      "columnsContract": "`worker_id PK, name, status, current_revision, created_at_ms, terminal_at_ms`",
+      "constraintsContract": "`INDEX(status,worker_id)`；deregister使用terminal state，不物理删除",
+      "source": {
+        "section": "8.5.13",
+        "line": 7812,
+        "lineDigest": "6bf55b189dbb45cf52eaf48ad372b60ec11d290dd8bd4127fd84ee745604365b"
+      }
+    },
+    {
+      "id": "platform_worker_revisions",
+      "owner": "platform-settings",
+      "columnsContract": "`worker_id FK, revision, endpoint, protocol_version, config_schema_ref, config_json, config_digest, secret_ref, capability_digest, effective_at_ms`",
+      "constraintsContract": "`PK(worker_id,revision)`；Config JSON上限`16 KiB`；current pointer显式FK",
+      "source": {
+        "section": "8.5.13",
+        "line": 7813,
+        "lineDigest": "ff9849acc3710deb68332088b189dc8e407b71ad9ebc2093d6045b60a50a42fe"
+      }
+    },
+    {
+      "id": "platform_worker_devices",
+      "owner": "platform-settings",
+      "columnsContract": "`worker_id FK, worker_revision, device_key, capability_digest, enabled, max_slots`",
+      "constraintsContract": "`PK(worker_id,worker_revision,device_key)`；只有probe确认的device可enabled",
+      "source": {
+        "section": "8.5.13",
+        "line": 7814,
+        "lineDigest": "bc0f5d106f86d806a95451a30ad664d4367fd2ef42c0cb6003514196417e2417"
+      }
+    },
+    {
+      "id": "platform_admin_credentials",
+      "owner": "platform-settings",
+      "columnsContract": "`credential_id, revision, secret_ref, state(active|rotated|revoked), created_at_ms, last_used_at_ms, terminal_at_ms`",
+      "constraintsContract": "`PK(credential_id,revision)`；只有一个active Admin credential revision；Secret明文不入库",
+      "source": {
+        "section": "8.5.13",
+        "line": 7815,
+        "lineDigest": "c508f77944715e61d0cb76cb13c4bb9a67ecc6e96b21fe744d802ae44636b0b3"
+      }
+    }
+  ]
+}

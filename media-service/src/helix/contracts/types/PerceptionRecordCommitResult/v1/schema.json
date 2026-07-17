@@ -58,7 +58,35 @@
       "type": "integer",
       "minimum": 0
     },
+    "acquisitionCommitReceiptId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "perceptionAcquisitionId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "sourceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "committedCursorRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
     "perceptionIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "maxItems": 1024
+    },
+    "relationIds": {
       "type": "array",
       "items": {
         "type": "string",
@@ -86,7 +114,12 @@
     "scopeId",
     "scopeDigest",
     "committedAtMs",
+    "acquisitionCommitReceiptId",
+    "perceptionAcquisitionId",
+    "sourceId",
+    "committedCursorRevision",
     "perceptionIds",
+    "relationIds",
     "insertedCount",
     "duplicateCount"
   ]

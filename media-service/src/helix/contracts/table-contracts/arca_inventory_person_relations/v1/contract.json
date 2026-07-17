@@ -9,80 +9,146 @@
     "columns": [
       {
         "ordinal": 1,
+        "name": "relation_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
         "name": "shelf_entry_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": true
+        "foreignKeyMarker": true,
+        "nullable": false
       },
       {
-        "ordinal": 2,
+        "ordinal": 3,
         "name": "inventory_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
-        "ordinal": 3,
+        "ordinal": 4,
         "name": "person_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": true
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "display_name",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
+        "name": "display_name_normalized",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
         "name": "role",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
-        "ordinal": 6,
+        "ordinal": 8,
         "name": "relation_source",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
-        "ordinal": 7,
+        "ordinal": 9,
+        "name": "provider_identity_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 10,
+        "name": "provider_identity_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 11,
+        "name": "provider_identity_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 12,
+        "name": "origin_evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 13,
         "name": "confidence_class",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
-        "ordinal": 8,
+        "ordinal": 14,
         "name": "relation_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       }
     ],
     "primaryKey": [
       "shelf_entry_id",
       "inventory_revision",
-      "person_id",
-      "role",
-      "relation_digest"
+      "relation_id"
     ],
     "declaredForeignKeyColumns": [
       "shelf_entry_id"
     ],
-    "uniqueConstraints": [],
+    "uniqueConstraints": [
+      [
+        "shelf_entry_id",
+        "inventory_revision",
+        "relation_digest"
+      ]
+    ],
     "hotIndexes": [
       [
         "person_id",
@@ -100,7 +166,15 @@
       "pointerTargets": [],
       "pointerRules": []
     },
-    "jsonContracts": [],
+    "jsonContracts": [
+      {
+        "column": "provider_identity_json",
+        "schemaRefColumn": "provider_identity_schema_ref",
+        "maxBytes": 4096,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
     "immutability": {
       "immutable": false,
       "rules": []
@@ -110,17 +184,22 @@
       "rules": []
     },
     "semanticRules": [
-      "`PK(shelf_entry_id,inventory_revision,person_id,role,relation_digest)`",
-      "`INDEX(person_id,role,shelf_entry_id)`供People/Off-deck只读Projection"
+      "`PK(shelf_entry_id,inventory_revision,relation_id)`",
+      "同一relation lineage可在新Inventory revision保留relationId",
+      "`person_id IS NULL`是合法未注册关系",
+      "Provider JSON上限`4 KiB`且digest匹配",
+      "`UNIQUE(shelf_entry_id,inventory_revision,relation_digest)`",
+      "`INDEX(person_id,role,shelf_entry_id)`供People/Off-deck只读Projection",
+      "Aftercare只能按`6.6.2.1`确定性Evidence发布新Inventory revision，不原地PATCH历史row"
     ],
     "rawContract": {
-      "columns": "`shelf_entry_id FK, inventory_revision, person_id, display_name, role, relation_source, confidence_class, relation_digest`",
-      "constraints": "`PK(shelf_entry_id,inventory_revision,person_id,role,relation_digest)`；`INDEX(person_id,role,shelf_entry_id)`供People/Off-deck只读Projection"
+      "columns": "`relation_id, shelf_entry_id FK, inventory_revision, person_id NULL, display_name, display_name_normalized, role, relation_source, provider_identity_schema_ref NULL, provider_identity_json NULL, provider_identity_digest NULL, origin_evidence_digest, confidence_class, relation_digest`",
+      "constraints": "`PK(shelf_entry_id,inventory_revision,relation_id)`；同一relation lineage可在新Inventory revision保留relationId；`person_id IS NULL`是合法未注册关系；Provider JSON上限`4 KiB`且digest匹配；`UNIQUE(shelf_entry_id,inventory_revision,relation_digest)`；`INDEX(person_id,role,shelf_entry_id)`供People/Off-deck只读Projection；Aftercare只能按`6.6.2.1`确定性Evidence发布新Inventory revision，不原地PATCH历史row"
     },
     "source": {
       "section": "8.5.12",
-      "line": 7458,
-      "lineDigest": "af5a6a06dc367bb46ed18e4d35aeb38d0664945662a3643ce6aa4a0adbfe4b46"
+      "line": 7742,
+      "lineDigest": "71a12e530d699cd8186a5ec1f7b56ab0b95cb0a27a1eb9d6575f24e04b4f968d"
     },
     "foreignKeys": [
       {
@@ -131,7 +210,8 @@
         "targetColumns": [
           "shelf_entry_id"
         ],
-        "deletePolicy": "RESTRICT"
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
       }
     ]
   }

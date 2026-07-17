@@ -13,7 +13,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": true,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 2,
@@ -21,7 +22,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 3,
@@ -29,7 +31,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 4,
@@ -37,7 +40,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 5,
@@ -45,7 +49,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 6,
@@ -53,21 +58,52 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 7,
+        "name": "result_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "result_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "result_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
         "name": "committed_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       }
     ],
     "primaryKey": [
       "commit_marker"
     ],
-    "declaredForeignKeyColumns": [],
+    "declaredForeignKeyColumns": [
+      "result_id"
+    ],
     "uniqueConstraints": [],
     "hotIndexes": [],
     "partialUniqueRules": [],
@@ -93,17 +129,30 @@
     },
     "semanticRules": [
       "`commit_marker`全局唯一",
+      "`domain_fact_commit|responsibility_control_commit`的result字段必填并与对应`fx_event_result_bindings`同事务写入",
       "不能更新或删除"
     ],
     "rawContract": {
-      "columns": "`commit_marker PK, effect_id, owner_domain, scope_type, scope_id, commit_digest, committed_at_ms`",
-      "constraints": "`commit_marker`全局唯一；不能更新或删除"
+      "columns": "`commit_marker PK, effect_id, owner_domain, scope_type, scope_id, commit_digest, result_id FK, result_schema_ref, result_digest, committed_at_ms`",
+      "constraints": "`commit_marker`全局唯一；`domain_fact_commit|responsibility_control_commit`的result字段必填并与对应`fx_event_result_bindings`同事务写入；不能更新或删除"
     },
     "source": {
       "section": "8.5.10",
-      "line": 7364,
-      "lineDigest": "e81667fa0ae8b562f301f56b1d56a7841fd556e180794485e6def3a9cb327dd0"
+      "line": 7648,
+      "lineDigest": "fa9ba9a89ca5cb842b23f63dcca01da37104e4913de5e32c2dac33f7097a47b9"
     },
-    "foreignKeys": []
+    "foreignKeys": [
+      {
+        "columns": [
+          "result_id"
+        ],
+        "targetTable": "fx_event_result_bindings",
+        "targetColumns": [
+          "result_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
   }
 }

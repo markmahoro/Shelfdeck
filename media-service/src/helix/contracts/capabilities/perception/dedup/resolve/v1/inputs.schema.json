@@ -5,25 +5,33 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "immutableRecords": {
-      "$ref": "#/$defs/immutableRecords"
+    "perceptionResolutionQuery": {
+      "$ref": "#/$defs/perceptionResolutionQuery"
     },
-    "resolutionRuleRevision": {
-      "$ref": "#/$defs/resolutionRuleRevision"
+    "perceptionResolutionRecordSet": {
+      "$ref": "#/$defs/perceptionResolutionRecordSet"
+    },
+    "perceptionResolutionRuleSnapshot": {
+      "$ref": "#/$defs/perceptionResolutionRuleSnapshot"
     }
   },
   "required": [
-    "immutableRecords",
-    "resolutionRuleRevision"
+    "perceptionResolutionQuery",
+    "perceptionResolutionRecordSet",
+    "perceptionResolutionRuleSnapshot"
   ],
   "$defs": {
-    "immutableRecords": {
-      "$ref": "helix://contracts/domain-types/ImmutableRecords/v1",
-      "x-helix-typeExpression": "Immutable records"
+    "perceptionResolutionQuery": {
+      "$ref": "helix://contracts/domain-types/PerceptionResolutionQuery/v1",
+      "x-helix-typeExpression": "PerceptionResolutionQuery"
     },
-    "resolutionRuleRevision": {
-      "$ref": "helix://contracts/domain-types/ResolutionRuleRevision/v1",
-      "x-helix-typeExpression": "Resolution rule revision"
+    "perceptionResolutionRecordSet": {
+      "$ref": "helix://contracts/domain-types/PerceptionResolutionRecordSet/v1",
+      "x-helix-typeExpression": "PerceptionResolutionRecordSet"
+    },
+    "perceptionResolutionRuleSnapshot": {
+      "$ref": "helix://contracts/domain-types/PerceptionResolutionRuleSnapshot/v1",
+      "x-helix-typeExpression": "PerceptionResolutionRuleSnapshot"
     }
   }
 }

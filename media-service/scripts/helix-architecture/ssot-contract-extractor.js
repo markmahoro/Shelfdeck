@@ -5,8 +5,8 @@ const crypto = require('crypto');
 const EXPECTED_COUNTS = Object.freeze({
   capabilities: 112,
   resultFamilies: 96,
-  tables: 156,
-  transactions: 18
+  tables: 161,
+  transactions: 24
 });
 
 function sha256(value) {
@@ -94,6 +94,8 @@ function ownerForTable(tableName) {
 
 function transactionOwner(name) {
   if (name === 'Domain Fact Commit') return 'polymorphic-domain-owner';
+  if (name === 'Perception Acquisition Page Commit' || name === 'Perception Resolution Commit') return 'perception';
+  if (name.startsWith('People Candidate ') || name === 'Direct Person Registration' || name === 'People Reference Image Commit') return 'people';
   if (name.startsWith('Procurement ')) return 'procurement';
   if (name === 'Field Routing Policy Publish' || name.startsWith('Handoff A') || name.startsWith('Libra ')) return 'libra';
   return 'arca';
@@ -140,8 +142,8 @@ function parseCapabilities(lines) {
 
 function buildResultFamilies(lines, capabilities) {
   const registryRange = requireRange(lines, '#### 8.6.19 Domain nominal type registry', '#### 8.6.20 Input schema、parameter与semantic validator边界');
-  const handleRange = requireRange(lines, '#### 8.6.18 Shared handle与envelope字段合同', '#### 8.6.19 Domain nominal type registry');
-  const outcomeRange = requireRange(lines, '#### 8.6.17 ExecutionContext与Outcome envelope', '#### 8.6.18 Shared handle与envelope字段合同');
+  const handleRange = requireRange(lines, '#### 8.6.18 Shared handle、formal input DTO与envelope字段合同', '#### 8.6.19 Domain nominal type registry');
+  const outcomeRange = requireRange(lines, '#### 8.6.17 ExecutionContext与Outcome envelope', '#### 8.6.18 Shared handle、formal input DTO与envelope字段合同');
   const definitionLocators = new Map();
 
   for (const range of [handleRange, registryRange]) {

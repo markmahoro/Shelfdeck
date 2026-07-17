@@ -38,7 +38,7 @@ function definitions(schemaManifest) {
       'event_id', 'plan_id', 'node_id', 'work_id', 'attempt_id', 'owner_domain', 'capability_ref', 'state'
     ]),
     nodes: listRepository(schemaManifest, 'startup_nodes', 'fx_plan_nodes', [
-      'plan_id', 'node_id', 'effect_class', 'retry_policy_ref', 'timeout_policy_ref'
+      'plan_id', 'node_id', 'effect_class'
     ]),
     attempts: listRepository(schemaManifest, 'startup_attempts', 'fx_event_attempts', [
       'event_attempt_id', 'event_id', 'ordinal', 'state', 'outcome_kind', 'failure_class', 'failure_code', 'started_at_ms'
@@ -138,11 +138,7 @@ function createStartupRecovery(options) {
         }
         try {
           options.registry.resolve(event.capability_ref, event.owner_domain);
-          const binding = options.policyRegistry.bindingFor(event.capability_ref, node.effect_class);
-          if (binding.retryPolicyRef !== node.retry_policy_ref || binding.timeoutPolicyRef !== node.timeout_policy_ref) {
-            findings.push('EVENT_POLICY_DRIFT:' + event.event_id);
-            continue;
-          }
+          options.policyRegistry.bindingFor(event.capability_ref, node.effect_class);
         } catch (error) {
           findings.push('UNKNOWN_EVENT_CONTRACT:' + event.event_id);
           continue;

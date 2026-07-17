@@ -12,7 +12,7 @@
       "constraintsContract": "`UNIQUE(authorization_id)`；只在Authorization事务中创建；Direct Intent不要求Candidate",
       "source": {
         "section": "8.5.12",
-        "line": 7483,
+        "line": 7767,
         "lineDigest": "39431939efb319de4ee6902e53bddf22cf1b589501c695d34392663403c93f3d"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "`PK(destruction_scope_id,material_key)`；append-only completion evidence",
       "source": {
         "section": "8.5.12",
-        "line": 7484,
+        "line": 7768,
         "lineDigest": "80df836f66b917346071463131df10c28384e576064fc715c70637d03826e7bf"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "`UNIQUE(offdeck_case_id)`；与Deck Fact terminal和Control release同事务成立",
       "source": {
         "section": "8.5.12",
-        "line": 7485,
+        "line": 7769,
         "lineDigest": "c9422a9dd022288f5e55118613cabb0d1961f91f3e93cd97d92a17f367ce1dca"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "每个Shelf一个non-terminal Deregistration；Supporting Work通过Foundation反向关联；不得引用Deletion Capability",
       "source": {
         "section": "8.5.12",
-        "line": 7486,
+        "line": 7770,
         "lineDigest": "b15fbdfb86e44ba54914a3af9704aceba5cd4a3366acbeb8b66d4f1df1bf23b1"
       }
     },
@@ -56,7 +56,7 @@
       "constraintsContract": "`PK(deregistration_id,material_key)`",
       "source": {
         "section": "8.5.12",
-        "line": 7487,
+        "line": 7771,
         "lineDigest": "a6975864f9858713c71fd2a87965c46dd8132bd8172b85011d5ac6df8d671698"
       }
     },
@@ -67,85 +67,85 @@
       "constraintsContract": "`UNIQUE(deregistration_id)`；与Shelf administrative terminal commit同事务成立",
       "source": {
         "section": "8.5.12",
-        "line": 7488,
+        "line": 7772,
         "lineDigest": "ece31b95a4de939548e814885196b887f9a0f38c6507ec76e9eb2165896b7d33"
       }
     },
     {
       "id": "perception_sources",
       "owner": "perception",
-      "columnsContract": "`perception_source_id PK, source_kind, integration_id, status, config_revision, current_cursor_revision, created_at_ms, updated_at_ms`",
-      "constraintsContract": "cursor pointer显式FK；`INDEX(status,source_kind,perception_source_id)`；Integration ID为opaque platform reference",
+      "columnsContract": "`perception_source_id PK, source_kind, integration_id, status, config_revision, current_cursor_revision NULL, created_at_ms, updated_at_ms`",
+      "constraintsContract": "`current_cursor_revision IS NULL`表示尚无cursor row；`FOREIGN KEY(perception_source_id,current_cursor_revision) REFERENCES perception_source_cursors(perception_source_id,revision)`，SQLite以NULL跳过尚不存在的optional pointer校验；`INDEX(status,source_kind,perception_source_id)`；Integration ID为opaque platform reference",
       "source": {
         "section": "8.5.13",
-        "line": 7494,
-        "lineDigest": "554e682c5985382d4d99178a83cf9fe7ef89af1ff04b560469408d1ad8e33402"
+        "line": 7778,
+        "lineDigest": "34bdf0c016622b6e972c4799b9a649b5fc923d7277a94298de102e9ece3182a5"
+      }
+    },
+    {
+      "id": "perception_acquisitions",
+      "owner": "perception",
+      "columnsContract": "`perception_acquisition_id PK, perception_source_id FK, source_config_revision, scope_schema_ref, scope_json, scope_digest, initial_cursor_revision, initial_cursor_value, state(active|completed|failed), created_at_ms, terminal_at_ms`",
+      "constraintsContract": "一次Acquisition只属于一个Source/config revision；Scope JSON上限`16 KiB`；`UNIQUE(perception_source_id) WHERE state='active'`；`initial_cursor_revision=0`只是“创建时不存在cursor row”的逻辑CAS sentinel，不是FK pointer；Process历史不覆盖",
+      "source": {
+        "section": "8.5.13",
+        "line": 7779,
+        "lineDigest": "d4bfdbe0156ddb39ce060728f319fffe67e356241e77aed250f6fbb046790f3b"
       }
     },
     {
       "id": "perception_source_cursors",
       "owner": "perception",
-      "columnsContract": "`perception_source_id FK, revision, cursor_value, observation_digest, committed_at_ms`",
-      "constraintsContract": "`PK(perception_source_id,revision)`；source current pointer显式引用，不覆盖历史",
+      "columnsContract": "`perception_source_id FK, revision, perception_acquisition_id FK, cursor_in, cursor_out, observation_page_digest, has_more, committed_at_ms`",
+      "constraintsContract": "`PK(perception_source_id,revision)`；revision从1递增且不重置；Source current pointer显式复合FK引用；仅Source从未同步时expected revision为0，配置/scope不兼容的后续Acquisition可令`cursor_in=null`但仍CAS当前非零revision；不覆盖历史",
       "source": {
         "section": "8.5.13",
-        "line": 7495,
-        "lineDigest": "455aafa9ae482823b356fda628b2fefeadfd8e620749cff769da848aac47a4fb"
+        "line": 7780,
+        "lineDigest": "d904ca3d03d48f36f837049824d373257b78c8abafb50cbbd529238ab700d8bb"
+      }
+    },
+    {
+      "id": "perception_acquisition_commits",
+      "owner": "perception",
+      "columnsContract": "`acquisition_commit_receipt_id PK, perception_acquisition_id FK, perception_source_id FK, page_ordinal, expected_cursor_revision, committed_cursor_revision, observation_page_digest, commit_marker, result_schema_ref, result_json, result_digest, committed_at_ms`",
+      "constraintsContract": "`UNIQUE(perception_acquisition_id,page_ordinal)`、`UNIQUE(commit_marker)`；Result JSON上限`64 KiB`且保存不含自digest字段的原始`perceptionIds/insertedCount/duplicateCount` typed result，`result_digest=SHA-256(JCS(result_json))`并与Event Result相同；与Record、Relation、cursor head、marker、Event Result和Outbox同事务",
+      "source": {
+        "section": "8.5.13",
+        "line": 7781,
+        "lineDigest": "fcfc7197ff64ee5d93a4cc71259da5b8142c3c10d80f1432849322ae26b9d9da"
       }
     },
     {
       "id": "perception_records",
       "owner": "perception",
-      "columnsContract": "`perception_id PK, perception_source_id FK, source_kind, source_record_key, source_record_revision, source_record_digest, rating, watched_state, observed_title, provenance_digest, observed_at_ms, committed_at_ms`",
-      "constraintsContract": "immutable；`UNIQUE(perception_source_id,source_record_key,source_record_revision,source_record_digest)`；rating非空时`CHECK 1..5`；`INDEX(source_kind,source_record_key,committed_at_ms)`",
+      "columnsContract": "`perception_id PK, perception_source_id FK, perception_acquisition_id FK, acquisition_commit_receipt_id FK, record_kind(observation|correction|retraction), source_kind, source_record_key, source_record_revision, source_record_digest, normalization_rule_ref, rating, watched_state, observed_title, provenance_ref, provenance_digest, record_digest, observed_at_ms, committed_at_ms`",
+      "constraintsContract": "immutable；`record_digest`覆盖Record标量与按键排序的Identity Anchor set；`UNIQUE(perception_source_id,source_record_key,source_record_revision,source_record_digest)`；Canonical rating非空时`CHECK integer 1..5`且`0`禁止，`watched_state`只允许`NULL|0|1`；CommitParticipant要求correction/retraction在同页各有匹配的outgoing `supersedes/retracts` relation；`INDEX(source_kind,source_record_key,committed_at_ms)`",
       "source": {
         "section": "8.5.13",
-        "line": 7496,
-        "lineDigest": "650b45a713d927dbd61fdd0fc9fe00a99f821b79742262b8c317dd3cfd163b6b"
+        "line": 7782,
+        "lineDigest": "8e303ca99674a3ca75bf36adb6174757f17d8bca03407b94cbe84c5014dbfcbb"
       }
     },
     {
       "id": "perception_identity_anchors",
       "owner": "perception",
       "columnsContract": "`perception_id FK, anchor_kind, anchor_value, confidence_class, evidence_digest`",
-      "constraintsContract": "`PK(perception_id,anchor_kind,anchor_value)`；`INDEX(anchor_kind,anchor_value)`",
+      "constraintsContract": "`PK(perception_id,anchor_kind,anchor_value)`；结构化Anchor不可退化为字符串数组；`INDEX(anchor_kind,anchor_value)`",
       "source": {
         "section": "8.5.13",
-        "line": 7497,
-        "lineDigest": "9dd08b94529e4e0e805e88b1947c20c812fab467d1711cb32c8ecce6ffb6baea"
+        "line": 7783,
+        "lineDigest": "5ba8fa35d17ba37da2917305f2d5a594609c85a4fc1975275b094524c6aa8352"
       }
     },
     {
-      "id": "perception_dedup_relations",
+      "id": "perception_record_relations",
       "owner": "perception",
-      "columnsContract": "`relation_id PK, left_perception_id FK, right_perception_id FK, rule_revision, relation, evidence_digest, committed_at_ms`",
-      "constraintsContract": "normalized pair unique；immutable",
+      "columnsContract": "`relation_id PK, relation_kind(duplicate_of|supersedes|retracts), source_perception_id FK, target_perception_id FK, rule_revision, evidence_digest, committed_at_ms`",
+      "constraintsContract": "immutable；source不得等于target；`UNIQUE(relation_kind,source_perception_id,target_perception_id)`；`duplicate_of`使用规范化pair，`supersedes|retracts`保持方向性",
       "source": {
         "section": "8.5.13",
-        "line": 7498,
-        "lineDigest": "e4af620be8ff3e6c403a1f7068330a3acc875536d614ab0dab3d34b625b341e3"
-      }
-    },
-    {
-      "id": "perception_resolution_revisions",
-      "owner": "perception",
-      "columnsContract": "`resolution_id PK, query_contract, query_input_digest, revision, result_kind, winning_perception_id, result_digest, resolved_at_ms`",
-      "constraintsContract": "`UNIQUE(query_contract,query_input_digest,revision)`；current pointer/index按query digest",
-      "source": {
-        "section": "8.5.13",
-        "line": 7499,
-        "lineDigest": "56cbf4c4b7660a191976d1e1b5976ac4cde8ae8b4178310f8bd8fc466925e1c5"
-      }
-    },
-    {
-      "id": "perception_resolution_heads",
-      "owner": "perception",
-      "columnsContract": "`query_contract, query_input_digest, current_resolution_id FK, current_revision, updated_at_ms`",
-      "constraintsContract": "`PK(query_contract,query_input_digest)`；Resolution Facade只读head，不在热路径计算`MAX(revision)`",
-      "source": {
-        "section": "8.5.13",
-        "line": 7500,
-        "lineDigest": "e0e04bc5e7ea7d3507b9193415762a191e0ae743b4a5a7fd2a3486542dd7b047"
+        "line": 7784,
+        "lineDigest": "0ad399b268cd03ae3b531454bc9ae2b22e060b9e7987c882e71c99f580ce6481"
       }
     }
   ]

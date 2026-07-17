@@ -5,7 +5,7 @@ const { materializeSsotSourceMap } = require('./helix-architecture/ssot-source-m
 
 const repositoryRoot = path.resolve(__dirname, '../..');
 const result = materializeSsotSourceMap({
-  sourcePath: path.join(repositoryRoot, 'docs', 'helix', 'TOP_DOWN_ARCHITECTURE_CONFIRMATION.md'),
+  sourcePath: process.env.HELIX_SSOT_PATH || path.join(repositoryRoot, 'docs', 'helix', 'TOP_DOWN_ARCHITECTURE_CONFIRMATION.md'),
   sourceRelativePath: 'docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md',
   outputRoot: path.join(repositoryRoot, 'media-service', 'src', 'helix', 'contracts', 'manifests', 'ssot-source-map')
 });

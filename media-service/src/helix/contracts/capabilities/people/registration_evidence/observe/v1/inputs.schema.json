@@ -5,25 +5,37 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "providerPersonHint": {
-      "$ref": "#/$defs/providerPersonHint"
-    },
-    "integrationHandle": {
-      "$ref": "#/$defs/integrationHandle"
+    "providerPersonHintIntegrationHandleOrOnDeckPersonEvidenceProjectionItem": {
+      "$ref": "#/$defs/providerPersonHintIntegrationHandleOrOnDeckPersonEvidenceProjectionItem"
     }
   },
   "required": [
-    "providerPersonHint",
-    "integrationHandle"
+    "providerPersonHintIntegrationHandleOrOnDeckPersonEvidenceProjectionItem"
   ],
   "$defs": {
-    "providerPersonHint": {
-      "$ref": "helix://contracts/domain-types/ProviderPersonHint/v1",
-      "x-helix-typeExpression": "Provider/person hint"
-    },
-    "integrationHandle": {
-      "$ref": "helix://contracts/types/IntegrationHandle/v1",
-      "x-helix-typeExpression": "IntegrationHandle"
+    "providerPersonHintIntegrationHandleOrOnDeckPersonEvidenceProjectionItem": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "providerPersonHint": {
+              "$ref": "helix://contracts/domain-types/ProviderPersonHint/v1"
+            },
+            "integrationHandle": {
+              "$ref": "helix://contracts/types/IntegrationHandle/v1"
+            }
+          },
+          "required": [
+            "providerPersonHint",
+            "integrationHandle"
+          ]
+        },
+        {
+          "$ref": "helix://contracts/domain-types/OnDeckPersonEvidenceProjectionItem/v1"
+        }
+      ],
+      "x-helix-typeExpression": "(Provider person hint + IntegrationHandle) | OnDeckPersonEvidenceProjectionItem"
     }
   }
 }

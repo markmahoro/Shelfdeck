@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.people-reference-image-commit/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.people-reference-image-commit",
+    "displayName": "People Reference Image Commit",
+    "ownerScope": "people",
+    "commitClass": "domain_fact_commit",
+    "atomicFactSet": "PeopleReferenceMaintenanceDecision + Person/reference revision CAS + Asset/唯一派生Face同时active或released + new Reference revision/head + 所有受影响Person的Reference Projection checkpoint + durable typed result + commit marker + People-internal Outbox",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "people",
+        "access": "write",
+        "tables": [
+          "people_persons",
+          "people_reference_assets",
+          "people_reference_faces",
+          "people_reference_revisions"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_event_result_bindings",
+          "fx_commit_markers",
+          "fx_outbox"
+        ]
+      }
+    ],
+    "writeTables": [
+      "people_persons",
+      "people_reference_assets",
+      "people_reference_faces",
+      "people_reference_revisions",
+      "fx_event_result_bindings",
+      "fx_commit_markers",
+      "fx_outbox"
+    ],
+    "readTables": [
+      "people_persons",
+      "people_reference_assets",
+      "people_reference_faces",
+      "people_reference_revisions",
+      "people_merge_records"
+    ],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": true
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "people-reference-image",
+        "faultInjectionPoints": "Reference Image导入后、Face检测/Embedding前后、Asset/Face/Reference head/Projection checkpoint各participant后、typed Result/marker/Outbox前后、响应前崩溃",
+        "requiredInvariant": "零Face、多Face、handle/digest/model不一致或stale Person/Reference revision整体失败；Asset与唯一Face同事务active或released；Reference revision和所有受影响Projection checkpoint连续；同marker重放返回原typed Result",
+        "source": {
+          "section": "8.9.7",
+          "line": 11228
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7490,
+      "lineDigest": "9189e51ed83f21bc8aa73672970d80c045e3e148fab9e0dd6866b1d54b632f4e"
+    }
+  }
+}

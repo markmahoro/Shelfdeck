@@ -43,24 +43,46 @@
       "minimum": 0
     },
     "personPair": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "leftPersonId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 256
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "personId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "factDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "preferenceRevision": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
         },
-        "rightPersonId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 256
-        }
+        "required": [
+          "personId",
+          "revision",
+          "factDigest",
+          "preferenceRevision"
+        ]
       },
-      "required": [
-        "leftPersonId",
-        "rightPersonId"
-      ]
+      "maxItems": 2,
+      "minItems": 2
     },
     "matchSignals": {
       "type": "array",
@@ -155,6 +177,15 @@
         "recordDigest",
         "entries"
       ]
+    },
+    "evidenceRefs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "maxItems": 256
     }
   },
   "required": [
@@ -168,6 +199,7 @@
     "observedAtMs",
     "personPair",
     "matchSignals",
-    "conflictSummary"
+    "conflictSummary",
+    "evidenceRefs"
   ]
 }

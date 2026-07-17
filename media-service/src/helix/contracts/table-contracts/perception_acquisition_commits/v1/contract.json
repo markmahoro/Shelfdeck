@@ -1,0 +1,203 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/perception_acquisition_commits/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "perception_acquisition_commits",
+    "owner": "perception",
+    "prefix": "perception_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "acquisition_commit_receipt_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "perception_acquisition_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "perception_source_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "page_ordinal",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "expected_cursor_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "committed_cursor_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "observation_page_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "commit_marker",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "result_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "result_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "result_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "committed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "acquisition_commit_receipt_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "perception_acquisition_id",
+      "perception_source_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "perception_acquisition_id",
+        "page_ordinal"
+      ],
+      [
+        "commit_marker"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "expected_cursor_revision",
+        "committed_cursor_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "result_json",
+        "schemaRefColumn": "result_schema_ref",
+        "maxBytes": 65536,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(perception_acquisition_id,page_ordinal)`、`UNIQUE(commit_marker)`",
+      "Result JSON上限`64 KiB`且保存不含自digest字段的原始`perceptionIds/insertedCount/duplicateCount` typed result，`result_digest=SHA-256(JCS(result_json))`并与Event Result相同",
+      "与Record、Relation、cursor head、marker、Event Result和Outbox同事务"
+    ],
+    "rawContract": {
+      "columns": "`acquisition_commit_receipt_id PK, perception_acquisition_id FK, perception_source_id FK, page_ordinal, expected_cursor_revision, committed_cursor_revision, observation_page_digest, commit_marker, result_schema_ref, result_json, result_digest, committed_at_ms`",
+      "constraints": "`UNIQUE(perception_acquisition_id,page_ordinal)`、`UNIQUE(commit_marker)`；Result JSON上限`64 KiB`且保存不含自digest字段的原始`perceptionIds/insertedCount/duplicateCount` typed result，`result_digest=SHA-256(JCS(result_json))`并与Event Result相同；与Record、Relation、cursor head、marker、Event Result和Outbox同事务"
+    },
+    "source": {
+      "section": "8.5.13",
+      "line": 7781,
+      "lineDigest": "fcfc7197ff64ee5d93a4cc71259da5b8142c3c10d80f1432849322ae26b9d9da"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "perception_acquisition_id"
+        ],
+        "targetTable": "perception_acquisitions",
+        "targetColumns": [
+          "perception_acquisition_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "perception_source_id"
+        ],
+        "targetTable": "perception_sources",
+        "targetColumns": [
+          "perception_source_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

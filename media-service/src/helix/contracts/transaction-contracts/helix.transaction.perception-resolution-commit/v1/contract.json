@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.perception-resolution-commit/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.perception-resolution-commit",
+    "displayName": "Perception Resolution Commit",
+    "ownerScope": "perception",
+    "commitClass": "domain_fact_commit",
+    "atomicFactSet": "exact Query/Record Set/Rule digests + Resolution revision/head CAS + Draft明确的`duplicate_of`关系 + durable typed result + commit marker + Perception-internal Outbox",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "perception",
+        "access": "write",
+        "tables": [
+          "perception_resolution_revisions",
+          "perception_resolution_heads",
+          "perception_record_relations"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_event_result_bindings",
+          "fx_commit_markers",
+          "fx_outbox"
+        ]
+      }
+    ],
+    "writeTables": [
+      "perception_resolution_revisions",
+      "perception_resolution_heads",
+      "perception_record_relations",
+      "fx_event_result_bindings",
+      "fx_commit_markers",
+      "fx_outbox"
+    ],
+    "readTables": [
+      "perception_records",
+      "perception_identity_anchors",
+      "perception_record_relations",
+      "perception_resolution_revisions",
+      "perception_resolution_heads"
+    ],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": true
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "perception-resolution",
+        "faultInjectionPoints": "Query Handle验证、候选检索前后、Record/Relation snapshot后、pure Resolver前后、Resolution/head/duplicate relation participant后、typed Result/marker前后",
+        "requiredInvariant": "Handle携带可读取typed query；Assembler只读Perception Store并按Rule取得完整候选超集，不决定winner；Executor不旁读Store；被retracted/superseded或缺少请求kind的Record不能获胜；最高strength同值稳定found、同tier冲突稳定not_found；fuzzy match不生成duplicate；任一query/record-set/rule digest变化形成新revision；同三重digest重放返回同一typed Resolution",
+        "source": {
+          "section": "8.9.7",
+          "line": 8643
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7486,
+      "lineDigest": "20aa1dc0d93d9bb4f935471469b4c240de7a94a7c6d27c38dde3497bf5bda5d6"
+    }
+  }
+}

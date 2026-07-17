@@ -5,8 +5,8 @@
   "ownerScope": "perception",
   "effectClass": "domain_fact_commit",
   "inputPorts": {
-    "resolutionDraft": {
-      "schemaRef": "helix://contracts/capabilities/perception.resolution.commit/v1/inputs#/$defs/resolutionDraft",
+    "perceptionResolutionDraft": {
+      "schemaRef": "helix://contracts/capabilities/perception.resolution.commit/v1/inputs#/$defs/perceptionResolutionDraft",
       "required": true,
       "cardinality": "one"
     },
@@ -29,7 +29,7 @@
   },
   "sourceLocator": {
     "section": "8.6.13",
-    "line": 7789,
-    "lineDigest": "98b3959819aca0b1b8e833b5ef198b383884dcc88bc21e913532d2e5f5c42ef7"
+    "line": 8106,
+    "lineDigest": "a5f366f08e4b9b6012657fa5f8b69ddf661f6be0c05135b837c5be2e693b6153"
   }
 }

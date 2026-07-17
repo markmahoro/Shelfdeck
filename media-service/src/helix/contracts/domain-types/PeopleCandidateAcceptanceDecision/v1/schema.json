@@ -1,0 +1,290 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/PeopleCandidateAcceptanceDecision/v1",
+  "title": "PeopleCandidateAcceptanceDecision@1",
+  "x-helix-ssotRefs": [
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "decisionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "candidateKind": {
+          "const": "registration"
+        },
+        "candidateId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "expectedCandidateRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "candidatePayloadDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "decisionOrigin": {
+          "type": "string",
+          "enum": [
+            "user",
+            "strong_identity_rule"
+          ]
+        },
+        "actorId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "ruleRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "decisionDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "newPersonId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "decisionId",
+        "candidateKind",
+        "candidateId",
+        "expectedCandidateRevision",
+        "candidatePayloadDigest",
+        "decisionOrigin",
+        "decisionDigest",
+        "newPersonId"
+      ],
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "decisionOrigin": {
+                  "const": "user"
+                }
+              },
+              "required": [
+                "actorId"
+              ],
+              "not": {
+                "required": [
+                  "ruleRevision"
+                ]
+              }
+            },
+            {
+              "properties": {
+                "decisionOrigin": {
+                  "const": "strong_identity_rule"
+                }
+              },
+              "required": [
+                "ruleRevision"
+              ],
+              "not": {
+                "required": [
+                  "actorId"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "decisionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "candidateKind": {
+          "const": "merge"
+        },
+        "candidateId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "expectedCandidateRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "candidatePayloadDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "decisionOrigin": {
+          "type": "string",
+          "enum": [
+            "user",
+            "strong_identity_rule"
+          ]
+        },
+        "actorId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "ruleRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "decisionDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "sourcePersonId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "targetPersonId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "expectedSourcePersonRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "expectedTargetPersonRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "expectedSourcePreferenceRevision": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "integer",
+              "minimum": 1
+            }
+          ]
+        },
+        "expectedTargetPreferenceRevision": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "integer",
+              "minimum": 1
+            }
+          ]
+        },
+        "preferenceResolution": {
+          "type": "string",
+          "enum": [
+            "keep_source",
+            "keep_target",
+            "set_explicit"
+          ]
+        },
+        "explicitPreferenceLevel": {
+          "type": "integer",
+          "minimum": -2,
+          "maximum": 2
+        }
+      },
+      "required": [
+        "decisionId",
+        "candidateKind",
+        "candidateId",
+        "expectedCandidateRevision",
+        "candidatePayloadDigest",
+        "decisionOrigin",
+        "decisionDigest",
+        "sourcePersonId",
+        "targetPersonId",
+        "expectedSourcePersonRevision",
+        "expectedTargetPersonRevision",
+        "expectedSourcePreferenceRevision",
+        "expectedTargetPreferenceRevision",
+        "preferenceResolution"
+      ],
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "decisionOrigin": {
+                  "const": "user"
+                }
+              },
+              "required": [
+                "actorId"
+              ],
+              "not": {
+                "required": [
+                  "ruleRevision"
+                ]
+              }
+            },
+            {
+              "properties": {
+                "decisionOrigin": {
+                  "const": "strong_identity_rule"
+                }
+              },
+              "required": [
+                "ruleRevision"
+              ],
+              "not": {
+                "required": [
+                  "actorId"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "if": {
+            "properties": {
+              "preferenceResolution": {
+                "const": "set_explicit"
+              }
+            },
+            "required": [
+              "preferenceResolution"
+            ]
+          },
+          "then": {
+            "required": [
+              "explicitPreferenceLevel"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "explicitPreferenceLevel"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

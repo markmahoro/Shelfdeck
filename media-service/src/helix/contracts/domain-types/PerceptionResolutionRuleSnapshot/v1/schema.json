@@ -1,0 +1,235 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/PerceptionResolutionRuleSnapshot/v1",
+  "title": "PerceptionResolutionRuleSnapshot@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "ruleContract": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ruleVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "supportedFactKinds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "rating",
+          "watched"
+        ]
+      },
+      "maxItems": 2
+    },
+    "candidateRetrievalClauses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "anchorKind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "lookupMode": {
+            "type": "string",
+            "enum": [
+              "exact",
+              "normalized_exact",
+              "bounded_fuzzy"
+            ]
+          },
+          "normalizationProfileRef": {
+            "type": "string",
+            "minLength": 1
+          },
+          "threshold": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "maxCandidates": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "anchorKind",
+          "lookupMode",
+          "maxCandidates"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "lookupMode": {
+                  "const": "bounded_fuzzy"
+                }
+              },
+              "required": [
+                "lookupMode"
+              ]
+            },
+            "then": {
+              "required": [
+                "threshold"
+              ]
+            },
+            "else": {
+              "not": {
+                "required": [
+                  "threshold"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "maxItems": 32
+    },
+    "anchorMatchers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "anchorKind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "matchMode": {
+            "type": "string",
+            "enum": [
+              "exact",
+              "normalized_exact",
+              "fuzzy"
+            ]
+          },
+          "normalizationProfileRef": {
+            "type": "string",
+            "minLength": 1
+          },
+          "strengthRank": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "minConfidenceClass": {
+            "type": "string",
+            "minLength": 1
+          },
+          "threshold": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "required": [
+          "anchorKind",
+          "matchMode",
+          "strengthRank",
+          "minConfidenceClass"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "matchMode": {
+                  "const": "fuzzy"
+                }
+              },
+              "required": [
+                "matchMode"
+              ]
+            },
+            "then": {
+              "required": [
+                "threshold"
+              ]
+            },
+            "else": {
+              "not": {
+                "required": [
+                  "threshold"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "maxItems": 32
+    },
+    "winnerOrder": {
+      "const": "strongest_anchor_then_value_consensus_then_perception_id"
+    },
+    "equalStrengthConflict": {
+      "const": "not_found"
+    },
+    "duplicateProofMatchers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "anchorKind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "matchMode": {
+            "const": "exact"
+          },
+          "minConfidenceClass": {
+            "type": "string",
+            "minLength": 1
+          },
+          "requireSameAnchorValue": {
+            "const": true
+          },
+          "requireSameFactKind": {
+            "const": true
+          },
+          "requireSameCanonicalValue": {
+            "const": true
+          }
+        },
+        "required": [
+          "anchorKind",
+          "matchMode",
+          "minConfidenceClass",
+          "requireSameAnchorValue",
+          "requireSameFactKind",
+          "requireSameCanonicalValue"
+        ]
+      },
+      "maxItems": 32
+    },
+    "maxCandidateRecords": {
+      "const": 256
+    },
+    "ruleDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "ruleContract",
+    "ruleVersion",
+    "supportedFactKinds",
+    "candidateRetrievalClauses",
+    "anchorMatchers",
+    "winnerOrder",
+    "equalStrengthConflict",
+    "duplicateProofMatchers",
+    "maxCandidateRecords",
+    "ruleDigest"
+  ]
+}

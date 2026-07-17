@@ -60,23 +60,112 @@
       "minLength": 1,
       "maxLength": 256
     },
-    "referenceAssetIds": {
+    "referenceRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "operationKind": {
+      "type": "string",
+      "enum": [
+        "add_image",
+        "release_image"
+      ]
+    },
+    "affectedReferenceAssetId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "affectedReferenceFaceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "activeReferenceAssets": {
       "type": "array",
       "items": {
-        "type": "string",
-        "minLength": 1,
-        "maxLength": 256
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "referenceAssetId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "artifactHandleId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "artifactDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "referenceAssetId",
+          "artifactHandleId",
+          "artifactDigest"
+        ]
       },
       "maxItems": 1024
     },
-    "referenceFaceIds": {
+    "activeReferenceFaces": {
       "type": "array",
       "items": {
-        "type": "string",
-        "minLength": 1,
-        "maxLength": 256
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "referenceFaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "referenceAssetId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "embeddingHandleId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "embeddingDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "modelRef": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "referenceFaceId",
+          "referenceAssetId",
+          "embeddingHandleId",
+          "embeddingDigest",
+          "modelRef"
+        ]
       },
       "maxItems": 1024
+    },
+    "activeAssetSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "activeFaceSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "referenceSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     }
   },
   "required": [
@@ -92,7 +181,14 @@
     "commitMarker",
     "committedAtMs",
     "personId",
-    "referenceAssetIds",
-    "referenceFaceIds"
+    "referenceRevision",
+    "operationKind",
+    "affectedReferenceAssetId",
+    "affectedReferenceFaceId",
+    "activeReferenceAssets",
+    "activeReferenceFaces",
+    "activeAssetSetDigest",
+    "activeFaceSetDigest",
+    "referenceSetDigest"
   ]
 }

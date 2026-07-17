@@ -5,25 +5,33 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "perceptionSource": {
-      "$ref": "#/$defs/perceptionSource"
+    "perceptionSourceSnapshot": {
+      "$ref": "#/$defs/perceptionSourceSnapshot"
     },
     "integrationHandle": {
       "$ref": "#/$defs/integrationHandle"
+    },
+    "perceptionAcquisitionCursor": {
+      "$ref": "#/$defs/perceptionAcquisitionCursor"
     }
   },
   "required": [
-    "perceptionSource",
-    "integrationHandle"
+    "perceptionSourceSnapshot",
+    "integrationHandle",
+    "perceptionAcquisitionCursor"
   ],
   "$defs": {
-    "perceptionSource": {
-      "$ref": "helix://contracts/domain-types/PerceptionSource/v1",
-      "x-helix-typeExpression": "Perception Source"
+    "perceptionSourceSnapshot": {
+      "$ref": "helix://contracts/domain-types/PerceptionSourceSnapshot/v1",
+      "x-helix-typeExpression": "PerceptionSourceSnapshot"
     },
     "integrationHandle": {
       "$ref": "helix://contracts/types/IntegrationHandle/v1",
       "x-helix-typeExpression": "IntegrationHandle"
+    },
+    "perceptionAcquisitionCursor": {
+      "$ref": "helix://contracts/domain-types/PerceptionAcquisitionCursor/v1",
+      "x-helix-typeExpression": "PerceptionAcquisitionCursor"
     }
   }
 }

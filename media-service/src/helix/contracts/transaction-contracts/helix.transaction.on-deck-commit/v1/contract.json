@@ -7,7 +7,7 @@
     "displayName": "On-deck Commit",
     "ownerScope": "arca",
     "commitClass": "responsibility_control_commit",
-    "atomicFactSet": "Shelf Entry create/extend + Canonical Content Identity + Inventory Representation revision + Deck Fact + required Control acquire/release + Off-load Completion Outbox",
+    "atomicFactSet": "Shelf Entry create/extend + Canonical Content Identity + Inventory Representation/accepted Product Fact/完整Media-Cast relation snapshot revision + Deck Fact + required Control acquire/release + Off-load Completion Outbox",
     "participants": [
       {
         "participantKind": "domain",
@@ -40,6 +40,7 @@
         "owner": "execution-foundation",
         "access": "write",
         "tables": [
+          "fx_event_result_bindings",
           "fx_commit_markers",
           "fx_outbox"
         ]
@@ -58,6 +59,7 @@
       "arca_offload_completions",
       "fx_material_controls",
       "fx_material_control_revisions",
+      "fx_event_result_bindings",
       "fx_commit_markers",
       "fx_outbox"
     ],
@@ -89,8 +91,8 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7228,
-      "lineDigest": "3456b10dfe92437e824176f7e6bf8770849a89ff06ae140593184abbe12715e4"
+      "line": 7500,
+      "lineDigest": "3bc6c0219ad5a70df82a937621dc2889d8774d3b2fafd2caab032c66c0ac2b90"
     }
   }
 }

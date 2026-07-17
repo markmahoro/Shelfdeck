@@ -10,8 +10,8 @@
     "8.5.5",
     "8.9.7"
   ],
-  "targetCount": 18,
+  "targetCount": 24,
   "entryFiles": [
-    "transaction-inventory/entries-001-018.json"
+    "transaction-inventory/entries-001-024.json"
   ]
 }

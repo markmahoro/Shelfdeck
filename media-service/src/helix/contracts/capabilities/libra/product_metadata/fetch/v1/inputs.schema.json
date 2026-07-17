@@ -5,25 +5,32 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "resolvedProductIdentity": {
-      "$ref": "#/$defs/resolvedProductIdentity"
+    "metadataFetchIntent": {
+      "$ref": "#/$defs/metadataFetchIntent"
     },
-    "integrationHandle": {
-      "$ref": "#/$defs/integrationHandle"
+    "physicalMaterialReadHandleOrIntegrationHandle": {
+      "$ref": "#/$defs/physicalMaterialReadHandleOrIntegrationHandle"
     }
   },
   "required": [
-    "resolvedProductIdentity",
-    "integrationHandle"
+    "metadataFetchIntent",
+    "physicalMaterialReadHandleOrIntegrationHandle"
   ],
   "$defs": {
-    "resolvedProductIdentity": {
-      "$ref": "helix://contracts/types/ResolvedProductIdentity/v1",
-      "x-helix-typeExpression": "ResolvedProductIdentity"
+    "metadataFetchIntent": {
+      "$ref": "helix://contracts/domain-types/MetadataFetchIntent/v1",
+      "x-helix-typeExpression": "MetadataFetchIntent"
     },
-    "integrationHandle": {
-      "$ref": "helix://contracts/types/IntegrationHandle/v1",
-      "x-helix-typeExpression": "IntegrationHandle"
+    "physicalMaterialReadHandleOrIntegrationHandle": {
+      "oneOf": [
+        {
+          "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1"
+        },
+        {
+          "$ref": "helix://contracts/types/IntegrationHandle/v1"
+        }
+      ],
+      "x-helix-typeExpression": "(PhysicalMaterialReadHandle | IntegrationHandle)"
     }
   }
 }

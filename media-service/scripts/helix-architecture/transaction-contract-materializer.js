@@ -5,8 +5,11 @@ const path = require('path');
 const { buildTransactionContracts, digestValue } = require('./transaction-contract-builder');
 
 function readTransactionSourceEntries(contractsRoot) {
-  const filePath = path.join(contractsRoot, 'manifests', 'ssot-source-map', 'transactions-001-018.json');
-  return JSON.parse(fs.readFileSync(filePath, 'utf8')).entries;
+  const sourceRoot = path.join(contractsRoot, 'manifests', 'ssot-source-map');
+  return fs.readdirSync(sourceRoot)
+    .filter((name) => /^transactions-.*\.json$/.test(name))
+    .sort()
+    .flatMap((name) => JSON.parse(fs.readFileSync(path.join(sourceRoot, name), 'utf8')).entries);
 }
 
 function buildTransactionInventoryEntries(contractsRoot) {
@@ -46,8 +49,13 @@ function materializeTransactionContracts(contractsRoot) {
     }, null, 2)}\n`);
     delete entry.transactionContract;
   }
-  const shardPath = path.join(contractsRoot, 'manifests', 'transaction-inventory', 'entries-001-018.json');
-  fs.mkdirSync(path.dirname(shardPath), { recursive: true });
+  const inventoryRoot = path.join(contractsRoot, 'manifests', 'transaction-inventory');
+  fs.mkdirSync(inventoryRoot, { recursive: true });
+  for (const fileName of fs.readdirSync(inventoryRoot)) {
+    if (/^entries-\d{3}-\d{3}\.json$/.test(fileName)) fs.rmSync(path.join(inventoryRoot, fileName));
+  }
+  const shardFile = `entries-001-${String(entries.length).padStart(3, '0')}.json`;
+  const shardPath = path.join(inventoryRoot, shardFile);
   fs.writeFileSync(shardPath, `${JSON.stringify({
     schemaVersion: 1, manifestId: 'helix.inventory.canonical-transactions', entries
   }, null, 2)}\n`);
@@ -59,8 +67,8 @@ function materializeTransactionContracts(contractsRoot) {
     owner: 'contracts',
     status: 'active',
     ssotRefs: ['8.5.4', '8.5.5', '8.9.7'],
-    targetCount: 18,
-    entryFiles: ['transaction-inventory/entries-001-018.json']
+    targetCount: entries.length,
+    entryFiles: [`transaction-inventory/${shardFile}`]
   };
   fs.writeFileSync(path.join(contractsRoot, 'manifests', 'transaction-inventory.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   return { manifest, entries };

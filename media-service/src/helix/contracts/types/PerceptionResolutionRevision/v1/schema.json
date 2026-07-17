@@ -59,7 +59,33 @@
       "type": "string",
       "minLength": 1
     },
+    "querySchemaRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
     "queryInputDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "factKind": {
+      "type": "string",
+      "enum": [
+        "rating",
+        "watched"
+      ]
+    },
+    "recordSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "ruleRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "ruleDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
@@ -72,16 +98,134 @@
       ]
     },
     "winningPerceptionId": {
-      "anyOf": [
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "resolvedValue": {
+      "oneOf": [
         {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "factKind": {
+              "const": "rating"
+            },
+            "value": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            }
+          },
+          "required": [
+            "factKind",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "factKind": {
+              "const": "watched"
+            },
+            "value": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "factKind",
+            "value"
+          ]
+        }
+      ]
+    },
+    "resolvedProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "winningPerceptionId": {
           "type": "string",
           "minLength": 1,
           "maxLength": 256
         },
-        {
-          "type": "null"
+        "sourceKind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceRecordKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceRecordRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "provenanceRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "provenanceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "matchedAnchorEvidence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "anchorKind": {
+                "type": "string",
+                "minLength": 1
+              },
+              "strengthRank": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "evidenceDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "anchorKind",
+              "strengthRank",
+              "evidenceDigest"
+            ]
+          },
+          "maxItems": 16
         }
+      },
+      "required": [
+        "winningPerceptionId",
+        "sourceKind",
+        "sourceRecordKey",
+        "sourceRecordRevision",
+        "provenanceRef",
+        "provenanceDigest",
+        "matchedAnchorEvidence"
       ]
+    },
+    "reasonCode": {
+      "type": "string",
+      "enum": [
+        "no_matching_record",
+        "requested_fact_absent",
+        "strongest_value_conflict"
+      ]
+    },
+    "committedRelationIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "maxItems": 1024
     }
   },
   "required": [
@@ -97,7 +241,63 @@
     "commitMarker",
     "committedAtMs",
     "queryContract",
+    "querySchemaRef",
     "queryInputDigest",
-    "resultKind"
+    "factKind",
+    "recordSetDigest",
+    "ruleRevision",
+    "ruleDigest",
+    "resultKind",
+    "committedRelationIds"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "resultKind": {
+            "const": "found"
+          }
+        },
+        "required": [
+          "resultKind"
+        ]
+      },
+      "then": {
+        "required": [
+          "winningPerceptionId",
+          "resolvedValue",
+          "resolvedProvenance"
+        ],
+        "not": {
+          "required": [
+            "reasonCode"
+          ]
+        }
+      },
+      "else": {
+        "required": [
+          "reasonCode"
+        ],
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "winningPerceptionId"
+              ]
+            },
+            {
+              "required": [
+                "resolvedValue"
+              ]
+            },
+            {
+              "required": [
+                "resolvedProvenance"
+              ]
+            }
+          ]
+        }
+      }
+    }
   ]
 }

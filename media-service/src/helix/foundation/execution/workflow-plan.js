@@ -204,17 +204,14 @@ function definitions(schemaManifest) {
     plans: createRepositoryDefinition({ repositoryId: 'plans', owner: 'execution-foundation', schemaManifest, statements: {
       find_attempt: { kind: 'select-one', tableId: 'fx_workflow_plans', columns: ['plan_id', 'graph_digest', 'state'], keyColumns: ['attempt_id'] },
       insert: { kind: 'insert', tableId: 'fx_workflow_plans', columns: [
-        'plan_id', 'attempt_id', 'planner_ref', 'planner_version', 'work_objective_type_ref', 'work_objective_version',
-        'catalog_digest', 'basis_digest', 'graph_digest', 'state', 'diagnostic_classification', 'created_at_ms'
+        'plan_id', 'attempt_id', 'planner_ref', 'planner_version', 'catalog_digest', 'basis_digest', 'graph_digest', 'state', 'created_at_ms'
       ] }
     } }),
     nodes: createRepositoryDefinition({ repositoryId: 'plan_nodes', owner: 'execution-foundation', schemaManifest, statements: {
       insert: { kind: 'insert', tableId: 'fx_plan_nodes', columns: [
         'plan_id', 'node_id', 'capability_ref', 'contract_version', 'input_binding_schema_ref', 'input_bindings_json',
         'parameter_schema_ref', 'parameters_json', 'when_schema_ref', 'when_json', 'effect_class', 'fence_schema_ref',
-        'fence_basis_json', 'resource_demand_schema_ref', 'resource_demand_json', 'approval_requirement_ref',
-        'authorization_requirement_ref', 'retry_policy_ref', 'timeout_policy_ref', 'output_contract_ref',
-        'compensation_for_event_id', 'compensation_contract_ref'
+        'fence_basis_json', 'resource_demand_schema_ref', 'resource_demand_json'
       ] }
     } }),
     edges: createRepositoryDefinition({ repositoryId: 'plan_edges', owner: 'execution-foundation', schemaManifest, statements: {
@@ -258,10 +255,9 @@ function createWorkflowPlanPublisher(options) {
             }
             context.repository('plans').invoke('insert', {
               plan_id: plan.planId, attempt_id: plan.workAttemptId, planner_ref: plan.plannerContractRef,
-              planner_version: plan.plannerVersion, work_objective_type_ref: plan.workObjectiveTypeRef,
-              work_objective_version: plan.workObjectiveVersion, catalog_digest: plan.capabilityCatalogDigest,
+              planner_version: plan.plannerVersion, catalog_digest: plan.capabilityCatalogDigest,
               basis_digest: plan.executionBasisDigest, graph_digest: validated.graphDigest, state: plan.resolution,
-              diagnostic_classification: plan.diagnosticClassification, created_at_ms: context.commitTimeMs
+              created_at_ms: context.commitTimeMs
             });
             const byEvent = new Map(plan.nodes.map((node) => [node.eventId, node]));
             for (const node of plan.nodes) {
@@ -280,11 +276,7 @@ function createWorkflowPlanPublisher(options) {
                 parameter_schema_ref: node.parametersSchemaRef, parameters_json: canonicalJson(node.parameters),
                 when_schema_ref: node.whenSchemaRef, when_json: node.when === null ? null : canonicalJson(node.when),
                 effect_class: node.effectClass, fence_schema_ref: node.fenceSchemaRef, fence_basis_json: canonicalJson(node.fenceBasis),
-                resource_demand_schema_ref: node.resourceDemandSchemaRef, resource_demand_json: canonicalJson(node.resourceDemand),
-                approval_requirement_ref: node.approvalRequirementRef, authorization_requirement_ref: node.authorizationRequirementRef,
-                retry_policy_ref: node.retryPolicyRef, timeout_policy_ref: node.timeoutPolicyRef,
-                output_contract_ref: node.outputContractRef, compensation_for_event_id: node.compensationForEventId || null,
-                compensation_contract_ref: node.compensationContractRef || null
+                resource_demand_schema_ref: node.resourceDemandSchemaRef, resource_demand_json: canonicalJson(node.resourceDemand)
               });
               for (const dependency of node.dependsOn) context.repository('plan_edges').invoke('insert', {
                 plan_id: plan.planId, from_node_id: byEvent.get(dependency.eventId).nodeId,

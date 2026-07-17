@@ -17,7 +17,7 @@ function fixture() {
   const contracts = path.join(repository, 'media-service', 'src', 'helix', 'contracts');
   fs.mkdirSync(path.join(repository, 'docs', 'helix'), { recursive: true });
   fs.copyFileSync(
-    path.join(repositoryRoot, 'docs', 'helix', 'TOP_DOWN_ARCHITECTURE_CONFIRMATION.md'),
+    process.env.HELIX_SSOT_PATH || path.join(repositoryRoot, 'docs', 'helix', 'TOP_DOWN_ARCHITECTURE_CONFIRMATION.md'),
     path.join(repository, 'docs', 'helix', 'TOP_DOWN_ARCHITECTURE_CONFIRMATION.md')
   );
   fs.cpSync(actualContractsRoot, contracts, { recursive: true });

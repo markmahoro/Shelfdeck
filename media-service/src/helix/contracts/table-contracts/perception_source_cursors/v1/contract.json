@@ -13,7 +13,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": true
+        "foreignKeyMarker": true,
+        "nullable": false
       },
       {
         "ordinal": 2,
@@ -21,31 +22,62 @@
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 3,
-        "name": "cursor_value",
+        "name": "perception_acquisition_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": true,
+        "nullable": false
       },
       {
         "ordinal": 4,
-        "name": "observation_digest",
+        "name": "cursor_in",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 5,
+        "name": "cursor_out",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "observation_page_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "has_more",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
         "name": "committed_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       }
     ],
     "primaryKey": [
@@ -53,7 +85,8 @@
       "revision"
     ],
     "declaredForeignKeyColumns": [
-      "perception_source_id"
+      "perception_source_id",
+      "perception_acquisition_id"
     ],
     "uniqueConstraints": [],
     "hotIndexes": [],
@@ -66,7 +99,7 @@
       "currentPointerColumns": [],
       "pointerTargets": [],
       "pointerRules": [
-        "source current pointer显式引用，不覆盖历史"
+        "Source current pointer显式复合FK引用"
       ]
     },
     "jsonContracts": [],
@@ -80,16 +113,19 @@
     },
     "semanticRules": [
       "`PK(perception_source_id,revision)`",
-      "source current pointer显式引用，不覆盖历史"
+      "revision从1递增且不重置",
+      "Source current pointer显式复合FK引用",
+      "仅Source从未同步时expected revision为0，配置/scope不兼容的后续Acquisition可令`cursor_in=null`但仍CAS当前非零revision",
+      "不覆盖历史"
     ],
     "rawContract": {
-      "columns": "`perception_source_id FK, revision, cursor_value, observation_digest, committed_at_ms`",
-      "constraints": "`PK(perception_source_id,revision)`；source current pointer显式引用，不覆盖历史"
+      "columns": "`perception_source_id FK, revision, perception_acquisition_id FK, cursor_in, cursor_out, observation_page_digest, has_more, committed_at_ms`",
+      "constraints": "`PK(perception_source_id,revision)`；revision从1递增且不重置；Source current pointer显式复合FK引用；仅Source从未同步时expected revision为0，配置/scope不兼容的后续Acquisition可令`cursor_in=null`但仍CAS当前非零revision；不覆盖历史"
     },
     "source": {
       "section": "8.5.13",
-      "line": 7495,
-      "lineDigest": "455aafa9ae482823b356fda628b2fefeadfd8e620749cff769da848aac47a4fb"
+      "line": 7780,
+      "lineDigest": "d904ca3d03d48f36f837049824d373257b78c8abafb50cbbd529238ab700d8bb"
     },
     "foreignKeys": [
       {
@@ -100,7 +136,19 @@
         "targetColumns": [
           "perception_source_id"
         ],
-        "deletePolicy": "RESTRICT"
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "perception_acquisition_id"
+        ],
+        "targetTable": "perception_acquisitions",
+        "targetColumns": [
+          "perception_acquisition_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
       }
     ]
   }

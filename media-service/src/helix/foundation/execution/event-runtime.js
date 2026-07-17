@@ -36,11 +36,10 @@ function definitions(schemaManifest) {
       find: { kind: 'select-one', tableId: 'fx_plan_nodes', columns: [
         'plan_id', 'node_id', 'capability_ref', 'contract_version', 'input_binding_schema_ref', 'input_bindings_json',
         'parameter_schema_ref', 'parameters_json', 'effect_class', 'fence_schema_ref', 'fence_basis_json',
-        'resource_demand_schema_ref', 'resource_demand_json', 'approval_requirement_ref', 'authorization_requirement_ref',
-        'retry_policy_ref', 'timeout_policy_ref', 'output_contract_ref', 'compensation_for_event_id', 'compensation_contract_ref'
+        'resource_demand_schema_ref', 'resource_demand_json'
       ], keyColumns: ['plan_id', 'node_id'] },
       list: { kind: 'select-all', tableId: 'fx_plan_nodes', columns: [
-        'plan_id', 'node_id', 'when_schema_ref', 'when_json', 'compensation_for_event_id', 'compensation_contract_ref'
+        'plan_id', 'node_id', 'when_schema_ref', 'when_json'
       ], keyColumns: [] }
     } }),
     edges: createRepositoryDefinition({ repositoryId: 'runtime_edges', owner: 'execution-foundation', schemaManifest, statements: {
@@ -56,7 +55,7 @@ function definitions(schemaManifest) {
     } }),
     plans: createRepositoryDefinition({ repositoryId: 'runtime_plans', owner: 'execution-foundation', schemaManifest, statements: {
       find: { kind: 'select-one', tableId: 'fx_workflow_plans', columns: [
-        'plan_id', 'attempt_id', 'work_objective_type_ref', 'work_objective_version', 'basis_digest', 'state', 'diagnostic_classification'
+        'plan_id', 'attempt_id', 'basis_digest', 'state'
       ], keyColumns: ['plan_id'] }
     } }),
     eventAttempts: createRepositoryDefinition({ repositoryId: 'runtime_event_attempts', owner: 'execution-foundation', schemaManifest, statements: {
@@ -96,6 +95,7 @@ function createEventRuntime(options) {
   if (!options || !options.schemaManifest || !options.unitOfWork || !options.scheduler || !options.governor || !options.registry ||
       !options.dispatcher || !options.executionInputProvider || !options.fenceValidator || !options.resourceDemandResolver ||
       !options.attemptPolicy || typeof options.attemptPolicy.prepare !== 'function' ||
+      typeof options.attemptPolicy.bindingFor !== 'function' ||
       typeof options.attemptPolicy.decideFailure !== 'function' || typeof options.attemptPolicy.decideDeferred !== 'function' ||
       !options.timeoutController || typeof options.timeoutController.execute !== 'function' ||
       !options.circuitBreaker || typeof options.circuitBreaker.allows !== 'function' ||
@@ -128,7 +128,7 @@ function createEventRuntime(options) {
         else if (satisfied) {
           const node = nodeById.get(event.node_id);
           if (!node) fail('P4_EVENT_NODE_FACT_MISSING', 'Pending Event has no Plan Node.');
-          if (node.compensation_for_event_id !== null) continue;
+          if (inbound.some((edge) => edge.dependency_kind === 'terminal')) continue;
           if (node.when_schema_ref === null) nextState = 'ready';
           else {
             const decision = options.whenEvaluator.evaluate(Object.freeze({
@@ -303,10 +303,8 @@ function createEventRuntime(options) {
       try {
         const snapshot = readSnapshot(eventId);
         const entry = options.registry.resolve(snapshot.event.capability_ref, snapshot.event.owner_domain);
-        if (snapshot.node.output_contract_ref !== entry.manifest.resultSchemaRef ||
-            snapshot.node.effect_class !== entry.manifest.effectClass ||
-            snapshot.node.approval_requirement_ref !== (entry.manifest.approvalRequirementRef || null) ||
-            snapshot.node.authorization_requirement_ref !== (entry.manifest.authorizationRequirementRef || null)) fail(
+        const policyBinding = options.attemptPolicy.bindingFor(snapshot.event.capability_ref, snapshot.node.effect_class);
+        if (snapshot.node.effect_class !== entry.manifest.effectClass || !policyBinding) fail(
           'P4_EVENT_FROZEN_CONTRACT_MISMATCH', 'Durable Plan execution contracts do not match the exact Capability version.'
         );
         const requiresJournal = entry.manifest.effectClass !== 'pure_observation';
@@ -316,8 +314,8 @@ function createEventRuntime(options) {
           'P4_EVENT_EFFECT_JOURNAL_REQUIRED', 'Every non-pure Event requires the Effect Journal before dispatch.'
         );
         const inputs = options.executionInputProvider.prepare(Object.freeze({ snapshot }));
-        if ((snapshot.node.approval_requirement_ref !== null) !== (inputs.approvalHandle !== undefined) ||
-            (snapshot.node.authorization_requirement_ref !== null) !== (inputs.authorizationHandle !== undefined)) fail(
+        if (((entry.manifest.approvalRequirementRef || null) !== null) !== (inputs.approvalHandle !== undefined) ||
+            ((entry.manifest.authorizationRequirementRef || null) !== null) !== (inputs.authorizationHandle !== undefined)) fail(
           'P4_EVENT_REQUIRED_HANDLE_MISMATCH', 'Execution inputs must carry exactly the approval and authorization required by the durable Plan.'
         );
         for (const circuitKey of ['foundation/event-dispatch', 'owner/' + snapshot.event.owner_domain + '/event-dispatch']) {
@@ -332,7 +330,7 @@ function createEventRuntime(options) {
         const startedAtMs = clock();
         const attemptContract = options.attemptPolicy.prepare(Object.freeze({
           capabilityRef: snapshot.event.capability_ref, effectClass: snapshot.node.effect_class,
-          retryPolicyRef: snapshot.node.retry_policy_ref, timeoutPolicyRef: snapshot.node.timeout_policy_ref, startedAtMs
+          retryPolicyRef: policyBinding.retryPolicyRef, timeoutPolicyRef: policyBinding.timeoutPolicyRef, startedAtMs
         }));
         if (!attemptContract || !Number.isSafeInteger(attemptContract.deadlineAtMs) || attemptContract.deadlineAtMs <= startedAtMs ||
             (inputs.deadlineAtMs !== undefined && inputs.deadlineAtMs !== attemptContract.deadlineAtMs)) fail(
@@ -421,7 +419,7 @@ function createEventRuntime(options) {
         let policyDecision = null;
         if (outcome.kind === 'failed') policyDecision = options.attemptPolicy.decideFailure(Object.freeze({
           capabilityRef: snapshot.event.capability_ref, effectClass: snapshot.node.effect_class,
-          retryPolicyRef: snapshot.node.retry_policy_ref, timeoutPolicyRef: snapshot.node.timeout_policy_ref,
+          retryPolicyRef: policyBinding.retryPolicyRef, timeoutPolicyRef: policyBinding.timeoutPolicyRef,
           failureAttemptCount: snapshot.attempts.filter((attempt) => attempt.outcome_kind === 'failed').length + 1,
           outcome, recoveryDecision: null
         }));
@@ -429,7 +427,7 @@ function createEventRuntime(options) {
           const prior = snapshot.attempts.filter((attempt) => attempt.outcome_kind === 'deferred');
           policyDecision = options.attemptPolicy.decideDeferred(Object.freeze({
             capabilityRef: snapshot.event.capability_ref, effectClass: snapshot.node.effect_class,
-            retryPolicyRef: snapshot.node.retry_policy_ref, timeoutPolicyRef: snapshot.node.timeout_policy_ref,
+            retryPolicyRef: policyBinding.retryPolicyRef, timeoutPolicyRef: policyBinding.timeoutPolicyRef,
             observationCount: prior.length + 1,
             firstObservedAtMs: prior.length ? Math.min(...prior.map((attempt) => attempt.started_at_ms)) : startedAtMs,
             retryAfterMs: outcome.retryAfterMs

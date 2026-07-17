@@ -5,21 +5,21 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "metadataObservation": {
-      "$ref": "#/$defs/metadataObservation"
+    "metadataObservationSet": {
+      "$ref": "#/$defs/metadataObservationSet"
     },
     "personReferenceProjection": {
       "$ref": "#/$defs/personReferenceProjection"
     }
   },
   "required": [
-    "metadataObservation",
+    "metadataObservationSet",
     "personReferenceProjection"
   ],
   "$defs": {
-    "metadataObservation": {
-      "$ref": "helix://contracts/types/MetadataObservation/v1",
-      "x-helix-typeExpression": "MetadataObservation"
+    "metadataObservationSet": {
+      "$ref": "helix://contracts/domain-types/MetadataObservationSet/v1",
+      "x-helix-typeExpression": "MetadataObservationSet"
     },
     "personReferenceProjection": {
       "$ref": "helix://contracts/domain-types/PersonReferenceProjection/v1",

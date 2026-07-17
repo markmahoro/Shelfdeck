@@ -1,0 +1,319 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/PerceptionAcquisitionCommitDraft/v1",
+  "title": "PerceptionAcquisitionCommitDraft@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "x-helix-envelopeRef": "helix://contracts/types/DraftEnvelope/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/PerceptionAcquisitionCommitDraft/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "draftId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "draftKind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "basisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "draftDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "producedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "perceptionAcquisitionId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sourceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "sourceKind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceConfigRevision": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "sourceId",
+        "sourceKind",
+        "sourceConfigRevision"
+      ]
+    },
+    "normalizationRuleRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "cursorTransition": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "pageOrdinal": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expectedCursorRevision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cursorIn": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cursorOut": {
+          "type": "string",
+          "minLength": 1
+        },
+        "observationPageDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "hasMore": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "pageOrdinal",
+        "expectedCursorRevision",
+        "cursorIn",
+        "cursorOut",
+        "observationPageDigest",
+        "hasMore"
+      ]
+    },
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "draftId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "recordKind": {
+            "type": "string",
+            "enum": [
+              "observation",
+              "correction",
+              "retraction"
+            ]
+          },
+          "sourceRecordKey": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sourceRecordRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "sourceRecordDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "watchedState": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "observedTitle": {
+            "type": "string",
+            "minLength": 1
+          },
+          "observedAtMs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "identityAnchors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "anchorKind": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "anchorValue": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "confidenceClass": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "evidenceDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "required": [
+                "anchorKind",
+                "anchorValue",
+                "confidenceClass",
+                "evidenceDigest"
+              ]
+            },
+            "maxItems": 16
+          },
+          "provenanceRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "provenanceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "draftId",
+          "recordKind",
+          "sourceRecordKey",
+          "sourceRecordRevision",
+          "sourceRecordDigest",
+          "observedTitle",
+          "observedAtMs",
+          "identityAnchors",
+          "provenanceRef",
+          "provenanceDigest"
+        ]
+      },
+      "maxItems": 4096
+    },
+    "sourceLineageRelations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "relationKind": {
+            "type": "string",
+            "enum": [
+              "supersedes",
+              "retracts"
+            ]
+          },
+          "sourceDraftId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "targetSourceRecord": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "sourceRecordKey": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sourceRecordRevision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "sourceRecordDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "sourceRecordKey",
+              "sourceRecordRevision",
+              "sourceRecordDigest"
+            ]
+          },
+          "ruleRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "evidenceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "relationKind",
+          "sourceDraftId",
+          "targetSourceRecord",
+          "ruleRevision",
+          "evidenceDigest"
+        ]
+      },
+      "maxItems": 4096
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "draftId",
+    "draftKind",
+    "basisDigest",
+    "draftDigest",
+    "producedAtMs",
+    "perceptionAcquisitionId",
+    "source",
+    "normalizationRuleRef",
+    "cursorTransition",
+    "records",
+    "sourceLineageRelations"
+  ]
+}

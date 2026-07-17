@@ -7,7 +7,7 @@
     "displayName": "Domain Fact Commit",
     "ownerScope": "polymorphic-domain-owner",
     "commitClass": "domain_fact_commit",
-    "atomicFactSet": "Owner-defined Canonical/Process Fact + revision fence + commit marker + Outbox",
+    "atomicFactSet": "Owner-defined Canonical/Process Fact + revision fence + commit marker + durable typed result + contract-declared Outbox",
     "participants": [
       {
         "participantKind": "domain",
@@ -21,12 +21,14 @@
         "owner": "execution-foundation",
         "access": "write",
         "tables": [
+          "fx_event_result_bindings",
           "fx_commit_markers",
           "fx_outbox"
         ]
       }
     ],
     "writeTables": [
+      "fx_event_result_bindings",
       "fx_commit_markers",
       "fx_outbox"
     ],
@@ -70,8 +72,8 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7218,
-      "lineDigest": "7a0586e708a0175d6690a2114e05a41d22c81ce72922ac723ed6c8d6ee95dd8c"
+      "line": 7484,
+      "lineDigest": "96d0faf4f857201ebd2f37da0fec8d450cf5cf57f98c1bce8d2bd7bdfe7eeaf8"
     }
   }
 }

@@ -20,6 +20,12 @@ function materializeSsotSourceMap(options) {
       typeof options.outputRoot !== 'string' || !options.outputRoot) throw new Error('P2_SSOT_SOURCE_MAP_OPTIONS_REQUIRED');
   const extracted = extractSsotContracts(fs.readFileSync(options.sourcePath, 'utf8'), { sourcePath: options.sourceRelativePath });
   fs.mkdirSync(options.outputRoot, { recursive: true });
+  for (const category of CATEGORIES) {
+    const pattern = new RegExp(`^${category.fileKey}-\\d{3}-\\d{3}\\.json$`);
+    for (const fileName of fs.readdirSync(options.outputRoot)) {
+      if (pattern.test(fileName)) fs.rmSync(path.join(options.outputRoot, fileName));
+    }
+  }
   const entryFiles = [];
   for (const category of CATEGORIES) {
     const entries = extracted[category.key];

@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/people_merge_candidate_revisions/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "people_merge_candidate_revisions",
+    "owner": "people",
+    "prefix": "people_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "merge_candidate_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "open",
+          "accepted",
+          "dismissed",
+          "superseded"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "decision_origin",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 5,
+        "name": "decision_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 6,
+        "name": "decision_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 7,
+        "name": "committed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "merge_candidate_id",
+      "revision"
+    ],
+    "declaredForeignKeyColumns": [
+      "merge_candidate_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "merge_candidate_id",
+        "revision",
+        "state"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "open",
+          "accepted",
+          "dismissed",
+          "superseded"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "immutable"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(merge_candidate_id,revision)`加`UNIQUE(merge_candidate_id,revision,state)`供head复合FK",
+      "到head的FK同样deferred",
+      "revision 1固定为open",
+      "只允许`open → accepted|dismissed|superseded`一次terminal CAS",
+      "terminal revision保存正式Decision ID/digest",
+      "immutable"
+    ],
+    "rawContract": {
+      "columns": "`merge_candidate_id FK, revision, state(open|accepted|dismissed|superseded), decision_origin NULL, decision_ref NULL, decision_digest NULL, committed_at_ms`",
+      "constraints": "`PK(merge_candidate_id,revision)`加`UNIQUE(merge_candidate_id,revision,state)`供head复合FK；到head的FK同样deferred；revision 1固定为open；只允许`open → accepted|dismissed|superseded`一次terminal CAS；terminal revision保存正式Decision ID/digest；immutable"
+    },
+    "source": {
+      "section": "8.5.13",
+      "line": 7798,
+      "lineDigest": "281a3977f0be22c06852ef188c92aa3f33404c73b511a6a309f2aabdfac3290e"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "merge_candidate_id"
+        ],
+        "targetTable": "people_merge_candidates",
+        "targetColumns": [
+          "merge_candidate_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": true
+      }
+    ]
+  }
+}

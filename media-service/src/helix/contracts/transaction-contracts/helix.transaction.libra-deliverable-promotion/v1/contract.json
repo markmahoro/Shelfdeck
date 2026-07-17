@@ -32,6 +32,7 @@
         "owner": "execution-foundation",
         "access": "write",
         "tables": [
+          "fx_event_result_bindings",
           "fx_commit_markers",
           "fx_outbox"
         ]
@@ -42,6 +43,7 @@
       "libra_product_package_materials",
       "fx_material_controls",
       "fx_material_control_revisions",
+      "fx_event_result_bindings",
       "fx_commit_markers",
       "fx_outbox"
     ],
@@ -74,7 +76,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7225,
+      "line": 7497,
       "lineDigest": "a71ab1170c2cae62ea3f3121da7f6d473c2ca624f6c14b1dc1ff2c68eb0e3ea8"
     }
   }

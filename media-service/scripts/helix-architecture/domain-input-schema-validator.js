@@ -70,10 +70,28 @@ function validateDomainInputSchemas(options) {
     if (!expectedSchemas[entry.id] || schemaDigest(schema) !== entry.digest.value || schemaDigest(schema) !== schemaDigest(expectedSchemas[entry.id])) {
       findings.push(finding('DOMAIN_INPUT_CONTRACT_DRIFT', 'Committed domain input differs from the SSOT-derived contract.', { entryId: entry.id }));
     }
-    for (const field of ['schemaRef', 'schemaVersion', 'revision', 'digest']) {
-      if (!(schema.required || []).includes(field)) findings.push(finding('MISSING_DOMAIN_INPUT_IDENTITY_FIELD', 'Domain input identity is incomplete.', {
-        entryId: entry.id, field
-      }));
+    const exactIdentityFields = {
+      PeopleCandidateAcceptanceDecision: ['decisionId', 'expectedCandidateRevision', 'candidatePayloadDigest', 'decisionDigest'],
+      DirectPersonRegistrationDecision: ['decisionId', 'newPersonId', 'decisionDigest'],
+      PeopleReferenceMaintenanceDecision: ['decisionId', 'personId', 'expectedPersonRevision', 'expectedReferenceRevision', 'decisionDigest'],
+      PersonReferenceProjection: ['projectionContract', 'projectionRevision', 'personId', 'personRevision', 'projectionDigest'],
+      MetadataFetchIntent: ['intentId', 'sourceKind', 'resolvedIdentityDigest', 'intentDigest'],
+      MetadataObservationSet: ['setId', 'resolvedIdentityDigest', 'setDigest'],
+      OnDeckPersonEvidenceProjectionItem: ['projectionItemId', 'shelfEntryId', 'inventoryRevision', 'relationId', 'projectionRevision', 'projectionItemDigest'],
+      PerceptionResolutionQuery: ['queryContract', 'queryVersion', 'querySchemaRef', 'queryInputDigest'],
+      PerceptionResolutionRecordSet: ['queryInputDigest', 'recordSetDigest'],
+      PerceptionResolutionRuleSnapshot: ['ruleContract', 'ruleVersion', 'ruleDigest']
+    };
+    const identityFields = exactIdentityFields[entry.id] || ['schemaRef', 'schemaVersion', 'revision', 'digest'];
+    for (const field of identityFields) {
+      const requiredSets = schema.oneOf
+        ? (schema.oneOf || []).map((branch) => branch.required || [])
+        : [schema.required || []];
+      if (requiredSets.length === 0 || requiredSets.some((required) => !required.includes(field))) {
+        findings.push(finding('MISSING_DOMAIN_INPUT_IDENTITY_FIELD', 'Domain input identity is incomplete.', {
+          entryId: entry.id, field
+        }));
+      }
     }
     if (schema['x-helix-role'] === 'bounded-contract' && !(schema.required || []).includes('typedParameters')) findings.push(finding(
       'UNBOUNDED_INTENT_PARAMETERS', 'Bounded intent/requirement contracts require typedParameters.', { entryId: entry.id }
@@ -85,8 +103,9 @@ function validateDomainInputSchemas(options) {
   for (const name of usages.keys()) {
     if (!ids.has(name)) findings.push(finding('MISSING_DOMAIN_INPUT_TYPE', 'Catalog input reference has no schema.', { entryId: name }));
   }
+  const facadeOnlyTypes = new Set(['DirectPersonRegistrationDecision']);
   for (const name of ids) {
-    if (!usages.has(name)) findings.push(finding('UNUSED_DOMAIN_INPUT_TYPE', 'Domain input schema is not referenced by the Catalog.', { entryId: name }));
+    if (!usages.has(name) && !facadeOnlyTypes.has(name)) findings.push(finding('UNUSED_DOMAIN_INPUT_TYPE', 'Domain input schema is not referenced by the Catalog.', { entryId: name }));
   }
 
   return {

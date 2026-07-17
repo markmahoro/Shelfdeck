@@ -17,6 +17,7 @@ const generatedRoot = path.resolve(__dirname, '../../src/helix/foundation/persis
 const schemaDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 'utf8');
 const schemaManifest = JSON.parse(fs.readFileSync(path.join(generatedRoot, 'clean-schema.manifest.json'), 'utf8'));
 const factSchemaRef = 'helix://domains/libra/facts/SubjectCreated/v1';
+const resultSchemaRef = 'helix://domains/libra/results/SubjectCreated/v1';
 
 const subjects = createRepositoryDefinition({
   repositoryId: 'subjects', owner: 'libra', schemaManifest,
@@ -45,7 +46,7 @@ function registration(owner = 'libra') {
           repository.invoke('insert', {
             subject_id: payload.subjectId, structure_kind: payload.structureKind, status: 'active', created_at_ms: context.commitTimeMs
           });
-          return Object.freeze({ subjectId: payload.subjectId, revision: 1 });
+          return Object.freeze({ schemaRef: resultSchemaRef, schemaVersion: 1, subjectId: payload.subjectId, revision: 1 });
         }
       };
     }
@@ -61,6 +62,18 @@ function fixture(run, registrations = [registration()]) {
   const coordinator = createDomainCommitCoordinator({
     schemaManifest, registry, unitOfWork: createSqliteUnitOfWork({ kernel })
   });
+  const setup = new Database(databasePath);
+  setup.prepare('INSERT INTO fx_supporting_works(work_id,owner_domain,process_type,process_id,work_kind,basis_digest,priority_class,state,idempotency_key,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+    .run('work-1', 'libra', 'subject', 'subject-1', 'test', digest('basis'), 'normal', 'running', 'work-key', 1, 1);
+  setup.prepare('INSERT INTO fx_work_attempts(attempt_id,work_id,ordinal,basis_digest,state,started_at_ms) VALUES(?,?,?,?,?,?)')
+    .run('attempt-1', 'work-1', 1, digest('basis'), 'running', 1);
+  setup.prepare('INSERT INTO fx_workflow_plans(plan_id,attempt_id,planner_ref,planner_version,catalog_digest,basis_digest,graph_digest,state,created_at_ms) VALUES(?,?,?,?,?,?,?,?,?)')
+    .run('plan-1', 'attempt-1', 'test-planner@1', 1, digest('catalog'), digest('basis'), digest('graph'), 'planned', 1);
+  setup.prepare('INSERT INTO fx_workflow_events(event_id,plan_id,node_id,work_id,attempt_id,owner_domain,capability_ref,contract_version,state,priority_class,ready_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+    .run('event-1', 'plan-1', 'node-1', 'work-1', 'attempt-1', 'libra', 'libra.test.commit@1', 1, 'executing', 'normal', 1);
+  setup.prepare('INSERT INTO fx_workflow_events(event_id,plan_id,node_id,work_id,attempt_id,owner_domain,capability_ref,contract_version,state,priority_class,ready_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+    .run('event-2', 'plan-1', 'node-2', 'work-1', 'attempt-1', 'libra', 'libra.test.commit@1', 1, 'executing', 'normal', 1);
+  setup.close();
   try {
     return run({ coordinator, databasePath, kernel, registry });
   } finally {
@@ -79,6 +92,7 @@ function domainHandle(value = payload(), overrides = {}) {
     handleId: overrides.handleId || 'handle-1', ownerDomain: overrides.ownerDomain || 'libra',
     aggregateType: overrides.aggregateType || 'subject', aggregateId: overrides.aggregateId || value.subjectId,
     factType: overrides.factType || 'subject.created', factSchemaRef: overrides.factSchemaRef || factSchemaRef,
+    resultSchemaRef: overrides.resultSchemaRef || resultSchemaRef,
     expectedRevision: overrides.expectedRevision === undefined ? 0 : overrides.expectedRevision,
     payloadDigest: overrides.payloadDigest || digest(JSON.stringify({ structureKind: value.structureKind, subjectId: value.subjectId })),
     commitIdempotencyKey: overrides.commitIdempotencyKey || 'domain-key-1', eventFenceDigest: digest('event-fence')
@@ -102,6 +116,11 @@ function request(value = payload(), overrides = {}) {
       commitMarker: overrides.commitMarker || 'marker-' + value.subjectId,
       effectId: null,
       commitDigest: overrides.commitDigest || digest('commit-' + value.subjectId)
+    },
+    resultBinding: overrides.resultBinding || {
+      resultId: 'result-' + value.subjectId, eventId: value.subjectId === 'subject-1' ? 'event-1' : 'event-2',
+      evidenceSchemaRef: 'helix://contracts/types/TestEvidence/v1',
+      evidence: { schemaRef: 'helix://contracts/types/TestEvidence/v1', schemaVersion: 1, evidenceId: 'evidence-' + value.subjectId }
     },
     outboxMessages: overrides.outboxMessages || outbox(value.subjectId),
     control: overrides.control
@@ -153,16 +172,23 @@ test('atomically coordinates typed Domain fact, Commit Marker, Outbox, and stabl
   fixture(({ coordinator, databasePath, kernel }) => {
     const first = coordinator.execute(request());
     assert.equal(first.replayed, false);
-    assert.deepEqual(first.domainResult, { subjectId: 'subject-1', revision: 1 });
+    assert.deepEqual(first.domainResult, { schemaRef: resultSchemaRef, schemaVersion: 1, subjectId: 'subject-1', revision: 1 });
+    assert.deepEqual(first.typedResult, first.domainResult);
     assert.equal(first.outboxResult.length, 1);
     const replay = coordinator.execute(request());
     assert.equal(replay.replayed, true);
+    assert.deepEqual(replay.typedResult, first.typedResult);
     kernel.close();
     const database = new Database(databasePath, { readonly: true });
     assert.equal(database.prepare('SELECT COUNT(*) count FROM libra_subjects').get().count, 1);
     assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_commit_markers').get().count, 1);
     assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_outbox').get().count, 1);
     assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_outbox_deliveries').get().count, 1);
+    assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_event_result_bindings').get().count, 1);
+    const marker = database.prepare('SELECT result_id,result_schema_ref,result_digest FROM fx_commit_markers').get();
+    assert.equal(marker.result_id, 'result-subject-1');
+    assert.equal(marker.result_schema_ref, resultSchemaRef);
+    assert.equal(marker.result_digest, first.resultBinding.resultDigest);
     database.close();
   });
 });
@@ -192,6 +218,35 @@ test('Domain revision fence failure leaves no marker or Outbox', () => {
       assert.equal(database.prepare('SELECT COUNT(*) count FROM ' + table).get().count, 0, table);
     }
     database.close();
+  });
+});
+
+test('rejects a participant Result with the wrong nominal schema and leaves no durable residue', () => {
+  const wrong = registration();
+  const original = wrong.createParticipant;
+  wrong.createParticipant = (input) => {
+    const participant = original(input);
+    return { ...participant, execute(context) { return { ...participant.execute(context), schemaRef: 'helix://wrong/result/v1' }; } };
+  };
+  fixture(({ coordinator, databasePath, kernel }) => {
+    assert.throws(() => coordinator.execute(request()), (error) => error.code === 'P3_DOMAIN_COMMIT_RESULT_SCHEMA_MISMATCH');
+    kernel.close();
+    const database = new Database(databasePath, { readonly: true });
+    for (const table of ['libra_subjects', 'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox']) {
+      assert.equal(database.prepare('SELECT COUNT(*) count FROM ' + table).get().count, 0, table);
+    }
+    database.close();
+  }, [wrong]);
+});
+
+test('fails closed when a stored replay Result no longer matches its marker and JCS digest', () => {
+  fixture(({ coordinator, databasePath }) => {
+    coordinator.execute(request());
+    const changed = new Database(databasePath);
+    changed.prepare('UPDATE fx_event_result_bindings SET result_json=? WHERE result_id=?')
+      .run(JSON.stringify({ schemaRef: resultSchemaRef, schemaVersion: 1, subjectId: 'tampered', revision: 1 }), 'result-subject-1');
+    changed.close();
+    assert.throws(() => coordinator.execute(request()), (error) => error.code === 'P3_DOMAIN_COMMIT_RESULT_BINDING_CORRUPT');
   });
 });
 

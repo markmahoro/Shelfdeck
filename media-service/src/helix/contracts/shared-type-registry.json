@@ -117,7 +117,7 @@
       "relativePath": "types/CanonicalQueryHandle/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "e843a92263d7591dad86a2c8c76d80c65c909e17d7b3ac1d501e691b8bb7e04d"
+        "value": "4698283416d0b3caa255749caf3632eb18301cda87ddcc4dd8563db08ced6968"
       },
       "ssotRefs": [
         "8.6.18"
@@ -131,7 +131,7 @@
       "relativePath": "types/DomainFactCommitHandle/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "47ecfbba9adf4e3267d86e516a2f83112cbb5a1a5443b3c70f965dfa47296435"
+        "value": "f7e31f2bb09b1b297b25b7cf83edb4c46650bb0ed6289097ad3dec2f1356daa4"
       },
       "ssotRefs": [
         "8.6.18"
@@ -273,7 +273,7 @@
       "relativePath": "types/FaceEmbeddingSetHandle/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "3d5e0edafbbce588fb3bb1f63d9c687564b1904a248b1056f984c66f73db1b56"
+        "value": "a36a71ecaa8aaddb9a4ce804a470faf71767f5dde4622274d58f1211da0c9f83"
       },
       "ssotRefs": [
         "8.6.18"

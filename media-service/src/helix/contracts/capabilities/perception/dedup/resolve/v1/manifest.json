@@ -5,13 +5,18 @@
   "ownerScope": "perception",
   "effectClass": "pure_observation",
   "inputPorts": {
-    "immutableRecords": {
-      "schemaRef": "helix://contracts/capabilities/perception.dedup.resolve/v1/inputs#/$defs/immutableRecords",
+    "perceptionResolutionQuery": {
+      "schemaRef": "helix://contracts/capabilities/perception.dedup.resolve/v1/inputs#/$defs/perceptionResolutionQuery",
       "required": true,
       "cardinality": "one"
     },
-    "resolutionRuleRevision": {
-      "schemaRef": "helix://contracts/capabilities/perception.dedup.resolve/v1/inputs#/$defs/resolutionRuleRevision",
+    "perceptionResolutionRecordSet": {
+      "schemaRef": "helix://contracts/capabilities/perception.dedup.resolve/v1/inputs#/$defs/perceptionResolutionRecordSet",
+      "required": true,
+      "cardinality": "one"
+    },
+    "perceptionResolutionRuleSnapshot": {
+      "schemaRef": "helix://contracts/capabilities/perception.dedup.resolve/v1/inputs#/$defs/perceptionResolutionRuleSnapshot",
       "required": true,
       "cardinality": "one"
     }
@@ -29,7 +34,7 @@
   },
   "sourceLocator": {
     "section": "8.6.13",
-    "line": 7788,
-    "lineDigest": "f6cb6ef1912321f296eec8fd5689f7e19034250abea626c493fdfdd1ec8808bb"
+    "line": 8105,
+    "lineDigest": "c6978b0ba2609a2f6567244097c26ef09b61ca9e75aa5e798cf81dc1cd449938"
   }
 }

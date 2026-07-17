@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.people-candidate-acceptance/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.people-candidate-acceptance",
+    "displayName": "People Candidate Acceptance",
+    "ownerScope": "people",
+    "commitClass": "domain_fact_commit",
+    "atomicFactSet": "current Candidate revision/payload digest CAS + Candidate terminal `accepted` revision + Person create或Merge完整fact set +必要Preference resolution + merge correlation + 所有受影响Person的Reference Projection checkpoint + durable typed result + commit marker + People-internal Outbox",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "people",
+        "access": "write",
+        "tables": [
+          "people_persons",
+          "people_person_revisions",
+          "people_aliases",
+          "people_provider_identities",
+          "people_preference_revisions",
+          "people_registration_candidates",
+          "people_registration_candidate_revisions",
+          "people_merge_candidates",
+          "people_merge_candidate_revisions",
+          "people_merge_records"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_event_result_bindings",
+          "fx_commit_markers",
+          "fx_outbox"
+        ]
+      }
+    ],
+    "writeTables": [
+      "people_persons",
+      "people_person_revisions",
+      "people_aliases",
+      "people_provider_identities",
+      "people_preference_revisions",
+      "people_registration_candidates",
+      "people_registration_candidate_revisions",
+      "people_merge_candidates",
+      "people_merge_candidate_revisions",
+      "people_merge_records",
+      "fx_event_result_bindings",
+      "fx_commit_markers",
+      "fx_outbox"
+    ],
+    "readTables": [
+      "people_persons",
+      "people_person_revisions",
+      "people_preference_revisions",
+      "people_registration_candidates",
+      "people_registration_candidate_revisions",
+      "people_merge_candidates",
+      "people_merge_candidate_revisions"
+    ],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": true
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "people-candidate",
+        "faultInjectionPoints": "typed Evidence恢复、Resolver产出complete Draft、Candidate head/open revision/typed Result/marker各边界；用户或strong rule接受前后；Registration Person/alias/provider identity与Merge target/source/preference/correlation提交各边界",
+        "requiredInvariant": "CommitParticipant不旁读Foundation/Provider；Candidate payload digest可重算；重启不丢open Candidate；candidate revision或任一Person/Preference revision变化时整体CAS失败；接受成功时Candidate terminal与全部Person facts同时成立，同marker重放返回同一typed Result；弱Identity未经用户确认不建立Person，Preference冲突不得strong-rule自动接受",
+        "source": {
+          "section": "8.9.7",
+          "line": 8584
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7488,
+      "lineDigest": "dd1548950a587697d63a1c67f79dcf2212fbe9558d0ecb7e5c523d2a21b28ba8"
+    }
+  }
+}

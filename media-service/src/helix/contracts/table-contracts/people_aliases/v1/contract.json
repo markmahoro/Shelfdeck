@@ -13,7 +13,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": true
+        "foreignKeyMarker": true,
+        "nullable": false
       },
       {
         "ordinal": 2,
@@ -21,7 +22,8 @@
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 3,
@@ -29,7 +31,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 4,
@@ -37,7 +40,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 5,
@@ -45,7 +49,8 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       }
     ],
     "primaryKey": [
@@ -83,27 +88,31 @@
     },
     "semanticRules": [
       "`PK(person_id,revision,alias_normalized)`",
+      "`FOREIGN KEY(person_id,revision)`引用精确Person revision",
       "`INDEX(alias_normalized)`"
     ],
     "rawContract": {
       "columns": "`person_id FK, revision, alias_normalized, alias_display, provenance_digest`",
-      "constraints": "`PK(person_id,revision,alias_normalized)`；`INDEX(alias_normalized)`"
+      "constraints": "`PK(person_id,revision,alias_normalized)`；`FOREIGN KEY(person_id,revision)`引用精确Person revision；`INDEX(alias_normalized)`"
     },
     "source": {
       "section": "8.5.13",
-      "line": 7503,
-      "lineDigest": "ebb1b8f5b6f77bb8a527ac0e28d8f58236424294bbf293160dfebfefcfb1deaf"
+      "line": 7789,
+      "lineDigest": "bd43e6bd7b8f61d3edeb1afd1af2b94acccb8ba986a1cb2a3493948cf2997a51"
     },
     "foreignKeys": [
       {
         "columns": [
-          "person_id"
+          "person_id",
+          "revision"
         ],
-        "targetTable": "people_persons",
+        "targetTable": "people_person_revisions",
         "targetColumns": [
-          "person_id"
+          "person_id",
+          "revision"
         ],
-        "deletePolicy": "RESTRICT"
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
       }
     ]
   }

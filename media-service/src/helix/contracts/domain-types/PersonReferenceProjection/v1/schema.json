@@ -3,70 +3,144 @@
   "$id": "helix://contracts/domain-types/PersonReferenceProjection/v1",
   "title": "PersonReferenceProjection@1",
   "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
     "8.6.20"
   ],
   "x-helix-role": "accepted-business-dto",
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "schemaRef": {
-      "const": "helix://contracts/domain-types/PersonReferenceProjection/v1"
+    "projectionContract": {
+      "const": "people.person-reference-projection@1"
     },
-    "schemaVersion": {
-      "const": 1
+    "projectionRevision": {
+      "type": "integer",
+      "minimum": 1
     },
-    "objectId": {
+    "personId": {
       "type": "string",
       "minLength": 1,
       "maxLength": 256
     },
-    "revision": {
+    "personRevision": {
       "type": "integer",
       "minimum": 1
     },
-    "digest": {
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^[a-f0-9]{64}$"
+    "currentReferenceRevision": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "integer",
+          "minimum": 1
+        }
+      ]
     },
-    "projectionRevision": {
-      "type": "integer",
-      "minimum": 0
-    },
-    "people": {
+    "contributions": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "objectId": {
+          "ownerPersonId": {
             "type": "string",
             "minLength": 1,
             "maxLength": 256
           },
-          "revision": {
+          "ownerReferenceRevision": {
             "type": "integer",
             "minimum": 1
           },
-          "schemaRef": {
-            "type": "string",
-            "minLength": 1
-          },
-          "digest": {
+          "referenceSetDigest": {
             "type": "string",
             "minLength": 1,
             "pattern": "^[a-f0-9]{64}$"
           },
-          "objectKind": {
-            "const": "person-reference"
+          "inheritedReadOnly": {
+            "type": "boolean"
+          },
+          "activeAssets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "referenceAssetId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "artifactHandleId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "artifactDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "required": [
+                "referenceAssetId",
+                "artifactHandleId",
+                "artifactDigest"
+              ]
+            },
+            "maxItems": 1024
+          },
+          "activeFaces": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "referenceFaceId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "referenceAssetId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "embeddingHandleId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "embeddingDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "modelRef": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 512
+                }
+              },
+              "required": [
+                "referenceFaceId",
+                "referenceAssetId",
+                "embeddingHandleId",
+                "embeddingDigest",
+                "modelRef"
+              ]
+            },
+            "maxItems": 1024
           }
         },
         "required": [
-          "objectId",
-          "revision",
-          "schemaRef",
-          "digest",
-          "objectKind"
+          "ownerPersonId",
+          "ownerReferenceRevision",
+          "referenceSetDigest",
+          "inheritedReadOnly",
+          "activeAssets",
+          "activeFaces"
         ]
       },
       "maxItems": 4096
@@ -78,13 +152,12 @@
     }
   },
   "required": [
-    "schemaRef",
-    "schemaVersion",
-    "objectId",
-    "revision",
-    "digest",
+    "projectionContract",
     "projectionRevision",
-    "people",
+    "personId",
+    "personRevision",
+    "currentReferenceRevision",
+    "contributions",
     "projectionDigest"
   ]
 }

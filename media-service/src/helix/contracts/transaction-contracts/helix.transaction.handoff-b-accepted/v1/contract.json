@@ -34,6 +34,7 @@
         "owner": "execution-foundation",
         "access": "write",
         "tables": [
+          "fx_event_result_bindings",
           "fx_commit_markers",
           "fx_outbox"
         ]
@@ -46,6 +47,7 @@
       "arca_handoff_b_receipts",
       "fx_material_controls",
       "fx_material_control_revisions",
+      "fx_event_result_bindings",
       "fx_commit_markers",
       "fx_outbox"
     ],
@@ -79,7 +81,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7224,
+      "line": 7496,
       "lineDigest": "1140129b374858ff75be4bad8e3c3a0ec1b6e1889c4bcd15b1ed3fdaad3e23da"
     }
   }

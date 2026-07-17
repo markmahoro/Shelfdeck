@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "people.merge_evidence.resolve@1",
+  "contractVersion": 1,
+  "ownerScope": "people",
+  "effectClass": "pure_observation",
+  "inputPorts": {
+    "personIdentitiesAliasesReferences": {
+      "schemaRef": "helix://contracts/capabilities/people.merge_evidence.resolve/v1/inputs#/$defs/personIdentitiesAliasesReferences",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/people.merge_evidence.resolve/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/people.merge_evidence.resolve/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/people.merge_evidence.resolve/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/people.merge_evidence.resolve/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/people.merge_evidence.resolve/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/people.merge_evidence.resolve/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/people.merge_evidence.resolve/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.14",
+    "line": 8126,
+    "lineDigest": "c2c72913fb62f7a4f34313e68b475a5ae63b37aae17bec54b0fa5cdd543576a3"
+  }
+}

@@ -56,6 +56,34 @@ function snapshot(kind) {
   return object({ objectId: id(), revision: positiveInteger(), schemaRef: text(), snapshotDigest: digest(), objectKind: { const: kind } });
 }
 
+const peopleAlias = object({ aliasDisplay: text(), aliasNormalized: text(), provenanceDigest: digest() });
+const peopleProviderIdentity = object({ provider: text(), namespace: text(), providerKey: text(), provenanceDigest: digest() });
+const peopleReferenceHint = object({ hintKind: text(), referenceValue: text(), provenanceDigest: digest() });
+const peoplePersonRef = object({
+  personId: id(), revision: positiveInteger(), factDigest: digest(), preferenceRevision: nullable(positiveInteger())
+});
+const peopleRegistrationPayload = object({
+  proposedName: text(), aliases: arrayOf(peopleAlias, 256), providerIdentities: arrayOf(peopleProviderIdentity, 256),
+  referenceHints: arrayOf(peopleReferenceHint, 256)
+});
+const peopleMergePayload = object({
+  leftPersonRef: peoplePersonRef, rightPersonRef: peoplePersonRef,
+  matchSignals: arrayOf(snapshot('person-match-signal'), 256), conflictSummary: boundedRecord('merge-conflict-summary'),
+  evidenceRefs: arrayOf(id(), 256)
+});
+const perceptionResolvedValue = {
+  oneOf: [
+    object({ factKind: { const: 'rating' }, value: { type: 'integer', minimum: 1, maximum: 5 } }),
+    object({ factKind: { const: 'watched' }, value: bool() })
+  ]
+};
+const perceptionResolvedProvenance = object({
+  winningPerceptionId: id(), sourceKind: text(), sourceRecordKey: text(), sourceRecordRevision: positiveInteger(),
+  provenanceRef: id(), provenanceDigest: digest(), matchedAnchorEvidence: arrayOf(object({
+    anchorKind: text(), strengthRank: positiveInteger(), evidenceDigest: digest()
+  }), 16)
+});
+
 const stream = object({
   streamIndex: nonNegativeInteger(), codec: text(), codedWidth: positiveInteger(), codedHeight: positiveInteger(),
   sampleAspectRatio: text(), rotation: { type: 'integer', minimum: -359, maximum: 359 }, displayWidth: positiveInteger(),
@@ -136,21 +164,76 @@ const special = {
   'ConformanceAssessmentEvidence.findingDrafts': arrayOf(snapshot('finding-draft'), 1024),
   'DuplicateGroupEvidenceList.groups': arrayOf(object({ groupId: id(), canonicalIdentityDigest: digest(), shelfEntryIds: arrayOf(id()) })),
   'ReferenceReleaseResult.released': bool(),
-  'PerceptionObservationPage.observations': arrayOf(snapshot('perception-observation'), 4096),
-  'NormalizedPerceptionRecordDraftList.records': arrayOf(object({
-    draftId: id(), sourceKind: text(), sourceRecordKey: text(), rating: nullable({ type: 'number', minimum: 0, maximum: 10 }),
-    watchedState: nullable(text()), observedTitle: text(), identityAnchors: arrayOf(text(), 128), provenanceDigest: digest()
-  }, ['draftId', 'sourceKind', 'sourceRecordKey', 'observedTitle', 'identityAnchors', 'provenanceDigest']), 4096),
+  'PerceptionObservationPage.source': object({
+    sourceId: id(), sourceKind: text(), sourceConfigRevision: positiveInteger()
+  }),
+  'PerceptionObservationPage.cursor': object({
+    expectedCursorRevision: nonNegativeInteger(), cursorIn: nullable(text()), cursorOut: text()
+  }),
+  'PerceptionObservationPage.observations': arrayOf(object({
+    observationId: id(), sourceRecordKey: text(), sourceRecordRevision: positiveInteger(), sourceRecordDigest: digest(),
+    observedAtMs: nonNegativeInteger(), payloadSchemaRef: text(), payloadDigest: digest(),
+    inlinePayload: boundedRecord('perception-observation-inline-payload'), provenanceDigest: digest()
+  }), 4096),
+  'PerceptionAcquisitionCommitDraft.source': object({
+    sourceId: id(), sourceKind: text(), sourceConfigRevision: positiveInteger()
+  }),
+  'PerceptionAcquisitionCommitDraft.cursorTransition': object({
+    pageOrdinal: nonNegativeInteger(), expectedCursorRevision: nonNegativeInteger(), cursorIn: nullable(text()), cursorOut: text(),
+    observationPageDigest: digest(), hasMore: bool()
+  }),
+  'PerceptionAcquisitionCommitDraft.records': arrayOf(object({
+    draftId: id(), recordKind: enumText('observation', 'correction', 'retraction'), sourceRecordKey: text(),
+    sourceRecordRevision: positiveInteger(), sourceRecordDigest: digest(),
+    rating: nullable({ type: 'integer', minimum: 1, maximum: 5 }), watchedState: nullable(bool()), observedTitle: text(),
+    observedAtMs: nonNegativeInteger(), identityAnchors: arrayOf(object({
+      anchorKind: text(), anchorValue: text(), confidenceClass: text(), evidenceDigest: digest()
+    }), 16), provenanceRef: id(), provenanceDigest: digest()
+  }, ['draftId', 'recordKind', 'sourceRecordKey', 'sourceRecordRevision', 'sourceRecordDigest',
+    'observedTitle', 'observedAtMs', 'identityAnchors', 'provenanceRef', 'provenanceDigest']), 4096),
+  'PerceptionAcquisitionCommitDraft.sourceLineageRelations': arrayOf(object({
+    relationKind: enumText('supersedes', 'retracts'), sourceDraftId: id(),
+    targetSourceRecord: object({ sourceRecordKey: text(), sourceRecordRevision: positiveInteger(), sourceRecordDigest: digest() }),
+    ruleRevision: positiveInteger(), evidenceDigest: digest()
+  }), 4096),
+  'PerceptionResolutionDraft.duplicateRelationDrafts': arrayOf(object({
+    sourcePerceptionId: id(), targetPerceptionId: id(), ruleRevision: positiveInteger(), evidenceDigest: digest()
+  }), 1024),
   'PerceptionResolutionDraft.resultKind': enumText('found', 'not_found'),
   'PerceptionResolutionRevision.resultKind': enumText('found', 'not_found'),
-  'PerceptionResolutionDraft.winningPerceptionId': nullable(id()),
-  'PerceptionResolutionRevision.winningPerceptionId': nullable(id()),
+  'PerceptionResolutionDraft.factKind': enumText('rating', 'watched'),
+  'PerceptionResolutionRevision.factKind': enumText('rating', 'watched'),
+  'PerceptionResolutionDraft.ruleRevision': positiveInteger(),
+  'PerceptionResolutionRevision.ruleRevision': positiveInteger(),
+  'PerceptionResolutionDraft.winningPerceptionId': id(),
+  'PerceptionResolutionRevision.winningPerceptionId': id(),
+  'PerceptionResolutionDraft.resolvedValue': perceptionResolvedValue,
+  'PerceptionResolutionRevision.resolvedValue': perceptionResolvedValue,
+  'PerceptionResolutionDraft.resolvedProvenance': perceptionResolvedProvenance,
+  'PerceptionResolutionRevision.resolvedProvenance': perceptionResolvedProvenance,
+  'PerceptionResolutionDraft.reasonCode': enumText('no_matching_record', 'requested_fact_absent', 'strongest_value_conflict'),
+  'PerceptionResolutionRevision.reasonCode': enumText('no_matching_record', 'requested_fact_absent', 'strongest_value_conflict'),
   'PeopleCandidateDraft.candidateKind': enumText('registration', 'merge'),
+  'PeopleCandidateDraft.candidatePayload': { oneOf: [peopleRegistrationPayload, peopleMergePayload] },
   'PeopleCandidateRevision.candidateKind': enumText('registration', 'merge'),
-  'PeopleCandidateRevision.state': { const: 'open' },
-  'MergeCandidateEvidence.personPair': object({ leftPersonId: id(), rightPersonId: id() }),
+  'PeopleCandidateRevision.state': enumText('open', 'accepted', 'dismissed', 'superseded'),
+  'PersonRegistrationEvidence.aliases': arrayOf(peopleAlias, 256),
+  'PersonRegistrationEvidence.providerIdentities': arrayOf(peopleProviderIdentity, 256),
+  'PersonRegistrationEvidence.referenceHints': arrayOf(peopleReferenceHint, 256),
+  'MergeCandidateEvidence.personPair': { ...arrayOf(peoplePersonRef, 2), minItems: 2 },
   'MergeCandidateEvidence.matchSignals': arrayOf(snapshot('person-match-signal'), 256),
   'MergeCandidateEvidence.conflictSummary': boundedRecord('merge-conflict-summary'),
+  'MergeCandidateEvidence.evidenceRefs': arrayOf(id(), 256),
+  'PersonRevision.operationKind': enumText('registration', 'merge'),
+  'PersonRevision.registrationOrigin': enumText('direct', 'candidate'),
+  'PersonRevision.directDecisionRef': object({ decisionId: id(), decisionDigest: digest() }),
+  'PersonRevision.acceptedCandidateRef': object({
+    candidateKind: enumText('registration', 'merge'), candidateId: id(), candidateRevision: positiveInteger(), candidatePayloadDigest: digest()
+  }),
+  'PersonRevision.affectedPersonRevisions': arrayOf(object({
+    personId: id(), revision: positiveInteger(), status: enumText('active', 'merged'), factDigest: digest()
+  }), 2),
+  'PersonRevision.preferenceRevisionRef': nullable(id()),
   'PersonPreferenceRevision.preferenceLevel': { type: 'integer', minimum: -2, maximum: 2 }
 };
 
@@ -247,17 +330,17 @@ const contracts = {
   OffdeckTerminalReceipt: ['ReceiptEnvelope', 'offdeckCaseId,shelfEntryId,terminalDeckFactRevision,releasedControlSetDigest'],
   ReleaseVerification: ['VerificationEnvelope', 'deregistrationId,shelfId,releaseManifestDigest,controlRevisionSetDigest'],
   DeregistrationReceipt: ['ReceiptEnvelope', 'deregistrationId,shelfId,releasedControlSetDigest,terminalFactDigest'],
-  PerceptionObservationPage: ['EvidenceEnvelope', 'sourceId,cursorIn,cursorOut,observations,hasMore'],
-  NormalizedPerceptionRecordDraftList: ['DraftEnvelope', 'records'],
-  PerceptionRecordCommitResult: ['ReceiptEnvelope', 'perceptionIds,insertedCount,duplicateCount'],
-  PerceptionResolutionDraft: ['DraftEnvelope', 'queryContract,queryInputDigest,resultKind,winningPerceptionId?,ruleRevision'],
-  PerceptionResolutionRevision: ['DomainFactEnvelope', 'queryContract,queryInputDigest,resultKind,winningPerceptionId?'],
+  PerceptionObservationPage: ['EvidenceEnvelope', 'perceptionAcquisitionId,pageOrdinal,source,cursor,observations,observationPageDigest,hasMore'],
+  PerceptionAcquisitionCommitDraft: ['DraftEnvelope', 'perceptionAcquisitionId,source,normalizationRuleRef,cursorTransition,records,sourceLineageRelations'],
+  PerceptionRecordCommitResult: ['ReceiptEnvelope', 'acquisitionCommitReceiptId,perceptionAcquisitionId,sourceId,committedCursorRevision,perceptionIds,relationIds,insertedCount,duplicateCount'],
+  PerceptionResolutionDraft: ['DraftEnvelope', 'queryContract,querySchemaRef,queryInputDigest,factKind,recordSetDigest,ruleRevision,ruleDigest,resultKind,winningPerceptionId?,resolvedValue?,resolvedProvenance?,reasonCode?,duplicateRelationDrafts'],
+  PerceptionResolutionRevision: ['DomainFactEnvelope', 'queryContract,querySchemaRef,queryInputDigest,factKind,recordSetDigest,ruleRevision,ruleDigest,resultKind,winningPerceptionId?,resolvedValue?,resolvedProvenance?,reasonCode?,committedRelationIds'],
   PersonRegistrationEvidence: ['EvidenceEnvelope', 'proposedName,aliases,providerIdentities,referenceHints'],
-  PeopleCandidateDraft: ['DraftEnvelope', 'candidateKind,candidatePayloadDigest,evidenceDigest'],
-  PeopleCandidateRevision: ['DomainFactEnvelope', 'candidateKind,candidateId,candidatePayloadDigest,state'],
-  PersonReferenceRevision: ['DomainFactEnvelope', 'personId,referenceAssetIds,referenceFaceIds'],
-  MergeCandidateEvidence: ['EvidenceEnvelope', 'personPair,matchSignals,conflictSummary'],
-  PersonRevision: ['DomainFactEnvelope', 'personId,canonicalName,aliasSetDigest,providerIdentitySetDigest,mergeRecordRef?'],
+  PeopleCandidateDraft: ['DraftEnvelope', 'candidateKind,evidenceDigest,candidatePayload,candidatePayloadDigest'],
+  PeopleCandidateRevision: ['DomainFactEnvelope', 'candidateKind,candidateId,candidateRevision,candidateSchemaRef,candidatePayloadDigest,evidenceDigest,state'],
+  PersonReferenceRevision: ['DomainFactEnvelope', 'personId,referenceRevision,operationKind,affectedReferenceAssetId,affectedReferenceFaceId,activeReferenceAssets,activeReferenceFaces,activeAssetSetDigest,activeFaceSetDigest,referenceSetDigest'],
+  MergeCandidateEvidence: ['EvidenceEnvelope', 'personPair,matchSignals,conflictSummary,evidenceRefs'],
+  PersonRevision: ['DomainFactEnvelope', 'operationKind,registrationOrigin?,personId,canonicalName,aliasSetDigest,providerIdentitySetDigest,directDecisionRef?,acceptedCandidateRef?,affectedPersonRevisions,mergeRecordRef?,preferenceRevisionRef?'],
   PersonPreferenceRevision: ['DomainFactEnvelope', 'personId,preferenceLevel,reason']
 };
 
@@ -265,6 +348,7 @@ special['OnDeckCommitResult.onDeckCommitReceipt'] = ref('OnDeckCommitReceipt');
 special['OnDeckCommitResult.offloadCompletionFact'] = ref('OffloadCompletionFact');
 
 function buildResultTypeSchema(name, [base, fieldList]) {
+  if (name === 'PersonReferenceRevision') return personReferenceRevisionSchema();
   const workspaceFields = base === 'WorkspaceMaterialHandle'
     ? Object.fromEntries(Object.entries(buildSharedTypeSchemas().WorkspaceMaterialHandle.properties)
       .filter(([field]) => field !== 'schemaRef' && field !== 'schemaVersion'))
@@ -281,11 +365,39 @@ function buildResultTypeSchema(name, [base, fieldList]) {
     properties[fieldName] = inferredField(name, fieldName);
     if (!optional) required.push(fieldName);
   }
-  return {
+  const result = {
     $schema: DRAFT, $id: typeId(name), title: `${name}@1`, 'x-helix-ssotRefs': ['8.6.19'],
     ...(base ? { 'x-helix-envelopeRef': typeId(base) } : {}),
     ...object(properties, required)
   };
+  if (name === 'PerceptionResolutionDraft' || name === 'PerceptionResolutionRevision') {
+    result.allOf = [{
+      if: { properties: { resultKind: { const: 'found' } }, required: ['resultKind'] },
+      then: {
+        required: ['winningPerceptionId', 'resolvedValue', 'resolvedProvenance'],
+        not: { required: ['reasonCode'] }
+      },
+      else: {
+        required: ['reasonCode'],
+        not: { anyOf: [
+          { required: ['winningPerceptionId'] }, { required: ['resolvedValue'] }, { required: ['resolvedProvenance'] }
+        ] }
+      }
+    }];
+  }
+  return result;
+}
+
+function personReferenceRevisionSchema() {
+  const activeAsset = object({ referenceAssetId: id(), artifactHandleId: id(), artifactDigest: digest() });
+  const activeFace = object({ referenceFaceId: id(), referenceAssetId: id(), embeddingHandleId: id(), embeddingDigest: digest(), modelRef: text() });
+  const properties = { schemaRef: { const: typeId('PersonReferenceRevision') }, schemaVersion: { const: 1 },
+    ...envelopeFields.DomainFactEnvelope, personId: id(), referenceRevision: positiveInteger(),
+    operationKind: enumText('add_image', 'release_image'), affectedReferenceAssetId: id(), affectedReferenceFaceId: id(),
+    activeReferenceAssets: arrayOf(activeAsset, 1024), activeReferenceFaces: arrayOf(activeFace, 1024),
+    activeAssetSetDigest: digest(), activeFaceSetDigest: digest(), referenceSetDigest: digest() };
+  return { $schema: DRAFT, $id: typeId('PersonReferenceRevision'), title: 'PersonReferenceRevision@1',
+    'x-helix-ssotRefs': ['8.6.19'], 'x-helix-envelopeRef': typeId('DomainFactEnvelope'), ...object(properties) };
 }
 
 function buildResultTypeSchemas() {

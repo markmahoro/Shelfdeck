@@ -13,35 +13,21 @@
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": true,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 2,
-        "name": "left_person_id",
-        "logicalType": "TEXT",
+        "name": "current_revision",
+        "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": true
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 3,
-        "name": "right_person_id",
-        "logicalType": "TEXT",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": true
-      },
-      {
-        "ordinal": 4,
-        "name": "evidence_digest",
-        "logicalType": "TEXT",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": false
-      },
-      {
-        "ordinal": 5,
-        "name": "state",
+        "name": "current_state",
         "logicalType": "TEXT",
         "enumValues": [
           "open",
@@ -50,23 +36,98 @@
           "superseded"
         ],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "left_person_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "left_person_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
         "ordinal": 6,
+        "name": "right_person_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "right_person_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "candidate_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "candidate_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "candidate_payload_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
         "name": "created_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       },
       {
-        "ordinal": 7,
+        "ordinal": 13,
         "name": "terminal_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false
+        "foreignKeyMarker": false,
+        "nullable": false
       }
     ],
     "primaryKey": [
@@ -77,69 +138,122 @@
       "right_person_id"
     ],
     "uniqueConstraints": [],
-    "hotIndexes": [],
+    "hotIndexes": [
+      [
+        "current_state",
+        "created_at_ms"
+      ]
+    ],
     "partialUniqueRules": [
-      "normalized pair unique while open"
+      "`UNIQUE(left_person_id,right_person_id) WHERE current_state='open'`"
     ],
     "checkRules": [
       {
-        "column": "state",
+        "column": "current_state",
         "enumValues": [
           "open",
           "accepted",
           "dismissed",
           "superseded"
         ]
+      },
+      {
+        "rule": "`candidate_json`保存Draft中精确Merge `candidatePayload`，JCS digest匹配`candidate_payload_digest`，四个Person热字段以DDL CHECK匹配payload refs"
       }
     ],
     "revisionContract": {
-      "revisionColumns": [],
-      "currentPointerColumns": [],
-      "pointerTargets": [],
-      "pointerRules": []
+      "revisionColumns": [
+        "current_revision",
+        "left_person_revision",
+        "right_person_revision"
+      ],
+      "currentPointerColumns": [
+        "current_revision"
+      ],
+      "pointerTargets": [
+        {
+          "sourceColumns": [
+            "merge_candidate_id",
+            "current_revision",
+            "current_state"
+          ],
+          "targetTable": "people_merge_candidate_revisions",
+          "targetColumns": [
+            "merge_candidate_id",
+            "revision",
+            "state"
+          ],
+          "consistencyColumns": [],
+          "deletePolicy": "RESTRICT",
+          "deferrable": true
+        }
+      ],
+      "pointerRules": [
+        "Candidate current复合FK `DEFERRABLE INITIALLY DEFERRED`"
+      ]
     },
-    "jsonContracts": [],
+    "jsonContracts": [
+      {
+        "column": "candidate_json",
+        "schemaRefColumn": "candidate_schema_ref",
+        "maxBytes": 16384,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      }
+    ],
     "immutability": {
       "immutable": false,
-      "rules": []
+      "rules": [
+        "两个`(person_id,revision)`复合FK冻结精确Person revision，payload与该snapshot immutable"
+      ]
     },
     "deletion": {
       "foreignKeyPolicy": "ON DELETE RESTRICT",
       "rules": []
     },
     "semanticRules": [
-      "normalized pair unique while open",
-      "dismiss只终结候选，不修改Person或媒体关系"
+      "`candidate_json`保存Draft中精确Merge `candidatePayload`，JCS digest匹配`candidate_payload_digest`，四个Person热字段以DDL CHECK匹配payload refs",
+      "Person pair按ID规范化",
+      "两个`(person_id,revision)`复合FK冻结精确Person revision，payload与该snapshot immutable",
+      "Candidate current复合FK `DEFERRABLE INITIALLY DEFERRED`",
+      "`UNIQUE(left_person_id,right_person_id) WHERE current_state='open'`",
+      "`INDEX(current_state,created_at_ms)`"
     ],
     "rawContract": {
-      "columns": "`merge_candidate_id PK, left_person_id FK, right_person_id FK, evidence_digest, state(open|accepted|dismissed|superseded), created_at_ms, terminal_at_ms`",
-      "constraints": "normalized pair unique while open；dismiss只终结候选，不修改Person或媒体关系"
+      "columns": "`merge_candidate_id PK, current_revision, current_state, left_person_id FK, left_person_revision, right_person_id FK, right_person_revision, evidence_digest, candidate_schema_ref, candidate_json, candidate_payload_digest, created_at_ms, terminal_at_ms`",
+      "constraints": "`candidate_json`保存Draft中精确Merge `candidatePayload`，JCS digest匹配`candidate_payload_digest`，四个Person热字段以DDL CHECK匹配payload refs；Person pair按ID规范化；两个`(person_id,revision)`复合FK冻结精确Person revision，payload与该snapshot immutable；Candidate current复合FK `DEFERRABLE INITIALLY DEFERRED`；`UNIQUE(left_person_id,right_person_id) WHERE current_state='open'`；`INDEX(current_state,created_at_ms)`"
     },
     "source": {
       "section": "8.5.13",
-      "line": 7509,
-      "lineDigest": "016be67d779ae4aee365cab774dc2e228da2e450dbbd8a95df1689048d31dd5e"
+      "line": 7797,
+      "lineDigest": "73d1ef0e5baeb5a12fd4429b23e6392a8f6ae2c490808a95111a0f5b283f408a"
     },
     "foreignKeys": [
       {
         "columns": [
-          "left_person_id"
+          "left_person_id",
+          "left_person_revision"
         ],
-        "targetTable": "people_persons",
+        "targetTable": "people_person_revisions",
         "targetColumns": [
-          "person_id"
+          "person_id",
+          "revision"
         ],
-        "deletePolicy": "RESTRICT"
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
       },
       {
         "columns": [
-          "right_person_id"
+          "right_person_id",
+          "right_person_revision"
         ],
-        "targetTable": "people_persons",
+        "targetTable": "people_person_revisions",
         "targetColumns": [
-          "person_id"
+          "person_id",
+          "revision"
         ],
-        "deletePolicy": "RESTRICT"
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
       }
     ]
   }
