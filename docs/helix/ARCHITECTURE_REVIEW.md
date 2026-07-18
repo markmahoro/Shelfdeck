@@ -1,6 +1,6 @@
 # Helix Architecture Review Workbench
 
-Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-19；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-10`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`）bounded correction均已完成。
+Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-19；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-10`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`）bounded correction均已完成。
 
 ## 1. Purpose and authority
 
@@ -1815,3 +1815,30 @@ Bounded correction不新增Domain、Owner、Store、Handoff、Capability或兼�
 全文一致性审计覆盖Level 3 continuity、Level 4 Handoff A、Level 5 Intake、Level 8 Capability output、formal DTO、
 7+3 participant transaction、163-table inventory、Facade、Outbox/Inbox、crash fixture与Dictionary。结果为
 `PASS / PBF-10-R2 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.16 `PBF-10-R3` — Candidate Publication Run revision-head write-set continuity
+
+Status: `CLOSED / BOUNDED DETAIL FIX APPLIED` — 2026-07-19
+
+P7-07在`PBF-10-R2`重物化后的Candidate Publication Store开工审计中证明：正式事务已经要求对
+`proc_procurement_runs.candidate_package_revision_head`执行expected-head CAS并把新head作为Package/Result
+revision，但`PBF-10-R1`固定的domain participant清单只列了Candidate、relation、Delivery及Reservation七张表，
+把承载该CAS写入的`proc_procurement_runs`只放进`readTables`。因此合法实现无法同时遵守revision序列化和机器
+write whitelist。
+
+主审沿8.5.4 atomic fact set、8.5.11 Run表合同、Candidate Package revision、commit marker replay、crash fixture与
+163-table inventory独立反证，确认这是既有同一事务中的formal machine-contract gap，不是新的业务语义、Owner
+变更或实现线程对CAS的额外要求。Bounded correction只做以下闭合：
+
+- 把既有`proc_procurement_runs`加入Candidate Publication的Procurement domain write participant；
+- domain participant由7张修正为8张，Foundation participant保持3张，`writeTables`精确并集由10张修正为11张；
+- `proc_procurement_runs`继续保留在`readTables`：同一表先用于expected-head fence read，再在相同事务执行CAS
+  increment，read/write双重出现是该事务的明确合同；
+- crash atomicity明确覆盖Run revision head、Package、final Manifest/Episode/Related relations、Reservation、
+  Acceptance Basis/Offer、typed Result/marker及Outbox全有或全无；
+- `PBF-10-R2`闭合的Acceptance Basis、stable Offer/Outbox、canonical continuity kind与完整Candidate Package合同
+  全部保持不变。
+
+本修正不新增或删除关系表，`163 tables / 163 unique names`保持；不改变Domain、Owner、Store、Handoff、
+Capability或兼容策略。Transaction materializer/validator必须重物化为8张Procurement表加3张Foundation表的11张
+精确写集。审计结果为`PASS / PBF-10-R3 CLOSED / NO OPEN BUSINESS DECISION`。

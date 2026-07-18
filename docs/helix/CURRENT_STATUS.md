@@ -107,6 +107,12 @@ Architecture Agent提交`ea702945`以`PBF-10-R2`闭合上述三项：Acceptance 
 全链路采用唯一canonical枚举，不设别名或转换层。Candidate Package保持8.6.19完整字段且不包含Offer字段或`subjectId`。
 实现侧只读复审确认未新增Domain、Owner、Store、Handoff、Capability或关系表，P7-07恢复实施。
 
+进一步原子事务审计证明Run `candidate_package_revision_head`必须执行CAS，但PBF-10-R1的机器写集遗漏承载该head的
+`proc_procurement_runs`。Architecture Agent提交`52382fc7`以`PBF-10-R3`闭合：该Run表现同时属于CAS fence read和
+Procurement domain write participant，Candidate Publication最终为8张Procurement表加3张Foundation表的11张精确
+write table；Run head与Package、relations、Reservation、Offer、Result/marker、Outbox全有或全无。163张表总量及
+PBF-10-R2全部合同保持不变，P7-07继续实施。
+
 ## 2. Accepted implementation conclusion
 
 clean Helix的业务核心、Persistence、Execution Foundation、Application Facade、API/Auth和Admin Web需要在

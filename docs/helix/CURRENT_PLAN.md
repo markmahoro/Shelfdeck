@@ -46,6 +46,10 @@ Store、Handoff、Capability或163张关系表总数。
 message/consumer/dedup合同，并把Season Continuity Claim全链路统一为
 `provider_season_identity|triage_grouping_lineage`；同样不扩大任何Owner或物理边界。
 
+`PBF-10-R3`把承载Run `candidate_package_revision_head` CAS的既有`proc_procurement_runs`补入Candidate
+Publication domain write participant；最终机器事务固定为8张Procurement、3张Foundation及11张write table，
+同时保留Run表为CAS fence read，不改变163张关系表、Owner、Store、Handoff或Capability。
+
 ## 3. Current phase
 
 | Field | Current value |
