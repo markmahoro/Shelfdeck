@@ -1,6 +1,6 @@
 # Helix Architecture Review Workbench
 
-Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-18；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-08` bounded correction均已完成。
+Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-18；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-09` bounded correction均已完成。
 
 ## 1. Purpose and authority
 
@@ -1654,3 +1654,33 @@ Bounded correction保持五Domain、两Handoff、112项Capability与161张关系
 因此`P7-04 Extraction Eligibility Reconcile Design Return`已经闭合。该修正包含一项已确认用户Policy Decision，
 其余为既有Owner边界内的formal-realizability细化；没有引入兼容层、跨Domain Store读取、默认allow/deny、隐藏
 suppression或新的架构结构。
+
+### 15.11 `PBF-09` — Procurement Run Admission、Seal与Retry continuity
+
+Status: `CLOSED / BOUNDED DETAIL FIX APPLIED` — 2026-07-18
+
+P7-05实现反证确认Procurement Run的业务语义已经存在，但Level 8没有形成可执行的纵向合同：Selection允许
+4096项而Control Handle/Receipt只允许1024项；Run只保存opaque digest；Run创建、Selection唯一性与全部Control
+取得没有同一事务；Seal没有区分Run Selection与保留的Procurement Control；Retry只定义Intent创建，没有闭合
+消费与唯一新Run。
+
+该问题不要求新的用户业务决定。Bounded correction保持五Domain、两Handoff、既有Process Root、112项Capability
+和96个Catalog Result family不变：
+
+- 单Run Selection固定为`1..1024`，超出范围由多个互不重叠Run处理，空Selection与1025项输入稳定拒绝；
+- 正式定义`ProcurementRunExecutionBasis@1`与完整`SelectedFieldMaterialSet@1`，冻结Field Access、terminal
+  Observation、Extraction Policy、Triage rule和逐Material Binding/Eligibility/Reality/Provenance/Control snapshot；
+- 使用增强后的`proc_procurement_runs + proc_run_materials`关系化持久完整Basis，不以大JSON、Foundation Work或
+  最新Field current row替代历史输入；
+- Procurement Control固定归`material_field/fieldId`稳定scope；Admission在一个SQLite事务中建立Run/Basis/
+  Selection并对全部成员acquire或assert同Field retained Control，typed Receipt改为count/set digest而非大key数组；
+- Candidate发布把成员转成`candidate_delivery` reservation；Seal只释放未成Package的Run Selection，Handoff A
+  终态再把Reservation置为transferred/released，避免sealed Run后材料被重复采购；
+- Retry Intent以relationized逐材料precondition冻结精确失败scope；consume CAS与新Run Admission同事务，或原子
+  进入stale且不建Run；同一Intent最多关联一个新Run，响应前崩溃重放原Result；
+- 新增一张Procurement-owned `proc_procurement_retry_intent_materials`关系表承载逐材料Retry fence，关系表总数
+  从161调整为162；它不是Business Object、组件、Capability或兼容层。
+
+因此`P7-05 Procurement Run Admission Design Return`的五项阻塞已经在SSOT层闭合。实现仍需通过1/1024/1025
+边界、Admission中途崩溃、same-Field assert、Candidate Reservation、Seal、Retry consume/stale及restart replay
+反例证明合同物化正确。
