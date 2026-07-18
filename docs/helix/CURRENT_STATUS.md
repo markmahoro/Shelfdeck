@@ -13,12 +13,12 @@ Last updated: 2026-07-18
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains |
 | Current phase | P7 — Procurement |
-| Current phase status | P7-00–P7-04 PASS；P7-05正在实施 |
+| Current phase status | P7-00–P7-04 PASS；P7-05 Design Return |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P6 phase closure `5831c53207d5e71ccdf4792da11ed71be3d47ae1` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p7` on `codex/helix-p7` |
-| Next action | 实施P7-05 Procurement Run selection、Control acquisition与retry-intent transaction |
+| Next action | Architecture Agent闭合P7-05 Run Basis/admission/seal/retry persistence continuity后恢复实现 |
 
 Architecture Agent提交`19ed12fa`已闭合`PBF-07-R1`：Page正式收敛为≤65,536 UTF-8 JCS bytes，完整Page作为
 Commit Event immutable typed Evidence保存，并通过Observation→Marker→Result Binding形成禁止GC的历史恢复链；
@@ -48,6 +48,15 @@ Observation/Policy/Material Binding/Selection/Control，逐项拒绝stale basis�
 相同Batch重放为no-op，且不写Event Result、marker或Outbox。聚焦反例、完整Architecture `533/533`和P3 Persistence
 聚合门禁均PASS；未运行禁止的外部动作，本线程未编辑SSOT或`media-desktop`。证据见
 `implementation/evidence/P7_04_ELIGIBILITY_RECONCILE.md`。
+
+P7-05实现前审计已返回Design。当前`SelectedFieldMaterialSet`只携带最多4096个material key，既允许空集合，又缺少
+role、Binding/Eligibility/Reality Evidence、Triage revision和expected Control revision；该上限还与1024项
+`ResponsibilityControlCommitHandle`/`ProcurementControlReceipt`及当前Control原子边界冲突。`proc_procurement_runs`
+只保存opaque `run_basis_digest`，`proc_run_materials`只保存key/role/binding revision，无法持久化和重建§6.1.4、
+§6.3.2要求的可审计Execution Basis。SSOT也没有闭合Run admission/seal的正式原子事务，以及Retry Intent创建后的
+open→consumed/stale CAS、新Run唯一建立、typed Result/Outbox与重放连续性。直接实现将迫使本线程私自缩小合法输入、
+发明Basis字段或旁读current row冒充冻结事实，因此已停止P7-05代码。详见
+`implementation/evidence/P7_05_RUN_ADMISSION_DESIGN_RETURN.md`；本线程未修改SSOT。
 
 ## 2. Accepted implementation conclusion
 

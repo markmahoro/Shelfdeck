@@ -1,6 +1,6 @@
 # P7 Procurement Detailed Plan
 
-Status: P7-00–P7-04 complete；P7-05 in progress.
+Status: Design Return；P7-00–P7-04 complete；P7-05 blocked by Run Basis/admission/retry continuity gaps.
 
 Last updated: 2026-07-18
 
@@ -88,6 +88,11 @@ socket、ambient credential、真实Material Field扫描、真实媒体/FFmpeg�
 - Run冻结Field scope、Triage revision和Selected Field Material Set。
 - Primary成员逐Identity通过P3 responsibility/control CAS取得Procurement Control；冲突整事务失败。
 - 实现正式Procurement retry-intent canonical transaction，不让retry事实改变业务Owner。
+- Design Return：现有`SelectedFieldMaterialSet`的4096-key浅合同与1024项Handle/Receipt、Control原子边界矛盾，且未携带
+  role、Binding/Eligibility/Reality/Triage/expected Control basis；Run/Material表不能持久化§6.1.4要求的可审计Basis。
+  Run admission/seal和Retry Intent consume→new Run也没有完整原子输入、输出、CAS、Result/Outbox/replay合同。
+  不得私设较小上限、把digest当Basis、旁读current row冒充冻结事实或拆分Control取得。详见
+  `evidence/P7_05_RUN_ADMISSION_DESIGN_RETURN.md`。
 
 ### P7-06 Triage evidence pipeline
 
