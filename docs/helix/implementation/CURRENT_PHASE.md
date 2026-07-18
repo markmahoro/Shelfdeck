@@ -1,6 +1,6 @@
 # P7 Procurement Detailed Plan
 
-Status: Active；P7-00–P7-10 complete；P7-11 in progress.
+Status: Complete；P7-00–P7-11 PASS；Exit Evidence frozen.
 
 Last updated: 2026-07-18
 
@@ -154,6 +154,9 @@ socket、ambient credential、真实Material Field扫描、真实媒体/FFmpeg�
 - 反向审计全部P7 SSOT traceability、Owner、Store prefix、Control、Candidate唯一性和cross-domain dependency。
 - 证明无Subject/Shelf/Deck/Media-Cast/API/UI/startup/legacy/dual/fallback或真实外部效果进入P7。
 - PASS后归档本包并自动进入P8。
+- Done：clean-tree Exit Audit审计P6 closure后的515个文件，全部落入允许分类；SSOT精确等于Architecture Agent批准blob，
+  112/96/163/30合同aggregate与15表/8 Capability均精确。12个P7 fixture family和P2–P6聚合回归全部PASS，
+  `findings=[]`、`prohibitedActionsRun=[]`。Evidence见`evidence/P7_PHASE_EXIT_AUDIT_E5988744.md`。
 
 ## 6. Execution order
 
