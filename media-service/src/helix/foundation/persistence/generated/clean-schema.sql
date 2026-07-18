@@ -2341,7 +2341,7 @@ CREATE TABLE "proc_procurement_retry_intents" (
   "field_id" TEXT,
   "failed_run_id" TEXT,
   "failed_basis_digest" TEXT CHECK (length("failed_basis_digest") = 64 AND "failed_basis_digest" NOT GLOB '*[^0-9a-f]*'),
-  "retry_field_status" TEXT CHECK ("retry_field_status" IN ('active', 'disabled')),
+  "retry_field_status" TEXT CHECK ("retry_field_status" IN ('active')),
   "retry_access_revision" INTEGER CHECK ("retry_access_revision" >= 1),
   "retry_access_digest" TEXT CHECK (length("retry_access_digest") = 64 AND "retry_access_digest" NOT GLOB '*[^0-9a-f]*'),
   "retry_terminal_observation_revision" INTEGER CHECK ("retry_terminal_observation_revision" >= 1),
@@ -2377,8 +2377,13 @@ CREATE TABLE "proc_procurement_retry_intents" (
   UNIQUE ("field_id", "idempotency_key"),
   CHECK (json_valid("consume_admission_head_json")),
   CHECK (length(CAST("consume_admission_head_json" AS BLOB)) <= 16384),
-  FOREIGN KEY ("field_id") REFERENCES "proc_material_fields" ("field_id") ON DELETE RESTRICT,
-  FOREIGN KEY ("failed_run_id") REFERENCES "proc_procurement_runs" ("procurement_run_id") ON DELETE RESTRICT
+  FOREIGN KEY ("failed_run_id") REFERENCES "proc_procurement_runs" ("procurement_run_id") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
+  FOREIGN KEY ("field_id", "retry_access_revision") REFERENCES "proc_field_access_revisions" ("field_id", "revision") ON DELETE RESTRICT,
+  FOREIGN KEY ("field_id", "retry_terminal_observation_revision") REFERENCES "proc_field_observations" ("field_id", "revision") ON DELETE RESTRICT,
+  FOREIGN KEY ("retry_extraction_policy_id", "retry_extraction_policy_revision") REFERENCES "proc_extraction_policy_revisions" ("extraction_policy_id", "revision") ON DELETE RESTRICT,
+  FOREIGN KEY ("new_run_id") REFERENCES "proc_procurement_runs" ("procurement_run_id") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
+  FOREIGN KEY ("create_commit_marker") REFERENCES "fx_commit_markers" ("commit_marker") ON DELETE RESTRICT,
+  FOREIGN KEY ("consume_commit_marker") REFERENCES "fx_commit_markers" ("commit_marker") ON DELETE RESTRICT
 );
 CREATE UNIQUE INDEX "uidx_proc_procurement_retry_intents_partial_01" ON "proc_procurement_retry_intents" ("failed_run_id", "failed_basis_digest") WHERE "state" IN ('open', 'consumed');
 
@@ -2418,7 +2423,8 @@ CREATE TABLE "proc_procurement_runs" (
   FOREIGN KEY ("field_id", "terminal_observation_revision") REFERENCES "proc_field_observations" ("field_id", "revision") ON DELETE RESTRICT,
   FOREIGN KEY ("extraction_policy_id", "extraction_policy_revision") REFERENCES "proc_extraction_policy_revisions" ("extraction_policy_id", "revision") ON DELETE RESTRICT,
   FOREIGN KEY ("admission_commit_marker") REFERENCES "fx_commit_markers" ("commit_marker") ON DELETE RESTRICT,
-  FOREIGN KEY ("seal_commit_marker") REFERENCES "fx_commit_markers" ("commit_marker") ON DELETE RESTRICT
+  FOREIGN KEY ("seal_commit_marker") REFERENCES "fx_commit_markers" ("commit_marker") ON DELETE RESTRICT,
+  FOREIGN KEY ("retry_intent_id") REFERENCES "proc_procurement_retry_intents" ("retry_intent_id") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED
 );
 CREATE INDEX "idx_proc_procurement_runs_hot_01" ON "proc_procurement_runs" ("state", "priority_class", "created_at_ms");
 CREATE UNIQUE INDEX "uidx_proc_procurement_runs_partial_01" ON "proc_procurement_runs" ("seal_decision_id") WHERE "seal_decision_id" IS NOT NULL;

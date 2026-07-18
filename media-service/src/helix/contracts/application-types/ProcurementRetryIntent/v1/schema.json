@@ -93,11 +93,50 @@
                     "minimum": 0
                   },
                   "controlState": {
+                    "const": "uncontrolled"
+                  },
+                  "regionProjection": {
+                    "const": "uncontrolled"
+                  },
+                  "evidenceDigest": {
                     "type": "string",
-                    "enum": [
-                      "uncontrolled",
-                      "controlled"
-                    ]
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "projectionDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "materialKey",
+                  "resultKind",
+                  "controlRevision",
+                  "controlState",
+                  "regionProjection",
+                  "evidenceDigest",
+                  "projectionDigest"
+                ]
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "materialKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "resultKind": {
+                    "const": "available"
+                  },
+                  "controlRevision": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "controlState": {
+                    "const": "controlled"
                   },
                   "ownerDomain": {
                     "type": "string",
@@ -117,7 +156,6 @@
                   "regionProjection": {
                     "type": "string",
                     "enum": [
-                      "uncontrolled",
                       "procurement",
                       "production",
                       "finished_goods"
@@ -139,6 +177,9 @@
                   "resultKind",
                   "controlRevision",
                   "controlState",
+                  "ownerDomain",
+                  "ownerScopeType",
+                  "ownerScopeId",
                   "regionProjection",
                   "evidenceDigest",
                   "projectionDigest"

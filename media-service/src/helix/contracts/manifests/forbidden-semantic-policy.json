@@ -266,6 +266,13 @@
       "allowedRuleIds": ["legacy.admission"]
     },
     {
+      "id": "canonical-procurement-retry-admission-store",
+      "relativePath": "domains/procurement/persistence/procurement-retry-admission-store.js",
+      "purpose": "evidence-locator",
+      "allowedLocationTypes": ["path", "content"],
+      "allowedRuleIds": ["legacy.admission"]
+    },
+    {
       "id": "canonical-foundation-control-admission-read",
       "relativePath": "foundation/persistence/material-control.js",
       "purpose": "evidence-locator",

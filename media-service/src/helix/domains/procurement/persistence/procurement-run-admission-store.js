@@ -200,4 +200,4 @@ function createProcurementRunAdmissionStore(options) {
   } });
 }
 
-module.exports = Object.freeze({ ProcurementRunAdmissionStoreError, RESULT_SCHEMA, RUN_BASIS_SCHEMA, createProcurementRunAdmissionStore });
+module.exports = Object.freeze({ ProcurementRunAdmissionStoreError, RESULT_SCHEMA, RUN_BASIS_SCHEMA, createProcurementRunAdmissionStore, validateControlHandle });

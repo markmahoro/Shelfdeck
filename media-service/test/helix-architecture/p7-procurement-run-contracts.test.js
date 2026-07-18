@@ -5,6 +5,7 @@ const test = require('node:test');
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const { activeTriageRule, createDefaultTriageRuleRegistry, createProcurementRunExecutionBasis,
   createSelectedFieldMaterialSet } = require('../../src/helix/domains/procurement/model/procurement-run-contracts');
+const { retryHeadStaleReason, retryMemberStaleReason } = require('../../src/helix/domains/procurement/model/procurement-retry-contracts');
 
 const MATERIAL = 'a'.repeat(64);
 const DIGEST = 'b'.repeat(64);
@@ -57,4 +58,13 @@ test('Run Execution Basis binds current Field heads, active Rule authority, and 
     (error) => error.code === 'P7_TRIAGE_RULE_INVALID');
   assert.throws(() => createProcurementRunExecutionBasis(basis(registry, { fieldStatus:'deregistered' }), registry),
     (error) => error.code === 'P7_RUN_FIELD_INACTIVE');
+});
+
+test('Retry stale classifier applies the closed SSOT precedence before lower-level member drift',()=>{
+  const registry=createDefaultTriageRuleRegistry(),rule=activeTriageRule(registry);const expectedHead={fieldStatus:'active',fieldAccess:{revision:1,digest:DIGEST},terminalObservation:{resultKind:'available',revision:1,fieldObservationWorkId:'work-1'},extractionPolicy:{policyId:'policy-1',revision:1,digest:DIGEST},triageRule:rule};
+  assert.equal(retryHeadStaleReason(expectedHead,{...expectedHead,fieldStatus:'deregistered',fieldAccess:{revision:2,digest:'c'.repeat(64)}}),'field_status_changed');
+  const expected={expectedBindingRevision:1,expectedEligibilityRevision:2,expectedEligibilityBasisDigest:DIGEST,expectedSelectionBasisDigest:DIGEST,expectedControlSnapshot:controlSnapshot()};
+  const actual={materialState:'missing',currentSelection:{hasConflict:true,selectionBasisDigest:'c'.repeat(64)},currentControlSnapshot:{resultKind:'unavailable'}};
+  assert.equal(retryMemberStaleReason(expected,actual,'field-1','triage_rule_changed'),'triage_rule_changed');
+  assert.equal(retryMemberStaleReason(expected,actual,'field-1'),'material_not_present');
 });

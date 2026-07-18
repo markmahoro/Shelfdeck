@@ -46,7 +46,7 @@
       "relativePath": "application-types/ProcurementRetryConsumeMemberSnapshot/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "cc5326c40ab3812bef23ebabde1d01953431a2079ed444b60bde3f7f5c353691"
+        "value": "1b1bc2877a2204c55f30547c5cb530552d66029664e321d3d6791185d355617e"
       },
       "ssotRefs": [
         "8.6.18"
@@ -61,7 +61,7 @@
       "relativePath": "application-types/ProcurementRetryIntent/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "5d373d6a48fc05573e79b65c23dccf7e927d0ab06382077842762f5c04480a2f"
+        "value": "dea50f967f376ff5350b524ed756a88ac7bcd106131e4a7237e2d74d3af78f87"
       },
       "ssotRefs": [
         "8.6.18"

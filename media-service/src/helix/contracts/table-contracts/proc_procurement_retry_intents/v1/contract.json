@@ -48,8 +48,7 @@
         "name": "retry_field_status",
         "logicalType": "TEXT",
         "enumValues": [
-          "active",
-          "disabled"
+          "active"
         ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -369,8 +368,7 @@
       {
         "column": "retry_field_status",
         "enumValues": [
-          "active",
-          "disabled"
+          "active"
         ]
       },
       {
@@ -434,22 +432,83 @@
     "foreignKeys": [
       {
         "columns": [
-          "field_id"
+          "failed_run_id"
         ],
-        "targetTable": "proc_material_fields",
+        "targetTable": "proc_procurement_runs",
         "targetColumns": [
-          "field_id"
+          "procurement_run_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": true
+      },
+      {
+        "columns": [
+          "field_id",
+          "retry_access_revision"
+        ],
+        "targetTable": "proc_field_access_revisions",
+        "targetColumns": [
+          "field_id",
+          "revision"
         ],
         "deletePolicy": "RESTRICT",
         "deferrable": false
       },
       {
         "columns": [
-          "failed_run_id"
+          "field_id",
+          "retry_terminal_observation_revision"
+        ],
+        "targetTable": "proc_field_observations",
+        "targetColumns": [
+          "field_id",
+          "revision"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "retry_extraction_policy_id",
+          "retry_extraction_policy_revision"
+        ],
+        "targetTable": "proc_extraction_policy_revisions",
+        "targetColumns": [
+          "extraction_policy_id",
+          "revision"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "new_run_id"
         ],
         "targetTable": "proc_procurement_runs",
         "targetColumns": [
           "procurement_run_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": true
+      },
+      {
+        "columns": [
+          "create_commit_marker"
+        ],
+        "targetTable": "fx_commit_markers",
+        "targetColumns": [
+          "commit_marker"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "consume_commit_marker"
+        ],
+        "targetTable": "fx_commit_markers",
+        "targetColumns": [
+          "commit_marker"
         ],
         "deletePolicy": "RESTRICT",
         "deferrable": false

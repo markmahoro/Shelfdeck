@@ -424,6 +424,17 @@
         ],
         "deletePolicy": "RESTRICT",
         "deferrable": false
+      },
+      {
+        "columns": [
+          "retry_intent_id"
+        ],
+        "targetTable": "proc_procurement_retry_intents",
+        "targetColumns": [
+          "retry_intent_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": true
       }
     ]
   }

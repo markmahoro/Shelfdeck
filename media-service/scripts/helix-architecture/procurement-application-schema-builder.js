@@ -11,7 +11,8 @@ const nonNegative = () => ({ type:'integer', minimum:0 });
 const object = (properties, required = Object.keys(properties), options = {}) => ({ type:'object', additionalProperties:false, properties, required, ...options });
 const ref = (name) => ({ $ref:typeId(name) });
 const controlSnapshot = () => ({ oneOf:[
-  object({materialKey:digest(),resultKind:{const:'available'},controlRevision:nonNegative(),controlState:{type:'string',enum:['uncontrolled','controlled']},ownerDomain:id(),ownerScopeType:id(),ownerScopeId:id(),regionProjection:{type:'string',enum:['uncontrolled','procurement','production','finished_goods']},evidenceDigest:digest(),projectionDigest:digest()},['materialKey','resultKind','controlRevision','controlState','regionProjection','evidenceDigest','projectionDigest']),
+  object({materialKey:digest(),resultKind:{const:'available'},controlRevision:nonNegative(),controlState:{const:'uncontrolled'},regionProjection:{const:'uncontrolled'},evidenceDigest:digest(),projectionDigest:digest()}),
+  object({materialKey:digest(),resultKind:{const:'available'},controlRevision:positive(),controlState:{const:'controlled'},ownerDomain:id(),ownerScopeType:id(),ownerScopeId:id(),regionProjection:{type:'string',enum:['procurement','production','finished_goods']},evidenceDigest:digest(),projectionDigest:digest()}),
   object({materialKey:digest(),resultKind:{const:'unavailable'},failureCode:id(),evidenceDigest:digest(),projectionDigest:digest()})
 ] });
 const receiptEnvelope = (receiptKind) => ({ schemaRef:{ const:typeId(receiptKind) },schemaVersion:{ const:1 },receiptId:id(),receiptKind:{ const:receiptKind==='ProcurementRetryIntentReceipt'?'procurement_retry_intent_created':'procurement_retry_admission' },ownerDomain:{ const:'procurement' },scopeType:{ const:'procurement_retry_intent' },scopeId:id(),scopeDigest:digest(),committedAtMs:nonNegative() });
