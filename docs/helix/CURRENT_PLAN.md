@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: Levels 0–10 accepted; P0–P6 complete; P7 in progress under standing P2–P13 Local Implementation authorization; external-environment actions and `media-desktop` remain paused.
+Status: Levels 0–10 accepted; P0–P7 complete; P8 in progress under standing P2–P13 Local Implementation authorization; external-environment actions and `media-desktop` remain paused.
 
 Last updated: 2026-07-18
 
@@ -54,13 +54,13 @@ Publication domain write participant；最终机器事务固定为8张Procuremen
 
 | Field | Current value |
 | --- | --- |
-| Phase | P7 — Procurement |
+| Phase | P8 — Handoff A and Libra front half |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | P7-00–P7-11 PASS；Exit Evidence frozen；automatic P8 transition next |
-| Implementation baseline | exact P6 phase closure `5831c53207d5e71ccdf4792da11ed71be3d47ae1` |
-| Phase branch/worktree | `codex/helix-p7` / `E:\my_project\emby_third_party-helix-p7` |
+| Status | P8-00 baseline receipt in progress |
+| Implementation baseline | exact P7 phase closure `2cf98561d7cf785db4005e65e99b0750d84ce5ce` |
+| Phase branch/worktree | `codex/helix-p8` / `E:\my_project\emby_third_party-helix-p8` |
 | Allowed now | P2–P13本地代码、unit/contract/isolated fixture、文档与Phase自动转换 |
-| Next action | archive P7 detailed packet and open P8 baseline receipt |
+| Next action | P8-00 exact transition and baseline receipt |
 
 ## 4. Master roadmap
 
@@ -73,7 +73,7 @@ Publication domain write participant；最终机器事务固定为8张Procuremen
 | P4 Execution and recovery foundation | Work/Plan/Event/Effect、Progress、Control Plane、Resource、Retry/Timeout/Circuit、startup recovery | P3 | **complete**；7 Effect Classes / 31 crash scenarios；Exit Audit PASS |
 | P5 Platform and integrations | Secret/Mount/Workspace/Artifact/Resource/Worker及typed Provider/FFmpeg/file libraries | P3–P4 ports | **complete**；10 fixture families / 31 recovery scenarios；Exit Audit PASS |
 | P6 Horizontal domains | Perception和People独立Store/Facade/Process/Projection | P3–P5 | **complete**；Exit Audit PASS；两域Owner与cross-domain边界闭合 |
-| P7 Procurement | Material Field、Observation、Region、Triage、Candidate Package | P3–P5 | `0..N` Field隔离；Related/Control和Candidate唯一性成立 |
+| P7 Procurement | Material Field、Observation、Region、Triage、Candidate Package | P3–P5 | **complete**；Exit Audit PASS；15表/8 Capability与Candidate原子性闭合 |
 | P8 Handoff A and Libra front half | Handoff A、FA-04 continuity、Subject、Decision、Routing、Acceptance Spec | P6–P7 | Decision/Subject/Binding/Control/Receipt单事务 |
 | P9 Libra production and delivery | Run、Workspace、Product、Conformance、On-deck Package、Discard/Cleanup/Reclaimer | P4–P5、P8 | Libra只写Workspace；Promotion/Discard/Cleanup原子闭合 |
 | P10 Handoff B and On-deck | Shelf/Standard/Placement、Acceptance、Custody、Off-load、Inventory、Shelf Entry、Deck | P5、P9 | Handoff B不建Own；只有On-deck Commit建立/扩展Deck |
