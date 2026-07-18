@@ -1,6 +1,6 @@
 # P7 Procurement Detailed Plan
 
-Status: Active；P7-00–P7-09 complete；P7-10 in progress.
+Status: Active；P7-00–P7-10 complete；P7-11 in progress.
 
 Last updated: 2026-07-18
 
@@ -145,6 +145,9 @@ socket、ambient credential、真实Material Field扫描、真实媒体/FFmpeg�
 
 - 单一Node命令覆盖15表、8 Capability、Facade、replay/CAS/crash与边界反例。
 - 同时回归P2 contract、P3 persistence、P4 runtime、P5 platform和P6 horizontal gates。
+- Done：`npm run test:helix-procurement`单命令发现并执行11个P7 fixture family，核对15张Procurement表和8个
+  Capability，并串行回归P2–P6五层聚合门禁；全部PASS，`findings=[]`、`prohibitedActionsRun=[]`。Evidence见
+  `evidence/P7_10_ISOLATED_PROCUREMENT_HARNESS.md`。
 
 ### P7-11 P7 Phase Exit Audit and evidence freeze
 

@@ -13,12 +13,12 @@ Last updated: 2026-07-18
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains |
 | Current phase | P7 — Procurement |
-| Current phase status | P7-00–P7-09 PASS；P7-10 in progress |
+| Current phase status | P7-00–P7-10 PASS；P7-11 in progress |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P6 phase closure `5831c53207d5e71ccdf4792da11ed71be3d47ae1` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p7` on `codex/helix-p7` |
-| Next action | P7-10 isolated Procurement harness |
+| Next action | P7-11 phase Exit Audit and evidence freeze |
 
 Architecture Agent提交`19ed12fa`已闭合`PBF-07-R1`：Page正式收敛为≤65,536 UTF-8 JCS bytes，完整Page作为
 Commit Event immutable typed Evidence保存，并通过Observation→Marker→Result Binding形成禁止GC的历史恢复链；
@@ -128,6 +128,10 @@ P7-09现已完成：`CandidateDeliveryPort`只接受正式`ProcurementCandidateO
 digest读取并返回detached、deep-frozen `CandidatePackage@1`。服务重新计算Package digest、Package-derived Acceptance Basis与
 stable Offer identity，任何Package或Offer漂移均fail closed。synthetic Libra重复读取不改变Candidate事实，且边界不拥有
 Procurement Store、Subject、Routing、Control transfer、Runtime或Signal Bus authority。下一工作包P7-10。
+
+P7-10现已完成：新增`npm run test:helix-procurement`单命令隔离验收器，自动执行11个P7 fixture family、精确核对
+15张Procurement表和8个Capability，并串行回归P2 contract、P3 persistence、P4 runtime、P5 platform与P6 horizontal
+聚合门禁。结果全部PASS，`findings=[]`、`prohibitedActionsRun=[]`；全过程只使用synthetic fixture与临时SQLite。下一工作包P7-11。
 
 ## 2. Accepted implementation conclusion
 

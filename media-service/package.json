@@ -19,6 +19,7 @@
     "test:helix-platform-exit": "node scripts/helix-p5-exit-audit.js --require-clean",
     "test:helix-horizontal": "node scripts/helix-p6-horizontal-verify.js",
     "test:helix-horizontal-exit": "node scripts/helix-p6-exit-audit.js --require-clean",
+    "test:helix-procurement": "node scripts/helix-p7-procurement-verify.js",
     "build:web": "cd web && npm run build",
     "helix:clean-init": "node scripts/helix-clean-init.js",
     "dist:win": "node scripts/package-win.js"
