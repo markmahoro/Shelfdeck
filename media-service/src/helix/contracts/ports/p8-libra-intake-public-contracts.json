@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix.ports.p8-libra-intake-public",
+  "owner": "libra",
+  "ssotRefs": ["4.4", "8.1.4", "8.2.2", "8.4.2"],
+  "facades": [
+    {
+      "exportName": "LibraIntakeFacade",
+      "packageId": "domains.libra.public",
+      "kind": "handoff-acceptance-facade",
+      "methods": ["offerCandidate"],
+      "inputSchemaRefs": {
+        "offerCandidate": "helix://contracts/types/ProcurementCandidateOfferAvailableMessage/v1"
+      }
+    }
+  ]
+}

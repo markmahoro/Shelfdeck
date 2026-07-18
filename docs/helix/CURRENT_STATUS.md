@@ -13,12 +13,12 @@ Last updated: 2026-07-18
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains；P7 — Procurement |
 | Current phase | P8 — Handoff A and Libra front half |
-| Current phase status | P8-00 PASS；P8-01 in progress |
+| Current phase status | P8-00–P8-01 PASS；P8-02 in progress |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P7 phase closure `2cf98561d7cf785db4005e65e99b0750d84ce5ce` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p8` on `codex/helix-p8` |
-| Next action | P8-01 Libra public ports and package guards |
+| Next action | P8-02 Libra scoped Store and immutable Subject facts |
 
 Architecture Agent提交`19ed12fa`已闭合`PBF-07-R1`：Page正式收敛为≤65,536 UTF-8 JCS bytes，完整Page作为
 Commit Event immutable typed Evidence保存，并通过Observation→Marker→Result Binding形成禁止GC的历史恢复链；
@@ -144,6 +144,11 @@ P8-00已完成：从P7 closure `2cf98561d7cf785db4005e65e99b0750d84ce5ce`创建�
 12个P7 fixture family、15表/8 Capability及P2–P6聚合回归全部PASS；审计`findings=[]`、
 `prohibitedActionsRun=[]`，baseline receipt digest为`8dcd255897b38838f98bec55f00bf60b855b1bf173653a2b8a76681625f21f05`。
 下一工作包P8-01。
+
+P8-01已完成：当前Phase只公开SSOT明确命名的`LibraIntakeFacade.offerCandidate`，输入固定为
+`ProcurementCandidateOfferAvailableMessage@1`；未为后续Admin、Product Delivery或Workspace Reclamation提前发明方法。
+nominal binding拒绝缺失/额外authority，机器边界证明public package不依赖Store、Procurement internal、Runtime、HTTP或startup。
+下一工作包P8-02。
 
 ## 2. Accepted implementation conclusion
 

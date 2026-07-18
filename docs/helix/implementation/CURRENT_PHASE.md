@@ -1,6 +1,6 @@
 # P8 Handoff A and Libra Front Half Detailed Plan
 
-Status: Active；P8-00 complete；P8-01 in progress.
+Status: Active；P8-00–P8-01 complete；P8-02 in progress.
 
 Last updated: 2026-07-19
 
@@ -52,6 +52,9 @@ Kairox/Task Runtime，不执行真实媒体生产、Workspace写入、Handoff B�
 
 - 从SSOT/P2物化唯一`LibraIntakeFacade`、Command/Query及front-half public contracts。
 - 拒绝Procurement Store、Arca、Workspace production、generic Runtime和HTTP authority。
+- Done：当前Phase只物化SSOT明确命名的`LibraIntakeFacade.offerCandidate(ProcurementCandidateOfferAvailableMessage@1)`；
+  未提前发明后续Admin/Delivery方法。nominal binding拒绝缺失/额外authority，public package无Store、Procurement internal、Runtime、
+  HTTP或startup依赖。Evidence见`evidence/P8_01_LIBRA_INTAKE_PUBLIC_PORT.md`。
 
 ### P8-02 Libra scoped Store and immutable Subject facts
 
