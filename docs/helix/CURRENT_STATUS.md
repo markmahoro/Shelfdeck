@@ -13,12 +13,12 @@ Last updated: 2026-07-18
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains |
 | Current phase | P7 — Procurement |
-| Current phase status | in progress；P7-00–P7-01 PASS；112/96/161/24；SSOT exact approved blob |
+| Current phase status | in progress；P7-00–P7-02 PASS；112/96/161/24；SSOT exact approved blob |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P6 phase closure `5831c53207d5e71ccdf4792da11ed71be3d47ae1` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p7` on `codex/helix-p7` |
-| Next action | P7-02 Material Field、Access Binding与Extraction Policy scoped repositories |
+| Next action | P7-03 Field Observation Inventory与幂等page commit |
 
 ## 2. Accepted implementation conclusion
 
@@ -410,3 +410,8 @@ P7-00至P7-01已完成：从P6 closure `5831c532`建立独立P7 worktree并fresh
 package现精确暴露Command/Query/Candidate Delivery三个port与11个named methods。Store、Subject、Shelf、generic Task和Related
 Control authority反例全部拒绝。完整Architecture 76 fixtures、69 files/82 dependencies、1476 semantic files PASS；历史P6 Auditor
 已固定审计P6 closure，避免后续Phase合法Evidence被误判为P6越界。下一工作包P7-02。
+
+P7-02已完成：`MaterialFieldRepository`只绑定三张Procurement表；Material Field注册在同一UoW内闭合Policy、Field、Access
+双向引用，Policy/Access使用immutable revision、canonical digest和exact CAS。重复Field、digest篡改、16 KiB上限、stale/skipped
+revision及disabled后写入全部fail closed。Focused 9/9与完整P3 Persistence（77 fixtures、161表、24 transactions）PASS；
+`prohibitedActionsRun=[]`。下一工作包P7-03。

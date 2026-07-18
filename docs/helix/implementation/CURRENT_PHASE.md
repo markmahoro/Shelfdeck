@@ -1,6 +1,6 @@
 # P7 Procurement Detailed Plan
 
-Status: in progress; P7-00–P7-01 complete; P7-02 active.
+Status: in progress; P7-00–P7-02 complete; P7-03 active.
 
 Last updated: 2026-07-18
 
@@ -59,6 +59,8 @@ socket、ambient credential、真实Material Field扫描、真实媒体/FFmpeg�
 
 - 实现Material Field lifecycle、current-headed immutable Binding/Policy revisions与expected revision CAS。
 - `0..N` Field独立；注销停止新观察/开采但保留历史Fact，不删除材料。
+- Done：三表scoped Repository、注册原子闭合、Policy/Access exact CAS、digest/16 KiB/disable反例及完整P3 Persistence
+  gate PASS。Evidence见`evidence/P7_02_MATERIAL_FIELD_STORE.md`。
 
 ### P7-03 Field Observation Inventory
 
