@@ -1,0 +1,214 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/TriageStructureInspectionInput/v1",
+  "title": "TriageStructureInspectionInput@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "selectedFieldMaterialSet": {
+      "$ref": "helix://contracts/domain-types/SelectedFieldMaterialSet/v1"
+    },
+    "probeBatches": {
+      "type": "array",
+      "items": {
+        "$ref": "helix://contracts/domain-types/TriageMaterialProbeBatch/v1"
+      },
+      "maxItems": 11,
+      "minItems": 1
+    },
+    "playabilityPages": {
+      "type": "array",
+      "items": {
+        "$ref": "helix://contracts/types/PlayabilityEvidence/v1"
+      },
+      "maxItems": 11,
+      "minItems": 1
+    },
+    "materialFieldContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fieldId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "accessRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "accessDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "contentProfileHint": {
+          "type": "string",
+          "enum": [
+            "movie",
+            "series",
+            "jav",
+            "western_adult",
+            "mixed"
+          ]
+        },
+        "memberContexts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "selectionOrdinal": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "materialKey": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "fieldRelativeLocation": {
+                "type": "string",
+                "minLength": 1
+              },
+              "baseName": {
+                "type": "string",
+                "minLength": 1
+              },
+              "extension": {
+                "type": "string",
+                "minLength": 1
+              },
+              "parentSegments": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "maxItems": 32
+              },
+              "layoutEvidenceRefs": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "evidenceId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "payloadDigest": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "boundedScopeDigest": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "evidenceId",
+                    "payloadDigest",
+                    "boundedScopeDigest"
+                  ]
+                },
+                "maxItems": 16
+              }
+            },
+            "required": [
+              "selectionOrdinal",
+              "materialKey",
+              "fieldRelativeLocation",
+              "baseName",
+              "extension",
+              "parentSegments",
+              "layoutEvidenceRefs"
+            ]
+          },
+          "maxItems": 1024,
+          "minItems": 1
+        },
+        "contextDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "fieldId",
+        "accessRevision",
+        "accessDigest",
+        "contentProfileHint",
+        "memberContexts",
+        "contextDigest"
+      ]
+    },
+    "layoutEvidence": {
+      "type": "array",
+      "items": {
+        "$ref": "helix://contracts/types/LayoutEvidence/v1"
+      },
+      "maxItems": 1024
+    },
+    "pageRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "pageOrdinal": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cursorIn": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "maxUnits": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "requestDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "pageOrdinal",
+        "cursorIn",
+        "maxUnits",
+        "requestDigest"
+      ]
+    },
+    "inputDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "selectedFieldMaterialSet",
+    "probeBatches",
+    "playabilityPages",
+    "materialFieldContext",
+    "layoutEvidence",
+    "pageRequest",
+    "inputDigest"
+  ]
+}

@@ -81,7 +81,13 @@ function validateDomainInputSchemas(options) {
       PerceptionResolutionQuery: ['queryContract', 'queryVersion', 'querySchemaRef', 'queryInputDigest'],
       PerceptionResolutionRecordSet: ['queryInputDigest', 'recordSetDigest'],
       PerceptionResolutionRuleSnapshot: ['ruleContract', 'ruleVersion', 'ruleDigest'],
-      SelectedFieldMaterialSet: ['procurementRunId', 'fieldId', 'members', 'selectionDigest']
+      SelectedFieldMaterialSet: ['procurementRunId', 'fieldId', 'members', 'selectionDigest'],
+      CandidateDraft: ['draftId', 'candidatePackageId', 'expectedPackageRevision', 'procurementRunId', 'candidateDraftDigest'],
+      ProcurementTriageRuleSnapshot: ['ruleRef', 'revision', 'ruleSchemaRef', 'ruleDigest', 'authorityDigest'],
+      TriageIdentityResolutionInput: ['procurementRunId', 'runBasisDigest', 'structureEvidencePayloadDigest', 'unit', 'inputDigest'],
+      TriageManifestBuildInput: ['procurementRunId', 'runBasisDigest', 'selectedFieldMaterialSet', 'unit', 'inputDigest'],
+      TriageMaterialProbeBatch: ['procurementRunId', 'runBasisDigest', 'selectionDigest', 'batchOrdinal', 'members', 'batchDigest'],
+      TriageStructureInspectionInput: ['selectedFieldMaterialSet', 'probeBatches', 'playabilityPages', 'materialFieldContext', 'pageRequest', 'inputDigest']
     };
     const identityFields = exactIdentityFields[entry.id] || ['schemaRef', 'schemaVersion', 'revision', 'digest'];
     for (const field of identityFields) {

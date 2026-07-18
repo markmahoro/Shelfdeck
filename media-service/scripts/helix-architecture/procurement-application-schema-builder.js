@@ -19,14 +19,17 @@ const receiptEnvelope = (receiptKind) => ({ schemaRef:{ const:typeId(receiptKind
 
 function triageRuleSnapshot() {
   const payload = object({
-    candidateReadinessContractRef:{ const:'helix.procurement.candidate-readiness@1' },
-    profileClaimBaselineContractRef:{ const:'helix.procurement.profile-claim-baseline@1' },
-    primaryInputManifestContractRef:{ const:'helix.procurement.primary-input-manifest@1' },
-    relatedMaterialReferenceContractRef:{ const:'helix.procurement.related-material-reference@1' },
-    recallPriority:{ const:true }, maxPrimaryMaterials:{ const:1024 }
+    contractRefs:{ const:['helix.procurement.candidate-readiness@1','helix.procurement.profile-claim-baseline@1',
+      'helix.procurement.primary-input-manifest@1','helix.procurement.related-material-reference@1'] },
+    recallPriority:{ const:true }, maxPrimaryMaterials:{ const:1024 }, probeBatchSize:{ const:100 },
+    playabilityRule:object({minimumDurationMs:{const:1},minimumVideoStreamCount:{const:1},
+      reasonPrecedence:{const:['probe_not_media','no_video_stream','non_positive_duration']}}),
+    profileResolutionRule:object({mixedPrecedence:{const:['series_episode_token','jav_code','movie_fallback']},westernAdultRequiresExplicitHint:{const:true}}),
+    structureRule:object({maxUnitCanonicalBytes:{const:65536}}), identityRule:object({claimKinds:{const:['movie_title','series_season','jav_code','western_temporary']}}),
+    manifestRule:object({minimumMembers:{const:1},maximumMembers:{const:1024},firstOrdinal:{const:0}})
   });
   return { $schema:DRAFT, $id:typeId('ProcurementTriageRuleSnapshot'), title:'ProcurementTriageRuleSnapshot@1',
-    'x-helix-ssotRefs':['5.3.2','8.6.18'], 'x-helix-maxCanonicalBytes':8*1024,
+    'x-helix-ssotRefs':['5.3.2','8.6.18'], 'x-helix-maxCanonicalBytes':16*1024,
     ...object({ ruleRef:id(), revision:positive(), ruleSchemaRef:{ const:'procurement.triage-rule.beta@1' },
       rulePayload:payload, ruleDigest:digest(), authorityDigest:digest() }) };
 }

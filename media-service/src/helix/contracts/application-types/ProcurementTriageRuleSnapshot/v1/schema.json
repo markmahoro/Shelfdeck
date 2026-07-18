@@ -6,7 +6,7 @@
     "5.3.2",
     "8.6.18"
   ],
-  "x-helix-maxCanonicalBytes": 8192,
+  "x-helix-maxCanonicalBytes": 16384,
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -26,32 +26,127 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "candidateReadinessContractRef": {
-          "const": "helix.procurement.candidate-readiness@1"
-        },
-        "profileClaimBaselineContractRef": {
-          "const": "helix.procurement.profile-claim-baseline@1"
-        },
-        "primaryInputManifestContractRef": {
-          "const": "helix.procurement.primary-input-manifest@1"
-        },
-        "relatedMaterialReferenceContractRef": {
-          "const": "helix.procurement.related-material-reference@1"
+        "contractRefs": {
+          "const": [
+            "helix.procurement.candidate-readiness@1",
+            "helix.procurement.profile-claim-baseline@1",
+            "helix.procurement.primary-input-manifest@1",
+            "helix.procurement.related-material-reference@1"
+          ]
         },
         "recallPriority": {
           "const": true
         },
         "maxPrimaryMaterials": {
           "const": 1024
+        },
+        "probeBatchSize": {
+          "const": 100
+        },
+        "playabilityRule": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "minimumDurationMs": {
+              "const": 1
+            },
+            "minimumVideoStreamCount": {
+              "const": 1
+            },
+            "reasonPrecedence": {
+              "const": [
+                "probe_not_media",
+                "no_video_stream",
+                "non_positive_duration"
+              ]
+            }
+          },
+          "required": [
+            "minimumDurationMs",
+            "minimumVideoStreamCount",
+            "reasonPrecedence"
+          ]
+        },
+        "profileResolutionRule": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "mixedPrecedence": {
+              "const": [
+                "series_episode_token",
+                "jav_code",
+                "movie_fallback"
+              ]
+            },
+            "westernAdultRequiresExplicitHint": {
+              "const": true
+            }
+          },
+          "required": [
+            "mixedPrecedence",
+            "westernAdultRequiresExplicitHint"
+          ]
+        },
+        "structureRule": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "maxUnitCanonicalBytes": {
+              "const": 65536
+            }
+          },
+          "required": [
+            "maxUnitCanonicalBytes"
+          ]
+        },
+        "identityRule": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "claimKinds": {
+              "const": [
+                "movie_title",
+                "series_season",
+                "jav_code",
+                "western_temporary"
+              ]
+            }
+          },
+          "required": [
+            "claimKinds"
+          ]
+        },
+        "manifestRule": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "minimumMembers": {
+              "const": 1
+            },
+            "maximumMembers": {
+              "const": 1024
+            },
+            "firstOrdinal": {
+              "const": 0
+            }
+          },
+          "required": [
+            "minimumMembers",
+            "maximumMembers",
+            "firstOrdinal"
+          ]
         }
       },
       "required": [
-        "candidateReadinessContractRef",
-        "profileClaimBaselineContractRef",
-        "primaryInputManifestContractRef",
-        "relatedMaterialReferenceContractRef",
+        "contractRefs",
         "recallPriority",
-        "maxPrimaryMaterials"
+        "maxPrimaryMaterials",
+        "probeBatchSize",
+        "playabilityRule",
+        "profileResolutionRule",
+        "structureRule",
+        "identityRule",
+        "manifestRule"
       ]
     },
     "ruleDigest": {

@@ -5,13 +5,13 @@
   "ownerScope": "procurement",
   "effectClass": "pure_observation",
   "inputPorts": {
-    "materialHandleList": {
-      "schemaRef": "helix://contracts/capabilities/procurement.triage.structure.inspect/v1/inputs#/$defs/materialHandleList",
+    "triageStructureInspectionInput": {
+      "schemaRef": "helix://contracts/capabilities/procurement.triage.structure.inspect/v1/inputs#/$defs/triageStructureInspectionInput",
       "required": true,
-      "cardinality": "many"
+      "cardinality": "one"
     },
-    "materialFieldContext": {
-      "schemaRef": "helix://contracts/capabilities/procurement.triage.structure.inspect/v1/inputs#/$defs/materialFieldContext",
+    "procurementTriageRuleSnapshot": {
+      "schemaRef": "helix://contracts/capabilities/procurement.triage.structure.inspect/v1/inputs#/$defs/procurementTriageRuleSnapshot",
       "required": true,
       "cardinality": "one"
     }
@@ -29,7 +29,7 @@
   },
   "sourceLocator": {
     "section": "8.6.4",
-    "line": 8061,
-    "lineDigest": "bd1c216fa886a6ad43f4c844096e85afd14f8432be3aceb66c035a2300a51e24"
+    "line": 8092,
+    "lineDigest": "9b3c4c820a8a270d507c43ccd062542a9c9b03ccdaebf6c12773160954b71ace"
   }
 }

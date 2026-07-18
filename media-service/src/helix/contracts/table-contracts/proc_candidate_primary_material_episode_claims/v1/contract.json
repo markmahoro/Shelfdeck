@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/proc_candidate_primary_material_episode_claims/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "proc_candidate_primary_material_episode_claims",
+    "owner": "procurement",
+    "prefix": "proc_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "candidate_package_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "primary_ordinal",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "episode_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "season_claim_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "claim_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "candidate_package_id",
+      "primary_ordinal",
+      "episode_key"
+    ],
+    "declaredForeignKeyColumns": [
+      "candidate_package_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(candidate_package_id,primary_ordinal,episode_key)`",
+      "复合FK指向`proc_candidate_primary_materials(candidate_package_id,ordinal)`",
+      "仅Series primary_payload允许非空，按episodeKey重建Manifest member的完整N:M Episode Claim set",
+      "single或structural_dependency不得有row"
+    ],
+    "rawContract": {
+      "columns": "`candidate_package_id FK, primary_ordinal, episode_key, season_claim_digest, claim_digest`",
+      "constraints": "`PK(candidate_package_id,primary_ordinal,episode_key)`；复合FK指向`proc_candidate_primary_materials(candidate_package_id,ordinal)`；仅Series primary_payload允许非空，按episodeKey重建Manifest member的完整N:M Episode Claim set；single或structural_dependency不得有row"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 7871,
+      "lineDigest": "687f80aa801f3886aae94fa334bd62c5324416941cdd3740f11c80f1bbced599"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "candidate_package_id"
+        ],
+        "targetTable": "proc_candidate_packages",
+        "targetColumns": [
+          "candidate_package_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

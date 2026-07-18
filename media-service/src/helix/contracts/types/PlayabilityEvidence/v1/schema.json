@@ -42,13 +42,45 @@
       "type": "integer",
       "minimum": 0
     },
+    "procurementRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "runBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "selectionDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "batchOrdinal": {
+      "type": "integer",
+      "minimum": 0
+    },
     "materialResults": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "selectionOrdinal": {
+            "type": "integer",
+            "minimum": 0
+          },
           "materialKey": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "bindingRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "probeEvidenceDigest": {
             "type": "string",
             "minLength": 1,
             "pattern": "^[a-f0-9]{64}$"
@@ -60,18 +92,37 @@
             "type": "array",
             "items": {
               "type": "string",
-              "minLength": 1
+              "enum": [
+                "probe_not_media",
+                "no_video_stream",
+                "non_positive_duration"
+              ]
             },
-            "maxItems": 64
+            "maxItems": 3
+          },
+          "resultDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
           }
         },
         "required": [
+          "selectionOrdinal",
           "materialKey",
+          "bindingRevision",
+          "probeEvidenceDigest",
           "playable",
-          "reasonCodes"
+          "reasonCodes",
+          "resultDigest"
         ]
       },
-      "maxItems": 1024
+      "maxItems": 100,
+      "minItems": 1
+    },
+    "materialResultSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     }
   },
   "required": [
@@ -83,6 +134,11 @@
     "basisDigest",
     "payloadDigest",
     "observedAtMs",
-    "materialResults"
+    "procurementRunId",
+    "runBasisDigest",
+    "selectionDigest",
+    "batchOrdinal",
+    "materialResults",
+    "materialResultSetDigest"
   ]
 }

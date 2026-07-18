@@ -184,6 +184,15 @@
       },
       {
         "ordinal": 20,
+        "name": "candidate_package_revision_head",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 21,
         "name": "seal_outcome",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -192,7 +201,7 @@
         "nullable": true
       },
       {
-        "ordinal": 21,
+        "ordinal": 22,
         "name": "seal_decision_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -201,7 +210,7 @@
         "nullable": true
       },
       {
-        "ordinal": 22,
+        "ordinal": 23,
         "name": "seal_decision_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -210,7 +219,7 @@
         "nullable": true
       },
       {
-        "ordinal": 23,
+        "ordinal": 24,
         "name": "seal_evidence_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -219,7 +228,7 @@
         "nullable": true
       },
       {
-        "ordinal": 24,
+        "ordinal": 25,
         "name": "admission_commit_marker",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -228,7 +237,7 @@
         "nullable": false
       },
       {
-        "ordinal": 25,
+        "ordinal": 26,
         "name": "admission_result_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -237,7 +246,7 @@
         "nullable": false
       },
       {
-        "ordinal": 26,
+        "ordinal": 27,
         "name": "seal_commit_marker",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -246,7 +255,7 @@
         "nullable": true
       },
       {
-        "ordinal": 27,
+        "ordinal": 28,
         "name": "seal_result_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -255,7 +264,7 @@
         "nullable": true
       },
       {
-        "ordinal": 28,
+        "ordinal": 29,
         "name": "priority_class",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -264,7 +273,7 @@
         "nullable": false
       },
       {
-        "ordinal": 29,
+        "ordinal": 30,
         "name": "created_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -273,7 +282,7 @@
         "nullable": false
       },
       {
-        "ordinal": 30,
+        "ordinal": 31,
         "name": "finished_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -345,7 +354,9 @@
       "Run及其`proc_run_materials` immutable basis列共同构成完整Basis，禁止只凭digest恢复",
       "Field Access/Observation/Policy均显式FK",
       "Triage tuple必须由`ProcurementTriageRuleRegistry@1`当前active entry签发，Admission时验证active，历史恢复时验证精确immutable entry仍存在且digest匹配，不建立调用者可写Rule表",
-      "初始`state_revision=1`，只有expected revision CAS可改变state",
+      "初始`state_revision=1,candidate_package_revision_head=0`",
+      "Candidate Publication CAS exact expected head并将其加1，Result/package revision等于新head",
+      "只有expected revision CAS可改变state",
       "sealed时Decision ID/digest、Outcome、Evidence digest、finished time与Seal marker/result必须同时非NULL且写后immutable，非sealed时全部NULL，`UNIQUE(seal_decision_id) WHERE seal_decision_id IS NOT NULL`",
       "`UNIQUE(field_id,run_basis_digest)`禁止同一Basis建立第二个Run，Retry Basis因包含唯一`sourceRetryIntentId`形成新digest",
       "`retry_intent_id`为空或唯一引用一次性Intent并加`UNIQUE(retry_intent_id) WHERE retry_intent_id IS NOT NULL`",
@@ -355,13 +366,13 @@
       "`INDEX(state,priority_class,created_at_ms)`"
     ],
     "rawContract": {
-      "columns": "`procurement_run_id PK, field_id FK, run_basis_schema_ref, access_revision, access_digest, terminal_observation_revision, field_observation_work_id, extraction_policy_id, extraction_policy_revision, extraction_policy_digest, triage_rule_ref, triage_rule_revision, triage_rule_schema_ref, triage_rule_digest, triage_rule_authority_digest, run_basis_digest, retry_intent_id NULL, state(active|waiting|sealed), state_revision, seal_outcome NULL, seal_decision_id NULL, seal_decision_digest NULL, seal_evidence_digest NULL, admission_commit_marker, admission_result_digest, seal_commit_marker NULL, seal_result_digest NULL, priority_class, created_at_ms, finished_at_ms NULL`",
-      "constraints": "`run_basis_schema_ref=ProcurementRunExecutionBasis@1`；Run及其`proc_run_materials` immutable basis列共同构成完整Basis，禁止只凭digest恢复；Field Access/Observation/Policy均显式FK；Triage tuple必须由`ProcurementTriageRuleRegistry@1`当前active entry签发，Admission时验证active，历史恢复时验证精确immutable entry仍存在且digest匹配，不建立调用者可写Rule表；初始`state_revision=1`，只有expected revision CAS可改变state；sealed时Decision ID/digest、Outcome、Evidence digest、finished time与Seal marker/result必须同时非NULL且写后immutable，非sealed时全部NULL，`UNIQUE(seal_decision_id) WHERE seal_decision_id IS NOT NULL`；`UNIQUE(field_id,run_basis_digest)`禁止同一Basis建立第二个Run，Retry Basis因包含唯一`sourceRetryIntentId`形成新digest；`retry_intent_id`为空或唯一引用一次性Intent并加`UNIQUE(retry_intent_id) WHERE retry_intent_id IS NOT NULL`；Admission/Seal marker各自唯一且显式FK；Retry建立的Run与Intent共享同一consume/admission marker和outer result digest；Supporting Work通过`owner_domain+process_type+process_id`关联；`INDEX(state,priority_class,created_at_ms)`"
+      "columns": "`procurement_run_id PK, field_id FK, run_basis_schema_ref, access_revision, access_digest, terminal_observation_revision, field_observation_work_id, extraction_policy_id, extraction_policy_revision, extraction_policy_digest, triage_rule_ref, triage_rule_revision, triage_rule_schema_ref, triage_rule_digest, triage_rule_authority_digest, run_basis_digest, retry_intent_id NULL, state(active|waiting|sealed), state_revision, candidate_package_revision_head, seal_outcome NULL, seal_decision_id NULL, seal_decision_digest NULL, seal_evidence_digest NULL, admission_commit_marker, admission_result_digest, seal_commit_marker NULL, seal_result_digest NULL, priority_class, created_at_ms, finished_at_ms NULL`",
+      "constraints": "`run_basis_schema_ref=ProcurementRunExecutionBasis@1`；Run及其`proc_run_materials` immutable basis列共同构成完整Basis，禁止只凭digest恢复；Field Access/Observation/Policy均显式FK；Triage tuple必须由`ProcurementTriageRuleRegistry@1`当前active entry签发，Admission时验证active，历史恢复时验证精确immutable entry仍存在且digest匹配，不建立调用者可写Rule表；初始`state_revision=1,candidate_package_revision_head=0`；Candidate Publication CAS exact expected head并将其加1，Result/package revision等于新head；只有expected revision CAS可改变state；sealed时Decision ID/digest、Outcome、Evidence digest、finished time与Seal marker/result必须同时非NULL且写后immutable，非sealed时全部NULL，`UNIQUE(seal_decision_id) WHERE seal_decision_id IS NOT NULL`；`UNIQUE(field_id,run_basis_digest)`禁止同一Basis建立第二个Run，Retry Basis因包含唯一`sourceRetryIntentId`形成新digest；`retry_intent_id`为空或唯一引用一次性Intent并加`UNIQUE(retry_intent_id) WHERE retry_intent_id IS NOT NULL`；Admission/Seal marker各自唯一且显式FK；Retry建立的Run与Intent共享同一consume/admission marker和outer result digest；Supporting Work通过`owner_domain+process_type+process_id`关联；`INDEX(state,priority_class,created_at_ms)`"
     },
     "source": {
       "section": "8.5.11",
-      "line": 7834,
-      "lineDigest": "6175181dc5c261567bc9fdbd6eea49f4d69bb2f64fe761785da0371561c4780c"
+      "line": 7864,
+      "lineDigest": "659e9b5b14f6ce2b26033ddc3d33a268cbf3daf9d75d23300eaff250dde884b8"
     },
     "foreignKeys": [
       {

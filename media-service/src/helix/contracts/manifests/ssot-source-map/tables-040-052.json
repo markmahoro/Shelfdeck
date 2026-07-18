@@ -6,13 +6,24 @@
   "endOrdinal": 52,
   "entries": [
     {
+      "id": "proc_candidate_deliveries",
+      "owner": "procurement",
+      "columnsContract": "`offer_id PK, candidate_package_id FK, package_digest, acceptance_basis_digest, state, handoff_receipt_id, offered_at_ms, closed_at_ms`",
+      "constraintsContract": "`UNIQUE(candidate_package_id,package_digest,acceptance_basis_digest)`；同一Candidate至多一个open Offer；`INDEX(state,offered_at_ms)`",
+      "source": {
+        "section": "8.5.11",
+        "line": 7873,
+        "lineDigest": "65b00c677b93c57ad5badfab5af8fbb175b5a2386841af7e0262f4ca45181140"
+      }
+    },
+    {
       "id": "libra_intake_decisions",
       "owner": "libra",
       "columnsContract": "`intake_decision_id PK, offer_id, candidate_package_id, package_digest, acceptance_basis_digest, candidate_continuity_set_digest, matched_subject_set_digest, episode_overlap_digest, result(new_subject|season_extension|rejected), target_subject_id, rejection_schema_ref, decision_digest, decided_at_ms`",
       "constraintsContract": "`UNIQUE(offer_id)`；immutable；`season_extension`要求exactly one target且zero overlap；同一Candidate/Package digest只允许一个accepted Decision的partial unique index；Intake不升级为Business Process Root",
       "source": {
         "section": "8.5.11",
-        "line": 7843,
+        "line": 7874,
         "lineDigest": "9d57abf0e9b04a534422ff150d15fd434db9461fffe0f42842013f7cacc31c1c"
       }
     },
@@ -23,7 +34,7 @@
       "constraintsContract": "`UNIQUE(intake_decision_id)`及同一Candidate/Package digest最多一个Receipt；Accepted事务的durable receipt/outbox source",
       "source": {
         "section": "8.5.11",
-        "line": 7844,
+        "line": 7875,
         "lineDigest": "e67ac7402a2103c75640b5e881854dfe3bb1ec00601d8e68f8730d175fc7d32b"
       }
     },
@@ -34,7 +45,7 @@
       "constraintsContract": "`status`至少区分`active|abandoned|completed`；`INDEX(status,subject_id)`；Subject不保存Arca Shelf Entry/Deck状态；identity pointer显式FK",
       "source": {
         "section": "8.5.11",
-        "line": 7845,
+        "line": 7876,
         "lineDigest": "7ede0ac6d81766b22b462742a4780ad42789e46f72fef35713b87b9cf217ec55"
       }
     },
@@ -45,7 +56,7 @@
       "constraintsContract": "`PK(subject_id,claim_kind,claim_namespace,claim_key,provenance_ref)`；Handoff A复制Candidate claim；Resolved Product Identity发布exact provider-season anchor时同事务追加；`INDEX(claim_kind,claim_namespace,claim_key,subject_id)`允许检测0/1/N命中但不建立全局unique",
       "source": {
         "section": "8.5.11",
-        "line": 7846,
+        "line": 7877,
         "lineDigest": "a3041936a279fbd9f035a822a9619b9e4f60743565785d364cfdd263c5ce6f45"
       }
     },
@@ -56,7 +67,7 @@
       "constraintsContract": "`UNIQUE(subject_id)`；immutable；只允许没有任何current Libra Run且Pre-deck责任仍active的Subject建立",
       "source": {
         "section": "8.5.11",
-        "line": 7847,
+        "line": 7878,
         "lineDigest": "7bdbc6b9de101584a171ad47849cc47d061237bba3fb44ce943e2d047ece924e"
       }
     },
@@ -67,7 +78,7 @@
       "constraintsContract": "`UNIQUE(abandon_decision_id)`；与Subject terminal和精确Primary Control release同一事务成立",
       "source": {
         "section": "8.5.11",
-        "line": 7848,
+        "line": 7879,
         "lineDigest": "ae4b6b78f23821dabe8a903651002644bd555ba5aa5de2dfff90d214a0e9d185"
       }
     },
@@ -78,7 +89,7 @@
       "constraintsContract": "immutable revision以`PK(subject_id,material_key,binding_revision)`保存；每个`subject+material+role`只有一个current row",
       "source": {
         "section": "8.5.11",
-        "line": 7849,
+        "line": 7880,
         "lineDigest": "712fdf5b7ce7cdbafcde1b86d777256b7782463f0edcc61bfd136bef4326ae1b"
       }
     },
@@ -89,7 +100,7 @@
       "constraintsContract": "`PK(subject_id,revision)`；immutable；`libra_subjects.current_identity_revision`显式指向本表",
       "source": {
         "section": "8.5.11",
-        "line": 7850,
+        "line": 7881,
         "lineDigest": "1ae280f0e6779cac8bf807bf35b9cbb5ef4b48be90c2c8b38cf78c86e7e20fb2"
       }
     },
@@ -100,7 +111,7 @@
       "constraintsContract": "Field ID是Procurement公开opaque ref、不建跨Domain FK；current pair显式FK到Policy revision；一片Field恰好至多一份current去向方案",
       "source": {
         "section": "8.5.11",
-        "line": 7851,
+        "line": 7882,
         "lineDigest": "798b380ce2cc0c6b9f83bdc869efb8494d784c4a7776e02bc3e1c35d81ec5d39"
       }
     },
@@ -111,7 +122,7 @@
       "constraintsContract": "Policy JSON上限`64 KiB`；`PK(routing_policy_id,revision)`；immutable；`INDEX(field_id,effective_at_ms)`；同一revision只属于一片Field",
       "source": {
         "section": "8.5.11",
-        "line": 7852,
+        "line": 7883,
         "lineDigest": "f1d288d4b709ef019d295af7576074e514b1ff4a568b230461b1168aee26bec8"
       }
     },
@@ -122,7 +133,7 @@
       "constraintsContract": "`PK(routing_policy_id,policy_revision,shelf_id)`及`UNIQUE(routing_policy_id,policy_revision,rank)`；Shelf ID为Arca公开Projection中的opaque ref",
       "source": {
         "section": "8.5.11",
-        "line": 7853,
+        "line": 7884,
         "lineDigest": "e7b4f1178b6790d4ce94ffe85a5e8c583bf04936b84ca24d7aaf93f793982305"
       }
     },
@@ -133,19 +144,8 @@
       "constraintsContract": "`UNIQUE(subject_id,basis_digest,routing_policy_id,routing_policy_revision)`",
       "source": {
         "section": "8.5.11",
-        "line": 7854,
+        "line": 7885,
         "lineDigest": "6bf5f7443b8d299aed7cd871da55c62908f1e2164796180c9658e0a8bee29df4"
-      }
-    },
-    {
-      "id": "libra_routing_decisions",
-      "owner": "libra",
-      "columnsContract": "`routing_decision_id PK, subject_id FK, assessment_id FK, shelf_id, shelf_priority_snapshot, decision, decision_digest, decided_at_ms`",
-      "constraintsContract": "immutable；同一assessment只有一个Decision；`INDEX(shelf_id,decided_at_ms)`",
-      "source": {
-        "section": "8.5.11",
-        "line": 7855,
-        "lineDigest": "f02ff6cd336a6811852cefafa8a168373bf16529d23232209e15e8e88587ca0f"
       }
     }
   ]

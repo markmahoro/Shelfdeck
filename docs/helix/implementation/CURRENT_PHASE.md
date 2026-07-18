@@ -1,6 +1,6 @@
 # P7 Procurement Detailed Plan
 
-Status: Design Return；P7-00–P7-05 complete；P7-06 blocked by formal Triage input/output continuity gaps.
+Status: Active；P7-00–P7-06 complete；P7-07 next.
 
 Last updated: 2026-07-18
 
@@ -18,11 +18,11 @@ Procurement Run、Triage和不可变Candidate Package。只使用P2合同与P3�
 | Material identity/control separation | §3.2.4、§3.3.2、§4.3 | Observation membership与P3 Control分离 |
 | Run/Triage/Candidate | §3.3.3–3.3.4、§5.3 | immutable Run selection、Evidence和Package |
 | Logical/physical components | §8.2.2、§8.3–8.4 | public/internal package guards；单SQLite scoped repositories |
-| Persistence | §8.5 | 13张`proc_*`表及Foundation原子参与者 |
+| Persistence | §8.5 | 15张`proc_*`表及Foundation原子参与者 |
 | Capabilities | §8.6.3 | 8个`procurement.*@1` closed packages |
 | Product/admin boundary | §9 | 仅Facade合同；P12才实现HTTP/UI |
 
-固定物理合同：13张Procurement表、8个Capability；当前全局合同基线为112 Capability、96 Result、162表、30 canonical transaction。
+固定物理合同：15张Procurement表、8个Capability；当前全局合同基线为112 Capability、96 Result、163表、30 canonical transaction。
 
 ## 3. Hard boundaries
 
@@ -107,6 +107,10 @@ socket、ambient credential、真实Material Field扫描、真实媒体/FFmpeg�
   `Structure.memberClaims`，不能唯一形成1..1024的Material→Role→Episode/Binding成员；Structure/Playability缺少closed
   deterministic rule与typed Evidence来源，Identity Claim缺少mediaType连续性。禁止数组位置猜测、Store旁读或路径/标题升格。
   详见`evidence/P7_06_TRIAGE_PIPELINE_DESIGN_RETURN.md`。
+- Done：Architecture Agent `48d6cac5`的PBF-10已原样纳入；机器合同重物化为112/96/163/30且零unresolved ref。
+  四个pure Capability实现typed Probe→closed Playability、Selection完整覆盖→paged Candidate Unit、Identity
+  mediaType/contentProfile连续性及ordinal从0的Manifest Draft；完整Architecture 567 tests PASS。Evidence仍在上述Design Return
+  文档的闭合段冻结。
 
 ### P7-07 Immutable Candidate Package publication
 
@@ -126,7 +130,7 @@ socket、ambient credential、真实Material Field扫描、真实媒体/FFmpeg�
 
 ### P7-10 Isolated Procurement harness
 
-- 单一Node命令覆盖13表、8 Capability、Facade、replay/CAS/crash与边界反例。
+- 单一Node命令覆盖15表、8 Capability、Facade、replay/CAS/crash与边界反例。
 - 同时回归P2 contract、P3 persistence、P4 runtime、P5 platform和P6 horizontal gates。
 
 ### P7-11 P7 Phase Exit Audit and evidence freeze
@@ -145,7 +149,7 @@ P7-11 ← P7-10 ← P7-09 ← P7-08 ← P7-07 ← P7-06 ← P7-05
 
 ## 7. Exit criteria
 
-1. 13张Procurement表、8个Capability及public Facade全部可追溯到SSOT和P2 digest；
+1. 15张Procurement表、8个Capability及public Facade全部可追溯到SSOT和P2 digest；
 2. `0..N` Field、重叠Observation、Binding/Policy CAS、Eligibility和Region派生有机器反例；
 3. Selected Primary全部有exact Procurement Control，Related永不独立Control；
 4. Candidate immutable、单Manifest、`1..N` Primary和active Candidate identity唯一性有DB/transaction反例；

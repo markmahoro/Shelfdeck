@@ -8,12 +8,18 @@ const TRIAGE_REGISTRY_SCHEMA = 'procurement.triage-rule-registry@1';
 const RUN_BASIS_SCHEMA = 'ProcurementRunExecutionBasis@1';
 const SHA256 = /^[0-9a-f]{64}$/;
 const TRIAGE_PAYLOAD = Object.freeze({
-  candidateReadinessContractRef: 'helix.procurement.candidate-readiness@1',
-  profileClaimBaselineContractRef: 'helix.procurement.profile-claim-baseline@1',
-  primaryInputManifestContractRef: 'helix.procurement.primary-input-manifest@1',
-  relatedMaterialReferenceContractRef: 'helix.procurement.related-material-reference@1',
-  recallPriority: true,
-  maxPrimaryMaterials: 1024
+  contractRefs: Object.freeze([
+    'helix.procurement.candidate-readiness@1', 'helix.procurement.profile-claim-baseline@1',
+    'helix.procurement.primary-input-manifest@1', 'helix.procurement.related-material-reference@1'
+  ]),
+  recallPriority: true, maxPrimaryMaterials: 1024, probeBatchSize: 100,
+  playabilityRule: Object.freeze({ minimumDurationMs:1, minimumVideoStreamCount:1,
+    reasonPrecedence:Object.freeze(['probe_not_media','no_video_stream','non_positive_duration']) }),
+  profileResolutionRule: Object.freeze({ mixedPrecedence:Object.freeze(['series_episode_token','jav_code','movie_fallback']),
+    westernAdultRequiresExplicitHint:true }),
+  structureRule: Object.freeze({ maxUnitCanonicalBytes:65536 }),
+  identityRule: Object.freeze({ claimKinds:Object.freeze(['movie_title','series_season','jav_code','western_temporary']) }),
+  manifestRule: Object.freeze({ minimumMembers:1, maximumMembers:1024, firstOrdinal:0 })
 });
 
 class ProcurementRunContractError extends Error {
@@ -50,7 +56,7 @@ function validateTriageRuleSnapshot(rule) {
   text(rule.ruleRef, 'ruleRef'); revision(rule.revision, 'revision');
   if (rule.ruleSchemaRef !== TRIAGE_RULE_SCHEMA || canonicalJson(rule.rulePayload) !== canonicalJson(TRIAGE_PAYLOAD) ||
       rule.ruleDigest !== ruleDigestFor(rule) || rule.authorityDigest !== authorityDigestFor(rule) ||
-      Buffer.byteLength(canonicalJson(rule)) > 8 * 1024) fail('P7_TRIAGE_RULE_INVALID', 'Triage Rule snapshot is not an exact signed Beta rule.');
+      Buffer.byteLength(canonicalJson(rule)) > 16 * 1024) fail('P7_TRIAGE_RULE_INVALID', 'Triage Rule snapshot is not an exact signed Beta rule.');
   return rule;
 }
 function createDefaultTriageRuleRegistry() {

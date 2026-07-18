@@ -61,7 +61,7 @@
         "properties": {
           "ordinal": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 0
           },
           "materialKey": {
             "type": "string",
@@ -70,52 +70,68 @@
           },
           "role": {
             "type": "string",
-            "minLength": 1
-          },
-          "episodeClaim": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "objectId": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 256
-              },
-              "revision": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "schemaRef": {
-                "type": "string",
-                "minLength": 1
-              },
-              "snapshotDigest": {
-                "type": "string",
-                "minLength": 1,
-                "pattern": "^[a-f0-9]{64}$"
-              },
-              "objectKind": {
-                "const": "episode-claim"
-              }
-            },
-            "required": [
-              "objectId",
-              "revision",
-              "schemaRef",
-              "snapshotDigest",
-              "objectKind"
+            "enum": [
+              "primary_payload",
+              "structural_dependency"
             ]
           },
           "bindingRevision": {
             "type": "integer",
             "minimum": 1
+          },
+          "admittedControlRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "admittedControlProjectionDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "episodeClaims": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "episodeKey": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "seasonClaimDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "claimDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "required": [
+                "episodeKey",
+                "seasonClaimDigest",
+                "claimDigest"
+              ]
+            },
+            "maxItems": 32
+          },
+          "memberDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
           }
         },
         "required": [
           "ordinal",
           "materialKey",
           "role",
-          "bindingRevision"
+          "bindingRevision",
+          "admittedControlRevision",
+          "admittedControlProjectionDigest",
+          "episodeClaims",
+          "memberDigest"
         ]
       },
       "maxItems": 1024,

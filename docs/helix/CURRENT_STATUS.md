@@ -13,12 +13,12 @@ Last updated: 2026-07-18
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains |
 | Current phase | P7 — Procurement |
-| Current phase status | P7-00–P7-05 PASS；P7-06 Design Return已由PBF-10闭合，待重物化与实现 |
+| Current phase status | P7-00–P7-06 PASS；P7-07 next |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P6 phase closure `5831c53207d5e71ccdf4792da11ed71be3d47ae1` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p7` on `codex/helix-p7` |
-| Next action | 重物化PBF-10机器合同并恢复P7-06实现 |
+| Next action | P7-07 immutable Candidate Package publication |
 
 Architecture Agent提交`19ed12fa`已闭合`PBF-07-R1`：Page正式收敛为≤65,536 UTF-8 JCS bytes，完整Page作为
 Commit Event immutable typed Evidence保存，并通过Observation→Marker→Result Binding形成禁止GC的历史恢复链；
@@ -83,6 +83,13 @@ Manifest Draft和Candidate Publication；Shared Media Probe/Layout只负责现�
 Structure和Identity/Profile均有closed rule、reason、digest及持久化连续性。Primary Manifest ordinal固定从0开始。
 实现侧只读复审确认没有新增Domain、Owner、Handoff、Store、跨域写入或Capability；仅新增一张Procurement-owned
 Candidate Member↔Episode Claim关系表，SSOT总表数为163。本实现线程仅原样纳入架构SSOT delta，未自行修改SSOT。
+
+P7-06现已完成：PBF-10已重物化为112 Capability、96 Result Family、163表、30 canonical transaction和199个
+resolved type ref，aggregate为`fe383269c415f6ca1f8c293018abf625e9db9fed6a02fb185ceace03fa02cfc5`。
+四个pure Triage Capability实现Probe Batch显式成员映射、closed Playability reason、Selection完整覆盖与paged
+Structure Unit、Series Episode Claim、Identity Claim的mediaType/contentProfile连续性及ordinal从0的Manifest Draft。
+567项完整Architecture fixture、85文件/125依赖和1514 semantic files全部PASS，findings与prohibited actions均为空。
+未运行E2E、Docker、生产或真实媒体副作用，未修改`media-desktop`。下一工作包P7-07。
 
 ## 2. Accepted implementation conclusion
 

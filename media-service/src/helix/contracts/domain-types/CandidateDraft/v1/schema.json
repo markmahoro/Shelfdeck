@@ -3,58 +3,775 @@
   "$id": "helix://contracts/domain-types/CandidateDraft/v1",
   "title": "CandidateDraft@1",
   "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
     "8.6.20"
   ],
   "x-helix-role": "accepted-business-dto",
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "schemaRef": {
-      "const": "helix://contracts/domain-types/CandidateDraft/v1"
-    },
-    "schemaVersion": {
-      "const": 1
-    },
-    "objectId": {
+    "draftId": {
       "type": "string",
       "minLength": 1,
       "maxLength": 256
     },
-    "revision": {
-      "type": "integer",
-      "minimum": 1
+    "draftKind": {
+      "type": "string",
+      "minLength": 1
     },
-    "digest": {
+    "basisDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
+    },
+    "draftDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "producedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "candidatePackageId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "expectedPackageRevision": {
+      "type": "integer",
+      "minimum": 1
     },
     "procurementRunId": {
       "type": "string",
       "minLength": 1,
       "maxLength": 256
     },
-    "primaryInputManifest": {
-      "$ref": "helix://contracts/types/PrimaryInputManifest/v1"
+    "runBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "triageRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ruleRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "authorityDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "ruleRef",
+        "revision",
+        "authorityDigest"
+      ]
+    },
+    "materialFieldContextRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fieldId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "accessRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "contextDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "fieldId",
+        "accessRevision",
+        "contextDigest"
+      ]
+    },
+    "mediaType": {
+      "type": "string",
+      "enum": [
+        "single",
+        "group"
+      ]
+    },
+    "contentProfile": {
+      "type": "string",
+      "enum": [
+        "movie",
+        "series",
+        "jav",
+        "western_adult"
+      ]
+    },
+    "displayIdentity": {
+      "type": "string",
+      "minLength": 1
+    },
+    "identityMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "claimedTitle": {
+          "type": "string",
+          "minLength": 1
+        },
+        "claimedYear": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "seasonClaim": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "claimKind": {
+              "type": "string",
+              "enum": [
+                "explicit_number",
+                "provisional_group"
+              ]
+            },
+            "seasonNumber": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "provisionalGroupKey": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "claimDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "claimKind",
+            "claimDigest"
+          ]
+        },
+        "javCode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "contentProfileHint": {
+          "type": "string",
+          "enum": [
+            "movie",
+            "series",
+            "jav",
+            "western_adult",
+            "mixed"
+          ]
+        },
+        "sourceHints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "hintKind": {
+                "type": "string",
+                "enum": [
+                  "field_content_profile_hint",
+                  "filename_title",
+                  "directory_title",
+                  "filename_year",
+                  "directory_year",
+                  "filename_season",
+                  "directory_season",
+                  "filename_episode",
+                  "jav_code",
+                  "disc_structure",
+                  "temporary_label"
+                ]
+              },
+              "hintValue": {
+                "type": "string",
+                "minLength": 1
+              },
+              "evidenceDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "hintKind",
+              "hintValue",
+              "evidenceDigest"
+            ]
+          },
+          "maxItems": 256
+        },
+        "metadataDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "claimedTitle",
+        "contentProfileHint",
+        "sourceHints",
+        "metadataDigest"
+      ]
     },
     "identityClaim": {
       "$ref": "helix://contracts/types/IdentityClaim/v1"
     },
+    "structureEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "evidenceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "payloadDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "unit": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "unitId": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "mediaType": {
+              "type": "string",
+              "enum": [
+                "single",
+                "group"
+              ]
+            },
+            "contentProfile": {
+              "type": "string",
+              "enum": [
+                "movie",
+                "series",
+                "jav",
+                "western_adult"
+              ]
+            },
+            "structureKind": {
+              "type": "string",
+              "enum": [
+                "single",
+                "season"
+              ]
+            },
+            "displayIdentity": {
+              "type": "string",
+              "minLength": 1
+            },
+            "identityMetadata": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "claimedTitle": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "claimedYear": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "seasonClaim": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "claimKind": {
+                      "type": "string",
+                      "enum": [
+                        "explicit_number",
+                        "provisional_group"
+                      ]
+                    },
+                    "seasonNumber": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "provisionalGroupKey": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "claimDigest": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "claimKind",
+                    "claimDigest"
+                  ]
+                },
+                "javCode": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "contentProfileHint": {
+                  "type": "string",
+                  "enum": [
+                    "movie",
+                    "series",
+                    "jav",
+                    "western_adult",
+                    "mixed"
+                  ]
+                },
+                "sourceHints": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "hintKind": {
+                        "type": "string",
+                        "enum": [
+                          "field_content_profile_hint",
+                          "filename_title",
+                          "directory_title",
+                          "filename_year",
+                          "directory_year",
+                          "filename_season",
+                          "directory_season",
+                          "filename_episode",
+                          "jav_code",
+                          "disc_structure",
+                          "temporary_label"
+                        ]
+                      },
+                      "hintValue": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "evidenceDigest": {
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "^[a-f0-9]{64}$"
+                      }
+                    },
+                    "required": [
+                      "hintKind",
+                      "hintValue",
+                      "evidenceDigest"
+                    ]
+                  },
+                  "maxItems": 256
+                },
+                "metadataDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "required": [
+                "claimedTitle",
+                "contentProfileHint",
+                "sourceHints",
+                "metadataDigest"
+              ]
+            },
+            "seasonContinuityClaims": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "exact_provider_season",
+                      "persistent_triage_grouping"
+                    ]
+                  },
+                  "namespace": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "key": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "claimDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "evidenceDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "namespace",
+                  "key",
+                  "claimDigest",
+                  "evidenceDigest"
+                ]
+              },
+              "maxItems": 64
+            },
+            "members": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "materialKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "bindingRevision": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "admittedControlRevision": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "admittedControlProjectionDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "primary_payload",
+                      "structural_dependency"
+                    ]
+                  },
+                  "episodeClaims": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "episodeKey": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "seasonClaimDigest": {
+                          "type": "string",
+                          "minLength": 1,
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "claimDigest": {
+                          "type": "string",
+                          "minLength": 1,
+                          "pattern": "^[a-f0-9]{64}$"
+                        }
+                      },
+                      "required": [
+                        "episodeKey",
+                        "seasonClaimDigest",
+                        "claimDigest"
+                      ]
+                    },
+                    "maxItems": 32
+                  },
+                  "memberClaimDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "materialKey",
+                  "bindingRevision",
+                  "admittedControlRevision",
+                  "admittedControlProjectionDigest",
+                  "role",
+                  "episodeClaims",
+                  "memberClaimDigest"
+                ]
+              },
+              "maxItems": 1024,
+              "minItems": 1
+            },
+            "relatedReferences": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "referenceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "primaryMaterialKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "nfo",
+                      "poster",
+                      "fanart",
+                      "subtitle",
+                      "external_audio",
+                      "chapter",
+                      "sidecar"
+                    ]
+                  },
+                  "identity": {
+                    "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v1"
+                  },
+                  "endpointId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "location": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "checksumAlgorithm": {
+                    "const": "sha256"
+                  },
+                  "checksumHex": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "associationEvidenceDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "referenceDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "referenceId",
+                  "primaryMaterialKey",
+                  "role",
+                  "identity",
+                  "endpointId",
+                  "location",
+                  "checksumAlgorithm",
+                  "checksumHex",
+                  "associationEvidenceDigest",
+                  "referenceDigest"
+                ]
+              },
+              "maxItems": 1024
+            },
+            "unitDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "unitId",
+            "mediaType",
+            "contentProfile",
+            "structureKind",
+            "displayIdentity",
+            "identityMetadata",
+            "seasonContinuityClaims",
+            "members",
+            "relatedReferences",
+            "unitDigest"
+          ]
+        }
+      },
+      "required": [
+        "evidenceId",
+        "payloadDigest",
+        "unit"
+      ]
+    },
+    "primaryInputManifestDraft": {
+      "$ref": "helix://contracts/types/PrimaryInputManifestDraft/v1"
+    },
+    "seasonContinuityClaims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "namespace": {
+            "type": "string",
+            "minLength": 1
+          },
+          "key": {
+            "type": "string",
+            "minLength": 1
+          },
+          "claimDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "evidenceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "kind",
+          "namespace",
+          "key",
+          "claimDigest",
+          "evidenceDigest"
+        ]
+      },
+      "maxItems": 64
+    },
+    "relatedReferences": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "referenceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "primaryMaterialKey": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "nfo",
+              "poster",
+              "fanart",
+              "subtitle",
+              "external_audio",
+              "chapter",
+              "sidecar"
+            ]
+          },
+          "identity": {
+            "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v1"
+          },
+          "endpointId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "location": {
+            "type": "string",
+            "minLength": 1
+          },
+          "checksumAlgorithm": {
+            "const": "sha256"
+          },
+          "checksumHex": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "associationEvidenceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "referenceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "referenceId",
+          "primaryMaterialKey",
+          "role",
+          "identity",
+          "endpointId",
+          "location",
+          "checksumAlgorithm",
+          "checksumHex",
+          "associationEvidenceDigest",
+          "referenceDigest"
+        ]
+      },
+      "maxItems": 1024
+    },
     "relatedReferenceSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "memberControlEvidenceSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "candidateDraftDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     }
   },
   "required": [
-    "schemaRef",
-    "schemaVersion",
-    "objectId",
-    "revision",
-    "digest",
+    "draftId",
+    "draftKind",
+    "basisDigest",
+    "draftDigest",
+    "producedAtMs",
+    "candidatePackageId",
+    "expectedPackageRevision",
     "procurementRunId",
-    "primaryInputManifest",
+    "runBasisDigest",
+    "triageRule",
+    "materialFieldContextRef",
+    "mediaType",
+    "contentProfile",
+    "displayIdentity",
+    "identityMetadata",
     "identityClaim",
-    "relatedReferenceSetDigest"
+    "structureEvidence",
+    "primaryInputManifestDraft",
+    "seasonContinuityClaims",
+    "relatedReferences",
+    "relatedReferenceSetDigest",
+    "memberControlEvidenceSetDigest",
+    "candidateDraftDigest"
   ]
 }

@@ -36,7 +36,7 @@
       },
       {
         "ordinal": 4,
-        "name": "structure_kind",
+        "name": "field_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -45,8 +45,8 @@
       },
       {
         "ordinal": 5,
-        "name": "content_profile_hint",
-        "logicalType": "TEXT",
+        "name": "field_access_revision",
+        "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -54,7 +54,7 @@
       },
       {
         "ordinal": 6,
-        "name": "identity_claim_schema_ref",
+        "name": "field_context_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -63,6 +63,89 @@
       },
       {
         "ordinal": 7,
+        "name": "media_type",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "single",
+          "group"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "content_profile",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "movie",
+          "series",
+          "jav",
+          "western_adult"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "structure_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "single",
+          "season"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "display_identity",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "identity_metadata_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "identity_metadata_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 13,
+        "name": "identity_metadata_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 14,
+        "name": "identity_claim_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 15,
         "name": "identity_claim_json",
         "logicalType": "TEXT_JSON",
         "enumValues": [],
@@ -71,7 +154,88 @@
         "nullable": false
       },
       {
-        "ordinal": 8,
+        "ordinal": 16,
+        "name": "identity_claim_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 17,
+        "name": "structure_evidence_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 18,
+        "name": "structure_evidence_payload_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 19,
+        "name": "structure_unit_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 20,
+        "name": "structure_unit_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 21,
+        "name": "triage_rule_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 22,
+        "name": "triage_rule_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 23,
+        "name": "triage_rule_authority_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 24,
+        "name": "primary_input_manifest_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 25,
         "name": "manifest_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -80,7 +244,25 @@
         "nullable": false
       },
       {
-        "ordinal": 9,
+        "ordinal": 26,
+        "name": "related_reference_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 27,
+        "name": "member_control_evidence_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 28,
         "name": "package_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -89,7 +271,7 @@
         "nullable": false
       },
       {
-        "ordinal": 10,
+        "ordinal": 29,
         "name": "state",
         "logicalType": "TEXT",
         "enumValues": [
@@ -100,7 +282,7 @@
         "nullable": false
       },
       {
-        "ordinal": 11,
+        "ordinal": 30,
         "name": "published_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -130,6 +312,29 @@
     "partialUniqueRules": [],
     "checkRules": [
       {
+        "column": "media_type",
+        "enumValues": [
+          "single",
+          "group"
+        ]
+      },
+      {
+        "column": "content_profile",
+        "enumValues": [
+          "movie",
+          "series",
+          "jav",
+          "western_adult"
+        ]
+      },
+      {
+        "column": "structure_kind",
+        "enumValues": [
+          "single",
+          "season"
+        ]
+      },
+      {
         "column": "state",
         "enumValues": [
           "published"
@@ -138,13 +343,22 @@
     ],
     "revisionContract": {
       "revisionColumns": [
-        "package_revision"
+        "package_revision",
+        "field_access_revision",
+        "triage_rule_revision"
       ],
       "currentPointerColumns": [],
       "pointerTargets": [],
       "pointerRules": []
     },
     "jsonContracts": [
+      {
+        "column": "identity_metadata_json",
+        "schemaRefColumn": "identity_metadata_schema_ref",
+        "maxBytes": 16384,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      },
       {
         "column": "identity_claim_json",
         "schemaRefColumn": "identity_claim_schema_ref",
@@ -164,20 +378,21 @@
       "rules": []
     },
     "semanticRules": [
-      "Identity Claim JSON上限`16 KiB`",
-      "`UNIQUE(procurement_run_id,package_revision)`",
+      "Identity Metadata/Claim JSON各≤`16 KiB`",
+      "`UNIQUE(procurement_run_id,package_revision)`且revision必须等于Run head CAS后的值",
+      "Field Context、Profile/mediaType/structure/Identity/Unit/Rule/Manifest/Control/Related必须与完整CandidateDraft逐项一致",
       "published内容immutable",
-      "Publication必须与Manifest成员对应`proc_run_materials`转为`candidate_delivery`同事务成立",
+      "Publication必须与Manifest、Episode Claim/Related relation、对应`proc_run_materials → candidate_delivery`、Offer/Outbox、typed Result/marker同事务成立",
       "`INDEX(state,published_at_ms)`"
     ],
     "rawContract": {
-      "columns": "`candidate_package_id PK, procurement_run_id FK, package_revision, structure_kind, content_profile_hint, identity_claim_schema_ref, identity_claim_json, manifest_digest, package_digest, state, published_at_ms`",
-      "constraints": "Identity Claim JSON上限`16 KiB`；`UNIQUE(procurement_run_id,package_revision)`；published内容immutable；Publication必须与Manifest成员对应`proc_run_materials`转为`candidate_delivery`同事务成立；`INDEX(state,published_at_ms)`"
+      "columns": "`candidate_package_id PK, procurement_run_id FK, package_revision, field_id, field_access_revision, field_context_digest, media_type(single|group), content_profile(movie|series|jav|western_adult), structure_kind(single|season), display_identity, identity_metadata_schema_ref, identity_metadata_json, identity_metadata_digest, identity_claim_schema_ref, identity_claim_json, identity_claim_digest, structure_evidence_id, structure_evidence_payload_digest, structure_unit_id, structure_unit_digest, triage_rule_ref, triage_rule_revision, triage_rule_authority_digest, primary_input_manifest_id, manifest_digest, related_reference_set_digest, member_control_evidence_set_digest, package_digest, state, published_at_ms`",
+      "constraints": "Identity Metadata/Claim JSON各≤`16 KiB`；`UNIQUE(procurement_run_id,package_revision)`且revision必须等于Run head CAS后的值；Field Context、Profile/mediaType/structure/Identity/Unit/Rule/Manifest/Control/Related必须与完整CandidateDraft逐项一致；published内容immutable；Publication必须与Manifest、Episode Claim/Related relation、对应`proc_run_materials → candidate_delivery`、Offer/Outbox、typed Result/marker同事务成立；`INDEX(state,published_at_ms)`"
     },
     "source": {
       "section": "8.5.11",
-      "line": 7838,
-      "lineDigest": "6ecd060099a729952cee1124dd1908dc9301c8a05d47c07a23e086e79f87b7d9"
+      "line": 7868,
+      "lineDigest": "2f19ae4bb5433a49485f8dbf5865fd953ad46a8d247d8a21d53361b283ce3f3e"
     },
     "foreignKeys": [
       {

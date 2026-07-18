@@ -38,22 +38,16 @@
         "ordinal": 4,
         "name": "role",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "primary_payload",
+          "structural_dependency"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
         "nullable": false
       },
       {
         "ordinal": 5,
-        "name": "episode_claim_schema_ref",
-        "logicalType": "TEXT",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": false,
-        "nullable": false
-      },
-      {
-        "ordinal": 6,
         "name": "binding_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -62,7 +56,25 @@
         "nullable": false
       },
       {
+        "ordinal": 6,
+        "name": "admitted_control_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
         "ordinal": 7,
+        "name": "admitted_control_projection_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
         "name": "member_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -86,10 +98,19 @@
     ],
     "hotIndexes": [],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "role",
+        "enumValues": [
+          "primary_payload",
+          "structural_dependency"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
-        "binding_revision"
+        "binding_revision",
+        "admitted_control_revision"
       ],
       "currentPointerColumns": [],
       "pointerTargets": [],
@@ -105,16 +126,18 @@
       "rules": []
     },
     "semanticRules": [
-      "`PK(candidate_package_id,ordinal)`及`UNIQUE(candidate_package_id,material_key)`"
+      "`PK(candidate_package_id,ordinal)`及`UNIQUE(candidate_package_id,material_key)`",
+      "ordinal从0连续",
+      "每行必须与Candidate Draft Unit、final Manifest member及对应Run member的material/binding/admitted Control逐项一致"
     ],
     "rawContract": {
-      "columns": "`candidate_package_id FK, ordinal, material_key, role, episode_claim_schema_ref, binding_revision, member_digest`",
-      "constraints": "`PK(candidate_package_id,ordinal)`及`UNIQUE(candidate_package_id,material_key)`"
+      "columns": "`candidate_package_id FK, ordinal, material_key, role(primary_payload|structural_dependency), binding_revision, admitted_control_revision, admitted_control_projection_digest, member_digest`",
+      "constraints": "`PK(candidate_package_id,ordinal)`及`UNIQUE(candidate_package_id,material_key)`；ordinal从0连续；每行必须与Candidate Draft Unit、final Manifest member及对应Run member的material/binding/admitted Control逐项一致"
     },
     "source": {
       "section": "8.5.11",
-      "line": 7840,
-      "lineDigest": "608984244a7eb050290e26ff5ae1519a0e6b28292a0f2b5462106e761182b389"
+      "line": 7870,
+      "lineDigest": "c24ab2a4ae232b7287d9d8123df64aa17b0b18703c5d61c4e88bf45786076b00"
     },
     "foreignKeys": [
       {

@@ -5,25 +5,25 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "identityMetadata": {
-      "$ref": "#/$defs/identityMetadata"
+    "triageIdentityResolutionInput": {
+      "$ref": "#/$defs/triageIdentityResolutionInput"
     },
-    "structureEvidence": {
-      "$ref": "#/$defs/structureEvidence"
+    "procurementTriageRuleSnapshot": {
+      "$ref": "#/$defs/procurementTriageRuleSnapshot"
     }
   },
   "required": [
-    "identityMetadata",
-    "structureEvidence"
+    "triageIdentityResolutionInput",
+    "procurementTriageRuleSnapshot"
   ],
   "$defs": {
-    "identityMetadata": {
-      "$ref": "helix://contracts/domain-types/IdentityMetadata/v1",
-      "x-helix-typeExpression": "Identity Metadata"
+    "triageIdentityResolutionInput": {
+      "$ref": "helix://contracts/domain-types/TriageIdentityResolutionInput/v1",
+      "x-helix-typeExpression": "TriageIdentityResolutionInput"
     },
-    "structureEvidence": {
-      "$ref": "helix://contracts/types/TriageStructureEvidence/v1",
-      "x-helix-typeExpression": "Structure Evidence"
+    "procurementTriageRuleSnapshot": {
+      "$ref": "helix://contracts/domain-types/ProcurementTriageRuleSnapshot/v1",
+      "x-helix-typeExpression": "ProcurementTriageRuleSnapshot"
     }
   }
 }

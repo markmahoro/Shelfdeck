@@ -1,6 +1,6 @@
 # P7-06 Triage Evidence Pipeline Design Return
 
-Status: BLOCKED — formal input/output continuity is not implementation-complete
+Status: CLOSED / IMPLEMENTED — PBF-10 accepted and P7-06 machine evidence PASS
 
 Date: 2026-07-18
 
@@ -43,3 +43,31 @@ Date: 2026-07-18
 ## 5. Current conclusion
 
 这是正式输入不能唯一形成正式输出的SSOT合同缺口，不是工程偏好。P7-06保持Design Return；实现线程已把完整问题包发送至架构任务`019f4a67-4a29-7c62-8af5-bf79083226ca`，等待独立评估。P7-05闭合状态不受影响。
+
+## 6. Architecture closure audit
+
+Architecture Agent提交`48d6cac5`（PBF-10）已经逐项闭合四条断链：
+
+- `TriageMaterialProbeBatch`把Run Selection、Binding、admitted Control、Read Handle和Media Probe Evidence逐成员绑定；
+- `TriageStructureInspectionInput`完整携带Selection、Probe/Playability、Field Context、Layout Evidence和page request；
+- Playability及Structure使用closed rule、reason precedence、digest和64 KiB/page边界；
+- `TriageUnitSnapshot → IdentityClaim / PrimaryInputManifestDraft → CandidateDraft`保持mediaType、contentProfile、
+  role、Episode Claim和Binding连续；
+- final `PrimaryInputManifest`成员为1..1024且ordinal从0；
+- 只新增一张Procurement-owned N:M Episode Claim关系表，没有新增Domain、Owner、Store、Handoff、Capability或跨域写入。
+
+实现线程只读复审为PASS，SSOT文件blob精确等于Architecture Agent提交，未由本线程编辑。
+
+## 7. Materialization and implementation evidence
+
+| Evidence | Result |
+| --- | --- |
+| SSOT source map | 112 Capability / 96 Result Family / 163 table / 30 transaction；`6fc73544…` |
+| P2 aggregate | `fe383269c415f6ca1f8c293018abf625e9db9fed6a02fb185ceace03fa02cfc5` |
+| Type graph | 199 refs；0 unresolved |
+| Ordinal correction | generated `PrimaryInputManifest.members[].ordinal.minimum = 0` |
+| Triage focused fixtures | Playability、Series N:M Episode、Identity/Profile continuity、Manifest digest与禁止Store/legacy dependency PASS |
+| Full architecture gate | 567 tests；83 fixture files；85 source files / 125 dependencies；1514 semantic files；all PASS |
+| Prohibited actions | `[]` |
+
+未运行Service、E2E、Docker、Canary、生产、真实Provider/Field/媒体副作用；未修改`media-desktop`。

@@ -40,34 +40,130 @@
     },
     "claimKind": {
       "type": "string",
-      "minLength": 1
+      "enum": [
+        "movie_title",
+        "series_season",
+        "jav_code",
+        "western_temporary"
+      ]
+    },
+    "mediaType": {
+      "type": "string",
+      "enum": [
+        "single",
+        "group"
+      ]
+    },
+    "contentProfile": {
+      "type": "string",
+      "enum": [
+        "movie",
+        "series",
+        "jav",
+        "western_adult"
+      ]
     },
     "claimedTitle": {
       "type": "string",
       "minLength": 1
     },
-    "seasonNumber": {
-      "anyOf": [
-        {
+    "displayIdentity": {
+      "type": "string",
+      "minLength": 1
+    },
+    "claimedYear": {
+      "type": "string",
+      "minLength": 1
+    },
+    "seasonClaim": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "claimKind": {
+          "type": "string",
+          "enum": [
+            "explicit_number",
+            "provisional_group"
+          ]
+        },
+        "seasonNumber": {
           "type": "integer",
           "minimum": 1
         },
-        {
-          "type": "null"
+        "provisionalGroupKey": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "claimDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
         }
+      },
+      "required": [
+        "claimKind",
+        "claimDigest"
       ]
     },
-    "contentProfileHint": {
+    "javCode": {
       "type": "string",
       "minLength": 1
+    },
+    "identityMetadataDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "structureUnitDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     },
     "sourceHints": {
       "type": "array",
       "items": {
-        "type": "string",
-        "minLength": 1
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "hintKind": {
+            "type": "string",
+            "enum": [
+              "field_content_profile_hint",
+              "filename_title",
+              "directory_title",
+              "filename_year",
+              "directory_year",
+              "filename_season",
+              "directory_season",
+              "filename_episode",
+              "jav_code",
+              "disc_structure",
+              "temporary_label"
+            ]
+          },
+          "hintValue": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidenceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "hintKind",
+          "hintValue",
+          "evidenceDigest"
+        ]
       },
-      "maxItems": 1024
+      "maxItems": 256
+    },
+    "claimDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     }
   },
   "required": [
@@ -79,8 +175,13 @@
     "draftDigest",
     "producedAtMs",
     "claimKind",
+    "mediaType",
+    "contentProfile",
     "claimedTitle",
-    "contentProfileHint",
-    "sourceHints"
+    "displayIdentity",
+    "identityMetadataDigest",
+    "structureUnitDigest",
+    "sourceHints",
+    "claimDigest"
   ]
 }

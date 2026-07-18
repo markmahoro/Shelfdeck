@@ -6,14 +6,14 @@ const { buildResultTypeSchemas } = require('../../scripts/helix-architecture/res
 
 const schemas = buildResultTypeSchemas();
 
-test('builds 86 Catalog Result schemas and the three SSOT helper types', () => {
-  assert.equal(Object.keys(schemas).length, 89);
-  for (const helper of ['OnDeckCommitReceipt', 'OffloadCompletionFact', 'PeopleCandidateDraft']) assert.ok(schemas[helper]);
+test('builds 86 Catalog Result schemas and the four SSOT helper types', () => {
+  assert.equal(Object.keys(schemas).length, 90);
+  for (const helper of ['OnDeckCommitReceipt', 'OffloadCompletionFact', 'PeopleCandidateDraft', 'PrimaryInputManifest']) assert.ok(schemas[helper]);
 });
 
 test('freezes the normalized media probe raster and bounded stream contract', () => {
   const schema = schemas.MediaProbeEvidence;
-  for (const field of ['sourceHandleDigest', 'container', 'durationMs', 'sizeBytes', 'videoStreams', 'audioStreams', 'subtitleStreams']) {
+  for (const field of ['sourceHandleDigest', 'resultKind', 'sizeBytes', 'videoStreams', 'audioStreams', 'subtitleStreams']) {
     assert.ok(schema.required.includes(field));
   }
   const video = schema.properties.videoStreams.items;
@@ -28,6 +28,7 @@ test('freezes FA-04 continuity kinds and non-empty Primary Input membership', ()
     ['exact_provider_season', 'persistent_triage_grouping']);
   assert.equal(schemas.PrimaryInputManifest.properties.members.minItems, 1);
   assert.equal(schemas.PrimaryInputManifest.properties.members.items.additionalProperties, false);
+  assert.equal(schemas.PrimaryInputManifest.properties.members.items.properties.ordinal.minimum, 0);
 });
 
 test('keeps On-deck atomic success and business not-available distinct from Runtime Outcome variants', () => {

@@ -50,7 +50,8 @@ test('bounded requirements and intents carry identity, revision, digest, and typ
 });
 
 test('accepted DTOs freeze semantic members instead of exposing arbitrary payloads', () => {
-  assert.equal(schemas.CandidateDraft.properties.primaryInputManifest.$ref, 'helix://contracts/types/PrimaryInputManifest/v1');
+  assert.equal(schemas.CandidateDraft.properties.primaryInputManifestDraft.$ref, 'helix://contracts/types/PrimaryInputManifestDraft/v1');
+  assert.equal(schemas.CandidateDraft.properties.structureEvidence.properties.unit.properties.mediaType.enum.includes('group'), true);
   assert.equal(schemas.AcceptedIntakePayload.properties.candidatePackage.$ref, 'helix://contracts/types/CandidatePackage/v1');
   assert.equal(schemas.DestructionScope.properties.materialKeys.items.pattern, '^[a-f0-9]{64}$');
   for (const schema of Object.values(schemas)) {

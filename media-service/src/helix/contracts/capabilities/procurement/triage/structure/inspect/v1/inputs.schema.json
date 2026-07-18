@@ -5,39 +5,25 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "materialHandleList": {
-      "$ref": "#/$defs/materialHandleList"
+    "triageStructureInspectionInput": {
+      "$ref": "#/$defs/triageStructureInspectionInput"
     },
-    "materialFieldContext": {
-      "$ref": "#/$defs/materialFieldContext"
+    "procurementTriageRuleSnapshot": {
+      "$ref": "#/$defs/procurementTriageRuleSnapshot"
     }
   },
   "required": [
-    "materialHandleList",
-    "materialFieldContext"
+    "triageStructureInspectionInput",
+    "procurementTriageRuleSnapshot"
   ],
   "$defs": {
-    "materialHandleList": {
-      "type": "array",
-      "items": {
-        "oneOf": [
-          {
-            "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1"
-          },
-          {
-            "$ref": "helix://contracts/types/WorkspaceMaterialHandle/v1"
-          },
-          {
-            "$ref": "helix://contracts/types/ArtifactHandle/v1"
-          }
-        ]
-      },
-      "maxItems": 1024,
-      "x-helix-typeExpression": "Material handles"
+    "triageStructureInspectionInput": {
+      "$ref": "helix://contracts/domain-types/TriageStructureInspectionInput/v1",
+      "x-helix-typeExpression": "TriageStructureInspectionInput"
     },
-    "materialFieldContext": {
-      "$ref": "helix://contracts/domain-types/MaterialFieldContext/v1",
-      "x-helix-typeExpression": "MaterialFieldContext"
+    "procurementTriageRuleSnapshot": {
+      "$ref": "helix://contracts/domain-types/ProcurementTriageRuleSnapshot/v1",
+      "x-helix-typeExpression": "ProcurementTriageRuleSnapshot"
     }
   }
 }

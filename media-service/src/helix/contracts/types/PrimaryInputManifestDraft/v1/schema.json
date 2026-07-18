@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/PrimaryInputManifestDraft/v1",
+  "title": "PrimaryInputManifestDraft@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "x-helix-envelopeRef": "helix://contracts/types/DraftEnvelope/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/PrimaryInputManifestDraft/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "draftId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "draftKind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "basisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "draftDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "producedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "preallocatedManifestId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "procurementRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "runBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "structureEvidencePayloadDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "unitId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "structureKind": {
+      "type": "string",
+      "enum": [
+        "single",
+        "season"
+      ]
+    },
+    "memberCount": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "membersDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "memberSourceDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "manifestDraftDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "draftId",
+    "draftKind",
+    "basisDigest",
+    "draftDigest",
+    "producedAtMs",
+    "preallocatedManifestId",
+    "procurementRunId",
+    "runBasisDigest",
+    "structureEvidencePayloadDigest",
+    "unitId",
+    "structureKind",
+    "memberCount",
+    "membersDigest",
+    "memberSourceDigest",
+    "manifestDraftDigest"
+  ]
+}

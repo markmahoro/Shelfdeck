@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/ProcurementTriageRuleSnapshot/v1",
+  "title": "ProcurementTriageRuleSnapshot@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "ruleRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "ruleSchemaRef": {
+      "const": "procurement.triage-rule.beta@1"
+    },
+    "rulePayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "contractRefs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "maxItems": 32
+        },
+        "recallPriority": {
+          "const": true
+        },
+        "maxPrimaryMaterials": {
+          "const": 1024
+        },
+        "probeBatchSize": {
+          "const": 100
+        },
+        "playabilityRule": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "minimumDurationMs": {
+              "const": 1
+            },
+            "minimumVideoStreamCount": {
+              "const": 1
+            },
+            "reasonPrecedence": {
+              "const": [
+                "probe_not_media",
+                "no_video_stream",
+                "non_positive_duration"
+              ]
+            }
+          },
+          "required": [
+            "minimumDurationMs",
+            "minimumVideoStreamCount",
+            "reasonPrecedence"
+          ]
+        },
+        "profileResolutionRule": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "mixedPrecedence": {
+              "const": [
+                "series_episode_token",
+                "jav_code",
+                "movie_fallback"
+              ]
+            },
+            "westernAdultRequiresExplicitHint": {
+              "const": true
+            }
+          },
+          "required": [
+            "mixedPrecedence",
+            "westernAdultRequiresExplicitHint"
+          ]
+        },
+        "structureRule": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "maxUnitCanonicalBytes": {
+              "const": 65536
+            }
+          },
+          "required": [
+            "maxUnitCanonicalBytes"
+          ]
+        },
+        "identityRule": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "claimKinds": {
+              "const": [
+                "movie_title",
+                "series_season",
+                "jav_code",
+                "western_temporary"
+              ]
+            }
+          },
+          "required": [
+            "claimKinds"
+          ]
+        },
+        "manifestRule": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "minimumMembers": {
+              "const": 1
+            },
+            "maximumMembers": {
+              "const": 1024
+            },
+            "firstOrdinal": {
+              "const": 0
+            }
+          },
+          "required": [
+            "minimumMembers",
+            "maximumMembers",
+            "firstOrdinal"
+          ]
+        }
+      },
+      "required": [
+        "contractRefs",
+        "recallPriority",
+        "maxPrimaryMaterials",
+        "probeBatchSize",
+        "playabilityRule",
+        "profileResolutionRule",
+        "structureRule",
+        "identityRule",
+        "manifestRule"
+      ]
+    },
+    "ruleDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "authorityDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "ruleRef",
+    "revision",
+    "ruleSchemaRef",
+    "rulePayload",
+    "ruleDigest",
+    "authorityDigest"
+  ]
+}

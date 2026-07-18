@@ -5,33 +5,25 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "selectedMaterialList": {
-      "$ref": "#/$defs/selectedMaterialList"
+    "triageManifestBuildInput": {
+      "$ref": "#/$defs/triageManifestBuildInput"
     },
-    "roles": {
-      "$ref": "#/$defs/roles"
-    },
-    "structure": {
-      "$ref": "#/$defs/structure"
+    "procurementTriageRuleSnapshot": {
+      "$ref": "#/$defs/procurementTriageRuleSnapshot"
     }
   },
   "required": [
-    "selectedMaterialList",
-    "roles",
-    "structure"
+    "triageManifestBuildInput",
+    "procurementTriageRuleSnapshot"
   ],
   "$defs": {
-    "selectedMaterialList": {
-      "$ref": "helix://contracts/domain-types/SelectedMaterials/v1",
-      "x-helix-typeExpression": "Selected materials"
+    "triageManifestBuildInput": {
+      "$ref": "helix://contracts/domain-types/TriageManifestBuildInput/v1",
+      "x-helix-typeExpression": "TriageManifestBuildInput"
     },
-    "roles": {
-      "$ref": "helix://contracts/domain-types/Roles/v1",
-      "x-helix-typeExpression": "roles"
-    },
-    "structure": {
-      "$ref": "helix://contracts/domain-types/Structure/v1",
-      "x-helix-typeExpression": "structure"
+    "procurementTriageRuleSnapshot": {
+      "$ref": "helix://contracts/domain-types/ProcurementTriageRuleSnapshot/v1",
+      "x-helix-typeExpression": "ProcurementTriageRuleSnapshot"
     }
   }
 }

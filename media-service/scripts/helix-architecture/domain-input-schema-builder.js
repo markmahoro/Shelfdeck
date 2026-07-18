@@ -4,6 +4,7 @@ const crypto = require('crypto');
 
 const DRAFT = 'https://json-schema.org/draft/2020-12/schema';
 const domainTypeId = (name) => `helix://contracts/domain-types/${name}/v1`;
+const domainRef = (name) => ({ $ref: domainTypeId(name) });
 const typeRef = (name) => ({ $ref: `helix://contracts/types/${name}/v1` });
 const text = (options = {}) => ({ type: 'string', minLength: 1, ...options });
 const id = () => text({ maxLength: 256 });
@@ -53,8 +54,6 @@ const special = {
   'AcceptedIntakePayload.bindingDraft': typeRef('LibraBindingDraft'),
   'AcceptedPayload.onDeckProductPackage': typeRef('OnDeckProductPackage'),
   'ActiveShelfEntryIdentityProjection.entries': arrayOf(snapshot('active-shelf-entry-identity'), 4096),
-  'CandidateDraft.primaryInputManifest': typeRef('PrimaryInputManifest'),
-  'CandidateDraft.identityClaim': typeRef('IdentityClaim'),
   'CandidateMaterialLocationEvidence.materials': arrayOf(object({
     materialKey: digest(), endpointId: id(), location: text(), bindingRevision: positiveInteger(), evidenceDigest: digest()
   }), 4096),
@@ -71,7 +70,6 @@ const special = {
   'KnownBindings.bindings': arrayOf(snapshot('arca-material-binding'), 4096),
   'LibraWorkspaceScope.workspaceHandles': arrayOf(typeRef('WorkspaceMaterialHandle'), 4096),
   'Manifests.manifestRefs': arrayOf(id(), 128),
-  'MaterialFieldContext.fieldRefs': arrayOf(snapshot('material-field-context'), 128),
   'OffLoadContext.materials': arrayOf(snapshot('offload-material'), 4096),
   'PeopleWorkspace.workspaceHandles': arrayOf(typeRef('WorkspaceMaterialHandle'), 4096),
   'PersonIdentitiesAliasesReferences.people': arrayOf(snapshot('person-identity-alias-reference'), 4096),
@@ -85,8 +83,6 @@ const special = {
   'ProviderPersonHint.providerIdentities': arrayOf(snapshot('provider-person-identity'), 128),
   'ReferenceEvidence.references': arrayOf(snapshot('material-reference-evidence'), 4096),
   'ReleaseManifest.materialKeys': arrayOf(digest(), 4096),
-  'Roles.roles': arrayOf(text(), 128),
-  'SelectedMaterials.materialKeys': arrayOf(digest(), 4096),
   'SourceObservation.observations': arrayOf(snapshot('source-observation'), 4096),
   'StructuredRejection.reasonCodes': arrayOf(text(), 128),
   'TargetBindings.bindings': arrayOf(snapshot('target-material-binding'), 4096),
@@ -143,7 +139,7 @@ const dtoContracts = {
   AcceptedPayload: 'onDeckProductPackage,acceptanceDecisionId,custodyDigest',
   AcceptedProductFacts: 'shelfEntryId,inventoryRevision,productFactSetDigest',
   ActiveShelfEntryIdentityProjection: 'entries,projectionRevision',
-  CandidateDraft: 'procurementRunId,primaryInputManifest,identityClaim,relatedReferenceSetDigest',
+  CandidateDraft: '',
   CandidateMaterialLocationEvidence: 'materials',
   CandidateSnapshot: 'candidatePackage,snapshotRevision',
   CareBasis: 'shelfEntryId,inventoryRevision,standardRevision,placementRevision,decisionFactSetDigest,assessments',
@@ -155,13 +151,11 @@ const dtoContracts = {
   FinalBindings: 'shelfEntryId,bindings,bindingSetDigest',
   FinalInventoryDecision: 'onDeckRunId,shelfId,members,placementRevision,decisionDigest',
   FinalReality: 'shelfEntryId,inventoryRevision,realityDigest',
-  IdentityMetadata: 'claimedTitle,contentProfileHint,providerHints,identityMetadataDigest',
   InventoryMetadataArtifactRefs: 'shelfEntryId,inventoryRevision,metadataFactRefs,artifactHandles',
   InventoryRevision: 'shelfEntryId,inventoryRevision,inventoryDigest',
   KnownBindings: 'shelfEntryId,bindings,bindingSetDigest',
   LibraWorkspaceScope: 'workspaceId,workspaceHandles,scopeDigest',
   Manifests: 'manifestRefs,manifestSetDigest',
-  MaterialFieldContext: 'fieldRefs,contextDigest',
   MetadataFetchIntent: '',
   MetadataObservationSet: '',
   OffLoadContext: 'onDeckPackageId,materials,contextDigest',
@@ -191,13 +185,15 @@ const dtoContracts = {
   PeopleReferenceMaintenanceDecision: '',
   RelatedReference: 'shelfEntryId,referenceId,materialKey,referenceDigest',
   ReleaseManifest: 'deregistrationId,shelfId,materialKeys,controlRevisionSetDigest,manifestDigest',
-  Roles: 'roles,roleSetDigest',
   Scope: 'scopeId,materialKeys,scopeDigest',
   SelectedFieldMaterialSet: '',
-  SelectedMaterials: 'procurementRunId,materialKeys,selectionDigest',
+  TriageIdentityResolutionInput: '',
+  TriageManifestBuildInput: '',
+  TriageMaterialProbeBatch: '',
+  TriageStructureInspectionInput: '',
+  ProcurementTriageRuleSnapshot: '',
   StableProviderIdentity: 'providerId,providerObjectId,identityRevision,identityDigest',
   Standard: 'standardId,standardRevision,standardDigest',
-  Structure: 'structureKind,memberClaims,structureDigest',
   StructuredRejection: 'handoffKind,deliverableId,reasonCodes,rejectionDigest',
   TargetBindings: 'targetCommitSlotId,bindings,bindingSetDigest',
   TargetEndpoint: 'endpointId,mountScopeRevision,capacityObservationDigest',
@@ -223,6 +219,12 @@ function idField(name) {
 
 function buildSchema(name, role, fields) {
   if (name === 'SelectedFieldMaterialSet') return selectedFieldMaterialSetSchema();
+  if (name === 'CandidateDraft') return candidateDraftSchema();
+  if (name === 'ProcurementTriageRuleSnapshot') return procurementTriageRuleSnapshotSchema();
+  if (name === 'TriageMaterialProbeBatch') return triageMaterialProbeBatchSchema();
+  if (name === 'TriageStructureInspectionInput') return triageStructureInspectionInputSchema();
+  if (name === 'TriageIdentityResolutionInput') return triageIdentityResolutionInputSchema();
+  if (name === 'TriageManifestBuildInput') return triageManifestBuildInputSchema();
   if (name === 'PeopleCandidateAcceptanceDecision') return peopleCandidateAcceptanceDecisionSchema();
   if (name === 'DirectPersonRegistrationDecision') return directPersonRegistrationDecisionSchema();
   if (name === 'PeopleReferenceMaintenanceDecision') return peopleReferenceMaintenanceDecisionSchema();
@@ -269,6 +271,97 @@ function selectedFieldMaterialSetSchema() {
   });
   return exactDomainSchema('SelectedFieldMaterialSet', {
     procurementRunId: id(), fieldId: id(), members: { ...arrayOf(member, 1024), minItems: 1 }, selectionDigest: digest()
+  });
+}
+
+const profile = () => enumText('movie', 'series', 'jav', 'western_adult');
+const mediaType = () => enumText('single', 'group');
+const structureKind = () => enumText('single', 'season');
+const episodeClaim = () => object({ episodeKey: text(), seasonClaimDigest: digest(), claimDigest: digest() });
+const relatedReference = () => object({
+  referenceId: id(), primaryMaterialKey: digest(), role: enumText('nfo', 'poster', 'fanart', 'subtitle', 'external_audio', 'chapter', 'sidecar'),
+  identity: typeRef('PhysicalMaterialIdentity'), endpointId: id(), location: text(), checksumAlgorithm: { const: 'sha256' },
+  checksumHex: digest(), associationEvidenceDigest: digest(), referenceDigest: digest()
+});
+const identityMetadata = () => object({
+  claimedTitle: text(), claimedYear: positiveInteger(),
+  seasonClaim: object({ claimKind: enumText('explicit_number', 'provisional_group'), seasonNumber: positiveInteger(),
+    provisionalGroupKey: digest(), claimDigest: digest() }, ['claimKind', 'claimDigest']),
+  javCode: text(), contentProfileHint: enumText('movie', 'series', 'jav', 'western_adult', 'mixed'),
+  sourceHints: arrayOf(object({ hintKind: enumText('field_content_profile_hint', 'filename_title', 'directory_title', 'filename_year',
+    'directory_year', 'filename_season', 'directory_season', 'filename_episode', 'jav_code', 'disc_structure', 'temporary_label'),
+  hintValue: text(), evidenceDigest: digest() }), 256), metadataDigest: digest()
+}, ['claimedTitle', 'contentProfileHint', 'sourceHints', 'metadataDigest']);
+const triageUnit = () => object({
+  unitId: digest(), mediaType: mediaType(), contentProfile: profile(), structureKind: structureKind(), displayIdentity: text(),
+  identityMetadata: identityMetadata(), seasonContinuityClaims: arrayOf(object({ kind: enumText('exact_provider_season', 'persistent_triage_grouping'),
+    namespace: text(), key: text(), claimDigest: digest(), evidenceDigest: digest() }), 64),
+  members: { ...arrayOf(object({ materialKey: digest(), bindingRevision: positiveInteger(), admittedControlRevision: positiveInteger(),
+    admittedControlProjectionDigest: digest(), role: enumText('primary_payload', 'structural_dependency'),
+    episodeClaims: arrayOf(episodeClaim(), 32), memberClaimDigest: digest() }), 1024), minItems: 1 },
+  relatedReferences: arrayOf(relatedReference(), 1024), unitDigest: digest()
+});
+
+function procurementTriageRuleSnapshotSchema() {
+  const rulePayload = object({
+    contractRefs: arrayOf(text(), 32), recallPriority: { const: true }, maxPrimaryMaterials: { const: 1024 },
+    probeBatchSize: { const: 100 }, playabilityRule: object({ minimumDurationMs: { const: 1 }, minimumVideoStreamCount: { const: 1 },
+      reasonPrecedence: { const: ['probe_not_media', 'no_video_stream', 'non_positive_duration'] } }),
+    profileResolutionRule: object({ mixedPrecedence: { const: ['series_episode_token', 'jav_code', 'movie_fallback'] },
+      westernAdultRequiresExplicitHint: { const: true } }), structureRule: object({ maxUnitCanonicalBytes: { const: 65536 } }),
+    identityRule: object({ claimKinds: { const: ['movie_title', 'series_season', 'jav_code', 'western_temporary'] } }),
+    manifestRule: object({ minimumMembers: { const: 1 }, maximumMembers: { const: 1024 }, firstOrdinal: { const: 0 } })
+  });
+  return exactDomainSchema('ProcurementTriageRuleSnapshot', { ruleRef: id(), revision: positiveInteger(),
+    ruleSchemaRef: { const: 'procurement.triage-rule.beta@1' }, rulePayload, ruleDigest: digest(), authorityDigest: digest() });
+}
+
+function triageMaterialProbeBatchSchema() {
+  const member = object({ selectionOrdinal: nonNegativeInteger(), materialKey: digest(), bindingRevision: positiveInteger(),
+    admittedControlRevision: positiveInteger(), admittedControlProjectionDigest: digest(), readHandle: typeRef('PhysicalMaterialReadHandle'),
+    mediaProbe: typeRef('MediaProbeEvidence'), memberDigest: digest() });
+  return exactDomainSchema('TriageMaterialProbeBatch', { procurementRunId: id(), runBasisDigest: digest(), selectionDigest: digest(),
+    batchOrdinal: nonNegativeInteger(), members: { ...arrayOf(member, 100), minItems: 1 }, batchDigest: digest() });
+}
+
+function materialFieldContextSchema() {
+  return object({ fieldId: id(), accessRevision: positiveInteger(), accessDigest: digest(),
+    contentProfileHint: enumText('movie', 'series', 'jav', 'western_adult', 'mixed'),
+    memberContexts: { ...arrayOf(object({ selectionOrdinal: nonNegativeInteger(), materialKey: digest(), fieldRelativeLocation: text(),
+      baseName: text(), extension: text(), parentSegments: arrayOf(text(), 32), layoutEvidenceRefs: arrayOf(object({ evidenceId: id(),
+      payloadDigest: digest(), boundedScopeDigest: digest() }), 16) }), 1024), minItems: 1 }, contextDigest: digest() });
+}
+
+function triageStructureInspectionInputSchema() {
+  return exactDomainSchema('TriageStructureInspectionInput', { selectedFieldMaterialSet: domainRef('SelectedFieldMaterialSet'),
+    probeBatches: { ...arrayOf(domainRef('TriageMaterialProbeBatch'), 11), minItems: 1 },
+    playabilityPages: { ...arrayOf(typeRef('PlayabilityEvidence'), 11), minItems: 1 }, materialFieldContext: materialFieldContextSchema(),
+    layoutEvidence: arrayOf(typeRef('LayoutEvidence'), 1024), pageRequest: object({ pageOrdinal: nonNegativeInteger(),
+      cursorIn: { anyOf: [text(), { type: 'null' }] }, maxUnits: { type: 'integer', minimum: 1, maximum: 100 }, requestDigest: digest() }),
+    inputDigest: digest() });
+}
+
+function triageIdentityResolutionInputSchema() {
+  return exactDomainSchema('TriageIdentityResolutionInput', { procurementRunId: id(), runBasisDigest: digest(),
+    triageRuleAuthorityDigest: digest(), structureEvidenceId: id(), structureEvidencePayloadDigest: digest(), unit: triageUnit(), inputDigest: digest() });
+}
+
+function triageManifestBuildInputSchema() {
+  return exactDomainSchema('TriageManifestBuildInput', { procurementRunId: id(), runBasisDigest: digest(), triageRuleAuthorityDigest: digest(),
+    selectedFieldMaterialSet: domainRef('SelectedFieldMaterialSet'), structureEvidenceId: id(), structureEvidencePayloadDigest: digest(),
+    unit: triageUnit(), preallocatedManifestId: id(), inputDigest: digest() });
+}
+
+function candidateDraftSchema() {
+  return exactDomainSchema('CandidateDraft', { draftId: id(), draftKind: text(), basisDigest: digest(), draftDigest: digest(),
+    producedAtMs: nonNegativeInteger(), candidatePackageId: id(), expectedPackageRevision: positiveInteger(), procurementRunId: id(),
+    runBasisDigest: digest(), triageRule: object({ ruleRef: id(), revision: positiveInteger(), authorityDigest: digest() }),
+    materialFieldContextRef: object({ fieldId: id(), accessRevision: positiveInteger(), contextDigest: digest() }),
+    mediaType: mediaType(), contentProfile: profile(), displayIdentity: text(), identityMetadata: identityMetadata(),
+    identityClaim: typeRef('IdentityClaim'), structureEvidence: object({ evidenceId: id(), payloadDigest: digest(), unit: triageUnit() }),
+    primaryInputManifestDraft: typeRef('PrimaryInputManifestDraft'), seasonContinuityClaims: arrayOf(object({ kind: text(), namespace: text(),
+      key: text(), claimDigest: digest(), evidenceDigest: digest() }), 64), relatedReferences: arrayOf(relatedReference(), 1024),
+    relatedReferenceSetDigest: digest(), memberControlEvidenceSetDigest: digest(), candidateDraftDigest: digest()
   });
 }
 

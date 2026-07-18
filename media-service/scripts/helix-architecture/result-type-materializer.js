@@ -7,7 +7,8 @@ const { buildResultTypeSchemas, schemaDigest, typeId } = require('./result-type-
 const HELPER_SOURCES = {
   OnDeckCommitReceipt: { section: '8.6.19', line: 8009 },
   OffloadCompletionFact: { section: '8.6.19', line: 8010 },
-  PeopleCandidateDraft: { section: '8.6.19', line: 8033 }
+  PeopleCandidateDraft: { section: '8.6.19', line: 8033 },
+  PrimaryInputManifest: { section: '8.6.19', line: 8932 }
 };
 
 function readResultSourceEntries(contractsRoot) {
@@ -39,7 +40,7 @@ function buildResultTypeRegistry(contractsRoot) {
     owner: 'contracts',
     status: 'active',
     targetCatalogResultCount: 86,
-    helperCount: 3,
+    helperCount: 4,
     entries
   };
 }

@@ -44,7 +44,7 @@ function expectedCatalog(manifest) {
 
 function assertManifest(manifest, ddl) {
   if (!manifest || manifest.schemaVersion !== 1 || manifest.compilerContract !== 'helix-p3-deterministic-sqlite-ddl/v1' ||
-      manifest.tableCount !== 162 || !Array.isArray(manifest.tables) || manifest.tables.length !== 162) {
+      manifest.tableCount !== 163 || !Array.isArray(manifest.tables) || manifest.tables.length !== 163) {
     fail('P3_SQLITE_INVALID_SCHEMA_MANIFEST', 'The clean schema manifest is incomplete or unsupported.');
   }
   if (manifest.digestAlgorithm !== 'sha256' || digest(normalizedDdl(ddl)) !== manifest.ddlDigest) {

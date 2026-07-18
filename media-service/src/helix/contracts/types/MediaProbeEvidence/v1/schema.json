@@ -47,6 +47,19 @@
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
+    "resultKind": {
+      "type": "string",
+      "enum": [
+        "probed",
+        "not_media"
+      ]
+    },
+    "reasonCode": {
+      "type": "string",
+      "enum": [
+        "probe_not_media"
+      ]
+    },
     "container": {
       "type": "string",
       "minLength": 1
@@ -187,6 +200,34 @@
         ]
       },
       "maxItems": 256
+    },
+    "discTopology": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "discKind": {
+          "type": "string",
+          "enum": [
+            "bdmv",
+            "dvd",
+            "iso"
+          ]
+        },
+        "titleCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "singleTitleEvidenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "discKind",
+        "titleCount",
+        "singleTitleEvidenceDigest"
+      ]
     }
   },
   "required": [
@@ -199,8 +240,7 @@
     "payloadDigest",
     "observedAtMs",
     "sourceHandleDigest",
-    "container",
-    "durationMs",
+    "resultKind",
     "sizeBytes",
     "videoStreams",
     "audioStreams",

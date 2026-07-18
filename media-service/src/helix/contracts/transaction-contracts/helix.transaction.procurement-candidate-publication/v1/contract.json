@@ -7,7 +7,7 @@
     "displayName": "Procurement Candidate Publication",
     "ownerScope": "procurement",
     "commitClass": "domain_fact_commit",
-    "atomicFactSet": "immutable Candidate Package + Primary Input Manifest + package members是Run Selection的精确子集 + 成员`run_selection → candidate_delivery` + open Handoff Offer + durable typed Result/commit marker + 8.4.2既定Offer Outbox；Package、Manifest、Reservation、Offer与Outbox全有或全无",
+    "atomicFactSet": "complete `CandidateDraft@1` + exact Run Basis/Triage Rule/Structure Unit/Identity/Manifest Draft fence + Run `candidate_package_revision_head` CAS + immutable Candidate Package + final Primary Input Manifest及N:M Episode Claim/Related relation + package members是Run Selection精确非空子集 + 成员`run_selection → candidate_delivery` + open Handoff Offer + durable typed Result/commit marker + 8.4.2既定Offer Outbox；CommitParticipant只消费Draft/Handle，不旁读Foundation Event Result或Provider；Package、Manifest、Relation、Reservation、Offer与Outbox全有或全无",
     "participants": [
       {
         "participantKind": "domain",
@@ -72,8 +72,8 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7622,
-      "lineDigest": "95155546d4c98ddf02bfd106f77b2eb38516c889c9069293c8ff842ccf8cc73d"
+      "line": 7652,
+      "lineDigest": "f0fa746655b5232e6ec62ad99d53d5021eb6ef1fc09db2c16853e3a1b6587b18"
     }
   }
 }

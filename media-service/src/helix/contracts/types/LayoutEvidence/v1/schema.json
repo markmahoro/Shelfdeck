@@ -52,61 +52,85 @@
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
-    "memberSummary": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "schemaRef": {
-          "type": "string",
-          "minLength": 1
-        },
-        "schemaVersion": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "recordKind": {
-          "const": "layout-member-summary"
-        },
-        "recordDigest": {
-          "type": "string",
-          "minLength": 1,
-          "pattern": "^[a-f0-9]{64}$"
-        },
-        "entries": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "key": {
-                "type": "string",
-                "minLength": 1
-              },
-              "value": {
-                "type": [
-                  "string",
-                  "number",
-                  "integer",
-                  "boolean",
-                  "null"
-                ]
-              }
-            },
-            "required": [
-              "key",
-              "value"
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "entryOrdinal": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "entryKind": {
+            "type": "string",
+            "enum": [
+              "file",
+              "directory"
             ]
           },
-          "maxItems": 256
-        }
+          "relativeLocation": {
+            "type": "string",
+            "minLength": 1
+          },
+          "baseName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "extension": {
+            "type": "string",
+            "minLength": 1
+          },
+          "identity": {
+            "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v1"
+          },
+          "endpointId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "location": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "mtimeNs": {
+            "type": "string",
+            "minLength": 1
+          },
+          "checksumAlgorithm": {
+            "const": "sha256"
+          },
+          "checksumHex": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "entryDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "entryOrdinal",
+          "entryKind",
+          "relativeLocation",
+          "baseName",
+          "endpointId",
+          "location",
+          "entryDigest"
+        ]
       },
-      "required": [
-        "schemaRef",
-        "schemaVersion",
-        "recordKind",
-        "recordDigest",
-        "entries"
-      ]
+      "maxItems": 256
+    },
+    "entriesDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     },
     "layoutDigest": {
       "type": "string",
@@ -125,7 +149,8 @@
     "observedAtMs",
     "sourceHandleDigest",
     "boundedScopeDigest",
-    "memberSummary",
+    "entries",
+    "entriesDigest",
     "layoutDigest"
   ]
 }

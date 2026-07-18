@@ -102,11 +102,40 @@ const acceptedFieldMaterial = object({
   materialKey: digest(), bindingRevision: positiveInteger(), changeKind: enumText('inserted', 'refreshed', 'rebound'),
   realityDigest: digest(), snapshotDigest: digest()
 });
+const triageProfile = () => enumText('movie', 'series', 'jav', 'western_adult');
+const triageMediaType = () => enumText('single', 'group');
+const triageEpisodeClaim = () => object({ episodeKey: text(), seasonClaimDigest: digest(), claimDigest: digest() });
+const triageIdentityMetadata = () => object({ claimedTitle: text(), claimedYear: positiveInteger(),
+  seasonClaim: object({ claimKind: enumText('explicit_number', 'provisional_group'), seasonNumber: positiveInteger(),
+    provisionalGroupKey: digest(), claimDigest: digest() }, ['claimKind', 'claimDigest']), javCode: text(),
+  contentProfileHint: enumText('movie', 'series', 'jav', 'western_adult', 'mixed'), sourceHints: arrayOf(object({
+    hintKind: enumText('field_content_profile_hint', 'filename_title', 'directory_title', 'filename_year', 'directory_year',
+      'filename_season', 'directory_season', 'filename_episode', 'jav_code', 'disc_structure', 'temporary_label'),
+    hintValue: text(), evidenceDigest: digest() }), 256), metadataDigest: digest()
+}, ['claimedTitle', 'contentProfileHint', 'sourceHints', 'metadataDigest']);
+const triageRelatedReference = () => object({ referenceId: id(), primaryMaterialKey: digest(),
+  role: enumText('nfo', 'poster', 'fanart', 'subtitle', 'external_audio', 'chapter', 'sidecar'),
+  identity: ref('PhysicalMaterialIdentity'), endpointId: id(), location: text(), checksumAlgorithm: { const: 'sha256' },
+  checksumHex: digest(), associationEvidenceDigest: digest(), referenceDigest: digest() });
+const triageUnit = () => object({ unitId: digest(), mediaType: triageMediaType(), contentProfile: triageProfile(),
+  structureKind: enumText('single', 'season'), displayIdentity: text(), identityMetadata: triageIdentityMetadata(),
+  seasonContinuityClaims: arrayOf(object({ kind: enumText('exact_provider_season', 'persistent_triage_grouping'), namespace: text(),
+    key: text(), claimDigest: digest(), evidenceDigest: digest() }), 64), members: { ...arrayOf(object({ materialKey: digest(),
+    bindingRevision: positiveInteger(), admittedControlRevision: positiveInteger(), admittedControlProjectionDigest: digest(),
+    role: enumText('primary_payload', 'structural_dependency'), episodeClaims: arrayOf(triageEpisodeClaim(), 32), memberClaimDigest: digest()
+  }), 1024), minItems: 1 }, relatedReferences: arrayOf(triageRelatedReference(), 1024), unitDigest: digest() });
 
 const special = {
   'FilesystemIdentityEvidence.identity': ref('PhysicalMaterialIdentity'),
   'ContentHashEvidence.identity': ref('PhysicalMaterialIdentity'),
-  'LayoutEvidence.memberSummary': boundedRecord('layout-member-summary'),
+  'MediaProbeEvidence.resultKind': enumText('probed', 'not_media'),
+  'MediaProbeEvidence.reasonCode': enumText('probe_not_media'),
+  'MediaProbeEvidence.discTopology': object({ discKind: enumText('bdmv', 'dvd', 'iso'), titleCount: positiveInteger(),
+    singleTitleEvidenceDigest: digest() }),
+  'LayoutEvidence.entries': arrayOf(object({ entryOrdinal: nonNegativeInteger(), entryKind: enumText('file', 'directory'),
+    relativeLocation: text(), baseName: text(), extension: text(), identity: ref('PhysicalMaterialIdentity'), endpointId: id(),
+    location: text(), sizeBytes: nonNegativeInteger(), mtimeNs: text(), checksumAlgorithm: { const: 'sha256' }, checksumHex: digest(),
+    entryDigest: digest() }, ['entryOrdinal', 'entryKind', 'relativeLocation', 'baseName', 'endpointId', 'location', 'entryDigest']), 256),
   'MediaProbeEvidence.videoStreams': arrayOf(stream, 64),
   'MediaProbeEvidence.audioStreams': arrayOf(simpleStream, 128),
   'MediaProbeEvidence.subtitleStreams': arrayOf(simpleStream, 256),
@@ -116,15 +145,32 @@ const special = {
   'FieldObservationPage.cursorOut': nullable(text()),
   'ObservationCommitResult.acceptedMaterials': arrayOf(acceptedFieldMaterial, 100),
   'ObservationCommitResult.nextCursor': nullable(text()),
-  'PlayabilityEvidence.materialResults': arrayOf(object({ materialKey: digest(), playable: bool(), reasonCodes: arrayOf(text(), 64) })),
-  'TriageStructureEvidence.structureKind': enumText('single', 'season'),
-  'TriageStructureEvidence.episodeClaims': arrayOf(object({ episodeKey: text(), materialKey: digest(), claimDigest: digest() })),
-  'IdentityClaim.claimKind': text(),
-  'IdentityClaim.seasonNumber': nullable(positiveInteger()),
+  'PlayabilityEvidence.materialResults': { ...arrayOf(object({ selectionOrdinal: nonNegativeInteger(), materialKey: digest(),
+    bindingRevision: positiveInteger(), probeEvidenceDigest: digest(), playable: bool(),
+    reasonCodes: arrayOf(enumText('probe_not_media', 'no_video_stream', 'non_positive_duration'), 3), resultDigest: digest() }), 100), minItems: 1 },
+  'TriageStructureEvidence.resultKind': enumText('resolved', 'not_ready'),
+  'TriageStructureEvidence.units': arrayOf(triageUnit(), 100),
+  'TriageStructureEvidence.unassignedMaterials': arrayOf(object({ materialKey: digest(), reasonCode: enumText('probe_not_media',
+    'no_video_stream', 'non_positive_duration', 'content_profile_unresolved', 'conflicting_season_claim',
+    'episode_claim_unresolved', 'disc_structure_incomplete', 'disc_multi_title_unsupported', 'triage_unit_contract_too_large',
+    'structure_ambiguous'), evidenceDigest: digest() }), 1024),
+  'TriageStructureEvidence.cursorIn': nullable(text()),
+  'TriageStructureEvidence.cursorOut': nullable(text()),
+  'IdentityClaim.claimKind': enumText('movie_title', 'series_season', 'jav_code', 'western_temporary'),
+  'IdentityClaim.mediaType': triageMediaType(),
+  'IdentityClaim.contentProfile': triageProfile(),
+  'IdentityClaim.identityMetadata': triageIdentityMetadata(),
+  'IdentityClaim.sourceHints': triageIdentityMetadata().properties.sourceHints,
+  'IdentityClaim.seasonClaim': triageIdentityMetadata().properties.seasonClaim,
+  'PrimaryInputManifestDraft.structureKind': enumText('single', 'season'),
+  'PrimaryInputManifestDraft.memberCount': positiveInteger(),
   'PrimaryInputManifest.structureKind': enumText('single', 'season'),
+  'PrimaryInputManifest.memberCount': positiveInteger(),
   'PrimaryInputManifest.members': { ...arrayOf(object({
-    ordinal: positiveInteger(), materialKey: digest(), role: text(), episodeClaim: snapshot('episode-claim'), bindingRevision: positiveInteger()
-  }, ['ordinal', 'materialKey', 'role', 'bindingRevision'])), minItems: 1 },
+    ordinal: nonNegativeInteger(), materialKey: digest(), role: enumText('primary_payload', 'structural_dependency'),
+    bindingRevision: positiveInteger(), admittedControlRevision: positiveInteger(), admittedControlProjectionDigest: digest(),
+    episodeClaims: arrayOf(triageEpisodeClaim(), 32), memberDigest: digest()
+  })), minItems: 1 },
   'CandidatePackage.identityClaim': ref('IdentityClaim'),
   'CandidatePackage.seasonContinuityClaims': arrayOf(object({
     kind: enumText('exact_provider_season', 'persistent_triage_grouping'), claimDigest: digest(), subjectId: id()
@@ -271,8 +317,8 @@ function inferredField(resultName, fieldName) {
 const contracts = {
   FilesystemIdentityEvidence: ['EvidenceEnvelope', 'identity,endpointId,location,statSizeBytes,statMtimeMs'],
   ContentHashEvidence: ['EvidenceEnvelope', 'identity,hashProfileRef,bytesHashed'],
-  MediaProbeEvidence: ['EvidenceEnvelope', 'sourceHandleDigest,container,durationMs,sizeBytes,videoStreams,audioStreams,subtitleStreams'],
-  LayoutEvidence: ['EvidenceEnvelope', 'sourceHandleDigest,boundedScopeDigest,memberSummary,layoutDigest'],
+  MediaProbeEvidence: ['EvidenceEnvelope', 'sourceHandleDigest,resultKind,reasonCode?,container?,durationMs?,sizeBytes,videoStreams,audioStreams,subtitleStreams,discTopology?'],
+  LayoutEvidence: ['EvidenceEnvelope', 'sourceHandleDigest,boundedScopeDigest,entries,entriesDigest,layoutDigest'],
   ManifestVerification: ['VerificationEnvelope', 'manifestDigest,contractRef'],
   ArtifactManifestVerification: ['VerificationEnvelope', 'manifestDigest,contractRef,artifactDigests'],
   IntegrationAvailabilityEvidence: ['EvidenceEnvelope', 'integrationId,configRevision,availabilityState,latencyMs?'],
@@ -280,9 +326,10 @@ const contracts = {
   FieldObservationPage: ['EvidenceEnvelope', 'fieldObservationWorkId,observationId,fieldId,accessRevision,pageOrdinal,expectedObservationRevision,cursorIn,cursorOut,materialObservations,pageDigest,hasMore'],
   ObservationCommitResult: ['DomainFactEnvelope', 'observationId,fieldObservationWorkId,fieldId,accessRevision,pageOrdinal,committedObservationRevision,pageDigest,acceptedMaterials,acceptedMaterialSetDigest,nextCursor,hasMore'],
   ProcurementControlReceipt: ['ReceiptEnvelope', 'procurementRunId,fieldId,runBasisDigest,selectedMaterialCount,selectedMaterialSetDigest,acquiredMaterialCount,assertedMaterialCount,controlRevisionSetDigest'],
-  PlayabilityEvidence: ['EvidenceEnvelope', 'materialResults'],
-  TriageStructureEvidence: ['EvidenceEnvelope', 'structureKind,primaryRoles,episodeClaims,relatedReferences'],
-  IdentityClaim: ['DraftEnvelope', 'claimKind,claimedTitle,seasonNumber?,contentProfileHint,sourceHints'],
+  PlayabilityEvidence: ['EvidenceEnvelope', 'procurementRunId,runBasisDigest,selectionDigest,batchOrdinal,materialResults,materialResultSetDigest'],
+  TriageStructureEvidence: ['EvidenceEnvelope', 'procurementRunId,runBasisDigest,selectionDigest,triageRuleAuthorityDigest,materialFieldContextDigest,pageRequestDigest,pageOrdinal,cursorIn,cursorOut,resultKind,units,unassignedMaterials,unitSetDigest,unassignedSetDigest'],
+  IdentityClaim: ['DraftEnvelope', 'claimKind,mediaType,contentProfile,claimedTitle,displayIdentity,claimedYear?,seasonClaim?,javCode?,identityMetadataDigest,structureUnitDigest,sourceHints,claimDigest'],
+  PrimaryInputManifestDraft: ['DraftEnvelope', 'preallocatedManifestId,procurementRunId,runBasisDigest,structureEvidencePayloadDigest,unitId,structureKind,memberCount,membersDigest,memberSourceDigest,manifestDraftDigest'],
   PrimaryInputManifest: ['ManifestEnvelope', 'structureKind,members'],
   CandidatePackage: ['ManifestEnvelope', 'candidatePackageId,procurementRunId,identityClaim,seasonContinuityClaims,primaryInputManifestRef,relatedReferenceSetDigest,packageDigest'],
   CandidateContractVerification: ['VerificationEnvelope', 'candidatePackageId,packageDigest'],

@@ -13,7 +13,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.11",
-        "line": 7830,
+        "line": 7860,
         "lineDigest": "01d8b28d88a8c38edf0a801272d86f7d3fbad6841f052c5c7e0ab5ea5c23e60a"
       },
       "targetLocator": {
@@ -23,11 +23,11 @@
         "tableId": "proc_extraction_policy_revisions",
         "owner": "procurement",
         "contractRef": "helix://contracts/tables/proc_extraction_policy_revisions/v1",
-        "contractDigest": "14d4bbc72c3cb963e3d290de50e0091f1d31f54ca22228b15622f4188893c4ce"
+        "contractDigest": "e5699585dbaca4398b5830c9778c5a3d456608410925635d50363cd3de5e7385"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "cc5525426abbaf154379ce402c553392f7491b316b7ac3f3dff5ed8809787bbe"
+        "value": "8be032a81ae7676f6ce01c029d0becb9590524e42653abb3ab1f17ac5d668360"
       }
     },
     {
@@ -41,7 +41,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.11",
-        "line": 7831,
+        "line": 7861,
         "lineDigest": "2ade6d735b0d5b69263b4587d06261fc99a7c37178ba5b2af3fd8348d9fe2c4a"
       },
       "targetLocator": {
@@ -51,11 +51,11 @@
         "tableId": "proc_field_access_revisions",
         "owner": "procurement",
         "contractRef": "helix://contracts/tables/proc_field_access_revisions/v1",
-        "contractDigest": "5f3a1d7be78c4cfe7492f1589ccf5599de02b1be202cacc7104e692893c8fdb2"
+        "contractDigest": "d99aa9cfecac303d22a0406690da1ce17fdc1eac49f7f964d639f3760c3ce86d"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "e3538139cd90a1336107b59428f0987a60249ba706e8fc7fe600903436f441b4"
+        "value": "b5a054fc5a9482b229537ea603835ac8cd55128a28e48bcf68b512682df48b60"
       }
     },
     {
@@ -69,7 +69,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.11",
-        "line": 7832,
+        "line": 7862,
         "lineDigest": "6af5f1f46b31d02649f12f09f80579e6730867d4ac3c04210d3e2b3dd2784b04"
       },
       "targetLocator": {
@@ -79,11 +79,11 @@
         "tableId": "proc_field_observations",
         "owner": "procurement",
         "contractRef": "helix://contracts/tables/proc_field_observations/v1",
-        "contractDigest": "f66cd29b7a1d3f7d8e1c0e47f370abc6308701be3112d5d5727c4762c5b5b6f6"
+        "contractDigest": "f7f03d6fdf3ce20b6a6b71fd489359883eb59e44ec0690c6c8e23393a0eec502"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "530b47f8bc0e65131e7e013a239ac93c26112600c47ed455a6378c4c483b584d"
+        "value": "79b7da4f47095a130c41c7d6008ddafea7f160922a3f0a290db1976e7b5b64fd"
       }
     },
     {
@@ -97,7 +97,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.11",
-        "line": 7833,
+        "line": 7863,
         "lineDigest": "644c9568345b8f77a6d43893ad6ad3aee5767163c253216e684239d31f8a6112"
       },
       "targetLocator": {
@@ -107,11 +107,11 @@
         "tableId": "proc_field_materials",
         "owner": "procurement",
         "contractRef": "helix://contracts/tables/proc_field_materials/v1",
-        "contractDigest": "9015d83dce710be8fb83a6f1f538220d97710b8a1899452223709570f2e97bcc"
+        "contractDigest": "e0ecc3b3443e7a3362d91b6c53d8bc4d8829fea3639439beda76bad5f9ca3ad9"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "2a7e178279a5723887af3ca200037b35dc1ac11dcb29052a9aa5906e412a7957"
+        "value": "5d82792ae66b0ebd09403ba57b6ff7da3b060aa7921a02975cdc4bd1f1ae9a76"
       }
     },
     {
@@ -125,8 +125,8 @@
       ],
       "sourceLocator": {
         "section": "8.5.11",
-        "line": 7834,
-        "lineDigest": "6175181dc5c261567bc9fdbd6eea49f4d69bb2f64fe761785da0371561c4780c"
+        "line": 7864,
+        "lineDigest": "659e9b5b14f6ce2b26033ddc3d33a268cbf3daf9d75d23300eaff250dde884b8"
       },
       "targetLocator": {
         "path": "table-contracts/proc_procurement_runs/v1/contract.json"
@@ -135,11 +135,11 @@
         "tableId": "proc_procurement_runs",
         "owner": "procurement",
         "contractRef": "helix://contracts/tables/proc_procurement_runs/v1",
-        "contractDigest": "10ccf43f9101da5b3b4cc74289b1c512a8e913853e3fe2922e9a812b90d3c162"
+        "contractDigest": "3dd3feb6677b45f6546ebca55e9597b53c517b0579ea3aa3cd7e144fc77ec92b"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "80282cde93271294aebe6fe820a6f9379922268189c762f576d7690ba709dbfe"
+        "value": "e6553120baf3491bfb22b3278abd63e1e07b12f58b501ce86ba6cc87c4955519"
       }
     },
     {
@@ -153,7 +153,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.11",
-        "line": 7835,
+        "line": 7865,
         "lineDigest": "a646af4103483c1b850aaa681587e2040b8245e10c0b43796e8c7ec07af0be52"
       },
       "targetLocator": {
@@ -163,11 +163,11 @@
         "tableId": "proc_procurement_retry_intents",
         "owner": "procurement",
         "contractRef": "helix://contracts/tables/proc_procurement_retry_intents/v1",
-        "contractDigest": "fca9d99561ceb1fb3b511dad4fe38b7c275fa0b13ad47c930bfbbbe402c41be5"
+        "contractDigest": "55aea72a76aba99bbc039169874f404ec0eca8afb21b3b71102e0f8cf5e60914"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "fd78c821c1a3e4713f639ec043c3bb12d38bfb6dc02760bc7a7a5ef788ff5849"
+        "value": "77f8e084642419b2a3819fb6e815b575c6f096a208f50603f3f6b167a22192d8"
       }
     },
     {
@@ -181,7 +181,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.11",
-        "line": 7836,
+        "line": 7866,
         "lineDigest": "4cf05d83c863e6e7db91c3408942f16d7138dc6c7df072a41ce020d21b7721e3"
       },
       "targetLocator": {
@@ -191,11 +191,11 @@
         "tableId": "proc_procurement_retry_intent_materials",
         "owner": "procurement",
         "contractRef": "helix://contracts/tables/proc_procurement_retry_intent_materials/v1",
-        "contractDigest": "52e539c824d72596f8343b1236bd9edcbb499171dca78546bd52b4e52fbcf617"
+        "contractDigest": "8629622b13c2a1082bace3372bad45341e074b79a1d91fa64f1d33dfdb12b261"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "aec1cceebb2837b3636433a2b77e0116c16c0b52cd107211289a0edcd15533e6"
+        "value": "06d119503fec653b23c2379affc7f2e9a1daa6c711d5add49c313cf738f70b47"
       }
     },
     {
@@ -209,7 +209,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.11",
-        "line": 7837,
+        "line": 7867,
         "lineDigest": "191a149b327a80bb7211614204d9a1694e8f936d76c12954ab1267353b1056c4"
       },
       "targetLocator": {
@@ -219,11 +219,11 @@
         "tableId": "proc_run_materials",
         "owner": "procurement",
         "contractRef": "helix://contracts/tables/proc_run_materials/v1",
-        "contractDigest": "ac816e7657734c05e30c09571958725b5a0646173f11ee5e2c289781055d6a84"
+        "contractDigest": "ac3850a4597c01d544b23b6da16a83578f1a05d26571cef5c4c8705402cf8c8e"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "c453435ab90132964bb1b0218af8f19cd00fe3fe9cbe827a4b113772117b8155"
+        "value": "fa24a4454be14bbfbae34a5cb791f7454e056d46441e84c62706300f1ef05823"
       }
     },
     {
@@ -237,8 +237,8 @@
       ],
       "sourceLocator": {
         "section": "8.5.11",
-        "line": 7838,
-        "lineDigest": "6ecd060099a729952cee1124dd1908dc9301c8a05d47c07a23e086e79f87b7d9"
+        "line": 7868,
+        "lineDigest": "2f19ae4bb5433a49485f8dbf5865fd953ad46a8d247d8a21d53361b283ce3f3e"
       },
       "targetLocator": {
         "path": "table-contracts/proc_candidate_packages/v1/contract.json"
@@ -247,11 +247,11 @@
         "tableId": "proc_candidate_packages",
         "owner": "procurement",
         "contractRef": "helix://contracts/tables/proc_candidate_packages/v1",
-        "contractDigest": "e0aa3d802582d5fdafdb1a6a83a6e0d2db6418acaac0b485d334d42a7af13db9"
+        "contractDigest": "afb4aa5893b1866e8d2c853b5bfdb72bfa2fabd742d049826a5425d05976701f"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "0805d05080403d8b7791e3985820b7656272406fbcf4f1ff312021d2d65c3fda"
+        "value": "7529bb2db435ae2510d506496293b0b5ba7d6772b45964cdd09943a9ed434994"
       }
     },
     {
@@ -265,7 +265,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.11",
-        "line": 7839,
+        "line": 7869,
         "lineDigest": "3cbfd04483d393cd3c6358ec63f8e8818cb46394b8f94bc509ce3ea9b796f3fd"
       },
       "targetLocator": {
@@ -275,11 +275,11 @@
         "tableId": "proc_candidate_season_continuity_claims",
         "owner": "procurement",
         "contractRef": "helix://contracts/tables/proc_candidate_season_continuity_claims/v1",
-        "contractDigest": "fa860b4607b0f4a3f172e43cf7de1304abb4dd82dabdc61ebb8a02cac341d178"
+        "contractDigest": "00429a6175643c16420305146221fb09030be6e3aae8cb2380aa7fa316e1c851"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "441fec0af90e3ff74969629472774ae3356cd43980526b78e6f4315657639f71"
+        "value": "e5e9d3e321ecf6b729b560b29d8ad8d845e252970a63965bb11115511e8c3ddd"
       }
     },
     {
@@ -293,8 +293,8 @@
       ],
       "sourceLocator": {
         "section": "8.5.11",
-        "line": 7840,
-        "lineDigest": "608984244a7eb050290e26ff5ae1519a0e6b28292a0f2b5462106e761182b389"
+        "line": 7870,
+        "lineDigest": "c24ab2a4ae232b7287d9d8123df64aa17b0b18703c5d61c4e88bf45786076b00"
       },
       "targetLocator": {
         "path": "table-contracts/proc_candidate_primary_materials/v1/contract.json"
@@ -303,11 +303,39 @@
         "tableId": "proc_candidate_primary_materials",
         "owner": "procurement",
         "contractRef": "helix://contracts/tables/proc_candidate_primary_materials/v1",
-        "contractDigest": "27b0971c0e5253a1495d9711b4e4b900f1d13540acd856b45284e27002508995"
+        "contractDigest": "fc98e3ed94c328ce49654fe588cc02cbdcc51cf61881af0d2bf6e3c474df9aad"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "eb2994e3940b7bac727ec0ca39ebcd04b881b7c947e5b3d57a6d959aa35a3e6a"
+        "value": "72a3d6b60b48cc22a300113a1508bdceee0c250e0f67681c207724835dc2df46"
+      }
+    },
+    {
+      "id": "proc_candidate_primary_material_episode_claims",
+      "version": 1,
+      "owner": "procurement",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.5.9",
+        "8.5.11"
+      ],
+      "sourceLocator": {
+        "section": "8.5.11",
+        "line": 7871,
+        "lineDigest": "687f80aa801f3886aae94fa334bd62c5324416941cdd3740f11c80f1bbced599"
+      },
+      "targetLocator": {
+        "path": "table-contracts/proc_candidate_primary_material_episode_claims/v1/contract.json"
+      },
+      "contract": {
+        "tableId": "proc_candidate_primary_material_episode_claims",
+        "owner": "procurement",
+        "contractRef": "helix://contracts/tables/proc_candidate_primary_material_episode_claims/v1",
+        "contractDigest": "b37733f2c88163bc05abbea1fc2fbfaf177d5fa0bff24f64d9cb03f19060309d"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "f94babc88836a30dcc3fde07b3dd78770701856d99972c0369ac5baaa134a777"
       }
     },
     {
@@ -321,7 +349,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.11",
-        "line": 7841,
+        "line": 7872,
         "lineDigest": "b5d81abe6acd247dcc7d1cc8ba731fc274c3f9479e9d8379f48142977e7fade8"
       },
       "targetLocator": {
@@ -331,39 +359,11 @@
         "tableId": "proc_candidate_related_references",
         "owner": "procurement",
         "contractRef": "helix://contracts/tables/proc_candidate_related_references/v1",
-        "contractDigest": "d3d19bf83b0ffe25220d5617c949ec94904f4dbfbd789f9a47bba26265f44cf7"
+        "contractDigest": "6476a4d9230f5a01332aec79bbd6e5821860866e2ca498c8fc82560884f12c00"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "2a0007b056f62fa827af7923f955c34fb2e9ad4e6689f21af8d2411ea2b6e3f4"
-      }
-    },
-    {
-      "id": "proc_candidate_deliveries",
-      "version": 1,
-      "owner": "procurement",
-      "status": "contracted",
-      "ssotRefs": [
-        "8.5.9",
-        "8.5.11"
-      ],
-      "sourceLocator": {
-        "section": "8.5.11",
-        "line": 7842,
-        "lineDigest": "65b00c677b93c57ad5badfab5af8fbb175b5a2386841af7e0262f4ca45181140"
-      },
-      "targetLocator": {
-        "path": "table-contracts/proc_candidate_deliveries/v1/contract.json"
-      },
-      "contract": {
-        "tableId": "proc_candidate_deliveries",
-        "owner": "procurement",
-        "contractRef": "helix://contracts/tables/proc_candidate_deliveries/v1",
-        "contractDigest": "586c5c954e3d92ee64e394b061f36d383e60fc61d207dd3a0bf9c79cebc8a840"
-      },
-      "contractDigest": {
-        "algorithm": "sha256",
-        "value": "07eeb1ec203e763bcb8693bff70ef31535799a25e8592b7d3690c90454824bb3"
+        "value": "cd4fa5650a0aa3081f281433deaa2d5f977dbf0a8392860404d553a0bb166b8f"
       }
     }
   ]

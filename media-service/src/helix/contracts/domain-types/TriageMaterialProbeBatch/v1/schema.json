@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/TriageMaterialProbeBatch/v1",
+  "title": "TriageMaterialProbeBatch@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "procurementRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "runBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "selectionDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "batchOrdinal": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "members": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "selectionOrdinal": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "materialKey": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "bindingRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "admittedControlRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "admittedControlProjectionDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "readHandle": {
+            "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1"
+          },
+          "mediaProbe": {
+            "$ref": "helix://contracts/types/MediaProbeEvidence/v1"
+          },
+          "memberDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "selectionOrdinal",
+          "materialKey",
+          "bindingRevision",
+          "admittedControlRevision",
+          "admittedControlProjectionDigest",
+          "readHandle",
+          "mediaProbe",
+          "memberDigest"
+        ]
+      },
+      "maxItems": 100,
+      "minItems": 1
+    },
+    "batchDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "procurementRunId",
+    "runBasisDigest",
+    "selectionDigest",
+    "batchOrdinal",
+    "members",
+    "batchDigest"
+  ]
+}
