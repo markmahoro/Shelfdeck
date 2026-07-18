@@ -13,16 +13,18 @@ Last updated: 2026-07-18
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains |
 | Current phase | P7 — Procurement |
-| Current phase status | Design Return；P7-00–P7-02 PASS；P7-03 formal Field Observation input/revision gap open |
+| Current phase status | Design Return；P7-00–P7-02 PASS；PBF-07传播PASS；P7-03 durable complete-page合同冲突open |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P6 phase closure `5831c53207d5e71ccdf4792da11ed71be3d47ae1` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p7` on `codex/helix-p7` |
-| Next action | Architecture Agent闭合Field Material snapshot输入与Observation aggregate revision continuity |
+| Next action | Architecture Agent闭合512 KiB完整Page的durable history位置及hasOutbox=false协调语义 |
 
-Architecture Agent提交`964c6e05`已在SSOT中闭合`PBF-07`：完整Field Material snapshot、Field级Observation
-revision head/CAS、page replay及Eligibility/Control Projection初始责任均已正式定义。实现线程只精确纳入该提交，
-待合同重物化与机器可实现性门禁通过后恢复P7-03。
+Architecture Agent提交`964c6e05`已闭合原始`PBF-07` snapshot/revision缺口。实现线程完成112/96/161/25合同重物化、
+新增事务crash/revision/restart反例及Physical Material新digest传播，提交`17b14904`。继续到Store实现时证明新的合同冲突：
+完整Page合法上限为512 KiB，但Procurement没有immutable Page payload/member history，Foundation唯一typed Evidence列硬限制64 KiB；
+`proc_field_materials`又是会被后续Page覆盖的current row。同时该事务声明`hasOutbox=false`，现P3 Coordinator却强制非空Outbox。
+实现线程已再次返回Design，未修改SSOT，详见`implementation/evidence/P7_03_FIELD_OBSERVATION_DESIGN_RETURN.md`第7–9节。
 
 ## 2. Accepted implementation conclusion
 

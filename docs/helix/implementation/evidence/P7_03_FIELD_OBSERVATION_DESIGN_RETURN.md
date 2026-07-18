@@ -1,6 +1,6 @@
 # P7-03 Field Observation Design Return
 
-Status: OPEN；implementation blocked before speculative code.
+Status: OPEN AGAIN；PBF-07已闭合原始snapshot/revision缺口，但完整Page durable fact存在新的size/persistence矛盾。
 
 ## 1. Proven conflict
 
@@ -94,3 +94,65 @@ commitMarker
 
 只有上述输入和revision连续性同时在SSOT/P2合同闭合并经重物化验证后，P7-03才能继续。无需用户决定Material Field业务
 语义；这是正式输入/输出与持久化可实现性缺口。
+
+## 6. PBF-07 closure verification
+
+Architecture Agent提交`964c6e05`后，原第2–3节阻塞已经闭合：
+
+- `FieldMaterialObservationSnapshot`成为完整inline DTO；
+- `proc_material_fields.current_observation_revision`与`proc_field_observations(field_id,revision)`形成Field级连续head/CAS；
+- `FieldObservationPageRequest`、稳定Work/Page ID、cursor、digest、Result与Commit Marker语义闭合；
+- 新Material固定初始化`eligibility_state=unknown,control_projection=unknown`，最终reconcile归P7-04；
+- canonical transaction从24增至25，循环FK以`DEFERRABLE INITIALLY DEFERRED`落成。
+
+实现线程精确吸收SSOT提交后，完成112 Capability / 96 Result / 161 table / 25 transaction重物化；新增事务的participant
+前后崩溃、revision fence、COMMIT后重启均PASS。合同传播提交为`17b14904`，本线程未修改SSOT。
+
+## 7. Newly proven durable-page conflict
+
+### 7.1 Contracts that must hold together
+
+1. SSOT §8.5.4 canonical transaction row要求原子事实集包含完整`FieldObservationPage`；
+2. SSOT §8.6.19允许`FieldObservationPage`最多100项、完整value最多`512 KiB`；
+3. SSOT §8.5.11的`proc_field_observations`只保存page header、digest、marker和result digest，没有`page_json`或成员历史表；
+4. 同节`proc_field_materials`明确是每个Field/Identity的current row，后续Page会更新location/reality/provenance/last snapshot，
+   因而不能恢复任一历史Page的完整snapshot集合；
+5. SSOT §8.5.9/§8.5.10的`fx_event_result_bindings.evidence_json`与`result_json`各硬限制`64 KiB`；
+6. `ObservationCommitResult`只含accepted material摘要，不含完整`FieldMaterialObservationSnapshot`。
+
+### 7.2 Unimplementable legal input
+
+任一canonical size位于`65537..524288` bytes的合法`FieldObservationPage`均触发矛盾：
+
+- 写入`fx_event_result_bindings.evidence_json`会违反64 KiB table CHECK；
+- 只写`proc_field_observations.page_digest`会丢失“完整Page”事实，无法审计或从Store恢复；
+- 依赖`proc_field_materials`会在下一次同Identity observation后丢失历史snapshot；
+- 截断Page、降低实现上限、塞入opaque ref、旁读旧Store或运行时缓存都改变正式合同或破坏重启连续性。
+
+因此实现无法同时满足输入上限、atomic fact set、append-only history与durable replay。该问题不是业务选择，也不能由实现线程
+通过兼容层解决。
+
+## 8. Architecture contract needed now
+
+Architecture Agent需选择并正式传播一种唯一持久化合同，例如：
+
+1. 新增Procurement-owned immutable Page/Member fact table，完整关系化保存每页snapshot；或
+2. 为`proc_field_observations`增加受明确byte limit约束的完整typed `page_json`，并使上限与512 KiB合法输入一致；或
+3. 把Page上限正式收紧到Foundation evidence JSON可容纳范围，并明确`fx_event_result_bindings.evidence_json`是完整Page的唯一
+   durable location（还需证明Result+Evidence各自64 KiB约束）；或
+4. 引入正式Artifact Handle方案，但必须闭合Artifact Owner、同事务durability、digest、replay和GC reference，不能只写opaque ref。
+
+同时需明确Field Observation Page Commit是否允许`outboxMessages=[]`：当前canonical transaction声明`hasOutbox=false`，但P3
+`DomainCommitCoordinator`当前要求至少一条Outbox。若该事务仍属于`domain_fact_commit`，Foundation协调合同必须允许“合同声明
+无Outbox”的typed commit；不得伪造消息只为满足旧协调器。
+
+## 9. Current resume gate
+
+恢复P7-03前必须同时闭合：
+
+- 合法最大Page的唯一durable完整事实位置及精确byte limit；
+- 历史Page在后续current-row更新后仍可恢复/审计；
+- 该事实与Field head、Material current rows、typed Result、Commit Marker的同事务关系；
+- `hasOutbox=false`在正式Domain Commit协调器中的合法执行语义。
+
+在此之前不提交partial Store，不降低Page上限，不伪造Outbox，不修改SSOT。

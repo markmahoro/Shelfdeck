@@ -1,6 +1,6 @@
 # P7 Procurement Detailed Plan
 
-Status: Design Return；P7-00–P7-02 complete；P7-03 blocked by formal Field Observation input/revision gap.
+Status: Design Return；P7-00–P7-02 complete；PBF-07 propagation PASS；P7-03 blocked by durable complete-page conflict.
 
 Last updated: 2026-07-18
 
@@ -22,7 +22,7 @@ Procurement Run、Triage和不可变Candidate Package。只使用P2合同与P3�
 | Capabilities | §8.6.3 | 8个`procurement.*@1` closed packages |
 | Product/admin boundary | §9 | 仅Facade合同；P12才实现HTTP/UI |
 
-固定物理合同：13张Procurement表、8个Capability；全局合同基线保持112 Capability、96 Result、161表、24 canonical transaction。
+固定物理合同：13张Procurement表、8个Capability；当前全局合同基线为112 Capability、96 Result、161表、25 canonical transaction。
 
 ## 3. Hard boundaries
 
@@ -66,9 +66,10 @@ socket、ambient credential、真实Material Field扫描、真实媒体/FFmpeg�
 
 - 实现Field page observation与atomic observation commit；保存Physical Identity、location、provenance、reality revision。
 - 同一Identity允许被多Field观察；cursor/page replay幂等，移动/消失/不可访问形成新事实而非改写历史。
-- Design Return：正式`FieldObservationPage`只携带Material Object Revision Ref，无法生成`proc_field_materials`完整行；
-  `ObservationCommitResult`要求revision但没有Observation aggregate head/CAS持久化位置。不得用opaque ID/default值/旧Store
-  补读或借用Access revision。详见`evidence/P7_03_FIELD_OBSERVATION_DESIGN_RETURN.md`。
+- PBF-07已闭合完整snapshot、Field revision head/CAS、cursor/replay和unknown初值，合同传播及25事务crash门禁PASS。
+- 新Design Return：完整Page合法上限512 KiB，但没有Procurement-owned immutable payload/member history；Foundation typed Evidence
+  列仅64 KiB，current Material row又会覆盖历史。同时事务声明`hasOutbox=false`而现Domain Commit Coordinator强制非空Outbox。
+  不得截断、降低隐含上限、伪造Outbox或旁读旧Store。详见`evidence/P7_03_FIELD_OBSERVATION_DESIGN_RETURN.md`第7–9节。
 
 ### P7-04 Extraction Eligibility and derived Regions
 
