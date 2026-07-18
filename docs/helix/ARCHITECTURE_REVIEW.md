@@ -1,6 +1,6 @@
 # Helix Architecture Review Workbench
 
-Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-18；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-07` bounded correction均已完成。
+Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-18；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-08` bounded correction均已完成。
 
 ## 1. Purpose and authority
 
@@ -1615,3 +1615,42 @@ Bounded fix不新增Domain、Business Process、Capability、关系表或用户D
 
 因此本轮关闭的是payload capacity/storage continuity和Coordinator条件装配语义；PBF-07既有snapshot、revision、
 cursor与初始责任结论保持不变。
+
+### 15.10 `PBF-08` — Extraction Eligibility Policy、Control freshness与reconcile continuity
+
+Status: `CLOSED / USER DECISION APPLIED / BOUNDED DETAIL FIX APPLIED` — 2026-07-18
+
+P7-04纵向实现审计证明Field Observation输入已经闭合，但Extraction Eligibility仍有四项真实缺口：
+
+1. Extraction Policy只有opaque JSON存储，没有唯一可执行schema、匹配语义或reason precedence；
+2. §5.3.1残留“重复开采抑制”必要条件，但Procurement没有该事实、Owner或表，且它与§5.3.7“不从失败历史
+   形成隐藏抑制”冲突；
+3. Material Control只有写Authority，没有versioned read Projection，Procurement不能证明Region Projection
+   对应哪个current Control revision；
+4. P7-04缺少terminal missing、Access/Observation切换、stale write、atomic current-row update和restart恢复的
+   唯一合同。
+
+用户确认Beta Extraction Policy只支持五项确定性输入：`includedDirectories[]`、`excludedDirectories[]`、
+`allowedExtensions[]`、`minimumSizeBytes`与`excludedMaterialKeys[]`；不支持glob、wildcard、regex或文件名模糊
+匹配。空include表示整片Field，exclude优先，其余采用精确且可重放的Linux/Field-root-relative语义。
+
+Bounded correction保持五Domain、两Handoff、112项Capability与161张关系表不变：
+
+- 删除Procurement Eligibility中的duplicate-suppression conjunct并显式禁止读取Arca Off-deck Suppression或从
+  failed Run/Candidate形成隐藏规则；
+- 固定`ExtractionPolicy@1`closed schema、上限、排序、目录边界、extension/size/materialKey判断和稳定reason
+  precedence；
+- 在既有`MaterialControlAuthority`public port增加bounded、batch、versioned read Projection；从未有row、released、
+  controlled及typed unavailable均有唯一表达，最终Run admission仍执行Control CAS；
+- 由既有`MaterialFieldManager`承担Input Assembly、纯确定性evaluation和current-fact reconcile，不新增Catalog
+  Capability、Business Process或Object；
+- `proc_field_materials`保存Eligibility revision/basis、Field/Observation/Policy/Selection与Control basis，所有
+  Query先验证freshness；旧Decision不能覆盖新Reality或新Control；
+- current terminal Work未出现的历史Material保留Binding历史并置为ineligible；non-terminal Work或Access变化使旧
+  basis立即effective unknown，无需mass rewrite；
+- Reconcile Batch在单一SQLite事务中重验全部basis，以applied/no-op/stale summary收口；它是可重建current
+  decision-fact事务，不写Event Result、commit marker或Outbox，启动恢复与周期reconcile保证收敛。
+
+因此`P7-04 Extraction Eligibility Reconcile Design Return`已经闭合。该修正包含一项已确认用户Policy Decision，
+其余为既有Owner边界内的formal-realizability细化；没有引入兼容层、跨Domain Store读取、默认allow/deny、隐藏
+suppression或新的架构结构。

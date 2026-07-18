@@ -13,12 +13,12 @@ Last updated: 2026-07-18
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains |
 | Current phase | P7 — Procurement |
-| Current phase status | Design Return；P7-00–P7-03 PASS；P7-04 formal realizability gap open |
+| Current phase status | P7-00–P7-03 PASS；P7-04 Design Return已由Architecture Agent `2ff2f60d`闭合，正在传播机器合同 |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P6 phase closure `5831c53207d5e71ccdf4792da11ed71be3d47ae1` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p7` on `codex/helix-p7` |
-| Next action | Architecture Agent闭合P7-04 Policy/suppression/Control Projection输入与持久化连续性 |
+| Next action | 重物化PBF-08机器合同并实现P7-04 Extraction Eligibility Reconcile |
 
 Architecture Agent提交`19ed12fa`已闭合`PBF-07-R1`：Page正式收敛为≤65,536 UTF-8 JCS bytes，完整Page作为
 Commit Event immutable typed Evidence保存，并通过Observation→Marker→Result Binding形成禁止GC的历史恢复链；
@@ -35,6 +35,11 @@ suppression、Selection conflict和versioned Material Control Projection；当�
 precedence，Procurement没有suppression事实，Control read也没有带revision/freshness的正式Projection，Material current row无法阻止
 旧reconcile覆盖新Projection。实现线程未默认allow/无suppression，未旁读旧Store，未修改SSOT。完整缺口见
 `implementation/evidence/P7_04_ELIGIBILITY_RECONCILE_DESIGN_RETURN.md`。
+
+Architecture Agent提交`2ff2f60d`已闭合`PBF-08`：固定Beta `ExtractionPolicy@1`及唯一reason precedence，
+删除错误的Procurement duplicate-suppression前提，补齐versioned `MaterialControlProjectionSnapshot`、
+`ExtractionEligibilityDecision/Batch/ReconcileSummary`、stale-safe CAS、terminal missing、批事务与restart收敛合同。
+该修正不新增Domain、Handoff、Capability或关系表；P7-04实现阻塞解除。本实现线程只原样纳入SSOT delta，未自行修改SSOT。
 
 ## 2. Accepted implementation conclusion
 
