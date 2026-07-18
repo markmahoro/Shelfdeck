@@ -46,7 +46,7 @@ function validateDraft(draft) {
   }
   const unit = draft.structureEvidence.unit;
   requireArray(unit.members, 'structureEvidence.unit.members', 1024, 1);
-  requireArray(unit.relatedReferences, 'structureEvidence.unit.relatedReferences', 1024);
+  requireArray(unit.relatedReferences, 'structureEvidence.unit.relatedReferences', 256);
   let previousMember = null;
   const memberKeys = new Set();
   for (const member of unit.members) {
@@ -73,8 +73,17 @@ function validateDraft(draft) {
   }
   let previousReference = null;
   for (const reference of unit.relatedReferences) {
+    const identity = reference.identity;
+    const identityMaterialKey = identity && canonicalDigest({ schema:'physical-material-identity@1', mountScopeId:identity.mountScopeId,
+      inode:identity.inode, contentHashAlgorithm:'sha256', contentHash:identity.contentHash });
+    const referenceId = identity && canonicalDigest({ schema:'procurement.related-material-reference-id@1',
+      primaryMaterialKey:reference.primaryMaterialKey, role:reference.role, relatedMaterialKey:identity.materialKey,
+      endpointId:reference.endpointId, location:reference.location });
     if (previousReference !== null && compareUtf8(previousReference, reference.referenceId) >= 0 ||
-        !memberKeys.has(reference.primaryMaterialKey) || reference.referenceDigest !== canonicalDigest(without(reference, 'referenceDigest'))) {
+        !memberKeys.has(reference.primaryMaterialKey) || !identity || identity.schemaRef !== 'helix://contracts/types/PhysicalMaterialIdentity/v1' ||
+        identity.schemaVersion !== 1 || identity.contentHashAlgorithm !== 'sha256' || identity.materialKey !== identityMaterialKey ||
+        reference.checksumAlgorithm !== 'sha256' || reference.checksumHex !== identity.contentHash || reference.referenceId !== referenceId ||
+        reference.referenceDigest !== canonicalDigest(without(reference, 'referenceDigest'))) {
       fail('P7_CANDIDATE_RELATED_CANONICAL', 'Related References must be sorted, digested, and point into the Unit.');
     }
     previousReference = reference.referenceId;

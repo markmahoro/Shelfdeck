@@ -98,11 +98,13 @@
     "foreignKeys": [
       {
         "columns": [
-          "candidate_package_id"
+          "candidate_package_id",
+          "primary_ordinal"
         ],
-        "targetTable": "proc_candidate_packages",
+        "targetTable": "proc_candidate_primary_materials",
         "targetColumns": [
-          "candidate_package_id"
+          "candidate_package_id",
+          "ordinal"
         ],
         "deletePolicy": "RESTRICT",
         "deferrable": false

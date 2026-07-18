@@ -9,6 +9,9 @@ const Database = require('better-sqlite3');
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const { createCandidatePublicationCapability } = require('../../src/helix/domains/procurement/capabilities/candidate-publication');
 const { buildPublication } = require('../../src/helix/domains/procurement/model/candidate-publication-contracts');
+const { buildOffer } = require('../../src/helix/domains/procurement/model/candidate-publication-contracts');
+const { buildQuery, createCandidateDeliveryService } = require('../../src/helix/domains/procurement/application/candidate-delivery-service');
+const { createCandidateDeliveryReader } = require('../../src/helix/domains/procurement/persistence/candidate-delivery-reader');
 const { createCandidatePublicationStore } = require('../../src/helix/domains/procurement/persistence/candidate-publication-store');
 const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
@@ -34,10 +37,15 @@ function candidateDraft() {
     displayIdentity:metadata.claimedTitle, seasonClaim:metadata.seasonClaim, identityMetadataDigest:metadata.metadataDigest,
     structureUnitDigest:'', sourceHints:metadata.sourceHints };
   const referenceIdentity = { schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v1', schemaVersion:1,
-    materialKey:D('reference-material'), mountScopeId:'mount-1', inode:'42', contentHashAlgorithm:'sha256', contentHash:D('reference-content') };
-  const referenceBase = { referenceId:D('reference'), primaryMaterialKey:materialKey, role:'nfo', identity:referenceIdentity,
+    materialKey:'', mountScopeId:'mount-1', inode:'42', contentHashAlgorithm:'sha256', contentHash:D('reference-content') };
+  referenceIdentity.materialKey = canonicalDigest({ schema:'physical-material-identity@1', mountScopeId:referenceIdentity.mountScopeId,
+    inode:referenceIdentity.inode, contentHashAlgorithm:'sha256', contentHash:referenceIdentity.contentHash });
+  const referenceBase = { referenceId:'', primaryMaterialKey:materialKey, role:'nfo', identity:referenceIdentity,
     endpointId:'endpoint-1', location:'/field/series.nfo', checksumAlgorithm:'sha256', checksumHex:D('reference-content'),
     associationEvidenceDigest:D('reference-evidence'), referenceDigest:'' };
+  referenceBase.referenceId = canonicalDigest({ schema:'procurement.related-material-reference-id@1', primaryMaterialKey:materialKey,
+    role:referenceBase.role, relatedMaterialKey:referenceIdentity.materialKey, endpointId:referenceBase.endpointId,
+    location:referenceBase.location });
   referenceBase.referenceDigest = canonicalDigest(without(referenceBase, 'referenceDigest'));
   const continuity = [];
   const continuityDigest = canonicalDigest({ schema:'season-continuity-claim-set@1', items:continuity });
@@ -141,6 +149,12 @@ test('publishes immutable Package, Manifest relations, Run Reservation, stable O
   assert.equal(JSON.parse(outbox.payload_json).acceptanceBasisDigest, delivery.acceptance_basis_digest);
   assert.equal(check.prepare('SELECT COUNT(*) count FROM fx_outbox_deliveries').get().count, 0);
   check.close();
+  const reader = createCandidateDeliveryReader({ schemaManifest, unitOfWork });
+  const deliveryService = createCandidateDeliveryService({ candidateDeliveryReader:reader, contractValidator:{ validate() {} } });
+  const snapshot = deliveryService.readSnapshot(buildQuery(buildOffer(committed.typedResult, committed.acceptanceBasis).message));
+  assert.equal(snapshot.resultKind, 'found');
+  assert.deepEqual(snapshot.snapshot.candidatePackage, committed.typedResult);
+  assert.equal(snapshot.snapshot.candidatePackage.relatedReferences[0].identity.mountScopeId, 'mount-1');
 }));
 
 test('rolls back all eleven canonical write tables when Outbox publication crashes', () => fixture(({ databasePath, unitOfWork }) => {

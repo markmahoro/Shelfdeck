@@ -347,74 +347,7 @@
           "relatedReferences": {
             "type": "array",
             "items": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "referenceId": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 256
-                },
-                "primaryMaterialKey": {
-                  "type": "string",
-                  "minLength": 1,
-                  "pattern": "^[a-f0-9]{64}$"
-                },
-                "role": {
-                  "type": "string",
-                  "enum": [
-                    "nfo",
-                    "poster",
-                    "fanart",
-                    "subtitle",
-                    "external_audio",
-                    "chapter",
-                    "sidecar"
-                  ]
-                },
-                "identity": {
-                  "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v1"
-                },
-                "endpointId": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 256
-                },
-                "location": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "checksumAlgorithm": {
-                  "const": "sha256"
-                },
-                "checksumHex": {
-                  "type": "string",
-                  "minLength": 1,
-                  "pattern": "^[a-f0-9]{64}$"
-                },
-                "associationEvidenceDigest": {
-                  "type": "string",
-                  "minLength": 1,
-                  "pattern": "^[a-f0-9]{64}$"
-                },
-                "referenceDigest": {
-                  "type": "string",
-                  "minLength": 1,
-                  "pattern": "^[a-f0-9]{64}$"
-                }
-              },
-              "required": [
-                "referenceId",
-                "primaryMaterialKey",
-                "role",
-                "identity",
-                "endpointId",
-                "location",
-                "checksumAlgorithm",
-                "checksumHex",
-                "associationEvidenceDigest",
-                "referenceDigest"
-              ]
+              "$ref": "helix://contracts/types/RelatedMaterialReference/v1"
             },
             "maxItems": 1024
           },

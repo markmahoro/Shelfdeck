@@ -88,6 +88,8 @@ function validateDomainInputSchemas(options) {
       TriageManifestBuildInput: ['procurementRunId', 'runBasisDigest', 'selectedFieldMaterialSet', 'unit', 'inputDigest'],
       TriageMaterialProbeBatch: ['procurementRunId', 'runBasisDigest', 'selectionDigest', 'batchOrdinal', 'members', 'batchDigest'],
       TriageStructureInspectionInput: ['selectedFieldMaterialSet', 'probeBatches', 'playabilityPages', 'materialFieldContext', 'pageRequest', 'inputDigest'],
+      CandidateDeliveryQuery: ['queryContract', 'offerId', 'candidatePackageId', 'packageRevision', 'packageDigest', 'acceptanceBasisDigest', 'queryDigest'],
+      CandidateDeliveryReadResult: ['queryDigest', 'resultKind', 'resultDigest'],
       CandidateDeliverySnapshot: ['snapshotContract', 'deliverySnapshotDigest'],
       SubjectContinuityResolutionDecision: ['decisionId', 'decisionDigest'],
       AcceptedIntakePayload: ['intakeDecisionId', 'decisionRevision', 'payloadDigest']
@@ -113,7 +115,7 @@ function validateDomainInputSchemas(options) {
   for (const name of usages.keys()) {
     if (!ids.has(name)) findings.push(finding('MISSING_DOMAIN_INPUT_TYPE', 'Catalog input reference has no schema.', { entryId: name }));
   }
-  const facadeOnlyTypes = new Set(['DirectPersonRegistrationDecision']);
+  const facadeOnlyTypes = new Set(['DirectPersonRegistrationDecision', 'CandidateDeliveryQuery', 'CandidateDeliveryReadResult']);
   for (const name of ids) {
     if (!usages.has(name) && !facadeOnlyTypes.has(name)) findings.push(finding('UNUSED_DOMAIN_INPUT_TYPE', 'Domain input schema is not referenced by the Catalog.', { entryId: name }));
   }

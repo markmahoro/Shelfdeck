@@ -1,6 +1,6 @@
 # P8 Handoff A and Libra Front Half Detailed Plan
 
-Status: Active；P8-00–P8-02 complete；P8-03 returned to Design.
+Status: Active；P8-00–P8-03 complete；P8-04 in progress.
 
 Last updated: 2026-07-19
 
@@ -78,6 +78,10 @@ Kairox/Task Runtime，不执行真实媒体生产、Workspace写入、Handoff B�
   `PhysicalMaterialIdentity@1`；但`proc_candidate_related_references`没有保存materialKey/mountScope/inode/content hash或
   reference digest，发布后无法从正式Owner rows无损恢复，也不能旁读Foundation Result或旧Store补值。详见
   `evidence/P8_03_CANDIDATE_DELIVERY_DESIGN_RETURN.md`。
+- Done：`PBF-11-R1`经复审后原样纳入；Candidate Publication逐列保存完整Related Material Reference，正式Port收敛为
+  `readSnapshot(CandidateDeliveryQuery@1) → CandidateDeliveryReadResult@1`。Procurement只读8张Owner表重建完整历史
+  Package/Manifest/Location Snapshot，任一identity、relation、digest或query漂移均fail closed。Evidence见
+  `evidence/P8_03_CANDIDATE_DELIVERY.md`。
 
 ### P8-04 FA-04 Subject Continuity Resolution
 

@@ -132,6 +132,14 @@ const FOREIGN_KEY_OVERRIDES = Object.freeze({
   'libra_subject_episode_scopes.first_intake_decision_id': ['libra_intake_decisions', 'intake_decision_id']
 });
 const EXPLICIT_FOREIGN_KEYS = Object.freeze({
+  proc_candidate_primary_material_episode_claims: [
+    { columns: ['candidate_package_id', 'primary_ordinal'], targetTable: 'proc_candidate_primary_materials',
+      targetColumns: ['candidate_package_id', 'ordinal'] }
+  ],
+  proc_candidate_related_references: [
+    { columns: ['candidate_package_id', 'primary_ordinal'], targetTable: 'proc_candidate_primary_materials',
+      targetColumns: ['candidate_package_id', 'ordinal'] }
+  ],
   proc_field_observations: [
     { columns: ['field_id'], targetTable: 'proc_material_fields', targetColumns: ['field_id'] },
     { columns: ['field_observation_work_id'], targetTable: 'fx_supporting_works', targetColumns: ['work_id'] },

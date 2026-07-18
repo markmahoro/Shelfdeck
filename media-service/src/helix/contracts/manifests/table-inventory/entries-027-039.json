@@ -238,7 +238,7 @@
       "sourceLocator": {
         "section": "8.5.11",
         "line": 7938,
-        "lineDigest": "f6ee584bd21933440ae2187f8bda0a97469bed6d4122b5f6ba1447a8e49a10fb"
+        "lineDigest": "15ca95a4d56e696f6fb5fbc4e8aa8363092e824178d92a6ddbfe66542fb51835"
       },
       "targetLocator": {
         "path": "table-contracts/proc_candidate_packages/v1/contract.json"
@@ -247,11 +247,11 @@
         "tableId": "proc_candidate_packages",
         "owner": "procurement",
         "contractRef": "helix://contracts/tables/proc_candidate_packages/v1",
-        "contractDigest": "bd186e420d06d5f45146a6945ce2bf79aef45894ce0c474d064b8fe4fe7f7f42"
+        "contractDigest": "cb1fb54f843a5a496eb2285ad9fd6384fc3ceb3700d86c17ea80ffa4c194ed35"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "2a87c7897d340e45c382251492461a48808cb9e48f4132c3180c796e4682d4d2"
+        "value": "44bc003ecaf1bf8a8b17f972726a41efec142b20a10ff4445e88e2196d38f2a5"
       }
     },
     {
@@ -331,11 +331,11 @@
         "tableId": "proc_candidate_primary_material_episode_claims",
         "owner": "procurement",
         "contractRef": "helix://contracts/tables/proc_candidate_primary_material_episode_claims/v1",
-        "contractDigest": "0d14fc37537826e0dd6b008dab7cd56d6ef91759677cadf12e6be5d4d85e6dcd"
+        "contractDigest": "ac08ac3b43caea0c51d33ddec2ecdbe59b9788fc1ca59fcf4b0c5f7d5b99add7"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "576688ea0bb5085ff564b856f79854b16a9fe1f4f6eb4c9882c75f5e88168f06"
+        "value": "ae4335aa8b656dabcf17c57d80b3a794a0af1028bf664f8dea652b1fde37b6f9"
       }
     },
     {
@@ -350,7 +350,7 @@
       "sourceLocator": {
         "section": "8.5.11",
         "line": 7942,
-        "lineDigest": "b5d81abe6acd247dcc7d1cc8ba731fc274c3f9479e9d8379f48142977e7fade8"
+        "lineDigest": "92c124a5991f66030d745e5df32d8c0456a3de47acdf2ddd922e3672978fb9db"
       },
       "targetLocator": {
         "path": "table-contracts/proc_candidate_related_references/v1/contract.json"
@@ -359,11 +359,11 @@
         "tableId": "proc_candidate_related_references",
         "owner": "procurement",
         "contractRef": "helix://contracts/tables/proc_candidate_related_references/v1",
-        "contractDigest": "53f25e1ea53dfc043d1d28b989498373547ef7ea281fb8d55ae42d626470eadf"
+        "contractDigest": "b3d887866ee9bc665c03e8611355582f2518f5eb71cab64ad104c7fb4cbaba67"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "d7b6a87241ac49e996074ee6b3ad202aa4fa214ac5fde1a478694ea7c4090cfe"
+        "value": "5ddd94dc16d35f1cb45a165ab7531a5b17a22eb19e14fbd686ba09be2027d1a1"
       }
     }
   ]

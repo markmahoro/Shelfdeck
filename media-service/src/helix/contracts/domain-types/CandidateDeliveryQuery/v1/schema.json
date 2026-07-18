@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/CandidateDeliveryQuery/v1",
+  "title": "CandidateDeliveryQuery@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "x-helix-maxCanonicalBytes": 16384,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "queryContract": {
+      "const": "procurement.candidate-delivery@1"
+    },
+    "offerId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "candidatePackageId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "packageRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "packageDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "acceptanceBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "queryDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "queryContract",
+    "offerId",
+    "candidatePackageId",
+    "packageRevision",
+    "packageDigest",
+    "acceptanceBasisDigest",
+    "queryDigest"
+  ]
+}

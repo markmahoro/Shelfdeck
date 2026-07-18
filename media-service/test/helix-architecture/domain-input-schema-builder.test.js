@@ -6,10 +6,10 @@ const { buildDomainInputSchemas } = require('../../scripts/helix-architecture/do
 
 const schemas = buildDomainInputSchemas();
 
-test('builds exactly the 92 formal domain input contracts', () => {
-  assert.equal(Object.keys(schemas).length, 92);
+test('builds exactly the 94 formal domain input contracts', () => {
+  assert.equal(Object.keys(schemas).length, 94);
   assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'bounded-contract').length, 26);
-  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'accepted-business-dto').length, 66);
+  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'accepted-business-dto').length, 68);
 });
 
 test('freezes executable Perception resolution inputs and removes digest-only placeholders', () => {

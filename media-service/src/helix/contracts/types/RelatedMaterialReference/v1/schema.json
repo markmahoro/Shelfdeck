@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/RelatedMaterialReference/v1",
+  "title": "RelatedMaterialReference@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/RelatedMaterialReference/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "referenceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "primaryMaterialKey": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "nfo",
+        "poster",
+        "fanart",
+        "subtitle",
+        "external_audio",
+        "chapter",
+        "sidecar"
+      ]
+    },
+    "identity": {
+      "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v1"
+    },
+    "endpointId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "location": {
+      "type": "string",
+      "minLength": 1
+    },
+    "checksumAlgorithm": {
+      "const": "sha256"
+    },
+    "checksumHex": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "associationEvidenceDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "referenceDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "referenceId",
+    "primaryMaterialKey",
+    "role",
+    "identity",
+    "endpointId",
+    "location",
+    "checksumAlgorithm",
+    "checksumHex",
+    "associationEvidenceDigest",
+    "referenceDigest"
+  ]
+}

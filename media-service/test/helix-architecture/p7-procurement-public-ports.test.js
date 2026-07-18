@@ -27,7 +27,10 @@ test('Procurement ports require the exact nominal method set', () => {
   const delivery = procurement.CandidateDeliveryPort(implementation('CandidateDeliveryPort'));
   assert.equal(commands.requestFieldObservation({ fieldId: 'field-1' }).method, 'requestFieldObservation');
   assert.equal(queries.getCandidatePackage({ candidatePackageId: 'candidate-1' }).method, 'getCandidatePackage');
-  assert.equal(delivery.deliverCandidatePackage({ candidatePackageId: 'candidate-1' }).method, 'deliverCandidatePackage');
+  assert.equal(delivery.readSnapshot({ candidatePackageId: 'candidate-1' }).method, 'readSnapshot');
+  const contract = catalog.facades.find((item) => item.exportName === 'CandidateDeliveryPort');
+  assert.equal(contract.inputSchemaRefs.readSnapshot, 'helix://contracts/domain-types/CandidateDeliveryQuery/v1');
+  assert.equal(contract.outputSchemaRefs.readSnapshot, 'helix://contracts/domain-types/CandidateDeliveryReadResult/v1');
   assert.equal(Object.isFrozen(commands), true);
 });
 

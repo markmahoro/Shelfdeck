@@ -32,7 +32,13 @@
       "exportName": "CandidateDeliveryPort",
       "packageId": "domains.procurement.public",
       "kind": "handoff-delivery-port",
-      "methods": ["deliverCandidatePackage"]
+      "methods": ["readSnapshot"],
+      "inputSchemaRefs": {
+        "readSnapshot": "helix://contracts/domain-types/CandidateDeliveryQuery/v1"
+      },
+      "outputSchemaRefs": {
+        "readSnapshot": "helix://contracts/domain-types/CandidateDeliveryReadResult/v1"
+      }
     }
   ]
 }

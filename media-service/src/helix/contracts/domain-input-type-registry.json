@@ -5,7 +5,7 @@
   "kind": "domain-input-type-registry",
   "owner": "contracts",
   "status": "active",
-  "targetCount": 92,
+  "targetCount": 94,
   "ssotRefs": [
     "8.6.3",
     "8.6.14",
@@ -209,6 +209,30 @@
           "typeExpression": "BoundedLayoutScope"
         }
       ]
+    },
+    {
+      "id": "CandidateDeliveryQuery",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/CandidateDeliveryQuery/v1",
+      "relativePath": "domain-types/CandidateDeliveryQuery/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "e5b25c09c4af9b0e68036b5a9e1f2a9584842fc0ed6c1b6066a1e4334f016e84"
+      },
+      "usedBy": []
+    },
+    {
+      "id": "CandidateDeliveryReadResult",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/CandidateDeliveryReadResult/v1",
+      "relativePath": "domain-types/CandidateDeliveryReadResult/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "2fe91d4ac5feef97d377a6da15f80a737ac5fe211e6448dba465b53d55b71799"
+      },
+      "usedBy": []
     },
     {
       "id": "CandidateDeliverySnapshot",

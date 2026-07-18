@@ -114,10 +114,7 @@ const triageIdentityMetadata = () => object({ claimedTitle: text(), claimedYear:
       'filename_season', 'directory_season', 'filename_episode', 'jav_code', 'disc_structure', 'temporary_label'),
     hintValue: text(), evidenceDigest: digest() }), 256), metadataDigest: digest()
 }, ['claimedTitle', 'contentProfileHint', 'sourceHints', 'metadataDigest']);
-const triageRelatedReference = () => object({ referenceId: id(), primaryMaterialKey: digest(),
-  role: enumText('nfo', 'poster', 'fanart', 'subtitle', 'external_audio', 'chapter', 'sidecar'),
-  identity: ref('PhysicalMaterialIdentity'), endpointId: id(), location: text(), checksumAlgorithm: { const: 'sha256' },
-  checksumHex: digest(), associationEvidenceDigest: digest(), referenceDigest: digest() });
+const triageRelatedReference = () => ref('RelatedMaterialReference');
 const triageUnit = () => object({ unitId: digest(), mediaType: triageMediaType(), contentProfile: triageProfile(),
   structureKind: enumText('single', 'season'), displayIdentity: text(), identityMetadata: triageIdentityMetadata(),
   seasonContinuityClaims: arrayOf(seasonContinuityClaim(), 64), seasonContinuityClaimSetDigest: digest(),
@@ -185,6 +182,11 @@ const special = {
   'CandidatePackage.seasonContinuityClaimSetDigest': digest(),
   'CandidatePackage.primaryInputManifestRef': object({ manifestId: id(), manifestDigest: digest(), memberCount: positiveInteger() }),
   'CandidatePackage.relatedReferences': arrayOf(triageRelatedReference(), 1024),
+  'RelatedMaterialReference.identity': ref('PhysicalMaterialIdentity'),
+  'RelatedMaterialReference.primaryMaterialKey': digest(),
+  'RelatedMaterialReference.role': enumText('nfo', 'poster', 'fanart', 'subtitle', 'external_audio', 'chapter', 'sidecar'),
+  'RelatedMaterialReference.checksumAlgorithm': { const: 'sha256' },
+  'RelatedMaterialReference.checksumHex': digest(),
   'SeasonContinuityClaim.claimKind': enumText('provider_season_identity', 'triage_grouping_lineage'),
   'SeasonContinuityClaim.claimNamespace': text(),
   'SeasonContinuityClaim.claimKey': text(),
@@ -363,6 +365,7 @@ const contracts = {
   PrimaryInputManifestDraft: ['DraftEnvelope', 'preallocatedManifestId,procurementRunId,runBasisDigest,structureEvidencePayloadDigest,unitId,structureKind,memberCount,membersDigest,memberSourceDigest,manifestDraftDigest'],
   PrimaryInputManifest: ['ManifestEnvelope', 'structureKind,members'],
   CandidatePackage: ['ManifestEnvelope', 'candidatePackageId,packageRevision,procurementRunId,runBasisDigest,triageRule,materialFieldContextRef,mediaType,contentProfile,displayIdentity,identityMetadata,identityClaim,structureEvidenceRef,seasonContinuityClaims,seasonContinuityClaimSetDigest,primaryInputManifestRef,relatedReferences,relatedReferenceSetDigest,memberControlEvidenceSetDigest,packageDigest'],
+  RelatedMaterialReference: [null, 'referenceId,primaryMaterialKey,role,identity,endpointId,location,checksumAlgorithm,checksumHex,associationEvidenceDigest,referenceDigest'],
   SeasonContinuityClaim: [null, 'claimKind,claimNamespace,claimKey,claimDigest,evidenceDigest'],
   CandidateIntakeAcceptanceBasis: [null, 'handoffContractRef,acceptanceOwnerDomain,targetContext,candidatePackageId,packageRevision,packageDigest,primaryInputManifestDigest,seasonContinuityClaimSetDigest,relatedReferenceSetDigest,memberControlEvidenceSetDigest,acceptanceBasisDigest'],
   ProcurementCandidateOfferAvailableMessage: [null, 'messageKind,offerId,candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest,acceptanceOwnerDomain,targetContext'],

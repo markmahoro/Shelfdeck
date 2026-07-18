@@ -2274,7 +2274,7 @@ CREATE TABLE "proc_candidate_primary_material_episode_claims" (
   "season_claim_digest" TEXT CHECK (length("season_claim_digest") = 64 AND "season_claim_digest" NOT GLOB '*[^0-9a-f]*'),
   "claim_digest" TEXT CHECK (length("claim_digest") = 64 AND "claim_digest" NOT GLOB '*[^0-9a-f]*'),
   PRIMARY KEY ("candidate_package_id", "primary_ordinal", "episode_key"),
-  FOREIGN KEY ("candidate_package_id") REFERENCES "proc_candidate_packages" ("candidate_package_id") ON DELETE RESTRICT
+  FOREIGN KEY ("candidate_package_id", "primary_ordinal") REFERENCES "proc_candidate_primary_materials" ("candidate_package_id", "ordinal") ON DELETE RESTRICT
 );
 
 CREATE TABLE "proc_candidate_primary_materials" (
@@ -2296,13 +2296,19 @@ CREATE TABLE "proc_candidate_related_references" (
   "reference_id" TEXT,
   "primary_ordinal" INTEGER CHECK ("primary_ordinal" >= 0),
   "role" TEXT,
+  "material_key" TEXT,
+  "mount_scope_id" TEXT,
+  "inode" TEXT,
+  "content_hash_algorithm" TEXT,
+  "content_hash" TEXT,
   "endpoint_id" TEXT,
   "location" TEXT,
   "checksum_algorithm" TEXT,
   "checksum_hex" TEXT,
-  "evidence_digest" TEXT CHECK (length("evidence_digest") = 64 AND "evidence_digest" NOT GLOB '*[^0-9a-f]*'),
+  "association_evidence_digest" TEXT CHECK (length("association_evidence_digest") = 64 AND "association_evidence_digest" NOT GLOB '*[^0-9a-f]*'),
+  "reference_digest" TEXT CHECK (length("reference_digest") = 64 AND "reference_digest" NOT GLOB '*[^0-9a-f]*'),
   PRIMARY KEY ("candidate_package_id", "reference_id"),
-  FOREIGN KEY ("candidate_package_id") REFERENCES "proc_candidate_packages" ("candidate_package_id") ON DELETE RESTRICT
+  FOREIGN KEY ("candidate_package_id", "primary_ordinal") REFERENCES "proc_candidate_primary_materials" ("candidate_package_id", "ordinal") ON DELETE RESTRICT
 );
 
 CREATE TABLE "proc_candidate_season_continuity_claims" (

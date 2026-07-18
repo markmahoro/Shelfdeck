@@ -34,7 +34,9 @@ function procurementDefinition(schemaManifest) {
     insert_continuity:{ kind:'insert', tableId:'proc_candidate_season_continuity_claims', columns:['candidate_package_id','claim_kind','claim_namespace','claim_key','claim_digest','evidence_digest'] },
     insert_primary:{ kind:'insert', tableId:'proc_candidate_primary_materials', columns:['candidate_package_id','ordinal','material_key','role','binding_revision','admitted_control_revision','admitted_control_projection_digest','member_digest'] },
     insert_episode:{ kind:'insert', tableId:'proc_candidate_primary_material_episode_claims', columns:['candidate_package_id','primary_ordinal','episode_key','season_claim_digest','claim_digest'] },
-    insert_related:{ kind:'insert', tableId:'proc_candidate_related_references', columns:['candidate_package_id','reference_id','primary_ordinal','role','endpoint_id','location','checksum_algorithm','checksum_hex','evidence_digest'] },
+    insert_related:{ kind:'insert', tableId:'proc_candidate_related_references', columns:['candidate_package_id','reference_id','primary_ordinal','role',
+      'material_key','mount_scope_id','inode','content_hash_algorithm','content_hash','endpoint_id','location','checksum_algorithm','checksum_hex',
+      'association_evidence_digest','reference_digest'] },
     insert_delivery:{ kind:'insert', tableId:'proc_candidate_deliveries', columns:['offer_id','candidate_package_id','package_digest','acceptance_basis_digest','state','handoff_receipt_id','offered_at_ms','closed_at_ms'] }
   }});
 }
@@ -173,9 +175,12 @@ function createCandidatePublicationStore(options) {
           const ordinal = ordinals.get(reference.primaryMaterialKey);
           if (ordinal === undefined) fail('P7_CANDIDATE_RELATED_PRIMARY_MISSING', 'Related Reference points outside the final Manifest.');
           repo.invoke('insert_related', { candidate_package_id:pkg.candidatePackageId, reference_id:reference.referenceId,
-            primary_ordinal:ordinal, role:reference.role, endpoint_id:reference.endpointId, location:reference.location,
+            primary_ordinal:ordinal, role:reference.role, material_key:reference.identity.materialKey,
+            mount_scope_id:reference.identity.mountScopeId, inode:reference.identity.inode,
+            content_hash_algorithm:reference.identity.contentHashAlgorithm, content_hash:reference.identity.contentHash,
+            endpoint_id:reference.endpointId, location:reference.location,
             checksum_algorithm:reference.checksumAlgorithm, checksum_hex:reference.checksumHex,
-            evidence_digest:reference.associationEvidenceDigest });
+            association_evidence_digest:reference.associationEvidenceDigest, reference_digest:reference.referenceDigest });
         }
         repo.invoke('insert_delivery', { offer_id:publication.offerId, candidate_package_id:pkg.candidatePackageId,
           package_digest:pkg.packageDigest, acceptance_basis_digest:publication.acceptanceBasis.acceptanceBasisDigest,

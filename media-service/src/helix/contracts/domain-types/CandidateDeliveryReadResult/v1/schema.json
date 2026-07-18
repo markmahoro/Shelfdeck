@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/CandidateDeliveryReadResult/v1",
+  "title": "CandidateDeliveryReadResult@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "queryDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "resultKind": {
+          "const": "found"
+        },
+        "resultDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "snapshot": {
+          "$ref": "helix://contracts/domain-types/CandidateDeliverySnapshot/v1"
+        }
+      },
+      "required": [
+        "queryDigest",
+        "resultKind",
+        "resultDigest",
+        "snapshot"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "queryDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "resultKind": {
+          "const": "not_found"
+        },
+        "resultDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "reasonCode": {
+          "const": "offer_not_found"
+        }
+      },
+      "required": [
+        "queryDigest",
+        "resultKind",
+        "resultDigest",
+        "reasonCode"
+      ]
+    }
+  ]
+}

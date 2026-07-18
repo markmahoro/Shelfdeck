@@ -97,11 +97,11 @@
       "id": "proc_candidate_packages",
       "owner": "procurement",
       "columnsContract": "`candidate_package_id PK, procurement_run_id FK, package_revision, field_id, field_access_revision, field_context_digest, media_type(single|group), content_profile(movie|series|jav|western_adult), structure_kind(single|season), display_identity, identity_metadata_schema_ref, identity_metadata_json, identity_metadata_digest, identity_claim_schema_ref, identity_claim_json, identity_claim_digest, structure_evidence_id, structure_evidence_payload_digest, structure_unit_id, structure_unit_digest, triage_rule_ref, triage_rule_revision, triage_rule_authority_digest, primary_input_manifest_id, manifest_digest, related_reference_set_digest, member_control_evidence_set_digest, package_digest, state, published_at_ms`",
-      "constraintsContract": "Identity Metadata/Claim JSON各≤`16 KiB`；`UNIQUE(procurement_run_id,package_revision)`且revision必须等于Run head CAS后的值；Field Context、Profile/mediaType/structure/Identity/Unit/Rule/Manifest/Control/Related必须与完整CandidateDraft逐项一致；`seasonContinuityClaimSetDigest`由immutable `proc_candidate_season_continuity_claims`按8.6.18唯一公式重建，不新增opaque JSON或旁读；published内容immutable；Publication必须与Manifest、Episode Claim/Related relation、对应`proc_run_materials → candidate_delivery`、Offer/Outbox、typed Result/marker同事务成立；`INDEX(state,published_at_ms)`",
+      "constraintsContract": "Identity Metadata/Claim JSON各≤`16 KiB`；`UNIQUE(procurement_run_id,package_revision)`且revision必须等于Run head CAS后的值；Field Context、Profile/mediaType/structure/Identity/Unit/Rule/Manifest/Control/Related必须与完整CandidateDraft逐项一致；`seasonContinuityClaimSetDigest`由immutable `proc_candidate_season_continuity_claims`、`relatedReferenceSetDigest`由immutable `proc_candidate_related_references`按8.6.18唯一公式重建，不新增opaque JSON或旁读；published内容immutable；Publication必须与Manifest、Episode Claim/完整Related relation、对应`proc_run_materials → candidate_delivery`、Offer/Outbox、typed Result/marker同事务成立；`INDEX(state,published_at_ms)`",
       "source": {
         "section": "8.5.11",
         "line": 7938,
-        "lineDigest": "f6ee584bd21933440ae2187f8bda0a97469bed6d4122b5f6ba1447a8e49a10fb"
+        "lineDigest": "15ca95a4d56e696f6fb5fbc4e8aa8363092e824178d92a6ddbfe66542fb51835"
       }
     },
     {
@@ -140,12 +140,12 @@
     {
       "id": "proc_candidate_related_references",
       "owner": "procurement",
-      "columnsContract": "`candidate_package_id FK, reference_id, primary_ordinal, role, endpoint_id, location, checksum_algorithm, checksum_hex, evidence_digest`",
-      "constraintsContract": "`PK(candidate_package_id,reference_id)`；Related不进入Material Control",
+      "columnsContract": "`candidate_package_id FK, reference_id, primary_ordinal, role, material_key, mount_scope_id, inode, content_hash_algorithm, content_hash, endpoint_id, location, checksum_algorithm, checksum_hex, association_evidence_digest, reference_digest`",
+      "constraintsContract": "`PK(candidate_package_id,reference_id)`及复合FK`(candidate_package_id,primary_ordinal) → proc_candidate_primary_materials(candidate_package_id,ordinal)`；逐列无损保存一个`RelatedMaterialReference@1`，`primaryMaterialKey`只由该immutable FK目标重建；Physical Identity/materialKey、SHA-256 checksum和reference digest均按8.6.18重验，`content_hash_algorithm=checksum_algorithm=sha256`且`content_hash=checksum_hex`；published row immutable，Related不进入Material Control；Candidate关闭、Run封口或Offer关闭不得删除，历史Delivery Snapshot仍从本Owner relation恢复",
       "source": {
         "section": "8.5.11",
         "line": 7942,
-        "lineDigest": "b5d81abe6acd247dcc7d1cc8ba731fc274c3f9479e9d8379f48142977e7fade8"
+        "lineDigest": "92c124a5991f66030d745e5df32d8c0456a3de47acdf2ddd922e3672978fb9db"
       }
     }
   ]

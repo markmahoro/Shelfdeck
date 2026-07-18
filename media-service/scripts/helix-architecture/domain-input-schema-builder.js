@@ -134,6 +134,8 @@ const dtoContracts = {
   AcceptedProductFacts: 'shelfEntryId,inventoryRevision,productFactSetDigest',
   ActiveShelfEntryIdentityProjection: 'entries,projectionRevision',
   CandidateDraft: '',
+  CandidateDeliveryQuery: '',
+  CandidateDeliveryReadResult: '',
   CandidateDeliverySnapshot: '',
   SubjectContinuityResolutionDecision: '',
   CareBasis: 'shelfEntryId,inventoryRevision,standardRevision,placementRevision,decisionFactSetDigest,assessments',
@@ -212,6 +214,8 @@ function idField(name) {
 }
 
 function buildSchema(name, role, fields) {
+  if (name === 'CandidateDeliveryQuery') return candidateDeliveryQuerySchema();
+  if (name === 'CandidateDeliveryReadResult') return candidateDeliveryReadResultSchema();
   if (name === 'CandidateDeliverySnapshot') return candidateDeliverySnapshotSchema();
   if (name === 'SubjectContinuityResolutionDecision') return subjectContinuityResolutionDecisionSchema();
   if (name === 'AcceptedIntakePayload') return acceptedIntakePayloadSchema();
@@ -281,6 +285,22 @@ const relatedReference = () => object({
   checksumHex: digest(), associationEvidenceDigest: digest(), referenceDigest: digest()
 });
 const seasonContinuityClaim = () => typeRef('SeasonContinuityClaim');
+
+function candidateDeliveryQuerySchema() {
+  return { $schema:DRAFT, $id:domainTypeId('CandidateDeliveryQuery'), title:'CandidateDeliveryQuery@1',
+    'x-helix-ssotRefs':['8.6.18'], 'x-helix-role':'accepted-business-dto', 'x-helix-maxCanonicalBytes':16 * 1024,
+    ...object({ queryContract:{ const:'procurement.candidate-delivery@1' }, offerId:id(), candidatePackageId:id(),
+      packageRevision:positiveInteger(), packageDigest:digest(), acceptanceBasisDigest:digest(), queryDigest:digest() }) };
+}
+
+function candidateDeliveryReadResultSchema() {
+  const common = { queryDigest:digest(), resultKind:enumText('found', 'not_found'), resultDigest:digest() };
+  return { $schema:DRAFT, $id:domainTypeId('CandidateDeliveryReadResult'), title:'CandidateDeliveryReadResult@1',
+    'x-helix-ssotRefs':['8.6.18'], 'x-helix-role':'accepted-business-dto', oneOf:[
+      object({ ...common, resultKind:{ const:'found' }, snapshot:domainRef('CandidateDeliverySnapshot') }),
+      object({ ...common, resultKind:{ const:'not_found' }, reasonCode:{ const:'offer_not_found' } })
+    ] };
+}
 
 function candidateDeliverySnapshotSchema() {
   const episode = object({ episodeKey: text(), seasonClaimDigest: digest(), claimDigest: digest() });

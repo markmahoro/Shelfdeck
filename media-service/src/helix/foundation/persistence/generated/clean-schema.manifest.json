@@ -3,8 +3,8 @@
   "compilerContract": "helix-p3-deterministic-sqlite-ddl/v1",
   "digestAlgorithm": "sha256",
   "tableCount": 168,
-  "tableContractAggregateDigest": "1b6dd052a271cef59e45a65eedcdd4545e3289222ecfe21c3493cfe2500baf39",
-  "ddlDigest": "421e883ec530bf7aaafad86fac8667ad1e4dcb10e72e8bb298709dbd07e8cc6e",
+  "tableContractAggregateDigest": "16fa42da40983870054605d300454e00a9e0d6189381df7ded416788d76ff587",
+  "ddlDigest": "39da3af89ad4d8eaa4465f87bce46ba86b7bd1892b33d9ed7b16144c8b4a305a",
   "tables": [
     {
       "tableId": "arca_acceptance_attempts",
@@ -3561,7 +3561,7 @@
       "tableId": "proc_candidate_packages",
       "owner": "procurement",
       "contractId": "helix://contracts/tables/proc_candidate_packages/v1",
-      "contractDigest": "bd186e420d06d5f45146a6945ce2bf79aef45894ce0c474d064b8fe4fe7f7f42",
+      "contractDigest": "cb1fb54f843a5a496eb2285ad9fd6384fc3ceb3700d86c17ea80ffa4c194ed35",
       "sqlDigest": "5520b31e5990a942bf95a06a726f6a4cdf8849a2787df89c8d986f8a1a93a95f",
       "columns": [
         "candidate_package_id",
@@ -3609,8 +3609,8 @@
       "tableId": "proc_candidate_primary_material_episode_claims",
       "owner": "procurement",
       "contractId": "helix://contracts/tables/proc_candidate_primary_material_episode_claims/v1",
-      "contractDigest": "0d14fc37537826e0dd6b008dab7cd56d6ef91759677cadf12e6be5d4d85e6dcd",
-      "sqlDigest": "ddf9e79843496992b8633170eac384a9f45cda7b70470b9fab24ae681a88552a",
+      "contractDigest": "ac08ac3b43caea0c51d33ddec2ecdbe59b9788fc1ca59fcf4b0c5f7d5b99add7",
+      "sqlDigest": "d30a31e32ff382f12e7adae6252454ab1e9ddd14d98388f54b4c13063afb3a8c",
       "columns": [
         "candidate_package_id",
         "primary_ordinal",
@@ -3646,20 +3646,26 @@
       "tableId": "proc_candidate_related_references",
       "owner": "procurement",
       "contractId": "helix://contracts/tables/proc_candidate_related_references/v1",
-      "contractDigest": "53f25e1ea53dfc043d1d28b989498373547ef7ea281fb8d55ae42d626470eadf",
-      "sqlDigest": "3e8f1a20bf9b8bc75a1bb4daa5f0ea25bb2e3016e2df8d9a29e9846486031cfe",
+      "contractDigest": "b3d887866ee9bc665c03e8611355582f2518f5eb71cab64ad104c7fb4cbaba67",
+      "sqlDigest": "73112afbbca52a704b27a2ce50f3b2fb7ef7f69afb34d6fcaf54b6b5988a42a0",
       "columns": [
         "candidate_package_id",
         "reference_id",
         "primary_ordinal",
         "role",
+        "material_key",
+        "mount_scope_id",
+        "inode",
+        "content_hash_algorithm",
+        "content_hash",
         "endpoint_id",
         "location",
         "checksum_algorithm",
         "checksum_hex",
-        "evidence_digest"
+        "association_evidence_digest",
+        "reference_digest"
       ],
-      "immutable": false,
+      "immutable": true,
       "supportColumns": [],
       "indexes": []
     },

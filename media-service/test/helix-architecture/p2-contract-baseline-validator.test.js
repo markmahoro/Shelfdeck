@@ -29,9 +29,9 @@ test('closes the exact P2 112/96/168/30 baseline with a stable aggregate digest'
   assert.equal(first.ok, true);
   assert.deepEqual(first.counts, {
     capabilities: 112, resultFamilies: 96, tables: 168, transactions: 30,
-    sharedTypes: 29, domainInputs: 92, referencedTypeRefs: 198, unresolvedTypeRefs: 0
+    sharedTypes: 29, domainInputs: 94, referencedTypeRefs: 198, unresolvedTypeRefs: 0
   });
-  assert.equal(first.aggregateDigest, 'c03cb78014a196e184be300de2a80657d8e01ced96f05e612858b89a8e3bf8ca');
+  assert.equal(first.aggregateDigest, '57d5e116b5cf4a1fcc9595d3e27ba92c60a7626ae72f223fef9255b0b99fb597');
   assert.equal(first.aggregateDigest, second.aggregateDigest);
   assert.deepEqual(first.prohibitedActionsRun, []);
 });

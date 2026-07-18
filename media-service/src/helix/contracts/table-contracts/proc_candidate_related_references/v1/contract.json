@@ -45,7 +45,7 @@
       },
       {
         "ordinal": 5,
-        "name": "endpoint_id",
+        "name": "material_key",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -54,7 +54,7 @@
       },
       {
         "ordinal": 6,
-        "name": "location",
+        "name": "mount_scope_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -63,7 +63,7 @@
       },
       {
         "ordinal": 7,
-        "name": "checksum_algorithm",
+        "name": "inode",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -72,7 +72,7 @@
       },
       {
         "ordinal": 8,
-        "name": "checksum_hex",
+        "name": "content_hash_algorithm",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -81,7 +81,61 @@
       },
       {
         "ordinal": 9,
-        "name": "evidence_digest",
+        "name": "content_hash",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "endpoint_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "location",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "checksum_algorithm",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 13,
+        "name": "checksum_hex",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 14,
+        "name": "association_evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 15,
+        "name": "reference_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -99,7 +153,11 @@
     "uniqueConstraints": [],
     "hotIndexes": [],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "rule": "Physical Identity/materialKey、SHA-256 checksum和reference digest均按8.6.18重验，`content_hash_algorithm=checksum_algorithm=sha256`且`content_hash=checksum_hex`"
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [],
       "currentPointerColumns": [],
@@ -108,34 +166,42 @@
     },
     "jsonContracts": [],
     "immutability": {
-      "immutable": false,
-      "rules": []
+      "immutable": true,
+      "rules": [
+        "逐列无损保存一个`RelatedMaterialReference@1`，`primaryMaterialKey`只由该immutable FK目标重建",
+        "published row immutable，Related不进入Material Control"
+      ]
     },
     "deletion": {
       "foreignKeyPolicy": "ON DELETE RESTRICT",
       "rules": []
     },
     "semanticRules": [
-      "`PK(candidate_package_id,reference_id)`",
-      "Related不进入Material Control"
+      "`PK(candidate_package_id,reference_id)`及复合FK`(candidate_package_id,primary_ordinal) → proc_candidate_primary_materials(candidate_package_id,ordinal)`",
+      "逐列无损保存一个`RelatedMaterialReference@1`，`primaryMaterialKey`只由该immutable FK目标重建",
+      "Physical Identity/materialKey、SHA-256 checksum和reference digest均按8.6.18重验，`content_hash_algorithm=checksum_algorithm=sha256`且`content_hash=checksum_hex`",
+      "published row immutable，Related不进入Material Control",
+      "Candidate关闭、Run封口或Offer关闭不得删除，历史Delivery Snapshot仍从本Owner relation恢复"
     ],
     "rawContract": {
-      "columns": "`candidate_package_id FK, reference_id, primary_ordinal, role, endpoint_id, location, checksum_algorithm, checksum_hex, evidence_digest`",
-      "constraints": "`PK(candidate_package_id,reference_id)`；Related不进入Material Control"
+      "columns": "`candidate_package_id FK, reference_id, primary_ordinal, role, material_key, mount_scope_id, inode, content_hash_algorithm, content_hash, endpoint_id, location, checksum_algorithm, checksum_hex, association_evidence_digest, reference_digest`",
+      "constraints": "`PK(candidate_package_id,reference_id)`及复合FK`(candidate_package_id,primary_ordinal) → proc_candidate_primary_materials(candidate_package_id,ordinal)`；逐列无损保存一个`RelatedMaterialReference@1`，`primaryMaterialKey`只由该immutable FK目标重建；Physical Identity/materialKey、SHA-256 checksum和reference digest均按8.6.18重验，`content_hash_algorithm=checksum_algorithm=sha256`且`content_hash=checksum_hex`；published row immutable，Related不进入Material Control；Candidate关闭、Run封口或Offer关闭不得删除，历史Delivery Snapshot仍从本Owner relation恢复"
     },
     "source": {
       "section": "8.5.11",
       "line": 7942,
-      "lineDigest": "b5d81abe6acd247dcc7d1cc8ba731fc274c3f9479e9d8379f48142977e7fade8"
+      "lineDigest": "92c124a5991f66030d745e5df32d8c0456a3de47acdf2ddd922e3672978fb9db"
     },
     "foreignKeys": [
       {
         "columns": [
-          "candidate_package_id"
+          "candidate_package_id",
+          "primary_ordinal"
         ],
-        "targetTable": "proc_candidate_packages",
+        "targetTable": "proc_candidate_primary_materials",
         "targetColumns": [
-          "candidate_package_id"
+          "candidate_package_id",
+          "ordinal"
         ],
         "deletePolicy": "RESTRICT",
         "deferrable": false
