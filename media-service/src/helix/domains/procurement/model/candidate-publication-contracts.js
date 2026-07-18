@@ -132,6 +132,31 @@ function validateDraft(draft) {
   return draft;
 }
 
+function buildAcceptanceBasis(candidatePackage) {
+  const value = { schemaRef:ACCEPTANCE_BASIS_SCHEMA, schemaVersion:1, handoffContractRef:HANDOFF_CONTRACT,
+    acceptanceOwnerDomain:'libra', targetContext:'libra_intake', candidatePackageId:candidatePackage.candidatePackageId,
+    packageRevision:candidatePackage.packageRevision, packageDigest:candidatePackage.packageDigest,
+    primaryInputManifestDigest:candidatePackage.primaryInputManifestRef.manifestDigest,
+    seasonContinuityClaimSetDigest:candidatePackage.seasonContinuityClaimSetDigest,
+    relatedReferenceSetDigest:candidatePackage.relatedReferenceSetDigest,
+    memberControlEvidenceSetDigest:candidatePackage.memberControlEvidenceSetDigest, acceptanceBasisDigest:'' };
+  value.acceptanceBasisDigest = canonicalDigest(without(value, 'acceptanceBasisDigest'));
+  return freeze(value);
+}
+
+function buildOffer(candidatePackage, acceptanceBasis = buildAcceptanceBasis(candidatePackage)) {
+  const offerId = canonicalDigest({ schema:'procurement.handoff-a-offer-id@1', handoffContractRef:HANDOFF_CONTRACT,
+    candidatePackageId:candidatePackage.candidatePackageId, packageRevision:candidatePackage.packageRevision,
+    packageDigest:candidatePackage.packageDigest, acceptanceBasisDigest:acceptanceBasis.acceptanceBasisDigest });
+  const message = { schemaRef:OFFER_MESSAGE_SCHEMA, schemaVersion:1, messageKind:'procurement_candidate_offer_available', offerId,
+    candidatePackageId:candidatePackage.candidatePackageId, packageRevision:candidatePackage.packageRevision,
+    packageDigest:candidatePackage.packageDigest, acceptanceBasisDigest:acceptanceBasis.acceptanceBasisDigest,
+    acceptanceOwnerDomain:'libra', targetContext:'libra_intake' };
+  const dedupKey = 'procurement_candidate_offer_available:' + offerId;
+  const messageId = canonicalDigest({ schema:'foundation.outbox-message-id@1', producerDomain:'procurement', dedupKey });
+  return freeze({ message, offerId, dedupKey, messageId });
+}
+
 function buildPublication(draft, publishedAtMs) {
   validateDraft(draft);
   if (!Number.isSafeInteger(publishedAtMs) || publishedAtMs < 0) fail('P7_CANDIDATE_PUBLISH_TIME', 'Publication time is invalid.');
@@ -162,24 +187,11 @@ function buildPublication(draft, publishedAtMs) {
     memberControlEvidenceSetDigest:draft.memberControlEvidenceSetDigest, packageDigest:'' };
   packageValue.packageDigest = canonicalDigest(without(packageValue, 'manifestDigest', 'packageDigest'));
   packageValue.manifestDigest = packageValue.packageDigest;
-  const basis = { schemaRef:ACCEPTANCE_BASIS_SCHEMA, schemaVersion:1, handoffContractRef:HANDOFF_CONTRACT,
-    acceptanceOwnerDomain:'libra', targetContext:'libra_intake', candidatePackageId:packageValue.candidatePackageId,
-    packageRevision:packageValue.packageRevision, packageDigest:packageValue.packageDigest,
-    primaryInputManifestDigest:manifest.manifestDigest, seasonContinuityClaimSetDigest:packageValue.seasonContinuityClaimSetDigest,
-    relatedReferenceSetDigest:packageValue.relatedReferenceSetDigest,
-    memberControlEvidenceSetDigest:packageValue.memberControlEvidenceSetDigest, acceptanceBasisDigest:'' };
-  basis.acceptanceBasisDigest = canonicalDigest(without(basis, 'acceptanceBasisDigest'));
-  const offerId = canonicalDigest({ schema:'procurement.handoff-a-offer-id@1', handoffContractRef:HANDOFF_CONTRACT,
-    candidatePackageId:packageValue.candidatePackageId, packageRevision:packageValue.packageRevision,
-    packageDigest:packageValue.packageDigest, acceptanceBasisDigest:basis.acceptanceBasisDigest });
-  const message = { schemaRef:OFFER_MESSAGE_SCHEMA, schemaVersion:1, messageKind:'procurement_candidate_offer_available', offerId,
-    candidatePackageId:packageValue.candidatePackageId, packageRevision:packageValue.packageRevision,
-    packageDigest:packageValue.packageDigest, acceptanceBasisDigest:basis.acceptanceBasisDigest,
-    acceptanceOwnerDomain:'libra', targetContext:'libra_intake' };
-  const dedupKey = 'procurement_candidate_offer_available:' + offerId;
-  const messageId = canonicalDigest({ schema:'foundation.outbox-message-id@1', producerDomain:'procurement', dedupKey });
-  return freeze({ manifest, candidatePackage:packageValue, acceptanceBasis:basis, offerMessage:message, offerId, dedupKey, messageId });
+  const basis = buildAcceptanceBasis(packageValue);
+  const offer = buildOffer(packageValue, basis);
+  return freeze({ manifest, candidatePackage:packageValue, acceptanceBasis:basis, offerMessage:offer.message,
+    offerId:offer.offerId, dedupKey:offer.dedupKey, messageId:offer.messageId });
 }
 
 module.exports = Object.freeze({ ACCEPTANCE_BASIS_SCHEMA, CandidatePublicationContractError, MANIFEST_SCHEMA,
-  OFFER_MESSAGE_SCHEMA, PACKAGE_SCHEMA, buildPublication, validateDraft });
+  OFFER_MESSAGE_SCHEMA, PACKAGE_SCHEMA, buildAcceptanceBasis, buildOffer, buildPublication, validateDraft });

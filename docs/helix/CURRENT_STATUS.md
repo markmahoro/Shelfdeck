@@ -13,12 +13,12 @@ Last updated: 2026-07-18
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains |
 | Current phase | P7 — Procurement |
-| Current phase status | P7-00–P7-08 PASS；P7-09 in progress |
+| Current phase status | P7-00–P7-09 PASS；P7-10 in progress |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P6 phase closure `5831c53207d5e71ccdf4792da11ed71be3d47ae1` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p7` on `codex/helix-p7` |
-| Next action | P7-09 downstream boundary verification |
+| Next action | P7-10 isolated Procurement harness |
 
 Architecture Agent提交`19ed12fa`已闭合`PBF-07-R1`：Page正式收敛为≤65,536 UTF-8 JCS bytes，完整Page作为
 Commit Event immutable typed Evidence保存，并通过Observation→Marker→Result Binding形成禁止GC的历史恢复链；
@@ -123,6 +123,11 @@ P7-08现已完成：Procurement的8个P2 Capability以唯一registration layer�
 `pure_observation`、2个`domain_fact_commit`和1个`responsibility_control_commit`保持精确Owner、Effect Class、contract
 version与semantic validator。机器反例拒绝缺失/额外Capability、Owner/Effect漂移和untyped port；同步Domain/Control提交未被
 伪造成Workflow，registration layer不依赖Runtime、Store或legacy。下一工作包P7-09。
+
+P7-09现已完成：`CandidateDeliveryPort`只接受正式`ProcurementCandidateOfferAvailableMessage@1`，按Candidate ID/revision/
+digest读取并返回detached、deep-frozen `CandidatePackage@1`。服务重新计算Package digest、Package-derived Acceptance Basis与
+stable Offer identity，任何Package或Offer漂移均fail closed。synthetic Libra重复读取不改变Candidate事实，且边界不拥有
+Procurement Store、Subject、Routing、Control transfer、Runtime或Signal Bus authority。下一工作包P7-10。
 
 ## 2. Accepted implementation conclusion
 

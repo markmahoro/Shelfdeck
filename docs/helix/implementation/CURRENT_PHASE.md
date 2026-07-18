@@ -1,6 +1,6 @@
 # P7 Procurement Detailed Plan
 
-Status: Active；P7-00–P7-08 complete；P7-09 in progress.
+Status: Active；P7-00–P7-09 complete；P7-10 in progress.
 
 Last updated: 2026-07-18
 
@@ -136,6 +136,10 @@ socket、ambient credential、真实Material Field扫描、真实媒体/FFmpeg�
 
 - synthetic Libra consumer只读取不可变Candidate/Delivery public contract，不读Procurement Store。
 - Acceptance/Subject/Routing/Material Control transfer留给P8；signal丢失、重复、乱序不改变Candidate事实。
+- Done：`CandidateDeliveryPort`以正式typed Offer message定位exact Candidate revision/digest，返回detached、deep-frozen
+  `CandidatePackage@1`；Acceptance Basis与Offer identity全部从Package重新推导并逐字段验证。synthetic Libra重复读取同一
+  Offer只得到同一immutable事实，无法修改Procurement对象；边界无Store、Subject、Routing、Control transfer、Runtime或Signal
+  Bus authority。Evidence见`evidence/P7_09_DOWNSTREAM_BOUNDARY.md`。
 
 ### P7-10 Isolated Procurement harness
 
