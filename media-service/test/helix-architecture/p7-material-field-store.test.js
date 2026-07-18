@@ -21,8 +21,9 @@ function fixture(run) {
   const store = createMaterialFieldStore({ schemaManifest, unitOfWork: createSqliteUnitOfWork({ kernel }) });
   try { return run({ store, kernel }); } finally { kernel.close(); fs.rmSync(root, { recursive: true, force: true }); }
 }
-function policy(revision, value = revision) { const body = { mode: 'include', roots: [`title-${value}`] }; return {
-  extractionPolicyId: 'policy-1', revision, policySchemaRef: 'helix://fixtures/extraction-policy/v1', policy: body, policyDigest: canonicalDigest(body)
+function policy(revision, value = revision) { const body = { includedDirectories:[`title-${value}`], excludedDirectories:[], allowedExtensions:[], minimumSizeBytes:0, excludedMaterialKeys:[] }; return {
+  extractionPolicyId: 'policy-1', revision, policySchemaRef: 'helix://contracts/domain-types/ExtractionPolicy/v1', policy: body,
+  policyDigest: canonicalDigest({ extractionPolicyId:'policy-1', revision, ...body })
 }; }
 function access(revision, root = `/field/${revision}`) { const basis = { fieldId: 'field-1', revision, endpointId: 'endpoint-1', rootLocation: root,
   mountScopeId: 'mount-1', mountScopeRevision: revision, accessSchemaRef: 'helix://fixtures/field-access/v1' }; return { ...basis, accessDigest: canonicalDigest(basis) }; }
@@ -37,7 +38,7 @@ test('registers Policy, Field and Access atomically with resolved non-null heads
   const result = store.registerMaterialField(registration());
   assert.equal(result.status, 'active'); assert.equal(result.currentAccessRevision, 1); assert.equal(result.access.rootLocation, '/field/1');
   assert.equal(result.extractionPolicyRevision, 1); assert.deepEqual(store.listMaterialFields().map((item) => item.fieldId), ['field-1']);
-  assert.equal(Object.isFrozen(result.policy.policy), true); assert.equal(Object.isFrozen(result.policy.policy.roots), true);
+  assert.equal(Object.isFrozen(result.policy.policy), true); assert.equal(Object.isFrozen(result.policy.policy.includedDirectories), true);
 }));
 
 test('advances Access and Policy only by exact current revision CAS', () => fixture(({ store }) => {
@@ -54,9 +55,10 @@ test('rejects digest tamper and rolls back the entire registration', () => fixtu
   const bad = access(1); bad.accessDigest = '0'.repeat(64);
   assert.throws(() => store.registerMaterialField(registration({ access: bad })), (error) => error.code === 'P7_FIELD_ACCESS_DIGEST_MISMATCH');
   assert.equal(store.getMaterialField('field-1'), null);
-  const oversized = { payload: 'x'.repeat(17000) };
-  assert.throws(() => store.registerMaterialField(registration({ policy: { ...policy(1), policy: oversized, policyDigest: canonicalDigest(oversized) } })),
-    (error) => error.code === 'P7_EXTRACTION_POLICY_TOO_LARGE');
+  const oversized = { includedDirectories:Array.from({ length:129 }, (_, index) => `title-${String(index).padStart(3,'0')}`), excludedDirectories:[], allowedExtensions:[], minimumSizeBytes:0, excludedMaterialKeys:[] };
+  assert.throws(() => store.registerMaterialField(registration({ policy: { ...policy(1), policy: oversized,
+    policyDigest: canonicalDigest({ extractionPolicyId:'policy-1', revision:1, ...oversized }) } })),
+    (error) => error.code === 'P7_EXTRACTION_POLICY_INVALID');
   assert.equal(store.getMaterialField('field-1'), null);
 }));
 
@@ -74,5 +76,5 @@ test('duplicate Field and skipped initial revisions fail closed', () => fixture(
     mountScopeId: 'mount-1', mountScopeRevision: 2, accessSchemaRef: 'helix://fixtures/field-access/v1' };
   const otherAccess = { ...otherBasis, accessDigest: canonicalDigest(otherBasis) };
   assert.throws(() => store.registerMaterialField({ fieldId: 'field-2', name: 'Other', policy: { ...policy(1), extractionPolicyId: 'policy-2' }, access: otherAccess }),
-    (error) => ['P7_FIELD_ACCESS_DIGEST_MISMATCH','P7_MATERIAL_FIELD_INITIAL_BASIS'].includes(error.code));
+    (error) => ['P7_EXTRACTION_POLICY_DIGEST_MISMATCH','P7_FIELD_ACCESS_DIGEST_MISMATCH','P7_MATERIAL_FIELD_INITIAL_BASIS'].includes(error.code));
 }));

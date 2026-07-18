@@ -1,5 +1,10 @@
 'use strict';
 
+const { canonicalDigest } = require('../../../contracts/canonical-json');
+
+const EXTRACTION_POLICY_SCHEMA = 'helix://contracts/domain-types/ExtractionPolicy/v1';
+const POLICY_KEYS = ['includedDirectories','excludedDirectories','allowedExtensions','minimumSizeBytes','excludedMaterialKeys'];
+
 class MaterialFieldContractError extends Error {
   constructor(code, message, details = {}) { super(message); this.name = 'MaterialFieldContractError'; this.code = code; this.details = details; }
 }
@@ -15,8 +20,34 @@ function deepFreeze(value) {
   return Object.freeze(value);
 }
 
+function sortedUnique(values, maximum, validator, field) {
+  if (!Array.isArray(values) || values.length > maximum || values.some((value) => typeof value !== 'string' || !validator(value)) ||
+      new Set(values).size !== values.length || values.some((value, index) => index > 0 && Buffer.compare(Buffer.from(values[index - 1]), Buffer.from(value)) >= 0)) {
+    fail('P7_EXTRACTION_POLICY_INVALID', field + ' violates its closed sorted-set contract.', { field });
+  }
+}
+
+function validDirectory(value) {
+  return value.length > 0 && !value.startsWith('/') && !value.endsWith('/') && !value.includes('\\') &&
+    !/[\0*?\[\]{}()|+^$]/.test(value) && value.split('/').every((segment) => segment && segment !== '.' && segment !== '..');
+}
+
+function validateExtractionPolicyValue(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length !== POLICY_KEYS.length ||
+      POLICY_KEYS.some((key) => !Object.hasOwn(value, key))) fail('P7_EXTRACTION_POLICY_INVALID', 'ExtractionPolicy@1 has an invalid shape.');
+  sortedUnique(value.includedDirectories, 128, validDirectory, 'includedDirectories');
+  sortedUnique(value.excludedDirectories, 128, validDirectory, 'excludedDirectories');
+  sortedUnique(value.allowedExtensions, 64, (item) => /^\.[a-z0-9]+$/.test(item), 'allowedExtensions');
+  sortedUnique(value.excludedMaterialKeys, 128, (item) => /^[a-f0-9]{64}$/.test(item), 'excludedMaterialKeys');
+  if (!Number.isSafeInteger(value.minimumSizeBytes) || value.minimumSizeBytes < 0) fail('P7_EXTRACTION_POLICY_INVALID', 'minimumSizeBytes must be a non-negative safe integer.');
+  return value;
+}
+
 function createExtractionPolicy(value) {
-  if (!value.policy || typeof value.policy !== 'object' || Array.isArray(value.policy)) fail('P7_EXTRACTION_POLICY_INVALID', 'Extraction Policy must be a JSON object.');
+  if (value.policySchemaRef !== EXTRACTION_POLICY_SCHEMA) fail('P7_EXTRACTION_POLICY_SCHEMA', 'Only ExtractionPolicy@1 is supported.');
+  validateExtractionPolicyValue(value.policy);
+  const basis = { extractionPolicyId:value.extractionPolicyId, revision:value.revision, ...value.policy };
+  if (canonicalDigest(basis) !== value.policyDigest) fail('P7_EXTRACTION_POLICY_DIGEST_MISMATCH', 'Extraction Policy digest does not match its complete typed value.');
   return Object.freeze({
     extractionPolicyId: text(value.extractionPolicyId, 'extractionPolicyId'), revision: revision(value.revision, 'revision'),
     policySchemaRef: text(value.policySchemaRef, 'policySchemaRef'), policy: deepFreeze(value.policy),
@@ -48,5 +79,6 @@ function createMaterialField(value) {
 }
 
 module.exports = Object.freeze({
-  MaterialFieldContractError, createExtractionPolicy, createFieldAccess, createMaterialField
+  EXTRACTION_POLICY_SCHEMA, MaterialFieldContractError, createExtractionPolicy, createFieldAccess, createMaterialField,
+  validateExtractionPolicyValue
 });

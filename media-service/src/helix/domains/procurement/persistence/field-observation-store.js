@@ -25,9 +25,9 @@ function definition(schemaManifest) {
       { column:'current_observation_revision', parameter:'expected_observation_revision', nullSafe:true },
       { column:'current_access_revision', parameter:'expected_access_revision' }, { column:'status', parameter:'expected_status' }
     ] },
-    find_material:{ kind:'select-one', tableId:'proc_field_materials', columns:['field_id','material_key','endpoint_id','access_revision','mount_scope_revision','current_location','binding_revision','reality_digest','last_snapshot_digest','eligibility_state','control_projection'], keyColumns:['field_id','material_key'], safeIntegers:true },
-    insert_material:{ kind:'insert', tableId:'proc_field_materials', columns:['field_id','material_key','mount_scope_id','inode','content_hash_algorithm','content_hash','endpoint_id','access_revision','mount_scope_revision','size_bytes','mtime_ns','ctime_ns','hash_verified_at_ms','current_location','binding_revision','reality_digest','provenance_digest','last_snapshot_digest','last_observation_id','eligibility_state','control_projection'] },
-    update_material:{ kind:'update', tableId:'proc_field_materials', setColumns:['mount_scope_id','inode','content_hash_algorithm','content_hash','endpoint_id','access_revision','mount_scope_revision','size_bytes','mtime_ns','ctime_ns','hash_verified_at_ms','current_location','binding_revision','reality_digest','provenance_digest','last_snapshot_digest','last_observation_id','eligibility_state','control_projection'], keyColumns:['field_id','material_key'] }
+    find_material:{ kind:'select-one', tableId:'proc_field_materials', columns:['field_id','material_key','endpoint_id','access_revision','mount_scope_revision','current_location','binding_revision','reality_digest','last_snapshot_digest','eligibility_revision','eligibility_state','eligibility_reason_code','eligibility_basis_digest','eligibility_field_status','eligibility_observation_revision','eligibility_policy_revision','selection_basis_digest','control_projection','control_projection_revision','control_projection_digest','eligibility_reconciled_at_ms'], keyColumns:['field_id','material_key'], safeIntegers:true },
+    insert_material:{ kind:'insert', tableId:'proc_field_materials', columns:['field_id','material_key','mount_scope_id','inode','content_hash_algorithm','content_hash','endpoint_id','access_revision','mount_scope_revision','size_bytes','mtime_ns','ctime_ns','hash_verified_at_ms','current_location','binding_revision','reality_digest','provenance_digest','last_snapshot_digest','last_observation_id','eligibility_revision','eligibility_state','eligibility_reason_code','eligibility_basis_digest','eligibility_field_status','eligibility_observation_revision','eligibility_policy_revision','selection_basis_digest','control_projection','control_projection_revision','control_projection_digest','eligibility_reconciled_at_ms'] },
+    update_material:{ kind:'update', tableId:'proc_field_materials', setColumns:['mount_scope_id','inode','content_hash_algorithm','content_hash','endpoint_id','access_revision','mount_scope_revision','size_bytes','mtime_ns','ctime_ns','hash_verified_at_ms','current_location','binding_revision','reality_digest','provenance_digest','last_snapshot_digest','last_observation_id','eligibility_revision','eligibility_state','eligibility_reason_code','eligibility_basis_digest','eligibility_field_status','eligibility_observation_revision','eligibility_policy_revision','selection_basis_digest','control_projection','control_projection_revision','control_projection_digest','eligibility_reconciled_at_ms'], keyColumns:['field_id','material_key'] }
   }});
 }
 
@@ -39,14 +39,19 @@ function validateHandle(handle, page) {
     fail('P7_FIELD_OBSERVATION_HANDLE_MISMATCH', 'Domain Fact Commit Handle does not authorize this exact Field Observation Page.');
   }
 }
-function materialRow(snapshot, bindingRevision, eligibilityState, controlProjection) {
+function materialRow(snapshot, bindingRevision, eligibility) {
   return { field_id:snapshot.fieldId, material_key:snapshot.identity.materialKey, mount_scope_id:snapshot.identity.mountScopeId,
     inode:BigInt(snapshot.identity.inode), content_hash_algorithm:snapshot.identity.contentHashAlgorithm, content_hash:snapshot.identity.contentHash,
     endpoint_id:snapshot.endpointId, access_revision:snapshot.accessRevision, mount_scope_revision:snapshot.mountScopeRevision,
     size_bytes:snapshot.sizeBytes, mtime_ns:BigInt(snapshot.mtimeNs), ctime_ns:BigInt(snapshot.ctimeNs), hash_verified_at_ms:snapshot.hashVerifiedAtMs,
     current_location:snapshot.location, binding_revision:bindingRevision, reality_digest:snapshot.realityDigest,
     provenance_digest:snapshot.provenanceDigest, last_snapshot_digest:snapshot.snapshotDigest, last_observation_id:snapshot.observationId,
-    eligibility_state:eligibilityState, control_projection:controlProjection };
+    eligibility_revision:eligibility.revision, eligibility_state:eligibility.state, eligibility_reason_code:eligibility.reasonCode,
+    eligibility_basis_digest:eligibility.basisDigest, eligibility_field_status:eligibility.fieldStatus,
+    eligibility_observation_revision:eligibility.observationRevision, eligibility_policy_revision:eligibility.policyRevision,
+    selection_basis_digest:eligibility.selectionBasisDigest, control_projection:eligibility.controlProjection,
+    control_projection_revision:eligibility.controlRevision, control_projection_digest:eligibility.controlDigest,
+    eligibility_reconciled_at_ms:eligibility.reconciledAtMs };
 }
 
 function createFieldObservationStore(options) {
@@ -84,9 +89,19 @@ function createFieldObservationStore(options) {
           const bindingRevision = existing ? oldBinding + (rebound ? 1 : 0) : 1;
           const changeKind = existing ? (rebound ? 'rebound' : 'refreshed') : 'inserted';
           const realityChanged = existing && existing.reality_digest !== snapshot.realityDigest;
-          const eligibilityState = !existing || realityChanged ? 'unknown' : existing.eligibility_state;
-          const controlProjection = existing ? existing.control_projection : 'unknown';
-          const row = materialRow(snapshot, bindingRevision, eligibilityState, controlProjection);
+          const reasonCode = !existing ? 'observation_pending_reconcile' : realityChanged ? 'reality_changed' : existing.eligibility_reason_code;
+          const reset = !existing || realityChanged;
+          const eligibility = reset ? { revision:existing ? toNumber(existing.eligibility_revision, 'eligibilityRevision') + 1 : 1,
+            state:'unknown', reasonCode, basisDigest:canonicalDigest({ schema:'procurement.eligibility-unknown@1', materialKey:snapshot.identity.materialKey, reasonCode, realityDigest:snapshot.realityDigest }),
+            fieldStatus:null, observationRevision:null, policyRevision:null, selectionBasisDigest:null, controlProjection:'unknown',
+            controlRevision:null, controlDigest:null, reconciledAtMs:null } : {
+            revision:toNumber(existing.eligibility_revision, 'eligibilityRevision'), state:existing.eligibility_state,
+            reasonCode:existing.eligibility_reason_code, basisDigest:existing.eligibility_basis_digest,
+            fieldStatus:existing.eligibility_field_status, observationRevision:existing.eligibility_observation_revision,
+            policyRevision:existing.eligibility_policy_revision, selectionBasisDigest:existing.selection_basis_digest,
+            controlProjection:existing.control_projection, controlRevision:existing.control_projection_revision,
+            controlDigest:existing.control_projection_digest, reconciledAtMs:existing.eligibility_reconciled_at_ms };
+          const row = materialRow(snapshot, bindingRevision, eligibility);
           materialWrites.push({ statement:existing ? 'update_material' : 'insert_material', row });
           acceptedMaterials.push(Object.freeze({ materialKey:snapshot.identity.materialKey, bindingRevision, changeKind,
             realityDigest:snapshot.realityDigest, snapshotDigest:snapshot.snapshotDigest }));

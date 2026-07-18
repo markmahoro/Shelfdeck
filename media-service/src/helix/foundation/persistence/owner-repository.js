@@ -77,6 +77,14 @@ function compileStatement(statementId, statement, table) {
         (keyColumns.length ? ' WHERE ' + keyColumns.map((column) => quote(column) + '=@' + column).join(' AND ') : '')
     };
   }
+  if (statement.kind === 'select-in') {
+    requireColumns(table, statement.columns, statementId);
+    requireColumns(table, [statement.keyColumn], statementId);
+    if (!Number.isSafeInteger(statement.maxItems) || statement.maxItems < 1 || statement.maxItems > 500) fail('P3_REPOSITORY_INVALID_COLUMNS', 'select-in requires a bounded maxItems.', { statementId });
+    return { statementId, kind:statement.kind, tableId:table.tableId, parameters:['values'], safeIntegers:statement.safeIntegers === true,
+      maxItems:statement.maxItems, sqlPrefix:'SELECT ' + statement.columns.map(quote).join(', ') + ' FROM ' + tableName +
+        ' WHERE ' + quote(statement.keyColumn) + ' IN (', orderBy:quote(statement.keyColumn) };
+  }
   fail('P3_REPOSITORY_UNSUPPORTED_STATEMENT', 'Repository statement kind is unsupported.', { statementId, kind: statement && statement.kind });
 }
 
@@ -128,6 +136,13 @@ function bindRepository(definition, transaction, isActive) {
           fail('P3_REPOSITORY_MISSING_PARAMETER', 'Registered statement parameter is missing.', { statementId, parameter });
         }
         values[parameter] = parameters[parameter];
+      }
+      if (statement.kind === 'select-in') {
+        const values = parameters.values;
+        if (!Array.isArray(values) || values.length < 1 || values.length > statement.maxItems) fail('P3_REPOSITORY_INVALID_IN_SET', 'select-in values exceed their declared bound.', { statementId });
+        const cacheKey = statementId + ':' + values.length;
+        if (!prepared.has(cacheKey)) prepared.set(cacheKey, transaction.prepare(statement.sqlPrefix + values.map(() => '?').join(',') + ') ORDER BY ' + statement.orderBy));
+        const executable = prepared.get(cacheKey); if (statement.safeIntegers) executable.safeIntegers(true); return executable.all(...values);
       }
       if (!prepared.has(statementId)) prepared.set(statementId, transaction.prepare(statement.sql));
       const executable = prepared.get(statementId);

@@ -75,6 +75,63 @@ function controlScopeDigest(changes) {
   return digest(canonicalJson(changes.map(scopeProjection).sort((left, right) => left.materialKey.localeCompare(right.materialKey))));
 }
 
+function controlProjection(value) {
+  const evidence = { schema:'foundation.material-control-evidence@1', materialKey:value.materialKey,
+    resultKind:value.resultKind, ...(value.controlRevision === undefined ? {} : { controlRevision:value.controlRevision }),
+    ...(value.controlState === undefined ? {} : { controlState:value.controlState }),
+    ...(value.ownerDomain === undefined ? {} : { ownerDomain:value.ownerDomain }),
+    ...(value.ownerScopeType === undefined ? {} : { ownerScopeType:value.ownerScopeType }),
+    ...(value.ownerScopeId === undefined ? {} : { ownerScopeId:value.ownerScopeId }),
+    ...(value.failureCode === undefined ? {} : { failureCode:value.failureCode }) };
+  const withEvidence = { ...value, evidenceDigest:digest(canonicalJson(evidence)) };
+  return Object.freeze({ ...withEvidence, projectionDigest:digest(canonicalJson(withEvidence)) });
+}
+
+function mapControlProjection(materialKeyValue, row) {
+  if (!row) return controlProjection({ materialKey:materialKeyValue, resultKind:'available', controlRevision:0,
+    controlState:'uncontrolled', regionProjection:'uncontrolled' });
+  const revision = Number(row.control_revision);
+  if (!Number.isSafeInteger(revision) || revision < 1) return controlProjection({ materialKey:materialKeyValue,
+    resultKind:'unavailable', failureCode:'control_row_invalid' });
+  if (row.state === 'released' && row.owner_domain === null && row.owner_scope_type === null && row.owner_scope_id === null) {
+    return controlProjection({ materialKey:materialKeyValue, resultKind:'available', controlRevision:revision,
+      controlState:'uncontrolled', regionProjection:'uncontrolled' });
+  }
+  const regions = { procurement:'procurement', libra:'production', arca:'finished_goods' };
+  if (row.state !== 'controlled' || !regions[row.owner_domain] || !row.owner_scope_type || !row.owner_scope_id) {
+    return controlProjection({ materialKey:materialKeyValue, resultKind:'unavailable', failureCode:'control_row_invalid' });
+  }
+  return controlProjection({ materialKey:materialKeyValue, resultKind:'available', controlRevision:revision,
+    controlState:'controlled', ownerDomain:row.owner_domain, ownerScopeType:row.owner_scope_type,
+    ownerScopeId:row.owner_scope_id, regionProjection:regions[row.owner_domain] });
+}
+
+function createMaterialControlProjectionPort(options) {
+  if (!options || !options.schemaManifest || !options.unitOfWork || typeof options.unitOfWork.execute !== 'function') fail('P3_CONTROL_QUERY_DATABASE_REQUIRED', 'Material Control Query requires scoped persistence dependencies.');
+  const queryRepository = createRepositoryDefinition({ repositoryId:'material_control_query', owner:'material-control-authority', schemaManifest:options.schemaManifest,
+    statements:{ find_many:{ kind:'select-in', tableId:'fx_material_controls', keyColumn:'material_key', maxItems:500, safeIntegers:true,
+      columns:['material_key','owner_domain','owner_scope_type','owner_scope_id','control_revision','state'] } } });
+  function getMaterialControlProjections(materialKeys) {
+    if (!Array.isArray(materialKeys) || materialKeys.length > 500 || new Set(materialKeys).size !== materialKeys.length ||
+        materialKeys.some((key, index) => !SHA256.test(key || '') || index > 0 && materialKeys[index - 1].localeCompare(key) >= 0)) {
+      fail('P3_CONTROL_QUERY_KEYS_INVALID', 'Material Control Query keys must be unique, sorted, and bounded to 500.');
+    }
+    if (materialKeys.length === 0) return Object.freeze([]);
+    try {
+      const rows = options.unitOfWork.execute([{ participantId:'material_control_query', owner:'material-control-authority', repositories:[queryRepository],
+        execute(context) { return context.repository('material_control_query').invoke('find_many', { values:materialKeys }); } }]).material_control_query;
+      const byKey = new Map(rows.map((row) => [row.material_key, row]));
+      return Object.freeze(materialKeys.map((key) => mapControlProjection(key, byKey.get(key))));
+    } catch (error) {
+      return Object.freeze(materialKeys.map((key) => controlProjection({ materialKey:key, resultKind:'unavailable', failureCode:'control_query_unavailable' })));
+    }
+  }
+  return Object.freeze({
+    getMaterialControlProjection(materialKeyValue) { return getMaterialControlProjections([materialKeyValue])[0]; },
+    getMaterialControlProjections
+  });
+}
+
 function repository(schemaManifest) {
   return createRepositoryDefinition({
     repositoryId: 'material_control', owner: 'material-control-authority', schemaManifest,
@@ -244,4 +301,5 @@ function createMaterialControlParticipant(options) {
   });
 }
 
-module.exports = Object.freeze({ MaterialControlError, controlScopeDigest, createMaterialControlParticipant, materialKey });
+module.exports = Object.freeze({ MaterialControlError, controlScopeDigest, createMaterialControlParticipant,
+  createMaterialControlProjectionPort, materialKey });

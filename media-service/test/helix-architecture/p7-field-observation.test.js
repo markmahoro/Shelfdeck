@@ -23,11 +23,12 @@ const NOW = 1_700_040_000_000;
 const hash = (value) => canonicalDigest({ value });
 
 function fieldRegistration() {
-  const policyValue = { includeExtensions:['mkv'] };
+  const policyValue = { includedDirectories:[], excludedDirectories:[], allowedExtensions:['.mkv'], minimumSizeBytes:0, excludedMaterialKeys:[] };
   const accessBasis = { fieldId:'field-1', revision:1, endpointId:'endpoint-1', rootLocation:'/media/field-1',
     mountScopeId:'mount-1', mountScopeRevision:1, accessSchemaRef:'helix://fixtures/field-access/v1' };
   return { fieldId:'field-1', name:'Field One', policy:{ extractionPolicyId:'policy-1', revision:1,
-    policySchemaRef:'helix://fixtures/extraction-policy/v1', policy:policyValue, policyDigest:canonicalDigest(policyValue) },
+    policySchemaRef:'helix://contracts/domain-types/ExtractionPolicy/v1', policy:policyValue,
+    policyDigest:canonicalDigest({ extractionPolicyId:'policy-1', revision:1, ...policyValue }) },
     access:{ ...accessBasis, accessDigest:canonicalDigest(accessBasis) } };
 }
 function accessHandle(access) {

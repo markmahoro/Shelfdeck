@@ -51,7 +51,7 @@ test('creates and reopens the only clean 161-table WAL generation with hard star
     {
       const first = open(databasePath, { now: () => 1700000000000 });
       assert.equal(first.generation.tableCount, 161);
-      assert.equal(first.generation.indexCount, 74);
+      assert.equal(first.generation.indexCount, 75);
       assert.equal(first.generation.partialUniqueCount, 20);
       assert.equal(first.generation.schemaDigest, schemaManifest.ddlDigest);
       assert.deepEqual(first.diagnostics(), { foreignKeys: 1, journalMode: 'wal', synchronous: 1, busyTimeout: 5000 });

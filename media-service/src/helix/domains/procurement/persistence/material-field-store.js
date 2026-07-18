@@ -2,7 +2,7 @@
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
-const { createExtractionPolicy, createFieldAccess, createMaterialField } = require('../model/material-field-contracts');
+const { createExtractionPolicy, createFieldAccess, createMaterialField, validateExtractionPolicyValue } = require('../model/material-field-contracts');
 
 class MaterialFieldStoreError extends Error {
   constructor(code, message, details = {}) { super(message); this.name = 'MaterialFieldStoreError'; this.code = code; this.details = details; }
@@ -58,10 +58,10 @@ function validateAccess(input) {
 }
 function validatePolicy(input) {
   exact(input, ['extractionPolicyId','revision','policySchemaRef','policy','policyDigest'], 'P7_EXTRACTION_POLICY_INPUT');
-  if (!input.policy || typeof input.policy !== 'object' || Array.isArray(input.policy)) fail('P7_EXTRACTION_POLICY_INVALID', 'Extraction Policy must be a JSON object.');
+  validateExtractionPolicyValue(input.policy);
   const json = canonicalJson(input.policy);
   if (Buffer.byteLength(json, 'utf8') > 16384) fail('P7_EXTRACTION_POLICY_TOO_LARGE', 'Extraction Policy exceeds 16 KiB.');
-  if (canonicalDigest(input.policy) !== input.policyDigest) fail('P7_EXTRACTION_POLICY_DIGEST_MISMATCH', 'Extraction Policy digest does not match its canonical JSON.');
+  if (canonicalDigest({ extractionPolicyId:input.extractionPolicyId, revision:input.revision, ...input.policy }) !== input.policyDigest) fail('P7_EXTRACTION_POLICY_DIGEST_MISMATCH', 'Extraction Policy digest does not match its complete typed value.');
   return json;
 }
 
