@@ -1,6 +1,6 @@
 # Helix Architecture Review Workbench
 
-Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-17；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-05` bounded correction均已完成。
+Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-18；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-07` bounded correction均已完成。
 
 ## 1. Purpose and authority
 
@@ -1551,3 +1551,39 @@ Capability、Facade命令、Face产品语义或关系表数量。
 
 因此本修正仍是对既有PBF-06合同的细化，不新增表或架构结构。实现线程后续对null fixture、digest golden
 fixture、首次revision、Reference/Merge后递增及restart rebuild continuity进行验证即可反证本合同。
+
+### 15.8 `PBF-07` — Field Observation payload与revision continuity
+
+Status: `CLOSED / BOUNDED DETAIL FIX APPLIED` — 2026-07-18
+
+P7-03实现反证确认原Field Observation合同存在两个真实的formal-realizability gap：
+
+1. `FieldObservationPage.materialObservations[]`只被抽取为opaque object/revision/digest ref，但
+   `proc_field_materials`要求完整Physical Identity、hash/stat、Endpoint/location、Binding与Provenance，正式
+   Commit input中不存在合法Resolver；
+2. `ObservationCommitResult`继承revisioned `DomainFactEnvelope`，但Field Store没有Observation current head或
+   revision chain；Access revision、page ordinal、时间戳和observation ID都不能冒充该revision。
+
+该问题不涉及新的用户业务结果。Bounded fix保持Procurement Owner、Material Field Object、Field Observation
+Supporting Work、现有两项Capability和表数量不变：
+
+- 新增formal `FieldObservationPageRequest`与内联`FieldMaterialObservationSnapshot` DTO；snapshot完整携带
+  PhysicalMaterialIdentity、全文件SHA-256、stat、location、Access/Mount/containment provenance及命名digest，
+  pure page observe不得写Artifact或让Commit旁读Snapshot Store；
+- `bindingRevision`不由pure Observer输入或猜测；Procurement CommitParticipant只比较本域同Material current
+  Binding的endpoint/location，以首次1、无变化保持、变化加1的规则唯一演进；
+- `PhysicalMaterialIdentity.materialKey`固定为带schema discriminator的JCS SHA-256，inode在JSON中使用十进制
+  string，避免实现间精度/tuple差异；
+- Observation aggregate固定为`aggregateType=material_field_observation, aggregateId=fieldId`；
+  `proc_material_fields.current_observation_revision`保存nullable head，`proc_field_observations(field_id,revision)`
+  保存跨Work/page持续递增的immutable chain，逻辑expected 0只映射首次SQL NULL；
+- 每页Commit在一个事务中执行Field/access/head CAS、Material current-row upsert、Observation revision/head、
+  durable typed Result、统一result digest和commit marker；相同work/page/pageDigest重放返回原Result；
+- 新Material只初始化为`unknown/unknown`；P7-04现有Field Management reconcile独占最终
+  Eligibility与Control Projection推导，Observation Commit不得直接宣称eligible或伪造Region；
+- cursor在Supporting Work内分页，后续新Work只重置cursor、不重置Field revision；terminal page结束Work，
+  restart从commit marker和原Result恢复。
+
+因此`P7-03 Field Observation Design Return`的架构阻塞已经在SSOT层闭合，没有新增Domain、Process Root、
+Business Object、Capability、表或用户Decision。实现仍需以generated schema/DDL、first/subsequent work CAS、
+page replay/conflict、完整snapshot materialization、result-digest/marker和restart continuity fixtures证明遵守合同。

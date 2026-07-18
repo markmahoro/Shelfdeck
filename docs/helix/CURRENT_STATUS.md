@@ -20,6 +20,10 @@ Last updated: 2026-07-18
 | Phase worktree | `E:\my_project\emby_third_party-helix-p7` on `codex/helix-p7` |
 | Next action | Architecture Agent闭合Field Material snapshot输入与Observation aggregate revision continuity |
 
+Architecture Agent提交`964c6e05`已在SSOT中闭合`PBF-07`：完整Field Material snapshot、Field级Observation
+revision head/CAS、page replay及Eligibility/Control Projection初始责任均已正式定义。实现线程只精确纳入该提交，
+待合同重物化与机器可实现性门禁通过后恢复P7-03。
+
 ## 2. Accepted implementation conclusion
 
 clean Helix的业务核心、Persistence、Execution Foundation、Application Facade、API/Auth和Admin Web需要在
