@@ -1,6 +1,6 @@
 # P7 Procurement Detailed Plan
 
-Status: in progress; P7-00–P7-02 complete; P7-03 active.
+Status: Design Return；P7-00–P7-02 complete；P7-03 blocked by formal Field Observation input/revision gap.
 
 Last updated: 2026-07-18
 
@@ -66,6 +66,9 @@ socket、ambient credential、真实Material Field扫描、真实媒体/FFmpeg�
 
 - 实现Field page observation与atomic observation commit；保存Physical Identity、location、provenance、reality revision。
 - 同一Identity允许被多Field观察；cursor/page replay幂等，移动/消失/不可访问形成新事实而非改写历史。
+- Design Return：正式`FieldObservationPage`只携带Material Object Revision Ref，无法生成`proc_field_materials`完整行；
+  `ObservationCommitResult`要求revision但没有Observation aggregate head/CAS持久化位置。不得用opaque ID/default值/旧Store
+  补读或借用Access revision。详见`evidence/P7_03_FIELD_OBSERVATION_DESIGN_RETURN.md`。
 
 ### P7-04 Extraction Eligibility and derived Regions
 

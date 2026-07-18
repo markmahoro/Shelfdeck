@@ -44,11 +44,11 @@ Work Package细节只存在于`implementation/CURRENT_PHASE.md`；当前事实�
 | --- | --- |
 | Phase | P7 — Procurement |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | in progress；P7-00–P7-02 PASS；latest SSOT与Architecture Agent `f2846fd1`原始blob一致；112/96/161/24 |
+| Status | Design Return；P7-00–P7-02 PASS；P7-03正式Material snapshot输入与Observation revision continuity未闭合 |
 | Implementation baseline | exact P6 phase closure `5831c53207d5e71ccdf4792da11ed71be3d47ae1` |
 | Phase branch/worktree | `codex/helix-p7` / `E:\my_project\emby_third_party-helix-p7` |
 | Allowed now | P2–P13本地代码、unit/contract/isolated fixture、文档与Phase自动转换 |
-| Next action | P7-03 Field Observation Inventory与幂等page commit |
+| Next action | Architecture Agent闭合P7-03 formal DTO/result revision/table continuity后重物化并恢复实现 |
 
 ## 4. Master roadmap
 
