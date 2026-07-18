@@ -111,6 +111,14 @@ test('materializes the one-terminal-merge-target invariant as a database uniquen
   assert.deepEqual(mergeRecords.uniqueConstraints, [['source_person_id']]);
 });
 
+test('binds every Field Observation revision to its durable Foundation commit marker', () => {
+  const observation = contracts.find((contract) => contract.tableId === 'proc_field_observations');
+  const marker = observation.foreignKeys.find((entry) => entry.columns.length === 1 && entry.columns[0] === 'commit_marker');
+  assert.deepEqual(marker.targetTable, 'fx_commit_markers');
+  assert.deepEqual(marker.targetColumns, ['commit_marker']);
+  assert.equal(marker.deferrable, true);
+});
+
 test('forbids Foundation and Platform FK ownership inversion', () => {
   assert.equal(allowedForeignKey('execution-foundation', 'libra'), false);
   assert.equal(allowedForeignKey('platform-settings', 'arca'), false);

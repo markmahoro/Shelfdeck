@@ -120,7 +120,8 @@ const EXPLICIT_FOREIGN_KEYS = Object.freeze({
   proc_field_observations: [
     { columns: ['field_id'], targetTable: 'proc_material_fields', targetColumns: ['field_id'] },
     { columns: ['field_observation_work_id'], targetTable: 'fx_supporting_works', targetColumns: ['work_id'] },
-    { columns: ['field_id', 'access_revision'], targetTable: 'proc_field_access_revisions', targetColumns: ['field_id', 'revision'] }
+    { columns: ['field_id', 'access_revision'], targetTable: 'proc_field_access_revisions', targetColumns: ['field_id', 'revision'] },
+    { columns: ['commit_marker'], targetTable: 'fx_commit_markers', targetColumns: ['commit_marker'] }
   ],
   proc_field_materials: [
     { columns: ['field_id'], targetTable: 'proc_material_fields', targetColumns: ['field_id'] },
@@ -168,6 +169,7 @@ const EXPLICIT_FOREIGN_KEYS = Object.freeze({
 });
 const DEFERRED_FOREIGN_KEY_PAIRS = new Set([
   'proc_material_fields>proc_field_observations', 'proc_field_observations>proc_material_fields',
+  'proc_field_observations>fx_commit_markers',
   'people_persons>people_person_revisions', 'people_person_revisions>people_persons',
   'people_persons>people_preference_revisions', 'people_preference_revisions>people_persons',
   'people_persons>people_reference_revisions',
@@ -185,6 +187,8 @@ const JSON_SCHEMA_COLUMN_OVERRIDES = Object.freeze({
   'libra_product_fact_revisions.fact_json': 'schema_ref'
 });
 const JSON_LIMIT_OVERRIDES = Object.freeze({
+  'fx_event_result_bindings.result_json': 64 * 1024,
+  'fx_event_result_bindings.evidence_json': 64 * 1024,
   'people_registration_candidates.candidate_json': 16 * 1024,
   'people_merge_candidates.candidate_json': 16 * 1024
 });

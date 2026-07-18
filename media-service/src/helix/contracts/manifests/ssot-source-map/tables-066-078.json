@@ -12,7 +12,7 @@
       "constraintsContract": "`media_cast_fact_id/digest`必须引用同Run的完整Libra Media-Cast Product Fact snapshot；`UNIQUE(libra_run_id,package_digest)`；published Package immutable；`INDEX(shelf_id,state,published_at_ms)`",
       "source": {
         "section": "8.5.11",
-        "line": 7723,
+        "line": 7734,
         "lineDigest": "5ee6af983eb9b2d958ff1651c80a6aa08c17d5a5a7c4ceac8155126ba3d55b1a"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,material_key,role)`；Package publication为新Deliverable Identity原子取得Libra Control",
       "source": {
         "section": "8.5.11",
-        "line": 7724,
+        "line": 7735,
         "lineDigest": "74326c72bf9e4df85cf2b27b1bb7d45535630e05adcea857a29ce47f7febc8b7"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,material_key,context_role)`",
       "source": {
         "section": "8.5.11",
-        "line": 7725,
+        "line": 7736,
         "lineDigest": "fc7662f1ef7c9342c2a73b10deb3a0220b3bcc975f4275ee42f2875fd548aee3"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "`UNIQUE(on_deck_package_id,package_digest)`；`INDEX(result,received_at_ms)`",
       "source": {
         "section": "8.5.11",
-        "line": 7726,
+        "line": 7737,
         "lineDigest": "a56646b3a3ddbebeadc546aac142d56b33fba1da82ffef1a78d71783b50ed550"
       }
     },
@@ -56,7 +56,7 @@
       "constraintsContract": "mount scope pair是Platform opaque technical ref；active Shelf name不作为identity；`INDEX(status,shelf_id)`；不得保存Libra Routing Priority",
       "source": {
         "section": "8.5.12",
-        "line": 7732,
+        "line": 7743,
         "lineDigest": "e1ea8e1c08ac95c8ea3cf2247c8415dc689f9990b9e6720bb3dcc4857e4777b7"
       }
     },
@@ -67,7 +67,7 @@
       "constraintsContract": "system template不能archive或创建draft；current revision显式FK；`INDEX(status,owner_kind,rule_template_id)`",
       "source": {
         "section": "8.5.12",
-        "line": 7733,
+        "line": 7744,
         "lineDigest": "bd5c979d8217bbe4ac7c7562b1b9edf0fc2732ef5d8cccbc27f1d01f79fbe829"
       }
     },
@@ -78,7 +78,7 @@
       "constraintsContract": "rules JSON上限`64 KiB`；`PK(rule_template_id,revision)`；immutable",
       "source": {
         "section": "8.5.12",
-        "line": 7734,
+        "line": 7745,
         "lineDigest": "6e3e8f8aa33fe6418af146903da0d1e6e2d7f8fd094681a008803ad07f8ceb51"
       }
     },
@@ -89,7 +89,7 @@
       "constraintsContract": "只允许user template；一个Template最多一份current draft；发布以expected draft revision/digest消费但保留审计Evidence",
       "source": {
         "section": "8.5.12",
-        "line": 7735,
+        "line": 7746,
         "lineDigest": "b27ad6918fa468908a559182fd6d6cce24143d3afa39a1f4c17b0f89bbd6155c"
       }
     },
@@ -100,7 +100,7 @@
       "constraintsContract": "Standard JSON上限`64 KiB`；`PK(shelf_id,revision)`；Shelf current pointer显式FK；当前row中的template pair同时是Shelf current Template binding权威来源；`INDEX(rule_template_id,rule_template_revision)`",
       "source": {
         "section": "8.5.12",
-        "line": 7736,
+        "line": 7747,
         "lineDigest": "4fc3b60852bf253ca8b4f3f3741f542f3d5f5b3468003014b525d2311ab36fdb"
       }
     },
@@ -111,7 +111,7 @@
       "constraintsContract": "Policy JSON上限`16 KiB`；`PK(shelf_id,revision)`；Shelf current pointer显式FK",
       "source": {
         "section": "8.5.12",
-        "line": 7737,
+        "line": 7748,
         "lineDigest": "f1ff9fbfeb19ff8629a2ca30d5d792300614f66d81e5d042e1baf50cb5bfd75a"
       }
     },
@@ -122,7 +122,7 @@
       "constraintsContract": "相同`package_digest+standard+placement`至多一个non-terminal attempt；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 7738,
+        "line": 7749,
         "lineDigest": "624844eec22aea6cf54a1efaccb03b513aa64c681227deeef4d5f26dc210504a"
       }
     },
@@ -133,7 +133,7 @@
       "constraintsContract": "`PK(acceptance_attempt_id,check_kind,check_revision)`",
       "source": {
         "section": "8.5.12",
-        "line": 7739,
+        "line": 7750,
         "lineDigest": "77d3920ed642da9e59d4fd9c91e1474be0429b26f5f775356b97d12915d5b36a"
       }
     },
@@ -144,7 +144,7 @@
       "constraintsContract": "`UNIQUE(acceptance_attempt_id)`；immutable",
       "source": {
         "section": "8.5.12",
-        "line": 7740,
+        "line": 7751,
         "lineDigest": "ce028684e190a9b1555763d0c1260e443767d69182aab08e4b9912acdfc1ba36"
       }
     }

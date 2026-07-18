@@ -239,5 +239,6 @@
     "materialObservations",
     "pageDigest",
     "hasMore"
-  ]
+  ],
+  "x-helix-maxCanonicalBytes": 65536
 }

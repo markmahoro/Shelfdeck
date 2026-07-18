@@ -174,5 +174,6 @@
     "acceptedMaterialSetDigest",
     "nextCursor",
     "hasMore"
-  ]
+  ],
+  "x-helix-maxCanonicalBytes": 65536
 }

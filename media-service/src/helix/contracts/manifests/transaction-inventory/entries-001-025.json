@@ -44,7 +44,7 @@
       "sourceLocator": {
         "section": "8.5.4",
         "line": 7497,
-        "lineDigest": "6fbdb0b64762c6062f94a563075624cd912a9e77f1fb5c8ab347c6d51dcf5c89"
+        "lineDigest": "58747ee1aa0df557ec960c3b49a4da639783cc35560b32743186e2d25fb96af7"
       },
       "targetLocator": {
         "path": "transaction-contracts/helix.transaction.field-observation-page-commit/v1/contract.json"
@@ -53,11 +53,11 @@
         "transactionId": "helix.transaction.field-observation-page-commit",
         "ownerScope": "procurement",
         "contractRef": "helix://contracts/transactions/helix.transaction.field-observation-page-commit/v1",
-        "contractDigest": "74b3f1ccaf2b3d1ddb59a12be7d819004f83250314fa8a009674895126e67b08"
+        "contractDigest": "13f626c61efe6ef50e4b5ba41e6e5dd639a0ef3fbc788e2cfbb91d49afec7c25"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "2c195ec40c5a4bcb9f8e6fc692524b0785f94f0dd7dccb2535050e1d0a60d767"
+        "value": "e3d2d91e4928c6c1d8645826e7f40c6e8cef6d64859ba82fe0bdba33205036d3"
       }
     },
     {

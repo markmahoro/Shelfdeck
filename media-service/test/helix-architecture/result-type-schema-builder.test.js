@@ -37,6 +37,11 @@ test('keeps On-deck atomic success and business not-available distinct from Runt
   for (const schema of Object.values(schemas)) assert.equal(Object.hasOwn(schema.properties || {}, 'kind'), false);
 });
 
+test('freezes the Field Observation page and commit result canonical byte ceilings', () => {
+  assert.equal(schemas.FieldObservationPage['x-helix-maxCanonicalBytes'], 64 * 1024);
+  assert.equal(schemas.ObservationCommitResult['x-helix-maxCanonicalBytes'], 64 * 1024);
+});
+
 test('flattens WorkspaceMediaHandle without accepting a raw nested workspace payload', () => {
   const schema = schemas.WorkspaceMediaHandle;
   assert.ok(schema.required.includes('workspaceId'));

@@ -2273,7 +2273,8 @@ CREATE TABLE "proc_field_observations" (
   UNIQUE ("commit_marker"),
   FOREIGN KEY ("field_id") REFERENCES "proc_material_fields" ("field_id") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
   FOREIGN KEY ("field_observation_work_id") REFERENCES "fx_supporting_works" ("work_id") ON DELETE RESTRICT,
-  FOREIGN KEY ("field_id", "access_revision") REFERENCES "proc_field_access_revisions" ("field_id", "revision") ON DELETE RESTRICT
+  FOREIGN KEY ("field_id", "access_revision") REFERENCES "proc_field_access_revisions" ("field_id", "revision") ON DELETE RESTRICT,
+  FOREIGN KEY ("commit_marker") REFERENCES "fx_commit_markers" ("commit_marker") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED
 );
 CREATE INDEX "idx_proc_field_observations_hot_01" ON "proc_field_observations" ("field_id", "completed", "observed_at_ms");
 

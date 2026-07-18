@@ -18,11 +18,11 @@
     {
       "id": "Field Observation Page Commit",
       "owner": "procurement",
-      "atomicFactSet": "complete `FieldObservationPage` + current Field Observation head CAS + immutable page revision + Field Material current-row insert/update + durable `ObservationCommitResult` + commit marker；新Material只置`unknown/unknown`初值，Observation Commit不计算最终Eligibility/Region",
+      "atomicFactSet": "validated complete `FieldObservationPage`同时作为本Commit Event的immutable durable Evidence写入`fx_event_result_bindings.evidence_json` + current Field Observation head CAS + immutable page revision + Field Material current-row insert/update + durable `ObservationCommitResult` + commit marker；全部同事务成立；新Material只置`unknown/unknown`初值，Observation Commit不计算最终Eligibility/Region，也不发布Outbox",
       "source": {
         "section": "8.5.4",
         "line": 7497,
-        "lineDigest": "6fbdb0b64762c6062f94a563075624cd912a9e77f1fb5c8ab347c6d51dcf5c89"
+        "lineDigest": "58747ee1aa0df557ec960c3b49a4da639783cc35560b32743186e2d25fb96af7"
       }
     },
     {

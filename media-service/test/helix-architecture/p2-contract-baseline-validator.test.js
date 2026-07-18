@@ -31,7 +31,7 @@ test('closes the exact P2 112/96/161/25 baseline with a stable aggregate digest'
     capabilities: 112, resultFamilies: 96, tables: 161, transactions: 25,
     sharedTypes: 29, domainInputs: 92, referencedTypeRefs: 198, unresolvedTypeRefs: 0
   });
-  assert.equal(first.aggregateDigest, '2d78006ec8733ef72a6b02023834b38f02e2510263db7c086fd264fca3d5d1cd');
+  assert.equal(first.aggregateDigest, 'd8eaa5f3907216bab37f98b9d64342a06f236b099cd9ad1bc77c8040b4d4dcbd');
   assert.equal(first.aggregateDigest, second.aggregateDigest);
   assert.deepEqual(first.prohibitedActionsRun, []);
 });

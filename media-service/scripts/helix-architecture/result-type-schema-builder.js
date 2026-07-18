@@ -386,6 +386,9 @@ function buildResultTypeSchema(name, [base, fieldList]) {
     ...(base ? { 'x-helix-envelopeRef': typeId(base) } : {}),
     ...object(properties, required)
   };
+  if (name === 'FieldObservationPage' || name === 'ObservationCommitResult') {
+    result['x-helix-maxCanonicalBytes'] = 64 * 1024;
+  }
   if (name === 'PerceptionResolutionDraft' || name === 'PerceptionResolutionRevision') {
     result.allOf = [{
       if: { properties: { resultKind: { const: 'found' } }, required: ['resultKind'] },
