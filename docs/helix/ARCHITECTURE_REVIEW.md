@@ -1,6 +1,6 @@
 # Helix Architecture Review Workbench
 
-Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-18；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-09` bounded correction均已完成。
+Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-18；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-09`（含`PBF-09-R1`）bounded correction均已完成。
 
 ## 1. Purpose and authority
 
@@ -1684,3 +1684,36 @@ P7-05实现反证确认Procurement Run的业务语义已经存在，但Level 8�
 因此`P7-05 Procurement Run Admission Design Return`的五项阻塞已经在SSOT层闭合。实现仍需通过1/1024/1025
 边界、Admission中途崩溃、same-Field assert、Candidate Reservation、Seal、Retry consume/stale及restart replay
 反例证明合同物化正确。
+
+### 15.12 `PBF-09-R1` — Run Seal Evidence、Retry replay与Triage Rule authority
+
+Status: `CLOSED / BOUNDED DETAIL FIX APPLIED` — 2026-07-18
+
+P7-05对`PBF-09`物化前再次做纵向反证，提出三项formal-realizability疑点。主审分别沿正式DTO、Owner relation
+rows、canonical transaction、commit marker/replay和current freshness核对后，确认三项均为真实缺口，而不是实现
+线程对已定合同的重复提问：
+
+1. Seal Decision和Receipt都要求逐成员`evidenceDigest`，但Run member row只有terminal disposition；aggregate
+   `seal_evidence_digest`无法恢复released set，且三项Seal digest没有唯一JCS basis；
+2. Retry只保存expected member摘要和一个singular stale reason，无法重建实际consume snapshot、closed reason
+   precedence、primary/aggregate映射或五项digest；
+3. Triage Rule虽然已有Procurement Owner和Run frozen revision语义，但没有唯一Registry authority，也没有在Run
+   Admission/Retry freshness中拒绝调用者伪造或过期Rule tuple。
+
+本轮修正不改变业务语义，不需要用户Decision。Bounded correction保持五Domain、两Handoff、既有Procurement
+Process、112项Capability、96个Catalog Result family和162张关系表不变：
+
+- `proc_run_materials`增加terminal Evidence digest、Run head补齐Seal Decision ID，Run Seal在同一事务写逐成员
+  Evidence、candidate/released set digest及aggregate seal digest；三项公式、排序、空集合和count含义唯一化；
+- Retry Intent冻结完整Admission Head，existing member relation增加expected Selection fence以及一次写入的typed
+  consume snapshot；Run/Retry expected Control row补齐与正式Snapshot一致的Evidence digest；failed member、member
+  precondition、scope、precondition set和stale set digest均有唯一JCS formula；
+- stale reason收敛为13项closed set、固定precedence、每member唯一primary code、Result去重排序数组和Intent head
+  primary映射；所有terminal member snapshot、typed Result与marker同事务成立；
+- `TriagePlanner`包内的immutable `ProcurementTriageRuleRegistry@1`成为唯一Rule Authority；新Run只使用active
+  Snapshot，已有Run按保留的historical entry恢复，Retry consume把Rule active freshness纳入Admission Head；
+- Registry是versioned contract artifact，不新增Store、Capability、Business Object、顶级Domain或用户配置。
+
+全文一致性审计覆盖Level 5 Policy Owner、Level 6 Run/Seal/Retry、Level 8组件树、transaction、162-table schema、
+formal DTO/digest、application flow、crash fixture与Dictionary，以及Level 10 Registry startup/readiness。结果为
+`PASS / PBF-09-R1 CLOSED / NO OPEN BUSINESS DECISION`。

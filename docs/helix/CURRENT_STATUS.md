@@ -41,9 +41,10 @@ Architecture Agent提交`2ff2f60d`已闭合`PBF-08`：固定Beta `ExtractionPoli
 `ExtractionEligibilityDecision/Batch/ReconcileSummary`、stale-safe CAS、terminal missing、批事务与restart收敛合同。
 该修正不新增Domain、Handoff、Capability或关系表；P7-04实现阻塞解除。本实现线程只原样纳入SSOT delta，未自行修改SSOT。
 
-Architecture Agent提交`b6505e93`已闭合`PBF-09`主体：Procurement Run Admission/Seal/Retry、relationized
-Execution Basis、Field-scope Control与Candidate Delivery Reservation正式成立；关系表调整为162张，Domain、Handoff、
-Capability和96个Catalog Result family不变。该提交只修改架构文档，等待实现线程可实现性复审与机器合同传播。
+Architecture Agent提交`b6505e93`与`6f137a71`已闭合`PBF-09/PBF-09-R1`：Procurement Run Admission/Seal/Retry、
+relationized Execution Basis、Field-scope Control、Candidate Delivery Reservation、Run Seal逐成员Evidence及三项digest、
+Retry五项digest/closed stale reason/replay snapshot，以及Procurement-owned immutable Triage Rule Registry均已有精确合同。
+实现侧复审确认没有新增Domain、Handoff或Capability；关系表调整为162张，96个Catalog Result family不变，阻塞解除。
 
 P7-04现已完成：`4c4a2c8a`把PBF-08精确传播为112/96/161/26机器合同，`9419e8f5`实现closed Policy验证、
 pure Eligibility evaluator和versioned Material Control Query，`5a36fdbc`实现同一SQLite Unit of Work内的Foundation
