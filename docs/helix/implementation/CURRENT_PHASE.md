@@ -1,6 +1,6 @@
 # P7 Procurement Detailed Plan
 
-Status: Design Return；P7-00–P7-02 complete；PBF-07 propagation PASS；P7-03 blocked by durable complete-page conflict.
+Status: In progress；P7-00–P7-03 complete；next P7-04 Extraction Eligibility and derived Regions.
 
 Last updated: 2026-07-18
 
@@ -66,10 +66,12 @@ socket、ambient credential、真实Material Field扫描、真实媒体/FFmpeg�
 
 - 实现Field page observation与atomic observation commit；保存Physical Identity、location、provenance、reality revision。
 - 同一Identity允许被多Field观察；cursor/page replay幂等，移动/消失/不可访问形成新事实而非改写历史。
-- PBF-07已闭合完整snapshot、Field revision head/CAS、cursor/replay和unknown初值，合同传播及25事务crash门禁PASS。
-- 新Design Return：完整Page合法上限512 KiB，但没有Procurement-owned immutable payload/member history；Foundation typed Evidence
-  列仅64 KiB，current Material row又会覆盖历史。同时事务声明`hasOutbox=false`而现Domain Commit Coordinator强制非空Outbox。
-  不得截断、降低隐含上限、伪造Outbox或旁读旧Store。详见`evidence/P7_03_FIELD_OBSERVATION_DESIGN_RETURN.md`第7–9节。
+- Done：PBF-07-R1把Page/Result各自固定为64 KiB，完整Page由Foundation Result Binding保存为immutable typed Evidence，
+  Observation→Marker→Binding链可恢复历史；canonical Transaction Registry按精确合同决定Outbox cardinality，本事务固定零Outbox。
+- pure Observer同时按100项和canonical bytes分页且不跳过首个未返回成员；Commit以Field head/access/work/page/cursor执行CAS，
+  原子追加Observation、更新Material current row、保存typed Result/Evidence和Marker。int64无损、replay、rebound、reality reset、
+  stale Access/revision、continuity、zero-Outbox及rollback反例PASS。Evidence见
+  `evidence/P7_03_FIELD_OBSERVATION_DESIGN_RETURN.md`第10节。
 
 ### P7-04 Extraction Eligibility and derived Regions
 

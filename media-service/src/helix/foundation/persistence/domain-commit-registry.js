@@ -110,7 +110,7 @@ function createCanonicalTransactionRegistry(options) {
   for (const document of options.contracts) {
     const contract = document && document.contract;
     if (!contract || document.schemaVersion !== 1 || document.contractVersion !== 1 ||
-        document.contractId !== `helix://contracts/transactions/${contract.transactionId}/v1` ||
+        document.contractId !== 'helix://contracts/transactions/' + contract.transactionId + '/v1' ||
         typeof contract.transactionId !== 'string' || contract.commitClass !== DOMAIN_FACT_EFFECT_CLASS ||
         !contract.fenceContract || contract.fenceContract.domainRevisionFenceRequired !== true ||
         contract.fenceContract.commitMarkerRequired !== true || typeof contract.fenceContract.outboxRequired !== 'boolean' ||

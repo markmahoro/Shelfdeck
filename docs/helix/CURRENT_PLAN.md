@@ -44,11 +44,11 @@ Work Package细节只存在于`implementation/CURRENT_PHASE.md`；当前事实�
 | --- | --- |
 | Phase | P7 — Procurement |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | Design Return；P7-00–P7-02 PASS；PBF-07传播PASS；P7-03完整Page durable history与no-Outbox协调合同未闭合 |
+| Status | P7-00–P7-03 PASS；PBF-07-R1合同、durable history与zero-Outbox实现闭合 |
 | Implementation baseline | exact P6 phase closure `5831c53207d5e71ccdf4792da11ed71be3d47ae1` |
 | Phase branch/worktree | `codex/helix-p7` / `E:\my_project\emby_third_party-helix-p7` |
 | Allowed now | P2–P13本地代码、unit/contract/isolated fixture、文档与Phase自动转换 |
-| Next action | Architecture Agent闭合512 KiB完整Page的immutable durable位置及`hasOutbox=false`协调语义后恢复实现 |
+| Next action | P7-04 Extraction Eligibility and derived Regions |
 
 ## 4. Master roadmap
 

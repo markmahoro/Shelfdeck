@@ -13,16 +13,22 @@ Last updated: 2026-07-18
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains |
 | Current phase | P7 — Procurement |
-| Current phase status | P7-00–P7-02 PASS；PBF-07-R1已闭合并纳入；P7-03 implementation resumed |
+| Current phase status | P7-00–P7-03 PASS；PBF-07-R1与Field Observation Inventory实现闭合 |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P6 phase closure `5831c53207d5e71ccdf4792da11ed71be3d47ae1` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p7` on `codex/helix-p7` |
-| Next action | 重物化PBF-07-R1合同并继续P7-03 Field Observation实现与机器反例 |
+| Next action | P7-04 Extraction Eligibility and derived Regions |
 
 Architecture Agent提交`19ed12fa`已闭合`PBF-07-R1`：Page正式收敛为≤65,536 UTF-8 JCS bytes，完整Page作为
 Commit Event immutable typed Evidence保存，并通过Observation→Marker→Result Binding形成禁止GC的历史恢复链；
 精确Transaction Contract同时决定Outbox cardinality，Field Observation固定零Outbox。实现线程精确纳入该提交后恢复P7-03。
+
+P7-03现已完成：PBF-07-R1重物化提交`3c6e6d6a`冻结64 KiB Page/Result、Observation→Marker FK及25项事务；
+实现提交`15f27b7b`提供pure bounded Observer、Procurement-owned Observation/Material revision Store与canonical Transaction
+Registry。完整Page作为immutable typed Evidence持久化并可由marker replay恢复；Field head/access/work/page/cursor CAS、Material
+binding revision、reality变化后的Eligibility reset、signed int64无损和零Outbox均有机器反例。完整Architecture tests
+`526/526 PASS`，未运行E2E、Docker、部署、真实Field/媒体副作用，未修改`media-desktop`，本线程未编辑SSOT。
 
 ## 2. Accepted implementation conclusion
 

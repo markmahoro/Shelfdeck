@@ -156,3 +156,30 @@ Architecture Agent需选择并正式传播一种唯一持久化合同，例如�
 - `hasOutbox=false`在正式Domain Commit协调器中的合法执行语义。
 
 在此之前不提交partial Store，不降低Page上限，不伪造Outbox，不修改SSOT。
+
+## 10. Closure and implementation receipt
+
+Architecture Agent提交`19ed12fa`正式闭合第7–9节阻塞；实现线程仅将该提交精确纳入为`8021c8c7`，未编辑SSOT：
+
+- `FieldObservationPage`与`ObservationCommitResult`完整typed value各自≤65,536 UTF-8 JCS bytes；
+- 完整Page固定写入同一Commit Event的`fx_event_result_bindings.evidence_json`，并由
+  Observation revision→Commit Marker→Result Binding形成长期历史恢复链；
+- `proc_field_observations.commit_marker`显式FK指向Foundation Marker，循环写入使用deferred FK；
+- exact canonical Transaction Contract决定Outbox cardinality，Field Observation固定`outboxRequired=false`且零消息。
+
+合同重物化提交`3c6e6d6a`完成112 Capability、96 Result Family、161 table、25 transaction传播，并冻结Page/Result
+64 KiB Schema扩展、170项FK、DDL与crash fixture。实现提交`15f27b7b`完成：
+
+- pure page Observer只使用注入的bounded enumerator和clock，按materialKey UTF-8 bytes排序，同时按`1..100`条目与64 KiB
+  canonical bytes截断；cursor只越过已返回成员，不能装入首项时不推进并稳定失败；
+- 完整Physical Identity/stat/hash/location/provenance/reality snapshot及所有JCS digest逐层校验；
+- Field current Observation head以SQL NULL映射逻辑revision 0，随后跨Work连续CAS；同Work page/cursor连续，Access head与
+  running Supporting Work均在同事务preflight；
+- Observation revision、Material current rows、完整typed Evidence/Result和Marker全有或全无；新Material为
+  `unknown/unknown`，refresh保持binding revision，endpoint/location变化才rebound，reality变化只重置Eligibility；
+- `mtime_ns/ctime_ns`在SQLite边界使用signed int64并以BigInt无损往返；marker replay恢复首次typed Result和完整Page Evidence；
+- canonical transaction明确禁止伪造Outbox；旧的Outbox-required Domain transactions仍保持非空要求。
+
+验证结果：P7 focused与P3/P6回归`33/33 PASS`；完整`media-service/test/helix-architecture/*.test.js`
+`526/526 PASS`，`findings=0`。未运行E2E、Docker、Service启动、真实Field扫描、真实媒体副作用、部署或生产动作；
+未修改`media-desktop`。本Design Return现为已闭合历史证据，P7-03恢复门禁全部满足。
