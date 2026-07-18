@@ -132,6 +132,27 @@ function createMaterialControlProjectionPort(options) {
   });
 }
 
+function createMaterialControlProjectionReadParticipant(options) {
+  if (!options || !options.schemaManifest || !Array.isArray(options.materialKeys) || typeof options.accept !== 'function') {
+    fail('P3_CONTROL_QUERY_PARTICIPANT_INVALID', 'Material Control projection participant dependencies are required.');
+  }
+  const keys = options.materialKeys;
+  if (keys.length < 1 || keys.length > 500 || new Set(keys).size !== keys.length ||
+      keys.some((key, index) => !SHA256.test(key || '') || index > 0 && keys[index - 1].localeCompare(key) >= 0)) {
+    fail('P3_CONTROL_QUERY_KEYS_INVALID', 'Material Control Query keys must be unique, sorted, and bounded to 500.');
+  }
+  const queryRepository = createRepositoryDefinition({ repositoryId:'material_control_reconcile_query', owner:'material-control-authority', schemaManifest:options.schemaManifest,
+    statements:{ find_many:{ kind:'select-in', tableId:'fx_material_controls', keyColumn:'material_key', maxItems:500, safeIntegers:true,
+      columns:['material_key','owner_domain','owner_scope_type','owner_scope_id','control_revision','state'] } } });
+  return Object.freeze({ participantId:options.participantId || 'material_control_reconcile_query', owner:'material-control-authority',
+    boundBusinessOwner:'procurement', repositories:[queryRepository], execute(context) {
+      const rows = context.repository(queryRepository.repositoryId).invoke('find_many', { values:keys });
+      const byKey = new Map(rows.map((row) => [row.material_key, row]));
+      const snapshots = Object.freeze(keys.map((key) => mapControlProjection(key, byKey.get(key))));
+      options.accept(snapshots); return snapshots.length;
+    } });
+}
+
 function repository(schemaManifest) {
   return createRepositoryDefinition({
     repositoryId: 'material_control', owner: 'material-control-authority', schemaManifest,
@@ -302,4 +323,4 @@ function createMaterialControlParticipant(options) {
 }
 
 module.exports = Object.freeze({ MaterialControlError, controlScopeDigest, createMaterialControlParticipant,
-  createMaterialControlProjectionPort, materialKey });
+  createMaterialControlProjectionPort, createMaterialControlProjectionReadParticipant, materialKey });

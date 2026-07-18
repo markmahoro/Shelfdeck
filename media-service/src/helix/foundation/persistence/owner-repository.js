@@ -80,10 +80,13 @@ function compileStatement(statementId, statement, table) {
   if (statement.kind === 'select-in') {
     requireColumns(table, statement.columns, statementId);
     requireColumns(table, [statement.keyColumn], statementId);
+    const fixedKeyColumns = statement.fixedKeyColumns || [];
+    if (fixedKeyColumns.length > 0) requireColumns(table, fixedKeyColumns, statementId);
     if (!Number.isSafeInteger(statement.maxItems) || statement.maxItems < 1 || statement.maxItems > 500) fail('P3_REPOSITORY_INVALID_COLUMNS', 'select-in requires a bounded maxItems.', { statementId });
-    return { statementId, kind:statement.kind, tableId:table.tableId, parameters:['values'], safeIntegers:statement.safeIntegers === true,
+    return { statementId, kind:statement.kind, tableId:table.tableId, parameters:[...fixedKeyColumns, 'values'], safeIntegers:statement.safeIntegers === true,
       maxItems:statement.maxItems, sqlPrefix:'SELECT ' + statement.columns.map(quote).join(', ') + ' FROM ' + tableName +
-        ' WHERE ' + quote(statement.keyColumn) + ' IN (', orderBy:quote(statement.keyColumn) };
+        ' WHERE ' + (fixedKeyColumns.length ? fixedKeyColumns.map((column) => quote(column) + '=@' + column).join(' AND ') + ' AND ' : '') +
+        quote(statement.keyColumn) + ' IN (', orderBy:quote(statement.keyColumn) };
   }
   fail('P3_REPOSITORY_UNSUPPORTED_STATEMENT', 'Repository statement kind is unsupported.', { statementId, kind: statement && statement.kind });
 }
@@ -138,11 +141,13 @@ function bindRepository(definition, transaction, isActive) {
         values[parameter] = parameters[parameter];
       }
       if (statement.kind === 'select-in') {
-        const values = parameters.values;
-        if (!Array.isArray(values) || values.length < 1 || values.length > statement.maxItems) fail('P3_REPOSITORY_INVALID_IN_SET', 'select-in values exceed their declared bound.', { statementId });
-        const cacheKey = statementId + ':' + values.length;
-        if (!prepared.has(cacheKey)) prepared.set(cacheKey, transaction.prepare(statement.sqlPrefix + values.map(() => '?').join(',') + ') ORDER BY ' + statement.orderBy));
-        const executable = prepared.get(cacheKey); if (statement.safeIntegers) executable.safeIntegers(true); return executable.all(...values);
+        const inValues = parameters.values;
+        if (!Array.isArray(inValues) || inValues.length < 1 || inValues.length > statement.maxItems) fail('P3_REPOSITORY_INVALID_IN_SET', 'select-in values exceed their declared bound.', { statementId });
+        const cacheKey = statementId + ':' + inValues.length;
+        if (!prepared.has(cacheKey)) prepared.set(cacheKey, transaction.prepare(statement.sqlPrefix + inValues.map((unused, index) => '@in_' + index).join(',') + ') ORDER BY ' + statement.orderBy));
+        const bindings = { ...values }; delete bindings.values;
+        inValues.forEach((value, index) => { bindings['in_' + index] = value; });
+        const executable = prepared.get(cacheKey); if (statement.safeIntegers) executable.safeIntegers(true); return executable.all(bindings);
       }
       if (!prepared.has(statementId)) prepared.set(statementId, transaction.prepare(statement.sql));
       const executable = prepared.get(statementId);

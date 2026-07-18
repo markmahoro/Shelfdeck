@@ -17,15 +17,19 @@ const schemaManifest = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../..
 const SHA_A = 'a'.repeat(64);
 const SHA_B = 'b'.repeat(64);
 
-function policy(overrides = {}) { return { includedDirectories:[], excludedDirectories:[], allowedExtensions:['.mkv'],
-  minimumSizeBytes:10, excludedMaterialKeys:[], ...overrides }; }
-function snapshot(regionProjection = 'uncontrolled') { const basis = { materialKey:SHA_A, resultKind:'available', controlRevision:0,
-  controlState:'uncontrolled', regionProjection, evidenceDigest:SHA_B }; return { ...basis, projectionDigest:canonicalDigest(basis) }; }
+function policy(overrides = {}) { const value = { extractionPolicyId:'policy-1', revision:1, includedDirectories:[], excludedDirectories:[],
+  allowedExtensions:['.mkv'], minimumSizeBytes:10, excludedMaterialKeys:[], ...overrides };
+  return { ...value, policyDigest:canonicalDigest(value) }; }
+function snapshot(regionProjection = 'uncontrolled') { const evidence = { schema:'foundation.material-control-evidence@1', materialKey:SHA_A,
+  resultKind:'available', controlRevision:0, controlState:'uncontrolled' }; const basis = { materialKey:SHA_A, resultKind:'available', controlRevision:0,
+  controlState:'uncontrolled', regionProjection, evidenceDigest:canonicalDigest(evidence) }; return { ...basis, projectionDigest:canonicalDigest(basis) }; }
+function selection() { const basis={ materialKey:SHA_A, activeSelections:[], hasConflict:false };
+  return { ...basis, selectionBasisDigest:canonicalDigest(basis) }; }
 function decision(overrides = {}) { return { fieldId:'field-1', fieldStatus:'active', materialKey:SHA_A, expectedEligibilityRevision:1,
   accessRevision:1, accessDigest:SHA_B, terminalObservationRevision:1, fieldObservationWorkId:'work-1', materialBindingRevision:1,
   lastSnapshotDigest:SHA_B, lastObservationId:'observation-1', appearedInTerminalWork:true,
   materialRelativeLocation:'movies/title.mkv', sizeBytes:100, observedExtension:'.mkv', extractionPolicy:policy(),
-  selectionSnapshot:{ materialKey:SHA_A, activeSelections:[], hasConflict:false, selectionBasisDigest:SHA_B },
+  selectionSnapshot:selection(),
   controlSnapshot:snapshot(), ...overrides }; }
 
 test('applies the unique Eligibility reason precedence without historical suppression', () => {
@@ -41,12 +45,17 @@ test('applies the unique Eligibility reason precedence without historical suppre
 });
 
 test('keeps unavailable Control evidence unknown and digest-binds every deterministic decision', () => {
-  const unavailable = { materialKey:SHA_A, resultKind:'unavailable', failureCode:'control_query_unavailable',
-    evidenceDigest:SHA_B, projectionDigest:SHA_B };
+  const evidence={schema:'foundation.material-control-evidence@1',materialKey:SHA_A,resultKind:'unavailable',failureCode:'control_query_unavailable'};
+  const basis={materialKey:SHA_A,resultKind:'unavailable',failureCode:'control_query_unavailable',evidenceDigest:canonicalDigest(evidence)};
+  const unavailable = { ...basis, projectionDigest:canonicalDigest(basis) };
   const result = evaluateExtractionEligibility(decision({ controlSnapshot:unavailable }));
   assert.equal(result.decisionState, 'unknown'); assert.equal(result.controlProjection, 'unknown');
   assert.equal(result.reasonCode, 'control_projection_unavailable'); assert.match(result.basisDigest, /^[a-f0-9]{64}$/);
   assert.equal(evaluateExtractionEligibility(decision()).basisDigest, evaluateExtractionEligibility(decision()).basisDigest);
+  assert.throws(()=>evaluateExtractionEligibility(decision({selectionSnapshot:{...selection(),selectionBasisDigest:SHA_B}})),
+    (error)=>error.code==='P7_ELIGIBILITY_SELECTION_INVALID');
+  assert.throws(()=>evaluateExtractionEligibility(decision({controlSnapshot:{...snapshot(),projectionDigest:SHA_B}})),
+    (error)=>error.code==='P7_ELIGIBILITY_CONTROL_INVALID');
 });
 
 test('Material Control Query performs one bounded read and distinguishes absent, released, and controlled rows', () => {

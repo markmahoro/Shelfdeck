@@ -10,8 +10,11 @@ const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const { createCanonicalTransactionRegistry, createDomainCommitCoordinator, createDomainCommitRegistry } = require('../../src/helix/foundation/persistence/domain-commit-registry');
 const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
+const { createMaterialControlProjectionPort } = require('../../src/helix/foundation/persistence/material-control');
 const { createFieldPageObserver } = require('../../src/helix/domains/procurement/capabilities/field-page-observer');
 const { identityBasis, requestBasis } = require('../../src/helix/domains/procurement/model/field-observation-contracts');
+const { evaluateExtractionEligibility } = require('../../src/helix/domains/procurement/model/extraction-eligibility');
+const { createEligibilityReconcileStore } = require('../../src/helix/domains/procurement/persistence/eligibility-reconcile-store');
 const { createFieldObservationCommitRegistration, createFieldObservationStore, FACT_SCHEMA, RESULT_SCHEMA } = require('../../src/helix/domains/procurement/persistence/field-observation-store');
 const { createMaterialFieldStore } = require('../../src/helix/domains/procurement/persistence/material-field-store');
 const observationTransaction = require('../../src/helix/contracts/transaction-contracts/helix.transaction.field-observation-page-commit/v1/contract.json');
@@ -75,7 +78,7 @@ async function fixture(run) {
   const registry=createDomainCommitRegistry({ registrations:[createFieldObservationCommitRegistration(observationStore)] });
   const transactionRegistry=createCanonicalTransactionRegistry({ contracts:[observationTransaction] });
   const coordinator=createDomainCommitCoordinator({ schemaManifest,registry,transactionRegistry,unitOfWork });
-  try { return await run({ databasePath,field,fieldStore,coordinator,kernel }); }
+  try { return await run({ databasePath,field,fieldStore,coordinator,kernel,unitOfWork }); }
   finally { kernel.close(); fs.rmSync(root,{recursive:true,force:true}); }
 }
 async function observe(field, request, materials, enumerationHasMore=false) {
@@ -137,4 +140,26 @@ test('enforces same-work page continuity, exact access head, and the canonical z
   fieldStore.reviseFieldAccess({fieldId:'field-1',expectedAccessRevision:1,access:{...accessBasis,accessDigest:canonicalDigest(accessBasis)}});
   assert.throws(()=>coordinator.execute(commitRequest(second,'event-2')),(error)=>error.code==='P7_FIELD_OBSERVATION_FENCE_CONFLICT');
   const inspect=new Database(databasePath,{readonly:true}); assert.equal(inspect.prepare('SELECT current_observation_revision value FROM proc_material_fields').get().value,1); assert.equal(inspect.prepare('SELECT COUNT(*) count FROM proc_field_observations').get().count,1); inspect.close();
+}));
+
+test('reconciles one terminal Field batch with same-transaction Control freshness and exact CAS', async () => fixture(async ({databasePath,field,coordinator,unitOfWork}) => {
+  seedRuntime(databasePath,'work-1','event-1'); const page=await observe(field,pageRequest('work-1','observation-1',0),[raw('a')]);
+  coordinator.execute(commitRequest(page,'event-1')); const snapshot=page.materialObservations[0];
+  const control=createMaterialControlProjectionPort({schemaManifest,unitOfWork}).getMaterialControlProjection(snapshot.identity.materialKey);
+  const selectionBasis={materialKey:snapshot.identity.materialKey,activeSelections:[],hasConflict:false};
+  const extractionPolicy={extractionPolicyId:field.policy.extractionPolicyId,revision:field.policy.revision,...field.policy.policy,policyDigest:field.policy.policyDigest};
+  const decision=evaluateExtractionEligibility({fieldId:'field-1',fieldStatus:'active',materialKey:snapshot.identity.materialKey,
+    expectedEligibilityRevision:1,accessRevision:1,accessDigest:field.access.accessDigest,terminalObservationRevision:1,
+    fieldObservationWorkId:'work-1',materialBindingRevision:1,lastSnapshotDigest:snapshot.snapshotDigest,lastObservationId:'observation-1',
+    appearedInTerminalWork:true,materialRelativeLocation:'a.mkv',sizeBytes:100,observedExtension:'.mkv',extractionPolicy,
+    selectionSnapshot:{...selectionBasis,selectionBasisDigest:canonicalDigest(selectionBasis)},controlSnapshot:control});
+  const basis={fieldId:'field-1',accessRevision:1,terminalObservationRevision:1,policyRevision:1,decisions:[decision]};
+  const batch={...basis,batchDigest:canonicalDigest(basis)}; const store=createEligibilityReconcileStore({schemaManifest,unitOfWork});
+  const mismatched={...basis,accessRevision:2}; mismatched.batchDigest=canonicalDigest(mismatched);
+  assert.throws(()=>store.reconcile(mismatched),(error)=>error.code==='P7_ELIGIBILITY_BATCH_INVALID');
+  const result=store.reconcile(batch); assert.equal(result.applied.length,1); assert.deepEqual(result.staleMaterialKeys,[]);
+  const replay=store.reconcile(batch); assert.deepEqual(replay.applied,[]); assert.deepEqual(replay.noOpMaterialKeys,[snapshot.identity.materialKey]);
+  const db=new Database(databasePath,{readonly:true}); const row=db.prepare('SELECT eligibility_revision,eligibility_state,eligibility_reason_code,control_projection FROM proc_field_materials').get(); db.close();
+  assert.deepEqual(row,{eligibility_revision:2,eligibility_state:'eligible',eligibility_reason_code:'eligible',control_projection:'uncontrolled'});
+  const outbox=new Database(databasePath,{readonly:true}); assert.equal(outbox.prepare('SELECT COUNT(*) count FROM fx_outbox').get().count,0); outbox.close();
 }));
