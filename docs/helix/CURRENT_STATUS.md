@@ -13,12 +13,12 @@ Last updated: 2026-07-18
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains |
 | Current phase | P7 — Procurement |
-| Current phase status | P7-00–P7-04 PASS；P7-05 Design Return |
+| Current phase status | P7-00–P7-05 PASS；P7-06 in progress |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P6 phase closure `5831c53207d5e71ccdf4792da11ed71be3d47ae1` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p7` on `codex/helix-p7` |
-| Next action | Architecture Agent闭合P7-05 Run Basis/admission/seal/retry persistence continuity后恢复实现 |
+| Next action | P7-06 Triage evidence pipeline local implementation |
 
 Architecture Agent提交`19ed12fa`已闭合`PBF-07-R1`：Page正式收敛为≤65,536 UTF-8 JCS bytes，完整Page作为
 Commit Event immutable typed Evidence保存，并通过Observation→Marker→Result Binding形成禁止GC的历史恢复链；
@@ -62,6 +62,14 @@ role、Binding/Eligibility/Reality Evidence、Triage revision和expected Control
 open→consumed/stale CAS、新Run唯一建立、typed Result/Outbox与重放连续性。直接实现将迫使本线程私自缩小合法输入、
 发明Basis字段或旁读current row冒充冻结事实，因此已停止P7-05代码。详见
 `implementation/evidence/P7_05_RUN_ADMISSION_DESIGN_RETURN.md`；本线程未修改SSOT。
+
+P7-05现已完成：`5fdbcb8f`实现ordinary Run Admission，`90afe83f`实现Run Seal，`dcf2fb87`实现Retry Intent Create，
+`3b2f4db5`实现Retry consume的stale/created原子分支。完整`1..1024` Basis/Selection、Field-scope Control acquire/assert、
+Seal terminal Evidence、Retry五项digest、13项closed stale precedence、业务幂等重放、唯一新Run及共享outer result/marker均有
+隔离SQLite反例。Retry Access/Observation/Policy、create/consume marker及Intent↔Run连续性已物化为显式FK；全量Architecture
+564 tests、112/96/162/30合同门禁PASS，aggregate为`a53d55146ff40db11d82e188757e383f81960e7fdddaceed01ab094020641c32`。
+未运行禁止的外部动作，本线程未编辑SSOT或`media-desktop`。Evidence见
+`implementation/evidence/P7_05_RUN_ADMISSION_AND_RETRY.md`。
 
 ## 2. Accepted implementation conclusion
 

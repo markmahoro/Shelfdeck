@@ -1,6 +1,6 @@
 # P7 Procurement Detailed Plan
 
-Status: Design Return；P7-00–P7-04 complete；P7-05 blocked by Run Basis/admission/retry continuity gaps.
+Status: In progress；P7-00–P7-05 complete；current work P7-06 Triage evidence pipeline.
 
 Last updated: 2026-07-18
 
@@ -22,7 +22,7 @@ Procurement Run、Triage和不可变Candidate Package。只使用P2合同与P3�
 | Capabilities | §8.6.3 | 8个`procurement.*@1` closed packages |
 | Product/admin boundary | §9 | 仅Facade合同；P12才实现HTTP/UI |
 
-固定物理合同：13张Procurement表、8个Capability；当前全局合同基线为112 Capability、96 Result、161表、26 canonical transaction。
+固定物理合同：13张Procurement表、8个Capability；当前全局合同基线为112 Capability、96 Result、162表、30 canonical transaction。
 
 ## 3. Hard boundaries
 
@@ -93,6 +93,10 @@ socket、ambient credential、真实Material Field扫描、真实媒体/FFmpeg�
   Run admission/seal和Retry Intent consume→new Run也没有完整原子输入、输出、CAS、Result/Outbox/replay合同。
   不得私设较小上限、把digest当Basis、旁读current row冒充冻结事实或拆分Control取得。详见
   `evidence/P7_05_RUN_ADMISSION_DESIGN_RETURN.md`。
+- Done：PBF-09/R1传播后的完整Run Basis、ordinary Admission、Seal、Retry Intent create/consume均已实现。Retry stale与created
+  分支共享一个SQLite UoW；created分支以同一outer result/marker建立唯一新Run，stale分支不建Run、不改变Control；13项closed
+  reason precedence、业务幂等重放、same-Field assert及显式FK均有机器反例。完整Architecture 564 tests和合同门禁PASS。
+  Evidence见`evidence/P7_05_RUN_ADMISSION_AND_RETRY.md`。
 
 ### P7-06 Triage evidence pipeline
 
