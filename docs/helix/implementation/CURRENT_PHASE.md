@@ -1,6 +1,6 @@
 # P7 Procurement Detailed Plan
 
-Status: In progress；P7-00–P7-05 complete；current work P7-06 Triage evidence pipeline.
+Status: Design Return；P7-00–P7-05 complete；P7-06 blocked by formal Triage input/output continuity gaps.
 
 Last updated: 2026-07-18
 
@@ -103,6 +103,10 @@ socket、ambient credential、真实Material Field扫描、真实媒体/FFmpeg�
 - 注册并实现playability、structure、identity claim、primary manifest四个pure Capability。
 - Evidence完整保留model/rule/revision/provenance；不把标题、路径或模糊相似度提升为Canonical Identity。
 - Series Season Continuity只允许exact provider-season或持久triage grouping lineage。
+- Design Return：Primary Manifest输入仍是4096-key浅`SelectedMaterials`、无成员映射的`Roles`和opaque
+  `Structure.memberClaims`，不能唯一形成1..1024的Material→Role→Episode/Binding成员；Structure/Playability缺少closed
+  deterministic rule与typed Evidence来源，Identity Claim缺少mediaType连续性。禁止数组位置猜测、Store旁读或路径/标题升格。
+  详见`evidence/P7_06_TRIAGE_PIPELINE_DESIGN_RETURN.md`。
 
 ### P7-07 Immutable Candidate Package publication
 

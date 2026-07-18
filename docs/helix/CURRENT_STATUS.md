@@ -13,12 +13,12 @@ Last updated: 2026-07-18
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains |
 | Current phase | P7 — Procurement |
-| Current phase status | P7-00–P7-05 PASS；P7-06 in progress |
+| Current phase status | P7-00–P7-05 PASS；P7-06 Design Return |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P6 phase closure `5831c53207d5e71ccdf4792da11ed71be3d47ae1` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p7` on `codex/helix-p7` |
-| Next action | P7-06 Triage evidence pipeline local implementation |
+| Next action | Architecture Agent闭合P7-06 formal Triage input/output continuity后恢复实现 |
 
 Architecture Agent提交`19ed12fa`已闭合`PBF-07-R1`：Page正式收敛为≤65,536 UTF-8 JCS bytes，完整Page作为
 Commit Event immutable typed Evidence保存，并通过Observation→Marker→Result Binding形成禁止GC的历史恢复链；
@@ -70,6 +70,12 @@ Seal terminal Evidence、Retry五项digest、13项closed stale precedence、业�
 564 tests、112/96/162/30合同门禁PASS，aggregate为`a53d55146ff40db11d82e188757e383f81960e7fdddaceed01ab094020641c32`。
 未运行禁止的外部动作，本线程未编辑SSOT或`media-desktop`。Evidence见
 `implementation/evidence/P7_05_RUN_ADMISSION_AND_RETRY.md`。
+
+P7-06实现前审计已返回Design：Primary Manifest正式输入仍由最多4096个key的浅`SelectedMaterials`、无成员映射的
+`Roles`及opaque `Structure.memberClaims`组成，无法唯一形成SSOT要求的1..1024个Material→Role→Episode Claim/
+Binding成员；Structure/Playability缺少closed deterministic rule和typed Evidence来源，Identity Claim与Candidate Readiness
+之间缺少mediaType连续性。实现线程未按数组位置猜测、未旁读Store、未把路径/标题升格为Identity，并已将精确问题包发送给
+Architecture Agent。详见`implementation/evidence/P7_06_TRIAGE_PIPELINE_DESIGN_RETURN.md`。
 
 ## 2. Accepted implementation conclusion
 
