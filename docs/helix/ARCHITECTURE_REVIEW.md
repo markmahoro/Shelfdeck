@@ -1,6 +1,6 @@
 # Helix Architecture Review Workbench
 
-Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-19；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-11`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`）bounded correction均已完成。
+Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-19；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-11`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`）bounded correction均已完成。
 
 ## 1. Purpose and authority
 
@@ -1887,3 +1887,26 @@ Capability、96个Catalog Result family、现有组件和单SQLite Store不变�
 `libra_material_binding_episode_claims`五张Libra-owned关系/头表；它们不是新Store、组件、Business Object或
 Capability。关系表总数由163调整为168，`libra_*`由31调整为36。审计结果为
 `PASS / PBF-11 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.18 `PBF-11-R1` — Candidate Related Reference immutable reconstruction
+
+Status: `CLOSED / BOUNDED DETAIL FIX APPLIED` — 2026-07-19
+
+P8-03在实现`CandidateDeliveryPort@1`前反证完整Package的历史重建路径，证明`proc_candidate_related_references`
+只保存Endpoint/location/checksum和一个模糊Evidence digest，缺失`RelatedMaterialReference@1`强制的
+`PhysicalMaterialIdentity`五元组、association Evidence和`referenceDigest`。Checksum不能反推出Mount Scope、inode或
+materialKey；在Offer关闭后旁读current Material row、Foundation Event Result或旧Runtime都不能恢复原Package。
+
+该问题成立且不需要业务决策。Bounded correction：
+
+- 固化`RelatedMaterialReference@1` nominal value、稳定`referenceId/referenceDigest`公式、排序和上限；
+- 扩充既有`proc_candidate_related_references`，逐列保存完整Identity、Endpoint/location、checksum、association
+  Evidence和reference digest；Primary关联仍通过同Candidate的`primary_ordinal`复合FK重建，不复制第二份Primary事实；
+- Candidate Publication继续使用原8张Procurement与3张Foundation事务表，完整Related row与Package、Manifest、
+  Reservation、Offer、Result/marker和Outbox全有或全无；
+- Candidate/Run/Offer关闭后这些published rows不可删除，Delivery Port只能从Procurement immutable Owner rows重建
+  相同`CandidatePackage/relatedReferenceSetDigest/packageDigest/deliverySnapshotDigest`，不得使用current-row修补或
+  Foundation Result fallback。
+
+本修正不新增Domain、Owner、Store、Handoff、Capability或关系表；`112 Capability / 168 tables`保持。
+审计结果为`PASS / PBF-11-R1 CLOSED / NO OPEN BUSINESS DECISION`。

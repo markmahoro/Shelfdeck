@@ -54,6 +54,10 @@ Publication domain write participant；最终机器事务固定为8张Procuremen
 global/target CAS、Resolved Identity exact Claim关系化、nullable identity初值及Handoff A完整Accepted事务。
 它新增五张Libra Intake关系/头表，使总数调整为168；不新增Domain、Owner、Store、Handoff或Capability。
 
+`PBF-11-R1`扩充既有`proc_candidate_related_references`，逐列保存完整Physical Identity、association Evidence和
+reference digest，使Candidate/Run/Offer关闭后仍能由Procurement Owner rows历史重建完整Package与Delivery Snapshot；
+不新增表、Owner、Store、Handoff或Capability，168-table inventory保持不变。
+
 ## 3. Current phase
 
 | Field | Current value |

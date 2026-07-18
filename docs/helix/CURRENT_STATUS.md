@@ -18,7 +18,7 @@ Last updated: 2026-07-19
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P7 phase closure `2cf98561d7cf785db4005e65e99b0750d84ce5ce` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p8` on `codex/helix-p8` |
-| Next action | Architecture Agent评估Candidate Related Reference persistence continuity |
+| Next action | rematerialize PBF-11-R1 and resume P8-03 |
 
 Architecture Agent提交`be3ecb89`已闭合`PBF-11`。实现侧逐项复审确认：Candidate Delivery正式携带完整
 Manifest及逐Material Location Evidence；Subject/Binding Episode关系均可N:M持久化；global continuity head与唯一
@@ -26,6 +26,11 @@ extension target intake revision形成双CAS；Resolved Identity exact Claim先�
 nullable；Accepted payload冻结Offer/Basis/Resolution/Binding/Control全部连续性。Handoff A事务精确写入10张Libra表和
 5张Foundation表，总表数由163调整为168；未新增Domain、Owner、Store、Handoff或Capability。该提交已原样纳入，
 本线程未编辑SSOT正文。
+
+Architecture Agent提交`5d5e37c9`的`PBF-11-R1`已通过实现侧只读复审：既有
+`proc_candidate_related_references`逐列保存完整Physical Identity、association Evidence与reference digest，正式支持
+Candidate/Run/Offer关闭后的历史Package/Snapshot重建；Candidate Publication 8+3事务与168-table inventory保持不变，
+没有新增Owner、Store、Handoff、Capability或Fallback。
 
 Architecture Agent提交`19ed12fa`已闭合`PBF-07-R1`：Page正式收敛为≤65,536 UTF-8 JCS bytes，完整Page作为
 Commit Event immutable typed Evidence保存，并通过Observation→Marker→Result Binding形成禁止GC的历史恢复链；
