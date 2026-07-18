@@ -13,12 +13,12 @@ Last updated: 2026-07-18
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains；P7 — Procurement |
 | Current phase | P8 — Handoff A and Libra front half |
-| Current phase status | P8-00–P8-01 PASS；P8-02 in progress |
+| Current phase status | P8-00–P8-01 PASS；P8-02 returned to Design |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P7 phase closure `2cf98561d7cf785db4005e65e99b0750d84ce5ce` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p8` on `codex/helix-p8` |
-| Next action | P8-02 Libra scoped Store and immutable Subject facts |
+| Next action | Architecture Agent evaluates P8-02 Libra Intake persistence continuity gaps |
 
 Architecture Agent提交`19ed12fa`已闭合`PBF-07-R1`：Page正式收敛为≤65,536 UTF-8 JCS bytes，完整Page作为
 Commit Event immutable typed Evidence保存，并通过Observation→Marker→Result Binding形成禁止GC的历史恢复链；
@@ -149,6 +149,15 @@ P8-01已完成：当前Phase只公开SSOT明确命名的`LibraIntakeFacade.offer
 `ProcurementCandidateOfferAvailableMessage@1`；未为后续Admin、Product Delivery或Workspace Reclamation提前发明方法。
 nominal binding拒绝缺失/额外authority，机器边界证明public package不依赖Store、Procurement internal、Runtime、HTTP或startup。
 下一工作包P8-02。
+
+P8-02实施前反向审计已返回Design：正式Candidate Delivery没有携带full Primary Input Manifest及Primary endpoint/location的
+typed snapshot，Libra无法从public port形成Binding；一个Primary member允许多个Episode Claim，但`LibraBindingDraft`只有单个
+`episodeKey`且`libra_material_bindings`的PK无法保存N:M Episode范围，也没有Subject Episode关系供FA-04 overlap计算；Subject没有
+Intake revision/head和expected CAS，无法阻止两个并发extension基于同一旧Episode集合同时成功；Resolved Product Identity只保存
+opaque provider identity set digest，无法与Candidate exact provider-season claim逐项匹配。此外new Subject的
+`current_identity_revision`初值和Accepted payload中的Decision Evidence/target选择authority未闭合。实现线程未旁读Procurement Store、
+未压扁Episode、未用timestamp冒充revision、未修改SSOT。详见
+`implementation/evidence/P8_02_LIBRA_INTAKE_STORE_DESIGN_RETURN.md`。
 
 ## 2. Accepted implementation conclusion
 

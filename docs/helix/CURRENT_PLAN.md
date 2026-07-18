@@ -56,11 +56,11 @@ Publication domain write participant；最终机器事务固定为8张Procuremen
 | --- | --- |
 | Phase | P8 — Handoff A and Libra front half |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | P8-00–P8-01 PASS；P8-02 in progress |
+| Status | P8-00–P8-01 PASS；P8-02 returned to Design |
 | Implementation baseline | exact P7 phase closure `2cf98561d7cf785db4005e65e99b0750d84ce5ce` |
 | Phase branch/worktree | `codex/helix-p8` / `E:\my_project\emby_third_party-helix-p8` |
 | Allowed now | P2–P13本地代码、unit/contract/isolated fixture、文档与Phase自动转换 |
-| Next action | P8-02 Libra scoped Store and immutable Subject facts |
+| Next action | Architecture Agent evaluates P8-02 Libra Intake persistence continuity gaps |
 
 ## 4. Master roadmap
 

@@ -1,6 +1,6 @@
 # P8 Handoff A and Libra Front Half Detailed Plan
 
-Status: Active；P8-00–P8-01 complete；P8-02 in progress.
+Status: Active；P8-00–P8-01 complete；P8-02 returned to Design.
 
 Last updated: 2026-07-19
 
@@ -60,6 +60,11 @@ Kairox/Task Runtime，不执行真实媒体生产、Workspace写入、Handoff B�
 
 - 建立Libra-owned Subject、Subject revision、Candidate provenance、Production Material Binding、continuity与Episode关系Repository。
 - 精确审计全部`libra_*`表、FK、revision/state/digest连续性；不复制Candidate为Libra mutable对象。
+- Design Return：Candidate Delivery没有正式typed snapshot携带full Primary Manifest与Primary location Evidence；现有Binding/
+  Store不能保存一个Material对应多个Episode；Subject没有Intake revision/head支持FA-04并发CAS；Resolved Product Identity的exact
+  provider-season anchor只有opaque set digest无法匹配；new Subject identity pointer初值及Accepted Decision input也未闭合。
+  禁止旁读Procurement Store、压扁Episode、用timestamp冒充revision或让调用者指定Subject。详见
+  `evidence/P8_02_LIBRA_INTAKE_STORE_DESIGN_RETURN.md`。
 
 ### P8-03 Offer intake and Candidate snapshot verification
 
