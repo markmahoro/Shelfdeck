@@ -122,11 +122,11 @@ function createMaterialFieldStore(options) {
         return readField(repo, input.fieldId);
       });
     },
-    disableMaterialField(input) {
+    deregisterMaterialField(input) {
       exact(input, ['fieldId','expectedAccessRevision','expectedPolicyRevision'], 'P7_MATERIAL_FIELD_DISABLE_INPUT');
       return execute((context) => { const repo = context.repository(fields.repositoryId); const current = repo.invoke('find_field', { field_id: input.fieldId });
         requireActive(current);
-        const changed = repo.invoke('revise_field', { name: current.name, status: 'disabled', updated_at_ms: context.commitTimeMs,
+        const changed = repo.invoke('revise_field', { name: current.name, status: 'deregistered', updated_at_ms: context.commitTimeMs,
           field_id: input.fieldId, expected_access_revision: input.expectedAccessRevision,
           expected_policy_revision: input.expectedPolicyRevision, expected_status: 'active' });
         if (changed.changes !== 1) fail('P7_MATERIAL_FIELD_DISABLE_CONFLICT', 'Material Field disable CAS failed.');
@@ -139,7 +139,7 @@ function createMaterialFieldStore(options) {
   });
 }
 
-function requireActive(row) { if (!row) fail('P7_MATERIAL_FIELD_NOT_FOUND', 'Material Field does not exist.'); if (row.status !== 'active') fail('P7_MATERIAL_FIELD_DISABLED', 'Disabled Material Field cannot be revised.'); }
+function requireActive(row) { if (!row) fail('P7_MATERIAL_FIELD_NOT_FOUND', 'Material Field does not exist.'); if (row.status !== 'active') fail('P7_MATERIAL_FIELD_DEREGISTERED', 'Deregistered Material Field cannot be revised.'); }
 function policyRow(input, json, now) { return { extraction_policy_id: input.extractionPolicyId, revision: input.revision, policy_schema_ref: input.policySchemaRef,
   policy_json: json, policy_digest: input.policyDigest, effective_at_ms: now }; }
 function accessRow(input, now) { return { field_id: input.fieldId, revision: input.revision, endpoint_id: input.endpointId, root_location: input.rootLocation,

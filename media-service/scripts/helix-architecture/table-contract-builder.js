@@ -40,6 +40,9 @@ const ENUM_OVERRIDES = Object.freeze({
   'proc_field_materials.eligibility_field_status': ['active', 'disabled'],
   'proc_field_materials.control_projection': ['unknown', 'uncontrolled', 'procurement', 'production', 'finished_goods'],
   'proc_procurement_runs.state': ['active', 'waiting', 'sealed'],
+  'proc_procurement_retry_intents.retry_field_status': ['active', 'disabled'],
+  'proc_procurement_retry_intent_materials.expected_control_state': ['controlled', 'released'],
+  'proc_run_materials.expected_control_state': ['controlled', 'released'],
   'proc_candidate_packages.state': ['published'],
   'proc_candidate_deliveries.state': ['open', 'accepted', 'rejected', 'stale'],
   'libra_subjects.status': ['active', 'abandoned'],
@@ -315,17 +318,23 @@ function logicalType(name, tableId = null) {
 function parseColumns(columnsContract, tableId = null) {
   const raw = stripCode(columnsContract);
   return splitBalanced(raw).map((token, ordinal) => {
-    const match = token.match(/^([a-z][a-z0-9_]*)(?:\(([^)]*)\))?(?:\s+(PK\/FK|PK|FK))?(?:\s+(NULL))?$/);
+    const match = token.match(/^([a-z][a-z0-9_]*)(?:\(([^)]*)\))?(?:\s+(.+))?$/);
     if (!match) throw new Error(`Unsupported column token: ${token}`);
-    const marker = match[3] || null;
+    const qualifiers = match[3] ? match[3].split(/\s+/) : [];
+    const marker = qualifiers.find((value) => ['PK/FK', 'PK', 'FK'].includes(value)) || null;
+    const nullableSpec = qualifiers.find((value) => /^NULL(?:\|[a-z][a-z0-9_]*)*$/.test(value)) || null;
+    if (qualifiers.some((value) => value !== marker && value !== nullableSpec)) {
+      throw new Error(`Unsupported column token: ${token}`);
+    }
+    const nullableEnum = nullableSpec && nullableSpec.includes('|') ? nullableSpec.split('|').slice(1) : [];
     return {
       ordinal: ordinal + 1,
       name: match[1],
       logicalType: logicalType(match[1], tableId),
-      enumValues: match[2] ? match[2].split('|') : (ENUM_OVERRIDES[tableId + '.' + match[1]] || []),
+      enumValues: match[2] ? match[2].split('|') : (nullableEnum.length > 0 ? nullableEnum : (ENUM_OVERRIDES[tableId + '.' + match[1]] || [])),
       primaryKeyPart: marker === 'PK' || marker === 'PK/FK',
       foreignKeyMarker: marker === 'FK' || marker === 'PK/FK',
-      nullable: match[4] === 'NULL' || NULLABLE_COLUMN_OVERRIDES.has(tableId + '.' + match[1])
+      nullable: nullableSpec !== null || NULLABLE_COLUMN_OVERRIDES.has(tableId + '.' + match[1])
     };
   });
 }

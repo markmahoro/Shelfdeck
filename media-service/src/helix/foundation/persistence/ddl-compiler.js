@@ -21,10 +21,6 @@ const SUPPORT_COLUMNS = Object.freeze({
   people_provider_identities: [{
     name: 'active_guard', type: 'INTEGER', defaultSql: '0',
     checks: ['"active_guard" IN (0, 1)'], ruleOrdinal: 1
-  }],
-  proc_run_materials: [{
-    name: 'deliverable_guard', type: 'INTEGER', defaultSql: '0',
-    checks: ['"deliverable_guard" IN (0, 1)'], ruleOrdinal: 1
   }]
 });
 
@@ -46,9 +42,12 @@ const PARTIAL_UNIQUE = Object.freeze({
   people_registration_candidates: [{ columns: ['evidence_digest'], where: '"current_state" = \'open\'' }],
   perception_acquisitions: [{ columns: ['perception_source_id'], where: '"state" = \'active\'' }],
   proc_candidate_deliveries: [{ columns: ['candidate_package_id'], where: '"state" = \'open\'' }],
-  proc_procurement_retry_intents: [{ columns: ['failed_run_id', 'failed_basis_digest'], where: '"state" = \'open\'' }],
-  proc_procurement_runs: [{ columns: ['field_id', 'run_basis_digest'], where: '"finished_at_ms" IS NULL' }],
-  proc_run_materials: [{ columns: ['material_key'], where: '"role" = \'primary\' AND "deliverable_guard" = 1' }]
+  proc_procurement_retry_intents: [{ columns: ['failed_run_id', 'failed_basis_digest'], where: '"state" IN (\'open\', \'consumed\')' }],
+  proc_procurement_runs: [
+    { columns: ['seal_decision_id'], where: '"seal_decision_id" IS NOT NULL' },
+    { columns: ['retry_intent_id'], where: '"retry_intent_id" IS NOT NULL' }
+  ],
+  proc_run_materials: [{ columns: ['material_key'], where: '"selection_state" IN (\'run_selection\', \'candidate_delivery\')' }]
 });
 
 const FOREIGN_KEY_OVERRIDES = Object.freeze({

@@ -117,6 +117,83 @@
         "legacy.compatibility-path",
         "legacy.hidden-effect-routing"
       ]
+    },
+    {
+      "id": "canonical-procurement-run-admission-transaction",
+      "relativePath": "contracts/transaction-contracts/helix.transaction.procurement-run-admission/v1/contract.json",
+      "purpose": "evidence-locator",
+      "allowedLocationTypes": ["path", "content"],
+      "allowedRuleIds": ["legacy.admission"]
+    },
+    {
+      "id": "canonical-procurement-retry-admission-transaction",
+      "relativePath": "contracts/transaction-contracts/helix.transaction.procurement-retry-admission/v1/contract.json",
+      "purpose": "evidence-locator",
+      "allowedLocationTypes": ["path", "content"],
+      "allowedRuleIds": ["legacy.admission"]
+    },
+    {
+      "id": "canonical-procurement-retry-intent-transaction",
+      "relativePath": "contracts/transaction-contracts/helix.transaction.procurement-retry-intent-commit/v1/contract.json",
+      "purpose": "evidence-locator",
+      "allowedLocationTypes": ["content"],
+      "allowedRuleIds": ["legacy.admission"]
+    },
+    {
+      "id": "canonical-procurement-source-table-shard",
+      "relativePath": "contracts/manifests/ssot-source-map/tables-027-039.json",
+      "purpose": "evidence-locator",
+      "allowedLocationTypes": ["content"],
+      "allowedRuleIds": ["legacy.admission"]
+    },
+    {
+      "id": "canonical-procurement-source-transaction-shard",
+      "relativePath": "contracts/manifests/ssot-source-map/transactions-001-018.json",
+      "purpose": "evidence-locator",
+      "allowedLocationTypes": ["content"],
+      "allowedRuleIds": ["legacy.admission"]
+    },
+    {
+      "id": "canonical-procurement-transaction-inventory",
+      "relativePath": "contracts/manifests/transaction-inventory/entries-001-030.json",
+      "purpose": "evidence-locator",
+      "allowedLocationTypes": ["content"],
+      "allowedRuleIds": ["legacy.admission"]
+    },
+    {
+      "id": "canonical-procurement-runs-table-contract",
+      "relativePath": "contracts/table-contracts/proc_procurement_runs/v1/contract.json",
+      "purpose": "evidence-locator",
+      "allowedLocationTypes": ["content"],
+      "allowedRuleIds": ["legacy.admission"]
+    },
+    {
+      "id": "canonical-procurement-retry-intents-table-contract",
+      "relativePath": "contracts/table-contracts/proc_procurement_retry_intents/v1/contract.json",
+      "purpose": "evidence-locator",
+      "allowedLocationTypes": ["content"],
+      "allowedRuleIds": ["legacy.admission"]
+    },
+    {
+      "id": "canonical-procurement-run-materials-table-contract",
+      "relativePath": "contracts/table-contracts/proc_run_materials/v1/contract.json",
+      "purpose": "evidence-locator",
+      "allowedLocationTypes": ["content"],
+      "allowedRuleIds": ["legacy.admission"]
+    },
+    {
+      "id": "canonical-procurement-clean-schema-manifest",
+      "relativePath": "foundation/persistence/generated/clean-schema.manifest.json",
+      "purpose": "evidence-locator",
+      "allowedLocationTypes": ["content"],
+      "allowedRuleIds": ["legacy.admission"]
+    },
+    {
+      "id": "canonical-procurement-clean-schema-ddl",
+      "relativePath": "foundation/persistence/generated/clean-schema.sql",
+      "purpose": "evidence-locator",
+      "allowedLocationTypes": ["content"],
+      "allowedRuleIds": ["legacy.admission"]
     }
   ]
 }

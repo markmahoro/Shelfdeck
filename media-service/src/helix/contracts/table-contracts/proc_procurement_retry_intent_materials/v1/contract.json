@@ -1,0 +1,331 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/proc_procurement_retry_intent_materials/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "proc_procurement_retry_intent_materials",
+    "owner": "procurement",
+    "prefix": "proc_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "retry_intent_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "ordinal",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "material_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "failed_run_material_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "expected_binding_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "expected_eligibility_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "expected_eligibility_basis_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "expected_selection_basis_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "expected_selection_has_conflict",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "expected_control_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "expected_control_state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "controlled",
+          "released"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "expected_control_owner_domain",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 13,
+        "name": "expected_control_owner_scope_type",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 14,
+        "name": "expected_control_owner_scope_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 15,
+        "name": "expected_control_region_projection",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 16,
+        "name": "expected_control_evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 17,
+        "name": "expected_control_projection_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 18,
+        "name": "member_precondition_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 19,
+        "name": "consume_snapshot_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 20,
+        "name": "consume_snapshot_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 21,
+        "name": "consume_snapshot_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 22,
+        "name": "consume_outcome",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "matched",
+          "stale"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 23,
+        "name": "consume_stale_reason_code",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 24,
+        "name": "consumed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      }
+    ],
+    "primaryKey": [
+      "retry_intent_id",
+      "ordinal"
+    ],
+    "declaredForeignKeyColumns": [
+      "retry_intent_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "retry_intent_id",
+        "material_key"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "expected_control_state",
+        "enumValues": [
+          "controlled",
+          "released"
+        ]
+      },
+      {
+        "column": "consume_outcome",
+        "enumValues": [
+          "matched",
+          "stale"
+        ]
+      },
+      {
+        "rule": "`CHECK(expected_selection_has_conflict=0)`"
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "expected_binding_revision",
+        "expected_eligibility_revision",
+        "expected_control_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "consume_snapshot_json",
+        "schemaRefColumn": "consume_snapshot_schema_ref",
+        "maxBytes": 4096,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "expected列immutable",
+        "Intent消费时全部member在同事务一次性写完整`ProcurementRetryConsumeMemberSnapshot@1`（JCS bytes≤`4 KiB`）及digest/outcome，之后immutable"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(retry_intent_id,ordinal)`及`UNIQUE(retry_intent_id,material_key)`",
+      "成员必须来自failed Run中`released+triage_failed`的Material，按materialKey UTF-8 bytes升序且`1..1024`项",
+      "`CHECK(expected_selection_has_conflict=0)`",
+      "完整expected rows重建Intent member/precondition set，aggregate digest必须匹配Intent head",
+      "Control列必须完整映射available `MaterialControlProjectionSnapshot`，包括evidence/projection两个不同digest",
+      "expected列immutable",
+      "Intent消费时全部member在同事务一次性写完整`ProcurementRetryConsumeMemberSnapshot@1`（JCS bytes≤`4 KiB`）及digest/outcome，之后immutable",
+      "stale只保存8.6.18 closed set中的唯一primary code，matched不得保存code",
+      "terminal Intent不允许存在未写consume snapshot的member"
+    ],
+    "rawContract": {
+      "columns": "`retry_intent_id FK, ordinal, material_key, failed_run_material_digest, expected_binding_revision, expected_eligibility_revision, expected_eligibility_basis_digest, expected_selection_basis_digest, expected_selection_has_conflict, expected_control_revision, expected_control_state, expected_control_owner_domain NULL, expected_control_owner_scope_type NULL, expected_control_owner_scope_id NULL, expected_control_region_projection, expected_control_evidence_digest, expected_control_projection_digest, member_precondition_digest, consume_snapshot_schema_ref NULL, consume_snapshot_json NULL, consume_snapshot_digest NULL, consume_outcome NULL|matched|stale, consume_stale_reason_code NULL, consumed_at_ms NULL`",
+      "constraints": "`PK(retry_intent_id,ordinal)`及`UNIQUE(retry_intent_id,material_key)`；成员必须来自failed Run中`released+triage_failed`的Material，按materialKey UTF-8 bytes升序且`1..1024`项；`CHECK(expected_selection_has_conflict=0)`；完整expected rows重建Intent member/precondition set，aggregate digest必须匹配Intent head；Control列必须完整映射available `MaterialControlProjectionSnapshot`，包括evidence/projection两个不同digest；expected列immutable；Intent消费时全部member在同事务一次性写完整`ProcurementRetryConsumeMemberSnapshot@1`（JCS bytes≤`4 KiB`）及digest/outcome，之后immutable；stale只保存8.6.18 closed set中的唯一primary code，matched不得保存code；terminal Intent不允许存在未写consume snapshot的member"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 7836,
+      "lineDigest": "4cf05d83c863e6e7db91c3408942f16d7138dc6c7df072a41ce020d21b7721e3"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "retry_intent_id"
+        ],
+        "targetTable": "proc_procurement_retry_intents",
+        "targetColumns": [
+          "retry_intent_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

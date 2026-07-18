@@ -44,7 +44,7 @@ function expectedCatalog(manifest) {
 
 function assertManifest(manifest, ddl) {
   if (!manifest || manifest.schemaVersion !== 1 || manifest.compilerContract !== 'helix-p3-deterministic-sqlite-ddl/v1' ||
-      manifest.tableCount !== 161 || !Array.isArray(manifest.tables) || manifest.tables.length !== 161) {
+      manifest.tableCount !== 162 || !Array.isArray(manifest.tables) || manifest.tables.length !== 162) {
     fail('P3_SQLITE_INVALID_SCHEMA_MANIFEST', 'The clean schema manifest is incomplete or unsupported.');
   }
   if (manifest.digestAlgorithm !== 'sha256' || digest(normalizedDdl(ddl)) !== manifest.ddlDigest) {
@@ -113,7 +113,7 @@ function assertCatalog(database, manifest, expected) {
       fail('P3_SQLITE_PARTIAL_UNIQUE_MISSING', 'A required partial unique index is absent or weakened.', item);
     }
   }
-  if (partialExpected.length !== 20) fail('P3_SQLITE_PARTIAL_UNIQUE_COUNT', 'The clean schema requires exactly 20 partial unique indexes.');
+  if (partialExpected.length !== 21) fail('P3_SQLITE_PARTIAL_UNIQUE_COUNT', 'The clean schema requires exactly 21 partial unique indexes.');
 }
 
 function assertGuardConsistency(database) {
@@ -125,10 +125,6 @@ function assertGuardConsistency(database) {
     {
       name: 'people-active-provider-identity',
       sql: "SELECT COUNT(*) count FROM people_provider_identities i LEFT JOIN people_persons p ON p.person_id=i.person_id WHERE i.active_guard <> CASE WHEN p.status='active' AND p.current_revision=i.revision THEN 1 ELSE 0 END"
-    },
-    {
-      name: 'proc-deliverable-primary-material',
-      sql: "SELECT COUNT(*) count FROM proc_run_materials m JOIN proc_procurement_runs r ON r.procurement_run_id=m.procurement_run_id WHERE m.deliverable_guard <> CASE WHEN m.role='primary' AND (r.state IN ('active','waiting') OR EXISTS (SELECT 1 FROM proc_candidate_packages p JOIN proc_candidate_deliveries d ON d.candidate_package_id=p.candidate_package_id WHERE p.procurement_run_id=m.procurement_run_id AND d.state='open')) THEN 1 ELSE 0 END"
     }
   ];
   for (const check of checks) {
@@ -229,7 +225,7 @@ function assertIntegrity(database, manifest, expected) {
     catalogDigest: currentMarker.catalog_digest,
     tableCount: expected.tables.size,
     indexCount: expected.indexes.size,
-    partialUniqueCount: 20,
+    partialUniqueCount: 21,
     appliedAtMs: currentMarker.applied_at_ms
   });
 }

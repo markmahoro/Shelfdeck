@@ -26,7 +26,7 @@ function definition(schemaManifest) {
     find_observation_id:{ kind:'select-one', tableId:'proc_field_observations', columns:['field_id','revision','observation_id','field_observation_work_id','access_revision','completed'], keyColumns:['observation_id'] },
     find_materials:{ kind:'select-in', tableId:'proc_field_materials', keyColumn:'material_key', fixedKeyColumns:['field_id'], maxItems:100, safeIntegers:true, columns:materialColumns },
     find_runs:{ kind:'select-all', tableId:'proc_procurement_runs', columns:['procurement_run_id','field_id','state'], keyColumns:['field_id'] },
-    find_run_material:{ kind:'select-one', tableId:'proc_run_materials', columns:['procurement_run_id','material_key','role','binding_revision'], keyColumns:['procurement_run_id','material_key'] },
+    find_run_material:{ kind:'select-one', tableId:'proc_run_materials', columns:['procurement_run_id','material_key','selection_role','selection_state','binding_revision'], keyColumns:['procurement_run_id','material_key'] },
     apply_decision:{ kind:'update', tableId:'proc_field_materials', setColumns:['eligibility_revision','eligibility_state','eligibility_reason_code','eligibility_basis_digest',
       'eligibility_field_status','eligibility_observation_revision','eligibility_policy_revision','selection_basis_digest','control_projection','control_projection_revision',
       'control_projection_digest','eligibility_reconciled_at_ms'], keyColumns:['field_id','material_key'],
@@ -44,7 +44,10 @@ function policyValue(row) { const rules = JSON.parse(row.policy_json); return { 
 function selectionSnapshot(repo, runs, material) {
   const activeSelections = runs.filter((run) => run.state !== 'sealed').map((run) => {
     const selected = repo.invoke('find_run_material', { procurement_run_id:run.procurement_run_id, material_key:material.material_key });
-    return selected && { procurementRunId:run.procurement_run_id, runState:run.state, selectionRole:selected.role, bindingRevision:selected.binding_revision };
+    return selected && ['run_selection', 'candidate_delivery'].includes(selected.selection_state) && {
+      procurementRunId:run.procurement_run_id, runState:run.state,
+      selectionRole:selected.selection_role, bindingRevision:selected.binding_revision
+    };
   }).filter(Boolean).sort((left, right) => left.procurementRunId.localeCompare(right.procurementRunId) || left.selectionRole.localeCompare(right.selectionRole));
   const basis = { materialKey:material.material_key, activeSelections, hasConflict:activeSelections.length > 0 };
   return Object.freeze({ ...basis, selectionBasisDigest:canonicalDigest(basis) });

@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.procurement-run-seal/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.procurement-run-seal",
+    "displayName": "Procurement Run Seal",
+    "ownerScope": "procurement",
+    "commitClass": "domain_fact_commit",
+    "atomicFactSet": "`ProcurementRunSealDecision@1` + Run expected state revision/basis CAS + sealed outcome/逐成员terminal Evidence/aggregate Evidence/finished time + 未成Package成员`run_selection → released`，保留`candidate_delivery`与全部Procurement Control + durable typed receipt/commit marker；candidate reservation、released member及seal Evidence的三项digest按8.6.18唯一公式形成并可由Owner rows重建；`hasOutbox=false`",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "procurement",
+        "access": "write",
+        "tables": [
+          "proc_procurement_runs",
+          "proc_run_materials"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_event_result_bindings",
+          "fx_commit_markers"
+        ]
+      }
+    ],
+    "writeTables": [
+      "proc_procurement_runs",
+      "proc_run_materials",
+      "fx_event_result_bindings",
+      "fx_commit_markers"
+    ],
+    "readTables": [
+      "proc_procurement_runs",
+      "proc_run_materials",
+      "proc_candidate_packages"
+    ],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "procurement-run-seal",
+        "faultInjectionPoints": "Seal Decision验证前后、Run revision/basis CAS、逐成员terminal Evidence形成、Reservation转换、aggregate Evidence/typed Result/marker前后、响应前崩溃",
+        "requiredInvariant": "Run sealed head、保留的candidate_delivery、全部released terminal members及逐成员Evidence、三项可重建digest、typed receipt和marker全有或全无；不释放Procurement Control且不写Outbox",
+        "source": {
+          "section": "8.9.7",
+          "line": 7623
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7623,
+      "lineDigest": "f54e31f775accd471801677316643da5d78990ae36ef2f0a3379ea619fc1b894"
+    }
+  }
+}

@@ -31,7 +31,7 @@
         "logicalType": "TEXT",
         "enumValues": [
           "active",
-          "disabled"
+          "deregistered"
         ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -109,7 +109,7 @@
         "column": "status",
         "enumValues": [
           "active",
-          "disabled"
+          "deregistered"
         ]
       }
     ],
@@ -168,19 +168,20 @@
     },
     "semanticRules": [
       "active name可重复但`field_id`唯一",
+      "注销Field保留历史row并置`deregistered`，不删除Run/Observation事实",
       "Policy/Access均显式FK",
       "`current_observation_revision IS NULL`表示尚未提交任何Observation page，非NULL时以`(field_id,current_observation_revision)`显式FK指向`proc_field_observations`",
       "该pointer与Observation→Field的循环FK均`DEFERRABLE INITIALLY DEFERRED`",
       "`INDEX(status,field_id)`"
     ],
     "rawContract": {
-      "columns": "`field_id PK, name, status, extraction_policy_id, extraction_policy_revision, current_access_revision, current_observation_revision NULL, created_at_ms, updated_at_ms`",
-      "constraints": "active name可重复但`field_id`唯一；Policy/Access均显式FK；`current_observation_revision IS NULL`表示尚未提交任何Observation page，非NULL时以`(field_id,current_observation_revision)`显式FK指向`proc_field_observations`；该pointer与Observation→Field的循环FK均`DEFERRABLE INITIALLY DEFERRED`；`INDEX(status,field_id)`"
+      "columns": "`field_id PK, name, status(active|deregistered), extraction_policy_id, extraction_policy_revision, current_access_revision, current_observation_revision NULL, created_at_ms, updated_at_ms`",
+      "constraints": "active name可重复但`field_id`唯一；注销Field保留历史row并置`deregistered`，不删除Run/Observation事实；Policy/Access均显式FK；`current_observation_revision IS NULL`表示尚未提交任何Observation page，非NULL时以`(field_id,current_observation_revision)`显式FK指向`proc_field_observations`；该pointer与Observation→Field的循环FK均`DEFERRABLE INITIALLY DEFERRED`；`INDEX(status,field_id)`"
     },
     "source": {
       "section": "8.5.11",
-      "line": 7754,
-      "lineDigest": "1991ef0ac40a5861ed06c930c1d559e373fbe13931d7525ccdc248b18db40640"
+      "line": 7829,
+      "lineDigest": "41901a1c168fcfa9137b7571d07396113144dfc9b04f16d41ff0de5756f2f73f"
     },
     "foreignKeys": []
   }

@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.procurement-candidate-publication/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.procurement-candidate-publication",
+    "displayName": "Procurement Candidate Publication",
+    "ownerScope": "procurement",
+    "commitClass": "domain_fact_commit",
+    "atomicFactSet": "immutable Candidate Package + Primary Input Manifest + package members是Run Selection的精确子集 + 成员`run_selection → candidate_delivery` + open Handoff Offer + durable typed Result/commit marker + 8.4.2既定Offer Outbox；Package、Manifest、Reservation、Offer与Outbox全有或全无",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "procurement",
+        "access": "write",
+        "tables": [
+          "proc_candidate_packages",
+          "proc_candidate_season_continuity_claims",
+          "proc_candidate_primary_materials",
+          "proc_candidate_related_references",
+          "proc_candidate_deliveries",
+          "proc_run_materials"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_event_result_bindings",
+          "fx_commit_markers",
+          "fx_outbox"
+        ]
+      }
+    ],
+    "writeTables": [
+      "proc_candidate_packages",
+      "proc_candidate_season_continuity_claims",
+      "proc_candidate_primary_materials",
+      "proc_candidate_related_references",
+      "proc_candidate_deliveries",
+      "proc_run_materials",
+      "fx_event_result_bindings",
+      "fx_commit_markers",
+      "fx_outbox"
+    ],
+    "readTables": [
+      "proc_procurement_runs",
+      "proc_run_materials"
+    ],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": true
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "procurement-candidate-publication",
+        "faultInjectionPoints": "Package/Manifest验证前后、Run Selection子集重验、Package成员写入、Reservation转换、Offer/typed Result/marker/Outbox前后、响应前崩溃",
+        "requiredInvariant": "Package、完整Manifest、全部candidate_delivery Reservation、唯一open Offer、typed Result、marker和Offer Outbox全有或全无；非精确Run Selection子集不得发布",
+        "source": {
+          "section": "8.9.7",
+          "line": 7622
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7622,
+      "lineDigest": "95155546d4c98ddf02bfd106f77b2eb38516c889c9069293c8ff842ccf8cc73d"
+    }
+  }
+}

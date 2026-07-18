@@ -7,14 +7,15 @@
     "displayName": "Procurement Retry Intent Commit",
     "ownerScope": "procurement",
     "commitClass": "domain_unit_of_work",
-    "atomicFactSet": "immutable user Retry Intent + failed Run/Basis reference + current eligibility precondition + Outbox",
+    "atomicFactSet": "complete `ProcurementRetryIntent@1` + failed sealed Run/Basis与精确released member scope + current Field/Access/terminal Observation/Policy/active Triage Rule admission head + Eligibility/Binding/Selection/Control precondition + `open` intent + durable `ProcurementRetryIntentReceipt`/commit marker + 唯一`ProcurementRetryIntentAvailableMessage` Outbox；相同`fieldId+idempotencyKey`重放原结果",
     "participants": [
       {
         "participantKind": "domain",
         "owner": "procurement",
         "access": "write",
         "tables": [
-          "proc_procurement_retry_intents"
+          "proc_procurement_retry_intents",
+          "proc_procurement_retry_intent_materials"
         ]
       },
       {
@@ -22,6 +23,7 @@
         "owner": "execution-foundation",
         "access": "write",
         "tables": [
+          "fx_event_result_bindings",
           "fx_commit_markers",
           "fx_outbox"
         ]
@@ -29,13 +31,20 @@
     ],
     "writeTables": [
       "proc_procurement_retry_intents",
+      "proc_procurement_retry_intent_materials",
+      "fx_event_result_bindings",
       "fx_commit_markers",
       "fx_outbox"
     ],
     "readTables": [
       "proc_procurement_runs",
+      "proc_run_materials",
       "proc_material_fields",
-      "proc_field_materials"
+      "proc_field_access_revisions",
+      "proc_field_observations",
+      "proc_extraction_policy_revisions",
+      "proc_field_materials",
+      "fx_material_controls"
     ],
     "dynamicTableRequirements": [],
     "forbiddenWriteTables": [],
@@ -61,8 +70,8 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7557,
-      "lineDigest": "ecf96055eec8db2b0bcc680a514e3017967bb8ddacb5e52ce326a5f2d8ed017d"
+      "line": 7630,
+      "lineDigest": "00062a04e7d259159d5088e47b0d9b16c9af8e4798cad3111928b0bdf63cdeb6"
     }
   }
 }

@@ -27,7 +27,7 @@
       },
       {
         "ordinal": 3,
-        "name": "run_basis_digest",
+        "name": "run_basis_schema_ref",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -36,8 +36,8 @@
       },
       {
         "ordinal": 4,
-        "name": "retry_intent_id",
-        "logicalType": "TEXT",
+        "name": "access_revision",
+        "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -45,6 +45,123 @@
       },
       {
         "ordinal": 5,
+        "name": "access_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "terminal_observation_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "field_observation_work_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "extraction_policy_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "extraction_policy_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "extraction_policy_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "triage_rule_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "triage_rule_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 13,
+        "name": "triage_rule_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 14,
+        "name": "triage_rule_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 15,
+        "name": "triage_rule_authority_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 16,
+        "name": "run_basis_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 17,
+        "name": "retry_intent_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 18,
         "name": "state",
         "logicalType": "TEXT",
         "enumValues": [
@@ -57,7 +174,88 @@
         "nullable": false
       },
       {
-        "ordinal": 6,
+        "ordinal": 19,
+        "name": "state_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 20,
+        "name": "seal_outcome",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 21,
+        "name": "seal_decision_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 22,
+        "name": "seal_decision_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 23,
+        "name": "seal_evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 24,
+        "name": "admission_commit_marker",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 25,
+        "name": "admission_result_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 26,
+        "name": "seal_commit_marker",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 27,
+        "name": "seal_result_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 28,
         "name": "priority_class",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -66,7 +264,7 @@
         "nullable": false
       },
       {
-        "ordinal": 7,
+        "ordinal": 29,
         "name": "created_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -75,13 +273,13 @@
         "nullable": false
       },
       {
-        "ordinal": 8,
+        "ordinal": 30,
         "name": "finished_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
-        "nullable": false
+        "nullable": true
       }
     ],
     "primaryKey": [
@@ -90,7 +288,12 @@
     "declaredForeignKeyColumns": [
       "field_id"
     ],
-    "uniqueConstraints": [],
+    "uniqueConstraints": [
+      [
+        "field_id",
+        "run_basis_digest"
+      ]
+    ],
     "hotIndexes": [
       [
         "state",
@@ -99,7 +302,8 @@
       ]
     ],
     "partialUniqueRules": [
-      "相同`field_id+run_basis_digest`至多一个non-terminal Run"
+      "sealed时Decision ID/digest、Outcome、Evidence digest、finished time与Seal marker/result必须同时非NULL且写后immutable，非sealed时全部NULL，`UNIQUE(seal_decision_id) WHERE seal_decision_id IS NOT NULL`",
+      "`retry_intent_id`为空或唯一引用一次性Intent并加`UNIQUE(retry_intent_id) WHERE retry_intent_id IS NOT NULL`"
     ],
     "checkRules": [
       {
@@ -112,34 +316,52 @@
       }
     ],
     "revisionContract": {
-      "revisionColumns": [],
+      "revisionColumns": [
+        "access_revision",
+        "terminal_observation_revision",
+        "extraction_policy_revision",
+        "triage_rule_revision",
+        "state_revision"
+      ],
       "currentPointerColumns": [],
       "pointerTargets": [],
       "pointerRules": []
     },
     "jsonContracts": [],
     "immutability": {
-      "immutable": false,
-      "rules": []
+      "immutable": true,
+      "rules": [
+        "Run及其`proc_run_materials` immutable basis列共同构成完整Basis，禁止只凭digest恢复",
+        "Triage tuple必须由`ProcurementTriageRuleRegistry@1`当前active entry签发，Admission时验证active，历史恢复时验证精确immutable entry仍存在且digest匹配，不建立调用者可写Rule表",
+        "sealed时Decision ID/digest、Outcome、Evidence digest、finished time与Seal marker/result必须同时非NULL且写后immutable，非sealed时全部NULL，`UNIQUE(seal_decision_id) WHERE seal_decision_id IS NOT NULL`"
+      ]
     },
     "deletion": {
       "foreignKeyPolicy": "ON DELETE RESTRICT",
       "rules": []
     },
     "semanticRules": [
-      "相同`field_id+run_basis_digest`至多一个non-terminal Run",
-      "`retry_intent_id`为空或唯一引用一次性Intent",
+      "`run_basis_schema_ref=ProcurementRunExecutionBasis@1`",
+      "Run及其`proc_run_materials` immutable basis列共同构成完整Basis，禁止只凭digest恢复",
+      "Field Access/Observation/Policy均显式FK",
+      "Triage tuple必须由`ProcurementTriageRuleRegistry@1`当前active entry签发，Admission时验证active，历史恢复时验证精确immutable entry仍存在且digest匹配，不建立调用者可写Rule表",
+      "初始`state_revision=1`，只有expected revision CAS可改变state",
+      "sealed时Decision ID/digest、Outcome、Evidence digest、finished time与Seal marker/result必须同时非NULL且写后immutable，非sealed时全部NULL，`UNIQUE(seal_decision_id) WHERE seal_decision_id IS NOT NULL`",
+      "`UNIQUE(field_id,run_basis_digest)`禁止同一Basis建立第二个Run，Retry Basis因包含唯一`sourceRetryIntentId`形成新digest",
+      "`retry_intent_id`为空或唯一引用一次性Intent并加`UNIQUE(retry_intent_id) WHERE retry_intent_id IS NOT NULL`",
+      "Admission/Seal marker各自唯一且显式FK",
+      "Retry建立的Run与Intent共享同一consume/admission marker和outer result digest",
       "Supporting Work通过`owner_domain+process_type+process_id`关联",
       "`INDEX(state,priority_class,created_at_ms)`"
     ],
     "rawContract": {
-      "columns": "`procurement_run_id PK, field_id FK, run_basis_digest, retry_intent_id, state, priority_class, created_at_ms, finished_at_ms`",
-      "constraints": "相同`field_id+run_basis_digest`至多一个non-terminal Run；`retry_intent_id`为空或唯一引用一次性Intent；Supporting Work通过`owner_domain+process_type+process_id`关联；`INDEX(state,priority_class,created_at_ms)`"
+      "columns": "`procurement_run_id PK, field_id FK, run_basis_schema_ref, access_revision, access_digest, terminal_observation_revision, field_observation_work_id, extraction_policy_id, extraction_policy_revision, extraction_policy_digest, triage_rule_ref, triage_rule_revision, triage_rule_schema_ref, triage_rule_digest, triage_rule_authority_digest, run_basis_digest, retry_intent_id NULL, state(active|waiting|sealed), state_revision, seal_outcome NULL, seal_decision_id NULL, seal_decision_digest NULL, seal_evidence_digest NULL, admission_commit_marker, admission_result_digest, seal_commit_marker NULL, seal_result_digest NULL, priority_class, created_at_ms, finished_at_ms NULL`",
+      "constraints": "`run_basis_schema_ref=ProcurementRunExecutionBasis@1`；Run及其`proc_run_materials` immutable basis列共同构成完整Basis，禁止只凭digest恢复；Field Access/Observation/Policy均显式FK；Triage tuple必须由`ProcurementTriageRuleRegistry@1`当前active entry签发，Admission时验证active，历史恢复时验证精确immutable entry仍存在且digest匹配，不建立调用者可写Rule表；初始`state_revision=1`，只有expected revision CAS可改变state；sealed时Decision ID/digest、Outcome、Evidence digest、finished time与Seal marker/result必须同时非NULL且写后immutable，非sealed时全部NULL，`UNIQUE(seal_decision_id) WHERE seal_decision_id IS NOT NULL`；`UNIQUE(field_id,run_basis_digest)`禁止同一Basis建立第二个Run，Retry Basis因包含唯一`sourceRetryIntentId`形成新digest；`retry_intent_id`为空或唯一引用一次性Intent并加`UNIQUE(retry_intent_id) WHERE retry_intent_id IS NOT NULL`；Admission/Seal marker各自唯一且显式FK；Retry建立的Run与Intent共享同一consume/admission marker和outer result digest；Supporting Work通过`owner_domain+process_type+process_id`关联；`INDEX(state,priority_class,created_at_ms)`"
     },
     "source": {
       "section": "8.5.11",
-      "line": 7759,
-      "lineDigest": "a899ec8f0aac3ca9b18aecb9c72a3cf2494bfe4e105f9d3f1f990082c348712f"
+      "line": 7834,
+      "lineDigest": "6175181dc5c261567bc9fdbd6eea49f4d69bb2f64fe761785da0371561c4780c"
     },
     "foreignKeys": [
       {

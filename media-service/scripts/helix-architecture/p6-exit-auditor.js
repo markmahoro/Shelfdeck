@@ -131,7 +131,7 @@ function auditP6Exit(options) {
     authorizedSsotCommitCount: ssotCommits.length,
     capabilityCount: 112,
     resultFamilyCount: 96,
-    tableCount: 161,
+    tableCount: 162,
     transactionCount: 24,
     horizontalCapabilityCount: 13,
     prohibitedActionsRun: []

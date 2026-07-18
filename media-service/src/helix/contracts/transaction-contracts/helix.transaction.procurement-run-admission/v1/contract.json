@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.procurement-run-admission/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.procurement-run-admission",
+    "displayName": "Procurement Run Admission",
+    "ownerScope": "procurement",
+    "commitClass": "responsibility_control_commit",
+    "atomicFactSet": "complete `ProcurementRunExecutionBasis@1` + prospective Run identity + `ResponsibilityControlCommitHandle` + current Field/Access/terminal Observation/Policy/active Triage Rule authority/Material/Selection/Control fence + Run及relationized Basis rows + 全部`run_selection` guard + 对全部成员的同Field Procurement Control acquire/assert + durable `ProcurementControlReceipt` + commit marker；Triage Rule必须由注入的Procurement Registry解析并匹配当前active snapshot，不能信任调用者值；`hasOutbox=false`，全部事实/Control全有或全无，禁止分批Control后补建Run",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "procurement",
+        "access": "write",
+        "tables": [
+          "proc_procurement_runs",
+          "proc_run_materials"
+        ]
+      },
+      {
+        "participantKind": "material-control",
+        "owner": "material-control-authority",
+        "access": "write",
+        "tables": [
+          "fx_material_controls",
+          "fx_material_control_revisions"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_event_result_bindings",
+          "fx_commit_markers"
+        ]
+      }
+    ],
+    "writeTables": [
+      "proc_procurement_runs",
+      "proc_run_materials",
+      "fx_material_controls",
+      "fx_material_control_revisions",
+      "fx_event_result_bindings",
+      "fx_commit_markers"
+    ],
+    "readTables": [
+      "proc_material_fields",
+      "proc_field_access_revisions",
+      "proc_field_observations",
+      "proc_extraction_policy_revisions",
+      "proc_field_materials",
+      "proc_procurement_runs",
+      "proc_run_materials",
+      "fx_material_controls"
+    ],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": true,
+      "commitMarkerRequired": true,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "procurement-run-admission",
+        "faultInjectionPoints": "Execution Basis验证前后、active Triage Rule解析前后、逐成员Selection/Control fence重验、Run/Basis rows写入、Control acquire/assert、typed Result/marker前后、响应前崩溃",
+        "requiredInvariant": "完整Basis、Run、全部run_selection、同Field Procurement Control和ProcurementControlReceipt全有或全无；Rule只能来自注入的Procurement Registry；任一成员stale或冲突整体rollback；不写Outbox",
+        "source": {
+          "section": "8.9.7",
+          "line": 7621
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7621,
+      "lineDigest": "bb629d247679d5fe0ccf7417e948d4e94f82197472df5859e9581982a82580be"
+    }
+  }
+}

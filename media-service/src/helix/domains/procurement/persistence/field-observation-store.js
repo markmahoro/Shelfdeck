@@ -63,7 +63,7 @@ function createFieldObservationStore(options) {
       execute(context) {
         const repo = context.repository(repository.repositoryId);
         const field = repo.invoke('find_field', { field_id:page.fieldId });
-        if (!field || field.status !== 'active') fail('P7_FIELD_OBSERVATION_FIELD_INACTIVE', 'Material Field is absent or disabled.');
+        if (!field || field.status !== 'active') fail('P7_FIELD_OBSERVATION_FIELD_INACTIVE', 'Material Field is absent or deregistered.');
         const currentRevision = field.current_observation_revision === null ? 0 : field.current_observation_revision;
         if (currentRevision !== page.expectedObservationRevision || field.current_access_revision !== page.accessRevision) fail('P7_FIELD_OBSERVATION_FENCE_CONFLICT', 'Field Access or Observation head is stale.');
         const access = repo.invoke('find_access', { field_id:page.fieldId, revision:page.accessRevision });

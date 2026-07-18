@@ -34,7 +34,7 @@ function decision(overrides = {}) { return { fieldId:'field-1', fieldStatus:'act
 
 test('applies the unique Eligibility reason precedence without historical suppression', () => {
   assert.equal(evaluateExtractionEligibility(decision()).reasonCode, 'eligible');
-  assert.equal(evaluateExtractionEligibility(decision({ fieldStatus:'disabled', appearedInTerminalWork:false })).reasonCode, 'field_inactive');
+  assert.equal(evaluateExtractionEligibility(decision({ fieldStatus:'deregistered', appearedInTerminalWork:false })).reasonCode, 'field_inactive');
   assert.equal(evaluateExtractionEligibility(decision({ appearedInTerminalWork:false,
     extractionPolicy:policy({ excludedMaterialKeys:[SHA_A] }) })).reasonCode, 'not_observed_in_current_terminal_work');
   assert.equal(evaluateExtractionEligibility(decision({ extractionPolicy:policy({ excludedDirectories:['movies'] }) })).reasonCode, 'policy_directory_excluded');

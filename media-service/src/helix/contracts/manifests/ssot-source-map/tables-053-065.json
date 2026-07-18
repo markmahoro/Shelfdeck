@@ -6,13 +6,24 @@
   "endOrdinal": 65,
   "entries": [
     {
+      "id": "libra_decision_basis_revisions",
+      "owner": "libra",
+      "columnsContract": "`decision_basis_id PK, subject_id FK, routing_decision_id FK, basis_revision, query_result_set_digest, status, committed_at_ms`",
+      "constraintsContract": "`UNIQUE(subject_id,basis_revision)`；`INDEX(subject_id,status,basis_revision)`",
+      "source": {
+        "section": "8.5.11",
+        "line": 7856,
+        "lineDigest": "f4664a89a72080ae59795550c6db9e170de6cf6740c0e4d1b3a209b87d823f1d"
+      }
+    },
+    {
       "id": "libra_decision_basis_inputs",
       "owner": "libra",
       "columnsContract": "`decision_basis_id FK, input_kind, provider_domain, query_contract, query_version, query_input_digest, result_kind, result_revision, result_digest, expires_at_ms`",
       "constraintsContract": "`PK(decision_basis_id,input_kind,provider_domain,query_contract,query_input_digest)`；每项Decision Fact独立可追溯",
       "source": {
         "section": "8.5.11",
-        "line": 7781,
+        "line": 7857,
         "lineDigest": "fe9561c9816dbe88c838892571de994a75812dc9e28850df278b631fcfb45ca4"
       }
     },
@@ -23,7 +34,7 @@
       "constraintsContract": "Spec JSON上限`64 KiB`；`UNIQUE(subject_id,spec_revision)`；相同输入digest只产生一个Spec",
       "source": {
         "section": "8.5.11",
-        "line": 7782,
+        "line": 7858,
         "lineDigest": "3db6b82f4b0fdc9831eb439964a777be18b6c9feffed7c6c933dfe522b49ea9b"
       }
     },
@@ -34,7 +45,7 @@
       "constraintsContract": "Automation/Run Creator只读head；每次切换与对应immutable Decision/Spec同事务成立",
       "source": {
         "section": "8.5.11",
-        "line": 7783,
+        "line": 7859,
         "lineDigest": "44119a06333983fc844d29b0ed5e0798e55ef2997abf1329901750798aa4431a"
       }
     },
@@ -45,7 +56,7 @@
       "constraintsContract": "相同`subject+spec+scope`至多一个non-terminal Run；允许Season不同Episode scope并行；Supporting Work通过`owner_domain+process_type+process_id`形成`0..N`反向关系；`INDEX(state,priority_class,created_at_ms)`",
       "source": {
         "section": "8.5.11",
-        "line": 7784,
+        "line": 7860,
         "lineDigest": "f5720d6d659431f687c47c0f27378868a3154115acb856be36f36be13d851476"
       }
     },
@@ -56,7 +67,7 @@
       "constraintsContract": "`UNIQUE(libra_run_id)`；immutable；只允许当前`frozen` Run建立",
       "source": {
         "section": "8.5.11",
-        "line": 7785,
+        "line": 7861,
         "lineDigest": "41b9f925ffbd84cd97bb1d849077293c6ed5b4ab91dfcdfd89d48361fa7ffafa"
       }
     },
@@ -67,7 +78,7 @@
       "constraintsContract": "`UNIQUE(discard_decision_id)`；与Run terminal、原始Input Control release及Cleanup Scope同事务",
       "source": {
         "section": "8.5.11",
-        "line": 7786,
+        "line": 7862,
         "lineDigest": "e045a137a4b7b50cd069301aacc54a4bd6adc94b0e61c7b38a17f0168c5d44dd"
       }
     },
@@ -78,7 +89,7 @@
       "constraintsContract": "`UNIQUE(libra_run_id,manifest_revision)`；immutable",
       "source": {
         "section": "8.5.11",
-        "line": 7787,
+        "line": 7863,
         "lineDigest": "bbbb3bca4419fed9777ab0bb78b48f304a90f774e2022659e262184232d9d49d"
       }
     },
@@ -89,7 +100,7 @@
       "constraintsContract": "`PK(episode_delivery_manifest_id,episode_key,material_key)`；跨non-terminal Run的Episode/Primary material重叠由scope/Control guard拒绝",
       "source": {
         "section": "8.5.11",
-        "line": 7788,
+        "line": 7864,
         "lineDigest": "cc0599da719024c6e856171ebc6849e128e8e96dd5461167354199ebfb1cedac"
       }
     },
@@ -100,7 +111,7 @@
       "constraintsContract": "`PK(libra_run_id,workspace_revision)`；同一Run一个current workspace revision",
       "source": {
         "section": "8.5.11",
-        "line": 7789,
+        "line": 7865,
         "lineDigest": "9150b3bbed1056b6569cf381c3102db63aa9b2d49e7b8f104223b6d04e7fd3c4"
       }
     },
@@ -111,7 +122,7 @@
       "constraintsContract": "`PK(libra_run_id,material_handle_id,reference_revision)`；只引用`fx_workspace_materials`",
       "source": {
         "section": "8.5.11",
-        "line": 7790,
+        "line": 7866,
         "lineDigest": "c199a2611196a8c5a7b9f41d19fdc8093c7f94696f9102d294e44297cdb2263b"
       }
     },
@@ -122,7 +133,7 @@
       "constraintsContract": "`UNIQUE(trigger_kind,trigger_ref,trigger_digest)`；`INDEX(state,created_at_ms)`；只由Owner事实建立",
       "source": {
         "section": "8.5.11",
-        "line": 7791,
+        "line": 7867,
         "lineDigest": "6692caf47c32ab7535ca7e9b0f52059a600a2f96d2f87a5bffaca94b7b527224"
       }
     },
@@ -133,19 +144,8 @@
       "constraintsContract": "`PK(cleanup_scope_id,material_handle_id)`；受Control成员只有Deletion Evidence后才能release；`INDEX(state,updated_at_ms)`",
       "source": {
         "section": "8.5.11",
-        "line": 7792,
+        "line": 7868,
         "lineDigest": "d43685f77947411364476a07e0a702f3b5c0b59a68edf4a16b5f95b49ef28065"
-      }
-    },
-    {
-      "id": "libra_product_fact_revisions",
-      "owner": "libra",
-      "columnsContract": "`product_fact_id PK, libra_run_id FK, fact_kind, fact_revision, schema_ref, fact_json, fact_digest, evidence_digest, committed_at_ms`",
-      "constraintsContract": "Fact JSON上限`64 KiB`且大Artifact只含handle；`UNIQUE(libra_run_id,fact_kind,fact_revision)`；`INDEX(libra_run_id,fact_kind,fact_revision)`",
-      "source": {
-        "section": "8.5.11",
-        "line": 7793,
-        "lineDigest": "fb61c0883c686a47a6335ea88ef460a2978dba9fff90b7fdd125dae99d667a4b"
       }
     }
   ]

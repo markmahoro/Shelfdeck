@@ -62,11 +62,11 @@ test('rejects digest tamper and rolls back the entire registration', () => fixtu
   assert.equal(store.getMaterialField('field-1'), null);
 }));
 
-test('disables non-destructively and rejects later revisions', () => fixture(({ store }) => {
+test('deregisters non-destructively and rejects later revisions', () => fixture(({ store }) => {
   store.registerMaterialField(registration());
-  const disabled = store.disableMaterialField({ fieldId: 'field-1', expectedAccessRevision: 1, expectedPolicyRevision: 1 });
-  assert.equal(disabled.status, 'disabled'); assert.equal(disabled.access.revision, 1); assert.equal(disabled.policy.revision, 1);
-  assert.throws(() => store.reviseFieldAccess({ fieldId: 'field-1', expectedAccessRevision: 1, access: access(2) }), (error) => error.code === 'P7_MATERIAL_FIELD_DISABLED');
+  const deregistered = store.deregisterMaterialField({ fieldId: 'field-1', expectedAccessRevision: 1, expectedPolicyRevision: 1 });
+  assert.equal(deregistered.status, 'deregistered'); assert.equal(deregistered.access.revision, 1); assert.equal(deregistered.policy.revision, 1);
+  assert.throws(() => store.reviseFieldAccess({ fieldId: 'field-1', expectedAccessRevision: 1, access: access(2) }), (error) => error.code === 'P7_MATERIAL_FIELD_DEREGISTERED');
 }));
 
 test('duplicate Field and skipped initial revisions fail closed', () => fixture(({ store }) => {

@@ -18,6 +18,15 @@
       },
       {
         "ordinal": 2,
+        "name": "ordinal",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
         "name": "material_key",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -26,8 +35,8 @@
         "nullable": false
       },
       {
-        "ordinal": 3,
-        "name": "role",
+        "ordinal": 4,
+        "name": "selection_role",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -35,7 +44,7 @@
         "nullable": false
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "binding_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -44,8 +53,249 @@
         "nullable": false
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
+        "name": "eligibility_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "eligibility_basis_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "last_snapshot_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "last_observation_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "endpoint_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "location",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "reality_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 13,
+        "name": "provenance_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 14,
+        "name": "expected_control_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 15,
+        "name": "expected_control_state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "controlled",
+          "released"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 16,
+        "name": "expected_control_owner_domain",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 17,
+        "name": "expected_control_owner_scope_type",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 18,
+        "name": "expected_control_owner_scope_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 19,
+        "name": "expected_control_region_projection",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 20,
+        "name": "expected_control_evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 21,
+        "name": "expected_control_projection_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 22,
+        "name": "admission_control_action",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "acquire",
+          "assert_same_field"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 23,
+        "name": "admitted_control_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 24,
+        "name": "admitted_control_projection_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 25,
+        "name": "basis_member_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 26,
+        "name": "selection_state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "run_selection",
+          "candidate_delivery",
+          "released",
+          "transferred"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 27,
+        "name": "candidate_package_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "nullable": true
+      },
+      {
+        "ordinal": 28,
+        "name": "terminal_disposition",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "completed_without_candidate",
+          "triage_failed",
+          "handoff_accepted",
+          "handoff_rejected"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 29,
+        "name": "terminal_evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 30,
         "name": "selected_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 31,
+        "name": "reservation_updated_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -55,20 +305,62 @@
     ],
     "primaryKey": [
       "procurement_run_id",
-      "material_key"
+      "ordinal"
     ],
     "declaredForeignKeyColumns": [
-      "procurement_run_id"
+      "procurement_run_id",
+      "candidate_package_id"
     ],
-    "uniqueConstraints": [],
+    "uniqueConstraints": [
+      [
+        "procurement_run_id",
+        "material_key"
+      ]
+    ],
     "hotIndexes": [],
     "partialUniqueRules": [
-      "同一Primary Identity不能属于两个仍可交付的Run/Candidate，由partial unique约束"
+      "`UNIQUE(material_key) WHERE selection_state IN ('run_selection','candidate_delivery')`强制跨Run/Candidate占用唯一"
     ],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "expected_control_state",
+        "enumValues": [
+          "controlled",
+          "released"
+        ]
+      },
+      {
+        "column": "admission_control_action",
+        "enumValues": [
+          "acquire",
+          "assert_same_field"
+        ]
+      },
+      {
+        "column": "selection_state",
+        "enumValues": [
+          "run_selection",
+          "candidate_delivery",
+          "released",
+          "transferred"
+        ]
+      },
+      {
+        "column": "terminal_disposition",
+        "enumValues": [
+          "completed_without_candidate",
+          "triage_failed",
+          "handoff_accepted",
+          "handoff_rejected"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
-        "binding_revision"
+        "binding_revision",
+        "eligibility_revision",
+        "expected_control_revision",
+        "admitted_control_revision"
       ],
       "currentPointerColumns": [],
       "pointerTargets": [],
@@ -76,25 +368,38 @@
     },
     "jsonContracts": [],
     "immutability": {
-      "immutable": false,
-      "rules": []
+      "immutable": true,
+      "rules": [
+        "expected字段和`basis_member_digest`属于immutable Basis，admitted pair是同事务建立的immutable admission output，均不得旁读最新值覆盖",
+        "Candidate publish只允许`run_selection → candidate_delivery`并填Candidate FK，填入后Candidate FK immutable",
+        "任一terminal disposition都要求非NULL `terminal_evidence_digest`且两列写后immutable"
+      ]
     },
     "deletion": {
       "foreignKeyPolicy": "ON DELETE RESTRICT",
       "rules": []
     },
     "semanticRules": [
-      "`PK(procurement_run_id,material_key)`",
-      "同一Primary Identity不能属于两个仍可交付的Run/Candidate，由partial unique约束"
+      "`PK(procurement_run_id,ordinal)`及`UNIQUE(procurement_run_id,material_key)`",
+      "ordinal从0连续，`1..1024`项且`selection_role=triage_input`",
+      "expected Control列完整映射Admission前的available `MaterialControlProjectionSnapshot`，包括evidence/projection两个不同digest",
+      "admitted pair冻结事务后同Field Procurement Control output并共同形成Receipt的`controlRevisionSetDigest`",
+      "expected字段和`basis_member_digest`属于immutable Basis，admitted pair是同事务建立的immutable admission output，均不得旁读最新值覆盖",
+      "`UNIQUE(material_key) WHERE selection_state IN ('run_selection','candidate_delivery')`强制跨Run/Candidate占用唯一",
+      "`run_selection`无Candidate/terminal pair，`candidate_delivery`要求Candidate且无terminal pair",
+      "Candidate publish只允许`run_selection → candidate_delivery`并填Candidate FK，填入后Candidate FK immutable",
+      "Run Seal只把剩余Selection置`released+completed_without_candidate|triage_failed`、要求Candidate为NULL并保存Decision同一逐成员Evidence digest",
+      "Handoff终态只允许已有Candidate的Reservation变`transferred+handoff_accepted`或`released+handoff_rejected`并保存对应Receipt/Decision Evidence digest",
+      "任一terminal disposition都要求非NULL `terminal_evidence_digest`且两列写后immutable"
     ],
     "rawContract": {
-      "columns": "`procurement_run_id FK, material_key, role, binding_revision, selected_at_ms`",
-      "constraints": "`PK(procurement_run_id,material_key)`；同一Primary Identity不能属于两个仍可交付的Run/Candidate，由partial unique约束"
+      "columns": "`procurement_run_id FK, ordinal, material_key, selection_role, binding_revision, eligibility_revision, eligibility_basis_digest, last_snapshot_digest, last_observation_id, endpoint_id, location, reality_digest, provenance_digest, expected_control_revision, expected_control_state, expected_control_owner_domain NULL, expected_control_owner_scope_type NULL, expected_control_owner_scope_id NULL, expected_control_region_projection, expected_control_evidence_digest, expected_control_projection_digest, admission_control_action(acquire|assert_same_field), admitted_control_revision, admitted_control_projection_digest, basis_member_digest, selection_state(run_selection|candidate_delivery|released|transferred), candidate_package_id NULL FK, terminal_disposition NULL|completed_without_candidate|triage_failed|handoff_accepted|handoff_rejected, terminal_evidence_digest NULL, selected_at_ms, reservation_updated_at_ms`",
+      "constraints": "`PK(procurement_run_id,ordinal)`及`UNIQUE(procurement_run_id,material_key)`；ordinal从0连续，`1..1024`项且`selection_role=triage_input`；expected Control列完整映射Admission前的available `MaterialControlProjectionSnapshot`，包括evidence/projection两个不同digest；admitted pair冻结事务后同Field Procurement Control output并共同形成Receipt的`controlRevisionSetDigest`；expected字段和`basis_member_digest`属于immutable Basis，admitted pair是同事务建立的immutable admission output，均不得旁读最新值覆盖；`UNIQUE(material_key) WHERE selection_state IN ('run_selection','candidate_delivery')`强制跨Run/Candidate占用唯一；`run_selection`无Candidate/terminal pair，`candidate_delivery`要求Candidate且无terminal pair；Candidate publish只允许`run_selection → candidate_delivery`并填Candidate FK，填入后Candidate FK immutable；Run Seal只把剩余Selection置`released+completed_without_candidate|triage_failed`、要求Candidate为NULL并保存Decision同一逐成员Evidence digest；Handoff终态只允许已有Candidate的Reservation变`transferred+handoff_accepted`或`released+handoff_rejected`并保存对应Receipt/Decision Evidence digest；任一terminal disposition都要求非NULL `terminal_evidence_digest`且两列写后immutable"
     },
     "source": {
       "section": "8.5.11",
-      "line": 7761,
-      "lineDigest": "d9efda9bcbc95c34e631da51aa508f45527c3d1fbcc23d897138201c876a2c2b"
+      "line": 7837,
+      "lineDigest": "191a149b327a80bb7211614204d9a1694e8f936d76c12954ab1267353b1056c4"
     },
     "foreignKeys": [
       {
@@ -104,6 +409,17 @@
         "targetTable": "proc_procurement_runs",
         "targetColumns": [
           "procurement_run_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "candidate_package_id"
+        ],
+        "targetTable": "proc_candidate_packages",
+        "targetColumns": [
+          "candidate_package_id"
         ],
         "deletePolicy": "RESTRICT",
         "deferrable": false

@@ -66,7 +66,7 @@ function createFieldAccess(value) {
 }
 
 function createMaterialField(value) {
-  if (!['active', 'disabled'].includes(value.status)) fail('P7_FIELD_STATUS_INVALID', 'Material Field status is invalid.');
+  if (!['active', 'deregistered'].includes(value.status)) fail('P7_FIELD_STATUS_INVALID', 'Material Field status is invalid.');
   if (value.currentObservationRevision !== null) revision(value.currentObservationRevision, 'currentObservationRevision');
   return Object.freeze({
     fieldId: text(value.fieldId, 'fieldId'), name: text(value.name, 'name'), status: value.status,

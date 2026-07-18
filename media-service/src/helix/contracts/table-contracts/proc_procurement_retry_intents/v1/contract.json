@@ -45,17 +45,20 @@
       },
       {
         "ordinal": 5,
-        "name": "actor_id",
+        "name": "retry_field_status",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "active",
+          "disabled"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
         "nullable": false
       },
       {
         "ordinal": 6,
-        "name": "idempotency_key",
-        "logicalType": "TEXT",
+        "name": "retry_access_revision",
+        "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -63,7 +66,7 @@
       },
       {
         "ordinal": 7,
-        "name": "intent_digest",
+        "name": "retry_access_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -72,6 +75,159 @@
       },
       {
         "ordinal": 8,
+        "name": "retry_terminal_observation_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "retry_field_observation_work_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "retry_extraction_policy_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "retry_extraction_policy_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "retry_extraction_policy_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 13,
+        "name": "retry_triage_rule_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 14,
+        "name": "retry_triage_rule_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 15,
+        "name": "retry_triage_rule_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 16,
+        "name": "retry_triage_rule_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 17,
+        "name": "retry_triage_rule_authority_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 18,
+        "name": "retry_admission_head_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 19,
+        "name": "retry_scope_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 20,
+        "name": "retry_member_count",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 21,
+        "name": "precondition_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 22,
+        "name": "actor_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 23,
+        "name": "idempotency_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 24,
+        "name": "intent_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 25,
         "name": "state",
         "logicalType": "TEXT",
         "enumValues": [
@@ -84,7 +240,97 @@
         "nullable": false
       },
       {
-        "ordinal": 9,
+        "ordinal": 26,
+        "name": "state_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 27,
+        "name": "new_run_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 28,
+        "name": "primary_stale_reason_code",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 29,
+        "name": "consume_admission_head_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 30,
+        "name": "consume_admission_head_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 31,
+        "name": "consume_admission_head_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 32,
+        "name": "create_commit_marker",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 33,
+        "name": "create_result_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 34,
+        "name": "consume_commit_marker",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 35,
+        "name": "consume_result_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 36,
         "name": "created_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -93,13 +339,13 @@
         "nullable": false
       },
       {
-        "ordinal": 10,
+        "ordinal": 37,
         "name": "consumed_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
-        "nullable": false
+        "nullable": true
       }
     ],
     "primaryKey": [
@@ -117,9 +363,16 @@
     ],
     "hotIndexes": [],
     "partialUniqueRules": [
-      "同一failed Run/Basis至多一个open Intent"
+      "`UNIQUE(failed_run_id,failed_basis_digest) WHERE state IN ('open','consumed')`，stale后可按新current precondition建立新Intent，consumed后必须改为对其new Run重试"
     ],
     "checkRules": [
+      {
+        "column": "retry_field_status",
+        "enumValues": [
+          "active",
+          "disabled"
+        ]
+      },
       {
         "column": "state",
         "enumValues": [
@@ -130,12 +383,26 @@
       }
     ],
     "revisionContract": {
-      "revisionColumns": [],
+      "revisionColumns": [
+        "retry_access_revision",
+        "retry_terminal_observation_revision",
+        "retry_extraction_policy_revision",
+        "retry_triage_rule_revision",
+        "state_revision"
+      ],
       "currentPointerColumns": [],
       "pointerTargets": [],
       "pointerRules": []
     },
-    "jsonContracts": [],
+    "jsonContracts": [
+      {
+        "column": "consume_admission_head_json",
+        "schemaRefColumn": "consume_admission_head_schema_ref",
+        "maxBytes": 16384,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
     "immutability": {
       "immutable": false,
       "rules": []
@@ -146,17 +413,23 @@
     },
     "semanticRules": [
       "`UNIQUE(field_id,idempotency_key)`",
-      "同一failed Run/Basis至多一个open Intent",
-      "消费时重验当前Field/Material eligibility，不修改旧Run"
+      "`UNIQUE(failed_run_id,failed_basis_digest) WHERE state IN ('open','consumed')`，stale后可按新current precondition建立新Intent，consumed后必须改为对其new Run重试",
+      "`retry_*` head按`ProcurementRetryAdmissionHead@1`关系化冻结，Triage tuple必须来自创建时Registry active entry",
+      "初始`state_revision=1`",
+      "`new_run_id`只在consumed时非NULL并与`proc_procurement_runs.retry_intent_id`互证，两个方向FK均`DEFERRABLE INITIALLY DEFERRED`",
+      "terminal时`consume_admission_head_json`必须是schema验证且JCS bytes≤`16 KiB`的完整current head，digest精确匹配",
+      "stale时`primary_stale_reason_code`等于8.6.18固定precedence下`staleReasonCodes[0]`，created时为NULL",
+      "create与consume marker/result分别唯一且可重放，terminal Intent必须有consume pair",
+      "消费时CAS expected state/digest并重验全部relationized precondition，不修改旧Run"
     ],
     "rawContract": {
-      "columns": "`retry_intent_id PK, field_id FK, failed_run_id FK, failed_basis_digest, actor_id, idempotency_key, intent_digest, state(open|consumed|stale), created_at_ms, consumed_at_ms`",
-      "constraints": "`UNIQUE(field_id,idempotency_key)`；同一failed Run/Basis至多一个open Intent；消费时重验当前Field/Material eligibility，不修改旧Run"
+      "columns": "`retry_intent_id PK, field_id FK, failed_run_id FK, failed_basis_digest, retry_field_status, retry_access_revision, retry_access_digest, retry_terminal_observation_revision, retry_field_observation_work_id, retry_extraction_policy_id, retry_extraction_policy_revision, retry_extraction_policy_digest, retry_triage_rule_ref, retry_triage_rule_revision, retry_triage_rule_schema_ref, retry_triage_rule_digest, retry_triage_rule_authority_digest, retry_admission_head_digest, retry_scope_digest, retry_member_count, precondition_set_digest, actor_id, idempotency_key, intent_digest, state(open|consumed|stale), state_revision, new_run_id NULL, primary_stale_reason_code NULL, consume_admission_head_schema_ref NULL, consume_admission_head_json NULL, consume_admission_head_digest NULL, create_commit_marker, create_result_digest, consume_commit_marker NULL, consume_result_digest NULL, created_at_ms, consumed_at_ms NULL`",
+      "constraints": "`UNIQUE(field_id,idempotency_key)`；`UNIQUE(failed_run_id,failed_basis_digest) WHERE state IN ('open','consumed')`，stale后可按新current precondition建立新Intent，consumed后必须改为对其new Run重试；`retry_*` head按`ProcurementRetryAdmissionHead@1`关系化冻结，Triage tuple必须来自创建时Registry active entry；初始`state_revision=1`；`new_run_id`只在consumed时非NULL并与`proc_procurement_runs.retry_intent_id`互证，两个方向FK均`DEFERRABLE INITIALLY DEFERRED`；terminal时`consume_admission_head_json`必须是schema验证且JCS bytes≤`16 KiB`的完整current head，digest精确匹配；stale时`primary_stale_reason_code`等于8.6.18固定precedence下`staleReasonCodes[0]`，created时为NULL；create与consume marker/result分别唯一且可重放，terminal Intent必须有consume pair；消费时CAS expected state/digest并重验全部relationized precondition，不修改旧Run"
     },
     "source": {
       "section": "8.5.11",
-      "line": 7760,
-      "lineDigest": "26a07a47288fa898b664f56717126cd366290eb44cab41fbb618d250413158bc"
+      "line": 7835,
+      "lineDigest": "a646af4103483c1b850aaa681587e2040b8245e10c0b43796e8c7ec07af0be52"
     },
     "foreignKeys": [
       {

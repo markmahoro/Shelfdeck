@@ -167,16 +167,17 @@
       "Identity Claim JSON上限`16 KiB`",
       "`UNIQUE(procurement_run_id,package_revision)`",
       "published内容immutable",
+      "Publication必须与Manifest成员对应`proc_run_materials`转为`candidate_delivery`同事务成立",
       "`INDEX(state,published_at_ms)`"
     ],
     "rawContract": {
       "columns": "`candidate_package_id PK, procurement_run_id FK, package_revision, structure_kind, content_profile_hint, identity_claim_schema_ref, identity_claim_json, manifest_digest, package_digest, state, published_at_ms`",
-      "constraints": "Identity Claim JSON上限`16 KiB`；`UNIQUE(procurement_run_id,package_revision)`；published内容immutable；`INDEX(state,published_at_ms)`"
+      "constraints": "Identity Claim JSON上限`16 KiB`；`UNIQUE(procurement_run_id,package_revision)`；published内容immutable；Publication必须与Manifest成员对应`proc_run_materials`转为`candidate_delivery`同事务成立；`INDEX(state,published_at_ms)`"
     },
     "source": {
       "section": "8.5.11",
-      "line": 7762,
-      "lineDigest": "302e6c4749531d3c07a8ee72ab20931158e0608b8d23c6879f8cc3ee4118c6d8"
+      "line": 7838,
+      "lineDigest": "6ecd060099a729952cee1124dd1908dc9301c8a05d47c07a23e086e79f87b7d9"
     },
     "foreignKeys": [
       {

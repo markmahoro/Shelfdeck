@@ -75,7 +75,7 @@ function evaluateExtractionEligibility(decision) {
     'appearedInTerminalWork','materialRelativeLocation','sizeBytes','observedExtension','extractionPolicy','selectionSnapshot',
     'controlSnapshot'];
   exact(decision, keys, 'P7_ELIGIBILITY_DECISION_SHAPE');
-  if (!['active','disabled'].includes(decision.fieldStatus) || !Number.isSafeInteger(decision.expectedEligibilityRevision) ||
+  if (!['active','deregistered'].includes(decision.fieldStatus) || !Number.isSafeInteger(decision.expectedEligibilityRevision) ||
       decision.expectedEligibilityRevision < 1 || !Number.isSafeInteger(decision.sizeBytes) || decision.sizeBytes < 0) {
     fail('P7_ELIGIBILITY_DECISION_VALUE', 'Extraction Eligibility scalar input is invalid.');
   }
