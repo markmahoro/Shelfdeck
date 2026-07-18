@@ -2257,7 +2257,7 @@ CREATE TABLE "proc_field_observations" (
   "field_observation_work_id" TEXT,
   "access_revision" INTEGER CHECK ("access_revision" >= 1),
   "page_ordinal" INTEGER CHECK ("page_ordinal" >= 0),
-  "expected_revision" INTEGER CHECK ("expected_revision" >= 1),
+  "expected_revision" INTEGER CHECK ("expected_revision" >= 0),
   "cursor_in" TEXT,
   "cursor_out" TEXT,
   "page_digest" TEXT CHECK (length("page_digest") = 64 AND "page_digest" NOT GLOB '*[^0-9a-f]*'),

@@ -4,7 +4,7 @@
   "digestAlgorithm": "sha256",
   "tableCount": 161,
   "tableContractAggregateDigest": "1a2cd9402735c0caa58a6ebfdb0e9d86cc0c88749bc0be8371b0b3f0737b0333",
-  "ddlDigest": "d7c8325ef04a1e6f0f6af12414e2fd497bca397a7059e26d94e9f8ac8abe8763",
+  "ddlDigest": "d64826de7a03f247c7e2a3d6125c4f6168e0dae74c66f2636a7f59460c33c4aa",
   "tables": [
     {
       "tableId": "arca_acceptance_attempts",
@@ -3606,7 +3606,7 @@
       "owner": "procurement",
       "contractId": "helix://contracts/tables/proc_field_observations/v1",
       "contractDigest": "94ec0179b38bb64acce68bf091a9ad22e22dd98c2a59da09cceb67a14139778d",
-      "sqlDigest": "b09d9024c93c6f8e8738c31cb9f9dd3ee2917ecf73e2fcb3a6086be5d2fef4c7",
+      "sqlDigest": "433e669833d463b8567004005bdbe5e8ab6e89fc6c96cd35d36d8b07b91dd457",
       "columns": [
         "field_id",
         "revision",

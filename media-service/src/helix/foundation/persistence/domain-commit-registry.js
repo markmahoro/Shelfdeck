@@ -83,7 +83,7 @@ function createDomainCommitRegistry(options) {
   const registryDigest = digest(canonicalJson(manifest));
   return Object.freeze({
     manifest: Object.freeze({ entryCount: manifest.length, registryDigest, entries: Object.freeze(manifest) }),
-    resolve(handle, payload) {
+    resolve(handle, payload, commitContext = {}) {
       validateHandle(handle);
       const payloadJson = canonicalJson(payload);
       if (typeof payloadJson !== 'string' || digest(payloadJson) !== handle.payloadDigest) fail(
@@ -93,11 +93,38 @@ function createDomainCommitRegistry(options) {
       if (!registration) fail('P3_DOMAIN_COMMIT_UNREGISTERED_FACT', 'No exact Owner/fact schema registration exists.', {
         ownerDomain: handle.ownerDomain, factSchemaRef: handle.factSchemaRef
       });
-      const participant = registration.createParticipant(Object.freeze({ handle, payload }));
+      const participant = registration.createParticipant(Object.freeze({ handle, payload, ...commitContext }));
       if (!participant || participant.owner !== handle.ownerDomain || participant.boundBusinessOwner !== undefined && participant.boundBusinessOwner !== handle.ownerDomain) {
         fail('P3_DOMAIN_COMMIT_PARTICIPANT_OWNER_MISMATCH', 'Typed participant does not preserve the registered Domain Owner.');
       }
       return participant;
+    }
+  });
+}
+
+function createCanonicalTransactionRegistry(options) {
+  if (!options || !Array.isArray(options.contracts) || options.contracts.length === 0) {
+    fail('P3_DOMAIN_COMMIT_TRANSACTION_REGISTRY_REQUIRED', 'Canonical transaction contracts are required.');
+  }
+  const entries = new Map();
+  for (const document of options.contracts) {
+    const contract = document && document.contract;
+    if (!contract || document.schemaVersion !== 1 || document.contractVersion !== 1 ||
+        document.contractId !== `helix://contracts/transactions/${contract.transactionId}/v1` ||
+        typeof contract.transactionId !== 'string' || contract.commitClass !== DOMAIN_FACT_EFFECT_CLASS ||
+        !contract.fenceContract || contract.fenceContract.domainRevisionFenceRequired !== true ||
+        contract.fenceContract.commitMarkerRequired !== true || typeof contract.fenceContract.outboxRequired !== 'boolean' ||
+        !Array.isArray(contract.writeTables) || contract.fenceContract.outboxRequired !== contract.writeTables.includes('fx_outbox')) {
+      fail('P3_DOMAIN_COMMIT_INVALID_TRANSACTION_CONTRACT', 'Exact domain fact transaction contract is invalid.');
+    }
+    if (entries.has(contract.transactionId)) fail('P3_DOMAIN_COMMIT_DUPLICATE_TRANSACTION', 'Transaction identity must be unique.');
+    entries.set(contract.transactionId, Object.freeze(contract));
+  }
+  return Object.freeze({
+    resolve(transactionId) {
+      const contract = entries.get(transactionId);
+      if (!contract) fail('P3_DOMAIN_COMMIT_UNKNOWN_TRANSACTION', 'Domain commit must name an exact canonical transaction.', { transactionId });
+      return contract;
     }
   });
 }
@@ -135,7 +162,7 @@ function resultRepository(schemaManifest) {
   });
 }
 
-function parseStoredResult(row, marker) {
+function parseStoredBinding(row, marker) {
   if (!row || row.result_schema_ref !== marker.result_schema_ref || row.result_digest !== marker.result_digest) {
     fail('P3_DOMAIN_COMMIT_RESULT_BINDING_CORRUPT', 'Commit Marker does not resolve to its exact durable typed Result.');
   }
@@ -144,24 +171,51 @@ function parseStoredResult(row, marker) {
   if (canonicalDigest(result) !== row.result_digest || result.schemaRef !== row.result_schema_ref) {
     fail('P3_DOMAIN_COMMIT_RESULT_BINDING_CORRUPT', 'Stored typed Result digest or nominal schema is invalid.');
   }
-  return Object.freeze(result);
+  let evidence;
+  try { evidence = JSON.parse(row.evidence_json); } catch { fail('P3_DOMAIN_COMMIT_RESULT_BINDING_CORRUPT', 'Stored typed Evidence is not JSON.'); }
+  if (canonicalDigest(evidence) !== row.evidence_digest || evidence.schemaRef !== row.evidence_schema_ref) {
+    fail('P3_DOMAIN_COMMIT_RESULT_BINDING_CORRUPT', 'Stored typed Evidence digest or nominal schema is invalid.');
+  }
+  return Object.freeze({ typedResult: Object.freeze(result), typedEvidence: Object.freeze(evidence) });
+}
+
+function supportingWorkRepository(schemaManifest) {
+  return createRepositoryDefinition({ repositoryId:'domain_commit_supporting_work', owner:'execution-foundation', schemaManifest,
+    statements:{ find:{ kind:'select-one', tableId:'fx_supporting_works', columns:['work_id','owner_domain','process_type','process_id','state'], keyColumns:['work_id'] } }
+  });
 }
 
 function createDomainCommitCoordinator(options) {
   if (!options || !options.schemaManifest || !options.registry || typeof options.registry.resolve !== 'function' ||
+      !options.transactionRegistry || typeof options.transactionRegistry.resolve !== 'function' ||
       !options.unitOfWork || typeof options.unitOfWork.execute !== 'function') {
     fail('P3_DOMAIN_COMMIT_INVALID_COORDINATOR', 'Schema manifest, typed registry, and SqliteUnitOfWork are required.');
   }
   const marker = markerRepository(options.schemaManifest);
   const resultBinding = resultRepository(options.schemaManifest);
+  const supportingWork = supportingWorkRepository(options.schemaManifest);
   return Object.freeze({
     execute(request) {
       if (!request || !request.handle || !request.commitMarker || !request.resultBinding ||
-          !Array.isArray(request.outboxMessages) || request.outboxMessages.length === 0) {
-        fail('P3_DOMAIN_COMMIT_INVALID_REQUEST', 'Handle, durable typed Result binding, commit marker, and Outbox messages are required.');
+          !Array.isArray(request.outboxMessages)) {
+        fail('P3_DOMAIN_COMMIT_INVALID_REQUEST', 'Transaction, Handle, durable typed Result binding, commit marker, and Outbox declaration are required.');
       }
       const handle = request.handle;
-      const resolvedParticipant = options.registry.resolve(handle, request.payload);
+      const transaction = options.transactionRegistry.resolve(text(request.transactionId, 'transactionId'));
+      if (transaction.ownerScope !== 'polymorphic-domain-owner' && transaction.ownerScope !== handle.ownerDomain) {
+        fail('P3_DOMAIN_COMMIT_TRANSACTION_OWNER_MISMATCH', 'Canonical transaction does not authorize this Domain Owner.');
+      }
+      const outboxRequired = transaction.fenceContract.outboxRequired;
+      if (outboxRequired && request.outboxMessages.length === 0) {
+        fail('P3_DOMAIN_COMMIT_OUTBOX_REQUIRED', 'Canonical transaction requires a non-empty Outbox fact set.');
+      }
+      if (!outboxRequired && request.outboxMessages.length !== 0) {
+        fail('P3_DOMAIN_COMMIT_OUTBOX_FORBIDDEN', 'Canonical transaction forbids Outbox publication.');
+      }
+      const commitMarkerId = text(request.commitMarker.commitMarker, 'commitMarker');
+      const supportingWorkRequired = transaction.readTables.includes('fx_supporting_works');
+      if (supportingWorkRequired) text(request.supportingWorkId, 'supportingWorkId');
+      const resolvedParticipant = options.registry.resolve(handle, request.payload, { commitMarker:commitMarkerId });
       let typedResult;
       const domainParticipant = {
         ...resolvedParticipant,
@@ -178,7 +232,6 @@ function createDomainCommitCoordinator(options) {
       if (!binding.evidence || typeof binding.evidence !== 'object' || Array.isArray(binding.evidence)) {
         fail('P3_DOMAIN_COMMIT_EVIDENCE_REQUIRED', 'A typed Evidence value is required for the durable Result binding.');
       }
-      const commitMarkerId = text(request.commitMarker.commitMarker, 'commitMarker');
       const commitDigest = SHA256.test(request.commitMarker.commitDigest || '')
         ? request.commitMarker.commitDigest
         : fail('P3_DOMAIN_COMMIT_INVALID_DIGEST', 'Commit Marker digest must be lowercase SHA-256.');
@@ -186,17 +239,22 @@ function createDomainCommitCoordinator(options) {
         participantId: 'domain_commit_preflight',
         owner: 'execution-foundation',
         boundBusinessOwner: handle.ownerDomain,
-        repositories: [marker, resultBinding],
+        repositories: supportingWorkRequired ? [marker, resultBinding, supportingWork] : [marker, resultBinding],
         execute(context) {
+          if (supportingWorkRequired) {
+            const work = context.repository('domain_commit_supporting_work').invoke('find', { work_id:request.supportingWorkId });
+            if (!work || work.owner_domain !== handle.ownerDomain || work.state !== 'running') {
+              fail('P3_DOMAIN_COMMIT_SUPPORTING_WORK_INVALID', 'Canonical transaction Supporting Work is absent or not running for its Owner.');
+            }
+          }
           const existing = context.repository('domain_commit_marker').invoke('find', { commit_marker: commitMarkerId });
           if (!existing) return;
           if (existing.owner_domain !== handle.ownerDomain || existing.scope_type !== handle.aggregateType ||
               existing.scope_id !== handle.aggregateId || existing.commit_digest !== commitDigest) {
             fail('P3_DOMAIN_COMMIT_MARKER_CONFLICT', 'Commit Marker already exists with a different signed commit.');
           }
-          throw new DomainCommitReplay(Object.freeze({ ...existing,
-            typedResult: parseStoredResult(context.repository('domain_commit_result').invoke('find', { result_id: existing.result_id }), existing)
-          }));
+          const stored = parseStoredBinding(context.repository('domain_commit_result').invoke('find', { result_id: existing.result_id }), existing);
+          throw new DomainCommitReplay(Object.freeze({ ...existing, ...stored }));
         }
       }, domainParticipant, {
         participantId: 'domain_commit_result', owner: 'execution-foundation', boundBusinessOwner: handle.ownerDomain,
@@ -244,11 +302,9 @@ function createDomainCommitCoordinator(options) {
           });
         }
       });
-      participants.push(createOutboxParticipant({
-        schemaManifest: options.schemaManifest,
-        participantId: 'domain_commit_outbox',
-        producerDomain: handle.ownerDomain,
-        messages: request.outboxMessages
+      if (outboxRequired) participants.push(createOutboxParticipant({
+        schemaManifest: options.schemaManifest, participantId: 'domain_commit_outbox',
+        producerDomain: handle.ownerDomain, messages: request.outboxMessages
       }));
       try {
         const results = options.unitOfWork.execute(participants);
@@ -257,12 +313,13 @@ function createDomainCommitCoordinator(options) {
           domainResult: results[domainParticipant.participantId],
           controlResult: results.material_control,
           outboxResult: results.domain_commit_outbox,
-          commitMarker: commitMarkerId, typedResult: results[domainParticipant.participantId], resultBinding: results.domain_commit_result
+          commitMarker: commitMarkerId, typedResult: results[domainParticipant.participantId], typedEvidence: binding.evidence,
+          resultBinding: results.domain_commit_result
         });
       } catch (error) {
         if (error instanceof DomainCommitReplay) return Object.freeze({
           replayed: true, domainResult: error.marker.typedResult, controlResult: undefined, outboxResult: undefined,
-          commitMarker: error.marker.commit_marker, typedResult: error.marker.typedResult,
+          commitMarker: error.marker.commit_marker, typedResult: error.marker.typedResult, typedEvidence: error.marker.typedEvidence,
           resultBinding: Object.freeze({ resultId: error.marker.result_id, resultSchemaRef: error.marker.result_schema_ref, resultDigest: error.marker.result_digest })
         });
         throw error;
@@ -271,4 +328,6 @@ function createDomainCommitCoordinator(options) {
   });
 }
 
-module.exports = Object.freeze({ DomainCommitRegistryError, createDomainCommitCoordinator, createDomainCommitRegistry });
+module.exports = Object.freeze({
+  DomainCommitRegistryError, createCanonicalTransactionRegistry, createDomainCommitCoordinator, createDomainCommitRegistry
+});

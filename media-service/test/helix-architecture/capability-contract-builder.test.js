@@ -39,8 +39,8 @@ test('preserves Owner, Effect Class, output family, and source locator from SSOT
 test('moves only SSOT-declared parameter tokens out of named inputs', () => {
   const packages = buildCapabilityPackages(extracted.capabilities);
   const observe = packages.find((item) => item.capabilityRef === 'procurement.field.page.observe@1').files;
-  assert.deepEqual(Object.keys(observe['parameters.schema.json'].properties).sort(), ['cursor', 'pageBudget']);
-  assert.deepEqual(Object.keys(observe['inputs.schema.json'].properties), ['fieldAccessHandle']);
+  assert.deepEqual(observe['parameters.schema.json'].properties, {});
+  assert.deepEqual(Object.keys(observe['inputs.schema.json'].properties), ['fieldAccessHandle', 'fieldObservationPageRequest']);
 
   const fetch = packages.find((item) => item.capabilityRef === 'libra.product_metadata.fetch@1').files;
   assert.deepEqual(fetch['parameters.schema.json'].properties, {});

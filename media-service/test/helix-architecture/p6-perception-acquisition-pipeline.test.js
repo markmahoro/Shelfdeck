@@ -9,7 +9,8 @@ const test = require('node:test');
 const Database = require('better-sqlite3');
 
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
-const { createDomainCommitCoordinator, createDomainCommitRegistry } = require('../../src/helix/foundation/persistence/domain-commit-registry');
+const { createCanonicalTransactionRegistry, createDomainCommitCoordinator, createDomainCommitRegistry } = require('../../src/helix/foundation/persistence/domain-commit-registry');
+const perceptionTransaction = require('../../src/helix/contracts/transaction-contracts/helix.transaction.perception-acquisition-page-commit/v1/contract.json');
 const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
 const { createPerceptionAcquisitionPipeline, createPerceptionRecordCommitRegistration } = require('../../src/helix/domains/perception/capabilities/perception-acquisition-pipeline');
@@ -96,7 +97,8 @@ test('Record Commit registration writes Perception facts, durable typed Result, 
     const pipeline = pipelineFixture().instance; const page = await pipeline.acquirePage(acquireRequest());
     const draft = await pipeline.normalizePage({ observationPage:page, normalizationRule:rule(), draftId:'draft-1', producedAtMs:NOW + 1 });
     const registry = createDomainCommitRegistry({ registrations:[createPerceptionRecordCommitRegistration(store)] });
-    const coordinator = createDomainCommitCoordinator({ schemaManifest, registry, unitOfWork });
+    const transactionRegistry = createCanonicalTransactionRegistry({ contracts:[perceptionTransaction] });
+    const coordinator = createDomainCommitCoordinator({ schemaManifest, registry, transactionRegistry, unitOfWork });
     const setup = new Database(databasePath);
     setup.prepare('INSERT INTO fx_supporting_works(work_id,owner_domain,process_type,process_id,work_kind,basis_digest,priority_class,state,idempotency_key,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('work-1','perception','acquisition','acquisition-1','sync',hash('basis'),'normal','running','work-key',1,1);
     setup.prepare('INSERT INTO fx_work_attempts(attempt_id,work_id,ordinal,basis_digest,state,started_at_ms) VALUES(?,?,?,?,?,?)').run('attempt-1','work-1',1,hash('basis'),'running',1);
@@ -106,7 +108,8 @@ test('Record Commit registration writes Perception facts, durable typed Result, 
       aggregateType:'perception-acquisition', aggregateId:'acquisition-1', factType:'PerceptionAcquisitionCommitDraft', factSchemaRef:draft.schemaRef,
       resultSchemaRef:'helix://contracts/types/PerceptionRecordCommitResult/v1', expectedRevision:0, payloadDigest:canonicalDigest(draft),
       commitIdempotencyKey:'marker-1', eventFenceDigest:hash('event-fence') };
-    const request = { handle, payload:draft, commitMarker:{ commitMarker:'marker-1', effectId:null, commitDigest:hash('commit') },
+    const request = { transactionId:'helix.transaction.perception-acquisition-page-commit', handle, payload:draft,
+      commitMarker:{ commitMarker:'marker-1', effectId:null, commitDigest:hash('commit') },
       resultBinding:{ resultId:'result-1', eventId:'event-1', evidenceSchemaRef:page.schemaRef, evidence:page }, outboxMessages:[{
         messageId:'message-1', producerDomain:'perception', messageKind:'perception.records.committed', aggregateType:'perception-acquisition',
         aggregateId:'acquisition-1', aggregateRevision:1, dedupKey:'acquisition-1/page-0', intendedConsumers:['people'],

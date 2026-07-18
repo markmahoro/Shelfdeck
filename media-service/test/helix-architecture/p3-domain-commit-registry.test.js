@@ -6,7 +6,8 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 const Database = require('better-sqlite3');
-const { createDomainCommitCoordinator, createDomainCommitRegistry } = require('../../src/helix/foundation/persistence/domain-commit-registry');
+const { createCanonicalTransactionRegistry, createDomainCommitCoordinator, createDomainCommitRegistry } = require('../../src/helix/foundation/persistence/domain-commit-registry');
+const domainFactTransaction = require('../../src/helix/contracts/transaction-contracts/helix.transaction.domain-fact-commit/v1/contract.json');
 const { digest } = require('../../src/helix/foundation/persistence/ddl-compiler');
 const { controlScopeDigest, materialKey } = require('../../src/helix/foundation/persistence/material-control');
 const { createRepositoryDefinition } = require('../../src/helix/foundation/persistence/owner-repository');
@@ -60,7 +61,8 @@ function fixture(run, registrations = [registration()]) {
   const kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest, now: () => clock++ });
   const registry = createDomainCommitRegistry({ registrations });
   const coordinator = createDomainCommitCoordinator({
-    schemaManifest, registry, unitOfWork: createSqliteUnitOfWork({ kernel })
+    schemaManifest, registry, transactionRegistry: createCanonicalTransactionRegistry({ contracts: [domainFactTransaction] }),
+    unitOfWork: createSqliteUnitOfWork({ kernel })
   });
   const setup = new Database(databasePath);
   setup.prepare('INSERT INTO fx_supporting_works(work_id,owner_domain,process_type,process_id,work_kind,basis_digest,priority_class,state,idempotency_key,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
@@ -111,6 +113,7 @@ function outbox(subjectId = 'subject-1') {
 
 function request(value = payload(), overrides = {}) {
   return {
+    transactionId: 'helix.transaction.domain-fact-commit',
     handle: overrides.handle || domainHandle(value), payload: value,
     commitMarker: {
       commitMarker: overrides.commitMarker || 'marker-' + value.subjectId,
@@ -166,6 +169,11 @@ test('builds a deterministic exact typed registration manifest', () => {
     (error) => error.code === 'P3_DOMAIN_COMMIT_EFFECT_CLASS_REQUIRED');
   assert.throws(() => createDomainCommitRegistry({ registrations: [{ ...registration(), revisionFence: false }] }),
     (error) => error.code === 'P3_DOMAIN_COMMIT_REVISION_FENCE_REQUIRED');
+  assert.throws(() => createCanonicalTransactionRegistry({ contracts: [domainFactTransaction.contract] }),
+    (error) => error.code === 'P3_DOMAIN_COMMIT_INVALID_TRANSACTION_CONTRACT');
+  assert.throws(() => createCanonicalTransactionRegistry({ contracts: [{ ...domainFactTransaction,
+    contract: { ...domainFactTransaction.contract, fenceContract:{ ...domainFactTransaction.contract.fenceContract, outboxRequired:false } } }] }),
+  (error) => error.code === 'P3_DOMAIN_COMMIT_INVALID_TRANSACTION_CONTRACT');
 });
 
 test('atomically coordinates typed Domain fact, Commit Marker, Outbox, and stable replay', () => {

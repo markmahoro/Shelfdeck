@@ -186,7 +186,7 @@ function checkClauses(column) {
   if (column.name.endsWith('_digest') || column.name === 'digest' || column.name.endsWith('digest_hex')) {
     checks.push('length(' + quoted + ') = 64 AND ' + quoted + " NOT GLOB '*[^0-9a-f]*'");
   }
-  if (column.logicalType === 'INTEGER' && ['initial_cursor_revision', 'expected_cursor_revision'].includes(column.name)) {
+  if (column.logicalType === 'INTEGER' && ['initial_cursor_revision', 'expected_cursor_revision', 'expected_revision'].includes(column.name)) {
     checks.push(quoted + ' >= 0');
   } else if (column.logicalType === 'INTEGER' && (column.name === 'revision' || column.name.endsWith('_revision'))) {
     checks.push(quoted + ' >= 1');

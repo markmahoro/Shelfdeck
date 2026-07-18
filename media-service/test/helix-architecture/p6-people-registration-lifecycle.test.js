@@ -10,7 +10,10 @@ const Database = require('better-sqlite3');
 
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const { createCommandCommitCoordinator } = require('../../src/helix/foundation/persistence/commit-foundation');
-const { createDomainCommitCoordinator, createDomainCommitRegistry } = require('../../src/helix/foundation/persistence/domain-commit-registry');
+const { createCanonicalTransactionRegistry, createDomainCommitCoordinator, createDomainCommitRegistry } = require('../../src/helix/foundation/persistence/domain-commit-registry');
+const domainFactTransaction = require('../../src/helix/contracts/transaction-contracts/helix.transaction.domain-fact-commit/v1/contract.json');
+const candidateTransaction = require('../../src/helix/contracts/transaction-contracts/helix.transaction.people-candidate-commit/v1/contract.json');
+const acceptanceTransaction = require('../../src/helix/contracts/transaction-contracts/helix.transaction.people-candidate-acceptance/v1/contract.json');
 const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
 const { createPeopleStore } = require('../../src/helix/domains/people/persistence/people-store');
@@ -35,7 +38,8 @@ function fixture(run) {
     createPeopleCandidateCommitRegistration(store), createPeopleCandidateAcceptanceRegistration(store),
     createPeoplePreferenceCommitRegistration(store)
   ] });
-  const coordinator = createDomainCommitCoordinator({ schemaManifest, registry, unitOfWork });
+  const transactionRegistry = createCanonicalTransactionRegistry({ contracts: [domainFactTransaction, candidateTransaction, acceptanceTransaction] });
+  const coordinator = createDomainCommitCoordinator({ schemaManifest, registry, transactionRegistry, unitOfWork });
   const directRegistration = createDirectPersonRegistrationCommand(store, createCommandCommitCoordinator({ schemaManifest, unitOfWork }));
   const setup = new Database(databasePath);
   setup.prepare('INSERT INTO fx_supporting_works(work_id,owner_domain,process_type,process_id,work_kind,basis_digest,priority_class,state,idempotency_key,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
@@ -77,7 +81,7 @@ function handle(payload, options) {
 }
 
 function request(payload, domainHandle, id, eventId, revision = 1) {
-  return { handle: domainHandle, payload,
+  return { transactionId: 'helix.transaction.domain-fact-commit', handle: domainHandle, payload,
     commitMarker: { commitMarker: `marker-${id}`, effectId: null, commitDigest: hash(`${id}:commit`) },
     resultBinding: { resultId: `result-${id}`, eventId, evidenceSchemaRef: 'helix://fixtures/PeopleLifecycleEvidence/v1',
       evidence: { schemaRef: 'helix://fixtures/PeopleLifecycleEvidence/v1', schemaVersion: 1, evidenceId: `evidence-${id}` } },
@@ -92,7 +96,7 @@ function candidateRequest(value = draft()) {
   const domainHandle = handle(value, { handleId: 'candidate-handle', aggregateType: 'people-candidate', aggregateId: value.draftId,
     factType: 'PeopleCandidateDraft', factSchemaRef: 'helix://contracts/types/PeopleCandidateDraft/v1',
     resultSchemaRef: 'helix://contracts/types/PeopleCandidateRevision/v1', commitKey: 'candidate-key' });
-  return request(value, domainHandle, 'candidate', 'event-candidate');
+  return { ...request(value, domainHandle, 'candidate', 'event-candidate'), transactionId: 'helix.transaction.people-candidate-commit' };
 }
 
 function registrationDecision(candidate, overrides = {}) {
@@ -106,7 +110,7 @@ function acceptanceRequest(value) {
   const domainHandle = handle(value, { handleId: 'accept-handle', aggregateType: 'person', aggregateId: value.newPersonId,
     factType: 'PeopleCandidateAcceptanceDecision', factSchemaRef: 'helix://contracts/domain-types/PeopleCandidateAcceptanceDecision/v1',
     resultSchemaRef: 'helix://contracts/types/PersonRevision/v1', commitKey: 'accept-key' });
-  return request(value, domainHandle, 'accept', 'event-accept');
+  return { ...request(value, domainHandle, 'accept', 'event-accept'), transactionId: 'helix.transaction.people-candidate-acceptance' };
 }
 
 function mergeDraft(store, id = 'merge-1') {

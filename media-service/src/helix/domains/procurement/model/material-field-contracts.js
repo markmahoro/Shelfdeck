@@ -36,11 +36,13 @@ function createFieldAccess(value) {
 
 function createMaterialField(value) {
   if (!['active', 'disabled'].includes(value.status)) fail('P7_FIELD_STATUS_INVALID', 'Material Field status is invalid.');
+  if (value.currentObservationRevision !== null) revision(value.currentObservationRevision, 'currentObservationRevision');
   return Object.freeze({
     fieldId: text(value.fieldId, 'fieldId'), name: text(value.name, 'name'), status: value.status,
     extractionPolicyId: text(value.extractionPolicyId, 'extractionPolicyId'),
     extractionPolicyRevision: revision(value.extractionPolicyRevision, 'extractionPolicyRevision'),
     currentAccessRevision: revision(value.currentAccessRevision, 'currentAccessRevision'),
+    currentObservationRevision: value.currentObservationRevision,
     createdAtMs: timestamp(value.createdAtMs, 'createdAtMs'), updatedAtMs: timestamp(value.updatedAtMs, 'updatedAtMs')
   });
 }

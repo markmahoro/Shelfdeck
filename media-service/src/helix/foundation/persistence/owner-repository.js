@@ -54,6 +54,7 @@ function compileStatement(statementId, statement, table) {
     for (const comparison of comparisons) {
       if (!comparison || !IDENTIFIER.test(comparison.parameter || '')) fail('P3_REPOSITORY_INVALID_COMPARISON', 'CAS comparison requires a valid parameter.', { statementId });
       requireColumns(table, [comparison.column], statementId);
+      if (comparison.nullSafe !== undefined && comparison.nullSafe !== true) fail('P3_REPOSITORY_INVALID_COMPARISON', 'nullSafe must be true when declared.', { statementId });
     }
     const parameters = [...statement.setColumns, ...statement.keyColumns, ...comparisons.map((comparison) => comparison.parameter)];
     if (new Set(parameters).size !== parameters.length) fail('P3_REPOSITORY_OVERLAPPING_COLUMNS', 'SET and key columns cannot overlap.', { statementId });
@@ -61,7 +62,9 @@ function compileStatement(statementId, statement, table) {
       statementId, kind: statement.kind, tableId: table.tableId, parameters,
       sql: 'UPDATE ' + tableName + ' SET ' + statement.setColumns.map((column) => quote(column) + '=@' + column).join(', ') +
         ' WHERE ' + [...statement.keyColumns.map((column) => quote(column) + '=@' + column),
-          ...comparisons.map((comparison) => quote(comparison.column) + '=@' + comparison.parameter)].join(' AND ')
+          ...comparisons.map((comparison) => comparison.nullSafe
+            ? '(' + quote(comparison.column) + '=@' + comparison.parameter + ' OR (' + quote(comparison.column) + ' IS NULL AND @' + comparison.parameter + ' IS NULL))'
+            : quote(comparison.column) + '=@' + comparison.parameter)].join(' AND ')
     };
   }
   if (statement.kind === 'select-one' || statement.kind === 'select-all') {
@@ -69,7 +72,7 @@ function compileStatement(statementId, statement, table) {
     const keyColumns = statement.keyColumns || [];
     if (keyColumns.length > 0) requireColumns(table, keyColumns, statementId);
     return {
-      statementId, kind: statement.kind, tableId: table.tableId, parameters: [...keyColumns],
+      statementId, kind: statement.kind, tableId: table.tableId, parameters: [...keyColumns], safeIntegers: statement.safeIntegers === true,
       sql: 'SELECT ' + statement.columns.map(quote).join(', ') + ' FROM ' + tableName +
         (keyColumns.length ? ' WHERE ' + keyColumns.map((column) => quote(column) + '=@' + column).join(' AND ') : '')
     };
@@ -128,6 +131,7 @@ function bindRepository(definition, transaction, isActive) {
       }
       if (!prepared.has(statementId)) prepared.set(statementId, transaction.prepare(statement.sql));
       const executable = prepared.get(statementId);
+      if (statement.safeIntegers) executable.safeIntegers(true);
       if (statement.kind === 'select-one') return executable.get(values);
       if (statement.kind === 'select-all') return executable.all(values);
       return executable.run(values);

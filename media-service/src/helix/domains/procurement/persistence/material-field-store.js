@@ -22,13 +22,13 @@ function definition(schemaManifest) {
       'extraction_policy_id','revision','policy_schema_ref','policy_json','policy_digest','effective_at_ms'
     ], keyColumns: ['extraction_policy_id','revision'] },
     insert_field: { kind: 'insert', tableId: 'proc_material_fields', columns: [
-      'field_id','name','status','extraction_policy_id','extraction_policy_revision','current_access_revision','created_at_ms','updated_at_ms'
+      'field_id','name','status','extraction_policy_id','extraction_policy_revision','current_access_revision','current_observation_revision','created_at_ms','updated_at_ms'
     ] },
     find_field: { kind: 'select-one', tableId: 'proc_material_fields', columns: [
-      'field_id','name','status','extraction_policy_id','extraction_policy_revision','current_access_revision','created_at_ms','updated_at_ms'
+      'field_id','name','status','extraction_policy_id','extraction_policy_revision','current_access_revision','current_observation_revision','created_at_ms','updated_at_ms'
     ], keyColumns: ['field_id'] },
     list_fields: { kind: 'select-all', tableId: 'proc_material_fields', columns: [
-      'field_id','name','status','extraction_policy_id','extraction_policy_revision','current_access_revision','created_at_ms','updated_at_ms'
+      'field_id','name','status','extraction_policy_id','extraction_policy_revision','current_access_revision','current_observation_revision','created_at_ms','updated_at_ms'
     ], keyColumns: [] },
     initialize_access_head: { kind: 'update', tableId: 'proc_material_fields', setColumns: ['current_access_revision','updated_at_ms'], keyColumns: ['field_id'] },
     advance_access_head: { kind: 'update', tableId: 'proc_material_fields', setColumns: ['current_access_revision','updated_at_ms'], keyColumns: ['field_id'],
@@ -86,6 +86,7 @@ function createMaterialFieldStore(options) {
         repo.invoke('insert_policy', policyRow(input.policy, policyJson, context.commitTimeMs));
         repo.invoke('insert_field', { field_id: input.fieldId, name: input.name, status: 'active',
           extraction_policy_id: input.policy.extractionPolicyId, extraction_policy_revision: 1, current_access_revision: null,
+          current_observation_revision: null,
           created_at_ms: context.commitTimeMs, updated_at_ms: context.commitTimeMs });
         repo.invoke('insert_access', accessRow(input.access, context.commitTimeMs));
         const changed = repo.invoke('initialize_access_head', { current_access_revision: 1, updated_at_ms: context.commitTimeMs, field_id: input.fieldId });
@@ -151,7 +152,8 @@ function mapAccess(row) { if (!row) return null; return createFieldAccess({ fiel
   accessSchemaRef: row.access_schema_ref, accessDigest: row.access_digest, effectiveAtMs: row.effective_at_ms }); }
 function mapField(row) { if (!row) return null; return createMaterialField({ fieldId: row.field_id, name: row.name, status: row.status,
   extractionPolicyId: row.extraction_policy_id, extractionPolicyRevision: row.extraction_policy_revision,
-  currentAccessRevision: row.current_access_revision, createdAtMs: row.created_at_ms, updatedAtMs: row.updated_at_ms }); }
+  currentAccessRevision: row.current_access_revision, currentObservationRevision: row.current_observation_revision,
+  createdAtMs: row.created_at_ms, updatedAtMs: row.updated_at_ms }); }
 function readField(repo, fieldId) { const field = mapField(repo.invoke('find_field', { field_id: fieldId })); if (!field) return null;
   const policy = mapPolicy(repo.invoke('find_policy', { extraction_policy_id: field.extractionPolicyId, revision: field.extractionPolicyRevision }));
   const access = mapAccess(repo.invoke('find_access', { field_id: field.fieldId, revision: field.currentAccessRevision }));
