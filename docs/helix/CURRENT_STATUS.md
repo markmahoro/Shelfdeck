@@ -13,12 +13,12 @@ Last updated: 2026-07-19
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains；P7 — Procurement |
 | Current phase | P8 — Handoff A and Libra front half |
-| Current phase status | P8-00–P8-04 PASS；P8-05 in progress |
+| Current phase status | P8-00–P8-04 PASS；P8-05 Design Return（等待架构闭合拒绝事务） |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P7 phase closure `2cf98561d7cf785db4005e65e99b0750d84ce5ce` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p8` on `codex/helix-p8` |
-| Next action | implement P8-05 Intake Decision and rejection path |
+| Next action | 复审并原样纳入Architecture Agent的P8-05拒绝合同修正；PASS后继续实现 |
 
 Architecture Agent提交`be3ecb89`已闭合`PBF-11`。实现侧逐项复审确认：Candidate Delivery正式携带完整
 Manifest及逐Material Location Evidence；Subject/Binding Episode关系均可N:M持久化；global continuity head与唯一
@@ -198,6 +198,14 @@ P8-04已完成：pure FA-04 resolver固定Candidate Episode scope、0/1/N exact 
 完整overlap Evidence及Decision digest。只有唯一active exact claim命中且Episode交集为空时返回`season_extension`；无命中、
 多命中、缺claim或任一overlap全部返回`new_subject`。标题、年份、路径、目录和模糊分数不进入Authority。专项3/3及完整
 Architecture 597/597 PASS，Evidence见`implementation/evidence/P8_04_SUBJECT_CONTINUITY_RESOLUTION.md`；下一工作包P8-05。
+
+P8-05实现前审计已返回Design：`libra_intake_decisions`允许`rejected`，但其`decision_digest`被要求等于只允许
+`new_subject|season_extension`的`SubjectContinuityResolutionDecision@1`；Rejected row同时强制非空`target_subject_id`和
+`committed_continuity_head_revision`，与“不创建/扩充Subject、不转移Control”冲突。当前表也没有保存完整
+`StructuredRejection@1`/`RejectionReceipt@1`所需reason、digest和receipt identity，且缺Libra rejection commit及Procurement
+closure的正式事务/Outbox合同，无法保证crash atomicity、幂等消费或历史重建。实现线程未虚构Subject、未推进global head、
+未旁读旧Store且未修改SSOT；精确缺口见`implementation/evidence/P8_05_INTAKE_REJECTION_DESIGN_RETURN.md`，已提交Architecture
+Agent独立评估。
 
 ## 2. Accepted implementation conclusion
 

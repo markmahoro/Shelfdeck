@@ -64,11 +64,11 @@ reference digest，使Candidate/Run/Offer关闭后仍能由Procurement Owner row
 | --- | --- |
 | Phase | P8 — Handoff A and Libra front half |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | P8-00–P8-04 PASS；P8-05 in progress |
+| Status | P8-00–P8-04 PASS；P8-05 Design Return（等待架构闭合拒绝事务） |
 | Implementation baseline | exact P7 phase closure `2cf98561d7cf785db4005e65e99b0750d84ce5ce` |
 | Phase branch/worktree | `codex/helix-p8` / `E:\my_project\emby_third_party-helix-p8` |
 | Allowed now | P2–P13本地代码、unit/contract/isolated fixture、文档与Phase自动转换 |
-| Next action | implement P8-05 Intake Decision and rejection path |
+| Next action | 复审并原样纳入Architecture Agent的P8-05拒绝合同修正；PASS后继续实现 |
 
 ## 4. Master roadmap
 
