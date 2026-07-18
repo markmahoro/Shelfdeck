@@ -53,7 +53,8 @@ const ENUM_OVERRIDES = Object.freeze({
   'proc_run_materials.expected_control_state': ['uncontrolled', 'controlled'],
   'proc_candidate_packages.state': ['published'],
   'proc_candidate_deliveries.state': ['open', 'accepted', 'rejected', 'stale'],
-  'libra_subjects.status': ['active', 'abandoned'],
+  'libra_subjects.status': ['active', 'abandoned', 'completed'],
+  'libra_intake_decisions.expected_target_status': ['active'],
   'libra_material_bindings.health_state': ['active', 'stale', 'released'],
   'libra_decision_basis_revisions.status': ['ready', 'unresolved', 'superseded'],
   'libra_runs.state': ['active', 'suspended', 'superseded', 'frozen', 'discarded', 'completed'],
@@ -112,7 +113,8 @@ const NULLABLE_COLUMN_OVERRIDES = new Set([
   'perception_records.rating',
   'perception_records.watched_state',
   'proc_field_observations.cursor_in',
-  'proc_field_observations.cursor_out'
+  'proc_field_observations.cursor_out',
+  'libra_intake_decisions.expected_target_status'
 ]);
 const FOREIGN_KEY_OVERRIDES = Object.freeze({
   'fx_plan_nodes.compensation_for_event_id': ['fx_workflow_events', 'event_id'],
@@ -126,7 +128,8 @@ const FOREIGN_KEY_OVERRIDES = Object.freeze({
   'people_merge_candidates.left_person_id': ['people_persons', 'person_id'],
   'people_merge_candidates.right_person_id': ['people_persons', 'person_id'],
   'people_merge_records.source_person_id': ['people_persons', 'person_id'],
-  'people_merge_records.target_person_id': ['people_persons', 'person_id']
+  'people_merge_records.target_person_id': ['people_persons', 'person_id'],
+  'libra_subject_episode_scopes.first_intake_decision_id': ['libra_intake_decisions', 'intake_decision_id']
 });
 const EXPLICIT_FOREIGN_KEYS = Object.freeze({
   proc_field_observations: [
@@ -348,9 +351,10 @@ function parseColumns(columnsContract, tableId = null) {
     const match = token.match(/^([a-z][a-z0-9_]*)(?:\(([^)]*)\))?(?:\s+(.+))?$/);
     if (!match) throw new Error(`Unsupported column token: ${token}`);
     const qualifiers = match[3] ? match[3].split(/\s+/) : [];
-    const marker = qualifiers.find((value) => ['PK/FK', 'PK', 'FK'].includes(value)) || null;
+    const fixedPrimaryKey = qualifiers.find((value) => /^PK\([a-z][a-z0-9_]*\)$/.test(value)) || null;
+    const marker = fixedPrimaryKey ? 'PK' : (qualifiers.find((value) => ['PK/FK', 'PK', 'FK'].includes(value)) || null);
     const nullableSpec = qualifiers.find((value) => /^NULL(?:\|[a-z][a-z0-9_]*)*$/.test(value)) || null;
-    if (qualifiers.some((value) => value !== marker && value !== nullableSpec)) {
+    if (qualifiers.some((value) => value !== marker && value !== fixedPrimaryKey && value !== nullableSpec)) {
       throw new Error(`Unsupported column token: ${token}`);
     }
     const nullableEnum = nullableSpec && nullableSpec.includes('|') ? nullableSpec.split('|').slice(1) : [];
@@ -358,7 +362,7 @@ function parseColumns(columnsContract, tableId = null) {
       ordinal: ordinal + 1,
       name: match[1],
       logicalType: logicalType(match[1], tableId),
-      enumValues: match[2] ? match[2].split('|') : (nullableEnum.length > 0 ? nullableEnum : (ENUM_OVERRIDES[tableId + '.' + match[1]] || [])),
+      enumValues: fixedPrimaryKey ? [fixedPrimaryKey.slice(3, -1)] : (match[2] ? match[2].split('|') : (nullableEnum.length > 0 ? nullableEnum : (ENUM_OVERRIDES[tableId + '.' + match[1]] || []))),
       primaryKeyPart: marker === 'PK' || marker === 'PK/FK',
       foreignKeyMarker: marker === 'FK' || marker === 'PK/FK',
       nullable: nullableSpec !== null || NULLABLE_COLUMN_OVERRIDES.has(tableId + '.' + match[1])
@@ -407,7 +411,8 @@ function parseTableRows(entries) {
     const partialUniqueKeys = new Set(partialUniqueClauses.flatMap((clause) => parseFunctionCalls(clause, 'UNIQUE')).map((columns) => JSON.stringify(columns)));
     const currentPointerColumns = columns.filter((column) =>
       (/^current_(?:.*_)?(?:id|revision)$/.test(column.name) || column.name === 'canonical_identity_revision') &&
-      column.name !== 'current_reference_projection_revision')
+      column.name !== 'current_reference_projection_revision' &&
+      !(entry.id === 'libra_subject_continuity_heads' && column.name === 'current_revision'))
       .map((column) => column.name);
     const immutableRules = clauses.filter((clause) => /immutable|append-only|禁止更新|不能更新|不可更新/.test(clause));
     return {

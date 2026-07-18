@@ -63,7 +63,7 @@
       },
       {
         "ordinal": 7,
-        "name": "display_identity",
+        "name": "exact_season_continuity_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -72,7 +72,7 @@
       },
       {
         "ordinal": 8,
-        "name": "identity_digest",
+        "name": "display_identity",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -81,7 +81,7 @@
       },
       {
         "ordinal": 9,
-        "name": "evidence_digest",
+        "name": "identity_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -90,6 +90,15 @@
       },
       {
         "ordinal": 10,
+        "name": "evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
         "name": "committed_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -108,7 +117,11 @@
     "uniqueConstraints": [],
     "hotIndexes": [],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "rule": "Series的exact Season Claim完整值保存在`libra_subject_season_continuity_claims`并与本revision同事务成立，digest只用于一致性校验而不是可枚举事实替代品"
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
         "revision"
@@ -116,7 +129,7 @@
       "currentPointerColumns": [],
       "pointerTargets": [],
       "pointerRules": [
-        "`libra_subjects.current_identity_revision`显式指向本表"
+        "`libra_subjects.current_identity_revision`正整数时显式指向本表"
       ]
     },
     "jsonContracts": [],
@@ -133,16 +146,17 @@
     "semanticRules": [
       "`PK(subject_id,revision)`",
       "immutable",
-      "`libra_subjects.current_identity_revision`显式指向本表"
+      "`libra_subjects.current_identity_revision`正整数时显式指向本表",
+      "Series的exact Season Claim完整值保存在`libra_subject_season_continuity_claims`并与本revision同事务成立，digest只用于一致性校验而不是可枚举事实替代品"
     ],
     "rawContract": {
-      "columns": "`subject_id FK, revision, structure_kind, content_profile, identity_kind, provider_identity_set_digest, display_identity, identity_digest, evidence_digest, committed_at_ms`",
-      "constraints": "`PK(subject_id,revision)`；immutable；`libra_subjects.current_identity_revision`显式指向本表"
+      "columns": "`subject_id FK, revision, structure_kind, content_profile, identity_kind, provider_identity_set_digest, exact_season_continuity_set_digest, display_identity, identity_digest, evidence_digest, committed_at_ms`",
+      "constraints": "`PK(subject_id,revision)`；immutable；`libra_subjects.current_identity_revision`正整数时显式指向本表；Series的exact Season Claim完整值保存在`libra_subject_season_continuity_claims`并与本revision同事务成立，digest只用于一致性校验而不是可枚举事实替代品"
     },
     "source": {
       "section": "8.5.11",
-      "line": 7912,
-      "lineDigest": "1ae280f0e6779cac8bf807bf35b9cbb5ef4b48be90c2c8b38cf78c86e7e20fb2"
+      "line": 7956,
+      "lineDigest": "c12c6c8ed5039eaec90833f0bbf4f5c28a280bb8ab848c5555f5c07ef9f88900"
     },
     "foreignKeys": [
       {

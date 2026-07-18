@@ -31,7 +31,8 @@
         "logicalType": "TEXT",
         "enumValues": [
           "active",
-          "abandoned"
+          "abandoned",
+          "completed"
         ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -39,7 +40,7 @@
       },
       {
         "ordinal": 4,
-        "name": "current_identity_revision",
+        "name": "intake_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -48,6 +49,33 @@
       },
       {
         "ordinal": 5,
+        "name": "current_continuity_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "current_episode_scope_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "current_identity_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 8,
         "name": "created_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -56,7 +84,7 @@
         "nullable": false
       },
       {
-        "ordinal": 6,
+        "ordinal": 9,
         "name": "updated_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -65,7 +93,7 @@
         "nullable": false
       },
       {
-        "ordinal": 7,
+        "ordinal": 10,
         "name": "terminal_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -91,12 +119,14 @@
         "column": "status",
         "enumValues": [
           "active",
-          "abandoned"
+          "abandoned",
+          "completed"
         ]
       }
     ],
     "revisionContract": {
       "revisionColumns": [
+        "intake_revision",
         "current_identity_revision"
       ],
       "currentPointerColumns": [
@@ -119,7 +149,7 @@
         }
       ],
       "pointerRules": [
-        "identity pointer显式FK"
+        "`current_identity_revision=NULL`是尚未发布Resolved Product Identity的唯一合法初值，正整数时显式复合FK指向`libra_product_identity_revisions(subject_id,revision)`"
       ]
     },
     "jsonContracts": [],
@@ -133,18 +163,20 @@
     },
     "semanticRules": [
       "`status`至少区分`active|abandoned|completed`",
+      "new Subject固定`intake_revision=1`，每次Season extension CAS加1",
+      "continuity/Episode digest由本域relation rows按8.6.18重建",
+      "`current_identity_revision=NULL`是尚未发布Resolved Product Identity的唯一合法初值，正整数时显式复合FK指向`libra_product_identity_revisions(subject_id,revision)`",
       "`INDEX(status,subject_id)`",
-      "Subject不保存Arca Shelf Entry/Deck状态",
-      "identity pointer显式FK"
+      "Subject不保存Arca Shelf Entry/Deck状态"
     ],
     "rawContract": {
-      "columns": "`subject_id PK, structure_kind, status, current_identity_revision, created_at_ms, updated_at_ms, terminal_at_ms`",
-      "constraints": "`status`至少区分`active|abandoned|completed`；`INDEX(status,subject_id)`；Subject不保存Arca Shelf Entry/Deck状态；identity pointer显式FK"
+      "columns": "`subject_id PK, structure_kind, status, intake_revision, current_continuity_set_digest, current_episode_scope_digest, current_identity_revision NULL, created_at_ms, updated_at_ms, terminal_at_ms`",
+      "constraints": "`status`至少区分`active|abandoned|completed`；new Subject固定`intake_revision=1`，每次Season extension CAS加1；continuity/Episode digest由本域relation rows按8.6.18重建；`current_identity_revision=NULL`是尚未发布Resolved Product Identity的唯一合法初值，正整数时显式复合FK指向`libra_product_identity_revisions(subject_id,revision)`；`INDEX(status,subject_id)`；Subject不保存Arca Shelf Entry/Deck状态"
     },
     "source": {
       "section": "8.5.11",
-      "line": 7907,
-      "lineDigest": "7ede0ac6d81766b22b462742a4780ad42789e46f72fef35713b87b9cf217ec55"
+      "line": 7949,
+      "lineDigest": "4d4a88e19a06399209aad0d76f031b30bab1809badb216024a77c92a8c1280f4"
     },
     "foreignKeys": []
   }

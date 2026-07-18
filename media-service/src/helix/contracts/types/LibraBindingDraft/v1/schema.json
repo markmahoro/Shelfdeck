@@ -38,10 +38,32 @@
       "type": "integer",
       "minimum": 0
     },
-    "subjectPlaceholderRef": {
+    "subjectRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "subjectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "resolutionKind": {
+          "type": "string",
+          "enum": [
+            "new_subject",
+            "season_extension"
+          ]
+        }
+      },
+      "required": [
+        "subjectId",
+        "resolutionKind"
+      ]
+    },
+    "candidateDeliverySnapshotDigest": {
       "type": "string",
       "minLength": 1,
-      "maxLength": 256
+      "pattern": "^[a-f0-9]{64}$"
     },
     "bindings": {
       "type": "array",
@@ -56,17 +78,9 @@
           },
           "role": {
             "type": "string",
-            "minLength": 1
-          },
-          "episodeKey": {
-            "anyOf": [
-              {
-                "type": "string",
-                "minLength": 1
-              },
-              {
-                "type": "null"
-              }
+            "enum": [
+              "primary_payload",
+              "structural_dependency"
             ]
           },
           "endpointId": {
@@ -79,20 +93,65 @@
             "minLength": 1
           },
           "bindingRevision": {
-            "type": "integer",
-            "minimum": 1
+            "const": 1
+          },
+          "locationEvidenceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "episodeClaims": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "episodeKey": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "seasonClaimDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "claimDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "required": [
+                "episodeKey",
+                "seasonClaimDigest",
+                "claimDigest"
+              ]
+            },
+            "maxItems": 32
+          },
+          "bindingDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
           }
         },
         "required": [
           "materialKey",
           "role",
-          "episodeKey",
           "endpointId",
           "location",
-          "bindingRevision"
+          "bindingRevision",
+          "locationEvidenceDigest",
+          "episodeClaims",
+          "bindingDigest"
         ]
       },
       "maxItems": 1024
+    },
+    "bindingSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     }
   },
   "required": [
@@ -103,7 +162,9 @@
     "basisDigest",
     "draftDigest",
     "producedAtMs",
-    "subjectPlaceholderRef",
-    "bindings"
+    "subjectRef",
+    "candidateDeliverySnapshotDigest",
+    "bindings",
+    "bindingSetDigest"
   ]
 }

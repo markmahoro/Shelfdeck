@@ -12,7 +12,7 @@
       "constraintsContract": "`UNIQUE(owner_domain,command_contract,caller_scope,idempotency_key)`；同key不同request digest拒绝；Result JSON上限`16 KiB`且只含typed ref；与Owner修改同事务",
       "source": {
         "section": "8.5.10",
-        "line": 7857,
+        "line": 7896,
         "lineDigest": "65b28623e605bfebb3d1f2cfa85be9094d04cbd42636b58ffd5a418dc5121ad9"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "`UNIQUE(owner_domain,idempotency_key)`；`INDEX(owner_domain,state,priority_class,created_at_ms,work_id)`",
       "source": {
         "section": "8.5.10",
-        "line": 7858,
+        "line": 7897,
         "lineDigest": "1b3b12693bb082449223011fe595fb847378c9c59b9c1da6a4287a117f101eb7"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "`UNIQUE(work_id,ordinal)`；同一Work至多一个`ready|running|blocked` attempt的partial unique index",
       "source": {
         "section": "8.5.10",
-        "line": 7859,
+        "line": 7898,
         "lineDigest": "590c519812115490ed7e526e59b5648c8477ea21eb0921aa2725ee5418169617"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "`UNIQUE(attempt_id)`；Plan发布后禁止更新Graph字段",
       "source": {
         "section": "8.5.10",
-        "line": 7860,
+        "line": 7899,
         "lineDigest": "a6e5705c23a89a42b4fac68ca26061032b762286b554fb894d0114c069cccc30"
       }
     },
@@ -56,7 +56,7 @@
       "constraintsContract": "`PK(plan_id,node_id)`；所有JSON分别受`16 KiB`上限；`INDEX(capability_ref,contract_version)`",
       "source": {
         "section": "8.5.10",
-        "line": 7861,
+        "line": 7900,
         "lineDigest": "d284a64607e1bb3596c1671a8b1caf80fc2397281263e5fd88a743f02c1c8db8"
       }
     },
@@ -67,7 +67,7 @@
       "constraintsContract": "`PK(plan_id,from_node_id,to_node_id)`；两个node均FK到同一Plan；DAG validator digest与Plan同时提交",
       "source": {
         "section": "8.5.10",
-        "line": 7862,
+        "line": 7901,
         "lineDigest": "093dcd5f05c688d5aadd096c0f23bdbb9abb34770b6d744d648b5ece98f2efdc"
       }
     },
@@ -78,7 +78,7 @@
       "constraintsContract": "`UNIQUE(plan_id,node_id)`；`INDEX(state,priority_class,COALESCE(retry_at_ms,ready_at_ms),event_id)`；成功Event不可回退；current progress pointer显式FK",
       "source": {
         "section": "8.5.10",
-        "line": 7863,
+        "line": 7902,
         "lineDigest": "83b0e6dfb2a6878be3e4df2e6aa3a3ec2f425950df361e9bf94338fdb9a55787"
       }
     },
@@ -89,7 +89,7 @@
       "constraintsContract": "`UNIQUE(event_id,ordinal)`；同一Event至多一个`executing` attempt；Permit/lease不持久化，资源等待与持有只由timing Evidence表达；deferred/fence evidence留在Attempt而非伪terminal Result",
       "source": {
         "section": "8.5.10",
-        "line": 7864,
+        "line": 7903,
         "lineDigest": "0097660ac702afb40272a6ec5b7b7d4a44f5cf2f463e647316776ca6b1637ce7"
       }
     },
@@ -100,7 +100,7 @@
       "constraintsContract": "`PK(event_id,revision)`；`UNIQUE(event_attempt_id,source_sequence)` when sequence exists；只保留current及有界bucket history；数值必须满足non-negative/finite check",
       "source": {
         "section": "8.5.10",
-        "line": 7865,
+        "line": 7904,
         "lineDigest": "8ca810eab68cf80cac99a48abdd4e126346134f1153aec0fc8ba8b5828e5d734"
       }
     },
@@ -111,7 +111,7 @@
       "constraintsContract": "terminal Event至多一个current result：`UNIQUE(event_id)`；两个JSON的UTF-8 JCS bytes各自≤`65,536`，大Payload必须只含typed handle；Field Observation Commit的`evidence_schema_ref`固定为`FieldObservationPage@1`并在`evidence_json`保存完整Page，`result_schema_ref/result_json`固定为完整`ObservationCommitResult@1`",
       "source": {
         "section": "8.5.10",
-        "line": 7866,
+        "line": 7905,
         "lineDigest": "d8f872ac28565b4d72513da12ac2458ae707fe5c76f0b6ea6850fed924c551a9"
       }
     },
@@ -122,7 +122,7 @@
       "constraintsContract": "`UNIQUE(effect_class,idempotency_key)`；`INDEX(state,updated_at_ms,effect_id)`供Effect Reconcile",
       "source": {
         "section": "8.5.10",
-        "line": 7867,
+        "line": 7906,
         "lineDigest": "ab2bd36a36914142370c9e85292a017d085b0de7ba78dbc338bef61890079e80"
       }
     },
@@ -133,7 +133,7 @@
       "constraintsContract": "`commit_marker`全局唯一；`domain_fact_commit|responsibility_control_commit`的result字段必填并与对应`fx_event_result_bindings`同事务写入；不能更新或删除",
       "source": {
         "section": "8.5.10",
-        "line": 7868,
+        "line": 7907,
         "lineDigest": "fa9ba9a89ca5cb842b23f63dcca01da37104e4913de5e32c2dac33f7097a47b9"
       }
     },
@@ -144,7 +144,7 @@
       "constraintsContract": "payload上限`16 KiB`且只含ID/revision/digest；`UNIQUE(producer_domain,dedup_key)`；`INDEX(state,available_at_ms,message_id)`",
       "source": {
         "section": "8.5.10",
-        "line": 7869,
+        "line": 7908,
         "lineDigest": "897caa669f444e1875bd964da8bf826848339c4e55ae1632f4e5b2d4b8959019"
       }
     }

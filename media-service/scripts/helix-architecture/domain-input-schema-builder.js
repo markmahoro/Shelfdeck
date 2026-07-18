@@ -50,14 +50,8 @@ const special = {
   'SamplingPlan.maxFrames': positiveInteger(),
   'ShelfStandard.contentProfile': enumText('movie', 'season', 'jav', 'western_adult'),
   'StructureRequirement.structureKind': enumText('single', 'season'),
-  'AcceptedIntakePayload.candidatePackage': typeRef('CandidatePackage'),
-  'AcceptedIntakePayload.bindingDraft': typeRef('LibraBindingDraft'),
   'AcceptedPayload.onDeckProductPackage': typeRef('OnDeckProductPackage'),
   'ActiveShelfEntryIdentityProjection.entries': arrayOf(snapshot('active-shelf-entry-identity'), 4096),
-  'CandidateMaterialLocationEvidence.materials': arrayOf(object({
-    materialKey: digest(), endpointId: id(), location: text(), bindingRevision: positiveInteger(), evidenceDigest: digest()
-  }), 4096),
-  'CandidateSnapshot.candidatePackage': typeRef('CandidatePackage'),
   'CareBasis.assessments': arrayOf(snapshot('professional-assessment'), 1024),
   'CurrentInventoryControl.materials': arrayOf(object({ materialKey: digest(), inventoryRevision: positiveInteger(), controlRevision: positiveInteger() }), 4096),
   'DecisionEvidence.queryResults': arrayOf(typeRef('VersionedQueryResult'), 256),
@@ -135,13 +129,13 @@ const boundedContracts = {
 };
 
 const dtoContracts = {
-  AcceptedIntakePayload: 'candidatePackage,bindingDraft,subjectId,controlScopeDigest',
+  AcceptedIntakePayload: '',
   AcceptedPayload: 'onDeckProductPackage,acceptanceDecisionId,custodyDigest',
   AcceptedProductFacts: 'shelfEntryId,inventoryRevision,productFactSetDigest',
   ActiveShelfEntryIdentityProjection: 'entries,projectionRevision',
   CandidateDraft: '',
-  CandidateMaterialLocationEvidence: 'materials',
-  CandidateSnapshot: 'candidatePackage,snapshotRevision',
+  CandidateDeliverySnapshot: '',
+  SubjectContinuityResolutionDecision: '',
   CareBasis: 'shelfEntryId,inventoryRevision,standardRevision,placementRevision,decisionFactSetDigest,assessments',
   CurrentInventoryControl: 'shelfId,materials',
   DecisionEvidence: 'subjectId,queryResults,routingInputDigest,specInputDigest',
@@ -218,6 +212,9 @@ function idField(name) {
 }
 
 function buildSchema(name, role, fields) {
+  if (name === 'CandidateDeliverySnapshot') return candidateDeliverySnapshotSchema();
+  if (name === 'SubjectContinuityResolutionDecision') return subjectContinuityResolutionDecisionSchema();
+  if (name === 'AcceptedIntakePayload') return acceptedIntakePayloadSchema();
   if (name === 'SelectedFieldMaterialSet') return selectedFieldMaterialSetSchema();
   if (name === 'CandidateDraft') return candidateDraftSchema();
   if (name === 'ProcurementTriageRuleSnapshot') return procurementTriageRuleSnapshotSchema();
@@ -284,6 +281,62 @@ const relatedReference = () => object({
   checksumHex: digest(), associationEvidenceDigest: digest(), referenceDigest: digest()
 });
 const seasonContinuityClaim = () => typeRef('SeasonContinuityClaim');
+
+function candidateDeliverySnapshotSchema() {
+  const episode = object({ episodeKey: text(), seasonClaimDigest: digest(), claimDigest: digest() });
+  const delivery = object({
+    ordinal: nonNegativeInteger(), materialKey: digest(), role: enumText('primary_payload', 'structural_dependency'),
+    bindingRevision: positiveInteger(), admittedControlRevision: positiveInteger(), admittedControlProjectionDigest: digest(),
+    endpointId: id(), location: text(), lastSnapshotDigest: digest(), realityDigest: digest(), provenanceDigest: digest(),
+    manifestMemberDigest: digest(), episodeClaims: arrayOf(episode, 32), deliveryMemberDigest: digest()
+  });
+  return { ...exactDomainSchema('CandidateDeliverySnapshot', {
+    snapshotContract: { const: 'procurement.candidate-delivery@1' }, offer: typeRef('ProcurementCandidateOfferAvailableMessage'),
+    acceptanceBasis: typeRef('CandidateIntakeAcceptanceBasis'), candidatePackage: typeRef('CandidatePackage'),
+    primaryInputManifest: typeRef('PrimaryInputManifest'), primaryMaterialDeliveries: { ...arrayOf(delivery, 1024), minItems: 1 },
+    deliveryMemberSetDigest: digest(), deliverySnapshotDigest: digest()
+  }), 'x-helix-maxCanonicalBytes': 8 * 1024 * 1024 };
+}
+
+function subjectContinuityResolutionDecisionSchema() {
+  const witness = object({
+    ordinal: nonNegativeInteger(), subjectId: id(), expectedSubjectStatus: { const: 'active' },
+    expectedSubjectIntakeRevision: positiveInteger(), expectedSubjectContinuitySetDigest: digest(),
+    expectedSubjectEpisodeScopeDigest: digest(), claimKind: enumText('provider_season_identity', 'triage_grouping_lineage'),
+    claimNamespace: text(), claimKey: text(), candidateClaimDigest: digest(), subjectClaimDigest: digest(),
+    subjectClaimProvenanceKind: enumText('candidate', 'resolved_identity'), subjectClaimProvenanceRef: id(), witnessDigest: digest()
+  });
+  const properties = {
+    decisionId: id(), offerId: id(), candidatePackageId: id(), packageRevision: positiveInteger(), packageDigest: digest(),
+    candidateDeliverySnapshotDigest: digest(), expectedContinuityHead: object({ revision: nonNegativeInteger(), digest: digest() }),
+    candidateContinuityClaims: arrayOf(typeRef('SeasonContinuityClaim'), 64), candidateContinuitySetDigest: digest(),
+    candidateEpisodeScope: object({ structureKind: enumText('single', 'season'), episodeKeys: arrayOf(text(), 32768), episodeScopeDigest: digest() }),
+    matchCardinality: enumText('none', 'one', 'multiple'), matchWitnesses: arrayOf(witness, 2), matchedSubjectSetDigest: digest(),
+    overlapEvaluation: enumText('not_applicable_no_match', 'not_applicable_multiple', 'evaluated'),
+    overlappingEpisodeKeys: arrayOf(text(), 32768), episodeOverlapDigest: digest(), result: enumText('new_subject', 'season_extension'),
+    allocatedSubjectId: id(), targetSubjectId: id(), expectedTargetStatus: { const: 'active' },
+    expectedTargetIntakeRevision: positiveInteger(), expectedTargetContinuitySetDigest: digest(),
+    expectedTargetEpisodeScopeDigest: digest(), decisionDigest: digest()
+  };
+  const required = Object.keys(properties).filter((key) => !['allocatedSubjectId', 'targetSubjectId', 'expectedTargetStatus',
+    'expectedTargetIntakeRevision', 'expectedTargetContinuitySetDigest', 'expectedTargetEpisodeScopeDigest'].includes(key));
+  return { ...exactDomainSchema('SubjectContinuityResolutionDecision', properties, required), 'x-helix-maxCanonicalBytes': 128 * 1024 };
+}
+
+function acceptedIntakePayloadSchema() {
+  const delivery = object({ offerId: id(), candidatePackageId: id(), packageRevision: positiveInteger(), packageDigest: digest(),
+    acceptanceBasisDigest: digest(), candidateDeliverySnapshotDigest: digest() });
+  const item = object({ materialKey: digest(), expectedControlRevision: nonNegativeInteger(), expectedControlProjectionDigest: digest(),
+    toOwnerDomain: { const: 'libra' }, toOwnerScopeType: { const: 'subject' }, toOwnerScopeId: id() });
+  return exactDomainSchema('AcceptedIntakePayload', {
+    intakeDecisionId: id(), decisionRevision: { const: 1 }, delivery,
+    candidateVerification: typeRef('CandidateContractVerification'), materialVerification: typeRef('IntakeMaterialVerification'),
+    resolutionDecision: domainRef('SubjectContinuityResolutionDecision'), bindingDraft: typeRef('LibraBindingDraft'),
+    controlTransferScope: object({ fieldId: id(), fromOwnerDomain: { const: 'procurement' },
+      fromOwnerScopeType: { const: 'material_field' }, fromOwnerScopeId: id(), items: { ...arrayOf(item, 1024), minItems: 1 },
+      controlScopeDigest: digest() }), payloadDigest: digest()
+  });
+}
 const identityMetadata = () => object({
   claimedTitle: text(), claimedYear: positiveInteger(),
   seasonClaim: object({ claimKind: enumText('explicit_number', 'provisional_group'), seasonNumber: positiveInteger(),

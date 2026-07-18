@@ -10,14 +10,14 @@ const { readTableSourceEntries } = require('../../scripts/helix-architecture/tab
 const contractsRoot = path.resolve(__dirname, '../../src/helix/contracts');
 const contracts = buildTableContracts(readTableSourceEntries(contractsRoot));
 
-test('builds all 163 sole-Owner table contracts with accepted owner counts', () => {
-  assert.equal(contracts.length, 163);
-  assert.equal(new Set(contracts.map((contract) => contract.tableId)).size, 163);
+test('builds all 168 sole-Owner table contracts with accepted owner counts', () => {
+  assert.equal(contracts.length, 168);
+  assert.equal(new Set(contracts.map((contract) => contract.tableId)).size, 168);
   const counts = Object.fromEntries([...new Set(contracts.map((contract) => contract.owner))].map((owner) => [
     owner, contracts.filter((contract) => contract.owner === owner).length
   ]));
   assert.deepEqual(counts, {
-    'execution-foundation': 23, 'material-control-authority': 2, procurement: 15, libra: 31,
+    'execution-foundation': 23, 'material-control-authority': 2, procurement: 15, libra: 36,
     arca: 54, perception: 9, people: 13, 'platform-settings': 16
   });
 });
@@ -27,6 +27,12 @@ test('parses inline PK/FK and enums without splitting parenthetical values', () 
   assert.equal(columns[0].primaryKeyPart, true);
   assert.equal(columns[0].foreignKeyMarker, true);
   assert.deepEqual(columns[1].enumValues, ['open', 'accepted', 'dismissed']);
+});
+
+test('parses a fixed-value primary key as a closed single-value contract', () => {
+  const [head] = parseColumns('`head_id PK(active_subject_continuity), current_revision`');
+  assert.equal(head.primaryKeyPart, true);
+  assert.deepEqual(head.enumValues, ['active_subject_continuity']);
 });
 
 test('preserves an explicit nullable pointer marker from the SSOT table contract', () => {

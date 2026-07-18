@@ -5,17 +5,25 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "candidateMaterialLocationEvidence": {
-      "$ref": "#/$defs/candidateMaterialLocationEvidence"
+    "candidateDeliverySnapshot": {
+      "$ref": "#/$defs/candidateDeliverySnapshot"
+    },
+    "subjectContinuityResolutionDecision": {
+      "$ref": "#/$defs/subjectContinuityResolutionDecision"
     }
   },
   "required": [
-    "candidateMaterialLocationEvidence"
+    "candidateDeliverySnapshot",
+    "subjectContinuityResolutionDecision"
   ],
   "$defs": {
-    "candidateMaterialLocationEvidence": {
-      "$ref": "helix://contracts/domain-types/CandidateMaterialLocationEvidence/v1",
-      "x-helix-typeExpression": "Candidate material/location evidence"
+    "candidateDeliverySnapshot": {
+      "$ref": "helix://contracts/domain-types/CandidateDeliverySnapshot/v1",
+      "x-helix-typeExpression": "CandidateDeliverySnapshot"
+    },
+    "subjectContinuityResolutionDecision": {
+      "$ref": "helix://contracts/domain-types/SubjectContinuityResolutionDecision/v1",
+      "x-helix-typeExpression": "SubjectContinuityResolutionDecision"
     }
   }
 }

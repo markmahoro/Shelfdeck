@@ -105,6 +105,18 @@
       },
       "maxItems": 128
     },
+    "exactSeasonContinuityClaims": {
+      "type": "array",
+      "items": {
+        "$ref": "helix://contracts/types/SeasonContinuityClaim/v1"
+      },
+      "maxItems": 64
+    },
+    "exactSeasonContinuitySetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
     "displayIdentity": {
       "type": "object",
       "additionalProperties": false,
@@ -181,6 +193,8 @@
     "contentProfile",
     "identityKind",
     "providerIdentities",
+    "exactSeasonContinuityClaims",
+    "exactSeasonContinuitySetDigest",
     "displayIdentity",
     "identityDigest"
   ]

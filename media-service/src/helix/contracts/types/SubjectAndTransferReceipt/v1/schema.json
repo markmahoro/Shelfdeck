@@ -58,15 +58,57 @@
       "type": "integer",
       "minimum": 0
     },
+    "intakeDecisionId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "offerId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
     "candidatePackageId": {
       "type": "string",
       "minLength": 1,
       "maxLength": 256
     },
+    "packageRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "packageDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "candidateDeliverySnapshotDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
     "subjectId": {
       "type": "string",
       "minLength": 1,
       "maxLength": 256
+    },
+    "subjectIntakeRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "subjectContinuityHeadRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "subjectContinuitySetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "subjectEpisodeScopeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     },
     "libraBindingSetDigest": {
       "type": "string",
@@ -74,6 +116,11 @@
       "pattern": "^[a-f0-9]{64}$"
     },
     "controlRevisionSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "receiptDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
@@ -89,9 +136,19 @@
     "scopeId",
     "scopeDigest",
     "committedAtMs",
+    "intakeDecisionId",
+    "offerId",
     "candidatePackageId",
+    "packageRevision",
+    "packageDigest",
+    "candidateDeliverySnapshotDigest",
     "subjectId",
+    "subjectIntakeRevision",
+    "subjectContinuityHeadRevision",
+    "subjectContinuitySetDigest",
+    "subjectEpisodeScopeDigest",
     "libraBindingSetDigest",
-    "controlRevisionSetDigest"
+    "controlRevisionSetDigest",
+    "receiptDigest"
   ]
 }

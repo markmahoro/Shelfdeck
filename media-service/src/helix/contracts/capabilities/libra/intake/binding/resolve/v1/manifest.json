@@ -5,8 +5,13 @@
   "ownerScope": "libra",
   "effectClass": "pure_observation",
   "inputPorts": {
-    "candidateMaterialLocationEvidence": {
-      "schemaRef": "helix://contracts/capabilities/libra.intake.binding.resolve/v1/inputs#/$defs/candidateMaterialLocationEvidence",
+    "candidateDeliverySnapshot": {
+      "schemaRef": "helix://contracts/capabilities/libra.intake.binding.resolve/v1/inputs#/$defs/candidateDeliverySnapshot",
+      "required": true,
+      "cardinality": "one"
+    },
+    "subjectContinuityResolutionDecision": {
+      "schemaRef": "helix://contracts/capabilities/libra.intake.binding.resolve/v1/inputs#/$defs/subjectContinuityResolutionDecision",
       "required": true,
       "cardinality": "one"
     }
@@ -24,7 +29,7 @@
   },
   "sourceLocator": {
     "section": "8.6.5",
-    "line": 8317,
-    "lineDigest": "9ed49b438179d81a0118b9ab99d22bdc701eccf1c59516e67ee23b7023a4b3b4"
+    "line": 8361,
+    "lineDigest": "33d349a4987b4e7f9ccc1be43180c9e3bc7a6c5d1e335d03e68a3d02c5c4825c"
   }
 }

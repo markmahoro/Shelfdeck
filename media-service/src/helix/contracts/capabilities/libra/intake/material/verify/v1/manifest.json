@@ -5,15 +5,15 @@
   "ownerScope": "libra",
   "effectClass": "pure_observation",
   "inputPorts": {
-    "materialHandleList": {
-      "schemaRef": "helix://contracts/capabilities/libra.intake.material.verify/v1/inputs#/$defs/materialHandleList",
-      "required": true,
-      "cardinality": "many"
-    },
-    "candidateSnapshot": {
-      "schemaRef": "helix://contracts/capabilities/libra.intake.material.verify/v1/inputs#/$defs/candidateSnapshot",
+    "candidateDeliverySnapshot": {
+      "schemaRef": "helix://contracts/capabilities/libra.intake.material.verify/v1/inputs#/$defs/candidateDeliverySnapshot",
       "required": true,
       "cardinality": "one"
+    },
+    "physicalMaterialReadHandleList": {
+      "schemaRef": "helix://contracts/capabilities/libra.intake.material.verify/v1/inputs#/$defs/physicalMaterialReadHandleList",
+      "required": true,
+      "cardinality": "many"
     }
   },
   "parametersSchemaRef": "helix://contracts/capabilities/libra.intake.material.verify/v1/parameters",
@@ -29,7 +29,7 @@
   },
   "sourceLocator": {
     "section": "8.6.5",
-    "line": 8316,
-    "lineDigest": "00750b81f23ebc5d1cb55dd2444da4e49ec8f95b0d780a8456bd4d6c8f98d27c"
+    "line": 8360,
+    "lineDigest": "577a5c3edda27be775e0cea43186b4c2d883d55d9989dc4f5edff152f811203f"
   }
 }

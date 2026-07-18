@@ -24,11 +24,11 @@ function mutate(filePath, change) {
 const contractPath = (root, tableId) => path.join(root, 'table-contracts', tableId, 'v1', 'contract.json');
 const codes = (result) => new Set(result.findings.map((item) => item.code));
 
-test('validates all 163 SSOT table contracts without executing DDL', () => {
+test('validates all 168 SSOT table contracts without executing DDL', () => {
   const result = validateTableContracts({ contractsRoot: actualContractsRoot });
   assert.equal(result.ok, true);
-  assert.equal(result.tableCount, 163);
-  assert.equal(result.foreignKeyCount, 183);
+  assert.equal(result.tableCount, 168);
+  assert.equal(result.foreignKeyCount, 190);
   assert.equal(result.jsonColumnCount, 38);
 });
 

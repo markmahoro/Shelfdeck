@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_subject_continuity_heads/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_subject_continuity_heads",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "head_id",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "active_subject_continuity"
+        ],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "current_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "head_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "head_id"
+    ],
+    "declaredForeignKeyColumns": [],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "head_id",
+        "enumValues": [
+          "active_subject_continuity"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "current_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": [
+        "`head_digest=SHA-256(JCS({schema:\"libra.subject-continuity-head@1\",headId,currentRevision}))`"
+      ]
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "clean initialization建立唯一revision 0 row",
+      "`head_digest=SHA-256(JCS({schema:\"libra.subject-continuity-head@1\",headId,currentRevision}))`",
+      "任何改变active Subject集合、exact continuity relation或accepted Episode scope的事务都必须expected-revision CAS并加1，不能按时间戳伪造",
+      "Handoff A、Resolved Identity exact anchor publish与Subject terminal均使用同一head"
+    ],
+    "rawContract": {
+      "columns": "`head_id PK(active_subject_continuity), current_revision, head_digest, updated_at_ms`",
+      "constraints": "clean initialization建立唯一revision 0 row；`head_digest=SHA-256(JCS({schema:\"libra.subject-continuity-head@1\",headId,currentRevision}))`；任何改变active Subject集合、exact continuity relation或accepted Episode scope的事务都必须expected-revision CAS并加1，不能按时间戳伪造；Handoff A、Resolved Identity exact anchor publish与Subject terminal均使用同一head"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 7944,
+      "lineDigest": "145fce04ca425ec1f8d2c9826f18d100e9ad2611f5d1fd0967aec479d7dc4b3a"
+    },
+    "foreignKeys": []
+  }
+}

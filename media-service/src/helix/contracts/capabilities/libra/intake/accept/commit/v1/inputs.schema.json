@@ -19,7 +19,7 @@
   "$defs": {
     "acceptedIntakePayload": {
       "$ref": "helix://contracts/domain-types/AcceptedIntakePayload/v1",
-      "x-helix-typeExpression": "Accepted intake payload"
+      "x-helix-typeExpression": "AcceptedIntakePayload"
     },
     "responsibilityControlCommitHandle": {
       "$ref": "helix://contracts/types/ResponsibilityControlCommitHandle/v1",

@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_intake_resolution_episode_overlaps/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_intake_resolution_episode_overlaps",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "intake_decision_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "subject_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "episode_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "overlap_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "intake_decision_id",
+      "subject_id",
+      "episode_key"
+    ],
+    "declaredForeignKeyColumns": [
+      "intake_decision_id",
+      "subject_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(intake_decision_id,subject_id,episode_key)`",
+      "只允许match cardinality=one时保存Candidate Episode scope与唯一Subject current scope的完整交集，按episodeKey排序",
+      "`overlap_digest=SHA-256(JCS({schema:\"libra.episode-overlap-member@1\",subjectId,episodeKey}))`",
+      "zero overlap合法为0 row",
+      "multiple/none不执行overlap并为0 row",
+      "aggregate formula按8.6.18"
+    ],
+    "rawContract": {
+      "columns": "`intake_decision_id FK, subject_id FK, episode_key, overlap_digest`",
+      "constraints": "`PK(intake_decision_id,subject_id,episode_key)`；只允许match cardinality=one时保存Candidate Episode scope与唯一Subject current scope的完整交集，按episodeKey排序；`overlap_digest=SHA-256(JCS({schema:\"libra.episode-overlap-member@1\",subjectId,episodeKey}))`；zero overlap合法为0 row；multiple/none不执行overlap并为0 row；aggregate formula按8.6.18"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 7947,
+      "lineDigest": "3fdd27a398d8dbf29b751b3e0f4bd67fdfe00efb935f9e9a411df5124757f104"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "intake_decision_id"
+        ],
+        "targetTable": "libra_intake_decisions",
+        "targetColumns": [
+          "intake_decision_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "subject_id"
+        ],
+        "targetTable": "libra_subjects",
+        "targetColumns": [
+          "subject_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

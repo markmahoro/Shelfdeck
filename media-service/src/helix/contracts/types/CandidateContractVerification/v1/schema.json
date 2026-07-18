@@ -58,12 +58,36 @@
       "type": "integer",
       "minimum": 0
     },
+    "offerId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
     "candidatePackageId": {
       "type": "string",
       "minLength": 1,
       "maxLength": 256
     },
+    "packageRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
     "packageDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "acceptanceBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "primaryInputManifestDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "candidateDeliverySnapshotDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
@@ -79,7 +103,12 @@
     "reasonCodes",
     "evidenceRefs",
     "verifiedAtMs",
+    "offerId",
     "candidatePackageId",
-    "packageDigest"
+    "packageRevision",
+    "packageDigest",
+    "acceptanceBasisDigest",
+    "primaryInputManifestDigest",
+    "candidateDeliverySnapshotDigest"
   ]
 }

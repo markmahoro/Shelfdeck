@@ -18,6 +18,15 @@
       },
       {
         "ordinal": 2,
+        "name": "decision_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
         "name": "offer_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -26,7 +35,7 @@
         "nullable": false
       },
       {
-        "ordinal": 3,
+        "ordinal": 4,
         "name": "candidate_package_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -35,7 +44,16 @@
         "nullable": false
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
+        "name": "package_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
         "name": "package_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -44,7 +62,7 @@
         "nullable": false
       },
       {
-        "ordinal": 5,
+        "ordinal": 7,
         "name": "acceptance_basis_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -53,26 +71,8 @@
         "nullable": false
       },
       {
-        "ordinal": 6,
-        "name": "candidate_continuity_set_digest",
-        "logicalType": "TEXT",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": false,
-        "nullable": false
-      },
-      {
-        "ordinal": 7,
-        "name": "matched_subject_set_digest",
-        "logicalType": "TEXT",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": false,
-        "nullable": false
-      },
-      {
         "ordinal": 8,
-        "name": "episode_overlap_digest",
+        "name": "candidate_delivery_snapshot_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -81,6 +81,82 @@
       },
       {
         "ordinal": 9,
+        "name": "expected_continuity_head_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "expected_continuity_head_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "committed_continuity_head_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "candidate_continuity_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 13,
+        "name": "candidate_episode_scope_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 14,
+        "name": "match_cardinality",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "none",
+          "one",
+          "multiple"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 15,
+        "name": "matched_subject_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 16,
+        "name": "episode_overlap_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 17,
         "name": "result",
         "logicalType": "TEXT",
         "enumValues": [
@@ -93,7 +169,7 @@
         "nullable": false
       },
       {
-        "ordinal": 10,
+        "ordinal": 18,
         "name": "target_subject_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -102,16 +178,90 @@
         "nullable": false
       },
       {
-        "ordinal": 11,
+        "ordinal": 19,
+        "name": "expected_target_status",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "active"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 20,
+        "name": "expected_target_intake_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 21,
+        "name": "expected_target_continuity_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 22,
+        "name": "expected_target_episode_scope_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 23,
+        "name": "committed_target_intake_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 24,
+        "name": "committed_subject_continuity_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 25,
+        "name": "committed_subject_episode_scope_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 26,
+        "name": "accepted_payload_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 27,
         "name": "rejection_schema_ref",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
-        "nullable": false
+        "nullable": true
       },
       {
-        "ordinal": 12,
+        "ordinal": 28,
         "name": "decision_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -120,7 +270,7 @@
         "nullable": false
       },
       {
-        "ordinal": 13,
+        "ordinal": 29,
         "name": "decided_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -144,16 +294,37 @@
     ],
     "checkRules": [
       {
+        "column": "match_cardinality",
+        "enumValues": [
+          "none",
+          "one",
+          "multiple"
+        ]
+      },
+      {
         "column": "result",
         "enumValues": [
           "new_subject",
           "season_extension",
           "rejected"
         ]
+      },
+      {
+        "column": "expected_target_status",
+        "enumValues": [
+          "active"
+        ]
       }
     ],
     "revisionContract": {
-      "revisionColumns": [],
+      "revisionColumns": [
+        "decision_revision",
+        "package_revision",
+        "expected_continuity_head_revision",
+        "committed_continuity_head_revision",
+        "expected_target_intake_revision",
+        "committed_target_intake_revision"
+      ],
       "currentPointerColumns": [],
       "pointerTargets": [],
       "pointerRules": []
@@ -162,7 +333,7 @@
     "immutability": {
       "immutable": true,
       "rules": [
-        "immutable"
+        "immutable，不接受调用者指定既有Subject"
       ]
     },
     "deletion": {
@@ -170,22 +341,23 @@
       "rules": []
     },
     "semanticRules": [
-      "`UNIQUE(offer_id)`",
-      "`offer_id/candidate/package/acceptance basis`必须逐项等于对应Delivery与typed Offer message并由Libra重算Basis验证",
-      "`candidate_continuity_set_digest`使用8.6.18同一claim-set公式，matched Subject与Episode overlap是Libra处理Offer时另行冻结的current Decision Evidence，不进入Offer Basis",
-      "immutable",
-      "`season_extension`要求exactly one target且zero overlap",
+      "`decision_revision=1`且`UNIQUE(offer_id)`",
+      "Offer/Package/Acceptance Basis/Snapshot逐项匹配正式Delivery",
+      "match cardinality与两张Decision Evidence relation按8.6.18公式重建",
+      "`new_subject`要求target是Libra分配的新ID、expected target字段为NULL且committed intake revision=1",
+      "`season_extension`要求one match/zero overlap、`expected_target_status=active`及完整expected target CAS且committed revision=expected+1",
+      "accepted要求`accepted_payload_digest=AcceptedIntakePayload.payloadDigest`，rejected固定为NULL且不写Subject结果",
       "同一Candidate/Package digest只允许一个accepted Decision的partial unique index",
-      "Intake不升级为Business Process Root"
+      "immutable，不接受调用者指定既有Subject"
     ],
     "rawContract": {
-      "columns": "`intake_decision_id PK, offer_id, candidate_package_id, package_digest, acceptance_basis_digest, candidate_continuity_set_digest, matched_subject_set_digest, episode_overlap_digest, result(new_subject|season_extension|rejected), target_subject_id, rejection_schema_ref, decision_digest, decided_at_ms`",
-      "constraints": "`UNIQUE(offer_id)`；`offer_id/candidate/package/acceptance basis`必须逐项等于对应Delivery与typed Offer message并由Libra重算Basis验证；`candidate_continuity_set_digest`使用8.6.18同一claim-set公式，matched Subject与Episode overlap是Libra处理Offer时另行冻结的current Decision Evidence，不进入Offer Basis；immutable；`season_extension`要求exactly one target且zero overlap；同一Candidate/Package digest只允许一个accepted Decision的partial unique index；Intake不升级为Business Process Root"
+      "columns": "`intake_decision_id PK, decision_revision, offer_id, candidate_package_id, package_revision, package_digest, acceptance_basis_digest, candidate_delivery_snapshot_digest, expected_continuity_head_revision, expected_continuity_head_digest, committed_continuity_head_revision, candidate_continuity_set_digest, candidate_episode_scope_digest, match_cardinality(none|one|multiple), matched_subject_set_digest, episode_overlap_digest, result(new_subject|season_extension|rejected), target_subject_id, expected_target_status NULL, expected_target_intake_revision NULL, expected_target_continuity_set_digest NULL, expected_target_episode_scope_digest NULL, committed_target_intake_revision NULL, committed_subject_continuity_set_digest NULL, committed_subject_episode_scope_digest NULL, accepted_payload_digest NULL, rejection_schema_ref NULL, decision_digest, decided_at_ms`",
+      "constraints": "`decision_revision=1`且`UNIQUE(offer_id)`；Offer/Package/Acceptance Basis/Snapshot逐项匹配正式Delivery；match cardinality与两张Decision Evidence relation按8.6.18公式重建；`new_subject`要求target是Libra分配的新ID、expected target字段为NULL且committed intake revision=1；`season_extension`要求one match/zero overlap、`expected_target_status=active`及完整expected target CAS且committed revision=expected+1；accepted要求`accepted_payload_digest=AcceptedIntakePayload.payloadDigest`，rejected固定为NULL且不写Subject结果；同一Candidate/Package digest只允许一个accepted Decision的partial unique index；immutable，不接受调用者指定既有Subject"
     },
     "source": {
       "section": "8.5.11",
-      "line": 7905,
-      "lineDigest": "9613416260ace31b0f619efea87dff5428a6d585355ad40b9408182287f0c713"
+      "line": 7945,
+      "lineDigest": "69b0ade374a45fbc7988625fdadbc12a25a9acf917ef26d791c299caf817f15b"
     },
     "foreignKeys": []
   }

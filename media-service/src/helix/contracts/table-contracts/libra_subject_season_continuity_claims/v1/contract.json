@@ -140,17 +140,18 @@
     "semanticRules": [
       "`PK(subject_id,claim_kind,claim_namespace,claim_key,provenance_ref)`",
       "Handoff A复制Candidate claim",
-      "Resolved Product Identity发布exact provider-season anchor时同事务追加",
+      "Resolved Product Identity发布`exactSeasonContinuityClaims`时以`provenance_ref={subjectId}:{identityRevision}`同事务追加",
+      "Intake只查询本关系的active Subject rows，不反解`provider_identity_set_digest`",
       "`INDEX(claim_kind,claim_namespace,claim_key,subject_id)`允许检测0/1/N命中但不建立全局unique"
     ],
     "rawContract": {
       "columns": "`subject_id FK, claim_kind(provider_season_identity|triage_grouping_lineage), claim_namespace, claim_key, claim_digest, provenance_kind(candidate|resolved_identity), provenance_ref, accepted_at_ms`",
-      "constraints": "`PK(subject_id,claim_kind,claim_namespace,claim_key,provenance_ref)`；Handoff A复制Candidate claim；Resolved Product Identity发布exact provider-season anchor时同事务追加；`INDEX(claim_kind,claim_namespace,claim_key,subject_id)`允许检测0/1/N命中但不建立全局unique"
+      "constraints": "`PK(subject_id,claim_kind,claim_namespace,claim_key,provenance_ref)`；Handoff A复制Candidate claim；Resolved Product Identity发布`exactSeasonContinuityClaims`时以`provenance_ref={subjectId}:{identityRevision}`同事务追加；Intake只查询本关系的active Subject rows，不反解`provider_identity_set_digest`；`INDEX(claim_kind,claim_namespace,claim_key,subject_id)`允许检测0/1/N命中但不建立全局unique"
     },
     "source": {
       "section": "8.5.11",
-      "line": 7908,
-      "lineDigest": "a3041936a279fbd9f035a822a9619b9e4f60743565785d364cfdd263c5ce6f45"
+      "line": 7950,
+      "lineDigest": "88f96a79b2569ac5f29805d10d0db66aad2edd2e93bf9c42c9ca4479d478be51"
     },
     "foreignKeys": [
       {

@@ -12,52 +12,96 @@
       "constraintsContract": "`offer_id`与`acceptance_basis_digest`必须分别等于8.6.18从final `CandidatePackage@1`计算的`CandidateIntakeAcceptanceBasis@1`公式结果，且同事务存在唯一`ProcurementCandidateOfferAvailableMessage@1` Outbox；`UNIQUE(candidate_package_id,package_digest,acceptance_basis_digest)`；同一Candidate至多一个open Offer；相同Offer重放不得新增row或Outbox；`INDEX(state,offered_at_ms)`",
       "source": {
         "section": "8.5.11",
-        "line": 7904,
+        "line": 7943,
         "lineDigest": "2ac7ad7412afb014b7c6306fb2932f1c9b38fc2dccf81ad2fb228e87e8e8d5cc"
+      }
+    },
+    {
+      "id": "libra_subject_continuity_heads",
+      "owner": "libra",
+      "columnsContract": "`head_id PK(active_subject_continuity), current_revision, head_digest, updated_at_ms`",
+      "constraintsContract": "clean initialization建立唯一revision 0 row；`head_digest=SHA-256(JCS({schema:\"libra.subject-continuity-head@1\",headId,currentRevision}))`；任何改变active Subject集合、exact continuity relation或accepted Episode scope的事务都必须expected-revision CAS并加1，不能按时间戳伪造；Handoff A、Resolved Identity exact anchor publish与Subject terminal均使用同一head",
+      "source": {
+        "section": "8.5.11",
+        "line": 7944,
+        "lineDigest": "145fce04ca425ec1f8d2c9826f18d100e9ad2611f5d1fd0967aec479d7dc4b3a"
       }
     },
     {
       "id": "libra_intake_decisions",
       "owner": "libra",
-      "columnsContract": "`intake_decision_id PK, offer_id, candidate_package_id, package_digest, acceptance_basis_digest, candidate_continuity_set_digest, matched_subject_set_digest, episode_overlap_digest, result(new_subject|season_extension|rejected), target_subject_id, rejection_schema_ref, decision_digest, decided_at_ms`",
-      "constraintsContract": "`UNIQUE(offer_id)`；`offer_id/candidate/package/acceptance basis`必须逐项等于对应Delivery与typed Offer message并由Libra重算Basis验证；`candidate_continuity_set_digest`使用8.6.18同一claim-set公式，matched Subject与Episode overlap是Libra处理Offer时另行冻结的current Decision Evidence，不进入Offer Basis；immutable；`season_extension`要求exactly one target且zero overlap；同一Candidate/Package digest只允许一个accepted Decision的partial unique index；Intake不升级为Business Process Root",
+      "columnsContract": "`intake_decision_id PK, decision_revision, offer_id, candidate_package_id, package_revision, package_digest, acceptance_basis_digest, candidate_delivery_snapshot_digest, expected_continuity_head_revision, expected_continuity_head_digest, committed_continuity_head_revision, candidate_continuity_set_digest, candidate_episode_scope_digest, match_cardinality(none|one|multiple), matched_subject_set_digest, episode_overlap_digest, result(new_subject|season_extension|rejected), target_subject_id, expected_target_status NULL, expected_target_intake_revision NULL, expected_target_continuity_set_digest NULL, expected_target_episode_scope_digest NULL, committed_target_intake_revision NULL, committed_subject_continuity_set_digest NULL, committed_subject_episode_scope_digest NULL, accepted_payload_digest NULL, rejection_schema_ref NULL, decision_digest, decided_at_ms`",
+      "constraintsContract": "`decision_revision=1`且`UNIQUE(offer_id)`；Offer/Package/Acceptance Basis/Snapshot逐项匹配正式Delivery；match cardinality与两张Decision Evidence relation按8.6.18公式重建；`new_subject`要求target是Libra分配的新ID、expected target字段为NULL且committed intake revision=1；`season_extension`要求one match/zero overlap、`expected_target_status=active`及完整expected target CAS且committed revision=expected+1；accepted要求`accepted_payload_digest=AcceptedIntakePayload.payloadDigest`，rejected固定为NULL且不写Subject结果；同一Candidate/Package digest只允许一个accepted Decision的partial unique index；immutable，不接受调用者指定既有Subject",
       "source": {
         "section": "8.5.11",
-        "line": 7905,
-        "lineDigest": "9613416260ace31b0f619efea87dff5428a6d585355ad40b9408182287f0c713"
+        "line": 7945,
+        "lineDigest": "69b0ade374a45fbc7988625fdadbc12a25a9acf917ef26d791c299caf817f15b"
+      }
+    },
+    {
+      "id": "libra_intake_resolution_match_witnesses",
+      "owner": "libra",
+      "columnsContract": "`intake_decision_id FK, ordinal, subject_id FK, expected_subject_status(active), expected_subject_intake_revision, expected_subject_continuity_set_digest, expected_subject_episode_scope_digest, claim_kind, claim_namespace, claim_key, candidate_claim_digest, subject_claim_digest, subject_claim_provenance_kind(candidate|resolved_identity), subject_claim_provenance_ref, witness_digest`",
+      "constraintsContract": "`PK(intake_decision_id,ordinal)`及`UNIQUE(intake_decision_id,subject_id)`；none为0 row、one恰为1 row、multiple恰为按subjectId UTF-8 bytes最小的2个distinct matching Subject witness；每个Subject选择按claim tuple/provenance稳定排序的第一项exact交集作为证明；`witness_digest=SHA-256(JCS(完整row business value excluding intakeDecisionId/ordinal/witnessDigest))`；它证明Decision所需0/1/N cardinality，不声称保存multiple分支的无界全量匹配集合",
+      "source": {
+        "section": "8.5.11",
+        "line": 7946,
+        "lineDigest": "fee94bb81d3f4603331e4af08ac9821e56582852f46dc03ebba021b85599aa3d"
+      }
+    },
+    {
+      "id": "libra_intake_resolution_episode_overlaps",
+      "owner": "libra",
+      "columnsContract": "`intake_decision_id FK, subject_id FK, episode_key, overlap_digest`",
+      "constraintsContract": "`PK(intake_decision_id,subject_id,episode_key)`；只允许match cardinality=one时保存Candidate Episode scope与唯一Subject current scope的完整交集，按episodeKey排序；`overlap_digest=SHA-256(JCS({schema:\"libra.episode-overlap-member@1\",subjectId,episodeKey}))`；zero overlap合法为0 row；multiple/none不执行overlap并为0 row；aggregate formula按8.6.18",
+      "source": {
+        "section": "8.5.11",
+        "line": 7947,
+        "lineDigest": "3fdd27a398d8dbf29b751b3e0f4bd67fdfe00efb935f9e9a411df5124757f104"
       }
     },
     {
       "id": "libra_handoff_a_receipts",
       "owner": "libra",
-      "columnsContract": "`receipt_id PK, intake_decision_id FK, offer_id, candidate_package_id, package_digest, subject_id, libra_binding_set_digest, control_revision_set_digest, committed_at_ms`",
-      "constraintsContract": "`UNIQUE(intake_decision_id)`及同一Candidate/Package digest最多一个Receipt；Accepted事务的durable receipt/outbox source",
+      "columnsContract": "`receipt_id PK, intake_decision_id FK, offer_id, candidate_package_id, package_revision, package_digest, subject_id, subject_intake_revision, subject_continuity_head_revision, subject_continuity_set_digest, subject_episode_scope_digest, candidate_delivery_snapshot_digest, accepted_payload_digest, libra_binding_set_digest, control_revision_set_digest, receipt_digest, committed_at_ms`",
+      "constraintsContract": "`UNIQUE(intake_decision_id)`及同一Candidate/Package digest最多一个Receipt；所有revision/digest必须等于同一Accepted事务结果；`accepted_payload_digest`逐字节等于Decision同名列并作为ReceiptEnvelope.scopeDigest，使Subject后续扩充后仍能从本row重建原Receipt；Accepted typed Outbox引用该Receipt且相同marker重放不新增Receipt或消息",
       "source": {
         "section": "8.5.11",
-        "line": 7906,
-        "lineDigest": "e67ac7402a2103c75640b5e881854dfe3bb1ec00601d8e68f8730d175fc7d32b"
+        "line": 7948,
+        "lineDigest": "211447dce94242b18a9f219e7008001d2df1dfd51aeae933dc826ad28245fc07"
       }
     },
     {
       "id": "libra_subjects",
       "owner": "libra",
-      "columnsContract": "`subject_id PK, structure_kind, status, current_identity_revision, created_at_ms, updated_at_ms, terminal_at_ms`",
-      "constraintsContract": "`status`至少区分`active|abandoned|completed`；`INDEX(status,subject_id)`；Subject不保存Arca Shelf Entry/Deck状态；identity pointer显式FK",
+      "columnsContract": "`subject_id PK, structure_kind, status, intake_revision, current_continuity_set_digest, current_episode_scope_digest, current_identity_revision NULL, created_at_ms, updated_at_ms, terminal_at_ms`",
+      "constraintsContract": "`status`至少区分`active|abandoned|completed`；new Subject固定`intake_revision=1`，每次Season extension CAS加1；continuity/Episode digest由本域relation rows按8.6.18重建；`current_identity_revision=NULL`是尚未发布Resolved Product Identity的唯一合法初值，正整数时显式复合FK指向`libra_product_identity_revisions(subject_id,revision)`；`INDEX(status,subject_id)`；Subject不保存Arca Shelf Entry/Deck状态",
       "source": {
         "section": "8.5.11",
-        "line": 7907,
-        "lineDigest": "7ede0ac6d81766b22b462742a4780ad42789e46f72fef35713b87b9cf217ec55"
+        "line": 7949,
+        "lineDigest": "4d4a88e19a06399209aad0d76f031b30bab1809badb216024a77c92a8c1280f4"
       }
     },
     {
       "id": "libra_subject_season_continuity_claims",
       "owner": "libra",
       "columnsContract": "`subject_id FK, claim_kind(provider_season_identity|triage_grouping_lineage), claim_namespace, claim_key, claim_digest, provenance_kind(candidate|resolved_identity), provenance_ref, accepted_at_ms`",
-      "constraintsContract": "`PK(subject_id,claim_kind,claim_namespace,claim_key,provenance_ref)`；Handoff A复制Candidate claim；Resolved Product Identity发布exact provider-season anchor时同事务追加；`INDEX(claim_kind,claim_namespace,claim_key,subject_id)`允许检测0/1/N命中但不建立全局unique",
+      "constraintsContract": "`PK(subject_id,claim_kind,claim_namespace,claim_key,provenance_ref)`；Handoff A复制Candidate claim；Resolved Product Identity发布`exactSeasonContinuityClaims`时以`provenance_ref={subjectId}:{identityRevision}`同事务追加；Intake只查询本关系的active Subject rows，不反解`provider_identity_set_digest`；`INDEX(claim_kind,claim_namespace,claim_key,subject_id)`允许检测0/1/N命中但不建立全局unique",
       "source": {
         "section": "8.5.11",
-        "line": 7908,
-        "lineDigest": "a3041936a279fbd9f035a822a9619b9e4f60743565785d364cfdd263c5ce6f45"
+        "line": 7950,
+        "lineDigest": "88f96a79b2569ac5f29805d10d0db66aad2edd2e93bf9c42c9ca4479d478be51"
+      }
+    },
+    {
+      "id": "libra_subject_episode_scopes",
+      "owner": "libra",
+      "columnsContract": "`subject_id FK, episode_key, first_intake_decision_id FK, source_episode_scope_digest, accepted_at_ms`",
+      "constraintsContract": "`PK(subject_id,episode_key)`；只允许Series，Episode key来自Accepted Candidate Delivery Manifest全部Primary member claim的去重并集；append-only且同Episode不能被同Subject第二次接受；该表是FA-04 overlap唯一权威来源，不从Binding JSON或Run推断",
+      "source": {
+        "section": "8.5.11",
+        "line": 7951,
+        "lineDigest": "a6da2891ebfdb821bbf88db6cdbd5e14ad3793695cdf7ac429706dd6b30372c9"
       }
     },
     {
@@ -67,7 +111,7 @@
       "constraintsContract": "`UNIQUE(subject_id)`；immutable；只允许没有任何current Libra Run且Pre-deck责任仍active的Subject建立",
       "source": {
         "section": "8.5.11",
-        "line": 7909,
+        "line": 7952,
         "lineDigest": "7bdbc6b9de101584a171ad47849cc47d061237bba3fb44ce943e2d047ece924e"
       }
     },
@@ -78,74 +122,30 @@
       "constraintsContract": "`UNIQUE(abandon_decision_id)`；与Subject terminal和精确Primary Control release同一事务成立",
       "source": {
         "section": "8.5.11",
-        "line": 7910,
+        "line": 7953,
         "lineDigest": "ae4b6b78f23821dabe8a903651002644bd555ba5aa5de2dfff90d214a0e9d185"
       }
     },
     {
       "id": "libra_material_bindings",
       "owner": "libra",
-      "columnsContract": "`subject_id FK, material_key, role, episode_key, endpoint_id, location, binding_revision, health_state, evidence_digest, current`",
-      "constraintsContract": "immutable revision以`PK(subject_id,material_key,binding_revision)`保存；每个`subject+material+role`只有一个current row",
+      "columnsContract": "`subject_id FK, material_key, role, endpoint_id, location, binding_revision, health_state, evidence_digest, current`",
+      "constraintsContract": "immutable revision以`PK(subject_id,material_key,binding_revision)`保存；每个`subject+material+role`只有一个current row；Handoff A每个Manifest member只建一条Binding，不能为多Episode复制Binding或把Episode拼入字符串",
       "source": {
         "section": "8.5.11",
-        "line": 7911,
-        "lineDigest": "712fdf5b7ce7cdbafcde1b86d777256b7782463f0edcc61bfd136bef4326ae1b"
+        "line": 7954,
+        "lineDigest": "81a807bad4c7726f3de42942d7d957d015b6e7bca6d46bf6d712695e18ad5327"
       }
     },
     {
-      "id": "libra_product_identity_revisions",
+      "id": "libra_material_binding_episode_claims",
       "owner": "libra",
-      "columnsContract": "`subject_id FK, revision, structure_kind, content_profile, identity_kind, provider_identity_set_digest, display_identity, identity_digest, evidence_digest, committed_at_ms`",
-      "constraintsContract": "`PK(subject_id,revision)`；immutable；`libra_subjects.current_identity_revision`显式指向本表",
+      "columnsContract": "`subject_id FK, material_key, binding_revision, episode_key, season_claim_digest, claim_digest`",
+      "constraintsContract": "`PK(subject_id,material_key,binding_revision,episode_key)`并以复合FK指向`libra_material_bindings`；逐项无损复制同一Manifest member的Episode Claim；single与无Episode structural dependency为0 row；Binding set digest包含这些relation，不允许只取第一项",
       "source": {
         "section": "8.5.11",
-        "line": 7912,
-        "lineDigest": "1ae280f0e6779cac8bf807bf35b9cbb5ef4b48be90c2c8b38cf78c86e7e20fb2"
-      }
-    },
-    {
-      "id": "libra_field_routing_heads",
-      "owner": "libra",
-      "columnsContract": "`field_id PK, current_routing_policy_id, current_policy_revision, updated_at_ms`",
-      "constraintsContract": "Field ID是Procurement公开opaque ref、不建跨Domain FK；current pair显式FK到Policy revision；一片Field恰好至多一份current去向方案",
-      "source": {
-        "section": "8.5.11",
-        "line": 7913,
-        "lineDigest": "798b380ce2cc0c6b9f83bdc869efb8494d784c4a7776e02bc3e1c35d81ec5d39"
-      }
-    },
-    {
-      "id": "libra_routing_policy_revisions",
-      "owner": "libra",
-      "columnsContract": "`routing_policy_id, revision, field_id, mode(direct|sorting), policy_schema_ref, policy_json, policy_digest, effective_at_ms`",
-      "constraintsContract": "Policy JSON上限`64 KiB`；`PK(routing_policy_id,revision)`；immutable；`INDEX(field_id,effective_at_ms)`；同一revision只属于一片Field",
-      "source": {
-        "section": "8.5.11",
-        "line": 7914,
-        "lineDigest": "f1d288d4b709ef019d295af7576074e514b1ff4a568b230461b1168aee26bec8"
-      }
-    },
-    {
-      "id": "libra_routing_policy_targets",
-      "owner": "libra",
-      "columnsContract": "`routing_policy_id, policy_revision, shelf_id, rank, match_rule_schema_ref, match_rule_json, match_rule_digest`",
-      "constraintsContract": "`PK(routing_policy_id,policy_revision,shelf_id)`及`UNIQUE(routing_policy_id,policy_revision,rank)`；Shelf ID为Arca公开Projection中的opaque ref",
-      "source": {
-        "section": "8.5.11",
-        "line": 7915,
-        "lineDigest": "e7b4f1178b6790d4ce94ffe85a5e8c583bf04936b84ca24d7aaf93f793982305"
-      }
-    },
-    {
-      "id": "libra_routing_assessments",
-      "owner": "libra",
-      "columnsContract": "`routing_assessment_id PK, subject_id FK, basis_digest, routing_policy_id, routing_policy_revision, evidence_digest, created_at_ms`",
-      "constraintsContract": "`UNIQUE(subject_id,basis_digest,routing_policy_id,routing_policy_revision)`",
-      "source": {
-        "section": "8.5.11",
-        "line": 7916,
-        "lineDigest": "6bf5f7443b8d299aed7cd871da55c62908f1e2164796180c9658e0a8bee29df4"
+        "line": 7955,
+        "lineDigest": "47921a735f544a3ccde2cdeef6ba7c1c413a1af927d5f86971e710796bb8d1fb"
       }
     }
   ]

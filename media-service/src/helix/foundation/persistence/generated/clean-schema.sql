@@ -1224,10 +1224,18 @@ CREATE TABLE "libra_handoff_a_receipts" (
   "intake_decision_id" TEXT,
   "offer_id" TEXT,
   "candidate_package_id" TEXT,
+  "package_revision" INTEGER CHECK ("package_revision" >= 1),
   "package_digest" TEXT CHECK (length("package_digest") = 64 AND "package_digest" NOT GLOB '*[^0-9a-f]*'),
   "subject_id" TEXT,
+  "subject_intake_revision" INTEGER CHECK ("subject_intake_revision" >= 1),
+  "subject_continuity_head_revision" INTEGER CHECK ("subject_continuity_head_revision" >= 1),
+  "subject_continuity_set_digest" TEXT CHECK (length("subject_continuity_set_digest") = 64 AND "subject_continuity_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "subject_episode_scope_digest" TEXT CHECK (length("subject_episode_scope_digest") = 64 AND "subject_episode_scope_digest" NOT GLOB '*[^0-9a-f]*'),
+  "candidate_delivery_snapshot_digest" TEXT CHECK (length("candidate_delivery_snapshot_digest") = 64 AND "candidate_delivery_snapshot_digest" NOT GLOB '*[^0-9a-f]*'),
+  "accepted_payload_digest" TEXT CHECK (length("accepted_payload_digest") = 64 AND "accepted_payload_digest" NOT GLOB '*[^0-9a-f]*'),
   "libra_binding_set_digest" TEXT CHECK (length("libra_binding_set_digest") = 64 AND "libra_binding_set_digest" NOT GLOB '*[^0-9a-f]*'),
   "control_revision_set_digest" TEXT CHECK (length("control_revision_set_digest") = 64 AND "control_revision_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "receipt_digest" TEXT CHECK (length("receipt_digest") = 64 AND "receipt_digest" NOT GLOB '*[^0-9a-f]*'),
   "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
   UNIQUE ("intake_decision_id"),
   FOREIGN KEY ("intake_decision_id") REFERENCES "libra_intake_decisions" ("intake_decision_id") ON DELETE RESTRICT
@@ -1235,15 +1243,31 @@ CREATE TABLE "libra_handoff_a_receipts" (
 
 CREATE TABLE "libra_intake_decisions" (
   "intake_decision_id" TEXT PRIMARY KEY,
+  "decision_revision" INTEGER CHECK ("decision_revision" >= 1),
   "offer_id" TEXT,
   "candidate_package_id" TEXT,
+  "package_revision" INTEGER CHECK ("package_revision" >= 1),
   "package_digest" TEXT CHECK (length("package_digest") = 64 AND "package_digest" NOT GLOB '*[^0-9a-f]*'),
   "acceptance_basis_digest" TEXT CHECK (length("acceptance_basis_digest") = 64 AND "acceptance_basis_digest" NOT GLOB '*[^0-9a-f]*'),
+  "candidate_delivery_snapshot_digest" TEXT CHECK (length("candidate_delivery_snapshot_digest") = 64 AND "candidate_delivery_snapshot_digest" NOT GLOB '*[^0-9a-f]*'),
+  "expected_continuity_head_revision" INTEGER CHECK ("expected_continuity_head_revision" >= 1),
+  "expected_continuity_head_digest" TEXT CHECK (length("expected_continuity_head_digest") = 64 AND "expected_continuity_head_digest" NOT GLOB '*[^0-9a-f]*'),
+  "committed_continuity_head_revision" INTEGER CHECK ("committed_continuity_head_revision" >= 1),
   "candidate_continuity_set_digest" TEXT CHECK (length("candidate_continuity_set_digest") = 64 AND "candidate_continuity_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "candidate_episode_scope_digest" TEXT CHECK (length("candidate_episode_scope_digest") = 64 AND "candidate_episode_scope_digest" NOT GLOB '*[^0-9a-f]*'),
+  "match_cardinality" TEXT CHECK ("match_cardinality" IN ('none', 'one', 'multiple')),
   "matched_subject_set_digest" TEXT CHECK (length("matched_subject_set_digest") = 64 AND "matched_subject_set_digest" NOT GLOB '*[^0-9a-f]*'),
   "episode_overlap_digest" TEXT CHECK (length("episode_overlap_digest") = 64 AND "episode_overlap_digest" NOT GLOB '*[^0-9a-f]*'),
   "result" TEXT CHECK ("result" IN ('new_subject', 'season_extension', 'rejected')),
   "target_subject_id" TEXT,
+  "expected_target_status" TEXT CHECK ("expected_target_status" IN ('active')),
+  "expected_target_intake_revision" INTEGER CHECK ("expected_target_intake_revision" >= 1),
+  "expected_target_continuity_set_digest" TEXT CHECK (length("expected_target_continuity_set_digest") = 64 AND "expected_target_continuity_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "expected_target_episode_scope_digest" TEXT CHECK (length("expected_target_episode_scope_digest") = 64 AND "expected_target_episode_scope_digest" NOT GLOB '*[^0-9a-f]*'),
+  "committed_target_intake_revision" INTEGER CHECK ("committed_target_intake_revision" >= 1),
+  "committed_subject_continuity_set_digest" TEXT CHECK (length("committed_subject_continuity_set_digest") = 64 AND "committed_subject_continuity_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "committed_subject_episode_scope_digest" TEXT CHECK (length("committed_subject_episode_scope_digest") = 64 AND "committed_subject_episode_scope_digest" NOT GLOB '*[^0-9a-f]*'),
+  "accepted_payload_digest" TEXT CHECK (length("accepted_payload_digest") = 64 AND "accepted_payload_digest" NOT GLOB '*[^0-9a-f]*'),
   "rejection_schema_ref" TEXT,
   "decision_digest" TEXT CHECK (length("decision_digest") = 64 AND "decision_digest" NOT GLOB '*[^0-9a-f]*'),
   "decided_at_ms" INTEGER CHECK ("decided_at_ms" >= 0),
@@ -1251,11 +1275,53 @@ CREATE TABLE "libra_intake_decisions" (
 );
 CREATE UNIQUE INDEX "uidx_libra_intake_decisions_partial_01" ON "libra_intake_decisions" ("candidate_package_id", "package_digest") WHERE "result" IN ('new_subject', 'season_extension');
 
+CREATE TABLE "libra_intake_resolution_episode_overlaps" (
+  "intake_decision_id" TEXT,
+  "subject_id" TEXT,
+  "episode_key" TEXT,
+  "overlap_digest" TEXT CHECK (length("overlap_digest") = 64 AND "overlap_digest" NOT GLOB '*[^0-9a-f]*'),
+  PRIMARY KEY ("intake_decision_id", "subject_id", "episode_key"),
+  FOREIGN KEY ("intake_decision_id") REFERENCES "libra_intake_decisions" ("intake_decision_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_intake_resolution_match_witnesses" (
+  "intake_decision_id" TEXT,
+  "ordinal" INTEGER CHECK ("ordinal" >= 0),
+  "subject_id" TEXT,
+  "expected_subject_status" TEXT CHECK ("expected_subject_status" IN ('active')),
+  "expected_subject_intake_revision" INTEGER CHECK ("expected_subject_intake_revision" >= 1),
+  "expected_subject_continuity_set_digest" TEXT CHECK (length("expected_subject_continuity_set_digest") = 64 AND "expected_subject_continuity_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "expected_subject_episode_scope_digest" TEXT CHECK (length("expected_subject_episode_scope_digest") = 64 AND "expected_subject_episode_scope_digest" NOT GLOB '*[^0-9a-f]*'),
+  "claim_kind" TEXT,
+  "claim_namespace" TEXT,
+  "claim_key" TEXT,
+  "candidate_claim_digest" TEXT CHECK (length("candidate_claim_digest") = 64 AND "candidate_claim_digest" NOT GLOB '*[^0-9a-f]*'),
+  "subject_claim_digest" TEXT CHECK (length("subject_claim_digest") = 64 AND "subject_claim_digest" NOT GLOB '*[^0-9a-f]*'),
+  "subject_claim_provenance_kind" TEXT CHECK ("subject_claim_provenance_kind" IN ('candidate', 'resolved_identity')),
+  "subject_claim_provenance_ref" TEXT,
+  "witness_digest" TEXT CHECK (length("witness_digest") = 64 AND "witness_digest" NOT GLOB '*[^0-9a-f]*'),
+  PRIMARY KEY ("intake_decision_id", "ordinal"),
+  UNIQUE ("intake_decision_id", "subject_id"),
+  FOREIGN KEY ("intake_decision_id") REFERENCES "libra_intake_decisions" ("intake_decision_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_material_binding_episode_claims" (
+  "subject_id" TEXT,
+  "material_key" TEXT,
+  "binding_revision" INTEGER CHECK ("binding_revision" >= 1),
+  "episode_key" TEXT,
+  "season_claim_digest" TEXT CHECK (length("season_claim_digest") = 64 AND "season_claim_digest" NOT GLOB '*[^0-9a-f]*'),
+  "claim_digest" TEXT CHECK (length("claim_digest") = 64 AND "claim_digest" NOT GLOB '*[^0-9a-f]*'),
+  PRIMARY KEY ("subject_id", "material_key", "binding_revision", "episode_key"),
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT
+);
+
 CREATE TABLE "libra_material_bindings" (
   "subject_id" TEXT,
   "material_key" TEXT,
   "role" TEXT,
-  "episode_key" TEXT,
   "endpoint_id" TEXT,
   "location" TEXT,
   "binding_revision" INTEGER CHECK ("binding_revision" >= 1),
@@ -1302,6 +1368,7 @@ CREATE TABLE "libra_product_identity_revisions" (
   "content_profile" TEXT,
   "identity_kind" TEXT,
   "provider_identity_set_digest" TEXT CHECK (length("provider_identity_set_digest") = 64 AND "provider_identity_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "exact_season_continuity_set_digest" TEXT CHECK (length("exact_season_continuity_set_digest") = 64 AND "exact_season_continuity_set_digest" NOT GLOB '*[^0-9a-f]*'),
   "display_identity" TEXT,
   "identity_digest" TEXT CHECK (length("identity_digest") = 64 AND "identity_digest" NOT GLOB '*[^0-9a-f]*'),
   "evidence_digest" TEXT CHECK (length("evidence_digest") = 64 AND "evidence_digest" NOT GLOB '*[^0-9a-f]*'),
@@ -1470,6 +1537,13 @@ CREATE TABLE "libra_subject_abandon_receipts" (
   FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT
 );
 
+CREATE TABLE "libra_subject_continuity_heads" (
+  "head_id" TEXT PRIMARY KEY CHECK ("head_id" IN ('active_subject_continuity')),
+  "current_revision" INTEGER CHECK ("current_revision" >= 1),
+  "head_digest" TEXT CHECK (length("head_digest") = 64 AND "head_digest" NOT GLOB '*[^0-9a-f]*'),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0)
+);
+
 CREATE TABLE "libra_subject_decision_heads" (
   "subject_id" TEXT PRIMARY KEY,
   "current_routing_decision_id" TEXT,
@@ -1480,6 +1554,17 @@ CREATE TABLE "libra_subject_decision_heads" (
   FOREIGN KEY ("current_routing_decision_id") REFERENCES "libra_routing_decisions" ("routing_decision_id") ON DELETE RESTRICT,
   FOREIGN KEY ("current_decision_basis_id") REFERENCES "libra_decision_basis_revisions" ("decision_basis_id") ON DELETE RESTRICT,
   FOREIGN KEY ("current_acceptance_spec_id") REFERENCES "libra_acceptance_specs" ("acceptance_spec_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_subject_episode_scopes" (
+  "subject_id" TEXT,
+  "episode_key" TEXT,
+  "first_intake_decision_id" TEXT,
+  "source_episode_scope_digest" TEXT CHECK (length("source_episode_scope_digest") = 64 AND "source_episode_scope_digest" NOT GLOB '*[^0-9a-f]*'),
+  "accepted_at_ms" INTEGER CHECK ("accepted_at_ms" >= 0),
+  PRIMARY KEY ("subject_id", "episode_key"),
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("first_intake_decision_id") REFERENCES "libra_intake_decisions" ("intake_decision_id") ON DELETE RESTRICT
 );
 
 CREATE TABLE "libra_subject_season_continuity_claims" (
@@ -1499,7 +1584,10 @@ CREATE INDEX "idx_libra_subject_season_continuity_claims_hot_01" ON "libra_subje
 CREATE TABLE "libra_subjects" (
   "subject_id" TEXT PRIMARY KEY,
   "structure_kind" TEXT,
-  "status" TEXT CHECK ("status" IN ('active', 'abandoned')),
+  "status" TEXT CHECK ("status" IN ('active', 'abandoned', 'completed')),
+  "intake_revision" INTEGER CHECK ("intake_revision" >= 1),
+  "current_continuity_set_digest" TEXT CHECK (length("current_continuity_set_digest") = 64 AND "current_continuity_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "current_episode_scope_digest" TEXT CHECK (length("current_episode_scope_digest") = 64 AND "current_episode_scope_digest" NOT GLOB '*[^0-9a-f]*'),
   "current_identity_revision" INTEGER CHECK ("current_identity_revision" >= 1),
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
   "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),

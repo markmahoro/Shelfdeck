@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/CandidateDeliverySnapshot/v1",
+  "title": "CandidateDeliverySnapshot@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "snapshotContract": {
+      "const": "procurement.candidate-delivery@1"
+    },
+    "offer": {
+      "$ref": "helix://contracts/types/ProcurementCandidateOfferAvailableMessage/v1"
+    },
+    "acceptanceBasis": {
+      "$ref": "helix://contracts/types/CandidateIntakeAcceptanceBasis/v1"
+    },
+    "candidatePackage": {
+      "$ref": "helix://contracts/types/CandidatePackage/v1"
+    },
+    "primaryInputManifest": {
+      "$ref": "helix://contracts/types/PrimaryInputManifest/v1"
+    },
+    "primaryMaterialDeliveries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ordinal": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "materialKey": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "primary_payload",
+              "structural_dependency"
+            ]
+          },
+          "bindingRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "admittedControlRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "admittedControlProjectionDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "endpointId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "location": {
+            "type": "string",
+            "minLength": 1
+          },
+          "lastSnapshotDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "realityDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "provenanceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "manifestMemberDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "episodeClaims": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "episodeKey": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "seasonClaimDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "claimDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "required": [
+                "episodeKey",
+                "seasonClaimDigest",
+                "claimDigest"
+              ]
+            },
+            "maxItems": 32
+          },
+          "deliveryMemberDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "ordinal",
+          "materialKey",
+          "role",
+          "bindingRevision",
+          "admittedControlRevision",
+          "admittedControlProjectionDigest",
+          "endpointId",
+          "location",
+          "lastSnapshotDigest",
+          "realityDigest",
+          "provenanceDigest",
+          "manifestMemberDigest",
+          "episodeClaims",
+          "deliveryMemberDigest"
+        ]
+      },
+      "maxItems": 1024,
+      "minItems": 1
+    },
+    "deliveryMemberSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "deliverySnapshotDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "snapshotContract",
+    "offer",
+    "acceptanceBasis",
+    "candidatePackage",
+    "primaryInputManifest",
+    "primaryMaterialDeliveries",
+    "deliveryMemberSetDigest",
+    "deliverySnapshotDigest"
+  ],
+  "x-helix-maxCanonicalBytes": 8388608
+}

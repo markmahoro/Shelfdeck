@@ -1,0 +1,294 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/SubjectContinuityResolutionDecision/v1",
+  "title": "SubjectContinuityResolutionDecision@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "decisionId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "offerId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "candidatePackageId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "packageRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "packageDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "candidateDeliverySnapshotDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "expectedContinuityHead": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "digest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "revision",
+        "digest"
+      ]
+    },
+    "candidateContinuityClaims": {
+      "type": "array",
+      "items": {
+        "$ref": "helix://contracts/types/SeasonContinuityClaim/v1"
+      },
+      "maxItems": 64
+    },
+    "candidateContinuitySetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "candidateEpisodeScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "structureKind": {
+          "type": "string",
+          "enum": [
+            "single",
+            "season"
+          ]
+        },
+        "episodeKeys": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "maxItems": 32768
+        },
+        "episodeScopeDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "structureKind",
+        "episodeKeys",
+        "episodeScopeDigest"
+      ]
+    },
+    "matchCardinality": {
+      "type": "string",
+      "enum": [
+        "none",
+        "one",
+        "multiple"
+      ]
+    },
+    "matchWitnesses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ordinal": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "subjectId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "expectedSubjectStatus": {
+            "const": "active"
+          },
+          "expectedSubjectIntakeRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "expectedSubjectContinuitySetDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "expectedSubjectEpisodeScopeDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "claimKind": {
+            "type": "string",
+            "enum": [
+              "provider_season_identity",
+              "triage_grouping_lineage"
+            ]
+          },
+          "claimNamespace": {
+            "type": "string",
+            "minLength": 1
+          },
+          "claimKey": {
+            "type": "string",
+            "minLength": 1
+          },
+          "candidateClaimDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "subjectClaimDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "subjectClaimProvenanceKind": {
+            "type": "string",
+            "enum": [
+              "candidate",
+              "resolved_identity"
+            ]
+          },
+          "subjectClaimProvenanceRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "witnessDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "ordinal",
+          "subjectId",
+          "expectedSubjectStatus",
+          "expectedSubjectIntakeRevision",
+          "expectedSubjectContinuitySetDigest",
+          "expectedSubjectEpisodeScopeDigest",
+          "claimKind",
+          "claimNamespace",
+          "claimKey",
+          "candidateClaimDigest",
+          "subjectClaimDigest",
+          "subjectClaimProvenanceKind",
+          "subjectClaimProvenanceRef",
+          "witnessDigest"
+        ]
+      },
+      "maxItems": 2
+    },
+    "matchedSubjectSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "overlapEvaluation": {
+      "type": "string",
+      "enum": [
+        "not_applicable_no_match",
+        "not_applicable_multiple",
+        "evaluated"
+      ]
+    },
+    "overlappingEpisodeKeys": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "maxItems": 32768
+    },
+    "episodeOverlapDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "result": {
+      "type": "string",
+      "enum": [
+        "new_subject",
+        "season_extension"
+      ]
+    },
+    "allocatedSubjectId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "targetSubjectId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "expectedTargetStatus": {
+      "const": "active"
+    },
+    "expectedTargetIntakeRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "expectedTargetContinuitySetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "expectedTargetEpisodeScopeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "decisionDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "decisionId",
+    "offerId",
+    "candidatePackageId",
+    "packageRevision",
+    "packageDigest",
+    "candidateDeliverySnapshotDigest",
+    "expectedContinuityHead",
+    "candidateContinuityClaims",
+    "candidateContinuitySetDigest",
+    "candidateEpisodeScope",
+    "matchCardinality",
+    "matchWitnesses",
+    "matchedSubjectSetDigest",
+    "overlapEvaluation",
+    "overlappingEpisodeKeys",
+    "episodeOverlapDigest",
+    "result",
+    "decisionDigest"
+  ],
+  "x-helix-maxCanonicalBytes": 131072
+}

@@ -7,7 +7,7 @@
     "displayName": "Handoff A Accepted",
     "ownerScope": "libra",
     "commitClass": "responsibility_control_commit",
-    "atomicFactSet": "Acceptance Decision + frozen Subject Continuity Resolution + Subject create/extension + accepted continuity claim snapshot + Libra Binding + precise Control transfer + Handoff Receipt/Outbox",
+    "atomicFactSet": "complete `CandidateDeliverySnapshot@1` + Libra-owned `SubjectContinuityResolutionDecision@1` + `LibraBindingDraft@1` + `AcceptedIntakePayload@1` + global Subject Continuity head CAS + unique extension target Intake head CAS（new Subject只用global CAS）+ immutable Intake Decision/match witness/overlap Evidence + Subject create/extension + accepted continuity/Episode scope + Material Binding及N:M Episode relation + precise Control transfer + `SubjectAndTransferReceipt@1`/commit marker/accepted Outbox；全部事实全有或全无，Libra不得旁读`proc_*`，Commit Participant不得信任调用者指定Subject或重算Provider事实",
     "participants": [
       {
         "participantKind": "domain",
@@ -84,8 +84,8 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7675,
-      "lineDigest": "73503079bb76d649baac5fad1b5e34ff41a3d5555a1ed262e2648d94dc100794"
+      "line": 7697,
+      "lineDigest": "be130c62965c4291a401369d3efaef63798da5653e13d4a52fd299c6347249a4"
     }
   }
 }

@@ -36,15 +36,6 @@
       },
       {
         "ordinal": 4,
-        "name": "episode_key",
-        "logicalType": "TEXT",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": false,
-        "nullable": false
-      },
-      {
-        "ordinal": 5,
         "name": "endpoint_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -53,7 +44,7 @@
         "nullable": false
       },
       {
-        "ordinal": 6,
+        "ordinal": 5,
         "name": "location",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -62,7 +53,7 @@
         "nullable": false
       },
       {
-        "ordinal": 7,
+        "ordinal": 6,
         "name": "binding_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -71,7 +62,7 @@
         "nullable": false
       },
       {
-        "ordinal": 8,
+        "ordinal": 7,
         "name": "health_state",
         "logicalType": "TEXT",
         "enumValues": [
@@ -84,7 +75,7 @@
         "nullable": false
       },
       {
-        "ordinal": 9,
+        "ordinal": 8,
         "name": "evidence_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -93,7 +84,7 @@
         "nullable": false
       },
       {
-        "ordinal": 10,
+        "ordinal": 9,
         "name": "current",
         "logicalType": "INTEGER_BOOLEAN",
         "enumValues": [],
@@ -144,16 +135,17 @@
     },
     "semanticRules": [
       "immutable revision以`PK(subject_id,material_key,binding_revision)`保存",
-      "每个`subject+material+role`只有一个current row"
+      "每个`subject+material+role`只有一个current row",
+      "Handoff A每个Manifest member只建一条Binding，不能为多Episode复制Binding或把Episode拼入字符串"
     ],
     "rawContract": {
-      "columns": "`subject_id FK, material_key, role, episode_key, endpoint_id, location, binding_revision, health_state, evidence_digest, current`",
-      "constraints": "immutable revision以`PK(subject_id,material_key,binding_revision)`保存；每个`subject+material+role`只有一个current row"
+      "columns": "`subject_id FK, material_key, role, endpoint_id, location, binding_revision, health_state, evidence_digest, current`",
+      "constraints": "immutable revision以`PK(subject_id,material_key,binding_revision)`保存；每个`subject+material+role`只有一个current row；Handoff A每个Manifest member只建一条Binding，不能为多Episode复制Binding或把Episode拼入字符串"
     },
     "source": {
       "section": "8.5.11",
-      "line": 7911,
-      "lineDigest": "712fdf5b7ce7cdbafcde1b86d777256b7782463f0edcc61bfd136bef4326ae1b"
+      "line": 7954,
+      "lineDigest": "81a807bad4c7726f3de42942d7d957d015b6e7bca6d46bf6d712695e18ad5327"
     },
     "foreignKeys": [
       {

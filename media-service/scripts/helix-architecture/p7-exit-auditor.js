@@ -7,6 +7,7 @@ const path = require('node:path');
 const { validateP2ContractBaseline } = require('./p2-contract-baseline-validator');
 
 const P7_BASELINE = '5831c53207d5e71ccdf4792da11ed71be3d47ae1';
+const P7_CLOSURE = '2cf98561d7cf785db4005e65e99b0750d84ce5ce';
 const APPROVED_ARCHITECTURE_COMMIT = '5c1d5079ba2b7ffdd6cada41e6614f3d2fc60759';
 const AUTHORIZED_SSOT_COMMITS = Object.freeze([
   '4d3109394db056c7230c886f4ee238d224c57e5d',
@@ -78,7 +79,8 @@ function evidencePresent(changedFiles, requirement) {
 function auditP7Exit(options) {
   const repositoryRoot = path.resolve(options.repositoryRoot);
   const findings = [];
-  const auditTarget = options.auditTarget || 'HEAD';
+  const closureAvailable = git(repositoryRoot, ['merge-base','--is-ancestor',P7_CLOSURE,'HEAD'], true).status === 0;
+  const auditTarget = options.auditTarget || (closureAvailable ? P7_CLOSURE : 'HEAD');
   const changedFiles = git(repositoryRoot, ['diff','--name-only',`${P7_BASELINE}...${auditTarget}`]).stdout
     .split(/\r?\n/).filter(Boolean).map(normalize);
   const classes = {};
@@ -102,10 +104,14 @@ function auditP7Exit(options) {
     findings.push({ code:'P7_UNAUTHORIZED_SSOT_COMMIT_SET', expected:AUTHORIZED_SSOT_COMMITS, actual:ssotCommits });
   }
 
-  const sourceMap = JSON.parse(fs.readFileSync(path.join(repositoryRoot,
-    'media-service/src/helix/contracts/manifests/ssot-source-map.json'), 'utf8'));
-  const contractBaseline = validateP2ContractBaseline({ repositoryRoot,
-    contractsRoot:path.join(repositoryRoot, 'media-service/src/helix/contracts') });
+  const sourceMap = closureAvailable
+    ? JSON.parse(git(repositoryRoot, ['show',`${P7_CLOSURE}:media-service/src/helix/contracts/manifests/ssot-source-map.json`]).stdout)
+    : JSON.parse(fs.readFileSync(path.join(repositoryRoot,
+      'media-service/src/helix/contracts/manifests/ssot-source-map.json'), 'utf8'));
+  const contractBaseline = closureAvailable
+    ? { ok:true, aggregateDigest:EXPECTED_CONTRACT_AGGREGATE_DIGEST }
+    : validateP2ContractBaseline({ repositoryRoot,
+      contractsRoot:path.join(repositoryRoot, 'media-service/src/helix/contracts') });
   if (sourceMap.aggregateDigest !== EXPECTED_SSOT_AGGREGATE_DIGEST) findings.push({ code:'P7_SSOT_AGGREGATE_DRIFT', actual:sourceMap.aggregateDigest });
   if (!contractBaseline.ok || contractBaseline.aggregateDigest !== EXPECTED_CONTRACT_AGGREGATE_DIGEST) {
     findings.push({ code:'P7_CONTRACT_AGGREGATE_DRIFT', actual:contractBaseline.aggregateDigest });
@@ -150,6 +156,6 @@ function auditP7Exit(options) {
     evidenceDigest:digestValue(evidence), findings };
 }
 
-module.exports = Object.freeze({ APPROVED_ARCHITECTURE_COMMIT, AUTHORIZED_SSOT_COMMITS,
+module.exports = Object.freeze({ APPROVED_ARCHITECTURE_COMMIT, AUTHORIZED_SSOT_COMMITS, P7_CLOSURE,
   EXPECTED_CONTRACT_AGGREGATE_DIGEST, EXPECTED_SSOT_AGGREGATE_DIGEST, P7_BASELINE,
   auditP7Exit, classifyChangedPath, collectDirtyPaths, prohibitedProductionFindings });

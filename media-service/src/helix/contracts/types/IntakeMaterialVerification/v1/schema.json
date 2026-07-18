@@ -68,14 +68,56 @@
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
-    "verifiedMaterialKeys": {
+    "candidateDeliverySnapshotDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "verifiedMaterials": {
       "type": "array",
       "items": {
-        "type": "string",
-        "minLength": 1,
-        "maxLength": 256
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "materialKey": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "bindingRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "locationEvidenceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "readHandleDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "verificationDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "materialKey",
+          "bindingRevision",
+          "locationEvidenceDigest",
+          "readHandleDigest",
+          "verificationDigest"
+        ]
       },
       "maxItems": 1024
+    },
+    "verifiedMaterialSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     }
   },
   "required": [
@@ -90,6 +132,8 @@
     "verifiedAtMs",
     "candidatePackageId",
     "packageDigest",
-    "verifiedMaterialKeys"
+    "candidateDeliverySnapshotDigest",
+    "verifiedMaterials",
+    "verifiedMaterialSetDigest"
   ]
 }

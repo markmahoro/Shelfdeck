@@ -87,7 +87,10 @@ function validateDomainInputSchemas(options) {
       TriageIdentityResolutionInput: ['procurementRunId', 'runBasisDigest', 'structureEvidencePayloadDigest', 'unit', 'inputDigest'],
       TriageManifestBuildInput: ['procurementRunId', 'runBasisDigest', 'selectedFieldMaterialSet', 'unit', 'inputDigest'],
       TriageMaterialProbeBatch: ['procurementRunId', 'runBasisDigest', 'selectionDigest', 'batchOrdinal', 'members', 'batchDigest'],
-      TriageStructureInspectionInput: ['selectedFieldMaterialSet', 'probeBatches', 'playabilityPages', 'materialFieldContext', 'pageRequest', 'inputDigest']
+      TriageStructureInspectionInput: ['selectedFieldMaterialSet', 'probeBatches', 'playabilityPages', 'materialFieldContext', 'pageRequest', 'inputDigest'],
+      CandidateDeliverySnapshot: ['snapshotContract', 'deliverySnapshotDigest'],
+      SubjectContinuityResolutionDecision: ['decisionId', 'decisionDigest'],
+      AcceptedIntakePayload: ['intakeDecisionId', 'decisionRevision', 'payloadDigest']
     };
     const identityFields = exactIdentityFields[entry.id] || ['schemaRef', 'schemaVersion', 'revision', 'digest'];
     for (const field of identityFields) {

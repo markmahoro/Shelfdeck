@@ -55,7 +55,11 @@ test('accepted DTOs freeze semantic members instead of exposing arbitrary payloa
   assert.equal(schemas.CandidateDraft.properties.seasonContinuityClaims.items.$ref,
     'helix://contracts/types/SeasonContinuityClaim/v1');
   assert.ok(schemas.CandidateDraft.required.includes('seasonContinuityClaimSetDigest'));
-  assert.equal(schemas.AcceptedIntakePayload.properties.candidatePackage.$ref, 'helix://contracts/types/CandidatePackage/v1');
+  assert.equal(schemas.AcceptedIntakePayload.properties.resolutionDecision.$ref,
+    'helix://contracts/domain-types/SubjectContinuityResolutionDecision/v1');
+  assert.equal(schemas.CandidateDeliverySnapshot.properties.candidatePackage.$ref,
+    'helix://contracts/types/CandidatePackage/v1');
+  assert.equal(schemas.CandidateDeliverySnapshot.properties.primaryMaterialDeliveries.minItems, 1);
   assert.equal(schemas.DestructionScope.properties.materialKeys.items.pattern, '^[a-f0-9]{64}$');
   for (const schema of Object.values(schemas)) {
     const objectSchemas = schema.oneOf || [schema];

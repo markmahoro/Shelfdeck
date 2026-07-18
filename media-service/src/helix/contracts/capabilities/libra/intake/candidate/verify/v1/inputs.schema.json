@@ -5,25 +5,17 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "candidatePackage": {
-      "$ref": "#/$defs/candidatePackage"
-    },
-    "primaryInputManifest": {
-      "$ref": "#/$defs/primaryInputManifest"
+    "candidateDeliverySnapshot": {
+      "$ref": "#/$defs/candidateDeliverySnapshot"
     }
   },
   "required": [
-    "candidatePackage",
-    "primaryInputManifest"
+    "candidateDeliverySnapshot"
   ],
   "$defs": {
-    "candidatePackage": {
-      "$ref": "helix://contracts/types/CandidatePackage/v1",
-      "x-helix-typeExpression": "CandidatePackage"
-    },
-    "primaryInputManifest": {
-      "$ref": "helix://contracts/types/PrimaryInputManifest/v1",
-      "x-helix-typeExpression": "PrimaryInputManifest"
+    "candidateDeliverySnapshot": {
+      "$ref": "helix://contracts/domain-types/CandidateDeliverySnapshot/v1",
+      "x-helix-typeExpression": "CandidateDeliverySnapshot"
     }
   }
 }

@@ -1,0 +1,240 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_intake_resolution_match_witnesses/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_intake_resolution_match_witnesses",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "intake_decision_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "ordinal",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "subject_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "expected_subject_status",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "active"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "expected_subject_intake_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "expected_subject_continuity_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "expected_subject_episode_scope_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "claim_kind",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "claim_namespace",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "claim_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "candidate_claim_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "subject_claim_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 13,
+        "name": "subject_claim_provenance_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "candidate",
+          "resolved_identity"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 14,
+        "name": "subject_claim_provenance_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 15,
+        "name": "witness_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "intake_decision_id",
+      "ordinal"
+    ],
+    "declaredForeignKeyColumns": [
+      "intake_decision_id",
+      "subject_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "intake_decision_id",
+        "subject_id"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "expected_subject_status",
+        "enumValues": [
+          "active"
+        ]
+      },
+      {
+        "column": "subject_claim_provenance_kind",
+        "enumValues": [
+          "candidate",
+          "resolved_identity"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "expected_subject_intake_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(intake_decision_id,ordinal)`及`UNIQUE(intake_decision_id,subject_id)`",
+      "none为0 row、one恰为1 row、multiple恰为按subjectId UTF-8 bytes最小的2个distinct matching Subject witness",
+      "每个Subject选择按claim tuple/provenance稳定排序的第一项exact交集作为证明",
+      "`witness_digest=SHA-256(JCS(完整row business value excluding intakeDecisionId/ordinal/witnessDigest))`",
+      "它证明Decision所需0/1/N cardinality，不声称保存multiple分支的无界全量匹配集合"
+    ],
+    "rawContract": {
+      "columns": "`intake_decision_id FK, ordinal, subject_id FK, expected_subject_status(active), expected_subject_intake_revision, expected_subject_continuity_set_digest, expected_subject_episode_scope_digest, claim_kind, claim_namespace, claim_key, candidate_claim_digest, subject_claim_digest, subject_claim_provenance_kind(candidate|resolved_identity), subject_claim_provenance_ref, witness_digest`",
+      "constraints": "`PK(intake_decision_id,ordinal)`及`UNIQUE(intake_decision_id,subject_id)`；none为0 row、one恰为1 row、multiple恰为按subjectId UTF-8 bytes最小的2个distinct matching Subject witness；每个Subject选择按claim tuple/provenance稳定排序的第一项exact交集作为证明；`witness_digest=SHA-256(JCS(完整row business value excluding intakeDecisionId/ordinal/witnessDigest))`；它证明Decision所需0/1/N cardinality，不声称保存multiple分支的无界全量匹配集合"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 7946,
+      "lineDigest": "fee94bb81d3f4603331e4af08ac9821e56582852f46dc03ebba021b85599aa3d"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "intake_decision_id"
+        ],
+        "targetTable": "libra_intake_decisions",
+        "targetColumns": [
+          "intake_decision_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "subject_id"
+        ],
+        "targetTable": "libra_subjects",
+        "targetColumns": [
+          "subject_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

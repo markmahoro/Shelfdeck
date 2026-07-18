@@ -5,39 +5,29 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "materialHandleList": {
-      "$ref": "#/$defs/materialHandleList"
+    "candidateDeliverySnapshot": {
+      "$ref": "#/$defs/candidateDeliverySnapshot"
     },
-    "candidateSnapshot": {
-      "$ref": "#/$defs/candidateSnapshot"
+    "physicalMaterialReadHandleList": {
+      "$ref": "#/$defs/physicalMaterialReadHandleList"
     }
   },
   "required": [
-    "materialHandleList",
-    "candidateSnapshot"
+    "candidateDeliverySnapshot",
+    "physicalMaterialReadHandleList"
   ],
   "$defs": {
-    "materialHandleList": {
+    "candidateDeliverySnapshot": {
+      "$ref": "helix://contracts/domain-types/CandidateDeliverySnapshot/v1",
+      "x-helix-typeExpression": "CandidateDeliverySnapshot"
+    },
+    "physicalMaterialReadHandleList": {
       "type": "array",
       "items": {
-        "oneOf": [
-          {
-            "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1"
-          },
-          {
-            "$ref": "helix://contracts/types/WorkspaceMaterialHandle/v1"
-          },
-          {
-            "$ref": "helix://contracts/types/ArtifactHandle/v1"
-          }
-        ]
+        "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1"
       },
       "maxItems": 1024,
-      "x-helix-typeExpression": "Material handles"
-    },
-    "candidateSnapshot": {
-      "$ref": "helix://contracts/domain-types/CandidateSnapshot/v1",
-      "x-helix-typeExpression": "Candidate snapshot"
+      "x-helix-typeExpression": "PhysicalMaterialReadHandle[]"
     }
   }
 }

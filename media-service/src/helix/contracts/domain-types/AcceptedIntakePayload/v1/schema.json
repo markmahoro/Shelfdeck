@@ -3,58 +3,171 @@
   "$id": "helix://contracts/domain-types/AcceptedIntakePayload/v1",
   "title": "AcceptedIntakePayload@1",
   "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
     "8.6.20"
   ],
   "x-helix-role": "accepted-business-dto",
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "schemaRef": {
-      "const": "helix://contracts/domain-types/AcceptedIntakePayload/v1"
-    },
-    "schemaVersion": {
-      "const": 1
-    },
-    "objectId": {
+    "intakeDecisionId": {
       "type": "string",
       "minLength": 1,
       "maxLength": 256
     },
-    "revision": {
-      "type": "integer",
-      "minimum": 1
+    "decisionRevision": {
+      "const": 1
     },
-    "digest": {
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^[a-f0-9]{64}$"
+    "delivery": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "offerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "candidatePackageId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "packageRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "packageDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "acceptanceBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "candidateDeliverySnapshotDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "offerId",
+        "candidatePackageId",
+        "packageRevision",
+        "packageDigest",
+        "acceptanceBasisDigest",
+        "candidateDeliverySnapshotDigest"
+      ]
     },
-    "candidatePackage": {
-      "$ref": "helix://contracts/types/CandidatePackage/v1"
+    "candidateVerification": {
+      "$ref": "helix://contracts/types/CandidateContractVerification/v1"
+    },
+    "materialVerification": {
+      "$ref": "helix://contracts/types/IntakeMaterialVerification/v1"
+    },
+    "resolutionDecision": {
+      "$ref": "helix://contracts/domain-types/SubjectContinuityResolutionDecision/v1"
     },
     "bindingDraft": {
       "$ref": "helix://contracts/types/LibraBindingDraft/v1"
     },
-    "subjectId": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 256
+    "controlTransferScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fieldId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "fromOwnerDomain": {
+          "const": "procurement"
+        },
+        "fromOwnerScopeType": {
+          "const": "material_field"
+        },
+        "fromOwnerScopeId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "materialKey": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "expectedControlRevision": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "expectedControlProjectionDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "toOwnerDomain": {
+                "const": "libra"
+              },
+              "toOwnerScopeType": {
+                "const": "subject"
+              },
+              "toOwnerScopeId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              }
+            },
+            "required": [
+              "materialKey",
+              "expectedControlRevision",
+              "expectedControlProjectionDigest",
+              "toOwnerDomain",
+              "toOwnerScopeType",
+              "toOwnerScopeId"
+            ]
+          },
+          "maxItems": 1024,
+          "minItems": 1
+        },
+        "controlScopeDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "fieldId",
+        "fromOwnerDomain",
+        "fromOwnerScopeType",
+        "fromOwnerScopeId",
+        "items",
+        "controlScopeDigest"
+      ]
     },
-    "controlScopeDigest": {
+    "payloadDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     }
   },
   "required": [
-    "schemaRef",
-    "schemaVersion",
-    "objectId",
-    "revision",
-    "digest",
-    "candidatePackage",
+    "intakeDecisionId",
+    "decisionRevision",
+    "delivery",
+    "candidateVerification",
+    "materialVerification",
+    "resolutionDecision",
     "bindingDraft",
-    "subjectId",
-    "controlScopeDigest"
+    "controlTransferScope",
+    "payloadDigest"
   ]
 }
