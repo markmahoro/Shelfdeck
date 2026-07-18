@@ -60,11 +60,11 @@ global/target CAS、Resolved Identity exact Claim关系化、nullable identity�
 | --- | --- |
 | Phase | P8 — Handoff A and Libra front half |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | P8-00–P8-02 PASS；P8-03 in progress |
+| Status | P8-00–P8-02 PASS；P8-03 Design Return已上报Architecture Agent |
 | Implementation baseline | exact P7 phase closure `2cf98561d7cf785db4005e65e99b0750d84ce5ce` |
 | Phase branch/worktree | `codex/helix-p8` / `E:\my_project\emby_third_party-helix-p8` |
 | Allowed now | P2–P13本地代码、unit/contract/isolated fixture、文档与Phase自动转换 |
-| Next action | implement P8-03 Offer intake and Candidate snapshot verification |
+| Next action | wait for Candidate Related Reference persistence continuity correction, then resume P8-03 |
 
 ## 4. Master roadmap
 

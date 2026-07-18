@@ -13,12 +13,12 @@ Last updated: 2026-07-19
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains；P7 — Procurement |
 | Current phase | P8 — Handoff A and Libra front half |
-| Current phase status | P8-00–P8-02 PASS；P8-03 in progress |
+| Current phase status | P8-00–P8-02 PASS；P8-03 returned to Design |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P7 phase closure `2cf98561d7cf785db4005e65e99b0750d84ce5ce` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p8` on `codex/helix-p8` |
-| Next action | implement P8-03 Offer intake and Candidate snapshot verification |
+| Next action | Architecture Agent评估Candidate Related Reference persistence continuity |
 
 Architecture Agent提交`be3ecb89`已闭合`PBF-11`。实现侧逐项复审确认：Candidate Delivery正式携带完整
 Manifest及逐Material Location Evidence；Subject/Binding Episode关系均可N:M持久化；global continuity head与唯一
@@ -173,6 +173,13 @@ Subject/Binding N:M Episode关系、candidate/resolved_identity exact Claim prov
 连续性。完整Architecture门禁89个fixture、47 package、92 files、135 dependencies、1530 semantic files全部PASS，P2 aggregate为
 `c03cb78014a196e184be300de2a80657d8e01ced96f05e612858b89a8e3bf8ca`，`findings=[]`、
 `prohibitedActionsRun=[]`。Evidence见`implementation/evidence/P8_02_LIBRA_INTAKE_STORE.md`；下一工作包P8-03。
+
+P8-03实施前反向审计已返回Design：`CandidateDeliverySnapshot@1`要求返回完整`CandidatePackage@1`，而Package内每个
+Related Reference都必须包含完整`PhysicalMaterialIdentity@1`。现有`proc_candidate_related_references`只保存role、endpoint、
+location、checksum和evidence，没有保存identity的materialKey、mountScopeId、inode、content hash或referenceDigest；这些值不能
+从checksum反推。Offer关闭后也必须支持historical read，因此不能旁读current row、Foundation Event Result、旧Store或Runtime补值。
+实现线程尚未改写Delivery代码或SSOT，精确问题已发送Architecture Agent。详见
+`implementation/evidence/P8_03_CANDIDATE_DELIVERY_DESIGN_RETURN.md`。
 
 ## 2. Accepted implementation conclusion
 
