@@ -44,11 +44,11 @@ Work Package细节只存在于`implementation/CURRENT_PHASE.md`；当前事实�
 | --- | --- |
 | Phase | P7 — Procurement |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | P7-00–P7-05 PASS；P7-06 Design Return |
+| Status | P7-00–P7-05 PASS；P7-06 Design Return已由PBF-10闭合，待重物化与实现 |
 | Implementation baseline | exact P6 phase closure `5831c53207d5e71ccdf4792da11ed71be3d47ae1` |
 | Phase branch/worktree | `codex/helix-p7` / `E:\my_project\emby_third_party-helix-p7` |
 | Allowed now | P2–P13本地代码、unit/contract/isolated fixture、文档与Phase自动转换 |
-| Next action | Architecture Agent闭合P7-06 formal Triage input/output continuity后恢复实现 |
+| Next action | 重物化PBF-10机器合同并恢复P7-06实现 |
 
 ## 4. Master roadmap
 

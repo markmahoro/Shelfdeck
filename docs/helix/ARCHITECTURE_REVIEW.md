@@ -1717,3 +1717,42 @@ Process、112项Capability、96个Catalog Result family和162张关系表不变�
 全文一致性审计覆盖Level 5 Policy Owner、Level 6 Run/Seal/Retry、Level 8组件树、transaction、162-table schema、
 formal DTO/digest、application flow、crash fixture与Dictionary，以及Level 10 Registry startup/readiness。结果为
 `PASS / PBF-09-R1 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.13 `PBF-10` — Procurement Triage typed pipeline continuity
+
+Status: `CLOSED / BOUNDED DETAIL FIX APPLIED` — 2026-07-18
+
+P7-06在P7-05 Run Basis已经物化后逐项审计四个Triage Capability，证明旧Catalog摘要无法由正式输入唯一形成
+正式输出。主审没有接受实现线程结论作为前提，而是从Level 3 Candidate合同、Level 5 Triage Readiness、Level 6
+Run执行、Level 7 pure Capability边界、Level 8 nominal schema/transaction逐层反证，确认以下均为真实缺口：
+
+1. `SelectedMaterials/Roles/Structure`是互不关联的generic数组/opaque refs，无法证明Material→Role→N:M Episode
+   Claim、Binding revision、Run Selection subset或ordinal；机器Schema还把ordinal错误套用revision最小值1；
+2. Structure缺少完整Field/layout/probe typed Evidence、closed profile/season/disc/related decision contract，无法在
+   不旁读Store或路径猜测时形成Unit；
+3. Playability没有Probe Result continuity、closed reason set和precedence；
+4. Identity Claim没有mediaType/contentProfile/structure/Identity Metadata到Candidate Draft/Package的完整连续性；
+5. pure Manifest Builder直接输出带业务发布时间的published Manifest，使最终Candidate Commit无法证明唯一输入
+   closure；Candidate schema也没有N:M Episode Claim的可恢复关系。
+
+Bounded correction不新增Domain、Owner、Business Process Root、Handoff、Store或Capability：
+
+- 四个Capability改为exact named DTO；完整Run Selection仍为`1..1024`，Probe按`1..100`分页并显式绑定
+  Material/Binding/Read Handle/MediaProbe Evidence；
+- 现实读取只由既有`shared.material.media.probe@1`与`shared.material.layout.observe@1`通过typed port完成；四个
+  Triage Executor保持pure，不调用Filesystem/FFprobe/Provider/Repository/Facade或另一个Executor；
+- Run内固定为Evidence Assessment与逐Candidate Unit Assembly两段Supporting Work；只有Run Coordinator可以从
+  已终结Evidence签发后续Work，Planner/Executor不得链式创建；
+- `ProcurementTriageRuleSnapshot`补齐closed Playability/Profile/Series token/Disc/Related/Identity规则；
+  `TriageStructureEvidence`按≤64 KiB page把完整Selection分区为non-overlapping Unit或unassigned reason；
+- `TriageUnitSnapshot`完整携带mediaType/contentProfile、Identity Metadata、Role、N:M Episode Claim、Related
+  Reference和唯一digest；Identity/Manifest分别消费同一Unit，禁止数组位置、调用者默认值或Store旁读；
+- pure Builder输出`PrimaryInputManifestDraft`，替换原Catalog Result slot；Candidate Publication以完整
+  `CandidateDraft`原子建立final Manifest、Package、Episode/Related relation、Reservation、Offer/Outbox、typed
+  Result/marker，并使用Run package revision head保证重放连续；
+- 新增一张Procurement-owned `proc_candidate_primary_material_episode_claims`关系表表达Manifest Member↔Episode
+  Claim N:M关系，表总数从162调整为163；它不是新Store、Business Object、组件或Capability。
+
+全文审计覆盖Level 3 Candidate/Manifest、Level 5 Triage Rule、Level 6 Supporting Work/Run、Level 7
+Planner/Capability/Event binding、Level 8 Catalog/DTO/transaction/163-table schema/crash fixture/Dictionary及Level 10
+contract counts。结果为`PASS / PBF-10 CLOSED / NO OPEN BUSINESS DECISION`。
