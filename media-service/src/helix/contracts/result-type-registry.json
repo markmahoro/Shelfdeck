@@ -1021,7 +1021,7 @@
       "relativePath": "types/ProcurementControlReceipt/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "70e3c14a94ae7a006327d9a0c79a8bc35d39430d8377e48b1d4783f3ca93e8f4"
+        "value": "e8375bf242c41b3bb8fde017b6998a519a9e5dd5203342fa000a1da95f705bf9"
       },
       "source": {
         "section": "8.6.19",

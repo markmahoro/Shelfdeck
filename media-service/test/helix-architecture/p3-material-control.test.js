@@ -143,6 +143,41 @@ test('acquire, cross-Domain transfer, and release CAS one current row with appen
     database.close();
   });
 });
+const procurementProbe = createRepositoryDefinition({
+  repositoryId: 'procurement_probe', owner: 'procurement', schemaManifest,
+  statements: { read: { kind:'select-all', tableId:'proc_material_fields', columns:['field_id'] } }
+});
+const procurementParticipant = () => ({ participantId:'procurement_probe', owner:'procurement', repositories:[procurementProbe],
+  execute(context) { context.repository('procurement_probe').invoke('read', {}); } });
+
+test('Procurement admission can assert exact same-Field Control without inventing a revision', () => {
+  fixture(({ databasePath, kernel, unitOfWork }) => {
+    const material = identity('inode-same-field');
+    const fieldScope = scope('procurement', 'material_field', 'field-1');
+    const acquire = { action:'acquire', identity:material, expectedRevision:0, fromScope:null, toScope:fieldScope };
+    unitOfWork.execute([
+      procurementParticipant(),
+      createMaterialControlParticipant({ schemaManifest, handle:handle('acquire', 'procurement', [acquire]), changes:[acquire], commitMarker:'marker-acquire' }),
+      markerParticipant('procurement', 'marker-acquire')
+    ]);
+    const assertion = { action:'assert_same_field', identity:material, expectedRevision:1, fromScope:fieldScope, toScope:null };
+    const selectionDigest = digest('selection-scope');
+    const assertionHandle = handle('acquire', 'procurement', [assertion], { controlScopeDigest:selectionDigest });
+    const result = unitOfWork.execute([
+      procurementParticipant(),
+      createMaterialControlParticipant({ schemaManifest, handle:assertionHandle, changes:[assertion],
+        authorizedScopeDigest:selectionDigest, commitMarker:'marker-assert' }),
+      markerParticipant('procurement', 'marker-assert')
+    ]).material_control;
+    assert.equal(result[0].action, 'assert_same_field');
+    assert.equal(result[0].revision, 1);
+    kernel.close();
+    const database = new Database(databasePath, { readonly:true });
+    assert.equal(database.prepare('SELECT control_revision FROM fx_material_controls').get().control_revision, 1);
+    assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_material_control_revisions').get().count, 1);
+    database.close();
+  });
+});
 
 test('stale CAS or wrong from-scope rolls back Domain and Foundation participants', () => {
   fixture(({ databasePath, kernel, unitOfWork }) => {

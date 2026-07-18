@@ -3,32 +3,14 @@
   "$id": "helix://contracts/domain-types/SelectedFieldMaterialSet/v1",
   "title": "SelectedFieldMaterialSet@1",
   "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
     "8.6.20"
   ],
   "x-helix-role": "accepted-business-dto",
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "schemaRef": {
-      "const": "helix://contracts/domain-types/SelectedFieldMaterialSet/v1"
-    },
-    "schemaVersion": {
-      "const": 1
-    },
-    "objectId": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 256
-    },
-    "revision": {
-      "type": "integer",
-      "minimum": 1
-    },
-    "digest": {
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^[a-f0-9]{64}$"
-    },
     "procurementRunId": {
       "type": "string",
       "minLength": 1,
@@ -39,14 +21,163 @@
       "minLength": 1,
       "maxLength": 256
     },
-    "materialKeys": {
+    "members": {
       "type": "array",
       "items": {
-        "type": "string",
-        "minLength": 1,
-        "pattern": "^[a-f0-9]{64}$"
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ordinal": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "materialKey": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "selectionRole": {
+            "const": "triage_input"
+          },
+          "bindingRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "eligibilityRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "eligibilityBasisDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "lastSnapshotDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "lastObservationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "endpointId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "location": {
+            "type": "string",
+            "minLength": 1
+          },
+          "realityDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "provenanceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "controlSnapshot": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "materialKey": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "resultKind": {
+                "const": "available"
+              },
+              "controlRevision": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "controlState": {
+                "type": "string",
+                "enum": [
+                  "uncontrolled",
+                  "controlled"
+                ]
+              },
+              "ownerDomain": {
+                "type": "string",
+                "minLength": 1
+              },
+              "ownerScopeType": {
+                "type": "string",
+                "minLength": 1
+              },
+              "ownerScopeId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "regionProjection": {
+                "type": "string",
+                "enum": [
+                  "uncontrolled",
+                  "procurement"
+                ]
+              },
+              "evidenceDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "projectionDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "materialKey",
+              "resultKind",
+              "controlRevision",
+              "controlState",
+              "regionProjection",
+              "evidenceDigest",
+              "projectionDigest"
+            ]
+          },
+          "admissionControlAction": {
+            "type": "string",
+            "enum": [
+              "acquire",
+              "assert_same_field"
+            ]
+          },
+          "basisMemberDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "ordinal",
+          "materialKey",
+          "selectionRole",
+          "bindingRevision",
+          "eligibilityRevision",
+          "eligibilityBasisDigest",
+          "lastSnapshotDigest",
+          "lastObservationId",
+          "endpointId",
+          "location",
+          "realityDigest",
+          "provenanceDigest",
+          "controlSnapshot",
+          "admissionControlAction",
+          "basisMemberDigest"
+        ]
       },
-      "maxItems": 4096
+      "maxItems": 1024,
+      "minItems": 1
     },
     "selectionDigest": {
       "type": "string",
@@ -55,14 +186,9 @@
     }
   },
   "required": [
-    "schemaRef",
-    "schemaVersion",
-    "objectId",
-    "revision",
-    "digest",
     "procurementRunId",
     "fieldId",
-    "materialKeys",
+    "members",
     "selectionDigest"
   ]
 }

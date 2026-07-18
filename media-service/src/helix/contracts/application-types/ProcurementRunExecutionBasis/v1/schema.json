@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/ProcurementRunExecutionBasis/v1",
+  "title": "ProcurementRunExecutionBasis@1",
+  "x-helix-ssotRefs": [
+    "6.3.2",
+    "8.6.18"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "procurementRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "fieldId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "fieldStatus": {
+      "const": "active"
+    },
+    "fieldAccess": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "digest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "revision",
+        "digest"
+      ]
+    },
+    "terminalObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "fieldObservationWorkId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "revision",
+        "fieldObservationWorkId"
+      ]
+    },
+    "extractionPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "policyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "digest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "policyId",
+        "revision",
+        "digest"
+      ]
+    },
+    "triageRule": {
+      "$ref": "helix://contracts/application-types/ProcurementTriageRuleSnapshot/v1"
+    },
+    "sourceRetryIntentId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "selectedFieldMaterialSet": {
+      "$ref": "helix://contracts/domain-types/SelectedFieldMaterialSet/v1"
+    },
+    "basisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "procurementRunId",
+    "fieldId",
+    "fieldStatus",
+    "fieldAccess",
+    "terminalObservation",
+    "extractionPolicy",
+    "triageRule",
+    "selectedFieldMaterialSet",
+    "basisDigest"
+  ]
+}

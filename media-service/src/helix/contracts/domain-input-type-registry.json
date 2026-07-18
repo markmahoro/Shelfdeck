@@ -1751,7 +1751,7 @@
       "relativePath": "domain-types/SelectedFieldMaterialSet/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "7301b79d7afaadaa5e40f1e9cc5297aa163df8c5b480b3d021bcf2dd24aaf110"
+        "value": "27040e0bc34dd5d2f32edb7dd62efab990bc8e2ba0e2d3d83dcc92d7d4d50d86"
       },
       "usedBy": [
         {

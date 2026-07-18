@@ -99,4 +99,4 @@ function evaluateExtractionEligibility(decision) {
   return outcome(decision, 'eligible', projection, 'eligible');
 }
 
-module.exports = Object.freeze({ ExtractionEligibilityError, evaluateExtractionEligibility, validateEligibilityPolicy });
+module.exports = Object.freeze({ ExtractionEligibilityError, evaluateExtractionEligibility, validateControlSnapshot, validateEligibilityPolicy });

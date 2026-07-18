@@ -102,8 +102,8 @@
         "name": "expected_control_state",
         "logicalType": "TEXT",
         "enumValues": [
-          "controlled",
-          "released"
+          "uncontrolled",
+          "controlled"
         ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -249,8 +249,8 @@
       {
         "column": "expected_control_state",
         "enumValues": [
-          "controlled",
-          "released"
+          "uncontrolled",
+          "controlled"
         ]
       },
       {
@@ -284,7 +284,7 @@
       }
     ],
     "immutability": {
-      "immutable": true,
+      "immutable": false,
       "rules": [
         "expected列immutable",
         "Intent消费时全部member在同事务一次性写完整`ProcurementRetryConsumeMemberSnapshot@1`（JCS bytes≤`4 KiB`）及digest/outcome，之后immutable"

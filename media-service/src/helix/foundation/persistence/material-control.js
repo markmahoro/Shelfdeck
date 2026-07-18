@@ -190,9 +190,10 @@ function assertScope(scope, field) {
   text(scope.scopeId, field + '.scopeId');
 }
 
-function assertHandle(handle, changes) {
+function assertHandle(handle, changes, authorizedScopeDigest) {
   if (!handle || handle.schemaRef !== 'helix://contracts/types/ResponsibilityControlCommitHandle/v1' || handle.schemaVersion !== 1 ||
-      !OPERATIONS.has(handle.operationKind) || !Array.isArray(handle.expectedControlRevisions) || !Array.isArray(changes) || changes.length === 0) {
+      !OPERATIONS.has(handle.operationKind) || !Array.isArray(handle.expectedControlRevisions) || !Array.isArray(changes) ||
+      changes.length === 0 || changes.length > 1024) {
     fail('P3_CONTROL_INVALID_HANDLE', 'Responsibility Control Commit Handle is invalid.');
   }
   for (const field of ['handleId', 'ownerDomain', 'processType', 'processId', 'receiptContract', 'eventFenceDigest']) text(handle[field], field);
@@ -211,9 +212,10 @@ function assertHandle(handle, changes) {
   }
   for (const change of changes) {
     if (!change || !change.identity || !SHA256.test(change.identity.materialKey || '') ||
-        !Number.isSafeInteger(change.expectedRevision) || change.expectedRevision < 0 || !['acquire', 'transfer', 'release'].includes(change.action)) {
+        !Number.isSafeInteger(change.expectedRevision) || change.expectedRevision < 0 || !['acquire', 'assert_same_field', 'transfer', 'release'].includes(change.action)) {
       fail('P3_CONTROL_INVALID_CHANGE', 'Control change identity, action, and expected revision are required.');
     }
+    if (change.expectedProjectionDigest !== undefined) sha(change.expectedProjectionDigest, 'expectedProjectionDigest');
   }
   for (const item of handle.expectedControlRevisions) {
     if (!item || !SHA256.test(item.materialKey || '') || !Number.isSafeInteger(item.revision) || item.revision < 0) fail(
@@ -225,12 +227,13 @@ function assertHandle(handle, changes) {
     .sort((left, right) => left.materialKey.localeCompare(right.materialKey));
   if (expected.length !== changes.length || new Set(expected.map((item) => item.materialKey)).size !== expected.length ||
       canonicalJson(expected) !== canonicalJson(projected)) fail('P3_CONTROL_EXPECTED_SET_MISMATCH', 'Expected Control revisions do not exactly cover the change set.');
-  if (controlScopeDigest(changes) !== handle.controlScopeDigest) fail('P3_CONTROL_SCOPE_DIGEST_MISMATCH', 'Control scope digest does not match the exact change set.');
+  const expectedScopeDigest = authorizedScopeDigest === undefined ? controlScopeDigest(changes) : sha(authorizedScopeDigest, 'authorizedScopeDigest');
+  if (expectedScopeDigest !== handle.controlScopeDigest) fail('P3_CONTROL_SCOPE_DIGEST_MISMATCH', 'Control scope digest does not match the authorized exact scope.');
 }
 
 function createMaterialControlParticipant(options) {
   if (!options || !options.schemaManifest) fail('P3_CONTROL_INVALID_PARTICIPANT', 'Schema manifest is required.');
-  assertHandle(options.handle, options.changes);
+  assertHandle(options.handle, options.changes, options.authorizedScopeDigest);
   const handle = options.handle;
   const changes = options.changes;
   const definition = repository(options.schemaManifest);
@@ -245,8 +248,9 @@ function createMaterialControlParticipant(options) {
       const results = [];
       for (const change of [...changes].sort((left, right) => left.identity.materialKey.localeCompare(right.identity.materialKey))) {
         if (materialKey(change.identity) !== change.identity.materialKey) fail('P3_CONTROL_MATERIAL_KEY_MISMATCH', 'materialKey does not match the canonical Physical Material tuple.');
-        if (!['acquire', 'transfer', 'release'].includes(change.action) ||
-            (handle.operationKind !== 'replace_control_set' && change.action !== handle.operationKind)) {
+        if (!['acquire', 'assert_same_field', 'transfer', 'release'].includes(change.action) ||
+            (handle.operationKind === 'acquire' ? !['acquire', 'assert_same_field'].includes(change.action) :
+              handle.operationKind !== 'replace_control_set' && change.action !== handle.operationKind)) {
           fail('P3_CONTROL_OPERATION_MISMATCH', 'Control change action is incompatible with the Handle operation.');
         }
         const current = control.invoke('find_current', { material_key: change.identity.materialKey });
@@ -254,9 +258,23 @@ function createMaterialControlParticipant(options) {
             (current ? current.control_revision : 0) !== change.expectedRevision) {
           fail('P3_CONTROL_CAS_CONFLICT', 'Material Control expected revision is stale.', { materialKey: change.identity.materialKey });
         }
+        if (change.expectedProjectionDigest !== undefined &&
+            mapControlProjection(change.identity.materialKey, current).projectionDigest !== change.expectedProjectionDigest) {
+          fail('P3_CONTROL_PROJECTION_CONFLICT', 'Material Control expected projection digest is stale.', { materialKey:change.identity.materialKey });
+        }
         let from = change.fromScope || null;
         let to = change.toScope || null;
-        if (change.action === 'acquire') {
+        if (change.action === 'assert_same_field') {
+          assertScope(from, 'fromScope');
+          if (to || !current || current.state !== 'controlled' || from.ownerDomain !== handle.ownerDomain ||
+              current.owner_domain !== from.ownerDomain || current.owner_scope_type !== from.scopeType || current.owner_scope_id !== from.scopeId) {
+            fail('P3_CONTROL_ASSERT_SCOPE_MISMATCH', 'Assert requires the exact current Control scope owned by the Handle Domain.');
+          }
+          const projection = mapControlProjection(change.identity.materialKey, current);
+          results.push(Object.freeze({ materialKey:change.identity.materialKey, revision:change.expectedRevision,
+            state:'controlled', action:'assert_same_field', projection }));
+          continue;
+        } else if (change.action === 'acquire') {
           assertScope(to, 'toScope');
           if (from || to.ownerDomain !== handle.ownerDomain || current && current.state !== 'released') fail(
             'P3_CONTROL_ACQUIRE_PRECONDITION', 'Acquire requires no active Control and a target owned by the Handle Domain.'
@@ -315,7 +333,12 @@ function createMaterialControlParticipant(options) {
           commit_marker: text(options.commitMarker, 'commitMarker'),
           committed_at_ms: context.commitTimeMs
         });
-        results.push(Object.freeze({ materialKey: change.identity.materialKey, revision, state: change.action === 'release' ? 'released' : 'controlled' }));
+        const projection = mapControlProjection(change.identity.materialKey, {
+          control_revision:revision, state:change.action === 'release' ? 'released' : 'controlled',
+          owner_domain:to && to.ownerDomain || null, owner_scope_type:to && to.scopeType || null, owner_scope_id:to && to.scopeId || null
+        });
+        results.push(Object.freeze({ materialKey:change.identity.materialKey, revision,
+          state:change.action === 'release' ? 'released' : 'controlled', action:change.action, projection }));
       }
       return Object.freeze(results);
     }

@@ -111,6 +111,14 @@ test('materializes the one-terminal-merge-target invariant as a database uniquen
   assert.deepEqual(mergeRecords.uniqueConstraints, [['source_person_id']]);
 });
 
+test('keeps Procurement admission facts frozen without blocking declared lifecycle CAS updates', () => {
+  const byId = new Map(contracts.map((contract) => [contract.tableId, contract]));
+  for (const tableId of ['proc_procurement_runs', 'proc_run_materials', 'proc_procurement_retry_intent_materials']) {
+    assert.equal(byId.get(tableId).immutability.immutable, false, tableId);
+    assert.ok(byId.get(tableId).immutability.rules.length > 0, `${tableId} retains its column-level immutable rules`);
+  }
+});
+
 test('binds every Field Observation revision to its durable Foundation commit marker', () => {
   const observation = contracts.find((contract) => contract.tableId === 'proc_field_observations');
   const marker = observation.foreignKeys.find((entry) => entry.columns.length === 1 && entry.columns[0] === 'commit_marker');

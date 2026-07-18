@@ -86,7 +86,6 @@ const special = {
   'ReferenceEvidence.references': arrayOf(snapshot('material-reference-evidence'), 4096),
   'ReleaseManifest.materialKeys': arrayOf(digest(), 4096),
   'Roles.roles': arrayOf(text(), 128),
-  'SelectedFieldMaterialSet.materialKeys': arrayOf(digest(), 4096),
   'SelectedMaterials.materialKeys': arrayOf(digest(), 4096),
   'SourceObservation.observations': arrayOf(snapshot('source-observation'), 4096),
   'StructuredRejection.reasonCodes': arrayOf(text(), 128),
@@ -194,7 +193,7 @@ const dtoContracts = {
   ReleaseManifest: 'deregistrationId,shelfId,materialKeys,controlRevisionSetDigest,manifestDigest',
   Roles: 'roles,roleSetDigest',
   Scope: 'scopeId,materialKeys,scopeDigest',
-  SelectedFieldMaterialSet: 'procurementRunId,fieldId,materialKeys,selectionDigest',
+  SelectedFieldMaterialSet: '',
   SelectedMaterials: 'procurementRunId,materialKeys,selectionDigest',
   StableProviderIdentity: 'providerId,providerObjectId,identityRevision,identityDigest',
   Standard: 'standardId,standardRevision,standardDigest',
@@ -223,6 +222,7 @@ function idField(name) {
 }
 
 function buildSchema(name, role, fields) {
+  if (name === 'SelectedFieldMaterialSet') return selectedFieldMaterialSetSchema();
   if (name === 'PeopleCandidateAcceptanceDecision') return peopleCandidateAcceptanceDecisionSchema();
   if (name === 'DirectPersonRegistrationDecision') return directPersonRegistrationDecisionSchema();
   if (name === 'PeopleReferenceMaintenanceDecision') return peopleReferenceMaintenanceDecisionSchema();
@@ -251,6 +251,25 @@ function buildSchema(name, role, fields) {
     $schema: DRAFT, $id: domainTypeId(name), title: `${name}@1`, 'x-helix-ssotRefs': ['8.6.20'], 'x-helix-role': role,
     ...object(properties, required)
   };
+}
+
+function selectedFieldMaterialSetSchema() {
+  const controlSnapshot = object({
+    materialKey: digest(), resultKind: { const: 'available' }, controlRevision: nonNegativeInteger(),
+    controlState: enumText('uncontrolled', 'controlled'), ownerDomain: text(), ownerScopeType: text(),
+    ownerScopeId: id(), regionProjection: enumText('uncontrolled', 'procurement'),
+    evidenceDigest: digest(), projectionDigest: digest()
+  }, ['materialKey', 'resultKind', 'controlRevision', 'controlState', 'regionProjection', 'evidenceDigest', 'projectionDigest']);
+  const member = object({
+    ordinal: nonNegativeInteger(), materialKey: digest(), selectionRole: { const: 'triage_input' },
+    bindingRevision: positiveInteger(), eligibilityRevision: positiveInteger(), eligibilityBasisDigest: digest(),
+    lastSnapshotDigest: digest(), lastObservationId: id(), endpointId: id(), location: text(), realityDigest: digest(),
+    provenanceDigest: digest(), controlSnapshot, admissionControlAction: enumText('acquire', 'assert_same_field'),
+    basisMemberDigest: digest()
+  });
+  return exactDomainSchema('SelectedFieldMaterialSet', {
+    procurementRunId: id(), fieldId: id(), members: { ...arrayOf(member, 1024), minItems: 1 }, selectionDigest: digest()
+  });
 }
 
 const identityAnchor = () => object({

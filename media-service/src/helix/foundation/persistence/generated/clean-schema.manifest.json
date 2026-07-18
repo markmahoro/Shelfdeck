@@ -3,8 +3,8 @@
   "compilerContract": "helix-p3-deterministic-sqlite-ddl/v1",
   "digestAlgorithm": "sha256",
   "tableCount": 162,
-  "tableContractAggregateDigest": "c414a761b347a5dc569b0ceb9357d6cbead0e909cff84b6b82aaba8475b2d950",
-  "ddlDigest": "a69513b413848629240e346e142c64a4087bde063d5fd0145710171fe6c71331",
+  "tableContractAggregateDigest": "56a1fc4553ffb4f971f605974fb4a2a74c509a8b01892a5bb7606580beba02e7",
+  "ddlDigest": "a7c063498b777f8ea43a6f3f043cc7b07307635669b9087f46312e2a6cf5f9dc",
   "tables": [
     {
       "tableId": "arca_acceptance_attempts",
@@ -3653,8 +3653,8 @@
       "tableId": "proc_material_fields",
       "owner": "procurement",
       "contractId": "helix://contracts/tables/proc_material_fields/v1",
-      "contractDigest": "cc864cfed3cba445aff6da76643fe998c7471337413e60bb89f482539318a01b",
-      "sqlDigest": "a13ceabb7f4b22cf8f09f7f3159252410b7e0fca12b90cb7ef752ea7798a99e0",
+      "contractDigest": "6ea85fad4f28e91b6700ddaa0f29b5d09055c99fcbe55f302a6cea7ea8e75c2c",
+      "sqlDigest": "0f654534a3c0a90e8e700b598cb0045885ebc55b49a9d800a83bc73c4aa8c82f",
       "columns": [
         "field_id",
         "name",
@@ -3680,8 +3680,8 @@
       "tableId": "proc_procurement_retry_intent_materials",
       "owner": "procurement",
       "contractId": "helix://contracts/tables/proc_procurement_retry_intent_materials/v1",
-      "contractDigest": "024eff8dfa18b8680c65441dc0d07d7ca95ae478cd845fec9055e3a2cfa87124",
-      "sqlDigest": "0b6da3c930dc015dacf741a962c7fb4f6fc5f22fd908dd66ae0639558212758c",
+      "contractDigest": "52e539c824d72596f8343b1236bd9edcbb499171dca78546bd52b4e52fbcf617",
+      "sqlDigest": "03ec97f65beebd1000af726c31d78217445eb609f3df83d85c1071ced19c48b2",
       "columns": [
         "retry_intent_id",
         "ordinal",
@@ -3708,7 +3708,7 @@
         "consume_stale_reason_code",
         "consumed_at_ms"
       ],
-      "immutable": true,
+      "immutable": false,
       "supportColumns": [],
       "indexes": []
     },
@@ -3771,8 +3771,8 @@
       "tableId": "proc_procurement_runs",
       "owner": "procurement",
       "contractId": "helix://contracts/tables/proc_procurement_runs/v1",
-      "contractDigest": "2e8a5aa127a922edf43867576512dffb338b7147db12e0fafc78f27f4f3f195e",
-      "sqlDigest": "7ac94aa329118170c0906114b0b3e3aaa10618756ed312659d2f130852991dba",
+      "contractDigest": "22343c814bd9dbf9a080ead251ab39cde2925f290fd7915e75545e991746d0f8",
+      "sqlDigest": "66a57256afdb8a50c107c11bb575e4c9558a8be55b846860d53a6ba6fba24d65",
       "columns": [
         "procurement_run_id",
         "field_id",
@@ -3805,7 +3805,7 @@
         "created_at_ms",
         "finished_at_ms"
       ],
-      "immutable": true,
+      "immutable": false,
       "supportColumns": [],
       "indexes": [
         {
@@ -3829,8 +3829,8 @@
       "tableId": "proc_run_materials",
       "owner": "procurement",
       "contractId": "helix://contracts/tables/proc_run_materials/v1",
-      "contractDigest": "c6c60790eae7f3e44f33e7eaf4af3193066ac62b9196d43d1428e11f9f11d1d9",
-      "sqlDigest": "e8714d8fcc7a623ee282702b02bd4cf77fd6d4f7e1b4780e92ce099348d2175d",
+      "contractDigest": "ac816e7657734c05e30c09571958725b5a0646173f11ee5e2c289781055d6a84",
+      "sqlDigest": "377f82a3554a8b6f9a96948881f193f488941defe8484d3b120573653606c443",
       "columns": [
         "procurement_run_id",
         "ordinal",
@@ -3864,7 +3864,7 @@
         "selected_at_ms",
         "reservation_updated_at_ms"
       ],
-      "immutable": true,
+      "immutable": false,
       "supportColumns": [],
       "indexes": [
         {

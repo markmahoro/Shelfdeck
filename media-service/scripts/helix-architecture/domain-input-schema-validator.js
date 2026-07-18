@@ -80,7 +80,8 @@ function validateDomainInputSchemas(options) {
       OnDeckPersonEvidenceProjectionItem: ['projectionItemId', 'shelfEntryId', 'inventoryRevision', 'relationId', 'projectionRevision', 'projectionItemDigest'],
       PerceptionResolutionQuery: ['queryContract', 'queryVersion', 'querySchemaRef', 'queryInputDigest'],
       PerceptionResolutionRecordSet: ['queryInputDigest', 'recordSetDigest'],
-      PerceptionResolutionRuleSnapshot: ['ruleContract', 'ruleVersion', 'ruleDigest']
+      PerceptionResolutionRuleSnapshot: ['ruleContract', 'ruleVersion', 'ruleDigest'],
+      SelectedFieldMaterialSet: ['procurementRunId', 'fieldId', 'members', 'selectionDigest']
     };
     const identityFields = exactIdentityFields[entry.id] || ['schemaRef', 'schemaVersion', 'revision', 'digest'];
     for (const field of identityFields) {

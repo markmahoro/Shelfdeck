@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "manifestVersion": 1,
+  "manifestId": "helix.procurement-application-type-registry",
+  "kind": "application-type-registry",
+  "owner": "procurement",
+  "status": "active",
+  "targetCount": 3,
+  "entries": [
+    {
+      "id": "ProcurementRunExecutionBasis",
+      "version": 1,
+      "owner": "procurement",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ProcurementRunExecutionBasis/v1",
+      "relativePath": "application-types/ProcurementRunExecutionBasis/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "b19b3db4e86480893df952b058ab4f29638a1dd3196932ff2eb1682a21169e6f"
+      },
+      "ssotRefs": [
+        "6.3.2",
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "ProcurementTriageRuleRegistry",
+      "version": 1,
+      "owner": "procurement",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ProcurementTriageRuleRegistry/v1",
+      "relativePath": "application-types/ProcurementTriageRuleRegistry/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "991b894ebc845b31ef2f93e213ad8a1c65b49429e6caae7434c0851df8195cf8"
+      },
+      "ssotRefs": [
+        "5.3.2",
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "ProcurementTriageRuleSnapshot",
+      "version": 1,
+      "owner": "procurement",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ProcurementTriageRuleSnapshot/v1",
+      "relativePath": "application-types/ProcurementTriageRuleSnapshot/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "809fea0ec2947beed286a08f53a3b492defb9f97d05e0e730ab0e8639de437d7"
+      },
+      "ssotRefs": [
+        "5.3.2",
+        "8.6.18"
+      ]
+    }
+  ]
+}

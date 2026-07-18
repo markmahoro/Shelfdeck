@@ -138,8 +138,8 @@
         "name": "expected_control_state",
         "logicalType": "TEXT",
         "enumValues": [
-          "controlled",
-          "released"
+          "uncontrolled",
+          "controlled"
         ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -325,8 +325,8 @@
       {
         "column": "expected_control_state",
         "enumValues": [
-          "controlled",
-          "released"
+          "uncontrolled",
+          "controlled"
         ]
       },
       {
@@ -368,7 +368,7 @@
     },
     "jsonContracts": [],
     "immutability": {
-      "immutable": true,
+      "immutable": false,
       "rules": [
         "expected字段和`basis_member_digest`属于immutable Basis，admitted pair是同事务建立的immutable admission output，均不得旁读最新值覆盖",
         "Candidate publish只允许`run_selection → candidate_delivery`并填Candidate FK，填入后Candidate FK immutable",

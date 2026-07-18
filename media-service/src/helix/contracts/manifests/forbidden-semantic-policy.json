@@ -194,6 +194,27 @@
       "purpose": "evidence-locator",
       "allowedLocationTypes": ["content"],
       "allowedRuleIds": ["legacy.admission"]
+    },
+    {
+      "id": "canonical-procurement-run-admission-store",
+      "relativePath": "domains/procurement/persistence/procurement-run-admission-store.js",
+      "purpose": "evidence-locator",
+      "allowedLocationTypes": ["path", "content"],
+      "allowedRuleIds": ["legacy.admission"]
+    },
+    {
+      "id": "canonical-selected-field-material-set",
+      "relativePath": "contracts/domain-types/SelectedFieldMaterialSet/v1/schema.json",
+      "purpose": "evidence-locator",
+      "allowedLocationTypes": ["content"],
+      "allowedRuleIds": ["legacy.admission"]
+    },
+    {
+      "id": "canonical-procurement-run-contract-model",
+      "relativePath": "domains/procurement/model/procurement-run-contracts.js",
+      "purpose": "evidence-locator",
+      "allowedLocationTypes": ["content"],
+      "allowedRuleIds": ["legacy.admission"]
     }
   ]
 }

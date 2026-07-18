@@ -136,7 +136,7 @@
           ],
           "consistencyColumns": [],
           "deletePolicy": "RESTRICT",
-          "deferrable": false
+          "deferrable": true
         },
         {
           "sourceColumns": [

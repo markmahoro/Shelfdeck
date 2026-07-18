@@ -279,7 +279,7 @@ const contracts = {
   PersonMatchEvidence: ['EvidenceEnvelope', 'clusterSetDigest,referenceProjectionRevision,matches,unmatchedClusterIds'],
   FieldObservationPage: ['EvidenceEnvelope', 'fieldObservationWorkId,observationId,fieldId,accessRevision,pageOrdinal,expectedObservationRevision,cursorIn,cursorOut,materialObservations,pageDigest,hasMore'],
   ObservationCommitResult: ['DomainFactEnvelope', 'observationId,fieldObservationWorkId,fieldId,accessRevision,pageOrdinal,committedObservationRevision,pageDigest,acceptedMaterials,acceptedMaterialSetDigest,nextCursor,hasMore'],
-  ProcurementControlReceipt: ['ReceiptEnvelope', 'procurementRunId,acquiredMaterialKeys,controlRevisionSetDigest'],
+  ProcurementControlReceipt: ['ReceiptEnvelope', 'procurementRunId,fieldId,runBasisDigest,selectedMaterialCount,selectedMaterialSetDigest,acquiredMaterialCount,assertedMaterialCount,controlRevisionSetDigest'],
   PlayabilityEvidence: ['EvidenceEnvelope', 'materialResults'],
   TriageStructureEvidence: ['EvidenceEnvelope', 'structureKind,primaryRoles,episodeClaims,relatedReferences'],
   IdentityClaim: ['DraftEnvelope', 'claimKind,claimedTitle,seasonNumber?,contentProfileHint,sourceHints'],
@@ -364,6 +364,7 @@ special['OnDeckCommitResult.onDeckCommitReceipt'] = ref('OnDeckCommitReceipt');
 special['OnDeckCommitResult.offloadCompletionFact'] = ref('OffloadCompletionFact');
 
 function buildResultTypeSchema(name, [base, fieldList]) {
+  if (name === 'ProcurementControlReceipt') return procurementControlReceiptSchema();
   if (name === 'PersonReferenceRevision') return personReferenceRevisionSchema();
   const workspaceFields = base === 'WorkspaceMaterialHandle'
     ? Object.fromEntries(Object.entries(buildSharedTypeSchemas().WorkspaceMaterialHandle.properties)
@@ -405,6 +406,20 @@ function buildResultTypeSchema(name, [base, fieldList]) {
     }];
   }
   return result;
+}
+
+function procurementControlReceiptSchema() {
+  const properties = {
+    schemaRef: { const: typeId('ProcurementControlReceipt') }, schemaVersion: { const: 1 },
+    ...envelopeFields.ReceiptEnvelope, procurementRunId: id(), fieldId: id(), runBasisDigest: digest(),
+    selectedMaterialCount: positiveInteger(), selectedMaterialSetDigest: digest(), acquiredMaterialCount: nonNegativeInteger(),
+    assertedMaterialCount: nonNegativeInteger(), controlRevisionSetDigest: digest()
+  };
+  return {
+    $schema: DRAFT, $id: typeId('ProcurementControlReceipt'), title: 'ProcurementControlReceipt@1',
+    'x-helix-ssotRefs': ['8.6.18', '8.6.19'], 'x-helix-envelopeRef': typeId('ReceiptEnvelope'),
+    'x-helix-maxCanonicalBytes': 64 * 1024, ...object(properties, Object.keys(properties).filter((field) => field !== 'effectReceiptRef'))
+  };
 }
 
 function personReferenceRevisionSchema() {

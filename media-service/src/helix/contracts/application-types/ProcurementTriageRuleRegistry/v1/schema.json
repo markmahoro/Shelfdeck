@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/ProcurementTriageRuleRegistry/v1",
+  "title": "ProcurementTriageRuleRegistry@1",
+  "x-helix-ssotRefs": [
+    "5.3.2",
+    "8.6.18"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "registrySchemaRef": {
+      "const": "procurement.triage-rule-registry@1"
+    },
+    "registryVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "activeRuleRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "activeRuleRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "helix://contracts/application-types/ProcurementTriageRuleSnapshot/v1"
+      }
+    },
+    "registryDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "registrySchemaRef",
+    "registryVersion",
+    "activeRuleRef",
+    "activeRuleRevision",
+    "entries",
+    "registryDigest"
+  ]
+}

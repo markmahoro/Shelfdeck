@@ -17,6 +17,14 @@ const UNIQUE_CONSTRAINT_OVERRIDES = Object.freeze({
   // SSOT 8.5.13: one source Person can have at most one terminal merge target.
   people_merge_records: [['source_person_id']]
 });
+// These contracts freeze their admission/basis columns, but also declare
+// explicit lifecycle CAS transitions. A prose occurrence of "immutable" must
+// not turn the whole relation into an append-only table.
+const MUTABLE_LIFECYCLE_TABLES = new Set([
+  'proc_procurement_runs',
+  'proc_run_materials',
+  'proc_procurement_retry_intent_materials'
+]);
 // SSOT 8.5.9 requires every state/status column to be closed. Values named by
 // Level 6/7 lifecycles are preserved verbatim; unnamed technical projections
 // use the smallest Foundation/Platform lifecycle needed by those contracts.
@@ -41,8 +49,8 @@ const ENUM_OVERRIDES = Object.freeze({
   'proc_field_materials.control_projection': ['unknown', 'uncontrolled', 'procurement', 'production', 'finished_goods'],
   'proc_procurement_runs.state': ['active', 'waiting', 'sealed'],
   'proc_procurement_retry_intents.retry_field_status': ['active', 'disabled'],
-  'proc_procurement_retry_intent_materials.expected_control_state': ['controlled', 'released'],
-  'proc_run_materials.expected_control_state': ['controlled', 'released'],
+  'proc_procurement_retry_intent_materials.expected_control_state': ['uncontrolled', 'controlled'],
+  'proc_run_materials.expected_control_state': ['uncontrolled', 'controlled'],
   'proc_candidate_packages.state': ['published'],
   'proc_candidate_deliveries.state': ['open', 'accepted', 'rejected', 'stale'],
   'libra_subjects.status': ['active', 'abandoned'],
@@ -131,6 +139,13 @@ const EXPLICIT_FOREIGN_KEYS = Object.freeze({
     { columns: ['field_id'], targetTable: 'proc_material_fields', targetColumns: ['field_id'] },
     { columns: ['field_id', 'last_observation_id'], targetTable: 'proc_field_observations', targetColumns: ['field_id', 'observation_id'] }
   ],
+  proc_procurement_runs: [
+    { columns: ['field_id', 'access_revision'], targetTable: 'proc_field_access_revisions', targetColumns: ['field_id', 'revision'] },
+    { columns: ['field_id', 'terminal_observation_revision'], targetTable: 'proc_field_observations', targetColumns: ['field_id', 'revision'] },
+    { columns: ['extraction_policy_id', 'extraction_policy_revision'], targetTable: 'proc_extraction_policy_revisions', targetColumns: ['extraction_policy_id', 'revision'] },
+    { columns: ['admission_commit_marker'], targetTable: 'fx_commit_markers', targetColumns: ['commit_marker'] },
+    { columns: ['seal_commit_marker'], targetTable: 'fx_commit_markers', targetColumns: ['commit_marker'] }
+  ],
   people_aliases: [
     { columns: ['person_id', 'revision'], targetTable: 'people_person_revisions', targetColumns: ['person_id', 'revision'] }
   ],
@@ -172,6 +187,7 @@ const EXPLICIT_FOREIGN_KEYS = Object.freeze({
   ]
 });
 const DEFERRED_FOREIGN_KEY_PAIRS = new Set([
+  'proc_material_fields>proc_field_access_revisions',
   'proc_material_fields>proc_field_observations', 'proc_field_observations>proc_material_fields',
   'proc_field_observations>fx_commit_markers',
   'people_persons>people_person_revisions', 'people_person_revisions>people_persons',
@@ -412,7 +428,7 @@ function parseTableRows(entries) {
       },
       jsonContracts,
       immutability: {
-        immutable: currentPointerColumns.length === 0 && immutableRules.length > 0,
+        immutable: !MUTABLE_LIFECYCLE_TABLES.has(entry.id) && currentPointerColumns.length === 0 && immutableRules.length > 0,
         rules: immutableRules
       },
       deletion: {

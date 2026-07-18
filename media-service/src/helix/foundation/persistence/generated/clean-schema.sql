@@ -2299,7 +2299,7 @@ CREATE TABLE "proc_material_fields" (
   "current_observation_revision" INTEGER CHECK ("current_observation_revision" >= 1),
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
   "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
-  FOREIGN KEY ("field_id", "current_access_revision") REFERENCES "proc_field_access_revisions" ("field_id", "revision") ON DELETE RESTRICT,
+  FOREIGN KEY ("field_id", "current_access_revision") REFERENCES "proc_field_access_revisions" ("field_id", "revision") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
   FOREIGN KEY ("field_id", "current_observation_revision") REFERENCES "proc_field_observations" ("field_id", "revision") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED
 );
 CREATE INDEX "idx_proc_material_fields_hot_01" ON "proc_material_fields" ("status", "field_id");
@@ -2314,8 +2314,8 @@ CREATE TABLE "proc_procurement_retry_intent_materials" (
   "expected_eligibility_basis_digest" TEXT CHECK (length("expected_eligibility_basis_digest") = 64 AND "expected_eligibility_basis_digest" NOT GLOB '*[^0-9a-f]*'),
   "expected_selection_basis_digest" TEXT CHECK (length("expected_selection_basis_digest") = 64 AND "expected_selection_basis_digest" NOT GLOB '*[^0-9a-f]*'),
   "expected_selection_has_conflict" TEXT,
-  "expected_control_revision" INTEGER CHECK ("expected_control_revision" >= 1),
-  "expected_control_state" TEXT CHECK ("expected_control_state" IN ('controlled', 'released')),
+  "expected_control_revision" INTEGER CHECK ("expected_control_revision" >= 0),
+  "expected_control_state" TEXT CHECK ("expected_control_state" IN ('uncontrolled', 'controlled')),
   "expected_control_owner_domain" TEXT,
   "expected_control_owner_scope_type" TEXT,
   "expected_control_owner_scope_id" TEXT,
@@ -2414,7 +2414,11 @@ CREATE TABLE "proc_procurement_runs" (
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
   "finished_at_ms" INTEGER CHECK ("finished_at_ms" >= 0),
   UNIQUE ("field_id", "run_basis_digest"),
-  FOREIGN KEY ("field_id") REFERENCES "proc_material_fields" ("field_id") ON DELETE RESTRICT
+  FOREIGN KEY ("field_id", "access_revision") REFERENCES "proc_field_access_revisions" ("field_id", "revision") ON DELETE RESTRICT,
+  FOREIGN KEY ("field_id", "terminal_observation_revision") REFERENCES "proc_field_observations" ("field_id", "revision") ON DELETE RESTRICT,
+  FOREIGN KEY ("extraction_policy_id", "extraction_policy_revision") REFERENCES "proc_extraction_policy_revisions" ("extraction_policy_id", "revision") ON DELETE RESTRICT,
+  FOREIGN KEY ("admission_commit_marker") REFERENCES "fx_commit_markers" ("commit_marker") ON DELETE RESTRICT,
+  FOREIGN KEY ("seal_commit_marker") REFERENCES "fx_commit_markers" ("commit_marker") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_proc_procurement_runs_hot_01" ON "proc_procurement_runs" ("state", "priority_class", "created_at_ms");
 CREATE UNIQUE INDEX "uidx_proc_procurement_runs_partial_01" ON "proc_procurement_runs" ("seal_decision_id") WHERE "seal_decision_id" IS NOT NULL;
@@ -2434,8 +2438,8 @@ CREATE TABLE "proc_run_materials" (
   "location" TEXT,
   "reality_digest" TEXT CHECK (length("reality_digest") = 64 AND "reality_digest" NOT GLOB '*[^0-9a-f]*'),
   "provenance_digest" TEXT CHECK (length("provenance_digest") = 64 AND "provenance_digest" NOT GLOB '*[^0-9a-f]*'),
-  "expected_control_revision" INTEGER CHECK ("expected_control_revision" >= 1),
-  "expected_control_state" TEXT CHECK ("expected_control_state" IN ('controlled', 'released')),
+  "expected_control_revision" INTEGER CHECK ("expected_control_revision" >= 0),
+  "expected_control_state" TEXT CHECK ("expected_control_state" IN ('uncontrolled', 'controlled')),
   "expected_control_owner_domain" TEXT,
   "expected_control_owner_scope_type" TEXT,
   "expected_control_owner_scope_id" TEXT,

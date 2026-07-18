@@ -9,6 +9,10 @@ const LOGICAL_TYPES = Object.freeze({
   REAL: 'REAL',
   INTEGER_OR_REAL: 'NUMERIC'
 });
+const NON_NEGATIVE_REVISION_COLUMNS = new Set([
+  'proc_run_materials.expected_control_revision',
+  'proc_procurement_retry_intent_materials.expected_control_revision'
+]);
 
 // These are implementation-only projection guards. Their writers and startup
 // consistency checks are introduced by later P3 work packages. Each guard is
@@ -175,7 +179,7 @@ function requireColumns(contract, names, context) {
   }
 }
 
-function checkClauses(column) {
+function checkClauses(column, tableId) {
   const quoted = quoteIdentifier(column.name);
   const checks = [];
   if (column.enumValues.length > 0) {
@@ -185,7 +189,8 @@ function checkClauses(column) {
   if (column.name.endsWith('_digest') || column.name === 'digest' || column.name.endsWith('digest_hex')) {
     checks.push('length(' + quoted + ') = 64 AND ' + quoted + " NOT GLOB '*[^0-9a-f]*'");
   }
-  if (column.logicalType === 'INTEGER' && ['initial_cursor_revision', 'expected_cursor_revision', 'expected_revision'].includes(column.name)) {
+  if (column.logicalType === 'INTEGER' && (['initial_cursor_revision', 'expected_cursor_revision', 'expected_revision'].includes(column.name) ||
+      NON_NEGATIVE_REVISION_COLUMNS.has(tableId + '.' + column.name))) {
     checks.push(quoted + ' >= 0');
   } else if (column.logicalType === 'INTEGER' && (column.name === 'revision' || column.name.endsWith('_revision'))) {
     checks.push(quoted + ' >= 1');
@@ -195,12 +200,12 @@ function checkClauses(column) {
   return checks;
 }
 
-function compileColumn(column, primaryKey) {
+function compileColumn(column, primaryKey, tableId) {
   const sqliteType = LOGICAL_TYPES[column.logicalType];
   if (!sqliteType) throw new Error('P3_DDL_UNSUPPORTED_LOGICAL_TYPE:' + column.logicalType);
   const parts = [quoteIdentifier(column.name), sqliteType];
   if (primaryKey.length === 1 && primaryKey[0] === column.name) parts.push('PRIMARY KEY');
-  for (const check of checkClauses(column)) parts.push('CHECK (' + check + ')');
+  for (const check of checkClauses(column, tableId)) parts.push('CHECK (' + check + ')');
   return parts.join(' ');
 }
 
@@ -241,7 +246,7 @@ function compileTable(contract, allContracts) {
     }
   }
 
-  const definitions = contract.columns.map((column) => compileColumn(column, contract.primaryKey));
+  const definitions = contract.columns.map((column) => compileColumn(column, contract.primaryKey, contract.tableId));
   const supportColumns = SUPPORT_COLUMNS[contract.tableId] || [];
   for (const column of supportColumns) {
     definitions.push(quoteIdentifier(column.name) + ' ' + column.type + ' NOT NULL DEFAULT ' + column.defaultSql + ' ' + column.checks.map((check) => 'CHECK (' + check + ')').join(' '));

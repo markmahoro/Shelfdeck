@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/ProcurementTriageRuleSnapshot/v1",
+  "title": "ProcurementTriageRuleSnapshot@1",
+  "x-helix-ssotRefs": [
+    "5.3.2",
+    "8.6.18"
+  ],
+  "x-helix-maxCanonicalBytes": 8192,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "ruleRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "ruleSchemaRef": {
+      "const": "procurement.triage-rule.beta@1"
+    },
+    "rulePayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "candidateReadinessContractRef": {
+          "const": "helix.procurement.candidate-readiness@1"
+        },
+        "profileClaimBaselineContractRef": {
+          "const": "helix.procurement.profile-claim-baseline@1"
+        },
+        "primaryInputManifestContractRef": {
+          "const": "helix.procurement.primary-input-manifest@1"
+        },
+        "relatedMaterialReferenceContractRef": {
+          "const": "helix.procurement.related-material-reference@1"
+        },
+        "recallPriority": {
+          "const": true
+        },
+        "maxPrimaryMaterials": {
+          "const": 1024
+        }
+      },
+      "required": [
+        "candidateReadinessContractRef",
+        "profileClaimBaselineContractRef",
+        "primaryInputManifestContractRef",
+        "relatedMaterialReferenceContractRef",
+        "recallPriority",
+        "maxPrimaryMaterials"
+      ]
+    },
+    "ruleDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "authorityDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "ruleRef",
+    "revision",
+    "ruleSchemaRef",
+    "rulePayload",
+    "ruleDigest",
+    "authorityDigest"
+  ]
+}

@@ -359,11 +359,11 @@
         "tableId": "proc_material_fields",
         "owner": "procurement",
         "contractRef": "helix://contracts/tables/proc_material_fields/v1",
-        "contractDigest": "cc864cfed3cba445aff6da76643fe998c7471337413e60bb89f482539318a01b"
+        "contractDigest": "6ea85fad4f28e91b6700ddaa0f29b5d09055c99fcbe55f302a6cea7ea8e75c2c"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "ff20875a8c50964815b96d7f581fce7edf25c8b7d1b10cb918b48ffe1cda0cd3"
+        "value": "0dc49e46e929c16daa6ab64c6ba0de391169662071aa107470573af723b093c4"
       }
     }
   ]

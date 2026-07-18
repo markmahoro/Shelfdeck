@@ -3,9 +3,11 @@
   "$id": "helix://contracts/types/ProcurementControlReceipt/v1",
   "title": "ProcurementControlReceipt@1",
   "x-helix-ssotRefs": [
+    "8.6.18",
     "8.6.19"
   ],
   "x-helix-envelopeRef": "helix://contracts/types/ReceiptEnvelope/v1",
+  "x-helix-maxCanonicalBytes": 65536,
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -63,14 +65,32 @@
       "minLength": 1,
       "maxLength": 256
     },
-    "acquiredMaterialKeys": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "minLength": 1,
-        "maxLength": 256
-      },
-      "maxItems": 1024
+    "fieldId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "runBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "selectedMaterialCount": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "selectedMaterialSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "acquiredMaterialCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "assertedMaterialCount": {
+      "type": "integer",
+      "minimum": 0
     },
     "controlRevisionSetDigest": {
       "type": "string",
@@ -89,7 +109,12 @@
     "scopeDigest",
     "committedAtMs",
     "procurementRunId",
-    "acquiredMaterialKeys",
+    "fieldId",
+    "runBasisDigest",
+    "selectedMaterialCount",
+    "selectedMaterialSetDigest",
+    "acquiredMaterialCount",
+    "assertedMaterialCount",
     "controlRevisionSetDigest"
   ]
 }

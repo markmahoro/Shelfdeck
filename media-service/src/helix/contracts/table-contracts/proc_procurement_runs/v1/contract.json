@@ -329,7 +329,7 @@
     },
     "jsonContracts": [],
     "immutability": {
-      "immutable": true,
+      "immutable": false,
       "rules": [
         "Run及其`proc_run_materials` immutable basis列共同构成完整Basis，禁止只凭digest恢复",
         "Triage tuple必须由`ProcurementTriageRuleRegistry@1`当前active entry签发，Admission时验证active，历史恢复时验证精确immutable entry仍存在且digest匹配，不建立调用者可写Rule表",
@@ -366,11 +366,61 @@
     "foreignKeys": [
       {
         "columns": [
-          "field_id"
+          "field_id",
+          "access_revision"
         ],
-        "targetTable": "proc_material_fields",
+        "targetTable": "proc_field_access_revisions",
         "targetColumns": [
-          "field_id"
+          "field_id",
+          "revision"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "field_id",
+          "terminal_observation_revision"
+        ],
+        "targetTable": "proc_field_observations",
+        "targetColumns": [
+          "field_id",
+          "revision"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "extraction_policy_id",
+          "extraction_policy_revision"
+        ],
+        "targetTable": "proc_extraction_policy_revisions",
+        "targetColumns": [
+          "extraction_policy_id",
+          "revision"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "admission_commit_marker"
+        ],
+        "targetTable": "fx_commit_markers",
+        "targetColumns": [
+          "commit_marker"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "seal_commit_marker"
+        ],
+        "targetTable": "fx_commit_markers",
+        "targetColumns": [
+          "commit_marker"
         ],
         "deletePolicy": "RESTRICT",
         "deferrable": false
