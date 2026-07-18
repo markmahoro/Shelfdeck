@@ -40,7 +40,7 @@ Work Package细节只存在于`implementation/CURRENT_PHASE.md`；当前事实�
 
 `PBF-10-R1`只闭合Candidate Publication的机器事务表集：7张Procurement domain表（含
 `proc_candidate_primary_material_episode_claims`）与3张Foundation表构成精确10张`writeTables`；不改变Domain、Owner、
-Store、Handoff、Capability或163张关系表总数。
+Store、Handoff或Capability；PBF-11后当前关系表总数为168张。
 
 `PBF-10-R2`进一步固定Package-derived `CandidateIntakeAcceptanceBasis@1`、stable Offer ID、typed Offer Outbox
 message/consumer/dedup合同，并把Season Continuity Claim全链路统一为
@@ -48,7 +48,11 @@ message/consumer/dedup合同，并把Season Continuity Claim全链路统一为
 
 `PBF-10-R3`把承载Run `candidate_package_revision_head` CAS的既有`proc_procurement_runs`补入Candidate
 Publication domain write participant；最终机器事务固定为8张Procurement、3张Foundation及11张write table，
-同时保留Run表为CAS fence read，不改变163张关系表、Owner、Store、Handoff或Capability。
+同时保留Run表为CAS fence read，不改变Owner、Store、Handoff或Capability。
+
+`PBF-11`闭合Candidate Delivery typed snapshot、Libra-owned continuity resolution、N:M Episode/Binding关系、
+global/target CAS、Resolved Identity exact Claim关系化、nullable identity初值及Handoff A完整Accepted事务。
+它新增五张Libra Intake关系/头表，使总数调整为168；不新增Domain、Owner、Store、Handoff或Capability。
 
 ## 3. Current phase
 
@@ -56,11 +60,11 @@ Publication domain write participant；最终机器事务固定为8张Procuremen
 | --- | --- |
 | Phase | P8 — Handoff A and Libra front half |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | P8-00–P8-01 PASS；P8-02 returned to Design |
+| Status | P8-00–P8-01 PASS；P8-02 Design Return由`PBF-11`闭合，implementation resumed |
 | Implementation baseline | exact P7 phase closure `2cf98561d7cf785db4005e65e99b0750d84ce5ce` |
 | Phase branch/worktree | `codex/helix-p8` / `E:\my_project\emby_third_party-helix-p8` |
 | Allowed now | P2–P13本地代码、unit/contract/isolated fixture、文档与Phase自动转换 |
-| Next action | Architecture Agent evaluates P8-02 Libra Intake persistence continuity gaps |
+| Next action | rematerialize PBF-11 machine contracts and continue P8-02 |
 
 ## 4. Master roadmap
 

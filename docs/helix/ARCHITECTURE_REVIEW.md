@@ -1,6 +1,6 @@
 # Helix Architecture Review Workbench
 
-Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-19；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-10`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`）bounded correction均已完成。
+Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-19；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-11`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`）bounded correction均已完成。
 
 ## 1. Purpose and authority
 
@@ -1842,3 +1842,48 @@ write whitelist。
 本修正不新增或删除关系表，`163 tables / 163 unique names`保持；不改变Domain、Owner、Store、Handoff、
 Capability或兼容策略。Transaction materializer/validator必须重物化为8张Procurement表加3张Foundation表的11张
 精确写集。审计结果为`PASS / PBF-10-R3 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.17 `PBF-11` — Libra Intake delivery、N:M Episode与Decision CAS continuity
+
+Status: `CLOSED / BOUNDED DETAIL FIX APPLIED` — 2026-07-19
+
+P8-02在开始Libra Intake Store前沿Candidate Delivery、FA-04、Subject/Binding持久化和Handoff A Accepted事务
+纵向反证，提出六项formal-realizability疑点。主审没有直接接受实现返回，而是分别核对Level 3 Subject continuity、
+Level 4 Handoff A、Level 6 Intake concurrency、Level 8 public Port/Capability/DTO/table/transaction/crash fixture：
+
+1. CandidateDeliveryPort已经是正式边界，但没有versioned output DTO；Package/Manifest也没有Primary
+   endpoint/location，而Binding却强制这些字段；
+2. Procurement Manifest允许一个Material拥有`0..32` Episode Claim，Libra Binding和Store却只能保存一个
+   `episodeKey`，也没有Subject accepted Episode scope；
+3. SSOT要求并发match/overlap重算，但没有防0/1/N query phantom的Libra head、唯一target Intake CAS或set digest；
+4. exact provider-season anchor的业务语义已存在，且SSOT已要求Resolved Identity发布时追加Subject continuity
+   relation；真实缺口不是新Identity模型，而是没有明确这张可枚举relation是Intake唯一查询落点、opaque
+   provider identity digest不得被反解；
+5. new Subject在Identity尚未解析时没有合法pointer初值；
+6. Accepted payload没有冻结Offer/Basis、Delivery、Owner-authored resolution、target CAS、N:M Binding scope或
+   Decision digest，调用者提供的Subject ID可能越过Libra Decision authority。
+
+这些问题不需要新的用户业务决定。Bounded correction保持五Domain、两Handoff、既有Process Root、112项
+Capability、96个Catalog Result family、现有组件和单SQLite Store不变：
+
+- `CandidateDeliveryPort@1`正式返回digest-bound `CandidateDeliverySnapshot@1`，把Offer/Acceptance Basis/
+  Package/完整Manifest与从Procurement immutable Run Basis重建的逐Primary Location Evidence闭合；Libra不旁读
+  `proc_*`；
+- Binding恢复为每Material一条、Episode Claim独立N:M relation，并增加Subject accepted Episode scope作为
+  FA-04 overlap唯一权威来源；
+- 增加Libra `active_subject_continuity` global CAS head防query phantom，并在Subject row增加Intake revision与
+  current continuity/Episode scope digests；extension同时CAS global/target，new Subject只CAS global且由Libra
+  分配ID；
+- 0/1/N matching只保存Decision所需0/1/2个确定性witness，one分支关系化完整Episode overlap；完整
+  `SubjectContinuityResolutionDecision@1`、`AcceptedIntakePayload@1`、Binding Draft、Receipt和accepted message均有
+  唯一digest；
+- Resolved Product Identity的exact Season Claim使用同一`SeasonContinuityClaim@1` nominal value并在identity
+  commit时关系化；Intake只读该relation，不反解identity digest；new Subject的`current_identity_revision`固定NULL；
+- Handoff A Accepted机器事务固定10张Libra-owned表与5张Foundation表，global/target head、Decision Evidence、
+  Subject/claim/Episode、Binding/N:M relation、Control、Receipt/Result/marker/Outbox全有或全无。
+
+为保存既有Owner事实，新增`libra_subject_continuity_heads`、`libra_intake_resolution_match_witnesses`、
+`libra_intake_resolution_episode_overlaps`、`libra_subject_episode_scopes`、
+`libra_material_binding_episode_claims`五张Libra-owned关系/头表；它们不是新Store、组件、Business Object或
+Capability。关系表总数由163调整为168，`libra_*`由31调整为36。审计结果为
+`PASS / PBF-11 CLOSED / NO OPEN BUSINESS DECISION`。

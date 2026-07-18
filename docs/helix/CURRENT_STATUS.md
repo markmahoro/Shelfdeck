@@ -2,7 +2,7 @@
 
 Status: Levels 0–10 accepted; P0–P7 complete; P8 in progress under standing P2–P13 Local Implementation authorization; E2E, Docker/Canary, production, real-media side effects and `media-desktop` changes paused.
 
-Last updated: 2026-07-18
+Last updated: 2026-07-19
 
 ## 1. Current position
 
@@ -13,12 +13,19 @@ Last updated: 2026-07-18
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains；P7 — Procurement |
 | Current phase | P8 — Handoff A and Libra front half |
-| Current phase status | P8-00–P8-01 PASS；P8-02 returned to Design |
+| Current phase status | P8-00–P8-01 PASS；P8-02 Design Return由`PBF-11`闭合，implementation resumed |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P7 phase closure `2cf98561d7cf785db4005e65e99b0750d84ce5ce` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p8` on `codex/helix-p8` |
-| Next action | Architecture Agent evaluates P8-02 Libra Intake persistence continuity gaps |
+| Next action | rematerialize PBF-11 machine contracts and continue P8-02 |
+
+Architecture Agent提交`be3ecb89`已闭合`PBF-11`。实现侧逐项复审确认：Candidate Delivery正式携带完整
+Manifest及逐Material Location Evidence；Subject/Binding Episode关系均可N:M持久化；global continuity head与唯一
+extension target intake revision形成双CAS；Resolved Identity exact Claim先关系化后匹配；新Subject identity pointer为
+nullable；Accepted payload冻结Offer/Basis/Resolution/Binding/Control全部连续性。Handoff A事务精确写入10张Libra表和
+5张Foundation表，总表数由163调整为168；未新增Domain、Owner、Store、Handoff或Capability。该提交已原样纳入，
+本线程未编辑SSOT正文。
 
 Architecture Agent提交`19ed12fa`已闭合`PBF-07-R1`：Page正式收敛为≤65,536 UTF-8 JCS bytes，完整Page作为
 Commit Event immutable typed Evidence保存，并通过Observation→Marker→Result Binding形成禁止GC的历史恢复链；

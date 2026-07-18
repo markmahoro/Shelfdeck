@@ -1,6 +1,6 @@
 # Helix Clean Top-down Architecture
 
-Status: ShelfDeck / Helix architecture SSOT; Levels 0–10 accepted; final full-document audit and post-baseline `PBF-01`–`PBF-10`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`）bounded corrections closed; implementation not authorized by this document.
+Status: ShelfDeck / Helix architecture SSOT; Levels 0–10 accepted; final full-document audit and post-baseline `PBF-01`–`PBF-11`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`）bounded corrections closed; implementation not authorized by this document.
 
 Last updated: 2026-07-19
 
@@ -1067,8 +1067,8 @@ Evidence增强、路径变化或单次Libra Run失败不自动改变subjectId。
 Procurement边界错误，也不触发多Subject拆分回流。
 
 首次Business Handoff采用一份Candidate Package创建一个Subject。Series Season Subject建立后，后续
-Candidate只有在Season Continuity Claim与该Subject已有claim/Resolved Product Identity中的exact
-provider-season anchor存在精确交集、且Episode范围完全不重叠时，才被确认属于同一Season并由该Subject
+Candidate只有在Season Continuity Claim与该Subject已有claim（包括Resolved Product Identity提交时已关系化为
+Subject continuity fact的exact provider-season anchor）存在精确交集、且Episode范围完全不重叠时，才被确认属于同一Season并由该Subject
 继续接管；每份Package仍只能成功归属一个Subject，且每次新增Candidate的Primary Input Manifest都必须完整、原子地完成Handoff A
 的Control转移。一个Manifest包含多个Physical Material不会产生多个Subject；Candidate语义单位仍是
 Subject分配边界。Subject创建
@@ -1085,7 +1085,9 @@ Season Continuity Claim只允许两种exact Evidence：
 规范化标题、年份、season number文本、目录名、路径或模糊相似度可以辅助Triage显示，但不能单独扩充既有
 Subject。Series Candidate没有claim、没有唯一匹配、命中多个既有Subject或Episode范围发生任一重叠时，
 仍应被Intake为一份合同完整的生产资料接管，但必须建立新的Subject；不得拒绝粗入库，也不得由Libra猜测
-选择一个既有Subject。Claim是弱连续性Evidence，不是Canonical Content Identity、全局ID或跨域Binding。
+选择一个既有Subject。实现只需冻结规则可判定所需的0/1/2个确定性match witness：multiple分支保存按subjectId
+排序最小的两个命中者即可证明不能extension，不能把该bounded witness set误写成无界全量搜索结果。Claim是弱连续性
+Evidence，不是Canonical Content Identity、全局ID或跨域Binding。
 
 Handoff A Accepted把Candidate的exact claims复制为Libra-owned Subject continuity facts并保留Candidate
 provenance。Libra以后发布包含稳定Provider series identity和season number的Resolved Product Identity时，可以
@@ -1985,7 +1987,7 @@ Handoff A把Procurement已经完成Triage的一份Candidate Package交给Libra�
 | Acceptance mechanism | Subject创建或Series Episode范围追加时的快速接收决定；不建立独立Process Root |
 | Target context | Libra Intake与Candidate/Material Field Provenance；不包含目标Shelf |
 | Accepted Business Object | 新建Subject；仅在exact Season Continuity Claim唯一命中且Episode零重叠时，扩充既有Series Season Subject的新Episode范围 |
-| Accepted Material relation | Subject的Production Material Set为Primary Input Manifest全部成员建立Binding；Related Material Reference和Material Field Context作为Evidence随单保留 |
+| Accepted Material relation | Subject的Production Material Set为Primary Input Manifest全部成员各建立一条Material Binding；Series成员的`0..N` Episode Claim另以N:M relation无损保存；Related Material Reference和Material Field Context作为Evidence随单保留 |
 | Rejected result | Structured Rejection；不创建Subject，也不扩充既有Subject |
 | Responsibility Transfer Point | Subject新建或Episode范围追加、Candidate Provenance、Binding和写控制同时建立 |
 
@@ -2002,8 +2004,8 @@ Libra Intake Acceptance是Subject创建或Series Episode范围追加时的一次
 Rejection。执行层如何安全重试这次决定属于Level 6，但重试不能把它升级成新的Domain Process Root。
 
 对Series Candidate，Intake先执行确定性的Subject Continuity Resolution：Candidate的exact Season
-Continuity Claim与Libra当前active Season Subject已保存的claim、或其Resolved Product Identity中的exact
-provider-season anchor做集合匹配。恰好命中一个Subject且Episode范围完全不重叠时扩充；零命中、多命中、
+Continuity Claim与Libra当前active Season Subject已保存的claim做集合匹配；Resolved Product Identity中的exact
+provider-season anchor必须已经由Identity commit关系化为同一claim nominal value。恰好命中一个Subject且Episode范围完全不重叠时扩充；零命中、多命中、
 缺少claim或任一Episode重叠时一律新建Subject。该Resolution只选择接管结果，不把弱Claim升级为Product/
 Canonical Identity，也不允许标题、年份、目录或模糊分数参与既有Subject选择。
 
@@ -2013,9 +2015,12 @@ Libra只验证接管所必需的业务类别：
 - Candidate Package结构完整且版本可理解；
 - mediaType、contentProfile与生产单位边界已形成明确Claim；
 - Series Season Continuity Claim缺失是合法输入；存在时必须属于注册的exact kind并通过schema/provenance验证；
-- Primary Input Manifest及`manifestDigest`完整，全部成员当前可解析，Material Control Scope与成员
-  集合一致且能够原子转移；
-- Libra能够为全部Manifest成员建立自己的Production Material Set Binding；
+- Procurement `CandidateDeliveryPort@1`返回的Offer、Acceptance Basis、Candidate Package、完整Primary Input
+  Manifest与逐成员Location Evidence属于同一immutable Delivery Snapshot并可按digest重建；
+- Primary Input Manifest及`manifestDigest`完整，全部成员当前可解析，Material Control Scope与成员集合一致且能够
+  原子转移；Primary Location只能来自该Delivery Snapshot，Libra不得旁读Procurement Store补值；
+- Libra能够为全部Manifest成员建立自己的Production Material Set Binding，并把每个Series Material的全部
+  Episode Claim无损保存为N:M relation；
 - Related Material Reference与Material Field Context结构可理解；它们不扩大Control Scope，也不证明Product Metadata已经满足；
 - 不存在已经成功接管同一Candidate Package的冲突结果。
 
@@ -2023,7 +2028,9 @@ Handoff A的Offer必须携带一份由final Candidate Package唯一派生的
 `CandidateIntakeAcceptanceBasis@1`。它冻结的是“Procurement这次向Libra Intake提交哪份不可变Package、Manifest、
 Continuity/Related/Control Evidence集合，以及适用哪一版公开Handoff合同”，不是Libra对当前Subject集合、Episode
 overlap或Material Control current row的Decision Evidence。后者只能由Libra在处理Offer时读取并冻结到
-`libra_intake_decisions`，不得倒灌进Candidate Package或由Procurement替Libra决定。
+`libra_intake_decisions`及其relation rows，不得倒灌进Candidate Package或由Procurement替Libra决定。Libra用
+`active_subject_continuity`全局head防止0/1/N匹配集合出现并发phantom，用目标Subject的`intake_revision`与当前
+continuity/Episode scope digest防止唯一extension目标并发变化；二者都只属于Libra。
 
 因此`acceptanceBasisDigest`是与`packageDigest`不同但可由Package确定性重建的Handoff事实；它不等于
 `packageDigest`，也不是Candidate Identity。相同Package、相同Handoff合同只能形成同一Offer identity；未来若公开
@@ -2037,8 +2044,9 @@ Shelf Standard是否已经满足，或该产品最终一定能够On-deck。Ident
 #### 4.4.4 Accepted结果
 
 Accepted时，Libra为首份Package创建Subject；同一Series Season的后续Episode Package则追加到既有
-Subject。两种情况都固定Candidate Package与Material Field Provenance，接管该Package的Primary Material
-Control Scope，并把Related Material Reference与Material Field Context保存为本域可验证Evidence。Subject此时
+Subject。两种情况都固定Candidate Delivery Snapshot与Material Field Provenance，接管该Package的Primary Material
+Control Scope，为每个Material建立一条Binding并把Episode范围分别写入Subject scope和Binding N:M relation；同时把
+Related Material Reference与Material Field Context保存为本域可验证Evidence。Subject此时
 可以尚未解析目标Shelf。Procurement对该Package的交付使命完成；Procurement Run是否还在处理同一
 选择范围，不影响这次责任转移。
 
@@ -2885,11 +2893,13 @@ otherwise
   → accepted(new Subject)
 ~~~
 
-`provider_season_identity`与`triage_grouping_lineage`是唯一注册claim kind。Candidate claim可以与Subject已接受
-claim，或Subject当前Resolved Product Identity中的exact provider-season anchor匹配；标题、年份、目录名、
+`provider_season_identity`与`triage_grouping_lineage`是唯一注册claim kind。Candidate claim只与Subject已关系化的
+accepted continuity fact匹配；Resolved Product Identity exact provider-season anchor必须先在其Domain Fact Commit中
+写成同一nominal claim relation，Intake不得反解identity digest。标题、年份、目录名、
 路径和模糊相似度禁止参与。Claim缺失、多Subject命中或Episode重叠都不是Rejected理由，因为Triage仍以召回
-优先；它们只使本次Accepted结果选择新Subject。Intake Decision必须冻结candidate claim set digest、matched
-subject set digest、episode overlap digest与最终`new|extension`结果，使相同Basis可确定重算。
+优先；它们只使本次Accepted结果选择新Subject。Intake Decision必须冻结candidate claim set digest、0/1/2
+decision-relevant matched subject witness set digest、episode overlap digest与最终`new|extension`结果，使相同Basis
+可确定重算；multiple分支无需保存无界全量命中者。
 
 具体Error Code、事务和幂等恢复属于Level 8/6；Intake Rules不建立独立Process Root。
 
@@ -4798,9 +4808,11 @@ Libra Intake只针对immutable Candidate Package作快速、确定、幂等的Ac
 阶段执行Product Metadata、Transcode、整理或目标Shelf生产。
 
 Accepted时依据冻结的Subject Continuity Resolution创建Subject，或扩充唯一exact match的既有Season Subject
-非重叠Episode生产范围；随后由Subject责任触发Routing。并发Intake在Accepted commit前必须重验active Subject
-claim set与Episode范围：唯一命中或overlap结果变化时旧Decision Basis失效并按当前Facts重新形成Decision，
-不能把竞态转成模糊选择。Rejected不创建任何长期Libra对象。
+非重叠Episode生产范围；随后由Subject责任触发Routing。`IntakeAcceptanceCoordinator`形成Decision时冻结Libra
+全局Subject Continuity head，以及唯一extension目标的`intake_revision/current continuity set/current episode scope`。
+Accepted commit先CAS全局head，再CAS唯一目标（new Subject无目标row CAS）并在同一SQLite写事务重跑0/1/N exact
+match与Episode overlap；任一结果变化都使旧Decision失效并重新装配，不能把竞态转成模糊选择。Rejected不创建任何
+长期Libra对象。
 
 #### 6.4.3 Shelf Routing Assessment可等待，但不回流Procurement
 
@@ -7115,8 +7127,11 @@ domains/procurement/
 `MaterialFieldManager`拥有Field Access Binding、Field Observation、`ExtractionPolicy@1`发布、Extraction
 Eligibility deterministic evaluation/current-fact reconcile和Procurement Control取得时序；这些Decision/Application
 责任不新增Catalog Capability。`ProcurementRunCoordinator`拥有Selected Field Material Set与Triage过程；
-`CandidatePublisher`只在Candidate Readiness成立后发布immutable Candidate Package。Procurement public
-Query可以按candidatePackageId返回交付快照，但不得返回可写Store或让Libra修改Candidate。
+`CandidatePublisher`只在Candidate Readiness成立后发布immutable Candidate Package。`CandidateDeliveryPort@1`
+是Procurement对Handoff A开放的唯一Deliverable读取口：按typed Offer identity返回由Offer、Acceptance Basis、
+Candidate Package、完整Primary Input Manifest及逐Primary Location Evidence组成的immutable
+`CandidateDeliverySnapshot@1`。它只能在Procurement内部从Candidate、Run immutable Basis与relation rows重建并校验
+snapshot，不能暴露Repository、current mutable row或让Libra修改Candidate；Libra也不能旁读`proc_*`补字段。
 
 `triage-rule-registry.json`是`TriagePlanner`包内的versioned、immutable contract artifact，不是新的逻辑组件、
 Store、Capability或用户Policy。Composition Root只把已完成schema/digest/self-consistency验证的同一Registry实例
@@ -7178,6 +7193,10 @@ domains/libra/
 `IntakeAcceptanceCoordinator`是Handoff A Acceptance Owner：快速验证Candidate合同，执行exact Subject
 Continuity Resolution，并在Accepted事务中建立/扩充Subject、保存continuity claim snapshot、建立Libra
 Domain-local Material Binding和Control transfer。它不运行Product Metadata、模糊身份匹配或重型生产。
+它也是`SubjectContinuityResolutionDecision@1`与`AcceptedIntakePayload@1`的唯一Application assembler：可以读取
+Libra自己的Subject/continuity/Episode Repository与global head，但不能把该Decision交给Planner、Capability、
+HTTP caller或Procurement形成。`libra.intake.binding.resolve@1`只依据已经形成的Resolution和Delivery Snapshot
+计算N:M Binding Draft，不决定new/extension。
 
 `FieldRoutingPolicyManager`拥有每片Material Field当前Routing Policy head并发布revision；它只保存
 Procurement公开的opaque fieldId，不写Procurement Store。`DecisionPreparationCoordinator`只准备Routing与Spec明确声明的Decision Input；`ShelfRoutingResolver`和
@@ -7536,14 +7555,17 @@ Command Receipt。Receipt冻结Owner、Command contract、caller scope、idempot
 Procurement CandidatePublisher
   → durable Candidate Package + candidate_delivery Reservation + Offer Outbox
   → LibraIntakeFacade.offerCandidate(ProcurementCandidateOfferAvailableMessage@1)
-  → Libra reads Candidate through CandidateDeliveryPort
+  → Libra reads CandidateDeliverySnapshot@1 through CandidateDeliveryPort@1
   → Libra Intake Acceptance
       rejected: Libra rejection fact + receipt projection; no Control transfer
       accepted: Subject + Libra Binding + Control transfer + receipt atomically
   → Procurement consumes Accepted Receipt or Rejected Decision and closes Reservation/delivery responsibility
 ~~~
 
-Libra只读Candidate Package，不能写Procurement表。Procurement只读Handoff Receipt，不能写Libra Subject。
+`CandidateDeliveryPort@1.readSnapshot(CandidateDeliveryQuery@1)`只返回
+`CandidateDeliveryReadResult@1(found|not_found)`；found snapshot的Offer/Package/Manifest/Location member必须逐项
+同源且digest闭合，完整值有界。Libra只读该Snapshot，不能写Procurement表；Procurement只读Handoff Receipt，
+不能写Libra Subject。
 Offer或Signal丢失由双方durable Outbox/Inbox和Domain Reconcile恢复；不得依赖一个进程内EventEmitter作为唯一
 交接机制。
 
@@ -7672,7 +7694,7 @@ page、完整Workflow Graph和整项媒体详情禁止进入列表热记录。
 | Procurement Retry Admission | open Intent expected state/digest CAS + current admission head和逐成员precondition重验 + `open → consumed|stale`；有效分支与一份新`ProcurementRunExecutionBasis@1`、新Run、Selection、全部Control acquire/assert及内嵌`ProcurementControlReceipt`的`ProcurementRetryAdmissionResult`同事务成立，stale分支写同一Result的stale variant及全部逐成员consume snapshot，不建Run；同一commit marker/result digest同时作为Intent consume与新Run admission恢复点；closed stale reason、primary reason、set digest和row replay映射按8.6.18唯一规则执行；`hasOutbox=false`且一个Intent最多关联一个新Run |
 | Field Routing Policy Publish | immutable per-Field Policy revision + target ranks + Field Routing head switch + Outbox |
 | Rule Template Publish | immutable Template revision + all currently bound Shelf effective Standard revisions + Template/Shelf current head switches + Outbox |
-| Handoff A Accepted | Acceptance Decision + frozen Subject Continuity Resolution + Subject create/extension + accepted continuity claim snapshot + Libra Binding + precise Control transfer + Handoff Receipt/Outbox |
+| Handoff A Accepted | complete `CandidateDeliverySnapshot@1` + Libra-owned `SubjectContinuityResolutionDecision@1` + `LibraBindingDraft@1` + `AcceptedIntakePayload@1` + global Subject Continuity head CAS + unique extension target Intake head CAS（new Subject只用global CAS）+ immutable Intake Decision/match witness/overlap Evidence + Subject create/extension + accepted continuity/Episode scope + Material Binding及N:M Episode relation + precise Control transfer + `SubjectAndTransferReceipt@1`/commit marker/accepted Outbox；全部事实全有或全无，Libra不得旁读`proc_*`，Commit Participant不得信任调用者指定Subject或重算Provider事实 |
 | Libra Subject Abandon Commit | immutable Subject Abandon Decision + no-Run Pre-deck scope terminal + precise Primary Control release + receipt/Outbox |
 | Handoff B Accepted | Acceptance Decision + On-deck Material Custody + Arca Binding + precise Control transfer + Handoff Receipt/Outbox |
 | Libra Deliverable Promotion | On-deck Product Package + Product Material Identity set + newly produced Material的Libra Control acquire + delivery Outbox |
@@ -7706,6 +7728,23 @@ expected-head CAS并取得新package revision，再由完整Draft建立final
 Foundation participant只接受这份已验证typed Message及其固定Outbox metadata，不得为缺失字段发明ID、Basis、
 consumer或dedup key。Commit marker重放必须返回原`CandidatePackage@1`，并复用同一Offer row与Outbox message，
 不能因响应丢失建立第二个Offer。
+
+`Handoff A Accepted`的机器Transaction Contract必须精确物化为：
+
+- `participants[domain=libra].tables`固定为`libra_subject_continuity_heads`、`libra_intake_decisions`、
+  `libra_intake_resolution_match_witnesses`、`libra_intake_resolution_episode_overlaps`、
+  `libra_handoff_a_receipts`、`libra_subjects`、`libra_subject_season_continuity_claims`、
+  `libra_subject_episode_scopes`、`libra_material_bindings`、`libra_material_binding_episode_claims`共10张；
+- `participants[foundation=execution-foundation].tables`固定为`fx_material_controls`、
+  `fx_material_control_revisions`、`fx_event_result_bindings`、`fx_commit_markers`、`fx_outbox`共5张；
+- `writeTables`是上述15张表的精确并集；`readTables`也固定为同一15张表，用于同事务重验global/target head、
+  0/1/N exact match、Episode overlap、既有Decision/Binding冲突、Control owner/revision及marker replay；表同时出现于
+  read/write是CAS与幂等恢复所需，不扩大到任何`proc_*`表；
+- new Subject分支要求global head CAS、Libra分配的全新`subjectId`和nullable identity pointer；extension分支额外
+  要求唯一target Subject `active`且`intake_revision/current continuity set/current episode scope`逐项CAS；
+- Result/marker重放返回原Decision、Subject revision与Receipt，不重新分配Subject、不重复追加Episode或再次转移
+  Control。任一participant失败时，global/target head、Decision Evidence、Subject/relations、Binding/relations、
+  Control、Receipt/Outbox全部rollback。
 
 Foundation不通过通用SQL拼接这些事实。每个Owner注册一个typed `CommitParticipant`，只接受Owner签发的
 Domain Fact Commit Handle或Responsibility Control Commit Handle；`SqliteUnitOfWork`只保证participants在
@@ -7902,14 +7941,19 @@ Plan node input/parameter/Fence/Resource Demand的具体JSON不直接重复存�
 | `proc_candidate_primary_material_episode_claims` | `candidate_package_id FK, primary_ordinal, episode_key, season_claim_digest, claim_digest` | `PK(candidate_package_id,primary_ordinal,episode_key)`；复合FK指向`proc_candidate_primary_materials(candidate_package_id,ordinal)`；仅Series primary_payload允许非空，按episodeKey重建Manifest member的完整N:M Episode Claim set；single或structural_dependency不得有row |
 | `proc_candidate_related_references` | `candidate_package_id FK, reference_id, primary_ordinal, role, endpoint_id, location, checksum_algorithm, checksum_hex, evidence_digest` | `PK(candidate_package_id,reference_id)`；Related不进入Material Control |
 | `proc_candidate_deliveries` | `offer_id PK, candidate_package_id FK, package_digest, acceptance_basis_digest, state, handoff_receipt_id, offered_at_ms, closed_at_ms` | `offer_id`与`acceptance_basis_digest`必须分别等于8.6.18从final `CandidatePackage@1`计算的`CandidateIntakeAcceptanceBasis@1`公式结果，且同事务存在唯一`ProcurementCandidateOfferAvailableMessage@1` Outbox；`UNIQUE(candidate_package_id,package_digest,acceptance_basis_digest)`；同一Candidate至多一个open Offer；相同Offer重放不得新增row或Outbox；`INDEX(state,offered_at_ms)` |
-| `libra_intake_decisions` | `intake_decision_id PK, offer_id, candidate_package_id, package_digest, acceptance_basis_digest, candidate_continuity_set_digest, matched_subject_set_digest, episode_overlap_digest, result(new_subject|season_extension|rejected), target_subject_id, rejection_schema_ref, decision_digest, decided_at_ms` | `UNIQUE(offer_id)`；`offer_id/candidate/package/acceptance basis`必须逐项等于对应Delivery与typed Offer message并由Libra重算Basis验证；`candidate_continuity_set_digest`使用8.6.18同一claim-set公式，matched Subject与Episode overlap是Libra处理Offer时另行冻结的current Decision Evidence，不进入Offer Basis；immutable；`season_extension`要求exactly one target且zero overlap；同一Candidate/Package digest只允许一个accepted Decision的partial unique index；Intake不升级为Business Process Root |
-| `libra_handoff_a_receipts` | `receipt_id PK, intake_decision_id FK, offer_id, candidate_package_id, package_digest, subject_id, libra_binding_set_digest, control_revision_set_digest, committed_at_ms` | `UNIQUE(intake_decision_id)`及同一Candidate/Package digest最多一个Receipt；Accepted事务的durable receipt/outbox source |
-| `libra_subjects` | `subject_id PK, structure_kind, status, current_identity_revision, created_at_ms, updated_at_ms, terminal_at_ms` | `status`至少区分`active|abandoned|completed`；`INDEX(status,subject_id)`；Subject不保存Arca Shelf Entry/Deck状态；identity pointer显式FK |
-| `libra_subject_season_continuity_claims` | `subject_id FK, claim_kind(provider_season_identity|triage_grouping_lineage), claim_namespace, claim_key, claim_digest, provenance_kind(candidate|resolved_identity), provenance_ref, accepted_at_ms` | `PK(subject_id,claim_kind,claim_namespace,claim_key,provenance_ref)`；Handoff A复制Candidate claim；Resolved Product Identity发布exact provider-season anchor时同事务追加；`INDEX(claim_kind,claim_namespace,claim_key,subject_id)`允许检测0/1/N命中但不建立全局unique |
+| `libra_subject_continuity_heads` | `head_id PK(active_subject_continuity), current_revision, head_digest, updated_at_ms` | clean initialization建立唯一revision 0 row；`head_digest=SHA-256(JCS({schema:"libra.subject-continuity-head@1",headId,currentRevision}))`；任何改变active Subject集合、exact continuity relation或accepted Episode scope的事务都必须expected-revision CAS并加1，不能按时间戳伪造；Handoff A、Resolved Identity exact anchor publish与Subject terminal均使用同一head |
+| `libra_intake_decisions` | `intake_decision_id PK, decision_revision, offer_id, candidate_package_id, package_revision, package_digest, acceptance_basis_digest, candidate_delivery_snapshot_digest, expected_continuity_head_revision, expected_continuity_head_digest, committed_continuity_head_revision, candidate_continuity_set_digest, candidate_episode_scope_digest, match_cardinality(none|one|multiple), matched_subject_set_digest, episode_overlap_digest, result(new_subject|season_extension|rejected), target_subject_id, expected_target_status NULL, expected_target_intake_revision NULL, expected_target_continuity_set_digest NULL, expected_target_episode_scope_digest NULL, committed_target_intake_revision NULL, committed_subject_continuity_set_digest NULL, committed_subject_episode_scope_digest NULL, accepted_payload_digest NULL, rejection_schema_ref NULL, decision_digest, decided_at_ms` | `decision_revision=1`且`UNIQUE(offer_id)`；Offer/Package/Acceptance Basis/Snapshot逐项匹配正式Delivery；match cardinality与两张Decision Evidence relation按8.6.18公式重建；`new_subject`要求target是Libra分配的新ID、expected target字段为NULL且committed intake revision=1；`season_extension`要求one match/zero overlap、`expected_target_status=active`及完整expected target CAS且committed revision=expected+1；accepted要求`accepted_payload_digest=AcceptedIntakePayload.payloadDigest`，rejected固定为NULL且不写Subject结果；同一Candidate/Package digest只允许一个accepted Decision的partial unique index；immutable，不接受调用者指定既有Subject |
+| `libra_intake_resolution_match_witnesses` | `intake_decision_id FK, ordinal, subject_id FK, expected_subject_status(active), expected_subject_intake_revision, expected_subject_continuity_set_digest, expected_subject_episode_scope_digest, claim_kind, claim_namespace, claim_key, candidate_claim_digest, subject_claim_digest, subject_claim_provenance_kind(candidate|resolved_identity), subject_claim_provenance_ref, witness_digest` | `PK(intake_decision_id,ordinal)`及`UNIQUE(intake_decision_id,subject_id)`；none为0 row、one恰为1 row、multiple恰为按subjectId UTF-8 bytes最小的2个distinct matching Subject witness；每个Subject选择按claim tuple/provenance稳定排序的第一项exact交集作为证明；`witness_digest=SHA-256(JCS(完整row business value excluding intakeDecisionId/ordinal/witnessDigest))`；它证明Decision所需0/1/N cardinality，不声称保存multiple分支的无界全量匹配集合 |
+| `libra_intake_resolution_episode_overlaps` | `intake_decision_id FK, subject_id FK, episode_key, overlap_digest` | `PK(intake_decision_id,subject_id,episode_key)`；只允许match cardinality=one时保存Candidate Episode scope与唯一Subject current scope的完整交集，按episodeKey排序；`overlap_digest=SHA-256(JCS({schema:"libra.episode-overlap-member@1",subjectId,episodeKey}))`；zero overlap合法为0 row；multiple/none不执行overlap并为0 row；aggregate formula按8.6.18 |
+| `libra_handoff_a_receipts` | `receipt_id PK, intake_decision_id FK, offer_id, candidate_package_id, package_revision, package_digest, subject_id, subject_intake_revision, subject_continuity_head_revision, subject_continuity_set_digest, subject_episode_scope_digest, candidate_delivery_snapshot_digest, accepted_payload_digest, libra_binding_set_digest, control_revision_set_digest, receipt_digest, committed_at_ms` | `UNIQUE(intake_decision_id)`及同一Candidate/Package digest最多一个Receipt；所有revision/digest必须等于同一Accepted事务结果；`accepted_payload_digest`逐字节等于Decision同名列并作为ReceiptEnvelope.scopeDigest，使Subject后续扩充后仍能从本row重建原Receipt；Accepted typed Outbox引用该Receipt且相同marker重放不新增Receipt或消息 |
+| `libra_subjects` | `subject_id PK, structure_kind, status, intake_revision, current_continuity_set_digest, current_episode_scope_digest, current_identity_revision NULL, created_at_ms, updated_at_ms, terminal_at_ms` | `status`至少区分`active|abandoned|completed`；new Subject固定`intake_revision=1`，每次Season extension CAS加1；continuity/Episode digest由本域relation rows按8.6.18重建；`current_identity_revision=NULL`是尚未发布Resolved Product Identity的唯一合法初值，正整数时显式复合FK指向`libra_product_identity_revisions(subject_id,revision)`；`INDEX(status,subject_id)`；Subject不保存Arca Shelf Entry/Deck状态 |
+| `libra_subject_season_continuity_claims` | `subject_id FK, claim_kind(provider_season_identity|triage_grouping_lineage), claim_namespace, claim_key, claim_digest, provenance_kind(candidate|resolved_identity), provenance_ref, accepted_at_ms` | `PK(subject_id,claim_kind,claim_namespace,claim_key,provenance_ref)`；Handoff A复制Candidate claim；Resolved Product Identity发布`exactSeasonContinuityClaims`时以`provenance_ref={subjectId}:{identityRevision}`同事务追加；Intake只查询本关系的active Subject rows，不反解`provider_identity_set_digest`；`INDEX(claim_kind,claim_namespace,claim_key,subject_id)`允许检测0/1/N命中但不建立全局unique |
+| `libra_subject_episode_scopes` | `subject_id FK, episode_key, first_intake_decision_id FK, source_episode_scope_digest, accepted_at_ms` | `PK(subject_id,episode_key)`；只允许Series，Episode key来自Accepted Candidate Delivery Manifest全部Primary member claim的去重并集；append-only且同Episode不能被同Subject第二次接受；该表是FA-04 overlap唯一权威来源，不从Binding JSON或Run推断 |
 | `libra_subject_abandon_decisions` | `abandon_decision_id PK, subject_id FK, subject_scope_digest, input_control_scope_digest, actor_id, idempotency_key, decision_digest, decided_at_ms` | `UNIQUE(subject_id)`；immutable；只允许没有任何current Libra Run且Pre-deck责任仍active的Subject建立 |
 | `libra_subject_abandon_receipts` | `receipt_id PK, abandon_decision_id FK, subject_id FK, released_control_set_digest, terminal_fact_digest, commit_digest, committed_at_ms` | `UNIQUE(abandon_decision_id)`；与Subject terminal和精确Primary Control release同一事务成立 |
-| `libra_material_bindings` | `subject_id FK, material_key, role, episode_key, endpoint_id, location, binding_revision, health_state, evidence_digest, current` | immutable revision以`PK(subject_id,material_key,binding_revision)`保存；每个`subject+material+role`只有一个current row |
-| `libra_product_identity_revisions` | `subject_id FK, revision, structure_kind, content_profile, identity_kind, provider_identity_set_digest, display_identity, identity_digest, evidence_digest, committed_at_ms` | `PK(subject_id,revision)`；immutable；`libra_subjects.current_identity_revision`显式指向本表 |
+| `libra_material_bindings` | `subject_id FK, material_key, role, endpoint_id, location, binding_revision, health_state, evidence_digest, current` | immutable revision以`PK(subject_id,material_key,binding_revision)`保存；每个`subject+material+role`只有一个current row；Handoff A每个Manifest member只建一条Binding，不能为多Episode复制Binding或把Episode拼入字符串 |
+| `libra_material_binding_episode_claims` | `subject_id FK, material_key, binding_revision, episode_key, season_claim_digest, claim_digest` | `PK(subject_id,material_key,binding_revision,episode_key)`并以复合FK指向`libra_material_bindings`；逐项无损复制同一Manifest member的Episode Claim；single与无Episode structural dependency为0 row；Binding set digest包含这些relation，不允许只取第一项 |
+| `libra_product_identity_revisions` | `subject_id FK, revision, structure_kind, content_profile, identity_kind, provider_identity_set_digest, exact_season_continuity_set_digest, display_identity, identity_digest, evidence_digest, committed_at_ms` | `PK(subject_id,revision)`；immutable；`libra_subjects.current_identity_revision`正整数时显式指向本表；Series的exact Season Claim完整值保存在`libra_subject_season_continuity_claims`并与本revision同事务成立，digest只用于一致性校验而不是可枚举事实替代品 |
 | `libra_field_routing_heads` | `field_id PK, current_routing_policy_id, current_policy_revision, updated_at_ms` | Field ID是Procurement公开opaque ref、不建跨Domain FK；current pair显式FK到Policy revision；一片Field恰好至多一份current去向方案 |
 | `libra_routing_policy_revisions` | `routing_policy_id, revision, field_id, mode(direct|sorting), policy_schema_ref, policy_json, policy_digest, effective_at_ms` | Policy JSON上限`64 KiB`；`PK(routing_policy_id,revision)`；immutable；`INDEX(field_id,effective_at_ms)`；同一revision只属于一片Field |
 | `libra_routing_policy_targets` | `routing_policy_id, policy_revision, shelf_id, rank, match_rule_schema_ref, match_rule_json, match_rule_digest` | `PK(routing_policy_id,policy_revision,shelf_id)`及`UNIQUE(routing_policy_id,policy_revision,rank)`；Shelf ID为Arca公开Projection中的opaque ref |
@@ -8312,11 +8356,11 @@ Intent最多建立一个Run；失败的新Run不自动创建新Intent。
 
 | Capability ref | Input → Output | Effect Class |
 | --- | --- | --- |
-| `libra.intake.candidate.verify@1` | `CandidatePackage + PrimaryInputManifest → CandidateContractVerification` | `pure_observation` |
-| `libra.intake.material.verify@1` | `Material handles + Candidate snapshot → IntakeMaterialVerification` | `pure_observation` |
-| `libra.intake.binding.resolve@1` | `Candidate material/location evidence → LibraBindingDraft` | `pure_observation` |
+| `libra.intake.candidate.verify@1` | `CandidateDeliverySnapshot → CandidateContractVerification` | `pure_observation` |
+| `libra.intake.material.verify@1` | `CandidateDeliverySnapshot + PhysicalMaterialReadHandle[] → IntakeMaterialVerification` | `pure_observation` |
+| `libra.intake.binding.resolve@1` | `CandidateDeliverySnapshot + SubjectContinuityResolutionDecision → LibraBindingDraft` | `pure_observation` |
 | `libra.intake.rejection.commit@1` | `StructuredRejection + DomainFactCommitHandle → RejectionReceipt` | `domain_fact_commit` |
-| `libra.intake.accept.commit@1` | `Accepted intake payload + ResponsibilityControlCommitHandle → SubjectAndTransferReceipt` | `responsibility_control_commit` |
+| `libra.intake.accept.commit@1` | `AcceptedIntakePayload + ResponsibilityControlCommitHandle → SubjectAndTransferReceipt` | `responsibility_control_commit` |
 | `libra.decision.query.resolve@1` | `CanonicalQueryHandle → VersionedQueryResult` | `pure_observation` |
 | `libra.product_identity.resolve@1` | `IdentityClaim + Decision Evidence + ProductStructure → ResolvedProductIdentity` | `pure_observation` |
 | `libra.product_metadata.fetch@1` | `MetadataFetchIntent + (PhysicalMaterialReadHandle | IntegrationHandle) → MetadataObservation` | `pure_observation` |
@@ -8726,6 +8770,14 @@ Executor只能返回以下discriminated union，且每个variant都`additionalPr
 | `CandidateDraft` | `DraftEnvelope + candidatePackageId,expectedPackageRevision,procurementRunId,runBasisDigest,triageRule{ruleRef,revision,authorityDigest},materialFieldContextRef{fieldId,accessRevision,contextDigest},mediaType,contentProfile,displayIdentity,identityMetadata(TriageIdentityMetadata),identityClaim(IdentityClaim),structureEvidence{evidenceId,payloadDigest,unit(TriageUnitSnapshot)},primaryInputManifestDraft(PrimaryInputManifestDraft),seasonContinuityClaims[SeasonContinuityClaim],seasonContinuityClaimSetDigest,relatedReferences[],relatedReferenceSetDigest,memberControlEvidenceSetDigest,candidateDraftDigest`；四处mediaType/contentProfile/Unit/Claim必须一致，Manifest Draft必须引用同一Unit，Season continuity及其set digest与Related必须分别与Unit逐项相等；`relatedReferenceSetDigest=SHA-256(JCS({schema:"procurement.related-reference-set@1",items:relatedReferences按referenceId排序}))`；`memberControlEvidenceSetDigest=SHA-256(JCS({schema:"procurement.candidate-member-control-evidence@1",items:[{materialKey,admittedControlRevision,admittedControlProjectionDigest}]按materialKey排序}))`；`candidateDraftDigest=SHA-256(JCS(完整value excluding DraftEnvelope.draftDigest and candidateDraftDigest))`且`DraftEnvelope.draftDigest=candidateDraftDigest`；完整typed input由当前Plan binding提供，CommitParticipant不得旁读Run/Event/Provider补值；Draft不携带`offerId|acceptanceBasisDigest|subjectId` |
 | `CandidateIntakeAcceptanceBasis` | `handoffContractRef(helix://handoffs/procurement-to-libra/v1),acceptanceOwnerDomain(libra),targetContext(libra_intake),candidatePackageId,packageRevision,packageDigest,primaryInputManifestDigest,seasonContinuityClaimSetDigest,relatedReferenceSetDigest,memberControlEvidenceSetDigest,acceptanceBasisDigest`；只由Candidate Publication Commit在final `CandidatePackage@1`形成后从这些精确字段派生，其中`primaryInputManifestDigest=CandidatePackage.primaryInputManifestRef.manifestDigest`，其余同名ID/revision/digest逐字段相等；`acceptanceBasisDigest=SHA-256(JCS(完整value excluding acceptanceBasisDigest))`；它不包含Libra current Subject/episode-overlap/Control row，不能由调用者、Provider或Store旁读补值，也不能退化为`packageDigest` |
 | `ProcurementCandidateOfferAvailableMessage` | `messageKind(procurement_candidate_offer_available),offerId,candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest,acceptanceOwnerDomain(libra),targetContext(libra_intake)`；`offerId=SHA-256(JCS({schema:"procurement.handoff-a-offer-id@1",handoffContractRef:"helix://handoffs/procurement-to-libra/v1",candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest}))`；Outbox固定`producer_domain=procurement,aggregate_type=candidate_package,aggregate_id=candidatePackageId,aggregate_revision=packageRevision,payload_schema_ref=ProcurementCandidateOfferAvailableMessage@1,intended consumers=[libra],intended_consumer_count=1`，`consumer_set_digest=SHA-256(JCS({schema:"foundation.outbox-consumer-set@1",consumers:["libra"]}))`，`dedup_key=procurement_candidate_offer_available:{offerId}`，`message_id=SHA-256(JCS({schema:"foundation.outbox-message-id@1",producerDomain:"procurement",dedupKey}))`；payload只含上述typed字段、JCS bytes≤`16 KiB`，`payload_digest=SHA-256(JCS(完整typed payload))`；该消息只唤醒Libra Intake并引用Deliverable，不授权Procurement形成Acceptance Decision |
+| `CandidateDeliveryQuery` | `queryContract(procurement.candidate-delivery@1),offerId,candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest,queryDigest`；全部字段逐项来自typed Offer；`queryDigest=SHA-256(JCS(完整value excluding queryDigest))`；完整value≤`16 KiB` |
+| `CandidatePrimaryMaterialDelivery` | `ordinal,materialKey,role(primary_payload|structural_dependency),bindingRevision,admittedControlRevision,admittedControlProjectionDigest,endpointId,location,lastSnapshotDigest,realityDigest,provenanceDigest,manifestMemberDigest,episodeClaims[{episodeKey,seasonClaimDigest,claimDigest}],deliveryMemberDigest`；前半逐项等于final Manifest member和Candidate relation，Location/Reality/Provenance只来自同Run immutable `proc_run_materials` Basis row；Episode按episodeKey排序；`deliveryMemberDigest=SHA-256(JCS(完整value excluding deliveryMemberDigest))`；单项JCS bytes≤`8 KiB` |
+| `CandidateDeliverySnapshot` | `snapshotContract(procurement.candidate-delivery@1),offer(ProcurementCandidateOfferAvailableMessage),acceptanceBasis(CandidateIntakeAcceptanceBasis),candidatePackage(CandidatePackage),primaryInputManifest(PrimaryInputManifest),primaryMaterialDeliveries[CandidatePrimaryMaterialDelivery],deliveryMemberSetDigest,deliverySnapshotDigest`；四个头的Offer/Package/revision/digest必须逐项一致；Material Delivery与Manifest按ordinal一一对应、数量`1..1024`且不得额外或缺失成员；`deliveryMemberSetDigest=SHA-256(JCS({schema:"procurement.candidate-delivery-members@1",items:primaryMaterialDeliveries}))`，`deliverySnapshotDigest=SHA-256(JCS(完整value excluding deliverySnapshotDigest))`；完整JCS bytes≤`8 MiB`，不是Event Result或Outbox payload；任何Owner row不一致是integrity failure而不是用current row修补 |
+| `CandidateDeliveryReadResult` | `queryDigest,resultKind(found|not_found),snapshot?,reasonCode?,resultDigest`；found恰含一份`CandidateDeliverySnapshot@1`且不得含reason，not_found只允许`offer_not_found`且不得含snapshot；`resultDigest=SHA-256(JCS(完整value excluding resultDigest))`；相同Query在immutable Offer存在期间必须返回同一Snapshot digest，Offer关闭后仍可历史读取 |
+| `CandidateEpisodeScope` | `structureKind(single|season),episodeKeys[],episodeScopeDigest`；single固定空数组，season从Delivery Manifest全部`primary_payload` Episode Claim取去重并集、按episodeKey UTF-8 bytes升序且非空；`episodeScopeDigest=SHA-256(JCS({schema:"libra.candidate-episode-scope@1",structureKind,episodeKeys}))` |
+| `SubjectContinuityResolutionDecision` | `decisionId,offerId,candidatePackageId,packageRevision,packageDigest,candidateDeliverySnapshotDigest,expectedContinuityHead{revision,digest},candidateContinuityClaims[SeasonContinuityClaim],candidateContinuitySetDigest,candidateEpisodeScope(CandidateEpisodeScope),matchCardinality(none|one|multiple),matchWitnesses[{ordinal,subjectId,expectedSubjectStatus(active),expectedSubjectIntakeRevision,expectedSubjectContinuitySetDigest,expectedSubjectEpisodeScopeDigest,claimKind,claimNamespace,claimKey,candidateClaimDigest,subjectClaimDigest,subjectClaimProvenanceKind,subjectClaimProvenanceRef,witnessDigest}],matchedSubjectSetDigest,overlapEvaluation(not_applicable_no_match|not_applicable_multiple|evaluated),overlappingEpisodeKeys[],episodeOverlapDigest,result(new_subject|season_extension),allocatedSubjectId?,targetSubjectId?,expectedTargetStatus?,expectedTargetIntakeRevision?,expectedTargetContinuitySetDigest?,expectedTargetEpisodeScopeDigest?,decisionDigest`；none/one/multiple分别要求0/1/2个witness，multiple取按subjectId最小的两个distinct active exact match作为确定性证明；one才evaluated并保存与唯一Subject current scope的完整Episode交集；`season_extension`只允许one+evaluated+空交集且target/expected字段等于唯一witness（包括`active`状态），其他情况一律`new_subject`并只携带Libra分配的allocated ID；每个`witnessDigest=SHA-256(JCS({schema:"libra.subject-match-witness@1",subjectId,expectedSubjectStatus,expectedSubjectIntakeRevision,expectedSubjectContinuitySetDigest,expectedSubjectEpisodeScopeDigest,claimKind,claimNamespace,claimKey,candidateClaimDigest,subjectClaimDigest,subjectClaimProvenanceKind,subjectClaimProvenanceRef}))`；`matchedSubjectSetDigest=SHA-256(JCS({schema:"libra.subject-match-witness-set@1",matchCardinality,items:matchWitnesses}))`；`episodeOverlapDigest=SHA-256(JCS({schema:"libra.episode-overlap@1",overlapEvaluation,targetSubjectId,episodeKeys:overlappingEpisodeKeys}))`；`decisionDigest=SHA-256(JCS(完整value excluding decisionDigest))`，完整value≤`128 KiB` |
+| `AcceptedIntakePayload` | `intakeDecisionId,decisionRevision(1),delivery{offerId,candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest,candidateDeliverySnapshotDigest},candidateVerification(CandidateContractVerification),materialVerification(IntakeMaterialVerification),resolutionDecision(SubjectContinuityResolutionDecision),bindingDraft(LibraBindingDraft),controlTransferScope{fieldId,fromOwnerDomain(procurement),fromOwnerScopeType(material_field),fromOwnerScopeId,items[{materialKey,expectedControlRevision,expectedControlProjectionDigest,toOwnerDomain(libra),toOwnerScopeType(subject),toOwnerScopeId}],controlScopeDigest},payloadDigest`；两份Verification必须passed且逐项绑定同一Delivery Snapshot；subject只来自Resolution的allocated/target variant，Binding与Control全部subject ref必须相等；Control items按materialKey排序并与Delivery成员恰好一一对应；`controlScopeDigest=SHA-256(JCS({schema:"libra.handoff-a-control-scope@1",fieldId,fromOwnerDomain,fromOwnerScopeType,fromOwnerScopeId,items}))`；`payloadDigest=SHA-256(JCS(完整value excluding payloadDigest))`；Commit Participant只消费该payload与匹配Handle，不从Foundation Event Result、Procurement Store、Provider或调用者补业务事实 |
+| `LibraCandidateAcceptedMessage` | `messageKind(libra_candidate_accepted),offerId,candidatePackageId,packageRevision,packageDigest,intakeDecisionId,subjectId,subjectIntakeRevision,receiptId,receiptDigest`；Outbox固定`producer_domain=libra,aggregate_type=intake_decision,aggregate_id=intakeDecisionId,aggregate_revision=1,payload_schema_ref=LibraCandidateAcceptedMessage@1,intended consumers=[procurement]`，dedup key为`libra_candidate_accepted:{offerId}`；payload≤`16 KiB`且digest覆盖完整typed value；只通知Procurement收口Delivery Reservation，不允许其改写Libra事实 |
 | `ProcurementRunExecutionBasis` | `procurementRunId,fieldId,fieldStatus(active),fieldAccess{revision,digest},terminalObservation{revision,fieldObservationWorkId},extractionPolicy{policyId,revision,digest},triageRule(ProcurementTriageRuleSnapshot),sourceRetryIntentId?,selectedFieldMaterialSet(SelectedFieldMaterialSet),basisDigest`；嵌套Set的run/field必须一致；`basisDigest=SHA-256(JCS(完整value excluding basisDigest))`；普通Admission只能使用Registry当前active Snapshot，Retry consume只能使用Intent冻结且仍为active的Snapshot；Run成立后按精确historical entry恢复，不跟随active pointer；它由`proc_procurement_runs + proc_run_materials`、精确immutable Field/Policy/Observation引用及Triage Registry entry关系化/引用式恢复，不能用Foundation Work、Event input、调用者值或最新Field current row代替；重建值与原digest不一致是系统故障 |
 | `ProcurementRunSealDecision` | `decisionId,procurementRunId,expectedStateRevision,expectedRunBasisDigest,sealOutcome(completed|failed|partial_failure),publishedCandidates[{candidatePackageId,packageDigest,manifestDigest}],releasedMembers[{materialKey,disposition(completed_without_candidate|triage_failed),evidenceDigest}],decisionDigest`；publishedCandidates按candidatePackageId、releasedMembers按materialKey UTF-8 bytes升序且各自唯一；两组Material scope互斥且并集必须精确覆盖本Run全部Selection成员，Candidate成员由immutable Manifest展开；completed不得含triage_failed，failed要求Candidate为空且全部released均为triage_failed，partial_failure要求至少一份Candidate且至少一项triage_failed；`decisionDigest=SHA-256(JCS(完整value excluding decisionDigest))` |
 | `ProcurementRunSealReceipt` | `ReceiptEnvelope + procurementRunId + sealedStateRevision + runBasisDigest + sealDecisionDigest + sealOutcome + candidateReservationCount + candidateReservationSetDigest + releasedMaterialCount + releasedMaterialSetDigest + sealEvidenceDigest`；Receipt固定`receiptKind=procurement_run_sealed,ownerDomain=procurement,scopeType=procurement_run,scopeId=procurementRunId,scopeDigest=sealDecisionDigest`；三项digest使用下述唯一formula；完整typed value≤`64 KiB`且不内联Material key列表；Reservation成员由`proc_run_materials.candidate_package_id`连接immutable Candidate，released成员由同row的terminal disposition/evidence恢复，二者不依赖后续current事实 |
@@ -8929,6 +8981,28 @@ JSON Schema并参与transaction/replay fixture，但不改变本节96个Catalog 
 输出published Manifest的同一Catalog Result slot，最终`PrimaryInputManifest`成为Candidate Publication事务内
 建立的accepted Deliverable。该修正保持112项Capability与96个Catalog Result family不变。
 
+Libra Intake的current set digest固定为：
+
+- `subjectContinuitySetDigest=SHA-256(JCS({schema:"libra.subject-continuity-set@1",subjectId,items}))`，
+  `items`是该Subject全部continuity relation的
+  `{claimKind,claimNamespace,claimKey,claimDigest,provenanceKind,provenanceRef}`，按这六项UTF-8 bytes升序；
+- `subjectEpisodeScopeDigest=SHA-256(JCS({schema:"libra.subject-episode-scope@1",subjectId,
+  episodeKeys}))`，Episode key去重并按UTF-8 bytes升序；single固定空集合；
+- Handoff A new/extension、Resolved Identity exact Claim追加以及Subject terminal都会在同一事务重算受影响Subject
+  digest并CAS `active_subject_continuity` global head。global head用于防0/1/N query phantom，Subject
+  `intake_revision`与两个set digest用于防唯一target内容变化，二者不能互相代替；
+- Intake exact match只查询`active` Subject的`libra_subject_season_continuity_claims`；Product Identity中的exact
+  provider-season anchor必须先由其Owner commit关系化到该表。`libra_product_identity_revisions`的set digest、
+  display title或Provider Result都不是Intake的可执行匹配输入。
+
+`libra_intake_decisions.decision_digest`必须逐字节等于正式
+`SubjectContinuityResolutionDecision@1.decisionDigest`；match witness与overlap relation必须能按同一排序和公式重建
+Decision中的两个aggregate digest。`libra_handoff_a_receipts.receipt_digest`同理等于正式
+`SubjectAndTransferReceipt@1.receiptDigest`；Receipt的`scopeDigest`必须逐字节等于Decision/Receipt row共同保存的
+`accepted_payload_digest`，其Subject continuity/Episode digest使用Receipt冻结值，禁止旁读后来扩充的Subject current row。
+任何row能写入但typed Decision/Receipt无法重建，或typed payload存在而
+relation row缺失，均为Canonical Transaction integrity failure，不能用最新Subject状态或Event Result补齐。
+
 通用结果envelope固定为：
 
 - `EvidenceEnvelope`：`evidenceId, evidenceKind, producerRef, basisDigest, payloadDigest, observedAtMs`；
@@ -8965,12 +9039,12 @@ JSON Schema并参与transaction/replay fixture，但不改变本节96个Catalog 
 | `PrimaryInputManifestDraft` | `DraftEnvelope + preallocatedManifestId + procurementRunId + runBasisDigest + structureEvidencePayloadDigest + unitId + structureKind(single|season) + memberCount + membersDigest + memberSourceDigest + manifestDraftDigest`；`membersDigest=SHA-256(JCS({schema:"procurement.primary-input-manifest-members@1",items:[{ordinal从0连续,materialKey,role,bindingRevision,admittedControlRevision,admittedControlProjectionDigest,episodeClaims[]}]按unit member稳定顺序}))`；`memberSourceDigest=TriageUnitSnapshot.unitDigest`，`manifestDraftDigest=SHA-256(JCS(完整domain payload excluding manifestDraftDigest))`且等于DraftEnvelope.draftDigest；它不含publishedAtMs、不写Domain Store |
 | `PrimaryInputManifest` | `ManifestEnvelope + structureKind(single|season) + members[{ordinal,materialKey,role(primary_payload|structural_dependency),bindingRevision,admittedControlRevision,admittedControlProjectionDigest,episodeClaims[{episodeKey,seasonClaimDigest,claimDigest}],memberDigest}]`；最终Manifest只由Candidate Publication commit从同一`CandidateDraft.structureEvidence.unit`和`PrimaryInputManifestDraft`原子建立；members为Run Selection非空子集、最多1024项，按materialKey UTF-8 bytes排序后从0赋ordinal，materialKey唯一；每个`memberDigest=SHA-256(JCS(单项excluding memberDigest))`，memberCount/membersDigest/manifestDigest必须与完整稳定值匹配 |
 | `CandidatePackage` | `ManifestEnvelope + candidatePackageId + packageRevision + procurementRunId + runBasisDigest + triageRule{ruleRef,revision,authorityDigest} + materialFieldContextRef{fieldId,accessRevision,contextDigest} + mediaType + contentProfile + displayIdentity + identityMetadata + identityClaim + structureEvidenceRef{evidenceId,payloadDigest,unitId,unitDigest} + seasonContinuityClaims[SeasonContinuityClaim] + seasonContinuityClaimSetDigest + primaryInputManifestRef{manifestId,manifestDigest,memberCount} + relatedReferences[] + relatedReferenceSetDigest + memberControlEvidenceSetDigest + packageDigest`；Package/Manifest、Field Context、Identity/Structure/Profile、Control Evidence和Related必须逐项来自完整CandidateDraft；continuity数组有界、允许空，只接受`provider_season_identity|triage_grouping_lineage`且set digest按8.6.18重算；`packageDigest=SHA-256(JCS(完整value excluding ManifestEnvelope.manifestDigest and packageDigest))`且ManifestEnvelope.manifestDigest=packageDigest；`offerId|acceptanceBasisDigest`属于同事务建立的Handoff Offer，`subjectId`属于Libra Acceptance结果，三者均不得写入或要求于`CandidatePackage@1` |
-| `CandidateContractVerification` / `IntakeMaterialVerification` | `VerificationEnvelope + candidatePackageId + packageDigest`；Material版追加`verifiedMaterialKeys[]` |
-| `LibraBindingDraft` | `DraftEnvelope + subjectPlaceholderRef + bindings[{materialKey,role,episodeKey?,endpointId,location,bindingRevision}]` |
+| `CandidateContractVerification` / `IntakeMaterialVerification` | Candidate版为`VerificationEnvelope + offerId + candidatePackageId + packageRevision + packageDigest + acceptanceBasisDigest + primaryInputManifestDigest + candidateDeliverySnapshotDigest`；Material版为`VerificationEnvelope + candidatePackageId + packageDigest + candidateDeliverySnapshotDigest + verifiedMaterials[{materialKey,bindingRevision,locationEvidenceDigest,readHandleDigest,verificationDigest}] + verifiedMaterialSetDigest`，按materialKey排序并恰好覆盖全部Delivery member；`verifiedMaterialSetDigest=SHA-256(JCS({schema:"libra.intake-verified-material-set@1",candidateDeliverySnapshotDigest,items:verifiedMaterials}))`；只有`result=passed`可进入Accepted payload，Executor不能只返回key或丢弃Location/Handle continuity |
+| `LibraBindingDraft` | `DraftEnvelope + subjectRef + candidateDeliverySnapshotDigest + bindings[{materialKey,role,endpointId,location,bindingRevision(1),locationEvidenceDigest,episodeClaims[{episodeKey,seasonClaimDigest,claimDigest}],bindingDigest}] + bindingSetDigest`；每个Delivery member恰好一条Binding，按materialKey排序，endpoint/location与Location Evidence逐项一致；Episode Claims完整复制同Manifest member并按episodeKey排序，不能取第一项、拼字符串或复制Binding row；`locationEvidenceDigest=CandidatePrimaryMaterialDelivery.deliveryMemberDigest`，`bindingDigest=SHA-256(JCS(单项excluding bindingDigest))`，`bindingSetDigest=SHA-256(JCS({schema:"libra.binding-set@1",subjectRef,candidateDeliverySnapshotDigest,items:bindings}))`且等于DraftEnvelope.draftDigest |
 | `RejectionReceipt` | `ReceiptEnvelope + handoffKind + deliverableId + rejectionCode + rejectionDigest` |
-| `SubjectAndTransferReceipt` | `ReceiptEnvelope + candidatePackageId + subjectId + libraBindingSetDigest + controlRevisionSetDigest` |
+| `SubjectAndTransferReceipt` | `ReceiptEnvelope + intakeDecisionId + offerId + candidatePackageId + packageRevision + packageDigest + candidateDeliverySnapshotDigest + subjectId + subjectIntakeRevision + subjectContinuityHeadRevision + subjectContinuitySetDigest + subjectEpisodeScopeDigest + libraBindingSetDigest + controlRevisionSetDigest + receiptDigest`；固定`receiptKind=handoff_a_accepted,ownerDomain=libra,scopeType=intake_decision,scopeId=intakeDecisionId,scopeDigest=AcceptedIntakePayload.payloadDigest`；`receiptDigest=SHA-256(JCS(完整value excluding receiptDigest))`，完整value≤`64 KiB` |
 | `VersionedQueryResult` | `EvidenceEnvelope + queryContract + queryVersion + inputDigest + resultKind(found|not_found) + resultRevision + resultDigest + expiresAtMs` |
-| `ResolvedProductIdentity` | `EvidenceEnvelope + subjectId + structureKind + contentProfile + identityKind + providerIdentities[] + displayIdentity + identityDigest`；仍不是Arca Canonical Identity |
+| `ResolvedProductIdentity` | `EvidenceEnvelope + subjectId + structureKind + contentProfile + identityKind + providerIdentities[] + exactSeasonContinuityClaims[SeasonContinuityClaim] + exactSeasonContinuitySetDigest + displayIdentity + identityDigest`；非Series的exact Claim数组固定为空；Series只有Provider Evidence足以形成完整stable provider-season tuple时才允许写`provider_season_identity`，按8.6.18同一claim/set公式排序；发布identity revision时这些Claim与`provenance_kind=resolved_identity` relation及Subject Continuity global head增量同事务成立；Intake只查询relation，不反解provider identity digest；仍不是Arca Canonical Identity |
 | `MetadataObservation` | `EvidenceEnvelope + fetchIntentDigest + sourceKind(related_nfo|provider) + sourceRef + sourcePriority + identityDigest + contentProfile + descriptiveFacts + providerIdentitySet + peopleHints[] + artifactHints[]`；只含本次单一来源观察到的值，不声明跨来源winner或Product Metadata完成 |
 | `DecisionBasisRevision` | `DomainFactEnvelope + subjectId + queryResultSetDigest + routingInputDigest + specInputDigest` |
 | `FrameArtifactSet` | `ManifestEnvelope + sourceMaterialDigest + samplingPlanDigest + frameArtifactHandles[]` |
@@ -9371,12 +9445,12 @@ Standard与Care Basis派生，不创建新的用户Authorization。
 
 #### 8.9.5 Persistence closure audit
 
-逐表合同共有`163 tables / 163 unique names / 0 invalid prefix / 0 duplicate definition`：
+逐表合同共有`168 tables / 168 unique names / 0 invalid prefix / 0 duplicate definition`：
 
 ~~~text
 fx_          25
 proc_        15
-libra_       31
+libra_       36
 arca_        54
 perception_   9
 people_      13
@@ -9424,7 +9498,7 @@ Level 8固定后续实现必须建立的可执行contract fixture，不把“以
 
 | Fixture | Fault injection points | Required invariant |
 | --- | --- | --- |
-| Handoff A Accepted | continuity match前后、并发Subject/episode变化、Decision前、Subject/Binding participant后、Control participant前后、Outbox前 | exact claim唯一命中且zero overlap才extension；0/N命中、缺失或overlap新建Subject；竞态使Basis失效后重算；要么全部不存在，要么Decision/Subject/claim snapshot/Binding/Control/Receipt全部成立；Procurement只异步消费Receipt |
+| Handoff A Accepted | Candidate Delivery snapshot重建前后、global continuity head CAS前后、continuity match前后、并发Subject/episode/Resolved Identity exact anchor变化、target Intake CAS前后、Decision/Subject/Binding N:M relation participant后、Control participant前后、Result/marker/Outbox前 | Snapshot的Offer/Package/Manifest/Location Evidence不一致即fail closed且不旁读`proc_*`修补；exact claim唯一命中且zero overlap才extension；0/N命中、缺失或overlap新建Subject；global head阻止query phantom，target head阻止唯一Subject stale extension；竞态使Decision失效后重新装配；new Subject identity pointer为NULL；要么全部不存在，要么global/target revision、Decision及match/overlap Evidence、Subject/claim/Episode scope、每Material Binding及全部Episode relation、Control、Receipt/Result/marker/Outbox全部成立；Procurement只异步消费Receipt |
 | Material Identity | mount remap/container restart、inode reuse、stat变化、Hash中断与Control acquire前 | 稳定Mount Scope才继承Identity；新/变化成员完成全SHA-256前无Control；stat变化使缓存失效；同Hash不同inode仍是不同Identity |
 | Field Observation Page | Page DTO/Access/Request digest验证前后、64 KiB byte budget边界、Field head CAS前后、immutable revision与Material current-row逐项写入前后、typed Evidence/Result/marker前后、零Outbox协调、响应前崩溃 | 任一DTO、顺序、continuity、digest、Supporting Work或CAS验证失败整页rollback；完整Page Evidence、Field head、revision、全部Material current rows、typed Result和marker全有或全无；声明false时不要求或伪造Outbox；同marker重放返回原Result且不推进revision；current row被后续页改写后仍可由marker链恢复历史Page；terminal page以前不得形成缺失结论 |
 | Field Eligibility Reconcile | Policy schema/path/precedence边界、terminal coverage形成前后、Selection与Control snapshot读取前后、Batch提交前、逐项basis/revision重验、事务提交前后、响应前崩溃 | 只按`ExtractionPolicy@1`和固定reason precedence计算；无隐藏duplicate suppression；未terminal/Access变化/不可用basis只投影unknown；stale Material row不被覆盖并进入summary；同basis no-op；一个Batch的applied rows全有或全无；无Event Result/marker/Outbox；重启由current facts与rows重新收敛 |
@@ -9517,6 +9591,10 @@ Status: `ACCEPTED / JOURNEY-AMENDED`（2026-07-16）。下列术语已经通过L
 | Primary Input Manifest Draft | pure Manifest Builder基于一个Candidate Unit形成、只在当前Candidate Assembly Plan内使用的构造证明；最终published Manifest由Candidate Publication事务原子建立 | 6.3.3、8.6.4、8.6.19 |
 | Candidate Intake Acceptance Basis | Candidate Publication从final Package与公开Handoff A合同唯一派生的Offer-side immutable basis；不包含Libra current Subject/overlap/Control Decision Evidence，也不等于package digest | 4.4.3、8.5.4、8.6.18 |
 | Procurement Candidate Offer Available Message | Candidate Publication同事务写入、以stable offer identity和固定consumer/dedup/payload合同唤醒Libra Intake的typed Outbox message；只引用Deliverable，不形成Acceptance Decision | 8.4.2、8.5.4、8.6.18 |
+| Candidate Delivery Snapshot | Procurement通过CandidateDeliveryPort为Handoff A提供、把Offer/Basis/Package/完整Manifest与逐Primary immutable Location Evidence闭合为一个digest的versioned只读Deliverable；Libra不得旁读Procurement Store补值 | 4.4.2–4.4.3、8.2.1、8.4.2、8.6.18 |
+| Subject Continuity Global Head | Libra为active Subject exact claim/accepted Episode scope集合维护的全局CAS fence；防止Intake 0/1/N query出现并发phantom，不替代唯一target Subject Intake revision | 4.4.3、6.4.2、8.5.11、8.6.18 |
+| Subject Accepted Episode Scope | Libra按Subject关系化保存的已接管Episode key集合；是FA-04 overlap唯一权威来源，不由Material Binding、Run或opaque digest推断 | 3.4.2、4.4.2–4.4.4、8.5.11 |
+| Subject Continuity Resolution Decision | Libra Intake冻结Delivery、global/target fence、0/1/N exact match witness与Episode overlap后形成的owner-authored typed Decision；只有one match和zero overlap才extension | 3.4.2、4.4.3、6.4.2、8.6.18 |
 | Procurement Run Seal Evidence | Run Seal按Candidate Reservation set、released member terminal Evidence set及唯一aggregate formula持久化的可重建终态证据；Run head digest不能代替逐成员Evidence | 6.3.3、8.5.4、8.5.11、8.6.18 |
 | Procurement Retry Admission Head | Retry Intent创建时冻结的Field、Access、terminal Observation、Extraction Policy与active Triage Rule current head；消费时用同schema actual head执行freshness判定 | 6.3.3、8.5.11、8.6.18 |
 | Effect Journal | 记录跨SQLite外部/Material副作用intent、commit marker、Reality核对和恢复依据的技术事实 | 8.5.6 |
@@ -9546,13 +9624,14 @@ Status: `ACCEPTED / JOURNEY-AMENDED`（2026-07-16）。下列术语已经通过L
 
 当前确认状态：
 
-- `8.0`–`8.10`：`ACCEPTED / JOURNEY-AMENDED / POST-BASELINE-DOC-CORRECTED`（2026-07-19；用户确认的基线保持，Level 9反向审计与`PBF-01`–`PBF-10`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`）bounded修正已回写）；
+- `8.0`–`8.10`：`ACCEPTED / JOURNEY-AMENDED / POST-BASELINE-DOC-CORRECTED`（2026-07-19；用户确认的基线保持，Level 9反向审计与`PBF-01`–`PBF-11`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`）bounded修正已回写）；
 - 当前没有开放的Level 8 Business Decision；
 - clean Catalog为`112 refs / 112 unique`，96个Catalog Result family均有typed contract；
-- 163张关系表的PK、revision、关键列、unique/partial unique、热路径索引和JSON上限已经固化；PBF-10只新增
-  一张Procurement-owned Candidate Member↔Episode Claim关系表，不新增Store；
+- 168张关系表的PK、revision、关键列、unique/partial unique、热路径索引和JSON上限已经固化；PBF-10新增
+  一张Procurement-owned Candidate Member↔Episode Claim关系表，PBF-11新增五张Libra-owned Intake
+  head/N:M关系表，均不新增Store；
 - 当前62项Capability registration、named helper和直接依赖已经完成function-level conservation；
-- Level 8 post-amendment closure audit、`PBF-02`纵向传播、`PBF-03` Acquisition可实现性、`PBF-04` People Candidate数据守恒、`PBF-05` Perception Resolution输入闭包/Person Schema复审、`PBF-06`（含`PBF-06-R1`）Reference/Person/Metadata/Media-Cast、`PBF-07`（含`PBF-07-R1`）Field Observation输入/revision/payload persistence continuity、`PBF-08` Extraction Eligibility、`PBF-09`（含`PBF-09-R1`）Procurement Run Admission及`PBF-10`（含`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`）Triage Pipeline正式输入输出、Candidate Publication机器事务表集与Offer连续性闭合结果为`PASS / NO BLOCKING GAP / NO OPEN BUSINESS DECISION`；
+- Level 8 post-amendment closure audit、`PBF-02`纵向传播、`PBF-03` Acquisition可实现性、`PBF-04` People Candidate数据守恒、`PBF-05` Perception Resolution输入闭包/Person Schema复审、`PBF-06`（含`PBF-06-R1`）Reference/Person/Metadata/Media-Cast、`PBF-07`（含`PBF-07-R1`）Field Observation输入/revision/payload persistence continuity、`PBF-08` Extraction Eligibility、`PBF-09`（含`PBF-09-R1`）Procurement Run Admission、`PBF-10`（含`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`）Triage/Candidate Publication及`PBF-11` Libra Intake正式输入、N:M Episode、Decision/CAS与transaction闭合结果为`PASS / NO BLOCKING GAP / NO OPEN BUSINESS DECISION`；
 - JSON Schema/DDL文件与contract fixture是未来Implementation交付物，其合同已经确定；
 - Level 9可以开始Public Interface and Product Surface结构化设计；
 - Implementation、E2E、Docker与生产部署继续暂停。
@@ -11075,7 +11154,7 @@ Profile、设备和平台只允许改变Baseline映射，不能改变Invariant�
   Perception Resolution输入闭包/Person Schema修正、`PBF-06` Reference/Person/Metadata/Media-Cast闭合与
   `PBF-07`（含`PBF-07-R1`）Field Observation输入/revision/payload persistence continuity及`PBF-08`
   Extraction Eligibility确定性/Control freshness闭合、`PBF-09`（含`PBF-09-R1`）Procurement Run Admission/Seal/Retry连续性
-  与`PBF-10`（含`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`）Triage typed pipeline、Candidate Publication机器事务表集及Offer/continuity闭合，把关系表合同修正为163张并保持112项Capability；
+  与`PBF-10`（含`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`）Triage typed pipeline、Candidate Publication机器事务表集及Offer/continuity闭合，以及`PBF-11` Libra Intake闭合，把关系表合同修正为168张并保持112项Capability；
 - 不修改Level 9的九页信息架构、Intent或Authorization语义；最终全文审计只补齐遗漏Command并把接口合同
   修正为113个Admin method+path加1个public health route；
 - 不把运行故障修复成跨Domain Store写入、静默Fallback、自动降级Outcome或媒体目录旁路写入；
@@ -11926,7 +12005,7 @@ Beta Release Candidate不等于授权部署生产。生产部署、真实媒体�
 | 10.7 | Level 6业务健康、Level 9普通/Advanced边界 | preserved |
 | 10.8 | Level 5/6 Authorization、Level 8 typed Secret与Material safety | preserved |
 | 10.9 | 模块化单体、Physical File Source与Emby External Provider边界 | preserved |
-| 10.10 | 九条旅程、112 Capability、163 tables、113 Admin routes、1 public health route及clean-cut门禁 | preserved after bounded final-audit closure and `PBF-02`–`PBF-10`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`） |
+| 10.10 | 九条旅程、112 Capability、168 tables、113 Admin routes、1 public health route及clean-cut门禁 | preserved after bounded final-audit closure and `PBF-02`–`PBF-11`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`） |
 
 #### 10.11.2 前序Level 10 reservation覆盖审计
 
@@ -12051,7 +12130,7 @@ Automation、Priority、Approval、Workspace与资源配置。它们在被新合
 关闭为历史Evidence。任何新Review Item在完成全局Evidence审计、证明真实缺陷、
 取得必要Owner Decision并形成新的有界Change Set之前，都不能改变本文语义。Level 7、Level 8与Level 9
 均已经Accepted并完成各自必要的Journey amendment；
-post-baseline `PBF-01`–`PBF-10`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`）已经按同一纪律完成bounded合同闭合并记录在Review Section 15；实现、测试或
+post-baseline `PBF-01`–`PBF-11`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`）已经按同一纪律完成bounded合同闭合并记录在Review Section 15；实现、测试或
 部署仍未由本文件授权。
 
 ## Confirmation state
@@ -12064,11 +12143,11 @@ post-baseline `PBF-01`–`PBF-10`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`�
 - Level 5（`5.1`–`5.11`）：`ACCEPTED / JOURNEY-AMENDED`（2026-07-16）
 - Level 6（`6.0`–`6.12`）：`ACCEPTED / JOURNEY-AMENDED`（2026-07-16）
 - Level 7（`7.0`–`7.12`）：`ACCEPTED / JOURNEY-AMENDED`（2026-07-16；durable progress bounded amendment）
-- Level 8（`8.0`–`8.10`）：`ACCEPTED / JOURNEY-AMENDED / POST-BASELINE-DOC-CORRECTED`（2026-07-19；用户确认基线保持，`PBF-01`–`PBF-10`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`）已闭合）
+- Level 8（`8.0`–`8.10`）：`ACCEPTED / JOURNEY-AMENDED / POST-BASELINE-DOC-CORRECTED`（2026-07-19；用户确认基线保持，`PBF-01`–`PBF-11`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`）已闭合）
 - Level 9（`9.0`–`9.11`）：`ACCEPTED / JOURNEY-AMENDED`
   （2026-07-16；8项Journey bounded gap已关闭，post-amendment audit通过并由用户确认）
 - Level 10（`10.0`–`10.12`）：`ACCEPTED`
   （2026-07-16；结构化正文与运行维度反向审计通过并由用户确认）
 - Final Level 0–10 Audit：`CLOSED / APPLIED_AND_AUDITED`（27项bounded修正、1项false positive关闭、`FA-04`已确认并传播）
-- Post-baseline realizability audit：`PBF-01`–`PBF-10 CLOSED / APPLIED_AND_AUDITED`（包含`PBF-06-R1`、`PBF-07-R1`、`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`与`PBF-10-R3`细化；不新增Domain/Handoff/Capability；`PBF-09`新增一张Procurement-owned retry precondition关系表，`PBF-10`新增一张Procurement-owned Candidate Member↔Episode Claim关系表，`PBF-10-R1`闭合Episode relation机器白名单，`PBF-10-R2`闭合Offer与Continuity正式合同，`PBF-10-R3`闭合Run revision head CAS写集，总数保持163）
+- Post-baseline realizability audit：`PBF-01`–`PBF-11 CLOSED / APPLIED_AND_AUDITED`（包含`PBF-06-R1`、`PBF-07-R1`、`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`与`PBF-10-R3`细化；不新增Domain/Handoff/Capability；`PBF-09`新增一张Procurement-owned retry precondition关系表，`PBF-10`新增一张Procurement-owned Candidate Member↔Episode Claim关系表，`PBF-10-R1`闭合Episode relation机器白名单，`PBF-10-R2`闭合Offer与Continuity正式合同，`PBF-10-R3`闭合Run revision head CAS写集，`PBF-11`新增五张Libra-owned Intake head/N:M关系表并闭合Handoff A，关系表总数为168）
 - 旧`SD-*`条款：全部撤销，不具有clean Helix合同效力

@@ -1,6 +1,6 @@
 # ShelfDeck / Helix Documentation Index
 
-Status: clean architecture accepted through `PBF-10`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`）；P0–P7 complete；P8 in progress under standing P2–P13 Local Implementation authorization；E2E、build、production和`media-desktop` changes paused.
+Status: clean architecture accepted through `PBF-11`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`）；P0–P7 complete；P8 in progress under standing P2–P13 Local Implementation authorization；E2E、build、production和`media-desktop` changes paused.
 
 ## Architecture authority
 
