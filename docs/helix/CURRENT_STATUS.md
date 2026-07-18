@@ -13,12 +13,12 @@ Last updated: 2026-07-18
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains；P7 — Procurement |
 | Current phase | P8 — Handoff A and Libra front half |
-| Current phase status | P8-00 baseline receipt in progress |
+| Current phase status | P8-00 PASS；P8-01 in progress |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P7 phase closure `2cf98561d7cf785db4005e65e99b0750d84ce5ce` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p8` on `codex/helix-p8` |
-| Next action | P8-00 exact transition and baseline receipt |
+| Next action | P8-01 Libra public ports and package guards |
 
 Architecture Agent提交`19ed12fa`已闭合`PBF-07-R1`：Page正式收敛为≤65,536 UTF-8 JCS bytes，完整Page作为
 Commit Event immutable typed Evidence保存，并通过Observation→Marker→Result Binding形成禁止GC的历史恢复链；
@@ -138,6 +138,12 @@ P7-11正式clean-tree Exit Audit对`e598874463d07fc7419b5ef467cff167ae85109f`返
 SSOT aggregate为`f72ca6803fff817969d4a6765204a42bcbe46b80493dbc725c314f3687c2be6d`，P2 contract aggregate为
 `96fa463bcc745feddb2f342b1babd354017fd88772b694cc6535229d8671c3fc`，Exit Evidence digest为
 `96e2bcaede2b92a2754a11705b42346cca64b1dac6de2f4a8fa5870cac526278`。P7已满足归档与自动进入P8的全部条件。
+
+P8-00已完成：从P7 closure `2cf98561d7cf785db4005e65e99b0750d84ce5ce`创建独立
+`codex/helix-p8` / `E:\my_project\emby_third_party-helix-p8`。在temporary detached clean checkout上复跑P7 Exit Audit，
+12个P7 fixture family、15表/8 Capability及P2–P6聚合回归全部PASS；审计`findings=[]`、
+`prohibitedActionsRun=[]`，baseline receipt digest为`8dcd255897b38838f98bec55f00bf60b855b1bf173653a2b8a76681625f21f05`。
+下一工作包P8-01。
 
 ## 2. Accepted implementation conclusion
 

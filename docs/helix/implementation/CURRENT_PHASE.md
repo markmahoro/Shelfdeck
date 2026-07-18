@@ -1,6 +1,6 @@
 # P8 Handoff A and Libra Front Half Detailed Plan
 
-Status: Active；P8-00 baseline receipt in progress.
+Status: Active；P8-00 complete；P8-01 in progress.
 
 Last updated: 2026-07-19
 
@@ -45,6 +45,8 @@ Kairox/Task Runtime，不执行真实媒体生产、Workspace写入、Handoff B�
 
 - 从P7 closure `2cf98561d7cf785db4005e65e99b0750d84ce5ce`创建`codex/helix-p8`与独立worktree。
 - fresh clean checkout复跑P7 Exit Audit，冻结P8 baseline、SSOT/P2 aggregate和禁止动作。
+- Done：独立`codex/helix-p8` worktree从P7 closure创建；temporary detached clean checkout在exact closure上复跑P7
+  Exit Audit与P2–P7全部聚合门禁PASS。Evidence见`evidence/P8_00_BASELINE_RECEIPT.md`。
 
 ### P8-01 Libra public ports and package guards
 
