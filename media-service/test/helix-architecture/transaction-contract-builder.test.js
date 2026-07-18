@@ -35,6 +35,26 @@ test('keeps Handoff Accepted writes inside receiving Domain, Control, and Founda
   }
 });
 
+test('materializes the exact Candidate Publication 7+3 write participant contract', () => {
+  const contract = byName.get('Procurement Candidate Publication');
+  assert.deepEqual(contract.participants, [
+    {
+      participantKind: 'domain', owner: 'procurement', access: 'write', tables: [
+        'proc_candidate_packages', 'proc_candidate_season_continuity_claims',
+        'proc_candidate_primary_materials', 'proc_candidate_primary_material_episode_claims',
+        'proc_candidate_related_references', 'proc_candidate_deliveries', 'proc_run_materials'
+      ]
+    },
+    {
+      participantKind: 'foundation', owner: 'execution-foundation', access: 'write', tables: [
+        'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox'
+      ]
+    }
+  ]);
+  assert.equal(contract.writeTables.length, 10);
+  assert.ok(contract.crashFixtures[0].requiredInvariant.includes('Episode Claim/Related relation'));
+});
+
 test('keeps batch authorization before per-Entry Authorization and Case creation', () => {
   const batch = byName.get('Off-deck Batch Authorization Intent');
   assert.equal(batch.writeTables.includes('arca_offdeck_cases'), false);

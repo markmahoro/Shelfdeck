@@ -1,6 +1,6 @@
 # P7 Procurement Detailed Plan
 
-Status: Active；P7-00–P7-06 complete；P7-07 next.
+Status: Active；P7-00–P7-06 complete；P7-07 returned to Design.
 
 Last updated: 2026-07-18
 
@@ -117,6 +117,8 @@ socket、ambient credential、真实Material Field扫描、真实媒体/FFmpeg�
 - Candidate Draft完整包含Identity Claim、最小Identity Metadata、结构、Primary Input Manifest、Related Reference、Field Context和Evidence。
 - 原子发布Package、Primary、Related、Season Claim、Delivery、typed Result、Commit Marker、Audit与Outbox。
 - 强制同一Physical Identity同时最多属于一份仍可被Libra接受的Candidate；变更必须发布新Package。
+- Design Return：`acceptanceBasisDigest`、稳定Offer/Outbox合同及continuity kind持久化映射尚未闭合；详见
+  `evidence/P7_07_CANDIDATE_PUBLICATION_DESIGN_RETURN.md`。闭合前不实现Store。
 
 ### P7-08 Capability registration and Foundation integration
 

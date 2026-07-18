@@ -48,11 +48,11 @@
     {
       "id": "Procurement Candidate Publication",
       "owner": "procurement",
-      "atomicFactSet": "complete `CandidateDraft@1` + exact Run Basis/Triage Rule/Structure Unit/Identity/Manifest Draft fence + Run `candidate_package_revision_head` CAS + immutable Candidate Package + final Primary Input Manifest及N:M Episode Claim/Related relation + package members是Run Selection精确非空子集 + 成员`run_selection → candidate_delivery` + open Handoff Offer + durable typed Result/commit marker + 8.4.2既定Offer Outbox；CommitParticipant只消费Draft/Handle，不旁读Foundation Event Result或Provider；Package、Manifest、Relation、Reservation、Offer与Outbox全有或全无",
+      "atomicFactSet": "complete `CandidateDraft@1` + exact Run Basis/Triage Rule/Structure Unit/Identity/Manifest Draft fence + Run `candidate_package_revision_head` CAS + immutable Candidate Package + final Primary Input Manifest及N:M Episode Claim/Related relation + package members是Run Selection精确非空子集 + 成员`run_selection → candidate_delivery` + open Handoff Offer + durable typed Result/commit marker + 8.4.2既定Offer Outbox；CommitParticipant只消费Draft/Handle，不旁读Foundation Event Result或Provider；Package、Manifest、Relation、Reservation、Offer与Outbox全有或全无；Canonical Transaction的Procurement domain write participant固定为`proc_candidate_packages`、`proc_candidate_season_continuity_claims`、`proc_candidate_primary_materials`、`proc_candidate_primary_material_episode_claims`、`proc_candidate_related_references`、`proc_candidate_deliveries`、`proc_run_materials`，不得从概括性“Manifest/Relation”文字推断或漏表",
       "source": {
         "section": "8.5.4",
         "line": 7652,
-        "lineDigest": "f0fa746655b5232e6ec62ad99d53d5021eb6ef1fc09db2c16853e3a1b6587b18"
+        "lineDigest": "2722c318b0c82023c329a932f318c1ad6075c98f451e68a2981240274dd3d7ff"
       }
     },
     {

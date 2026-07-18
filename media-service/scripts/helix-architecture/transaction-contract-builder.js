@@ -6,7 +6,7 @@ const crashFixtures = Object.freeze({
   'field-observation-page': ['Page DTO/Access/Request digest验证前后、Field observation head CAS前后、immutable revision与Material current-row逐项写入前后、typed Result/marker前后、响应前崩溃', '任一DTO、顺序、continuity、digest、supporting-work或CAS验证失败整页rollback；Field head、immutable page revision、全部Material current rows、typed Result和marker全有或全无；新Material仅初始化unknown/unknown；同marker重放返回原typed Result且不推进revision；terminal page以前不得形成缺失结论', 7497],
   'field-eligibility-reconcile': ['Policy schema/path/precedence边界、terminal coverage形成前后、Selection与Control snapshot读取前后、Batch提交前、逐项basis/revision重验、事务提交前后、响应前崩溃', '只按ExtractionPolicy@1和固定reason precedence计算；无隐藏duplicate suppression；未terminal/Access变化/不可用basis只投影unknown；stale Material row不被覆盖并进入summary；同basis no-op；一个Batch的applied rows全有或全无；无Event Result/marker/Outbox；重启由current facts与rows重新收敛', 9013],
   'procurement-run-admission': ['Execution Basis验证前后、active Triage Rule解析前后、逐成员Selection/Control fence重验、Run/Basis rows写入、Control acquire/assert、typed Result/marker前后、响应前崩溃', '完整Basis、Run、全部run_selection、同Field Procurement Control和ProcurementControlReceipt全有或全无；Rule只能来自注入的Procurement Registry；任一成员stale或冲突整体rollback；不写Outbox', 7621],
-  'procurement-candidate-publication': ['Package/Manifest验证前后、Run Selection子集重验、Package成员写入、Reservation转换、Offer/typed Result/marker/Outbox前后、响应前崩溃', 'Package、完整Manifest、全部candidate_delivery Reservation、唯一open Offer、typed Result、marker和Offer Outbox全有或全无；非精确Run Selection子集不得发布', 7622],
+  'procurement-candidate-publication': ['Package/Manifest验证前后、Run Selection子集重验、Package成员写入、Episode Claim/Related relation写入、Reservation转换、Offer/typed Result/marker/Outbox前后、响应前崩溃', 'Package、完整Manifest、全部Episode Claim/Related relation、全部candidate_delivery Reservation、唯一open Offer、typed Result、marker和Offer Outbox全有或全无；非精确Run Selection子集不得发布', 7622],
   'procurement-run-seal': ['Seal Decision验证前后、Run revision/basis CAS、逐成员terminal Evidence形成、Reservation转换、aggregate Evidence/typed Result/marker前后、响应前崩溃', 'Run sealed head、保留的candidate_delivery、全部released terminal members及逐成员Evidence、三项可重建digest、typed receipt和marker全有或全无；不释放Procurement Control且不写Outbox', 7623],
   'procurement-retry-admission': ['Intent state/digest CAS、current admission head恢复、逐成员precondition replay、consume snapshot写入、新Run/Basis/Selection/Control写入、typed Result/marker前后、响应前崩溃', 'Intent只终结一次；stale分支写完整head/member snapshot和closed primary reason且不建Run；valid分支与唯一新Run、完整Basis、Selection、Control Receipt和matched snapshots全有或全无；共享marker/result可稳定重放；不写Outbox', 7631],
   'perception-acquisition-page': ['第一次Source同步、第二次Acquisition首页、配置/scope不兼容重扫、Acquire后bounded inline payload冻结、Normalize前、Record/Anchor/Relation participant后、cursor head CAS前后、typed Result/marker/Outbox前后、响应前崩溃', '仅从未存在cursor row时logical expected revision为0/storage pointer为NULL；后续Acquisition冻结真实head且revision永不重置；Normalize只读取digest-bound inline DTO，pure Acquire不创建Artifact；任一验证/CAS失败整页rollback；同来源事实不重复；cursor不越过未提交页；同marker重放返回原typed Result及相同storage result digest；Outbox不通知Libra/Arca', 8527],
@@ -68,8 +68,9 @@ const definitions = Object.freeze({
   'Procurement Candidate Publication': {
     commitClass: 'domain_fact_commit',
     writeTables: ['proc_candidate_packages', 'proc_candidate_season_continuity_claims',
-      'proc_candidate_primary_materials', 'proc_candidate_related_references', 'proc_candidate_deliveries',
-      'proc_run_materials', 'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox'],
+      'proc_candidate_primary_materials', 'proc_candidate_primary_material_episode_claims',
+      'proc_candidate_related_references', 'proc_candidate_deliveries', 'proc_run_materials',
+      'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox'],
     readTables: ['proc_procurement_runs', 'proc_run_materials'],
     fixtureRefs: ['procurement-candidate-publication'], hasOutbox: true
   },

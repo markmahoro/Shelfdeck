@@ -12,7 +12,7 @@
       "constraintsContract": "`PK(message_id,consumer_domain)`；publish事务冻结全部intended consumer；`INDEX(state,next_attempt_at_ms,message_id)`",
       "source": {
         "section": "8.5.10",
-        "line": 7839,
+        "line": 7850,
         "lineDigest": "3c0f05667ac3ef0cac1ec5cfa7ae12eb440275bf8dc205e502314945ac622a25"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "`PK(consumer_domain,message_id)`及`UNIQUE(consumer_domain,dedup_key)`",
       "source": {
         "section": "8.5.10",
-        "line": 7840,
+        "line": 7851,
         "lineDigest": "527618bc281f62a92990c7e87107ab9bdbf4af46c15173608baeac69a928b2c7"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "`PK(event_id,resource_key)`；一个Event/resource最多一个有效waiter；`INDEX(resource_key,state,queue_class,local_priority,enqueued_at_ms)`",
       "source": {
         "section": "8.5.10",
-        "line": 7841,
+        "line": 7852,
         "lineDigest": "474029052cb5c6a25572058f9d2d843e1eac1218c3ac45d521316ad38dadaec2"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "`PK(event_attempt_id,resource_key)`；只记录Evidence，不恢复内存Permit；`INDEX(resource_key,acquired_at_ms)`供p50/p95/p99",
       "source": {
         "section": "8.5.10",
-        "line": 7842,
+        "line": 7853,
         "lineDigest": "82c98c804d8d410fe0e79bd69b0001eb75f577e5dd392f00d7c204460c329464"
       }
     },
@@ -56,7 +56,7 @@
       "constraintsContract": "`INDEX(state,opened_at_ms)`；只允许Control Plane写入",
       "source": {
         "section": "8.5.10",
-        "line": 7843,
+        "line": 7854,
         "lineDigest": "d5937bd2976f592c828882ddfaf9278c6fa19bde915a814627c949fd4419fa1e"
       }
     },
@@ -67,7 +67,7 @@
       "constraintsContract": "`UNIQUE(mount_scope_id,inode,content_hash_algorithm,content_hash)`；一项Identity只有一行current Control；controlled必须有完整owner，released必须三个owner列均NULL；首次acquire revision=1，transfer/release必须CAS并递增`control_revision`；从未存在row与released row都可投影uncontrolled，但revision分别为0和当前正整数",
       "source": {
         "section": "8.5.10",
-        "line": 7844,
+        "line": 7855,
         "lineDigest": "4f9b3808278d90fbaf476c838a86d837eba73b6efeab41baef600f7108534246"
       }
     },
@@ -78,7 +78,7 @@
       "constraintsContract": "`PK(material_key,revision)`；append-only；current row每次变化必须与对应revision同事务成立",
       "source": {
         "section": "8.5.10",
-        "line": 7845,
+        "line": 7856,
         "lineDigest": "4d655c5660700eca9eec613a92e72107365c8a6d184db40886572d23b2ddd3f5"
       }
     },
@@ -89,7 +89,7 @@
       "constraintsContract": "`UNIQUE(owner_domain,process_type,process_id,workspace_id)`；`INDEX(owner_domain,state,reclaim_after_ms)`",
       "source": {
         "section": "8.5.10",
-        "line": 7846,
+        "line": 7857,
         "lineDigest": "0237bba27d4a54606d0f1247cf2b04d630d3ca58387cff729528dcab63f160ba"
       }
     },
@@ -100,7 +100,7 @@
       "constraintsContract": "`PK(workspace_id,material_handle_id)`；`UNIQUE(workspace_id,relative_path)`；路径必须通过containment validator",
       "source": {
         "section": "8.5.10",
-        "line": 7847,
+        "line": 7858,
         "lineDigest": "d13e3e265429279e92199f77b6a72195b6e61e057d78a8623f040c6a54c0f401"
       }
     },
@@ -111,7 +111,7 @@
       "constraintsContract": "`UNIQUE(owner_domain,owner_scope_type,owner_scope_id,digest_algorithm,digest_hex,artifact_kind)`；`INDEX(state,created_at_ms)`",
       "source": {
         "section": "8.5.10",
-        "line": 7848,
+        "line": 7859,
         "lineDigest": "99a7fb4d399af349671c18320bd97c02f67b848e8fcb6b8a34769f950ab9eebf"
       }
     },
@@ -122,7 +122,7 @@
       "constraintsContract": "`PK(artifact_handle_id,consumer_domain,consumer_scope_type,consumer_scope_id,reference_kind,reference_revision)`；GC只处理无active reference Artifact",
       "source": {
         "section": "8.5.10",
-        "line": 7849,
+        "line": 7860,
         "lineDigest": "78787f3ac7052b2b3d8024e78b21a426cf0b74cee321911424bf6067b995c01e"
       }
     },
@@ -133,7 +133,7 @@
       "constraintsContract": "`INDEX(owner_domain,scope_type,scope_id,occurred_at_ms)`；append-only",
       "source": {
         "section": "8.5.10",
-        "line": 7850,
+        "line": 7861,
         "lineDigest": "315e101d842e9c6aeebe4c7d83f7859cb3ab491dbef995f9c8d9d7bf1a9823d0"
       }
     },
@@ -144,7 +144,7 @@
       "constraintsContract": "active name可重复但`field_id`唯一；注销Field保留历史row并置`deregistered`，不删除Run/Observation事实；Policy/Access均显式FK；`current_observation_revision IS NULL`表示尚未提交任何Observation page，非NULL时以`(field_id,current_observation_revision)`显式FK指向`proc_field_observations`；该pointer与Observation→Field的循环FK均`DEFERRABLE INITIALLY DEFERRED`；`INDEX(status,field_id)`",
       "source": {
         "section": "8.5.11",
-        "line": 7859,
+        "line": 7870,
         "lineDigest": "41901a1c168fcfa9137b7571d07396113144dfc9b04f16d41ff0de5756f2f73f"
       }
     }

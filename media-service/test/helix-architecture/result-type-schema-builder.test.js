@@ -26,6 +26,13 @@ test('freezes the normalized media probe raster and bounded stream contract', ()
 test('freezes FA-04 continuity kinds and non-empty Primary Input membership', () => {
   assert.deepEqual(schemas.CandidatePackage.properties.seasonContinuityClaims.items.properties.kind.enum,
     ['exact_provider_season', 'persistent_triage_grouping']);
+  assert.deepEqual(schemas.CandidatePackage.properties.seasonContinuityClaims.items.required,
+    ['kind', 'namespace', 'key', 'claimDigest', 'evidenceDigest']);
+  assert.equal(Object.hasOwn(schemas.CandidatePackage.properties.seasonContinuityClaims.items.properties, 'subjectId'), false);
+  for (const field of ['packageRevision', 'runBasisDigest', 'triageRule', 'materialFieldContextRef', 'mediaType',
+    'contentProfile', 'identityMetadata', 'structureEvidenceRef', 'relatedReferences', 'memberControlEvidenceSetDigest']) {
+    assert.ok(schemas.CandidatePackage.required.includes(field), field);
+  }
   assert.equal(schemas.PrimaryInputManifest.properties.members.minItems, 1);
   assert.equal(schemas.PrimaryInputManifest.properties.members.items.additionalProperties, false);
   assert.equal(schemas.PrimaryInputManifest.properties.members.items.properties.ordinal.minimum, 0);

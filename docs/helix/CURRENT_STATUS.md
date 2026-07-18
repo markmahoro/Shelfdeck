@@ -13,12 +13,12 @@ Last updated: 2026-07-18
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains |
 | Current phase | P7 — Procurement |
-| Current phase status | P7-00–P7-06 PASS；P7-07 next |
+| Current phase status | P7-00–P7-06 PASS；P7-07 Design Return |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P6 phase closure `5831c53207d5e71ccdf4792da11ed71be3d47ae1` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p7` on `codex/helix-p7` |
-| Next action | P7-07 immutable Candidate Package publication |
+| Next action | 等待P7-07 Offer/Acceptance Basis/continuity kind合同闭合 |
 
 Architecture Agent提交`19ed12fa`已闭合`PBF-07-R1`：Page正式收敛为≤65,536 UTF-8 JCS bytes，完整Page作为
 Commit Event immutable typed Evidence保存，并通过Observation→Marker→Result Binding形成禁止GC的历史恢复链；
@@ -96,6 +96,11 @@ P7-07实施前反向审计发现Candidate Publication机器Transaction遗漏
 participant固定7张Procurement表，Foundation participant固定3张表，`writeTables`为精确10张并集；Episode Claim、
 全部relation、Reservation、Offer、typed Result、marker与Outbox保持全有或全无。实现侧只读复审确认表总数仍为163，
 没有新增Domain、Owner、Store、Handoff或Capability；P7-07阻塞解除。
+
+继续实施审计又证明三项正式输入仍未闭合：Delivery必填`acceptance_basis_digest`没有来源或digest公式；原子Offer
+缺少稳定`offerId`及正式Outbox message/schema/dedup payload；Candidate DTO与持久化表使用两组不同continuity kind且
+没有映射规则。以上事实进入Libra Intake，不能由实现默认推断。P7-07已再次返回Design，详见
+`implementation/evidence/P7_07_CANDIDATE_PUBLICATION_DESIGN_RETURN.md`。
 
 ## 2. Accepted implementation conclusion
 

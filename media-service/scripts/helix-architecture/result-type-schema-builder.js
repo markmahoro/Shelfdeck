@@ -172,9 +172,20 @@ const special = {
     episodeClaims: arrayOf(triageEpisodeClaim(), 32), memberDigest: digest()
   })), minItems: 1 },
   'CandidatePackage.identityClaim': ref('IdentityClaim'),
+  'CandidatePackage.packageRevision': positiveInteger(),
+  'CandidatePackage.runBasisDigest': digest(),
+  'CandidatePackage.triageRule': object({ ruleRef: id(), revision: positiveInteger(), authorityDigest: digest() }),
+  'CandidatePackage.materialFieldContextRef': object({ fieldId: id(), accessRevision: positiveInteger(), contextDigest: digest() }),
+  'CandidatePackage.mediaType': triageMediaType(),
+  'CandidatePackage.contentProfile': triageProfile(),
+  'CandidatePackage.identityMetadata': triageIdentityMetadata(),
+  'CandidatePackage.structureEvidenceRef': object({ evidenceId: id(), payloadDigest: digest(), unitId: digest(), unitDigest: digest() }),
   'CandidatePackage.seasonContinuityClaims': arrayOf(object({
-    kind: enumText('exact_provider_season', 'persistent_triage_grouping'), claimDigest: digest(), subjectId: id()
+    kind: enumText('exact_provider_season', 'persistent_triage_grouping'), namespace: text(), key: text(),
+    claimDigest: digest(), evidenceDigest: digest()
   }), 64),
+  'CandidatePackage.primaryInputManifestRef': object({ manifestId: id(), manifestDigest: digest(), memberCount: positiveInteger() }),
+  'CandidatePackage.relatedReferences': arrayOf(triageRelatedReference(), 1024),
   'LibraBindingDraft.bindings': arrayOf(object({
     materialKey: digest(), role: text(), episodeKey: nullable(text()), endpointId: id(), location: text(), bindingRevision: positiveInteger()
   })),
@@ -331,7 +342,7 @@ const contracts = {
   IdentityClaim: ['DraftEnvelope', 'claimKind,mediaType,contentProfile,claimedTitle,displayIdentity,claimedYear?,seasonClaim?,javCode?,identityMetadataDigest,structureUnitDigest,sourceHints,claimDigest'],
   PrimaryInputManifestDraft: ['DraftEnvelope', 'preallocatedManifestId,procurementRunId,runBasisDigest,structureEvidencePayloadDigest,unitId,structureKind,memberCount,membersDigest,memberSourceDigest,manifestDraftDigest'],
   PrimaryInputManifest: ['ManifestEnvelope', 'structureKind,members'],
-  CandidatePackage: ['ManifestEnvelope', 'candidatePackageId,procurementRunId,identityClaim,seasonContinuityClaims,primaryInputManifestRef,relatedReferenceSetDigest,packageDigest'],
+  CandidatePackage: ['ManifestEnvelope', 'candidatePackageId,packageRevision,procurementRunId,runBasisDigest,triageRule,materialFieldContextRef,mediaType,contentProfile,displayIdentity,identityMetadata,identityClaim,structureEvidenceRef,seasonContinuityClaims,primaryInputManifestRef,relatedReferences,relatedReferenceSetDigest,memberControlEvidenceSetDigest,packageDigest'],
   CandidateContractVerification: ['VerificationEnvelope', 'candidatePackageId,packageDigest'],
   IntakeMaterialVerification: ['VerificationEnvelope', 'candidatePackageId,packageDigest,verifiedMaterialKeys'],
   LibraBindingDraft: ['DraftEnvelope', 'subjectPlaceholderRef,bindings'],
