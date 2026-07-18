@@ -1,6 +1,6 @@
 # P7 Procurement Detailed Plan
 
-Status: Design Return；P7-00–P7-03 complete；P7-04 blocked by Policy/suppression/Control Projection continuity gaps.
+Status: P7-00–P7-04 complete；P7-05 in progress.
 
 Last updated: 2026-07-18
 
@@ -22,7 +22,7 @@ Procurement Run、Triage和不可变Candidate Package。只使用P2合同与P3�
 | Capabilities | §8.6.3 | 8个`procurement.*@1` closed packages |
 | Product/admin boundary | §9 | 仅Facade合同；P12才实现HTTP/UI |
 
-固定物理合同：13张Procurement表、8个Capability；当前全局合同基线为112 Capability、96 Result、161表、25 canonical transaction。
+固定物理合同：13张Procurement表、8个Capability；当前全局合同基线为112 Capability、96 Result、161表、26 canonical transaction。
 
 ## 3. Hard boundaries
 
@@ -77,10 +77,11 @@ socket、ambient credential、真实Material Field扫描、真实媒体/FFmpeg�
 
 - 由有效Observation、Extraction Policy和当前Control projection计算Eligibility。
 - Procurement/Production/Finished Goods Region只读动态派生，无Region Store/ID/路径锁。
-- Design Return：Observation terminal coverage已可实现，但Beta Extraction Policy仍是无closed rule schema的任意JSON；
-  mandatory duplicate-extraction suppression没有Procurement fact/lifecycle；Material Control没有versioned read Projection，
-  `proc_field_materials`也没有stale-write basis。不得默认allow、默认无suppression或用最终Control CAS掩盖错误Projection。
-  详见`evidence/P7_04_ELIGIBILITY_RECONCILE_DESIGN_RETURN.md`。
+- Done：PBF-08机器合同已精确传播；closed `ExtractionPolicy@1`、唯一reason precedence、typed Selection/Control snapshots和
+  pure evaluator完成。Reconcile在一个scoped UoW中先批量重读Foundation Control，再以Procurement Repository重读全部current
+  basis，按revision/digest拒绝stale item并CAS更新current Eligibility/Region。相同Batch重放no-op；零Event Result、marker、
+  Outbox；完整Architecture `533/533`和P3 Persistence gate PASS。Evidence见
+  `evidence/P7_04_ELIGIBILITY_RECONCILE.md`。
 
 ### P7-05 Procurement Run selection and Control acquisition
 

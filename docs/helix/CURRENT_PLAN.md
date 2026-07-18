@@ -44,11 +44,11 @@ Work Package细节只存在于`implementation/CURRENT_PHASE.md`；当前事实�
 | --- | --- |
 | Phase | P7 — Procurement |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | Design Return；P7-00–P7-03 PASS；P7-04 Policy/suppression/Control Projection合同未闭合 |
+| Status | P7-00–P7-04 PASS；正在实施P7-05 Procurement Run selection and Control acquisition |
 | Implementation baseline | exact P6 phase closure `5831c53207d5e71ccdf4792da11ed71be3d47ae1` |
 | Phase branch/worktree | `codex/helix-p7` / `E:\my_project\emby_third_party-helix-p7` |
 | Allowed now | P2–P13本地代码、unit/contract/isolated fixture、文档与Phase自动转换 |
-| Next action | Architecture Agent闭合P7-04 executable Policy、suppression与versioned Control Projection后恢复实现 |
+| Next action | 实施P7-05 Run immutable selection、Procurement Control acquisition与retry-intent transaction |
 
 ## 4. Master roadmap
 
@@ -56,8 +56,8 @@ Work Package细节只存在于`implementation/CURRENT_PHASE.md`；当前事实�
 | --- | --- | --- | --- |
 | P0 Audit and disposition | `4a16f0a9`差距、旧模块处置、风险和clean-cut方向 | Level 0–10 accepted | **complete**；Evidence已冻结 |
 | P1 Clean skeleton and guards | 固定`src/helix/`、public/internal边界、唯一Root shell、机器架构门禁和manifest框架 | P0；Local Implementation Gate | **complete**；Exit Audit PASS；Evidence frozen |
-| P2 Contract and schema baseline | 112 Capability、96 Result、161 table合同与digest | P1 | **complete**；latest SSOT rematerialized 112/96/161/24；baseline gate PASS |
-| P3 Persistence and atomic foundation | 唯一Kernel、scoped UoW、Control、Commit Marker、Outbox/Inbox、Audit | P2 | **complete**；24 canonical transactions；baseline gate PASS |
+| P2 Contract and schema baseline | 112 Capability、96 Result、161 table合同与digest | P1 | **complete**；latest SSOT rematerialized 112/96/161/26；baseline gate PASS |
+| P3 Persistence and atomic foundation | 唯一Kernel、scoped UoW、Control、Commit Marker、Outbox/Inbox、Audit | P2 | **complete**；26 canonical transactions；baseline gate PASS |
 | P4 Execution and recovery foundation | Work/Plan/Event/Effect、Progress、Control Plane、Resource、Retry/Timeout/Circuit、startup recovery | P3 | **complete**；7 Effect Classes / 31 crash scenarios；Exit Audit PASS |
 | P5 Platform and integrations | Secret/Mount/Workspace/Artifact/Resource/Worker及typed Provider/FFmpeg/file libraries | P3–P4 ports | **complete**；10 fixture families / 31 recovery scenarios；Exit Audit PASS |
 | P6 Horizontal domains | Perception和People独立Store/Facade/Process/Projection | P3–P5 | **complete**；Exit Audit PASS；两域Owner与cross-domain边界闭合 |

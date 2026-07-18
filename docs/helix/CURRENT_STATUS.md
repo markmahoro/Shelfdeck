@@ -13,12 +13,12 @@ Last updated: 2026-07-18
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains |
 | Current phase | P7 — Procurement |
-| Current phase status | P7-00–P7-03 PASS；P7-04 Design Return已由Architecture Agent `2ff2f60d`闭合，正在传播机器合同 |
+| Current phase status | P7-00–P7-04 PASS；P7-05正在实施 |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P6 phase closure `5831c53207d5e71ccdf4792da11ed71be3d47ae1` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p7` on `codex/helix-p7` |
-| Next action | 重物化PBF-08机器合同并实现P7-04 Extraction Eligibility Reconcile |
+| Next action | 实施P7-05 Procurement Run selection、Control acquisition与retry-intent transaction |
 
 Architecture Agent提交`19ed12fa`已闭合`PBF-07-R1`：Page正式收敛为≤65,536 UTF-8 JCS bytes，完整Page作为
 Commit Event immutable typed Evidence保存，并通过Observation→Marker→Result Binding形成禁止GC的历史恢复链；
@@ -40,6 +40,14 @@ Architecture Agent提交`2ff2f60d`已闭合`PBF-08`：固定Beta `ExtractionPoli
 删除错误的Procurement duplicate-suppression前提，补齐versioned `MaterialControlProjectionSnapshot`、
 `ExtractionEligibilityDecision/Batch/ReconcileSummary`、stale-safe CAS、terminal missing、批事务与restart收敛合同。
 该修正不新增Domain、Handoff、Capability或关系表；P7-04实现阻塞解除。本实现线程只原样纳入SSOT delta，未自行修改SSOT。
+
+P7-04现已完成：`4c4a2c8a`把PBF-08精确传播为112/96/161/26机器合同，`9419e8f5`实现closed Policy验证、
+pure Eligibility evaluator和versioned Material Control Query，`5a36fdbc`实现同一SQLite Unit of Work内的Foundation
+Control批量重读与Procurement Reconcile。Batch按Field和最多100个排序Identity有界；事务重读Field/Access/terminal
+Observation/Policy/Material Binding/Selection/Control，逐项拒绝stale basis，以Eligibility revision CAS原子更新current row；
+相同Batch重放为no-op，且不写Event Result、marker或Outbox。聚焦反例、完整Architecture `533/533`和P3 Persistence
+聚合门禁均PASS；未运行禁止的外部动作，本线程未编辑SSOT或`media-desktop`。证据见
+`implementation/evidence/P7_04_ELIGIBILITY_RECONCILE.md`。
 
 ## 2. Accepted implementation conclusion
 
