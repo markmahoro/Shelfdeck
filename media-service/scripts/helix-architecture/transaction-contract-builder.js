@@ -67,7 +67,7 @@ const definitions = Object.freeze({
   },
   'Procurement Candidate Publication': {
     commitClass: 'domain_fact_commit',
-    writeTables: ['proc_candidate_packages', 'proc_candidate_season_continuity_claims',
+    writeTables: ['proc_procurement_runs', 'proc_candidate_packages', 'proc_candidate_season_continuity_claims',
       'proc_candidate_primary_materials', 'proc_candidate_primary_material_episode_claims',
       'proc_candidate_related_references', 'proc_candidate_deliveries', 'proc_run_materials',
       'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox'],

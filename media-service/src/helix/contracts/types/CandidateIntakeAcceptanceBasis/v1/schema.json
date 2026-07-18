@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/CandidateIntakeAcceptanceBasis/v1",
+  "title": "CandidateIntakeAcceptanceBasis@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/CandidateIntakeAcceptanceBasis/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "handoffContractRef": {
+      "const": "helix://handoffs/procurement-to-libra/v1"
+    },
+    "acceptanceOwnerDomain": {
+      "const": "libra"
+    },
+    "targetContext": {
+      "const": "libra_intake"
+    },
+    "candidatePackageId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "packageRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "packageDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "primaryInputManifestDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "seasonContinuityClaimSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "relatedReferenceSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "memberControlEvidenceSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "acceptanceBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "handoffContractRef",
+    "acceptanceOwnerDomain",
+    "targetContext",
+    "candidatePackageId",
+    "packageRevision",
+    "packageDigest",
+    "primaryInputManifestDigest",
+    "seasonContinuityClaimSetDigest",
+    "relatedReferenceSetDigest",
+    "memberControlEvidenceSetDigest",
+    "acceptanceBasisDigest"
+  ]
+}

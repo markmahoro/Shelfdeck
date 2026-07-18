@@ -8,7 +8,10 @@ const HELPER_SOURCES = {
   OnDeckCommitReceipt: { section: '8.6.19', line: 8009 },
   OffloadCompletionFact: { section: '8.6.19', line: 8010 },
   PeopleCandidateDraft: { section: '8.6.19', line: 8033 },
-  PrimaryInputManifest: { section: '8.6.19', line: 8932 }
+  PrimaryInputManifest: { section: '8.6.19', line: 8932 },
+  SeasonContinuityClaim: { section: '8.6.18', line: 8722 },
+  CandidateIntakeAcceptanceBasis: { section: '8.6.18', line: 8727 },
+  ProcurementCandidateOfferAvailableMessage: { section: '8.6.18', line: 8728 }
 };
 
 function readResultSourceEntries(contractsRoot) {
@@ -40,7 +43,7 @@ function buildResultTypeRegistry(contractsRoot) {
     owner: 'contracts',
     status: 'active',
     targetCatalogResultCount: 86,
-    helperCount: 4,
+    helperCount: 7,
     entries
   };
 }

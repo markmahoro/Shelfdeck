@@ -35,12 +35,12 @@ test('keeps Handoff Accepted writes inside receiving Domain, Control, and Founda
   }
 });
 
-test('materializes the exact Candidate Publication 7+3 write participant contract', () => {
+test('materializes the exact Candidate Publication 8+3 write participant contract', () => {
   const contract = byName.get('Procurement Candidate Publication');
   assert.deepEqual(contract.participants, [
     {
       participantKind: 'domain', owner: 'procurement', access: 'write', tables: [
-        'proc_candidate_packages', 'proc_candidate_season_continuity_claims',
+        'proc_procurement_runs', 'proc_candidate_packages', 'proc_candidate_season_continuity_claims',
         'proc_candidate_primary_materials', 'proc_candidate_primary_material_episode_claims',
         'proc_candidate_related_references', 'proc_candidate_deliveries', 'proc_run_materials'
       ]
@@ -51,7 +51,8 @@ test('materializes the exact Candidate Publication 7+3 write participant contrac
       ]
     }
   ]);
-  assert.equal(contract.writeTables.length, 10);
+  assert.equal(contract.writeTables.length, 11);
+  assert.ok(contract.readTables.includes('proc_procurement_runs'));
   assert.ok(contract.crashFixtures[0].requiredInvariant.includes('Episode Claim/Related relation'));
 });
 

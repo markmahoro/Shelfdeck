@@ -103,18 +103,19 @@
     },
     "semanticRules": [
       "`PK(candidate_package_id,claim_kind,claim_namespace,claim_key)`",
+      "逐行无损映射`SeasonContinuityClaim@1`，禁止任何别名或转换值写入Store",
       "仅Series",
       "不存在row是合法粗入库",
       "title/year/path/folder禁止编码为claim key"
     ],
     "rawContract": {
       "columns": "`candidate_package_id FK, claim_kind(provider_season_identity|triage_grouping_lineage), claim_namespace, claim_key, claim_digest, evidence_digest`",
-      "constraints": "`PK(candidate_package_id,claim_kind,claim_namespace,claim_key)`；仅Series；不存在row是合法粗入库；title/year/path/folder禁止编码为claim key"
+      "constraints": "`PK(candidate_package_id,claim_kind,claim_namespace,claim_key)`；逐行无损映射`SeasonContinuityClaim@1`，禁止任何别名或转换值写入Store；仅Series；不存在row是合法粗入库；title/year/path/folder禁止编码为claim key"
     },
     "source": {
       "section": "8.5.11",
-      "line": 7880,
-      "lineDigest": "3cbfd04483d393cd3c6358ec63f8e8818cb46394b8f94bc509ce3ea9b796f3fd"
+      "line": 7900,
+      "lineDigest": "1c563ac6c4b5199e831b0af9087d257814aa903356da4d722e583a3a3de9e3b1"
     },
     "foreignKeys": [
       {

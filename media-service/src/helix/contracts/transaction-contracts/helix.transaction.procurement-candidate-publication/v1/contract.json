@@ -7,13 +7,14 @@
     "displayName": "Procurement Candidate Publication",
     "ownerScope": "procurement",
     "commitClass": "domain_fact_commit",
-    "atomicFactSet": "complete `CandidateDraft@1` + exact Run Basis/Triage Rule/Structure Unit/Identity/Manifest Draft fence + Run `candidate_package_revision_head` CAS + immutable Candidate Package + final Primary Input Manifest及N:M Episode Claim/Related relation + package members是Run Selection精确非空子集 + 成员`run_selection → candidate_delivery` + open Handoff Offer + durable typed Result/commit marker + 8.4.2既定Offer Outbox；CommitParticipant只消费Draft/Handle，不旁读Foundation Event Result或Provider；Package、Manifest、Relation、Reservation、Offer与Outbox全有或全无；Canonical Transaction的Procurement domain write participant固定为`proc_candidate_packages`、`proc_candidate_season_continuity_claims`、`proc_candidate_primary_materials`、`proc_candidate_primary_material_episode_claims`、`proc_candidate_related_references`、`proc_candidate_deliveries`、`proc_run_materials`，不得从概括性“Manifest/Relation”文字推断或漏表",
+    "atomicFactSet": "complete `CandidateDraft@1` + exact Run Basis/Triage Rule/Structure Unit/Identity/Manifest Draft fence + Run `candidate_package_revision_head` CAS + immutable Candidate Package + final Primary Input Manifest及N:M Episode Claim/Related relation + package members是Run Selection精确非空子集 + 成员`run_selection → candidate_delivery` + 从final Package唯一派生的`CandidateIntakeAcceptanceBasis@1`和stable `offerId` + open Handoff Offer + durable typed Result/commit marker + `ProcurementCandidateOfferAvailableMessage@1` Outbox；CommitParticipant只消费Draft/Handle，不旁读Foundation Event Result或Provider；Run revision head、Package、Manifest、Relation、Reservation、Offer、Result/marker与Outbox全有或全无；Canonical Transaction的Procurement domain write participant固定为`proc_procurement_runs`、`proc_candidate_packages`、`proc_candidate_season_continuity_claims`、`proc_candidate_primary_materials`、`proc_candidate_primary_material_episode_claims`、`proc_candidate_related_references`、`proc_candidate_deliveries`、`proc_run_materials`，不得从概括性“Run fence/Manifest/Relation”文字推断或漏表",
     "participants": [
       {
         "participantKind": "domain",
         "owner": "procurement",
         "access": "write",
         "tables": [
+          "proc_procurement_runs",
           "proc_candidate_packages",
           "proc_candidate_season_continuity_claims",
           "proc_candidate_primary_materials",
@@ -35,6 +36,7 @@
       }
     ],
     "writeTables": [
+      "proc_procurement_runs",
       "proc_candidate_packages",
       "proc_candidate_season_continuity_claims",
       "proc_candidate_primary_materials",
@@ -74,8 +76,8 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7652,
-      "lineDigest": "2722c318b0c82023c329a932f318c1ad6075c98f451e68a2981240274dd3d7ff"
+      "line": 7663,
+      "lineDigest": "fc5031dd1c31aad5bf1402f6fb5b5ec75bb81edd94c7718b7bee3077d57ab887"
     }
   }
 }

@@ -6,9 +6,10 @@ const { buildResultTypeSchemas } = require('../../scripts/helix-architecture/res
 
 const schemas = buildResultTypeSchemas();
 
-test('builds 86 Catalog Result schemas and the four SSOT helper types', () => {
-  assert.equal(Object.keys(schemas).length, 90);
-  for (const helper of ['OnDeckCommitReceipt', 'OffloadCompletionFact', 'PeopleCandidateDraft', 'PrimaryInputManifest']) assert.ok(schemas[helper]);
+test('builds 86 Catalog Result schemas and the seven SSOT helper types', () => {
+  assert.equal(Object.keys(schemas).length, 93);
+  for (const helper of ['OnDeckCommitReceipt', 'OffloadCompletionFact', 'PeopleCandidateDraft', 'PrimaryInputManifest',
+    'SeasonContinuityClaim', 'CandidateIntakeAcceptanceBasis', 'ProcurementCandidateOfferAvailableMessage']) assert.ok(schemas[helper]);
 });
 
 test('freezes the normalized media probe raster and bounded stream contract', () => {
@@ -24,13 +25,14 @@ test('freezes the normalized media probe raster and bounded stream contract', ()
 });
 
 test('freezes FA-04 continuity kinds and non-empty Primary Input membership', () => {
-  assert.deepEqual(schemas.CandidatePackage.properties.seasonContinuityClaims.items.properties.kind.enum,
-    ['exact_provider_season', 'persistent_triage_grouping']);
-  assert.deepEqual(schemas.CandidatePackage.properties.seasonContinuityClaims.items.required,
-    ['kind', 'namespace', 'key', 'claimDigest', 'evidenceDigest']);
-  assert.equal(Object.hasOwn(schemas.CandidatePackage.properties.seasonContinuityClaims.items.properties, 'subjectId'), false);
+  assert.equal(schemas.CandidatePackage.properties.seasonContinuityClaims.items.$ref,
+    'helix://contracts/types/SeasonContinuityClaim/v1');
+  assert.deepEqual(schemas.SeasonContinuityClaim.properties.claimKind.enum,
+    ['provider_season_identity', 'triage_grouping_lineage']);
+  assert.equal(Object.hasOwn(schemas.SeasonContinuityClaim.properties, 'subjectId'), false);
   for (const field of ['packageRevision', 'runBasisDigest', 'triageRule', 'materialFieldContextRef', 'mediaType',
-    'contentProfile', 'identityMetadata', 'structureEvidenceRef', 'relatedReferences', 'memberControlEvidenceSetDigest']) {
+    'contentProfile', 'identityMetadata', 'structureEvidenceRef', 'seasonContinuityClaimSetDigest', 'relatedReferences',
+    'memberControlEvidenceSetDigest']) {
     assert.ok(schemas.CandidatePackage.required.includes(field), field);
   }
   assert.equal(schemas.PrimaryInputManifest.properties.members.minItems, 1);
@@ -43,6 +45,18 @@ test('keeps On-deck atomic success and business not-available distinct from Runt
   assert.equal(schemas.OnDeckCommitResult.properties.offloadCompletionFact.$ref, 'helix://contracts/types/OffloadCompletionFact/v1');
   assert.deepEqual(schemas.ArtifactAcquisitionResult.properties.resultKind.enum, ['acquired', 'not_available']);
   for (const schema of Object.values(schemas)) assert.equal(Object.hasOwn(schema.properties || {}, 'kind'), false);
+});
+
+test('freezes Candidate Publication acceptance basis and offer message helpers', () => {
+  const basis = schemas.CandidateIntakeAcceptanceBasis;
+  assert.equal(basis.properties.handoffContractRef.const, 'helix://handoffs/procurement-to-libra/v1');
+  assert.equal(basis.properties.acceptanceOwnerDomain.const, 'libra');
+  assert.equal(basis.properties.targetContext.const, 'libra_intake');
+  assert.ok(basis.required.includes('acceptanceBasisDigest'));
+  const message = schemas.ProcurementCandidateOfferAvailableMessage;
+  assert.equal(message.properties.messageKind.const, 'procurement_candidate_offer_available');
+  assert.equal(message.properties.acceptanceOwnerDomain.const, 'libra');
+  assert.ok(message.required.includes('offerId'));
 });
 
 test('freezes the Field Observation page and commit result canonical byte ceilings', () => {

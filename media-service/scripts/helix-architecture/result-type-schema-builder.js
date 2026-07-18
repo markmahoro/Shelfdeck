@@ -105,6 +105,7 @@ const acceptedFieldMaterial = object({
 const triageProfile = () => enumText('movie', 'series', 'jav', 'western_adult');
 const triageMediaType = () => enumText('single', 'group');
 const triageEpisodeClaim = () => object({ episodeKey: text(), seasonClaimDigest: digest(), claimDigest: digest() });
+const seasonContinuityClaim = () => ref('SeasonContinuityClaim');
 const triageIdentityMetadata = () => object({ claimedTitle: text(), claimedYear: positiveInteger(),
   seasonClaim: object({ claimKind: enumText('explicit_number', 'provisional_group'), seasonNumber: positiveInteger(),
     provisionalGroupKey: digest(), claimDigest: digest() }, ['claimKind', 'claimDigest']), javCode: text(),
@@ -119,8 +120,8 @@ const triageRelatedReference = () => object({ referenceId: id(), primaryMaterial
   checksumHex: digest(), associationEvidenceDigest: digest(), referenceDigest: digest() });
 const triageUnit = () => object({ unitId: digest(), mediaType: triageMediaType(), contentProfile: triageProfile(),
   structureKind: enumText('single', 'season'), displayIdentity: text(), identityMetadata: triageIdentityMetadata(),
-  seasonContinuityClaims: arrayOf(object({ kind: enumText('exact_provider_season', 'persistent_triage_grouping'), namespace: text(),
-    key: text(), claimDigest: digest(), evidenceDigest: digest() }), 64), members: { ...arrayOf(object({ materialKey: digest(),
+  seasonContinuityClaims: arrayOf(seasonContinuityClaim(), 64), seasonContinuityClaimSetDigest: digest(),
+  members: { ...arrayOf(object({ materialKey: digest(),
     bindingRevision: positiveInteger(), admittedControlRevision: positiveInteger(), admittedControlProjectionDigest: digest(),
     role: enumText('primary_payload', 'structural_dependency'), episodeClaims: arrayOf(triageEpisodeClaim(), 32), memberClaimDigest: digest()
   }), 1024), minItems: 1 }, relatedReferences: arrayOf(triageRelatedReference(), 1024), unitDigest: digest() });
@@ -180,12 +181,21 @@ const special = {
   'CandidatePackage.contentProfile': triageProfile(),
   'CandidatePackage.identityMetadata': triageIdentityMetadata(),
   'CandidatePackage.structureEvidenceRef': object({ evidenceId: id(), payloadDigest: digest(), unitId: digest(), unitDigest: digest() }),
-  'CandidatePackage.seasonContinuityClaims': arrayOf(object({
-    kind: enumText('exact_provider_season', 'persistent_triage_grouping'), namespace: text(), key: text(),
-    claimDigest: digest(), evidenceDigest: digest()
-  }), 64),
+  'CandidatePackage.seasonContinuityClaims': arrayOf(seasonContinuityClaim(), 64),
+  'CandidatePackage.seasonContinuityClaimSetDigest': digest(),
   'CandidatePackage.primaryInputManifestRef': object({ manifestId: id(), manifestDigest: digest(), memberCount: positiveInteger() }),
   'CandidatePackage.relatedReferences': arrayOf(triageRelatedReference(), 1024),
+  'SeasonContinuityClaim.claimKind': enumText('provider_season_identity', 'triage_grouping_lineage'),
+  'SeasonContinuityClaim.claimNamespace': text(),
+  'SeasonContinuityClaim.claimKey': text(),
+  'CandidateIntakeAcceptanceBasis.handoffContractRef': { const: 'helix://handoffs/procurement-to-libra/v1' },
+  'CandidateIntakeAcceptanceBasis.acceptanceOwnerDomain': { const: 'libra' },
+  'CandidateIntakeAcceptanceBasis.targetContext': { const: 'libra_intake' },
+  'CandidateIntakeAcceptanceBasis.packageRevision': positiveInteger(),
+  'ProcurementCandidateOfferAvailableMessage.messageKind': { const: 'procurement_candidate_offer_available' },
+  'ProcurementCandidateOfferAvailableMessage.acceptanceOwnerDomain': { const: 'libra' },
+  'ProcurementCandidateOfferAvailableMessage.targetContext': { const: 'libra_intake' },
+  'ProcurementCandidateOfferAvailableMessage.packageRevision': positiveInteger(),
   'LibraBindingDraft.bindings': arrayOf(object({
     materialKey: digest(), role: text(), episodeKey: nullable(text()), endpointId: id(), location: text(), bindingRevision: positiveInteger()
   })),
@@ -342,7 +352,10 @@ const contracts = {
   IdentityClaim: ['DraftEnvelope', 'claimKind,mediaType,contentProfile,claimedTitle,displayIdentity,claimedYear?,seasonClaim?,javCode?,identityMetadataDigest,structureUnitDigest,sourceHints,claimDigest'],
   PrimaryInputManifestDraft: ['DraftEnvelope', 'preallocatedManifestId,procurementRunId,runBasisDigest,structureEvidencePayloadDigest,unitId,structureKind,memberCount,membersDigest,memberSourceDigest,manifestDraftDigest'],
   PrimaryInputManifest: ['ManifestEnvelope', 'structureKind,members'],
-  CandidatePackage: ['ManifestEnvelope', 'candidatePackageId,packageRevision,procurementRunId,runBasisDigest,triageRule,materialFieldContextRef,mediaType,contentProfile,displayIdentity,identityMetadata,identityClaim,structureEvidenceRef,seasonContinuityClaims,primaryInputManifestRef,relatedReferences,relatedReferenceSetDigest,memberControlEvidenceSetDigest,packageDigest'],
+  CandidatePackage: ['ManifestEnvelope', 'candidatePackageId,packageRevision,procurementRunId,runBasisDigest,triageRule,materialFieldContextRef,mediaType,contentProfile,displayIdentity,identityMetadata,identityClaim,structureEvidenceRef,seasonContinuityClaims,seasonContinuityClaimSetDigest,primaryInputManifestRef,relatedReferences,relatedReferenceSetDigest,memberControlEvidenceSetDigest,packageDigest'],
+  SeasonContinuityClaim: [null, 'claimKind,claimNamespace,claimKey,claimDigest,evidenceDigest'],
+  CandidateIntakeAcceptanceBasis: [null, 'handoffContractRef,acceptanceOwnerDomain,targetContext,candidatePackageId,packageRevision,packageDigest,primaryInputManifestDigest,seasonContinuityClaimSetDigest,relatedReferenceSetDigest,memberControlEvidenceSetDigest,acceptanceBasisDigest'],
+  ProcurementCandidateOfferAvailableMessage: [null, 'messageKind,offerId,candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest,acceptanceOwnerDomain,targetContext'],
   CandidateContractVerification: ['VerificationEnvelope', 'candidatePackageId,packageDigest'],
   IntakeMaterialVerification: ['VerificationEnvelope', 'candidatePackageId,packageDigest,verifiedMaterialKeys'],
   LibraBindingDraft: ['DraftEnvelope', 'subjectPlaceholderRef,bindings'],

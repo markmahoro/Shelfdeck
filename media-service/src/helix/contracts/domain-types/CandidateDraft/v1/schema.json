@@ -399,44 +399,14 @@
             "seasonContinuityClaims": {
               "type": "array",
               "items": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "enum": [
-                      "exact_provider_season",
-                      "persistent_triage_grouping"
-                    ]
-                  },
-                  "namespace": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "key": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "claimDigest": {
-                    "type": "string",
-                    "minLength": 1,
-                    "pattern": "^[a-f0-9]{64}$"
-                  },
-                  "evidenceDigest": {
-                    "type": "string",
-                    "minLength": 1,
-                    "pattern": "^[a-f0-9]{64}$"
-                  }
-                },
-                "required": [
-                  "kind",
-                  "namespace",
-                  "key",
-                  "claimDigest",
-                  "evidenceDigest"
-                ]
+                "$ref": "helix://contracts/types/SeasonContinuityClaim/v1"
               },
               "maxItems": 64
+            },
+            "seasonContinuityClaimSetDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
             },
             "members": {
               "type": "array",
@@ -605,6 +575,7 @@
             "displayIdentity",
             "identityMetadata",
             "seasonContinuityClaims",
+            "seasonContinuityClaimSetDigest",
             "members",
             "relatedReferences",
             "unitDigest"
@@ -623,41 +594,14 @@
     "seasonContinuityClaims": {
       "type": "array",
       "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "kind": {
-            "type": "string",
-            "minLength": 1
-          },
-          "namespace": {
-            "type": "string",
-            "minLength": 1
-          },
-          "key": {
-            "type": "string",
-            "minLength": 1
-          },
-          "claimDigest": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
-          },
-          "evidenceDigest": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
-          }
-        },
-        "required": [
-          "kind",
-          "namespace",
-          "key",
-          "claimDigest",
-          "evidenceDigest"
-        ]
+        "$ref": "helix://contracts/types/SeasonContinuityClaim/v1"
       },
       "maxItems": 64
+    },
+    "seasonContinuityClaimSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     },
     "relatedReferences": {
       "type": "array",
@@ -769,6 +713,7 @@
     "structureEvidence",
     "primaryInputManifestDraft",
     "seasonContinuityClaims",
+    "seasonContinuityClaimSetDigest",
     "relatedReferences",
     "relatedReferenceSetDigest",
     "memberControlEvidenceSetDigest",

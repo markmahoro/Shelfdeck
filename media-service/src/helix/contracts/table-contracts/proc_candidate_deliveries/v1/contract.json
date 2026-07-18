@@ -134,18 +134,20 @@
       "rules": []
     },
     "semanticRules": [
+      "`offer_id`与`acceptance_basis_digest`必须分别等于8.6.18从final `CandidatePackage@1`计算的`CandidateIntakeAcceptanceBasis@1`公式结果，且同事务存在唯一`ProcurementCandidateOfferAvailableMessage@1` Outbox",
       "`UNIQUE(candidate_package_id,package_digest,acceptance_basis_digest)`",
       "同一Candidate至多一个open Offer",
+      "相同Offer重放不得新增row或Outbox",
       "`INDEX(state,offered_at_ms)`"
     ],
     "rawContract": {
       "columns": "`offer_id PK, candidate_package_id FK, package_digest, acceptance_basis_digest, state, handoff_receipt_id, offered_at_ms, closed_at_ms`",
-      "constraints": "`UNIQUE(candidate_package_id,package_digest,acceptance_basis_digest)`；同一Candidate至多一个open Offer；`INDEX(state,offered_at_ms)`"
+      "constraints": "`offer_id`与`acceptance_basis_digest`必须分别等于8.6.18从final `CandidatePackage@1`计算的`CandidateIntakeAcceptanceBasis@1`公式结果，且同事务存在唯一`ProcurementCandidateOfferAvailableMessage@1` Outbox；`UNIQUE(candidate_package_id,package_digest,acceptance_basis_digest)`；同一Candidate至多一个open Offer；相同Offer重放不得新增row或Outbox；`INDEX(state,offered_at_ms)`"
     },
     "source": {
       "section": "8.5.11",
-      "line": 7884,
-      "lineDigest": "65b00c677b93c57ad5badfab5af8fbb175b5a2386841af7e0262f4ca45181140"
+      "line": 7904,
+      "lineDigest": "2ac7ad7412afb014b7c6306fb2932f1c9b38fc2dccf81ad2fb228e87e8e8d5cc"
     },
     "foreignKeys": [
       {

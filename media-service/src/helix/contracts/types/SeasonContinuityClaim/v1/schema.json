@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/SeasonContinuityClaim/v1",
+  "title": "SeasonContinuityClaim@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/SeasonContinuityClaim/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "claimKind": {
+      "type": "string",
+      "enum": [
+        "provider_season_identity",
+        "triage_grouping_lineage"
+      ]
+    },
+    "claimNamespace": {
+      "type": "string",
+      "minLength": 1
+    },
+    "claimKey": {
+      "type": "string",
+      "minLength": 1
+    },
+    "claimDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "evidenceDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "claimKind",
+    "claimNamespace",
+    "claimKey",
+    "claimDigest",
+    "evidenceDigest"
+  ]
+}

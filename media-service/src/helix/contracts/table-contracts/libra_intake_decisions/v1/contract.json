@@ -171,6 +171,8 @@
     },
     "semanticRules": [
       "`UNIQUE(offer_id)`",
+      "`offer_id/candidate/package/acceptance basis`必须逐项等于对应Delivery与typed Offer message并由Libra重算Basis验证",
+      "`candidate_continuity_set_digest`使用8.6.18同一claim-set公式，matched Subject与Episode overlap是Libra处理Offer时另行冻结的current Decision Evidence，不进入Offer Basis",
       "immutable",
       "`season_extension`要求exactly one target且zero overlap",
       "同一Candidate/Package digest只允许一个accepted Decision的partial unique index",
@@ -178,12 +180,12 @@
     ],
     "rawContract": {
       "columns": "`intake_decision_id PK, offer_id, candidate_package_id, package_digest, acceptance_basis_digest, candidate_continuity_set_digest, matched_subject_set_digest, episode_overlap_digest, result(new_subject|season_extension|rejected), target_subject_id, rejection_schema_ref, decision_digest, decided_at_ms`",
-      "constraints": "`UNIQUE(offer_id)`；immutable；`season_extension`要求exactly one target且zero overlap；同一Candidate/Package digest只允许一个accepted Decision的partial unique index；Intake不升级为Business Process Root"
+      "constraints": "`UNIQUE(offer_id)`；`offer_id/candidate/package/acceptance basis`必须逐项等于对应Delivery与typed Offer message并由Libra重算Basis验证；`candidate_continuity_set_digest`使用8.6.18同一claim-set公式，matched Subject与Episode overlap是Libra处理Offer时另行冻结的current Decision Evidence，不进入Offer Basis；immutable；`season_extension`要求exactly one target且zero overlap；同一Candidate/Package digest只允许一个accepted Decision的partial unique index；Intake不升级为Business Process Root"
     },
     "source": {
       "section": "8.5.11",
-      "line": 7885,
-      "lineDigest": "9d57abf0e9b04a534422ff150d15fd434db9461fffe0f42842013f7cacc31c1c"
+      "line": 7905,
+      "lineDigest": "9613416260ace31b0f619efea87dff5428a6d585355ad40b9408182287f0c713"
     },
     "foreignKeys": []
   }

@@ -283,6 +283,7 @@ const relatedReference = () => object({
   identity: typeRef('PhysicalMaterialIdentity'), endpointId: id(), location: text(), checksumAlgorithm: { const: 'sha256' },
   checksumHex: digest(), associationEvidenceDigest: digest(), referenceDigest: digest()
 });
+const seasonContinuityClaim = () => typeRef('SeasonContinuityClaim');
 const identityMetadata = () => object({
   claimedTitle: text(), claimedYear: positiveInteger(),
   seasonClaim: object({ claimKind: enumText('explicit_number', 'provisional_group'), seasonNumber: positiveInteger(),
@@ -294,8 +295,8 @@ const identityMetadata = () => object({
 }, ['claimedTitle', 'contentProfileHint', 'sourceHints', 'metadataDigest']);
 const triageUnit = () => object({
   unitId: digest(), mediaType: mediaType(), contentProfile: profile(), structureKind: structureKind(), displayIdentity: text(),
-  identityMetadata: identityMetadata(), seasonContinuityClaims: arrayOf(object({ kind: enumText('exact_provider_season', 'persistent_triage_grouping'),
-    namespace: text(), key: text(), claimDigest: digest(), evidenceDigest: digest() }), 64),
+  identityMetadata: identityMetadata(), seasonContinuityClaims: arrayOf(seasonContinuityClaim(), 64),
+  seasonContinuityClaimSetDigest: digest(),
   members: { ...arrayOf(object({ materialKey: digest(), bindingRevision: positiveInteger(), admittedControlRevision: positiveInteger(),
     admittedControlProjectionDigest: digest(), role: enumText('primary_payload', 'structural_dependency'),
     episodeClaims: arrayOf(episodeClaim(), 32), memberClaimDigest: digest() }), 1024), minItems: 1 },
@@ -359,8 +360,8 @@ function candidateDraftSchema() {
     materialFieldContextRef: object({ fieldId: id(), accessRevision: positiveInteger(), contextDigest: digest() }),
     mediaType: mediaType(), contentProfile: profile(), displayIdentity: text(), identityMetadata: identityMetadata(),
     identityClaim: typeRef('IdentityClaim'), structureEvidence: object({ evidenceId: id(), payloadDigest: digest(), unit: triageUnit() }),
-    primaryInputManifestDraft: typeRef('PrimaryInputManifestDraft'), seasonContinuityClaims: arrayOf(object({ kind: text(), namespace: text(),
-      key: text(), claimDigest: digest(), evidenceDigest: digest() }), 64), relatedReferences: arrayOf(relatedReference(), 1024),
+    primaryInputManifestDraft: typeRef('PrimaryInputManifestDraft'), seasonContinuityClaims: arrayOf(seasonContinuityClaim(), 64),
+    seasonContinuityClaimSetDigest: digest(), relatedReferences: arrayOf(relatedReference(), 1024),
     relatedReferenceSetDigest: digest(), memberControlEvidenceSetDigest: digest(), candidateDraftDigest: digest()
   });
 }
