@@ -42,17 +42,21 @@ Work Package细节只存在于`implementation/CURRENT_PHASE.md`；当前事实�
 `proc_candidate_primary_material_episode_claims`）与3张Foundation表构成精确10张`writeTables`；不改变Domain、Owner、
 Store、Handoff、Capability或163张关系表总数。
 
+`PBF-10-R2`进一步固定Package-derived `CandidateIntakeAcceptanceBasis@1`、stable Offer ID、typed Offer Outbox
+message/consumer/dedup合同，并把Season Continuity Claim全链路统一为
+`provider_season_identity|triage_grouping_lineage`；同样不扩大任何Owner或物理边界。
+
 ## 3. Current phase
 
 | Field | Current value |
 | --- | --- |
 | Phase | P7 — Procurement |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | P7-00–P7-06 PASS；P7-07 Design Return |
+| Status | P7-00–P7-06 PASS；P7-07 implementation resumed |
 | Implementation baseline | exact P6 phase closure `5831c53207d5e71ccdf4792da11ed71be3d47ae1` |
 | Phase branch/worktree | `codex/helix-p7` / `E:\my_project\emby_third_party-helix-p7` |
 | Allowed now | P2–P13本地代码、unit/contract/isolated fixture、文档与Phase自动转换 |
-| Next action | 等待P7-07 Offer/Acceptance Basis/continuity kind合同闭合 |
+| Next action | P7-07 immutable Candidate Package publication |
 
 ## 4. Master roadmap
 

@@ -1,6 +1,6 @@
 # Helix Architecture Review Workbench
 
-Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-18；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-10`（含`PBF-09-R1`、`PBF-10-R1`）bounded correction均已完成。
+Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-19；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-10`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`）bounded correction均已完成。
 
 ## 1. Purpose and authority
 
@@ -1782,3 +1782,36 @@ fixture和163-table inventory反证，确认这是formal machine-contract gap，
 Capability、Candidate业务语义或Publication事务边界。Transaction materializer/validator必须按该精确表集重新物化，
 不能继续从概括性“Manifest/Relation”文字推断。审计结果为
 `PASS / PBF-10-R1 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.15 `PBF-10-R2` — Candidate Publication Offer input and persistence continuity
+
+Status: `CLOSED / BOUNDED DETAIL FIX APPLIED` — 2026-07-19
+
+P7-07完成`PBF-10-R1`重物化后，对Candidate Publication Store、Handoff A Offer与Libra Intake做第二次纵向
+审计，提出Acceptance Basis、Offer/Outbox以及Season Continuity kind三项formal-realizability疑点。主审没有把
+实现反馈当作结论，而是分别核对Level 3 exact continuity、Level 4 Handoff Offer/Acceptance、Level 5 Libra
+Intake、Level 8 Candidate DTO/table/Facade/Outbox/transaction/crash fixture，确认三项均为真实合同缺口：
+
+1. `proc_candidate_deliveries.acceptance_basis_digest`和`libra_intake_decisions`要求同一Basis，但正式Draft、Package
+   与Handoff合同都没有唯一来源或digest formula；它不能私自等于`packageDigest`；
+2. Candidate Publication要求同事务建立Offer与Outbox，但没有stable `offerId`、typed message、consumer、dedup key
+   和payload合同；
+3. Level 3和两侧Store只允许`provider_season_identity|triage_grouping_lineage`，而物化器因typed DTO未写死枚举，
+   自行生成了`exact_provider_season|persistent_triage_grouping`，跨Handoff无法无损持久化。
+
+Bounded correction不新增Domain、Owner、Store、Handoff、Capability或兼容路径：
+
+- `CandidateIntakeAcceptanceBasis@1`由final `CandidatePackage@1`和固定
+  `helix://handoffs/procurement-to-libra/v1`唯一派生；它是Offer-side basis，不包含Libra current Subject、Episode
+  overlap或Control Decision Evidence，也不写回Candidate Package；
+- `offerId`由Package revision/digest与Acceptance Basis按JCS/SHA-256唯一计算；
+  `ProcurementCandidateOfferAvailableMessage@1`固定producer、唯一Libra consumer、aggregate、payload、consumer
+  set digest、dedup key、message ID与payload digest；Facade改为消费该typed message；
+- 新增的`SeasonContinuityClaim@1`只是既有exact Claim的nominal DTO，统一字段与枚举并明确从Triage Unit、
+  Candidate Draft/Package、Procurement relation到Libra relation不改名、不映射；错误别名稳定拒绝；
+- `CandidatePackage@1`继续保留PBF-10完整字段，不加入Offer字段或Libra `subjectId`；Offer/Acceptance facts仍由各自
+  Owner持久化。
+
+全文一致性审计覆盖Level 3 continuity、Level 4 Handoff A、Level 5 Intake、Level 8 Capability output、formal DTO、
+7+3 participant transaction、163-table inventory、Facade、Outbox/Inbox、crash fixture与Dictionary。结果为
+`PASS / PBF-10-R2 CLOSED / NO OPEN BUSINESS DECISION`。
