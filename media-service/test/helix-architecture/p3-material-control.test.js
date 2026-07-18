@@ -195,7 +195,7 @@ test('replace_control_set is all-or-nothing across its exact expected revision s
     ]), (error) => error.code === 'P3_CONTROL_CAS_CONFLICT');
     kernel.close();
     const database = new Database(databasePath, { readonly: true });
-    assert.equal(database.prepare("SELECT state FROM fx_material_controls WHERE material_key=?").get(first.materialKey).state, 'active');
+    assert.equal(database.prepare("SELECT state FROM fx_material_controls WHERE material_key=?").get(first.materialKey).state, 'controlled');
     assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_material_control_revisions').get().count, 1);
     assert.equal(database.prepare("SELECT COUNT(*) count FROM libra_subjects WHERE subject_id='subject-2'").get().count, 0);
     database.close();

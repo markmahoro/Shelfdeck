@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.field-eligibility-reconcile-commit/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.field-eligibility-reconcile-commit",
+    "displayName": "Field Eligibility Reconcile Commit",
+    "ownerScope": "procurement",
+    "commitClass": "domain_unit_of_work",
+    "atomicFactSet": "bounded `ExtractionEligibilityDecisionBatch` + current Field/Access/terminal Observation head/Policy/Material Binding和既有Eligibility revision CAS + 同事务重读并验证Selection conflict与Foundation Material Control revision/digest + 更新Field Material current Eligibility/Control Projection；更新后的rows就是唯一durable output，事务只返回typed summary；这是可重建的Procurement current decision-fact transaction，basis不变时幂等no-op，不写Event Result、commit marker或Outbox",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "procurement",
+        "access": "write",
+        "tables": [
+          "proc_field_materials"
+        ]
+      }
+    ],
+    "writeTables": [
+      "proc_field_materials"
+    ],
+    "readTables": [
+      "proc_material_fields",
+      "proc_field_access_revisions",
+      "proc_extraction_policy_revisions",
+      "proc_field_observations",
+      "proc_field_materials",
+      "proc_procurement_runs",
+      "proc_run_materials",
+      "fx_material_controls"
+    ],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [
+      "fx_material_controls",
+      "fx_material_control_revisions",
+      "fx_event_result_bindings",
+      "fx_commit_markers",
+      "fx_outbox"
+    ],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": false,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "field-eligibility-reconcile",
+        "faultInjectionPoints": "Policy schema/path/precedence边界、terminal coverage形成前后、Selection与Control snapshot读取前后、Batch提交前、逐项basis/revision重验、事务提交前后、响应前崩溃",
+        "requiredInvariant": "只按ExtractionPolicy@1和固定reason precedence计算；无隐藏duplicate suppression；未terminal/Access变化/不可用basis只投影unknown；stale Material row不被覆盖并进入summary；同basis no-op；一个Batch的applied rows全有或全无；无Event Result/marker/Outbox；重启由current facts与rows重新收敛",
+        "source": {
+          "section": "8.9.7",
+          "line": 9013
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7550,
+      "lineDigest": "7ba36a2ff58597421695676659ccb76bd30595feebcf1f1191d89a4ef9cfb701"
+    }
+  }
+}

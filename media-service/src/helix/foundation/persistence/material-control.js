@@ -185,7 +185,7 @@ function createMaterialControlParticipant(options) {
           );
         } else {
           assertScope(from, 'fromScope');
-          if (!current || current.state !== 'active' || current.owner_domain !== from.ownerDomain ||
+          if (!current || current.state !== 'controlled' || current.owner_domain !== from.ownerDomain ||
               current.owner_scope_type !== from.scopeType || current.owner_scope_id !== from.scopeId || from.ownerDomain !== handle.ownerDomain) {
             fail('P3_CONTROL_FROM_SCOPE_MISMATCH', 'Current Control does not match the exact signed source scope.');
           }
@@ -207,7 +207,7 @@ function createMaterialControlParticipant(options) {
             owner_scope_type: to.scopeType,
             owner_scope_id: to.scopeId,
             control_revision: revision,
-            state: 'active',
+            state: 'controlled',
             updated_at_ms: context.commitTimeMs
           });
         } else {
@@ -216,7 +216,7 @@ function createMaterialControlParticipant(options) {
             owner_scope_type: to && to.scopeType || null,
             owner_scope_id: to && to.scopeId || null,
             control_revision: revision,
-            state: change.action === 'release' ? 'released' : 'active',
+            state: change.action === 'release' ? 'released' : 'controlled',
             updated_at_ms: context.commitTimeMs,
             material_key: change.identity.materialKey,
             expected_control_revision: change.expectedRevision
@@ -237,7 +237,7 @@ function createMaterialControlParticipant(options) {
           commit_marker: text(options.commitMarker, 'commitMarker'),
           committed_at_ms: context.commitTimeMs
         });
-        results.push(Object.freeze({ materialKey: change.identity.materialKey, revision, state: change.action === 'release' ? 'released' : 'active' }));
+        results.push(Object.freeze({ materialKey: change.identity.materialKey, revision, state: change.action === 'release' ? 'released' : 'controlled' }));
       }
       return Object.freeze(results);
     }

@@ -180,6 +180,15 @@
       },
       {
         "ordinal": 20,
+        "name": "eligibility_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 21,
         "name": "eligibility_state",
         "logicalType": "TEXT",
         "enumValues": [
@@ -192,7 +201,64 @@
         "nullable": false
       },
       {
-        "ordinal": 21,
+        "ordinal": 22,
+        "name": "eligibility_reason_code",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 23,
+        "name": "eligibility_basis_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 24,
+        "name": "eligibility_field_status",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "active",
+          "disabled"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 25,
+        "name": "eligibility_observation_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 26,
+        "name": "eligibility_policy_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 27,
+        "name": "selection_basis_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 28,
         "name": "control_projection",
         "logicalType": "TEXT",
         "enumValues": [
@@ -205,6 +271,33 @@
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
         "nullable": false
+      },
+      {
+        "ordinal": 29,
+        "name": "control_projection_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 30,
+        "name": "control_projection_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 31,
+        "name": "eligibility_reconciled_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
       }
     ],
     "primaryKey": [
@@ -221,6 +314,12 @@
         "eligibility_state",
         "control_projection",
         "material_key"
+      ],
+      [
+        "field_id",
+        "eligibility_observation_revision",
+        "eligibility_policy_revision",
+        "material_key"
       ]
     ],
     "partialUniqueRules": [],
@@ -231,6 +330,13 @@
           "eligible",
           "ineligible",
           "unknown"
+        ]
+      },
+      {
+        "column": "eligibility_field_status",
+        "enumValues": [
+          "active",
+          "disabled"
         ]
       },
       {
@@ -248,7 +354,11 @@
       "revisionColumns": [
         "access_revision",
         "mount_scope_revision",
-        "binding_revision"
+        "binding_revision",
+        "eligibility_revision",
+        "eligibility_observation_revision",
+        "eligibility_policy_revision",
+        "control_projection_revision"
       ],
       "currentPointerColumns": [],
       "pointerTargets": [],
@@ -268,22 +378,24 @@
       "Identity components unique within Field",
       "`(field_id,last_observation_id)`显式复合FK引用同Field唯一Observation page",
       "Hash缓存只在mount/inode/size/mtime/ctime全部一致时有效",
-      "`eligibility_state=unknown|eligible|ineligible`，`control_projection=unknown|uncontrolled|procurement|production|finished_goods`",
-      "新row固定`binding_revision=1, eligibility_state=unknown, control_projection=unknown`",
+      "state enum为`unknown|eligible|ineligible`，Control enum为`unknown|uncontrolled|procurement|production|finished_goods`",
+      "新row固定`binding_revision=1,eligibility_revision=1,unknown/observation_pending_reconcile/unknown`且Eligibility Field/Policy/Selection/Control basis列为NULL",
       "同Identity的endpoint/location变化才递增binding revision",
-      "相同reality重放保留Eligibility/Control Projection，reality变化只把Eligibility置回unknown且不伪造Control结果",
-      "最终Eligibility/Control Projection仅由P7-04 Field Management reconcile写入",
-      "`INDEX(field_id,eligibility_state,control_projection,material_key)`",
-      "projection只供候选筛选，最终取得必须CAS `fx_material_controls`"
+      "相同reality重放保留Eligibility，reality变化原子递增eligibility revision并写`unknown/reality_changed/unknown`、清空Field/Policy/Selection/Control basis",
+      "P7-04 Reconcile只在完整basis变化时递增eligibility revision，完全相同basis幂等no-op",
+      "非unknown Control必须有revision/digest，uncontrolled允许revision 0或正整数",
+      "`INDEX(field_id,eligibility_state,control_projection,material_key)`及`INDEX(field_id,eligibility_observation_revision,eligibility_policy_revision,material_key)`",
+      "stored state只有在`eligibility_field_status`仍匹配Field current status且basis仍匹配Field current Access/terminal Observation/Policy、Selection和current Control时才可用于候选筛选，否则effective projection为unknown",
+      "最终Run admission仍必须CAS `fx_material_controls`"
     ],
     "rawContract": {
-      "columns": "`field_id FK, material_key, mount_scope_id, inode, content_hash_algorithm, content_hash, endpoint_id, access_revision, mount_scope_revision, size_bytes, mtime_ns, ctime_ns, hash_verified_at_ms, current_location, binding_revision, reality_digest, provenance_digest, last_snapshot_digest, last_observation_id, eligibility_state, control_projection`",
-      "constraints": "`PK(field_id,material_key)`；Identity components unique within Field；`(field_id,last_observation_id)`显式复合FK引用同Field唯一Observation page；Hash缓存只在mount/inode/size/mtime/ctime全部一致时有效；`eligibility_state=unknown|eligible|ineligible`，`control_projection=unknown|uncontrolled|procurement|production|finished_goods`；新row固定`binding_revision=1, eligibility_state=unknown, control_projection=unknown`；同Identity的endpoint/location变化才递增binding revision；相同reality重放保留Eligibility/Control Projection，reality变化只把Eligibility置回unknown且不伪造Control结果；最终Eligibility/Control Projection仅由P7-04 Field Management reconcile写入；`INDEX(field_id,eligibility_state,control_projection,material_key)`；projection只供候选筛选，最终取得必须CAS `fx_material_controls`"
+      "columns": "`field_id FK, material_key, mount_scope_id, inode, content_hash_algorithm, content_hash, endpoint_id, access_revision, mount_scope_revision, size_bytes, mtime_ns, ctime_ns, hash_verified_at_ms, current_location, binding_revision, reality_digest, provenance_digest, last_snapshot_digest, last_observation_id, eligibility_revision, eligibility_state, eligibility_reason_code, eligibility_basis_digest, eligibility_field_status NULL, eligibility_observation_revision NULL, eligibility_policy_revision NULL, selection_basis_digest NULL, control_projection, control_projection_revision NULL, control_projection_digest NULL, eligibility_reconciled_at_ms NULL`",
+      "constraints": "`PK(field_id,material_key)`；Identity components unique within Field；`(field_id,last_observation_id)`显式复合FK引用同Field唯一Observation page；Hash缓存只在mount/inode/size/mtime/ctime全部一致时有效；state enum为`unknown|eligible|ineligible`，Control enum为`unknown|uncontrolled|procurement|production|finished_goods`；新row固定`binding_revision=1,eligibility_revision=1,unknown/observation_pending_reconcile/unknown`且Eligibility Field/Policy/Selection/Control basis列为NULL；同Identity的endpoint/location变化才递增binding revision；相同reality重放保留Eligibility，reality变化原子递增eligibility revision并写`unknown/reality_changed/unknown`、清空Field/Policy/Selection/Control basis；P7-04 Reconcile只在完整basis变化时递增eligibility revision，完全相同basis幂等no-op；非unknown Control必须有revision/digest，uncontrolled允许revision 0或正整数；`INDEX(field_id,eligibility_state,control_projection,material_key)`及`INDEX(field_id,eligibility_observation_revision,eligibility_policy_revision,material_key)`；stored state只有在`eligibility_field_status`仍匹配Field current status且basis仍匹配Field current Access/terminal Observation/Policy、Selection和current Control时才可用于候选筛选，否则effective projection为unknown；最终Run admission仍必须CAS `fx_material_controls`"
     },
     "source": {
       "section": "8.5.11",
-      "line": 7698,
-      "lineDigest": "6262f223f393fbe098df96c34fb07ac9587730726d05415f7307fb33bc7c532c"
+      "line": 7758,
+      "lineDigest": "644c9568345b8f77a6d43893ad6ad3aee5767163c253216e684239d31f8a6112"
     },
     "foreignKeys": [
       {

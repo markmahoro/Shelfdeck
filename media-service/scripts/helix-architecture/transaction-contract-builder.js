@@ -4,6 +4,7 @@ const crypto = require('crypto');
 
 const crashFixtures = Object.freeze({
   'field-observation-page': ['Page DTO/Access/Request digest验证前后、Field observation head CAS前后、immutable revision与Material current-row逐项写入前后、typed Result/marker前后、响应前崩溃', '任一DTO、顺序、continuity、digest、supporting-work或CAS验证失败整页rollback；Field head、immutable page revision、全部Material current rows、typed Result和marker全有或全无；新Material仅初始化unknown/unknown；同marker重放返回原typed Result且不推进revision；terminal page以前不得形成缺失结论', 7497],
+  'field-eligibility-reconcile': ['Policy schema/path/precedence边界、terminal coverage形成前后、Selection与Control snapshot读取前后、Batch提交前、逐项basis/revision重验、事务提交前后、响应前崩溃', '只按ExtractionPolicy@1和固定reason precedence计算；无隐藏duplicate suppression；未terminal/Access变化/不可用basis只投影unknown；stale Material row不被覆盖并进入summary；同basis no-op；一个Batch的applied rows全有或全无；无Event Result/marker/Outbox；重启由current facts与rows重新收敛', 9013],
   'perception-acquisition-page': ['第一次Source同步、第二次Acquisition首页、配置/scope不兼容重扫、Acquire后bounded inline payload冻结、Normalize前、Record/Anchor/Relation participant后、cursor head CAS前后、typed Result/marker/Outbox前后、响应前崩溃', '仅从未存在cursor row时logical expected revision为0/storage pointer为NULL；后续Acquisition冻结真实head且revision永不重置；Normalize只读取digest-bound inline DTO，pure Acquire不创建Artifact；任一验证/CAS失败整页rollback；同来源事实不重复；cursor不越过未提交页；同marker重放返回原typed Result及相同storage result digest；Outbox不通知Libra/Arca', 8527],
   'perception-resolution': ['Query Handle验证、候选检索前后、Record/Relation snapshot后、pure Resolver前后、Resolution/head/duplicate relation participant后、typed Result/marker前后', 'Handle携带可读取typed query；Assembler只读Perception Store并按Rule取得完整候选超集，不决定winner；Executor不旁读Store；被retracted/superseded或缺少请求kind的Record不能获胜；最高strength同值稳定found、同tier冲突稳定not_found；fuzzy match不生成duplicate；任一query/record-set/rule digest变化形成新revision；同三重digest重放返回同一typed Resolution', 8643],
   'people-candidate': ['typed Evidence恢复、Resolver产出complete Draft、Candidate head/open revision/typed Result/marker各边界；用户或strong rule接受前后；Registration Person/alias/provider identity与Merge target/source/preference/correlation提交各边界', 'CommitParticipant不旁读Foundation/Provider；Candidate payload digest可重算；重启不丢open Candidate；candidate revision或任一Person/Preference revision变化时整体CAS失败；接受成功时Candidate terminal与全部Person facts同时成立，同marker重放返回同一typed Result；弱Identity未经用户确认不建立Person，Preference冲突不得strong-rule自动接受', 8584],
@@ -40,6 +41,16 @@ const definitions = Object.freeze({
     readTables: ['proc_material_fields', 'proc_field_access_revisions', 'proc_field_observations',
       'proc_field_materials', 'fx_supporting_works'],
     fixtureRefs: ['field-observation-page'], hasOutbox: false
+  },
+  'Field Eligibility Reconcile Commit': {
+    commitClass: 'domain_unit_of_work',
+    writeTables: ['proc_field_materials'],
+    readTables: ['proc_material_fields', 'proc_field_access_revisions', 'proc_extraction_policy_revisions',
+      'proc_field_observations', 'proc_field_materials', 'proc_procurement_runs', 'proc_run_materials',
+      'fx_material_controls'],
+    fixtureRefs: ['field-eligibility-reconcile'], hasOutbox: false, commitMarkerRequired: false,
+    forbiddenWriteTables: ['fx_material_controls', 'fx_material_control_revisions', 'fx_event_result_bindings',
+      'fx_commit_markers', 'fx_outbox']
   },
   'Perception Acquisition Page Commit': {
     commitClass: 'domain_fact_commit',
@@ -266,7 +277,7 @@ function buildTransactionContracts(entries) {
       fenceContract: {
         domainRevisionFenceRequired: true,
         materialControlCasRequired: materialControlRequired,
-        commitMarkerRequired: true,
+        commitMarkerRequired: definition.commitMarkerRequired !== false,
         outboxRequired: definition.hasOutbox
       },
       rollbackInvariant: 'Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.',

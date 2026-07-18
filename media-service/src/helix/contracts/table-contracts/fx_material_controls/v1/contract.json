@@ -59,7 +59,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
-        "nullable": false
+        "nullable": true
       },
       {
         "ordinal": 7,
@@ -68,7 +68,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
-        "nullable": false
+        "nullable": true
       },
       {
         "ordinal": 8,
@@ -77,7 +77,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
-        "nullable": false
+        "nullable": true
       },
       {
         "ordinal": 9,
@@ -93,7 +93,7 @@
         "name": "state",
         "logicalType": "TEXT",
         "enumValues": [
-          "active",
+          "controlled",
           "released"
         ],
         "primaryKeyPart": false,
@@ -128,7 +128,7 @@
       {
         "column": "state",
         "enumValues": [
-          "active",
+          "controlled",
           "released"
         ]
       }
@@ -153,16 +153,18 @@
     "semanticRules": [
       "`UNIQUE(mount_scope_id,inode,content_hash_algorithm,content_hash)`",
       "一项Identity只有一行current Control",
-      "transfer/release必须CAS `control_revision`"
+      "controlled必须有完整owner，released必须三个owner列均NULL",
+      "首次acquire revision=1，transfer/release必须CAS并递增`control_revision`",
+      "从未存在row与released row都可投影uncontrolled，但revision分别为0和当前正整数"
     ],
     "rawContract": {
-      "columns": "`material_key PK, mount_scope_id, inode, content_hash_algorithm, content_hash, owner_domain, owner_scope_type, owner_scope_id, control_revision, state, updated_at_ms`",
-      "constraints": "`UNIQUE(mount_scope_id,inode,content_hash_algorithm,content_hash)`；一项Identity只有一行current Control；transfer/release必须CAS `control_revision`"
+      "columns": "`material_key PK, mount_scope_id, inode, content_hash_algorithm, content_hash, owner_domain NULL, owner_scope_type NULL, owner_scope_id NULL, control_revision, state(controlled|released), updated_at_ms`",
+      "constraints": "`UNIQUE(mount_scope_id,inode,content_hash_algorithm,content_hash)`；一项Identity只有一行current Control；controlled必须有完整owner，released必须三个owner列均NULL；首次acquire revision=1，transfer/release必须CAS并递增`control_revision`；从未存在row与released row都可投影uncontrolled，但revision分别为0和当前正整数"
     },
     "source": {
       "section": "8.5.10",
-      "line": 7679,
-      "lineDigest": "e91a0393ebb40b2e058db44e753edac5493896de0aafdac0744e89959fc232e5"
+      "line": 7739,
+      "lineDigest": "4f9b3808278d90fbaf476c838a86d837eba73b6efeab41baef600f7108534246"
     },
     "foreignKeys": []
   }

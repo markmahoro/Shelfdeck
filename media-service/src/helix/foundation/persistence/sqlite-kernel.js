@@ -191,7 +191,7 @@ function assertMaterialControlConsistency(database) {
     const latest = revisions[revisions.length - 1];
     const sequenceValid = revisions.length === control.control_revision &&
       revisions.every((revision, index) => revision.revision === index + 1);
-    const targetValid = control.state === 'active'
+    const targetValid = control.state === 'controlled'
       ? latest && latest.to_owner_domain === control.owner_domain && latest.to_scope_type === control.owner_scope_type && latest.to_scope_id === control.owner_scope_id
       : latest && latest.operation_kind === 'release' && control.owner_domain === null && control.owner_scope_type === null && control.owner_scope_id === null;
     if (control.content_hash_algorithm !== 'sha256' || digest(identityJson) !== control.material_key || !sequenceValid || !targetValid) {

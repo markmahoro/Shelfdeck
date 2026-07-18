@@ -942,7 +942,7 @@ CREATE TABLE "fx_material_controls" (
   "owner_scope_type" TEXT,
   "owner_scope_id" TEXT,
   "control_revision" INTEGER CHECK ("control_revision" >= 1),
-  "state" TEXT CHECK ("state" IN ('active', 'released')),
+  "state" TEXT CHECK ("state" IN ('controlled', 'released')),
   "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
   UNIQUE ("mount_scope_id", "inode", "content_hash_algorithm", "content_hash")
 );
@@ -2242,13 +2242,24 @@ CREATE TABLE "proc_field_materials" (
   "provenance_digest" TEXT CHECK (length("provenance_digest") = 64 AND "provenance_digest" NOT GLOB '*[^0-9a-f]*'),
   "last_snapshot_digest" TEXT CHECK (length("last_snapshot_digest") = 64 AND "last_snapshot_digest" NOT GLOB '*[^0-9a-f]*'),
   "last_observation_id" TEXT,
+  "eligibility_revision" INTEGER CHECK ("eligibility_revision" >= 1),
   "eligibility_state" TEXT CHECK ("eligibility_state" IN ('eligible', 'ineligible', 'unknown')),
+  "eligibility_reason_code" TEXT,
+  "eligibility_basis_digest" TEXT CHECK (length("eligibility_basis_digest") = 64 AND "eligibility_basis_digest" NOT GLOB '*[^0-9a-f]*'),
+  "eligibility_field_status" TEXT CHECK ("eligibility_field_status" IN ('active', 'disabled')),
+  "eligibility_observation_revision" INTEGER CHECK ("eligibility_observation_revision" >= 1),
+  "eligibility_policy_revision" INTEGER CHECK ("eligibility_policy_revision" >= 1),
+  "selection_basis_digest" TEXT CHECK (length("selection_basis_digest") = 64 AND "selection_basis_digest" NOT GLOB '*[^0-9a-f]*'),
   "control_projection" TEXT CHECK ("control_projection" IN ('unknown', 'uncontrolled', 'procurement', 'production', 'finished_goods')),
+  "control_projection_revision" INTEGER CHECK ("control_projection_revision" >= 1),
+  "control_projection_digest" TEXT CHECK (length("control_projection_digest") = 64 AND "control_projection_digest" NOT GLOB '*[^0-9a-f]*'),
+  "eligibility_reconciled_at_ms" INTEGER CHECK ("eligibility_reconciled_at_ms" >= 0),
   PRIMARY KEY ("field_id", "material_key"),
   FOREIGN KEY ("field_id") REFERENCES "proc_material_fields" ("field_id") ON DELETE RESTRICT,
   FOREIGN KEY ("field_id", "last_observation_id") REFERENCES "proc_field_observations" ("field_id", "observation_id") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_proc_field_materials_hot_01" ON "proc_field_materials" ("field_id", "eligibility_state", "control_projection", "material_key");
+CREATE INDEX "idx_proc_field_materials_hot_02" ON "proc_field_materials" ("field_id", "eligibility_observation_revision", "eligibility_policy_revision", "material_key");
 
 CREATE TABLE "proc_field_observations" (
   "field_id" TEXT,

@@ -357,7 +357,7 @@ function participantsFor(contract, unitOfWork, options = {}) {
   if (contract.fenceContract.materialControlCasRequired) result.push(controlParticipant(contract, owner, unitOfWork, options.staleControl));
   if (contract.writeTables.includes('fx_event_result_bindings')) result.push(resultBindingParticipant(contract, owner));
   if (contract.writeTables.includes('fx_command_receipts')) result.push(commandReceiptParticipant(contract, owner));
-  result.push(markerParticipant(contract, owner, 'marker-' + digest(contract.transactionId).slice(0, 16)));
+  if (contract.fenceContract.commitMarkerRequired) result.push(markerParticipant(contract, owner, 'marker-' + digest(contract.transactionId).slice(0, 16)));
   if (contract.fenceContract.outboxRequired) result.push(outboxParticipant(contract, owner));
   return result;
 }
@@ -403,19 +403,19 @@ function fixture(contract, run, options = {}) {
 
 const transactionContracts = contracts();
 
-test('P2 canonical transaction inventory drives exactly 25 isolated contracts', () => {
+test('P2 canonical transaction inventory drives exactly 26 isolated contracts', () => {
   const inventory = loadJson(path.join(serviceRoot, 'src/helix/contracts/manifests/transaction-inventory.json'));
   const inventoryEntries = inventory.entryFiles.flatMap((file) =>
     loadJson(path.join(serviceRoot, 'src/helix/contracts/manifests', file)).entries
   );
-  assert.equal(transactionContracts.length, 25);
-  assert.equal(inventory.targetCount, 25);
+  assert.equal(transactionContracts.length, 26);
+  assert.equal(inventory.targetCount, 26);
   assert.deepEqual(transactionContracts.map((contract) => contract.transactionId),
     [...inventoryEntries].sort((left, right) => left.id.localeCompare(right.id)).map((entry) => entry.id));
   for (const contract of transactionContracts) {
     assert.equal(contract.rollbackInvariant.includes('zero transaction writes visible'), true, contract.transactionId);
     assert.equal(contract.fenceContract.domainRevisionFenceRequired, true, contract.transactionId);
-    assert.equal(contract.fenceContract.commitMarkerRequired, true, contract.transactionId);
+    assert.equal(contract.fenceContract.commitMarkerRequired, contract.writeTables.includes('fx_commit_markers'), contract.transactionId);
   }
 });
 

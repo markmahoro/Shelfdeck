@@ -12,7 +12,7 @@
       "constraintsContract": "`UNIQUE(intake_decision_id)`及同一Candidate/Package digest最多一个Receipt；Accepted事务的durable receipt/outbox source",
       "source": {
         "section": "8.5.11",
-        "line": 7708,
+        "line": 7768,
         "lineDigest": "e67ac7402a2103c75640b5e881854dfe3bb1ec00601d8e68f8730d175fc7d32b"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "`status`至少区分`active|abandoned|completed`；`INDEX(status,subject_id)`；Subject不保存Arca Shelf Entry/Deck状态；identity pointer显式FK",
       "source": {
         "section": "8.5.11",
-        "line": 7709,
+        "line": 7769,
         "lineDigest": "7ede0ac6d81766b22b462742a4780ad42789e46f72fef35713b87b9cf217ec55"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "`PK(subject_id,claim_kind,claim_namespace,claim_key,provenance_ref)`；Handoff A复制Candidate claim；Resolved Product Identity发布exact provider-season anchor时同事务追加；`INDEX(claim_kind,claim_namespace,claim_key,subject_id)`允许检测0/1/N命中但不建立全局unique",
       "source": {
         "section": "8.5.11",
-        "line": 7710,
+        "line": 7770,
         "lineDigest": "a3041936a279fbd9f035a822a9619b9e4f60743565785d364cfdd263c5ce6f45"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "`UNIQUE(subject_id)`；immutable；只允许没有任何current Libra Run且Pre-deck责任仍active的Subject建立",
       "source": {
         "section": "8.5.11",
-        "line": 7711,
+        "line": 7771,
         "lineDigest": "7bdbc6b9de101584a171ad47849cc47d061237bba3fb44ce943e2d047ece924e"
       }
     },
@@ -56,7 +56,7 @@
       "constraintsContract": "`UNIQUE(abandon_decision_id)`；与Subject terminal和精确Primary Control release同一事务成立",
       "source": {
         "section": "8.5.11",
-        "line": 7712,
+        "line": 7772,
         "lineDigest": "ae4b6b78f23821dabe8a903651002644bd555ba5aa5de2dfff90d214a0e9d185"
       }
     },
@@ -67,7 +67,7 @@
       "constraintsContract": "immutable revision以`PK(subject_id,material_key,binding_revision)`保存；每个`subject+material+role`只有一个current row",
       "source": {
         "section": "8.5.11",
-        "line": 7713,
+        "line": 7773,
         "lineDigest": "712fdf5b7ce7cdbafcde1b86d777256b7782463f0edcc61bfd136bef4326ae1b"
       }
     },
@@ -78,7 +78,7 @@
       "constraintsContract": "`PK(subject_id,revision)`；immutable；`libra_subjects.current_identity_revision`显式指向本表",
       "source": {
         "section": "8.5.11",
-        "line": 7714,
+        "line": 7774,
         "lineDigest": "1ae280f0e6779cac8bf807bf35b9cbb5ef4b48be90c2c8b38cf78c86e7e20fb2"
       }
     },
@@ -89,7 +89,7 @@
       "constraintsContract": "Field ID是Procurement公开opaque ref、不建跨Domain FK；current pair显式FK到Policy revision；一片Field恰好至多一份current去向方案",
       "source": {
         "section": "8.5.11",
-        "line": 7715,
+        "line": 7775,
         "lineDigest": "798b380ce2cc0c6b9f83bdc869efb8494d784c4a7776e02bc3e1c35d81ec5d39"
       }
     },
@@ -100,7 +100,7 @@
       "constraintsContract": "Policy JSON上限`64 KiB`；`PK(routing_policy_id,revision)`；immutable；`INDEX(field_id,effective_at_ms)`；同一revision只属于一片Field",
       "source": {
         "section": "8.5.11",
-        "line": 7716,
+        "line": 7776,
         "lineDigest": "f1d288d4b709ef019d295af7576074e514b1ff4a568b230461b1168aee26bec8"
       }
     },
@@ -111,7 +111,7 @@
       "constraintsContract": "`PK(routing_policy_id,policy_revision,shelf_id)`及`UNIQUE(routing_policy_id,policy_revision,rank)`；Shelf ID为Arca公开Projection中的opaque ref",
       "source": {
         "section": "8.5.11",
-        "line": 7717,
+        "line": 7777,
         "lineDigest": "e7b4f1178b6790d4ce94ffe85a5e8c583bf04936b84ca24d7aaf93f793982305"
       }
     },
@@ -122,7 +122,7 @@
       "constraintsContract": "`UNIQUE(subject_id,basis_digest,routing_policy_id,routing_policy_revision)`",
       "source": {
         "section": "8.5.11",
-        "line": 7718,
+        "line": 7778,
         "lineDigest": "6bf5f7443b8d299aed7cd871da55c62908f1e2164796180c9658e0a8bee29df4"
       }
     },
@@ -133,7 +133,7 @@
       "constraintsContract": "immutable；同一assessment只有一个Decision；`INDEX(shelf_id,decided_at_ms)`",
       "source": {
         "section": "8.5.11",
-        "line": 7719,
+        "line": 7779,
         "lineDigest": "f02ff6cd336a6811852cefafa8a168373bf16529d23232209e15e8e88587ca0f"
       }
     },
@@ -144,7 +144,7 @@
       "constraintsContract": "`UNIQUE(subject_id,basis_revision)`；`INDEX(subject_id,status,basis_revision)`",
       "source": {
         "section": "8.5.11",
-        "line": 7720,
+        "line": 7780,
         "lineDigest": "f4664a89a72080ae59795550c6db9e170de6cf6740c0e4d1b3a209b87d823f1d"
       }
     }

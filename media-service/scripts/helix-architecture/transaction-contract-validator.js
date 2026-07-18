@@ -26,8 +26,8 @@ function validateTransactionContracts(options) {
   const owners = new Set(ownerRegistry && ownerRegistry.owners.map((owner) => owner.id));
   const tableIds = new Set(fs.readdirSync(path.join(contractsRoot, 'table-contracts')));
   const manifest = readJson(path.join(contractsRoot, 'manifests', 'transaction-inventory.json'), findings);
-  if (!manifest || manifest.status !== 'active' || manifest.targetCount !== 25 || manifest.entryFiles.length !== 1) findings.push(finding(
-    'INVALID_TRANSACTION_INVENTORY_MANIFEST', 'Canonical transaction inventory must be active with 25 entries.'
+  if (!manifest || manifest.status !== 'active' || manifest.targetCount !== 26 || manifest.entryFiles.length !== 1) findings.push(finding(
+    'INVALID_TRANSACTION_INVENTORY_MANIFEST', 'Canonical transaction inventory must be active with 26 entries.'
   ));
   const shard = manifest && readJson(path.join(contractsRoot, 'manifests', manifest.entryFiles[0]), findings);
   const entries = shard && shard.entries || [];
@@ -86,8 +86,8 @@ function validateTransactionContracts(options) {
     if (contract.fenceContract.materialControlCasRequired !== hasControlTables) findings.push(finding(
       'MATERIAL_CONTROL_PARTICIPANT_MISMATCH', 'Responsibility Control transaction and CAS tables must agree.', { transactionId: entry.id }
     ));
-    if (!contract.writeTables.includes('fx_commit_markers') || contract.fenceContract.commitMarkerRequired !== true) findings.push(finding(
-      'MISSING_TRANSACTION_COMMIT_MARKER', 'Every canonical transaction requires a commit marker.', { transactionId: entry.id }
+    if (contract.fenceContract.commitMarkerRequired !== contract.writeTables.includes('fx_commit_markers')) findings.push(finding(
+      'TRANSACTION_COMMIT_MARKER_MISMATCH', 'Commit marker requirement and write set must agree.', { transactionId: entry.id }
     ));
     if (contract.fenceContract.outboxRequired !== contract.writeTables.includes('fx_outbox')) findings.push(finding(
       'TRANSACTION_OUTBOX_MISMATCH', 'Outbox requirement and write set disagree.', { transactionId: entry.id }

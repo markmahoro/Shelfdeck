@@ -69,7 +69,7 @@ test('commits one Domain plus separate Control and Foundation participants with 
         participantId: 'control', owner: 'material-control-authority', repositories: [materialControl],
         execute(context) {
           context.repository('material_control').invoke('insert_control', {
-            material_key: 'material-1', owner_domain: 'libra', control_revision: 1, state: 'active', updated_at_ms: context.commitTimeMs
+            material_key: 'material-1', owner_domain: 'libra', control_revision: 1, state: 'controlled', updated_at_ms: context.commitTimeMs
           });
           return context.commitTimeMs;
         }
