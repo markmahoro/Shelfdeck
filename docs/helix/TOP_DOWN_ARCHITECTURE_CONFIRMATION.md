@@ -7494,7 +7494,7 @@ page、完整Workflow Graph和整项媒体详情禁止进入列表热记录。
 | Commit | Atomic fact set |
 | --- | --- |
 | Domain Fact Commit | Owner-defined Canonical/Process Fact + revision fence + commit marker + durable typed result + contract-declared Outbox |
-| Field Observation Page Commit | complete `FieldObservationPage` + current Field Observation head CAS + immutable page revision + Field Material current-row insert/update + durable `ObservationCommitResult` + commit marker；新Material只置`unknown/unknown`初值，Observation Commit不计算最终Eligibility/Region |
+| Field Observation Page Commit | validated complete `FieldObservationPage`同时作为本Commit Event的immutable durable Evidence写入`fx_event_result_bindings.evidence_json` + current Field Observation head CAS + immutable page revision + Field Material current-row insert/update + durable `ObservationCommitResult` + commit marker；全部同事务成立；新Material只置`unknown/unknown`初值，Observation Commit不计算最终Eligibility/Region，也不发布Outbox |
 | Perception Acquisition Page Commit | Acquisition/page fact + immutable Records/Anchors/explicit source-lineage Relations + source cursor revision/head CAS + page receipt + durable typed result + commit marker + Perception-internal Outbox；`hasMore=false`时同事务终结Acquisition |
 | Perception Resolution Commit | exact Query/Record Set/Rule digests + Resolution revision/head CAS + Draft明确的`duplicate_of`关系 + durable typed result + commit marker + Perception-internal Outbox |
 | People Candidate Commit | complete PeopleCandidateDraft + typed Candidate head + initial immutable `open` revision + durable typed result + commit marker + People-internal Outbox |
@@ -7532,7 +7532,7 @@ Event Runtime validates Commit Handle and Fence
   → SqliteUnitOfWork
        Domain CommitParticipant writes owner tables
        MaterialControl participant applies CAS when required
-       Foundation writes commit marker / durable typed Event Result / Outbox
+       Foundation writes commit marker / durable typed Event Result / contract-declared optional Outbox
   → typed Receipt / Domain Fact Result
 ~~~
 
@@ -7541,6 +7541,17 @@ CommitParticipant不是一个可被Planner任意调用的Store API，也不出�
 Domain participant返回的typed result必须在同一Unit of Work写入`fx_event_result_bindings`并由commit marker
 引用；Event state可以由Runtime随后收口，但崩溃重放必须先从marker恢复原始Result。这样既保留“Capability
 节点可调度、恢复和诊断”，又不让Executor直接写Store或让Foundation拥有业务SQL。
+
+Outbox是否参与Unit of Work只由本次精确Transaction Contract的`outboxRequired`决定，不由
+`domain_fact_commit|responsibility_control_commit` Effect Class给出全局默认：
+
+- `outboxRequired=true`时，Coordinator必须收到至少一条合法消息并装配Outbox participant；
+- `outboxRequired=false`时，Coordinator必须接受零消息且不得装配Outbox participant或伪造空消费者消息；
+- 通用Commit Coordinator必须先解析精确Transaction Contract，再校验Outbox cardinality；不能把generic
+  Domain Fact Commit模板中的要求覆盖到声明为false的具体事务。
+
+Field Observation Page Commit固定`outboxRequired=false`。其同一Workflow后续节点由durable typed Result解锁，
+启动恢复和周期Field reconcile负责最终恢复；这两条通路都不需要为每页扫描制造Outbox。
 
 所有typed JSON digest使用同一Canonical Digest Rule：对合同明确命名的digest basis执行UTF-8 RFC 8785
 JSON Canonicalization Scheme（JCS），再计算SHA-256并保存lowercase hex。一个字段不得包含在它自己的digest
@@ -7656,7 +7667,7 @@ Catalog digest核对；任一失败即拒绝可写启动。
 | `fx_workflow_events` | `event_id PK, plan_id FK, node_id, work_id, attempt_id, owner_domain, capability_ref, contract_version, state, priority_class, ready_at_ms, retry_at_ms, result_id, current_progress_revision` | `UNIQUE(plan_id,node_id)`；`INDEX(state,priority_class,COALESCE(retry_at_ms,ready_at_ms),event_id)`；成功Event不可回退；current progress pointer显式FK |
 | `fx_event_attempts` | `event_attempt_id PK, event_id FK, ordinal, executor_ref, executor_version, input_snapshot_schema_ref, input_snapshot_digest, fence_snapshot_digest, state, outcome_kind, retry_after_ms, failure_class, failure_code, evidence_digest, started_at_ms, finished_at_ms` | `UNIQUE(event_id,ordinal)`；同一Event至多一个`executing` attempt；Permit/lease不持久化，资源等待与持有只由timing Evidence表达；deferred/fence evidence留在Attempt而非伪terminal Result |
 | `fx_event_progress` | `event_id FK, event_attempt_id FK, revision, mode, current_value, total_value, unit, rate, eta_ms, source_sequence, progress_bucket, sampled_at_ms` | `PK(event_id,revision)`；`UNIQUE(event_attempt_id,source_sequence)` when sequence exists；只保留current及有界bucket history；数值必须满足non-negative/finite check |
-| `fx_event_result_bindings` | `result_id PK, event_id FK, outcome_kind, result_schema_ref, result_json, result_digest, evidence_schema_ref, evidence_json, evidence_digest, effect_receipt_id, committed_at_ms` | terminal Event至多一个current result：`UNIQUE(event_id)`；两个JSON各`64 KiB`，大Payload必须只含typed handle |
+| `fx_event_result_bindings` | `result_id PK, event_id FK, outcome_kind, result_schema_ref, result_json, result_digest, evidence_schema_ref, evidence_json, evidence_digest, effect_receipt_id, committed_at_ms` | terminal Event至多一个current result：`UNIQUE(event_id)`；两个JSON的UTF-8 JCS bytes各自≤`65,536`，大Payload必须只含typed handle；Field Observation Commit的`evidence_schema_ref`固定为`FieldObservationPage@1`并在`evidence_json`保存完整Page，`result_schema_ref/result_json`固定为完整`ObservationCommitResult@1` |
 | `fx_effect_journal` | `effect_id PK, event_attempt_id FK, effect_class, idempotency_key, intent_digest, state, external_receipt_ref, output_digest, verified_at_ms, updated_at_ms` | `UNIQUE(effect_class,idempotency_key)`；`INDEX(state,updated_at_ms,effect_id)`供Effect Reconcile |
 | `fx_commit_markers` | `commit_marker PK, effect_id, owner_domain, scope_type, scope_id, commit_digest, result_id FK, result_schema_ref, result_digest, committed_at_ms` | `commit_marker`全局唯一；`domain_fact_commit|responsibility_control_commit`的result字段必填并与对应`fx_event_result_bindings`同事务写入；不能更新或删除 |
 | `fx_outbox` | `message_id PK, producer_domain, message_kind, aggregate_type, aggregate_id, aggregate_revision, dedup_key, consumer_set_digest, intended_consumer_count, payload_schema_ref, payload_json, payload_digest, state, available_at_ms, created_at_ms, all_acked_at_ms` | payload上限`16 KiB`且只含ID/revision/digest；`UNIQUE(producer_domain,dedup_key)`；`INDEX(state,available_at_ms,message_id)` |
@@ -7683,7 +7694,7 @@ Plan node input/parameter/Fence/Resource Demand的具体JSON不直接重复存�
 | `proc_material_fields` | `field_id PK, name, status, extraction_policy_id, extraction_policy_revision, current_access_revision, current_observation_revision NULL, created_at_ms, updated_at_ms` | active name可重复但`field_id`唯一；Policy/Access均显式FK；`current_observation_revision IS NULL`表示尚未提交任何Observation page，非NULL时以`(field_id,current_observation_revision)`显式FK指向`proc_field_observations`；该pointer与Observation→Field的循环FK均`DEFERRABLE INITIALLY DEFERRED`；`INDEX(status,field_id)` |
 | `proc_extraction_policy_revisions` | `extraction_policy_id, revision, policy_schema_ref, policy_json, policy_digest, effective_at_ms` | `PK(extraction_policy_id,revision)`；JSON上限`16 KiB`；immutable；Material Field引用精确revision而非可变配置 |
 | `proc_field_access_revisions` | `field_id FK, revision, endpoint_id, root_location, mount_scope_id, mount_scope_revision, access_schema_ref, access_digest, effective_at_ms` | `PK(field_id,revision)`；`proc_material_fields.current_access_revision`显式FK；mount scope pair是Platform opaque technical ref |
-| `proc_field_observations` | `field_id FK, revision, observation_id, field_observation_work_id, access_revision, page_ordinal, expected_revision, cursor_in, cursor_out, page_digest, fact_digest, commit_marker, result_digest, observed_at_ms, completed` | `PK(field_id,revision)`、`UNIQUE(observation_id)`、`UNIQUE(field_id,observation_id)`供same-Field composite FK、`UNIQUE(field_observation_work_id,page_ordinal)`、`UNIQUE(commit_marker)`；`field_observation_work_id`显式FK引用`fx_supporting_works.work_id`，`(field_id,access_revision)`显式FK引用`proc_field_access_revisions`；revision从1开始且跨Observation Work持续递增；同一Work的pageOrdinal从0连续递增，每页使用不同observation_id且该ID只在该页重放时复用；`expected_revision=revision-1`，首个revision的expected为0；`completed=1`恰好对应terminal page；commit_marker/result_digest必须分别等于同事务`fx_commit_markers/fx_event_result_bindings`中的值；`observation_id/work/page`冲突重放必须拒绝；`INDEX(field_id,completed,observed_at_ms)` |
+| `proc_field_observations` | `field_id FK, revision, observation_id, field_observation_work_id, access_revision, page_ordinal, expected_revision, cursor_in, cursor_out, page_digest, fact_digest, commit_marker, result_digest, observed_at_ms, completed` | `PK(field_id,revision)`、`UNIQUE(observation_id)`、`UNIQUE(field_id,observation_id)`供same-Field composite FK、`UNIQUE(field_observation_work_id,page_ordinal)`、`UNIQUE(commit_marker)`；`field_observation_work_id`显式FK引用`fx_supporting_works.work_id`，`(field_id,access_revision)`显式FK引用`proc_field_access_revisions`，`commit_marker`显式FK引用`fx_commit_markers.commit_marker`；revision从1开始且跨Observation Work持续递增；同一Work的pageOrdinal从0连续递增，每页使用不同observation_id且该ID只在该页重放时复用；`expected_revision=revision-1`，首个revision的expected为0；`completed=1`恰好对应terminal page；`page_digest`必须匹配该marker所指Result Binding中完整`FieldObservationPage`的payloadDigest，`result_digest`必须匹配同一Binding的完整`ObservationCommitResult`；历史Page通过`commit_marker → fx_commit_markers.result_id → fx_event_result_bindings.evidence_json`唯一恢复，后续Material current-row更新不改变该链；该Observation revision存在时对应Result Binding/Evidence不得GC或压缩；`observation_id/work/page`冲突重放必须拒绝；`INDEX(field_id,completed,observed_at_ms)` |
 | `proc_field_materials` | `field_id FK, material_key, mount_scope_id, inode, content_hash_algorithm, content_hash, endpoint_id, access_revision, mount_scope_revision, size_bytes, mtime_ns, ctime_ns, hash_verified_at_ms, current_location, binding_revision, reality_digest, provenance_digest, last_snapshot_digest, last_observation_id, eligibility_state, control_projection` | `PK(field_id,material_key)`；Identity components unique within Field；`(field_id,last_observation_id)`显式复合FK引用同Field唯一Observation page；Hash缓存只在mount/inode/size/mtime/ctime全部一致时有效；`eligibility_state=unknown|eligible|ineligible`，`control_projection=unknown|uncontrolled|procurement|production|finished_goods`；新row固定`binding_revision=1, eligibility_state=unknown, control_projection=unknown`；同Identity的endpoint/location变化才递增binding revision；相同reality重放保留Eligibility/Control Projection，reality变化只把Eligibility置回unknown且不伪造Control结果；最终Eligibility/Control Projection仅由P7-04 Field Management reconcile写入；`INDEX(field_id,eligibility_state,control_projection,material_key)`；projection只供候选筛选，最终取得必须CAS `fx_material_controls` |
 | `proc_procurement_runs` | `procurement_run_id PK, field_id FK, run_basis_digest, retry_intent_id, state, priority_class, created_at_ms, finished_at_ms` | 相同`field_id+run_basis_digest`至多一个non-terminal Run；`retry_intent_id`为空或唯一引用一次性Intent；Supporting Work通过`owner_domain+process_type+process_id`关联；`INDEX(state,priority_class,created_at_ms)` |
 | `proc_procurement_retry_intents` | `retry_intent_id PK, field_id FK, failed_run_id FK, failed_basis_digest, actor_id, idempotency_key, intent_digest, state(open|consumed|stale), created_at_ms, consumed_at_ms` | `UNIQUE(field_id,idempotency_key)`；同一failed Run/Basis至多一个open Intent；消费时重验当前Field/Material eligibility，不修改旧Run |
@@ -7919,8 +7930,10 @@ contract failure，不得选择“最大的人脸”、按顺序猜测或把多�
 `FieldObservationPage`必须内联携带Commit所需的bounded typed Material snapshot；只有objectId/revision/digest的
 opaque引用不满足合同，也不存在允许CommitParticipant旁读的全局Snapshot Store。`page.observe`可以通过
 `FieldAccessHandle`执行当前页必要的list/stat/hash并返回Evidence，但仍是`pure_observation`：不得写Procurement
-Store、Artifact Registry或隐藏Workspace。Page最多100项、完整Result最多`512 KiB`；任一snapshot无法在上限内
-表达时稳定失败且不推进cursor。
+Store、Artifact Registry或隐藏Workspace。Page最多100项，完整`FieldObservationPage`的UTF-8 JCS bytes必须
+≤`65,536`；Observer必须同时按条目数和byte budget截断本页，下一项会越界时以当前非空页和可继续的
+`cursorOut`返回；`cursorOut`只能越过已经实际纳入本页的成员，不能跳过第一个未返回成员。单项已超过snapshot
+上限或连一项也无法合法装入空页时稳定失败且不推进cursor。
 
 `field.observation.commit`的`commitPayload`恰为完整`FieldObservationPage`。Handle固定
 `ownerDomain=procurement, aggregateType=material_field_observation, aggregateId=fieldId,
@@ -7938,10 +7951,17 @@ Owner Store revision。
 Commit前必须同时验证Field仍active、`page.accessRevision`仍等于Field current Access revision、Field current
 Observation pointer等于expected revision，以及Work/page/cursor连续。第一次提交将SQL NULL pointer映射为逻辑
 expected `0`；任何后续page或后续Work都使用真实正整数revision。成功事务按materialKey upsert当前Field Material、
-追加不可变Observation revision、切换Field head、写入完整typed Result/同一result digest与commit marker；相同
+追加不可变Observation revision、切换Field head，并在同一`fx_event_result_bindings`中把完整Page写为typed
+Evidence、把完整`ObservationCommitResult`写为typed Result，再写入同一result digest与commit marker；相同
 `observationId + workId + pageOrdinal + pageDigest`重放返回原Result，任一同key异payload组合稳定冲突。`hasMore`
 为true时Coordinator只使用已提交Result的`nextCursor`准备下一页；terminal page结束Supporting Work。Signal丢失
 时从commit marker/typed Result恢复，不重新消费同一cursor或生成新revision。
+
+`page.observe`自身的durable Event Result只是尚未提交的Workflow输入传输，不是Field Observation canonical
+history；它存在并不证明Page已被接受。只有`field.observation.commit`成功后，同一Commit Event
+`fx_event_result_bindings.evidence_json`中的完整Page才是已提交历史的唯一权威payload，并由Observation revision的
+commit-marker链长期引用。未提交或CAS失败的Observe Result不得被Field Management、审计或Projection解释为
+已观察事实。
 
 Extraction Eligibility、Candidate Readiness和是否建立Procurement Run属于Procurement Decision/Application组件，
 不是Capability。Candidate publication不创建Subject或转移Control；Control transfer只发生在Libra Accepted。
@@ -8404,8 +8424,8 @@ Executor只能返回以下discriminated union，且每个variant都`additionalPr
 | `ManifestVerification` / `ArtifactManifestVerification` | `VerificationEnvelope + manifestDigest + contractRef`；Artifact版追加`artifactDigests[]` |
 | `IntegrationAvailabilityEvidence` | `EvidenceEnvelope + integrationId + configRevision + availabilityState + latencyMs?` |
 | `PersonMatchEvidence` | `EvidenceEnvelope + clusterSetDigest + referenceProjectionRevision + matches[] + unmatchedClusterIds[]` |
-| `FieldObservationPage` | `EvidenceEnvelope + fieldObservationWorkId + observationId + fieldId + accessRevision + pageOrdinal + expectedObservationRevision + cursorIn + cursorOut + materialObservations[FieldMaterialObservationSnapshot] + pageDigest + hasMore`；`evidenceId=observationId,evidenceKind=field_observation_page,payloadDigest=pageDigest`；`basisDigest=SHA-256(JCS({schema:"procurement.field-observation-basis@1",fieldAccessHandle:完整FieldAccessHandle,pageRequest:完整FieldObservationPageRequest}))`，从而空页也绑定精确Access/containment与Request；snapshots按`identity.materialKey`的UTF-8 bytes升序且key唯一，并逐项匹配同一observation/field/access；每项endpoint、identity.mountScopeId、mountScopeRevision与containment provenance必须匹配输入`FieldAccessHandle`且location位于其root containment；`pageDigest=SHA-256(JCS({schema:"procurement.field-observation-page@1",producerRef,basisDigest,observedAtMs,fieldObservationWorkId,observationId,fieldId,accessRevision,pageOrdinal,expectedObservationRevision,cursorIn,cursorOut,materialObservations,hasMore}))`；`hasMore=true`要求bounded非空`cursorOut`且不同于`cursorIn`，terminal page固定`hasMore=false,cursorOut=null`；最多100项、完整Result≤`512 KiB` |
-| `ObservationCommitResult` | `DomainFactEnvelope + observationId + fieldObservationWorkId + fieldId + accessRevision + pageOrdinal + committedObservationRevision(=revision) + pageDigest + acceptedMaterials[{materialKey,bindingRevision,changeKind(inserted|refreshed|rebound),realityDigest,snapshotDigest}] + acceptedMaterialSetDigest + nextCursor + hasMore`；`factId=observationId,aggregateType=material_field_observation,aggregateId=fieldId,revision=committedObservationRevision`；acceptedMaterials按materialKey的UTF-8 bytes升序；`acceptedMaterialSetDigest=SHA-256(JCS({schema:"procurement.field-observation-accepted-materials@1",items:acceptedMaterials}))`；`factDigest=SHA-256(JCS({schema:"procurement.field-observation-revision@1",fieldId,committedObservationRevision,observationId,fieldObservationWorkId,accessRevision,pageOrdinal,pageDigest,acceptedMaterialSetDigest,nextCursor,hasMore}))`；terminal page的`nextCursor=null`；typed Result内部不含`resultDigest`，`proc_field_observations.result_digest`必须等于`fx_event_result_bindings.result_digest`对完整Result JSON计算的统一digest，commit marker重放返回原Result而不重算revision |
+| `FieldObservationPage` | `EvidenceEnvelope + fieldObservationWorkId + observationId + fieldId + accessRevision + pageOrdinal + expectedObservationRevision + cursorIn + cursorOut + materialObservations[FieldMaterialObservationSnapshot] + pageDigest + hasMore`；`evidenceId=observationId,evidenceKind=field_observation_page,payloadDigest=pageDigest`；`basisDigest=SHA-256(JCS({schema:"procurement.field-observation-basis@1",fieldAccessHandle:完整FieldAccessHandle,pageRequest:完整FieldObservationPageRequest}))`，从而空页也绑定精确Access/containment与Request；snapshots按`identity.materialKey`的UTF-8 bytes升序且key唯一，并逐项匹配同一observation/field/access；每项endpoint、identity.mountScopeId、mountScopeRevision与containment provenance必须匹配输入`FieldAccessHandle`且location位于其root containment；`pageDigest=SHA-256(JCS({schema:"procurement.field-observation-page@1",producerRef,basisDigest,observedAtMs,fieldObservationWorkId,observationId,fieldId,accessRevision,pageOrdinal,expectedObservationRevision,cursorIn,cursorOut,materialObservations,hasMore}))`；`hasMore=true`要求bounded非空`cursorOut`且不同于`cursorIn`，terminal page固定`hasMore=false,cursorOut=null`；最多100项且完整typed value的UTF-8 JCS bytes≤`65,536`，该完整value是Field Observation Commit Event唯一的durable `evidence_json` payload；`fx_event_result_bindings.evidence_digest=SHA-256(JCS(完整typed value))`，它与命名basis的`pageDigest`是两个明确不同的digest |
+| `ObservationCommitResult` | `DomainFactEnvelope + observationId + fieldObservationWorkId + fieldId + accessRevision + pageOrdinal + committedObservationRevision(=revision) + pageDigest + acceptedMaterials[{materialKey,bindingRevision,changeKind(inserted|refreshed|rebound),realityDigest,snapshotDigest}] + acceptedMaterialSetDigest + nextCursor + hasMore`；`factId=observationId,aggregateType=material_field_observation,aggregateId=fieldId,revision=committedObservationRevision`；acceptedMaterials按materialKey的UTF-8 bytes升序；`acceptedMaterialSetDigest=SHA-256(JCS({schema:"procurement.field-observation-accepted-materials@1",items:acceptedMaterials}))`；`factDigest=SHA-256(JCS({schema:"procurement.field-observation-revision@1",fieldId,committedObservationRevision,observationId,fieldObservationWorkId,accessRevision,pageOrdinal,pageDigest,acceptedMaterialSetDigest,nextCursor,hasMore}))`；terminal page的`nextCursor=null`；完整typed value的UTF-8 JCS bytes≤`65,536`且内部不含`resultDigest`，`proc_field_observations.result_digest`必须等于`fx_event_result_bindings.result_digest=SHA-256(JCS(完整typed Result value))`，commit marker重放返回原Result而不重算revision |
 | `ProcurementControlReceipt` | `ReceiptEnvelope + procurementRunId + acquiredMaterialKeys[] + controlRevisionSetDigest` |
 | `PlayabilityEvidence` | `EvidenceEnvelope + materialResults[{materialKey,playable,reasonCodes}]` |
 | `TriageStructureEvidence` | `EvidenceEnvelope + structureKind(single|season) + primaryRoles[] + episodeClaims[] + relatedReferences[]` |
@@ -8864,6 +8884,7 @@ Level 8固定后续实现必须建立的可执行contract fixture，不把“以
 | --- | --- | --- |
 | Handoff A Accepted | continuity match前后、并发Subject/episode变化、Decision前、Subject/Binding participant后、Control participant前后、Outbox前 | exact claim唯一命中且zero overlap才extension；0/N命中、缺失或overlap新建Subject；竞态使Basis失效后重算；要么全部不存在，要么Decision/Subject/claim snapshot/Binding/Control/Receipt全部成立；Procurement只异步消费Receipt |
 | Material Identity | mount remap/container restart、inode reuse、stat变化、Hash中断与Control acquire前 | 稳定Mount Scope才继承Identity；新/变化成员完成全SHA-256前无Control；stat变化使缓存失效；同Hash不同inode仍是不同Identity |
+| Field Observation Page | Page DTO/Access/Request digest验证前后、64 KiB byte budget边界、Field head CAS前后、immutable revision与Material current-row逐项写入前后、typed Evidence/Result/marker前后、零Outbox协调、响应前崩溃 | 任一DTO、顺序、continuity、digest、Supporting Work或CAS验证失败整页rollback；完整Page Evidence、Field head、revision、全部Material current rows、typed Result和marker全有或全无；声明false时不要求或伪造Outbox；同marker重放返回原Result且不推进revision；current row被后续页改写后仍可由marker链恢复历史Page；terminal page以前不得形成缺失结论 |
 | Procurement failed-run retry | Retry Intent commit前后、新Run建立前后、Intent consume前后 | 旧Run始终sealed；一个Intent最多建立一个新Run；观察不伪造Basis revision；失败不会自动连锁重试 |
 | Libra Subject Abandon | Decision前、Subject terminal后、Primary Control release前后、Receipt/Outbox前 | 要么Subject仍active且Control不变，要么abandoned/Primary released/Receipt全部成立；已有Run时Command稳定拒绝 |
 | Libra Deliverable Promotion | Workspace Identity计算后、Package participant后、Control acquire前后 | Package可见时所有Product Material已有Libra Control；失败不发布Offer |
@@ -8974,7 +8995,7 @@ Status: `ACCEPTED / JOURNEY-AMENDED`（2026-07-16）。下列术语已经通过L
 - clean Catalog为`112 refs / 112 unique`，96个Result family均有typed contract；
 - 161张关系表的PK、revision、关键列、unique/partial unique、热路径索引和JSON上限已经固化；
 - 当前62项Capability registration、named helper和直接依赖已经完成function-level conservation；
-- Level 8 post-amendment closure audit、`PBF-02`纵向传播、`PBF-03` Acquisition可实现性、`PBF-04` People Candidate数据守恒、`PBF-05` Perception Resolution输入闭包/Person Schema复审、`PBF-06`（含`PBF-06-R1`）Reference/Person/Metadata/Media-Cast与`PBF-07` Field Observation输入/revision continuity闭合结果为`PASS / NO BLOCKING GAP / NO OPEN BUSINESS DECISION`；
+- Level 8 post-amendment closure audit、`PBF-02`纵向传播、`PBF-03` Acquisition可实现性、`PBF-04` People Candidate数据守恒、`PBF-05` Perception Resolution输入闭包/Person Schema复审、`PBF-06`（含`PBF-06-R1`）Reference/Person/Metadata/Media-Cast与`PBF-07`（含`PBF-07-R1`）Field Observation输入/revision/payload persistence continuity闭合结果为`PASS / NO BLOCKING GAP / NO OPEN BUSINESS DECISION`；
 - JSON Schema/DDL文件与contract fixture是未来Implementation交付物，其合同已经确定；
 - Level 9可以开始Public Interface and Product Surface结构化设计；
 - Implementation、E2E、Docker与生产部署继续暂停。
@@ -10494,7 +10515,8 @@ Profile、设备和平台只允许改变Baseline映射，不能改变Invariant�
   唯一推导出的持久闭合项及已确认`FA-04` continuity关系，以及post-baseline `PBF-02` Perception Acquisition
   纵向闭合、`PBF-03`实现可实现性、`PBF-04` People Candidate payload/revision continuity、`PBF-05`
   Perception Resolution输入闭包/Person Schema修正、`PBF-06` Reference/Person/Metadata/Media-Cast闭合与
-  `PBF-07` Field Observation输入/revision continuity，把关系表合同修正为161张并保持112项Capability；
+  `PBF-07`（含`PBF-07-R1`）Field Observation输入/revision/payload persistence continuity，把关系表合同修正为
+  161张并保持112项Capability；
 - 不修改Level 9的九页信息架构、Intent或Authorization语义；最终全文审计只补齐遗漏Command并把接口合同
   修正为113个Admin method+path加1个public health route；
 - 不把运行故障修复成跨Domain Store写入、静默Fallback、自动降级Outcome或媒体目录旁路写入；
@@ -11487,5 +11509,5 @@ post-baseline `PBF-01`–`PBF-07`已经按同一纪律完成bounded合同闭合�
 - Level 10（`10.0`–`10.12`）：`ACCEPTED`
   （2026-07-16；结构化正文与运行维度反向审计通过并由用户确认）
 - Final Level 0–10 Audit：`CLOSED / APPLIED_AND_AUDITED`（27项bounded修正、1项false positive关闭、`FA-04`已确认并传播）
-- Post-baseline realizability audit：`PBF-01`–`PBF-07 CLOSED / APPLIED_AND_AUDITED`（包含`PBF-06-R1`细化；不新增Domain/Handoff/Capability/关系表）
+- Post-baseline realizability audit：`PBF-01`–`PBF-07 CLOSED / APPLIED_AND_AUDITED`（包含`PBF-06-R1`与`PBF-07-R1`细化；不新增Domain/Handoff/Capability/关系表）
 - 旧`SD-*`条款：全部撤销，不具有clean Helix合同效力

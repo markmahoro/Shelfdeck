@@ -1587,3 +1587,31 @@ Supporting Work、现有两项Capability和表数量不变：
 因此`P7-03 Field Observation Design Return`的架构阻塞已经在SSOT层闭合，没有新增Domain、Process Root、
 Business Object、Capability、表或用户Decision。实现仍需以generated schema/DDL、first/subsequent work CAS、
 page replay/conflict、完整snapshot materialization、result-digest/marker和restart continuity fixtures证明遵守合同。
+
+### 15.9 `PBF-07-R1` — Field Observation durable payload与optional Outbox follow-up
+
+Status: `CLOSED / BOUNDED DETAIL FIX APPLIED` — 2026-07-18
+
+PBF-07重物化及crash/restart反证通过后，P7-03继续证明两项纵向合同没有闭合：
+
+1. `FieldObservationPage`允许`512 KiB`，但Foundation durable Event Result/Evidence各自只有`64 KiB`；
+   `proc_field_observations`只存digest，Material current row会被后续页面改写，因此合法Page缺少唯一可恢复位置；
+2. 具体Field Observation Transaction声明`outboxRequired=false`，而generic Domain Commit Coordinator把
+   `domain_fact_commit`误实现为永远要求non-empty Outbox。
+
+Bounded fix不新增Domain、Business Process、Capability、关系表或用户Decision：
+
+- `FieldObservationPage`正式收敛为最多100项且完整UTF-8 JCS value≤`65,536` bytes；Observer同时遵守item/byte
+  budget，不能由实现私下降低后丢字段；
+- Field Observation Commit把完整Page作为`FieldObservationPage@1` typed Evidence、把完整
+  `ObservationCommitResult@1`作为typed Result写入同一`fx_event_result_bindings`，二者与Field head、immutable
+  revision、全部Material current rows和commit marker同事务成立；
+- 历史Page唯一通过`proc_field_observations.commit_marker → fx_commit_markers.result_id →
+  fx_event_result_bindings.evidence_json`恢复；该Observation revision仍存在时其Evidence禁止GC或压缩；
+- `pageDigest`继续覆盖命名Page basis，`evidence_digest`覆盖完整typed Page，两者不混用；Result使用统一storage
+  digest；
+- Outbox cardinality由精确Transaction Contract决定：true必须non-empty并装配participant，false必须允许零消息且
+  不装配/伪造Outbox。Field Observation固定false，由Workflow Result、启动恢复和周期reconcile继续推进。
+
+因此本轮关闭的是payload capacity/storage continuity和Coordinator条件装配语义；PBF-07既有snapshot、revision、
+cursor与初始责任结论保持不变。
