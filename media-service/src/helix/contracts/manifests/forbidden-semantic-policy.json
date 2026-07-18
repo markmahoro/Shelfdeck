@@ -215,6 +215,62 @@
       "purpose": "evidence-locator",
       "allowedLocationTypes": ["content"],
       "allowedRuleIds": ["legacy.admission"]
+    },
+    {
+      "id": "canonical-procurement-retry-admission-head-schema",
+      "relativePath": "contracts/application-types/ProcurementRetryAdmissionHead/v1/schema.json",
+      "purpose": "evidence-locator",
+      "allowedLocationTypes": ["path", "content"],
+      "allowedRuleIds": ["legacy.admission"]
+    },
+    {
+      "id": "canonical-procurement-retry-admission-result-schema",
+      "relativePath": "contracts/application-types/ProcurementRetryAdmissionResult/v1/schema.json",
+      "purpose": "evidence-locator",
+      "allowedLocationTypes": ["path", "content"],
+      "allowedRuleIds": ["legacy.admission"]
+    },
+    {
+      "id": "canonical-procurement-retry-consume-schema",
+      "relativePath": "contracts/application-types/ProcurementRetryConsumeMemberSnapshot/v1/schema.json",
+      "purpose": "evidence-locator",
+      "allowedLocationTypes": ["content"],
+      "allowedRuleIds": ["legacy.admission"]
+    },
+    {
+      "id": "canonical-procurement-retry-intent-schema",
+      "relativePath": "contracts/application-types/ProcurementRetryIntent/v1/schema.json",
+      "purpose": "evidence-locator",
+      "allowedLocationTypes": ["content"],
+      "allowedRuleIds": ["legacy.admission"]
+    },
+    {
+      "id": "canonical-procurement-application-type-registry",
+      "relativePath": "contracts/procurement-application-type-registry.json",
+      "purpose": "evidence-locator",
+      "allowedLocationTypes": ["content"],
+      "allowedRuleIds": ["legacy.admission"]
+    },
+    {
+      "id": "canonical-procurement-retry-contract-model",
+      "relativePath": "domains/procurement/model/procurement-retry-contracts.js",
+      "purpose": "evidence-locator",
+      "allowedLocationTypes": ["content"],
+      "allowedRuleIds": ["legacy.admission"]
+    },
+    {
+      "id": "canonical-procurement-retry-intent-store",
+      "relativePath": "domains/procurement/persistence/procurement-retry-intent-store.js",
+      "purpose": "evidence-locator",
+      "allowedLocationTypes": ["path", "content"],
+      "allowedRuleIds": ["legacy.admission"]
+    },
+    {
+      "id": "canonical-foundation-control-admission-read",
+      "relativePath": "foundation/persistence/material-control.js",
+      "purpose": "evidence-locator",
+      "allowedLocationTypes": ["content"],
+      "allowedRuleIds": ["legacy.admission"]
     }
   ]
 }

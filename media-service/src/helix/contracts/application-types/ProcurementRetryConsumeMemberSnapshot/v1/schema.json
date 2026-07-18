@@ -1,0 +1,293 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/ProcurementRetryConsumeMemberSnapshot/v1",
+  "title": "ProcurementRetryConsumeMemberSnapshot@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "x-helix-maxCanonicalBytes": 4096,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "retryIntentId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "ordinal": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "materialKey": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "currentAdmissionHeadDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "materialState": {
+      "type": "string",
+      "enum": [
+        "present",
+        "missing"
+      ]
+    },
+    "currentBindingRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "currentEligibilityRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "currentEligibilityState": {
+      "type": "string",
+      "enum": [
+        "unknown",
+        "eligible",
+        "ineligible"
+      ]
+    },
+    "currentEligibilityBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "currentSelection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hasConflict": {
+          "type": "boolean"
+        },
+        "selectionBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "hasConflict",
+        "selectionBasisDigest"
+      ]
+    },
+    "currentControlSnapshot": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "materialKey": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "resultKind": {
+              "const": "available"
+            },
+            "controlRevision": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "controlState": {
+              "type": "string",
+              "enum": [
+                "uncontrolled",
+                "controlled"
+              ]
+            },
+            "ownerDomain": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "ownerScopeType": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "ownerScopeId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "regionProjection": {
+              "type": "string",
+              "enum": [
+                "uncontrolled",
+                "procurement",
+                "production",
+                "finished_goods"
+              ]
+            },
+            "evidenceDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "projectionDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "materialKey",
+            "resultKind",
+            "controlRevision",
+            "controlState",
+            "regionProjection",
+            "evidenceDigest",
+            "projectionDigest"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "materialKey": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "resultKind": {
+              "const": "unavailable"
+            },
+            "failureCode": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "evidenceDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "projectionDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "materialKey",
+            "resultKind",
+            "failureCode",
+            "evidenceDigest",
+            "projectionDigest"
+          ]
+        }
+      ]
+    },
+    "consumeOutcome": {
+      "type": "string",
+      "enum": [
+        "matched",
+        "stale"
+      ]
+    },
+    "staleReasonCode": {
+      "type": "string",
+      "enum": [
+        "field_status_changed",
+        "field_access_changed",
+        "terminal_observation_changed",
+        "extraction_policy_changed",
+        "triage_rule_changed",
+        "material_not_present",
+        "material_binding_changed",
+        "material_not_eligible",
+        "material_eligibility_changed",
+        "material_guard_conflict",
+        "material_control_unavailable",
+        "material_control_not_acquirable",
+        "material_control_changed"
+      ]
+    },
+    "snapshotDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "retryIntentId",
+    "ordinal",
+    "materialKey",
+    "currentAdmissionHeadDigest",
+    "materialState",
+    "currentSelection",
+    "currentControlSnapshot",
+    "consumeOutcome",
+    "snapshotDigest"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "materialState": {
+            "const": "present"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "currentBindingRevision",
+          "currentEligibilityRevision",
+          "currentEligibilityState",
+          "currentEligibilityBasisDigest"
+        ]
+      },
+      "else": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "currentBindingRevision"
+              ]
+            },
+            {
+              "required": [
+                "currentEligibilityRevision"
+              ]
+            },
+            {
+              "required": [
+                "currentEligibilityState"
+              ]
+            },
+            {
+              "required": [
+                "currentEligibilityBasisDigest"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "consumeOutcome": {
+            "const": "matched"
+          }
+        }
+      },
+      "then": {
+        "not": {
+          "required": [
+            "staleReasonCode"
+          ]
+        }
+      },
+      "else": {
+        "required": [
+          "staleReasonCode"
+        ]
+      }
+    }
+  ]
+}

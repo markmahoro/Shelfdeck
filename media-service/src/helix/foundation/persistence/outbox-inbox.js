@@ -52,7 +52,7 @@ function sha(value, field) {
 function assertPayload(value, path = 'payload') {
   if (!value || typeof value !== 'object' || Array.isArray(value)) fail('P3_OUTBOX_INVALID_PAYLOAD', 'Outbox payload must be a typed reference object.', { path });
   for (const [key, member] of Object.entries(value)) {
-    if (!PAYLOAD_KEY.test(key)) fail('P3_OUTBOX_PAYLOAD_AUTHORITY_ESCAPE', 'Outbox payload may contain only ID, revision, and digest references.', { path, key });
+    if (key !== 'messageKind' && !PAYLOAD_KEY.test(key)) fail('P3_OUTBOX_PAYLOAD_AUTHORITY_ESCAPE', 'Outbox payload may contain only its message discriminator plus ID, revision, and digest references.', { path, key });
     if (Array.isArray(member)) {
       if (member.length > 256 || member.some((item) => !['string', 'number'].includes(typeof item))) fail(
         'P3_OUTBOX_INVALID_PAYLOAD', 'Outbox reference arrays must be bounded scalar lists.', { path, key }

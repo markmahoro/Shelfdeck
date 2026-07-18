@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/ProcurementRetryAdmissionHead/v1",
+  "title": "ProcurementRetryAdmissionHead@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "x-helix-maxCanonicalBytes": 16384,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "fieldId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "fieldStatus": {
+      "type": "string",
+      "enum": [
+        "active",
+        "deregistered"
+      ]
+    },
+    "fieldAccess": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "digest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "revision",
+        "digest"
+      ]
+    },
+    "terminalObservation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "resultKind": {
+              "const": "available"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "fieldObservationWorkId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          },
+          "required": [
+            "resultKind",
+            "revision",
+            "fieldObservationWorkId"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "resultKind": {
+              "const": "unavailable"
+            }
+          },
+          "required": [
+            "resultKind"
+          ]
+        }
+      ]
+    },
+    "extractionPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "policyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "digest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "policyId",
+        "revision",
+        "digest"
+      ]
+    },
+    "triageRule": {
+      "$ref": "helix://contracts/application-types/ProcurementTriageRuleSnapshot/v1"
+    },
+    "headDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "fieldId",
+    "fieldStatus",
+    "fieldAccess",
+    "terminalObservation",
+    "extractionPolicy",
+    "triageRule",
+    "headDigest"
+  ]
+}

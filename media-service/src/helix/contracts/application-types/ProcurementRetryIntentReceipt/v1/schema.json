@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/ProcurementRetryIntentReceipt/v1",
+  "title": "ProcurementRetryIntentReceipt@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/application-types/ProcurementRetryIntentReceipt/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "receiptId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "receiptKind": {
+      "const": "procurement_retry_intent_created"
+    },
+    "ownerDomain": {
+      "const": "procurement"
+    },
+    "scopeType": {
+      "const": "procurement_retry_intent"
+    },
+    "scopeId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "scopeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "committedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "retryIntentId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "fieldId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "failedRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "intentDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "retryScopeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "preconditionSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "intentState": {
+      "const": "open"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "receiptId",
+    "receiptKind",
+    "ownerDomain",
+    "scopeType",
+    "scopeId",
+    "scopeDigest",
+    "committedAtMs",
+    "retryIntentId",
+    "fieldId",
+    "failedRunId",
+    "intentDigest",
+    "retryScopeDigest",
+    "preconditionSetDigest",
+    "intentState"
+  ]
+}

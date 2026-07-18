@@ -153,6 +153,18 @@ function createMaterialControlProjectionReadParticipant(options) {
     } });
 }
 
+function createMaterialControlAdmissionReadParticipant(options) {
+  if (!options || !options.schemaManifest || !Array.isArray(options.materialKeys) || typeof options.accept !== 'function' ||
+      typeof options.boundBusinessOwner !== 'string') fail('P3_CONTROL_ADMISSION_QUERY_INVALID', 'Atomic admission Control read dependencies are required.');
+  const keys=options.materialKeys;
+  if(keys.length<1||keys.length>1024||new Set(keys).size!==keys.length||keys.some((key,index)=>!SHA256.test(key||'')||index>0&&keys[index-1].localeCompare(key)>=0))
+    fail('P3_CONTROL_ADMISSION_QUERY_KEYS_INVALID','Atomic admission Control keys must be unique, sorted, and bounded to 1024.');
+  const definition=repository(options.schemaManifest);
+  return Object.freeze({participantId:options.participantId||'material_control_admission_query',owner:'material-control-authority',
+    boundBusinessOwner:options.boundBusinessOwner,repositories:[definition],execute(context){const control=context.repository('material_control');
+      const snapshots=Object.freeze(keys.map((key)=>mapControlProjection(key,control.invoke('find_current',{material_key:key}))));options.accept(snapshots);return snapshots.length;}});
+}
+
 function repository(schemaManifest) {
   return createRepositoryDefinition({
     repositoryId: 'material_control', owner: 'material-control-authority', schemaManifest,
@@ -346,4 +358,4 @@ function createMaterialControlParticipant(options) {
 }
 
 module.exports = Object.freeze({ MaterialControlError, controlScopeDigest, createMaterialControlParticipant,
-  createMaterialControlProjectionPort, createMaterialControlProjectionReadParticipant, materialKey });
+  createMaterialControlAdmissionReadParticipant, createMaterialControlProjectionPort, createMaterialControlProjectionReadParticipant, materialKey });

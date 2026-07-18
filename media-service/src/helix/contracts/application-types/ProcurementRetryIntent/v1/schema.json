@@ -1,0 +1,244 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/ProcurementRetryIntent/v1",
+  "title": "ProcurementRetryIntent@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "retryIntentId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "fieldId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "failedRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "failedRunBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "retryAdmissionHead": {
+      "$ref": "helix://contracts/application-types/ProcurementRetryAdmissionHead/v1"
+    },
+    "members": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1024,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ordinal": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "materialKey": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "failedRunMaterialDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "expectedBindingRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "expectedEligibilityRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "expectedEligibilityBasisDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "expectedSelectionBasisDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "expectedSelectionHasConflict": {
+            "const": false
+          },
+          "expectedControlSnapshot": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "materialKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "resultKind": {
+                    "const": "available"
+                  },
+                  "controlRevision": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "controlState": {
+                    "type": "string",
+                    "enum": [
+                      "uncontrolled",
+                      "controlled"
+                    ]
+                  },
+                  "ownerDomain": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "ownerScopeType": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "ownerScopeId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "regionProjection": {
+                    "type": "string",
+                    "enum": [
+                      "uncontrolled",
+                      "procurement",
+                      "production",
+                      "finished_goods"
+                    ]
+                  },
+                  "evidenceDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "projectionDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "materialKey",
+                  "resultKind",
+                  "controlRevision",
+                  "controlState",
+                  "regionProjection",
+                  "evidenceDigest",
+                  "projectionDigest"
+                ]
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "materialKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "resultKind": {
+                    "const": "unavailable"
+                  },
+                  "failureCode": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "evidenceDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "projectionDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "materialKey",
+                  "resultKind",
+                  "failureCode",
+                  "evidenceDigest",
+                  "projectionDigest"
+                ]
+              }
+            ]
+          },
+          "memberPreconditionDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "ordinal",
+          "materialKey",
+          "failedRunMaterialDigest",
+          "expectedBindingRevision",
+          "expectedEligibilityRevision",
+          "expectedEligibilityBasisDigest",
+          "expectedSelectionBasisDigest",
+          "expectedSelectionHasConflict",
+          "expectedControlSnapshot",
+          "memberPreconditionDigest"
+        ]
+      }
+    },
+    "retryScopeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "preconditionSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "actorId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "intentDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "retryIntentId",
+    "fieldId",
+    "failedRunId",
+    "failedRunBasisDigest",
+    "retryAdmissionHead",
+    "members",
+    "retryScopeDigest",
+    "preconditionSetDigest",
+    "actorId",
+    "idempotencyKey",
+    "intentDigest"
+  ]
+}

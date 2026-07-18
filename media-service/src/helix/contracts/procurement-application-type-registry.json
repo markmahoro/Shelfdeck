@@ -5,8 +5,98 @@
   "kind": "application-type-registry",
   "owner": "procurement",
   "status": "active",
-  "targetCount": 5,
+  "targetCount": 11,
   "entries": [
+    {
+      "id": "ProcurementRetryAdmissionHead",
+      "version": 1,
+      "owner": "procurement",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ProcurementRetryAdmissionHead/v1",
+      "relativePath": "application-types/ProcurementRetryAdmissionHead/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "ea4f0b9db4cb2eed36393ee62a93fae191737408d100f31e3669892edd7e31ec"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "ProcurementRetryAdmissionResult",
+      "version": 1,
+      "owner": "procurement",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ProcurementRetryAdmissionResult/v1",
+      "relativePath": "application-types/ProcurementRetryAdmissionResult/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "ed121a4f939bf22dfd76d8c6c68627d572c3ee9a0be61a9e7b22fb30d1845f77"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "ProcurementRetryConsumeMemberSnapshot",
+      "version": 1,
+      "owner": "procurement",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ProcurementRetryConsumeMemberSnapshot/v1",
+      "relativePath": "application-types/ProcurementRetryConsumeMemberSnapshot/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "cc5326c40ab3812bef23ebabde1d01953431a2079ed444b60bde3f7f5c353691"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "ProcurementRetryIntent",
+      "version": 1,
+      "owner": "procurement",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ProcurementRetryIntent/v1",
+      "relativePath": "application-types/ProcurementRetryIntent/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "5d373d6a48fc05573e79b65c23dccf7e927d0ab06382077842762f5c04480a2f"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "ProcurementRetryIntentAvailableMessage",
+      "version": 1,
+      "owner": "procurement",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ProcurementRetryIntentAvailableMessage/v1",
+      "relativePath": "application-types/ProcurementRetryIntentAvailableMessage/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "a9bce0db0e6bd9ae3e3c9947ef30bfabe8513828ec4524b5291229f55f08827f"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "ProcurementRetryIntentReceipt",
+      "version": 1,
+      "owner": "procurement",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ProcurementRetryIntentReceipt/v1",
+      "relativePath": "application-types/ProcurementRetryIntentReceipt/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "1bbd6272d4f98e2d921944a2264284bdb25457f4314313f8486d27c15b321e29"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
     {
       "id": "ProcurementRunExecutionBasis",
       "version": 1,

@@ -11,7 +11,9 @@ const { materialKey } = require('../../src/helix/foundation/persistence/material
 const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
 const { activeTriageRule, createDefaultTriageRuleRegistry } = require('../../src/helix/domains/procurement/model/procurement-run-contracts');
+const { emptySelectionSnapshot, failedRunMaterialDigest, memberPreconditionDigest } = require('../../src/helix/domains/procurement/model/procurement-retry-contracts');
 const { createProcurementRunAdmissionStore } = require('../../src/helix/domains/procurement/persistence/procurement-run-admission-store');
+const { createProcurementRetryIntentStore } = require('../../src/helix/domains/procurement/persistence/procurement-retry-intent-store');
 const { createProcurementRunSealStore } = require('../../src/helix/domains/procurement/persistence/procurement-run-seal-store');
 
 const generatedRoot = path.resolve(__dirname, '../../src/helix/foundation/persistence/generated');
@@ -38,6 +40,26 @@ function basis(registry, material, control) { const selected={procurementRunId:'
   const value={procurementRunId:'run-1',fieldId:'field-1',fieldStatus:'active',fieldAccess:{revision:1,digest:D('access')},
     terminalObservation:{revision:1,fieldObservationWorkId:'observation-work-1'},extractionPolicy:{policyId:'policy-1',revision:1,digest:D('policy')},
     triageRule:activeTriageRule(registry),selectedFieldMaterialSet:selected}; return {...value,basisDigest:canonicalDigest(value)}; }
+function retryIntent(registry, runBasis, material, expectedControl) {
+  const headValue={fieldId:'field-1',fieldStatus:'active',fieldAccess:{revision:1,digest:D('access')},
+    terminalObservation:{resultKind:'available',revision:1,fieldObservationWorkId:'observation-work-1'},
+    extractionPolicy:{policyId:'policy-1',revision:1,digest:D('policy')},triageRule:activeTriageRule(registry)};
+  const retryAdmissionHead={...headValue,headDigest:canonicalDigest(headValue)};
+  const item={ordinal:0,materialKey:material.materialKey,failedRunMaterialDigest:failedRunMaterialDigest({failedRunId:'run-1',
+    failedRunBasisDigest:runBasis.basisDigest,ordinal:0,materialKey:material.materialKey,
+    basisMemberDigest:runBasis.selectedFieldMaterialSet.members[0].basisMemberDigest,terminalEvidenceDigest:D('triage-failure')}),
+    expectedBindingRevision:1,expectedEligibilityRevision:2,expectedEligibilityBasisDigest:D('eligibility'),
+    expectedSelectionBasisDigest:emptySelectionSnapshot(material.materialKey).selectionBasisDigest,expectedSelectionHasConflict:false,
+    expectedControlSnapshot:expectedControl};
+  const members=[{...item,memberPreconditionDigest:memberPreconditionDigest(item)}];
+  const retryScopeDigest=canonicalDigest({schema:'procurement.retry-scope@1',failedRunId:'run-1',failedRunBasisDigest:runBasis.basisDigest,
+    items:members.map(({ordinal,materialKey,failedRunMaterialDigest})=>({ordinal,materialKey,failedRunMaterialDigest}))});
+  const preconditionSetDigest=canonicalDigest({schema:'procurement.retry-precondition-set@1',retryAdmissionHeadDigest:retryAdmissionHead.headDigest,
+    items:members.map(({ordinal,materialKey,memberPreconditionDigest})=>({ordinal,materialKey,memberPreconditionDigest}))});
+  const value={retryIntentId:'retry-intent-1',fieldId:'field-1',failedRunId:'run-1',failedRunBasisDigest:runBasis.basisDigest,
+    retryAdmissionHead,members,retryScopeDigest,preconditionSetDigest,actorId:'actor-1',idempotencyKey:'retry-key-1'};
+  return {...value,intentDigest:canonicalDigest(value)};
+}
 function handle(runBasis) { const memberValue=runBasis.selectedFieldMaterialSet.members[0]; return {
   schemaRef:'helix://contracts/types/ResponsibilityControlCommitHandle/v1',schemaVersion:1,handleId:'handle-1',operationKind:'acquire',
   ownerDomain:'procurement',processType:'procurement_run',processId:runBasis.procurementRunId,
@@ -57,8 +79,10 @@ function seed(database, material, control) {
     database.prepare('INSERT INTO fx_workflow_plans VALUES(?,?,?,?,?,?,?,?,?)').run('run-plan-1','run-attempt-1','procurement-planner',1,D('catalog'),D('plan-basis'),D('graph'),'planned',1);
     database.prepare('INSERT INTO fx_plan_nodes VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run('run-plan-1','admit','procurement.material.control.acquire@1',1,'input@1','{}','parameters@1','{}','when@1','{}','responsibility_control_commit','fence@1','{}','resource@1','{}');
     database.prepare('INSERT INTO fx_plan_nodes VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run('run-plan-1','seal','procurement.run.seal@1',1,'input@1','{}','parameters@1','{}','when@1','{}','domain_fact_commit','fence@1','{}','resource@1','{}');
+    database.prepare('INSERT INTO fx_plan_nodes VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run('run-plan-1','retry-intent','procurement.retry.intent.create@1',1,'input@1','{}','parameters@1','{}','when@1','{}','domain_fact_commit','fence@1','{}','resource@1','{}');
     database.prepare('INSERT INTO fx_workflow_events VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run('run-event-1','run-plan-1','admit','run-work-1','run-attempt-1','procurement','procurement.material.control.acquire@1',1,'executing','normal',1,null,null,null);
     database.prepare('INSERT INTO fx_workflow_events VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run('seal-event-1','run-plan-1','seal','run-work-1','run-attempt-1','procurement','procurement.run.seal@1',1,'ready','normal',1,null,null,null);
+    database.prepare('INSERT INTO fx_workflow_events VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run('retry-event-1','run-plan-1','retry-intent','run-work-1','run-attempt-1','procurement','procurement.retry.intent.create@1',1,'ready','normal',1,null,null,null);
     database.prepare('INSERT INTO fx_commit_markers(commit_marker,owner_domain,scope_type,scope_id,commit_digest,committed_at_ms) VALUES(?,?,?,?,?,?)').run('observation-marker','procurement','material_field_observation','field-1',D('observation-marker'),1);
     database.prepare('INSERT INTO proc_field_observations VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run('field-1',1,'observation-1','observation-work-1',1,0,0,null,null,D('page'),D('fact'),'observation-marker',D('result'),1,1);
     database.prepare('UPDATE proc_material_fields SET current_observation_revision=1 WHERE field_id=?').run('field-1');
@@ -125,4 +149,28 @@ test('failed Run Seal releases Selection but preserves exact Procurement Control
   const check=new Database(databasePath,{readonly:true});assert.deepEqual(check.prepare('SELECT state,state_revision,seal_outcome FROM proc_procurement_runs').get(),{state:'sealed',state_revision:2,seal_outcome:'failed'});
   assert.deepEqual(check.prepare('SELECT selection_state,terminal_disposition FROM proc_run_materials').get(),{selection_state:'released',terminal_disposition:'triage_failed'});
   assert.equal(check.prepare('SELECT control_revision FROM fx_material_controls').get().control_revision,1);check.close();
+}));
+
+test('creates one open Retry Intent with exact failed evidence, preconditions, receipt, marker, and internal Outbox',()=>fixture(({databasePath,unitOfWork})=>{
+  const registry=createDefaultTriageRuleRegistry();const material=identity();const initial=controlSnapshot(material);const runBasis=basis(registry,material,initial);
+  const database=new Database(databasePath);seed(database,material,initial);database.close();
+  createProcurementRunAdmissionStore({schemaManifest,unitOfWork,triageRegistry:registry}).admit({basis:runBasis,controlHandle:handle(runBasis),
+    commitMarker:{commitMarker:'run-marker-1',commitDigest:D('run-commit')},resultBinding:{resultId:'run-receipt-1',eventId:'run-event-1'}});
+  const raw={decisionId:'seal-decision-1',procurementRunId:'run-1',expectedStateRevision:1,expectedRunBasisDigest:runBasis.basisDigest,
+    sealOutcome:'failed',publishedCandidates:[],releasedMembers:[{materialKey:material.materialKey,disposition:'triage_failed',evidenceDigest:D('triage-failure')}]};
+  createProcurementRunSealStore({schemaManifest,unitOfWork}).seal({decision:{...raw,decisionDigest:canonicalDigest(raw)},
+    commitMarker:{commitMarker:'seal-marker-1',commitDigest:D('seal-commit')},resultBinding:{resultId:'seal-receipt-1',eventId:'seal-event-1'}});
+  const intent=retryIntent(registry,runBasis,material,controlledSnapshot(material));
+  const store=createProcurementRetryIntentStore({schemaManifest,unitOfWork,triageRegistry:registry});
+  const request={intent,commitMarker:{commitMarker:'retry-marker-1',commitDigest:D('retry-create')},
+    resultBinding:{resultId:'retry-receipt-1',eventId:'retry-event-1'},outbox:{messageId:'retry-message-1'}};
+  const committed=store.create(request);assert.equal(committed.replayed,false);assert.equal(committed.typedResult.intentState,'open');
+  assert.equal(store.create(request).replayed,true);
+  const idempotentReplay=store.create({...request,commitMarker:{commitMarker:'retry-marker-unused',commitDigest:D('different-attempt')}});
+  assert.equal(idempotentReplay.replayed,true);assert.equal(idempotentReplay.commitMarker,'retry-marker-1');
+  const check=new Database(databasePath,{readonly:true});
+  assert.deepEqual(check.prepare('SELECT state,state_revision,retry_member_count FROM proc_procurement_retry_intents').get(),{state:'open',state_revision:1,retry_member_count:1});
+  assert.equal(check.prepare('SELECT COUNT(*) count FROM proc_procurement_retry_intent_materials').get().count,1);
+  const message=check.prepare('SELECT message_kind,payload_schema_ref,payload_json FROM fx_outbox').get();
+  assert.equal(message.message_kind,'procurement_retry_intent_available');assert.equal(JSON.parse(message.payload_json).messageKind,'procurement_retry_intent_available');check.close();
 }));

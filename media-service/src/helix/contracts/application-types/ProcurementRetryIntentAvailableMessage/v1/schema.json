@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/ProcurementRetryIntentAvailableMessage/v1",
+  "title": "ProcurementRetryIntentAvailableMessage@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "x-helix-maxCanonicalBytes": 16384,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "messageKind": {
+      "const": "procurement_retry_intent_available"
+    },
+    "retryIntentId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "fieldId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "failedRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "intentStateRevision": {
+      "const": 1
+    },
+    "intentDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "retryScopeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "messageKind",
+    "retryIntentId",
+    "fieldId",
+    "failedRunId",
+    "intentStateRevision",
+    "intentDigest",
+    "retryScopeDigest"
+  ]
+}
