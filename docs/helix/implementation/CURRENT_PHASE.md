@@ -1,6 +1,6 @@
 # P7 Procurement Detailed Plan
 
-Status: In progress；P7-00–P7-03 complete；next P7-04 Extraction Eligibility and derived Regions.
+Status: Design Return；P7-00–P7-03 complete；P7-04 blocked by Policy/suppression/Control Projection continuity gaps.
 
 Last updated: 2026-07-18
 
@@ -77,6 +77,10 @@ socket、ambient credential、真实Material Field扫描、真实媒体/FFmpeg�
 
 - 由有效Observation、Extraction Policy和当前Control projection计算Eligibility。
 - Procurement/Production/Finished Goods Region只读动态派生，无Region Store/ID/路径锁。
+- Design Return：Observation terminal coverage已可实现，但Beta Extraction Policy仍是无closed rule schema的任意JSON；
+  mandatory duplicate-extraction suppression没有Procurement fact/lifecycle；Material Control没有versioned read Projection，
+  `proc_field_materials`也没有stale-write basis。不得默认allow、默认无suppression或用最终Control CAS掩盖错误Projection。
+  详见`evidence/P7_04_ELIGIBILITY_RECONCILE_DESIGN_RETURN.md`。
 
 ### P7-05 Procurement Run selection and Control acquisition
 
