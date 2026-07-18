@@ -1,6 +1,6 @@
 # P8 Handoff A and Libra Front Half Detailed Plan
 
-Status: Active；P8-00–P8-03 complete；P8-04 in progress.
+Status: Active；P8-00–P8-04 complete；P8-05 in progress.
 
 Last updated: 2026-07-19
 
@@ -87,6 +87,9 @@ Kairox/Task Runtime，不执行真实媒体生产、Workspace写入、Handoff B�
 
 - pure deterministic resolver冻结Candidate claim、matched active Subject set与Episode overlap Evidence。
 - exact one + zero overlap=`season_extension`；0/N match、缺claim或任一overlap=`new_subject`。
+- Done：pure resolver只消费Candidate exact claim/Episode scope、global head和Libra active Subject snapshots；固定0/1/N witness、
+  overlap与Decision digest。唯一exact active Subject且零overlap才extension，其余稳定new Subject。Evidence见
+  `evidence/P8_04_SUBJECT_CONTINUITY_RESOLUTION.md`。
 
 ### P8-05 Intake Decision and rejection path
 
