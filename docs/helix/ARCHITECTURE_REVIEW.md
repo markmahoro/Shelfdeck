@@ -1,6 +1,6 @@
 # Helix Architecture Review Workbench
 
-Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-18；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-09`（含`PBF-09-R1`）bounded correction均已完成。
+Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-18；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-10`（含`PBF-09-R1`、`PBF-10-R1`）bounded correction均已完成。
 
 ## 1. Purpose and authority
 
@@ -1756,3 +1756,29 @@ Bounded correction不新增Domain、Owner、Business Process Root、Handoff、St
 全文审计覆盖Level 3 Candidate/Manifest、Level 5 Triage Rule、Level 6 Supporting Work/Run、Level 7
 Planner/Capability/Event binding、Level 8 Catalog/DTO/transaction/163-table schema/crash fixture/Dictionary及Level 10
 contract counts。结果为`PASS / PBF-10 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.14 `PBF-10-R1` — Candidate Publication transaction table continuity
+
+Status: `CLOSED / BOUNDED DETAIL FIX APPLIED` — 2026-07-18
+
+P7-07在物化`helix.transaction.procurement-candidate-publication@1`时发现：8.5.4的业务原子集已经要求final
+Manifest及N:M Episode Claim relation，8.5.11也已经定义并要求
+`proc_candidate_primary_material_episode_claims`与Publication同事务成立；但8.5.4没有把该Canonical
+Transaction的domain participant表集逐表列成机器合同。生成后的`participants[domain].tables`与
+`writeTables`因此漏掉该表。实现写入它会突破白名单，不写则违反既有原子事实集。
+
+主审沿Candidate Draft、Manifest Draft/final Manifest、Episode relation table、Canonical Transaction、crash
+fixture和163-table inventory反证，确认这是formal machine-contract gap，不是新的业务要求，也不是实现线程对
+已定Owner边界的误读。Bounded correction只做以下闭合：
+
+- 在8.5.4把Candidate Publication的Procurement domain participant固定为7张表，并显式纳入
+  `proc_candidate_primary_material_episode_claims`；
+- 固定Foundation participant为3张既有表，`writeTables`为两者精确并集10张，`readTables`保持2张；
+- 明确某次Candidate没有Episode Claim row不允许从Transaction白名单删除关系表；
+- crash fixture显式要求Episode relation表与Package、Manifest、Related relation、Reservation、Offer、Outbox、
+  typed Result和marker全有或全无。
+
+本修正不新增或删除关系表，`163 tables / 163 unique names`保持；不改变Domain、Owner、Store、Handoff、
+Capability、Candidate业务语义或Publication事务边界。Transaction materializer/validator必须按该精确表集重新物化，
+不能继续从概括性“Manifest/Relation”文字推断。审计结果为
+`PASS / PBF-10-R1 CLOSED / NO OPEN BUSINESS DECISION`。

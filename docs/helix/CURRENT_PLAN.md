@@ -38,6 +38,10 @@ Work Package细节只存在于`implementation/CURRENT_PHASE.md`；当前事实�
 实现差距基线和处置Evidence见
 `implementation/evidence/IMPLEMENTATION_GAP_AUDIT_4a16f0a9.md`。
 
+`PBF-10-R1`只闭合Candidate Publication的机器事务表集：7张Procurement domain表（含
+`proc_candidate_primary_material_episode_claims`）与3张Foundation表构成精确10张`writeTables`；不改变Domain、Owner、
+Store、Handoff、Capability或163张关系表总数。
+
 ## 3. Current phase
 
 | Field | Current value |

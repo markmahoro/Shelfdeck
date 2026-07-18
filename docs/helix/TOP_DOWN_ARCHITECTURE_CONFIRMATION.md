@@ -1,6 +1,6 @@
 # Helix Clean Top-down Architecture
 
-Status: ShelfDeck / Helix architecture SSOT; Levels 0–10 accepted; final full-document audit and post-baseline `PBF-01`–`PBF-10`（含`PBF-09-R1`）bounded corrections closed; implementation not authorized by this document.
+Status: ShelfDeck / Helix architecture SSOT; Levels 0–10 accepted; final full-document audit and post-baseline `PBF-01`–`PBF-10`（含`PBF-09-R1`、`PBF-10-R1`）bounded corrections closed; implementation not authorized by this document.
 
 Last updated: 2026-07-18
 
@@ -7649,7 +7649,7 @@ page、完整Workflow Graph和整项媒体详情禁止进入列表热记录。
 | Field Observation Page Commit | validated complete `FieldObservationPage`同时作为本Commit Event的immutable durable Evidence写入`fx_event_result_bindings.evidence_json` + current Field Observation head CAS + immutable page revision + Field Material current-row insert/update + durable `ObservationCommitResult` + commit marker；全部同事务成立；新Material只置`unknown/unknown`初值，Observation Commit不计算最终Eligibility/Region，也不发布Outbox |
 | Field Eligibility Reconcile Commit | bounded `ExtractionEligibilityDecisionBatch` + current Field/Access/terminal Observation head/Policy/Material Binding和既有Eligibility revision CAS + 同事务重读并验证Selection conflict与Foundation Material Control revision/digest + 更新Field Material current Eligibility/Control Projection；更新后的rows就是唯一durable output，事务只返回typed summary；这是可重建的Procurement current decision-fact transaction，basis不变时幂等no-op，不写Event Result、commit marker或Outbox |
 | Procurement Run Admission | complete `ProcurementRunExecutionBasis@1` + prospective Run identity + `ResponsibilityControlCommitHandle` + current Field/Access/terminal Observation/Policy/active Triage Rule authority/Material/Selection/Control fence + Run及relationized Basis rows + 全部`run_selection` guard + 对全部成员的同Field Procurement Control acquire/assert + durable `ProcurementControlReceipt` + commit marker；Triage Rule必须由注入的Procurement Registry解析并匹配当前active snapshot，不能信任调用者值；`hasOutbox=false`，全部事实/Control全有或全无，禁止分批Control后补建Run |
-| Procurement Candidate Publication | complete `CandidateDraft@1` + exact Run Basis/Triage Rule/Structure Unit/Identity/Manifest Draft fence + Run `candidate_package_revision_head` CAS + immutable Candidate Package + final Primary Input Manifest及N:M Episode Claim/Related relation + package members是Run Selection精确非空子集 + 成员`run_selection → candidate_delivery` + open Handoff Offer + durable typed Result/commit marker + 8.4.2既定Offer Outbox；CommitParticipant只消费Draft/Handle，不旁读Foundation Event Result或Provider；Package、Manifest、Relation、Reservation、Offer与Outbox全有或全无 |
+| Procurement Candidate Publication | complete `CandidateDraft@1` + exact Run Basis/Triage Rule/Structure Unit/Identity/Manifest Draft fence + Run `candidate_package_revision_head` CAS + immutable Candidate Package + final Primary Input Manifest及N:M Episode Claim/Related relation + package members是Run Selection精确非空子集 + 成员`run_selection → candidate_delivery` + open Handoff Offer + durable typed Result/commit marker + 8.4.2既定Offer Outbox；CommitParticipant只消费Draft/Handle，不旁读Foundation Event Result或Provider；Package、Manifest、Relation、Reservation、Offer与Outbox全有或全无；Canonical Transaction的Procurement domain write participant固定为`proc_candidate_packages`、`proc_candidate_season_continuity_claims`、`proc_candidate_primary_materials`、`proc_candidate_primary_material_episode_claims`、`proc_candidate_related_references`、`proc_candidate_deliveries`、`proc_run_materials`，不得从概括性“Manifest/Relation”文字推断或漏表 |
 | Procurement Run Seal | `ProcurementRunSealDecision@1` + Run expected state revision/basis CAS + sealed outcome/逐成员terminal Evidence/aggregate Evidence/finished time + 未成Package成员`run_selection → released`，保留`candidate_delivery`与全部Procurement Control + durable typed receipt/commit marker；candidate reservation、released member及seal Evidence的三项digest按8.6.18唯一公式形成并可由Owner rows重建；`hasOutbox=false` |
 | Perception Acquisition Page Commit | Acquisition/page fact + immutable Records/Anchors/explicit source-lineage Relations + source cursor revision/head CAS + page receipt + durable typed result + commit marker + Perception-internal Outbox；`hasMore=false`时同事务终结Acquisition |
 | Perception Resolution Commit | exact Query/Record Set/Rule digests + Resolution revision/head CAS + Draft明确的`duplicate_of`关系 + durable typed result + commit marker + Perception-internal Outbox |
@@ -7675,6 +7675,17 @@ page、完整Workflow Graph和整项媒体详情禁止进入列表热记录。
 | Off-deck per-Entry Authorization/Case | Batch Intent + one current Scope verification + per-Scope Authorization + one Case + one Shelf Entry `offdeck_in_progress`；每Entry独立事务、幂等向前恢复 |
 | Off-deck terminal | 全部Deletion Evidence核对后的Deck Fact terminal + Control release + terminal receipt |
 | Shelf Deregistration Commit | Shelf/Shelf Entry administrative terminal facts + precise Control release + release receipt |
+
+`Procurement Candidate Publication`的机器Transaction Contract必须精确物化为：
+
+- `participants[domain=procurement].tables`是上表列出的7张Procurement-owned表，包括
+  `proc_candidate_primary_material_episode_claims`；
+- `participants[foundation=execution-foundation].tables`固定为`fx_event_result_bindings`、
+  `fx_commit_markers`、`fx_outbox`；
+- `writeTables`是上述两组表的精确并集（共10张），`readTables`保持
+  `proc_procurement_runs`、`proc_run_materials`；
+- N:M Episode Claim为空是合法业务值，但其关系表仍必须属于事务写白名单；是否产生row由完整
+  `CandidateDraft@1`决定，不能以某次Draft为空为由从Contract中删除该表。
 
 Foundation不通过通用SQL拼接这些事实。每个Owner注册一个typed `CommitParticipant`，只接受Owner签发的
 Domain Fact Commit Handle或Responsibility Control Commit Handle；`SqliteUnitOfWork`只保证participants在
@@ -9395,7 +9406,7 @@ Level 8固定后续实现必须建立的可执行contract fixture，不把“以
 | Field Observation Page | Page DTO/Access/Request digest验证前后、64 KiB byte budget边界、Field head CAS前后、immutable revision与Material current-row逐项写入前后、typed Evidence/Result/marker前后、零Outbox协调、响应前崩溃 | 任一DTO、顺序、continuity、digest、Supporting Work或CAS验证失败整页rollback；完整Page Evidence、Field head、revision、全部Material current rows、typed Result和marker全有或全无；声明false时不要求或伪造Outbox；同marker重放返回原Result且不推进revision；current row被后续页改写后仍可由marker链恢复历史Page；terminal page以前不得形成缺失结论 |
 | Field Eligibility Reconcile | Policy schema/path/precedence边界、terminal coverage形成前后、Selection与Control snapshot读取前后、Batch提交前、逐项basis/revision重验、事务提交前后、响应前崩溃 | 只按`ExtractionPolicy@1`和固定reason precedence计算；无隐藏duplicate suppression；未terminal/Access变化/不可用basis只投影unknown；stale Material row不被覆盖并进入summary；同basis no-op；一个Batch的applied rows全有或全无；无Event Result/marker/Outbox；重启由current facts与rows重新收敛 |
 | Procurement Run admission/seal/retry | 1/1024/1025 member边界、Registry active Rule切换/缺失/digest冲突、Run/Basis/Selection写入前后、逐Control acquire/assert中途、Receipt/marker前后、Candidate publish reservation前后、Seal逐成员Evidence/aggregate digest前后、Retry Intent create/consume head/member snapshot与响应前崩溃 | 空或1025项Selection稳定拒绝；新Admission只冻结Registry current active Rule，调用者伪造tuple拒绝，existing Run按保留entry恢复；1/1024项时Run/完整relationized Basis/全部guard/全部Control/Receipt/marker全有或全无；同Field retained Control只assert不伪造revision；Seal只释放未成Package Selection并保留Control/Delivery Reservation，三个digest可在current row后续变化后由immutable relation重建；旧Run始终sealed；Retry五项set/member digest由rows重算一致，closed reason precedence与primary/aggregate映射唯一；一个Intent最多建立一个新Run，任一stale不建部分Run；失败不会自动连锁重试 |
-| Procurement Triage pipeline | Probe Batch 1/100/101边界、Selection完整覆盖/缺页/重复member、Playability closed reason、Structure page/cursor、single/season/disc与N:M Episode、mixed profile precedence、Unit 64 KiB边界、Identity/Manifest并行、Candidate Publication逐字段及revision-head CAS前后崩溃 | 现实读取只来自Shared typed Evidence；Batch/Structure page重放保持同digest；Unit与unassigned跨page精确分区Selection；同Member不得进入两个Unit；Handle/Probe/Layout/Rule/Run digest不匹配fail closed；ordinal从0；Claim不升级为Canonical Identity；Identity/Manifest任一缺失不发布Package；Publication把Package/final Manifest/Episode/Related relation/Reservation/Offer/Outbox/typed Result/marker全有或全无，同marker返回原package revision/digest |
+| Procurement Triage pipeline | Probe Batch 1/100/101边界、Selection完整覆盖/缺页/重复member、Playability closed reason、Structure page/cursor、single/season/disc与N:M Episode、mixed profile precedence、Unit 64 KiB边界、Identity/Manifest并行、Candidate Publication逐字段及revision-head CAS前后崩溃 | 现实读取只来自Shared typed Evidence；Batch/Structure page重放保持同digest；Unit与unassigned跨page精确分区Selection；同Member不得进入两个Unit；Handle/Probe/Layout/Rule/Run digest不匹配fail closed；ordinal从0；Claim不升级为Canonical Identity；Identity/Manifest任一缺失不发布Package；Publication把Package/final Manifest/`proc_candidate_primary_material_episode_claims`及Related relation/Reservation/Offer/Outbox/typed Result/marker全有或全无，同marker返回原package revision/digest；机器Transaction的7张domain participant表和3张Foundation participant表必须同时回滚或同时可见 |
 | Libra Subject Abandon | Decision前、Subject terminal后、Primary Control release前后、Receipt/Outbox前 | 要么Subject仍active且Control不变，要么abandoned/Primary released/Receipt全部成立；已有Run时Command稳定拒绝 |
 | Libra Deliverable Promotion | Workspace Identity计算后、Package participant后、Control acquire前后 | Package可见时所有Product Material已有Libra Control；失败不发布Offer |
 | Libra Run Discard | Decision前、Run terminal后、原始Input Control release前后、Cleanup Scope/Outbox前 | 要么Run仍frozen且全部Control不变，要么discarded/原始Input released/Cleanup Scope完整成立；受Control Workspace Product不成为无Owner文件 |
@@ -9509,13 +9520,13 @@ Status: `ACCEPTED / JOURNEY-AMENDED`（2026-07-16）。下列术语已经通过L
 
 当前确认状态：
 
-- `8.0`–`8.10`：`ACCEPTED / JOURNEY-AMENDED / POST-BASELINE-DOC-CORRECTED`（2026-07-18；用户确认的基线保持，Level 9反向审计与`PBF-01`–`PBF-10`（含`PBF-09-R1`）bounded修正已回写）；
+- `8.0`–`8.10`：`ACCEPTED / JOURNEY-AMENDED / POST-BASELINE-DOC-CORRECTED`（2026-07-18；用户确认的基线保持，Level 9反向审计与`PBF-01`–`PBF-10`（含`PBF-09-R1`、`PBF-10-R1`）bounded修正已回写）；
 - 当前没有开放的Level 8 Business Decision；
 - clean Catalog为`112 refs / 112 unique`，96个Catalog Result family均有typed contract；
 - 163张关系表的PK、revision、关键列、unique/partial unique、热路径索引和JSON上限已经固化；PBF-10只新增
   一张Procurement-owned Candidate Member↔Episode Claim关系表，不新增Store；
 - 当前62项Capability registration、named helper和直接依赖已经完成function-level conservation；
-- Level 8 post-amendment closure audit、`PBF-02`纵向传播、`PBF-03` Acquisition可实现性、`PBF-04` People Candidate数据守恒、`PBF-05` Perception Resolution输入闭包/Person Schema复审、`PBF-06`（含`PBF-06-R1`）Reference/Person/Metadata/Media-Cast、`PBF-07`（含`PBF-07-R1`）Field Observation输入/revision/payload persistence continuity、`PBF-08` Extraction Eligibility、`PBF-09`（含`PBF-09-R1`）Procurement Run Admission及`PBF-10` Triage Pipeline正式输入输出闭合结果为`PASS / NO BLOCKING GAP / NO OPEN BUSINESS DECISION`；
+- Level 8 post-amendment closure audit、`PBF-02`纵向传播、`PBF-03` Acquisition可实现性、`PBF-04` People Candidate数据守恒、`PBF-05` Perception Resolution输入闭包/Person Schema复审、`PBF-06`（含`PBF-06-R1`）Reference/Person/Metadata/Media-Cast、`PBF-07`（含`PBF-07-R1`）Field Observation输入/revision/payload persistence continuity、`PBF-08` Extraction Eligibility、`PBF-09`（含`PBF-09-R1`）Procurement Run Admission及`PBF-10`（含`PBF-10-R1`）Triage Pipeline正式输入输出与Candidate Publication机器事务表集闭合结果为`PASS / NO BLOCKING GAP / NO OPEN BUSINESS DECISION`；
 - JSON Schema/DDL文件与contract fixture是未来Implementation交付物，其合同已经确定；
 - Level 9可以开始Public Interface and Product Surface结构化设计；
 - Implementation、E2E、Docker与生产部署继续暂停。
@@ -11038,7 +11049,7 @@ Profile、设备和平台只允许改变Baseline映射，不能改变Invariant�
   Perception Resolution输入闭包/Person Schema修正、`PBF-06` Reference/Person/Metadata/Media-Cast闭合与
   `PBF-07`（含`PBF-07-R1`）Field Observation输入/revision/payload persistence continuity及`PBF-08`
   Extraction Eligibility确定性/Control freshness闭合、`PBF-09`（含`PBF-09-R1`）Procurement Run Admission/Seal/Retry连续性
-  与`PBF-10` Triage typed pipeline闭合，把关系表合同修正为163张并保持112项Capability；
+  与`PBF-10`（含`PBF-10-R1`）Triage typed pipeline及Candidate Publication机器事务表集闭合，把关系表合同修正为163张并保持112项Capability；
 - 不修改Level 9的九页信息架构、Intent或Authorization语义；最终全文审计只补齐遗漏Command并把接口合同
   修正为113个Admin method+path加1个public health route；
 - 不把运行故障修复成跨Domain Store写入、静默Fallback、自动降级Outcome或媒体目录旁路写入；
@@ -11889,7 +11900,7 @@ Beta Release Candidate不等于授权部署生产。生产部署、真实媒体�
 | 10.7 | Level 6业务健康、Level 9普通/Advanced边界 | preserved |
 | 10.8 | Level 5/6 Authorization、Level 8 typed Secret与Material safety | preserved |
 | 10.9 | 模块化单体、Physical File Source与Emby External Provider边界 | preserved |
-| 10.10 | 九条旅程、112 Capability、163 tables、113 Admin routes、1 public health route及clean-cut门禁 | preserved after bounded final-audit closure and `PBF-02`–`PBF-10`（含`PBF-09-R1`） |
+| 10.10 | 九条旅程、112 Capability、163 tables、113 Admin routes、1 public health route及clean-cut门禁 | preserved after bounded final-audit closure and `PBF-02`–`PBF-10`（含`PBF-09-R1`、`PBF-10-R1`） |
 
 #### 10.11.2 前序Level 10 reservation覆盖审计
 
@@ -12014,7 +12025,7 @@ Automation、Priority、Approval、Workspace与资源配置。它们在被新合
 关闭为历史Evidence。任何新Review Item在完成全局Evidence审计、证明真实缺陷、
 取得必要Owner Decision并形成新的有界Change Set之前，都不能改变本文语义。Level 7、Level 8与Level 9
 均已经Accepted并完成各自必要的Journey amendment；
-post-baseline `PBF-01`–`PBF-10`（含`PBF-09-R1`）已经按同一纪律完成bounded合同闭合并记录在Review Section 15；实现、测试或
+post-baseline `PBF-01`–`PBF-10`（含`PBF-09-R1`、`PBF-10-R1`）已经按同一纪律完成bounded合同闭合并记录在Review Section 15；实现、测试或
 部署仍未由本文件授权。
 
 ## Confirmation state
@@ -12027,11 +12038,11 @@ post-baseline `PBF-01`–`PBF-10`（含`PBF-09-R1`）已经按同一纪律完成
 - Level 5（`5.1`–`5.11`）：`ACCEPTED / JOURNEY-AMENDED`（2026-07-16）
 - Level 6（`6.0`–`6.12`）：`ACCEPTED / JOURNEY-AMENDED`（2026-07-16）
 - Level 7（`7.0`–`7.12`）：`ACCEPTED / JOURNEY-AMENDED`（2026-07-16；durable progress bounded amendment）
-- Level 8（`8.0`–`8.10`）：`ACCEPTED / JOURNEY-AMENDED / POST-BASELINE-DOC-CORRECTED`（2026-07-18；用户确认基线保持，`PBF-01`–`PBF-10`（含`PBF-09-R1`）已闭合）
+- Level 8（`8.0`–`8.10`）：`ACCEPTED / JOURNEY-AMENDED / POST-BASELINE-DOC-CORRECTED`（2026-07-18；用户确认基线保持，`PBF-01`–`PBF-10`（含`PBF-09-R1`、`PBF-10-R1`）已闭合）
 - Level 9（`9.0`–`9.11`）：`ACCEPTED / JOURNEY-AMENDED`
   （2026-07-16；8项Journey bounded gap已关闭，post-amendment audit通过并由用户确认）
 - Level 10（`10.0`–`10.12`）：`ACCEPTED`
   （2026-07-16；结构化正文与运行维度反向审计通过并由用户确认）
 - Final Level 0–10 Audit：`CLOSED / APPLIED_AND_AUDITED`（27项bounded修正、1项false positive关闭、`FA-04`已确认并传播）
-- Post-baseline realizability audit：`PBF-01`–`PBF-10 CLOSED / APPLIED_AND_AUDITED`（包含`PBF-06-R1`、`PBF-07-R1`与`PBF-09-R1`细化；不新增Domain/Handoff/Capability；`PBF-09`新增一张Procurement-owned retry precondition关系表，`PBF-10`新增一张Procurement-owned Candidate Member↔Episode Claim关系表，总数163）
+- Post-baseline realizability audit：`PBF-01`–`PBF-10 CLOSED / APPLIED_AND_AUDITED`（包含`PBF-06-R1`、`PBF-07-R1`、`PBF-09-R1`与`PBF-10-R1`细化；不新增Domain/Handoff/Capability；`PBF-09`新增一张Procurement-owned retry precondition关系表，`PBF-10`新增一张Procurement-owned Candidate Member↔Episode Claim关系表，`PBF-10-R1`只闭合其Canonical Transaction机器白名单，总数保持163）
 - 旧`SD-*`条款：全部撤销，不具有clean Helix合同效力

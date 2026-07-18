@@ -91,6 +91,12 @@ Structure Unit、Series Episode Claim、Identity Claim的mediaType/contentProfil
 567项完整Architecture fixture、85文件/125依赖和1514 semantic files全部PASS，findings与prohibited actions均为空。
 未运行E2E、Docker、生产或真实媒体副作用，未修改`media-desktop`。下一工作包P7-07。
 
+P7-07实施前反向审计发现Candidate Publication机器Transaction遗漏
+`proc_candidate_primary_material_episode_claims`。Architecture Agent提交`17bb9974`以`PBF-10-R1`闭合：domain
+participant固定7张Procurement表，Foundation participant固定3张表，`writeTables`为精确10张并集；Episode Claim、
+全部relation、Reservation、Offer、typed Result、marker与Outbox保持全有或全无。实现侧只读复审确认表总数仍为163，
+没有新增Domain、Owner、Store、Handoff或Capability；P7-07阻塞解除。
+
 ## 2. Accepted implementation conclusion
 
 clean Helix的业务核心、Persistence、Execution Foundation、Application Facade、API/Auth和Admin Web需要在
