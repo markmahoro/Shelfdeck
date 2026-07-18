@@ -1250,7 +1250,7 @@ CREATE TABLE "libra_intake_decisions" (
   "package_digest" TEXT CHECK (length("package_digest") = 64 AND "package_digest" NOT GLOB '*[^0-9a-f]*'),
   "acceptance_basis_digest" TEXT CHECK (length("acceptance_basis_digest") = 64 AND "acceptance_basis_digest" NOT GLOB '*[^0-9a-f]*'),
   "candidate_delivery_snapshot_digest" TEXT CHECK (length("candidate_delivery_snapshot_digest") = 64 AND "candidate_delivery_snapshot_digest" NOT GLOB '*[^0-9a-f]*'),
-  "expected_continuity_head_revision" INTEGER CHECK ("expected_continuity_head_revision" >= 1),
+  "expected_continuity_head_revision" INTEGER CHECK ("expected_continuity_head_revision" >= 0),
   "expected_continuity_head_digest" TEXT CHECK (length("expected_continuity_head_digest") = 64 AND "expected_continuity_head_digest" NOT GLOB '*[^0-9a-f]*'),
   "committed_continuity_head_revision" INTEGER CHECK ("committed_continuity_head_revision" >= 1),
   "candidate_continuity_set_digest" TEXT CHECK (length("candidate_continuity_set_digest") = 64 AND "candidate_continuity_set_digest" NOT GLOB '*[^0-9a-f]*'),
@@ -1539,7 +1539,7 @@ CREATE TABLE "libra_subject_abandon_receipts" (
 
 CREATE TABLE "libra_subject_continuity_heads" (
   "head_id" TEXT PRIMARY KEY CHECK ("head_id" IN ('active_subject_continuity')),
-  "current_revision" INTEGER CHECK ("current_revision" >= 1),
+  "current_revision" INTEGER CHECK ("current_revision" >= 0),
   "head_digest" TEXT CHECK (length("head_digest") = 64 AND "head_digest" NOT GLOB '*[^0-9a-f]*'),
   "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0)
 );

@@ -488,11 +488,11 @@
         "transactionId": "helix.transaction.handoff-a-accepted",
         "ownerScope": "libra",
         "contractRef": "helix://contracts/transactions/helix.transaction.handoff-a-accepted/v1",
-        "contractDigest": "efa908e8f3b791bee3c66163754a1d690ae78ed0ae0d7e3517c36011dda15d68"
+        "contractDigest": "0c7d9db80302cf228c69a4967275d75c3fe355d4cde377e5cfb144540f78de95"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "0cda160dd6ea38914e0a35b0e2b0e403e6cd0c20d4154efc9443fb310a61286b"
+        "value": "08fa20c9acea3f3ef05d0639b67bcd85cdd77863d46135c9c84bf7a317d9611e"
       }
     },
     {

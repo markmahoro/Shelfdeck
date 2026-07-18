@@ -14,7 +14,7 @@ const crashFixtures = Object.freeze({
   'people-candidate': ['typed Evidence恢复、Resolver产出complete Draft、Candidate head/open revision/typed Result/marker各边界；用户或strong rule接受前后；Registration Person/alias/provider identity与Merge target/source/preference/correlation提交各边界', 'CommitParticipant不旁读Foundation/Provider；Candidate payload digest可重算；重启不丢open Candidate；candidate revision或任一Person/Preference revision变化时整体CAS失败；接受成功时Candidate terminal与全部Person facts同时成立，同marker重放返回同一typed Result；弱Identity未经用户确认不建立Person，Preference冲突不得strong-rule自动接受', 8584],
   'direct-person-registration': ['Direct Person Registration提交前、Person/Identity/初始Projection checkpoint写入后、command receipt/Outbox前后、响应前崩溃', 'Person首revision、Alias/Provider Identity、初始Reference Projection checkpoint、durable result、command receipt和Outbox必须全有或全无；重放返回同一结果且不经过Candidate或建立Reference Fact', 11228],
   'people-reference-image': ['Reference Image导入后、Face检测/Embedding前后、Asset/Face/Reference head/Projection checkpoint各participant后、typed Result/marker/Outbox前后、响应前崩溃', '零Face、多Face、handle/digest/model不一致或stale Person/Reference revision整体失败；Asset与唯一Face同事务active或released；Reference revision和所有受影响Projection checkpoint连续；同marker重放返回原typed Result', 11228],
-  'handoff-a-accepted': ['continuity match前后、并发Subject/episode变化、Decision前、Subject/Binding participant后、Control participant前后、Outbox前', 'exact claim唯一命中且zero overlap才extension；0/N命中、缺失或overlap新建Subject；竞态使Basis失效后重算；要么全部不存在，要么Decision/Subject/claim snapshot/Binding/Control/Receipt全部成立；Procurement只异步消费Receipt', 8412],
+  'handoff-a-accepted': ['Candidate Delivery snapshot重建前后、global continuity head CAS前后、continuity match前后、并发Subject/episode/Resolved Identity exact anchor变化、target Intake CAS前后、Decision/Subject/Binding N:M relation participant后、Control participant前后、Result/marker/Outbox前', 'Snapshot的Offer/Package/Manifest/Location Evidence不一致即fail closed且不旁读proc_*修补；exact claim唯一命中且zero overlap才extension；0/N命中、缺失或overlap新建Subject；global head阻止query phantom，target head阻止唯一Subject stale extension；竞态使Decision失效后重新装配；new Subject identity pointer为NULL；要么全部不存在，要么global/target revision、Decision及match/overlap Evidence、Subject/claim/Episode scope、每Material Binding及全部Episode relation、Control、Receipt/Result/marker/Outbox全部成立；Procurement只异步消费Receipt', 9501],
   'procurement-failed-run-retry': ['Retry Intent commit前后、新Run建立前后、Intent consume前后', '旧Run始终sealed；一个Intent最多建立一个新Run；观察不伪造Basis revision；失败不会自动连锁重试', 8414],
   'libra-subject-abandon': ['Decision前、Subject terminal后、Primary Control release前后、Receipt/Outbox前', '要么Subject仍active且Control不变，要么abandoned/Primary released/Receipt全部成立；已有Run时Command稳定拒绝', 8415],
   'libra-deliverable-promotion': ['Workspace Identity计算后、Package participant后、Control acquire前后', 'Package可见时所有Product Material已有Libra Control；失败不发布Offer', 8416],
@@ -159,8 +159,16 @@ const definitions = Object.freeze({
   },
   'Handoff A Accepted': {
     commitClass: 'responsibility_control_commit',
-    writeTables: ['libra_intake_decisions', 'libra_subjects', 'libra_subject_season_continuity_claims', 'libra_material_bindings', 'libra_handoff_a_receipts', 'fx_material_controls', 'fx_material_control_revisions', 'fx_commit_markers', 'fx_outbox'],
-    readTables: ['libra_subjects', 'libra_subject_season_continuity_claims', 'libra_material_bindings'], fixtureRefs: ['handoff-a-accepted'], hasOutbox: true,
+    writeTables: ['libra_subject_continuity_heads', 'libra_intake_decisions', 'libra_intake_resolution_match_witnesses',
+      'libra_intake_resolution_episode_overlaps', 'libra_handoff_a_receipts', 'libra_subjects',
+      'libra_subject_season_continuity_claims', 'libra_subject_episode_scopes', 'libra_material_bindings',
+      'libra_material_binding_episode_claims', 'fx_material_controls', 'fx_material_control_revisions',
+      'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox'],
+    readTables: ['libra_subject_continuity_heads', 'libra_intake_decisions', 'libra_intake_resolution_match_witnesses',
+      'libra_intake_resolution_episode_overlaps', 'libra_handoff_a_receipts', 'libra_subjects',
+      'libra_subject_season_continuity_claims', 'libra_subject_episode_scopes', 'libra_material_bindings',
+      'libra_material_binding_episode_claims', 'fx_material_controls', 'fx_material_control_revisions',
+      'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox'], fixtureRefs: ['handoff-a-accepted'], hasOutbox: true,
     forbiddenWritePrefixes: ['proc_']
   },
   'Libra Subject Abandon Commit': {

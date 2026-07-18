@@ -35,6 +35,18 @@ test('keeps Handoff Accepted writes inside receiving Domain, Control, and Founda
   }
 });
 
+test('materializes the exact Handoff A ten Libra plus five Foundation transaction', () => {
+  const contract = byName.get('Handoff A Accepted');
+  assert.equal(contract.writeTables.length, 15);
+  assert.deepEqual(contract.readTables, contract.writeTables);
+  assert.deepEqual(contract.participants[0].tables, [
+    'libra_subject_continuity_heads', 'libra_intake_decisions', 'libra_intake_resolution_match_witnesses',
+    'libra_intake_resolution_episode_overlaps', 'libra_handoff_a_receipts', 'libra_subjects',
+    'libra_subject_season_continuity_claims', 'libra_subject_episode_scopes', 'libra_material_bindings',
+    'libra_material_binding_episode_claims'
+  ]);
+});
+
 test('materializes the exact Candidate Publication 8+3 write participant contract', () => {
   const contract = byName.get('Procurement Candidate Publication');
   assert.deepEqual(contract.participants, [

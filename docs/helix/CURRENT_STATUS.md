@@ -13,12 +13,12 @@ Last updated: 2026-07-19
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains；P7 — Procurement |
 | Current phase | P8 — Handoff A and Libra front half |
-| Current phase status | P8-00–P8-01 PASS；P8-02 Design Return由`PBF-11`闭合，implementation resumed |
+| Current phase status | P8-00–P8-02 PASS；P8-03 in progress |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P7 phase closure `2cf98561d7cf785db4005e65e99b0750d84ce5ce` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p8` on `codex/helix-p8` |
-| Next action | rematerialize PBF-11 machine contracts and continue P8-02 |
+| Next action | implement P8-03 Offer intake and Candidate snapshot verification |
 
 Architecture Agent提交`be3ecb89`已闭合`PBF-11`。实现侧逐项复审确认：Candidate Delivery正式携带完整
 Manifest及逐Material Location Evidence；Subject/Binding Episode关系均可N:M持久化；global continuity head与唯一
@@ -165,6 +165,14 @@ opaque provider identity set digest，无法与Candidate exact provider-season c
 `current_identity_revision`初值和Accepted payload中的Decision Evidence/target选择authority未闭合。实现线程未旁读Procurement Store、
 未压扁Episode、未用timestamp冒充revision、未修改SSOT。详见
 `implementation/evidence/P8_02_LIBRA_INTAKE_STORE_DESIGN_RETURN.md`。
+
+P8-02现已完成：Architecture Agent提交`be3ecb89`的`PBF-11`经只读复审PASS，并以原始SSOT blob纳入实现分支。
+机器合同已重物化为112 Capability、96 Result Family、168表、30 canonical transaction；Handoff A固定为10张Libra表与
+5张Foundation表同事务。新增Libra scoped Store精确拥有这10张表，支持revision `0`的唯一global continuity head、
+Subject/Binding N:M Episode关系、candidate/resolved_identity exact Claim provenance、nullable identity初值及完整Decision/Receipt
+连续性。完整Architecture门禁89个fixture、47 package、92 files、135 dependencies、1530 semantic files全部PASS，P2 aggregate为
+`c03cb78014a196e184be300de2a80657d8e01ced96f05e612858b89a8e3bf8ca`，`findings=[]`、
+`prohibitedActionsRun=[]`。Evidence见`implementation/evidence/P8_02_LIBRA_INTAKE_STORE.md`；下一工作包P8-03。
 
 ## 2. Accepted implementation conclusion
 

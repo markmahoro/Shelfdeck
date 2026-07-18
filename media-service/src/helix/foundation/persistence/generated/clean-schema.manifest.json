@@ -4,7 +4,7 @@
   "digestAlgorithm": "sha256",
   "tableCount": 168,
   "tableContractAggregateDigest": "1b6dd052a271cef59e45a65eedcdd4545e3289222ecfe21c3493cfe2500baf39",
-  "ddlDigest": "73c683f2221c61b740ec98a8edfa97b88a0daeeb88c462336c30e66e33ef3026",
+  "ddlDigest": "421e883ec530bf7aaafad86fac8667ad1e4dcb10e72e8bb298709dbd07e8cc6e",
   "tables": [
     {
       "tableId": "arca_acceptance_attempts",
@@ -2024,7 +2024,7 @@
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_intake_decisions/v1",
       "contractDigest": "a143b6f4e7fdbebb77fecd8eac260dd527762b8a49bc472e798c555352837b22",
-      "sqlDigest": "8c06b9b926e0533ca6c37c1d1af144d3b31898c03ea35b416a50a279009f812e",
+      "sqlDigest": "7b4fe30764dd3d1714f4c12edc34ba51891c80c0eb2cb3a401c8e3a360f6137b",
       "columns": [
         "intake_decision_id",
         "decision_revision",
@@ -2473,7 +2473,7 @@
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_subject_continuity_heads/v1",
       "contractDigest": "c0203651ab76327e1d08dc64894fbafd18c7e10036c90823711da52f48d138ee",
-      "sqlDigest": "0af72bbb020b7c38ba2f7a6741e8f984af6ce2248a6f82736cf2af03204a9ad3",
+      "sqlDigest": "fcb8daa0bc05d7f0071ffdb536efbffb7cb70b45c20edffe585bd432fedc4ccf",
       "columns": [
         "head_id",
         "current_revision",

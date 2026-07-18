@@ -1,6 +1,6 @@
 # P8 Handoff A and Libra Front Half Detailed Plan
 
-Status: Active；P8-00–P8-01 complete；P8-02 returned to Design.
+Status: Active；P8-00–P8-02 complete；P8-03 in progress.
 
 Last updated: 2026-07-19
 
@@ -65,6 +65,10 @@ Kairox/Task Runtime，不执行真实媒体生产、Workspace写入、Handoff B�
   provider-season anchor只有opaque set digest无法匹配；new Subject identity pointer初值及Accepted Decision input也未闭合。
   禁止旁读Procurement Store、压扁Episode、用timestamp冒充revision或让调用者指定Subject。详见
   `evidence/P8_02_LIBRA_INTAKE_STORE_DESIGN_RETURN.md`。
+- Done：Architecture Agent的`PBF-11`补齐typed Candidate Delivery Snapshot、global/target CAS、Resolved Identity exact
+  Claim、N:M Episode关系与nullable identity初值；实现线程原样物化168张表及精确Handoff A 10 Libra + 5 Foundation
+  同事务合同。Libra scoped Store只拥有10张`libra_*`表，保存Subject/continuity/Episode/Binding/Decision/Receipt完整连续性，
+  不旁读或写入`proc_*`。Evidence见`evidence/P8_02_LIBRA_INTAKE_STORE.md`。
 
 ### P8-03 Offer intake and Candidate snapshot verification
 

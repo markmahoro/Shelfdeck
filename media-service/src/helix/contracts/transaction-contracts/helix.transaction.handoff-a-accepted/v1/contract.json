@@ -14,11 +14,16 @@
         "owner": "libra",
         "access": "write",
         "tables": [
+          "libra_subject_continuity_heads",
           "libra_intake_decisions",
+          "libra_intake_resolution_match_witnesses",
+          "libra_intake_resolution_episode_overlaps",
+          "libra_handoff_a_receipts",
           "libra_subjects",
           "libra_subject_season_continuity_claims",
+          "libra_subject_episode_scopes",
           "libra_material_bindings",
-          "libra_handoff_a_receipts"
+          "libra_material_binding_episode_claims"
         ]
       },
       {
@@ -42,11 +47,16 @@
       }
     ],
     "writeTables": [
+      "libra_subject_continuity_heads",
       "libra_intake_decisions",
+      "libra_intake_resolution_match_witnesses",
+      "libra_intake_resolution_episode_overlaps",
+      "libra_handoff_a_receipts",
       "libra_subjects",
       "libra_subject_season_continuity_claims",
+      "libra_subject_episode_scopes",
       "libra_material_bindings",
-      "libra_handoff_a_receipts",
+      "libra_material_binding_episode_claims",
       "fx_material_controls",
       "fx_material_control_revisions",
       "fx_event_result_bindings",
@@ -54,9 +64,21 @@
       "fx_outbox"
     ],
     "readTables": [
+      "libra_subject_continuity_heads",
+      "libra_intake_decisions",
+      "libra_intake_resolution_match_witnesses",
+      "libra_intake_resolution_episode_overlaps",
+      "libra_handoff_a_receipts",
       "libra_subjects",
       "libra_subject_season_continuity_claims",
-      "libra_material_bindings"
+      "libra_subject_episode_scopes",
+      "libra_material_bindings",
+      "libra_material_binding_episode_claims",
+      "fx_material_controls",
+      "fx_material_control_revisions",
+      "fx_event_result_bindings",
+      "fx_commit_markers",
+      "fx_outbox"
     ],
     "dynamicTableRequirements": [],
     "forbiddenWriteTables": [],
@@ -74,11 +96,11 @@
     "crashFixtures": [
       {
         "fixtureId": "handoff-a-accepted",
-        "faultInjectionPoints": "continuity match前后、并发Subject/episode变化、Decision前、Subject/Binding participant后、Control participant前后、Outbox前",
-        "requiredInvariant": "exact claim唯一命中且zero overlap才extension；0/N命中、缺失或overlap新建Subject；竞态使Basis失效后重算；要么全部不存在，要么Decision/Subject/claim snapshot/Binding/Control/Receipt全部成立；Procurement只异步消费Receipt",
+        "faultInjectionPoints": "Candidate Delivery snapshot重建前后、global continuity head CAS前后、continuity match前后、并发Subject/episode/Resolved Identity exact anchor变化、target Intake CAS前后、Decision/Subject/Binding N:M relation participant后、Control participant前后、Result/marker/Outbox前",
+        "requiredInvariant": "Snapshot的Offer/Package/Manifest/Location Evidence不一致即fail closed且不旁读proc_*修补；exact claim唯一命中且zero overlap才extension；0/N命中、缺失或overlap新建Subject；global head阻止query phantom，target head阻止唯一Subject stale extension；竞态使Decision失效后重新装配；new Subject identity pointer为NULL；要么全部不存在，要么global/target revision、Decision及match/overlap Evidence、Subject/claim/Episode scope、每Material Binding及全部Episode relation、Control、Receipt/Result/marker/Outbox全部成立；Procurement只异步消费Receipt",
         "source": {
           "section": "8.9.7",
-          "line": 8412
+          "line": 9501
         }
       }
     ],
