@@ -66,6 +66,15 @@
       },
       {
         "ordinal": 7,
+        "name": "current_observation_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 8,
         "name": "created_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -74,7 +83,7 @@
         "nullable": false
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "updated_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -107,10 +116,12 @@
     "revisionContract": {
       "revisionColumns": [
         "extraction_policy_revision",
-        "current_access_revision"
+        "current_access_revision",
+        "current_observation_revision"
       ],
       "currentPointerColumns": [
-        "current_access_revision"
+        "current_access_revision",
+        "current_observation_revision"
       ],
       "pointerTargets": [
         {
@@ -126,9 +137,25 @@
           "consistencyColumns": [],
           "deletePolicy": "RESTRICT",
           "deferrable": false
+        },
+        {
+          "sourceColumns": [
+            "field_id",
+            "current_observation_revision"
+          ],
+          "targetTable": "proc_field_observations",
+          "targetColumns": [
+            "field_id",
+            "revision"
+          ],
+          "consistencyColumns": [],
+          "deletePolicy": "RESTRICT",
+          "deferrable": true
         }
       ],
-      "pointerRules": []
+      "pointerRules": [
+        "`current_observation_revision IS NULL`表示尚未提交任何Observation page，非NULL时以`(field_id,current_observation_revision)`显式FK指向`proc_field_observations`"
+      ]
     },
     "jsonContracts": [],
     "immutability": {
@@ -142,16 +169,18 @@
     "semanticRules": [
       "active name可重复但`field_id`唯一",
       "Policy/Access均显式FK",
+      "`current_observation_revision IS NULL`表示尚未提交任何Observation page，非NULL时以`(field_id,current_observation_revision)`显式FK指向`proc_field_observations`",
+      "该pointer与Observation→Field的循环FK均`DEFERRABLE INITIALLY DEFERRED`",
       "`INDEX(status,field_id)`"
     ],
     "rawContract": {
-      "columns": "`field_id PK, name, status, extraction_policy_id, extraction_policy_revision, current_access_revision, created_at_ms, updated_at_ms`",
-      "constraints": "active name可重复但`field_id`唯一；Policy/Access均显式FK；`INDEX(status,field_id)`"
+      "columns": "`field_id PK, name, status, extraction_policy_id, extraction_policy_revision, current_access_revision, current_observation_revision NULL, created_at_ms, updated_at_ms`",
+      "constraints": "active name可重复但`field_id`唯一；Policy/Access均显式FK；`current_observation_revision IS NULL`表示尚未提交任何Observation page，非NULL时以`(field_id,current_observation_revision)`显式FK指向`proc_field_observations`；该pointer与Observation→Field的循环FK均`DEFERRABLE INITIALLY DEFERRED`；`INDEX(status,field_id)`"
     },
     "source": {
       "section": "8.5.11",
-      "line": 7670,
-      "lineDigest": "511f7cca152f682133b2a738ecf4aa24e3d0ac23192e5f427aa5e8042eed7128"
+      "line": 7683,
+      "lineDigest": "1991ef0ac40a5861ed06c930c1d559e373fbe13931d7525ccdc248b18db40640"
     },
     "foreignKeys": []
   }

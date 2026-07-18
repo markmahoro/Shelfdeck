@@ -78,7 +78,7 @@ function validateSharedTypeSchemas(options) {
   if (
     registry.schemaVersion !== 1 || registry.manifestVersion !== 1 || registry.manifestId !== 'helix.shared-type-registry' ||
     registry.kind !== 'shared-type-registry' || registry.owner !== 'contracts' || registry.status !== 'active' ||
-    registry.targetCount !== 28 || !Array.isArray(registry.entries) || registry.entries.length !== 28
+    registry.targetCount !== 29 || !Array.isArray(registry.entries) || registry.entries.length !== 29
   ) {
     findings.push(finding('INVALID_SHARED_TYPE_REGISTRY', 'Shared type registry envelope or target count is invalid.', {
       file: normalizePath(registryPath)

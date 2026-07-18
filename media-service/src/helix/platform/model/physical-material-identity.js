@@ -43,7 +43,8 @@ function createPhysicalMaterialIdentityFactory(options) {
         contentHashAlgorithm: observation.contentHashAlgorithm,
         contentHash: observation.contentHash
       });
-      const materialKey = options.digest(canonicalJson(tuple));
+      if (!/^(0|[1-9][0-9]*)$/.test(tuple.inode)) fail('P5_MATERIAL_IDENTITY_FIELD', 'Physical Material inode must be an unsigned decimal string.', { field: 'inode' });
+      const materialKey = options.digest(canonicalJson({ schema: 'physical-material-identity@1', ...tuple }));
       if (!SHA256.test(materialKey || '')) fail('P5_MATERIAL_IDENTITY_DIGEST_INVALID', 'Identity digest dependency returned an invalid SHA-256.');
       return Object.freeze({
         schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v1', schemaVersion: 1,

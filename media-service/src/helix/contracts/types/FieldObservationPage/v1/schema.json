@@ -42,6 +42,16 @@
       "type": "integer",
       "minimum": 0
     },
+    "fieldObservationWorkId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "observationId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
     "fieldId": {
       "type": "string",
       "minLength": 1,
@@ -51,13 +61,35 @@
       "type": "integer",
       "minimum": 0
     },
+    "pageOrdinal": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "expectedObservationRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
     "cursorIn": {
-      "type": "string",
-      "minLength": 1
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "cursorOut": {
-      "type": "string",
-      "minLength": 1
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "materialObservations": {
       "type": "array",
@@ -65,37 +97,123 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "objectId": {
+          "materialObservationId": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "observationId": {
             "type": "string",
             "minLength": 1,
             "maxLength": 256
           },
-          "revision": {
+          "fieldId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "accessRevision": {
             "type": "integer",
             "minimum": 1
           },
-          "schemaRef": {
+          "accessDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "fieldAccessHandleId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "endpointId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "mountScopeRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "identity": {
+            "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v1"
+          },
+          "location": {
             "type": "string",
             "minLength": 1
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "mtimeNs": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(0|[1-9][0-9]{0,18})$"
+          },
+          "ctimeNs": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(0|[1-9][0-9]{0,18})$"
+          },
+          "hashVerifiedAtMs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "observedAtMs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "containmentDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "realityDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "provenanceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
           },
           "snapshotDigest": {
             "type": "string",
             "minLength": 1,
             "pattern": "^[a-f0-9]{64}$"
-          },
-          "objectKind": {
-            "const": "field-material-observation"
           }
         },
         "required": [
-          "objectId",
-          "revision",
-          "schemaRef",
-          "snapshotDigest",
-          "objectKind"
+          "materialObservationId",
+          "observationId",
+          "fieldId",
+          "accessRevision",
+          "accessDigest",
+          "fieldAccessHandleId",
+          "endpointId",
+          "mountScopeRevision",
+          "identity",
+          "location",
+          "sizeBytes",
+          "mtimeNs",
+          "ctimeNs",
+          "hashVerifiedAtMs",
+          "observedAtMs",
+          "containmentDigest",
+          "realityDigest",
+          "provenanceDigest",
+          "snapshotDigest"
         ]
       },
-      "maxItems": 1024
+      "maxItems": 100
+    },
+    "pageDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     },
     "hasMore": {
       "type": "boolean"
@@ -110,11 +228,16 @@
     "basisDigest",
     "payloadDigest",
     "observedAtMs",
+    "fieldObservationWorkId",
+    "observationId",
     "fieldId",
     "accessRevision",
+    "pageOrdinal",
+    "expectedObservationRevision",
     "cursorIn",
     "cursorOut",
     "materialObservations",
+    "pageDigest",
     "hasMore"
   ]
 }

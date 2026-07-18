@@ -6,7 +6,7 @@ const { contracts: RESULT_TYPE_CONTRACTS } = require('./result-type-schema-build
 const DRAFT = 'https://json-schema.org/draft/2020-12/schema';
 const PARAMETER_NAMES = new Set(['cursor', 'pageBudget', 'phase', 'artifactKind', 'structureKind', 'contentProfile']);
 const SHARED_TYPES = new Set([
-  'PhysicalMaterialIdentity', 'PhysicalMaterialReadHandle', 'WorkspaceMaterialHandle', 'ArtifactHandle', 'FieldAccessHandle',
+  'PhysicalMaterialIdentity', 'PhysicalMaterialReadHandle', 'WorkspaceMaterialHandle', 'ArtifactHandle', 'FieldAccessHandle', 'FieldObservationPageRequest',
   'IntegrationHandle', 'WorkerHandle', 'CanonicalQueryHandle', 'DomainFactCommitHandle', 'ResponsibilityControlCommitHandle',
   'ApprovalHandle', 'AuthorizationHandle', 'ExternalJobReceipt', 'EffectReceipt', 'TargetCommitSlotHandle', 'ExternalMaterialHandle',
   'WorkerAssetReceipt', 'WorkerUploadReceipt', 'FaceEmbeddingSetHandle', 'FaceClusterSetHandle', 'EvidenceEnvelope',

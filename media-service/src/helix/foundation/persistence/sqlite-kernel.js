@@ -180,6 +180,7 @@ function assertMaterialControlConsistency(database) {
   );
   for (const control of controls) {
     const identity = {
+      schema: 'physical-material-identity@1',
       mountScopeId: control.mount_scope_id,
       inode: control.inode,
       contentHashAlgorithm: control.content_hash_algorithm,

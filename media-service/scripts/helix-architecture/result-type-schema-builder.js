@@ -90,6 +90,18 @@ const stream = object({
   displayHeight: positiveInteger(), longEdge: positiveInteger(), shortEdge: positiveInteger()
 });
 const simpleStream = object({ streamIndex: nonNegativeInteger(), codec: text(), language: nullable(text()) }, ['streamIndex', 'codec']);
+const decimalInt64 = text({ pattern: '^(0|[1-9][0-9]{0,18})$' });
+const fieldMaterialObservation = object({
+  materialObservationId: digest(), observationId: id(), fieldId: id(), accessRevision: positiveInteger(), accessDigest: digest(),
+  fieldAccessHandleId: id(), endpointId: id(), mountScopeRevision: positiveInteger(), identity: ref('PhysicalMaterialIdentity'),
+  location: text(), sizeBytes: { type: 'integer', minimum: 0, maximum: Number.MAX_SAFE_INTEGER }, mtimeNs: decimalInt64,
+  ctimeNs: decimalInt64, hashVerifiedAtMs: nonNegativeInteger(), observedAtMs: nonNegativeInteger(), containmentDigest: digest(),
+  realityDigest: digest(), provenanceDigest: digest(), snapshotDigest: digest()
+});
+const acceptedFieldMaterial = object({
+  materialKey: digest(), bindingRevision: positiveInteger(), changeKind: enumText('inserted', 'refreshed', 'rebound'),
+  realityDigest: digest(), snapshotDigest: digest()
+});
 
 const special = {
   'FilesystemIdentityEvidence.identity': ref('PhysicalMaterialIdentity'),
@@ -99,7 +111,11 @@ const special = {
   'MediaProbeEvidence.audioStreams': arrayOf(simpleStream, 128),
   'MediaProbeEvidence.subtitleStreams': arrayOf(simpleStream, 256),
   'PersonMatchEvidence.matches': arrayOf(object({ clusterId: id(), personId: id(), confidenceClass: text(), evidenceDigest: digest() })),
-  'FieldObservationPage.materialObservations': arrayOf(snapshot('field-material-observation')),
+  'FieldObservationPage.materialObservations': arrayOf(fieldMaterialObservation, 100),
+  'FieldObservationPage.cursorIn': nullable(text()),
+  'FieldObservationPage.cursorOut': nullable(text()),
+  'ObservationCommitResult.acceptedMaterials': arrayOf(acceptedFieldMaterial, 100),
+  'ObservationCommitResult.nextCursor': nullable(text()),
   'PlayabilityEvidence.materialResults': arrayOf(object({ materialKey: digest(), playable: bool(), reasonCodes: arrayOf(text(), 64) })),
   'TriageStructureEvidence.structureKind': enumText('single', 'season'),
   'TriageStructureEvidence.episodeClaims': arrayOf(object({ episodeKey: text(), materialKey: digest(), claimDigest: digest() })),
@@ -261,8 +277,8 @@ const contracts = {
   ArtifactManifestVerification: ['VerificationEnvelope', 'manifestDigest,contractRef,artifactDigests'],
   IntegrationAvailabilityEvidence: ['EvidenceEnvelope', 'integrationId,configRevision,availabilityState,latencyMs?'],
   PersonMatchEvidence: ['EvidenceEnvelope', 'clusterSetDigest,referenceProjectionRevision,matches,unmatchedClusterIds'],
-  FieldObservationPage: ['EvidenceEnvelope', 'fieldId,accessRevision,cursorIn,cursorOut,materialObservations,hasMore'],
-  ObservationCommitResult: ['DomainFactEnvelope', 'observationId,acceptedMaterialKeys,nextCursor'],
+  FieldObservationPage: ['EvidenceEnvelope', 'fieldObservationWorkId,observationId,fieldId,accessRevision,pageOrdinal,expectedObservationRevision,cursorIn,cursorOut,materialObservations,pageDigest,hasMore'],
+  ObservationCommitResult: ['DomainFactEnvelope', 'observationId,fieldObservationWorkId,fieldId,accessRevision,pageOrdinal,committedObservationRevision,pageDigest,acceptedMaterials,acceptedMaterialSetDigest,nextCursor,hasMore'],
   ProcurementControlReceipt: ['ReceiptEnvelope', 'procurementRunId,acquiredMaterialKeys,controlRevisionSetDigest'],
   PlayabilityEvidence: ['EvidenceEnvelope', 'materialResults'],
   TriageStructureEvidence: ['EvidenceEnvelope', 'structureKind,primaryRoles,episodeClaims,relatedReferences'],

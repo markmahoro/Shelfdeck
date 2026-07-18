@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/FieldObservationPageRequest/v1",
+  "title": "FieldObservationPageRequest@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/FieldObservationPageRequest/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "fieldObservationWorkId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "observationId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "pageOrdinal": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "expectedObservationRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "cursorIn": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "pageBudget": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+    },
+    "requestDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "fieldObservationWorkId",
+    "observationId",
+    "pageOrdinal",
+    "expectedObservationRevision",
+    "cursorIn",
+    "pageBudget",
+    "requestDigest"
+  ]
+}

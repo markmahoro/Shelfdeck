@@ -63,8 +63,8 @@
       },
       {
         "ordinal": 7,
-        "name": "size_bytes",
-        "logicalType": "INTEGER",
+        "name": "endpoint_id",
+        "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -72,7 +72,7 @@
       },
       {
         "ordinal": 8,
-        "name": "mtime_ns",
+        "name": "access_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -81,7 +81,7 @@
       },
       {
         "ordinal": 9,
-        "name": "ctime_ns",
+        "name": "mount_scope_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -90,7 +90,7 @@
       },
       {
         "ordinal": 10,
-        "name": "hash_verified_at_ms",
+        "name": "size_bytes",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -99,8 +99,8 @@
       },
       {
         "ordinal": 11,
-        "name": "current_location",
-        "logicalType": "TEXT",
+        "name": "mtime_ns",
+        "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -108,7 +108,7 @@
       },
       {
         "ordinal": 12,
-        "name": "binding_revision",
+        "name": "ctime_ns",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -117,6 +117,60 @@
       },
       {
         "ordinal": 13,
+        "name": "hash_verified_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 14,
+        "name": "current_location",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 15,
+        "name": "binding_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 16,
+        "name": "reality_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 17,
+        "name": "provenance_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 18,
+        "name": "last_snapshot_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 19,
         "name": "last_observation_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -125,7 +179,7 @@
         "nullable": false
       },
       {
-        "ordinal": 14,
+        "ordinal": 20,
         "name": "eligibility_state",
         "logicalType": "TEXT",
         "enumValues": [
@@ -138,10 +192,16 @@
         "nullable": false
       },
       {
-        "ordinal": 15,
+        "ordinal": 21,
         "name": "control_projection",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "unknown",
+          "uncontrolled",
+          "procurement",
+          "production",
+          "finished_goods"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
         "nullable": false
@@ -172,10 +232,22 @@
           "ineligible",
           "unknown"
         ]
+      },
+      {
+        "column": "control_projection",
+        "enumValues": [
+          "unknown",
+          "uncontrolled",
+          "procurement",
+          "production",
+          "finished_goods"
+        ]
       }
     ],
     "revisionContract": {
       "revisionColumns": [
+        "access_revision",
+        "mount_scope_revision",
         "binding_revision"
       ],
       "currentPointerColumns": [],
@@ -194,18 +266,24 @@
     "semanticRules": [
       "`PK(field_id,material_key)`",
       "Identity components unique within Field",
+      "`(field_id,last_observation_id)`显式复合FK引用同Field唯一Observation page",
       "Hash缓存只在mount/inode/size/mtime/ctime全部一致时有效",
+      "`eligibility_state=unknown|eligible|ineligible`，`control_projection=unknown|uncontrolled|procurement|production|finished_goods`",
+      "新row固定`binding_revision=1, eligibility_state=unknown, control_projection=unknown`",
+      "同Identity的endpoint/location变化才递增binding revision",
+      "相同reality重放保留Eligibility/Control Projection，reality变化只把Eligibility置回unknown且不伪造Control结果",
+      "最终Eligibility/Control Projection仅由P7-04 Field Management reconcile写入",
       "`INDEX(field_id,eligibility_state,control_projection,material_key)`",
       "projection只供候选筛选，最终取得必须CAS `fx_material_controls`"
     ],
     "rawContract": {
-      "columns": "`field_id FK, material_key, mount_scope_id, inode, content_hash_algorithm, content_hash, size_bytes, mtime_ns, ctime_ns, hash_verified_at_ms, current_location, binding_revision, last_observation_id, eligibility_state, control_projection`",
-      "constraints": "`PK(field_id,material_key)`；Identity components unique within Field；Hash缓存只在mount/inode/size/mtime/ctime全部一致时有效；`INDEX(field_id,eligibility_state,control_projection,material_key)`；projection只供候选筛选，最终取得必须CAS `fx_material_controls`"
+      "columns": "`field_id FK, material_key, mount_scope_id, inode, content_hash_algorithm, content_hash, endpoint_id, access_revision, mount_scope_revision, size_bytes, mtime_ns, ctime_ns, hash_verified_at_ms, current_location, binding_revision, reality_digest, provenance_digest, last_snapshot_digest, last_observation_id, eligibility_state, control_projection`",
+      "constraints": "`PK(field_id,material_key)`；Identity components unique within Field；`(field_id,last_observation_id)`显式复合FK引用同Field唯一Observation page；Hash缓存只在mount/inode/size/mtime/ctime全部一致时有效；`eligibility_state=unknown|eligible|ineligible`，`control_projection=unknown|uncontrolled|procurement|production|finished_goods`；新row固定`binding_revision=1, eligibility_state=unknown, control_projection=unknown`；同Identity的endpoint/location变化才递增binding revision；相同reality重放保留Eligibility/Control Projection，reality变化只把Eligibility置回unknown且不伪造Control结果；最终Eligibility/Control Projection仅由P7-04 Field Management reconcile写入；`INDEX(field_id,eligibility_state,control_projection,material_key)`；projection只供候选筛选，最终取得必须CAS `fx_material_controls`"
     },
     "source": {
       "section": "8.5.11",
-      "line": 7674,
-      "lineDigest": "e229c6feefa773aeff9946721ddd2e8aa84124e91a683178fbbc5f49eedbba17"
+      "line": 7687,
+      "lineDigest": "6262f223f393fbe098df96c34fb07ac9587730726d05415f7307fb33bc7c532c"
     },
     "foreignKeys": [
       {
@@ -215,6 +293,19 @@
         "targetTable": "proc_material_fields",
         "targetColumns": [
           "field_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "field_id",
+          "last_observation_id"
+        ],
+        "targetTable": "proc_field_observations",
+        "targetColumns": [
+          "field_id",
+          "observation_id"
         ],
         "deletePolicy": "RESTRICT",
         "deferrable": false

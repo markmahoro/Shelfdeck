@@ -6,7 +6,7 @@ const EXPECTED_COUNTS = Object.freeze({
   capabilities: 112,
   resultFamilies: 96,
   tables: 161,
-  transactions: 24
+  transactions: 25
 });
 
 function sha256(value) {
@@ -94,6 +94,7 @@ function ownerForTable(tableName) {
 
 function transactionOwner(name) {
   if (name === 'Domain Fact Commit') return 'polymorphic-domain-owner';
+  if (name === 'Field Observation Page Commit') return 'procurement';
   if (name === 'Perception Acquisition Page Commit' || name === 'Perception Resolution Commit') return 'perception';
   if (name.startsWith('People Candidate ') || name === 'Direct Person Registration' || name === 'People Reference Image Commit') return 'people';
   if (name.startsWith('Procurement ')) return 'procurement';

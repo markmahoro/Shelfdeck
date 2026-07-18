@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.field-observation-page-commit/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.field-observation-page-commit",
+    "displayName": "Field Observation Page Commit",
+    "ownerScope": "procurement",
+    "commitClass": "domain_fact_commit",
+    "atomicFactSet": "complete `FieldObservationPage` + current Field Observation head CAS + immutable page revision + Field Material current-row insert/update + durable `ObservationCommitResult` + commit marker；新Material只置`unknown/unknown`初值，Observation Commit不计算最终Eligibility/Region",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "procurement",
+        "access": "write",
+        "tables": [
+          "proc_material_fields",
+          "proc_field_observations",
+          "proc_field_materials"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_event_result_bindings",
+          "fx_commit_markers"
+        ]
+      }
+    ],
+    "writeTables": [
+      "proc_material_fields",
+      "proc_field_observations",
+      "proc_field_materials",
+      "fx_event_result_bindings",
+      "fx_commit_markers"
+    ],
+    "readTables": [
+      "proc_material_fields",
+      "proc_field_access_revisions",
+      "proc_field_observations",
+      "proc_field_materials",
+      "fx_supporting_works"
+    ],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "field-observation-page",
+        "faultInjectionPoints": "Page DTO/Access/Request digest验证前后、Field observation head CAS前后、immutable revision与Material current-row逐项写入前后、typed Result/marker前后、响应前崩溃",
+        "requiredInvariant": "任一DTO、顺序、continuity、digest、supporting-work或CAS验证失败整页rollback；Field head、immutable page revision、全部Material current rows、typed Result和marker全有或全无；新Material仅初始化unknown/unknown；同marker重放返回原typed Result且不推进revision；terminal page以前不得形成缺失结论",
+        "source": {
+          "section": "8.9.7",
+          "line": 7497
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7497,
+      "lineDigest": "6fbdb0b64762c6062f94a563075624cd912a9e77f1fb5c8ab347c6d51dcf5c89"
+    }
+  }
+}

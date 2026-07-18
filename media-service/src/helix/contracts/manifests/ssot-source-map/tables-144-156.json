@@ -12,7 +12,7 @@
       "constraintsContract": "`PK(merge_candidate_id,revision)`加`UNIQUE(merge_candidate_id,revision,state)`供head复合FK；到head的FK同样deferred；revision 1固定为open；只允许`open → accepted|dismissed|superseded`一次terminal CAS；terminal revision保存正式Decision ID/digest；immutable",
       "source": {
         "section": "8.5.13",
-        "line": 7798,
+        "line": 7811,
         "lineDigest": "281a3977f0be22c06852ef188c92aa3f33404c73b511a6a309f2aabdfac3290e"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "Candidate及source/target的previous/committed revision均有显式复合FK；一个source Person最多一个terminal merge target；Candidate、source/target revision和Preference选择都可从record追溯",
       "source": {
         "section": "8.5.13",
-        "line": 7799,
+        "line": 7812,
         "lineDigest": "7f79630c8d883454f8e6d96375d6cec01673e6b2bbb00d7462f8cca8951e9a8d"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "clean generation唯一；旧/clean混合时拒绝可写启动",
       "source": {
         "section": "8.5.13",
-        "line": 7800,
+        "line": 7813,
         "lineDigest": "d06a8cd33af03f954c384b2771fd441577baf04a88ab5ae33924af8161ebd711"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "mount scope是Platform技术identity，不是Business Object；current revision显式FK；`INDEX(status,mount_scope_id)`",
       "source": {
         "section": "8.5.13",
-        "line": 7801,
+        "line": 7814,
         "lineDigest": "6162e30b94f589f833a32257144132c84e1a911f602e2bc460e04c391f5079e5"
       }
     },
@@ -56,7 +56,7 @@
       "constraintsContract": "`PK(mount_scope_id,revision)`；active fingerprint唯一；replacement发布新revision但在显式验证前不继承旧Identity资格",
       "source": {
         "section": "8.5.13",
-        "line": 7802,
+        "line": 7815,
         "lineDigest": "273b56bfaa99425c128ab7407e2cbcd975c26901c46c0fe245e414472a8c35cb"
       }
     },
@@ -67,7 +67,7 @@
       "constraintsContract": "Config JSON上限`16 KiB`；`UNIQUE(integration_type,integration_id)`；secret不入本表",
       "source": {
         "section": "8.5.13",
-        "line": 7803,
+        "line": 7816,
         "lineDigest": "0688c64548eb44c4a44de73420e30f27e153014f9b0d59eeddcb04962666b87f"
       }
     },
@@ -78,7 +78,7 @@
       "constraintsContract": "`UNIQUE(owner_scope_type,owner_scope_id,secret_kind,revision)`；secret value不进入Event/Audit/Projection",
       "source": {
         "section": "8.5.13",
-        "line": 7804,
+        "line": 7817,
         "lineDigest": "927e8c74f5298fef1192786a55a6f9519e19d8d3baa18bdd84ab28b2f6d7f8d4"
       }
     },
@@ -89,7 +89,7 @@
       "constraintsContract": "root overlap/containment用normalized path unique与保存时probe验证",
       "source": {
         "section": "8.5.13",
-        "line": 7805,
+        "line": 7818,
         "lineDigest": "2c1c2c92a856c5528179cf44831e88f9c6ff798981416e886dcdbbda6e61cc0f"
       }
     },
@@ -100,7 +100,7 @@
       "constraintsContract": "`UNIQUE(profile_key)`；两个system Profile不可删除；current revision显式FK",
       "source": {
         "section": "8.5.13",
-        "line": 7806,
+        "line": 7819,
         "lineDigest": "585280528c1f4fd1872be0c1f875b3c97439a4f27a38fcfb57a6f13e1fd69ebd"
       }
     },
@@ -111,7 +111,7 @@
       "constraintsContract": "Profile JSON上限`16 KiB`；`PK(profile_id,revision)`；immutable",
       "source": {
         "section": "8.5.13",
-        "line": 7807,
+        "line": 7820,
         "lineDigest": "d9a1be68e01ece24c9a8fcb098e44fbf9e61dbb5dda1374d104dd82bce803272"
       }
     },
@@ -122,7 +122,7 @@
       "constraintsContract": "singleton key固定；current revision显式FK，不把Schedule塞入Profile aggregate",
       "source": {
         "section": "8.5.13",
-        "line": 7808,
+        "line": 7821,
         "lineDigest": "de4cd86e837d3cec416ea326a154c369357b37681dce277031300f2a920664f2"
       }
     },
@@ -133,7 +133,7 @@
       "constraintsContract": "`PK(singleton_key,revision)`；Schedule JSON上限`16 KiB`；immutable；时段外必须解析为default且不得产生zero-capacity",
       "source": {
         "section": "8.5.13",
-        "line": 7809,
+        "line": 7822,
         "lineDigest": "6369e1a33c35dad0faf4d8362fcf1800d8fa6b226fc213359ffbd25c09cddf31"
       }
     },
@@ -144,7 +144,7 @@
       "constraintsContract": "`UNIQUE(stable_device_key)`；只有已验证能力可enabled；`INDEX(enabled,state,device_id)`",
       "source": {
         "section": "8.5.13",
-        "line": 7810,
+        "line": 7823,
         "lineDigest": "e3087dc75ea69236f326216af8cc7f16e6e2351b4b24fd0c29e746882a19ba10"
       }
     }

@@ -37,6 +37,7 @@ const ENUM_OVERRIDES = Object.freeze({
   'fx_artifact_references.state': ['active', 'released'],
   'proc_material_fields.status': ['active', 'disabled'],
   'proc_field_materials.eligibility_state': ['eligible', 'ineligible', 'unknown'],
+  'proc_field_materials.control_projection': ['unknown', 'uncontrolled', 'procurement', 'production', 'finished_goods'],
   'proc_procurement_runs.state': ['active', 'waiting', 'sealed'],
   'proc_candidate_packages.state': ['published'],
   'proc_candidate_deliveries.state': ['open', 'accepted', 'rejected', 'stale'],
@@ -97,7 +98,9 @@ const INTEGER_COLUMN_OVERRIDES = new Set([
 const INTEGER_BOOLEAN_COLUMN_OVERRIDES = new Set(['perception_records.watched_state']);
 const NULLABLE_COLUMN_OVERRIDES = new Set([
   'perception_records.rating',
-  'perception_records.watched_state'
+  'perception_records.watched_state',
+  'proc_field_observations.cursor_in',
+  'proc_field_observations.cursor_out'
 ]);
 const FOREIGN_KEY_OVERRIDES = Object.freeze({
   'fx_plan_nodes.compensation_for_event_id': ['fx_workflow_events', 'event_id'],
@@ -114,6 +117,15 @@ const FOREIGN_KEY_OVERRIDES = Object.freeze({
   'people_merge_records.target_person_id': ['people_persons', 'person_id']
 });
 const EXPLICIT_FOREIGN_KEYS = Object.freeze({
+  proc_field_observations: [
+    { columns: ['field_id'], targetTable: 'proc_material_fields', targetColumns: ['field_id'] },
+    { columns: ['field_observation_work_id'], targetTable: 'fx_supporting_works', targetColumns: ['work_id'] },
+    { columns: ['field_id', 'access_revision'], targetTable: 'proc_field_access_revisions', targetColumns: ['field_id', 'revision'] }
+  ],
+  proc_field_materials: [
+    { columns: ['field_id'], targetTable: 'proc_material_fields', targetColumns: ['field_id'] },
+    { columns: ['field_id', 'last_observation_id'], targetTable: 'proc_field_observations', targetColumns: ['field_id', 'observation_id'] }
+  ],
   people_aliases: [
     { columns: ['person_id', 'revision'], targetTable: 'people_person_revisions', targetColumns: ['person_id', 'revision'] }
   ],
@@ -155,6 +167,7 @@ const EXPLICIT_FOREIGN_KEYS = Object.freeze({
   ]
 });
 const DEFERRED_FOREIGN_KEY_PAIRS = new Set([
+  'proc_material_fields>proc_field_observations', 'proc_field_observations>proc_material_fields',
   'people_persons>people_person_revisions', 'people_person_revisions>people_persons',
   'people_persons>people_preference_revisions', 'people_preference_revisions>people_persons',
   'people_persons>people_reference_revisions',
@@ -177,7 +190,10 @@ const JSON_LIMIT_OVERRIDES = Object.freeze({
 });
 const CURRENT_POINTER_TARGETS = Object.freeze({
   fx_workflow_events: [[['event_id', 'current_progress_revision'], 'fx_event_progress', ['event_id', 'revision']]],
-  proc_material_fields: [[['field_id', 'current_access_revision'], 'proc_field_access_revisions', ['field_id', 'revision']]],
+  proc_material_fields: [
+    [['field_id', 'current_access_revision'], 'proc_field_access_revisions', ['field_id', 'revision']],
+    [['field_id', 'current_observation_revision'], 'proc_field_observations', ['field_id', 'revision']]
+  ],
   libra_subjects: [[['subject_id', 'current_identity_revision'], 'libra_product_identity_revisions', ['subject_id', 'revision']]],
   libra_field_routing_heads: [[['current_routing_policy_id', 'current_policy_revision'], 'libra_routing_policy_revisions', ['routing_policy_id', 'revision']]],
   libra_subject_decision_heads: [

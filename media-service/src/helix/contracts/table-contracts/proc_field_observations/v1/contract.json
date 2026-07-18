@@ -9,15 +9,6 @@
     "columns": [
       {
         "ordinal": 1,
-        "name": "observation_id",
-        "logicalType": "TEXT",
-        "enumValues": [],
-        "primaryKeyPart": true,
-        "foreignKeyMarker": false,
-        "nullable": false
-      },
-      {
-        "ordinal": 2,
         "name": "field_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -26,8 +17,8 @@
         "nullable": false
       },
       {
-        "ordinal": 3,
-        "name": "access_revision",
+        "ordinal": 2,
+        "name": "revision",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -35,8 +26,17 @@
         "nullable": false
       },
       {
+        "ordinal": 3,
+        "name": "observation_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
         "ordinal": 4,
-        "name": "cursor_in",
+        "name": "field_observation_work_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -45,8 +45,8 @@
       },
       {
         "ordinal": 5,
-        "name": "cursor_out",
-        "logicalType": "TEXT",
+        "name": "access_revision",
+        "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -54,8 +54,8 @@
       },
       {
         "ordinal": 6,
-        "name": "page_digest",
-        "logicalType": "TEXT",
+        "name": "page_ordinal",
+        "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -63,7 +63,7 @@
       },
       {
         "ordinal": 7,
-        "name": "observed_at_ms",
+        "name": "expected_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -72,6 +72,69 @@
       },
       {
         "ordinal": 8,
+        "name": "cursor_in",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 9,
+        "name": "cursor_out",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 10,
+        "name": "page_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "fact_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "commit_marker",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 13,
+        "name": "result_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 14,
+        "name": "observed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 15,
         "name": "completed",
         "logicalType": "INTEGER_BOOLEAN",
         "enumValues": [],
@@ -81,17 +144,26 @@
       }
     ],
     "primaryKey": [
-      "observation_id"
+      "field_id",
+      "revision"
     ],
     "declaredForeignKeyColumns": [
       "field_id"
     ],
     "uniqueConstraints": [
       [
+        "observation_id"
+      ],
+      [
         "field_id",
-        "access_revision",
-        "cursor_in",
-        "page_digest"
+        "observation_id"
+      ],
+      [
+        "field_observation_work_id",
+        "page_ordinal"
+      ],
+      [
+        "commit_marker"
       ]
     ],
     "hotIndexes": [
@@ -105,7 +177,9 @@
     "checkRules": [],
     "revisionContract": {
       "revisionColumns": [
-        "access_revision"
+        "revision",
+        "access_revision",
+        "expected_revision"
       ],
       "currentPointerColumns": [],
       "pointerTargets": [],
@@ -121,17 +195,24 @@
       "rules": []
     },
     "semanticRules": [
-      "`UNIQUE(field_id,access_revision,cursor_in,page_digest)`",
+      "`PK(field_id,revision)`、`UNIQUE(observation_id)`、`UNIQUE(field_id,observation_id)`供same-Field composite FK、`UNIQUE(field_observation_work_id,page_ordinal)`、`UNIQUE(commit_marker)`",
+      "`field_observation_work_id`显式FK引用`fx_supporting_works.work_id`，`(field_id,access_revision)`显式FK引用`proc_field_access_revisions`",
+      "revision从1开始且跨Observation Work持续递增",
+      "同一Work的pageOrdinal从0连续递增，每页使用不同observation_id且该ID只在该页重放时复用",
+      "`expected_revision=revision-1`，首个revision的expected为0",
+      "`completed=1`恰好对应terminal page",
+      "commit_marker/result_digest必须分别等于同事务`fx_commit_markers/fx_event_result_bindings`中的值",
+      "`observation_id/work/page`冲突重放必须拒绝",
       "`INDEX(field_id,completed,observed_at_ms)`"
     ],
     "rawContract": {
-      "columns": "`observation_id PK, field_id FK, access_revision, cursor_in, cursor_out, page_digest, observed_at_ms, completed`",
-      "constraints": "`UNIQUE(field_id,access_revision,cursor_in,page_digest)`；`INDEX(field_id,completed,observed_at_ms)`"
+      "columns": "`field_id FK, revision, observation_id, field_observation_work_id, access_revision, page_ordinal, expected_revision, cursor_in, cursor_out, page_digest, fact_digest, commit_marker, result_digest, observed_at_ms, completed`",
+      "constraints": "`PK(field_id,revision)`、`UNIQUE(observation_id)`、`UNIQUE(field_id,observation_id)`供same-Field composite FK、`UNIQUE(field_observation_work_id,page_ordinal)`、`UNIQUE(commit_marker)`；`field_observation_work_id`显式FK引用`fx_supporting_works.work_id`，`(field_id,access_revision)`显式FK引用`proc_field_access_revisions`；revision从1开始且跨Observation Work持续递增；同一Work的pageOrdinal从0连续递增，每页使用不同observation_id且该ID只在该页重放时复用；`expected_revision=revision-1`，首个revision的expected为0；`completed=1`恰好对应terminal page；commit_marker/result_digest必须分别等于同事务`fx_commit_markers/fx_event_result_bindings`中的值；`observation_id/work/page`冲突重放必须拒绝；`INDEX(field_id,completed,observed_at_ms)`"
     },
     "source": {
       "section": "8.5.11",
-      "line": 7673,
-      "lineDigest": "92391de60cbf7fe6e83cf0f564c01c05b734148ac969b9748a536978b45ab8cd"
+      "line": 7686,
+      "lineDigest": "e1291968e8d294575438c73d3a31a3993a6a99e24b906c89b919ea7b3cb2a0c7"
     },
     "foreignKeys": [
       {
@@ -141,6 +222,30 @@
         "targetTable": "proc_material_fields",
         "targetColumns": [
           "field_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": true
+      },
+      {
+        "columns": [
+          "field_observation_work_id"
+        ],
+        "targetTable": "fx_supporting_works",
+        "targetColumns": [
+          "work_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "field_id",
+          "access_revision"
+        ],
+        "targetTable": "proc_field_access_revisions",
+        "targetColumns": [
+          "field_id",
+          "revision"
         ],
         "deletePolicy": "RESTRICT",
         "deferrable": false

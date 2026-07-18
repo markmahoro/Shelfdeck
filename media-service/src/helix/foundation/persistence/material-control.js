@@ -46,9 +46,10 @@ function materialKey(identity) {
   if (!identity || identity.schemaRef !== 'helix://contracts/types/PhysicalMaterialIdentity/v1' || identity.schemaVersion !== 1 ||
       identity.contentHashAlgorithm !== 'sha256') fail('P3_CONTROL_INVALID_IDENTITY', 'Physical Material Identity contract is invalid.');
   text(identity.mountScopeId, 'mountScopeId');
-  text(identity.inode, 'inode');
+  if (!/^(0|[1-9][0-9]*)$/.test(text(identity.inode, 'inode'))) fail('P3_CONTROL_INVALID_IDENTITY', 'Physical Material inode must be an unsigned decimal string.');
   sha(identity.contentHash, 'contentHash');
   return digest(canonicalJson({
+    schema: 'physical-material-identity@1',
     mountScopeId: identity.mountScopeId,
     inode: identity.inode,
     contentHashAlgorithm: identity.contentHashAlgorithm,

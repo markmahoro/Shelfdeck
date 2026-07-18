@@ -60,18 +60,95 @@
       "minLength": 1,
       "maxLength": 256
     },
-    "acceptedMaterialKeys": {
+    "fieldObservationWorkId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "fieldId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "accessRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "pageOrdinal": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "committedObservationRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "pageDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "acceptedMaterials": {
       "type": "array",
       "items": {
-        "type": "string",
-        "minLength": 1,
-        "maxLength": 256
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "materialKey": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "bindingRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "changeKind": {
+            "type": "string",
+            "enum": [
+              "inserted",
+              "refreshed",
+              "rebound"
+            ]
+          },
+          "realityDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "snapshotDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "materialKey",
+          "bindingRevision",
+          "changeKind",
+          "realityDigest",
+          "snapshotDigest"
+        ]
       },
-      "maxItems": 1024
+      "maxItems": 100
+    },
+    "acceptedMaterialSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     },
     "nextCursor": {
-      "type": "string",
-      "minLength": 1
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "hasMore": {
+      "type": "boolean"
     }
   },
   "required": [
@@ -87,7 +164,15 @@
     "commitMarker",
     "committedAtMs",
     "observationId",
-    "acceptedMaterialKeys",
-    "nextCursor"
+    "fieldObservationWorkId",
+    "fieldId",
+    "accessRevision",
+    "pageOrdinal",
+    "committedObservationRevision",
+    "pageDigest",
+    "acceptedMaterials",
+    "acceptedMaterialSetDigest",
+    "nextCursor",
+    "hasMore"
   ]
 }

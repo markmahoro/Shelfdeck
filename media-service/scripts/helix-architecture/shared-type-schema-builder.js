@@ -9,6 +9,7 @@ const text = (options = {}) => ({ type: 'string', minLength: 1, ...options });
 const opaqueId = () => text({ maxLength: 256 });
 const nonNegativeInteger = () => ({ type: 'integer', minimum: 0 });
 const positiveInteger = () => ({ type: 'integer', minimum: 1 });
+const boundedPositiveInteger = (maximum) => ({ type: 'integer', minimum: 1, maximum });
 const digestAlgorithm = () => ({ const: 'sha256' });
 const digestHex = () => text({ pattern: '^[a-f0-9]{64}$' });
 const enumText = (...values) => ({ type: 'string', enum: values });
@@ -69,7 +70,7 @@ const basisRef = () => object({ basisType: text(), basisId: opaqueId(), revision
 
 const definitions = {
   PhysicalMaterialIdentity: () => nominal('PhysicalMaterialIdentity', {
-    materialKey: digestHex(), mountScopeId: opaqueId(), inode: text(), contentHashAlgorithm: digestAlgorithm(), contentHash: digestHex()
+    materialKey: digestHex(), mountScopeId: opaqueId(), inode: text({ pattern: '^(0|[1-9][0-9]*)$' }), contentHashAlgorithm: digestAlgorithm(), contentHash: digestHex()
   }),
   PhysicalMaterialReadHandle: () => nominal('PhysicalMaterialReadHandle', {
     handleId: opaqueId(), identity: ref('PhysicalMaterialIdentity'), ownerDomain: text(), ownerScope: ownerScope(),
@@ -88,9 +89,13 @@ const definitions = {
     provenanceRef: objectRef(), referenceRevision: positiveInteger()
   }),
   FieldAccessHandle: () => nominal('FieldAccessHandle', {
-    handleId: opaqueId(), fieldId: opaqueId(), accessRevision: positiveInteger(), endpointId: opaqueId(), rootLocation: text(),
+    handleId: opaqueId(), fieldId: opaqueId(), accessRevision: positiveInteger(), accessDigest: digestHex(), endpointId: opaqueId(), rootLocation: text(),
     mountScopeId: opaqueId(), mountScopeRevision: positiveInteger(),
     allowedOperations: arrayOf(enumText('read', 'list', 'stat', 'hash'), 4), containmentDigest: digestHex(), expiresAtMs: nonNegativeInteger()
+  }),
+  FieldObservationPageRequest: () => nominal('FieldObservationPageRequest', {
+    fieldObservationWorkId: opaqueId(), observationId: opaqueId(), pageOrdinal: nonNegativeInteger(),
+    expectedObservationRevision: nonNegativeInteger(), cursorIn: nullable(text()), pageBudget: boundedPositiveInteger(100), requestDigest: digestHex()
   }),
   IntegrationHandle: () => nominal('IntegrationHandle', {
     handleId: opaqueId(), integrationId: opaqueId(), integrationType: text(), configRevision: positiveInteger(), secretRef: opaqueId(),

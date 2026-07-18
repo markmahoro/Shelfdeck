@@ -9,7 +9,7 @@
     "8.6.17",
     "8.6.18"
   ],
-  "targetCount": 28,
+  "targetCount": 29,
   "entries": [
     {
       "id": "PhysicalMaterialIdentity",
@@ -19,7 +19,7 @@
       "relativePath": "types/PhysicalMaterialIdentity/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "d5012e641dd30e1ec8ac0f716eb9b3669b1f3d06156c239b557a3d63d307d626"
+        "value": "f063352fbe808236eebb722034aeaf1b35b91e17737209f1991c35627e832da9"
       },
       "ssotRefs": [
         "8.6.18"
@@ -75,7 +75,21 @@
       "relativePath": "types/FieldAccessHandle/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "7ef84a65058ee5c4c069edea888fdb772b5029929296c69eb671ba885cc5a8f6"
+        "value": "8b17d8ff3df293679bc9cb0d63e2e66797835aa5a96f53ecd67514ce53df0da7"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "FieldObservationPageRequest",
+      "version": 1,
+      "role": "shared-nominal-handle",
+      "schemaId": "helix://contracts/types/FieldObservationPageRequest/v1",
+      "relativePath": "types/FieldObservationPageRequest/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "7d0eb83a9c859fdcde16dee671631efad77240a05466fc390c4937d199b2a29d"
       },
       "ssotRefs": [
         "8.6.18"

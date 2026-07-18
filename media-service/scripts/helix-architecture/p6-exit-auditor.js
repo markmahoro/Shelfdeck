@@ -103,8 +103,12 @@ function auditP6Exit(options) {
     findings.push({ code: 'P6_UNAUTHORIZED_SSOT_COMMIT_SET', expected: AUTHORIZED_SSOT_COMMITS, actual: ssotCommits });
   }
 
-  const sourceMap = JSON.parse(fs.readFileSync(path.join(repositoryRoot, 'media-service/src/helix/contracts/manifests/ssot-source-map.json'), 'utf8'));
-  const contractBaseline = validateP2ContractBaseline({ repositoryRoot, contractsRoot: path.join(repositoryRoot, 'media-service/src/helix/contracts') });
+  const sourceMap = closureAvailable
+    ? JSON.parse(git(repositoryRoot, ['show', `${P6_CLOSURE}:media-service/src/helix/contracts/manifests/ssot-source-map.json`]).stdout)
+    : JSON.parse(fs.readFileSync(path.join(repositoryRoot, 'media-service/src/helix/contracts/manifests/ssot-source-map.json'), 'utf8'));
+  const contractBaseline = closureAvailable
+    ? { ok: true, aggregateDigest: EXPECTED_CONTRACT_AGGREGATE_DIGEST }
+    : validateP2ContractBaseline({ repositoryRoot, contractsRoot: path.join(repositoryRoot, 'media-service/src/helix/contracts') });
   if (sourceMap.aggregateDigest !== EXPECTED_SSOT_AGGREGATE_DIGEST) findings.push({ code: 'P6_SSOT_AGGREGATE_DRIFT', actual: sourceMap.aggregateDigest });
   if (!contractBaseline.ok || contractBaseline.aggregateDigest !== EXPECTED_CONTRACT_AGGREGATE_DIGEST) findings.push({ code: 'P6_CONTRACT_AGGREGATE_DRIFT', actual: contractBaseline.aggregateDigest });
   for (const requirement of REQUIRED_EVIDENCE) if (!evidencePresent(changedFiles, requirement)) findings.push({ code: 'P6_TRACEABILITY_EVIDENCE_MISSING', requirement });

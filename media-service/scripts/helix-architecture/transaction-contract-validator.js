@@ -26,8 +26,8 @@ function validateTransactionContracts(options) {
   const owners = new Set(ownerRegistry && ownerRegistry.owners.map((owner) => owner.id));
   const tableIds = new Set(fs.readdirSync(path.join(contractsRoot, 'table-contracts')));
   const manifest = readJson(path.join(contractsRoot, 'manifests', 'transaction-inventory.json'), findings);
-  if (!manifest || manifest.status !== 'active' || manifest.targetCount !== 24 || manifest.entryFiles.length !== 1) findings.push(finding(
-    'INVALID_TRANSACTION_INVENTORY_MANIFEST', 'Canonical transaction inventory must be active with 24 entries.'
+  if (!manifest || manifest.status !== 'active' || manifest.targetCount !== 25 || manifest.entryFiles.length !== 1) findings.push(finding(
+    'INVALID_TRANSACTION_INVENTORY_MANIFEST', 'Canonical transaction inventory must be active with 25 entries.'
   ));
   const shard = manifest && readJson(path.join(contractsRoot, 'manifests', manifest.entryFiles[0]), findings);
   const entries = shard && shard.entries || [];

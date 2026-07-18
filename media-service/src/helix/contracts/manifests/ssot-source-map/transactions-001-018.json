@@ -11,8 +11,18 @@
       "atomicFactSet": "Owner-defined Canonical/Process Fact + revision fence + commit marker + durable typed result + contract-declared Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 7484,
+        "line": 7496,
         "lineDigest": "96d0faf4f857201ebd2f37da0fec8d450cf5cf57f98c1bce8d2bd7bdfe7eeaf8"
+      }
+    },
+    {
+      "id": "Field Observation Page Commit",
+      "owner": "procurement",
+      "atomicFactSet": "complete `FieldObservationPage` + current Field Observation head CAS + immutable page revision + Field Material current-row insert/update + durable `ObservationCommitResult` + commit marker；新Material只置`unknown/unknown`初值，Observation Commit不计算最终Eligibility/Region",
+      "source": {
+        "section": "8.5.4",
+        "line": 7497,
+        "lineDigest": "6fbdb0b64762c6062f94a563075624cd912a9e77f1fb5c8ab347c6d51dcf5c89"
       }
     },
     {
@@ -21,7 +31,7 @@
       "atomicFactSet": "Acquisition/page fact + immutable Records/Anchors/explicit source-lineage Relations + source cursor revision/head CAS + page receipt + durable typed result + commit marker + Perception-internal Outbox；`hasMore=false`时同事务终结Acquisition",
       "source": {
         "section": "8.5.4",
-        "line": 7485,
+        "line": 7498,
         "lineDigest": "acab0d1f4a68647d37ae2c4cee69f050fc8addfc0fb6f6e721e246605fa87043"
       }
     },
@@ -31,7 +41,7 @@
       "atomicFactSet": "exact Query/Record Set/Rule digests + Resolution revision/head CAS + Draft明确的`duplicate_of`关系 + durable typed result + commit marker + Perception-internal Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 7486,
+        "line": 7499,
         "lineDigest": "20aa1dc0d93d9bb4f935471469b4c240de7a94a7c6d27c38dde3497bf5bda5d6"
       }
     },
@@ -41,7 +51,7 @@
       "atomicFactSet": "complete PeopleCandidateDraft + typed Candidate head + initial immutable `open` revision + durable typed result + commit marker + People-internal Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 7487,
+        "line": 7500,
         "lineDigest": "d1d347c7d4a0dc22efdc62bde7b660e345cf3658c643f2de987222edd7373c8b"
       }
     },
@@ -51,7 +61,7 @@
       "atomicFactSet": "current Candidate revision/payload digest CAS + Candidate terminal `accepted` revision + Person create或Merge完整fact set +必要Preference resolution + merge correlation + 所有受影响Person的Reference Projection checkpoint + durable typed result + commit marker + People-internal Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 7488,
+        "line": 7501,
         "lineDigest": "dd1548950a587697d63a1c67f79dcf2212fbe9558d0ecb7e5c523d2a21b28ba8"
       }
     },
@@ -61,7 +71,7 @@
       "atomicFactSet": "complete DirectPersonRegistrationDecision + Person首revision + Alias/Provider Identity + 初始Reference Projection checkpoint + durable command result + command receipt + People-internal Outbox；不包含Reference Fact",
       "source": {
         "section": "8.5.4",
-        "line": 7489,
+        "line": 7502,
         "lineDigest": "0914e3e83cd187ef5afe7d3bc50b41ee313ba589ccdbb49e54a3d7cbe72f08f3"
       }
     },
@@ -71,7 +81,7 @@
       "atomicFactSet": "PeopleReferenceMaintenanceDecision + Person/reference revision CAS + Asset/唯一派生Face同时active或released + new Reference revision/head + 所有受影响Person的Reference Projection checkpoint + durable typed result + commit marker + People-internal Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 7490,
+        "line": 7503,
         "lineDigest": "9189e51ed83f21bc8aa73672970d80c045e3e148fab9e0dd6866b1d54b632f4e"
       }
     },
@@ -81,7 +91,7 @@
       "atomicFactSet": "immutable user Retry Intent + failed Run/Basis reference + current eligibility precondition + Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 7491,
+        "line": 7504,
         "lineDigest": "ecf96055eec8db2b0bcc680a514e3017967bb8ddacb5e52ce326a5f2d8ed017d"
       }
     },
@@ -91,7 +101,7 @@
       "atomicFactSet": "immutable per-Field Policy revision + target ranks + Field Routing head switch + Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 7492,
+        "line": 7505,
         "lineDigest": "7b074a66076c7f0b48fedb267139f5912a5416399d7d15cff0020d22efa131b4"
       }
     },
@@ -101,7 +111,7 @@
       "atomicFactSet": "immutable Template revision + all currently bound Shelf effective Standard revisions + Template/Shelf current head switches + Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 7493,
+        "line": 7506,
         "lineDigest": "c8ef6c73d0677af4507c86425da0dac719607c16e817fc918924e56dbe8e7e70"
       }
     },
@@ -111,7 +121,7 @@
       "atomicFactSet": "Acceptance Decision + frozen Subject Continuity Resolution + Subject create/extension + accepted continuity claim snapshot + Libra Binding + precise Control transfer + Handoff Receipt/Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 7494,
+        "line": 7507,
         "lineDigest": "73503079bb76d649baac5fad1b5e34ff41a3d5555a1ed262e2648d94dc100794"
       }
     },
@@ -121,7 +131,7 @@
       "atomicFactSet": "immutable Subject Abandon Decision + no-Run Pre-deck scope terminal + precise Primary Control release + receipt/Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 7495,
+        "line": 7508,
         "lineDigest": "143372b9d3d1830cec08cab5904e65d186afd25daf4e3e325aeaa089252cb674"
       }
     },
@@ -131,7 +141,7 @@
       "atomicFactSet": "Acceptance Decision + On-deck Material Custody + Arca Binding + precise Control transfer + Handoff Receipt/Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 7496,
+        "line": 7509,
         "lineDigest": "1140129b374858ff75be4bad8e3c3a0ec1b6e1889c4bcd15b1ed3fdaad3e23da"
       }
     },
@@ -141,7 +151,7 @@
       "atomicFactSet": "On-deck Product Package + Product Material Identity set + newly produced Material的Libra Control acquire + delivery Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 7497,
+        "line": 7510,
         "lineDigest": "a71ab1170c2cae62ea3f3121da7f6d473c2ca624f6c14b1dc1ff2c68eb0e3ea8"
       }
     },
@@ -151,7 +161,7 @@
       "atomicFactSet": "immutable Discard Decision + Run discarded + Pre-deck scope terminal + original Primary Input Control release + Workspace Cleanup Scope + receipt/Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 7498,
+        "line": 7511,
         "lineDigest": "719467607b21baf19ad7b281a08ece5d1c89faac06c2562c1d6323d2cfb23087"
       }
     },
@@ -161,7 +171,7 @@
       "atomicFactSet": "verified Workspace/Product deletion Evidence + Cleanup member terminal + corresponding Libra Control release + cleanup receipt",
       "source": {
         "section": "8.5.4",
-        "line": 7499,
+        "line": 7512,
         "lineDigest": "0ef98d8d31de4a30c7f34a98bd2e7fc5ba675bd973927f7d3ddfa30df83ccc84"
       }
     },
@@ -171,18 +181,8 @@
       "atomicFactSet": "Shelf Entry create/extend + Canonical Content Identity + Inventory Representation/accepted Product Fact/完整Media-Cast relation snapshot revision + Deck Fact + required Control acquire/release + Off-load Completion Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 7500,
+        "line": 7513,
         "lineDigest": "3bc6c0219ad5a70df82a937621dc2889d8774d3b2fafd2caab032c66c0ac2b90"
-      }
-    },
-    {
-      "id": "Aftercare Case Creation",
-      "owner": "arca",
-      "atomicFactSet": "immutable Care Basis + relationized Basis inputs + Care Requirement Set + Case active + Outbox",
-      "source": {
-        "section": "8.5.4",
-        "line": 7501,
-        "lineDigest": "6402976bd648c711162050e188e5b50b575fbcf11f1ae69ebef2a59ccb8c15f2"
       }
     }
   ]

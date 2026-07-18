@@ -54,7 +54,7 @@ function identity(name) {
     schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v1',
     schemaVersion: 1,
     mountScopeId: 'mount-1',
-    inode: name,
+    inode: BigInt('0x' + digest('inode-' + name).slice(0, 15)).toString(),
     contentHashAlgorithm: 'sha256',
     contentHash: digest('content-' + name)
   };

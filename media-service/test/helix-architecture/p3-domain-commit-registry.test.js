@@ -130,7 +130,7 @@ function request(value = payload(), overrides = {}) {
 function physicalIdentity(name) {
   const identity = {
     schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v1', schemaVersion: 1,
-    mountScopeId: 'mount-1', inode: name, contentHashAlgorithm: 'sha256', contentHash: digest('content-' + name)
+    mountScopeId: 'mount-1', inode: BigInt('0x' + digest('inode-' + name).slice(0, 15)).toString(), contentHashAlgorithm: 'sha256', contentHash: digest('content-' + name)
   };
   identity.materialKey = materialKey(identity);
   return identity;

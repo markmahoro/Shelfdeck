@@ -7,15 +7,23 @@
   "properties": {
     "fieldAccessHandle": {
       "$ref": "#/$defs/fieldAccessHandle"
+    },
+    "fieldObservationPageRequest": {
+      "$ref": "#/$defs/fieldObservationPageRequest"
     }
   },
   "required": [
-    "fieldAccessHandle"
+    "fieldAccessHandle",
+    "fieldObservationPageRequest"
   ],
   "$defs": {
     "fieldAccessHandle": {
       "$ref": "helix://contracts/types/FieldAccessHandle/v1",
       "x-helix-typeExpression": "FieldAccessHandle"
+    },
+    "fieldObservationPageRequest": {
+      "$ref": "helix://contracts/types/FieldObservationPageRequest/v1",
+      "x-helix-typeExpression": "FieldObservationPageRequest"
     }
   }
 }

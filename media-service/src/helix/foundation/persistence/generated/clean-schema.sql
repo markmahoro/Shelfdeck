@@ -2229,31 +2229,51 @@ CREATE TABLE "proc_field_materials" (
   "inode" TEXT,
   "content_hash_algorithm" TEXT,
   "content_hash" TEXT,
+  "endpoint_id" TEXT,
+  "access_revision" INTEGER CHECK ("access_revision" >= 1),
+  "mount_scope_revision" INTEGER CHECK ("mount_scope_revision" >= 1),
   "size_bytes" INTEGER CHECK ("size_bytes" >= 0),
   "mtime_ns" INTEGER CHECK ("mtime_ns" >= 0),
   "ctime_ns" INTEGER CHECK ("ctime_ns" >= 0),
   "hash_verified_at_ms" INTEGER CHECK ("hash_verified_at_ms" >= 0),
   "current_location" TEXT,
   "binding_revision" INTEGER CHECK ("binding_revision" >= 1),
+  "reality_digest" TEXT CHECK (length("reality_digest") = 64 AND "reality_digest" NOT GLOB '*[^0-9a-f]*'),
+  "provenance_digest" TEXT CHECK (length("provenance_digest") = 64 AND "provenance_digest" NOT GLOB '*[^0-9a-f]*'),
+  "last_snapshot_digest" TEXT CHECK (length("last_snapshot_digest") = 64 AND "last_snapshot_digest" NOT GLOB '*[^0-9a-f]*'),
   "last_observation_id" TEXT,
   "eligibility_state" TEXT CHECK ("eligibility_state" IN ('eligible', 'ineligible', 'unknown')),
-  "control_projection" TEXT,
+  "control_projection" TEXT CHECK ("control_projection" IN ('unknown', 'uncontrolled', 'procurement', 'production', 'finished_goods')),
   PRIMARY KEY ("field_id", "material_key"),
-  FOREIGN KEY ("field_id") REFERENCES "proc_material_fields" ("field_id") ON DELETE RESTRICT
+  FOREIGN KEY ("field_id") REFERENCES "proc_material_fields" ("field_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("field_id", "last_observation_id") REFERENCES "proc_field_observations" ("field_id", "observation_id") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_proc_field_materials_hot_01" ON "proc_field_materials" ("field_id", "eligibility_state", "control_projection", "material_key");
 
 CREATE TABLE "proc_field_observations" (
-  "observation_id" TEXT PRIMARY KEY,
   "field_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 1),
+  "observation_id" TEXT,
+  "field_observation_work_id" TEXT,
   "access_revision" INTEGER CHECK ("access_revision" >= 1),
+  "page_ordinal" INTEGER CHECK ("page_ordinal" >= 0),
+  "expected_revision" INTEGER CHECK ("expected_revision" >= 1),
   "cursor_in" TEXT,
   "cursor_out" TEXT,
   "page_digest" TEXT CHECK (length("page_digest") = 64 AND "page_digest" NOT GLOB '*[^0-9a-f]*'),
+  "fact_digest" TEXT CHECK (length("fact_digest") = 64 AND "fact_digest" NOT GLOB '*[^0-9a-f]*'),
+  "commit_marker" TEXT,
+  "result_digest" TEXT CHECK (length("result_digest") = 64 AND "result_digest" NOT GLOB '*[^0-9a-f]*'),
   "observed_at_ms" INTEGER CHECK ("observed_at_ms" >= 0),
   "completed" INTEGER CHECK ("completed" IN (0, 1)),
-  UNIQUE ("field_id", "access_revision", "cursor_in", "page_digest"),
-  FOREIGN KEY ("field_id") REFERENCES "proc_material_fields" ("field_id") ON DELETE RESTRICT
+  PRIMARY KEY ("field_id", "revision"),
+  UNIQUE ("observation_id"),
+  UNIQUE ("field_id", "observation_id"),
+  UNIQUE ("field_observation_work_id", "page_ordinal"),
+  UNIQUE ("commit_marker"),
+  FOREIGN KEY ("field_id") REFERENCES "proc_material_fields" ("field_id") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
+  FOREIGN KEY ("field_observation_work_id") REFERENCES "fx_supporting_works" ("work_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("field_id", "access_revision") REFERENCES "proc_field_access_revisions" ("field_id", "revision") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_proc_field_observations_hot_01" ON "proc_field_observations" ("field_id", "completed", "observed_at_ms");
 
@@ -2264,9 +2284,11 @@ CREATE TABLE "proc_material_fields" (
   "extraction_policy_id" TEXT,
   "extraction_policy_revision" INTEGER CHECK ("extraction_policy_revision" >= 1),
   "current_access_revision" INTEGER CHECK ("current_access_revision" >= 1),
+  "current_observation_revision" INTEGER CHECK ("current_observation_revision" >= 1),
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
   "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
-  FOREIGN KEY ("field_id", "current_access_revision") REFERENCES "proc_field_access_revisions" ("field_id", "revision") ON DELETE RESTRICT
+  FOREIGN KEY ("field_id", "current_access_revision") REFERENCES "proc_field_access_revisions" ("field_id", "revision") ON DELETE RESTRICT,
+  FOREIGN KEY ("field_id", "current_observation_revision") REFERENCES "proc_field_observations" ("field_id", "revision") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED
 );
 CREATE INDEX "idx_proc_material_fields_hot_01" ON "proc_material_fields" ("status", "field_id");
 
