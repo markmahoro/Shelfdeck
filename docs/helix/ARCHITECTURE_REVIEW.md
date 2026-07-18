@@ -1,6 +1,6 @@
 # Helix Architecture Review Workbench
 
-Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-19；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-11`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`）bounded correction均已完成。
+Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-19；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-11`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`）bounded correction均已完成。
 
 ## 1. Purpose and authority
 
@@ -1910,3 +1910,42 @@ materialKey；在Offer关闭后旁读current Material row、Foundation Event Res
 
 本修正不新增Domain、Owner、Store、Handoff、Capability或关系表；`112 Capability / 168 tables`保持。
 审计结果为`PASS / PBF-11-R1 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.19 `PBF-11-R2` — Handoff A Rejected terminal continuity
+
+Status: `CLOSED / BOUNDED DETAIL FIX APPLIED` — 2026-07-19
+
+P8-05在实现Libra Intake Rejection路径前，沿typed Decision、Libra Owner rows、Receipt重建、Outbox和Procurement
+Reservation收口做纵向反证，提出四组formal-realizability疑点。主审没有直接接受实现返回，而是核对Level 4
+Handoff A rejection语义、Level 6 Intake responsibility、Level 8 Capability/DTO/table/transaction/fixture，确认全部
+成立，且共同根因是Rejected Acceptance被错误挤进了Accepted continuity decision family：
+
+1. `SubjectContinuityResolutionDecision@1`只合法表达`new_subject|season_extension`，但旧
+   `libra_intake_decisions`把`rejected`混进同一result并要求同一decision digest；
+2. rejected row强制填写target Subject和committed continuity head，违反“不创建/扩充Subject、不推进head”；
+3. `StructuredRejection@1`与`RejectionReceipt@1`没有可由Libra Owner Store完整重建的Reason/Evidence、identity和
+   digest连续性；
+4. 没有Libra Rejected commit/typed Outbox及Procurement消费Rejected终态、释放Candidate Reservation但保留
+   Procurement Material Control的精确原子事务。
+
+Bounded correction保持五Domain、两Handoff、既有Process Root、112项Capability与单SQLite Store不变：
+
+- 保持`SubjectContinuityResolutionDecision@1`为Accepted-only；Continuity无匹配、多匹配或Episode overlap仍按
+  已确认规则建立new Subject，绝不成为Rejection reason；
+- 新增同一Intake Owner内的`IntakeRejectionDecision@1` typed variant，固定Handoff A closed reason precedence、
+  Reason/Evidence排序和JCS/SHA-256公式，并让`libra.intake.rejection.commit@1`消费该完整Decision；
+- 把`libra_intake_decisions`与`libra_handoff_a_receipts`改为明确互斥的accepted/rejected列variant；rejected
+  不保存Subject、continuity head、Binding或Control假值；
+- 新增一张Libra-owned `libra_intake_rejection_reason_evidence`关系表，逐项保存多reason和Evidence，使
+  `StructuredRejection@1`、`IntakeRejectionDecision@1`与`RejectionReceipt@1`均可历史重建；
+- 固定`LibraCandidateRejectedMessage@1` producer/consumer/dedup/payload合同；Libra Rejected canonical
+  transaction为3张Libra表加3张Foundation表全有或全无；
+- 固定Procurement rejection consume为`proc_candidate_deliveries + proc_run_materials + fx_inbox`三表原子事务：
+  Delivery进入rejected、全部Candidate Reservation进入`released+handoff_rejected`、终态Evidence绑定同一Receipt，
+  Procurement Material Control保持不变；重复消息重放相同closure result，迟到Accepted或成员不完整稳定拒绝。
+
+全文一致性审计覆盖Handoff A调用方向、Accepted/Rejected互斥、Capability nominal input、Owner table variant、
+canonical transaction write set、Outbox/Inbox、row-to-typed reconstruction、crash fixture、Dictionary与Level 10
+计数。关系表由168调整为169，`libra_*`由36调整为37；没有新增Domain、Owner、Store、Business Object、Handoff、
+Capability、兼容路径或跨Store读取。审计结果为
+`PASS / PBF-11-R2 CLOSED / NO OPEN BUSINESS DECISION`。
