@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/ProcurementRunSealReceipt/v1",
+  "title": "ProcurementRunSealReceipt@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "x-helix-maxCanonicalBytes": 65536,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/application-types/ProcurementRunSealReceipt/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "receiptId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "receiptKind": {
+      "const": "procurement_run_sealed"
+    },
+    "ownerDomain": {
+      "const": "procurement"
+    },
+    "scopeType": {
+      "const": "procurement_run"
+    },
+    "scopeId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "scopeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "committedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "procurementRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "sealedStateRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "runBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "sealDecisionDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "sealOutcome": {
+      "type": "string",
+      "enum": [
+        "completed",
+        "failed",
+        "partial_failure"
+      ]
+    },
+    "candidateReservationCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "candidateReservationSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "releasedMaterialCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "releasedMaterialSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "sealEvidenceDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "receiptId",
+    "receiptKind",
+    "ownerDomain",
+    "scopeType",
+    "scopeId",
+    "scopeDigest",
+    "committedAtMs",
+    "procurementRunId",
+    "sealedStateRevision",
+    "runBasisDigest",
+    "sealDecisionDigest",
+    "sealOutcome",
+    "candidateReservationCount",
+    "candidateReservationSetDigest",
+    "releasedMaterialCount",
+    "releasedMaterialSetDigest",
+    "sealEvidenceDigest"
+  ]
+}

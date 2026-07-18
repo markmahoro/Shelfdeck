@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/ProcurementRunSealDecision/v1",
+  "title": "ProcurementRunSealDecision@1",
+  "x-helix-ssotRefs": [
+    "6.3.3",
+    "8.6.18"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "decisionId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "procurementRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "expectedStateRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "expectedRunBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "sealOutcome": {
+      "type": "string",
+      "enum": [
+        "completed",
+        "failed",
+        "partial_failure"
+      ]
+    },
+    "publishedCandidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "candidatePackageId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "packageDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "manifestDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "candidatePackageId",
+          "packageDigest",
+          "manifestDigest"
+        ]
+      }
+    },
+    "releasedMembers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "materialKey": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "disposition": {
+            "type": "string",
+            "enum": [
+              "completed_without_candidate",
+              "triage_failed"
+            ]
+          },
+          "evidenceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "materialKey",
+          "disposition",
+          "evidenceDigest"
+        ]
+      }
+    },
+    "decisionDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "decisionId",
+    "procurementRunId",
+    "expectedStateRevision",
+    "expectedRunBasisDigest",
+    "sealOutcome",
+    "publishedCandidates",
+    "releasedMembers",
+    "decisionDigest"
+  ]
+}

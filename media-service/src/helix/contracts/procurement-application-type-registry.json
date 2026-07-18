@@ -5,7 +5,7 @@
   "kind": "application-type-registry",
   "owner": "procurement",
   "status": "active",
-  "targetCount": 3,
+  "targetCount": 5,
   "entries": [
     {
       "id": "ProcurementRunExecutionBasis",
@@ -20,6 +20,37 @@
       },
       "ssotRefs": [
         "6.3.2",
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "ProcurementRunSealDecision",
+      "version": 1,
+      "owner": "procurement",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ProcurementRunSealDecision/v1",
+      "relativePath": "application-types/ProcurementRunSealDecision/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "f5cd6ea4cd6dbcab7924c577473948794d7c2b011153d02e56916f83f2b7b054"
+      },
+      "ssotRefs": [
+        "6.3.3",
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "ProcurementRunSealReceipt",
+      "version": 1,
+      "owner": "procurement",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ProcurementRunSealReceipt/v1",
+      "relativePath": "application-types/ProcurementRunSealReceipt/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "bfa5a46adb17acc41a43602b140ad28cacc59d03b4cfa9172d8ca7e37347fa02"
+      },
+      "ssotRefs": [
         "8.6.18"
       ]
     },

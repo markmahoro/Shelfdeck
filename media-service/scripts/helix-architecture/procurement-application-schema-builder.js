@@ -7,6 +7,7 @@ const text = (options = {}) => ({ type:'string', minLength:1, ...options });
 const id = () => text({ maxLength:256 });
 const digest = () => text({ pattern:'^[a-f0-9]{64}$' });
 const positive = () => ({ type:'integer', minimum:1 });
+const nonNegative = () => ({ type:'integer', minimum:0 });
 const object = (properties, required = Object.keys(properties), options = {}) => ({ type:'object', additionalProperties:false, properties, required, ...options });
 const ref = (name) => ({ $ref:typeId(name) });
 
@@ -38,8 +39,17 @@ function runExecutionBasis() {
       sourceRetryIntentId:id(), selectedFieldMaterialSet:{ $ref:'helix://contracts/domain-types/SelectedFieldMaterialSet/v1' }, basisDigest:digest()
     }, ['procurementRunId','fieldId','fieldStatus','fieldAccess','terminalObservation','extractionPolicy','triageRule','selectedFieldMaterialSet','basisDigest']) };
 }
+function runSealDecision() {
+  return { $schema:DRAFT,$id:typeId('ProcurementRunSealDecision'),title:'ProcurementRunSealDecision@1','x-helix-ssotRefs':['6.3.3','8.6.18'],
+    ...object({decisionId:id(),procurementRunId:id(),expectedStateRevision:positive(),expectedRunBasisDigest:digest(),
+      sealOutcome:{type:'string',enum:['completed','failed','partial_failure']},publishedCandidates:{type:'array',items:object({candidatePackageId:id(),packageDigest:digest(),manifestDigest:digest()})},
+      releasedMembers:{type:'array',items:object({materialKey:digest(),disposition:{type:'string',enum:['completed_without_candidate','triage_failed']},evidenceDigest:digest()})},decisionDigest:digest()})};
+}
+function runSealReceipt(){return {$schema:DRAFT,$id:typeId('ProcurementRunSealReceipt'),title:'ProcurementRunSealReceipt@1','x-helix-ssotRefs':['8.6.18'],
+  'x-helix-maxCanonicalBytes':64*1024,...object({schemaRef:{const:typeId('ProcurementRunSealReceipt')},schemaVersion:{const:1},receiptId:id(),receiptKind:{const:'procurement_run_sealed'},ownerDomain:{const:'procurement'},scopeType:{const:'procurement_run'},scopeId:id(),scopeDigest:digest(),committedAtMs:nonNegative(),procurementRunId:id(),sealedStateRevision:positive(),runBasisDigest:digest(),sealDecisionDigest:digest(),sealOutcome:{type:'string',enum:['completed','failed','partial_failure']},candidateReservationCount:nonNegative(),candidateReservationSetDigest:digest(),releasedMaterialCount:nonNegative(),releasedMaterialSetDigest:digest(),sealEvidenceDigest:digest()})};}
 function buildProcurementApplicationSchemas() { return Object.freeze({
-  ProcurementRunExecutionBasis:runExecutionBasis(), ProcurementTriageRuleRegistry:triageRuleRegistry(), ProcurementTriageRuleSnapshot:triageRuleSnapshot()
+  ProcurementRunExecutionBasis:runExecutionBasis(), ProcurementRunSealDecision:runSealDecision(), ProcurementRunSealReceipt:runSealReceipt(),
+  ProcurementTriageRuleRegistry:triageRuleRegistry(), ProcurementTriageRuleSnapshot:triageRuleSnapshot()
 }); }
 function canonicalize(value) { if(Array.isArray(value))return value.map(canonicalize); if(value&&typeof value==='object')return Object.keys(value).sort().reduce((out,key)=>{out[key]=canonicalize(value[key]);return out;},{}); return value; }
 function schemaDigest(value) { return crypto.createHash('sha256').update(JSON.stringify(canonicalize(value))).digest('hex'); }

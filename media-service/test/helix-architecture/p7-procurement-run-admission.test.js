@@ -12,6 +12,7 @@ const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sql
 const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
 const { activeTriageRule, createDefaultTriageRuleRegistry } = require('../../src/helix/domains/procurement/model/procurement-run-contracts');
 const { createProcurementRunAdmissionStore } = require('../../src/helix/domains/procurement/persistence/procurement-run-admission-store');
+const { createProcurementRunSealStore } = require('../../src/helix/domains/procurement/persistence/procurement-run-seal-store');
 
 const generatedRoot = path.resolve(__dirname, '../../src/helix/foundation/persistence/generated');
 const schemaDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 'utf8');
@@ -55,7 +56,9 @@ function seed(database, material, control) {
     database.prepare('INSERT INTO fx_work_attempts VALUES(?,?,?,?,?,?,?,?)').run('run-attempt-1','run-work-1',0,D('attempt'),'running',1,null,null);
     database.prepare('INSERT INTO fx_workflow_plans VALUES(?,?,?,?,?,?,?,?,?)').run('run-plan-1','run-attempt-1','procurement-planner',1,D('catalog'),D('plan-basis'),D('graph'),'planned',1);
     database.prepare('INSERT INTO fx_plan_nodes VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run('run-plan-1','admit','procurement.material.control.acquire@1',1,'input@1','{}','parameters@1','{}','when@1','{}','responsibility_control_commit','fence@1','{}','resource@1','{}');
+    database.prepare('INSERT INTO fx_plan_nodes VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run('run-plan-1','seal','procurement.run.seal@1',1,'input@1','{}','parameters@1','{}','when@1','{}','domain_fact_commit','fence@1','{}','resource@1','{}');
     database.prepare('INSERT INTO fx_workflow_events VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run('run-event-1','run-plan-1','admit','run-work-1','run-attempt-1','procurement','procurement.material.control.acquire@1',1,'executing','normal',1,null,null,null);
+    database.prepare('INSERT INTO fx_workflow_events VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run('seal-event-1','run-plan-1','seal','run-work-1','run-attempt-1','procurement','procurement.run.seal@1',1,'ready','normal',1,null,null,null);
     database.prepare('INSERT INTO fx_commit_markers(commit_marker,owner_domain,scope_type,scope_id,commit_digest,committed_at_ms) VALUES(?,?,?,?,?,?)').run('observation-marker','procurement','material_field_observation','field-1',D('observation-marker'),1);
     database.prepare('INSERT INTO proc_field_observations VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run('field-1',1,'observation-1','observation-work-1',1,0,0,null,null,D('page'),D('fact'),'observation-marker',D('result'),1,1);
     database.prepare('UPDATE proc_material_fields SET current_observation_revision=1 WHERE field_id=?').run('field-1');
@@ -107,4 +110,19 @@ test('same-Field Control is asserted without a fake release/acquire revision',()
   assert.equal(committed.typedResult.assertedMaterialCount,1); assert.equal(committed.typedResult.acquiredMaterialCount,0);
   const check=new Database(databasePath,{readonly:true}); assert.equal(check.prepare('SELECT control_revision FROM fx_material_controls').get().control_revision,1);
   assert.equal(check.prepare('SELECT COUNT(*) count FROM fx_material_control_revisions').get().count,1); check.close();
+}));
+
+test('failed Run Seal releases Selection but preserves exact Procurement Control and replays its receipt',()=>fixture(({databasePath,unitOfWork})=>{
+  const registry=createDefaultTriageRuleRegistry();const material=identity();const control=controlSnapshot(material);const runBasis=basis(registry,material,control);
+  const database=new Database(databasePath);seed(database,material,control);database.close();
+  createProcurementRunAdmissionStore({schemaManifest,unitOfWork,triageRegistry:registry}).admit({basis:runBasis,controlHandle:handle(runBasis),
+    commitMarker:{commitMarker:'run-marker-1',commitDigest:D('run-commit')},resultBinding:{resultId:'run-receipt-1',eventId:'run-event-1'}});
+  const raw={decisionId:'seal-decision-1',procurementRunId:'run-1',expectedStateRevision:1,expectedRunBasisDigest:runBasis.basisDigest,
+    sealOutcome:'failed',publishedCandidates:[],releasedMembers:[{materialKey:material.materialKey,disposition:'triage_failed',evidenceDigest:D('triage-failure')}]};
+  const decision={...raw,decisionDigest:canonicalDigest(raw)};const store=createProcurementRunSealStore({schemaManifest,unitOfWork});
+  const request={decision,commitMarker:{commitMarker:'seal-marker-1',commitDigest:D('seal-commit')},resultBinding:{resultId:'seal-receipt-1',eventId:'seal-event-1'}};
+  const committed=store.seal(request);assert.equal(committed.typedResult.sealOutcome,'failed');assert.equal(store.seal(request).replayed,true);
+  const check=new Database(databasePath,{readonly:true});assert.deepEqual(check.prepare('SELECT state,state_revision,seal_outcome FROM proc_procurement_runs').get(),{state:'sealed',state_revision:2,seal_outcome:'failed'});
+  assert.deepEqual(check.prepare('SELECT selection_state,terminal_disposition FROM proc_run_materials').get(),{selection_state:'released',terminal_disposition:'triage_failed'});
+  assert.equal(check.prepare('SELECT control_revision FROM fx_material_controls').get().control_revision,1);check.close();
 }));

@@ -7,9 +7,9 @@ const test=require('node:test');
 const {buildProcurementApplicationSchemas,schemaDigest,typeId}=require('../../scripts/helix-architecture/procurement-application-schema-builder');
 const root=path.resolve(__dirname,'../../src/helix/contracts');
 
-test('materializes the three non-Catalog Procurement application contracts reproducibly',()=>{
+test('materializes the non-Catalog Procurement application contracts reproducibly',()=>{
   const schemas=buildProcurementApplicationSchemas(); const registry=JSON.parse(fs.readFileSync(path.join(root,'procurement-application-type-registry.json'),'utf8'));
-  assert.equal(registry.targetCount,3);
+  assert.equal(registry.targetCount,5);
   for(const [name,schema] of Object.entries(schemas)) { const stored=JSON.parse(fs.readFileSync(path.join(root,'application-types',name,'v1','schema.json'),'utf8'));
     assert.deepEqual(stored,schema); const entry=registry.entries.find((item)=>item.id===name); assert.equal(entry.schemaId,typeId(name)); assert.equal(entry.digest.value,schemaDigest(schema)); }
 });
