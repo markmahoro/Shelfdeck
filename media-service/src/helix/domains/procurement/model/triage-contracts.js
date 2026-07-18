@@ -161,7 +161,8 @@ function unitFor(member, context, profileName, mediaTypeName, season, episodes, 
   unitMember.memberClaimDigest = digest(unitMember);
   const value = { unitId:'', mediaType:mediaTypeName, contentProfile:profileName, structureKind:profileName === 'series' ? 'season' : 'single',
     displayIdentity:profileName === 'jav' ? metadata.javCode : metadata.claimedTitle, identityMetadata:metadata,
-    seasonContinuityClaims:[], members:[unitMember], relatedReferences, unitDigest:'' };
+    seasonContinuityClaims:[], seasonContinuityClaimSetDigest:digest({ schema:'season-continuity-claim-set@1', items:[] }),
+    members:[unitMember], relatedReferences, unitDigest:'' };
   value.unitId = digest({ schema:'procurement.triage-unit-id@1', mediaType:value.mediaType, contentProfile:value.contentProfile,
     structureKind:value.structureKind, members:value.members.map(({ materialKey, role, episodeClaims }) => ({ materialKey, role, episodeClaims })) });
   value.unitDigest = digest(without(value, 'unitDigest'));

@@ -1,6 +1,6 @@
 # P7 Procurement Detailed Plan
 
-Status: Active；P7-00–P7-06 complete；P7-07 returned to Design.
+Status: Active；P7-00–P7-07 complete；P7-08 in progress.
 
 Last updated: 2026-07-18
 
@@ -118,7 +118,10 @@ socket、ambient credential、真实Material Field扫描、真实媒体/FFmpeg�
 - 原子发布Package、Primary、Related、Season Claim、Delivery、typed Result、Commit Marker、Audit与Outbox。
 - 强制同一Physical Identity同时最多属于一份仍可被Libra接受的Candidate；变更必须发布新Package。
 - Design Return：`acceptanceBasisDigest`、稳定Offer/Outbox合同及continuity kind持久化映射尚未闭合；详见
-  `evidence/P7_07_CANDIDATE_PUBLICATION_DESIGN_RETURN.md`。闭合前不实现Store。
+  `evidence/P7_07_CANDIDATE_PUBLICATION_DESIGN_RETURN.md`。
+- Done：PBF-10-R2/R3已固定Package-derived Acceptance Basis、stable Offer/typed Outbox、canonical continuity kind及
+  Run revision-head CAS的精确11表原子事务。实现发布完整Package/Manifest/Episode/Related/Reservation/Offer/Result/marker/
+  Outbox；replay、stale fence、Evidence continuity、legacy alias及Outbox crash全回滚反例PASS。Evidence见上述Design Return闭合段。
 
 ### P7-08 Capability registration and Foundation integration
 

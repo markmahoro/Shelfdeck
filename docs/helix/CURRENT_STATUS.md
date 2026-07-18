@@ -13,12 +13,12 @@ Last updated: 2026-07-18
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains |
 | Current phase | P7 — Procurement |
-| Current phase status | P7-00–P7-06 PASS；P7-07 implementation resumed |
+| Current phase status | P7-00–P7-07 PASS；P7-08 in progress |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P6 phase closure `5831c53207d5e71ccdf4792da11ed71be3d47ae1` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p7` on `codex/helix-p7` |
-| Next action | P7-07 immutable Candidate Package publication |
+| Next action | P7-08 Capability registration and Foundation integration |
 
 Architecture Agent提交`19ed12fa`已闭合`PBF-07-R1`：Page正式收敛为≤65,536 UTF-8 JCS bytes，完整Page作为
 Commit Event immutable typed Evidence保存，并通过Observation→Marker→Result Binding形成禁止GC的历史恢复链；
@@ -112,6 +112,12 @@ Architecture Agent提交`ea702945`以`PBF-10-R2`闭合上述三项：Acceptance 
 Procurement domain write participant，Candidate Publication最终为8张Procurement表加3张Foundation表的11张精确
 write table；Run head与Package、relations、Reservation、Offer、Result/marker、Outbox全有或全无。163张表总量及
 PBF-10-R2全部合同保持不变，P7-07继续实施。
+
+P7-07现已完成：PBF-10-R2/R3机器合同重物化保持112/96/163/30，Candidate Publication以精确11表事务原子CAS
+Run revision head并发布Package、Manifest、Season/Episode/Related关系、Run Material Reservation、Delivery/Offer、typed
+Result、Commit Marker与`fx_outbox`。Package-derived Acceptance Basis、stable Offer ID、typed message/dedup、canonical
+continuity kind及Structure Evidence连续性均由实现和反例固定；业务重放、stale fence、legacy alias、Evidence不匹配与Outbox
+崩溃全回滚测试PASS。未跨域写Libra Store，未写`fx_outbox_deliveries`，未运行任何被禁止的外部动作。下一工作包P7-08。
 
 ## 2. Accepted implementation conclusion
 
