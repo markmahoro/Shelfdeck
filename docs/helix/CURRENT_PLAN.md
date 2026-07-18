@@ -56,11 +56,11 @@ Publication domain write participant；最终机器事务固定为8张Procuremen
 | --- | --- |
 | Phase | P7 — Procurement |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | P7-00–P7-07 PASS；P7-08 in progress |
+| Status | P7-00–P7-08 PASS；P7-09 in progress |
 | Implementation baseline | exact P6 phase closure `5831c53207d5e71ccdf4792da11ed71be3d47ae1` |
 | Phase branch/worktree | `codex/helix-p7` / `E:\my_project\emby_third_party-helix-p7` |
 | Allowed now | P2–P13本地代码、unit/contract/isolated fixture、文档与Phase自动转换 |
-| Next action | P7-08 Capability registration and Foundation integration |
+| Next action | P7-09 downstream boundary verification |
 
 ## 4. Master roadmap
 

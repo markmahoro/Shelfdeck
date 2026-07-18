@@ -1,6 +1,6 @@
 # P7 Procurement Detailed Plan
 
-Status: Active；P7-00–P7-07 complete；P7-08 in progress.
+Status: Active；P7-00–P7-08 complete；P7-09 in progress.
 
 Last updated: 2026-07-18
 
@@ -127,6 +127,10 @@ socket、ambient credential、真实Material Field扫描、真实媒体/FFmpeg�
 
 - 精确注册8个`procurement.*@1` package digest、Owner、Effect Class和typed ports。
 - observation/control/domain commit分别进入P4/P3正确路径；不为同步事务伪造Workflow。
+- Done：唯一Procurement registration layer精确绑定8个P2 manifest与8个typed port；5个pure observation、2个domain fact
+  commit和1个responsibility control commit保持原Effect Class，统一通过Foundation Registry/Dispatcher校验。缺失/额外、Owner、
+  Effect Class和untyped port反例PASS，且该层不依赖Workflow、Runtime、Store或legacy。Evidence见
+  `evidence/P7_08_CAPABILITY_REGISTRATION.md`。
 
 ### P7-09 Downstream boundary verification
 
