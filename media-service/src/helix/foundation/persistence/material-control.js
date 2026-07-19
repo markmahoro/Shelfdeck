@@ -362,5 +362,72 @@ function createMaterialControlParticipant(options) {
   });
 }
 
+// Exact Handoff payloads intentionally carry stable Material keys and Control
+// fences, not a second copy of Physical Material Identity. The Control owner
+// recovers that identity only from its own current row before applying CAS.
+function createMaterialControlExactTransferParticipant(options) {
+  if (!options || !options.schemaManifest || !options.handle || !Array.isArray(options.changes)) {
+    fail('P3_CONTROL_TRANSFER_PARTICIPANT_INVALID', 'Exact transfer dependencies are required.');
+  }
+  const handle=options.handle, changes=options.changes;
+  if (handle.schemaRef!=='helix://contracts/types/ResponsibilityControlCommitHandle/v1'||handle.schemaVersion!==1||
+      handle.operationKind!=='transfer'||changes.length<1||changes.length>1024) {
+    fail('P3_CONTROL_INVALID_HANDLE', 'Exact transfer requires a Responsibility Control transfer Handle and non-empty scope.');
+  }
+  for (const field of ['handleId','ownerDomain','processType','processId','receiptContract','receivingDomain','transferPoint']) text(handle[field],field);
+  for (const field of ['basisDigest','canonicalFactSetDigest','bindingSetDigest','controlScopeDigest','eventFenceDigest']) sha(handle[field],field);
+  if (!handle.basisRef||!Number.isSafeInteger(handle.basisRef.revision)||handle.basisRef.revision<1) {
+    fail('P3_CONTROL_INVALID_BASIS_REF', 'Control Handle requires a revisioned Basis reference.');
+  }
+  text(handle.basisRef.objectType,'basisRef.objectType');text(handle.basisRef.objectId,'basisRef.objectId');sha(handle.basisRef.digest,'basisRef.digest');
+  if (options.authorizedScopeDigest!==handle.controlScopeDigest) fail('P3_CONTROL_SCOPE_DIGEST_MISMATCH','Control scope digest does not match the authorized exact scope.');
+  const expected=[...handle.expectedControlRevisions].sort((a,b)=>a.materialKey.localeCompare(b.materialKey));
+  const projected=changes.map((change)=>({materialKey:change.materialKey,revision:change.expectedRevision}))
+    .sort((a,b)=>a.materialKey.localeCompare(b.materialKey));
+  if (expected.length!==changes.length||new Set(expected.map((item)=>item.materialKey)).size!==expected.length||
+      canonicalJson(expected)!==canonicalJson(projected)) fail('P3_CONTROL_EXPECTED_SET_MISMATCH','Expected Control revisions do not exactly cover the transfer set.');
+  for (const change of changes) {
+    if (!change||!SHA256.test(change.materialKey||'')||!Number.isSafeInteger(change.expectedRevision)||change.expectedRevision<1) {
+      fail('P3_CONTROL_INVALID_CHANGE','Exact transfer Material key and positive expected revision are required.');
+    }
+    sha(change.expectedProjectionDigest,'expectedProjectionDigest');assertScope(change.fromScope,'fromScope');assertScope(change.toScope,'toScope');
+    if (change.fromScope.ownerDomain!==handle.ownerDomain||change.toScope.ownerDomain!==handle.receivingDomain) {
+      fail('P3_CONTROL_TRANSFER_TARGET_MISMATCH','Transfer scopes do not match the signed owner and receiving Domain.');
+    }
+  }
+  const definition=repository(options.schemaManifest);
+  return Object.freeze({participantId:options.participantId||'material_control',owner:'material-control-authority',
+    boundBusinessOwner:handle.receivingDomain,repositories:[definition],execute(context){
+      const repo=context.repository(definition.repositoryId),results=[];
+      for (const change of [...changes].sort((a,b)=>a.materialKey.localeCompare(b.materialKey))) {
+        const current=repo.invoke('find_current',{material_key:change.materialKey});
+        if (!current||Number(current.control_revision)!==change.expectedRevision) fail('P3_CONTROL_CAS_CONFLICT','Material Control expected revision is stale.',{materialKey:change.materialKey});
+        const identity={schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v1',schemaVersion:1,materialKey:current.material_key,
+          mountScopeId:current.mount_scope_id,inode:String(current.inode),contentHashAlgorithm:current.content_hash_algorithm,contentHash:current.content_hash};
+        if (materialKey(identity)!==change.materialKey) fail('P3_CONTROL_MATERIAL_KEY_MISMATCH','Stored Physical Material Identity does not match its Material key.');
+        if (mapControlProjection(change.materialKey,current).projectionDigest!==change.expectedProjectionDigest) {
+          fail('P3_CONTROL_PROJECTION_CONFLICT','Material Control expected projection digest is stale.',{materialKey:change.materialKey});
+        }
+        if (current.state!=='controlled'||current.owner_domain!==change.fromScope.ownerDomain||
+            current.owner_scope_type!==change.fromScope.scopeType||current.owner_scope_id!==change.fromScope.scopeId) {
+          fail('P3_CONTROL_FROM_SCOPE_MISMATCH','Current Control does not match the exact signed source scope.');
+        }
+        const revision=change.expectedRevision+1,update=repo.invoke('cas_current',{owner_domain:change.toScope.ownerDomain,
+          owner_scope_type:change.toScope.scopeType,owner_scope_id:change.toScope.scopeId,control_revision:revision,state:'controlled',
+          updated_at_ms:context.commitTimeMs,material_key:change.materialKey,expected_control_revision:change.expectedRevision});
+        if (update.changes!==1) fail('P3_CONTROL_CAS_CONFLICT','Material Control CAS update lost its expected revision.');
+        repo.invoke('insert_revision',{material_key:change.materialKey,revision,operation_kind:'transfer',
+          from_owner_domain:change.fromScope.ownerDomain,from_scope_type:change.fromScope.scopeType,from_scope_id:change.fromScope.scopeId,
+          to_owner_domain:change.toScope.ownerDomain,to_scope_type:change.toScope.scopeType,to_scope_id:change.toScope.scopeId,
+          basis_digest:handle.basisDigest,commit_marker:text(options.commitMarker,'commitMarker'),committed_at_ms:context.commitTimeMs});
+        const projection=mapControlProjection(change.materialKey,{control_revision:revision,state:'controlled',owner_domain:change.toScope.ownerDomain,
+          owner_scope_type:change.toScope.scopeType,owner_scope_id:change.toScope.scopeId});
+        results.push(Object.freeze({materialKey:change.materialKey,revision,state:'controlled',action:'transfer',projection}));
+      }
+      return Object.freeze(results);
+    }});
+}
+
 module.exports = Object.freeze({ MaterialControlError, controlScopeDigest, createMaterialControlParticipant,
-  createMaterialControlAdmissionReadParticipant, createMaterialControlProjectionPort, createMaterialControlProjectionReadParticipant, materialKey });
+  createMaterialControlAdmissionReadParticipant, createMaterialControlExactTransferParticipant, createMaterialControlProjectionPort,
+  createMaterialControlProjectionReadParticipant, materialKey });

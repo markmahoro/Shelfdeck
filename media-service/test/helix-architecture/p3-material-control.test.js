@@ -7,7 +7,7 @@ const path = require('node:path');
 const test = require('node:test');
 const Database = require('better-sqlite3');
 const { digest } = require('../../src/helix/foundation/persistence/ddl-compiler');
-const { controlScopeDigest, createMaterialControlParticipant, materialKey } = require('../../src/helix/foundation/persistence/material-control');
+const { controlScopeDigest, createMaterialControlExactTransferParticipant, createMaterialControlParticipant, materialKey } = require('../../src/helix/foundation/persistence/material-control');
 const { createRepositoryDefinition } = require('../../src/helix/foundation/persistence/owner-repository');
 const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
@@ -175,6 +175,29 @@ test('Procurement admission can assert exact same-Field Control without inventin
     const database = new Database(databasePath, { readonly:true });
     assert.equal(database.prepare('SELECT control_revision FROM fx_material_controls').get().control_revision, 1);
     assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_material_control_revisions').get().count, 1);
+    database.close();
+  });
+});
+
+test('exact Handoff transfer recovers Physical Identity only from the Control owner row', () => {
+  fixture(({ databasePath, kernel, unitOfWork }) => {
+    const material=identity('handoff-key-only'),from=scope('procurement','material_field','field-1'),to=scope('libra','subject','subject-1');
+    const acquire={action:'acquire',identity:material,expectedRevision:0,fromScope:null,toScope:from};
+    unitOfWork.execute([procurementParticipant(),createMaterialControlParticipant({schemaManifest,
+      handle:handle('acquire','procurement',[acquire]),changes:[acquire],commitMarker:'marker-key-acquire'}),
+    markerParticipant('procurement','marker-key-acquire')]);
+    const projection=require('../../src/helix/foundation/persistence/material-control').createMaterialControlProjectionPort({schemaManifest,unitOfWork})
+      .getMaterialControlProjection(material.materialKey);
+    const exact={materialKey:material.materialKey,expectedRevision:1,expectedProjectionDigest:projection.projectionDigest,fromScope:from,toScope:to};
+    const signed=handle('transfer','procurement',[{action:'transfer',identity:material,expectedRevision:1,fromScope:from,toScope:to}],
+      {receivingDomain:'libra',controlScopeDigest:digest('accepted-scope')});
+    unitOfWork.execute([{participantId:'libra',owner:'libra',repositories:[subjects],execute(context){context.repository('subjects').invoke('insert',
+      {subject_id:'subject-1',structure_kind:'movie',status:'active',created_at_ms:context.commitTimeMs});}},
+    createMaterialControlExactTransferParticipant({schemaManifest,handle:signed,changes:[exact],authorizedScopeDigest:digest('accepted-scope'),
+      commitMarker:'marker-key-transfer'}),markerParticipant('libra','marker-key-transfer')]);
+    kernel.close();const database=new Database(databasePath,{readonly:true});
+    assert.deepEqual(database.prepare('SELECT owner_domain,owner_scope_type,owner_scope_id,control_revision FROM fx_material_controls').get(),
+      {owner_domain:'libra',owner_scope_type:'subject',owner_scope_id:'subject-1',control_revision:2});
     database.close();
   });
 });
