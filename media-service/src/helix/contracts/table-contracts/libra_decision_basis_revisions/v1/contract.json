@@ -57,6 +57,15 @@
       },
       {
         "ordinal": 6,
+        "name": "expected_head_snapshot_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
         "name": "routing_decision_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -65,7 +74,7 @@
         "nullable": true
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "query_result_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -74,7 +83,7 @@
         "nullable": false
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "routing_input_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -83,7 +92,7 @@
         "nullable": true
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "spec_input_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -92,7 +101,7 @@
         "nullable": true
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "product_scope_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -101,7 +110,7 @@
         "nullable": true
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "input_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -110,7 +119,7 @@
         "nullable": false
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "status",
         "logicalType": "TEXT",
         "enumValues": [
@@ -122,7 +131,7 @@
         "nullable": false
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "unresolved_reason_code",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -131,7 +140,7 @@
         "nullable": true
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "basis_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -140,7 +149,7 @@
         "nullable": false
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "committed_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -214,6 +223,7 @@
     },
     "semanticRules": [
       "`UNIQUE(subject_id,basis_revision)`及`UNIQUE(subject_id,basis_kind,input_set_digest)`",
+      "`expected_head_revision>=0`且必须等于本Basis唯一`decision_head_snapshot` input的head revision，`expected_head_snapshot_digest`逐字节等于该input row digest",
       "routing的routing input始终非NULL且spec/scope NULL",
       "acceptance_spec的routing/spec input始终非NULL，ready时current Routing与scope非NULL，unresolved时只允许按closed reason置对应pointer/scope NULL",
       "ready无reason，unresolved必须有reason",
@@ -221,13 +231,13 @@
       "`INDEX(subject_id,status,basis_revision)`"
     ],
     "rawContract": {
-      "columns": "`decision_basis_id PK, subject_id FK, basis_kind(routing|acceptance_spec), basis_revision, expected_head_revision, routing_decision_id NULL, query_result_set_digest, routing_input_digest NULL, spec_input_digest NULL, product_scope_digest NULL, input_set_digest, status(ready|unresolved), unresolved_reason_code NULL, basis_digest, committed_at_ms`",
-      "constraints": "`UNIQUE(subject_id,basis_revision)`及`UNIQUE(subject_id,basis_kind,input_set_digest)`；routing的routing input始终非NULL且spec/scope NULL；acceptance_spec的routing/spec input始终非NULL，ready时current Routing与scope非NULL，unresolved时只允许按closed reason置对应pointer/scope NULL；ready无reason，unresolved必须有reason；immutable；`INDEX(subject_id,status,basis_revision)`"
+      "columns": "`decision_basis_id PK, subject_id FK, basis_kind(routing|acceptance_spec), basis_revision, expected_head_revision, expected_head_snapshot_digest, routing_decision_id NULL, query_result_set_digest, routing_input_digest NULL, spec_input_digest NULL, product_scope_digest NULL, input_set_digest, status(ready|unresolved), unresolved_reason_code NULL, basis_digest, committed_at_ms`",
+      "constraints": "`UNIQUE(subject_id,basis_revision)`及`UNIQUE(subject_id,basis_kind,input_set_digest)`；`expected_head_revision>=0`且必须等于本Basis唯一`decision_head_snapshot` input的head revision，`expected_head_snapshot_digest`逐字节等于该input row digest；routing的routing input始终非NULL且spec/scope NULL；acceptance_spec的routing/spec input始终非NULL，ready时current Routing与scope非NULL，unresolved时只允许按closed reason置对应pointer/scope NULL；ready无reason，unresolved必须有reason；immutable；`INDEX(subject_id,status,basis_revision)`"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8149,
-      "lineDigest": "fa17afc3fc4bba94f1a69fc77f9ba6b8053f850dc06a7a5d6c978c2f21787a57"
+      "line": 8161,
+      "lineDigest": "98cc10d16110980ea5b7f5668de384cde3d77e97b287e8b336cad681f222ffd3"
     },
     "foreignKeys": [
       {

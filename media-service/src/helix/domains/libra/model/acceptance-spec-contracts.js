@@ -61,6 +61,7 @@ function resolveAcceptanceSpec(value){
   if(inputSet.basisKind!=='acceptance_spec'||inputSet.readiness.result!=='ready'||!basis||
       basis.inputSetDigest!==inputSet.inputSetDigest||basis.basisKind!=='acceptance_spec'||basis.readiness!=='ready'||basis.routingDecisionId!==inputSet.routingDecision.routingDecisionId||
       basis.basisDigest!==canonicalDigest({schema:'libra.decision-basis@1',decisionBasisId:basis.decisionBasisId,subjectId:basis.subjectId,basisKind:basis.basisKind,basisRevision:basis.basisRevision,
+        expectedHeadRevision:basis.expectedHeadRevision,expectedHeadSnapshotDigest:basis.expectedHeadSnapshotDigest,
         readiness:basis.readiness,unresolvedReasonCode:basis.unresolvedReasonCode,routingDecisionId:basis.routingDecisionId,queryResultSetDigest:basis.queryResultSetDigest,
         routingInputDigest:basis.routingInputDigest,specInputDigest:basis.specInputDigest,productScopeDigest:basis.productScopeDigest,inputSetDigest:basis.inputSetDigest}))fail('P8_SPEC_BASIS','Acceptance Spec Resolver requires the exact ready Basis.');
   const projection=inputSet.shelfStandardProjection,standard=validateStandard(projection),routing=inputSet.routingDecision,subject=inputSet.subjectSnapshot,scope=inputSet.productScope;

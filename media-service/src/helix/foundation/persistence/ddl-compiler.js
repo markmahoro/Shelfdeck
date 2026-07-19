@@ -14,7 +14,8 @@ const NON_NEGATIVE_REVISION_COLUMNS = new Set([
   'proc_procurement_retry_intent_materials.expected_control_revision',
   'libra_subject_continuity_heads.current_revision',
   'libra_intake_decisions.expected_continuity_head_revision',
-  'libra_decision_basis_revisions.expected_head_revision'
+  'libra_decision_basis_revisions.expected_head_revision',
+  'libra_decision_basis_inputs.input_revision'
 ]);
 
 // These are implementation-only projection guards. Their writers and startup
@@ -76,6 +77,10 @@ const FOREIGN_KEY_OVERRIDES = Object.freeze({
 });
 
 const TABLE_CHECKS = Object.freeze({
+  libra_decision_basis_inputs: [
+    '("input_kind" = \'decision_head_snapshot\' AND "input_revision" >= 0) OR ' +
+      '("input_kind" <> \'decision_head_snapshot\' AND "input_revision" >= 1)'
+  ],
   perception_records: [
     '"rating" IS NULL OR ("rating" = CAST("rating" AS INTEGER) AND "rating" BETWEEN 1 AND 5)',
     '"watched_state" IS NULL OR "watched_state" IN (0, 1)'

@@ -479,7 +479,7 @@
       "sourceLocator": {
         "section": "8.5.4",
         "line": 7733,
-        "lineDigest": "1964ab0bb4858cc96afd58e4ee70032f7e32551b83162366a26663bebebf73f1"
+        "lineDigest": "4fbf039ff9e6d3552842ab32579da3d5cf11b65a5b05e168d04f230a53b45aa9"
       },
       "targetLocator": {
         "path": "transaction-contracts/helix.transaction.libra-decision-basis-commit/v1/contract.json"
@@ -488,11 +488,11 @@
         "transactionId": "helix.transaction.libra-decision-basis-commit",
         "ownerScope": "libra",
         "contractRef": "helix://contracts/transactions/helix.transaction.libra-decision-basis-commit/v1",
-        "contractDigest": "b1ec3b873645d738c2bd9f038882d3a826bf42d0000af8f56d22d7b8a54e28dc"
+        "contractDigest": "99dd11461f2dcdf65b6d1978aa4468c5756cf7f8b4fb2670b799ac85abc24d96"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "720eef69af8b8d540f6dec2a7e6e9cc7e3858dd22e99da7f74fe6aa7e37d8c36"
+        "value": "2111ad564a0597ece27f6701ffd336974122017ef2fbd5bc38041ebd8eebc506"
       }
     },
     {

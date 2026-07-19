@@ -9,7 +9,7 @@ const READINESS_REASONS = new Set(['routing_policy_unavailable','subject_provena
   'target_shelf_not_active','shelf_standard_unavailable','profile_rule_not_found','product_scope_unavailable']);
 const ROUTING_REASONS = new Set(['higher_priority_rule_unknown','no_matching_shelf','manual_target_invalid','target_shelf_inactive']);
 const CONTENT_PROFILES = new Set(['movie','series','jav','western_adult']);
-const INPUT_KINDS = new Set(['subject_snapshot','routing_authority','shelf_routing_projection','routing_fact','routing_decision',
+const INPUT_KINDS = new Set(['subject_snapshot','decision_head_snapshot','routing_authority','shelf_routing_projection','routing_fact','routing_decision',
   'shelf_standard_projection','product_scope','decision_fact','query_result']);
 const REQUIREMENT_KEYS = ['identity','structure','metadata','mandatoryMedia','space','inventory'];
 
@@ -47,11 +47,19 @@ function validateSubjectSnapshot(value){
 }
 
 function validateExpectedHead(subjectId,value){
-  object(value,'P8_DECISION_HEAD_REQUIRED');integer(value.revision,0,'expectedDecisionHead.revision');
+  object(value,'P8_DECISION_HEAD_REQUIRED');integer(value.headRevision,0,'expectedDecisionHead.headRevision');
   const pointers=['currentRoutingDecisionId','currentDecisionBasisId','currentAcceptanceSpecId'].map((key)=>optional(value,key));
-  if(value.revision===0){if(optional(value,'digest')!==null||pointers.some((item)=>item!==null))fail('P8_DECISION_HEAD_INITIAL','Logical revision zero requires null digest and pointers.');}
-  else if(value.digest!==decisionHeadDigest(subjectId,value.revision,...pointers))fail('P8_DECISION_HEAD_DIGEST','Expected Decision head digest is invalid.');
-  return {revision:value.revision,digest:optional(value,'digest'),currentRoutingDecisionId:pointers[0],currentDecisionBasisId:pointers[1],currentAcceptanceSpecId:pointers[2]};
+  if(value.headState==='absent'){
+    if(value.headRevision!==0||optional(value,'headDigest')!==null||pointers.some((item)=>item!==null))fail('P8_DECISION_HEAD_INITIAL','Absent Decision head requires revision zero and null digest/pointers.');
+  }else if(value.headState==='present'){
+    if(value.headRevision<1||!pointers[1]||value.headDigest!==decisionHeadDigest(subjectId,value.headRevision,...pointers)||
+        (pointers[0]!==null&&pointers[1]===null)||(pointers[2]!==null&&(pointers[0]===null||pointers[1]===null)))fail('P8_DECISION_HEAD_DIGEST','Present Decision head snapshot is invalid.');
+  }else fail('P8_DECISION_HEAD_STATE','Decision head state is invalid.');
+  const snapshot={subjectId,headState:value.headState,headRevision:value.headRevision,headDigest:optional(value,'headDigest'),
+    currentRoutingDecisionId:pointers[0],currentDecisionBasisId:pointers[1],currentAcceptanceSpecId:pointers[2]};
+  snapshot.snapshotDigest=canonicalDigest({schema:'libra.subject-decision-head-snapshot@1',...snapshot});
+  if(value.snapshotDigest!==snapshot.snapshotDigest)fail('P8_DECISION_HEAD_SNAPSHOT_DIGEST','Decision head snapshot digest is invalid.');
+  return snapshot;
 }
 
 function querySummary(value){
@@ -65,18 +73,19 @@ function querySummary(value){
 function inputSnapshotRows(inputSet){
   const rows=[];
   const add=(inputKind,value,query=null)=>{if(value===null||value===undefined)return;object(value,'P8_DECISION_INPUT_OBJECT');
-    const schemaDefaults={subject_snapshot:'SubjectDecisionSnapshot@1',routing_authority:'RoutingAuthoritySnapshot@1',shelf_routing_projection:'ShelfRoutingTargetProjection@1',
+    const schemaDefaults={subject_snapshot:'SubjectDecisionSnapshot@1',decision_head_snapshot:'SubjectDecisionHeadSnapshot@1',routing_authority:'RoutingAuthoritySnapshot@1',shelf_routing_projection:'ShelfRoutingTargetProjection@1',
       routing_decision:'RoutingDecision@1',shelf_standard_projection:'ShelfStandardProjection@1',product_scope:'ProductScopeSnapshot@1',
       routing_fact:'RoutingDecisionFact@1',decision_fact:'PerceptionResolutionRevision@1',query_result:'VersionedQueryResult@1'};
     const inputSchemaRef=text(value.schemaRef||value.factSchemaRef||value.projectionContract||value.snapshotContract||value.queryContract||schemaDefaults[inputKind],inputKind+'.schemaRef');
     const authority=value.authorityKind==='policy'?value.policy:value.manualIntent;
     const inputObjectId=text(value.objectId||value.factId||value.sourceObjectId||value.subjectId||value.routingDecisionId||value.shelfId||value.scopeDigest||value.queryInputDigest||
       authority?.routingPolicyId||authority?.requestDigest,inputKind+'.objectId');
-    const inputRevision=integer(value.revision??value.routingProjectionRevision??value.standardRevision??value.subjectIntakeRevision??value.intakeRevision??value.sourceRevision??value.decisionRevision??value.resultRevision??
+    const inputRevision=integer(value.headRevision??value.revision??value.routingProjectionRevision??value.standardRevision??value.subjectIntakeRevision??value.intakeRevision??value.sourceRevision??value.decisionRevision??value.resultRevision??
       authority?.revision??authority?.expectedDecisionHead?.revision,0,inputKind+'.revision');
     const inputDigest=digest(value.digest||value.factDigest||value.snapshotDigest||value.authorityDigest||value.projectionDigest||value.projectionResultDigest||value.scopeDigest||value.decisionDigest||value.resultDigest,inputKind+'.digest');
     bytes(value,65536,'P8_DECISION_INPUT_ITEM_LIMIT');rows.push({inputKind,inputSchemaRef,inputObjectId,inputRevision,inputDigest,inputJson:canonicalJson(value),query});};
   add('subject_snapshot',inputSet.subjectSnapshot);
+  add('decision_head_snapshot',inputSet.expectedDecisionHead);
   add('routing_authority',optional(inputSet,'routingAuthoritySnapshot'));
   inputSet.shelfRoutingTargets.forEach((value)=>add('shelf_routing_projection',value));
   add('routing_decision',optional(inputSet,'routingDecision'));
@@ -130,12 +139,14 @@ function buildDecisionBasisRevision(inputSet,basisRevision,committedAtMs,commitM
   const routingDecisionId=set.basisKind==='acceptance_spec'&&set.readiness.result==='ready'?set.routingDecision.routingDecisionId:null;
   const productScopeDigest=set.productScope?set.productScope.scopeDigest:null;
   const basisDigest=canonicalDigest({schema:'libra.decision-basis@1',decisionBasisId,subjectId:set.subjectSnapshot.subjectId,basisKind:set.basisKind,basisRevision,
+    expectedHeadRevision:set.expectedDecisionHead.headRevision,expectedHeadSnapshotDigest:set.expectedDecisionHead.snapshotDigest,
     readiness:set.readiness.result,unresolvedReasonCode:optional(set.readiness,'reasonCode'),routingDecisionId,queryResultSetDigest:set.queryResultSetDigest,
     routingInputDigest:set.routingInputDigest,specInputDigest:set.specInputDigest,productScopeDigest,inputSetDigest:set.inputSetDigest});
   const result=Object.freeze({schemaRef:'helix://contracts/types/DecisionBasisRevision/v1',schemaVersion:1,factId:decisionBasisId,ownerDomain:'libra',
     aggregateType:'subject_decision_basis',aggregateId:set.subjectSnapshot.subjectId,revision:basisRevision,factSchemaRef:'libra.decision-basis@1',factDigest:basisDigest,
     commitMarker,committedAtMs,decisionBasisId,subjectId:set.subjectSnapshot.subjectId,basisKind:set.basisKind,basisRevision,
-    expectedHeadRevision:set.expectedDecisionHead.revision,readiness:set.readiness.result,unresolvedReasonCode:optional(set.readiness,'reasonCode'),routingDecisionId,
+    expectedHeadRevision:set.expectedDecisionHead.headRevision,expectedHeadSnapshotDigest:set.expectedDecisionHead.snapshotDigest,
+    readiness:set.readiness.result,unresolvedReasonCode:optional(set.readiness,'reasonCode'),routingDecisionId,
     queryResultSetDigest:set.queryResultSetDigest,routingInputDigest:set.routingInputDigest,specInputDigest:set.specInputDigest,productScopeDigest,inputSetDigest:set.inputSetDigest,basisDigest});
   bytes(result,16384,'P8_DECISION_BASIS_LIMIT');return result;
 }

@@ -12,7 +12,7 @@
       "constraintsContract": "system template不能archive或创建draft；current revision显式FK；`INDEX(status,owner_kind,rule_template_id)`",
       "source": {
         "section": "8.5.12",
-        "line": 8173,
+        "line": 8185,
         "lineDigest": "bd5c979d8217bbe4ac7c7562b1b9edf0fc2732ef5d8cccbc27f1d01f79fbe829"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "rules JSON上限`64 KiB`；`PK(rule_template_id,revision)`；immutable",
       "source": {
         "section": "8.5.12",
-        "line": 8174,
+        "line": 8186,
         "lineDigest": "6e3e8f8aa33fe6418af146903da0d1e6e2d7f8fd094681a008803ad07f8ceb51"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "只允许user template；一个Template最多一份current draft；发布以expected draft revision/digest消费但保留审计Evidence",
       "source": {
         "section": "8.5.12",
-        "line": 8175,
+        "line": 8187,
         "lineDigest": "b27ad6918fa468908a559182fd6d6cce24143d3afa39a1f4c17b0f89bbd6155c"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "Standard JSON上限`64 KiB`；`PK(shelf_id,revision)`；Shelf current pointer显式FK；当前row中的template pair同时是Shelf current Template binding权威来源；`INDEX(rule_template_id,rule_template_revision)`",
       "source": {
         "section": "8.5.12",
-        "line": 8176,
+        "line": 8188,
         "lineDigest": "4fc3b60852bf253ca8b4f3f3741f542f3d5f5b3468003014b525d2311ab36fdb"
       }
     },
@@ -56,7 +56,7 @@
       "constraintsContract": "Policy JSON上限`16 KiB`；`PK(shelf_id,revision)`；Shelf current pointer显式FK",
       "source": {
         "section": "8.5.12",
-        "line": 8177,
+        "line": 8189,
         "lineDigest": "f1ff9fbfeb19ff8629a2ca30d5d792300614f66d81e5d042e1baf50cb5bfd75a"
       }
     },
@@ -67,7 +67,7 @@
       "constraintsContract": "同一Offer至多一个Attempt且相同`package_digest+standard+placement`至多一个active attempt；accepted/rejected只允许从active以Decision事务CAS一次；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 8178,
+        "line": 8190,
         "lineDigest": "af19a674854f3e2d115dd1b65b79ff6a509c7879b1925266b226963165f3bd88"
       }
     },
@@ -78,7 +78,7 @@
       "constraintsContract": "`PK(acceptance_attempt_id,check_kind,check_revision)`",
       "source": {
         "section": "8.5.12",
-        "line": 8179,
+        "line": 8191,
         "lineDigest": "77d3920ed642da9e59d4fd9c91e1474be0429b26f5f775356b97d12915d5b36a"
       }
     },
@@ -89,7 +89,7 @@
       "constraintsContract": "`acceptance_decision_id=SHA-256(JCS({schema:\"arca.acceptance-decision-id@1\",acceptanceAttemptId}))`且`UNIQUE(acceptance_attempt_id)`；Offer/Package pair逐字节等于Attempt；accepted要求rejection列全NULL；rejected固定`rejection_schema_ref=StructuredRejection@1`且code/digest非NULL，并逐项重建`ArcaAcceptanceRejectionDecision@1`；immutable",
       "source": {
         "section": "8.5.12",
-        "line": 8180,
+        "line": 8192,
         "lineDigest": "75c6f85e8098087ae4f0f9aa8b29d96247bc18432b208c8286747c6696731e70"
       }
     },
@@ -100,7 +100,7 @@
       "constraintsContract": "`UNIQUE(on_deck_package_id,package_digest)`；只有Accepted Decision可建立",
       "source": {
         "section": "8.5.12",
-        "line": 8181,
+        "line": 8193,
         "lineDigest": "c676837615735e34b1f5442a9252a84ca4c2faf8ad788419bce55378c635e1bb"
       }
     },
@@ -111,7 +111,7 @@
       "constraintsContract": "`UNIQUE(acceptance_decision_id)`及`UNIQUE(offer_id)`；Offer/Package pair逐字节等于Decision；accepted要求Custody/Binding/Control列非NULL、全部rejection列及`receipt_digest`为NULL，按既有合同重建`CustodyAndTransferReceipt@1`；rejected要求Custody/Binding/Control列NULL且rejection列与`receipt_digest`非NULL，重建`RejectionReceipt@1`；两种终态都作为各自typed Outbox的durable source，相同marker不新增Receipt或相反终态",
       "source": {
         "section": "8.5.12",
-        "line": 8182,
+        "line": 8194,
         "lineDigest": "aae519c2021f9d39bacdcb0e6d9cb70aa26730ce2b9fb1f14ce2fb1a9142b771"
       }
     },
@@ -122,7 +122,7 @@
       "constraintsContract": "`PK(owner_object_type,owner_object_id,material_key,role,binding_revision)`；每个关系只有一个current row",
       "source": {
         "section": "8.5.12",
-        "line": 8183,
+        "line": 8195,
         "lineDigest": "24ff36ed66c7d3b2ac2f74f88d2c7541ac985b5c43de231226372cad389fb25e"
       }
     },
@@ -133,7 +133,7 @@
       "constraintsContract": "同一Custody一个non-terminal Run；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 8184,
+        "line": 8196,
         "lineDigest": "4c7f239ddb36b56385d04e80213c4bc1e181c7c817758c89830bc8cbe1ade276"
       }
     },
@@ -144,7 +144,7 @@
       "constraintsContract": "Decision JSON上限`64 KiB`；`UNIQUE(on_deck_run_id)`；immutable；不保存adopt/replace/relocate动作类型",
       "source": {
         "section": "8.5.12",
-        "line": 8185,
+        "line": 8197,
         "lineDigest": "81312748ad150bcb27a432f4e9c00e789cdaa6b7fe762da54df4cfedfa04b55f"
       }
     }

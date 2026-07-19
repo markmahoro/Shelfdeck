@@ -12,7 +12,7 @@
       "constraintsContract": "`PK(subject_id,material_key,binding_revision,episode_key)`并以复合FK指向`libra_material_bindings`；逐项无损复制同一Manifest member的Episode Claim；single与无Episode structural dependency为0 row；Binding set digest包含这些relation，不允许只取第一项",
       "source": {
         "section": "8.5.11",
-        "line": 8142,
+        "line": 8154,
         "lineDigest": "47921a735f544a3ccde2cdeef6ba7c1c413a1af927d5f86971e710796bb8d1fb"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "`PK(subject_id,revision)`；immutable；`libra_subjects.current_identity_revision`正整数时显式指向本表；Series的exact Season Claim完整值保存在`libra_subject_season_continuity_claims`并与本revision同事务成立，digest只用于一致性校验而不是可枚举事实替代品",
       "source": {
         "section": "8.5.11",
-        "line": 8143,
+        "line": 8155,
         "lineDigest": "c12c6c8ed5039eaec90833f0bbf4f5c28a280bb8ab848c5555f5c07ef9f88900"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "Field ID是Procurement公开opaque ref、不建跨Domain FK；current pair显式FK到Policy revision；一片Field恰好至多一份current去向方案",
       "source": {
         "section": "8.5.11",
-        "line": 8144,
+        "line": 8156,
         "lineDigest": "798b380ce2cc0c6b9f83bdc869efb8494d784c4a7776e02bc3e1c35d81ec5d39"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "Policy JSON上限`64 KiB`；`PK(routing_policy_id,revision)`；immutable；`INDEX(field_id,effective_at_ms)`；同一revision只属于一片Field",
       "source": {
         "section": "8.5.11",
-        "line": 8145,
+        "line": 8157,
         "lineDigest": "f1d288d4b709ef019d295af7576074e514b1ff4a568b230461b1168aee26bec8"
       }
     },
@@ -56,7 +56,7 @@
       "constraintsContract": "`PK(routing_policy_id,policy_revision,shelf_id)`及`UNIQUE(routing_policy_id,policy_revision,rank)`；Rule固定`RoutingMatchExpression@1`，JSON≤`16 KiB`、AST深度≤4、节点≤64；Shelf ID为Arca公开Projection中的opaque ref",
       "source": {
         "section": "8.5.11",
-        "line": 8146,
+        "line": 8158,
         "lineDigest": "c8d677a64b58754a2abd5ccba0071c8b049a56f01a597124c2f304630ab578bf"
       }
     },
@@ -67,7 +67,7 @@
       "constraintsContract": "policy与manual列variant互斥；JSON≤`64 KiB`并完整重建`RoutingAssessmentEvidence@1`；`UNIQUE(subject_id,decision_basis_id,routing_input_digest)`；immutable",
       "source": {
         "section": "8.5.11",
-        "line": 8147,
+        "line": 8159,
         "lineDigest": "85c68ee54029d863bb07647404c1d4bd8a21f6620ee23df9a8f858c724e19bcf"
       }
     },
@@ -78,30 +78,30 @@
       "constraintsContract": "authority列variant互斥；resolved要求shelf非NULL/reason NULL，unresolved相反；同一assessment只有一个Decision；`UNIQUE(subject_id,decision_revision)`；immutable；`INDEX(shelf_id,decided_at_ms)`",
       "source": {
         "section": "8.5.11",
-        "line": 8148,
+        "line": 8160,
         "lineDigest": "4d81260004fcd8848c270f5bd695c3467f193875693611044b90f24ef8cdce94"
       }
     },
     {
       "id": "libra_decision_basis_revisions",
       "owner": "libra",
-      "columnsContract": "`decision_basis_id PK, subject_id FK, basis_kind(routing|acceptance_spec), basis_revision, expected_head_revision, routing_decision_id NULL, query_result_set_digest, routing_input_digest NULL, spec_input_digest NULL, product_scope_digest NULL, input_set_digest, status(ready|unresolved), unresolved_reason_code NULL, basis_digest, committed_at_ms`",
-      "constraintsContract": "`UNIQUE(subject_id,basis_revision)`及`UNIQUE(subject_id,basis_kind,input_set_digest)`；routing的routing input始终非NULL且spec/scope NULL；acceptance_spec的routing/spec input始终非NULL，ready时current Routing与scope非NULL，unresolved时只允许按closed reason置对应pointer/scope NULL；ready无reason，unresolved必须有reason；immutable；`INDEX(subject_id,status,basis_revision)`",
+      "columnsContract": "`decision_basis_id PK, subject_id FK, basis_kind(routing|acceptance_spec), basis_revision, expected_head_revision, expected_head_snapshot_digest, routing_decision_id NULL, query_result_set_digest, routing_input_digest NULL, spec_input_digest NULL, product_scope_digest NULL, input_set_digest, status(ready|unresolved), unresolved_reason_code NULL, basis_digest, committed_at_ms`",
+      "constraintsContract": "`UNIQUE(subject_id,basis_revision)`及`UNIQUE(subject_id,basis_kind,input_set_digest)`；`expected_head_revision>=0`且必须等于本Basis唯一`decision_head_snapshot` input的head revision，`expected_head_snapshot_digest`逐字节等于该input row digest；routing的routing input始终非NULL且spec/scope NULL；acceptance_spec的routing/spec input始终非NULL，ready时current Routing与scope非NULL，unresolved时只允许按closed reason置对应pointer/scope NULL；ready无reason，unresolved必须有reason；immutable；`INDEX(subject_id,status,basis_revision)`",
       "source": {
         "section": "8.5.11",
-        "line": 8149,
-        "lineDigest": "fa17afc3fc4bba94f1a69fc77f9ba6b8053f850dc06a7a5d6c978c2f21787a57"
+        "line": 8161,
+        "lineDigest": "98cc10d16110980ea5b7f5668de384cde3d77e97b287e8b336cad681f222ffd3"
       }
     },
     {
       "id": "libra_decision_basis_inputs",
       "owner": "libra",
-      "columnsContract": "`decision_basis_id FK, input_ordinal, input_kind(subject_snapshot|routing_authority|shelf_routing_projection|routing_fact|routing_decision|shelf_standard_projection|product_scope|decision_fact|query_result), input_schema_ref, input_object_id, input_revision, input_digest, input_json, provider_domain NULL, query_contract NULL, query_version NULL, query_input_digest NULL, result_kind NULL, result_revision NULL, result_digest NULL, expires_at_ms NULL`",
-      "constraintsContract": "`PK(decision_basis_id,input_ordinal)`及`UNIQUE(decision_basis_id,input_kind,input_object_id,input_revision,input_digest)`；ordinal从0连续，逐项typed JSON≤`64 KiB`、总JCS≤`1 MiB`；query variant填写query列，其他variant全部query列NULL；全部rows按8.6.18可重建同一`DecisionInputSet@1`，不得旁读Owner/Provider或Foundation Result补值",
+      "columnsContract": "`decision_basis_id FK, input_ordinal, input_kind(subject_snapshot|decision_head_snapshot|routing_authority|shelf_routing_projection|routing_fact|routing_decision|shelf_standard_projection|product_scope|decision_fact|query_result), input_schema_ref, input_object_id, input_revision, input_digest, input_json, provider_domain NULL, query_contract NULL, query_version NULL, query_input_digest NULL, result_kind NULL, result_revision NULL, result_digest NULL, expires_at_ms NULL`",
+      "constraintsContract": "`PK(decision_basis_id,input_ordinal)`及`UNIQUE(decision_basis_id,input_kind,input_object_id,input_revision,input_digest)`；ordinal从0连续，ordinal 0固定为唯一`subject_snapshot`，ordinal 1固定为唯一`decision_head_snapshot`，其后依次为routing authority、按rank的Shelf projection、Routing Decision、Shelf Standard、Product Scope、按正式ID/digest排序的Facts、按正式tuple排序的Query Result；不存在的variant段跳过但不得改变剩余相对顺序。`decision_head_snapshot`固定`input_object_id=subjectId,input_revision=headRevision,input_digest=snapshotDigest`且该variant的input revision允许0；其他variant按各自typed contract使用正整数revision；逐项typed JSON≤`64 KiB`、总JCS≤`1 MiB`；query variant填写query列，其他variant全部query列NULL；全部rows按8.6.18可重建同一`DecisionInputSet@1`，不得旁读Owner/Provider、current Head或Foundation Result补值",
       "source": {
         "section": "8.5.11",
-        "line": 8150,
-        "lineDigest": "4d56943e4582a63c5e7038055d0af11c1bbdc3029232da205fdf91d03280f8d0"
+        "line": 8162,
+        "lineDigest": "341a2b91d073a956dc8470eee3f4ddd089831dc4229619e709351eccfcc25b20"
       }
     },
     {
@@ -111,7 +111,7 @@
       "constraintsContract": "Spec JSON上限`64 KiB`并完整重建`AcceptanceSpec@1`六类Requirement与Product Scope；`spec_digest`是semantic digest、`record_digest`是含Basis provenance的完整record digest；`UNIQUE(subject_id,spec_revision)`及`UNIQUE(subject_id,decision_basis_id,product_scope_digest,record_digest)`；相同Input Set只产生一个Spec；immutable",
       "source": {
         "section": "8.5.11",
-        "line": 8151,
+        "line": 8163,
         "lineDigest": "278c0c3873b753354fac321418aa5928f3f9bdee2fdc6212123f987ed8fded77"
       }
     },
@@ -119,11 +119,11 @@
       "id": "libra_subject_decision_heads",
       "owner": "libra",
       "columnsContract": "`subject_id PK/FK, head_revision, head_digest, current_routing_decision_id NULL FK, current_decision_basis_id NULL FK, current_acceptance_spec_id NULL FK, updated_at_ms`",
-      "constraintsContract": "Subject刚Accepted时允许无row；首次Decision Basis Commit以logical expected revision 0原子建立revision 1，后续每次pointer切换expected CAS并加1；`head_digest=SHA-256(JCS({schema:\"libra.subject-decision-head@1\",subjectId,headRevision,currentRoutingDecisionId,currentDecisionBasisId,currentAcceptanceSpecId}))`；Automation/Run Creator只读head，不按时间戳猜revision",
+      "constraintsContract": "Subject刚Accepted时允许无row；首次Decision Basis Commit以logical expected revision 0原子建立revision 1，后续每次pointer切换expected CAS并加1；row存在时current Basis必须非NULL，current Routing非NULL时Basis也必须非NULL，current Spec非NULL时Routing/Basis都必须非NULL；`head_digest=SHA-256(JCS({schema:\"libra.subject-decision-head@1\",subjectId,headRevision,currentRoutingDecisionId,currentDecisionBasisId,currentAcceptanceSpecId}))`；Automation/Run Creator只读head，不按时间戳猜revision",
       "source": {
         "section": "8.5.11",
-        "line": 8152,
-        "lineDigest": "b1174d49a0490625aa80f16d58ea0c0082309f5db98f6cc6814981df6a33a901"
+        "line": 8164,
+        "lineDigest": "d1b21bbe6c4ae290efe1ea32253d64bccaf72c2a385f8762341b068cd0b3cd75"
       }
     },
     {
@@ -133,7 +133,7 @@
       "constraintsContract": "相同`subject+spec+scope`至多一个non-terminal Run；允许Season不同Episode scope并行；Supporting Work通过`owner_domain+process_type+process_id`形成`0..N`反向关系；`INDEX(state,priority_class,created_at_ms)`",
       "source": {
         "section": "8.5.11",
-        "line": 8153,
+        "line": 8165,
         "lineDigest": "f5720d6d659431f687c47c0f27378868a3154115acb856be36f36be13d851476"
       }
     },
@@ -144,7 +144,7 @@
       "constraintsContract": "`UNIQUE(libra_run_id)`；immutable；只允许当前`frozen` Run建立",
       "source": {
         "section": "8.5.11",
-        "line": 8154,
+        "line": 8166,
         "lineDigest": "41b9f925ffbd84cd97bb1d849077293c6ed5b4ab91dfcdfd89d48361fa7ffafa"
       }
     }

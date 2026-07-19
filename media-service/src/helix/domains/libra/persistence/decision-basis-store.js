@@ -11,7 +11,8 @@ function fail(code,message,details){throw new DecisionBasisStoreError(code,messa
 function number(value){return Number(value);}
 
 const SUBJECT_COLUMNS=['subject_id','structure_kind','content_profile','routing_anchor_intake_decision_id','status','intake_revision','current_continuity_set_digest','current_episode_scope_digest','current_identity_revision'];
-const BASIS_COLUMNS=['decision_basis_id','subject_id','basis_kind','basis_revision','expected_head_revision','routing_decision_id','query_result_set_digest','routing_input_digest','spec_input_digest','product_scope_digest','input_set_digest','status','unresolved_reason_code','basis_digest','committed_at_ms'];
+const BASIS_COLUMNS=['decision_basis_id','subject_id','basis_kind','basis_revision','expected_head_revision','expected_head_snapshot_digest','routing_decision_id','query_result_set_digest','routing_input_digest','spec_input_digest','product_scope_digest','input_set_digest','status','unresolved_reason_code','basis_digest','committed_at_ms'];
+const INPUT_COLUMNS=['decision_basis_id','input_ordinal','input_kind','input_schema_ref','input_object_id','input_revision','input_digest','input_json','provider_domain','query_contract','query_version','query_input_digest','result_kind','result_revision','result_digest','expires_at_ms'];
 const HEAD_COLUMNS=['subject_id','head_revision','head_digest','current_routing_decision_id','current_decision_basis_id','current_acceptance_spec_id','updated_at_ms'];
 
 function libraDefinitions(schemaManifest){
@@ -27,8 +28,9 @@ function libraDefinitions(schemaManifest){
       {column:'current_decision_basis_id',parameter:'expected_basis_id',nullSafe:true},{column:'current_acceptance_spec_id',parameter:'expected_spec_id',nullSafe:true}]},
     list_basis:{kind:'select-all',tableId:'libra_decision_basis_revisions',columns:BASIS_COLUMNS,keyColumns:['subject_id']},
     find_semantic:{kind:'select-one',tableId:'libra_decision_basis_revisions',columns:BASIS_COLUMNS,keyColumns:['subject_id','basis_kind','input_set_digest']},
+    find_inputs:{kind:'select-all',tableId:'libra_decision_basis_inputs',columns:INPUT_COLUMNS,keyColumns:['decision_basis_id']},
     insert_basis:{kind:'insert',tableId:'libra_decision_basis_revisions',columns:BASIS_COLUMNS},
-    insert_input:{kind:'insert',tableId:'libra_decision_basis_inputs',columns:['decision_basis_id','input_ordinal','input_kind','input_schema_ref','input_object_id','input_revision','input_digest','input_json','provider_domain','query_contract','query_version','query_input_digest','result_kind','result_revision','result_digest','expires_at_ms']},
+    insert_input:{kind:'insert',tableId:'libra_decision_basis_inputs',columns:INPUT_COLUMNS},
     find_policy_head:{kind:'select-one',tableId:'libra_field_routing_heads',columns:['field_id','current_routing_policy_id','current_policy_revision'],keyColumns:['field_id']},
     find_policy:{kind:'select-one',tableId:'libra_routing_policy_revisions',columns:['routing_policy_id','revision','field_id','policy_json','policy_digest'],keyColumns:['routing_policy_id','revision']},
     find_policy_targets:{kind:'select-all',tableId:'libra_routing_policy_targets',columns:['routing_policy_id','policy_revision','shelf_id','rank','match_rule_json','match_rule_digest'],keyColumns:['routing_policy_id','policy_revision']},
@@ -66,14 +68,36 @@ function validatePolicy(repo,set){
 }
 function validateHandle(handle,set){
   if(!handle||handle.schemaRef!=='helix://contracts/types/DomainFactCommitHandle/v1'||handle.schemaVersion!==1||handle.ownerDomain!=='libra'||
-      handle.aggregateId!==set.subjectSnapshot.subjectId||handle.expectedRevision!==set.expectedDecisionHead.revision||handle.payloadDigest!==canonicalDigest(set)||
+      handle.aggregateId!==set.subjectSnapshot.subjectId||handle.expectedRevision!==set.expectedDecisionHead.headRevision||handle.payloadDigest!==canonicalDigest(set)||
       handle.resultSchemaRef!==RESULT_SCHEMA||typeof handle.commitIdempotencyKey!=='string'||!handle.commitIdempotencyKey)fail('P8_DECISION_BASIS_HANDLE','Domain Fact Commit Handle does not bind the exact Decision Input Set.');
 }
 function basisFromRow(row,commitMarker){return Object.freeze({schemaRef:RESULT_SCHEMA,schemaVersion:1,factId:row.decision_basis_id,ownerDomain:'libra',aggregateType:'subject_decision_basis',aggregateId:row.subject_id,
   revision:number(row.basis_revision),factSchemaRef:'libra.decision-basis@1',factDigest:row.basis_digest,commitMarker,committedAtMs:number(row.committed_at_ms),decisionBasisId:row.decision_basis_id,
-  subjectId:row.subject_id,basisKind:row.basis_kind,basisRevision:number(row.basis_revision),expectedHeadRevision:number(row.expected_head_revision),readiness:row.status,
+  subjectId:row.subject_id,basisKind:row.basis_kind,basisRevision:number(row.basis_revision),expectedHeadRevision:number(row.expected_head_revision),
+  expectedHeadSnapshotDigest:row.expected_head_snapshot_digest,readiness:row.status,
   unresolvedReasonCode:row.unresolved_reason_code,routingDecisionId:row.routing_decision_id,queryResultSetDigest:row.query_result_set_digest,routingInputDigest:row.routing_input_digest,
   specInputDigest:row.spec_input_digest,productScopeDigest:row.product_scope_digest,inputSetDigest:row.input_set_digest,basisDigest:row.basis_digest});}
+
+function reconstructInputSet(repo,basis){
+  const rows=repo.invoke('find_inputs',{decision_basis_id:basis.decision_basis_id}).sort((a,b)=>number(a.input_ordinal)-number(b.input_ordinal));
+  if(!rows.length||rows.some((row,index)=>number(row.input_ordinal)!==index))fail('P8_DECISION_BASIS_INPUT_INTEGRITY','Decision Basis inputs are missing or non-contiguous.');
+  const byKind=(kind)=>rows.filter((row)=>row.input_kind===kind).map((row)=>JSON.parse(row.input_json));
+  const one=(kind,required=false)=>{const values=byKind(kind);if(values.length>(required?1:1)||(required&&values.length!==1))fail('P8_DECISION_BASIS_INPUT_INTEGRITY','Decision Basis input cardinality is invalid.',{kind});return values[0]??null;};
+  const subject=one('subject_snapshot',true),head=one('decision_head_snapshot',true),authority=one('routing_authority');
+  const input=buildDecisionInputSet({basisKind:basis.basis_kind,subjectSnapshot:subject,expectedDecisionHead:head,readiness:{result:basis.status,...(basis.unresolved_reason_code?{reasonCode:basis.unresolved_reason_code}:{})},
+    routingAuthoritySnapshot:authority,shelfRoutingTargets:byKind('shelf_routing_projection'),routingDecision:one('routing_decision'),
+    shelfStandardProjection:one('shelf_standard_projection'),productScope:one('product_scope'),decisionFacts:[...byKind('routing_fact'),...byKind('decision_fact')],queryResults:byKind('query_result')});
+  const expectedRows=inputSnapshotRows(input);if(input.inputSetDigest!==basis.input_set_digest||rows.length!==expectedRows.length||rows.some((row,index)=>{
+    const expected=expectedRows[index];return row.input_kind!==expected.inputKind||row.input_schema_ref!==expected.inputSchemaRef||row.input_object_id!==expected.inputObjectId||
+      number(row.input_revision)!==expected.inputRevision||row.input_digest!==expected.inputDigest||row.input_json!==expected.inputJson||
+      row.provider_domain!==(expected.query?.providerDomain??null)||row.query_contract!==(expected.query?.queryContract??null)||
+      (row.query_version===null?null:number(row.query_version))!==(expected.query?.queryVersion??null)||row.query_input_digest!==(expected.query?.inputDigest??null)||
+      row.result_kind!==(expected.query?.resultKind??null)||(row.result_revision===null?null:number(row.result_revision))!==(expected.query?.resultRevision??null)||
+      row.result_digest!==(expected.query?.resultDigest??null)||(row.expires_at_ms===null?null:number(row.expires_at_ms))!==(expected.query?.expiresAtMs??null);
+  }))fail('P8_DECISION_BASIS_INPUT_INTEGRITY','Decision Basis input rows do not reconstruct the frozen Input Set.');
+  if(number(basis.expected_head_revision)!==head.headRevision||basis.expected_head_snapshot_digest!==head.snapshotDigest)fail('P8_DECISION_BASIS_INPUT_INTEGRITY','Decision Basis expected Head pair does not match its typed input.');
+  return input;
+}
 
 function createDecisionBasisStore(options){
   if(!options||!options.schemaManifest||!options.unitOfWork)fail('P8_DECISION_BASIS_DEPENDENCIES','Schema manifest and Unit of Work are required.');
@@ -83,27 +107,28 @@ function createDecisionBasisStore(options){
     if(typeof marker!=='string'||!marker||typeof resultId!=='string'||!resultId)fail('P8_DECISION_BASIS_IDENTITY','Commit marker and Result identity are required.');let result,replayed=false;
     const preflight={participantId:'decision_basis_preflight',owner:'execution-foundation',boundBusinessOwner:'libra',repositories:[foundation],execute(context){const repo=context.repository(foundation.repositoryId),found=repo.invoke('find_marker',{commit_marker:marker});if(!found)return;
       if(found.owner_domain!=='libra'||found.scope_type!=='subject_decision_basis'||found.commit_digest!==request.domainFactCommitHandle.payloadDigest||found.result_schema_ref!==RESULT_SCHEMA)fail('P8_DECISION_BASIS_MARKER_CONFLICT','Commit marker belongs to another Basis.');const stored=repo.invoke('find_result',{result_id:found.result_id});if(!stored||stored.result_digest!==found.result_digest)fail('P8_DECISION_BASIS_REPLAY_CORRUPT','Stored Basis Result is absent.');result=JSON.parse(stored.result_json);if(canonicalDigest(result)!==found.result_digest)fail('P8_DECISION_BASIS_REPLAY_CORRUPT','Stored Basis Result is corrupt.');throw new Replay(result);}};
-    const domain={participantId:'decision_basis_domain',owner:'libra',repositories:[libra],execute(context){const repo=context.repository(libra.repositoryId);reconstructSubject(repo,set.subjectSnapshot);validatePolicy(repo,set);
+    const domain={participantId:'decision_basis_domain',owner:'libra',repositories:[libra],execute(context){const repo=context.repository(libra.repositoryId);
+      const semantic=repo.invoke('find_semantic',{subject_id:set.subjectSnapshot.subjectId,basis_kind:set.basisKind,input_set_digest:set.inputSetDigest});
+      if(semantic){const reconstructed=reconstructInputSet(repo,semantic);if(canonicalJson(reconstructed)!==canonicalJson(set))fail('P8_DECISION_BASIS_INPUT_INTEGRITY','Semantic replay input differs from stored Owner rows.');result=basisFromRow(semantic,marker);replayed=true;return;}
+      reconstructSubject(repo,set.subjectSnapshot);validatePolicy(repo,set);
       const expected=set.expectedDecisionHead,head=repo.invoke('find_head',{subject_id:set.subjectSnapshot.subjectId});
-      if(expected.revision===0){if(head)fail('P8_DECISION_HEAD_CAS','First Decision head already exists.');}else if(!head||number(head.head_revision)!==expected.revision||head.head_digest!==expected.digest||
+      if(expected.headState==='absent'){if(head)fail('P8_DECISION_HEAD_CAS','First Decision head already exists.');}else if(!head||number(head.head_revision)!==expected.headRevision||head.head_digest!==expected.headDigest||
         head.current_routing_decision_id!==expected.currentRoutingDecisionId||head.current_decision_basis_id!==expected.currentDecisionBasisId||head.current_acceptance_spec_id!==expected.currentAcceptanceSpecId)fail('P8_DECISION_HEAD_CAS','Decision head is stale.');
       if(set.basisKind==='acceptance_spec'){const routing=repo.invoke('find_routing',{routing_decision_id:set.routingDecision.routingDecisionId});if(!routing||routing.subject_id!==set.subjectSnapshot.subjectId||routing.decision_digest!==set.routingDecision.decisionDigest||head?.current_routing_decision_id!==routing.routing_decision_id)fail('P8_DECISION_ROUTING_STALE','Acceptance Spec Basis does not bind the current Routing Decision.');}
-      const semantic=repo.invoke('find_semantic',{subject_id:set.subjectSnapshot.subjectId,basis_kind:set.basisKind,input_set_digest:set.inputSetDigest});
-      if(semantic){result=basisFromRow(semantic,marker);replayed=true;return;}
       const rows=repo.invoke('list_basis',{subject_id:set.subjectSnapshot.subjectId}),basisRevision=rows.reduce((max,row)=>Math.max(max,number(row.basis_revision)),0)+1;
       result=buildDecisionBasisRevision(set,basisRevision,context.commitTimeMs,marker);repo.invoke('insert_basis',{decision_basis_id:result.decisionBasisId,subject_id:result.subjectId,basis_kind:result.basisKind,basis_revision:result.basisRevision,
-        expected_head_revision:result.expectedHeadRevision,routing_decision_id:result.routingDecisionId,query_result_set_digest:result.queryResultSetDigest,routing_input_digest:result.routingInputDigest,
+        expected_head_revision:result.expectedHeadRevision,expected_head_snapshot_digest:result.expectedHeadSnapshotDigest,routing_decision_id:result.routingDecisionId,query_result_set_digest:result.queryResultSetDigest,routing_input_digest:result.routingInputDigest,
         spec_input_digest:result.specInputDigest,product_scope_digest:result.productScopeDigest,input_set_digest:result.inputSetDigest,status:result.readiness,unresolved_reason_code:result.unresolvedReasonCode,
         basis_digest:result.basisDigest,committed_at_ms:context.commitTimeMs});
       inputSnapshotRows(set).forEach((row)=>repo.invoke('insert_input',{decision_basis_id:result.decisionBasisId,input_ordinal:row.inputOrdinal,input_kind:row.inputKind,input_schema_ref:row.inputSchemaRef,
         input_object_id:row.inputObjectId,input_revision:row.inputRevision,input_digest:row.inputDigest,input_json:row.inputJson,provider_domain:row.query?.providerDomain??null,query_contract:row.query?.queryContract??null,
         query_version:row.query?.queryVersion??null,query_input_digest:row.query?.inputDigest??null,result_kind:row.query?.resultKind??null,result_revision:row.query?.resultRevision??null,
         result_digest:row.query?.resultDigest??null,expires_at_ms:row.query?.expiresAtMs??null}));
-      const nextRevision=expected.revision+1,nextRouting=set.basisKind==='routing'?null:expected.currentRoutingDecisionId,nextSpec=null;
+      const nextRevision=expected.headRevision+1,nextRouting=set.basisKind==='routing'?null:expected.currentRoutingDecisionId,nextSpec=null;
       const nextDigest=decisionHeadDigest(result.subjectId,nextRevision,nextRouting,result.decisionBasisId,nextSpec);
-      if(expected.revision===0)repo.invoke('insert_head',{subject_id:result.subjectId,head_revision:nextRevision,head_digest:nextDigest,current_routing_decision_id:nextRouting,current_decision_basis_id:result.decisionBasisId,current_acceptance_spec_id:null,updated_at_ms:context.commitTimeMs});
+      if(expected.headState==='absent')repo.invoke('insert_head',{subject_id:result.subjectId,head_revision:nextRevision,head_digest:nextDigest,current_routing_decision_id:nextRouting,current_decision_basis_id:result.decisionBasisId,current_acceptance_spec_id:null,updated_at_ms:context.commitTimeMs});
       else if(repo.invoke('advance_head',{head_revision:nextRevision,head_digest:nextDigest,current_routing_decision_id:nextRouting,current_decision_basis_id:result.decisionBasisId,current_acceptance_spec_id:null,updated_at_ms:context.commitTimeMs,
-        subject_id:result.subjectId,expected_head_revision:expected.revision,expected_head_digest:expected.digest,expected_routing_id:expected.currentRoutingDecisionId,expected_basis_id:expected.currentDecisionBasisId,expected_spec_id:expected.currentAcceptanceSpecId}).changes!==1)fail('P8_DECISION_HEAD_CAS','Decision head CAS failed.');
+        subject_id:result.subjectId,expected_head_revision:expected.headRevision,expected_head_digest:expected.headDigest,expected_routing_id:expected.currentRoutingDecisionId,expected_basis_id:expected.currentDecisionBasisId,expected_spec_id:expected.currentAcceptanceSpecId}).changes!==1)fail('P8_DECISION_HEAD_CAS','Decision head CAS failed.');
     }};
     const finish={participantId:'decision_basis_foundation',owner:'execution-foundation',boundBusinessOwner:'libra',repositories:[foundation],execute(context){const repo=context.repository(foundation.repositoryId),resultDigest=canonicalDigest(result);
       repo.invoke('insert_result',{result_id:resultId,event_id:null,outcome_kind:'succeeded',result_schema_ref:RESULT_SCHEMA,result_json:canonicalJson(result),result_digest:resultDigest,evidence_schema_ref:null,evidence_json:null,evidence_digest:null,effect_receipt_id:null,committed_at_ms:context.commitTimeMs});

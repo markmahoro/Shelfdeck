@@ -12,7 +12,7 @@
       "constraintsContract": "`UNIQUE(discard_decision_id)`；与Run terminal、原始Input Control release及Cleanup Scope同事务",
       "source": {
         "section": "8.5.11",
-        "line": 8155,
+        "line": 8167,
         "lineDigest": "e045a137a4b7b50cd069301aacc54a4bd6adc94b0e61c7b38a17f0168c5d44dd"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "`UNIQUE(libra_run_id,manifest_revision)`；immutable",
       "source": {
         "section": "8.5.11",
-        "line": 8156,
+        "line": 8168,
         "lineDigest": "bbbb3bca4419fed9777ab0bb78b48f304a90f774e2022659e262184232d9d49d"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "`PK(episode_delivery_manifest_id,episode_key,material_key)`；跨non-terminal Run的Episode/Primary material重叠由scope/Control guard拒绝",
       "source": {
         "section": "8.5.11",
-        "line": 8157,
+        "line": 8169,
         "lineDigest": "cc0599da719024c6e856171ebc6849e128e8e96dd5461167354199ebfb1cedac"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "`PK(libra_run_id,workspace_revision)`；同一Run一个current workspace revision",
       "source": {
         "section": "8.5.11",
-        "line": 8158,
+        "line": 8170,
         "lineDigest": "9150b3bbed1056b6569cf381c3102db63aa9b2d49e7b8f104223b6d04e7fd3c4"
       }
     },
@@ -56,7 +56,7 @@
       "constraintsContract": "`PK(libra_run_id,material_handle_id,reference_revision)`；只引用`fx_workspace_materials`",
       "source": {
         "section": "8.5.11",
-        "line": 8159,
+        "line": 8171,
         "lineDigest": "c199a2611196a8c5a7b9f41d19fdc8093c7f94696f9102d294e44297cdb2263b"
       }
     },
@@ -67,7 +67,7 @@
       "constraintsContract": "`UNIQUE(trigger_kind,trigger_ref,trigger_digest)`；`INDEX(state,created_at_ms)`；只由Owner事实建立",
       "source": {
         "section": "8.5.11",
-        "line": 8160,
+        "line": 8172,
         "lineDigest": "6692caf47c32ab7535ca7e9b0f52059a600a2f96d2f87a5bffaca94b7b527224"
       }
     },
@@ -78,7 +78,7 @@
       "constraintsContract": "`PK(cleanup_scope_id,material_handle_id)`；受Control成员只有Deletion Evidence后才能release；`INDEX(state,updated_at_ms)`",
       "source": {
         "section": "8.5.11",
-        "line": 8161,
+        "line": 8173,
         "lineDigest": "d43685f77947411364476a07e0a702f3b5c0b59a68edf4a16b5f95b49ef28065"
       }
     },
@@ -89,7 +89,7 @@
       "constraintsContract": "Fact JSON上限`64 KiB`且大Artifact只含handle；`UNIQUE(libra_run_id,fact_kind,fact_revision)`；`INDEX(libra_run_id,fact_kind,fact_revision)`",
       "source": {
         "section": "8.5.11",
-        "line": 8162,
+        "line": 8174,
         "lineDigest": "fb61c0883c686a47a6335ea88ef460a2978dba9fff90b7fdd125dae99d667a4b"
       }
     },
@@ -100,7 +100,7 @@
       "constraintsContract": "`offer_id=SHA-256(JCS({schema:\"libra.product-offer-id@1\",onDeckPackageId,packageDigest}))`且唯一；`media_cast_fact_id/digest`必须引用同Run的完整Libra Media-Cast Product Fact snapshot；`UNIQUE(libra_run_id,package_digest)`；published Package/Offer immutable；`INDEX(shelf_id,state,published_at_ms)`",
       "source": {
         "section": "8.5.11",
-        "line": 8163,
+        "line": 8175,
         "lineDigest": "ca2d2cb207b4e58484fa6cb173aeb07c1f5392dd772009d7530826e9e67741a4"
       }
     },
@@ -111,7 +111,7 @@
       "constraintsContract": "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,material_key,role)`；Package publication为新Deliverable Identity原子取得Libra Control",
       "source": {
         "section": "8.5.11",
-        "line": 8164,
+        "line": 8176,
         "lineDigest": "74326c72bf9e4df85cf2b27b1bb7d45535630e05adcea857a29ce47f7febc8b7"
       }
     },
@@ -122,7 +122,7 @@
       "constraintsContract": "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,material_key,context_role)`",
       "source": {
         "section": "8.5.11",
-        "line": 8165,
+        "line": 8177,
         "lineDigest": "fc7662f1ef7c9342c2a73b10deb3a0220b3bcc975f4275ee42f2875fd548aee3"
       }
     },
@@ -133,7 +133,7 @@
       "constraintsContract": "`receipt_id=SHA-256(JCS({schema:\"libra.product-delivery-receipt-id@1\",offerId}))`，offer逐字节等于Package row且`UNIQUE(offer_id)`；accepted沿用既有Handoff B accepted projection并要求rejection/closure列为NULL；rejected要求decision/receipt/rejection/closure digest逐项等于`ArcaProductRejectedMessage@1`与`LibraProductRejectionClosureResult@1`；terminal后immutable，相反终态稳定拒绝；`INDEX(result,received_at_ms)`",
       "source": {
         "section": "8.5.11",
-        "line": 8166,
+        "line": 8178,
         "lineDigest": "fb2541c233cd0aeaf48c6940c806d800a4e63d55dba63245f82670822dd47c23"
       }
     },
@@ -144,7 +144,7 @@
       "constraintsContract": "mount scope pair是Platform opaque technical ref；active Shelf name不作为identity；Shelf创建时routing projection revision=1，任何后续`status/current_standard_revision`变化都对该revision执行CAS并加1，再按`ShelfRoutingTargetProjection@1`公式重算digest；`INDEX(status,shelf_id)`；不得保存Libra Routing Priority",
       "source": {
         "section": "8.5.12",
-        "line": 8172,
+        "line": 8184,
         "lineDigest": "fb0d7dd2f0060eb79bacd13ded477487737287361b1f6acf01b597e26f233c18"
       }
     }

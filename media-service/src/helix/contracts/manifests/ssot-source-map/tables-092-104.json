@@ -12,7 +12,7 @@
       "constraintsContract": "`PK(authorization_id,revision)`；immutable；只授权为精确On-deck Scope派生Approval，不授权目录范围",
       "source": {
         "section": "8.5.12",
-        "line": 8186,
+        "line": 8198,
         "lineDigest": "f5152bf12357d5fcfaf6b833ce0d5a6ba8f6ea1775c5463be3fc9c1ae8176d57"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "singleton key固定；current pair显式FK；启用/撤销均发布新revision，不物理删除历史",
       "source": {
         "section": "8.5.12",
-        "line": 8187,
+        "line": 8199,
         "lineDigest": "52ffab870401a903dde815fbf705331885689f51f7beb840024d9fb4f60f384b"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "`UNIQUE(on_deck_run_id,settlement_scope_digest)`；自动模式可由当前standing authorization派生，已签发Scope不可扩张",
       "source": {
         "section": "8.5.12",
-        "line": 8188,
+        "line": 8200,
         "lineDigest": "5cbc9ffd7ce5f4c44f861b79ff0c8a6cfa8a090d580f870401be0a08c386ea75"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "三个current pointer均显式FK；`INDEX(shelf_id,status,shelf_entry_id)`；Movie/JAV/Western可以重复，Season对active `(shelf_id,canonical_identity_key)`建立partial unique，保证后续Episode Run扩充同一Entry",
       "source": {
         "section": "8.5.12",
-        "line": 8189,
+        "line": 8201,
         "lineDigest": "27009726b5c03e4052c17ab37b7c0044faa459ca91d36a211842bb5c4b38eec3"
       }
     },
@@ -56,7 +56,7 @@
       "constraintsContract": "`PK(shelf_entry_id,revision)`；`INDEX(provider,provider_key,structure_kind)`仅供Duplicate Detection，禁止全局unique",
       "source": {
         "section": "8.5.12",
-        "line": 8190,
+        "line": 8202,
         "lineDigest": "b6b7fb7e12bac7da8359799330c6882cb1bcca8f7968ecedda59d0d7a1254df6"
       }
     },
@@ -67,7 +67,7 @@
       "constraintsContract": "`PK(shelf_entry_id,revision)`；Shelf Entry current pointer显式FK",
       "source": {
         "section": "8.5.12",
-        "line": 8191,
+        "line": 8203,
         "lineDigest": "19ea29a73470be4c0f501b30a3cfcfe75272f78f820e2e13af830e0b00d73656"
       }
     },
@@ -78,7 +78,7 @@
       "constraintsContract": "`PK(shelf_entry_id,inventory_revision,ordinal)`；active representation中Primary Material全局exclusive partial unique",
       "source": {
         "section": "8.5.12",
-        "line": 8192,
+        "line": 8204,
         "lineDigest": "6029b20f7d263a868741e394746e1cb6b2a4d14181be98fbe70bd3ca403b33ae"
       }
     },
@@ -89,7 +89,7 @@
       "constraintsContract": "`PK(shelf_entry_id,inventory_revision,reference_id)`；last-reference计算只使用active Inventory revisions",
       "source": {
         "section": "8.5.12",
-        "line": 8193,
+        "line": 8205,
         "lineDigest": "1ebb004910adfed305d0022484124571dc61abfd903edc064775d184f9789bda"
       }
     },
@@ -100,7 +100,7 @@
       "constraintsContract": "Fact JSON上限`64 KiB`；`PK(shelf_entry_id,inventory_revision,fact_kind,fact_revision)`；Arca保存Accepted Product Fact snapshot，不运行时回读Libra Store",
       "source": {
         "section": "8.5.12",
-        "line": 8194,
+        "line": 8206,
         "lineDigest": "e26fbd4876a2b956d2690a4c2e5b9524753384bf8fc061c9671188d38fef5268"
       }
     },
@@ -111,7 +111,7 @@
       "constraintsContract": "`PK(shelf_entry_id,inventory_revision,relation_id)`；同一relation lineage可在新Inventory revision保留relationId；`person_id IS NULL`是合法未注册关系；Provider JSON上限`4 KiB`且digest匹配；`UNIQUE(shelf_entry_id,inventory_revision,relation_digest)`；`INDEX(person_id,role,shelf_entry_id)`供People/Off-deck只读Projection；Aftercare只能按`6.6.2.1`确定性Evidence发布新Inventory revision，不原地PATCH历史row",
       "source": {
         "section": "8.5.12",
-        "line": 8195,
+        "line": 8207,
         "lineDigest": "71a12e530d699cd8186a5ec1f7b56ab0b95cb0a27a1eb9d6575f24e04b4f968d"
       }
     },
@@ -122,7 +122,7 @@
       "constraintsContract": "`PK(shelf_entry_id,revision)`；只有On-deck Commit可写active Deck Fact",
       "source": {
         "section": "8.5.12",
-        "line": 8196,
+        "line": 8208,
         "lineDigest": "5fd9656b5a8d03c03e87964767d6f65267f763a59efd428706f1835e6885cb76"
       }
     },
@@ -133,7 +133,7 @@
       "constraintsContract": "`UNIQUE(on_deck_run_id)`；与On-deck Canonical Fact set同事务成立",
       "source": {
         "section": "8.5.12",
-        "line": 8197,
+        "line": 8209,
         "lineDigest": "9b60bbe10ab71f5ddfc41c57f1840664428b3dbafee698cfd75395720fae1db0"
       }
     },
@@ -144,7 +144,7 @@
       "constraintsContract": "`UNIQUE(on_deck_run_id)`；immutable Outbox source",
       "source": {
         "section": "8.5.12",
-        "line": 8198,
+        "line": 8210,
         "lineDigest": "a2d89572372aab45d8ef9f52b7386f3a46b333393352549fdcd3de1efbe66846"
       }
     }

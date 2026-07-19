@@ -20,15 +20,24 @@ function input(policy){const snapshot=signed({subjectId:'subject-1',status:'acti
   currentIdentityRevision:null,currentIdentityDigest:null,continuitySetDigest:D('continuity'),episodeScopeDigest:D('episodes')},'snapshotDigest');
   const authority=signed({authorityKind:'policy',policy},'authorityDigest'),projectionValue={shelfId:'shelf-1',status:'active',routingProjectionRevision:1,currentStandardRevision:1,currentStandardDigest:D('standard')},
     projection={...projectionValue,projectionDigest:canonicalDigest({schema:'arca.shelf-routing-target-projection@1',...projectionValue})};
-  return buildDecisionInputSet({basisKind:'routing',subjectSnapshot:snapshot,expectedDecisionHead:{revision:0,digest:null,currentRoutingDecisionId:null,currentDecisionBasisId:null,currentAcceptanceSpecId:null},
+  const expectedDecisionHead={subjectId:'subject-1',headState:'absent',headRevision:0,headDigest:null,currentRoutingDecisionId:null,currentDecisionBasisId:null,currentAcceptanceSpecId:null};
+  expectedDecisionHead.snapshotDigest=canonicalDigest({schema:'libra.subject-decision-head-snapshot@1',...expectedDecisionHead});
+  return buildDecisionInputSet({basisKind:'routing',subjectSnapshot:snapshot,expectedDecisionHead,
     readiness:{result:'ready'},routingAuthoritySnapshot:authority,shelfRoutingTargets:[projection],routingDecision:null,shelfStandardProjection:null,productScope:null,decisionFacts:[],queryResults:[]});}
 function request(set,marker='basis-marker'){return {decisionInputSet:set,domainFactCommitHandle:{schemaRef:'helix://contracts/types/DomainFactCommitHandle/v1',schemaVersion:1,handleId:'basis-handle',ownerDomain:'libra',aggregateType:'subject_decision_basis',aggregateId:'subject-1',factType:'decision_basis',factSchemaRef:'libra.decision-basis@1',
   expectedRevision:0,payloadDigest:canonicalDigest(set),resultSchemaRef:RESULT_SCHEMA,commitIdempotencyKey:'basis-key',eventFenceDigest:D('fence')},commitMarker:marker,resultId:'result-'+marker};}
 
-test('atomically commits complete Basis inputs, head, Result and marker and replays',()=>fixture(({databasePath,unitOfWork,policy})=>{const set=input(policy),store=createDecisionBasisStore({schemaManifest,unitOfWork});
-  const first=store.commit(request(set)),second=store.commit(request(set));assert.equal(first.replayed,false);assert.equal(second.replayed,true);assert.equal(first.result.decisionBasisId,second.result.decisionBasisId);
-  const db=new Database(databasePath,{readonly:true});assert.equal(db.prepare('SELECT COUNT(*) n FROM libra_decision_basis_revisions').get().n,1);assert.equal(db.prepare('SELECT COUNT(*) n FROM libra_decision_basis_inputs').get().n,3);
-  const head=db.prepare('SELECT * FROM libra_subject_decision_heads').get();assert.equal(head.head_revision,1);assert.equal(head.current_decision_basis_id,first.result.decisionBasisId);assert.equal(db.prepare('SELECT COUNT(*) n FROM fx_commit_markers').get().n,1);db.close();}));
+test('atomically commits complete Basis inputs, head, Result and marker and replays after Head advances',()=>fixture(({databasePath,unitOfWork,policy})=>{const set=input(policy),store=createDecisionBasisStore({schemaManifest,unitOfWork});
+  const first=store.commit(request(set)),second=store.commit(request(set,'basis-marker-2')),third=store.commit(request(set));assert.equal(first.replayed,false);assert.equal(second.replayed,true);assert.equal(third.replayed,true);assert.equal(first.result.decisionBasisId,second.result.decisionBasisId);
+  const db=new Database(databasePath,{readonly:true});assert.equal(db.prepare('SELECT COUNT(*) n FROM libra_decision_basis_revisions').get().n,1);assert.equal(db.prepare('SELECT COUNT(*) n FROM libra_decision_basis_inputs').get().n,4);
+  const basis=db.prepare('SELECT * FROM libra_decision_basis_revisions').get(),snapshot=db.prepare("SELECT * FROM libra_decision_basis_inputs WHERE input_kind='decision_head_snapshot'").get();
+  assert.equal(basis.expected_head_revision,0);assert.equal(basis.expected_head_snapshot_digest,snapshot.input_digest);assert.equal(snapshot.input_ordinal,1);
+  const head=db.prepare('SELECT * FROM libra_subject_decision_heads').get();assert.equal(head.head_revision,1);assert.equal(head.current_decision_basis_id,first.result.decisionBasisId);assert.equal(db.prepare('SELECT COUNT(*) n FROM fx_commit_markers').get().n,2);db.close();}));
+
+test('semantic replay fails closed when frozen Head Snapshot relation is corrupt',()=>fixture(({databasePath,unitOfWork,policy})=>{const set=input(policy),store=createDecisionBasisStore({schemaManifest,unitOfWork});store.commit(request(set));
+  const db=new Database(databasePath);db.prepare("UPDATE libra_decision_basis_inputs SET input_digest=? WHERE input_kind='decision_head_snapshot'").run(D('corrupt-head'));db.close();
+  assert.throws(()=>store.commit(request(set,'basis-marker-corrupt')),(error)=>error.code==='P8_DECISION_BASIS_INPUT_INTEGRITY');
+  const check=new Database(databasePath,{readonly:true});assert.equal(check.prepare("SELECT COUNT(*) n FROM fx_commit_markers WHERE commit_marker='basis-marker-corrupt'").get().n,0);check.close();}));
 
 test('stale Subject snapshot or Policy head rolls back every participant',()=>fixture(({databasePath,unitOfWork,policy})=>{const set=input(policy),db=new Database(databasePath);db.prepare('UPDATE libra_routing_policy_revisions SET policy_digest=? WHERE routing_policy_id=?').run(D('stale'),'policy-1');db.close();
   assert.throws(()=>createDecisionBasisStore({schemaManifest,unitOfWork}).commit(request(set)),/Routing Policy snapshot/);const check=new Database(databasePath,{readonly:true});for(const table of ['libra_decision_basis_revisions','libra_decision_basis_inputs','libra_subject_decision_heads','fx_event_result_bindings','fx_commit_markers'])assert.equal(check.prepare(`SELECT COUNT(*) n FROM ${table}`).get().n,0);check.close();}));

@@ -31,6 +31,7 @@
         "logicalType": "TEXT",
         "enumValues": [
           "subject_snapshot",
+          "decision_head_snapshot",
           "routing_authority",
           "shelf_routing_projection",
           "routing_fact",
@@ -185,6 +186,7 @@
         "column": "input_kind",
         "enumValues": [
           "subject_snapshot",
+          "decision_head_snapshot",
           "routing_authority",
           "shelf_routing_projection",
           "routing_fact",
@@ -224,18 +226,21 @@
     },
     "semanticRules": [
       "`PK(decision_basis_id,input_ordinal)`及`UNIQUE(decision_basis_id,input_kind,input_object_id,input_revision,input_digest)`",
-      "ordinal从0连续，逐项typed JSON≤`64 KiB`、总JCS≤`1 MiB`",
+      "ordinal从0连续，ordinal 0固定为唯一`subject_snapshot`，ordinal 1固定为唯一`decision_head_snapshot`，其后依次为routing authority、按rank的Shelf projection、Routing Decision、Shelf Standard、Product Scope、按正式ID/digest排序的Facts、按正式tuple排序的Query Result",
+      "不存在的variant段跳过但不得改变剩余相对顺序。`decision_head_snapshot`固定`input_object_id=subjectId,input_revision=headRevision,input_digest=snapshotDigest`且该variant的input revision允许0",
+      "其他variant按各自typed contract使用正整数revision",
+      "逐项typed JSON≤`64 KiB`、总JCS≤`1 MiB`",
       "query variant填写query列，其他variant全部query列NULL",
-      "全部rows按8.6.18可重建同一`DecisionInputSet@1`，不得旁读Owner/Provider或Foundation Result补值"
+      "全部rows按8.6.18可重建同一`DecisionInputSet@1`，不得旁读Owner/Provider、current Head或Foundation Result补值"
     ],
     "rawContract": {
-      "columns": "`decision_basis_id FK, input_ordinal, input_kind(subject_snapshot|routing_authority|shelf_routing_projection|routing_fact|routing_decision|shelf_standard_projection|product_scope|decision_fact|query_result), input_schema_ref, input_object_id, input_revision, input_digest, input_json, provider_domain NULL, query_contract NULL, query_version NULL, query_input_digest NULL, result_kind NULL, result_revision NULL, result_digest NULL, expires_at_ms NULL`",
-      "constraints": "`PK(decision_basis_id,input_ordinal)`及`UNIQUE(decision_basis_id,input_kind,input_object_id,input_revision,input_digest)`；ordinal从0连续，逐项typed JSON≤`64 KiB`、总JCS≤`1 MiB`；query variant填写query列，其他variant全部query列NULL；全部rows按8.6.18可重建同一`DecisionInputSet@1`，不得旁读Owner/Provider或Foundation Result补值"
+      "columns": "`decision_basis_id FK, input_ordinal, input_kind(subject_snapshot|decision_head_snapshot|routing_authority|shelf_routing_projection|routing_fact|routing_decision|shelf_standard_projection|product_scope|decision_fact|query_result), input_schema_ref, input_object_id, input_revision, input_digest, input_json, provider_domain NULL, query_contract NULL, query_version NULL, query_input_digest NULL, result_kind NULL, result_revision NULL, result_digest NULL, expires_at_ms NULL`",
+      "constraints": "`PK(decision_basis_id,input_ordinal)`及`UNIQUE(decision_basis_id,input_kind,input_object_id,input_revision,input_digest)`；ordinal从0连续，ordinal 0固定为唯一`subject_snapshot`，ordinal 1固定为唯一`decision_head_snapshot`，其后依次为routing authority、按rank的Shelf projection、Routing Decision、Shelf Standard、Product Scope、按正式ID/digest排序的Facts、按正式tuple排序的Query Result；不存在的variant段跳过但不得改变剩余相对顺序。`decision_head_snapshot`固定`input_object_id=subjectId,input_revision=headRevision,input_digest=snapshotDigest`且该variant的input revision允许0；其他variant按各自typed contract使用正整数revision；逐项typed JSON≤`64 KiB`、总JCS≤`1 MiB`；query variant填写query列，其他variant全部query列NULL；全部rows按8.6.18可重建同一`DecisionInputSet@1`，不得旁读Owner/Provider、current Head或Foundation Result补值"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8150,
-      "lineDigest": "4d56943e4582a63c5e7038055d0af11c1bbdc3029232da205fdf91d03280f8d0"
+      "line": 8162,
+      "lineDigest": "341a2b91d073a956dc8470eee3f4ddd089831dc4229619e709351eccfcc25b20"
     },
     "foreignKeys": [
       {

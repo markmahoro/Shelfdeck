@@ -7,7 +7,7 @@
     "displayName": "Libra Decision Basis Commit",
     "ownerScope": "libra",
     "commitClass": "domain_fact_commit",
-    "atomicFactSet": "complete `DecisionInputSet@1` + Subject/current Decision head CAS + immutable Decision Basis revision + relationized typed input snapshots + durable `DecisionBasisRevision@1`/commit marker；manual selection variant同事务写Command Receipt；Routing与Spec使用同一事务但不同`basisKind`，不创建Routing Decision、Acceptance Spec或Libra Run；`hasOutbox=false`",
+    "atomicFactSet": "complete `DecisionInputSet@1` + exact pre-CAS `SubjectDecisionHeadSnapshot@1` + Subject/current Decision head CAS + immutable Decision Basis revision + relationized typed input snapshots + durable `DecisionBasisRevision@1`/commit marker；manual selection variant同事务写Command Receipt；Routing与Spec使用同一事务但不同`basisKind`，不创建Routing Decision、Acceptance Spec或Libra Run；`hasOutbox=false`",
     "participants": [
       {
         "participantKind": "domain",
@@ -190,7 +190,7 @@
     "source": {
       "section": "8.5.4",
       "line": 7733,
-      "lineDigest": "1964ab0bb4858cc96afd58e4ee70032f7e32551b83162366a26663bebebf73f1"
+      "lineDigest": "4fbf039ff9e6d3552842ab32579da3d5cf11b65a5b05e168d04f230a53b45aa9"
     }
   }
 }

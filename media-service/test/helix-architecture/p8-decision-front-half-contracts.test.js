@@ -9,6 +9,11 @@ const {buildProductScope,resolveAcceptanceSpec}=require('../../src/helix/domains
 
 const D='a'.repeat(64);
 function signed(value,field){const result={...value};result[field]=canonicalDigest(result);return result;}
+function headSnapshot(subjectId,headRevision=0,currentRoutingDecisionId=null,currentDecisionBasisId=null,currentAcceptanceSpecId=null){
+  const headState=headRevision===0?'absent':'present',headDigest=headRevision===0?null:decisionHeadDigest(subjectId,headRevision,currentRoutingDecisionId,currentDecisionBasisId,currentAcceptanceSpecId);
+  const value={subjectId,headState,headRevision,headDigest,currentRoutingDecisionId,currentDecisionBasisId,currentAcceptanceSpecId};
+  value.snapshotDigest=canonicalDigest({schema:'libra.subject-decision-head-snapshot@1',...value});return value;
+}
 function subject(){return signed({subjectId:'subject-1',status:'active',intakeRevision:1,structureKind:'single',contentProfile:'movie',
   routingAnchorIntakeDecisionId:'intake-1',routingProvenance:{candidatePackageId:'candidate-1',sourceFieldId:'field-1',sourceFieldAccessRevision:2,
     sourceFieldContextDigest:D,candidateIdentityClaimDigest:'b'.repeat(64)},currentIdentityRevision:null,currentIdentityDigest:null,
@@ -19,15 +24,16 @@ function routingFact(kind,value){return signed({factKind:kind,sourceObjectId:'su
 function policyAuthority(targets){const policyTargets=targets.map((item,index)=>{const matchExpression=item.expression;return {shelfId:item.shelfId,rank:index+1,matchExpression,matchRuleDigest:canonicalDigest(matchExpression)};});
   const policy=signed({routingPolicyId:'policy-1',revision:3,fieldId:'field-1',mode:'sorting',targets:policyTargets},'policyDigest');
   return signed({authorityKind:'policy',policy},'authorityDigest');}
-function routingInput(authority,targets,facts){return {basisKind:'routing',subjectSnapshot:subject(),expectedDecisionHead:{revision:0,digest:null,
-  currentRoutingDecisionId:null,currentDecisionBasisId:null,currentAcceptanceSpecId:null},readiness:{result:'ready'},routingAuthoritySnapshot:authority,
+function routingInput(authority,targets,facts){return {basisKind:'routing',subjectSnapshot:subject(),expectedDecisionHead:headSnapshot('subject-1'),readiness:{result:'ready'},routingAuthoritySnapshot:authority,
   shelfRoutingTargets:targets,routingDecision:null,shelfStandardProjection:null,productScope:null,decisionFacts:facts,queryResults:[]};}
 
 test('freezes Decision Input, relation snapshots, Basis identity, and first Decision head',()=>{
   const expression={nodeKind:'predicate',factKind:'content_profile',operator:'eq',expectedValue:'movie'};
   const set=buildDecisionInputSet(routingInput(policyAuthority([{shelfId:'shelf-1',expression}]),[projection('shelf-1')],[routingFact('content_profile','movie')]));
-  assert.equal(set.routingInputDigest.length,64);assert.equal(set.specInputDigest,null);assert.equal(inputSnapshotRows(set).length,4);
+  assert.equal(set.routingInputDigest.length,64);assert.equal(set.specInputDigest,null);assert.equal(inputSnapshotRows(set).length,5);
+  assert.equal(inputSnapshotRows(set)[1].inputKind,'decision_head_snapshot');assert.equal(inputSnapshotRows(set)[1].inputRevision,0);
   const basis=buildDecisionBasisRevision(set,1,100,'marker-basis-1');assert.equal(basis.decisionBasisId.length,64);assert.equal(basis.factDigest,basis.basisDigest);
+  assert.equal(basis.expectedHeadSnapshotDigest,set.expectedDecisionHead.snapshotDigest);
   assert.equal(decisionHeadDigest('subject-1',1,null,basis.decisionBasisId,null).length,64);
 });
 
@@ -66,8 +72,7 @@ test('publishes a six-class Acceptance Spec from the exact ready Basis',()=>{
   const expression={nodeKind:'always'},rset=buildDecisionInputSet(routingInput(policyAuthority([{shelfId:'shelf-1',expression}]),[projection('shelf-1')],[]));
   const rbasis=buildDecisionBasisRevision(rset,1,100,'basis-1'),assessment=resolveRoutingAssessment({...rset,decisionBasisId:rbasis.decisionBasisId});
   const routing=buildRoutingDecision(assessment,1),snapshot=subject(),scope=buildProductScope(snapshot,[]);
-  const expectedDecisionHead={revision:2,digest:decisionHeadDigest('subject-1',2,routing.routingDecisionId,rbasis.decisionBasisId,null),
-    currentRoutingDecisionId:routing.routingDecisionId,currentDecisionBasisId:rbasis.decisionBasisId,currentAcceptanceSpecId:null};
+  const expectedDecisionHead=headSnapshot('subject-1',2,routing.routingDecisionId,rbasis.decisionBasisId,null);
   const inputSet=buildDecisionInputSet({basisKind:'acceptance_spec',subjectSnapshot:snapshot,expectedDecisionHead,readiness:{result:'ready'},
     routingAuthoritySnapshot:null,shelfRoutingTargets:[],routingDecision:routing,shelfStandardProjection:standardProjection('shelf-1'),productScope:scope,decisionFacts:[],queryResults:[]});
   const basis=buildDecisionBasisRevision(inputSet,2,200,'basis-2');const spec=resolveAcceptanceSpec({inputSet,decisionBasis:basis,specRevision:1,producedAtMs:201,publishedAtMs:202});

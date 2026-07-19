@@ -145,17 +145,18 @@
     "semanticRules": [
       "Subject刚Accepted时允许无row",
       "首次Decision Basis Commit以logical expected revision 0原子建立revision 1，后续每次pointer切换expected CAS并加1",
+      "row存在时current Basis必须非NULL，current Routing非NULL时Basis也必须非NULL，current Spec非NULL时Routing/Basis都必须非NULL",
       "`head_digest=SHA-256(JCS({schema:\"libra.subject-decision-head@1\",subjectId,headRevision,currentRoutingDecisionId,currentDecisionBasisId,currentAcceptanceSpecId}))`",
       "Automation/Run Creator只读head，不按时间戳猜revision"
     ],
     "rawContract": {
       "columns": "`subject_id PK/FK, head_revision, head_digest, current_routing_decision_id NULL FK, current_decision_basis_id NULL FK, current_acceptance_spec_id NULL FK, updated_at_ms`",
-      "constraints": "Subject刚Accepted时允许无row；首次Decision Basis Commit以logical expected revision 0原子建立revision 1，后续每次pointer切换expected CAS并加1；`head_digest=SHA-256(JCS({schema:\"libra.subject-decision-head@1\",subjectId,headRevision,currentRoutingDecisionId,currentDecisionBasisId,currentAcceptanceSpecId}))`；Automation/Run Creator只读head，不按时间戳猜revision"
+      "constraints": "Subject刚Accepted时允许无row；首次Decision Basis Commit以logical expected revision 0原子建立revision 1，后续每次pointer切换expected CAS并加1；row存在时current Basis必须非NULL，current Routing非NULL时Basis也必须非NULL，current Spec非NULL时Routing/Basis都必须非NULL；`head_digest=SHA-256(JCS({schema:\"libra.subject-decision-head@1\",subjectId,headRevision,currentRoutingDecisionId,currentDecisionBasisId,currentAcceptanceSpecId}))`；Automation/Run Creator只读head，不按时间戳猜revision"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8152,
-      "lineDigest": "b1174d49a0490625aa80f16d58ea0c0082309f5db98f6cc6814981df6a33a901"
+      "line": 8164,
+      "lineDigest": "d1b21bbe6c4ae290efe1ea32253d64bccaf72c2a385f8762341b068cd0b3cd75"
     },
     "foreignKeys": [
       {

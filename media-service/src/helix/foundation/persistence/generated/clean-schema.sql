@@ -1175,10 +1175,10 @@ CREATE TABLE "libra_acceptance_specs" (
 CREATE TABLE "libra_decision_basis_inputs" (
   "decision_basis_id" TEXT,
   "input_ordinal" INTEGER CHECK ("input_ordinal" >= 0),
-  "input_kind" TEXT CHECK ("input_kind" IN ('subject_snapshot', 'routing_authority', 'shelf_routing_projection', 'routing_fact', 'routing_decision', 'shelf_standard_projection', 'product_scope', 'decision_fact', 'query_result')),
+  "input_kind" TEXT CHECK ("input_kind" IN ('subject_snapshot', 'decision_head_snapshot', 'routing_authority', 'shelf_routing_projection', 'routing_fact', 'routing_decision', 'shelf_standard_projection', 'product_scope', 'decision_fact', 'query_result')),
   "input_schema_ref" TEXT,
   "input_object_id" TEXT,
-  "input_revision" INTEGER CHECK ("input_revision" >= 1),
+  "input_revision" INTEGER CHECK ("input_revision" >= 0),
   "input_digest" TEXT CHECK (length("input_digest") = 64 AND "input_digest" NOT GLOB '*[^0-9a-f]*'),
   "input_json" TEXT,
   "provider_domain" TEXT,
@@ -1193,6 +1193,7 @@ CREATE TABLE "libra_decision_basis_inputs" (
   UNIQUE ("decision_basis_id", "input_kind", "input_object_id", "input_revision", "input_digest"),
   CHECK (json_valid("input_json")),
   CHECK (length(CAST("input_json" AS BLOB)) <= 65536),
+  CHECK (("input_kind" = 'decision_head_snapshot' AND "input_revision" >= 0) OR ("input_kind" <> 'decision_head_snapshot' AND "input_revision" >= 1)),
   FOREIGN KEY ("decision_basis_id") REFERENCES "libra_decision_basis_revisions" ("decision_basis_id") ON DELETE RESTRICT
 );
 
@@ -1202,6 +1203,7 @@ CREATE TABLE "libra_decision_basis_revisions" (
   "basis_kind" TEXT CHECK ("basis_kind" IN ('routing', 'acceptance_spec')),
   "basis_revision" INTEGER CHECK ("basis_revision" >= 1),
   "expected_head_revision" INTEGER CHECK ("expected_head_revision" >= 0),
+  "expected_head_snapshot_digest" TEXT CHECK (length("expected_head_snapshot_digest") = 64 AND "expected_head_snapshot_digest" NOT GLOB '*[^0-9a-f]*'),
   "routing_decision_id" TEXT,
   "query_result_set_digest" TEXT CHECK (length("query_result_set_digest") = 64 AND "query_result_set_digest" NOT GLOB '*[^0-9a-f]*'),
   "routing_input_digest" TEXT CHECK (length("routing_input_digest") = 64 AND "routing_input_digest" NOT GLOB '*[^0-9a-f]*'),

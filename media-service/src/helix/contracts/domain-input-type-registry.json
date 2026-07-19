@@ -27,7 +27,7 @@
           "capabilityRef": "libra.product.conformance.verify@1",
           "source": {
             "section": "8.6.7",
-            "line": 8593,
+            "line": 8605,
             "lineDigest": "1d672bc56d8ca9562a03e2ab9c3826f08e3ad9916940ea95532538aa098a2739"
           },
           "typeExpression": "Acceptance Spec"
@@ -49,7 +49,7 @@
           "capabilityRef": "libra.intake.accept.commit@1",
           "source": {
             "section": "8.6.5",
-            "line": 8550,
+            "line": 8562,
             "lineDigest": "aae653e3ee9c648a7995c9cbb2d40b3d3024333b6c64aab079dd1d1ca4cd877a"
           },
           "typeExpression": "AcceptedIntakePayload"
@@ -71,7 +71,7 @@
           "capabilityRef": "arca.acceptance.accept.commit@1",
           "source": {
             "section": "8.6.9",
-            "line": 8640,
+            "line": 8652,
             "lineDigest": "562a725ccfbc786fb39da48525654c6135ecd8dc07820d248fd4c23e62fa75f7"
           },
           "typeExpression": "Accepted payload"
@@ -93,7 +93,7 @@
           "capabilityRef": "arca.aftercare.text_artifact.render@1",
           "source": {
             "section": "8.6.11",
-            "line": 8670,
+            "line": 8682,
             "lineDigest": "6fd2daa223392e9088cebcf0aebaf24bd0ccaf71f14102c7825130e8c698dfe4"
           },
           "typeExpression": "Accepted Product Facts"
@@ -115,7 +115,7 @@
           "capabilityRef": "arca.offdeck.duplicate.detect@1",
           "source": {
             "section": "8.6.12",
-            "line": 8701,
+            "line": 8713,
             "lineDigest": "33fe97fdb742d737d0e0a0d741431293676a7eea82de795636ea4f8a818d6131"
           },
           "typeExpression": "Active Shelf Entry identity projection"
@@ -137,7 +137,7 @@
           "capabilityRef": "libra.western.analysis.request@1",
           "source": {
             "section": "8.6.6",
-            "line": 8565,
+            "line": 8577,
             "lineDigest": "2b82e44cc0c4d1b0d1016829669c832eedfbd3af8bf8ad11189d4f678e73dca9"
           },
           "typeExpression": "AnalysisSpec"
@@ -159,7 +159,7 @@
           "capabilityRef": "arca.acceptance.rejection.commit@1",
           "source": {
             "section": "8.6.9",
-            "line": 8639,
+            "line": 8651,
             "lineDigest": "3cb1b32e9f6b048446e75a97524c24cc764a8bceeb00dcefcd2dacc9febb20d7"
           },
           "typeExpression": "ArcaAcceptanceRejectionDecision"
@@ -181,7 +181,7 @@
           "capabilityRef": "arca.aftercare.text_artifact.render@1",
           "source": {
             "section": "8.6.11",
-            "line": 8670,
+            "line": 8682,
             "lineDigest": "6fd2daa223392e9088cebcf0aebaf24bd0ccaf71f14102c7825130e8c698dfe4"
           },
           "typeExpression": "Artifact profile"
@@ -203,7 +203,7 @@
           "capabilityRef": "shared.artifact.manifest.verify@1",
           "source": {
             "section": "8.6.3",
-            "line": 8331,
+            "line": 8343,
             "lineDigest": "ac9a75f86797da9c187941deadc3781bee97cf9730a884c44292fa1b711db6c7"
           },
           "typeExpression": "ArtifactRequirement"
@@ -225,7 +225,7 @@
           "capabilityRef": "shared.material.layout.observe@1",
           "source": {
             "section": "8.6.3",
-            "line": 8329,
+            "line": 8341,
             "lineDigest": "2c9ef79a156c8efbaf548d3118dd00d614b415350dc86aa40299b10a0b936f49"
           },
           "typeExpression": "BoundedLayoutScope"
@@ -271,7 +271,7 @@
           "capabilityRef": "libra.intake.binding.resolve@1",
           "source": {
             "section": "8.6.5",
-            "line": 8548,
+            "line": 8560,
             "lineDigest": "33d349a4987b4e7f9ccc1be43180c9e3bc7a6c5d1e335d03e68a3d02c5c4825c"
           },
           "typeExpression": "CandidateDeliverySnapshot"
@@ -280,7 +280,7 @@
           "capabilityRef": "libra.intake.candidate.verify@1",
           "source": {
             "section": "8.6.5",
-            "line": 8546,
+            "line": 8558,
             "lineDigest": "4f8e6af6fee4049f6df4343ce160377bc7b26d496fca0e4a63b20f0ab2d9920f"
           },
           "typeExpression": "CandidateDeliverySnapshot"
@@ -289,7 +289,7 @@
           "capabilityRef": "libra.intake.material.verify@1",
           "source": {
             "section": "8.6.5",
-            "line": 8547,
+            "line": 8559,
             "lineDigest": "577a5c3edda27be775e0cea43186b4c2d883d55d9989dc4f5edff152f811203f"
           },
           "typeExpression": "CandidateDeliverySnapshot"
@@ -311,7 +311,7 @@
           "capabilityRef": "procurement.candidate.publish@1",
           "source": {
             "section": "8.6.4",
-            "line": 8357,
+            "line": 8369,
             "lineDigest": "b3027f80fc686599bc8a0e7930f8550091b5b1ea892ca6f222272deb152a11da"
           },
           "typeExpression": "CandidateDraft"
@@ -333,7 +333,7 @@
           "capabilityRef": "arca.aftercare.conformance.observe@1",
           "source": {
             "section": "8.6.11",
-            "line": 8668,
+            "line": 8680,
             "lineDigest": "418d9652136aa90165fb8648faba7327012d40b25049086a9dee701cfa4f6c5e"
           },
           "typeExpression": "Care Basis"
@@ -342,7 +342,7 @@
           "capabilityRef": "arca.aftercare.custody.observe@1",
           "source": {
             "section": "8.6.11",
-            "line": 8666,
+            "line": 8678,
             "lineDigest": "db6a70b06391c9b8f35128f7bfa001ebf9a189caaecb353a5cdfd7d40166ed7b"
           },
           "typeExpression": "Care Basis"
@@ -351,7 +351,7 @@
           "capabilityRef": "arca.aftercare.presentation.observe@1",
           "source": {
             "section": "8.6.11",
-            "line": 8667,
+            "line": 8679,
             "lineDigest": "ef14d58689a9a1e3ad3b5658b3d3e59a100382e903323cc54cacd9374861f6cd"
           },
           "typeExpression": "Care Basis"
@@ -373,7 +373,7 @@
           "capabilityRef": "arca.aftercare.media.remux@1",
           "source": {
             "section": "8.6.11",
-            "line": 8673,
+            "line": 8685,
             "lineDigest": "f27a3c9ff2412e8626a1b06124672d458059585a52c734207bd541379461f72d"
           },
           "typeExpression": "Care Requirement"
@@ -382,7 +382,7 @@
           "capabilityRef": "arca.aftercare.media.transcode@1",
           "source": {
             "section": "8.6.11",
-            "line": 8674,
+            "line": 8686,
             "lineDigest": "ded794686ed04fb831dfcd51ef6e541d53c0955145f7df68306728354ea9b308"
           },
           "typeExpression": "Care Requirement"
@@ -391,7 +391,7 @@
           "capabilityRef": "arca.aftercare.media.verify@1",
           "source": {
             "section": "8.6.11",
-            "line": 8675,
+            "line": 8687,
             "lineDigest": "dad3fc5fe91c3b6f3f82b8e52c750373787c61ff30abe0f055393fefc9dde34c"
           },
           "typeExpression": "Care Requirement"
@@ -413,7 +413,7 @@
           "capabilityRef": "shared.face.cluster.compute@1",
           "source": {
             "section": "8.6.3",
-            "line": 8334,
+            "line": 8346,
             "lineDigest": "ab99299f3dabcdbda44a14805e1f391fb7abe03dd5b066789d7b5d62b01edc8e"
           },
           "typeExpression": "ClusterParameters"
@@ -435,7 +435,7 @@
           "capabilityRef": "arca.offdeck.destruction_scope.verify@1",
           "source": {
             "section": "8.6.12",
-            "line": 8704,
+            "line": 8716,
             "lineDigest": "5f1aba6f365de4e1b6b78c9151fd81b7c47c80410c917f93ac0493fbebb9507d"
           },
           "typeExpression": "current Inventory/Control"
@@ -444,7 +444,7 @@
           "capabilityRef": "arca.shelf_deregistration.release_manifest.verify@1",
           "source": {
             "section": "8.6.12",
-            "line": 8710,
+            "line": 8722,
             "lineDigest": "28fc5bb6077c6e4f46d115156a5891718f27888dbb1f6438b6d6e3e6369bd2f2"
           },
           "typeExpression": "current Inventory/Control"
@@ -466,7 +466,7 @@
           "capabilityRef": "libra.product_identity.resolve@1",
           "source": {
             "section": "8.6.5",
-            "line": 8552,
+            "line": 8564,
             "lineDigest": "6dce1265b0101081f5902721342d86b96e19ad4165b69dd8ef7b9cf241da261f"
           },
           "typeExpression": "Decision Evidence"
@@ -488,7 +488,7 @@
           "capabilityRef": "libra.decision_basis.commit@1",
           "source": {
             "section": "8.6.5",
-            "line": 8554,
+            "line": 8566,
             "lineDigest": "c2bee393c7c5ceb06c831e38901c577c13ddb5eb7838e2a8bf622737543c2af9"
           },
           "typeExpression": "DecisionInputSet"
@@ -510,7 +510,7 @@
           "capabilityRef": "arca.offdeck.destruction_scope.verify@1",
           "source": {
             "section": "8.6.12",
-            "line": 8704,
+            "line": 8716,
             "lineDigest": "5f1aba6f365de4e1b6b78c9151fd81b7c47c80410c917f93ac0493fbebb9507d"
           },
           "typeExpression": "Destruction Scope"
@@ -544,7 +544,7 @@
           "capabilityRef": "libra.media.transcode@1",
           "source": {
             "section": "8.6.7",
-            "line": 8590,
+            "line": 8602,
             "lineDigest": "0e3dadb1b3a43510bf89001548fe717332e6fac6db5a58d84d8367eb7754aa9c"
           },
           "typeExpression": "EncodeIntent"
@@ -553,7 +553,7 @@
           "capabilityRef": "libra.transcode.input.verify@1",
           "source": {
             "section": "8.6.7",
-            "line": 8588,
+            "line": 8600,
             "lineDigest": "7e3dd0dd3ad7d4bbb44093fd6a68fddf7c8fe8d45defdc22c44da21b3399c066"
           },
           "typeExpression": "EncodeIntent"
@@ -575,7 +575,7 @@
           "capabilityRef": "libra.external_material.package.verify@1",
           "source": {
             "section": "8.6.8",
-            "line": 8623,
+            "line": 8635,
             "lineDigest": "95a010cdc2541870aa59dcf1dedb23d607773e7a0d8bfaff3b57ad9e0296d615"
           },
           "typeExpression": "Episode Delivery Manifest"
@@ -597,7 +597,7 @@
           "capabilityRef": "shared.face.embedding.compute@1",
           "source": {
             "section": "8.6.3",
-            "line": 8333,
+            "line": 8345,
             "lineDigest": "303382e21b6ebf8ed4758e802fc0e190d1c36a4f73ce51f69707a659a04bbd3e"
           },
           "typeExpression": "FaceModelRef"
@@ -619,7 +619,7 @@
           "capabilityRef": "arca.inventory.final_primary.verify@1",
           "source": {
             "section": "8.6.10",
-            "line": 8653,
+            "line": 8665,
             "lineDigest": "046b1dcb2a47030e11538b422f3ffd0e7bb087f73ca47e5d4288bfef31d69363"
           },
           "typeExpression": "Final bindings"
@@ -641,7 +641,7 @@
           "capabilityRef": "arca.inventory.staged.verify@1",
           "source": {
             "section": "8.6.10",
-            "line": 8651,
+            "line": 8663,
             "lineDigest": "843e35b1e399dd3d9497144b48d1ef93a0d99c9deddfffb682aa12e401ffffa3"
           },
           "typeExpression": "Final Inventory Decision"
@@ -650,7 +650,7 @@
           "capabilityRef": "arca.inventory.target_slot.prepare@1",
           "source": {
             "section": "8.6.10",
-            "line": 8649,
+            "line": 8661,
             "lineDigest": "207a053dd6f2debeb0cef4e02fa29d65077c37dfe54f674e265ba68aa63cc30f"
           },
           "typeExpression": "Final Inventory Decision"
@@ -659,7 +659,7 @@
           "capabilityRef": "arca.ondeck.fulfillment.verify@1",
           "source": {
             "section": "8.6.10",
-            "line": 8655,
+            "line": 8667,
             "lineDigest": "0fd32ca70f4341b73c50e6e249f0566cf972b467e0fa93e85f5be2948ad73cd4"
           },
           "typeExpression": "Final Inventory Decision"
@@ -681,7 +681,7 @@
           "capabilityRef": "arca.ondeck.fulfillment.verify@1",
           "source": {
             "section": "8.6.10",
-            "line": 8655,
+            "line": 8667,
             "lineDigest": "0fd32ca70f4341b73c50e6e249f0566cf972b467e0fa93e85f5be2948ad73cd4"
           },
           "typeExpression": "Final reality"
@@ -703,7 +703,7 @@
           "capabilityRef": "shared.material.content_hash.compute@1",
           "source": {
             "section": "8.6.3",
-            "line": 8327,
+            "line": 8339,
             "lineDigest": "a49116ffe106a16d2ab00e928642626f5d43442beaa0b312971bac83445319da"
           },
           "typeExpression": "HashProfile"
@@ -725,7 +725,7 @@
           "capabilityRef": "libra.external_material.package.verify@1",
           "source": {
             "section": "8.6.8",
-            "line": 8623,
+            "line": 8635,
             "lineDigest": "95a010cdc2541870aa59dcf1dedb23d607773e7a0d8bfaff3b57ad9e0296d615"
           },
           "typeExpression": "Identity Requirement"
@@ -747,7 +747,7 @@
           "capabilityRef": "libra.intake.rejection.commit@1",
           "source": {
             "section": "8.6.5",
-            "line": 8549,
+            "line": 8561,
             "lineDigest": "59dd603959abbeeb49d59f267b38c19e70c58ffbf8fc756ddcf7bd4b38b5c97a"
           },
           "typeExpression": "IntakeRejectionDecision"
@@ -769,7 +769,7 @@
           "capabilityRef": "arca.aftercare.presentation.observe@1",
           "source": {
             "section": "8.6.11",
-            "line": 8667,
+            "line": 8679,
             "lineDigest": "ef14d58689a9a1e3ad3b5658b3d3e59a100382e903323cc54cacd9374861f6cd"
           },
           "typeExpression": "Inventory/Metadata/Artifact refs"
@@ -791,7 +791,7 @@
           "capabilityRef": "arca.aftercare.custody.observe@1",
           "source": {
             "section": "8.6.11",
-            "line": 8666,
+            "line": 8678,
             "lineDigest": "db6a70b06391c9b8f35128f7bfa001ebf9a189caaecb353a5cdfd7d40166ed7b"
           },
           "typeExpression": "Inventory revision"
@@ -813,7 +813,7 @@
           "capabilityRef": "arca.aftercare.custody.observe@1",
           "source": {
             "section": "8.6.11",
-            "line": 8666,
+            "line": 8678,
             "lineDigest": "db6a70b06391c9b8f35128f7bfa001ebf9a189caaecb353a5cdfd7d40166ed7b"
           },
           "typeExpression": "known bindings"
@@ -835,7 +835,7 @@
           "capabilityRef": "libra.workspace.material.import@1",
           "source": {
             "section": "8.6.8",
-            "line": 8624,
+            "line": 8636,
             "lineDigest": "3f02559498e7251698b96b624649181aa5b1191c4e470b3de1d0251679e5db85"
           },
           "typeExpression": "Libra Workspace scope"
@@ -857,7 +857,7 @@
           "capabilityRef": "arca.acceptance.mandatory_media.verify@1",
           "source": {
             "section": "8.6.9",
-            "line": 8636,
+            "line": 8648,
             "lineDigest": "f550c747dddf2448dcc6d0f32dedf0271619dae3b77044987c2085456e0bf055"
           },
           "typeExpression": "Mandatory Requirement"
@@ -879,7 +879,7 @@
           "capabilityRef": "shared.manifest.verify@1",
           "source": {
             "section": "8.6.3",
-            "line": 8330,
+            "line": 8342,
             "lineDigest": "97c21353c211becce2a99b5af0bfe18cd75d0426615554a67e3c477f675cfef7"
           },
           "typeExpression": "ManifestContract"
@@ -901,7 +901,7 @@
           "capabilityRef": "libra.product_package.publish@1",
           "source": {
             "section": "8.6.7",
-            "line": 8594,
+            "line": 8606,
             "lineDigest": "7097afe7d6e29d4c0a9e91f2c5376d6c95f29e870460fa3ddf3f1ea27028b16a"
           },
           "typeExpression": "manifests"
@@ -923,7 +923,7 @@
           "capabilityRef": "libra.product_media.verify@1",
           "source": {
             "section": "8.6.7",
-            "line": 8591,
+            "line": 8603,
             "lineDigest": "3582d4972fba747457c5b47843b8610f71a3d0bed71e8f61a14c145d17d1e1d1"
           },
           "typeExpression": "MediaRequirement"
@@ -945,7 +945,7 @@
           "capabilityRef": "libra.product_metadata.fetch@1",
           "source": {
             "section": "8.6.5",
-            "line": 8553,
+            "line": 8565,
             "lineDigest": "45197abf5c4765ac1c0a7e817e9d397383f85669e651c7fe1d442550998041da"
           },
           "typeExpression": "MetadataFetchIntent"
@@ -967,7 +967,7 @@
           "capabilityRef": "libra.media_cast.resolve@1",
           "source": {
             "section": "8.6.6",
-            "line": 8569,
+            "line": 8581,
             "lineDigest": "b11143627ceff09b1c5fc991f02ea7ffe219c366056c92cc876ca560734755b7"
           },
           "typeExpression": "MetadataObservationSet"
@@ -989,7 +989,7 @@
           "capabilityRef": "arca.acceptance.metadata.verify@1",
           "source": {
             "section": "8.6.9",
-            "line": 8635,
+            "line": 8647,
             "lineDigest": "44843729ee69816916da2361d5b6583c8d4fadcd4c5e3d3c3a9a0fd8ed6d8e9f"
           },
           "typeExpression": "Metadata Requirement"
@@ -1011,7 +1011,7 @@
           "capabilityRef": "arca.acceptance.inventory_feasibility.observe@1",
           "source": {
             "section": "8.6.9",
-            "line": 8638,
+            "line": 8650,
             "lineDigest": "59e9bc8d69579a1ac34f04d67a15ad18c4545b324606a4e3356382e5d4a12d43"
           },
           "typeExpression": "Off-load Context"
@@ -1033,7 +1033,7 @@
           "capabilityRef": "people.registration_evidence.observe@1",
           "source": {
             "section": "8.6.14",
-            "line": 8756,
+            "line": 8768,
             "lineDigest": "c676c7178e8b473e53bde4b2ef443161e1a6b892a01f53427e2cf24afd5ea0cc"
           },
           "typeExpression": null
@@ -1055,7 +1055,7 @@
           "capabilityRef": "arca.acceptance.identity.verify@1",
           "source": {
             "section": "8.6.9",
-            "line": 8633,
+            "line": 8645,
             "lineDigest": "e1692014887797cd5aa80890c62a849dc352f89fc6d123a576e7bb7b28db378b"
           },
           "typeExpression": "Package identity"
@@ -1077,7 +1077,7 @@
           "capabilityRef": "people.person.commit@1",
           "source": {
             "section": "8.6.14",
-            "line": 8761,
+            "line": 8773,
             "lineDigest": "0f57cc3035a38feb0a59cf729c6f3dd4eea9738ad70fb6ae128de208499621e8"
           },
           "typeExpression": "PeopleCandidateAcceptanceDecision"
@@ -1099,7 +1099,7 @@
           "capabilityRef": "people.reference_fact.commit@1",
           "source": {
             "section": "8.6.14",
-            "line": 8758,
+            "line": 8770,
             "lineDigest": "685bdb0074fce95a1b9cc4ee9b06b7383b3561bb57c249b4f206016357f636f5"
           },
           "typeExpression": "PeopleReferenceMaintenanceDecision"
@@ -1121,7 +1121,7 @@
           "capabilityRef": "people.reference_asset.import@1",
           "source": {
             "section": "8.6.14",
-            "line": 8757,
+            "line": 8769,
             "lineDigest": "be70fa3c68c7af336e86e27c9059ce4f7589c26c543a8906f79d178e74a95d04"
           },
           "typeExpression": "People Workspace"
@@ -1143,7 +1143,7 @@
           "capabilityRef": "perception.source.acquire@1",
           "source": {
             "section": "8.6.13",
-            "line": 8735,
+            "line": 8747,
             "lineDigest": "b5aa853f6a29eb3fd38bf0e74583a7b0427b368d9d53d38ff982faa92e1e134b"
           },
           "typeExpression": "PerceptionAcquisitionCursor"
@@ -1165,7 +1165,7 @@
           "capabilityRef": "perception.record.normalize@1",
           "source": {
             "section": "8.6.13",
-            "line": 8736,
+            "line": 8748,
             "lineDigest": "2206f66ff49af564eb60aa0c359f124ff84f7dcce9a60df89ec053576f9e5a60"
           },
           "typeExpression": "PerceptionNormalizationRuleRef"
@@ -1187,7 +1187,7 @@
           "capabilityRef": "perception.dedup.resolve@1",
           "source": {
             "section": "8.6.13",
-            "line": 8738,
+            "line": 8750,
             "lineDigest": "c6978b0ba2609a2f6567244097c26ef09b61ca9e75aa5e798cf81dc1cd449938"
           },
           "typeExpression": "PerceptionResolutionQuery"
@@ -1209,7 +1209,7 @@
           "capabilityRef": "perception.dedup.resolve@1",
           "source": {
             "section": "8.6.13",
-            "line": 8738,
+            "line": 8750,
             "lineDigest": "c6978b0ba2609a2f6567244097c26ef09b61ca9e75aa5e798cf81dc1cd449938"
           },
           "typeExpression": "PerceptionResolutionRecordSet"
@@ -1231,7 +1231,7 @@
           "capabilityRef": "perception.dedup.resolve@1",
           "source": {
             "section": "8.6.13",
-            "line": 8738,
+            "line": 8750,
             "lineDigest": "c6978b0ba2609a2f6567244097c26ef09b61ca9e75aa5e798cf81dc1cd449938"
           },
           "typeExpression": "PerceptionResolutionRuleSnapshot"
@@ -1253,7 +1253,7 @@
           "capabilityRef": "perception.source.acquire@1",
           "source": {
             "section": "8.6.13",
-            "line": 8735,
+            "line": 8747,
             "lineDigest": "b5aa853f6a29eb3fd38bf0e74583a7b0427b368d9d53d38ff982faa92e1e134b"
           },
           "typeExpression": "PerceptionSourceSnapshot"
@@ -1275,7 +1275,7 @@
           "capabilityRef": "people.merge_evidence.resolve@1",
           "source": {
             "section": "8.6.14",
-            "line": 8759,
+            "line": 8771,
             "lineDigest": "c2c72913fb62f7a4f34313e68b475a5ae63b37aae17bec54b0fa5cdd543576a3"
           },
           "typeExpression": "Person identities/aliases/references"
@@ -1297,7 +1297,7 @@
           "capabilityRef": "libra.media_cast.resolve@1",
           "source": {
             "section": "8.6.6",
-            "line": 8569,
+            "line": 8581,
             "lineDigest": "b11143627ceff09b1c5fc991f02ea7ffe219c366056c92cc876ca560734755b7"
           },
           "typeExpression": "PersonReferenceProjection"
@@ -1306,7 +1306,7 @@
           "capabilityRef": "shared.face.reference.match@1",
           "source": {
             "section": "8.6.3",
-            "line": 8335,
+            "line": 8347,
             "lineDigest": "1787818297541762f93641ae752ac862fd31ee0f8c30d4a2e05377942453ee71"
           },
           "typeExpression": "PersonReferenceProjection"
@@ -1328,7 +1328,7 @@
           "capabilityRef": "arca.aftercare.conformance.observe@1",
           "source": {
             "section": "8.6.11",
-            "line": 8668,
+            "line": 8680,
             "lineDigest": "418d9652136aa90165fb8648faba7327012d40b25049086a9dee701cfa4f6c5e"
           },
           "typeExpression": "Placement"
@@ -1350,7 +1350,7 @@
           "capabilityRef": "arca.acceptance.inventory_feasibility.observe@1",
           "source": {
             "section": "8.6.9",
-            "line": 8638,
+            "line": 8650,
             "lineDigest": "59e9bc8d69579a1ac34f04d67a15ad18c4545b324606a4e3356382e5d4a12d43"
           },
           "typeExpression": "Placement Policy"
@@ -1372,7 +1372,7 @@
           "capabilityRef": "arca.offdeck.review_candidate.commit@1",
           "source": {
             "section": "8.6.12",
-            "line": 8703,
+            "line": 8715,
             "lineDigest": "b8305dff13defc656f24822f21e1559c6374caa39f1d066bead227ec67fbaae6"
           },
           "typeExpression": "Policy result"
@@ -1394,7 +1394,7 @@
           "capabilityRef": "people.preference.commit@1",
           "source": {
             "section": "8.6.14",
-            "line": 8762,
+            "line": 8774,
             "lineDigest": "4ae0cbd3463df67c1ae83084d30ae44a5dd54aa9fedd41c732561a07ffe2343b"
           },
           "typeExpression": "Preference intent"
@@ -1416,7 +1416,7 @@
           "capabilityRef": "procurement.triage.identity_claim.resolve@1",
           "source": {
             "section": "8.6.4",
-            "line": 8355,
+            "line": 8367,
             "lineDigest": "f7916c1f4be923f878a1fcf29bac6943b02dbdc96645db53cc4a888facf7f908"
           },
           "typeExpression": "ProcurementTriageRuleSnapshot"
@@ -1425,7 +1425,7 @@
           "capabilityRef": "procurement.triage.playability.inspect@1",
           "source": {
             "section": "8.6.4",
-            "line": 8353,
+            "line": 8365,
             "lineDigest": "e7e6f8bfaba269d86b0603fa79bec84da7f4b3e0d18eac5eda1fcc82a4d450f3"
           },
           "typeExpression": "ProcurementTriageRuleSnapshot"
@@ -1434,7 +1434,7 @@
           "capabilityRef": "procurement.triage.primary_manifest.build@1",
           "source": {
             "section": "8.6.4",
-            "line": 8356,
+            "line": 8368,
             "lineDigest": "7769660722413a2c3675524db721b764897ff74878bd5b8e718725ab1783bf0f"
           },
           "typeExpression": "ProcurementTriageRuleSnapshot"
@@ -1443,7 +1443,7 @@
           "capabilityRef": "procurement.triage.structure.inspect@1",
           "source": {
             "section": "8.6.4",
-            "line": 8354,
+            "line": 8366,
             "lineDigest": "9b3c4c820a8a270d507c43ccd062542a9c9b03ccdaebf6c12773160954b71ace"
           },
           "typeExpression": "ProcurementTriageRuleSnapshot"
@@ -1465,7 +1465,7 @@
           "capabilityRef": "libra.product.conformance.verify@1",
           "source": {
             "section": "8.6.7",
-            "line": 8593,
+            "line": 8605,
             "lineDigest": "1d672bc56d8ca9562a03e2ab9c3826f08e3ad9916940ea95532538aa098a2739"
           },
           "typeExpression": "Product Facts"
@@ -1487,7 +1487,7 @@
           "capabilityRef": "arca.acceptance.space.verify@1",
           "source": {
             "section": "8.6.9",
-            "line": 8637,
+            "line": 8649,
             "lineDigest": "40d5e97c13f59851e29f7b5f7580bd58be75cc031049119cbd947b4223beec8e"
           },
           "typeExpression": "Product Manifest"
@@ -1496,7 +1496,7 @@
           "capabilityRef": "arca.acceptance.structure.verify@1",
           "source": {
             "section": "8.6.9",
-            "line": 8634,
+            "line": 8646,
             "lineDigest": "073eb9aab7d8793b6da8af1cfb9431bf3a12e2d1221ae2b49762e7da5bd85e91"
           },
           "typeExpression": "Product Manifest"
@@ -1505,7 +1505,7 @@
           "capabilityRef": "arca.inventory.final_primary.verify@1",
           "source": {
             "section": "8.6.10",
-            "line": 8653,
+            "line": 8665,
             "lineDigest": "046b1dcb2a47030e11538b422f3ffd0e7bb087f73ca47e5d4288bfef31d69363"
           },
           "typeExpression": "Product Manifest"
@@ -1527,7 +1527,7 @@
           "capabilityRef": "arca.acceptance.metadata.verify@1",
           "source": {
             "section": "8.6.9",
-            "line": 8635,
+            "line": 8647,
             "lineDigest": "44843729ee69816916da2361d5b6583c8d4fadcd4c5e3d3c3a9a0fd8ed6d8e9f"
           },
           "typeExpression": "Product Metadata/Artifact"
@@ -1549,7 +1549,7 @@
           "capabilityRef": "libra.external_material.output.resolve@1",
           "source": {
             "section": "8.6.8",
-            "line": 8620,
+            "line": 8632,
             "lineDigest": "b568207325c6a7693b7356777dcd72cffce8db202fc8887e864b4cbbcd2c370f"
           },
           "typeExpression": "ProductStructure"
@@ -1558,7 +1558,7 @@
           "capabilityRef": "libra.external_material.query.prepare@1",
           "source": {
             "section": "8.6.8",
-            "line": 8615,
+            "line": 8627,
             "lineDigest": "cc34464295093a27cf0134e1887e5d488ebb6d1488ab2d90fb686892e4fce131"
           },
           "typeExpression": "ProductStructure"
@@ -1567,7 +1567,7 @@
           "capabilityRef": "libra.product_identity.resolve@1",
           "source": {
             "section": "8.6.5",
-            "line": 8552,
+            "line": 8564,
             "lineDigest": "6dce1265b0101081f5902721342d86b96e19ad4165b69dd8ef7b9cf241da261f"
           },
           "typeExpression": "ProductStructure"
@@ -1589,7 +1589,7 @@
           "capabilityRef": "arca.aftercare.assessment.commit@1",
           "source": {
             "section": "8.6.11",
-            "line": 8669,
+            "line": 8681,
             "lineDigest": "c42e638ea7f6d032304bb5ee32fbc102e3f1cc3f8fd42d63de59534b6c6fbc22"
           },
           "typeExpression": "Professional assessments sharing one Care Basis"
@@ -1611,7 +1611,7 @@
           "capabilityRef": "people.registration_evidence.observe@1",
           "source": {
             "section": "8.6.14",
-            "line": 8756,
+            "line": 8768,
             "lineDigest": "c676c7178e8b473e53bde4b2ef443161e1a6b892a01f53427e2cf24afd5ea0cc"
           },
           "typeExpression": null
@@ -1633,7 +1633,7 @@
           "capabilityRef": "arca.aftercare.case.commit@1",
           "source": {
             "section": "8.6.11",
-            "line": 8678,
+            "line": 8690,
             "lineDigest": "1e7370361ed619740cc94e80a3b7d79f2a2a177126498eba7cc46d238de884bb"
           },
           "typeExpression": "Reassessed result"
@@ -1655,7 +1655,7 @@
           "capabilityRef": "arca.aftercare.workspace.reclaim@1",
           "source": {
             "section": "8.6.11",
-            "line": 8679,
+            "line": 8691,
             "lineDigest": "3c4893964425cbf3fc4fc42b5fd975ddc72b436dcfc619ce9c2818a264e73c42"
           },
           "typeExpression": "ReferenceEvidence"
@@ -1664,7 +1664,7 @@
           "capabilityRef": "libra.workspace.material.reclaim@1",
           "source": {
             "section": "8.6.7",
-            "line": 8595,
+            "line": 8607,
             "lineDigest": "cef92055ad512942b724f26178eb324deb2e6a954a151301ed1f8652e3a651cd"
           },
           "typeExpression": "ReferenceEvidence"
@@ -1673,7 +1673,7 @@
           "capabilityRef": "people.workspace.reclaim@1",
           "source": {
             "section": "8.6.14",
-            "line": 8763,
+            "line": 8775,
             "lineDigest": "beced2784c1e277b20c4d5547149519e4cba307751d901ee3df5f29d59061d8c"
           },
           "typeExpression": "ReferenceEvidence"
@@ -1695,7 +1695,7 @@
           "capabilityRef": "arca.offdeck.related_reference.release@1",
           "source": {
             "section": "8.6.12",
-            "line": 8706,
+            "line": 8718,
             "lineDigest": "40a6ec979c4677dec5e91765de272e25ad86d1543d417eaefa1c9c13365d6bc6"
           },
           "typeExpression": "Related reference"
@@ -1717,7 +1717,7 @@
           "capabilityRef": "arca.shelf_deregistration.release_manifest.verify@1",
           "source": {
             "section": "8.6.12",
-            "line": 8710,
+            "line": 8722,
             "lineDigest": "28fc5bb6077c6e4f46d115156a5891718f27888dbb1f6438b6d6e3e6369bd2f2"
           },
           "typeExpression": "Release Manifest"
@@ -1739,7 +1739,7 @@
           "capabilityRef": "libra.media.remux@1",
           "source": {
             "section": "8.6.7",
-            "line": 8589,
+            "line": 8601,
             "lineDigest": "a8a78da685d0a729a7d56d4f58a82391317e0fab5e90a164d84f493c93d68af2"
           },
           "typeExpression": "RemuxIntent"
@@ -1761,7 +1761,7 @@
           "capabilityRef": "libra.media.frames.extract@1",
           "source": {
             "section": "8.6.6",
-            "line": 8564,
+            "line": 8576,
             "lineDigest": "ef60c01a679d1da9ffa5ef53961cac2705102f561a826dc413d55bdfe32cece2"
           },
           "typeExpression": "SamplingPlan"
@@ -1783,7 +1783,7 @@
           "capabilityRef": "arca.offdeck.deletion.verify@1",
           "source": {
             "section": "8.6.12",
-            "line": 8708,
+            "line": 8720,
             "lineDigest": "de79a37a739e145a8e12e793ebf68b5fe6c08bb496a7bf67d011f3cf727f0ac0"
           },
           "typeExpression": "Scope"
@@ -1805,7 +1805,7 @@
           "capabilityRef": "procurement.material.control.acquire@1",
           "source": {
             "section": "8.6.4",
-            "line": 8352,
+            "line": 8364,
             "lineDigest": "95a7948fa00711b73ff02bbb1106415b813ef40471c335e0cbd8f3b7844cda19"
           },
           "typeExpression": "SelectedFieldMaterialSet"
@@ -1814,7 +1814,7 @@
           "capabilityRef": "procurement.triage.primary_manifest.build@1",
           "source": {
             "section": "8.6.4",
-            "line": 8356,
+            "line": 8368,
             "lineDigest": "7769660722413a2c3675524db721b764897ff74878bd5b8e718725ab1783bf0f"
           },
           "typeExpression": "TriageManifestBuildInput"
@@ -1823,7 +1823,7 @@
           "capabilityRef": "procurement.triage.structure.inspect@1",
           "source": {
             "section": "8.6.4",
-            "line": 8354,
+            "line": 8366,
             "lineDigest": "9b3c4c820a8a270d507c43ccd062542a9c9b03ccdaebf6c12773160954b71ace"
           },
           "typeExpression": "TriageStructureInspectionInput"
@@ -1845,7 +1845,7 @@
           "capabilityRef": "libra.external_material.candidate.select@1",
           "source": {
             "section": "8.6.8",
-            "line": 8617,
+            "line": 8629,
             "lineDigest": "1b4eeedfe203459b1b943a25b9eb1c7b287c47c5461795de00299cdafd1f104c"
           },
           "typeExpression": "SelectionCriteria"
@@ -1867,7 +1867,7 @@
           "capabilityRef": "arca.acceptance.identity.verify@1",
           "source": {
             "section": "8.6.9",
-            "line": 8633,
+            "line": 8645,
             "lineDigest": "e1692014887797cd5aa80890c62a849dc352f89fc6d123a576e7bb7b28db378b"
           },
           "typeExpression": "Shelf Standard"
@@ -1876,7 +1876,7 @@
           "capabilityRef": "arca.ondeck.fulfillment.verify@1",
           "source": {
             "section": "8.6.10",
-            "line": 8655,
+            "line": 8667,
             "lineDigest": "0fd32ca70f4341b73c50e6e249f0566cf972b467e0fa93e85f5be2948ad73cd4"
           },
           "typeExpression": "Shelf Standard"
@@ -1898,7 +1898,7 @@
           "capabilityRef": "libra.product_sidecar.render@1",
           "source": {
             "section": "8.6.6",
-            "line": 8571,
+            "line": 8583,
             "lineDigest": "15a7d89c84badd6020622e0397e8d63040e7a16843bb2c209ba2ffc7b1225ad8"
           },
           "typeExpression": "SidecarProfile"
@@ -1920,7 +1920,7 @@
           "capabilityRef": "arca.acceptance.space.verify@1",
           "source": {
             "section": "8.6.9",
-            "line": 8637,
+            "line": 8649,
             "lineDigest": "40d5e97c13f59851e29f7b5f7580bd58be75cc031049119cbd947b4223beec8e"
           },
           "typeExpression": "Space Requirement"
@@ -1942,7 +1942,7 @@
           "capabilityRef": "arca.aftercare.binary_artifact.acquire@1",
           "source": {
             "section": "8.6.11",
-            "line": 8671,
+            "line": 8683,
             "lineDigest": "3849e59ec0117c8f4704e1fd561bc8c603978e137d7a393600b19477145d4478"
           },
           "typeExpression": "Stable Provider Identity"
@@ -1964,7 +1964,7 @@
           "capabilityRef": "arca.aftercare.conformance.observe@1",
           "source": {
             "section": "8.6.11",
-            "line": 8668,
+            "line": 8680,
             "lineDigest": "418d9652136aa90165fb8648faba7327012d40b25049086a9dee701cfa4f6c5e"
           },
           "typeExpression": "Standard"
@@ -1973,7 +1973,7 @@
           "capabilityRef": "arca.aftercare.presentation.observe@1",
           "source": {
             "section": "8.6.11",
-            "line": 8667,
+            "line": 8679,
             "lineDigest": "ef14d58689a9a1e3ad3b5658b3d3e59a100382e903323cc54cacd9374861f6cd"
           },
           "typeExpression": "Standard"
@@ -1995,7 +1995,7 @@
           "capabilityRef": "arca.acceptance.structure.verify@1",
           "source": {
             "section": "8.6.9",
-            "line": 8634,
+            "line": 8646,
             "lineDigest": "073eb9aab7d8793b6da8af1cfb9431bf3a12e2d1221ae2b49762e7da5bd85e91"
           },
           "typeExpression": "Structure Requirement"
@@ -2017,7 +2017,7 @@
           "capabilityRef": "arca.acceptance.rejection.commit@1",
           "source": {
             "section": "8.6.9",
-            "line": 8639,
+            "line": 8651,
             "lineDigest": "3cb1b32e9f6b048446e75a97524c24cc764a8bceeb00dcefcd2dacc9febb20d7"
           },
           "typeExpression": "ArcaAcceptanceRejectionDecision"
@@ -2039,7 +2039,7 @@
           "capabilityRef": "libra.intake.accept.commit@1",
           "source": {
             "section": "8.6.5",
-            "line": 8550,
+            "line": 8562,
             "lineDigest": "aae653e3ee9c648a7995c9cbb2d40b3d3024333b6c64aab079dd1d1ca4cd877a"
           },
           "typeExpression": "AcceptedIntakePayload"
@@ -2048,7 +2048,7 @@
           "capabilityRef": "libra.intake.binding.resolve@1",
           "source": {
             "section": "8.6.5",
-            "line": 8548,
+            "line": 8560,
             "lineDigest": "33d349a4987b4e7f9ccc1be43180c9e3bc7a6c5d1e335d03e68a3d02c5c4825c"
           },
           "typeExpression": "SubjectContinuityResolutionDecision"
@@ -2070,7 +2070,7 @@
           "capabilityRef": "arca.inventory.placement.switch@1",
           "source": {
             "section": "8.6.10",
-            "line": 8652,
+            "line": 8664,
             "lineDigest": "2995f4709dc5a11cbe6cda9a44f16727c2e5249e314b81983e270b512def1d4c"
           },
           "typeExpression": "target bindings"
@@ -2092,7 +2092,7 @@
           "capabilityRef": "arca.acceptance.inventory_feasibility.observe@1",
           "source": {
             "section": "8.6.9",
-            "line": 8638,
+            "line": 8650,
             "lineDigest": "59e9bc8d69579a1ac34f04d67a15ad18c4545b324606a4e3356382e5d4a12d43"
           },
           "typeExpression": "target Endpoint"
@@ -2114,7 +2114,7 @@
           "capabilityRef": "procurement.triage.identity_claim.resolve@1",
           "source": {
             "section": "8.6.4",
-            "line": 8355,
+            "line": 8367,
             "lineDigest": "f7916c1f4be923f878a1fcf29bac6943b02dbdc96645db53cc4a888facf7f908"
           },
           "typeExpression": "TriageIdentityResolutionInput"
@@ -2136,7 +2136,7 @@
           "capabilityRef": "procurement.triage.primary_manifest.build@1",
           "source": {
             "section": "8.6.4",
-            "line": 8356,
+            "line": 8368,
             "lineDigest": "7769660722413a2c3675524db721b764897ff74878bd5b8e718725ab1783bf0f"
           },
           "typeExpression": "TriageManifestBuildInput"
@@ -2158,7 +2158,7 @@
           "capabilityRef": "procurement.triage.playability.inspect@1",
           "source": {
             "section": "8.6.4",
-            "line": 8353,
+            "line": 8365,
             "lineDigest": "e7e6f8bfaba269d86b0603fa79bec84da7f4b3e0d18eac5eda1fcc82a4d450f3"
           },
           "typeExpression": "TriageMaterialProbeBatch"
@@ -2167,7 +2167,7 @@
           "capabilityRef": "procurement.triage.structure.inspect@1",
           "source": {
             "section": "8.6.4",
-            "line": 8354,
+            "line": 8366,
             "lineDigest": "9b3c4c820a8a270d507c43ccd062542a9c9b03ccdaebf6c12773160954b71ace"
           },
           "typeExpression": "TriageStructureInspectionInput"
@@ -2189,7 +2189,7 @@
           "capabilityRef": "procurement.triage.structure.inspect@1",
           "source": {
             "section": "8.6.4",
-            "line": 8354,
+            "line": 8366,
             "lineDigest": "9b3c4c820a8a270d507c43ccd062542a9c9b03ccdaebf6c12773160954b71ace"
           },
           "typeExpression": "TriageStructureInspectionInput"
@@ -2211,7 +2211,7 @@
           "capabilityRef": "shared.manifest.verify@1",
           "source": {
             "section": "8.6.3",
-            "line": 8330,
+            "line": 8342,
             "lineDigest": "97c21353c211becce2a99b5af0bfe18cd75d0426615554a67e3c477f675cfef7"
           },
           "typeExpression": "TypedManifest"
@@ -2233,7 +2233,7 @@
           "capabilityRef": "libra.product_metadata.commit@1",
           "source": {
             "section": "8.6.6",
-            "line": 8573,
+            "line": 8585,
             "lineDigest": "06245ff89a480cbdc9050739085acd3978824274b8d94fbbaf722adb71e3a502"
           },
           "typeExpression": "VerifiedArtifactManifest"
@@ -2255,7 +2255,7 @@
           "capabilityRef": "arca.aftercare.inventory.commit@1",
           "source": {
             "section": "8.6.11",
-            "line": 8677,
+            "line": 8689,
             "lineDigest": "ecfd4f6f21ec0471b7ba14511cd98fe93adebc50cfbaafa269451e60c5b7b05c"
           },
           "typeExpression": "Verified care inventory change"
@@ -2277,7 +2277,7 @@
           "capabilityRef": "libra.product_package.publish@1",
           "source": {
             "section": "8.6.7",
-            "line": 8594,
+            "line": 8606,
             "lineDigest": "7097afe7d6e29d4c0a9e91f2c5376d6c95f29e870460fa3ddf3f1ea27028b16a"
           },
           "typeExpression": "Verified product"
@@ -2299,7 +2299,7 @@
           "capabilityRef": "libra.western.metadata.normalize@1",
           "source": {
             "section": "8.6.6",
-            "line": 8568,
+            "line": 8580,
             "lineDigest": "87f1db07bb0699a6d907659194b9cc298b82105b0034e5240f56c8fff879c872"
           },
           "typeExpression": "WesternAnalysisVariant"
@@ -2321,7 +2321,7 @@
           "capabilityRef": "libra.external_material.acquire.request@1",
           "source": {
             "section": "8.6.8",
-            "line": 8618,
+            "line": 8630,
             "lineDigest": "1fbaaf3302a2dd833ae99c0c9895bfdeb0fe051fffe5ad0a766e2a78828608cf"
           },
           "typeExpression": "WorkspaceDeliveryContract"
