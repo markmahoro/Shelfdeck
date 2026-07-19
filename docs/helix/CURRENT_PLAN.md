@@ -9,7 +9,7 @@ Last updated: 2026-07-19
 本文是唯一Helix Master Plan，只维护：
 
 - clean-cut总决策；
-- P0–P14 Phase顺序、依赖和Exit Gate；
+- P0–P13 Phase顺序、依赖和Exit Gate；
 - 当前Phase指针；
 - 授权边界和下一动作。
 
@@ -107,10 +107,10 @@ Handoff、Capability、Result family、表或Canonical Transaction计数。
 | P10 Handoff B and On-deck | Shelf/Standard/Placement、Acceptance、Custody、Off-load、Inventory、Shelf Entry、Deck | P5、P9 | Handoff B不建Own；只有On-deck Commit建立/扩展Deck |
 | P11 Arca post-deck | Aftercare、Off-deck、Shelf Deregistration | P10 | 三种旅程/授权独立；Deregistration零Delete |
 | P12 Product surface | Projection/Activity、Facade、113 Admin route、Session/Auth、九页Admin Web | P6–P11 | 113/113+health；GET无副作用；九旅程和a11y通过 |
-| P13 Operational cutover | clean init/backup/restore/Safety、readiness；Root/API/UI一次切换；旧路径退役 | P2–P12 | mixed generation拒写；无dual path；本地完整验证通过 |
-| P14 Authorized verification/release | Real-source E2E、Windows/Linux/NAS、Docker、Canary、生产 | P13；每类独立授权 | Level 10 Release Gate；任一阶段失败停止后续 |
+| P13 Operational cutover and E2E-ready package | clean init/backup/restore/Safety、readiness；Root/API/UI一次切换；旧路径退役；冻结独立E2E任务可直接消费的版本化交付包 | P2–P12 | mixed generation拒写；无dual path；全部local gate通过；package manifest、commit、digest、运行说明和已知限制完整 |
 
-P1–P13是逻辑实施Phase，不是版本名或自动部署节点。P14当前不在授权范围内。
+P1–P13是本线程的完整逻辑实施Phase，不是版本名或自动部署节点。P13 Exit Audit PASS且E2E-ready package冻结后，
+本线程的Helix开发任务即完成。
 
 ## 5. Hard dependency invariants
 
@@ -124,8 +124,7 @@ P1 package/guards
   → P8/P9 Handoff A and Libra
   → P10/P11 Handoff B, Arca and post-deck
   → P12 Projection/API/Admin Web
-  → P13 operational cutover
-  → P14 separately authorized external verification/release
+  → P13 operational cutover and E2E-ready package
 ~~~
 
 禁止以以下方式缩短依赖链：
@@ -161,7 +160,20 @@ Exit Audit全部PASS后可以自动归档并进入下一Phase，不需要逐Phas
 Standing authorization不授权下一层。E2E、Docker/Canary、NAS、生产和真实媒体副作用保持暂停，
 `media-desktop`保持排除。
 
-## 8. Business decision handling
+## 8. Post-program independent tasks
+
+P13之后的外部验证与发布工作不属于本Helix实施Program，也不作为本线程完成条件：
+
+1. **Independent E2E qualification task**：从P13冻结的E2E-ready package开始，按单独授权执行真实来源、真实媒体副作用、
+   Windows/Linux/Docker及必要的Canary验证；发现实现缺陷时形成可复现Problem Report并返回对应开发范围修复，发现SSOT冲突时
+   返回Architecture Agent；不得在验收任务加入兼容层或旧Runtime fallback。
+2. **Independent deployment task**：只消费已经通过独立E2E验收的精确Artifact，按单独生产授权完成镜像身份、SHA256、dry run、
+   NAS部署、health/readiness与发布观察；不得把部署修补反向变成业务架构或运行时兼容路径。
+
+两项任务必须使用P13冻结的commit、package manifest和digest建立可追溯交接。E2E验收任务与部署任务彼此独立；部署任务不得在
+缺少对应E2E PASS Evidence时开始。
+
+## 9. Business decision handling
 
 只有改变用户真实意图、可见业务结果、不可逆Authorization、Business Domain/Owner/Handoff或Object continuity的
 问题才提交用户。包结构、代码组织、测试工具、manifest格式、SQL实现和性能优化由工程内部在SSOT边界内决定。

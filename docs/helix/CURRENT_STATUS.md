@@ -20,6 +20,10 @@ Last updated: 2026-07-19
 | Phase worktree | `E:\my_project\emby_third_party-helix-p8` on `codex/helix-p8` |
 | Next action | 用户决定是否启动P9自动化周期 |
 
+本Program终点已由用户确认为P13：P13完成operational clean-cut并冻结最终E2E-ready package后，本线程即完成，不再设置后续实施Phase。
+真实来源完整E2E与部署将分别由后续独立任务承担；部署任务只消费通过独立E2E验收的精确Artifact。该调整只涉及工程计划和交接
+责任，不修改架构SSOT，也不扩大当前Local Implementation授权。
+
 P8已完成并归档：Handoff A Accepted/Rejected、FA-04 Subject continuity、Subject/Binding/Control/Receipt原子连续性、
 Receipt publication、Decision Basis、Routing Decision与Acceptance Spec H0→H4 head CAS均由Owner rows完整历史恢复。
 最终合同固定为112 Capability、97 Result family、169表、38 canonical transaction；七项Libra front-half Capability、

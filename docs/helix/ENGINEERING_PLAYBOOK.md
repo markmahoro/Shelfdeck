@@ -32,7 +32,7 @@ Policy、Capability、Schema、API或产品旅程；这些内容只由`TOP_DOWN_
 
 | Layer | Purpose | Completion evidence |
 | --- | --- | --- |
-| Program | P0–P14 clean-cut替换工程 | Level 10 Release Gate |
+| Program | P0–P13 clean-cut替换工程 | P13 Exit Audit与E2E-ready package handoff gate |
 | Phase | 一组具有固定依赖和Exit Gate的能力 | Phase Exit Audit |
 | Work Package | 一个可独立解释和审查的合同边界 | Definition of Done |
 | Evidence | 证明实现符合合同的可复验结果 | test/static output、manifest digest、review record、commit |
@@ -366,3 +366,11 @@ Phase转换只能按以下顺序发生：
 7. 新Phase开始前重新检查授权范围。
 
 Phase转换不自动授权真实来源E2E、Docker、Canary、生产或破坏性副作用。
+
+P13是本Program最后一个Phase。P13必须冻结一个可被独立验收任务直接消费的E2E-ready package，至少包含exact git commit、
+package/artifact manifest、全部local gate Evidence与digest、clean initialization和运行说明、测试数据/凭证边界、已知限制及明确
+禁止动作。该交付包冻结并通过P13 Exit Audit后，本实施线程完成，不再创建后续实施Phase。
+
+真实来源E2E与部署分别由两个后续独立任务承担。E2E任务只消费冻结包并产出Qualification Evidence；部署任务只消费通过E2E的
+精确Artifact并产出Deployment Evidence。任何E2E失败都必须按缺陷归属返回实现或Architecture Agent，禁止在E2E/部署任务中
+加入compatibility、dual-read/write/run或旧Runtime fallback。部署任务不得绕过E2E PASS Evidence。
