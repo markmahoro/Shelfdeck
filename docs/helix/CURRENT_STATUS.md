@@ -60,6 +60,11 @@ canonical transaction；Subject Field/profile provenance和Arca只读Projection 
 Capability、97个Catalog Result family和169张表，Canonical Transaction由35项增至38项；没有新增Domain、Owner、
 Store、Handoff、Capability、跨Store补读或P8提前创建Run/Workspace。
 
+Architecture Agent提交`72df5a9d`的`PBF-12-R1`已通过实现侧只读复审并原样纳入：每份Decision Basis把完整pre-CAS
+`SubjectDecisionHeadSnapshot@1`作为唯一typed relation保存，Basis row/result冻结expected revision与snapshot digest；
+首次revision 0、后续Head CAS、semantic replay和重启恢复均可只由Libra Owner rows唯一重建。112 Capability、97 Result
+family、169表和38项Canonical Transaction保持不变，未新增Owner、Store、Handoff或跨域补读。
+
 P8-06已完成：accepted Decision、Subject create/extension、continuity/Episode关系、N:M Material Binding、全部Primary
 Control transfer、SubjectAndTransferReceipt、Result/Marker及Accepted Outbox在canonical 15表事务中全有或全无。
 Handle Owner固定为接收/提交Owner Libra，来源Procurement scope仅由Payload冻结；Control set digest由expected/committed

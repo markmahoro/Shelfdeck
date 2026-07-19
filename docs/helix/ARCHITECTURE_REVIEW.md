@@ -1,6 +1,6 @@
 # Helix Architecture Review Workbench
 
-Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-19；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-12`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`）bounded correction均已完成。
+Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-19；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-12`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`）bounded correction均已完成。
 
 ## 1. Purpose and authority
 
@@ -2094,3 +2094,30 @@ read/write set、cross-domain freshness、Series Product Scope、Spec semantic e
 一次性Routing Intent与长期Rule vocabulary分离、Rating/No-rating分支的确定选择、计数和Run/Workspace负边界。
 没有新的用户业务分叉。审计结果为
 `PASS / PBF-12 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.24 `PBF-12-R1` — Decision Basis pre-CAS Head snapshot continuity
+
+Status: `CLOSED / BOUNDED DETAIL FIX APPLIED` — 2026-07-19
+
+P8-08在实现Decision Basis Commit并反证Routing Decision重启恢复时指出：`DecisionInputSet@1`把完整
+`expectedDecisionHead`纳入`inputSetDigest`，但既有Basis row只保存expected revision，input relation的closed kind
+又没有Head Snapshot；current Head在Basis、Routing Decision和Spec提交时持续原地CAS，因此历史前置pointer/digest
+会消失。实现若读取current row、Foundation Result或caller缓存补值，均无法重建原Input Set并违反Owner合同。
+
+主审从formal DTO、Basis relation、Head状态机和三项canonical transaction反向核对，确认缺口成立且不涉及业务分叉。
+采用最小关系化闭合：
+
+- 新增formal `SubjectDecisionHeadSnapshot@1`，明确`absent/revision 0`与`present/positive revision`两个variant、
+  三个pointer、head digest及snapshot digest唯一公式；
+- `DecisionInputSet.expectedDecisionHead`直接使用该Snapshot；每份Basis必须在既有
+  `libra_decision_basis_inputs`以唯一`decision_head_snapshot` row保存，固定ordinal、typed JSON和digest映射；
+- `libra_decision_basis_revisions`增加`expected_head_snapshot_digest`，与relation row及
+  `DecisionBasisRevision@1`逐字节绑定；basis digest同时覆盖expected revision/snapshot digest；
+- 新Basis提交验证pre-CAS Snapshot后推进Head；semantic replay从immutable Basis/relation rows重建历史Input Set，
+  不要求current Head回退。Routing Decision与Spec提交先重建Basis，再验证current Head恰为该Basis产生的确定post-state；
+- restart/crash fixture增加首次无Head、后续多次Head CAS和历史Basis重放反例。
+
+全文反向审计确认：没有新增Domain、Owner、Store、Handoff、Capability、Result family、Canonical Transaction或关系表；
+计数保持`112 Capability / 97 Catalog Result family / 38 Canonical Transaction / 169 tables`。实现线程自行修正
+`expected_head_revision>=0`的DDL传播与本合同一致，不需要第二份SSOT规则。审计结果为
+`PASS / PBF-12-R1 CLOSED / NO OPEN BUSINESS DECISION`。

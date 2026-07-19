@@ -74,6 +74,10 @@ Subject Field/profile provenance、Product Scope、Arca只读Projection freshnes
 Domain、Owner、Store、Handoff、Capability或关系表；保持112项Capability、97个Catalog Result family和169张表，
 Canonical Transaction由35项增至38项。
 
+`PBF-12-R1`把pre-CAS `SubjectDecisionHeadSnapshot@1`补入既有Decision Basis input relation，并在Basis row/result
+冻结expected revision与snapshot digest；历史Input Set可只由Libra Owner rows重建。它不改变Domain、Owner、Store、
+Handoff、Capability、Result family、表或Canonical Transaction计数。
+
 ## 3. Current phase
 
 | Field | Current value |
