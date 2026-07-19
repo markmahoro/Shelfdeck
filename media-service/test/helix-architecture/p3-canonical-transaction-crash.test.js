@@ -67,7 +67,7 @@ function forbiddenTables(contract) {
 
 function orderedDomainTables(contract, owner) {
   const tables = contract.writeTables.filter((tableId) => tableManifest.get(tableId).owner === owner);
-  if (contract.transactionId === 'helix.transaction.domain-fact-commit') tables.push('libra_subjects');
+  if (contract.transactionId === 'helix.transaction.domain-fact-commit') tables.push('libra_routing_policy_revisions');
   const remaining = new Set(tables);
   const ordered = [];
   while (remaining.size > 0) {
@@ -411,7 +411,7 @@ function fixture(contract, run, options = {}) {
     const unitOfWork = createSqliteUnitOfWork({ kernel });
     const participants = participantsFor(contract, unitOfWork, options);
     const observedTables = [...new Set([...contract.writeTables,
-      ...(contract.transactionId === 'helix.transaction.domain-fact-commit' ? ['libra_subjects'] : []), ...forbiddenTables(contract)])];
+      ...(contract.transactionId === 'helix.transaction.domain-fact-commit' ? ['libra_routing_policy_revisions'] : []), ...forbiddenTables(contract)])];
     const before = snapshot(databasePath, observedTables);
     const result = run({ before, databasePath, kernel, observedTables, participants, unitOfWork });
     return result;
@@ -423,13 +423,13 @@ function fixture(contract, run, options = {}) {
 
 const transactionContracts = contracts();
 
-test('canonical transaction inventory drives exactly 35 isolated contracts', () => {
+test('canonical transaction inventory drives exactly 38 isolated contracts', () => {
   const inventory = loadJson(path.join(serviceRoot, 'src/helix/contracts/manifests/transaction-inventory.json'));
   const inventoryEntries = inventory.entryFiles.flatMap((file) =>
     loadJson(path.join(serviceRoot, 'src/helix/contracts/manifests', file)).entries
   );
-  assert.equal(transactionContracts.length, 35);
-  assert.equal(inventory.targetCount, 35);
+  assert.equal(transactionContracts.length, 38);
+  assert.equal(inventory.targetCount, 38);
   assert.deepEqual(transactionContracts.map((contract) => contract.transactionId),
     [...inventoryEntries].sort((left, right) => left.id.localeCompare(right.id)).map((entry) => entry.id));
   for (const contract of transactionContracts) {
@@ -472,7 +472,7 @@ for (const contract of transactionContracts) {
       const committed = snapshot(databasePath, observedTables);
       for (const tableId of contract.writeTables) assert.notDeepEqual(committed[tableId], before[tableId], tableId);
       if (contract.transactionId === 'helix.transaction.domain-fact-commit') {
-        assert.notDeepEqual(committed.libra_subjects, before.libra_subjects);
+        assert.notDeepEqual(committed.libra_routing_policy_revisions, before.libra_routing_policy_revisions);
       }
       for (const tableId of forbiddenTables(contract)) assert.deepEqual(committed[tableId], before[tableId], tableId);
       kernel.close();

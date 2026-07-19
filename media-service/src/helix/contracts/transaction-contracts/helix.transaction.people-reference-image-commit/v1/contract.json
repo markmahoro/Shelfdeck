@@ -47,6 +47,7 @@
       "people_reference_revisions",
       "people_merge_records"
     ],
+    "variants": [],
     "dynamicTableRequirements": [],
     "forbiddenWriteTables": [],
     "forbiddenWritePrefixes": [],
@@ -71,7 +72,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7712,
+      "line": 7728,
       "lineDigest": "9189e51ed83f21bc8aa73672970d80c045e3e148fab9e0dd6866b1d54b632f4e"
     }
   }

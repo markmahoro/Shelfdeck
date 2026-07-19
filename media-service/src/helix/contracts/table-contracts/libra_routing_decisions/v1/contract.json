@@ -36,8 +36,8 @@
       },
       {
         "ordinal": 4,
-        "name": "shelf_id",
-        "logicalType": "TEXT",
+        "name": "decision_revision",
+        "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -45,16 +45,76 @@
       },
       {
         "ordinal": 5,
-        "name": "shelf_priority_snapshot",
+        "name": "decision",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "resolved",
+          "unresolved"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
         "nullable": false
       },
       {
         "ordinal": 6,
-        "name": "decision",
+        "name": "shelf_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 7,
+        "name": "unresolved_reason_code",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 8,
+        "name": "routing_authority_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "policy",
+          "manual_selection"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "routing_policy_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 10,
+        "name": "routing_policy_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 11,
+        "name": "manual_selection_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 12,
+        "name": "routing_input_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -62,7 +122,16 @@
         "nullable": false
       },
       {
-        "ordinal": 7,
+        "ordinal": 13,
+        "name": "shelf_priority_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 14,
         "name": "decision_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -71,7 +140,7 @@
         "nullable": false
       },
       {
-        "ordinal": 8,
+        "ordinal": 15,
         "name": "decided_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -87,7 +156,12 @@
       "subject_id",
       "assessment_id"
     ],
-    "uniqueConstraints": [],
+    "uniqueConstraints": [
+      [
+        "subject_id",
+        "decision_revision"
+      ]
+    ],
     "hotIndexes": [
       [
         "shelf_id",
@@ -95,9 +169,27 @@
       ]
     ],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "decision",
+        "enumValues": [
+          "resolved",
+          "unresolved"
+        ]
+      },
+      {
+        "column": "routing_authority_kind",
+        "enumValues": [
+          "policy",
+          "manual_selection"
+        ]
+      }
+    ],
     "revisionContract": {
-      "revisionColumns": [],
+      "revisionColumns": [
+        "decision_revision",
+        "routing_policy_revision"
+      ],
       "currentPointerColumns": [],
       "pointerTargets": [],
       "pointerRules": []
@@ -114,18 +206,21 @@
       "rules": []
     },
     "semanticRules": [
-      "immutable",
+      "authority列variant互斥",
+      "resolved要求shelf非NULL/reason NULL，unresolved相反",
       "同一assessment只有一个Decision",
+      "`UNIQUE(subject_id,decision_revision)`",
+      "immutable",
       "`INDEX(shelf_id,decided_at_ms)`"
     ],
     "rawContract": {
-      "columns": "`routing_decision_id PK, subject_id FK, assessment_id FK, shelf_id, shelf_priority_snapshot, decision, decision_digest, decided_at_ms`",
-      "constraints": "immutable；同一assessment只有一个Decision；`INDEX(shelf_id,decided_at_ms)`"
+      "columns": "`routing_decision_id PK, subject_id FK, assessment_id FK, decision_revision, decision(resolved|unresolved), shelf_id NULL, unresolved_reason_code NULL, routing_authority_kind(policy|manual_selection), routing_policy_id NULL, routing_policy_revision NULL, manual_selection_digest NULL, routing_input_digest, shelf_priority_set_digest, decision_digest, decided_at_ms`",
+      "constraints": "authority列variant互斥；resolved要求shelf非NULL/reason NULL，unresolved相反；同一assessment只有一个Decision；`UNIQUE(subject_id,decision_revision)`；immutable；`INDEX(shelf_id,decided_at_ms)`"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8077,
-      "lineDigest": "f02ff6cd336a6811852cefafa8a168373bf16529d23232209e15e8e88587ca0f"
+      "line": 8148,
+      "lineDigest": "4d81260004fcd8848c270f5bd695c3467f193875693611044b90f24ef8cdce94"
     },
     "foreignKeys": [
       {

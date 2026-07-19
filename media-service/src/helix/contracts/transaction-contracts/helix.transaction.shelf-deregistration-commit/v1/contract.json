@@ -7,7 +7,7 @@
     "displayName": "Shelf Deregistration Commit",
     "ownerScope": "arca",
     "commitClass": "responsibility_control_commit",
-    "atomicFactSet": "Shelf/Shelf Entry administrative terminal facts + precise Control release + release receipt",
+    "atomicFactSet": "Shelf/Shelf Entry administrative terminal facts + Shelf routing projection revision/digest CAS + precise Control release + release receipt",
     "participants": [
       {
         "participantKind": "domain",
@@ -56,6 +56,7 @@
     "readTables": [
       "arca_inventory_materials"
     ],
+    "variants": [],
     "dynamicTableRequirements": [],
     "forbiddenWriteTables": [
       "arca_offdeck_deletion_evidence"
@@ -85,8 +86,8 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7735,
-      "lineDigest": "b9fcc35f33ee61254788f9e023963bd2ad59075837e41ce005a239807a7502f3"
+      "line": 7754,
+      "lineDigest": "1ac2e4b2302ce105295e044d2aa5a8d64d18c823254c007fe20ecf8916b39073"
     }
   }
 }

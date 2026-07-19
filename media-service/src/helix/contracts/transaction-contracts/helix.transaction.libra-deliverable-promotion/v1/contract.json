@@ -52,6 +52,7 @@
       "libra_acceptance_specs",
       "libra_product_fact_revisions"
     ],
+    "variants": [],
     "dynamicTableRequirements": [],
     "forbiddenWriteTables": [],
     "forbiddenWritePrefixes": [],
@@ -76,7 +77,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7725,
+      "line": 7744,
       "lineDigest": "a71ab1170c2cae62ea3f3121da7f6d473c2ca624f6c14b1dc1ff2c68eb0e3ea8"
     }
   }

@@ -23,8 +23,8 @@ const resultSchemaRef = 'helix://domains/libra/results/SubjectCreated/v1';
 const subjects = createRepositoryDefinition({
   repositoryId: 'subjects', owner: 'libra', schemaManifest,
   statements: {
-    find: { kind: 'select-one', tableId: 'libra_subjects', columns: ['subject_id', 'status'], keyColumns: ['subject_id'] },
-    insert: { kind: 'insert', tableId: 'libra_subjects', columns: ['subject_id', 'structure_kind', 'status', 'created_at_ms'] }
+    find: { kind: 'select-one', tableId: 'libra_routing_policy_revisions', columns: ['routing_policy_id','revision'], keyColumns: ['routing_policy_id','revision'] },
+    insert: { kind: 'insert', tableId: 'libra_routing_policy_revisions', columns: ['routing_policy_id','revision','field_id','mode','policy_schema_ref','policy_json','policy_digest','effective_at_ms'] }
   }
 });
 
@@ -37,7 +37,7 @@ function registration(owner = 'libra') {
         participantId: 'libra_subject_fact', owner, boundBusinessOwner: owner, repositories: [subjects],
         execute(context) {
           const repository = context.repository('subjects');
-          const existing = repository.invoke('find', { subject_id: handle.aggregateId });
+          const existing = repository.invoke('find', { routing_policy_id:handle.aggregateId,revision:1 });
           if (handle.expectedRevision !== 0 || existing) {
             const error = new Error('Domain revision fence failed');
             error.code = 'TEST_DOMAIN_REVISION_CONFLICT';
@@ -45,7 +45,8 @@ function registration(owner = 'libra') {
           }
           if (payload.subjectId !== handle.aggregateId || payload.structureKind !== 'movie') throw new Error('typed payload mismatch');
           repository.invoke('insert', {
-            subject_id: payload.subjectId, structure_kind: payload.structureKind, status: 'active', created_at_ms: context.commitTimeMs
+            routing_policy_id:payload.subjectId,revision:1,field_id:'fixture-field',mode:'direct',policy_schema_ref:'helix://fixtures/routing-policy/v1',
+            policy_json:'{}',policy_digest:digest({subjectId:payload.subjectId}),effective_at_ms:context.commitTimeMs
           });
           return Object.freeze({ schemaRef: resultSchemaRef, schemaVersion: 1, subjectId: payload.subjectId, revision: 1 });
         }
@@ -188,7 +189,7 @@ test('atomically coordinates typed Domain fact, Commit Marker, Outbox, and stabl
     assert.deepEqual(replay.typedResult, first.typedResult);
     kernel.close();
     const database = new Database(databasePath, { readonly: true });
-    assert.equal(database.prepare('SELECT COUNT(*) count FROM libra_subjects').get().count, 1);
+    assert.equal(database.prepare('SELECT COUNT(*) count FROM libra_routing_policy_revisions').get().count, 1);
     assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_commit_markers').get().count, 1);
     assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_outbox').get().count, 1);
     assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_outbox_deliveries').get().count, 1);
@@ -222,7 +223,7 @@ test('Domain revision fence failure leaves no marker or Outbox', () => {
       (error) => error.code === 'TEST_DOMAIN_REVISION_CONFLICT');
     kernel.close();
     const database = new Database(databasePath, { readonly: true });
-    for (const table of ['libra_subjects', 'fx_commit_markers', 'fx_outbox', 'fx_outbox_deliveries']) {
+    for (const table of ['libra_routing_policy_revisions', 'fx_commit_markers', 'fx_outbox', 'fx_outbox_deliveries']) {
       assert.equal(database.prepare('SELECT COUNT(*) count FROM ' + table).get().count, 0, table);
     }
     database.close();
@@ -240,7 +241,7 @@ test('rejects a participant Result with the wrong nominal schema and leaves no d
     assert.throws(() => coordinator.execute(request()), (error) => error.code === 'P3_DOMAIN_COMMIT_RESULT_SCHEMA_MISMATCH');
     kernel.close();
     const database = new Database(databasePath, { readonly: true });
-    for (const table of ['libra_subjects', 'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox']) {
+    for (const table of ['libra_routing_policy_revisions', 'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox']) {
       assert.equal(database.prepare('SELECT COUNT(*) count FROM ' + table).get().count, 0, table);
     }
     database.close();
@@ -269,7 +270,7 @@ test('same marker cannot replay a different signed aggregate commit', () => {
     })), (error) => error.code === 'P3_DOMAIN_COMMIT_MARKER_CONFLICT');
     kernel.close();
     const database = new Database(databasePath, { readonly: true });
-    assert.equal(database.prepare('SELECT COUNT(*) count FROM libra_subjects').get().count, 1);
+    assert.equal(database.prepare('SELECT COUNT(*) count FROM libra_routing_policy_revisions').get().count, 1);
     assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_commit_markers').get().count, 1);
     assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_outbox').get().count, 1);
     database.close();
@@ -297,7 +298,7 @@ test('coordinates optional Material Control and rolls back every participant on 
     })), (error) => error.code === 'P3_CONTROL_CAS_CONFLICT');
     kernel.close();
     const database = new Database(databasePath, { readonly: true });
-    assert.equal(database.prepare('SELECT COUNT(*) count FROM libra_subjects').get().count, 1);
+    assert.equal(database.prepare('SELECT COUNT(*) count FROM libra_routing_policy_revisions').get().count, 1);
     assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_material_controls').get().count, 1);
     assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_commit_markers').get().count, 1);
     assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_outbox').get().count, 1);

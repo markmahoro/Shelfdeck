@@ -18,8 +18,9 @@ const schemaManifest = JSON.parse(fs.readFileSync(path.join(generatedRoot, 'clea
 
 const subjects = createRepositoryDefinition({
   repositoryId: 'subjects', owner: 'libra', schemaManifest,
-  statements: { insert: { kind: 'insert', tableId: 'libra_subjects', columns: ['subject_id', 'structure_kind', 'status', 'created_at_ms'] } }
+  statements: { insert: { kind: 'insert', tableId: 'libra_routing_policy_revisions', columns: ['routing_policy_id','revision','field_id','mode','policy_schema_ref','policy_json','policy_digest','effective_at_ms'] } }
 });
+const subjectRow=(id,time)=>({routing_policy_id:id,revision:1,field_id:'fixture-field',mode:'direct',policy_schema_ref:'helix://fixtures/routing-policy/v1',policy_json:'{}',policy_digest:digest({id}),effective_at_ms:time});
 const shelves = createRepositoryDefinition({
   repositoryId: 'shelves', owner: 'arca', schemaManifest,
   statements: { insert: { kind: 'insert', tableId: 'arca_shelves', columns: ['shelf_id', 'name', 'status', 'created_at_ms'] } }
@@ -106,7 +107,7 @@ test('acquire, cross-Domain transfer, and release CAS one current row with appen
     unitOfWork.execute([
       {
         participantId: 'libra', owner: 'libra', repositories: [subjects],
-        execute(context) { context.repository('subjects').invoke('insert', { subject_id: 'subject-1', structure_kind: 'movie', status: 'active', created_at_ms: context.commitTimeMs }); }
+        execute(context) { context.repository('subjects').invoke('insert', subjectRow('subject-1',context.commitTimeMs)); }
       },
       createMaterialControlParticipant({ schemaManifest, handle: handle('acquire', 'libra', [acquire]), changes: [acquire], commitMarker: 'marker-acquire' }),
       markerParticipant('libra', 'marker-acquire')
@@ -193,7 +194,7 @@ test('exact Handoff transfer recovers Physical Identity only from the Control ow
       {receivingDomain:'libra',transferPoint:'handoff_a_accepted',controlScopeDigest:digest('accepted-scope')});
     signed.receiptContract={receiptSchemaRef:'SubjectAndTransferReceipt@1',controlRevisionSetSchemaRef:'libra.handoff-a-transferred-control-set@1'};
     unitOfWork.execute([{participantId:'libra',owner:'libra',repositories:[subjects],execute(context){context.repository('subjects').invoke('insert',
-      {subject_id:'subject-1',structure_kind:'movie',status:'active',created_at_ms:context.commitTimeMs});}},
+      subjectRow('subject-1',context.commitTimeMs));}},
     createMaterialControlExactTransferParticipant({schemaManifest,handle:signed,changes:[exact],authorizedScopeDigest:digest('accepted-scope'),
       commitMarker:'marker-key-transfer'}),markerParticipant('libra','marker-key-transfer')]);
     kernel.close();const database=new Database(databasePath,{readonly:true});
@@ -209,7 +210,7 @@ test('stale CAS or wrong from-scope rolls back Domain and Foundation participant
     const libraScope = scope('libra', 'subject', 'subject-1');
     const acquire = { action: 'acquire', identity: material, expectedRevision: 0, fromScope: null, toScope: libraScope };
     unitOfWork.execute([
-      { participantId: 'libra', owner: 'libra', repositories: [subjects], execute(context) { context.repository('subjects').invoke('insert', { subject_id: 'subject-1', structure_kind: 'movie', status: 'active', created_at_ms: context.commitTimeMs }); } },
+      { participantId: 'libra', owner: 'libra', repositories: [subjects], execute(context) { context.repository('subjects').invoke('insert', subjectRow('subject-1',context.commitTimeMs)); } },
       createMaterialControlParticipant({ schemaManifest, handle: handle('acquire', 'libra', [acquire]), changes: [acquire], commitMarker: 'marker-1' }),
       markerParticipant('libra', 'marker-1')
     ]);
@@ -240,7 +241,7 @@ test('replace_control_set is all-or-nothing across its exact expected revision s
     const libraScope = scope('libra', 'subject', 'subject-1');
     const acquire = { action: 'acquire', identity: first, expectedRevision: 0, fromScope: null, toScope: libraScope };
     unitOfWork.execute([
-      { participantId: 'libra', owner: 'libra', repositories: [subjects], execute(context) { context.repository('subjects').invoke('insert', { subject_id: 'subject-1', structure_kind: 'movie', status: 'active', created_at_ms: context.commitTimeMs }); } },
+      { participantId: 'libra', owner: 'libra', repositories: [subjects], execute(context) { context.repository('subjects').invoke('insert', subjectRow('subject-1',context.commitTimeMs)); } },
       createMaterialControlParticipant({ schemaManifest, handle: handle('acquire', 'libra', [acquire]), changes: [acquire], commitMarker: 'marker-initial' }),
       markerParticipant('libra', 'marker-initial')
     ]);
@@ -249,14 +250,14 @@ test('replace_control_set is all-or-nothing across its exact expected revision s
       { action: 'acquire', identity: second, expectedRevision: 1, fromScope: null, toScope: libraScope }
     ].sort((left, right) => left.identity.materialKey.localeCompare(right.identity.materialKey));
     assert.throws(() => unitOfWork.execute([
-      { participantId: 'libra', owner: 'libra', repositories: [subjects], execute(context) { context.repository('subjects').invoke('insert', { subject_id: 'subject-2', structure_kind: 'movie', status: 'active', created_at_ms: context.commitTimeMs }); } },
+      { participantId: 'libra', owner: 'libra', repositories: [subjects], execute(context) { context.repository('subjects').invoke('insert', subjectRow('subject-2',context.commitTimeMs)); } },
       createMaterialControlParticipant({ schemaManifest, handle: handle('replace_control_set', 'libra', changes), changes, commitMarker: 'marker-replace' })
     ]), (error) => error.code === 'P3_CONTROL_CAS_CONFLICT');
     kernel.close();
     const database = new Database(databasePath, { readonly: true });
     assert.equal(database.prepare("SELECT state FROM fx_material_controls WHERE material_key=?").get(first.materialKey).state, 'controlled');
     assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_material_control_revisions').get().count, 1);
-    assert.equal(database.prepare("SELECT COUNT(*) count FROM libra_subjects WHERE subject_id='subject-2'").get().count, 0);
+    assert.equal(database.prepare("SELECT COUNT(*) count FROM libra_routing_policy_revisions WHERE routing_policy_id='subject-2'").get().count, 0);
     database.close();
   });
 });
@@ -275,12 +276,12 @@ test('invalid material key, incomplete expected set, or scope digest is rejected
     const invalid = { ...change, identity: { ...material, materialKey: digest('wrong-material-key') } };
     const invalidHandle = handle('acquire', 'libra', [invalid]);
     assert.throws(() => unitOfWork.execute([
-      { participantId: 'libra', owner: 'libra', repositories: [subjects], execute(context) { context.repository('subjects').invoke('insert', { subject_id: 'subject-invalid', structure_kind: 'movie', status: 'active', created_at_ms: context.commitTimeMs }); } },
+      { participantId: 'libra', owner: 'libra', repositories: [subjects], execute(context) { context.repository('subjects').invoke('insert', subjectRow('subject-invalid',context.commitTimeMs)); } },
       createMaterialControlParticipant({ schemaManifest, handle: invalidHandle, changes: [invalid], commitMarker: 'marker-invalid' })
     ]), (error) => error.code === 'P3_CONTROL_MATERIAL_KEY_MISMATCH');
     kernel.close();
     const database = new Database(databasePath, { readonly: true });
-    assert.equal(database.prepare("SELECT COUNT(*) count FROM libra_subjects WHERE subject_id='subject-invalid'").get().count, 0);
+    assert.equal(database.prepare("SELECT COUNT(*) count FROM libra_routing_policy_revisions WHERE routing_policy_id='subject-invalid'").get().count, 0);
     assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_material_controls').get().count, 0);
     database.close();
   });
@@ -291,7 +292,7 @@ test('startup rejects current/revision history drift', () => {
     const material = identity('inode-f');
     const acquire = { action: 'acquire', identity: material, expectedRevision: 0, fromScope: null, toScope: scope('libra', 'subject', 'subject-1') };
     unitOfWork.execute([
-      { participantId: 'libra', owner: 'libra', repositories: [subjects], execute(context) { context.repository('subjects').invoke('insert', { subject_id: 'subject-1', structure_kind: 'movie', status: 'active', created_at_ms: context.commitTimeMs }); } },
+      { participantId: 'libra', owner: 'libra', repositories: [subjects], execute(context) { context.repository('subjects').invoke('insert', subjectRow('subject-1',context.commitTimeMs)); } },
       createMaterialControlParticipant({ schemaManifest, handle: handle('acquire', 'libra', [acquire]), changes: [acquire], commitMarker: 'marker' })
     ]);
     kernel.close();

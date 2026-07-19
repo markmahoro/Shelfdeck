@@ -55,6 +55,7 @@
       "arca_acceptance_attempts",
       "arca_acceptance_checks"
     ],
+    "variants": [],
     "dynamicTableRequirements": [],
     "forbiddenWriteTables": [],
     "forbiddenWritePrefixes": [
@@ -81,7 +82,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7722,
+      "line": 7741,
       "lineDigest": "1140129b374858ff75be4bad8e3c3a0ec1b6e1889c4bcd15b1ed3fdaad3e23da"
     }
   }

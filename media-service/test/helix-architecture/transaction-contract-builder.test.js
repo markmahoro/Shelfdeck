@@ -11,10 +11,10 @@ const contractsRoot = path.resolve(__dirname, '../../src/helix/contracts');
 const contracts = buildTransactionContracts(readTransactionSourceEntries(contractsRoot));
 const byName = new Map(contracts.map((contract) => [contract.displayName, contract]));
 
-test('builds all 35 canonical transactions with stable identities and crash fixtures', () => {
-  assert.equal(contracts.length, 35);
-  assert.equal(new Set(contracts.map((contract) => contract.transactionId)).size, 35);
-  assert.equal(contracts.reduce((sum, contract) => sum + contract.crashFixtures.length, 0), 36);
+test('builds all 38 canonical transactions with stable identities and crash fixtures', () => {
+  assert.equal(contracts.length, 38);
+  assert.equal(new Set(contracts.map((contract) => contract.transactionId)).size, 38);
+  assert.equal(contracts.reduce((sum, contract) => sum + contract.crashFixtures.length, 0), 39);
   for (const contract of contracts) {
     assert.ok(contract.crashFixtures.length > 0);
     assert.equal(contract.fenceContract.commitMarkerRequired, contract.writeTables.includes('fx_commit_markers'));
@@ -33,6 +33,23 @@ test('keeps Handoff Accepted writes inside receiving Domain, Control, and Founda
     assert.ok(contract.participants.some((participant) => participant.participantKind === 'material-control'));
     assert.ok(contract.participants.some((participant) => participant.participantKind === 'foundation'));
   }
+});
+
+test('models PBF-12 routing transaction variants without widening every write set', () => {
+  const basis = byName.get('Libra Decision Basis Commit');
+  assert.equal(basis.writeTables.includes('fx_command_receipts'), false);
+  const manual = basis.variants.find((variant) => variant.variantId === 'routing_manual_selection');
+  assert.equal(manual.writeTables.includes('fx_command_receipts'), true);
+  assert.equal(manual.readTables.includes('fx_command_receipts'), true);
+
+  const routing = byName.get('Libra Routing Decision Commit');
+  assert.equal(routing.writeTables.some((table) => table.startsWith('arca_')), false);
+  assert.equal(routing.readTables.some((table) => table.startsWith('arca_')), false);
+  assert.deepEqual(routing.variants.map((variant) => variant.variantId), ['policy', 'manual_selection']);
+
+  const spec = byName.get('Libra Acceptance Spec Publish');
+  assert.equal(spec.writeTables.includes('libra_runs'), false);
+  assert.equal(spec.writeTables.includes('libra_workspaces'), false);
 });
 
 test('materializes the exact Handoff A ten Libra plus five Foundation transaction', () => {

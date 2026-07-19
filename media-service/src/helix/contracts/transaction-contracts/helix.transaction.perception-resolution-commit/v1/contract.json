@@ -45,6 +45,7 @@
       "perception_resolution_revisions",
       "perception_resolution_heads"
     ],
+    "variants": [],
     "dynamicTableRequirements": [],
     "forbiddenWriteTables": [],
     "forbiddenWritePrefixes": [],
@@ -69,7 +70,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7708,
+      "line": 7724,
       "lineDigest": "20aa1dc0d93d9bb4f935471469b4c240de7a94a7c6d27c38dde3497bf5bda5d6"
     }
   }

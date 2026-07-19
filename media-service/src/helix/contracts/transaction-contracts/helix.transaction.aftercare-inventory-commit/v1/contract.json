@@ -58,6 +58,7 @@
     "readTables": [
       "arca_aftercare_cases"
     ],
+    "variants": [],
     "dynamicTableRequirements": [],
     "forbiddenWriteTables": [],
     "forbiddenWritePrefixes": [],
@@ -82,7 +83,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7730,
+      "line": 7749,
       "lineDigest": "de1c51e6951176758387b3780a09d928791d6d06095421ee2b96ff6cf5d7c45e"
     }
   }

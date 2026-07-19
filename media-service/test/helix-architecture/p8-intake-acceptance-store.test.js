@@ -38,7 +38,9 @@ function acceptedBasis(unitOfWork,material){const projection=createMaterialContr
     endpointId:'endpoint-1',location:'/field/show.mkv',lastSnapshotDigest:D('snapshot'),realityDigest:D('reality'),provenanceDigest:D('provenance'),manifestMemberDigest:D('manifest-member'),
     episodeClaims:[{episodeKey:'S01E01',seasonClaimDigest:D('season'),claimDigest:D('episode')}],deliveryMemberDigest:D('delivery-member')};
   const claim={claimKind:'provider_season_identity',claimNamespace:'tmdb',claimKey:'series:1:season:1',claimDigest:D('claim'),evidenceDigest:D('claim-evidence')};
-  const candidatePackage={candidatePackageId:'candidate-1',packageRevision:1,packageDigest:D('package'),materialFieldContextRef:{fieldId:'field-1'},seasonContinuityClaims:[claim],seasonContinuityClaimSetDigest:D('claim-set')};
+  const candidatePackage={candidatePackageId:'candidate-1',packageRevision:1,packageDigest:D('package'),
+    materialFieldContextRef:{fieldId:'field-1',accessRevision:1,contextDigest:D('field-context')},contentProfile:'series',
+    identityClaim:{claimDigest:D('identity-claim')},seasonContinuityClaims:[claim],seasonContinuityClaimSetDigest:D('claim-set')};
   const snapshot={snapshotContract:'procurement.candidate-delivery@1',offer:{offerId:'offer-1'},acceptanceBasis:{acceptanceBasisDigest:D('acceptance')},candidatePackage,
     primaryInputManifest:{manifestDigest:D('manifest'),structureKind:'season'},primaryMaterialDeliveries:[member],deliveryMemberSetDigest:D('members'),deliverySnapshotDigest:''};snapshot.deliverySnapshotDigest=canonicalDigest(without(snapshot,'deliverySnapshotDigest'));
   const decision={decisionId:canonicalDigest({schema:'libra.intake-decision-id@1',offerId:'offer-1'}),offerId:'offer-1',candidatePackageId:'candidate-1',packageRevision:1,packageDigest:candidatePackage.packageDigest,
@@ -52,11 +54,11 @@ function acceptedBasis(unitOfWork,material){const projection=createMaterialContr
     processType:'libra_intake',processId:decision.decisionId,basisRef:{objectType:'accepted_intake_payload',objectId:decision.decisionId,revision:1,digest:payload.payloadDigest},basisDigest:payload.payloadDigest,
     canonicalFactSetDigest:decision.decisionDigest,bindingSetDigest:bindingDraft.bindingSetDigest,controlScopeDigest:payload.controlTransferScope.controlScopeDigest,
     expectedControlRevisions:[{materialKey:material.materialKey,revision:1}],receiptContract:{receiptSchemaRef:'SubjectAndTransferReceipt@1',controlRevisionSetSchemaRef:'libra.handoff-a-transferred-control-set@1'},eventFenceDigest:D('fence')};
-  return {payload,decision,handle};}
+  return {snapshot,payload,decision,handle};}
 
 test('commits new Subject, Binding, exact Control transfer, Receipt and Outbox atomically and replays',()=>fixture(({databasePath,unitOfWork})=>{
   const material=identity();seedControl(unitOfWork,material);createLibraIntakeStore({schemaManifest,unitOfWork}).ensureContinuityHead();const basis=acceptedBasis(unitOfWork,material);
-  const store=createIntakeAcceptanceStore({schemaManifest,unitOfWork}),request={payload:basis.payload,responsibilityControlCommitHandle:basis.handle,
+  const store=createIntakeAcceptanceStore({schemaManifest,unitOfWork}),request={deliverySnapshot:basis.snapshot,payload:basis.payload,responsibilityControlCommitHandle:basis.handle,
     commitMarker:{commitMarker:'handoff-a-marker',commitDigest:D('commit')},resultBinding:{resultId:'handoff-a-result',eventId:null}};
   const first=store.accept(request),second=store.accept(request);assert.equal(first.replayed,false);assert.equal(second.replayed,true);assert.equal(first.receipt.receiptDigest,second.receipt.receiptDigest);
   const db=new Database(databasePath,{readonly:true});assert.equal(db.prepare('SELECT COUNT(*) count FROM libra_subjects').get().count,1);assert.equal(db.prepare('SELECT COUNT(*) count FROM libra_material_bindings').get().count,1);
@@ -68,7 +70,7 @@ test('stale global head rolls back every accepted participant before Control tra
   const material=identity();seedControl(unitOfWork,material);const intake=createLibraIntakeStore({schemaManifest,unitOfWork});intake.ensureContinuityHead();const basis=acceptedBasis(unitOfWork,material),subjects=intake.repositories.subjects;
   unitOfWork.execute([{participantId:'advance_head',owner:'libra',repositories:[subjects],execute(context){context.repository(subjects.repositoryId).invoke('advance_head',{
     current_revision:1,head_digest:continuityHeadDigest(1),updated_at_ms:context.commitTimeMs,head_id:'active_subject_continuity',expected_revision:0,expected_digest:continuityHeadDigest(0)});}}]);
-  assert.throws(()=>createIntakeAcceptanceStore({schemaManifest,unitOfWork}).accept({payload:basis.payload,responsibilityControlCommitHandle:basis.handle,
+  assert.throws(()=>createIntakeAcceptanceStore({schemaManifest,unitOfWork}).accept({deliverySnapshot:basis.snapshot,payload:basis.payload,responsibilityControlCommitHandle:basis.handle,
     commitMarker:{commitMarker:'bad-marker',commitDigest:D('bad')},resultBinding:{resultId:'bad-result',eventId:null}}));
   const db=new Database(databasePath,{readonly:true});assert.equal(db.prepare('SELECT COUNT(*) count FROM libra_intake_decisions').get().count,0);assert.equal(db.prepare('SELECT control_revision FROM fx_material_controls').get().control_revision,1);db.close();
 }));
@@ -76,7 +78,7 @@ test('stale global head rolls back every accepted participant before Control tra
 test('Outbox crash rolls back Subject, Binding, Control, Receipt, Result and Marker',()=>fixture(({databasePath,unitOfWork})=>{
   const material=identity();seedControl(unitOfWork,material);createLibraIntakeStore({schemaManifest,unitOfWork}).ensureContinuityHead();const basis=acceptedBasis(unitOfWork,material);
   const db=new Database(databasePath);db.exec("CREATE TRIGGER fail_accept_outbox BEFORE INSERT ON fx_outbox BEGIN SELECT RAISE(ABORT,'injected'); END");db.close();
-  assert.throws(()=>createIntakeAcceptanceStore({schemaManifest,unitOfWork}).accept({payload:basis.payload,responsibilityControlCommitHandle:basis.handle,
+  assert.throws(()=>createIntakeAcceptanceStore({schemaManifest,unitOfWork}).accept({deliverySnapshot:basis.snapshot,payload:basis.payload,responsibilityControlCommitHandle:basis.handle,
     commitMarker:{commitMarker:'crash-marker',commitDigest:D('crash')},resultBinding:{resultId:'crash-result',eventId:null}}));
   const check=new Database(databasePath,{readonly:true});for(const table of ['libra_subjects','libra_intake_decisions','libra_material_bindings','libra_handoff_a_receipts','fx_event_result_bindings','fx_outbox'])
     assert.equal(check.prepare(`SELECT COUNT(*) count FROM ${table}`).get().count,0,table);assert.equal(check.prepare('SELECT control_revision FROM fx_material_controls').get().control_revision,1);

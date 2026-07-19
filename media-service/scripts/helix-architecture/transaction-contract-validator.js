@@ -26,8 +26,8 @@ function validateTransactionContracts(options) {
   const owners = new Set(ownerRegistry && ownerRegistry.owners.map((owner) => owner.id));
   const tableIds = new Set(fs.readdirSync(path.join(contractsRoot, 'table-contracts')));
   const manifest = readJson(path.join(contractsRoot, 'manifests', 'transaction-inventory.json'), findings);
-  if (!manifest || manifest.status !== 'active' || manifest.targetCount !== 35 || manifest.entryFiles.length !== 1) findings.push(finding(
-    'INVALID_TRANSACTION_INVENTORY_MANIFEST', 'Canonical transaction inventory must be active with 30 entries.'
+  if (!manifest || manifest.status !== 'active' || manifest.targetCount !== 38 || manifest.entryFiles.length !== 1) findings.push(finding(
+    'INVALID_TRANSACTION_INVENTORY_MANIFEST', 'Canonical transaction inventory must be active with 38 entries.'
   ));
   const shard = manifest && readJson(path.join(contractsRoot, 'manifests', manifest.entryFiles[0]), findings);
   const entries = shard && shard.entries || [];
@@ -53,13 +53,19 @@ function validateTransactionContracts(options) {
       'TRANSACTION_CONTRACT_DRIFT', 'Committed transaction differs from the SSOT-derived contract.', { transactionId: entry.id }
     ));
 
-    const participantTables = new Set(contract.participants.flatMap((participant) => participant.tables));
-    for (const table of [...contract.writeTables, ...contract.readTables]) {
+    const variants = contract.variants || [];
+    const allWriteTables = [...new Set([...(contract.writeTables || []), ...variants.flatMap((variant) => variant.writeTables || [])])];
+    const allReadTables = [...new Set([...(contract.readTables || []), ...variants.flatMap((variant) => variant.readTables || [])])];
+    const participantTables = new Set([
+      ...contract.participants.flatMap((participant) => participant.tables),
+      ...variants.flatMap((variant) => (variant.participants || []).flatMap((participant) => participant.tables))
+    ]);
+    for (const table of [...allWriteTables, ...allReadTables]) {
       if (!tableIds.has(table)) findings.push(finding('UNRESOLVED_TRANSACTION_TABLE', 'Transaction references an unknown P2 table.', {
         transactionId: entry.id, table
       }));
     }
-    for (const table of contract.writeTables) {
+    for (const table of allWriteTables) {
       if (!participantTables.has(table)) findings.push(finding('UNOWNED_TRANSACTION_WRITE', 'Write table is not covered by a CommitParticipant.', {
         transactionId: entry.id, table
       }));
@@ -72,12 +78,12 @@ function validateTransactionContracts(options) {
       }));
     }
     for (const forbidden of contract.forbiddenWriteTables) {
-      if (contract.writeTables.includes(forbidden)) findings.push(finding('FORBIDDEN_TRANSACTION_WRITE', 'Transaction includes an explicitly forbidden write.', {
+      if (allWriteTables.includes(forbidden)) findings.push(finding('FORBIDDEN_TRANSACTION_WRITE', 'Transaction includes an explicitly forbidden write.', {
         transactionId: entry.id, table: forbidden
       }));
     }
     for (const prefix of contract.forbiddenWritePrefixes) {
-      const violation = contract.writeTables.find((table) => table.startsWith(prefix));
+      const violation = allWriteTables.find((table) => table.startsWith(prefix));
       if (violation) findings.push(finding('UPSTREAM_STORE_WRITE', 'Handoff transaction writes its Delivery Owner Store.', {
         transactionId: entry.id, table: violation
       }));

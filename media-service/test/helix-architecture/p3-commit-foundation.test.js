@@ -19,7 +19,7 @@ const schemaManifest = JSON.parse(fs.readFileSync(path.join(generatedRoot, 'clea
 const subjects = createRepositoryDefinition({
   repositoryId: 'subjects', owner: 'libra', schemaManifest,
   statements: {
-    insert_subject: { kind: 'insert', tableId: 'libra_subjects', columns: ['subject_id', 'structure_kind', 'status', 'created_at_ms'] }
+    insert_subject: { kind: 'insert', tableId: 'libra_routing_policy_revisions', columns: ['routing_policy_id','revision','field_id','mode','policy_schema_ref','policy_json','policy_digest','effective_at_ms'] }
   }
 });
 
@@ -55,7 +55,7 @@ function request(overrides = {}) {
       participantId: 'libra_domain', owner: 'libra', repositories: [subjects],
       execute(context) {
         context.repository('subjects').invoke('insert_subject', {
-          subject_id: subjectId, structure_kind: 'movie', status: 'active', created_at_ms: context.commitTimeMs
+          routing_policy_id:subjectId,revision:1,field_id:'fixture-field',mode:'direct',policy_schema_ref:'helix://fixtures/routing-policy/v1',policy_json:'{}',policy_digest:digest({subjectId}),effective_at_ms:context.commitTimeMs
         });
         return { subjectId };
       }
@@ -82,7 +82,7 @@ function counts(databasePath) {
   const database = new Database(databasePath, { readonly: true });
   try {
     return {
-      subjects: database.prepare('SELECT COUNT(*) count FROM libra_subjects').get().count,
+      subjects: database.prepare('SELECT COUNT(*) count FROM libra_routing_policy_revisions').get().count,
       receipts: database.prepare('SELECT COUNT(*) count FROM fx_command_receipts').get().count,
       markers: database.prepare('SELECT COUNT(*) count FROM fx_commit_markers').get().count,
       audits: database.prepare('SELECT COUNT(*) count FROM fx_audit_records').get().count
@@ -101,7 +101,7 @@ test('commits Owner fact, Command Receipt, global marker, and append-only Audit 
     assert.deepEqual(counts(databasePath), { subjects: 1, receipts: 1, markers: 1, audits: 1 });
     const database = new Database(databasePath, { readonly: true });
     const times = database.prepare(
-      'SELECT (SELECT created_at_ms FROM libra_subjects) domain_time, (SELECT committed_at_ms FROM fx_command_receipts) receipt_time, (SELECT committed_at_ms FROM fx_commit_markers) marker_time, (SELECT occurred_at_ms FROM fx_audit_records) audit_time'
+      'SELECT (SELECT effective_at_ms FROM libra_routing_policy_revisions) domain_time, (SELECT committed_at_ms FROM fx_command_receipts) receipt_time, (SELECT committed_at_ms FROM fx_commit_markers) marker_time, (SELECT occurred_at_ms FROM fx_audit_records) audit_time'
     ).get();
     database.close();
     assert.equal(new Set(Object.values(times)).size, 1);
@@ -147,7 +147,7 @@ test('Domain failure leaves no receipt, marker, audit, or canonical fact', () =>
         participantId: 'libra_domain', owner: 'libra', repositories: [subjects],
         execute(context) {
           context.repository('subjects').invoke('insert_subject', {
-            subject_id: 'subject-1', structure_kind: 'movie', status: 'active', created_at_ms: context.commitTimeMs
+            routing_policy_id:'subject-1',revision:1,field_id:'fixture-field',mode:'direct',policy_schema_ref:'helix://fixtures/routing-policy/v1',policy_json:'{}',policy_digest:digest({subjectId:'subject-1'}),effective_at_ms:context.commitTimeMs
           });
           throw new Error('domain crash');
         }

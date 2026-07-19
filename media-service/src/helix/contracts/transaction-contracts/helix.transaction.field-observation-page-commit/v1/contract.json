@@ -43,6 +43,7 @@
       "proc_field_materials",
       "fx_supporting_works"
     ],
+    "variants": [],
     "dynamicTableRequirements": [],
     "forbiddenWriteTables": [],
     "forbiddenWritePrefixes": [],
@@ -67,7 +68,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7702,
+      "line": 7718,
       "lineDigest": "58747ee1aa0df557ec960c3b49a4da639783cc35560b32743186e2d25fb96af7"
     }
   }

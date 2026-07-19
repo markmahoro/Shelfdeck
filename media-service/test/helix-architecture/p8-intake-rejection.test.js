@@ -20,12 +20,14 @@ const D=(value)=>canonicalDigest({value});
 const without=(value,...fields)=>Object.fromEntries(Object.entries(value).filter(([key])=>!fields.includes(key)));
 
 function snapshot(){
-  const candidatePackage={candidatePackageId:'candidate-1',packageRevision:1,packageDigest:D('package')};
+  const candidatePackage={candidatePackageId:'candidate-1',packageRevision:1,packageDigest:D('package'),
+    materialFieldContextRef:{fieldId:'field-1',accessRevision:1,contextDigest:D('field-context')},contentProfile:'movie',
+    identityClaim:{claimDigest:D('identity-claim')}};
   const acceptanceBasis={acceptanceBasisDigest:D('basis')};
   const offer={offerId:'offer-1',candidatePackageId:candidatePackage.candidatePackageId,packageRevision:1,
     packageDigest:candidatePackage.packageDigest,acceptanceBasisDigest:acceptanceBasis.acceptanceBasisDigest};
   const value={snapshotContract:'CandidateDeliverySnapshot@1',offer,acceptanceBasis,candidatePackage,
-    primaryInputManifest:{manifestId:'manifest-1'},primaryMaterialDeliveries:[],deliveryMemberSetDigest:D('members'),deliverySnapshotDigest:''};
+    primaryInputManifest:{manifestId:'manifest-1',structureKind:'single'},primaryMaterialDeliveries:[],deliveryMemberSetDigest:D('members'),deliverySnapshotDigest:''};
   value.deliverySnapshotDigest=canonicalDigest(without(value,'deliverySnapshotDigest'));
   return value;
 }

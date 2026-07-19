@@ -50,11 +50,13 @@ test('persists Subject continuity and Material-to-Episode N:M relations without 
   const continuityDigest=subjectContinuitySetDigest(subjectId,claims),episodeDigest=subjectEpisodeScopeDigest(subjectId,['S01E01','S01E02']);
   unitOfWork.execute([{ participantId:'seed',owner:'libra',repositories:[subjects,bindings,intake],execute(context){
     const s=context.repository(subjects.repositoryId),b=context.repository(bindings.repositoryId),i=context.repository(intake.repositoryId),at=context.commitTimeMs;
-    s.invoke('insert_subject',{ subject_id:subjectId,structure_kind:'season',status:'active',intake_revision:1,
+    s.invoke('insert_subject',{ subject_id:subjectId,structure_kind:'season',content_profile:'series',routing_anchor_intake_decision_id:decisionId,status:'active',intake_revision:1,
       current_continuity_set_digest:continuityDigest,current_episode_scope_digest:episodeDigest,current_identity_revision:null,
       created_at_ms:at,updated_at_ms:at,terminal_at_ms:null });
     i.invoke('insert_decision',{ intake_decision_id:decisionId,decision_revision:1,decision_kind:'accepted_resolution',offer_id:'offer-1',candidate_package_id:'candidate-1',package_revision:1,
       package_digest:D('package'),acceptance_basis_digest:D('basis'),candidate_delivery_snapshot_digest:D('delivery'),expected_continuity_head_revision:0,
+      source_field_id:'field-1',source_field_access_revision:1,source_field_context_digest:D('field-context'),candidate_structure_kind:'season',
+      candidate_content_profile:'series',candidate_identity_claim_digest:D('identity-claim'),
       expected_continuity_head_digest:continuityHeadDigest(0),committed_continuity_head_revision:1,candidate_continuity_set_digest:continuityDigest,
       candidate_episode_scope_digest:episodeDigest,match_cardinality:'none',matched_subject_set_digest:D('matches'),episode_overlap_digest:D('overlap'),
       accepted_result:'new_subject',target_subject_id:subjectId,expected_target_status:null,expected_target_intake_revision:null,

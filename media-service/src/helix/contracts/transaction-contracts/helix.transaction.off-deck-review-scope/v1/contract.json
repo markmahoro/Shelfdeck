@@ -40,6 +40,7 @@
       "arca_shelf_entries",
       "arca_inventory_materials"
     ],
+    "variants": [],
     "dynamicTableRequirements": [],
     "forbiddenWriteTables": [
       "arca_offdeck_authorizations",
@@ -67,7 +68,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7731,
+      "line": 7750,
       "lineDigest": "d84e96ef7c300f188c7958c64da90cad90657ecdc8ba7aab1237058b1403e2e7"
     }
   }

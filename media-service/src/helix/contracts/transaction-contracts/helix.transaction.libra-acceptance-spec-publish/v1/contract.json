@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.libra-acceptance-spec-publish/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.libra-acceptance-spec-publish",
+    "displayName": "Libra Acceptance Spec Publish",
+    "ownerScope": "libra",
+    "commitClass": "domain_fact_commit",
+    "atomicFactSet": "ready spec `DecisionBasisRevision@1` + complete `AcceptanceSpec@1` + current Subject/Routing Decision/Decision Basis/head CAS + immutable Spec + head switch + durable application Result/commit marker；`hasOutbox=false`，不读取`arca_*`或创建Libra Run",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "libra",
+        "access": "write",
+        "tables": [
+          "libra_acceptance_specs",
+          "libra_subject_decision_heads"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_event_result_bindings",
+          "fx_commit_markers"
+        ]
+      }
+    ],
+    "writeTables": [
+      "libra_acceptance_specs",
+      "libra_subject_decision_heads",
+      "fx_event_result_bindings",
+      "fx_commit_markers"
+    ],
+    "readTables": [
+      "libra_subjects",
+      "libra_subject_episode_scopes",
+      "libra_routing_decisions",
+      "libra_decision_basis_revisions",
+      "libra_decision_basis_inputs"
+    ],
+    "variants": [],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [
+      "proc_",
+      "arca_"
+    ],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "libra-acceptance-spec",
+        "faultInjectionPoints": "ready spec Basis、Routing Decision、Subject/Product Scope freshness验证、Spec写入、Subject Decision head CAS、Result/marker前后、响应前崩溃",
+        "requiredInvariant": "完整六类Requirement的immutable Spec、head pointer、Result和marker全有或全无；stale Routing/Basis/Subject/Scope稳定拒绝；不读取Arca Store、不创建Run或Workspace",
+        "source": {
+          "section": "8.9.7",
+          "line": 7917
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7735,
+      "lineDigest": "a6f532fd9d365e7c6529b4106c598d67fab686e0e6809c1198b543696a2da59c"
+    }
+  }
+}

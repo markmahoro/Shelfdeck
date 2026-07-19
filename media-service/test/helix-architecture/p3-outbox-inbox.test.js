@@ -18,7 +18,7 @@ const schemaManifest = JSON.parse(fs.readFileSync(path.join(generatedRoot, 'clea
 
 const subjects = createRepositoryDefinition({
   repositoryId: 'subjects', owner: 'libra', schemaManifest,
-  statements: { insert: { kind: 'insert', tableId: 'libra_subjects', columns: ['subject_id', 'structure_kind', 'status', 'created_at_ms'] } }
+  statements: { insert: { kind: 'insert', tableId: 'libra_routing_policy_revisions', columns: ['routing_policy_id','revision','field_id','mode','policy_schema_ref','policy_json','policy_digest','effective_at_ms'] } }
 });
 const shelves = createRepositoryDefinition({
   repositoryId: 'shelves', owner: 'arca', schemaManifest,
@@ -65,7 +65,7 @@ function publish(unitOfWork, value = message(), subjectId = 'subject-1') {
       participantId: 'libra', owner: 'libra', repositories: [subjects],
       execute(context) {
         context.repository('subjects').invoke('insert', {
-          subject_id: subjectId, structure_kind: 'movie', status: 'active', created_at_ms: context.commitTimeMs
+          routing_policy_id:subjectId,revision:1,field_id:'fixture-field',mode:'direct',policy_schema_ref:'helix://fixtures/routing-policy/v1',policy_json:'{}',policy_digest:digest({subjectId}),effective_at_ms:context.commitTimeMs
         });
       }
     },
@@ -78,7 +78,7 @@ function inspect(databasePath) {
   return {
     database,
     counts: {
-      subjects: database.prepare('SELECT COUNT(*) count FROM libra_subjects').get().count,
+      subjects: database.prepare('SELECT COUNT(*) count FROM libra_routing_policy_revisions').get().count,
       messages: database.prepare('SELECT COUNT(*) count FROM fx_outbox').get().count,
       deliveries: database.prepare('SELECT COUNT(*) count FROM fx_outbox_deliveries').get().count,
       inbox: database.prepare('SELECT COUNT(*) count FROM fx_inbox').get().count

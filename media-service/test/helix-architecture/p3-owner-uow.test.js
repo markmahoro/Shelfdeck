@@ -29,8 +29,8 @@ function temporaryKernel(run) {
 const libraSubjects = createRepositoryDefinition({
   repositoryId: 'libra_subjects', owner: 'libra', schemaManifest,
   statements: {
-    insert_subject: { kind: 'insert', tableId: 'libra_subjects', columns: ['subject_id', 'structure_kind', 'status', 'created_at_ms'] },
-    find_subject: { kind: 'select-one', tableId: 'libra_subjects', columns: ['subject_id', 'status'], keyColumns: ['subject_id'] }
+    insert_subject: { kind: 'insert', tableId: 'libra_routing_policy_revisions', columns: ['routing_policy_id','revision','field_id','mode','policy_schema_ref','policy_json','policy_digest','effective_at_ms'] },
+    find_subject: { kind: 'select-one', tableId: 'libra_routing_policy_revisions', columns: ['routing_policy_id','revision'], keyColumns: ['routing_policy_id','revision'] }
   }
 });
 const foundationAudit = createRepositoryDefinition({
@@ -60,7 +60,7 @@ test('commits one Domain plus separate Control and Foundation participants with 
         participantId: 'libra', owner: 'libra', repositories: [libraSubjects],
         execute(context) {
           context.repository('libra_subjects').invoke('insert_subject', {
-            subject_id: 'subject-1', structure_kind: 'movie', status: 'active', created_at_ms: context.commitTimeMs
+            routing_policy_id:'subject-1',revision:1,field_id:'fixture-field',mode:'direct',policy_schema_ref:'helix://fixtures/routing-policy/v1',policy_json:'{}',policy_digest:'a'.repeat(64),effective_at_ms:context.commitTimeMs
           });
           return context.commitTimeMs;
         }
@@ -87,7 +87,7 @@ test('commits one Domain plus separate Control and Foundation participants with 
     assert.equal(new Set(Object.values(results)).size, 1);
     kernel.close();
     const inspected = new Database(databasePath, { readonly: true });
-    assert.equal(inspected.prepare('SELECT COUNT(*) count FROM libra_subjects').get().count, 1);
+    assert.equal(inspected.prepare('SELECT COUNT(*) count FROM libra_routing_policy_revisions').get().count, 1);
     assert.equal(inspected.prepare('SELECT COUNT(*) count FROM fx_material_controls').get().count, 1);
     assert.equal(inspected.prepare('SELECT COUNT(*) count FROM fx_audit_records').get().count, 1);
     inspected.close();
@@ -102,7 +102,7 @@ test('rolls back every Owner participant when any participant fails', () => {
         participantId: 'libra', owner: 'libra', repositories: [libraSubjects],
         execute(context) {
           context.repository('libra_subjects').invoke('insert_subject', {
-            subject_id: 'rollback-subject', structure_kind: 'movie', status: 'active', created_at_ms: context.commitTimeMs
+            routing_policy_id:'rollback-subject',revision:1,field_id:'fixture-field',mode:'direct',policy_schema_ref:'helix://fixtures/routing-policy/v1',policy_json:'{}',policy_digest:'b'.repeat(64),effective_at_ms:context.commitTimeMs
           });
         }
       },
@@ -113,7 +113,7 @@ test('rolls back every Owner participant when any participant fails', () => {
     ]), /participant crash/);
     const result = createSqliteUnitOfWork({ kernel }).execute([{
       participantId: 'libra_read', owner: 'libra', repositories: [libraSubjects],
-      execute: (context) => context.repository('libra_subjects').invoke('find_subject', { subject_id: 'rollback-subject' })
+      execute: (context) => context.repository('libra_subjects').invoke('find_subject', { routing_policy_id:'rollback-subject',revision:1 })
     }]);
     assert.equal(result.libra_read, undefined);
   });

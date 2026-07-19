@@ -46,6 +46,7 @@
       "fx_commit_markers",
       "fx_outbox"
     ],
+    "variants": [],
     "dynamicTableRequirements": [],
     "forbiddenWriteTables": [],
     "forbiddenWritePrefixes": [
@@ -73,7 +74,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7719,
+      "line": 7738,
       "lineDigest": "126bd985a59608601c1311e11612cc56da006de70c37874aad7fde2d32139e72"
     }
   }

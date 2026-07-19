@@ -27,34 +27,55 @@
       },
       {
         "ordinal": 3,
-        "name": "basis_digest",
+        "name": "decision_basis_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false,
+        "foreignKeyMarker": true,
         "nullable": false
       },
       {
         "ordinal": 4,
-        "name": "routing_policy_id",
+        "name": "routing_authority_kind",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "policy",
+          "manual_selection"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
         "nullable": false
       },
       {
         "ordinal": 5,
+        "name": "routing_policy_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 6,
         "name": "routing_policy_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
-        "nullable": false
+        "nullable": true
       },
       {
-        "ordinal": 6,
-        "name": "evidence_digest",
+        "ordinal": 7,
+        "name": "manual_selection_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 8,
+        "name": "routing_input_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -62,7 +83,34 @@
         "nullable": false
       },
       {
-        "ordinal": 7,
+        "ordinal": 9,
+        "name": "assessment_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "assessment_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "assessment_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
         "name": "created_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -75,19 +123,27 @@
       "routing_assessment_id"
     ],
     "declaredForeignKeyColumns": [
-      "subject_id"
+      "subject_id",
+      "decision_basis_id"
     ],
     "uniqueConstraints": [
       [
         "subject_id",
-        "basis_digest",
-        "routing_policy_id",
-        "routing_policy_revision"
+        "decision_basis_id",
+        "routing_input_digest"
       ]
     ],
     "hotIndexes": [],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "routing_authority_kind",
+        "enumValues": [
+          "policy",
+          "manual_selection"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
         "routing_policy_revision"
@@ -96,26 +152,39 @@
       "pointerTargets": [],
       "pointerRules": []
     },
-    "jsonContracts": [],
+    "jsonContracts": [
+      {
+        "column": "assessment_json",
+        "schemaRefColumn": "assessment_schema_ref",
+        "maxBytes": 65536,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
     "immutability": {
-      "immutable": false,
-      "rules": []
+      "immutable": true,
+      "rules": [
+        "immutable"
+      ]
     },
     "deletion": {
       "foreignKeyPolicy": "ON DELETE RESTRICT",
       "rules": []
     },
     "semanticRules": [
-      "`UNIQUE(subject_id,basis_digest,routing_policy_id,routing_policy_revision)`"
+      "policy与manual列variant互斥",
+      "JSON≤`64 KiB`并完整重建`RoutingAssessmentEvidence@1`",
+      "`UNIQUE(subject_id,decision_basis_id,routing_input_digest)`",
+      "immutable"
     ],
     "rawContract": {
-      "columns": "`routing_assessment_id PK, subject_id FK, basis_digest, routing_policy_id, routing_policy_revision, evidence_digest, created_at_ms`",
-      "constraints": "`UNIQUE(subject_id,basis_digest,routing_policy_id,routing_policy_revision)`"
+      "columns": "`routing_assessment_id PK, subject_id FK, decision_basis_id FK, routing_authority_kind(policy|manual_selection), routing_policy_id NULL, routing_policy_revision NULL, manual_selection_digest NULL, routing_input_digest, assessment_schema_ref, assessment_json, assessment_digest, created_at_ms`",
+      "constraints": "policy与manual列variant互斥；JSON≤`64 KiB`并完整重建`RoutingAssessmentEvidence@1`；`UNIQUE(subject_id,decision_basis_id,routing_input_digest)`；immutable"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8076,
-      "lineDigest": "6bf5f7443b8d299aed7cd871da55c62908f1e2164796180c9658e0a8bee29df4"
+      "line": 8147,
+      "lineDigest": "85c68ee54029d863bb07647404c1d4bd8a21f6620ee23df9a8f858c724e19bcf"
     },
     "foreignKeys": [
       {
@@ -125,6 +194,17 @@
         "targetTable": "libra_subjects",
         "targetColumns": [
           "subject_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "decision_basis_id"
+        ],
+        "targetTable": "libra_decision_basis_revisions",
+        "targetColumns": [
+          "decision_basis_id"
         ],
         "deletePolicy": "RESTRICT",
         "deferrable": false

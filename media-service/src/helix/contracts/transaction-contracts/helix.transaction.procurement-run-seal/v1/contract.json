@@ -39,6 +39,7 @@
       "proc_run_materials",
       "proc_candidate_packages"
     ],
+    "variants": [],
     "dynamicTableRequirements": [],
     "forbiddenWriteTables": [],
     "forbiddenWritePrefixes": [],
@@ -63,7 +64,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7706,
+      "line": 7722,
       "lineDigest": "f54e31f775accd471801677316643da5d78990ae36ef2f0a3379ea619fc1b894"
     }
   }

@@ -39,6 +39,7 @@
       "arca_offdeck_scopes",
       "arca_offdeck_scope_materials"
     ],
+    "variants": [],
     "dynamicTableRequirements": [],
     "forbiddenWriteTables": [
       "arca_offdeck_authorizations",
@@ -67,7 +68,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7732,
+      "line": 7751,
       "lineDigest": "cae8451f709cd026085b9cb061981d31da7a71f040b5c417586bfa44b31cc22d"
     }
   }

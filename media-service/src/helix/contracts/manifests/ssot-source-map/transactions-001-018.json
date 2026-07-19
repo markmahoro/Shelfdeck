@@ -11,7 +11,7 @@
       "atomicFactSet": "Owner-defined Canonical/Process Fact + revision fence + commit marker + durable typed result + contract-declared Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 7701,
+        "line": 7717,
         "lineDigest": "96d0faf4f857201ebd2f37da0fec8d450cf5cf57f98c1bce8d2bd7bdfe7eeaf8"
       }
     },
@@ -21,7 +21,7 @@
       "atomicFactSet": "validated complete `FieldObservationPage`同时作为本Commit Event的immutable durable Evidence写入`fx_event_result_bindings.evidence_json` + current Field Observation head CAS + immutable page revision + Field Material current-row insert/update + durable `ObservationCommitResult` + commit marker；全部同事务成立；新Material只置`unknown/unknown`初值，Observation Commit不计算最终Eligibility/Region，也不发布Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 7702,
+        "line": 7718,
         "lineDigest": "58747ee1aa0df557ec960c3b49a4da639783cc35560b32743186e2d25fb96af7"
       }
     },
@@ -31,7 +31,7 @@
       "atomicFactSet": "bounded `ExtractionEligibilityDecisionBatch` + current Field/Access/terminal Observation head/Policy/Material Binding和既有Eligibility revision CAS + 同事务重读并验证Selection conflict与Foundation Material Control revision/digest + 更新Field Material current Eligibility/Control Projection；更新后的rows就是唯一durable output，事务只返回typed summary；这是可重建的Procurement current decision-fact transaction，basis不变时幂等no-op，不写Event Result、commit marker或Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 7703,
+        "line": 7719,
         "lineDigest": "7ba36a2ff58597421695676659ccb76bd30595feebcf1f1191d89a4ef9cfb701"
       }
     },
@@ -41,7 +41,7 @@
       "atomicFactSet": "complete `ProcurementRunExecutionBasis@1` + prospective Run identity + `ResponsibilityControlCommitHandle` + current Field/Access/terminal Observation/Policy/active Triage Rule authority/Material/Selection/Control fence + Run及relationized Basis rows + 全部`run_selection` guard + 对全部成员的同Field Procurement Control acquire/assert + durable `ProcurementControlReceipt` + commit marker；Triage Rule必须由注入的Procurement Registry解析并匹配当前active snapshot，不能信任调用者值；`hasOutbox=false`，全部事实/Control全有或全无，禁止分批Control后补建Run",
       "source": {
         "section": "8.5.4",
-        "line": 7704,
+        "line": 7720,
         "lineDigest": "bb629d247679d5fe0ccf7417e948d4e94f82197472df5859e9581982a82580be"
       }
     },
@@ -51,7 +51,7 @@
       "atomicFactSet": "complete `CandidateDraft@1` + exact Run Basis/Triage Rule/Structure Unit/Identity/Manifest Draft fence + Run `candidate_package_revision_head` CAS + immutable Candidate Package + final Primary Input Manifest及N:M Episode Claim/完整Related Material Reference relation + package members是Run Selection精确非空子集 + 成员`run_selection → candidate_delivery` + 从final Package唯一派生的`CandidateIntakeAcceptanceBasis@1`和stable `offerId` + open Handoff Offer + durable typed Result/commit marker + `ProcurementCandidateOfferAvailableMessage@1` Outbox；CommitParticipant只消费Draft/Handle，不旁读Foundation Event Result或Provider；Run revision head、Package、Manifest、Relation、Reservation、Offer、Result/marker与Outbox全有或全无；Canonical Transaction的Procurement domain write participant固定为`proc_procurement_runs`、`proc_candidate_packages`、`proc_candidate_season_continuity_claims`、`proc_candidate_primary_materials`、`proc_candidate_primary_material_episode_claims`、`proc_candidate_related_references`、`proc_candidate_deliveries`、`proc_run_materials`，不得从概括性“Run fence/Manifest/Relation”文字推断或漏表；Related relation必须逐列保存`RelatedMaterialReference@1`的完整Physical Identity、association Evidence和reference digest，不能把Foundation Event Result或current Material row当成历史Package payload",
       "source": {
         "section": "8.5.4",
-        "line": 7705,
+        "line": 7721,
         "lineDigest": "7be7b24aa18e87552ddc516a751a8038f5b9e38d54ab33052bc2ed615428aabc"
       }
     },
@@ -61,7 +61,7 @@
       "atomicFactSet": "`ProcurementRunSealDecision@1` + Run expected state revision/basis CAS + sealed outcome/逐成员terminal Evidence/aggregate Evidence/finished time + 未成Package成员`run_selection → released`，保留`candidate_delivery`与全部Procurement Control + durable typed receipt/commit marker；candidate reservation、released member及seal Evidence的三项digest按8.6.18唯一公式形成并可由Owner rows重建；`hasOutbox=false`",
       "source": {
         "section": "8.5.4",
-        "line": 7706,
+        "line": 7722,
         "lineDigest": "f54e31f775accd471801677316643da5d78990ae36ef2f0a3379ea619fc1b894"
       }
     },
@@ -71,7 +71,7 @@
       "atomicFactSet": "Acquisition/page fact + immutable Records/Anchors/explicit source-lineage Relations + source cursor revision/head CAS + page receipt + durable typed result + commit marker + Perception-internal Outbox；`hasMore=false`时同事务终结Acquisition",
       "source": {
         "section": "8.5.4",
-        "line": 7707,
+        "line": 7723,
         "lineDigest": "acab0d1f4a68647d37ae2c4cee69f050fc8addfc0fb6f6e721e246605fa87043"
       }
     },
@@ -81,7 +81,7 @@
       "atomicFactSet": "exact Query/Record Set/Rule digests + Resolution revision/head CAS + Draft明确的`duplicate_of`关系 + durable typed result + commit marker + Perception-internal Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 7708,
+        "line": 7724,
         "lineDigest": "20aa1dc0d93d9bb4f935471469b4c240de7a94a7c6d27c38dde3497bf5bda5d6"
       }
     },
@@ -91,7 +91,7 @@
       "atomicFactSet": "complete PeopleCandidateDraft + typed Candidate head + initial immutable `open` revision + durable typed result + commit marker + People-internal Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 7709,
+        "line": 7725,
         "lineDigest": "d1d347c7d4a0dc22efdc62bde7b660e345cf3658c643f2de987222edd7373c8b"
       }
     },
@@ -101,7 +101,7 @@
       "atomicFactSet": "current Candidate revision/payload digest CAS + Candidate terminal `accepted` revision + Person create或Merge完整fact set +必要Preference resolution + merge correlation + 所有受影响Person的Reference Projection checkpoint + durable typed result + commit marker + People-internal Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 7710,
+        "line": 7726,
         "lineDigest": "dd1548950a587697d63a1c67f79dcf2212fbe9558d0ecb7e5c523d2a21b28ba8"
       }
     },
@@ -111,7 +111,7 @@
       "atomicFactSet": "complete DirectPersonRegistrationDecision + Person首revision + Alias/Provider Identity + 初始Reference Projection checkpoint + durable command result + command receipt + People-internal Outbox；不包含Reference Fact",
       "source": {
         "section": "8.5.4",
-        "line": 7711,
+        "line": 7727,
         "lineDigest": "0914e3e83cd187ef5afe7d3bc50b41ee313ba589ccdbb49e54a3d7cbe72f08f3"
       }
     },
@@ -121,7 +121,7 @@
       "atomicFactSet": "PeopleReferenceMaintenanceDecision + Person/reference revision CAS + Asset/唯一派生Face同时active或released + new Reference revision/head + 所有受影响Person的Reference Projection checkpoint + durable typed result + commit marker + People-internal Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 7712,
+        "line": 7728,
         "lineDigest": "9189e51ed83f21bc8aa73672970d80c045e3e148fab9e0dd6866b1d54b632f4e"
       }
     },
@@ -131,7 +131,7 @@
       "atomicFactSet": "complete `ProcurementRetryIntent@1` + failed sealed Run/Basis与精确released member scope + current Field/Access/terminal Observation/Policy/active Triage Rule admission head + Eligibility/Binding/Selection/Control precondition + `open` intent + durable `ProcurementRetryIntentReceipt`/commit marker + 唯一`ProcurementRetryIntentAvailableMessage` Outbox；相同`fieldId+idempotencyKey`重放原结果",
       "source": {
         "section": "8.5.4",
-        "line": 7713,
+        "line": 7729,
         "lineDigest": "00062a04e7d259159d5088e47b0d9b16c9af8e4798cad3111928b0bdf63cdeb6"
       }
     },
@@ -141,7 +141,7 @@
       "atomicFactSet": "open Intent expected state/digest CAS + current admission head和逐成员precondition重验 + `open → consumed|stale`；有效分支与一份新`ProcurementRunExecutionBasis@1`、新Run、Selection、全部Control acquire/assert及内嵌`ProcurementControlReceipt`的`ProcurementRetryAdmissionResult`同事务成立，stale分支写同一Result的stale variant及全部逐成员consume snapshot，不建Run；同一commit marker/result digest同时作为Intent consume与新Run admission恢复点；closed stale reason、primary reason、set digest和row replay映射按8.6.18唯一规则执行；`hasOutbox=false`且一个Intent最多关联一个新Run",
       "source": {
         "section": "8.5.4",
-        "line": 7714,
+        "line": 7730,
         "lineDigest": "11219e808a18d920a3c1ccd01e0e372c120e611861223c2ee81ef6784ec87fdc"
       }
     },
@@ -151,38 +151,38 @@
       "atomicFactSet": "immutable per-Field Policy revision + target ranks + Field Routing head switch + Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 7715,
+        "line": 7731,
         "lineDigest": "7b074a66076c7f0b48fedb267139f5912a5416399d7d15cff0020d22efa131b4"
       }
     },
     {
       "id": "Rule Template Publish",
       "owner": "arca",
-      "atomicFactSet": "immutable Template revision + all currently bound Shelf effective Standard revisions + Template/Shelf current head switches + Outbox",
+      "atomicFactSet": "immutable Template revision + all currently bound Shelf effective Standard revisions + Template/Shelf current head switches + 每座受影响Shelf的routing projection revision/digest CAS + Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 7716,
-        "lineDigest": "c8ef6c73d0677af4507c86425da0dac719607c16e817fc918924e56dbe8e7e70"
+        "line": 7732,
+        "lineDigest": "02f7b7c921d868c18a82ef82b7e7027c8c3c8815117a087e535120f547c8a4a2"
       }
     },
     {
-      "id": "Handoff A Accepted",
+      "id": "Libra Decision Basis Commit",
       "owner": "libra",
-      "atomicFactSet": "complete `CandidateDeliverySnapshot@1` + Libra-owned `SubjectContinuityResolutionDecision@1` + `LibraBindingDraft@1` + `AcceptedIntakePayload@1` + global Subject Continuity head CAS + unique extension target Intake head CAS（new Subject只用global CAS）+ immutable Intake Decision/match witness/overlap Evidence + Subject create/extension + accepted continuity/Episode scope + Material Binding及N:M Episode relation + precise Control transfer + `SubjectAndTransferReceipt@1`/commit marker/accepted Outbox；全部事实全有或全无，Libra不得旁读`proc_*`，Commit Participant不得信任调用者指定Subject或重算Provider事实",
+      "atomicFactSet": "complete `DecisionInputSet@1` + Subject/current Decision head CAS + immutable Decision Basis revision + relationized typed input snapshots + durable `DecisionBasisRevision@1`/commit marker；manual selection variant同事务写Command Receipt；Routing与Spec使用同一事务但不同`basisKind`，不创建Routing Decision、Acceptance Spec或Libra Run；`hasOutbox=false`",
       "source": {
         "section": "8.5.4",
-        "line": 7717,
-        "lineDigest": "be130c62965c4291a401369d3efaef63798da5653e13d4a52fd299c6347249a4"
+        "line": 7733,
+        "lineDigest": "1964ab0bb4858cc96afd58e4ee70032f7e32551b83162366a26663bebebf73f1"
       }
     },
     {
-      "id": "Procurement Handoff A Acceptance Consume",
-      "owner": "procurement",
-      "atomicFactSet": "`LibraCandidateAcceptedMessage@1` + current open Candidate Delivery/Reservation CAS + exact Candidate member set + Procurement Inbox dedup；同事务把Delivery置`accepted`、全部对应`proc_run_materials candidate_delivery → transferred+handoff_accepted`并冻结同一Receipt Evidence；Material Control已经由Handoff A Accepted转移，本事务不得再次转移或释放；重复消息返回同一closure result，已rejected或Evidence不一致稳定拒绝",
+      "id": "Libra Routing Decision Commit",
+      "owner": "libra",
+      "atomicFactSet": "ready routing `DecisionBasisRevision@1` + complete `RoutingAssessmentEvidence@1` + `RoutingDecision@1` + current Subject/Policy/Decision head CAS + immutable Assessment/Decision + head switch + durable application Result/commit marker；`hasOutbox=false`，不读取`arca_*`或创建Acceptance Spec/Run",
       "source": {
         "section": "8.5.4",
-        "line": 7718,
-        "lineDigest": "9af1e19e00c76c75aeba17d0422beec413ef7e1a7cbbaa776a0c367f2dc7b2c9"
+        "line": 7734,
+        "lineDigest": "325382a616b9f8f8517978b06e281303b6e96dddf79b38ac33a79bb402c4b5ce"
       }
     }
   ]

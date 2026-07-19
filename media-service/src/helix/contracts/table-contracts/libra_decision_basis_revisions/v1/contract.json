@@ -27,11 +27,14 @@
       },
       {
         "ordinal": 3,
-        "name": "routing_decision_id",
+        "name": "basis_kind",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "routing",
+          "acceptance_spec"
+        ],
         "primaryKeyPart": false,
-        "foreignKeyMarker": true,
+        "foreignKeyMarker": false,
         "nullable": false
       },
       {
@@ -45,6 +48,24 @@
       },
       {
         "ordinal": 5,
+        "name": "expected_head_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "routing_decision_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 7,
         "name": "query_result_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -53,20 +74,73 @@
         "nullable": false
       },
       {
-        "ordinal": 6,
+        "ordinal": 8,
+        "name": "routing_input_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 9,
+        "name": "spec_input_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 10,
+        "name": "product_scope_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 11,
+        "name": "input_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
         "name": "status",
         "logicalType": "TEXT",
         "enumValues": [
           "ready",
-          "unresolved",
-          "superseded"
+          "unresolved"
         ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
         "nullable": false
       },
       {
-        "ordinal": 7,
+        "ordinal": 13,
+        "name": "unresolved_reason_code",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 14,
+        "name": "basis_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 15,
         "name": "committed_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -79,13 +153,17 @@
       "decision_basis_id"
     ],
     "declaredForeignKeyColumns": [
-      "subject_id",
-      "routing_decision_id"
+      "subject_id"
     ],
     "uniqueConstraints": [
       [
         "subject_id",
         "basis_revision"
+      ],
+      [
+        "subject_id",
+        "basis_kind",
+        "input_set_digest"
       ]
     ],
     "hotIndexes": [
@@ -98,43 +176,58 @@
     "partialUniqueRules": [],
     "checkRules": [
       {
+        "column": "basis_kind",
+        "enumValues": [
+          "routing",
+          "acceptance_spec"
+        ]
+      },
+      {
         "column": "status",
         "enumValues": [
           "ready",
-          "unresolved",
-          "superseded"
+          "unresolved"
         ]
       }
     ],
     "revisionContract": {
       "revisionColumns": [
-        "basis_revision"
+        "basis_revision",
+        "expected_head_revision"
       ],
       "currentPointerColumns": [],
       "pointerTargets": [],
-      "pointerRules": []
+      "pointerRules": [
+        "acceptance_spec的routing/spec input始终非NULL，ready时current Routing与scope非NULL，unresolved时只允许按closed reason置对应pointer/scope NULL"
+      ]
     },
     "jsonContracts": [],
     "immutability": {
-      "immutable": false,
-      "rules": []
+      "immutable": true,
+      "rules": [
+        "immutable"
+      ]
     },
     "deletion": {
       "foreignKeyPolicy": "ON DELETE RESTRICT",
       "rules": []
     },
     "semanticRules": [
-      "`UNIQUE(subject_id,basis_revision)`",
+      "`UNIQUE(subject_id,basis_revision)`及`UNIQUE(subject_id,basis_kind,input_set_digest)`",
+      "routing的routing input始终非NULL且spec/scope NULL",
+      "acceptance_spec的routing/spec input始终非NULL，ready时current Routing与scope非NULL，unresolved时只允许按closed reason置对应pointer/scope NULL",
+      "ready无reason，unresolved必须有reason",
+      "immutable",
       "`INDEX(subject_id,status,basis_revision)`"
     ],
     "rawContract": {
-      "columns": "`decision_basis_id PK, subject_id FK, routing_decision_id FK, basis_revision, query_result_set_digest, status, committed_at_ms`",
-      "constraints": "`UNIQUE(subject_id,basis_revision)`；`INDEX(subject_id,status,basis_revision)`"
+      "columns": "`decision_basis_id PK, subject_id FK, basis_kind(routing|acceptance_spec), basis_revision, expected_head_revision, routing_decision_id NULL, query_result_set_digest, routing_input_digest NULL, spec_input_digest NULL, product_scope_digest NULL, input_set_digest, status(ready|unresolved), unresolved_reason_code NULL, basis_digest, committed_at_ms`",
+      "constraints": "`UNIQUE(subject_id,basis_revision)`及`UNIQUE(subject_id,basis_kind,input_set_digest)`；routing的routing input始终非NULL且spec/scope NULL；acceptance_spec的routing/spec input始终非NULL，ready时current Routing与scope非NULL，unresolved时只允许按closed reason置对应pointer/scope NULL；ready无reason，unresolved必须有reason；immutable；`INDEX(subject_id,status,basis_revision)`"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8078,
-      "lineDigest": "f4664a89a72080ae59795550c6db9e170de6cf6740c0e4d1b3a209b87d823f1d"
+      "line": 8149,
+      "lineDigest": "fa17afc3fc4bba94f1a69fc77f9ba6b8053f850dc06a7a5d6c978c2f21787a57"
     },
     "foreignKeys": [
       {
@@ -144,17 +237,6 @@
         "targetTable": "libra_subjects",
         "targetColumns": [
           "subject_id"
-        ],
-        "deletePolicy": "RESTRICT",
-        "deferrable": false
-      },
-      {
-        "columns": [
-          "routing_decision_id"
-        ],
-        "targetTable": "libra_routing_decisions",
-        "targetColumns": [
-          "routing_decision_id"
         ],
         "deletePolicy": "RESTRICT",
         "deferrable": false

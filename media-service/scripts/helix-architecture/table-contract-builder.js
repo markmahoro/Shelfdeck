@@ -120,6 +120,7 @@ const NULLABLE_COLUMN_OVERRIDES = new Set([
 const FOREIGN_KEY_OVERRIDES = Object.freeze({
   'fx_plan_nodes.compensation_for_event_id': ['fx_workflow_events', 'event_id'],
   'proc_procurement_retry_intents.failed_run_id': ['proc_procurement_runs', 'procurement_run_id'],
+  'libra_subjects.routing_anchor_intake_decision_id': ['libra_intake_decisions', 'intake_decision_id'],
   'libra_subject_decision_heads.current_routing_decision_id': ['libra_routing_decisions', 'routing_decision_id'],
   'libra_subject_decision_heads.current_decision_basis_id': ['libra_decision_basis_revisions', 'decision_basis_id'],
   'libra_subject_decision_heads.current_acceptance_spec_id': ['libra_acceptance_specs', 'acceptance_spec_id'],
@@ -213,6 +214,7 @@ const DEFERRED_FOREIGN_KEY_PAIRS = new Set([
   'proc_field_observations>fx_commit_markers',
   'proc_procurement_runs>proc_procurement_retry_intents',
   'proc_procurement_retry_intents>proc_procurement_runs',
+  'libra_subjects>libra_intake_decisions', 'libra_intake_decisions>libra_subjects',
   'people_persons>people_person_revisions', 'people_person_revisions>people_persons',
   'people_persons>people_preference_revisions', 'people_preference_revisions>people_persons',
   'people_persons>people_reference_revisions',

@@ -36,7 +36,7 @@
       },
       {
         "ordinal": 4,
-        "name": "shelf_standard_revision",
+        "name": "shelf_routing_projection_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -45,16 +45,16 @@
       },
       {
         "ordinal": 5,
-        "name": "decision_basis_id",
+        "name": "shelf_projection_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": true,
+        "foreignKeyMarker": false,
         "nullable": false
       },
       {
         "ordinal": 6,
-        "name": "spec_revision",
+        "name": "shelf_standard_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -63,7 +63,7 @@
       },
       {
         "ordinal": 7,
-        "name": "spec_schema_ref",
+        "name": "shelf_standard_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -72,16 +72,16 @@
       },
       {
         "ordinal": 8,
-        "name": "spec_json",
-        "logicalType": "TEXT_JSON",
+        "name": "decision_basis_id",
+        "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false,
+        "foreignKeyMarker": true,
         "nullable": false
       },
       {
         "ordinal": 9,
-        "name": "spec_digest",
+        "name": "product_scope_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -90,8 +90,8 @@
       },
       {
         "ordinal": 10,
-        "name": "structure_kind",
-        "logicalType": "TEXT",
+        "name": "spec_revision",
+        "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -99,7 +99,7 @@
       },
       {
         "ordinal": 11,
-        "name": "content_profile",
+        "name": "spec_schema_ref",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -108,6 +108,59 @@
       },
       {
         "ordinal": 12,
+        "name": "spec_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 13,
+        "name": "spec_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 14,
+        "name": "record_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 15,
+        "name": "structure_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "single",
+          "season"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 16,
+        "name": "content_profile",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "movie",
+          "series",
+          "jav",
+          "western_adult"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 17,
         "name": "published_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -127,13 +180,37 @@
       [
         "subject_id",
         "spec_revision"
+      ],
+      [
+        "subject_id",
+        "decision_basis_id",
+        "product_scope_digest",
+        "record_digest"
       ]
     ],
     "hotIndexes": [],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "structure_kind",
+        "enumValues": [
+          "single",
+          "season"
+        ]
+      },
+      {
+        "column": "content_profile",
+        "enumValues": [
+          "movie",
+          "series",
+          "jav",
+          "western_adult"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
+        "shelf_routing_projection_revision",
         "shelf_standard_revision",
         "spec_revision"
       ],
@@ -151,26 +228,30 @@
       }
     ],
     "immutability": {
-      "immutable": false,
-      "rules": []
+      "immutable": true,
+      "rules": [
+        "immutable"
+      ]
     },
     "deletion": {
       "foreignKeyPolicy": "ON DELETE RESTRICT",
       "rules": []
     },
     "semanticRules": [
-      "Spec JSON上限`64 KiB`",
-      "`UNIQUE(subject_id,spec_revision)`",
-      "相同输入digest只产生一个Spec"
+      "Spec JSON上限`64 KiB`并完整重建`AcceptanceSpec@1`六类Requirement与Product Scope",
+      "`spec_digest`是semantic digest、`record_digest`是含Basis provenance的完整record digest",
+      "`UNIQUE(subject_id,spec_revision)`及`UNIQUE(subject_id,decision_basis_id,product_scope_digest,record_digest)`",
+      "相同Input Set只产生一个Spec",
+      "immutable"
     ],
     "rawContract": {
-      "columns": "`acceptance_spec_id PK, subject_id FK, shelf_id, shelf_standard_revision, decision_basis_id FK, spec_revision, spec_schema_ref, spec_json, spec_digest, structure_kind, content_profile, published_at_ms`",
-      "constraints": "Spec JSON上限`64 KiB`；`UNIQUE(subject_id,spec_revision)`；相同输入digest只产生一个Spec"
+      "columns": "`acceptance_spec_id PK, subject_id FK, shelf_id, shelf_routing_projection_revision, shelf_projection_digest, shelf_standard_revision, shelf_standard_digest, decision_basis_id FK, product_scope_digest, spec_revision, spec_schema_ref, spec_json, spec_digest, record_digest, structure_kind(single|season), content_profile(movie|series|jav|western_adult), published_at_ms`",
+      "constraints": "Spec JSON上限`64 KiB`并完整重建`AcceptanceSpec@1`六类Requirement与Product Scope；`spec_digest`是semantic digest、`record_digest`是含Basis provenance的完整record digest；`UNIQUE(subject_id,spec_revision)`及`UNIQUE(subject_id,decision_basis_id,product_scope_digest,record_digest)`；相同Input Set只产生一个Spec；immutable"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8080,
-      "lineDigest": "3db6b82f4b0fdc9831eb439964a777be18b6c9feffed7c6c933dfe522b49ea9b"
+      "line": 8151,
+      "lineDigest": "278c0c3873b753354fac321418aa5928f3f9bdee2fdc6212123f987ed8fded77"
     },
     "foreignKeys": [
       {

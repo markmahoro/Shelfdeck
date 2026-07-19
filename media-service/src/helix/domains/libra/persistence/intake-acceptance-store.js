@@ -3,7 +3,7 @@
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 const { createMaterialControlExactTransferParticipant } = require('../../../foundation/persistence/material-control');
-const { CONTINUITY_HEAD_ID, continuityHeadDigest, subjectContinuitySetDigest, subjectEpisodeScopeDigest, utf8Compare } = require('../model/libra-intake-contracts');
+const { CONTINUITY_HEAD_ID, candidateProvenance, continuityHeadDigest, subjectContinuitySetDigest, subjectEpisodeScopeDigest, utf8Compare } = require('../model/libra-intake-contracts');
 const { RECEIPT_SCHEMA, MESSAGE_SCHEMA, buildLibraCandidateAcceptedMessage, buildSubjectAndTransferReceipt } = require('../model/intake-acceptance-contracts');
 const { createLibraIntakeRepositoryDefinitions } = require('./libra-intake-store');
 
@@ -26,10 +26,12 @@ function foundationDefinition(schemaManifest){return createRepositoryDefinition(
 }});}
 
 function validate(request){
-  if(!request||!request.payload||!request.responsibilityControlCommitHandle||!request.commitMarker||!request.resultBinding)fail('P8_ACCEPTANCE_REQUEST_INVALID','Accepted commit request is incomplete.');
-  const payload=request.payload,decision=payload.resolutionDecision,handle=request.responsibilityControlCommitHandle,target=subjectId(decision);
+  if(!request||!request.deliverySnapshot||!request.payload||!request.responsibilityControlCommitHandle||!request.commitMarker||!request.resultBinding)fail('P8_ACCEPTANCE_REQUEST_INVALID','Accepted commit request is incomplete.');
+  const snapshot=request.deliverySnapshot,payload=request.payload,decision=payload.resolutionDecision,handle=request.responsibilityControlCommitHandle,target=subjectId(decision);
   if(payload.payloadDigest!==canonicalDigest(without(payload,'payloadDigest'))||decision.decisionDigest!==canonicalDigest(without(decision,'decisionDigest'))||
-      payload.intakeDecisionId!==decision.decisionId||payload.delivery.offerId!==decision.offerId||!target)fail('P8_ACCEPTANCE_PAYLOAD_INVALID','Accepted payload is not a digest-valid exact Resolution product.');
+      snapshot.deliverySnapshotDigest!==canonicalDigest(without(snapshot,'deliverySnapshotDigest'))||
+      payload.intakeDecisionId!==decision.decisionId||payload.delivery.offerId!==decision.offerId||
+      payload.delivery.candidateDeliverySnapshotDigest!==snapshot.deliverySnapshotDigest||!target)fail('P8_ACCEPTANCE_PAYLOAD_INVALID','Accepted payload is not a digest-valid exact Resolution product.');
   const expected=payload.controlTransferScope.items.map((item)=>({materialKey:item.materialKey,revision:item.expectedControlRevision}));
   if(handle.schemaRef!==HANDLE_SCHEMA||handle.schemaVersion!==1||handle.operationKind!=='transfer'||handle.ownerDomain!=='libra'||handle.receivingDomain!=='libra'||
       handle.transferPoint!=='handoff_a_accepted'||handle.basisDigest!==payload.payloadDigest||handle.basisRef.objectType!=='accepted_intake_payload'||
@@ -40,7 +42,7 @@ function validate(request){
   if(!SHA256.test(request.commitMarker.commitDigest||'')||typeof request.commitMarker.commitMarker!=='string'||!request.commitMarker.commitMarker||
       typeof request.resultBinding.resultId!=='string'||!request.resultBinding.resultId||
       request.resultBinding.eventId!==null&&request.resultBinding.eventId!==undefined)fail('P8_ACCEPTANCE_REQUEST_INVALID','Synchronous accepted commit requires a Result identity and no Workflow Event identity.');
-  return {payload,decision,handle,target};
+  return {snapshot,payload,decision,handle,target};
 }
 
 function receiptFromRow(row,payload){const value={schemaRef:RECEIPT_SCHEMA,schemaVersion:1,receiptId:row.receipt_id,receiptKind:'handoff_a_accepted',ownerDomain:'libra',
@@ -57,7 +59,7 @@ function createIntakeAcceptanceStore(options){
   const libra=createLibraIntakeRepositoryDefinitions(options.schemaManifest),foundation=foundationDefinition(options.schemaManifest);
   return Object.freeze({repositoryManifest:Object.freeze({libraTableIds:libra.tableIds,foundationTableIds:[...foundation.tableIds,'fx_material_controls','fx_material_control_revisions'].sort()}),
     accept(request){
-      const {payload,decision,handle,target}=validate(request),markerId=request.commitMarker.commitMarker,binding=request.resultBinding;
+      const {snapshot,payload,decision,handle,target}=validate(request),provenance=candidateProvenance(snapshot),markerId=request.commitMarker.commitMarker,binding=request.resultBinding;
       let receipt,message,subjectRevision,headRevision,continuityDigest,episodeDigest,controlSetDigest;
       const preflight={participantId:'acceptance_preflight',owner:'execution-foundation',boundBusinessOwner:'libra',repositories:[foundation],execute(context){
         const row=context.repository(foundation.repositoryId).invoke('find_marker',{commit_marker:markerId});if(!row)return;
@@ -79,12 +81,14 @@ function createIntakeAcceptanceStore(options){
         }else{
           const current=s.invoke('find_subject',{subject_id:target});
           if(!current||current.status!==decision.expectedTargetStatus||number(current.intake_revision)!==decision.expectedTargetIntakeRevision||
-              current.current_continuity_set_digest!==decision.expectedTargetContinuitySetDigest||current.current_episode_scope_digest!==decision.expectedTargetEpisodeScopeDigest)fail('P8_ACCEPTANCE_TARGET_CAS','Extension target is stale.');
+              current.current_continuity_set_digest!==decision.expectedTargetContinuitySetDigest||current.current_episode_scope_digest!==decision.expectedTargetEpisodeScopeDigest||
+              current.structure_kind!==provenance.candidateStructureKind||current.content_profile!==provenance.candidateContentProfile)fail('P8_ACCEPTANCE_TARGET_CAS','Extension target is stale or has incompatible structure/profile provenance.');
           allClaims=[...s.invoke('find_claims',{subject_id:target}).map((row)=>({claimKind:row.claim_kind,claimNamespace:row.claim_namespace,claimKey:row.claim_key,claimDigest:row.claim_digest,provenanceKind:row.provenance_kind,provenanceRef:row.provenance_ref})),...candidateClaims];
           allEpisodes=[...s.invoke('find_episodes',{subject_id:target}).map((row)=>row.episode_key),...candidateEpisodes];subjectRevision=number(current.intake_revision)+1;
         }
         continuityDigest=subjectContinuitySetDigest(target,allClaims);episodeDigest=subjectEpisodeScopeDigest(target,allEpisodes);headRevision=number(head.current_revision)+1;
-        if(decision.result==='new_subject')s.invoke('insert_subject',{subject_id:target,structure_kind:payload.resolutionDecision.candidateEpisodeScope.structureKind,status:'active',intake_revision:subjectRevision,
+        if(decision.result==='new_subject')s.invoke('insert_subject',{subject_id:target,structure_kind:provenance.candidateStructureKind,content_profile:provenance.candidateContentProfile,
+          routing_anchor_intake_decision_id:decision.decisionId,status:'active',intake_revision:subjectRevision,
           current_continuity_set_digest:continuityDigest,current_episode_scope_digest:episodeDigest,current_identity_revision:null,created_at_ms:at,updated_at_ms:at,terminal_at_ms:null});
         else if(s.invoke('advance_subject',{intake_revision:subjectRevision,current_continuity_set_digest:continuityDigest,current_episode_scope_digest:episodeDigest,updated_at_ms:at,subject_id:target,
           expected_status:decision.expectedTargetStatus,expected_intake_revision:decision.expectedTargetIntakeRevision,expected_continuity_set_digest:decision.expectedTargetContinuitySetDigest,
@@ -92,6 +96,9 @@ function createIntakeAcceptanceStore(options){
         i.invoke('insert_decision',{intake_decision_id:decision.decisionId,decision_revision:1,decision_kind:'accepted_resolution',offer_id:decision.offerId,
           candidate_package_id:decision.candidatePackageId,package_revision:decision.packageRevision,package_digest:decision.packageDigest,
           acceptance_basis_digest:payload.delivery.acceptanceBasisDigest,candidate_delivery_snapshot_digest:decision.candidateDeliverySnapshotDigest,
+          source_field_id:provenance.sourceFieldId,source_field_access_revision:provenance.sourceFieldAccessRevision,
+          source_field_context_digest:provenance.sourceFieldContextDigest,candidate_structure_kind:provenance.candidateStructureKind,
+          candidate_content_profile:provenance.candidateContentProfile,candidate_identity_claim_digest:provenance.candidateIdentityClaimDigest,
           expected_continuity_head_revision:decision.expectedContinuityHead.revision,expected_continuity_head_digest:decision.expectedContinuityHead.digest,
           committed_continuity_head_revision:headRevision,candidate_continuity_set_digest:decision.candidateContinuitySetDigest,
           candidate_episode_scope_digest:decision.candidateEpisodeScope.episodeScopeDigest,match_cardinality:decision.matchCardinality,

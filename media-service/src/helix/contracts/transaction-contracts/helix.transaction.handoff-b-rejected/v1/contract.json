@@ -47,6 +47,7 @@
       "fx_outbox",
       "arca_acceptance_checks"
     ],
+    "variants": [],
     "dynamicTableRequirements": [],
     "forbiddenWriteTables": [],
     "forbiddenWritePrefixes": [
@@ -73,7 +74,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7723,
+      "line": 7742,
       "lineDigest": "9e446db6f093dda648e004ee746464abc3edd7fb74bf38eaeb6543f079ed6d34"
     }
   }

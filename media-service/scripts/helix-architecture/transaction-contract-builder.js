@@ -18,6 +18,9 @@ const crashFixtures = Object.freeze({
   'procurement-handoff-a-acceptance-consume': ['Inbox写入前后、open Delivery CAS前后、Reservation逐项转移中途、Delivery terminal与Inbox result提交前后、迟到Rejected消息', 'Delivery、全部Candidate member transferred+handoff_accepted、同一Receipt Evidence与Inbox result全有或全无；Material Control不变；重复消息重放同一closure digest，相反终态或digest冲突稳定拒绝', 9639],
   'handoff-a-rejected': ['Candidate/Material/Control Verification形成前后、Reason/Evidence rows逐项写入中途、Decision/Receipt/Result/marker/Outbox各边界、相同Offer的Accepted竞态', '只允许closed Handoff A reason；Continuity 0/N/overlap不得误判rejected；Decision、全部Reason Evidence、Receipt、Result、marker和Rejected Outbox全有或全无；不读写continuity head、不创建Subject/Binding、不转移Control；同一Offer只有一个terminal Decision', 9610],
   'procurement-handoff-a-rejection-consume': ['Inbox写入前后、open Delivery CAS前后、Reservation逐项释放中途、Delivery terminal与Inbox result提交前后、迟到Accepted消息', 'Delivery、全部Candidate member released+handoff_rejected、同一Receipt Evidence与Inbox result全有或全无；Procurement Material Control不变；重复消息重放同一closure digest，相反终态或digest冲突稳定拒绝', 9611],
+  'libra-decision-basis': ['完整DecisionInputSet与Handle验证前后、typed input逐项写入、Subject Decision head CAS、manual Command Receipt、Result/marker前后、响应前崩溃', 'Basis revision、全部typed input rows、head pointer、Result和marker全有或全无；manual variant的Command Receipt同事务成立；相同subject+basisKind+inputSetDigest重放不推进revision或head；不得创建Routing Decision、Acceptance Spec、Run或Workspace', 7887],
+  'libra-routing-decision': ['ready routing Basis与Subject/Policy/Intent freshness验证、Assessment/Decision写入、Subject Decision head CAS、Result/marker前后、响应前崩溃', 'Assessment、resolved或unresolved Decision、head pointer、Result与marker全有或全无；policy/manual authority不可混用；不读取Arca Store、不创建Acceptance Spec、Run或Workspace', 7906],
+  'libra-acceptance-spec': ['ready spec Basis、Routing Decision、Subject/Product Scope freshness验证、Spec写入、Subject Decision head CAS、Result/marker前后、响应前崩溃', '完整六类Requirement的immutable Spec、head pointer、Result和marker全有或全无；stale Routing/Basis/Subject/Scope稳定拒绝；不读取Arca Store、不创建Run或Workspace', 7917],
   'procurement-failed-run-retry': ['Retry Intent commit前后、新Run建立前后、Intent consume前后', '旧Run始终sealed；一个Intent最多建立一个新Run；观察不伪造Basis revision；失败不会自动连锁重试', 8414],
   'libra-subject-abandon': ['Decision前、Subject terminal后、Primary Control release前后、Receipt/Outbox前', '要么Subject仍active且Control不变，要么abandoned/Primary released/Receipt全部成立；已有Run时Command稳定拒绝', 8415],
   'libra-deliverable-promotion': ['Workspace Identity计算后、Package participant后、Control acquire前后', 'Package可见时所有Product Material已有Libra Control；失败不发布Offer', 8416],
@@ -176,6 +179,40 @@ const definitions = Object.freeze({
       'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox'], fixtureRefs: ['handoff-a-accepted'], hasOutbox: true,
     forbiddenWritePrefixes: ['proc_']
   },
+  'Libra Decision Basis Commit': {
+    commitClass: 'domain_fact_commit',
+    writeTables: ['libra_decision_basis_revisions', 'libra_decision_basis_inputs', 'libra_subject_decision_heads',
+      'fx_event_result_bindings', 'fx_commit_markers'],
+    readTables: ['libra_subjects', 'libra_intake_decisions', 'libra_product_identity_revisions',
+      'libra_subject_episode_scopes'],
+    variants: [
+      { variantId: 'routing_policy', additionalReadTables: ['libra_field_routing_heads', 'libra_routing_policy_revisions', 'libra_routing_policy_targets'] },
+      { variantId: 'routing_manual_selection', additionalWriteTables: ['fx_command_receipts'], additionalReadTables: ['fx_command_receipts'] },
+      { variantId: 'acceptance_spec', additionalReadTables: ['libra_routing_decisions'] }
+    ],
+    fixtureRefs: ['libra-decision-basis'], hasOutbox: false,
+    forbiddenWritePrefixes: ['proc_', 'arca_']
+  },
+  'Libra Routing Decision Commit': {
+    commitClass: 'domain_fact_commit',
+    writeTables: ['libra_routing_assessments', 'libra_routing_decisions', 'libra_subject_decision_heads',
+      'fx_event_result_bindings', 'fx_commit_markers'],
+    readTables: ['libra_decision_basis_revisions', 'libra_decision_basis_inputs', 'libra_subjects'],
+    variants: [
+      { variantId: 'policy', additionalReadTables: ['libra_field_routing_heads', 'libra_routing_policy_revisions', 'libra_routing_policy_targets'] },
+      { variantId: 'manual_selection', additionalReadTables: ['fx_command_receipts'] }
+    ],
+    fixtureRefs: ['libra-routing-decision'], hasOutbox: false,
+    forbiddenWritePrefixes: ['proc_', 'arca_']
+  },
+  'Libra Acceptance Spec Publish': {
+    commitClass: 'domain_fact_commit',
+    writeTables: ['libra_acceptance_specs', 'libra_subject_decision_heads', 'fx_event_result_bindings', 'fx_commit_markers'],
+    readTables: ['libra_subjects', 'libra_subject_episode_scopes', 'libra_routing_decisions',
+      'libra_decision_basis_revisions', 'libra_decision_basis_inputs'],
+    fixtureRefs: ['libra-acceptance-spec'], hasOutbox: false,
+    forbiddenWritePrefixes: ['proc_', 'arca_']
+  },
   'Handoff A Rejected': {
     commitClass: 'domain_fact_commit',
     writeTables: ['libra_intake_decisions', 'libra_intake_rejection_reason_evidence', 'libra_handoff_a_receipts',
@@ -330,6 +367,19 @@ function participantsFor(owner, writeTables) {
   }));
 }
 
+function buildVariants(owner, baseWriteTables, baseReadTables, variants = []) {
+  return variants.map((variant) => {
+    const writeTables = [...new Set([...baseWriteTables, ...(variant.additionalWriteTables || [])])];
+    const readTables = [...new Set([...baseReadTables, ...(variant.additionalReadTables || [])])];
+    return {
+      variantId: variant.variantId,
+      participants: participantsFor(owner, writeTables),
+      writeTables,
+      readTables
+    };
+  });
+}
+
 function buildCrashFixture(id) {
   const fixture = crashFixtures[id];
   if (!fixture) throw new Error(`Unknown crash fixture: ${id}`);
@@ -363,6 +413,7 @@ function buildTransactionContracts(entries) {
       participants,
       writeTables,
       readTables: definition.readTables,
+      variants: buildVariants(entry.owner, writeTables, definition.readTables, definition.variants),
       dynamicTableRequirements: definition.dynamicTableRequirements || [],
       forbiddenWriteTables: definition.forbiddenWriteTables || [],
       forbiddenWritePrefixes: definition.forbiddenWritePrefixes || [],

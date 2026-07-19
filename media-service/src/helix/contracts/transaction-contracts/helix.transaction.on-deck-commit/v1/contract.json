@@ -67,6 +67,7 @@
       "arca_final_inventory_decisions",
       "arca_ondeck_runs"
     ],
+    "variants": [],
     "dynamicTableRequirements": [],
     "forbiddenWriteTables": [],
     "forbiddenWritePrefixes": [],
@@ -91,7 +92,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7728,
+      "line": 7747,
       "lineDigest": "3bc6c0219ad5a70df82a937621dc2889d8774d3b2fafd2caab032c66c0ac2b90"
     }
   }

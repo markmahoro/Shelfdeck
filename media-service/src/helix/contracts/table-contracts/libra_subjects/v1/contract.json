@@ -20,13 +20,39 @@
         "ordinal": 2,
         "name": "structure_kind",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "single",
+          "season"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
         "nullable": false
       },
       {
         "ordinal": 3,
+        "name": "content_profile",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "movie",
+          "series",
+          "jav",
+          "western_adult"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "routing_anchor_intake_decision_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
         "name": "status",
         "logicalType": "TEXT",
         "enumValues": [
@@ -39,7 +65,7 @@
         "nullable": false
       },
       {
-        "ordinal": 4,
+        "ordinal": 6,
         "name": "intake_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -48,7 +74,7 @@
         "nullable": false
       },
       {
-        "ordinal": 5,
+        "ordinal": 7,
         "name": "current_continuity_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -57,7 +83,7 @@
         "nullable": false
       },
       {
-        "ordinal": 6,
+        "ordinal": 8,
         "name": "current_episode_scope_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -66,7 +92,7 @@
         "nullable": false
       },
       {
-        "ordinal": 7,
+        "ordinal": 9,
         "name": "current_identity_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -75,7 +101,7 @@
         "nullable": true
       },
       {
-        "ordinal": 8,
+        "ordinal": 10,
         "name": "created_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -84,7 +110,7 @@
         "nullable": false
       },
       {
-        "ordinal": 9,
+        "ordinal": 11,
         "name": "updated_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -93,7 +119,7 @@
         "nullable": false
       },
       {
-        "ordinal": 10,
+        "ordinal": 12,
         "name": "terminal_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -105,7 +131,9 @@
     "primaryKey": [
       "subject_id"
     ],
-    "declaredForeignKeyColumns": [],
+    "declaredForeignKeyColumns": [
+      "routing_anchor_intake_decision_id"
+    ],
     "uniqueConstraints": [],
     "hotIndexes": [
       [
@@ -115,6 +143,22 @@
     ],
     "partialUniqueRules": [],
     "checkRules": [
+      {
+        "column": "structure_kind",
+        "enumValues": [
+          "single",
+          "season"
+        ]
+      },
+      {
+        "column": "content_profile",
+        "enumValues": [
+          "movie",
+          "series",
+          "jav",
+          "western_adult"
+        ]
+      },
       {
         "column": "status",
         "enumValues": [
@@ -163,21 +207,33 @@
     },
     "semanticRules": [
       "`status`至少区分`active|abandoned|completed`",
-      "new Subject固定`intake_revision=1`，每次Season extension CAS加1",
-      "continuity/Episode digest由本域relation rows按8.6.18重建",
+      "new Subject从Accepted Candidate固定`structure_kind/content_profile`、把创建它的Intake Decision固定为唯一Routing anchor且`intake_revision=1`",
+      "Season extension要求structure/profile相同、CAS加1并不得改写anchor，因此后续不同Field到达的Episode仍沿用该Season Subject既有Routing责任。`series`必须对应`season`，其余Beta profile对应`single`。continuity/Episode digest由本域relation rows按8.6.18重建",
       "`current_identity_revision=NULL`是尚未发布Resolved Product Identity的唯一合法初值，正整数时显式复合FK指向`libra_product_identity_revisions(subject_id,revision)`",
       "`INDEX(status,subject_id)`",
       "Subject不保存Arca Shelf Entry/Deck状态"
     ],
     "rawContract": {
-      "columns": "`subject_id PK, structure_kind, status, intake_revision, current_continuity_set_digest, current_episode_scope_digest, current_identity_revision NULL, created_at_ms, updated_at_ms, terminal_at_ms`",
-      "constraints": "`status`至少区分`active|abandoned|completed`；new Subject固定`intake_revision=1`，每次Season extension CAS加1；continuity/Episode digest由本域relation rows按8.6.18重建；`current_identity_revision=NULL`是尚未发布Resolved Product Identity的唯一合法初值，正整数时显式复合FK指向`libra_product_identity_revisions(subject_id,revision)`；`INDEX(status,subject_id)`；Subject不保存Arca Shelf Entry/Deck状态"
+      "columns": "`subject_id PK, structure_kind(single|season), content_profile(movie|series|jav|western_adult), routing_anchor_intake_decision_id FK, status, intake_revision, current_continuity_set_digest, current_episode_scope_digest, current_identity_revision NULL, created_at_ms, updated_at_ms, terminal_at_ms`",
+      "constraints": "`status`至少区分`active|abandoned|completed`；new Subject从Accepted Candidate固定`structure_kind/content_profile`、把创建它的Intake Decision固定为唯一Routing anchor且`intake_revision=1`；Season extension要求structure/profile相同、CAS加1并不得改写anchor，因此后续不同Field到达的Episode仍沿用该Season Subject既有Routing责任。`series`必须对应`season`，其余Beta profile对应`single`。continuity/Episode digest由本域relation rows按8.6.18重建；`current_identity_revision=NULL`是尚未发布Resolved Product Identity的唯一合法初值，正整数时显式复合FK指向`libra_product_identity_revisions(subject_id,revision)`；`INDEX(status,subject_id)`；Subject不保存Arca Shelf Entry/Deck状态"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8065,
-      "lineDigest": "4d4a88e19a06399209aad0d76f031b30bab1809badb216024a77c92a8c1280f4"
+      "line": 8136,
+      "lineDigest": "ff21d794a9ce33a4a691841c5bf2be9fd695efd227368842422ac86efb34c526"
     },
-    "foreignKeys": []
+    "foreignKeys": [
+      {
+        "columns": [
+          "routing_anchor_intake_decision_id"
+        ],
+        "targetTable": "libra_intake_decisions",
+        "targetColumns": [
+          "intake_decision_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": true
+      }
+    ]
   }
 }

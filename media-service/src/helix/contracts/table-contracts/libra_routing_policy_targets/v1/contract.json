@@ -100,7 +100,7 @@
         "column": "match_rule_json",
         "schemaRefColumn": "match_rule_schema_ref",
         "maxBytes": 16384,
-        "source": "8.5.9-hot-json",
+        "source": "table-row",
         "requiresJsonValidCheck": true
       }
     ],
@@ -114,16 +114,17 @@
     },
     "semanticRules": [
       "`PK(routing_policy_id,policy_revision,shelf_id)`及`UNIQUE(routing_policy_id,policy_revision,rank)`",
+      "Rule固定`RoutingMatchExpression@1`，JSON≤`16 KiB`、AST深度≤4、节点≤64",
       "Shelf ID为Arca公开Projection中的opaque ref"
     ],
     "rawContract": {
       "columns": "`routing_policy_id, policy_revision, shelf_id, rank, match_rule_schema_ref, match_rule_json, match_rule_digest`",
-      "constraints": "`PK(routing_policy_id,policy_revision,shelf_id)`及`UNIQUE(routing_policy_id,policy_revision,rank)`；Shelf ID为Arca公开Projection中的opaque ref"
+      "constraints": "`PK(routing_policy_id,policy_revision,shelf_id)`及`UNIQUE(routing_policy_id,policy_revision,rank)`；Rule固定`RoutingMatchExpression@1`，JSON≤`16 KiB`、AST深度≤4、节点≤64；Shelf ID为Arca公开Projection中的opaque ref"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8075,
-      "lineDigest": "e7b4f1178b6790d4ce94ffe85a5e8c583bf04936b84ca24d7aaf93f793982305"
+      "line": 8146,
+      "lineDigest": "c8d677a64b58754a2abd5ccba0071c8b049a56f01a597124c2f304630ab578bf"
     },
     "foreignKeys": []
   }

@@ -5,6 +5,7 @@ const { canonicalDigest } = require('../../../contracts/canonical-json');
 const CONTINUITY_HEAD_ID = 'active_subject_continuity';
 const CLAIM_KINDS = new Set(['provider_season_identity', 'triage_grouping_lineage']);
 const PROVENANCE_KINDS = new Set(['candidate', 'resolved_identity']);
+const CONTENT_PROFILES = new Set(['movie', 'series', 'jav', 'western_adult']);
 
 class LibraIntakeContractError extends Error {
   constructor(code, message, details = {}) { super(message); this.name = 'LibraIntakeContractError'; this.code = code; this.details = details; }
@@ -48,5 +49,21 @@ function subjectEpisodeScopeDigest(subjectId, episodeKeys) {
   return canonicalDigest({ schema:'libra.subject-episode-scope@1', subjectId, episodeKeys:normalized });
 }
 
+function candidateProvenance(snapshot) {
+  const candidate = snapshot && snapshot.candidatePackage;
+  const field = candidate && candidate.materialFieldContextRef;
+  const manifest = snapshot && snapshot.primaryInputManifest;
+  const claim = candidate && candidate.identityClaim;
+  if (!field || typeof field.fieldId !== 'string' || !field.fieldId || !Number.isSafeInteger(field.accessRevision) || field.accessRevision < 1 ||
+      typeof field.contextDigest !== 'string' || !field.contextDigest || !manifest || !['single','season'].includes(manifest.structureKind) ||
+      !CONTENT_PROFILES.has(candidate.contentProfile) || !claim || typeof claim.claimDigest !== 'string' || !claim.claimDigest ||
+      candidate.contentProfile === 'series' !== (manifest.structureKind === 'season')) {
+    fail('P8_INTAKE_PROVENANCE_INCOMPLETE', 'Delivery Snapshot lacks exact Field, profile, structure, or Identity Claim provenance.');
+  }
+  return Object.freeze({ sourceFieldId:field.fieldId, sourceFieldAccessRevision:field.accessRevision,
+    sourceFieldContextDigest:field.contextDigest, candidateStructureKind:manifest.structureKind,
+    candidateContentProfile:candidate.contentProfile, candidateIdentityClaimDigest:claim.claimDigest });
+}
+
 module.exports = Object.freeze({ CLAIM_KINDS, CONTINUITY_HEAD_ID, LibraIntakeContractError, PROVENANCE_KINDS,
-  continuityHeadDigest, normalizeClaim, subjectContinuitySetDigest, subjectEpisodeScopeDigest, utf8Compare });
+  candidateProvenance, continuityHeadDigest, normalizeClaim, subjectContinuitySetDigest, subjectEpisodeScopeDigest, utf8Compare });

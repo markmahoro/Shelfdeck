@@ -37,6 +37,7 @@
       "proc_run_materials",
       "fx_inbox"
     ],
+    "variants": [],
     "dynamicTableRequirements": [],
     "forbiddenWriteTables": [
       "fx_material_controls",
@@ -64,7 +65,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7720,
+      "line": 7739,
       "lineDigest": "d46d448e07485265340fc81e3af807d6ebc7ae09879793807e5815f76dc4be7a"
     }
   }

@@ -2,6 +2,7 @@
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
+const { candidateProvenance } = require('../model/libra-intake-contracts');
 const {
   DECISION_SCHEMA, MESSAGE_SCHEMA, RECEIPT_SCHEMA, REJECTION_SCHEMA,
   buildIntakeRejectionDecision, buildIntakeRejectionReceipt, buildLibraCandidateRejectedMessage
@@ -21,6 +22,7 @@ function without(value, ...fields) { return Object.fromEntries(Object.entries(va
 
 const DECISION_COLUMNS = ['intake_decision_id','decision_revision','decision_kind','offer_id','candidate_package_id','package_revision','package_digest',
   'acceptance_basis_digest','candidate_delivery_snapshot_digest','expected_continuity_head_revision','expected_continuity_head_digest',
+  'source_field_id','source_field_access_revision','source_field_context_digest','candidate_structure_kind','candidate_content_profile','candidate_identity_claim_digest',
   'committed_continuity_head_revision','candidate_continuity_set_digest','candidate_episode_scope_digest','match_cardinality',
   'matched_subject_set_digest','episode_overlap_digest','accepted_result','target_subject_id','expected_target_status','expected_target_intake_revision',
   'expected_target_continuity_set_digest','expected_target_episode_scope_digest','committed_target_intake_revision',
@@ -108,6 +110,7 @@ function createIntakeRejectionStore(options) {
     reject(request) {
       if (!request || !request.deliverySnapshot || !request.commitMarker || !request.resultBinding) fail('P8_REJECTION_REQUEST_INVALID', 'Rejection request is incomplete.');
       const decision=buildIntakeRejectionDecision({ deliverySnapshot:request.deliverySnapshot, reasons:request.reasons, decidedAtMs:request.decidedAtMs });
+      const provenance=candidateProvenance(request.deliverySnapshot);
       validateHandle(request.domainFactCommitHandle,decision);
       const markerId=request.commitMarker.commitMarker, commitDigest=request.commitMarker.commitDigest, binding=request.resultBinding;
       if (typeof markerId !== 'string' || !markerId || !SHA256.test(commitDigest || '') || typeof binding.resultId !== 'string' || !binding.resultId ||
@@ -142,7 +145,10 @@ function createIntakeRejectionStore(options) {
         repo.invoke('insert_decision',{ intake_decision_id:decision.intakeDecisionId,decision_revision:1,decision_kind:'rejected_acceptance',
           offer_id:decision.offerId,candidate_package_id:decision.candidatePackageId,package_revision:decision.packageRevision,
           package_digest:decision.packageDigest,acceptance_basis_digest:decision.acceptanceBasisDigest,
-          candidate_delivery_snapshot_digest:decision.candidateDeliverySnapshotDigest,...nulls,rejection_schema_ref:REJECTION_SCHEMA,
+          candidate_delivery_snapshot_digest:decision.candidateDeliverySnapshotDigest,source_field_id:provenance.sourceFieldId,
+          source_field_access_revision:provenance.sourceFieldAccessRevision,source_field_context_digest:provenance.sourceFieldContextDigest,
+          candidate_structure_kind:provenance.candidateStructureKind,candidate_content_profile:provenance.candidateContentProfile,
+          candidate_identity_claim_digest:provenance.candidateIdentityClaimDigest,...nulls,rejection_schema_ref:REJECTION_SCHEMA,
           rejection_id:rejection.rejectionId,primary_rejection_code:rejection.primaryRejectionCode,
           rejection_reason_set_digest:rejection.rejectionReasonSetDigest,rejection_digest:rejection.rejectionDigest,
           decision_digest:decision.decisionDigest,decided_at_ms:rejection.decidedAtMs });

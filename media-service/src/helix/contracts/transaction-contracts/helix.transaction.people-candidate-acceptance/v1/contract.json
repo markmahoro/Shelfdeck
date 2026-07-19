@@ -61,6 +61,7 @@
       "people_merge_candidates",
       "people_merge_candidate_revisions"
     ],
+    "variants": [],
     "dynamicTableRequirements": [],
     "forbiddenWriteTables": [],
     "forbiddenWritePrefixes": [],
@@ -85,7 +86,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7710,
+      "line": 7726,
       "lineDigest": "dd1548950a587697d63a1c67f79dcf2212fbe9558d0ecb7e5c523d2a21b28ba8"
     }
   }

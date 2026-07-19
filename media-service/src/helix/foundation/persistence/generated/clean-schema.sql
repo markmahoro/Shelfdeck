@@ -732,6 +732,8 @@ CREATE TABLE "arca_shelves" (
   "status" TEXT CHECK ("status" IN ('active', 'deregistering', 'deregistered')),
   "current_standard_revision" INTEGER CHECK ("current_standard_revision" >= 1),
   "current_placement_revision" INTEGER CHECK ("current_placement_revision" >= 1),
+  "routing_projection_revision" INTEGER CHECK ("routing_projection_revision" >= 1),
+  "routing_projection_digest" TEXT CHECK (length("routing_projection_digest") = 64 AND "routing_projection_digest" NOT GLOB '*[^0-9a-f]*'),
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
   "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
   FOREIGN KEY ("shelf_id", "current_standard_revision") REFERENCES "arca_shelf_standard_revisions" ("shelf_id", "revision") ON DELETE RESTRICT,
@@ -1148,16 +1150,22 @@ CREATE TABLE "libra_acceptance_specs" (
   "acceptance_spec_id" TEXT PRIMARY KEY,
   "subject_id" TEXT,
   "shelf_id" TEXT,
+  "shelf_routing_projection_revision" INTEGER CHECK ("shelf_routing_projection_revision" >= 1),
+  "shelf_projection_digest" TEXT CHECK (length("shelf_projection_digest") = 64 AND "shelf_projection_digest" NOT GLOB '*[^0-9a-f]*'),
   "shelf_standard_revision" INTEGER CHECK ("shelf_standard_revision" >= 1),
+  "shelf_standard_digest" TEXT CHECK (length("shelf_standard_digest") = 64 AND "shelf_standard_digest" NOT GLOB '*[^0-9a-f]*'),
   "decision_basis_id" TEXT,
+  "product_scope_digest" TEXT CHECK (length("product_scope_digest") = 64 AND "product_scope_digest" NOT GLOB '*[^0-9a-f]*'),
   "spec_revision" INTEGER CHECK ("spec_revision" >= 1),
   "spec_schema_ref" TEXT,
   "spec_json" TEXT,
   "spec_digest" TEXT CHECK (length("spec_digest") = 64 AND "spec_digest" NOT GLOB '*[^0-9a-f]*'),
-  "structure_kind" TEXT,
-  "content_profile" TEXT,
+  "record_digest" TEXT CHECK (length("record_digest") = 64 AND "record_digest" NOT GLOB '*[^0-9a-f]*'),
+  "structure_kind" TEXT CHECK ("structure_kind" IN ('single', 'season')),
+  "content_profile" TEXT CHECK ("content_profile" IN ('movie', 'series', 'jav', 'western_adult')),
   "published_at_ms" INTEGER CHECK ("published_at_ms" >= 0),
   UNIQUE ("subject_id", "spec_revision"),
+  UNIQUE ("subject_id", "decision_basis_id", "product_scope_digest", "record_digest"),
   CHECK (json_valid("spec_json")),
   CHECK (length(CAST("spec_json" AS BLOB)) <= 65536),
   FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
@@ -1166,7 +1174,13 @@ CREATE TABLE "libra_acceptance_specs" (
 
 CREATE TABLE "libra_decision_basis_inputs" (
   "decision_basis_id" TEXT,
-  "input_kind" TEXT,
+  "input_ordinal" INTEGER CHECK ("input_ordinal" >= 0),
+  "input_kind" TEXT CHECK ("input_kind" IN ('subject_snapshot', 'routing_authority', 'shelf_routing_projection', 'routing_fact', 'routing_decision', 'shelf_standard_projection', 'product_scope', 'decision_fact', 'query_result')),
+  "input_schema_ref" TEXT,
+  "input_object_id" TEXT,
+  "input_revision" INTEGER CHECK ("input_revision" >= 1),
+  "input_digest" TEXT CHECK (length("input_digest") = 64 AND "input_digest" NOT GLOB '*[^0-9a-f]*'),
+  "input_json" TEXT,
   "provider_domain" TEXT,
   "query_contract" TEXT,
   "query_version" INTEGER,
@@ -1175,21 +1189,32 @@ CREATE TABLE "libra_decision_basis_inputs" (
   "result_revision" INTEGER CHECK ("result_revision" >= 1),
   "result_digest" TEXT CHECK (length("result_digest") = 64 AND "result_digest" NOT GLOB '*[^0-9a-f]*'),
   "expires_at_ms" INTEGER CHECK ("expires_at_ms" >= 0),
-  PRIMARY KEY ("decision_basis_id", "input_kind", "provider_domain", "query_contract", "query_input_digest"),
+  PRIMARY KEY ("decision_basis_id", "input_ordinal"),
+  UNIQUE ("decision_basis_id", "input_kind", "input_object_id", "input_revision", "input_digest"),
+  CHECK (json_valid("input_json")),
+  CHECK (length(CAST("input_json" AS BLOB)) <= 65536),
   FOREIGN KEY ("decision_basis_id") REFERENCES "libra_decision_basis_revisions" ("decision_basis_id") ON DELETE RESTRICT
 );
 
 CREATE TABLE "libra_decision_basis_revisions" (
   "decision_basis_id" TEXT PRIMARY KEY,
   "subject_id" TEXT,
-  "routing_decision_id" TEXT,
+  "basis_kind" TEXT CHECK ("basis_kind" IN ('routing', 'acceptance_spec')),
   "basis_revision" INTEGER CHECK ("basis_revision" >= 1),
+  "expected_head_revision" INTEGER CHECK ("expected_head_revision" >= 1),
+  "routing_decision_id" TEXT,
   "query_result_set_digest" TEXT CHECK (length("query_result_set_digest") = 64 AND "query_result_set_digest" NOT GLOB '*[^0-9a-f]*'),
-  "status" TEXT CHECK ("status" IN ('ready', 'unresolved', 'superseded')),
+  "routing_input_digest" TEXT CHECK (length("routing_input_digest") = 64 AND "routing_input_digest" NOT GLOB '*[^0-9a-f]*'),
+  "spec_input_digest" TEXT CHECK (length("spec_input_digest") = 64 AND "spec_input_digest" NOT GLOB '*[^0-9a-f]*'),
+  "product_scope_digest" TEXT CHECK (length("product_scope_digest") = 64 AND "product_scope_digest" NOT GLOB '*[^0-9a-f]*'),
+  "input_set_digest" TEXT CHECK (length("input_set_digest") = 64 AND "input_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "status" TEXT CHECK ("status" IN ('ready', 'unresolved')),
+  "unresolved_reason_code" TEXT,
+  "basis_digest" TEXT CHECK (length("basis_digest") = 64 AND "basis_digest" NOT GLOB '*[^0-9a-f]*'),
   "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
   UNIQUE ("subject_id", "basis_revision"),
-  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
-  FOREIGN KEY ("routing_decision_id") REFERENCES "libra_routing_decisions" ("routing_decision_id") ON DELETE RESTRICT
+  UNIQUE ("subject_id", "basis_kind", "input_set_digest"),
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_libra_decision_basis_revisions_hot_01" ON "libra_decision_basis_revisions" ("subject_id", "status", "basis_revision");
 
@@ -1280,6 +1305,12 @@ CREATE TABLE "libra_intake_decisions" (
   "package_digest" TEXT CHECK (length("package_digest") = 64 AND "package_digest" NOT GLOB '*[^0-9a-f]*'),
   "acceptance_basis_digest" TEXT CHECK (length("acceptance_basis_digest") = 64 AND "acceptance_basis_digest" NOT GLOB '*[^0-9a-f]*'),
   "candidate_delivery_snapshot_digest" TEXT CHECK (length("candidate_delivery_snapshot_digest") = 64 AND "candidate_delivery_snapshot_digest" NOT GLOB '*[^0-9a-f]*'),
+  "source_field_id" TEXT,
+  "source_field_access_revision" INTEGER CHECK ("source_field_access_revision" >= 1),
+  "source_field_context_digest" TEXT CHECK (length("source_field_context_digest") = 64 AND "source_field_context_digest" NOT GLOB '*[^0-9a-f]*'),
+  "candidate_structure_kind" TEXT,
+  "candidate_content_profile" TEXT,
+  "candidate_identity_claim_digest" TEXT CHECK (length("candidate_identity_claim_digest") = 64 AND "candidate_identity_claim_digest" NOT GLOB '*[^0-9a-f]*'),
   "expected_continuity_head_revision" INTEGER CHECK ("expected_continuity_head_revision" >= 0),
   "expected_continuity_head_digest" TEXT CHECK (length("expected_continuity_head_digest") = 64 AND "expected_continuity_head_digest" NOT GLOB '*[^0-9a-f]*'),
   "committed_continuity_head_revision" INTEGER CHECK ("committed_continuity_head_revision" >= 1),
@@ -1466,24 +1497,40 @@ CREATE INDEX "idx_libra_product_packages_hot_01" ON "libra_product_packages" ("s
 CREATE TABLE "libra_routing_assessments" (
   "routing_assessment_id" TEXT PRIMARY KEY,
   "subject_id" TEXT,
-  "basis_digest" TEXT CHECK (length("basis_digest") = 64 AND "basis_digest" NOT GLOB '*[^0-9a-f]*'),
+  "decision_basis_id" TEXT,
+  "routing_authority_kind" TEXT CHECK ("routing_authority_kind" IN ('policy', 'manual_selection')),
   "routing_policy_id" TEXT,
   "routing_policy_revision" INTEGER CHECK ("routing_policy_revision" >= 1),
-  "evidence_digest" TEXT CHECK (length("evidence_digest") = 64 AND "evidence_digest" NOT GLOB '*[^0-9a-f]*'),
+  "manual_selection_digest" TEXT CHECK (length("manual_selection_digest") = 64 AND "manual_selection_digest" NOT GLOB '*[^0-9a-f]*'),
+  "routing_input_digest" TEXT CHECK (length("routing_input_digest") = 64 AND "routing_input_digest" NOT GLOB '*[^0-9a-f]*'),
+  "assessment_schema_ref" TEXT,
+  "assessment_json" TEXT,
+  "assessment_digest" TEXT CHECK (length("assessment_digest") = 64 AND "assessment_digest" NOT GLOB '*[^0-9a-f]*'),
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
-  UNIQUE ("subject_id", "basis_digest", "routing_policy_id", "routing_policy_revision"),
-  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT
+  UNIQUE ("subject_id", "decision_basis_id", "routing_input_digest"),
+  CHECK (json_valid("assessment_json")),
+  CHECK (length(CAST("assessment_json" AS BLOB)) <= 65536),
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("decision_basis_id") REFERENCES "libra_decision_basis_revisions" ("decision_basis_id") ON DELETE RESTRICT
 );
 
 CREATE TABLE "libra_routing_decisions" (
   "routing_decision_id" TEXT PRIMARY KEY,
   "subject_id" TEXT,
   "assessment_id" TEXT,
+  "decision_revision" INTEGER CHECK ("decision_revision" >= 1),
+  "decision" TEXT CHECK ("decision" IN ('resolved', 'unresolved')),
   "shelf_id" TEXT,
-  "shelf_priority_snapshot" TEXT,
-  "decision" TEXT,
+  "unresolved_reason_code" TEXT,
+  "routing_authority_kind" TEXT CHECK ("routing_authority_kind" IN ('policy', 'manual_selection')),
+  "routing_policy_id" TEXT,
+  "routing_policy_revision" INTEGER CHECK ("routing_policy_revision" >= 1),
+  "manual_selection_digest" TEXT CHECK (length("manual_selection_digest") = 64 AND "manual_selection_digest" NOT GLOB '*[^0-9a-f]*'),
+  "routing_input_digest" TEXT CHECK (length("routing_input_digest") = 64 AND "routing_input_digest" NOT GLOB '*[^0-9a-f]*'),
+  "shelf_priority_set_digest" TEXT CHECK (length("shelf_priority_set_digest") = 64 AND "shelf_priority_set_digest" NOT GLOB '*[^0-9a-f]*'),
   "decision_digest" TEXT CHECK (length("decision_digest") = 64 AND "decision_digest" NOT GLOB '*[^0-9a-f]*'),
   "decided_at_ms" INTEGER CHECK ("decided_at_ms" >= 0),
+  UNIQUE ("subject_id", "decision_revision"),
   FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
   FOREIGN KEY ("assessment_id") REFERENCES "libra_routing_assessments" ("routing_assessment_id") ON DELETE RESTRICT
 );
@@ -1596,6 +1643,8 @@ CREATE TABLE "libra_subject_continuity_heads" (
 
 CREATE TABLE "libra_subject_decision_heads" (
   "subject_id" TEXT PRIMARY KEY,
+  "head_revision" INTEGER CHECK ("head_revision" >= 1),
+  "head_digest" TEXT CHECK (length("head_digest") = 64 AND "head_digest" NOT GLOB '*[^0-9a-f]*'),
   "current_routing_decision_id" TEXT,
   "current_decision_basis_id" TEXT,
   "current_acceptance_spec_id" TEXT,
@@ -1633,7 +1682,9 @@ CREATE INDEX "idx_libra_subject_season_continuity_claims_hot_01" ON "libra_subje
 
 CREATE TABLE "libra_subjects" (
   "subject_id" TEXT PRIMARY KEY,
-  "structure_kind" TEXT,
+  "structure_kind" TEXT CHECK ("structure_kind" IN ('single', 'season')),
+  "content_profile" TEXT CHECK ("content_profile" IN ('movie', 'series', 'jav', 'western_adult')),
+  "routing_anchor_intake_decision_id" TEXT,
   "status" TEXT CHECK ("status" IN ('active', 'abandoned', 'completed')),
   "intake_revision" INTEGER CHECK ("intake_revision" >= 1),
   "current_continuity_set_digest" TEXT CHECK (length("current_continuity_set_digest") = 64 AND "current_continuity_set_digest" NOT GLOB '*[^0-9a-f]*'),
@@ -1642,6 +1693,7 @@ CREATE TABLE "libra_subjects" (
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
   "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
   "terminal_at_ms" INTEGER CHECK ("terminal_at_ms" >= 0),
+  FOREIGN KEY ("routing_anchor_intake_decision_id") REFERENCES "libra_intake_decisions" ("intake_decision_id") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
   FOREIGN KEY ("subject_id", "current_identity_revision") REFERENCES "libra_product_identity_revisions" ("subject_id", "revision") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_libra_subjects_hot_01" ON "libra_subjects" ("status", "subject_id");

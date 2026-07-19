@@ -48,6 +48,7 @@
     "readTables": [
       "fx_workspace_materials"
     ],
+    "variants": [],
     "dynamicTableRequirements": [],
     "forbiddenWriteTables": [],
     "forbiddenWritePrefixes": [],
@@ -72,7 +73,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7727,
+      "line": 7746,
       "lineDigest": "0ef98d8d31de4a30c7f34a98bd2e7fc5ba675bd973927f7d3ddfa30df83ccc84"
     }
   }

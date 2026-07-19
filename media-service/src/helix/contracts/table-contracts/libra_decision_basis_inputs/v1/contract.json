@@ -18,8 +18,8 @@
       },
       {
         "ordinal": 2,
-        "name": "input_kind",
-        "logicalType": "TEXT",
+        "name": "input_ordinal",
+        "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -27,16 +27,26 @@
       },
       {
         "ordinal": 3,
-        "name": "provider_domain",
+        "name": "input_kind",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "subject_snapshot",
+          "routing_authority",
+          "shelf_routing_projection",
+          "routing_fact",
+          "routing_decision",
+          "shelf_standard_projection",
+          "product_scope",
+          "decision_fact",
+          "query_result"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
         "nullable": false
       },
       {
         "ordinal": 4,
-        "name": "query_contract",
+        "name": "input_schema_ref",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -45,16 +55,7 @@
       },
       {
         "ordinal": 5,
-        "name": "query_version",
-        "logicalType": "INTEGER",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": false,
-        "nullable": false
-      },
-      {
-        "ordinal": 6,
-        "name": "query_input_digest",
+        "name": "input_object_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -62,8 +63,17 @@
         "nullable": false
       },
       {
+        "ordinal": 6,
+        "name": "input_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
         "ordinal": 7,
-        "name": "result_kind",
+        "name": "input_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -72,8 +82,8 @@
       },
       {
         "ordinal": 8,
-        "name": "result_revision",
-        "logicalType": "INTEGER",
+        "name": "input_json",
+        "logicalType": "TEXT_JSON",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -81,46 +91,129 @@
       },
       {
         "ordinal": 9,
+        "name": "provider_domain",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 10,
+        "name": "query_contract",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 11,
+        "name": "query_version",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 12,
+        "name": "query_input_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 13,
+        "name": "result_kind",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 14,
+        "name": "result_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 15,
         "name": "result_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
-        "nullable": false
+        "nullable": true
       },
       {
-        "ordinal": 10,
+        "ordinal": 16,
         "name": "expires_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
-        "nullable": false
+        "nullable": true
       }
     ],
     "primaryKey": [
       "decision_basis_id",
-      "input_kind",
-      "provider_domain",
-      "query_contract",
-      "query_input_digest"
+      "input_ordinal"
     ],
     "declaredForeignKeyColumns": [
       "decision_basis_id"
     ],
-    "uniqueConstraints": [],
+    "uniqueConstraints": [
+      [
+        "decision_basis_id",
+        "input_kind",
+        "input_object_id",
+        "input_revision",
+        "input_digest"
+      ]
+    ],
     "hotIndexes": [],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "input_kind",
+        "enumValues": [
+          "subject_snapshot",
+          "routing_authority",
+          "shelf_routing_projection",
+          "routing_fact",
+          "routing_decision",
+          "shelf_standard_projection",
+          "product_scope",
+          "decision_fact",
+          "query_result"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
+        "input_revision",
         "result_revision"
       ],
       "currentPointerColumns": [],
       "pointerTargets": [],
       "pointerRules": []
     },
-    "jsonContracts": [],
+    "jsonContracts": [
+      {
+        "column": "input_json",
+        "schemaRefColumn": "input_schema_ref",
+        "maxBytes": 65536,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
     "immutability": {
       "immutable": false,
       "rules": []
@@ -130,17 +223,19 @@
       "rules": []
     },
     "semanticRules": [
-      "`PK(decision_basis_id,input_kind,provider_domain,query_contract,query_input_digest)`",
-      "每项Decision Fact独立可追溯"
+      "`PK(decision_basis_id,input_ordinal)`及`UNIQUE(decision_basis_id,input_kind,input_object_id,input_revision,input_digest)`",
+      "ordinal从0连续，逐项typed JSON≤`64 KiB`、总JCS≤`1 MiB`",
+      "query variant填写query列，其他variant全部query列NULL",
+      "全部rows按8.6.18可重建同一`DecisionInputSet@1`，不得旁读Owner/Provider或Foundation Result补值"
     ],
     "rawContract": {
-      "columns": "`decision_basis_id FK, input_kind, provider_domain, query_contract, query_version, query_input_digest, result_kind, result_revision, result_digest, expires_at_ms`",
-      "constraints": "`PK(decision_basis_id,input_kind,provider_domain,query_contract,query_input_digest)`；每项Decision Fact独立可追溯"
+      "columns": "`decision_basis_id FK, input_ordinal, input_kind(subject_snapshot|routing_authority|shelf_routing_projection|routing_fact|routing_decision|shelf_standard_projection|product_scope|decision_fact|query_result), input_schema_ref, input_object_id, input_revision, input_digest, input_json, provider_domain NULL, query_contract NULL, query_version NULL, query_input_digest NULL, result_kind NULL, result_revision NULL, result_digest NULL, expires_at_ms NULL`",
+      "constraints": "`PK(decision_basis_id,input_ordinal)`及`UNIQUE(decision_basis_id,input_kind,input_object_id,input_revision,input_digest)`；ordinal从0连续，逐项typed JSON≤`64 KiB`、总JCS≤`1 MiB`；query variant填写query列，其他variant全部query列NULL；全部rows按8.6.18可重建同一`DecisionInputSet@1`，不得旁读Owner/Provider或Foundation Result补值"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8079,
-      "lineDigest": "fe9561c9816dbe88c838892571de994a75812dc9e28850df278b631fcfb45ca4"
+      "line": 8150,
+      "lineDigest": "4d56943e4582a63c5e7038055d0af11c1bbdc3029232da205fdf91d03280f8d0"
     },
     "foreignKeys": [
       {

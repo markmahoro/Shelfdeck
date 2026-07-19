@@ -28,8 +28,8 @@ test('validates all 169 SSOT table contracts without executing DDL', () => {
   const result = validateTableContracts({ contractsRoot: actualContractsRoot });
   assert.equal(result.ok, true);
   assert.equal(result.tableCount, 169);
-  assert.equal(result.foreignKeyCount, 191);
-  assert.equal(result.jsonColumnCount, 38);
+  assert.equal(result.foreignKeyCount, 192);
+  assert.equal(result.jsonColumnCount, 40);
 });
 
 test('rejects missing PK, open JSON contract, and unresolved current pointer', () => {

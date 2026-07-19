@@ -39,6 +39,7 @@
       "arca_aftercare_findings",
       "arca_shelf_entries"
     ],
+    "variants": [],
     "dynamicTableRequirements": [],
     "forbiddenWriteTables": [],
     "forbiddenWritePrefixes": [],
@@ -63,7 +64,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7729,
+      "line": 7748,
       "lineDigest": "6402976bd648c711162050e188e5b50b575fbcf11f1ae69ebef2a59ccb8c15f2"
     }
   }

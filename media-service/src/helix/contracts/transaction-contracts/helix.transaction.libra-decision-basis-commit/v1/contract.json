@@ -1,0 +1,196 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.libra-decision-basis-commit/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.libra-decision-basis-commit",
+    "displayName": "Libra Decision Basis Commit",
+    "ownerScope": "libra",
+    "commitClass": "domain_fact_commit",
+    "atomicFactSet": "complete `DecisionInputSet@1` + Subject/current Decision head CAS + immutable Decision Basis revision + relationized typed input snapshots + durable `DecisionBasisRevision@1`/commit marker；manual selection variant同事务写Command Receipt；Routing与Spec使用同一事务但不同`basisKind`，不创建Routing Decision、Acceptance Spec或Libra Run；`hasOutbox=false`",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "libra",
+        "access": "write",
+        "tables": [
+          "libra_decision_basis_revisions",
+          "libra_decision_basis_inputs",
+          "libra_subject_decision_heads"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_event_result_bindings",
+          "fx_commit_markers"
+        ]
+      }
+    ],
+    "writeTables": [
+      "libra_decision_basis_revisions",
+      "libra_decision_basis_inputs",
+      "libra_subject_decision_heads",
+      "fx_event_result_bindings",
+      "fx_commit_markers"
+    ],
+    "readTables": [
+      "libra_subjects",
+      "libra_intake_decisions",
+      "libra_product_identity_revisions",
+      "libra_subject_episode_scopes"
+    ],
+    "variants": [
+      {
+        "variantId": "routing_policy",
+        "participants": [
+          {
+            "participantKind": "domain",
+            "owner": "libra",
+            "access": "write",
+            "tables": [
+              "libra_decision_basis_revisions",
+              "libra_decision_basis_inputs",
+              "libra_subject_decision_heads"
+            ]
+          },
+          {
+            "participantKind": "foundation",
+            "owner": "execution-foundation",
+            "access": "write",
+            "tables": [
+              "fx_event_result_bindings",
+              "fx_commit_markers"
+            ]
+          }
+        ],
+        "writeTables": [
+          "libra_decision_basis_revisions",
+          "libra_decision_basis_inputs",
+          "libra_subject_decision_heads",
+          "fx_event_result_bindings",
+          "fx_commit_markers"
+        ],
+        "readTables": [
+          "libra_subjects",
+          "libra_intake_decisions",
+          "libra_product_identity_revisions",
+          "libra_subject_episode_scopes",
+          "libra_field_routing_heads",
+          "libra_routing_policy_revisions",
+          "libra_routing_policy_targets"
+        ]
+      },
+      {
+        "variantId": "routing_manual_selection",
+        "participants": [
+          {
+            "participantKind": "domain",
+            "owner": "libra",
+            "access": "write",
+            "tables": [
+              "libra_decision_basis_revisions",
+              "libra_decision_basis_inputs",
+              "libra_subject_decision_heads"
+            ]
+          },
+          {
+            "participantKind": "foundation",
+            "owner": "execution-foundation",
+            "access": "write",
+            "tables": [
+              "fx_event_result_bindings",
+              "fx_commit_markers",
+              "fx_command_receipts"
+            ]
+          }
+        ],
+        "writeTables": [
+          "libra_decision_basis_revisions",
+          "libra_decision_basis_inputs",
+          "libra_subject_decision_heads",
+          "fx_event_result_bindings",
+          "fx_commit_markers",
+          "fx_command_receipts"
+        ],
+        "readTables": [
+          "libra_subjects",
+          "libra_intake_decisions",
+          "libra_product_identity_revisions",
+          "libra_subject_episode_scopes",
+          "fx_command_receipts"
+        ]
+      },
+      {
+        "variantId": "acceptance_spec",
+        "participants": [
+          {
+            "participantKind": "domain",
+            "owner": "libra",
+            "access": "write",
+            "tables": [
+              "libra_decision_basis_revisions",
+              "libra_decision_basis_inputs",
+              "libra_subject_decision_heads"
+            ]
+          },
+          {
+            "participantKind": "foundation",
+            "owner": "execution-foundation",
+            "access": "write",
+            "tables": [
+              "fx_event_result_bindings",
+              "fx_commit_markers"
+            ]
+          }
+        ],
+        "writeTables": [
+          "libra_decision_basis_revisions",
+          "libra_decision_basis_inputs",
+          "libra_subject_decision_heads",
+          "fx_event_result_bindings",
+          "fx_commit_markers"
+        ],
+        "readTables": [
+          "libra_subjects",
+          "libra_intake_decisions",
+          "libra_product_identity_revisions",
+          "libra_subject_episode_scopes",
+          "libra_routing_decisions"
+        ]
+      }
+    ],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [
+      "proc_",
+      "arca_"
+    ],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "libra-decision-basis",
+        "faultInjectionPoints": "完整DecisionInputSet与Handle验证前后、typed input逐项写入、Subject Decision head CAS、manual Command Receipt、Result/marker前后、响应前崩溃",
+        "requiredInvariant": "Basis revision、全部typed input rows、head pointer、Result和marker全有或全无；manual variant的Command Receipt同事务成立；相同subject+basisKind+inputSetDigest重放不推进revision或head；不得创建Routing Decision、Acceptance Spec、Run或Workspace",
+        "source": {
+          "section": "8.9.7",
+          "line": 7887
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7733,
+      "lineDigest": "1964ab0bb4858cc96afd58e4ee70032f7e32551b83162366a26663bebebf73f1"
+    }
+  }
+}

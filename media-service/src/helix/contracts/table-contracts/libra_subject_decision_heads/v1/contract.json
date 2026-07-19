@@ -18,33 +18,51 @@
       },
       {
         "ordinal": 2,
+        "name": "head_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "head_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
         "name": "current_routing_decision_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": true,
-        "nullable": false
+        "nullable": true
       },
       {
-        "ordinal": 3,
+        "ordinal": 5,
         "name": "current_decision_basis_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": true,
-        "nullable": false
+        "nullable": true
       },
       {
-        "ordinal": 4,
+        "ordinal": 6,
         "name": "current_acceptance_spec_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": true,
-        "nullable": false
+        "nullable": true
       },
       {
-        "ordinal": 5,
+        "ordinal": 7,
         "name": "updated_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -67,7 +85,9 @@
     "partialUniqueRules": [],
     "checkRules": [],
     "revisionContract": {
-      "revisionColumns": [],
+      "revisionColumns": [
+        "head_revision"
+      ],
       "currentPointerColumns": [
         "current_routing_decision_id",
         "current_decision_basis_id",
@@ -116,26 +136,26 @@
     "jsonContracts": [],
     "immutability": {
       "immutable": false,
-      "rules": [
-        "每次切换与对应immutable Decision/Spec同事务成立"
-      ]
+      "rules": []
     },
     "deletion": {
       "foreignKeyPolicy": "ON DELETE RESTRICT",
       "rules": []
     },
     "semanticRules": [
-      "Automation/Run Creator只读head",
-      "每次切换与对应immutable Decision/Spec同事务成立"
+      "Subject刚Accepted时允许无row",
+      "首次Decision Basis Commit以logical expected revision 0原子建立revision 1，后续每次pointer切换expected CAS并加1",
+      "`head_digest=SHA-256(JCS({schema:\"libra.subject-decision-head@1\",subjectId,headRevision,currentRoutingDecisionId,currentDecisionBasisId,currentAcceptanceSpecId}))`",
+      "Automation/Run Creator只读head，不按时间戳猜revision"
     ],
     "rawContract": {
-      "columns": "`subject_id PK/FK, current_routing_decision_id FK, current_decision_basis_id FK, current_acceptance_spec_id FK, updated_at_ms`",
-      "constraints": "Automation/Run Creator只读head；每次切换与对应immutable Decision/Spec同事务成立"
+      "columns": "`subject_id PK/FK, head_revision, head_digest, current_routing_decision_id NULL FK, current_decision_basis_id NULL FK, current_acceptance_spec_id NULL FK, updated_at_ms`",
+      "constraints": "Subject刚Accepted时允许无row；首次Decision Basis Commit以logical expected revision 0原子建立revision 1，后续每次pointer切换expected CAS并加1；`head_digest=SHA-256(JCS({schema:\"libra.subject-decision-head@1\",subjectId,headRevision,currentRoutingDecisionId,currentDecisionBasisId,currentAcceptanceSpecId}))`；Automation/Run Creator只读head，不按时间戳猜revision"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8081,
-      "lineDigest": "44119a06333983fc844d29b0ed5e0798e55ef2997abf1329901750798aa4431a"
+      "line": 8152,
+      "lineDigest": "b1174d49a0490625aa80f16d58ea0c0082309f5db98f6cc6814981df6a33a901"
     },
     "foreignKeys": [
       {

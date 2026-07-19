@@ -50,6 +50,7 @@
       "perception_source_cursors",
       "perception_records"
     ],
+    "variants": [],
     "dynamicTableRequirements": [],
     "forbiddenWriteTables": [],
     "forbiddenWritePrefixes": [],
@@ -74,7 +75,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7707,
+      "line": 7723,
       "lineDigest": "acab0d1f4a68647d37ae2c4cee69f050fc8addfc0fb6f6e721e246605fa87043"
     }
   }
