@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "manifestVersion": 1,
+  "manifestId": "helix.libra-application-type-registry",
+  "kind": "application-type-registry",
+  "owner": "libra",
+  "status": "active",
+  "targetCount": 2,
+  "entries": [
+    {
+      "id": "ProductDeliveryQuery",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ProductDeliveryQuery/v1",
+      "relativePath": "application-types/ProductDeliveryQuery/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "fd5ad2631a1f565eb9db03e198c8be5aa28d05feab91cb0e743fa163ff01dade"
+      },
+      "ssotRefs": [
+        "8.2.2",
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "ProductDeliveryReadResult",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ProductDeliveryReadResult/v1",
+      "relativePath": "application-types/ProductDeliveryReadResult/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "9becb974626b59dc63aaee21b34af1891fa35e323c59bb08170bcf7e42bfefa1"
+      },
+      "ssotRefs": [
+        "8.2.2",
+        "8.6.21"
+      ]
+    }
+  ]
+}

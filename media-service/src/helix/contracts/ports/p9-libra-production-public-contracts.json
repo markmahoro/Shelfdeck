@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix.ports.p9-libra-production-public",
+  "owner": "libra",
+  "ssotRefs": ["8.1.4", "8.2.2", "8.6.21"],
+  "ports": [
+    {
+      "exportName": "ProductDeliveryPort",
+      "packageId": "domains.libra.public",
+      "kind": "handoff-deliverable-read-port",
+      "methods": ["readPackage"],
+      "inputSchemaRefs": {
+        "readPackage": "helix://contracts/application-types/ProductDeliveryQuery/v1"
+      },
+      "outputSchemaRefs": {
+        "readPackage": "helix://contracts/application-types/ProductDeliveryReadResult/v1"
+      }
+    }
+  ]
+}

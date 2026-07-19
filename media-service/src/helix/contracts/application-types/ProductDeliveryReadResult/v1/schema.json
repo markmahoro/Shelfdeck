@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/ProductDeliveryReadResult/v1",
+  "title": "ProductDeliveryReadResult@1",
+  "x-helix-ssotRefs": [
+    "8.2.2",
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 16777216,
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "resultKind": {
+          "const": "found"
+        },
+        "onDeckProductPackage": {
+          "$ref": "helix://contracts/types/OnDeckProductPackage/v1"
+        },
+        "deliveryFence": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "eligibility": {
+                  "type": "string",
+                  "enum": [
+                    "eligible",
+                    "ineligible"
+                  ]
+                },
+                "reasonCode": {
+                  "type": "string",
+                  "enum": [
+                    "run_not_active",
+                    "spec_not_current",
+                    "package_not_current",
+                    "delivery_already_terminal",
+                    "control_not_libra"
+                  ]
+                },
+                "libraRunId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "runState": {
+                  "type": "string",
+                  "enum": [
+                    "active",
+                    "suspended",
+                    "superseded",
+                    "frozen",
+                    "completed",
+                    "discarded"
+                  ]
+                },
+                "runStateRevision": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "runStateDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "acceptanceSpecId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "packageRevisionHead": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "deliveryReceiptAbsent": {
+                  "type": "boolean"
+                },
+                "productControlSetDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "fenceDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "required": [
+                "eligibility",
+                "libraRunId",
+                "runState",
+                "runStateRevision",
+                "runStateDigest",
+                "acceptanceSpecId",
+                "packageRevisionHead",
+                "deliveryReceiptAbsent",
+                "fenceDigest"
+              ],
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "eligibility": {
+                        "const": "eligible"
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "runState": {
+                        "const": "active"
+                      },
+                      "deliveryReceiptAbsent": {
+                        "const": true
+                      }
+                    },
+                    "not": {
+                      "required": [
+                        "reasonCode"
+                      ]
+                    }
+                  },
+                  "else": {
+                    "required": [
+                      "reasonCode"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "readDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "resultKind",
+        "onDeckProductPackage",
+        "deliveryFence",
+        "readDigest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "resultKind": {
+          "const": "not_found"
+        },
+        "reasonCode": {
+          "const": "package_missing"
+        },
+        "checkedAtMs": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "resultKind",
+        "reasonCode",
+        "checkedAtMs"
+      ]
+    }
+  ]
+}

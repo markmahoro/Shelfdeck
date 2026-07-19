@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/ProductDeliveryQuery/v1",
+  "title": "ProductDeliveryQuery@1",
+  "x-helix-ssotRefs": [
+    "8.2.2",
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 4096,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "queryContract": {
+      "const": "libra.product-delivery@1"
+    },
+    "readPurpose": {
+      "type": "string",
+      "enum": [
+        "historical",
+        "acceptance_fence"
+      ]
+    },
+    "offerId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "onDeckPackageId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "expectedPackageRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "expectedPackageDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "queryContract",
+    "readPurpose",
+    "offerId",
+    "onDeckPackageId",
+    "expectedPackageRevision",
+    "expectedPackageDigest"
+  ]
+}
