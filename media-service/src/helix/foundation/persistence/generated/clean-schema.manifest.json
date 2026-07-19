@@ -4,7 +4,7 @@
   "digestAlgorithm": "sha256",
   "tableCount": 169,
   "tableContractAggregateDigest": "f5d2f682ac545c578c9f4eb874378ed2d8cb9463563b27947a6fbe780e1aeb69",
-  "ddlDigest": "e529043b0fb1301f484f124b11fd4b535cebcad37089e993ff27b7fa348a947e",
+  "ddlDigest": "41d7f14e0f76ee69bcefb47925066ab6d1b5ed0154708415bfe0968b20cf26ef",
   "tables": [
     {
       "tableId": "arca_acceptance_attempts",
@@ -1922,7 +1922,7 @@
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_decision_basis_revisions/v1",
       "contractDigest": "504541abc179c895ae7dd6aa25c9a2ae1f41081ac2e1e8ce4a503d5ee02fa272",
-      "sqlDigest": "7d92af88c193f8b80411f9ef50f0c1ad43d358324ae409c3fe4a57a4832b72e7",
+      "sqlDigest": "432c3e7a85b14e6d66107563cabdf7f06c4a25fd2ef07fc2cc5601eb54dd1761",
       "columns": [
         "decision_basis_id",
         "subject_id",

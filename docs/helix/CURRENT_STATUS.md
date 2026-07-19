@@ -13,12 +13,20 @@ Last updated: 2026-07-19
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains；P7 — Procurement |
 | Current phase | P8 — Handoff A and Libra front half |
-| Current phase status | P8-00–P8-05 PASS；P8-06实施中 |
+| Current phase status | P8-00–P8-07 PASS；P8-08 pure contracts / Decision Basis transaction PASS；Design Return open |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P7 phase closure `2cf98561d7cf785db4005e65e99b0750d84ce5ce` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p8` on `codex/helix-p8` |
-| Next action | 重物化PBF-12机器合同并实现P8-08 Routing/Decision Basis/Acceptance Spec |
+| Next action | 等待并复审 Decision head reconstruction SSOT闭合；随后完成P8-08 Routing/Spec原子提交 |
+
+P8-08第一段实现已完成：PBF-12机器合同原样纳入后，pure Decision Input、closed Routing AST/Assessment/Decision、
+Product Scope、六类Acceptance Spec Resolver及Decision Basis 5-table atomic commit均已通过focused 8/8与完整P3
+persistence门禁。实现生成器同时纠正`contentProfile=series`与`structureKind=season`混淆，以及首次Decision Basis的
+logical `expectedHeadRevision=0` DDL约束。完整恢复反证随后发现：`DecisionInputSet.expectedDecisionHead`的digest与三个
+pointer没有Owner历史持久化位置，不能从Basis/relation rows重建完整Input Set；精确Design Return已发送Architecture Agent，
+受影响的Routing Decision Commit与Acceptance Spec Publish暂停。证据见
+`implementation/evidence/P8_08_DECISION_HEAD_RECONSTRUCTION_DESIGN_RETURN.md`。没有业务决策需要用户处理。
 
 Architecture Agent提交`be3ecb89`已闭合`PBF-11`。实现侧逐项复审确认：Candidate Delivery正式携带完整
 Manifest及逐Material Location Evidence；Subject/Binding Episode关系均可N:M持久化；global continuity head与唯一

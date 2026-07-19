@@ -1,6 +1,6 @@
 # P8 Handoff A and Libra Front Half Detailed Plan
 
-Status: Active；P8-00–P8-07 complete；P8-08 Design Return open.
+Status: Active；P8-00–P8-07 complete；P8-08 pure contracts and Decision Basis transaction PASS；historical Decision head reconstruction Design Return open.
 
 Last updated: 2026-07-19
 
@@ -127,6 +127,12 @@ Kairox/Task Runtime，不执行真实媒体生产、Workspace写入、Handoff B�
 - Design Return：现有SSOT没有formal Routing Readiness/Decision DTO、Decision Basis三个digest公式、Routing/Spec canonical
   transaction与head CAS、完整Acceptance Spec requirements/ID/digest/freshness连续性；物化`AcceptanceSpec@1`还把canonical
   contentProfile `series`错误写成`season`。精确缺口已发送Architecture Agent；受影响路径暂停，不推测实现。
+- PBF-12 已原样纳入并完成第一段实现：pure Decision Input、closed Routing AST/Assessment/Decision、Product Scope、六类
+  Acceptance Spec Resolver及 Decision Basis 5-table atomic commit通过focused与完整P3门禁；生成器中的`series/season`与
+  logical expected head revision 0物化错误已修正。
+- 第二次 Design Return：完整`DecisionInputSet.expectedDecisionHead`无法从现有Basis/relations Owner rows历史恢复，受影响的
+  Routing Decision Commit、Acceptance Spec Publish与semantic replay暂停。Evidence见
+  `evidence/P8_08_DECISION_HEAD_RECONSTRUCTION_DESIGN_RETURN.md`。
 
 ### P8-09 Capability registration and Foundation integration
 

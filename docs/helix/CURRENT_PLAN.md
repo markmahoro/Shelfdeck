@@ -80,11 +80,11 @@ Canonical Transaction由35项增至38项。
 | --- | --- |
 | Phase | P8 — Handoff A and Libra front half |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | P8-00–P8-07 PASS；P8-08 architecture correction integrated，implementation in progress |
+| Status | P8-00–P8-07 PASS；P8-08 pure contracts / Decision Basis transaction PASS；Decision head reconstruction Design Return open |
 | Implementation baseline | exact P7 phase closure `2cf98561d7cf785db4005e65e99b0750d84ce5ce` |
 | Phase branch/worktree | `codex/helix-p8` / `E:\my_project\emby_third_party-helix-p8` |
 | Allowed now | P2–P13本地代码、unit/contract/isolated fixture、文档与Phase自动转换 |
-| Next action | 重物化PBF-12机器合同并实现P8-08 Routing/Decision Basis/Acceptance Spec |
+| Next action | 等待并复审 Decision head reconstruction SSOT闭合；随后完成P8-08 Routing/Spec原子提交 |
 
 ## 4. Master roadmap
 

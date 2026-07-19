@@ -13,7 +13,8 @@ const NON_NEGATIVE_REVISION_COLUMNS = new Set([
   'proc_run_materials.expected_control_revision',
   'proc_procurement_retry_intent_materials.expected_control_revision',
   'libra_subject_continuity_heads.current_revision',
-  'libra_intake_decisions.expected_continuity_head_revision'
+  'libra_intake_decisions.expected_continuity_head_revision',
+  'libra_decision_basis_revisions.expected_head_revision'
 ]);
 
 // These are implementation-only projection guards. Their writers and startup

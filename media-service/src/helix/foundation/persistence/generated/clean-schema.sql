@@ -1201,7 +1201,7 @@ CREATE TABLE "libra_decision_basis_revisions" (
   "subject_id" TEXT,
   "basis_kind" TEXT CHECK ("basis_kind" IN ('routing', 'acceptance_spec')),
   "basis_revision" INTEGER CHECK ("basis_revision" >= 1),
-  "expected_head_revision" INTEGER CHECK ("expected_head_revision" >= 1),
+  "expected_head_revision" INTEGER CHECK ("expected_head_revision" >= 0),
   "routing_decision_id" TEXT,
   "query_result_set_digest" TEXT CHECK (length("query_result_set_digest") = 64 AND "query_result_set_digest" NOT GLOB '*[^0-9a-f]*'),
   "routing_input_digest" TEXT CHECK (length("routing_input_digest") = 64 AND "routing_input_digest" NOT GLOB '*[^0-9a-f]*'),
