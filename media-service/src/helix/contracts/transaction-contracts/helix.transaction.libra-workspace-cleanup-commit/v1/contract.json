@@ -7,15 +7,28 @@
     "displayName": "Libra Workspace Cleanup Commit",
     "ownerScope": "libra",
     "commitClass": "responsibility_control_commit",
-    "atomicFactSet": "verified Workspace/Product deletion Evidence + Cleanup member terminal + corresponding Libra Control release + cleanup receipt",
+    "atomicFactSet": "complete `WorkspaceCleanupCommitDecision@1` + expected Cleanup Scope/member/Workspace/Reference revision/digest + mutually exclusive `WorkspaceMaterialDeletionEvidence@1|WorkspaceCleanupBlockingEvidence@1` + completed variant exact current Material Control fence + Cleanup member terminal CAS + completed variant Reference release revision/optional Libra Control release + Scope/Workspace aggregate revision/state + completed-scope Foundation Workspace Registry terminal + `WorkspaceCleanupCommitReceipt@1`/commit marker；outcome Evidence、对应variant的Reference/Control效果、member/scope/workspace状态与Result全有或全无，`hasOutbox=false`",
     "participants": [
       {
         "participantKind": "domain",
         "owner": "libra",
         "access": "write",
         "tables": [
+          "libra_workspace_cleanup_scopes",
           "libra_workspace_cleanup_members",
-          "libra_workspace_cleanup_scopes"
+          "libra_workspaces",
+          "libra_workspace_revisions",
+          "libra_workspace_material_refs"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_workspace_registry",
+          "fx_event_result_bindings",
+          "fx_commit_markers"
         ]
       },
       {
@@ -26,27 +39,33 @@
           "fx_material_controls",
           "fx_material_control_revisions"
         ]
-      },
-      {
-        "participantKind": "foundation",
-        "owner": "execution-foundation",
-        "access": "write",
-        "tables": [
-          "fx_event_result_bindings",
-          "fx_commit_markers"
-        ]
       }
     ],
     "writeTables": [
-      "libra_workspace_cleanup_members",
       "libra_workspace_cleanup_scopes",
+      "libra_workspace_cleanup_members",
+      "libra_workspaces",
+      "libra_workspace_revisions",
+      "libra_workspace_material_refs",
+      "fx_workspace_registry",
       "fx_material_controls",
       "fx_material_control_revisions",
       "fx_event_result_bindings",
       "fx_commit_markers"
     ],
     "readTables": [
-      "fx_workspace_materials"
+      "fx_workspace_materials",
+      "fx_effect_journal",
+      "libra_workspace_cleanup_scopes",
+      "libra_workspace_cleanup_members",
+      "libra_workspaces",
+      "libra_workspace_revisions",
+      "libra_workspace_material_refs",
+      "fx_workspace_registry",
+      "fx_material_controls",
+      "fx_material_control_revisions",
+      "fx_event_result_bindings",
+      "fx_commit_markers"
     ],
     "variants": [],
     "dynamicTableRequirements": [],
@@ -73,8 +92,8 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7746,
-      "lineDigest": "0ef98d8d31de4a30c7f34a98bd2e7fc5ba675bd973927f7d3ddfa30df83ccc84"
+      "line": 7769,
+      "lineDigest": "640238b69041a671d248fac3a48eba8564206892752d4a24c87c5dc33b471d6f"
     }
   }
 }

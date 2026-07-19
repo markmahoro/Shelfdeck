@@ -5,6 +5,7 @@ const path = require('path');
 const { buildResultTypeSchemas, schemaDigest, typeId } = require('./result-type-schema-builder');
 
 const HELPER_SOURCES = {
+  OnDeckProductPackage: { section: '8.6.19', line: 9440 },
   OnDeckCommitReceipt: { section: '8.6.19', line: 8009 },
   OffloadCompletionFact: { section: '8.6.19', line: 8010 },
   PeopleCandidateDraft: { section: '8.6.19', line: 8033 },
@@ -47,7 +48,7 @@ function buildResultTypeRegistry(contractsRoot) {
     owner: 'contracts',
     status: 'active',
     targetCatalogResultCount: 86,
-    helperCount: 11,
+    helperCount: 12,
     entries
   };
 }

@@ -21,10 +21,10 @@
     },
     {
       "id": "legacy.admission",
-      "pattern": "(?<!work)(?<!work_)(?<!work-)(?<!work )(?<!run)(?<!run_)(?<!run-)(?<!run )admission",
+      "pattern": "\\badmission(?:store|service|runtime|manager|repository|engine)\\b",
       "flags": "i",
       "ssotRefs": ["7.2.3", "8.8.3"],
-      "rationale": "Only canonical Work Admission is valid; historical business Admission is not."
+      "rationale": "Generic historical Admission components are forbidden; canonical Work, Run, and Workspace Admission contracts remain valid."
     },
     {
       "id": "legacy.gate-fields",
@@ -155,7 +155,7 @@
     },
     {
       "id": "canonical-procurement-transaction-inventory",
-      "relativePath": "contracts/manifests/transaction-inventory/entries-001-038.json",
+      "relativePath": "contracts/manifests/transaction-inventory/entries-001-043.json",
       "purpose": "evidence-locator",
       "allowedLocationTypes": ["content"],
       "allowedRuleIds": ["legacy.admission"]

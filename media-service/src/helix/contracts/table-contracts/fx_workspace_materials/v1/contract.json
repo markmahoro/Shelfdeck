@@ -14,6 +14,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": true,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -23,67 +24,161 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
         "ordinal": 3,
+        "name": "material_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "endpoint_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "mount_scope_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "inode",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "content_hash_algorithm",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "content_hash",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
         "name": "relative_path",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
-        "ordinal": 4,
+        "ordinal": 10,
         "name": "digest_algorithm",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
-        "ordinal": 5,
+        "ordinal": 11,
         "name": "digest_hex",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
-        "ordinal": 6,
+        "ordinal": 12,
         "name": "size_bytes",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
-        "ordinal": 7,
+        "ordinal": 13,
         "name": "reference_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
-        "ordinal": 8,
+        "ordinal": 14,
         "name": "state",
         "logicalType": "TEXT",
         "enumValues": [
-          "working",
-          "product_staged",
-          "retained",
-          "deletion_pending",
-          "deleted"
+          "active",
+          "reclaimed"
         ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
+      },
+      {
+        "ordinal": 15,
+        "name": "reclaimed_effect_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 16,
+        "name": "reclaimed_effect_receipt_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 17,
+        "name": "reclaimed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
       }
     ],
     "primaryKey": [
@@ -105,11 +200,8 @@
       {
         "column": "state",
         "enumValues": [
-          "working",
-          "product_staged",
-          "retained",
-          "deletion_pending",
-          "deleted"
+          "active",
+          "reclaimed"
         ]
       }
     ],
@@ -133,16 +225,21 @@
     "semanticRules": [
       "`PK(workspace_id,material_handle_id)`",
       "`UNIQUE(workspace_id,relative_path)`",
-      "路径必须通过containment validator"
+      "`rowMutability=cas_lifecycle`且只允许幂等filesystem cleanup effect以expected Handle fence执行一次`active→reclaimed`，三个reclaimed列在active时全NULL、terminal时全非NULL且write-once",
+      "同一inode的hard-link location允许共享materialKey但必须是不同Handle/relative path",
+      "endpoint/mount scope必须等于Workspace root snapshot",
+      "完整Physical Identity由Workspace write effect在同一Effect commit按实际文件stat+sha256形成，`material_key`必须按8.6.18公式重算",
+      "路径必须通过containment validator",
+      "Domain Cleanup Commit只读取该terminal row/Evidence并收口Libra Reference/Control，不再次删除bytes或改写本row"
     ],
     "rawContract": {
-      "columns": "`workspace_id FK, material_handle_id, relative_path, digest_algorithm, digest_hex, size_bytes, reference_revision, state`",
-      "constraints": "`PK(workspace_id,material_handle_id)`；`UNIQUE(workspace_id,relative_path)`；路径必须通过containment validator"
+      "columns": "`workspace_id FK, material_handle_id, material_key, endpoint_id, mount_scope_id, inode, content_hash_algorithm, content_hash, relative_path, digest_algorithm, digest_hex, size_bytes, reference_revision, state(active|reclaimed), reclaimed_effect_id NULL, reclaimed_effect_receipt_digest NULL, reclaimed_at_ms NULL`",
+      "constraints": "`PK(workspace_id,material_handle_id)`；`UNIQUE(workspace_id,relative_path)`；`rowMutability=cas_lifecycle`且只允许幂等filesystem cleanup effect以expected Handle fence执行一次`active→reclaimed`，三个reclaimed列在active时全NULL、terminal时全非NULL且write-once；同一inode的hard-link location允许共享materialKey但必须是不同Handle/relative path；endpoint/mount scope必须等于Workspace root snapshot；完整Physical Identity由Workspace write effect在同一Effect commit按实际文件stat+sha256形成，`material_key`必须按8.6.18公式重算；路径必须通过containment validator；Domain Cleanup Commit只读取该terminal row/Evidence并收口Libra Reference/Control，不再次删除bytes或改写本row"
     },
     "source": {
       "section": "8.5.10",
-      "line": 8115,
-      "lineDigest": "d13e3e265429279e92199f77b6a72195b6e61e057d78a8623f040c6a54c0f401"
+      "line": 8214,
+      "lineDigest": "f16df83eb9a66d40c444b547253e5754d40c6ddc8085de058df01dd57f71b5fd"
     },
     "foreignKeys": [
       {

@@ -14,6 +14,7 @@
         "enumValues": [],
         "primaryKeyPart": true,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -23,6 +24,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": true,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -32,6 +34,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -41,6 +44,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -50,6 +54,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -63,6 +68,7 @@
         ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -72,6 +78,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": true
       },
       {
@@ -81,6 +88,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": true
       },
       {
@@ -90,6 +98,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": true
       },
       {
@@ -99,6 +108,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": true
       },
       {
@@ -108,6 +118,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": true
       },
       {
@@ -117,6 +128,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -126,6 +138,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": true
       }
     ],
@@ -194,7 +207,7 @@
     },
     "source": {
       "section": "8.5.11",
-      "line": 8141,
+      "line": 8240,
       "lineDigest": "5e297dff615cacd717728a40a59fe5befe354d6728d8d216bd7282dee69a3bf1"
     },
     "foreignKeys": [

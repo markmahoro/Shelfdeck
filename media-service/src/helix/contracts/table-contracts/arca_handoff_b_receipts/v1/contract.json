@@ -14,6 +14,7 @@
         "enumValues": [],
         "primaryKeyPart": true,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -23,6 +24,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": true,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -35,6 +37,7 @@
         ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -44,6 +47,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -53,6 +57,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": true
       },
       {
@@ -62,6 +67,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -71,6 +77,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -80,6 +87,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": true
       },
       {
@@ -89,6 +97,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": true
       },
       {
@@ -98,6 +107,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": true
       },
       {
@@ -107,6 +117,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -116,6 +127,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": true
       },
       {
@@ -125,7 +137,8 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
-        "nullable": true
+        "inlineUnique": false,
+        "nullable": false
       },
       {
         "ordinal": 14,
@@ -134,6 +147,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       }
     ],
@@ -180,18 +194,18 @@
     "semanticRules": [
       "`UNIQUE(acceptance_decision_id)`及`UNIQUE(offer_id)`",
       "Offer/Package pair逐字节等于Decision",
-      "accepted要求Custody/Binding/Control列非NULL、全部rejection列及`receipt_digest`为NULL，按既有合同重建`CustodyAndTransferReceipt@1`",
-      "rejected要求Custody/Binding/Control列NULL且rejection列与`receipt_digest`非NULL，重建`RejectionReceipt@1`",
-      "两种终态都作为各自typed Outbox的durable source，相同marker不新增Receipt或相反终态"
+      "accepted要求Custody/Binding/Control列非NULL、全部rejection列为NULL，receipt digest按`CustodyAndTransferReceipt@1`公式重建",
+      "rejected要求Custody/Binding/Control列NULL且rejection列非NULL，receipt digest按`RejectionReceipt@1`公式重建",
+      "两种终态都必须有receipt digest并作为各自typed Outbox的durable source，相同marker不新增Receipt或相反终态"
     ],
     "rawContract": {
-      "columns": "`receipt_id PK, acceptance_decision_id FK, outcome(accepted|rejected), offer_id, custody_id NULL, on_deck_package_id, package_digest, arca_binding_set_digest NULL, control_revision_set_digest NULL, rejection_code NULL, acceptance_evidence_set_digest, rejection_digest NULL, receipt_digest NULL, committed_at_ms`",
-      "constraints": "`UNIQUE(acceptance_decision_id)`及`UNIQUE(offer_id)`；Offer/Package pair逐字节等于Decision；accepted要求Custody/Binding/Control列非NULL、全部rejection列及`receipt_digest`为NULL，按既有合同重建`CustodyAndTransferReceipt@1`；rejected要求Custody/Binding/Control列NULL且rejection列与`receipt_digest`非NULL，重建`RejectionReceipt@1`；两种终态都作为各自typed Outbox的durable source，相同marker不新增Receipt或相反终态"
+      "columns": "`receipt_id PK, acceptance_decision_id FK, outcome(accepted|rejected), offer_id, custody_id NULL, on_deck_package_id, package_digest, arca_binding_set_digest NULL, control_revision_set_digest NULL, rejection_code NULL, acceptance_evidence_set_digest, rejection_digest NULL, receipt_digest, committed_at_ms`",
+      "constraints": "`UNIQUE(acceptance_decision_id)`及`UNIQUE(offer_id)`；Offer/Package pair逐字节等于Decision；accepted要求Custody/Binding/Control列非NULL、全部rejection列为NULL，receipt digest按`CustodyAndTransferReceipt@1`公式重建；rejected要求Custody/Binding/Control列NULL且rejection列非NULL，receipt digest按`RejectionReceipt@1`公式重建；两种终态都必须有receipt digest并作为各自typed Outbox的durable source，相同marker不新增Receipt或相反终态"
     },
     "source": {
       "section": "8.5.12",
-      "line": 8194,
-      "lineDigest": "aae519c2021f9d39bacdcb0e6d9cb70aa26730ce2b9fb1f14ce2fb1a9142b771"
+      "line": 8300,
+      "lineDigest": "94fa457d6a9a297539cdcab09cd2cb72a795935917f405e5c232b255131e2129"
     },
     "foreignKeys": [
       {

@@ -14,6 +14,7 @@
         "enumValues": [],
         "primaryKeyPart": true,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -23,6 +24,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": true,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -32,6 +34,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -46,6 +49,7 @@
         ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -55,6 +59,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -64,6 +69,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       }
     ],
@@ -118,7 +124,7 @@
     },
     "source": {
       "section": "8.5.12",
-      "line": 8196,
+      "line": 8302,
       "lineDigest": "4c7f239ddb36b56385d04e80213c4bc1e181c7c817758c89830bc8cbe1ade276"
     },
     "foreignKeys": [

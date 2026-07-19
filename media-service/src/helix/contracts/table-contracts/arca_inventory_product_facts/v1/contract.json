@@ -14,6 +14,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": true,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -23,6 +24,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -32,6 +34,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -41,6 +44,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -50,6 +54,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -59,6 +64,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -68,6 +74,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -77,6 +84,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -86,6 +94,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -95,6 +104,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       }
     ],
@@ -148,7 +158,7 @@
     },
     "source": {
       "section": "8.5.12",
-      "line": 8206,
+      "line": 8312,
       "lineDigest": "e26fbd4876a2b956d2690a4c2e5b9524753384bf8fc061c9671188d38fef5268"
     },
     "foreignKeys": [

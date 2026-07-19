@@ -9,33 +9,146 @@
     "columns": [
       {
         "ordinal": 1,
+        "name": "workspace_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
         "name": "libra_run_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": true,
-        "nullable": false
-      },
-      {
-        "ordinal": 2,
-        "name": "workspace_id",
-        "logicalType": "TEXT",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": true,
+        "inlineUnique": true,
         "nullable": false
       },
       {
         "ordinal": 3,
-        "name": "workspace_revision",
-        "logicalType": "INTEGER",
+        "name": "platform_workspace_root_id",
+        "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
         "ordinal": 4,
+        "name": "platform_workspace_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "platform_workspace_endpoint_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "platform_workspace_mount_scope_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "platform_workspace_mount_scope_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "platform_workspace_capability_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "root_handle_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "space_admission_evidence_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "space_admission_evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "workspace_scope_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 13,
+        "name": "admission_decision_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 14,
+        "name": "current_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 15,
         "name": "state",
         "logicalType": "TEXT",
         "enumValues": [
@@ -45,27 +158,51 @@
         ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
-        "ordinal": 5,
+        "ordinal": 16,
+        "name": "state_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 17,
         "name": "created_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
+      },
+      {
+        "ordinal": 18,
+        "name": "completed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
       }
     ],
     "primaryKey": [
-      "libra_run_id",
-      "workspace_revision"
-    ],
-    "declaredForeignKeyColumns": [
-      "libra_run_id",
       "workspace_id"
     ],
-    "uniqueConstraints": [],
+    "declaredForeignKeyColumns": [
+      "libra_run_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "libra_run_id"
+      ]
+    ],
     "hotIndexes": [],
     "partialUniqueRules": [],
     "checkRules": [
@@ -80,35 +217,57 @@
     ],
     "revisionContract": {
       "revisionColumns": [
-        "workspace_revision"
+        "platform_workspace_revision",
+        "platform_workspace_mount_scope_revision",
+        "current_revision"
       ],
-      "currentPointerColumns": [],
-      "pointerTargets": [],
-      "pointerRules": [
-        "同一Run一个current workspace revision"
-      ]
+      "currentPointerColumns": [
+        "current_revision"
+      ],
+      "pointerTargets": [
+        {
+          "sourceColumns": [
+            "workspace_id",
+            "current_revision"
+          ],
+          "targetTable": "libra_workspace_revisions",
+          "targetColumns": [
+            "workspace_id",
+            "workspace_revision"
+          ],
+          "consistencyColumns": [],
+          "deletePolicy": "RESTRICT",
+          "deferrable": false
+        }
+      ],
+      "pointerRules": []
     },
     "jsonContracts": [],
     "immutability": {
       "immutable": false,
-      "rules": []
+      "rules": [
+        "Platform/space/scope/admission列在创建后immutable，并与同事务`fx_workspace_registry.root_handle_ref`逐字节一致"
+      ]
     },
     "deletion": {
       "foreignKeyPolicy": "ON DELETE RESTRICT",
       "rules": []
     },
     "semanticRules": [
-      "`PK(libra_run_id,workspace_revision)`",
-      "同一Run一个current workspace revision"
+      "Platform/space/scope/admission列在创建后immutable，并与同事务`fx_workspace_registry.root_handle_ref`逐字节一致",
+      "current aggregate row使用`rowMutability=cas_lifecycle`",
+      "首次revision 1且与Registry同事务建立",
+      "只有Cleanup全部完成才写reclaimed/completed time",
+      "同一Run恰好至多一个Workspace stream，历史Admission Decision只从该row、Run revision与Registry重建"
     ],
     "rawContract": {
-      "columns": "`libra_run_id FK, workspace_id FK, workspace_revision, state, created_at_ms`",
-      "constraints": "`PK(libra_run_id,workspace_revision)`；同一Run一个current workspace revision"
+      "columns": "`workspace_id PK, libra_run_id FK UNIQUE, platform_workspace_root_id, platform_workspace_revision, platform_workspace_endpoint_id, platform_workspace_mount_scope_id, platform_workspace_mount_scope_revision, platform_workspace_capability_digest, root_handle_ref, space_admission_evidence_id, space_admission_evidence_digest, workspace_scope_digest, admission_decision_digest, current_revision, state(active|reclaiming|reclaimed), state_digest, created_at_ms, completed_at_ms NULL`",
+      "constraints": "Platform/space/scope/admission列在创建后immutable，并与同事务`fx_workspace_registry.root_handle_ref`逐字节一致；current aggregate row使用`rowMutability=cas_lifecycle`；首次revision 1且与Registry同事务建立；只有Cleanup全部完成才写reclaimed/completed time；同一Run恰好至多一个Workspace stream，历史Admission Decision只从该row、Run revision与Registry重建"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8170,
-      "lineDigest": "9150b3bbed1056b6569cf381c3102db63aa9b2d49e7b8f104223b6d04e7fd3c4"
+      "line": 8272,
+      "lineDigest": "cd5647ed1877f8780af20ca4546b031edcdf27d9469708f82b1d7d947b11f7f0"
     },
     "foreignKeys": [
       {
@@ -118,17 +277,6 @@
         "targetTable": "libra_runs",
         "targetColumns": [
           "libra_run_id"
-        ],
-        "deletePolicy": "RESTRICT",
-        "deferrable": false
-      },
-      {
-        "columns": [
-          "workspace_id"
-        ],
-        "targetTable": "fx_workspace_registry",
-        "targetColumns": [
-          "workspace_id"
         ],
         "deletePolicy": "RESTRICT",
         "deferrable": false

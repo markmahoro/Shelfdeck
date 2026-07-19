@@ -5,13 +5,13 @@
   "ownerScope": "libra",
   "effectClass": "workspace_write",
   "inputPorts": {
-    "workspaceHandleList": {
-      "schemaRef": "helix://contracts/capabilities/libra.workspace.material.reclaim/v1/inputs#/$defs/workspaceHandleList",
+    "workspaceMaterialHandle": {
+      "schemaRef": "helix://contracts/capabilities/libra.workspace.material.reclaim/v1/inputs#/$defs/workspaceMaterialHandle",
       "required": true,
-      "cardinality": "many"
+      "cardinality": "one"
     },
-    "referenceEvidence": {
-      "schemaRef": "helix://contracts/capabilities/libra.workspace.material.reclaim/v1/inputs#/$defs/referenceEvidence",
+    "workspaceCleanupEffectIntent": {
+      "schemaRef": "helix://contracts/capabilities/libra.workspace.material.reclaim/v1/inputs#/$defs/workspaceCleanupEffectIntent",
       "required": true,
       "cardinality": "one"
     }
@@ -29,7 +29,7 @@
   },
   "sourceLocator": {
     "section": "8.6.7",
-    "line": 8607,
-    "lineDigest": "cef92055ad512942b724f26178eb324deb2e6a954a151301ed1f8652e3a651cd"
+    "line": 8713,
+    "lineDigest": "f09090fc2846906255d8843741377000b02613a1e6710c9dd87c45ac545c5e9a"
   }
 }

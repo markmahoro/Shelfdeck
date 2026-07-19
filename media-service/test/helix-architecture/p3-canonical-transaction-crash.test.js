@@ -366,6 +366,34 @@ function inboxParticipant(contract, owner) {
   };
 }
 
+function workspaceRegistryParticipant(contract, owner) {
+  const repository = createRepositoryDefinition({
+    repositoryId: 'fixture_workspace_registry', owner: 'execution-foundation', schemaManifest,
+    statements: { insert: { kind: 'insert', tableId: 'fx_workspace_registry', columns: [
+      'workspace_id', 'owner_domain', 'process_type', 'process_id', 'root_handle_ref', 'state',
+      'created_at_ms', 'reclaim_after_ms', 'reclaimed_at_ms'
+    ] } }
+  });
+  return {
+    participantId: 'fixture_workspace_registry', owner: 'execution-foundation', boundBusinessOwner: owner,
+    repositories: [repository],
+    execute(context) {
+      const reclaimed = contract.transactionId === 'helix.transaction.libra-workspace-cleanup-commit';
+      context.repository('fixture_workspace_registry').invoke('insert', {
+        workspace_id: 'workspace-' + digest(contract.transactionId).slice(0, 16),
+        owner_domain: owner,
+        process_type: 'libra_run',
+        process_id: contract.transactionId,
+        root_handle_ref: 'fixture-root-handle',
+        state: reclaimed ? 'reclaimed' : 'active',
+        created_at_ms: context.commitTimeMs,
+        reclaim_after_ms: null,
+        reclaimed_at_ms: reclaimed ? context.commitTimeMs : null
+      });
+    }
+  };
+}
+
 function businessOwner(contract) {
   return contract.ownerScope === 'polymorphic-domain-owner' ? 'libra' : contract.ownerScope;
 }
@@ -377,6 +405,7 @@ function participantsFor(contract, unitOfWork, options = {}) {
   if (contract.writeTables.includes('fx_event_result_bindings')) result.push(resultBindingParticipant(contract, owner));
   if (contract.writeTables.includes('fx_command_receipts')) result.push(commandReceiptParticipant(contract, owner));
   if (contract.writeTables.includes('fx_inbox')) result.push(inboxParticipant(contract, owner));
+  if (contract.writeTables.includes('fx_workspace_registry')) result.push(workspaceRegistryParticipant(contract, owner));
   if (contract.fenceContract.commitMarkerRequired) result.push(markerParticipant(contract, owner, 'marker-' + digest(contract.transactionId).slice(0, 16)));
   if (contract.fenceContract.outboxRequired) result.push(outboxParticipant(contract, owner));
   return result;
@@ -423,13 +452,13 @@ function fixture(contract, run, options = {}) {
 
 const transactionContracts = contracts();
 
-test('canonical transaction inventory drives exactly 38 isolated contracts', () => {
+test('canonical transaction inventory drives exactly 43 isolated contracts', () => {
   const inventory = loadJson(path.join(serviceRoot, 'src/helix/contracts/manifests/transaction-inventory.json'));
   const inventoryEntries = inventory.entryFiles.flatMap((file) =>
     loadJson(path.join(serviceRoot, 'src/helix/contracts/manifests', file)).entries
   );
-  assert.equal(transactionContracts.length, 38);
-  assert.equal(inventory.targetCount, 38);
+  assert.equal(transactionContracts.length, 43);
+  assert.equal(inventory.targetCount, 43);
   assert.deepEqual(transactionContracts.map((contract) => contract.transactionId),
     [...inventoryEntries].sort((left, right) => left.id.localeCompare(right.id)).map((entry) => entry.id));
   for (const contract of transactionContracts) {

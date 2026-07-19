@@ -19,8 +19,8 @@ function readJson(filePath, findings) {
 
 function readInventoryEntries(contractsRoot, findings) {
   const manifest = readJson(path.join(contractsRoot, 'manifests', 'table-inventory.json'), findings);
-  if (!manifest || manifest.status !== 'active' || manifest.targetCount !== 169 || !Array.isArray(manifest.entryFiles)) {
-    findings.push(finding('INVALID_TABLE_INVENTORY_MANIFEST', 'Table inventory must be active with 169 sharded entries.'));
+  if (!manifest || manifest.status !== 'active' || manifest.targetCount !== 176 || !Array.isArray(manifest.entryFiles)) {
+    findings.push(finding('INVALID_TABLE_INVENTORY_MANIFEST', 'Table inventory must be active with 176 sharded entries.'));
     return [];
   }
   return manifest.entryFiles.flatMap((relativePath) => {
@@ -91,8 +91,8 @@ function validateTableContracts(options) {
       if (!json.schemaRefColumn || !contract.columns.some((column) => column.name === json.schemaRefColumn)) findings.push(finding(
         'JSON_SCHEMA_REF_MISSING', 'Every JSON column requires a fixed schema_ref column.', { tableId: entry.id, column: json.column }
       ));
-      if (![4 * 1024, 16 * 1024, 64 * 1024].includes(json.maxBytes) || json.requiresJsonValidCheck !== true) findings.push(finding(
-        'INVALID_JSON_COLUMN_CONTRACT', 'JSON columns require json_valid and a 4/16/64 KiB byte limit.', { tableId: entry.id, column: json.column }
+      if (![4 * 1024, 16 * 1024, 64 * 1024, 1024 * 1024].includes(json.maxBytes) || json.requiresJsonValidCheck !== true) findings.push(finding(
+        'INVALID_JSON_COLUMN_CONTRACT', 'JSON columns require json_valid and an SSOT-bounded 4/16/64 KiB or 1 MiB byte limit.', { tableId: entry.id, column: json.column }
       ));
     }
     const coveredPointers = new Set();

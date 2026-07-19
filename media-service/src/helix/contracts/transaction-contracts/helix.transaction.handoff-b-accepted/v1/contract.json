@@ -7,7 +7,7 @@
     "displayName": "Handoff B Accepted",
     "ownerScope": "arca",
     "commitClass": "responsibility_control_commit",
-    "atomicFactSet": "Acceptance Decision + On-deck Material Custody + Arca Binding + precise Control transfer + Handoff Receipt/Outbox",
+    "atomicFactSet": "Acceptance Decision + On-deck Material Custody + Arca Binding + precise Control transfer + Handoff Receipt + `ArcaProductAcceptedMessage@1` Outbox",
     "participants": [
       {
         "participantKind": "domain",
@@ -82,8 +82,8 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7741,
-      "lineDigest": "1140129b374858ff75be4bad8e3c3a0ec1b6e1889c4bcd15b1ed3fdaad3e23da"
+      "line": 7763,
+      "lineDigest": "1d2e6c80675e06506945829a06de626c8f8304cfd9f7014709e2dffc73d0a3c1"
     }
   }
 }

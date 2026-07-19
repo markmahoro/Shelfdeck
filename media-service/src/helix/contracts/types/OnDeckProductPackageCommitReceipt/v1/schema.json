@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/OnDeckProductPackageCommitReceipt/v1",
+  "title": "OnDeckProductPackageCommitReceipt@1",
+  "x-helix-ssotRefs": [
+    "8.6.19",
+    "8.6.21"
+  ],
+  "x-helix-envelopeRef": "helix://contracts/types/ReceiptEnvelope/v1",
+  "x-helix-maxCanonicalBytes": 16384,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/OnDeckProductPackageCommitReceipt/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "receiptId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "receiptKind": {
+      "const": "libra_product_package_published"
+    },
+    "ownerDomain": {
+      "const": "libra"
+    },
+    "scopeType": {
+      "const": "on_deck_package"
+    },
+    "scopeId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "scopeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "effectReceiptRef": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "committedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "promotionDecisionDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "onDeckPackageId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "packageRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "packageDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "offerId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "verifiedRunStateRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "verifiedRunStateDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "productMaterialManifestDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "productFactSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "productFactManifestDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "artifactManifestDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "offloadContextDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "controlRevisionSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "receiptDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "receiptId",
+    "receiptKind",
+    "ownerDomain",
+    "scopeType",
+    "scopeId",
+    "scopeDigest",
+    "committedAtMs",
+    "promotionDecisionDigest",
+    "onDeckPackageId",
+    "packageRevision",
+    "packageDigest",
+    "offerId",
+    "libraRunId",
+    "verifiedRunStateRevision",
+    "verifiedRunStateDigest",
+    "productMaterialManifestDigest",
+    "productFactSetDigest",
+    "productFactManifestDigest",
+    "artifactManifestDigest",
+    "offloadContextDigest",
+    "controlRevisionSetDigest",
+    "receiptDigest"
+  ]
+}

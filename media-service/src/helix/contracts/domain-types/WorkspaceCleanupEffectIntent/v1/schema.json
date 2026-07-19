@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/WorkspaceCleanupEffectIntent/v1",
+  "title": "WorkspaceCleanupEffectIntent@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "intentId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "cleanupScopeId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "workspaceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "materialHandleId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "expectedWorkspaceHandleDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "expectedReferenceRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "expectedReferenceDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "controlFence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "controlDisposition": {
+          "type": "string",
+          "enum": [
+            "uncontrolled",
+            "libra_owned",
+            "other_owned"
+          ]
+        },
+        "expectedControlRevision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expectedControlProjectionDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "expectedControlOwnerDomain": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expectedControlOwnerScopeType": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expectedControlOwnerScopeId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "controlDisposition",
+        "expectedControlRevision",
+        "expectedControlProjectionDigest",
+        "expectedControlOwnerDomain",
+        "expectedControlOwnerScopeType",
+        "expectedControlOwnerScopeId"
+      ]
+    },
+    "effectMode": {
+      "type": "string",
+      "enum": [
+        "delete_or_verify_absent",
+        "verify_absent_only"
+      ]
+    },
+    "containmentFenceDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "intentDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "intentId",
+    "cleanupScopeId",
+    "workspaceId",
+    "materialHandleId",
+    "expectedWorkspaceHandleDigest",
+    "expectedReferenceRevision",
+    "expectedReferenceDigest",
+    "controlFence",
+    "effectMode",
+    "containmentFenceDigest",
+    "idempotencyKey",
+    "intentDigest"
+  ]
+}

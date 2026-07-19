@@ -7,7 +7,7 @@
     "displayName": "Libra Run Discard Commit",
     "ownerScope": "libra",
     "commitClass": "responsibility_control_commit",
-    "atomicFactSet": "immutable Discard Decision + Run discarded + Pre-deck scope terminal + original Primary Input Control release + Workspace Cleanup Scope + receipt/Outbox",
+    "atomicFactSet": "complete `LibraRunDiscardDecision@1` + frozen Run expected state revision/digest + immutable Discard Decision/Receipt + Run discarded revision + Run admission active-scope head CAS + exact original Primary Input Control release + `run_discarded` Workspace Cleanup Scope/member set + durable typed Result/commit marker + `LibraWorkspaceCleanupRequestedMessage@1` Outbox；不得在同一事务执行物理删除",
     "participants": [
       {
         "participantKind": "domain",
@@ -15,10 +15,14 @@
         "access": "write",
         "tables": [
           "libra_run_discard_decisions",
+          "libra_run_discard_receipts",
+          "libra_run_admission_heads",
           "libra_runs",
+          "libra_run_revisions",
           "libra_workspace_cleanup_scopes",
           "libra_workspace_cleanup_members",
-          "libra_run_discard_receipts"
+          "libra_workspaces",
+          "libra_workspace_revisions"
         ]
       },
       {
@@ -43,10 +47,14 @@
     ],
     "writeTables": [
       "libra_run_discard_decisions",
+      "libra_run_discard_receipts",
+      "libra_run_admission_heads",
       "libra_runs",
+      "libra_run_revisions",
       "libra_workspace_cleanup_scopes",
       "libra_workspace_cleanup_members",
-      "libra_run_discard_receipts",
+      "libra_workspaces",
+      "libra_workspace_revisions",
       "fx_material_controls",
       "fx_material_control_revisions",
       "fx_event_result_bindings",
@@ -54,8 +62,24 @@
       "fx_outbox"
     ],
     "readTables": [
-      "libra_material_bindings",
-      "libra_workspace_material_refs"
+      "libra_run_material_manifests",
+      "libra_run_material_members",
+      "libra_run_material_episode_claims",
+      "libra_workspace_material_refs",
+      "libra_run_discard_decisions",
+      "libra_run_discard_receipts",
+      "libra_run_admission_heads",
+      "libra_runs",
+      "libra_run_revisions",
+      "libra_workspace_cleanup_scopes",
+      "libra_workspace_cleanup_members",
+      "libra_workspaces",
+      "libra_workspace_revisions",
+      "fx_material_controls",
+      "fx_material_control_revisions",
+      "fx_event_result_bindings",
+      "fx_commit_markers",
+      "fx_outbox"
     ],
     "variants": [],
     "dynamicTableRequirements": [],
@@ -82,8 +106,8 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7745,
-      "lineDigest": "719467607b21baf19ad7b281a08ece5d1c89faac06c2562c1d6323d2cfb23087"
+      "line": 7767,
+      "lineDigest": "31509d7137f7663ac88ab8a2e38974f9112ac6215f210d5c5a4fafc84c12d43b"
     }
   }
 }

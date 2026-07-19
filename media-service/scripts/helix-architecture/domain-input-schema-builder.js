@@ -12,6 +12,7 @@ const digest = () => text({ pattern: '^[a-f0-9]{64}$' });
 const positiveInteger = () => ({ type: 'integer', minimum: 1 });
 const nonNegativeInteger = () => ({ type: 'integer', minimum: 0 });
 const bool = () => ({ type: 'boolean' });
+const nullable = (schema) => ({ anyOf: [schema, { type: 'null' }] });
 const enumText = (...values) => ({ type: 'string', enum: values });
 const arrayOf = (items, maxItems = 1024) => ({ type: 'array', items, maxItems });
 const object = (properties, required = Object.keys(properties), options = {}) => ({
@@ -63,7 +64,6 @@ const special = {
   'InventoryMetadataArtifactRefs.artifactHandles': arrayOf(typeRef('ArtifactHandle'), 1024),
   'KnownBindings.bindings': arrayOf(snapshot('arca-material-binding'), 4096),
   'LibraWorkspaceScope.workspaceHandles': arrayOf(typeRef('WorkspaceMaterialHandle'), 4096),
-  'Manifests.manifestRefs': arrayOf(id(), 128),
   'OffLoadContext.materials': arrayOf(snapshot('offload-material'), 4096),
   'PeopleWorkspace.workspaceHandles': arrayOf(typeRef('WorkspaceMaterialHandle'), 4096),
   'PersonIdentitiesAliasesReferences.people': arrayOf(snapshot('person-identity-alias-reference'), 4096),
@@ -83,7 +83,6 @@ const special = {
   'TypedManifest.manifest': snapshot('typed-manifest'),
   'VerifiedArtifactManifest.artifactHandles': arrayOf(typeRef('ArtifactHandle'), 1024),
   'VerifiedCareInventoryChange.verifications': arrayOf(typeRef('CareProductVerification'), 1024),
-  'VerifiedProduct.verifications': arrayOf(typeRef('ProductConformanceEvidence'), 1024)
 };
 
 function inferredField(typeName, fieldName) {
@@ -151,7 +150,7 @@ const dtoContracts = {
   InventoryRevision: 'shelfEntryId,inventoryRevision,inventoryDigest',
   KnownBindings: 'shelfEntryId,bindings,bindingSetDigest',
   LibraWorkspaceScope: 'workspaceId,workspaceHandles,scopeDigest',
-  Manifests: 'manifestRefs,manifestSetDigest',
+  LibraDeliverablePromotionDecision: '',
   MetadataFetchIntent: '',
   MetadataObservationSet: '',
   OffLoadContext: 'onDeckPackageId,materials,contextDigest',
@@ -198,7 +197,8 @@ const dtoContracts = {
   TypedManifest: 'manifest,contractRef,verificationDigest',
   VerifiedArtifactManifest: 'manifestDigest,artifactHandles,verificationId',
   VerifiedCareInventoryChange: 'aftercareCaseId,verifications,changeDigest',
-  VerifiedProduct: 'libraRunId,verifications,productFactSetDigest'
+  WorkspaceCleanupEffectIntent: '',
+  WorkspaceCleanupCommitDecision: ''
 };
 
 function idField(name) {
@@ -241,6 +241,9 @@ function buildSchema(name, role, fields) {
   if (name === 'PerceptionResolutionQuery') return perceptionResolutionQuerySchema();
   if (name === 'PerceptionResolutionRecordSet') return perceptionResolutionRecordSetSchema();
   if (name === 'PerceptionResolutionRuleSnapshot') return perceptionResolutionRuleSnapshotSchema();
+  if (name === 'LibraDeliverablePromotionDecision') return libraDeliverablePromotionDecisionSchema();
+  if (name === 'WorkspaceCleanupEffectIntent') return workspaceCleanupEffectIntentSchema();
+  if (name === 'WorkspaceCleanupCommitDecision') return workspaceCleanupCommitDecisionSchema();
   const identityField = role === 'bounded-contract' ? idField(name) : 'objectId';
   const properties = {
     schemaRef: { const: domainTypeId(name) }, schemaVersion: { const: 1 }, [identityField]: id(), revision: positiveInteger(), digest: digest()
@@ -654,6 +657,107 @@ function onDeckPersonEvidenceProjectionItemSchema() {
     displayNameNormalized: text({ maxLength: 1024 }), role: text({ maxLength: 256 }),
     providerIdentities: arrayOf(providerIdentitySchema(), 128), originEvidenceDigest: digest(), nfoObservationDigest: digest(),
     projectionRevision: positiveInteger(), projectionItemDigest: digest() });
+}
+
+function libraDeliverablePromotionDecisionSchema() {
+  const episodeClaim = object({ episodeKey: text(), seasonClaimDigest: digest(), claimDigest: digest() });
+  const typedFactValue = object({ schemaRef: text(), recordDigest: digest(), entries: arrayOf(object({ key: text(), valueDigest: digest() }), 256) });
+  const productFactItem = object({ productFactId: id(), factKind: enumText('resolved_identity', 'media_cast', 'product_metadata', 'media_conformance'),
+    factRevision: positiveInteger(), schemaRef: text(), factValue: typedFactValue, factDigest: digest(), evidenceDigest: digest(), referenceDigest: digest() });
+  const productFactManifest = object({ manifestId: id(), manifestRevision: positiveInteger(), libraRunId: id(),
+    items: { ...arrayOf(productFactItem, 256), minItems: 1 }, factSetDigest: digest(), manifestDigest: digest() });
+  const artifactItem = object({ artifactHandleId: id(), artifactKind: text(), artifactRevision: positiveInteger(), artifactDigest: digest(),
+    requirementDigest: digest(), materializationState: enumText('workspace_only', 'included_product'), referenceDigest: digest() });
+  const artifactManifest = object({ manifestId: id(), manifestRevision: positiveInteger(), libraRunId: id(),
+    items: arrayOf(artifactItem, 256), artifactSetDigest: digest(), manifestDigest: digest() });
+  const materialMember = object({ ordinal: nonNegativeInteger(), materialKey: digest(),
+    role: enumText('primary_payload', 'structural_dependency', 'metadata_sidecar', 'poster', 'fanart', 'subtitle', 'external_audio', 'chapter'),
+    physicalIdentity: typeRef('PhysicalMaterialIdentity'), locationKind: enumText('domain_binding', 'workspace_handle'), endpointId: id(),
+    location: nullable(text()), rootHandleRef: nullable(id()), relativePath: nullable(text()),
+    bindingKind: enumText('libra_material_binding', 'workspace_material_reference'), bindingRevision: positiveInteger(),
+    bindingEvidenceDigest: digest(), episodeClaims: arrayOf(episodeClaim, 32), episodeClaimSetDigest: digest(),
+    outputRequirementDigest: digest(), controlOperation: enumText('assert_existing_input', 'acquire_workspace_product'),
+    expectedControlRevision: nullable(nonNegativeInteger()), expectedControlProjectionDigest: nullable(digest()), memberDigest: digest() });
+  const productMaterialManifest = object({ manifestId: id(), manifestRole: { const: 'product_delivery' }, manifestRevision: positiveInteger(),
+    libraRunId: id(), members: { ...arrayOf(materialMember, 1024), minItems: 1 }, memberSetDigest: digest(), episodeScopeDigest: digest(), manifestDigest: digest() });
+  const offloadMember = object({ ordinal: nonNegativeInteger(), materialKey: digest(), contextRole: enumText('original_input', 'structural_dependency'),
+    physicalIdentity: typeRef('PhysicalMaterialIdentity'), location: text(), bindingRevision: positiveInteger(), bindingEvidenceDigest: digest(),
+    admittedControlRevision: positiveInteger(), admittedControlProjectionDigest: digest(),
+    settlementExpectation: enumText('retain', 'replace_or_move', 'remove_after_place'), memberDigest: digest() });
+  const offloadManifest = object({ manifestId: id(), manifestRevision: positiveInteger(), libraRunId: id(),
+    members: arrayOf(offloadMember, 1024), memberSetDigest: digest(), manifestDigest: digest() });
+  const workspaceReference = object({ referenceId: id(), workspaceId: id(), libraRunId: id(), materialHandleId: id(), materialKey: digest(),
+    workspaceMaterialHandle: typeRef('WorkspaceMaterialHandle'), workspaceHandleDigest: digest(), referenceRevision: positiveInteger(),
+    state: { const: 'product_staging' }, episodeClaims: arrayOf(episodeClaim, 32), episodeScopeDigest: digest(),
+    productVerificationRef: object({ id: id(), digest: digest() }), previousReferenceRevision: positiveInteger(),
+    committedWorkspaceRevision: positiveInteger(), referenceDigest: digest() });
+  const assertControl = object({ controlOperation: { const: 'assert_existing_input' }, materialKey: digest(),
+    expectedControlRevision: positiveInteger(), expectedControlProjectionDigest: digest(), ownerDomain: { const: 'libra' },
+    ownerScopeType: { const: 'subject' }, ownerScopeId: id() });
+  const acquireControl = object({ controlOperation: { const: 'acquire_workspace_product' }, materialKey: digest(),
+    expectedControlState: { const: 'absent' }, toOwnerDomain: { const: 'libra' },
+    toOwnerScopeType: { const: 'on_deck_package' }, toOwnerScopeId: id() });
+  const properties = {
+    decisionId: id(), libraRunRef: object({ libraRunId: id(), stateRevision: positiveInteger(), stateDigest: digest(),
+      executionBasisDigest: digest(), runScopeDigest: digest(), expectedPackageRevisionHead: nonNegativeInteger() }),
+    runMaterialManifestRef: object({ manifestId: id(), manifestDigest: digest() }),
+    workspaceRef: nullable(object({ workspaceId: id(), workspaceRevision: positiveInteger(), workspaceStateDigest: digest() })),
+    productStagingReferences: arrayOf(workspaceReference, 1024),
+    acceptanceSpecRef: object({ acceptanceSpecId: id(), recordDigest: digest() }),
+    resolvedIdentitySnapshot: object({ productFactId: id(), factRevision: positiveInteger(), schemaRef: text(), factValue: typedFactValue,
+      factDigest: digest(), evidenceDigest: digest() }),
+    productStructureSnapshot: object({ structureKind: enumText('single', 'season'), contentProfile: enumText('movie', 'series', 'jav', 'western_adult'),
+      productScopeDigest: digest(), episodeScopeDigest: digest(), primaryMaterialCount: positiveInteger(),
+      structuralDependencyCount: nonNegativeInteger(), productStructureDigest: digest() }),
+    productFactManifest, artifactManifest,
+    mediaCastSnapshot: object({ mediaCastFactId: id(), mediaCastFactRevision: positiveInteger(), schemaRef: text(), factValue: typedFactValue,
+      factDigest: digest(), evidenceDigest: digest(), relations: arrayOf(object({ relationId: id(), displayName: text(), role: text(), relationDigest: digest() }), 4096),
+      relationsDigest: digest() }),
+    productMaterialManifest, offloadContextManifest: offloadManifest,
+    productionProvenance: object({ libraRunId: id(), runExecutionBasisDigest: digest(), acceptanceSpecRecordDigest: digest(),
+      workflowPlanRefs: arrayOf(object({ planId: id(), planRevision: positiveInteger(), planDigest: digest() }), 256),
+      productVerificationRefs: arrayOf(object({ verificationId: id(), verificationDigest: digest() }), 256),
+      externalRealityObservationRefs: arrayOf(object({ evidenceId: id(), evidenceDigest: digest() }), 256), provenanceDigest: digest() }),
+    productionAttestation: object({ attestationId: id(), libraRunId: id(), onDeckPackageId: id(), acceptanceSpecId: id(),
+      productConformanceEvidenceId: id(), productConformanceEvidenceDigest: digest(), unmetRequirementCount: { const: 0 },
+      attestedAtMs: nonNegativeInteger(), attestationDigest: digest() }),
+    controlCommitScope: object({ items: { ...arrayOf({ oneOf: [assertControl, acquireControl] }, 1024), minItems: 1 }, controlScopeDigest: digest() }),
+    onDeckPackageId: id(), packageRevision: positiveInteger(), packageDigest: digest(), offerId: id(), decisionDigest: digest()
+  };
+  return { $schema: DRAFT, $id: domainTypeId('LibraDeliverablePromotionDecision'), title: 'LibraDeliverablePromotionDecision@1',
+    'x-helix-ssotRefs': ['8.6.20', '8.6.21'], 'x-helix-role': 'accepted-business-dto',
+    'x-helix-maxCanonicalBytes': 16 * 1024 * 1024, ...object(properties) };
+}
+
+function workspaceCleanupEffectIntentSchema() {
+  const controlFence = object({ controlDisposition: enumText('uncontrolled', 'libra_owned', 'other_owned'),
+    expectedControlRevision: nonNegativeInteger(), expectedControlProjectionDigest: digest(),
+    expectedControlOwnerDomain: nullable(text()), expectedControlOwnerScopeType: nullable(text()), expectedControlOwnerScopeId: nullable(id()) });
+  return exactDomainSchema('WorkspaceCleanupEffectIntent', { intentId: id(), cleanupScopeId: id(), workspaceId: id(),
+    materialHandleId: id(), expectedWorkspaceHandleDigest: digest(), expectedReferenceRevision: positiveInteger(),
+    expectedReferenceDigest: digest(), controlFence, effectMode: enumText('delete_or_verify_absent', 'verify_absent_only'),
+    containmentFenceDigest: digest(), idempotencyKey: id(), intentDigest: digest() });
+}
+
+function workspaceCleanupCommitDecisionSchema() {
+  const deletionEvidence = object({ evidenceId: id(), evidenceKind: { const: 'workspace_material_deletion' }, effectId: id(),
+    cleanupScopeId: id(), materialHandleId: id(), preDeleteHandleDigest: digest(), result: enumText('deleted', 'already_absent'),
+    postDeleteContainmentProbeDigest: digest(), effectReceiptId: id(), evidenceDigest: digest() });
+  const blockingEvidence = object({ evidenceId: id(), evidenceKind: { const: 'workspace_cleanup_blocking' }, cleanupScopeId: id(),
+    materialHandleId: id(), terminalFailureCode: enumText('workspace_path_escaped', 'identity_mismatch', 'control_conflict', 'effect_retry_exhausted'),
+    lastEffectId: nullable(id()), lastEffectFailureDigest: nullable(digest()), observedFenceDigest: digest(), evidenceDigest: digest() });
+  const outcome = { oneOf: [
+    object({ kind: { const: 'deletion_verified' }, deletionEvidence }),
+    object({ kind: { const: 'terminal_blocked' }, blockingEvidence })
+  ] };
+  return exactDomainSchema('WorkspaceCleanupCommitDecision', { decisionId: id(), cleanupScopeId: id(),
+    expectedScopeStateRevision: positiveInteger(), expectedScopeStateDigest: digest(), workspaceId: id(),
+    expectedWorkspaceRevision: positiveInteger(), expectedWorkspaceStateDigest: digest(), materialHandleId: id(),
+    expectedReferenceRevision: positiveInteger(), expectedReferenceDigest: digest(), expectedMemberStateRevision: positiveInteger(),
+    expectedMemberStateDigest: digest(), outcome,
+    expectedControlFence: object({ materialKey: digest(), controlDisposition: enumText('uncontrolled', 'libra_owned', 'other_owned'),
+      revision: nonNegativeInteger(), projectionDigest: digest(), ownerDomain: nullable(text()), ownerScopeType: nullable(text()), ownerScopeId: nullable(id()) }),
+    decisionDigest: digest() });
 }
 
 function buildDomainInputSchemas() {

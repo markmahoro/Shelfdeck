@@ -9,103 +9,295 @@
     "columns": [
       {
         "ordinal": 1,
-        "name": "libra_run_id",
-        "logicalType": "TEXT",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": true,
-        "nullable": false
-      },
-      {
-        "ordinal": 2,
         "name": "workspace_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "libra_run_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
         "nullable": false
       },
       {
         "ordinal": 3,
+        "name": "reference_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
         "name": "material_handle_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
-        "nullable": false
-      },
-      {
-        "ordinal": 4,
-        "name": "product_role",
-        "logicalType": "TEXT",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
         "ordinal": 5,
-        "name": "episode_key",
+        "name": "material_key",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
         "ordinal": 6,
+        "name": "workspace_handle_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "workspace_handle_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "workspace_handle_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
         "name": "reference_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "reference_state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "working",
+          "product_staging",
+          "released"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "episode_claims_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "episode_claims_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 13,
+        "name": "episode_scope_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 14,
+        "name": "product_verification_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 15,
+        "name": "product_verification_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 16,
+        "name": "previous_reference_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 17,
+        "name": "committed_workspace_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 18,
+        "name": "reference_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 19,
+        "name": "committed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       }
     ],
     "primaryKey": [
-      "libra_run_id",
-      "material_handle_id",
+      "reference_id",
       "reference_revision"
     ],
     "declaredForeignKeyColumns": [
-      "libra_run_id",
-      "workspace_id"
+      "workspace_id",
+      "libra_run_id"
     ],
-    "uniqueConstraints": [],
+    "uniqueConstraints": [
+      [
+        "workspace_id",
+        "material_handle_id",
+        "reference_revision"
+      ]
+    ],
     "hotIndexes": [],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "reference_state",
+        "enumValues": [
+          "working",
+          "product_staging",
+          "released"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
-        "reference_revision"
+        "reference_revision",
+        "previous_reference_revision",
+        "committed_workspace_revision"
       ],
       "currentPointerColumns": [],
       "pointerTargets": [],
       "pointerRules": []
     },
-    "jsonContracts": [],
+    "jsonContracts": [
+      {
+        "column": "workspace_handle_json",
+        "schemaRefColumn": "workspace_handle_schema_ref",
+        "maxBytes": 4096,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      },
+      {
+        "column": "episode_claims_json",
+        "schemaRefColumn": "episode_claims_schema_ref",
+        "maxBytes": 4096,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
     "immutability": {
-      "immutable": false,
-      "rules": []
+      "immutable": true,
+      "rules": [
+        "每个reference stream从1连续、append-only，最高revision是current"
+      ]
     },
     "deletion": {
       "foreignKeyPolicy": "ON DELETE RESTRICT",
       "rules": []
     },
     "semanticRules": [
-      "`PK(libra_run_id,material_handle_id,reference_revision)`",
-      "只引用`fx_workspace_materials`"
+      "`PK(reference_id,reference_revision)`及`UNIQUE(workspace_id,material_handle_id,reference_revision)`",
+      "typed Handle JSON固定`WorkspaceMaterialHandle@1`且≤`4 KiB`，Episode claims JSON固定`LibraWorkspaceEpisodeClaims@1`且≤`16 KiB`，完整保存`0..32`项本节typed Episode claim并重算同一scope digest",
+      "两者与Foundation handle/Material row及Reference Decision逐字节匹配后冻结，允许文件后来被清理后仍重建历史Reference Decision",
+      "每次Reference transition与同一事务Workspace revision一一绑定，历史Workspace revision N按`committed_workspace_revision<=N`选择每个stream最高Reference revision重建set",
+      "每个reference stream从1连续、append-only，最高revision是current",
+      "同一stream后续revision的Handle、materialKey与Episode claims逐字节沿用，product_staging增加Verification，released沿用此前Verification并只改变state/previous/committed字段",
+      "同一Workspace最多1024个current non-released Reference且同一materialKey至多一个，防止Cleanup无法形成完整Scope或hard-link Handle对同一Control重复release",
+      "working要求verification列NULL，product_staging要求验证列非NULL，released不得再回到前态",
+      "同一handle不能同时存在两个current role",
+      "只引用同Workspace的`fx_workspace_materials`"
     ],
     "rawContract": {
-      "columns": "`libra_run_id FK, workspace_id FK, material_handle_id, product_role, episode_key, reference_revision`",
-      "constraints": "`PK(libra_run_id,material_handle_id,reference_revision)`；只引用`fx_workspace_materials`"
+      "columns": "`workspace_id FK, libra_run_id FK, reference_id, material_handle_id, material_key, workspace_handle_schema_ref, workspace_handle_json, workspace_handle_digest, reference_revision, reference_state(working|product_staging|released), episode_claims_schema_ref, episode_claims_json, episode_scope_digest, product_verification_id NULL, product_verification_digest NULL, previous_reference_revision NULL, committed_workspace_revision, reference_digest, committed_at_ms`",
+      "constraints": "`PK(reference_id,reference_revision)`及`UNIQUE(workspace_id,material_handle_id,reference_revision)`；typed Handle JSON固定`WorkspaceMaterialHandle@1`且≤`4 KiB`，Episode claims JSON固定`LibraWorkspaceEpisodeClaims@1`且≤`16 KiB`，完整保存`0..32`项本节typed Episode claim并重算同一scope digest；两者与Foundation handle/Material row及Reference Decision逐字节匹配后冻结，允许文件后来被清理后仍重建历史Reference Decision；每次Reference transition与同一事务Workspace revision一一绑定，历史Workspace revision N按`committed_workspace_revision<=N`选择每个stream最高Reference revision重建set；每个reference stream从1连续、append-only，最高revision是current；同一stream后续revision的Handle、materialKey与Episode claims逐字节沿用，product_staging增加Verification，released沿用此前Verification并只改变state/previous/committed字段；同一Workspace最多1024个current non-released Reference且同一materialKey至多一个，防止Cleanup无法形成完整Scope或hard-link Handle对同一Control重复release；working要求verification列NULL，product_staging要求验证列非NULL，released不得再回到前态；同一handle不能同时存在两个current role；只引用同Workspace的`fx_workspace_materials`"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8171,
-      "lineDigest": "c199a2611196a8c5a7b9f41d19fdc8093c7f94696f9102d294e44297cdb2263b"
+      "line": 8274,
+      "lineDigest": "34f4e264df69503e64bdcc6cacc0909a4c965c61c89946680dad765ce6b59396"
     },
     "foreignKeys": [
+      {
+        "columns": [
+          "workspace_id"
+        ],
+        "targetTable": "libra_workspaces",
+        "targetColumns": [
+          "workspace_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
       {
         "columns": [
           "libra_run_id"
@@ -113,17 +305,6 @@
         "targetTable": "libra_runs",
         "targetColumns": [
           "libra_run_id"
-        ],
-        "deletePolicy": "RESTRICT",
-        "deferrable": false
-      },
-      {
-        "columns": [
-          "workspace_id"
-        ],
-        "targetTable": "fx_workspace_registry",
-        "targetColumns": [
-          "workspace_id"
         ],
         "deletePolicy": "RESTRICT",
         "deferrable": false

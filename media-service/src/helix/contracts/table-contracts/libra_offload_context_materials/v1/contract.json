@@ -14,6 +14,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": true,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -23,6 +24,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -32,33 +34,144 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
         "ordinal": 4,
         "name": "context_role",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "original_input",
+          "structural_dependency"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
         "ordinal": 5,
+        "name": "mount_scope_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "inode",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "content_hash_algorithm",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "content_hash",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "endpoint_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "location",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
         "name": "binding_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
-        "ordinal": 6,
-        "name": "settlement_expectation",
+        "ordinal": 12,
+        "name": "binding_evidence_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 13,
+        "name": "admitted_control_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 14,
+        "name": "admitted_control_projection_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 15,
+        "name": "settlement_expectation",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "retain",
+          "replace_or_move",
+          "remove_after_place"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 16,
+        "name": "context_member_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       }
     ],
@@ -78,10 +191,27 @@
     ],
     "hotIndexes": [],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "context_role",
+        "enumValues": [
+          "original_input",
+          "structural_dependency"
+        ]
+      },
+      {
+        "column": "settlement_expectation",
+        "enumValues": [
+          "retain",
+          "replace_or_move",
+          "remove_after_place"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
-        "binding_revision"
+        "binding_revision",
+        "admitted_control_revision"
       ],
       "currentPointerColumns": [],
       "pointerTargets": [],
@@ -97,16 +227,18 @@
       "rules": []
     },
     "semanticRules": [
-      "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,material_key,context_role)`"
+      "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,material_key,context_role)`",
+      "逐列冻结Arca计算Final Inventory Decision所需Reality，不声明最终动作",
+      "按materialKey/contextRole排序并进入offload context digest"
     ],
     "rawContract": {
-      "columns": "`on_deck_package_id FK, ordinal, material_key, context_role, binding_revision, settlement_expectation`",
-      "constraints": "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,material_key,context_role)`"
+      "columns": "`on_deck_package_id FK, ordinal, material_key, context_role(original_input|structural_dependency), mount_scope_id, inode, content_hash_algorithm, content_hash, endpoint_id, location, binding_revision, binding_evidence_digest, admitted_control_revision, admitted_control_projection_digest, settlement_expectation(retain|replace_or_move|remove_after_place), context_member_digest`",
+      "constraints": "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,material_key,context_role)`；逐列冻结Arca计算Final Inventory Decision所需Reality，不声明最终动作；按materialKey/contextRole排序并进入offload context digest"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8177,
-      "lineDigest": "fc7662f1ef7c9342c2a73b10deb3a0220b3bcc975f4275ee42f2875fd548aee3"
+      "line": 8283,
+      "lineDigest": "d42a868c051259871ef309cec961ed873b7210ab03125b84a19f407e8587e69e"
     },
     "foreignKeys": [
       {

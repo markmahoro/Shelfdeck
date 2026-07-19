@@ -96,7 +96,7 @@ function validateResultTypeSchemas(options) {
   for (const name of nominalOutputs) {
     if (!registryNames.has(name)) findings.push(finding('MISSING_CATALOG_RESULT_TYPE', 'Catalog nominal Result is absent.', { entryId: name }));
   }
-  for (const helper of ['OnDeckCommitReceipt', 'OffloadCompletionFact', 'PeopleCandidateDraft', 'PrimaryInputManifest',
+  for (const helper of ['OnDeckProductPackage', 'OnDeckCommitReceipt', 'OffloadCompletionFact', 'PeopleCandidateDraft', 'PrimaryInputManifest',
     'SeasonContinuityClaim', 'CandidateIntakeAcceptanceBasis', 'ProcurementCandidateOfferAvailableMessage',
     'LibraCandidateAcceptedMessage', 'LibraCandidateRejectedMessage', 'ProcurementCandidateAcceptanceClosureResult',
     'ProcurementCandidateRejectionClosureResult']) {
@@ -108,7 +108,7 @@ function validateResultTypeSchemas(options) {
     catalogResultCount: nominalOutputs.size + directOutputs.size,
     nominalResultCount: nominalOutputs.size,
     directResultCount: directOutputs.size,
-    helperCount: 11,
+    helperCount: 12,
     registryDigest: schemaDigest(registry),
     findings
   };

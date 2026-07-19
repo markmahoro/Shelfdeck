@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.libra-run-lifecycle-transition/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.libra-run-lifecycle-transition",
+    "displayName": "Libra Run Lifecycle Transition",
+    "ownerScope": "libra",
+    "commitClass": "domain_fact_commit",
+    "atomicFactSet": "complete `LibraRunLifecycleDecision@1` + expected Run state revision/digest + expected Run admission head/active scope set CAS + transition-specific fresh Evidence + Run/current revision CAS + immutable new Run revision + durable `LibraRunLifecycleResult@1`/commit marker；complete variant还原子消费`ArcaProductAcceptedMessage@1`、写Libra Delivery Receipt与Inbox；只允许8.6.21 closed transition set，`hasOutbox=false`，不得创建replacement Run、Workspace效果或Package",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "libra",
+        "access": "write",
+        "tables": [
+          "libra_run_admission_heads",
+          "libra_runs",
+          "libra_run_revisions",
+          "libra_delivery_receipts"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_inbox",
+          "fx_event_result_bindings",
+          "fx_commit_markers"
+        ]
+      }
+    ],
+    "writeTables": [
+      "libra_run_admission_heads",
+      "libra_runs",
+      "libra_run_revisions",
+      "libra_delivery_receipts",
+      "fx_inbox",
+      "fx_event_result_bindings",
+      "fx_commit_markers"
+    ],
+    "readTables": [
+      "libra_run_admission_heads",
+      "libra_runs",
+      "libra_run_revisions",
+      "libra_delivery_receipts",
+      "fx_inbox",
+      "fx_event_result_bindings",
+      "fx_commit_markers",
+      "libra_product_packages",
+      "libra_subject_decision_heads",
+      "libra_acceptance_specs"
+    ],
+    "variants": [],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [
+      "proc_",
+      "arca_"
+    ],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "libra-run-lifecycle",
+        "faultInjectionPoints": "expected Run/head fence验证前后、freshness或accepted message验证前后、新Run revision与current/head CAS前后、complete receipt/inbox前后、Result/marker前后",
+        "requiredInvariant": "closed transition只推进一次；complete的Run terminal、Delivery Receipt、Inbox与Result全有或全无；priority不改变Execution Basis；不得暗建replacement、Workspace或Package",
+        "source": {
+          "section": "8.9.7",
+          "line": 9952
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7755,
+      "lineDigest": "7201dc4664b5b84beba01cf8fb0aad488f4aed652835d8be0ad3d498aaa6f0b1"
+    }
+  }
+}

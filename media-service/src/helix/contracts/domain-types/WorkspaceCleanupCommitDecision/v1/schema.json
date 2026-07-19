@@ -1,0 +1,340 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/WorkspaceCleanupCommitDecision/v1",
+  "title": "WorkspaceCleanupCommitDecision@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "decisionId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "cleanupScopeId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "expectedScopeStateRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "expectedScopeStateDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "workspaceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "expectedWorkspaceRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "expectedWorkspaceStateDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "materialHandleId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "expectedReferenceRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "expectedReferenceDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "expectedMemberStateRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "expectedMemberStateDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "outcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "deletion_verified"
+            },
+            "deletionEvidence": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "evidenceId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "evidenceKind": {
+                  "const": "workspace_material_deletion"
+                },
+                "effectId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "cleanupScopeId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "materialHandleId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "preDeleteHandleDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "result": {
+                  "type": "string",
+                  "enum": [
+                    "deleted",
+                    "already_absent"
+                  ]
+                },
+                "postDeleteContainmentProbeDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "effectReceiptId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "evidenceDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "required": [
+                "evidenceId",
+                "evidenceKind",
+                "effectId",
+                "cleanupScopeId",
+                "materialHandleId",
+                "preDeleteHandleDigest",
+                "result",
+                "postDeleteContainmentProbeDigest",
+                "effectReceiptId",
+                "evidenceDigest"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "deletionEvidence"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "terminal_blocked"
+            },
+            "blockingEvidence": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "evidenceId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "evidenceKind": {
+                  "const": "workspace_cleanup_blocking"
+                },
+                "cleanupScopeId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "materialHandleId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "terminalFailureCode": {
+                  "type": "string",
+                  "enum": [
+                    "workspace_path_escaped",
+                    "identity_mismatch",
+                    "control_conflict",
+                    "effect_retry_exhausted"
+                  ]
+                },
+                "lastEffectId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "lastEffectFailureDigest": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "observedFenceDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "evidenceDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "required": [
+                "evidenceId",
+                "evidenceKind",
+                "cleanupScopeId",
+                "materialHandleId",
+                "terminalFailureCode",
+                "lastEffectId",
+                "lastEffectFailureDigest",
+                "observedFenceDigest",
+                "evidenceDigest"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "blockingEvidence"
+          ]
+        }
+      ]
+    },
+    "expectedControlFence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "materialKey": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "controlDisposition": {
+          "type": "string",
+          "enum": [
+            "uncontrolled",
+            "libra_owned",
+            "other_owned"
+          ]
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "projectionDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "ownerDomain": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ownerScopeType": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ownerScopeId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "materialKey",
+        "controlDisposition",
+        "revision",
+        "projectionDigest",
+        "ownerDomain",
+        "ownerScopeType",
+        "ownerScopeId"
+      ]
+    },
+    "decisionDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "decisionId",
+    "cleanupScopeId",
+    "expectedScopeStateRevision",
+    "expectedScopeStateDigest",
+    "workspaceId",
+    "expectedWorkspaceRevision",
+    "expectedWorkspaceStateDigest",
+    "materialHandleId",
+    "expectedReferenceRevision",
+    "expectedReferenceDigest",
+    "expectedMemberStateRevision",
+    "expectedMemberStateDigest",
+    "outcome",
+    "expectedControlFence",
+    "decisionDigest"
+  ]
+}

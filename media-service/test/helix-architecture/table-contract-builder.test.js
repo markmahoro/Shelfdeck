@@ -10,14 +10,14 @@ const { readTableSourceEntries } = require('../../scripts/helix-architecture/tab
 const contractsRoot = path.resolve(__dirname, '../../src/helix/contracts');
 const contracts = buildTableContracts(readTableSourceEntries(contractsRoot));
 
-test('builds all 169 sole-Owner table contracts with accepted owner counts', () => {
-  assert.equal(contracts.length, 169);
-  assert.equal(new Set(contracts.map((contract) => contract.tableId)).size, 169);
+test('builds all 176 sole-Owner table contracts with accepted owner counts', () => {
+  assert.equal(contracts.length, 176);
+  assert.equal(new Set(contracts.map((contract) => contract.tableId)).size, 176);
   const counts = Object.fromEntries([...new Set(contracts.map((contract) => contract.owner))].map((owner) => [
     owner, contracts.filter((contract) => contract.owner === owner).length
   ]));
   assert.deepEqual(counts, {
-    'execution-foundation': 23, 'material-control-authority': 2, procurement: 15, libra: 37,
+    'execution-foundation': 23, 'material-control-authority': 2, procurement: 15, libra: 44,
     arca: 54, perception: 9, people: 13, 'platform-settings': 16
   });
 });
@@ -78,7 +78,7 @@ test('closes every PK, declared FK, JSON contract, and current revision pointer'
     }
     for (const json of contract.jsonContracts) {
       assert.ok(json.schemaRefColumn, `${contract.tableId}.${json.column}`);
-      assert.ok([4 * 1024, 16 * 1024, 64 * 1024].includes(json.maxBytes));
+      assert.ok([4 * 1024, 16 * 1024, 64 * 1024, 1024 * 1024].includes(json.maxBytes));
     }
     const covered = new Set(contract.revisionContract.pointerTargets.flatMap((target) => [...target.sourceColumns, ...target.consistencyColumns]));
     for (const pointer of contract.revisionContract.currentPointerColumns) assert.ok(covered.has(pointer), `${contract.tableId}.${pointer}`);

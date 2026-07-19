@@ -1,0 +1,387 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_run_material_members/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_run_material_members",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "run_material_manifest_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "ordinal",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "material_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "role",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "primary_payload",
+          "structural_dependency"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "mount_scope_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "inode",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "content_hash_algorithm",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "content_hash",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "size_bytes",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "location_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "domain_binding"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "endpoint_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "location",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 13,
+        "name": "binding_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "libra_material_binding"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 14,
+        "name": "binding_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 15,
+        "name": "binding_evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 16,
+        "name": "origin_intake_decision_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 17,
+        "name": "origin_offer_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 18,
+        "name": "origin_candidate_package_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 19,
+        "name": "origin_package_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 20,
+        "name": "origin_package_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 21,
+        "name": "origin_candidate_delivery_snapshot_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 22,
+        "name": "origin_related_reference_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 23,
+        "name": "admitted_control_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 24,
+        "name": "admitted_control_projection_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 25,
+        "name": "output_requirement_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 26,
+        "name": "episode_claim_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 27,
+        "name": "member_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "run_material_manifest_id",
+      "ordinal"
+    ],
+    "declaredForeignKeyColumns": [
+      "run_material_manifest_id",
+      "origin_intake_decision_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "run_material_manifest_id",
+        "material_key"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "role",
+        "enumValues": [
+          "primary_payload",
+          "structural_dependency"
+        ]
+      },
+      {
+        "column": "location_kind",
+        "enumValues": [
+          "domain_binding"
+        ]
+      },
+      {
+        "column": "binding_kind",
+        "enumValues": [
+          "libra_material_binding"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "binding_revision",
+        "origin_package_revision",
+        "admitted_control_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "immutable"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(run_material_manifest_id,ordinal)`及`UNIQUE(run_material_manifest_id,material_key)`",
+      "ordinal从0连续，按materialKey UTF-8 bytes排序",
+      "Run Input只允许Libra Material Binding与domain location，完整Physical Identity/size/Location/Binding/Candidate Delivery provenance/Control snapshot可独立重建",
+      "Related值只可从该exact historical Delivery读取并校验set digest",
+      "immutable"
+    ],
+    "rawContract": {
+      "columns": "`run_material_manifest_id FK, ordinal, material_key, role(primary_payload|structural_dependency), mount_scope_id, inode, content_hash_algorithm, content_hash, size_bytes, location_kind(domain_binding), endpoint_id, location, binding_kind(libra_material_binding), binding_revision, binding_evidence_digest, origin_intake_decision_id FK, origin_offer_id, origin_candidate_package_id, origin_package_revision, origin_package_digest, origin_candidate_delivery_snapshot_digest, origin_related_reference_set_digest, admitted_control_revision, admitted_control_projection_digest, output_requirement_digest, episode_claim_set_digest, member_digest`",
+      "constraints": "`PK(run_material_manifest_id,ordinal)`及`UNIQUE(run_material_manifest_id,material_key)`；ordinal从0连续，按materialKey UTF-8 bytes排序；Run Input只允许Libra Material Binding与domain location，完整Physical Identity/size/Location/Binding/Candidate Delivery provenance/Control snapshot可独立重建；Related值只可从该exact historical Delivery读取并校验set digest；immutable"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 8270,
+      "lineDigest": "ae9b4fb770c07f908a4f3303bbf4fde2962c26f1dc25bb50acbda7fd7d64bce8"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "run_material_manifest_id"
+        ],
+        "targetTable": "libra_run_material_manifests",
+        "targetColumns": [
+          "run_material_manifest_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "origin_intake_decision_id"
+        ],
+        "targetTable": "libra_intake_decisions",
+        "targetColumns": [
+          "intake_decision_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

@@ -14,6 +14,7 @@
         "enumValues": [],
         "primaryKeyPart": true,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -23,37 +24,81 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": true,
+        "inlineUnique": false,
         "nullable": false
       },
       {
         "ordinal": 3,
+        "name": "admission_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
         "name": "acceptance_spec_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": true,
-        "nullable": false
-      },
-      {
-        "ordinal": 4,
-        "name": "initial_material_manifest_digest",
-        "logicalType": "TEXT",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
         "ordinal": 5,
+        "name": "run_material_manifest_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "execution_basis_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "execution_basis_record_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "execution_basis_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
         "name": "run_scope_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
-        "ordinal": 6,
+        "ordinal": 10,
         "name": "state",
         "logicalType": "TEXT",
         "enumValues": [
@@ -66,34 +111,101 @@
         ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
-        "ordinal": 7,
-        "name": "priority_class",
+        "ordinal": 11,
+        "name": "state_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "state_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
-        "ordinal": 8,
+        "ordinal": 13,
+        "name": "package_revision_head",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 14,
+        "name": "priority_class",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "normal",
+          "expedited"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 15,
+        "name": "priority_intent_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 16,
+        "name": "supersedes_run_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 17,
+        "name": "superseded_by_run_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 18,
         "name": "created_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
-        "ordinal": 9,
+        "ordinal": 19,
         "name": "terminal_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
-        "nullable": false
+        "inlineUnique": false,
+        "nullable": true
       }
     ],
     "primaryKey": [
@@ -101,9 +213,23 @@
     ],
     "declaredForeignKeyColumns": [
       "subject_id",
-      "acceptance_spec_id"
+      "acceptance_spec_id",
+      "run_material_manifest_id",
+      "supersedes_run_id",
+      "superseded_by_run_id"
     ],
-    "uniqueConstraints": [],
+    "uniqueConstraints": [
+      [
+        "subject_id",
+        "admission_revision"
+      ],
+      [
+        "subject_id",
+        "acceptance_spec_id",
+        "run_scope_digest",
+        "admission_revision"
+      ]
+    ],
     "hotIndexes": [
       [
         "state",
@@ -111,9 +237,7 @@
         "created_at_ms"
       ]
     ],
-    "partialUniqueRules": [
-      "相同`subject+spec+scope`至多一个non-terminal Run"
-    ],
+    "partialUniqueRules": [],
     "checkRules": [
       {
         "column": "state",
@@ -125,15 +249,35 @@
           "discarded",
           "completed"
         ]
+      },
+      {
+        "column": "priority_class",
+        "enumValues": [
+          "normal",
+          "expedited"
+        ]
       }
     ],
     "revisionContract": {
-      "revisionColumns": [],
+      "revisionColumns": [
+        "admission_revision",
+        "state_revision"
+      ],
       "currentPointerColumns": [],
       "pointerTargets": [],
-      "pointerRules": []
+      "pointerRules": [
+        "current aggregate row使用`rowMutability=cas_lifecycle`：state transition必须同时追加`libra_run_revisions`，Deliverable Promotion只允许expected `package_revision_head` CAS加1且不得改state"
+      ]
     },
-    "jsonContracts": [],
+    "jsonContracts": [
+      {
+        "column": "execution_basis_record_json",
+        "schemaRefColumn": "execution_basis_schema_ref",
+        "maxBytes": 1048576,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      }
+    ],
     "immutability": {
       "immutable": false,
       "rules": []
@@ -143,19 +287,22 @@
       "rules": []
     },
     "semanticRules": [
-      "相同`subject+spec+scope`至多一个non-terminal Run",
-      "允许Season不同Episode scope并行",
-      "Supporting Work通过`owner_domain+process_type+process_id`形成`0..N`反向关系",
+      "`run_material_manifest_id`与Manifest回指Run的复合建立使用`DEFERRABLE INITIALLY DEFERRED` FK并在事务commit前完整验证，禁止nullable后补。`execution_basis_schema_ref=LibraRunExecutionBasisRecord@1`且typed JSON≤`1 MiB`，保存除大Manifest成员外的完整冻结Basis及Manifest ref",
+      "与Manifest relation展开后必须重算同一execution basis digest。`UNIQUE(subject_id,admission_revision)`及`UNIQUE(subject_id,acceptance_spec_id,run_scope_digest,admission_revision)`",
+      "current aggregate row使用`rowMutability=cas_lifecycle`：state transition必须同时追加`libra_run_revisions`，Deliverable Promotion只允许expected `package_revision_head` CAS加1且不得改state",
+      "初值0",
+      "`terminal_at_ms`仅`completed|superseded|discarded`非NULL，其他状态为NULL",
+      "same-spec/scope semantic replay返回原Run，新的合法replacement使用新admission revision",
       "`INDEX(state,priority_class,created_at_ms)`"
     ],
     "rawContract": {
-      "columns": "`libra_run_id PK, subject_id FK, acceptance_spec_id FK, initial_material_manifest_digest, run_scope_digest, state, priority_class, created_at_ms, terminal_at_ms`",
-      "constraints": "相同`subject+spec+scope`至多一个non-terminal Run；允许Season不同Episode scope并行；Supporting Work通过`owner_domain+process_type+process_id`形成`0..N`反向关系；`INDEX(state,priority_class,created_at_ms)`"
+      "columns": "`libra_run_id PK, subject_id FK, admission_revision, acceptance_spec_id FK, run_material_manifest_id FK, execution_basis_schema_ref, execution_basis_record_json, execution_basis_digest, run_scope_digest, state(active|suspended|superseded|frozen|discarded|completed), state_revision, state_digest, package_revision_head, priority_class(normal|expedited), priority_intent_digest, supersedes_run_id NULL FK, superseded_by_run_id NULL FK, created_at_ms, terminal_at_ms NULL`",
+      "constraints": "`run_material_manifest_id`与Manifest回指Run的复合建立使用`DEFERRABLE INITIALLY DEFERRED` FK并在事务commit前完整验证，禁止nullable后补。`execution_basis_schema_ref=LibraRunExecutionBasisRecord@1`且typed JSON≤`1 MiB`，保存除大Manifest成员外的完整冻结Basis及Manifest ref；与Manifest relation展开后必须重算同一execution basis digest。`UNIQUE(subject_id,admission_revision)`及`UNIQUE(subject_id,acceptance_spec_id,run_scope_digest,admission_revision)`；current aggregate row使用`rowMutability=cas_lifecycle`：state transition必须同时追加`libra_run_revisions`，Deliverable Promotion只允许expected `package_revision_head` CAS加1且不得改state；初值0；`terminal_at_ms`仅`completed|superseded|discarded`非NULL，其他状态为NULL；same-spec/scope semantic replay返回原Run，新的合法replacement使用新admission revision；`INDEX(state,priority_class,created_at_ms)`"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8165,
-      "lineDigest": "f5720d6d659431f687c47c0f27378868a3154115acb856be36f36be13d851476"
+      "line": 8265,
+      "lineDigest": "db93066227c5036976b8649b83149fe762848c3b149be5196a2910643efe808c"
     },
     "foreignKeys": [
       {
@@ -176,6 +323,39 @@
         "targetTable": "libra_acceptance_specs",
         "targetColumns": [
           "acceptance_spec_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "run_material_manifest_id"
+        ],
+        "targetTable": "libra_run_material_manifests",
+        "targetColumns": [
+          "run_material_manifest_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": true
+      },
+      {
+        "columns": [
+          "supersedes_run_id"
+        ],
+        "targetTable": "libra_runs",
+        "targetColumns": [
+          "libra_run_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "superseded_by_run_id"
+        ],
+        "targetTable": "libra_runs",
+        "targetColumns": [
+          "libra_run_id"
         ],
         "deletePolicy": "RESTRICT",
         "deferrable": false

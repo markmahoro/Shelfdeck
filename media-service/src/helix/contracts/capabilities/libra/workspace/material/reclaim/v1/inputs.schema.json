@@ -5,29 +5,25 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "workspaceHandleList": {
-      "$ref": "#/$defs/workspaceHandleList"
+    "workspaceMaterialHandle": {
+      "$ref": "#/$defs/workspaceMaterialHandle"
     },
-    "referenceEvidence": {
-      "$ref": "#/$defs/referenceEvidence"
+    "workspaceCleanupEffectIntent": {
+      "$ref": "#/$defs/workspaceCleanupEffectIntent"
     }
   },
   "required": [
-    "workspaceHandleList",
-    "referenceEvidence"
+    "workspaceMaterialHandle",
+    "workspaceCleanupEffectIntent"
   ],
   "$defs": {
-    "workspaceHandleList": {
-      "type": "array",
-      "items": {
-        "$ref": "helix://contracts/types/WorkspaceMaterialHandle/v1"
-      },
-      "maxItems": 1024,
-      "x-helix-typeExpression": "Workspace handles"
+    "workspaceMaterialHandle": {
+      "$ref": "helix://contracts/types/WorkspaceMaterialHandle/v1",
+      "x-helix-typeExpression": "WorkspaceMaterialHandle"
     },
-    "referenceEvidence": {
-      "$ref": "helix://contracts/domain-types/ReferenceEvidence/v1",
-      "x-helix-typeExpression": "ReferenceEvidence"
+    "workspaceCleanupEffectIntent": {
+      "$ref": "helix://contracts/domain-types/WorkspaceCleanupEffectIntent/v1",
+      "x-helix-typeExpression": "WorkspaceCleanupEffectIntent"
     }
   }
 }

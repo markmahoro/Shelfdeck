@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_run_material_episode_claims/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_run_material_episode_claims",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "run_material_manifest_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "member_ordinal",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "episode_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "season_claim_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "claim_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "run_material_manifest_id",
+      "member_ordinal",
+      "episode_key"
+    ],
+    "declaredForeignKeyColumns": [
+      "run_material_manifest_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "immutable"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(run_material_manifest_id,member_ordinal,episode_key)`并复合FK到member",
+      "只允许season primary payload",
+      "每个Material允许0..32个Episode，按episodeKey排序，完整set进入member/manifest/run scope digest",
+      "immutable"
+    ],
+    "rawContract": {
+      "columns": "`run_material_manifest_id FK, member_ordinal, episode_key, season_claim_digest, claim_digest`",
+      "constraints": "`PK(run_material_manifest_id,member_ordinal,episode_key)`并复合FK到member；只允许season primary payload；每个Material允许0..32个Episode，按episodeKey排序，完整set进入member/manifest/run scope digest；immutable"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 8271,
+      "lineDigest": "70a7596d484cbc90855d176c25088814649fd7c6537b2703638159b9308e4019"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "run_material_manifest_id"
+        ],
+        "targetTable": "libra_run_material_manifests",
+        "targetColumns": [
+          "run_material_manifest_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

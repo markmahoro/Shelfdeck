@@ -1122,12 +1122,21 @@ CREATE TABLE "fx_workflow_plans" (
 CREATE TABLE "fx_workspace_materials" (
   "workspace_id" TEXT,
   "material_handle_id" TEXT,
+  "material_key" TEXT,
+  "endpoint_id" TEXT,
+  "mount_scope_id" TEXT,
+  "inode" TEXT,
+  "content_hash_algorithm" TEXT,
+  "content_hash" TEXT,
   "relative_path" TEXT,
   "digest_algorithm" TEXT,
   "digest_hex" TEXT CHECK (length("digest_hex") = 64 AND "digest_hex" NOT GLOB '*[^0-9a-f]*'),
   "size_bytes" INTEGER CHECK ("size_bytes" >= 0),
   "reference_revision" INTEGER CHECK ("reference_revision" >= 1),
-  "state" TEXT CHECK ("state" IN ('working', 'product_staged', 'retained', 'deletion_pending', 'deleted')),
+  "state" TEXT CHECK ("state" IN ('active', 'reclaimed')),
+  "reclaimed_effect_id" TEXT,
+  "reclaimed_effect_receipt_digest" TEXT CHECK (length("reclaimed_effect_receipt_digest") = 64 AND "reclaimed_effect_receipt_digest" NOT GLOB '*[^0-9a-f]*'),
+  "reclaimed_at_ms" INTEGER CHECK ("reclaimed_at_ms" >= 0),
   PRIMARY KEY ("workspace_id", "material_handle_id"),
   UNIQUE ("workspace_id", "relative_path"),
   FOREIGN KEY ("workspace_id") REFERENCES "fx_workspace_registry" ("workspace_id") ON DELETE RESTRICT
@@ -1139,9 +1148,10 @@ CREATE TABLE "fx_workspace_registry" (
   "process_type" TEXT,
   "process_id" TEXT,
   "root_handle_ref" TEXT,
-  "state" TEXT CHECK ("state" IN ('active', 'reclaiming', 'reclaimed')),
+  "state" TEXT CHECK ("state" IN ('active', 'reclaimed')),
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
   "reclaim_after_ms" INTEGER CHECK ("reclaim_after_ms" >= 0),
+  "reclaimed_at_ms" INTEGER CHECK ("reclaimed_at_ms" >= 0),
   UNIQUE ("owner_domain", "process_type", "process_id", "workspace_id")
 );
 CREATE INDEX "idx_fx_workspace_registry_hot_01" ON "fx_workspace_registry" ("owner_domain", "state", "reclaim_after_ms");
@@ -1230,6 +1240,9 @@ CREATE TABLE "libra_delivery_receipts" (
   "result" TEXT CHECK ("result" IN ('accepted', 'rejected')),
   "handoff_receipt_id" TEXT,
   "handoff_receipt_digest" TEXT CHECK (length("handoff_receipt_digest") = 64 AND "handoff_receipt_digest" NOT GLOB '*[^0-9a-f]*'),
+  "custody_id" TEXT,
+  "arca_binding_set_digest" TEXT CHECK (length("arca_binding_set_digest") = 64 AND "arca_binding_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "control_revision_set_digest" TEXT CHECK (length("control_revision_set_digest") = 64 AND "control_revision_set_digest" NOT GLOB '*[^0-9a-f]*'),
   "rejection_digest" TEXT CHECK (length("rejection_digest") = 64 AND "rejection_digest" NOT GLOB '*[^0-9a-f]*'),
   "closure_digest" TEXT CHECK (length("closure_digest") = 64 AND "closure_digest" NOT GLOB '*[^0-9a-f]*'),
   "received_at_ms" INTEGER CHECK ("received_at_ms" >= 0),
@@ -1237,29 +1250,6 @@ CREATE TABLE "libra_delivery_receipts" (
   FOREIGN KEY ("on_deck_package_id") REFERENCES "libra_product_packages" ("on_deck_package_id") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_libra_delivery_receipts_hot_01" ON "libra_delivery_receipts" ("result", "received_at_ms");
-
-CREATE TABLE "libra_episode_delivery_manifests" (
-  "episode_delivery_manifest_id" TEXT PRIMARY KEY,
-  "libra_run_id" TEXT,
-  "manifest_revision" INTEGER CHECK ("manifest_revision" >= 1),
-  "member_count" INTEGER CHECK ("member_count" >= 0),
-  "members_digest" TEXT CHECK (length("members_digest") = 64 AND "members_digest" NOT GLOB '*[^0-9a-f]*'),
-  "manifest_digest" TEXT CHECK (length("manifest_digest") = 64 AND "manifest_digest" NOT GLOB '*[^0-9a-f]*'),
-  "published_at_ms" INTEGER CHECK ("published_at_ms" >= 0),
-  UNIQUE ("libra_run_id", "manifest_revision"),
-  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT
-);
-
-CREATE TABLE "libra_episode_delivery_members" (
-  "episode_delivery_manifest_id" TEXT,
-  "episode_key" TEXT,
-  "material_key" TEXT,
-  "input_role" TEXT,
-  "output_requirement_digest" TEXT CHECK (length("output_requirement_digest") = 64 AND "output_requirement_digest" NOT GLOB '*[^0-9a-f]*'),
-  "state" TEXT CHECK ("state" IN ('pending', 'delivered', 'superseded')),
-  PRIMARY KEY ("episode_delivery_manifest_id", "episode_key", "material_key"),
-  FOREIGN KEY ("episode_delivery_manifest_id") REFERENCES "libra_episode_delivery_manifests" ("episode_delivery_manifest_id") ON DELETE RESTRICT
-);
 
 CREATE TABLE "libra_field_routing_heads" (
   "field_id" TEXT PRIMARY KEY,
@@ -1404,23 +1394,46 @@ CREATE TABLE "libra_material_bindings" (
   "subject_id" TEXT,
   "material_key" TEXT,
   "role" TEXT,
+  "mount_scope_id" TEXT,
+  "inode" TEXT,
+  "content_hash_algorithm" TEXT,
+  "content_hash" TEXT,
+  "size_bytes" INTEGER CHECK ("size_bytes" >= 0),
   "endpoint_id" TEXT,
   "location" TEXT,
   "binding_revision" INTEGER CHECK ("binding_revision" >= 1),
   "health_state" TEXT CHECK ("health_state" IN ('active', 'stale', 'released')),
   "evidence_digest" TEXT CHECK (length("evidence_digest") = 64 AND "evidence_digest" NOT GLOB '*[^0-9a-f]*'),
+  "origin_intake_decision_id" TEXT,
+  "origin_offer_id" TEXT,
+  "origin_candidate_package_id" TEXT,
+  "origin_package_revision" INTEGER CHECK ("origin_package_revision" >= 1),
+  "origin_package_digest" TEXT CHECK (length("origin_package_digest") = 64 AND "origin_package_digest" NOT GLOB '*[^0-9a-f]*'),
+  "origin_candidate_delivery_snapshot_digest" TEXT CHECK (length("origin_candidate_delivery_snapshot_digest") = 64 AND "origin_candidate_delivery_snapshot_digest" NOT GLOB '*[^0-9a-f]*'),
+  "origin_related_reference_set_digest" TEXT CHECK (length("origin_related_reference_set_digest") = 64 AND "origin_related_reference_set_digest" NOT GLOB '*[^0-9a-f]*'),
   "current" INTEGER CHECK ("current" IN (0, 1)),
   PRIMARY KEY ("subject_id", "material_key", "binding_revision"),
-  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("origin_intake_decision_id") REFERENCES "libra_intake_decisions" ("intake_decision_id") ON DELETE RESTRICT
 );
 
 CREATE TABLE "libra_offload_context_materials" (
   "on_deck_package_id" TEXT,
   "ordinal" INTEGER CHECK ("ordinal" >= 0),
   "material_key" TEXT,
-  "context_role" TEXT,
+  "context_role" TEXT CHECK ("context_role" IN ('original_input', 'structural_dependency')),
+  "mount_scope_id" TEXT,
+  "inode" TEXT,
+  "content_hash_algorithm" TEXT,
+  "content_hash" TEXT,
+  "endpoint_id" TEXT,
+  "location" TEXT,
   "binding_revision" INTEGER CHECK ("binding_revision" >= 1),
-  "settlement_expectation" TEXT,
+  "binding_evidence_digest" TEXT CHECK (length("binding_evidence_digest") = 64 AND "binding_evidence_digest" NOT GLOB '*[^0-9a-f]*'),
+  "admitted_control_revision" INTEGER CHECK ("admitted_control_revision" >= 1),
+  "admitted_control_projection_digest" TEXT CHECK (length("admitted_control_projection_digest") = 64 AND "admitted_control_projection_digest" NOT GLOB '*[^0-9a-f]*'),
+  "settlement_expectation" TEXT CHECK ("settlement_expectation" IN ('retain', 'replace_or_move', 'remove_after_place')),
+  "context_member_digest" TEXT CHECK (length("context_member_digest") = 64 AND "context_member_digest" NOT GLOB '*[^0-9a-f]*'),
   PRIMARY KEY ("on_deck_package_id", "ordinal"),
   UNIQUE ("on_deck_package_id", "material_key", "context_role"),
   FOREIGN KEY ("on_deck_package_id") REFERENCES "libra_product_packages" ("on_deck_package_id") ON DELETE RESTRICT
@@ -1459,40 +1472,147 @@ CREATE TABLE "libra_product_identity_revisions" (
   FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT
 );
 
+CREATE TABLE "libra_product_package_artifact_refs" (
+  "on_deck_package_id" TEXT,
+  "ordinal" INTEGER CHECK ("ordinal" >= 0),
+  "artifact_handle_id" TEXT,
+  "artifact_kind" TEXT,
+  "artifact_revision" INTEGER CHECK ("artifact_revision" >= 1),
+  "artifact_digest" TEXT CHECK (length("artifact_digest") = 64 AND "artifact_digest" NOT GLOB '*[^0-9a-f]*'),
+  "requirement_digest" TEXT CHECK (length("requirement_digest") = 64 AND "requirement_digest" NOT GLOB '*[^0-9a-f]*'),
+  "materialization_state" TEXT CHECK ("materialization_state" IN ('workspace_only', 'included_product')),
+  "reference_digest" TEXT CHECK (length("reference_digest") = 64 AND "reference_digest" NOT GLOB '*[^0-9a-f]*'),
+  PRIMARY KEY ("on_deck_package_id", "ordinal"),
+  UNIQUE ("on_deck_package_id", "artifact_handle_id", "artifact_revision"),
+  FOREIGN KEY ("on_deck_package_id") REFERENCES "libra_product_packages" ("on_deck_package_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_product_package_fact_refs" (
+  "on_deck_package_id" TEXT,
+  "ordinal" INTEGER CHECK ("ordinal" >= 0),
+  "product_fact_id" TEXT,
+  "fact_kind" TEXT,
+  "fact_revision" INTEGER CHECK ("fact_revision" >= 1),
+  "schema_ref" TEXT,
+  "fact_digest" TEXT CHECK (length("fact_digest") = 64 AND "fact_digest" NOT GLOB '*[^0-9a-f]*'),
+  "evidence_digest" TEXT CHECK (length("evidence_digest") = 64 AND "evidence_digest" NOT GLOB '*[^0-9a-f]*'),
+  "reference_digest" TEXT CHECK (length("reference_digest") = 64 AND "reference_digest" NOT GLOB '*[^0-9a-f]*'),
+  PRIMARY KEY ("on_deck_package_id", "ordinal"),
+  UNIQUE ("on_deck_package_id", "product_fact_id", "fact_revision"),
+  FOREIGN KEY ("on_deck_package_id") REFERENCES "libra_product_packages" ("on_deck_package_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("product_fact_id") REFERENCES "libra_product_fact_revisions" ("product_fact_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_product_package_material_episode_claims" (
+  "on_deck_package_id" TEXT,
+  "member_ordinal" INTEGER CHECK ("member_ordinal" >= 0),
+  "episode_key" TEXT,
+  "season_claim_digest" TEXT CHECK (length("season_claim_digest") = 64 AND "season_claim_digest" NOT GLOB '*[^0-9a-f]*'),
+  "claim_digest" TEXT CHECK (length("claim_digest") = 64 AND "claim_digest" NOT GLOB '*[^0-9a-f]*'),
+  PRIMARY KEY ("on_deck_package_id", "member_ordinal", "episode_key"),
+  FOREIGN KEY ("on_deck_package_id") REFERENCES "libra_product_packages" ("on_deck_package_id") ON DELETE RESTRICT
+);
+
 CREATE TABLE "libra_product_package_materials" (
   "on_deck_package_id" TEXT,
   "ordinal" INTEGER CHECK ("ordinal" >= 0),
   "material_handle_id" TEXT,
   "material_key" TEXT,
-  "role" TEXT,
-  "episode_key" TEXT,
+  "role" TEXT CHECK ("role" IN ('primary_payload', 'structural_dependency', 'metadata_sidecar', 'poster', 'fanart', 'subtitle', 'external_audio', 'chapter')),
+  "mount_scope_id" TEXT,
+  "inode" TEXT,
+  "content_hash_algorithm" TEXT,
+  "content_hash" TEXT,
+  "location_kind" TEXT CHECK ("location_kind" IN ('domain_binding', 'workspace_handle')),
+  "endpoint_id" TEXT,
+  "location" TEXT,
+  "root_handle_ref" TEXT,
+  "relative_path" TEXT,
+  "binding_kind" TEXT CHECK ("binding_kind" IN ('libra_material_binding', 'workspace_material_reference')),
+  "binding_revision" INTEGER CHECK ("binding_revision" >= 1),
+  "binding_evidence_digest" TEXT CHECK (length("binding_evidence_digest") = 64 AND "binding_evidence_digest" NOT GLOB '*[^0-9a-f]*'),
+  "origin_intake_decision_id" TEXT,
+  "origin_offer_id" TEXT,
+  "origin_candidate_package_id" TEXT,
+  "origin_package_revision" INTEGER CHECK ("origin_package_revision" >= 1),
+  "origin_package_digest" TEXT CHECK (length("origin_package_digest") = 64 AND "origin_package_digest" NOT GLOB '*[^0-9a-f]*'),
+  "origin_candidate_delivery_snapshot_digest" TEXT CHECK (length("origin_candidate_delivery_snapshot_digest") = 64 AND "origin_candidate_delivery_snapshot_digest" NOT GLOB '*[^0-9a-f]*'),
+  "origin_related_reference_set_digest" TEXT CHECK (length("origin_related_reference_set_digest") = 64 AND "origin_related_reference_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "workspace_reference_id" TEXT,
+  "workspace_handle_schema_ref" TEXT,
+  "workspace_handle_json" TEXT,
+  "workspace_handle_digest" TEXT CHECK (length("workspace_handle_digest") = 64 AND "workspace_handle_digest" NOT GLOB '*[^0-9a-f]*'),
+  "output_requirement_digest" TEXT CHECK (length("output_requirement_digest") = 64 AND "output_requirement_digest" NOT GLOB '*[^0-9a-f]*'),
+  "episode_claim_set_digest" TEXT CHECK (length("episode_claim_set_digest") = 64 AND "episode_claim_set_digest" NOT GLOB '*[^0-9a-f]*'),
   "digest_algorithm" TEXT,
   "digest_hex" TEXT CHECK (length("digest_hex") = 64 AND "digest_hex" NOT GLOB '*[^0-9a-f]*'),
   "size_bytes" INTEGER CHECK ("size_bytes" >= 0),
+  "control_operation" TEXT CHECK ("control_operation" IN ('assert_existing_input', 'acquire_workspace_product')),
+  "expected_control_revision" INTEGER CHECK ("expected_control_revision" >= 1),
+  "expected_control_projection_digest" TEXT CHECK (length("expected_control_projection_digest") = 64 AND "expected_control_projection_digest" NOT GLOB '*[^0-9a-f]*'),
+  "committed_control_revision" INTEGER CHECK ("committed_control_revision" >= 1),
+  "committed_control_projection_digest" TEXT CHECK (length("committed_control_projection_digest") = 64 AND "committed_control_projection_digest" NOT GLOB '*[^0-9a-f]*'),
+  "member_digest" TEXT CHECK (length("member_digest") = 64 AND "member_digest" NOT GLOB '*[^0-9a-f]*'),
   PRIMARY KEY ("on_deck_package_id", "ordinal"),
-  UNIQUE ("on_deck_package_id", "material_key", "role"),
-  FOREIGN KEY ("on_deck_package_id") REFERENCES "libra_product_packages" ("on_deck_package_id") ON DELETE RESTRICT
+  UNIQUE ("on_deck_package_id", "material_key"),
+  CHECK (json_valid("workspace_handle_json")),
+  CHECK (length(CAST("workspace_handle_json" AS BLOB)) <= 4096),
+  FOREIGN KEY ("on_deck_package_id") REFERENCES "libra_product_packages" ("on_deck_package_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("origin_intake_decision_id") REFERENCES "libra_intake_decisions" ("intake_decision_id") ON DELETE RESTRICT
 );
 
 CREATE TABLE "libra_product_packages" (
   "on_deck_package_id" TEXT PRIMARY KEY,
   "offer_id" TEXT,
+  "package_revision" INTEGER CHECK ("package_revision" >= 1),
   "libra_run_id" TEXT,
+  "run_state_revision" INTEGER CHECK ("run_state_revision" >= 1),
+  "run_state_digest" TEXT CHECK (length("run_state_digest") = 64 AND "run_state_digest" NOT GLOB '*[^0-9a-f]*'),
   "subject_id" TEXT,
   "shelf_id" TEXT,
   "acceptance_spec_id" TEXT,
-  "product_identity_digest" TEXT CHECK (length("product_identity_digest") = 64 AND "product_identity_digest" NOT GLOB '*[^0-9a-f]*'),
-  "product_manifest_digest" TEXT CHECK (length("product_manifest_digest") = 64 AND "product_manifest_digest" NOT GLOB '*[^0-9a-f]*'),
+  "acceptance_spec_record_digest" TEXT CHECK (length("acceptance_spec_record_digest") = 64 AND "acceptance_spec_record_digest" NOT GLOB '*[^0-9a-f]*'),
+  "resolved_identity_fact_id" TEXT,
+  "resolved_identity_revision" INTEGER CHECK ("resolved_identity_revision" >= 1),
+  "resolved_identity_digest" TEXT CHECK (length("resolved_identity_digest") = 64 AND "resolved_identity_digest" NOT GLOB '*[^0-9a-f]*'),
+  "product_structure_schema_ref" TEXT,
+  "product_structure_json" TEXT,
+  "product_structure_digest" TEXT CHECK (length("product_structure_digest") = 64 AND "product_structure_digest" NOT GLOB '*[^0-9a-f]*'),
+  "run_material_manifest_id" TEXT,
+  "run_material_manifest_digest" TEXT CHECK (length("run_material_manifest_digest") = 64 AND "run_material_manifest_digest" NOT GLOB '*[^0-9a-f]*'),
+  "product_material_manifest_id" TEXT,
+  "product_material_manifest_digest" TEXT CHECK (length("product_material_manifest_digest") = 64 AND "product_material_manifest_digest" NOT GLOB '*[^0-9a-f]*'),
+  "product_fact_manifest_id" TEXT,
+  "product_fact_set_digest" TEXT CHECK (length("product_fact_set_digest") = 64 AND "product_fact_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "product_fact_manifest_digest" TEXT CHECK (length("product_fact_manifest_digest") = 64 AND "product_fact_manifest_digest" NOT GLOB '*[^0-9a-f]*'),
+  "artifact_manifest_id" TEXT,
+  "artifact_manifest_digest" TEXT CHECK (length("artifact_manifest_digest") = 64 AND "artifact_manifest_digest" NOT GLOB '*[^0-9a-f]*'),
   "media_cast_fact_id" TEXT,
   "media_cast_fact_digest" TEXT CHECK (length("media_cast_fact_digest") = 64 AND "media_cast_fact_digest" NOT GLOB '*[^0-9a-f]*'),
+  "offload_context_manifest_id" TEXT,
   "offload_context_digest" TEXT CHECK (length("offload_context_digest") = 64 AND "offload_context_digest" NOT GLOB '*[^0-9a-f]*'),
+  "production_provenance_schema_ref" TEXT,
+  "production_provenance_json" TEXT,
+  "production_provenance_digest" TEXT CHECK (length("production_provenance_digest") = 64 AND "production_provenance_digest" NOT GLOB '*[^0-9a-f]*'),
+  "attestation_schema_ref" TEXT,
+  "attestation_json" TEXT,
+  "attestation_digest" TEXT CHECK (length("attestation_digest") = 64 AND "attestation_digest" NOT GLOB '*[^0-9a-f]*'),
+  "promotion_decision_digest" TEXT CHECK (length("promotion_decision_digest") = 64 AND "promotion_decision_digest" NOT GLOB '*[^0-9a-f]*'),
   "package_digest" TEXT CHECK (length("package_digest") = 64 AND "package_digest" NOT GLOB '*[^0-9a-f]*'),
   "state" TEXT CHECK ("state" IN ('published')),
   "published_at_ms" INTEGER CHECK ("published_at_ms" >= 0),
+  UNIQUE ("libra_run_id", "package_revision"),
   UNIQUE ("libra_run_id", "package_digest"),
+  CHECK (json_valid("product_structure_json")),
+  CHECK (length(CAST("product_structure_json" AS BLOB)) <= 65536),
+  CHECK (json_valid("production_provenance_json")),
+  CHECK (length(CAST("production_provenance_json" AS BLOB)) <= 65536),
+  CHECK (json_valid("attestation_json")),
+  CHECK (length(CAST("attestation_json" AS BLOB)) <= 65536),
   FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
   FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
-  FOREIGN KEY ("acceptance_spec_id") REFERENCES "libra_acceptance_specs" ("acceptance_spec_id") ON DELETE RESTRICT
+  FOREIGN KEY ("acceptance_spec_id") REFERENCES "libra_acceptance_specs" ("acceptance_spec_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("run_material_manifest_id") REFERENCES "libra_run_material_manifests" ("run_material_manifest_id") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_libra_product_packages_hot_01" ON "libra_product_packages" ("shelf_id", "state", "published_at_ms");
 
@@ -1567,25 +1687,41 @@ CREATE TABLE "libra_routing_policy_targets" (
   CHECK (length(CAST("match_rule_json" AS BLOB)) <= 16384)
 );
 
+CREATE TABLE "libra_run_admission_heads" (
+  "subject_id" TEXT PRIMARY KEY,
+  "head_revision" INTEGER CHECK ("head_revision" >= 1),
+  "active_scope_set_digest" TEXT CHECK (length("active_scope_set_digest") = 64 AND "active_scope_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT
+);
+
 CREATE TABLE "libra_run_discard_decisions" (
   "discard_decision_id" TEXT PRIMARY KEY,
   "libra_run_id" TEXT,
+  "expected_run_state_revision" INTEGER CHECK ("expected_run_state_revision" >= 1),
+  "expected_run_state_digest" TEXT CHECK (length("expected_run_state_digest") = 64 AND "expected_run_state_digest" NOT GLOB '*[^0-9a-f]*'),
   "run_scope_digest" TEXT CHECK (length("run_scope_digest") = 64 AND "run_scope_digest" NOT GLOB '*[^0-9a-f]*'),
   "input_control_scope_digest" TEXT CHECK (length("input_control_scope_digest") = 64 AND "input_control_scope_digest" NOT GLOB '*[^0-9a-f]*'),
-  "workspace_cleanup_scope_digest" TEXT CHECK (length("workspace_cleanup_scope_digest") = 64 AND "workspace_cleanup_scope_digest" NOT GLOB '*[^0-9a-f]*'),
+  "workspace_cleanup_scope_id" TEXT,
+  "workspace_cleanup_member_set_digest" TEXT CHECK (length("workspace_cleanup_member_set_digest") = 64 AND "workspace_cleanup_member_set_digest" NOT GLOB '*[^0-9a-f]*'),
   "actor_id" TEXT,
+  "idempotency_key" TEXT,
   "decision_digest" TEXT CHECK (length("decision_digest") = 64 AND "decision_digest" NOT GLOB '*[^0-9a-f]*'),
   "decided_at_ms" INTEGER CHECK ("decided_at_ms" >= 0),
   UNIQUE ("libra_run_id"),
-  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT
+  UNIQUE ("actor_id", "idempotency_key"),
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("workspace_cleanup_scope_id") REFERENCES "libra_workspace_cleanup_scopes" ("cleanup_scope_id") ON DELETE RESTRICT
 );
 
 CREATE TABLE "libra_run_discard_receipts" (
   "receipt_id" TEXT PRIMARY KEY,
   "discard_decision_id" TEXT,
   "libra_run_id" TEXT,
+  "committed_run_state_revision" INTEGER CHECK ("committed_run_state_revision" >= 1),
   "released_input_control_set_digest" TEXT CHECK (length("released_input_control_set_digest") = 64 AND "released_input_control_set_digest" NOT GLOB '*[^0-9a-f]*'),
   "cleanup_scope_id" TEXT,
+  "cleanup_member_set_digest" TEXT CHECK (length("cleanup_member_set_digest") = 64 AND "cleanup_member_set_digest" NOT GLOB '*[^0-9a-f]*'),
   "commit_digest" TEXT CHECK (length("commit_digest") = 64 AND "commit_digest" NOT GLOB '*[^0-9a-f]*'),
   "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
   UNIQUE ("discard_decision_id"),
@@ -1594,21 +1730,123 @@ CREATE TABLE "libra_run_discard_receipts" (
   FOREIGN KEY ("cleanup_scope_id") REFERENCES "libra_workspace_cleanup_scopes" ("cleanup_scope_id") ON DELETE RESTRICT
 );
 
+CREATE TABLE "libra_run_material_episode_claims" (
+  "run_material_manifest_id" TEXT,
+  "member_ordinal" INTEGER CHECK ("member_ordinal" >= 0),
+  "episode_key" TEXT,
+  "season_claim_digest" TEXT CHECK (length("season_claim_digest") = 64 AND "season_claim_digest" NOT GLOB '*[^0-9a-f]*'),
+  "claim_digest" TEXT CHECK (length("claim_digest") = 64 AND "claim_digest" NOT GLOB '*[^0-9a-f]*'),
+  PRIMARY KEY ("run_material_manifest_id", "member_ordinal", "episode_key"),
+  FOREIGN KEY ("run_material_manifest_id") REFERENCES "libra_run_material_manifests" ("run_material_manifest_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_run_material_manifests" (
+  "run_material_manifest_id" TEXT PRIMARY KEY,
+  "libra_run_id" TEXT,
+  "manifest_role" TEXT CHECK ("manifest_role" IN ('run_input')),
+  "scope_kind" TEXT CHECK ("scope_kind" IN ('single', 'episode_delivery')),
+  "manifest_revision" INTEGER CHECK ("manifest_revision" IN ('1')) CHECK ("manifest_revision" >= 1),
+  "member_count" INTEGER CHECK ("member_count" >= 0),
+  "member_set_digest" TEXT CHECK (length("member_set_digest") = 64 AND "member_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "episode_scope_digest" TEXT CHECK (length("episode_scope_digest") = 64 AND "episode_scope_digest" NOT GLOB '*[^0-9a-f]*'),
+  "manifest_digest" TEXT CHECK (length("manifest_digest") = 64 AND "manifest_digest" NOT GLOB '*[^0-9a-f]*'),
+  "published_at_ms" INTEGER CHECK ("published_at_ms" >= 0),
+  UNIQUE ("libra_run_id"),
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED
+);
+
+CREATE TABLE "libra_run_material_members" (
+  "run_material_manifest_id" TEXT,
+  "ordinal" INTEGER CHECK ("ordinal" >= 0),
+  "material_key" TEXT,
+  "role" TEXT CHECK ("role" IN ('primary_payload', 'structural_dependency')),
+  "mount_scope_id" TEXT,
+  "inode" TEXT,
+  "content_hash_algorithm" TEXT,
+  "content_hash" TEXT,
+  "size_bytes" INTEGER CHECK ("size_bytes" >= 0),
+  "location_kind" TEXT CHECK ("location_kind" IN ('domain_binding')),
+  "endpoint_id" TEXT,
+  "location" TEXT,
+  "binding_kind" TEXT CHECK ("binding_kind" IN ('libra_material_binding')),
+  "binding_revision" INTEGER CHECK ("binding_revision" >= 1),
+  "binding_evidence_digest" TEXT CHECK (length("binding_evidence_digest") = 64 AND "binding_evidence_digest" NOT GLOB '*[^0-9a-f]*'),
+  "origin_intake_decision_id" TEXT,
+  "origin_offer_id" TEXT,
+  "origin_candidate_package_id" TEXT,
+  "origin_package_revision" INTEGER CHECK ("origin_package_revision" >= 1),
+  "origin_package_digest" TEXT CHECK (length("origin_package_digest") = 64 AND "origin_package_digest" NOT GLOB '*[^0-9a-f]*'),
+  "origin_candidate_delivery_snapshot_digest" TEXT CHECK (length("origin_candidate_delivery_snapshot_digest") = 64 AND "origin_candidate_delivery_snapshot_digest" NOT GLOB '*[^0-9a-f]*'),
+  "origin_related_reference_set_digest" TEXT CHECK (length("origin_related_reference_set_digest") = 64 AND "origin_related_reference_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "admitted_control_revision" INTEGER CHECK ("admitted_control_revision" >= 1),
+  "admitted_control_projection_digest" TEXT CHECK (length("admitted_control_projection_digest") = 64 AND "admitted_control_projection_digest" NOT GLOB '*[^0-9a-f]*'),
+  "output_requirement_digest" TEXT CHECK (length("output_requirement_digest") = 64 AND "output_requirement_digest" NOT GLOB '*[^0-9a-f]*'),
+  "episode_claim_set_digest" TEXT CHECK (length("episode_claim_set_digest") = 64 AND "episode_claim_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "member_digest" TEXT CHECK (length("member_digest") = 64 AND "member_digest" NOT GLOB '*[^0-9a-f]*'),
+  PRIMARY KEY ("run_material_manifest_id", "ordinal"),
+  UNIQUE ("run_material_manifest_id", "material_key"),
+  FOREIGN KEY ("run_material_manifest_id") REFERENCES "libra_run_material_manifests" ("run_material_manifest_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("origin_intake_decision_id") REFERENCES "libra_intake_decisions" ("intake_decision_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_run_revisions" (
+  "libra_run_id" TEXT,
+  "state_revision" INTEGER CHECK ("state_revision" >= 1),
+  "state" TEXT CHECK ("state" IN ('active', 'suspended', 'superseded', 'frozen', 'discarded', 'completed')),
+  "acceptance_spec_id" TEXT,
+  "execution_basis_digest" TEXT CHECK (length("execution_basis_digest") = 64 AND "execution_basis_digest" NOT GLOB '*[^0-9a-f]*'),
+  "run_scope_digest" TEXT CHECK (length("run_scope_digest") = 64 AND "run_scope_digest" NOT GLOB '*[^0-9a-f]*'),
+  "priority_class" TEXT,
+  "priority_intent_digest" TEXT CHECK (length("priority_intent_digest") = 64 AND "priority_intent_digest" NOT GLOB '*[^0-9a-f]*'),
+  "transition_kind" TEXT CHECK ("transition_kind" IN ('admitted', 'suspended', 'resumed', 'reprioritized', 'superseded', 'frozen', 'discarded', 'completed')),
+  "transition_decision_id" TEXT,
+  "transition_decision_digest" TEXT CHECK (length("transition_decision_digest") = 64 AND "transition_decision_digest" NOT GLOB '*[^0-9a-f]*'),
+  "transition_evidence_schema_ref" TEXT,
+  "transition_evidence_id" TEXT,
+  "transition_evidence_digest" TEXT CHECK (length("transition_evidence_digest") = 64 AND "transition_evidence_digest" NOT GLOB '*[^0-9a-f]*'),
+  "expected_admission_head_revision" INTEGER CHECK ("expected_admission_head_revision" >= 1),
+  "expected_active_scope_set_digest" TEXT CHECK (length("expected_active_scope_set_digest") = 64 AND "expected_active_scope_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "committed_admission_head_revision" INTEGER CHECK ("committed_admission_head_revision" >= 1),
+  "committed_active_scope_set_digest" TEXT CHECK (length("committed_active_scope_set_digest") = 64 AND "committed_active_scope_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "previous_state_revision" INTEGER CHECK ("previous_state_revision" >= 1),
+  "revision_digest" TEXT CHECK (length("revision_digest") = 64 AND "revision_digest" NOT GLOB '*[^0-9a-f]*'),
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  PRIMARY KEY ("libra_run_id", "state_revision"),
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("acceptance_spec_id") REFERENCES "libra_acceptance_specs" ("acceptance_spec_id") ON DELETE RESTRICT
+);
+
 CREATE TABLE "libra_runs" (
   "libra_run_id" TEXT PRIMARY KEY,
   "subject_id" TEXT,
+  "admission_revision" INTEGER CHECK ("admission_revision" >= 1),
   "acceptance_spec_id" TEXT,
-  "initial_material_manifest_digest" TEXT CHECK (length("initial_material_manifest_digest") = 64 AND "initial_material_manifest_digest" NOT GLOB '*[^0-9a-f]*'),
+  "run_material_manifest_id" TEXT,
+  "execution_basis_schema_ref" TEXT,
+  "execution_basis_record_json" TEXT,
+  "execution_basis_digest" TEXT CHECK (length("execution_basis_digest") = 64 AND "execution_basis_digest" NOT GLOB '*[^0-9a-f]*'),
   "run_scope_digest" TEXT CHECK (length("run_scope_digest") = 64 AND "run_scope_digest" NOT GLOB '*[^0-9a-f]*'),
   "state" TEXT CHECK ("state" IN ('active', 'suspended', 'superseded', 'frozen', 'discarded', 'completed')),
-  "priority_class" TEXT,
+  "state_revision" INTEGER CHECK ("state_revision" >= 1),
+  "state_digest" TEXT CHECK (length("state_digest") = 64 AND "state_digest" NOT GLOB '*[^0-9a-f]*'),
+  "package_revision_head" TEXT,
+  "priority_class" TEXT CHECK ("priority_class" IN ('normal', 'expedited')),
+  "priority_intent_digest" TEXT CHECK (length("priority_intent_digest") = 64 AND "priority_intent_digest" NOT GLOB '*[^0-9a-f]*'),
+  "supersedes_run_id" TEXT,
+  "superseded_by_run_id" TEXT,
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
   "terminal_at_ms" INTEGER CHECK ("terminal_at_ms" >= 0),
+  UNIQUE ("subject_id", "admission_revision"),
+  UNIQUE ("subject_id", "acceptance_spec_id", "run_scope_digest", "admission_revision"),
+  CHECK (json_valid("execution_basis_record_json")),
+  CHECK (length(CAST("execution_basis_record_json" AS BLOB)) <= 1048576),
   FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
-  FOREIGN KEY ("acceptance_spec_id") REFERENCES "libra_acceptance_specs" ("acceptance_spec_id") ON DELETE RESTRICT
+  FOREIGN KEY ("acceptance_spec_id") REFERENCES "libra_acceptance_specs" ("acceptance_spec_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("run_material_manifest_id") REFERENCES "libra_run_material_manifests" ("run_material_manifest_id") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
+  FOREIGN KEY ("supersedes_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("superseded_by_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_libra_runs_hot_01" ON "libra_runs" ("state", "priority_class", "created_at_ms");
-CREATE UNIQUE INDEX "uidx_libra_runs_partial_01" ON "libra_runs" ("subject_id", "acceptance_spec_id", "run_scope_digest") WHERE "terminal_at_ms" IS NULL;
 
 CREATE TABLE "libra_subject_abandon_decisions" (
   "abandon_decision_id" TEXT PRIMARY KEY,
@@ -1704,13 +1942,30 @@ CREATE TABLE "libra_workspace_cleanup_members" (
   "cleanup_scope_id" TEXT,
   "material_handle_id" TEXT,
   "material_key" TEXT,
+  "workspace_reference_id" TEXT,
+  "expected_reference_revision" INTEGER CHECK ("expected_reference_revision" >= 1),
+  "expected_reference_digest" TEXT CHECK (length("expected_reference_digest") = 64 AND "expected_reference_digest" NOT GLOB '*[^0-9a-f]*'),
+  "control_disposition" TEXT CHECK ("control_disposition" IN ('uncontrolled', 'libra_owned', 'other_owned')),
   "expected_control_revision" INTEGER CHECK ("expected_control_revision" >= 1),
-  "cleanup_kind" TEXT,
-  "state" TEXT CHECK ("state" IN ('pending', 'deleted', 'released', 'blocked')),
+  "expected_control_projection_digest" TEXT CHECK (length("expected_control_projection_digest") = 64 AND "expected_control_projection_digest" NOT GLOB '*[^0-9a-f]*'),
+  "expected_control_owner_domain" TEXT,
+  "expected_control_owner_scope_type" TEXT,
+  "expected_control_owner_scope_id" TEXT,
+  "cleanup_kind" TEXT CHECK ("cleanup_kind" IN ('delete_or_verify_absent')),
+  "state" TEXT CHECK ("state" IN ('pending', 'completed', 'blocked')),
+  "state_revision" INTEGER CHECK ("state_revision" >= 1),
+  "state_digest" TEXT CHECK (length("state_digest") = 64 AND "state_digest" NOT GLOB '*[^0-9a-f]*'),
+  "committed_scope_state_revision" INTEGER CHECK ("committed_scope_state_revision" >= 1),
   "deletion_effect_id" TEXT,
+  "outcome_evidence_schema_ref" TEXT,
+  "outcome_evidence_id" TEXT,
+  "outcome_evidence_json" TEXT,
+  "outcome_evidence_digest" TEXT CHECK (length("outcome_evidence_digest") = 64 AND "outcome_evidence_digest" NOT GLOB '*[^0-9a-f]*'),
   "cleanup_receipt_id" TEXT,
   "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
   PRIMARY KEY ("cleanup_scope_id", "material_handle_id"),
+  CHECK (json_valid("outcome_evidence_json")),
+  CHECK (length(CAST("outcome_evidence_json" AS BLOB)) <= 16384),
   FOREIGN KEY ("cleanup_scope_id") REFERENCES "libra_workspace_cleanup_scopes" ("cleanup_scope_id") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_libra_workspace_cleanup_members_hot_01" ON "libra_workspace_cleanup_members" ("state", "updated_at_ms");
@@ -1718,38 +1973,95 @@ CREATE INDEX "idx_libra_workspace_cleanup_members_hot_01" ON "libra_workspace_cl
 CREATE TABLE "libra_workspace_cleanup_scopes" (
   "cleanup_scope_id" TEXT PRIMARY KEY,
   "libra_run_id" TEXT,
-  "trigger_kind" TEXT CHECK ("trigger_kind" IN ('offload_completed', 'run_discarded')),
+  "workspace_id" TEXT,
+  "trigger_kind" TEXT CHECK ("trigger_kind" IN ('offload_completed', 'run_superseded', 'run_discarded')),
   "trigger_ref" TEXT,
+  "trigger_revision" INTEGER CHECK ("trigger_revision" >= 1),
   "trigger_digest" TEXT CHECK (length("trigger_digest") = 64 AND "trigger_digest" NOT GLOB '*[^0-9a-f]*'),
-  "state" TEXT CHECK ("state" IN ('active', 'completed')),
+  "admission_record_schema_ref" TEXT,
+  "admission_record_json" TEXT,
+  "admission_decision_digest" TEXT CHECK (length("admission_decision_digest") = 64 AND "admission_decision_digest" NOT GLOB '*[^0-9a-f]*'),
+  "eligibility_evidence_digest" TEXT CHECK (length("eligibility_evidence_digest") = 64 AND "eligibility_evidence_digest" NOT GLOB '*[^0-9a-f]*'),
+  "member_set_digest" TEXT CHECK (length("member_set_digest") = 64 AND "member_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "state" TEXT CHECK ("state" IN ('active', 'completed', 'blocked')),
+  "state_revision" INTEGER CHECK ("state_revision" >= 1),
+  "state_digest" TEXT CHECK (length("state_digest") = 64 AND "state_digest" NOT GLOB '*[^0-9a-f]*'),
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
   "completed_at_ms" INTEGER CHECK ("completed_at_ms" >= 0),
-  UNIQUE ("trigger_kind", "trigger_ref", "trigger_digest"),
-  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT
+  UNIQUE ("trigger_kind", "trigger_ref", "trigger_revision", "trigger_digest"),
+  CHECK (json_valid("admission_record_json")),
+  CHECK (length(CAST("admission_record_json" AS BLOB)) <= 65536),
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("workspace_id") REFERENCES "libra_workspaces" ("workspace_id") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_libra_workspace_cleanup_scopes_hot_01" ON "libra_workspace_cleanup_scopes" ("state", "created_at_ms");
 
 CREATE TABLE "libra_workspace_material_refs" (
-  "libra_run_id" TEXT,
   "workspace_id" TEXT,
+  "libra_run_id" TEXT,
+  "reference_id" TEXT,
   "material_handle_id" TEXT,
-  "product_role" TEXT,
-  "episode_key" TEXT,
+  "material_key" TEXT,
+  "workspace_handle_schema_ref" TEXT,
+  "workspace_handle_json" TEXT,
+  "workspace_handle_digest" TEXT CHECK (length("workspace_handle_digest") = 64 AND "workspace_handle_digest" NOT GLOB '*[^0-9a-f]*'),
   "reference_revision" INTEGER CHECK ("reference_revision" >= 1),
-  PRIMARY KEY ("libra_run_id", "material_handle_id", "reference_revision"),
-  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
-  FOREIGN KEY ("workspace_id") REFERENCES "fx_workspace_registry" ("workspace_id") ON DELETE RESTRICT
+  "reference_state" TEXT CHECK ("reference_state" IN ('working', 'product_staging', 'released')),
+  "episode_claims_schema_ref" TEXT,
+  "episode_claims_json" TEXT,
+  "episode_scope_digest" TEXT CHECK (length("episode_scope_digest") = 64 AND "episode_scope_digest" NOT GLOB '*[^0-9a-f]*'),
+  "product_verification_id" TEXT,
+  "product_verification_digest" TEXT CHECK (length("product_verification_digest") = 64 AND "product_verification_digest" NOT GLOB '*[^0-9a-f]*'),
+  "previous_reference_revision" INTEGER CHECK ("previous_reference_revision" >= 1),
+  "committed_workspace_revision" INTEGER CHECK ("committed_workspace_revision" >= 1),
+  "reference_digest" TEXT CHECK (length("reference_digest") = 64 AND "reference_digest" NOT GLOB '*[^0-9a-f]*'),
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  PRIMARY KEY ("reference_id", "reference_revision"),
+  UNIQUE ("workspace_id", "material_handle_id", "reference_revision"),
+  CHECK (json_valid("workspace_handle_json")),
+  CHECK (length(CAST("workspace_handle_json" AS BLOB)) <= 4096),
+  CHECK (json_valid("episode_claims_json")),
+  CHECK (length(CAST("episode_claims_json" AS BLOB)) <= 4096),
+  FOREIGN KEY ("workspace_id") REFERENCES "libra_workspaces" ("workspace_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT
 );
 
-CREATE TABLE "libra_workspaces" (
-  "libra_run_id" TEXT,
+CREATE TABLE "libra_workspace_revisions" (
   "workspace_id" TEXT,
   "workspace_revision" INTEGER CHECK ("workspace_revision" >= 1),
   "state" TEXT CHECK ("state" IN ('active', 'reclaiming', 'reclaimed')),
+  "material_reference_set_digest" TEXT CHECK (length("material_reference_set_digest") = 64 AND "material_reference_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "transition_kind" TEXT CHECK ("transition_kind" IN ('admitted', 'reference_attached', 'product_staged', 'reference_released', 'reclaiming', 'reclaimed')),
+  "transition_evidence_digest" TEXT CHECK (length("transition_evidence_digest") = 64 AND "transition_evidence_digest" NOT GLOB '*[^0-9a-f]*'),
+  "previous_revision" INTEGER CHECK ("previous_revision" >= 1),
+  "revision_digest" TEXT CHECK (length("revision_digest") = 64 AND "revision_digest" NOT GLOB '*[^0-9a-f]*'),
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  PRIMARY KEY ("workspace_id", "workspace_revision"),
+  FOREIGN KEY ("workspace_id") REFERENCES "libra_workspaces" ("workspace_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_workspaces" (
+  "workspace_id" TEXT PRIMARY KEY,
+  "libra_run_id" TEXT,
+  "platform_workspace_root_id" TEXT,
+  "platform_workspace_revision" INTEGER CHECK ("platform_workspace_revision" >= 1),
+  "platform_workspace_endpoint_id" TEXT,
+  "platform_workspace_mount_scope_id" TEXT,
+  "platform_workspace_mount_scope_revision" INTEGER CHECK ("platform_workspace_mount_scope_revision" >= 1),
+  "platform_workspace_capability_digest" TEXT CHECK (length("platform_workspace_capability_digest") = 64 AND "platform_workspace_capability_digest" NOT GLOB '*[^0-9a-f]*'),
+  "root_handle_ref" TEXT,
+  "space_admission_evidence_id" TEXT,
+  "space_admission_evidence_digest" TEXT CHECK (length("space_admission_evidence_digest") = 64 AND "space_admission_evidence_digest" NOT GLOB '*[^0-9a-f]*'),
+  "workspace_scope_digest" TEXT CHECK (length("workspace_scope_digest") = 64 AND "workspace_scope_digest" NOT GLOB '*[^0-9a-f]*'),
+  "admission_decision_digest" TEXT CHECK (length("admission_decision_digest") = 64 AND "admission_decision_digest" NOT GLOB '*[^0-9a-f]*'),
+  "current_revision" INTEGER CHECK ("current_revision" >= 1),
+  "state" TEXT CHECK ("state" IN ('active', 'reclaiming', 'reclaimed')),
+  "state_digest" TEXT CHECK (length("state_digest") = 64 AND "state_digest" NOT GLOB '*[^0-9a-f]*'),
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
-  PRIMARY KEY ("libra_run_id", "workspace_revision"),
+  "completed_at_ms" INTEGER CHECK ("completed_at_ms" >= 0),
+  UNIQUE ("libra_run_id"),
   FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
-  FOREIGN KEY ("workspace_id") REFERENCES "fx_workspace_registry" ("workspace_id") ON DELETE RESTRICT
+  FOREIGN KEY ("workspace_id", "current_revision") REFERENCES "libra_workspace_revisions" ("workspace_id", "workspace_revision") ON DELETE RESTRICT
 );
 
 CREATE TABLE "people_aliases" (
@@ -2309,6 +2621,9 @@ CREATE TABLE "platform_workspace_roots" (
   "root_id" TEXT PRIMARY KEY,
   "owner_scope" TEXT,
   "root_kind" TEXT,
+  "endpoint_id" TEXT,
+  "mount_scope_id" TEXT,
+  "mount_scope_revision" INTEGER CHECK ("mount_scope_revision" >= 1),
   "resolved_root" TEXT,
   "config_revision" INTEGER CHECK ("config_revision" >= 1),
   "capability_digest" TEXT CHECK (length("capability_digest") = 64 AND "capability_digest" NOT GLOB '*[^0-9a-f]*'),

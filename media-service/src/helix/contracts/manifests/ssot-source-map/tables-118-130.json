@@ -6,13 +6,90 @@
   "endOrdinal": 130,
   "entries": [
     {
+      "id": "arca_offdeck_policy_heads",
+      "owner": "arca",
+      "columnsContract": "`policy_id PK, current_revision, status, updated_at_ms`",
+      "constraintsContract": "current revision显式FK；Automation只读head，不使用`MAX(revision)`",
+      "source": {
+        "section": "8.5.12",
+        "line": 8323,
+        "lineDigest": "535fe763445393a3f6da2bb862caf3f6fd6ba0558dc091cce994de67691f040b"
+      }
+    },
+    {
+      "id": "arca_offdeck_policy_revisions",
+      "owner": "arca",
+      "columnsContract": "`policy_id, revision, condition_group_schema_ref, condition_group_json, policy_digest, effective_at_ms`",
+      "constraintsContract": "Policy JSON上限`64 KiB`；`PK(policy_id,revision)`；immutable",
+      "source": {
+        "section": "8.5.12",
+        "line": 8324,
+        "lineDigest": "bb4435c564a9cbcf01820993a914b28644e31f066e085d2e56bfdd4563b63a25"
+      }
+    },
+    {
+      "id": "arca_offdeck_review_candidates",
+      "owner": "arca",
+      "columnsContract": "`candidate_id PK, shelf_entry_id FK, policy_id, policy_revision, reason_digest, state, created_at_ms`",
+      "constraintsContract": "相同`entry+policy revision+reason`至多一个open Candidate；`INDEX(state,created_at_ms)`",
+      "source": {
+        "section": "8.5.12",
+        "line": 8325,
+        "lineDigest": "12cc9ff353068ec82c2ccc25358d21e0ad708b49f1ae43222352b2c9143b0387"
+      }
+    },
+    {
+      "id": "arca_offdeck_suppressions",
+      "owner": "arca",
+      "columnsContract": "`suppression_id PK, shelf_entry_id FK, candidate_kind, reason, state(active|revoked|expired), effective_at_ms, expires_at_ms, revoked_at_ms`",
+      "constraintsContract": "`INDEX(shelf_entry_id,candidate_kind,state,expires_at_ms)`",
+      "source": {
+        "section": "8.5.12",
+        "line": 8326,
+        "lineDigest": "37b0fc7cacda52789a1aadf8fc525c56416bcda442f7c7a76977fac43b6cc9fd"
+      }
+    },
+    {
+      "id": "arca_offdeck_duplicate_groups",
+      "owner": "arca",
+      "columnsContract": "`duplicate_group_id PK, canonical_identity_digest, member_set_digest, state, detected_at_ms, superseded_at_ms`",
+      "constraintsContract": "`UNIQUE(canonical_identity_digest,member_set_digest)`；Group是Off-deck Evidence aggregate，不选择保留成员",
+      "source": {
+        "section": "8.5.12",
+        "line": 8327,
+        "lineDigest": "2ea29ec1242d920e488cfa644865edf2eadbfd2c9a47f89520e5b3c52995081d"
+      }
+    },
+    {
+      "id": "arca_offdeck_duplicate_group_members",
+      "owner": "arca",
+      "columnsContract": "`duplicate_group_id FK, shelf_entry_id FK, inventory_revision, member_digest`",
+      "constraintsContract": "`PK(duplicate_group_id,shelf_entry_id)`",
+      "source": {
+        "section": "8.5.12",
+        "line": 8328,
+        "lineDigest": "ecc853bb09c6cec484bca73f98a35dd59f67b481466ce9bb51300fd99d5b5955"
+      }
+    },
+    {
+      "id": "arca_offdeck_duplicate_whitelists",
+      "owner": "arca",
+      "columnsContract": "`whitelist_id PK, duplicate_group_id FK, member_set_digest, state(active|revoked|stale), actor_id, created_at_ms, revoked_at_ms`",
+      "constraintsContract": "当前Group/member set至多一份active；成员或Identity变化后旧Whitelist为stale",
+      "source": {
+        "section": "8.5.12",
+        "line": 8329,
+        "lineDigest": "756bfc233aee57e11d4135953ceea853fc9063ba4681f6cd400ab61cced3829f"
+      }
+    },
+    {
       "id": "arca_offdeck_reviews",
       "owner": "arca",
       "columnsContract": "`review_id PK, origin_kind(candidate|duplicate_group|direct_intent|batch), origin_ref, state(open|selection_confirmed|cancelled|authorized), actor_id, created_at_ms, terminal_at_ms`",
       "constraintsContract": "`INDEX(state,created_at_ms)`；Authorization前取消只终结Review并释放Reservation",
       "source": {
         "section": "8.5.12",
-        "line": 8224,
+        "line": 8330,
         "lineDigest": "599fabeb0091d1dcda2441457cfd875c749581ac6ade12be29f9add4d54c5040"
       }
     },
@@ -23,7 +100,7 @@
       "constraintsContract": "同一Shelf Entry至多一个active Off-deck Reservation；`INDEX(state,created_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 8225,
+        "line": 8331,
         "lineDigest": "d9ec380f97236575796baeeb3e5ebdce5a3a60d11c825419eb07e7327a4b87c6"
       }
     },
@@ -34,7 +111,7 @@
       "constraintsContract": "`UNIQUE(reservation_id,scope_digest)`；pre-authorization immutable Scope由Reservation拥有，不依赖Case",
       "source": {
         "section": "8.5.12",
-        "line": 8226,
+        "line": 8332,
         "lineDigest": "33e0776f40c6d93014fb3291623746e94cc939bee6f75b325dbffdb5d3306d3a"
       }
     },
@@ -45,7 +122,7 @@
       "constraintsContract": "`PK(destruction_scope_id,ordinal)`及`UNIQUE(destruction_scope_id,material_key,material_role)`",
       "source": {
         "section": "8.5.12",
-        "line": 8227,
+        "line": 8333,
         "lineDigest": "84ca6df6a4203cd2f55d9007ef260daa01b437afeb3408bc8a5b7819fbd07e75"
       }
     },
@@ -56,7 +133,7 @@
       "constraintsContract": "`UNIQUE(review_id,scope_set_digest)`；服务端按当前Scope集合计算，不信任客户端阈值",
       "source": {
         "section": "8.5.12",
-        "line": 8228,
+        "line": 8334,
         "lineDigest": "77ff625978aa23c853bd9e91791693fea79fba47a6af914ec93848082a37c464"
       }
     },
@@ -67,85 +144,8 @@
       "constraintsContract": "`UNIQUE(selection_receipt_id)`；只在high-volume时生成且必须来自独立第二次操作",
       "source": {
         "section": "8.5.12",
-        "line": 8229,
+        "line": 8335,
         "lineDigest": "63661ab1e465cec55b486f8361793d31c5f38bf14b10b4f541dd19f3fae16945"
-      }
-    },
-    {
-      "id": "arca_offdeck_authorization_batches",
-      "owner": "arca",
-      "columnsContract": "`batch_id PK, review_id FK, selection_receipt_id FK, escalation_receipt_id, scope_set_digest, actor_id, authorized_at_ms`",
-      "constraintsContract": "`UNIQUE(review_id,scope_set_digest)`；high-volume时escalation receipt必填；Batch只是一份Envelope",
-      "source": {
-        "section": "8.5.12",
-        "line": 8230,
-        "lineDigest": "6f6a4f74e1e04cf563db3b897b459abc2d5c4cf59729dc0719c36067a4db059a"
-      }
-    },
-    {
-      "id": "arca_offdeck_authorizations",
-      "owner": "arca",
-      "columnsContract": "`authorization_id PK, destruction_scope_id FK, scope_digest, actor_id, batch_id FK, authorized_at_ms, state`",
-      "constraintsContract": "`UNIQUE(destruction_scope_id,scope_digest)`；授权后不可取消或改Scope",
-      "source": {
-        "section": "8.5.12",
-        "line": 8231,
-        "lineDigest": "db1e1f835efe4418958fd09657084cb2209614e665a8eb30a5b17da8f8dd27c8"
-      }
-    },
-    {
-      "id": "arca_offdeck_cases",
-      "owner": "arca",
-      "columnsContract": "`offdeck_case_id PK, authorization_id FK, shelf_entry_id FK, origin_kind, origin_ref, state, created_at_ms, terminal_at_ms`",
-      "constraintsContract": "`UNIQUE(authorization_id)`；只在Authorization事务中创建；Direct Intent不要求Candidate",
-      "source": {
-        "section": "8.5.12",
-        "line": 8232,
-        "lineDigest": "39431939efb319de4ee6902e53bddf22cf1b589501c695d34392663403c93f3d"
-      }
-    },
-    {
-      "id": "arca_offdeck_deletion_evidence",
-      "owner": "arca",
-      "columnsContract": "`destruction_scope_id FK, material_key, effect_id, result, reality_digest, completed_at_ms`",
-      "constraintsContract": "`PK(destruction_scope_id,material_key)`；append-only completion evidence",
-      "source": {
-        "section": "8.5.12",
-        "line": 8233,
-        "lineDigest": "80df836f66b917346071463131df10c28384e576064fc715c70637d03826e7bf"
-      }
-    },
-    {
-      "id": "arca_offdeck_terminal_receipts",
-      "owner": "arca",
-      "columnsContract": "`receipt_id PK, offdeck_case_id FK, shelf_entry_id FK, terminal_deck_fact_revision, released_control_set_digest, committed_at_ms`",
-      "constraintsContract": "`UNIQUE(offdeck_case_id)`；与Deck Fact terminal和Control release同事务成立",
-      "source": {
-        "section": "8.5.12",
-        "line": 8234,
-        "lineDigest": "c9422a9dd022288f5e55118613cabb0d1961f91f3e93cd97d92a17f367ce1dca"
-      }
-    },
-    {
-      "id": "arca_deregistrations",
-      "owner": "arca",
-      "columnsContract": "`deregistration_id PK, shelf_id FK, release_manifest_digest, state, created_at_ms, committed_at_ms`",
-      "constraintsContract": "每个Shelf一个non-terminal Deregistration；Supporting Work通过Foundation反向关联；不得引用Deletion Capability",
-      "source": {
-        "section": "8.5.12",
-        "line": 8235,
-        "lineDigest": "b15fbdfb86e44ba54914a3af9704aceba5cd4a3366acbeb8b66d4f1df1bf23b1"
-      }
-    },
-    {
-      "id": "arca_deregistration_releases",
-      "owner": "arca",
-      "columnsContract": "`deregistration_id FK, material_key, control_revision, release_result, committed_at_ms`",
-      "constraintsContract": "`PK(deregistration_id,material_key)`",
-      "source": {
-        "section": "8.5.12",
-        "line": 8236,
-        "lineDigest": "a6975864f9858713c71fd2a87965c46dd8132bd8172b85011d5ac6df8d671698"
       }
     }
   ]

@@ -6,14 +6,14 @@ const { buildResultTypeSchemas } = require('../../scripts/helix-architecture/res
 
 const schemas = buildResultTypeSchemas();
 
-test('builds 87 nominal Catalog Result schemas and the eleven supporting schemas', () => {
-  assert.equal(Object.keys(schemas).length, 99);
+test('builds the complete Catalog Result graph and twelve supporting schemas', () => {
+  assert.equal(Object.keys(schemas).length, 100);
   assert.equal(schemas.CandidatePackage.properties.relatedReferences.items.$ref,
     'helix://contracts/types/RelatedMaterialReference/v1');
   for (const helper of ['OnDeckCommitReceipt', 'OffloadCompletionFact', 'PeopleCandidateDraft', 'PrimaryInputManifest',
     'SeasonContinuityClaim', 'CandidateIntakeAcceptanceBasis', 'ProcurementCandidateOfferAvailableMessage',
     'LibraCandidateAcceptedMessage', 'LibraCandidateRejectedMessage', 'ProcurementCandidateAcceptanceClosureResult',
-    'ProcurementCandidateRejectionClosureResult']) assert.ok(schemas[helper]);
+    'ProcurementCandidateRejectionClosureResult', 'OnDeckProductPackageCommitReceipt']) assert.ok(schemas[helper]);
 });
 
 test('freezes the normalized media probe raster and bounded stream contract', () => {

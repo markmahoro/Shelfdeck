@@ -21,6 +21,11 @@ const crashFixtures = Object.freeze({
   'libra-decision-basis': ['完整DecisionInputSet与Handle验证前后、typed input逐项写入、Subject Decision head CAS、manual Command Receipt、Result/marker前后、响应前崩溃', 'Basis revision、全部typed input rows、head pointer、Result和marker全有或全无；manual variant的Command Receipt同事务成立；相同subject+basisKind+inputSetDigest重放不推进revision或head；不得创建Routing Decision、Acceptance Spec、Run或Workspace', 7887],
   'libra-routing-decision': ['ready routing Basis与Subject/Policy/Intent freshness验证、Assessment/Decision写入、Subject Decision head CAS、Result/marker前后、响应前崩溃', 'Assessment、resolved或unresolved Decision、head pointer、Result与marker全有或全无；policy/manual authority不可混用；不读取Arca Store、不创建Acceptance Spec、Run或Workspace', 7906],
   'libra-acceptance-spec': ['ready spec Basis、Routing Decision、Subject/Product Scope freshness验证、Spec写入、Subject Decision head CAS、Result/marker前后、响应前崩溃', '完整六类Requirement的immutable Spec、head pointer、Result和marker全有或全无；stale Routing/Basis/Subject/Scope稳定拒绝；不读取Arca Store、不创建Run或Workspace', 7917],
+  'libra-run-admission': ['Run Decision/Basis/Manifest验证前后、Subject admission head CAS前后、replacement旧Run supersede前后、新Run/revision/manifest relation写入中途、Result/marker前后', 'Run/Basis/完整Material与Episode snapshot、Run revisions及active scope set全有或全无；replacement不产生重叠资格；历史Run只由immutable revision rows恢复', 9951],
+  'libra-run-lifecycle': ['expected Run/head fence验证前后、freshness或accepted message验证前后、新Run revision与current/head CAS前后、complete receipt/inbox前后、Result/marker前后', 'closed transition只推进一次；complete的Run terminal、Delivery Receipt、Inbox与Result全有或全无；priority不改变Execution Basis；不得暗建replacement、Workspace或Package', 9952],
+  'libra-workspace-admission': ['Run fence与Platform root/space Evidence验证前后、Foundation Registry插入前后、Libra Workspace/current revision及Result/marker前后', 'Registry与Libra Workspace同时成立；同一Run至多一个稳定Workspace stream；失败不留下孤立Registry或Workspace', 9953],
+  'libra-workspace-reference': ['Run/Workspace/Handle/Reference fence验证前后、Reference append中途、Workspace revision CAS及Result/marker前后', 'Reference每次只追加一个closed state revision；同一handle不同时处于Working与Product Staging；普通事务不能写released或移动bytes', 9954],
+  'libra-workspace-cleanup-scope-admission': ['typed trigger/grace/reference audit验证前后、Scope/member插入中途、Workspace reclaiming revision CAS前后、Result/marker前后', 'Signal不建立资格；Scope/member/Workspace revision全有或全无；相同trigger语义重放同一Scope；空Workspace不虚构Scope', 9957],
   'procurement-failed-run-retry': ['Retry Intent commit前后、新Run建立前后、Intent consume前后', '旧Run始终sealed；一个Intent最多建立一个新Run；观察不伪造Basis revision；失败不会自动连锁重试', 8414],
   'libra-subject-abandon': ['Decision前、Subject terminal后、Primary Control release前后、Receipt/Outbox前', '要么Subject仍active且Control不变，要么abandoned/Primary released/Receipt全部成立；已有Run时Command稳定拒绝', 8415],
   'libra-deliverable-promotion': ['Workspace Identity计算后、Package participant后、Control acquire前后', 'Package可见时所有Product Material已有Libra Control；失败不发布Offer', 8416],
@@ -213,6 +218,46 @@ const definitions = Object.freeze({
     fixtureRefs: ['libra-acceptance-spec'], hasOutbox: false,
     forbiddenWritePrefixes: ['proc_', 'arca_']
   },
+  'Libra Run Admission': {
+    commitClass: 'domain_fact_commit',
+    writeTables: ['libra_run_admission_heads', 'libra_runs', 'libra_run_revisions',
+      'libra_run_material_manifests', 'libra_run_material_members', 'libra_run_material_episode_claims',
+      'fx_event_result_bindings', 'fx_commit_markers'],
+    readTables: ['libra_subjects', 'libra_subject_decision_heads', 'libra_acceptance_specs',
+      'libra_material_bindings', 'libra_material_binding_episode_claims', 'fx_material_controls',
+      'fx_material_control_revisions', 'libra_run_admission_heads', 'libra_runs', 'libra_run_revisions',
+      'libra_run_material_manifests', 'libra_run_material_members', 'libra_run_material_episode_claims',
+      'fx_event_result_bindings', 'fx_commit_markers'],
+    fixtureRefs: ['libra-run-admission'], hasOutbox: false,
+    forbiddenWritePrefixes: ['proc_', 'arca_']
+  },
+  'Libra Run Lifecycle Transition': {
+    commitClass: 'domain_fact_commit',
+    writeTables: ['libra_run_admission_heads', 'libra_runs', 'libra_run_revisions',
+      'libra_delivery_receipts', 'fx_inbox', 'fx_event_result_bindings', 'fx_commit_markers'],
+    readTables: ['libra_run_admission_heads', 'libra_runs', 'libra_run_revisions',
+      'libra_delivery_receipts', 'fx_inbox', 'fx_event_result_bindings', 'fx_commit_markers',
+      'libra_product_packages', 'libra_subject_decision_heads', 'libra_acceptance_specs'],
+    fixtureRefs: ['libra-run-lifecycle'], hasOutbox: false,
+    forbiddenWritePrefixes: ['proc_', 'arca_']
+  },
+  'Libra Workspace Admission': {
+    commitClass: 'domain_unit_of_work',
+    writeTables: ['libra_workspaces', 'libra_workspace_revisions', 'fx_workspace_registry',
+      'fx_event_result_bindings', 'fx_commit_markers'],
+    readTables: ['libra_runs', 'libra_run_revisions'],
+    fixtureRefs: ['libra-workspace-admission'], hasOutbox: false,
+    forbiddenWritePrefixes: ['proc_', 'arca_']
+  },
+  'Libra Workspace Material Reference Commit': {
+    commitClass: 'domain_fact_commit',
+    writeTables: ['libra_workspaces', 'libra_workspace_revisions', 'libra_workspace_material_refs',
+      'fx_event_result_bindings', 'fx_commit_markers'],
+    readTables: ['libra_runs', 'libra_run_revisions', 'fx_workspace_materials', 'libra_workspaces',
+      'libra_workspace_revisions', 'libra_workspace_material_refs', 'fx_event_result_bindings', 'fx_commit_markers'],
+    fixtureRefs: ['libra-workspace-reference'], hasOutbox: false,
+    forbiddenWritePrefixes: ['proc_', 'arca_']
+  },
   'Handoff A Rejected': {
     commitClass: 'domain_fact_commit',
     writeTables: ['libra_intake_decisions', 'libra_intake_rejection_reason_evidence', 'libra_handoff_a_receipts',
@@ -265,18 +310,55 @@ const definitions = Object.freeze({
   },
   'Libra Deliverable Promotion': {
     commitClass: 'responsibility_control_commit',
-    writeTables: ['libra_product_packages', 'libra_product_package_materials', 'fx_material_controls', 'fx_material_control_revisions', 'fx_commit_markers', 'fx_outbox'],
-    readTables: ['libra_runs', 'libra_acceptance_specs', 'libra_product_fact_revisions'], fixtureRefs: ['libra-deliverable-promotion'], hasOutbox: true
+    writeTables: ['libra_runs', 'libra_product_packages', 'libra_product_package_materials',
+      'libra_product_package_material_episode_claims', 'libra_product_package_fact_refs',
+      'libra_product_package_artifact_refs', 'libra_offload_context_materials', 'fx_material_controls',
+      'fx_material_control_revisions', 'fx_commit_markers', 'fx_outbox'],
+    readTables: ['libra_run_revisions', 'libra_run_material_manifests', 'libra_run_material_members',
+      'libra_run_material_episode_claims', 'libra_workspaces', 'libra_workspace_revisions',
+      'libra_workspace_material_refs', 'libra_material_bindings', 'libra_material_binding_episode_claims',
+      'libra_product_fact_revisions', 'libra_acceptance_specs', 'fx_workspace_registry',
+      'fx_workspace_materials', 'libra_runs', 'libra_product_packages', 'libra_product_package_materials',
+      'libra_product_package_material_episode_claims', 'libra_product_package_fact_refs',
+      'libra_product_package_artifact_refs', 'libra_offload_context_materials', 'fx_material_controls',
+      'fx_material_control_revisions', 'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox'],
+    fixtureRefs: ['libra-deliverable-promotion'], hasOutbox: true
   },
   'Libra Run Discard Commit': {
     commitClass: 'responsibility_control_commit',
-    writeTables: ['libra_run_discard_decisions', 'libra_runs', 'libra_workspace_cleanup_scopes', 'libra_workspace_cleanup_members', 'libra_run_discard_receipts', 'fx_material_controls', 'fx_material_control_revisions', 'fx_commit_markers', 'fx_outbox'],
-    readTables: ['libra_material_bindings', 'libra_workspace_material_refs'], fixtureRefs: ['libra-run-discard'], hasOutbox: true
+    writeTables: ['libra_run_discard_decisions', 'libra_run_discard_receipts', 'libra_run_admission_heads',
+      'libra_runs', 'libra_run_revisions', 'libra_workspace_cleanup_scopes', 'libra_workspace_cleanup_members',
+      'libra_workspaces', 'libra_workspace_revisions', 'fx_material_controls', 'fx_material_control_revisions',
+      'fx_commit_markers', 'fx_outbox'],
+    readTables: ['libra_run_material_manifests', 'libra_run_material_members',
+      'libra_run_material_episode_claims', 'libra_workspace_material_refs', 'libra_run_discard_decisions',
+      'libra_run_discard_receipts', 'libra_run_admission_heads', 'libra_runs', 'libra_run_revisions',
+      'libra_workspace_cleanup_scopes', 'libra_workspace_cleanup_members', 'libra_workspaces',
+      'libra_workspace_revisions', 'fx_material_controls', 'fx_material_control_revisions',
+      'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox'],
+    fixtureRefs: ['libra-run-discard'], hasOutbox: true
+  },
+  'Libra Workspace Cleanup Scope Admission': {
+    commitClass: 'domain_fact_commit',
+    writeTables: ['libra_workspace_cleanup_scopes', 'libra_workspace_cleanup_members',
+      'libra_workspaces', 'libra_workspace_revisions', 'fx_event_result_bindings', 'fx_commit_markers'],
+    readTables: ['libra_runs', 'libra_run_revisions', 'libra_workspace_material_refs',
+      'libra_product_packages', 'libra_delivery_receipts', 'fx_material_controls',
+      'fx_material_control_revisions', 'libra_workspace_cleanup_scopes', 'libra_workspace_cleanup_members',
+      'libra_workspaces', 'libra_workspace_revisions', 'fx_event_result_bindings', 'fx_commit_markers'],
+    fixtureRefs: ['libra-workspace-cleanup-scope-admission'], hasOutbox: false,
+    forbiddenWritePrefixes: ['proc_', 'arca_']
   },
   'Libra Workspace Cleanup Commit': {
     commitClass: 'responsibility_control_commit',
-    writeTables: ['libra_workspace_cleanup_members', 'libra_workspace_cleanup_scopes', 'fx_material_controls', 'fx_material_control_revisions', 'fx_commit_markers'],
-    readTables: ['fx_workspace_materials'], fixtureRefs: ['libra-workspace-cleanup'], hasOutbox: false
+    writeTables: ['libra_workspace_cleanup_scopes', 'libra_workspace_cleanup_members', 'libra_workspaces',
+      'libra_workspace_revisions', 'libra_workspace_material_refs', 'fx_workspace_registry',
+      'fx_material_controls', 'fx_material_control_revisions', 'fx_commit_markers'],
+    readTables: ['fx_workspace_materials', 'fx_effect_journal', 'libra_workspace_cleanup_scopes',
+      'libra_workspace_cleanup_members', 'libra_workspaces', 'libra_workspace_revisions',
+      'libra_workspace_material_refs', 'fx_workspace_registry', 'fx_material_controls',
+      'fx_material_control_revisions', 'fx_event_result_bindings', 'fx_commit_markers'],
+    fixtureRefs: ['libra-workspace-cleanup'], hasOutbox: false
   },
   'On-deck Commit': {
     commitClass: 'responsibility_control_commit',

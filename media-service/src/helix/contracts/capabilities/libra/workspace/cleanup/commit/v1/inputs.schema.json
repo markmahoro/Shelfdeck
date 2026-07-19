@@ -5,25 +5,25 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "verifiedWorkspaceDeletionEvidence": {
-      "$ref": "#/$defs/verifiedWorkspaceDeletionEvidence"
+    "workspaceCleanupCommitDecision": {
+      "$ref": "#/$defs/workspaceCleanupCommitDecision"
     },
     "responsibilityControlCommitHandle": {
       "$ref": "#/$defs/responsibilityControlCommitHandle"
     }
   },
   "required": [
-    "verifiedWorkspaceDeletionEvidence",
+    "workspaceCleanupCommitDecision",
     "responsibilityControlCommitHandle"
   ],
   "$defs": {
-    "verifiedWorkspaceDeletionEvidence": {
-      "$ref": "helix://contracts/types/DeletionEvidence/v1",
-      "x-helix-typeExpression": "Verified Workspace deletion evidence"
+    "workspaceCleanupCommitDecision": {
+      "$ref": "helix://contracts/domain-types/WorkspaceCleanupCommitDecision/v1",
+      "x-helix-typeExpression": "WorkspaceCleanupCommitDecision"
     },
     "responsibilityControlCommitHandle": {
       "$ref": "helix://contracts/types/ResponsibilityControlCommitHandle/v1",
-      "x-helix-typeExpression": "ResponsibilityControlCommitHandle"
+      "x-helix-typeExpression": "ResponsibilityControlCommitHandle?"
     }
   }
 }

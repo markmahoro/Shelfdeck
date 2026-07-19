@@ -7,15 +7,20 @@
     "displayName": "Libra Deliverable Promotion",
     "ownerScope": "libra",
     "commitClass": "responsibility_control_commit",
-    "atomicFactSet": "On-deck Product Package + Product Material Identity set + newly produced Material的Libra Control acquire + delivery Outbox",
+    "atomicFactSet": "complete `LibraDeliverablePromotionDecision@1` + active Run/state revision fence + immutable Run Basis/Production Material/Workspace Staging/Product Fact/Artifact/Control fence + complete `OnDeckProductPackage@1`及全部relation + direct-original Control assert/new Workspace Product Control acquire + open Offer + durable bounded `OnDeckProductPackageCommitReceipt@1` Result/commit marker + `LibraProductOfferAvailableMessage@1` Outbox；Package、全部快照关系、Control、Offer与Result全有或全无，Package publication不改Run state",
     "participants": [
       {
         "participantKind": "domain",
         "owner": "libra",
         "access": "write",
         "tables": [
+          "libra_runs",
           "libra_product_packages",
-          "libra_product_package_materials"
+          "libra_product_package_materials",
+          "libra_product_package_material_episode_claims",
+          "libra_product_package_fact_refs",
+          "libra_product_package_artifact_refs",
+          "libra_offload_context_materials"
         ]
       },
       {
@@ -39,8 +44,13 @@
       }
     ],
     "writeTables": [
+      "libra_runs",
       "libra_product_packages",
       "libra_product_package_materials",
+      "libra_product_package_material_episode_claims",
+      "libra_product_package_fact_refs",
+      "libra_product_package_artifact_refs",
+      "libra_offload_context_materials",
       "fx_material_controls",
       "fx_material_control_revisions",
       "fx_event_result_bindings",
@@ -48,9 +58,31 @@
       "fx_outbox"
     ],
     "readTables": [
-      "libra_runs",
+      "libra_run_revisions",
+      "libra_run_material_manifests",
+      "libra_run_material_members",
+      "libra_run_material_episode_claims",
+      "libra_workspaces",
+      "libra_workspace_revisions",
+      "libra_workspace_material_refs",
+      "libra_material_bindings",
+      "libra_material_binding_episode_claims",
+      "libra_product_fact_revisions",
       "libra_acceptance_specs",
-      "libra_product_fact_revisions"
+      "fx_workspace_registry",
+      "fx_workspace_materials",
+      "libra_runs",
+      "libra_product_packages",
+      "libra_product_package_materials",
+      "libra_product_package_material_episode_claims",
+      "libra_product_package_fact_refs",
+      "libra_product_package_artifact_refs",
+      "libra_offload_context_materials",
+      "fx_material_controls",
+      "fx_material_control_revisions",
+      "fx_event_result_bindings",
+      "fx_commit_markers",
+      "fx_outbox"
     ],
     "variants": [],
     "dynamicTableRequirements": [],
@@ -77,8 +109,8 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7744,
-      "lineDigest": "a71ab1170c2cae62ea3f3121da7f6d473c2ca624f6c14b1dc1ff2c68eb0e3ea8"
+      "line": 7766,
+      "lineDigest": "8e17c5d12e5dd2e8521f8f8a7d3dd1c8f804a883b4e11d9c7dbc4e65d753b4af"
     }
   }
 }

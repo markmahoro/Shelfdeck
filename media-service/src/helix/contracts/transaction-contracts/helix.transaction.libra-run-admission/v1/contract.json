@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.libra-run-admission/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.libra-run-admission",
+    "displayName": "Libra Run Admission",
+    "ownerScope": "libra",
+    "commitClass": "domain_fact_commit",
+    "atomicFactSet": "complete `LibraRunAdmissionDecision@1` + Subject current Decision head/Acceptance Spec + expected Run admission head CAS + immutable `LibraRunExecutionBasis@1`/`ProductionMaterialManifest@1` + Run/current state revision + exact active scope set switch + durable `LibraRunAdmissionResult@1`/commit marker；initial与replacement共用该事务，replacement还必须把旧`active|suspended` Run原子置为`superseded`并追加旧Run revision；`hasOutbox=false`",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "libra",
+        "access": "write",
+        "tables": [
+          "libra_run_admission_heads",
+          "libra_runs",
+          "libra_run_revisions",
+          "libra_run_material_manifests",
+          "libra_run_material_members",
+          "libra_run_material_episode_claims"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_event_result_bindings",
+          "fx_commit_markers"
+        ]
+      }
+    ],
+    "writeTables": [
+      "libra_run_admission_heads",
+      "libra_runs",
+      "libra_run_revisions",
+      "libra_run_material_manifests",
+      "libra_run_material_members",
+      "libra_run_material_episode_claims",
+      "fx_event_result_bindings",
+      "fx_commit_markers"
+    ],
+    "readTables": [
+      "libra_subjects",
+      "libra_subject_decision_heads",
+      "libra_acceptance_specs",
+      "libra_material_bindings",
+      "libra_material_binding_episode_claims",
+      "fx_material_controls",
+      "fx_material_control_revisions",
+      "libra_run_admission_heads",
+      "libra_runs",
+      "libra_run_revisions",
+      "libra_run_material_manifests",
+      "libra_run_material_members",
+      "libra_run_material_episode_claims",
+      "fx_event_result_bindings",
+      "fx_commit_markers"
+    ],
+    "variants": [],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [
+      "proc_",
+      "arca_"
+    ],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "libra-run-admission",
+        "faultInjectionPoints": "Run Decision/Basis/Manifest验证前后、Subject admission head CAS前后、replacement旧Run supersede前后、新Run/revision/manifest relation写入中途、Result/marker前后",
+        "requiredInvariant": "Run/Basis/完整Material与Episode snapshot、Run revisions及active scope set全有或全无；replacement不产生重叠资格；历史Run只由immutable revision rows恢复",
+        "source": {
+          "section": "8.9.7",
+          "line": 9951
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7754,
+      "lineDigest": "0bfa0d265b207b051e37257534f7a826616ed320f4242063fbfc1dc283f10180"
+    }
+  }
+}

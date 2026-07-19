@@ -7,7 +7,7 @@
     "displayName": "Libra Handoff B Rejection Consume",
     "ownerScope": "libra",
     "commitClass": "domain_unit_of_work",
-    "atomicFactSet": "`ArcaProductRejectedMessage@1` + current published Package/Delivery state CAS + Libra Inbox dedup；同事务保存rejected Delivery Receipt并关闭该Package Offer；不改写Package或Arca Decision，重复消息返回同一closure result",
+    "atomicFactSet": "`ArcaProductRejectedMessage@1` + immutable published Package fence + `libra_delivery_receipts.offer_id`唯一终态插入 + Libra Inbox dedup；同事务保存rejected Delivery Receipt并逻辑关闭该Package Offer；不改写Package或Arca Decision，重复消息返回同一closure result",
     "participants": [
       {
         "participantKind": "domain",
@@ -64,8 +64,8 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7743,
-      "lineDigest": "b646c48766db798709a13926293769b18b7e044dfb716a1b00afd49e5befecf5"
+      "line": 7765,
+      "lineDigest": "7cf5c295bdcdaa8c2e0215f860f0a954e510efa38c7f19808b5801f74fbca95d"
     }
   }
 }

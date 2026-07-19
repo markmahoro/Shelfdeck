@@ -5,29 +5,21 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "verifiedProduct": {
-      "$ref": "#/$defs/verifiedProduct"
-    },
-    "manifests": {
-      "$ref": "#/$defs/manifests"
+    "libraDeliverablePromotionDecision": {
+      "$ref": "#/$defs/libraDeliverablePromotionDecision"
     },
     "responsibilityControlCommitHandle": {
       "$ref": "#/$defs/responsibilityControlCommitHandle"
     }
   },
   "required": [
-    "verifiedProduct",
-    "manifests",
+    "libraDeliverablePromotionDecision",
     "responsibilityControlCommitHandle"
   ],
   "$defs": {
-    "verifiedProduct": {
-      "$ref": "helix://contracts/domain-types/VerifiedProduct/v1",
-      "x-helix-typeExpression": "Verified product"
-    },
-    "manifests": {
-      "$ref": "helix://contracts/domain-types/Manifests/v1",
-      "x-helix-typeExpression": "manifests"
+    "libraDeliverablePromotionDecision": {
+      "$ref": "helix://contracts/domain-types/LibraDeliverablePromotionDecision/v1",
+      "x-helix-typeExpression": "LibraDeliverablePromotionDecision"
     },
     "responsibilityControlCommitHandle": {
       "$ref": "helix://contracts/types/ResponsibilityControlCommitHandle/v1",

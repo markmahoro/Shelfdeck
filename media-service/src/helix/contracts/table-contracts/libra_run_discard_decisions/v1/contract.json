@@ -14,6 +14,7 @@
         "enumValues": [],
         "primaryKeyPart": true,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -23,60 +24,107 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": true,
+        "inlineUnique": false,
         "nullable": false
       },
       {
         "ordinal": 3,
+        "name": "expected_run_state_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "expected_run_state_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
         "name": "run_scope_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
-        "ordinal": 4,
+        "ordinal": 6,
         "name": "input_control_scope_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
-        "ordinal": 5,
-        "name": "workspace_cleanup_scope_digest",
+        "ordinal": 7,
+        "name": "workspace_cleanup_scope_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 8,
+        "name": "workspace_cleanup_member_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
-        "ordinal": 6,
+        "ordinal": 9,
         "name": "actor_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
-        "ordinal": 7,
+        "ordinal": 10,
+        "name": "idempotency_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
         "name": "decision_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
-        "ordinal": 8,
+        "ordinal": 12,
         "name": "decided_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       }
     ],
@@ -84,18 +132,25 @@
       "discard_decision_id"
     ],
     "declaredForeignKeyColumns": [
-      "libra_run_id"
+      "libra_run_id",
+      "workspace_cleanup_scope_id"
     ],
     "uniqueConstraints": [
       [
         "libra_run_id"
+      ],
+      [
+        "actor_id",
+        "idempotency_key"
       ]
     ],
     "hotIndexes": [],
     "partialUniqueRules": [],
     "checkRules": [],
     "revisionContract": {
-      "revisionColumns": [],
+      "revisionColumns": [
+        "expected_run_state_revision"
+      ],
       "currentPointerColumns": [],
       "pointerTargets": [],
       "pointerRules": []
@@ -112,18 +167,21 @@
       "rules": []
     },
     "semanticRules": [
-      "`UNIQUE(libra_run_id)`",
+      "`UNIQUE(libra_run_id)`及`UNIQUE(actor_id,idempotency_key)`",
       "immutable",
-      "只允许当前`frozen` Run建立"
+      "只允许当前`frozen` Run建立",
+      "没有Workspace Reference时scope ID为NULL且member set为正式empty digest",
+      "非空时从同事务Cleanup Scope/member rows重建Draft",
+      "`decisionDigest`按8.6.21完整typed value唯一计算"
     ],
     "rawContract": {
-      "columns": "`discard_decision_id PK, libra_run_id FK, run_scope_digest, input_control_scope_digest, workspace_cleanup_scope_digest, actor_id, decision_digest, decided_at_ms`",
-      "constraints": "`UNIQUE(libra_run_id)`；immutable；只允许当前`frozen` Run建立"
+      "columns": "`discard_decision_id PK, libra_run_id FK, expected_run_state_revision, expected_run_state_digest, run_scope_digest, input_control_scope_digest, workspace_cleanup_scope_id NULL FK, workspace_cleanup_member_set_digest, actor_id, idempotency_key, decision_digest, decided_at_ms`",
+      "constraints": "`UNIQUE(libra_run_id)`及`UNIQUE(actor_id,idempotency_key)`；immutable；只允许当前`frozen` Run建立；没有Workspace Reference时scope ID为NULL且member set为正式empty digest；非空时从同事务Cleanup Scope/member rows重建Draft；`decisionDigest`按8.6.21完整typed value唯一计算"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8166,
-      "lineDigest": "41b9f925ffbd84cd97bb1d849077293c6ed5b4ab91dfcdfd89d48361fa7ffafa"
+      "line": 8267,
+      "lineDigest": "f7122866dc08d9bf0cb4e58d824f2a3de5bbe8767d5b730c210719716625d7be"
     },
     "foreignKeys": [
       {
@@ -133,6 +191,17 @@
         "targetTable": "libra_runs",
         "targetColumns": [
           "libra_run_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "workspace_cleanup_scope_id"
+        ],
+        "targetTable": "libra_workspace_cleanup_scopes",
+        "targetColumns": [
+          "cleanup_scope_id"
         ],
         "deletePolicy": "RESTRICT",
         "deferrable": false

@@ -24,12 +24,12 @@ function mutate(filePath, change) {
 const contractPath = (root, tableId) => path.join(root, 'table-contracts', tableId, 'v1', 'contract.json');
 const codes = (result) => new Set(result.findings.map((item) => item.code));
 
-test('validates all 169 SSOT table contracts without executing DDL', () => {
+test('validates all 176 SSOT table contracts without executing DDL', () => {
   const result = validateTableContracts({ contractsRoot: actualContractsRoot });
   assert.equal(result.ok, true);
-  assert.equal(result.tableCount, 169);
-  assert.equal(result.foreignKeyCount, 192);
-  assert.equal(result.jsonColumnCount, 40);
+  assert.equal(result.tableCount, 176);
+  assert.equal(result.foreignKeyCount, 209);
+  assert.equal(result.jsonColumnCount, 49);
 });
 
 test('rejects missing PK, open JSON contract, and unresolved current pointer', () => {

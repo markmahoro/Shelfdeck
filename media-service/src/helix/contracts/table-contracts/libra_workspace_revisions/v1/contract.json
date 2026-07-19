@@ -1,0 +1,193 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_workspace_revisions/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_workspace_revisions",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "workspace_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "workspace_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "active",
+          "reclaiming",
+          "reclaimed"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "material_reference_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "transition_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "admitted",
+          "reference_attached",
+          "product_staged",
+          "reference_released",
+          "reclaiming",
+          "reclaimed"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "transition_evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "previous_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 8,
+        "name": "revision_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "committed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "workspace_id",
+      "workspace_revision"
+    ],
+    "declaredForeignKeyColumns": [
+      "workspace_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "active",
+          "reclaiming",
+          "reclaimed"
+        ]
+      },
+      {
+        "column": "transition_kind",
+        "enumValues": [
+          "admitted",
+          "reference_attached",
+          "product_staged",
+          "reference_released",
+          "reclaiming",
+          "reclaimed"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "workspace_revision",
+        "previous_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": [
+        "current Workspace row由最高revision重建，set digest来自每个handle最高Reference revision"
+      ]
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "append-only且从1连续"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(workspace_id,workspace_revision)`",
+      "append-only且从1连续",
+      "current Workspace row由最高revision重建，set digest来自每个handle最高Reference revision"
+    ],
+    "rawContract": {
+      "columns": "`workspace_id FK, workspace_revision, state, material_reference_set_digest, transition_kind(admitted|reference_attached|product_staged|reference_released|reclaiming|reclaimed), transition_evidence_digest, previous_revision NULL, revision_digest, committed_at_ms`",
+      "constraints": "`PK(workspace_id,workspace_revision)`；append-only且从1连续；current Workspace row由最高revision重建，set digest来自每个handle最高Reference revision"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 8273,
+      "lineDigest": "fffe5946c4917dd2f4cb8b46631e08641df8646e77230d47a949c7490efbc219"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "workspace_id"
+        ],
+        "targetTable": "libra_workspaces",
+        "targetColumns": [
+          "workspace_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

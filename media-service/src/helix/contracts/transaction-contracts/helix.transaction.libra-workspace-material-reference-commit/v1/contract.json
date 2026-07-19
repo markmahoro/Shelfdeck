@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.libra-workspace-material-reference-commit/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.libra-workspace-material-reference-commit",
+    "displayName": "Libra Workspace Material Reference Commit",
+    "ownerScope": "libra",
+    "commitClass": "domain_fact_commit",
+    "atomicFactSet": "complete `LibraWorkspaceMaterialReferenceDecision@1` + expected Workspace/Reference revision + exact `WorkspaceMaterialHandle`/verification Evidence + current Run fence + immutable Reference revision + Workspace revision CAS + durable `LibraWorkspaceMaterialReferenceResult@1`/commit marker；closed operation为`attach_working|promote_to_product_staging`，同一handle不得同时处于Working与Product Staging，`hasOutbox=false`；`released`只由持有删除/absence Evidence的Workspace Cleanup Commit追加，不能借普通Reference command绕过清理合同",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "libra",
+        "access": "write",
+        "tables": [
+          "libra_workspaces",
+          "libra_workspace_revisions",
+          "libra_workspace_material_refs"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_event_result_bindings",
+          "fx_commit_markers"
+        ]
+      }
+    ],
+    "writeTables": [
+      "libra_workspaces",
+      "libra_workspace_revisions",
+      "libra_workspace_material_refs",
+      "fx_event_result_bindings",
+      "fx_commit_markers"
+    ],
+    "readTables": [
+      "libra_runs",
+      "libra_run_revisions",
+      "fx_workspace_materials",
+      "libra_workspaces",
+      "libra_workspace_revisions",
+      "libra_workspace_material_refs",
+      "fx_event_result_bindings",
+      "fx_commit_markers"
+    ],
+    "variants": [],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [
+      "proc_",
+      "arca_"
+    ],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "libra-workspace-reference",
+        "faultInjectionPoints": "Run/Workspace/Handle/Reference fence验证前后、Reference append中途、Workspace revision CAS及Result/marker前后",
+        "requiredInvariant": "Reference每次只追加一个closed state revision；同一handle不同时处于Working与Product Staging；普通事务不能写released或移动bytes",
+        "source": {
+          "section": "8.9.7",
+          "line": 9954
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7757,
+      "lineDigest": "d788792b8a7028cc0f892883c9bb4c86072f717e8c3303c63225afc084bd9526"
+    }
+  }
+}

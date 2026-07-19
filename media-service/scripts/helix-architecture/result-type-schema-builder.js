@@ -251,8 +251,16 @@ const special = {
   'ProductMediaVerification.qualitySummary': boundedRecord('quality-summary'),
   'ProductMediaVerification.spaceSummary': boundedRecord('space-summary'),
   'OnDeckProductPackage.productMaterialManifest': snapshot('product-material-manifest'),
-  'OnDeckProductPackage.metadataFactRefs': arrayOf(id(), 1024),
+  'OnDeckProductPackage.acceptanceSpecRef': object({ id: id(), recordDigest: digest() }),
+  'OnDeckProductPackage.resolvedIdentitySnapshot': snapshot('resolved-identity-product-fact'),
+  'OnDeckProductPackage.productStructureSnapshot': snapshot('product-structure'),
+  'OnDeckProductPackage.runMaterialManifestRef': object({ id: id(), digest: digest() }),
+  'OnDeckProductPackage.productFactManifest': snapshot('product-fact-manifest'),
+  'OnDeckProductPackage.artifactManifest': snapshot('artifact-manifest'),
+  'OnDeckProductPackage.mediaCastSnapshot': snapshot('media-cast-product-fact'),
   'OnDeckProductPackage.offloadContextManifest': snapshot('offload-context-manifest'),
+  'OnDeckProductPackage.productionProvenance': snapshot('production-provenance'),
+  'OnDeckProductPackage.productionAttestation': snapshot('production-attestation'),
   'WorkspaceCleanupCommitReceipt.releasedControlRevision': nullable(positiveInteger()),
   'AcquisitionQuery.structureKind': enumText('single', 'season'),
   'AcquisitionQuery.queryTerms': boundedRecord('acquisition-query-terms'),
@@ -409,7 +417,8 @@ const contracts = {
   ProductMediaVerification: ['VerificationEnvelope', 'workspaceMediaHandleId,mediaRequirementDigest,probeEvidenceDigest,qualitySummary,spaceSummary'],
   SelectedWorkspaceProduct: ['DraftEnvelope', 'selectedHandleId,selectedVerificationId,candidateSetDigest,selectionReasonCode'],
   ProductConformanceEvidence: ['VerificationEnvelope', 'acceptanceSpecId,productFactSetDigest,unmetRequirementCodes'],
-  OnDeckProductPackage: ['ManifestEnvelope', 'onDeckPackageId,libraRunId,subjectId,shelfId,acceptanceSpecId,resolvedIdentityDigest,productMaterialManifest,metadataFactRefs,offloadContextManifest,packageDigest'],
+  OnDeckProductPackage: ['ManifestEnvelope', 'onDeckPackageId,packageRevision,libraRunId,runStateRevision,runStateDigest,runExecutionBasisDigest,subjectId,shelfId,acceptanceSpecRef,resolvedIdentitySnapshot,productStructureSnapshot,runMaterialManifestRef,productMaterialManifest,productFactManifest,artifactManifest,mediaCastSnapshot,offloadContextManifest,productionProvenance,productionAttestation,packageDigest'],
+  OnDeckProductPackageCommitReceipt: ['ReceiptEnvelope', 'promotionDecisionDigest,onDeckPackageId,packageRevision,packageDigest,offerId,libraRunId,verifiedRunStateRevision,verifiedRunStateDigest,productMaterialManifestDigest,productFactSetDigest,productFactManifestDigest,artifactManifestDigest,offloadContextDigest,controlRevisionSetDigest,receiptDigest'],
   ReclamationReceipt: ['ReceiptEnvelope', 'workspaceId,reclaimedHandleIds,retainedHandleIds,reclaimedBytes'],
   WorkspaceCleanupCommitReceipt: ['ReceiptEnvelope', 'cleanupScopeId,materialHandleId,deletionEvidenceDigest,releasedControlRevision?,cleanupState'],
   AcquisitionQuery: ['DraftEnvelope', 'resolvedIdentityDigest,structureKind,queryTerms,hardConstraints,queryDigest'],
@@ -471,6 +480,7 @@ function buildResultTypeSchema(name, [base, fieldList]) {
   if (name === 'PersonReferenceRevision') return personReferenceRevisionSchema();
   if (name === 'IntakeRejectionReceipt') return intakeRejectionReceiptSchema();
   if (name === 'RejectionReceipt') return rejectionReceiptSchema();
+  if (name === 'OnDeckProductPackageCommitReceipt') return onDeckProductPackageCommitReceiptSchema();
   const workspaceFields = base === 'WorkspaceMaterialHandle'
     ? Object.fromEntries(Object.entries(buildSharedTypeSchemas().WorkspaceMaterialHandle.properties)
       .filter(([field]) => field !== 'schemaRef' && field !== 'schemaVersion'))
@@ -514,6 +524,22 @@ function buildResultTypeSchema(name, [base, fieldList]) {
     }];
   }
   return result;
+}
+
+function onDeckProductPackageCommitReceiptSchema() {
+  const properties = {
+    schemaRef: { const: typeId('OnDeckProductPackageCommitReceipt') }, schemaVersion: { const: 1 },
+    ...envelopeFields.ReceiptEnvelope, receiptKind: { const: 'libra_product_package_published' },
+    ownerDomain: { const: 'libra' }, scopeType: { const: 'on_deck_package' }, promotionDecisionDigest: digest(),
+    onDeckPackageId: id(), packageRevision: positiveInteger(), packageDigest: digest(), offerId: id(), libraRunId: id(),
+    verifiedRunStateRevision: positiveInteger(), verifiedRunStateDigest: digest(), productMaterialManifestDigest: digest(),
+    productFactSetDigest: digest(), productFactManifestDigest: digest(), artifactManifestDigest: digest(),
+    offloadContextDigest: digest(), controlRevisionSetDigest: digest(), receiptDigest: digest()
+  };
+  return { $schema: DRAFT, $id: typeId('OnDeckProductPackageCommitReceipt'), title: 'OnDeckProductPackageCommitReceipt@1',
+    'x-helix-ssotRefs': ['8.6.19', '8.6.21'], 'x-helix-envelopeRef': typeId('ReceiptEnvelope'),
+    'x-helix-maxCanonicalBytes': 16 * 1024,
+    ...object(properties, Object.keys(properties).filter((field) => field !== 'effectReceiptRef')) };
 }
 
 function procurementControlReceiptSchema() {

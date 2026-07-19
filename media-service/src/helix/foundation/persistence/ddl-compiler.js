@@ -45,7 +45,6 @@ const PARTIAL_UNIQUE = Object.freeze({
   fx_work_attempts: [{ columns: ['work_id'], where: '"state" IN (\'ready\', \'running\', \'blocked\')' }],
   libra_intake_decisions: [{ columns: ['candidate_package_id', 'package_digest'], where: '"decision_kind" = \'accepted_resolution\'' }],
   libra_handoff_a_receipts: [{ columns: ['candidate_package_id', 'package_digest'], where: '"outcome" = \'accepted\'' }],
-  libra_runs: [{ columns: ['subject_id', 'acceptance_spec_id', 'run_scope_digest'], where: '"terminal_at_ms" IS NULL' }],
   people_merge_candidates: [{ columns: ['left_person_id', 'right_person_id'], where: '"current_state" = \'open\'' }],
   people_provider_identities: [{ columns: ['provider', 'namespace', 'provider_key'], where: '"active_guard" = 1' }],
   people_registration_candidates: [{ columns: ['evidence_digest'], where: '"current_state" = \'open\'' }],
@@ -267,7 +266,7 @@ function compileTable(contract, allContracts) {
   }
   for (const json of contract.jsonContracts) {
     requireColumns(contract, [json.column], contract.tableId + ':json');
-    if (!json.requiresJsonValidCheck || ![4096, 16384, 65536].includes(json.maxBytes)) {
+    if (!json.requiresJsonValidCheck || ![4096, 16384, 65536, 1048576].includes(json.maxBytes)) {
       throw new Error('P3_DDL_UNSUPPORTED_JSON_CONTRACT:' + contract.tableId + '.' + json.column);
     }
     definitions.push('CHECK (json_valid(' + quoteIdentifier(json.column) + '))');

@@ -14,6 +14,7 @@
         "enumValues": [],
         "primaryKeyPart": true,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -23,6 +24,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -32,37 +34,71 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
         "ordinal": 4,
+        "name": "endpoint_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "mount_scope_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "mount_scope_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
         "name": "resolved_root",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
-        "ordinal": 5,
+        "ordinal": 8,
         "name": "config_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
-        "ordinal": 6,
+        "ordinal": 9,
         "name": "capability_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
-        "ordinal": 7,
+        "ordinal": 10,
         "name": "state",
         "logicalType": "TEXT",
         "enumValues": [
@@ -72,15 +108,17 @@
         ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
-        "ordinal": 8,
+        "ordinal": 11,
         "name": "updated_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       }
     ],
@@ -103,6 +141,7 @@
     ],
     "revisionContract": {
       "revisionColumns": [
+        "mount_scope_revision",
         "config_revision"
       ],
       "currentPointerColumns": [],
@@ -119,16 +158,17 @@
       "rules": []
     },
     "semanticRules": [
+      "endpoint/mount scope引用Platform current Registry",
       "root overlap/containment用normalized path unique与保存时probe验证"
     ],
     "rawContract": {
-      "columns": "`root_id PK, owner_scope, root_kind, resolved_root, config_revision, capability_digest, state, updated_at_ms`",
-      "constraints": "root overlap/containment用normalized path unique与保存时probe验证"
+      "columns": "`root_id PK, owner_scope, root_kind, endpoint_id, mount_scope_id, mount_scope_revision, resolved_root, config_revision, capability_digest, state, updated_at_ms`",
+      "constraints": "endpoint/mount scope引用Platform current Registry；root overlap/containment用normalized path unique与保存时probe验证"
     },
     "source": {
       "section": "8.5.13",
-      "line": 8270,
-      "lineDigest": "2c1c2c92a856c5528179cf44831e88f9c6ff798981416e886dcdbbda6e61cc0f"
+      "line": 8376,
+      "lineDigest": "ed7a78af400d6959afde8c2e02e9a8f98a307650de54cc220d52d45479bd03d1"
     },
     "foreignKeys": []
   }

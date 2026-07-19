@@ -1,0 +1,200 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_run_material_manifests/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_run_material_manifests",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "run_material_manifest_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "libra_run_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": true,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "manifest_role",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "run_input"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "scope_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "single",
+          "episode_delivery"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "manifest_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [
+          "1"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "member_count",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "member_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "episode_scope_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "manifest_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "published_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "run_material_manifest_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "libra_run_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "libra_run_id"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "manifest_role",
+        "enumValues": [
+          "run_input"
+        ]
+      },
+      {
+        "column": "scope_kind",
+        "enumValues": [
+          "single",
+          "episode_delivery"
+        ]
+      },
+      {
+        "column": "manifest_revision",
+        "enumValues": [
+          "1"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "manifest_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "immutable"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "immutable",
+      "由Run Admission从current Libra Binding/Episode relation建立并成为`LibraRunExecutionBasis@1`组成部分",
+      "不是上游Candidate Manifest alias",
+      "single的episode scope为空"
+    ],
+    "rawContract": {
+      "columns": "`run_material_manifest_id PK, libra_run_id FK UNIQUE, manifest_role(run_input), scope_kind(single|episode_delivery), manifest_revision(1), member_count, member_set_digest, episode_scope_digest, manifest_digest, published_at_ms`",
+      "constraints": "immutable；由Run Admission从current Libra Binding/Episode relation建立并成为`LibraRunExecutionBasis@1`组成部分；不是上游Candidate Manifest alias；single的episode scope为空"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 8269,
+      "lineDigest": "570d92af54d689230e1670848376bbefcc5922b95c0e1412a83c8da0e9df20ac"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "libra_run_id"
+        ],
+        "targetTable": "libra_runs",
+        "targetColumns": [
+          "libra_run_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": true
+      }
+    ]
+  }
+}

@@ -14,6 +14,7 @@
         "enumValues": [],
         "primaryKeyPart": true,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -23,6 +24,7 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": true,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -32,42 +34,67 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": true,
+        "inlineUnique": false,
         "nullable": false
       },
       {
         "ordinal": 4,
+        "name": "committed_run_state_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
         "name": "released_input_control_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
         "name": "cleanup_scope_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 7,
+        "name": "cleanup_member_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
-        "ordinal": 6,
+        "ordinal": 8,
         "name": "commit_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
-        "ordinal": 7,
+        "ordinal": 9,
         "name": "committed_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       }
     ],
@@ -88,7 +115,9 @@
     "partialUniqueRules": [],
     "checkRules": [],
     "revisionContract": {
-      "revisionColumns": [],
+      "revisionColumns": [
+        "committed_run_state_revision"
+      ],
       "currentPointerColumns": [],
       "pointerTargets": [],
       "pointerRules": []
@@ -104,16 +133,18 @@
     },
     "semanticRules": [
       "`UNIQUE(discard_decision_id)`",
-      "与Run terminal、原始Input Control release及Cleanup Scope同事务"
+      "与Run terminal/admission head、原始Input Control release及非空Cleanup Scope同事务",
+      "没有Workspace Reference时`cleanup_scope_id=NULL`且member set为empty-set digest，不能为满足FK虚构Workspace/Scope",
+      "完整结果只从这些Owner/Control rows重建"
     ],
     "rawContract": {
-      "columns": "`receipt_id PK, discard_decision_id FK, libra_run_id FK, released_input_control_set_digest, cleanup_scope_id FK, commit_digest, committed_at_ms`",
-      "constraints": "`UNIQUE(discard_decision_id)`；与Run terminal、原始Input Control release及Cleanup Scope同事务"
+      "columns": "`receipt_id PK, discard_decision_id FK, libra_run_id FK, committed_run_state_revision, released_input_control_set_digest, cleanup_scope_id NULL FK, cleanup_member_set_digest, commit_digest, committed_at_ms`",
+      "constraints": "`UNIQUE(discard_decision_id)`；与Run terminal/admission head、原始Input Control release及非空Cleanup Scope同事务；没有Workspace Reference时`cleanup_scope_id=NULL`且member set为empty-set digest，不能为满足FK虚构Workspace/Scope；完整结果只从这些Owner/Control rows重建"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8167,
-      "lineDigest": "e045a137a4b7b50cd069301aacc54a4bd6adc94b0e61c7b38a17f0168c5d44dd"
+      "line": 8268,
+      "lineDigest": "7567441613085f10a544144a5eb9c41f3890c0b2fc9da755b0c00232166f161f"
     },
     "foreignKeys": [
       {

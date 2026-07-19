@@ -5,8 +5,8 @@ const crypto = require('crypto');
 const EXPECTED_COUNTS = Object.freeze({
   capabilities: 112,
   resultFamilies: 97,
-  tables: 169,
-  transactions: 38
+  tables: 176,
+  transactions: 43
 });
 
 function sha256(value) {

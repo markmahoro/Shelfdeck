@@ -14,6 +14,7 @@
         "enumValues": [],
         "primaryKeyPart": true,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
@@ -23,79 +24,180 @@
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": true,
+        "inlineUnique": false,
         "nullable": false
       },
       {
         "ordinal": 3,
-        "name": "trigger_kind",
+        "name": "workspace_id",
         "logicalType": "TEXT",
-        "enumValues": [
-          "offload_completed",
-          "run_discarded"
-        ],
+        "enumValues": [],
         "primaryKeyPart": false,
-        "foreignKeyMarker": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
         "nullable": false
       },
       {
         "ordinal": 4,
+        "name": "trigger_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "offload_completed",
+          "run_superseded",
+          "run_discarded"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
         "name": "trigger_ref",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
+        "name": "trigger_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
         "name": "trigger_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
-        "ordinal": 6,
+        "ordinal": 8,
+        "name": "admission_record_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "admission_record_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "admission_decision_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "eligibility_evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "member_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 13,
         "name": "state",
         "logicalType": "TEXT",
         "enumValues": [
           "active",
-          "completed"
+          "completed",
+          "blocked"
         ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
-        "ordinal": 7,
+        "ordinal": 14,
+        "name": "state_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 15,
+        "name": "state_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 16,
         "name": "created_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
+        "inlineUnique": false,
         "nullable": false
       },
       {
-        "ordinal": 8,
+        "ordinal": 17,
         "name": "completed_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
-        "nullable": false
+        "inlineUnique": false,
+        "nullable": true
       }
     ],
     "primaryKey": [
       "cleanup_scope_id"
     ],
     "declaredForeignKeyColumns": [
-      "libra_run_id"
+      "libra_run_id",
+      "workspace_id"
     ],
     "uniqueConstraints": [
       [
         "trigger_kind",
         "trigger_ref",
+        "trigger_revision",
         "trigger_digest"
       ]
     ],
@@ -111,6 +213,7 @@
         "column": "trigger_kind",
         "enumValues": [
           "offload_completed",
+          "run_superseded",
           "run_discarded"
         ]
       },
@@ -118,17 +221,29 @@
         "column": "state",
         "enumValues": [
           "active",
-          "completed"
+          "completed",
+          "blocked"
         ]
       }
     ],
     "revisionContract": {
-      "revisionColumns": [],
+      "revisionColumns": [
+        "trigger_revision",
+        "state_revision"
+      ],
       "currentPointerColumns": [],
       "pointerTargets": [],
       "pointerRules": []
     },
-    "jsonContracts": [],
+    "jsonContracts": [
+      {
+        "column": "admission_record_json",
+        "schemaRefColumn": "admission_record_schema_ref",
+        "maxBytes": 65536,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
     "immutability": {
       "immutable": false,
       "rules": []
@@ -138,18 +253,20 @@
       "rules": []
     },
     "semanticRules": [
-      "`UNIQUE(trigger_kind,trigger_ref,trigger_digest)`",
-      "`INDEX(state,created_at_ms)`",
-      "只由Owner事实建立"
+      "`UNIQUE(trigger_kind,trigger_ref,trigger_revision,trigger_digest)`",
+      "Admission Record typed JSON≤`64 KiB`保存除relationized members外的完整Decision，和member rows合并后必须重建同一Decision/digest",
+      "current row为`cas_lifecycle`，active/blocked的completed time为NULL",
+      "只由Discard或Cleanup Scope Admission事务建立",
+      "`INDEX(state,created_at_ms)`"
     ],
     "rawContract": {
-      "columns": "`cleanup_scope_id PK, libra_run_id FK, trigger_kind(offload_completed|run_discarded), trigger_ref, trigger_digest, state, created_at_ms, completed_at_ms`",
-      "constraints": "`UNIQUE(trigger_kind,trigger_ref,trigger_digest)`；`INDEX(state,created_at_ms)`；只由Owner事实建立"
+      "columns": "`cleanup_scope_id PK, libra_run_id FK, workspace_id FK, trigger_kind(offload_completed|run_superseded|run_discarded), trigger_ref, trigger_revision, trigger_digest, admission_record_schema_ref, admission_record_json, admission_decision_digest, eligibility_evidence_digest, member_set_digest, state(active|completed|blocked), state_revision, state_digest, created_at_ms, completed_at_ms NULL`",
+      "constraints": "`UNIQUE(trigger_kind,trigger_ref,trigger_revision,trigger_digest)`；Admission Record typed JSON≤`64 KiB`保存除relationized members外的完整Decision，和member rows合并后必须重建同一Decision/digest；current row为`cas_lifecycle`，active/blocked的completed time为NULL；只由Discard或Cleanup Scope Admission事务建立；`INDEX(state,created_at_ms)`"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8172,
-      "lineDigest": "6692caf47c32ab7535ca7e9b0f52059a600a2f96d2f87a5bffaca94b7b527224"
+      "line": 8275,
+      "lineDigest": "6e0cf4a3c872b370760263842583303ac45dfccd5b1e512fed514d038db53062"
     },
     "foreignKeys": [
       {
@@ -159,6 +276,17 @@
         "targetTable": "libra_runs",
         "targetColumns": [
           "libra_run_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "workspace_id"
+        ],
+        "targetTable": "libra_workspaces",
+        "targetColumns": [
+          "workspace_id"
         ],
         "deletePolicy": "RESTRICT",
         "deferrable": false

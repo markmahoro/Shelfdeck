@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.libra-workspace-cleanup-scope-admission/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.libra-workspace-cleanup-scope-admission",
+    "displayName": "Libra Workspace Cleanup Scope Admission",
+    "ownerScope": "libra",
+    "commitClass": "domain_fact_commit",
+    "atomicFactSet": "complete `WorkspaceCleanupScopeAdmissionDecision@1` + current Run/Workspace/Reference rows + typed Arca `OffloadCompletionReadResult@1`或immutable superseded Run revision + grace/last-reference/orphan Evidence + Cleanup Scope/member set + non-empty variant Workspace reclaiming revision + durable `WorkspaceCleanupScopeAdmissionResult@1`/commit marker；discard variant只在Run Discard事务内装配；相同trigger digest语义重放同一Scope，`hasOutbox=false`",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "libra",
+        "access": "write",
+        "tables": [
+          "libra_workspace_cleanup_scopes",
+          "libra_workspace_cleanup_members",
+          "libra_workspaces",
+          "libra_workspace_revisions"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_event_result_bindings",
+          "fx_commit_markers"
+        ]
+      }
+    ],
+    "writeTables": [
+      "libra_workspace_cleanup_scopes",
+      "libra_workspace_cleanup_members",
+      "libra_workspaces",
+      "libra_workspace_revisions",
+      "fx_event_result_bindings",
+      "fx_commit_markers"
+    ],
+    "readTables": [
+      "libra_runs",
+      "libra_run_revisions",
+      "libra_workspace_material_refs",
+      "libra_product_packages",
+      "libra_delivery_receipts",
+      "fx_material_controls",
+      "fx_material_control_revisions",
+      "libra_workspace_cleanup_scopes",
+      "libra_workspace_cleanup_members",
+      "libra_workspaces",
+      "libra_workspace_revisions",
+      "fx_event_result_bindings",
+      "fx_commit_markers"
+    ],
+    "variants": [],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [
+      "proc_",
+      "arca_"
+    ],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "libra-workspace-cleanup-scope-admission",
+        "faultInjectionPoints": "typed trigger/grace/reference audit验证前后、Scope/member插入中途、Workspace reclaiming revision CAS前后、Result/marker前后",
+        "requiredInvariant": "Signal不建立资格；Scope/member/Workspace revision全有或全无；相同trigger语义重放同一Scope；空Workspace不虚构Scope",
+        "source": {
+          "section": "8.9.7",
+          "line": 9957
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7768,
+      "lineDigest": "f188477431f423bec12afc4a7e15e76a25cdae3c298476a1279e06d26d971cd8"
+    }
+  }
+}

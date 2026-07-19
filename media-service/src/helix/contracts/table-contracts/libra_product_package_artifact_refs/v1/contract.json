@@ -1,0 +1,177 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_product_package_artifact_refs/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_product_package_artifact_refs",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "on_deck_package_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "ordinal",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "artifact_handle_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "artifact_kind",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "artifact_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "artifact_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "requirement_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "materialization_state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "workspace_only",
+          "included_product"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "reference_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "on_deck_package_id",
+      "ordinal"
+    ],
+    "declaredForeignKeyColumns": [
+      "on_deck_package_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "on_deck_package_id",
+        "artifact_handle_id",
+        "artifact_revision"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "materialization_state",
+        "enumValues": [
+          "workspace_only",
+          "included_product"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "artifact_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "只保存typed immutable Artifact Handle ref，不保存大bytes"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,artifact_handle_id,artifact_revision)`",
+      "按kind/handle/revision排序",
+      "只保存typed immutable Artifact Handle ref，不保存大bytes",
+      "完整Artifact Manifest由relation重建"
+    ],
+    "rawContract": {
+      "columns": "`on_deck_package_id FK, ordinal, artifact_handle_id, artifact_kind, artifact_revision, artifact_digest, requirement_digest, materialization_state(workspace_only|included_product), reference_digest`",
+      "constraints": "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,artifact_handle_id,artifact_revision)`；按kind/handle/revision排序；只保存typed immutable Artifact Handle ref，不保存大bytes；完整Artifact Manifest由relation重建"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 8282,
+      "lineDigest": "32d168641de734faba91e91219a37c082bf076ef79a68d45c4be429deb1bb44a"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "on_deck_package_id"
+        ],
+        "targetTable": "libra_product_packages",
+        "targetColumns": [
+          "on_deck_package_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

@@ -1,0 +1,342 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_run_revisions/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_run_revisions",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "libra_run_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "state_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "active",
+          "suspended",
+          "superseded",
+          "frozen",
+          "discarded",
+          "completed"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "acceptance_spec_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "execution_basis_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "run_scope_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "priority_class",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "priority_intent_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "transition_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "admitted",
+          "suspended",
+          "resumed",
+          "reprioritized",
+          "superseded",
+          "frozen",
+          "discarded",
+          "completed"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "transition_decision_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "transition_decision_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "transition_evidence_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 13,
+        "name": "transition_evidence_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 14,
+        "name": "transition_evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 15,
+        "name": "expected_admission_head_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 16,
+        "name": "expected_active_scope_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 17,
+        "name": "committed_admission_head_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 18,
+        "name": "committed_active_scope_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 19,
+        "name": "previous_state_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 20,
+        "name": "revision_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 21,
+        "name": "committed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "libra_run_id",
+      "state_revision"
+    ],
+    "declaredForeignKeyColumns": [
+      "libra_run_id",
+      "acceptance_spec_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "active",
+          "suspended",
+          "superseded",
+          "frozen",
+          "discarded",
+          "completed"
+        ]
+      },
+      {
+        "column": "transition_kind",
+        "enumValues": [
+          "admitted",
+          "suspended",
+          "resumed",
+          "reprioritized",
+          "superseded",
+          "frozen",
+          "discarded",
+          "completed"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "state_revision",
+        "expected_admission_head_revision",
+        "committed_admission_head_revision",
+        "previous_state_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": [
+        "current Run的state/priority字段由最高state revision重建，独立`package_revision_head`由immutable Package revisions（无Package时为0）重建"
+      ]
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "revision从1连续且append-only",
+        "current Run的state/priority字段由最高state revision重建，独立`package_revision_head`由immutable Package revisions（无Package时为0）重建"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(libra_run_id,state_revision)`",
+      "revision从1连续且append-only",
+      "Admission/replacement两个Run revision都绑定同一Admission Decision，Lifecycle/Discard绑定各自Decision",
+      "expected/committed head snapshot永久保存pre/post CAS，不能从later current head反推",
+      "`revision_digest=SHA-256(JCS(完整business value excluding revisionDigest))`",
+      "current Run的state/priority字段由最高state revision重建，独立`package_revision_head`由immutable Package revisions（无Package时为0）重建",
+      "不从Foundation Result恢复"
+    ],
+    "rawContract": {
+      "columns": "`libra_run_id FK, state_revision, state, acceptance_spec_id FK, execution_basis_digest, run_scope_digest, priority_class, priority_intent_digest, transition_kind(admitted|suspended|resumed|reprioritized|superseded|frozen|discarded|completed), transition_decision_id, transition_decision_digest, transition_evidence_schema_ref, transition_evidence_id, transition_evidence_digest, expected_admission_head_revision, expected_active_scope_set_digest, committed_admission_head_revision, committed_active_scope_set_digest, previous_state_revision NULL, revision_digest, committed_at_ms`",
+      "constraints": "`PK(libra_run_id,state_revision)`；revision从1连续且append-only；Admission/replacement两个Run revision都绑定同一Admission Decision，Lifecycle/Discard绑定各自Decision；expected/committed head snapshot永久保存pre/post CAS，不能从later current head反推；`revision_digest=SHA-256(JCS(完整business value excluding revisionDigest))`；current Run的state/priority字段由最高state revision重建，独立`package_revision_head`由immutable Package revisions（无Package时为0）重建；不从Foundation Result恢复"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 8266,
+      "lineDigest": "940d6065f8f481ffc6da49fee9831f8378f66bbbb4cc06f19106736e7697b6ac"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "libra_run_id"
+        ],
+        "targetTable": "libra_runs",
+        "targetColumns": [
+          "libra_run_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "acceptance_spec_id"
+        ],
+        "targetTable": "libra_acceptance_specs",
+        "targetColumns": [
+          "acceptance_spec_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

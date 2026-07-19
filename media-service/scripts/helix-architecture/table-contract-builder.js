@@ -17,14 +17,22 @@ const UNIQUE_CONSTRAINT_OVERRIDES = Object.freeze({
   // SSOT 8.5.13: one source Person can have at most one terminal merge target.
   people_merge_records: [['source_person_id']]
 });
+const PARTIAL_UNIQUE_EXCLUDED_TABLES = new Set(['libra_workspaces', 'libra_workspace_material_refs']);
 // These contracts freeze their admission/basis columns, but also declare
 // explicit lifecycle CAS transitions. A prose occurrence of "immutable" must
 // not turn the whole relation into an append-only table.
 const MUTABLE_LIFECYCLE_TABLES = new Set([
+  'fx_workspace_registry',
+  'fx_workspace_materials',
   'proc_procurement_runs',
   'proc_run_materials',
   'proc_procurement_retry_intent_materials',
-  'proc_candidate_deliveries'
+  'proc_candidate_deliveries',
+  'libra_run_admission_heads',
+  'libra_runs',
+  'libra_workspaces',
+  'libra_workspace_cleanup_scopes',
+  'libra_workspace_cleanup_members'
 ]);
 // SSOT 8.5.9 requires every state/status column to be closed. Values named by
 // Level 6/7 lifecycles are preserved verbatim; unnamed technical projections
@@ -40,8 +48,8 @@ const ENUM_OVERRIDES = Object.freeze({
   'fx_resource_defer.state': ['waiting', 'released', 'cancelled', 'expired'],
   'fx_circuit_states.state': ['closed', 'open', 'recovering'],
   'fx_material_controls.state': ['controlled', 'released'],
-  'fx_workspace_registry.state': ['active', 'reclaiming', 'reclaimed'],
-  'fx_workspace_materials.state': ['working', 'product_staged', 'retained', 'deletion_pending', 'deleted'],
+  'fx_workspace_registry.state': ['active', 'reclaimed'],
+  'fx_workspace_materials.state': ['active', 'reclaimed'],
   'fx_artifact_registry.state': ['active', 'gc_eligible', 'deleted'],
   'fx_artifact_references.state': ['active', 'released'],
   'proc_material_fields.status': ['active', 'disabled'],
@@ -59,10 +67,12 @@ const ENUM_OVERRIDES = Object.freeze({
   'libra_material_bindings.health_state': ['active', 'stale', 'released'],
   'libra_decision_basis_revisions.status': ['ready', 'unresolved', 'superseded'],
   'libra_runs.state': ['active', 'suspended', 'superseded', 'frozen', 'discarded', 'completed'],
+  'libra_run_revisions.state': ['active', 'suspended', 'superseded', 'frozen', 'discarded', 'completed'],
   'libra_episode_delivery_members.state': ['pending', 'delivered', 'superseded'],
   'libra_workspaces.state': ['active', 'reclaiming', 'reclaimed'],
-  'libra_workspace_cleanup_scopes.state': ['active', 'completed'],
-  'libra_workspace_cleanup_members.state': ['pending', 'deleted', 'released', 'blocked'],
+  'libra_workspace_revisions.state': ['active', 'reclaiming', 'reclaimed'],
+  'libra_workspace_cleanup_scopes.state': ['active', 'completed', 'blocked'],
+  'libra_workspace_cleanup_members.state': ['pending', 'completed', 'blocked'],
   'libra_product_packages.state': ['published'],
   'arca_shelves.status': ['active', 'deregistering', 'deregistered'],
   'arca_acceptance_attempts.state': ['active', 'waiting', 'accepted', 'rejected'],
@@ -121,6 +131,12 @@ const FOREIGN_KEY_OVERRIDES = Object.freeze({
   'fx_plan_nodes.compensation_for_event_id': ['fx_workflow_events', 'event_id'],
   'proc_procurement_retry_intents.failed_run_id': ['proc_procurement_runs', 'procurement_run_id'],
   'libra_subjects.routing_anchor_intake_decision_id': ['libra_intake_decisions', 'intake_decision_id'],
+  'libra_material_bindings.origin_intake_decision_id': ['libra_intake_decisions', 'intake_decision_id'],
+  'libra_runs.supersedes_run_id': ['libra_runs', 'libra_run_id'],
+  'libra_runs.superseded_by_run_id': ['libra_runs', 'libra_run_id'],
+  'libra_run_discard_decisions.workspace_cleanup_scope_id': ['libra_workspace_cleanup_scopes', 'cleanup_scope_id'],
+  'libra_run_material_members.origin_intake_decision_id': ['libra_intake_decisions', 'intake_decision_id'],
+  'libra_product_package_materials.origin_intake_decision_id': ['libra_intake_decisions', 'intake_decision_id'],
   'libra_subject_decision_heads.current_routing_decision_id': ['libra_routing_decisions', 'routing_decision_id'],
   'libra_subject_decision_heads.current_decision_basis_id': ['libra_decision_basis_revisions', 'decision_basis_id'],
   'libra_subject_decision_heads.current_acceptance_spec_id': ['libra_acceptance_specs', 'acceptance_spec_id'],
@@ -215,6 +231,7 @@ const DEFERRED_FOREIGN_KEY_PAIRS = new Set([
   'proc_procurement_runs>proc_procurement_retry_intents',
   'proc_procurement_retry_intents>proc_procurement_runs',
   'libra_subjects>libra_intake_decisions', 'libra_intake_decisions>libra_subjects',
+  'libra_runs>libra_run_material_manifests', 'libra_run_material_manifests>libra_runs',
   'people_persons>people_person_revisions', 'people_person_revisions>people_persons',
   'people_persons>people_preference_revisions', 'people_preference_revisions>people_persons',
   'people_persons>people_reference_revisions',
@@ -229,13 +246,15 @@ const JSON_SCHEMA_COLUMN_OVERRIDES = Object.freeze({
   'fx_plan_nodes.input_bindings_json': 'input_binding_schema_ref',
   'fx_plan_nodes.parameters_json': 'parameter_schema_ref',
   'fx_plan_nodes.fence_basis_json': 'fence_schema_ref',
+  'libra_runs.execution_basis_record_json': 'execution_basis_schema_ref',
   'libra_product_fact_revisions.fact_json': 'schema_ref'
 });
 const JSON_LIMIT_OVERRIDES = Object.freeze({
   'fx_event_result_bindings.result_json': 64 * 1024,
   'fx_event_result_bindings.evidence_json': 64 * 1024,
   'people_registration_candidates.candidate_json': 16 * 1024,
-  'people_merge_candidates.candidate_json': 16 * 1024
+  'people_merge_candidates.candidate_json': 16 * 1024,
+  'libra_runs.execution_basis_record_json': 1024 * 1024
 });
 const CURRENT_POINTER_TARGETS = Object.freeze({
   fx_workflow_events: [[['event_id', 'current_progress_revision'], 'fx_event_progress', ['event_id', 'revision']]],
@@ -250,6 +269,7 @@ const CURRENT_POINTER_TARGETS = Object.freeze({
     [['current_decision_basis_id'], 'libra_decision_basis_revisions', ['decision_basis_id']],
     [['current_acceptance_spec_id'], 'libra_acceptance_specs', ['acceptance_spec_id']]
   ],
+  libra_workspaces: [[['workspace_id', 'current_revision'], 'libra_workspace_revisions', ['workspace_id', 'workspace_revision']]],
   arca_shelves: [
     [['shelf_id', 'current_standard_revision'], 'arca_shelf_standard_revisions', ['shelf_id', 'revision']],
     [['shelf_id', 'current_placement_revision'], 'arca_placement_policy_revisions', ['shelf_id', 'revision']]
@@ -364,8 +384,9 @@ function parseColumns(columnsContract, tableId = null) {
     const qualifiers = match[3] ? match[3].split(/\s+/) : [];
     const fixedPrimaryKey = qualifiers.find((value) => /^PK\([a-z][a-z0-9_]*\)$/.test(value)) || null;
     const marker = fixedPrimaryKey ? 'PK' : (qualifiers.find((value) => ['PK/FK', 'PK', 'FK'].includes(value)) || null);
+    const inlineUnique = qualifiers.includes('UNIQUE');
     const nullableSpec = qualifiers.find((value) => /^NULL(?:\|[a-z][a-z0-9_]*)*$/.test(value)) || null;
-    if (qualifiers.some((value) => value !== marker && value !== fixedPrimaryKey && value !== nullableSpec)) {
+    if (qualifiers.some((value) => value !== marker && value !== fixedPrimaryKey && value !== nullableSpec && value !== 'UNIQUE')) {
       throw new Error(`Unsupported column token: ${token}`);
     }
     const nullableEnum = nullableSpec && nullableSpec.includes('|') ? nullableSpec.split('|').slice(1) : [];
@@ -376,6 +397,7 @@ function parseColumns(columnsContract, tableId = null) {
       enumValues: fixedPrimaryKey ? [fixedPrimaryKey.slice(3, -1)] : (match[2] ? match[2].split('|') : (nullableEnum.length > 0 ? nullableEnum : (ENUM_OVERRIDES[tableId + '.' + match[1]] || []))),
       primaryKeyPart: marker === 'PK' || marker === 'PK/FK',
       foreignKeyMarker: marker === 'FK' || marker === 'PK/FK',
+      inlineUnique,
       nullable: nullableSpec !== null || NULLABLE_COLUMN_OVERRIDES.has(tableId + '.' + match[1])
     };
   });
@@ -418,7 +440,8 @@ function parseTableRows(entries) {
         requiresJsonValidCheck: true
       };
     });
-    const partialUniqueClauses = clauses.filter((clause) => /UNIQUE\([^)]*\)\s+WHERE\b/i.test(clause) || /partial unique|至多一个|最多一份|unique while open|active unique|全局exclusive/.test(clause));
+    const partialUniqueClauses = PARTIAL_UNIQUE_EXCLUDED_TABLES.has(entry.id) ? [] : clauses.filter((clause) =>
+      /UNIQUE\([^)]*\)\s+WHERE\b/i.test(clause) || /partial unique|至多一个|最多一份|unique while open|active unique|全局exclusive/.test(clause));
     const partialUniqueKeys = new Set(partialUniqueClauses.flatMap((clause) => parseFunctionCalls(clause, 'UNIQUE')).map((columns) => JSON.stringify(columns)));
     const currentPointerColumns = columns.filter((column) =>
       (/^current_(?:.*_)?(?:id|revision)$/.test(column.name) || column.name === 'canonical_identity_revision') &&
@@ -435,6 +458,7 @@ function parseTableRows(entries) {
       primaryKey: key,
       declaredForeignKeyColumns: columns.filter((column) => column.foreignKeyMarker).map((column) => column.name),
       uniqueConstraints: [...new Map([
+        ...columns.filter((column) => column.inlineUnique).map((column) => [column.name]),
         ...parseFunctionCalls(entry.constraintsContract, 'UNIQUE').filter((item) => !partialUniqueKeys.has(JSON.stringify(item))),
         ...(UNIQUE_CONSTRAINT_OVERRIDES[entry.id] || [])
       ].map((item) => [JSON.stringify(item), item])).values()],

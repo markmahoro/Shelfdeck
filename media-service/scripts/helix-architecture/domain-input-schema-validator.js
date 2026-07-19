@@ -95,7 +95,10 @@ function validateDomainInputSchemas(options) {
       AcceptedIntakePayload: ['intakeDecisionId', 'decisionRevision', 'payloadDigest'],
       IntakeRejectionDecision: ['intakeDecisionId', 'decisionRevision', 'offerId', 'candidatePackageId', 'decisionDigest'],
       ArcaAcceptanceRejectionDecision: ['acceptanceDecisionId', 'acceptanceAttemptId', 'offerId', 'onDeckPackageId', 'decisionDigest'],
-      StructuredRejection: ['handoffKind', 'offerId', 'deliverableId', 'rejectionCode', 'rejectionDigest']
+      StructuredRejection: ['handoffKind', 'offerId', 'deliverableId', 'rejectionCode', 'rejectionDigest'],
+      LibraDeliverablePromotionDecision: ['decisionId', 'libraRunRef', 'onDeckPackageId', 'packageRevision', 'packageDigest', 'decisionDigest'],
+      WorkspaceCleanupEffectIntent: ['intentId', 'cleanupScopeId', 'workspaceId', 'materialHandleId', 'intentDigest'],
+      WorkspaceCleanupCommitDecision: ['decisionId', 'cleanupScopeId', 'workspaceId', 'materialHandleId', 'decisionDigest']
     };
     const identityFields = exactIdentityFields[entry.id] || ['schemaRef', 'schemaVersion', 'revision', 'digest'];
     for (const field of identityFields) {

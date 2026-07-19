@@ -51,10 +51,28 @@
       "minLength": 1,
       "maxLength": 256
     },
+    "packageRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
     "libraRunId": {
       "type": "string",
       "minLength": 1,
       "maxLength": 256
+    },
+    "runStateRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "runStateDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "runExecutionBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     },
     "subjectId": {
       "type": "string",
@@ -66,15 +84,113 @@
       "minLength": 1,
       "maxLength": 256
     },
-    "acceptanceSpecId": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 256
+    "acceptanceSpecRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "recordDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "id",
+        "recordDigest"
+      ]
     },
-    "resolvedIdentityDigest": {
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^[a-f0-9]{64}$"
+    "resolvedIdentitySnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "objectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "schemaRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "snapshotDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "objectKind": {
+          "const": "resolved-identity-product-fact"
+        }
+      },
+      "required": [
+        "objectId",
+        "revision",
+        "schemaRef",
+        "snapshotDigest",
+        "objectKind"
+      ]
+    },
+    "productStructureSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "objectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "schemaRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "snapshotDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "objectKind": {
+          "const": "product-structure"
+        }
+      },
+      "required": [
+        "objectId",
+        "revision",
+        "schemaRef",
+        "snapshotDigest",
+        "objectKind"
+      ]
+    },
+    "runMaterialManifestRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "digest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "id",
+        "digest"
+      ]
     },
     "productMaterialManifest": {
       "type": "object",
@@ -110,14 +226,107 @@
         "objectKind"
       ]
     },
-    "metadataFactRefs": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "minLength": 1,
-        "maxLength": 256
+    "productFactManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "objectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "schemaRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "snapshotDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "objectKind": {
+          "const": "product-fact-manifest"
+        }
       },
-      "maxItems": 1024
+      "required": [
+        "objectId",
+        "revision",
+        "schemaRef",
+        "snapshotDigest",
+        "objectKind"
+      ]
+    },
+    "artifactManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "objectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "schemaRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "snapshotDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "objectKind": {
+          "const": "artifact-manifest"
+        }
+      },
+      "required": [
+        "objectId",
+        "revision",
+        "schemaRef",
+        "snapshotDigest",
+        "objectKind"
+      ]
+    },
+    "mediaCastSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "objectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "schemaRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "snapshotDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "objectKind": {
+          "const": "media-cast-product-fact"
+        }
+      },
+      "required": [
+        "objectId",
+        "revision",
+        "schemaRef",
+        "snapshotDigest",
+        "objectKind"
+      ]
     },
     "offloadContextManifest": {
       "type": "object",
@@ -153,6 +362,74 @@
         "objectKind"
       ]
     },
+    "productionProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "objectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "schemaRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "snapshotDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "objectKind": {
+          "const": "production-provenance"
+        }
+      },
+      "required": [
+        "objectId",
+        "revision",
+        "schemaRef",
+        "snapshotDigest",
+        "objectKind"
+      ]
+    },
+    "productionAttestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "objectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "schemaRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "snapshotDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "objectKind": {
+          "const": "production-attestation"
+        }
+      },
+      "required": [
+        "objectId",
+        "revision",
+        "schemaRef",
+        "snapshotDigest",
+        "objectKind"
+      ]
+    },
     "packageDigest": {
       "type": "string",
       "minLength": 1,
@@ -170,14 +447,24 @@
     "manifestDigest",
     "publishedAtMs",
     "onDeckPackageId",
+    "packageRevision",
     "libraRunId",
+    "runStateRevision",
+    "runStateDigest",
+    "runExecutionBasisDigest",
     "subjectId",
     "shelfId",
-    "acceptanceSpecId",
-    "resolvedIdentityDigest",
+    "acceptanceSpecRef",
+    "resolvedIdentitySnapshot",
+    "productStructureSnapshot",
+    "runMaterialManifestRef",
     "productMaterialManifest",
-    "metadataFactRefs",
+    "productFactManifest",
+    "artifactManifest",
+    "mediaCastSnapshot",
     "offloadContextManifest",
+    "productionProvenance",
+    "productionAttestation",
     "packageDigest"
   ]
 }

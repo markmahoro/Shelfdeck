@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_run_admission_heads/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_run_admission_heads",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "subject_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "head_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "active_scope_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "subject_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "subject_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "head_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "Subject没有Run时允许无row并以logical revision 0/空set验证",
+      "每次Run admission、replacement、completed或discarded对expected head CAS并加1",
+      "`active_scope_set_digest=SHA-256(JCS({schema:\"libra.active-run-scopes@1\",subjectId,items:[{libraRunId,runScopeDigest,stateRevision,stateDigest}]按libraRunId UTF-8 bytes排序}))`，只收录具有最终提交资格的`active|suspended|frozen` Run",
+      "不能按时间戳或扫描Supporting Work猜current scope"
+    ],
+    "rawContract": {
+      "columns": "`subject_id PK/FK, head_revision, active_scope_set_digest, updated_at_ms`",
+      "constraints": "Subject没有Run时允许无row并以logical revision 0/空set验证；每次Run admission、replacement、completed或discarded对expected head CAS并加1；`active_scope_set_digest=SHA-256(JCS({schema:\"libra.active-run-scopes@1\",subjectId,items:[{libraRunId,runScopeDigest,stateRevision,stateDigest}]按libraRunId UTF-8 bytes排序}))`，只收录具有最终提交资格的`active|suspended|frozen` Run；不能按时间戳或扫描Supporting Work猜current scope"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 8264,
+      "lineDigest": "818296e19ebd6ff979153a12d1113d41e1bfd284349d75abce24ef7063fa31d2"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "subject_id"
+        ],
+        "targetTable": "libra_subjects",
+        "targetColumns": [
+          "subject_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}
