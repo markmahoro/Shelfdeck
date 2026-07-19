@@ -1737,7 +1737,7 @@ CREATE TABLE "libra_run_material_episode_claims" (
   "season_claim_digest" TEXT CHECK (length("season_claim_digest") = 64 AND "season_claim_digest" NOT GLOB '*[^0-9a-f]*'),
   "claim_digest" TEXT CHECK (length("claim_digest") = 64 AND "claim_digest" NOT GLOB '*[^0-9a-f]*'),
   PRIMARY KEY ("run_material_manifest_id", "member_ordinal", "episode_key"),
-  FOREIGN KEY ("run_material_manifest_id") REFERENCES "libra_run_material_manifests" ("run_material_manifest_id") ON DELETE RESTRICT
+  FOREIGN KEY ("run_material_manifest_id", "member_ordinal") REFERENCES "libra_run_material_members" ("run_material_manifest_id", "ordinal") ON DELETE RESTRICT
 );
 
 CREATE TABLE "libra_run_material_manifests" (
@@ -1804,7 +1804,7 @@ CREATE TABLE "libra_run_revisions" (
   "transition_evidence_schema_ref" TEXT,
   "transition_evidence_id" TEXT,
   "transition_evidence_digest" TEXT CHECK (length("transition_evidence_digest") = 64 AND "transition_evidence_digest" NOT GLOB '*[^0-9a-f]*'),
-  "expected_admission_head_revision" INTEGER CHECK ("expected_admission_head_revision" >= 1),
+  "expected_admission_head_revision" INTEGER NOT NULL CHECK ("expected_admission_head_revision" >= 0),
   "expected_active_scope_set_digest" TEXT CHECK (length("expected_active_scope_set_digest") = 64 AND "expected_active_scope_set_digest" NOT GLOB '*[^0-9a-f]*'),
   "committed_admission_head_revision" INTEGER CHECK ("committed_admission_head_revision" >= 1),
   "committed_active_scope_set_digest" TEXT CHECK (length("committed_active_scope_set_digest") = 64 AND "committed_active_scope_set_digest" NOT GLOB '*[^0-9a-f]*'),
@@ -1829,7 +1829,7 @@ CREATE TABLE "libra_runs" (
   "state" TEXT CHECK ("state" IN ('active', 'suspended', 'superseded', 'frozen', 'discarded', 'completed')),
   "state_revision" INTEGER CHECK ("state_revision" >= 1),
   "state_digest" TEXT CHECK (length("state_digest") = 64 AND "state_digest" NOT GLOB '*[^0-9a-f]*'),
-  "package_revision_head" TEXT,
+  "package_revision_head" INTEGER NOT NULL DEFAULT 0 CHECK ("package_revision_head" >= 0),
   "priority_class" TEXT CHECK ("priority_class" IN ('normal', 'expedited')),
   "priority_intent_digest" TEXT CHECK (length("priority_intent_digest") = 64 AND "priority_intent_digest" NOT GLOB '*[^0-9a-f]*'),
   "supersedes_run_id" TEXT,

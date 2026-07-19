@@ -41,6 +41,20 @@ test('preserves an explicit nullable pointer marker from the SSOT table contract
   assert.equal(pointer.logicalType, 'INTEGER');
 });
 
+test('materializes explicit Run head INTEGER type and Episode member continuity', () => {
+  const byId = new Map(contracts.map((contract) => [contract.tableId, contract]));
+  assert.equal(byId.get('libra_runs').columns.find((column) => column.name === 'package_revision_head').logicalType, 'INTEGER');
+  assert.equal(byId.get('libra_run_revisions').columns
+    .find((column) => column.name === 'expected_admission_head_revision').logicalType, 'INTEGER');
+  const claim = byId.get('libra_run_material_episode_claims');
+  const memberForeignKey = claim.foreignKeys.find((foreignKey) =>
+    canonicalKey(foreignKey.columns) === canonicalKey(['run_material_manifest_id', 'member_ordinal']));
+  assert.deepEqual(memberForeignKey.targetTable, 'libra_run_material_members');
+  assert.deepEqual(memberForeignKey.targetColumns, ['run_material_manifest_id', 'ordinal']);
+});
+
+function canonicalKey(value) { return JSON.stringify(value); }
+
 test('closes every SSOT state/status column to an explicit enum and keeps revision-set digests as TEXT', () => {
   for (const contract of contracts) {
     for (const column of contract.columns.filter((item) => /(?:^|_)(?:state|status)$/.test(item.name))) {

@@ -105,11 +105,13 @@
     "foreignKeys": [
       {
         "columns": [
-          "run_material_manifest_id"
+          "run_material_manifest_id",
+          "member_ordinal"
         ],
-        "targetTable": "libra_run_material_manifests",
+        "targetTable": "libra_run_material_members",
         "targetColumns": [
-          "run_material_manifest_id"
+          "run_material_manifest_id",
+          "ordinal"
         ],
         "deletePolicy": "RESTRICT",
         "deferrable": false

@@ -137,7 +137,7 @@
       {
         "ordinal": 13,
         "name": "package_revision_head",
-        "logicalType": "TEXT",
+        "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -256,6 +256,9 @@
           "normal",
           "expedited"
         ]
+      },
+      {
+        "rule": "`package_revision_head`固定为`INTEGER NOT NULL DEFAULT 0 CHECK(package_revision_head >= 0)`，Run Admission初值0，每次Promotion以expected数值CAS后加1，禁止物化为TEXT或从时间戳推导"
       }
     ],
     "revisionContract": {
@@ -290,19 +293,19 @@
       "`run_material_manifest_id`与Manifest回指Run的复合建立使用`DEFERRABLE INITIALLY DEFERRED` FK并在事务commit前完整验证，禁止nullable后补。`execution_basis_schema_ref=LibraRunExecutionBasisRecord@1`且typed JSON≤`1 MiB`，保存除大Manifest成员外的完整冻结Basis及Manifest ref",
       "与Manifest relation展开后必须重算同一execution basis digest。`UNIQUE(subject_id,admission_revision)`及`UNIQUE(subject_id,acceptance_spec_id,run_scope_digest,admission_revision)`",
       "current aggregate row使用`rowMutability=cas_lifecycle`：state transition必须同时追加`libra_run_revisions`，Deliverable Promotion只允许expected `package_revision_head` CAS加1且不得改state",
-      "初值0",
+      "`package_revision_head`固定为`INTEGER NOT NULL DEFAULT 0 CHECK(package_revision_head >= 0)`，Run Admission初值0，每次Promotion以expected数值CAS后加1，禁止物化为TEXT或从时间戳推导",
       "`terminal_at_ms`仅`completed|superseded|discarded`非NULL，其他状态为NULL",
       "same-spec/scope semantic replay返回原Run，新的合法replacement使用新admission revision",
       "`INDEX(state,priority_class,created_at_ms)`"
     ],
     "rawContract": {
-      "columns": "`libra_run_id PK, subject_id FK, admission_revision, acceptance_spec_id FK, run_material_manifest_id FK, execution_basis_schema_ref, execution_basis_record_json, execution_basis_digest, run_scope_digest, state(active|suspended|superseded|frozen|discarded|completed), state_revision, state_digest, package_revision_head, priority_class(normal|expedited), priority_intent_digest, supersedes_run_id NULL FK, superseded_by_run_id NULL FK, created_at_ms, terminal_at_ms NULL`",
-      "constraints": "`run_material_manifest_id`与Manifest回指Run的复合建立使用`DEFERRABLE INITIALLY DEFERRED` FK并在事务commit前完整验证，禁止nullable后补。`execution_basis_schema_ref=LibraRunExecutionBasisRecord@1`且typed JSON≤`1 MiB`，保存除大Manifest成员外的完整冻结Basis及Manifest ref；与Manifest relation展开后必须重算同一execution basis digest。`UNIQUE(subject_id,admission_revision)`及`UNIQUE(subject_id,acceptance_spec_id,run_scope_digest,admission_revision)`；current aggregate row使用`rowMutability=cas_lifecycle`：state transition必须同时追加`libra_run_revisions`，Deliverable Promotion只允许expected `package_revision_head` CAS加1且不得改state；初值0；`terminal_at_ms`仅`completed|superseded|discarded`非NULL，其他状态为NULL；same-spec/scope semantic replay返回原Run，新的合法replacement使用新admission revision；`INDEX(state,priority_class,created_at_ms)`"
+      "columns": "`libra_run_id PK, subject_id FK, admission_revision, acceptance_spec_id FK, run_material_manifest_id FK, execution_basis_schema_ref, execution_basis_record_json, execution_basis_digest, run_scope_digest, state(active|suspended|superseded|frozen|discarded|completed), state_revision, state_digest, package_revision_head INTEGER, priority_class(normal|expedited), priority_intent_digest, supersedes_run_id NULL FK, superseded_by_run_id NULL FK, created_at_ms, terminal_at_ms NULL`",
+      "constraints": "`run_material_manifest_id`与Manifest回指Run的复合建立使用`DEFERRABLE INITIALLY DEFERRED` FK并在事务commit前完整验证，禁止nullable后补。`execution_basis_schema_ref=LibraRunExecutionBasisRecord@1`且typed JSON≤`1 MiB`，保存除大Manifest成员外的完整冻结Basis及Manifest ref；与Manifest relation展开后必须重算同一execution basis digest。`UNIQUE(subject_id,admission_revision)`及`UNIQUE(subject_id,acceptance_spec_id,run_scope_digest,admission_revision)`；current aggregate row使用`rowMutability=cas_lifecycle`：state transition必须同时追加`libra_run_revisions`，Deliverable Promotion只允许expected `package_revision_head` CAS加1且不得改state；`package_revision_head`固定为`INTEGER NOT NULL DEFAULT 0 CHECK(package_revision_head >= 0)`，Run Admission初值0，每次Promotion以expected数值CAS后加1，禁止物化为TEXT或从时间戳推导；`terminal_at_ms`仅`completed|superseded|discarded`非NULL，其他状态为NULL；same-spec/scope semantic replay返回原Run，新的合法replacement使用新admission revision；`INDEX(state,priority_class,created_at_ms)`"
     },
     "source": {
       "section": "8.5.11",
       "line": 8268,
-      "lineDigest": "db93066227c5036976b8649b83149fe762848c3b149be5196a2910643efe808c"
+      "lineDigest": "776789010c703bde0c239302e961751a0f89558f5fe56c8b4faead25ed55a62e"
     },
     "foreignKeys": [
       {

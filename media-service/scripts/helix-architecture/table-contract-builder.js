@@ -116,6 +116,7 @@ const INTEGER_COLUMN_OVERRIDES = new Set([
   'fx_event_attempts.executor_version',
   'fx_resource_defer.local_priority',
   'libra_decision_basis_inputs.query_version',
+  'libra_runs.package_revision_head',
   'perception_source_cursors.has_more',
   'perception_records.rating'
 ]);
@@ -150,6 +151,10 @@ const FOREIGN_KEY_OVERRIDES = Object.freeze({
   'libra_subject_episode_scopes.first_intake_decision_id': ['libra_intake_decisions', 'intake_decision_id']
 });
 const EXPLICIT_FOREIGN_KEYS = Object.freeze({
+  libra_run_material_episode_claims: [
+    { columns: ['run_material_manifest_id', 'member_ordinal'], targetTable: 'libra_run_material_members',
+      targetColumns: ['run_material_manifest_id', 'ordinal'] }
+  ],
   proc_candidate_primary_material_episode_claims: [
     { columns: ['candidate_package_id', 'primary_ordinal'], targetTable: 'proc_candidate_primary_materials',
       targetColumns: ['candidate_package_id', 'ordinal'] }
@@ -382,18 +387,20 @@ function parseColumns(columnsContract, tableId = null) {
     const match = token.match(/^([a-z][a-z0-9_]*)(?:\(([^)]*)\))?(?:\s+(.+))?$/);
     if (!match) throw new Error(`Unsupported column token: ${token}`);
     const qualifiers = match[3] ? match[3].split(/\s+/) : [];
+    const declaredLogicalType = qualifiers.find((value) => value === 'INTEGER') || null;
     const fixedPrimaryKey = qualifiers.find((value) => /^PK\([a-z][a-z0-9_]*\)$/.test(value)) || null;
     const marker = fixedPrimaryKey ? 'PK' : (qualifiers.find((value) => ['PK/FK', 'PK', 'FK'].includes(value)) || null);
     const inlineUnique = qualifiers.includes('UNIQUE');
     const nullableSpec = qualifiers.find((value) => /^NULL(?:\|[a-z][a-z0-9_]*)*$/.test(value)) || null;
-    if (qualifiers.some((value) => value !== marker && value !== fixedPrimaryKey && value !== nullableSpec && value !== 'UNIQUE')) {
+    if (qualifiers.some((value) => value !== marker && value !== fixedPrimaryKey && value !== nullableSpec
+      && value !== declaredLogicalType && value !== 'UNIQUE')) {
       throw new Error(`Unsupported column token: ${token}`);
     }
     const nullableEnum = nullableSpec && nullableSpec.includes('|') ? nullableSpec.split('|').slice(1) : [];
     return {
       ordinal: ordinal + 1,
       name: match[1],
-      logicalType: logicalType(match[1], tableId),
+      logicalType: declaredLogicalType || logicalType(match[1], tableId),
       enumValues: fixedPrimaryKey ? [fixedPrimaryKey.slice(3, -1)] : (match[2] ? match[2].split('|') : (nullableEnum.length > 0 ? nullableEnum : (ENUM_OVERRIDES[tableId + '.' + match[1]] || []))),
       primaryKeyPart: marker === 'PK' || marker === 'PK/FK',
       foreignKeyMarker: marker === 'FK' || marker === 'PK/FK',

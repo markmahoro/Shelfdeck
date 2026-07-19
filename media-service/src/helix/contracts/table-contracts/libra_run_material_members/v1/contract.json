@@ -336,6 +336,7 @@
     "immutability": {
       "immutable": true,
       "rules": [
+        "`output_requirement_digest`必须按8.6.21从本Run immutable Acceptance Spec、manifest role、materialKey/role及本member Episode relation重算，禁止caller传入opaque digest",
         "immutable"
       ]
     },
@@ -348,16 +349,17 @@
       "ordinal从0连续，按materialKey UTF-8 bytes排序",
       "Run Input只允许Libra Material Binding与domain location，完整Physical Identity/size/Location/Binding/Candidate Delivery provenance/Control snapshot可独立重建",
       "Related值只可从该exact historical Delivery读取并校验set digest",
+      "`output_requirement_digest`必须按8.6.21从本Run immutable Acceptance Spec、manifest role、materialKey/role及本member Episode relation重算，禁止caller传入opaque digest",
       "immutable"
     ],
     "rawContract": {
       "columns": "`run_material_manifest_id FK, ordinal, material_key, role(primary_payload|structural_dependency), mount_scope_id, inode, content_hash_algorithm, content_hash, size_bytes, location_kind(domain_binding), endpoint_id, location, binding_kind(libra_material_binding), binding_revision, binding_evidence_digest, origin_intake_decision_id FK, origin_offer_id, origin_candidate_package_id, origin_package_revision, origin_package_digest, origin_candidate_delivery_snapshot_digest, origin_related_reference_set_digest, admitted_control_revision, admitted_control_projection_digest, output_requirement_digest, episode_claim_set_digest, member_digest`",
-      "constraints": "`PK(run_material_manifest_id,ordinal)`及`UNIQUE(run_material_manifest_id,material_key)`；ordinal从0连续，按materialKey UTF-8 bytes排序；Run Input只允许Libra Material Binding与domain location，完整Physical Identity/size/Location/Binding/Candidate Delivery provenance/Control snapshot可独立重建；Related值只可从该exact historical Delivery读取并校验set digest；immutable"
+      "constraints": "`PK(run_material_manifest_id,ordinal)`及`UNIQUE(run_material_manifest_id,material_key)`；ordinal从0连续，按materialKey UTF-8 bytes排序；Run Input只允许Libra Material Binding与domain location，完整Physical Identity/size/Location/Binding/Candidate Delivery provenance/Control snapshot可独立重建；Related值只可从该exact historical Delivery读取并校验set digest；`output_requirement_digest`必须按8.6.21从本Run immutable Acceptance Spec、manifest role、materialKey/role及本member Episode relation重算，禁止caller传入opaque digest；immutable"
     },
     "source": {
       "section": "8.5.11",
       "line": 8273,
-      "lineDigest": "ae9b4fb770c07f908a4f3303bbf4fde2962c26f1dc25bb50acbda7fd7d64bce8"
+      "lineDigest": "923b871876bb6eacd575e1433979452e56a80be77712b91a4fb06113f6fb9e4b"
     },
     "foreignKeys": [
       {

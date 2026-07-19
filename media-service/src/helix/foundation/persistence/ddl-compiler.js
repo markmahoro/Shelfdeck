@@ -15,7 +15,15 @@ const NON_NEGATIVE_REVISION_COLUMNS = new Set([
   'libra_subject_continuity_heads.current_revision',
   'libra_intake_decisions.expected_continuity_head_revision',
   'libra_decision_basis_revisions.expected_head_revision',
-  'libra_decision_basis_inputs.input_revision'
+  'libra_decision_basis_inputs.input_revision',
+  'libra_run_revisions.expected_admission_head_revision',
+  'libra_runs.package_revision_head'
+]);
+const REQUIRED_COLUMN_DEFAULTS = Object.freeze({
+  'libra_runs.package_revision_head': '0'
+});
+const REQUIRED_COLUMNS = new Set([
+  'libra_run_revisions.expected_admission_head_revision'
 ]);
 
 // These are implementation-only projection guards. Their writers and startup
@@ -213,6 +221,9 @@ function compileColumn(column, primaryKey, tableId) {
   if (!sqliteType) throw new Error('P3_DDL_UNSUPPORTED_LOGICAL_TYPE:' + column.logicalType);
   const parts = [quoteIdentifier(column.name), sqliteType];
   if (primaryKey.length === 1 && primaryKey[0] === column.name) parts.push('PRIMARY KEY');
+  const qualifiedName = tableId + '.' + column.name;
+  if (Object.hasOwn(REQUIRED_COLUMN_DEFAULTS, qualifiedName)) parts.push('NOT NULL DEFAULT ' + REQUIRED_COLUMN_DEFAULTS[qualifiedName]);
+  else if (REQUIRED_COLUMNS.has(qualifiedName)) parts.push('NOT NULL');
   for (const check of checkClauses(column, tableId)) parts.push('CHECK (' + check + ')');
   return parts.join(' ');
 }
