@@ -1,0 +1,351 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/ProductionMaterialManifest/v1",
+  "title": "ProductionMaterialManifest@1",
+  "x-helix-ssotRefs": [
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 8388608,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "manifestId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "manifestRole": {
+      "type": "string",
+      "enum": [
+        "run_input",
+        "product_delivery"
+      ]
+    },
+    "manifestRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "scopeKind": {
+      "type": "string",
+      "enum": [
+        "single",
+        "episode_delivery"
+      ]
+    },
+    "members": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ordinal": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "materialKey": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "primary_payload",
+              "structural_dependency",
+              "metadata_sidecar",
+              "poster",
+              "fanart",
+              "subtitle",
+              "external_audio",
+              "chapter"
+            ]
+          },
+          "physicalIdentity": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "mountScopeId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "inode": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^(0|[1-9][0-9]*)$"
+              },
+              "contentHashAlgorithm": {
+                "const": "sha256"
+              },
+              "contentHash": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "mountScopeId",
+              "inode",
+              "contentHashAlgorithm",
+              "contentHash"
+            ]
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "location": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "locationKind": {
+                "type": "string",
+                "enum": [
+                  "domain_binding",
+                  "workspace_handle"
+                ]
+              },
+              "endpointId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "location": {
+                "type": "string",
+                "minLength": 1
+              },
+              "rootHandleRef": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "relativePath": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "locationKind",
+              "endpointId"
+            ]
+          },
+          "bindingKind": {
+            "type": "string",
+            "enum": [
+              "libra_material_binding",
+              "workspace_material_reference"
+            ]
+          },
+          "bindingRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "bindingEvidenceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "originCandidateDeliveryRef": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "intakeDecisionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "offerId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "candidatePackageId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "packageRevision": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "packageDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "candidateDeliverySnapshotDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "relatedReferenceSetDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "intakeDecisionId",
+                  "offerId",
+                  "candidatePackageId",
+                  "packageRevision",
+                  "packageDigest",
+                  "candidateDeliverySnapshotDigest",
+                  "relatedReferenceSetDigest"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "workspaceReferenceId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "workspaceMaterialHandle": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "admittedControlRevision": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "admittedControlProjectionDigest": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "outputRequirementDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "episodeClaims": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "episodeKey": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "seasonClaimDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "claimDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "required": [
+                "episodeKey",
+                "seasonClaimDigest",
+                "claimDigest"
+              ]
+            },
+            "maxItems": 32,
+            "uniqueItems": true
+          },
+          "episodeClaimSetDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "memberDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "ordinal",
+          "materialKey",
+          "role",
+          "physicalIdentity",
+          "sizeBytes",
+          "location",
+          "bindingKind",
+          "bindingRevision",
+          "bindingEvidenceDigest",
+          "originCandidateDeliveryRef",
+          "workspaceReferenceId",
+          "workspaceMaterialHandle",
+          "admittedControlRevision",
+          "admittedControlProjectionDigest",
+          "outputRequirementDigest",
+          "episodeClaims",
+          "episodeClaimSetDigest",
+          "memberDigest"
+        ]
+      },
+      "minItems": 1,
+      "maxItems": 1024
+    },
+    "memberSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "episodeScopeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "manifestDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "manifestId",
+    "manifestRole",
+    "manifestRevision",
+    "libraRunId",
+    "scopeKind",
+    "members",
+    "memberSetDigest",
+    "episodeScopeDigest",
+    "manifestDigest"
+  ]
+}

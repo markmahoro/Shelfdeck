@@ -266,6 +266,106 @@ function libraRunDiscardCommandResult() {
   };
 }
 
+function outputRequirement() {
+  return {
+    $schema: DRAFT, $id: typeId('ProductionMaterialOutputRequirement'),
+    title: 'ProductionMaterialOutputRequirement@1', 'x-helix-ssotRefs': ['8.6.21'],
+    'x-helix-maxCanonicalBytes': 64 * 1024,
+    ...object({
+      acceptanceSpecRef: object({ acceptanceSpecId: id(), specRevision: positive(), specDigest: digest(),
+        recordDigest: digest(), productScopeDigest: digest() }),
+      manifestRole: { type: 'string', enum: ['run_input', 'product_delivery'] }, materialKey: digest(),
+      materialRole: { type: 'string', enum: ['primary_payload', 'structural_dependency', 'metadata_sidecar',
+        'poster', 'fanart', 'subtitle', 'external_audio', 'chapter'] },
+      applicationScope: object({ kind: { type: 'string', enum: ['product_scope', 'episode_subset', 'production_support'] },
+        episodeKeys: { type: 'array', items: text(), maxItems: 32, uniqueItems: true }, scopeDigest: digest() }),
+      acceptanceRequirementSetDigest: digest(), outputRequirementDigest: digest()
+    })
+  };
+}
+
+function productionMaterialManifest() {
+  const claim = object({ episodeKey: text(), seasonClaimDigest: digest(), claimDigest: digest() });
+  const physicalIdentity = object({ mountScopeId: id(), inode: text({ pattern: '^(0|[1-9][0-9]*)$' }),
+    contentHashAlgorithm: { const: 'sha256' }, contentHash: digest() });
+  const origin = object({ intakeDecisionId: id(), offerId: id(), candidatePackageId: id(), packageRevision: positive(),
+    packageDigest: digest(), candidateDeliverySnapshotDigest: digest(), relatedReferenceSetDigest: digest() });
+  const location = object({ locationKind: { type: 'string', enum: ['domain_binding', 'workspace_handle'] }, endpointId: id(),
+    location: text(), rootHandleRef: id(), relativePath: text() }, ['locationKind', 'endpointId']);
+  const member = object({ ordinal: nonNegative(), materialKey: digest(), role: { type: 'string', enum: [
+    'primary_payload', 'structural_dependency', 'metadata_sidecar', 'poster', 'fanart', 'subtitle', 'external_audio', 'chapter'
+  ] }, physicalIdentity, sizeBytes: nonNegative(), location,
+  bindingKind: { type: 'string', enum: ['libra_material_binding', 'workspace_material_reference'] }, bindingRevision: positive(),
+  bindingEvidenceDigest: digest(), originCandidateDeliveryRef: nullable(origin), workspaceReferenceId: nullable(id()),
+  workspaceMaterialHandle: nullable({ type: 'object' }), admittedControlRevision: nullable(positive()),
+  admittedControlProjectionDigest: nullable(digest()), outputRequirementDigest: digest(),
+  episodeClaims: { type: 'array', items: claim, maxItems: 32, uniqueItems: true }, episodeClaimSetDigest: digest(), memberDigest: digest()
+  });
+  return {
+    $schema: DRAFT, $id: typeId('ProductionMaterialManifest'), title: 'ProductionMaterialManifest@1',
+    'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 8 * 1024 * 1024,
+    ...object({ manifestId: digest(), manifestRole: { type: 'string', enum: ['run_input', 'product_delivery'] },
+      manifestRevision: positive(), libraRunId: digest(), scopeKind: { type: 'string', enum: ['single', 'episode_delivery'] },
+      members: { type: 'array', items: member, minItems: 1, maxItems: 1024 }, memberSetDigest: digest(),
+      episodeScopeDigest: digest(), manifestDigest: digest() })
+  };
+}
+
+function runExecutionBasis() {
+  return {
+    $schema: DRAFT, $id: typeId('LibraRunExecutionBasis'), title: 'LibraRunExecutionBasis@1',
+    'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 8 * 1024 * 1024,
+    ...object({
+      subjectSnapshot: object({ subjectId: id(), intakeRevision: positive(), structureKind: { type: 'string', enum: ['single', 'season'] },
+        contentProfile: { type: 'string', enum: ['movie', 'series', 'jav', 'western_adult'] }, continuitySetDigest: digest(), episodeScopeDigest: digest() }),
+      decisionHeadSnapshot: { type: 'object' },
+      acceptanceSpec: object({ acceptanceSpecId: id(), specRevision: positive(), specDigest: digest(), recordDigest: digest(),
+        productScopeDigest: digest(), shelfId: id() }),
+      shelfProjection: object({ routingProjectionRevision: positive(), projectionDigest: digest(), standardRevision: positive(), standardDigest: digest() }),
+      productionMaterialManifest: { $ref: typeId('ProductionMaterialManifest') }, executionBasisDigest: digest()
+    })
+  };
+}
+
+function runExecutionBasisRecord() {
+  const basis = runExecutionBasis();
+  const properties = { ...basis.properties };
+  delete properties.productionMaterialManifest;
+  properties.productionMaterialManifestRef = object({ manifestId: digest(), manifestDigest: digest(), memberCount: positive(), episodeScopeDigest: digest() });
+  return { $schema: DRAFT, $id: typeId('LibraRunExecutionBasisRecord'), title: 'LibraRunExecutionBasisRecord@1',
+    'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 1024 * 1024,
+    ...object(properties) };
+}
+
+function runAdmissionDecision() {
+  const replacement = object({ libraRunId: digest(), stateRevision: positive(), stateDigest: digest(), runScopeDigest: digest(),
+    acceptanceSpecId: id(), executionBasisDigest: digest() });
+  return { $schema: DRAFT, $id: typeId('LibraRunAdmissionDecision'), title: 'LibraRunAdmissionDecision@1',
+    'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 8 * 1024 * 1024,
+    ...object({ decisionId: digest(), admissionKind: { type: 'string', enum: ['initial', 'replacement'] }, subjectId: id(),
+      admissionRevision: positive(), libraRunId: digest(), replacementOfRunRef: nullable(replacement),
+      expectedRunAdmissionHead: object({ headState: { type: 'string', enum: ['absent', 'present'] }, headRevision: nonNegative(), activeScopeSetDigest: digest() }),
+      runExecutionBasis: { $ref: typeId('LibraRunExecutionBasis') },
+      initialPriority: object({ priorityClass: { type: 'string', enum: ['normal', 'expedited'] }, priorityIntentDigest: digest() }),
+      runScopeDigest: digest(), decisionDigest: digest()
+    }, ['decisionId', 'admissionKind', 'subjectId', 'admissionRevision', 'libraRunId', 'expectedRunAdmissionHead',
+      'runExecutionBasis', 'initialPriority', 'runScopeDigest', 'decisionDigest']) };
+}
+
+function runAdmissionResult() {
+  return { $schema: DRAFT, $id: typeId('LibraRunAdmissionResult'), title: 'LibraRunAdmissionResult@1',
+    'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 64 * 1024,
+    ...object({ decisionId: digest(), libraRunId: digest(), admissionRevision: positive(), stateRevision: { const: 1 }, stateDigest: digest(),
+      executionBasisDigest: digest(), runScopeDigest: digest(), productionMaterialManifestId: digest(),
+      priorityClass: { type: 'string', enum: ['normal', 'expedited'] }, priorityIntentDigest: digest(),
+      committedAdmissionHeadRevision: positive(), activeScopeSetDigest: digest(),
+      supersededRunRef: nullable(object({ libraRunId: digest(), committedStateRevision: positive(), committedStateDigest: digest() })),
+      resultDigest: digest()
+    }, ['decisionId', 'libraRunId', 'admissionRevision', 'stateRevision', 'stateDigest', 'executionBasisDigest',
+      'runScopeDigest', 'productionMaterialManifestId', 'priorityClass', 'priorityIntentDigest',
+      'committedAdmissionHeadRevision', 'activeScopeSetDigest', 'resultDigest']) };
+}
+
 function buildLibraApplicationSchemas() {
   return Object.freeze({
     ProductDeliveryQuery: productDeliveryQuery(),
@@ -275,7 +375,13 @@ function buildLibraApplicationSchemas() {
     WorkspaceCleanupScopeReadResult: workspaceCleanupScopeReadResult(),
     LibraRunDiscardReceipt: libraRunDiscardReceipt(),
     LibraRunDiscardCommand: libraRunDiscardCommand(),
-    LibraRunDiscardCommandResult: libraRunDiscardCommandResult()
+    LibraRunDiscardCommandResult: libraRunDiscardCommandResult(),
+    ProductionMaterialOutputRequirement: outputRequirement(),
+    ProductionMaterialManifest: productionMaterialManifest(),
+    LibraRunExecutionBasis: runExecutionBasis(),
+    LibraRunExecutionBasisRecord: runExecutionBasisRecord(),
+    LibraRunAdmissionDecision: runAdmissionDecision(),
+    LibraRunAdmissionResult: runAdmissionResult()
   });
 }
 

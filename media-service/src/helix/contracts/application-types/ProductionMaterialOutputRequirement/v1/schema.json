@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/ProductionMaterialOutputRequirement/v1",
+  "title": "ProductionMaterialOutputRequirement@1",
+  "x-helix-ssotRefs": [
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 65536,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "acceptanceSpecRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "acceptanceSpecId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "specRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "specDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "recordDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "productScopeDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "acceptanceSpecId",
+        "specRevision",
+        "specDigest",
+        "recordDigest",
+        "productScopeDigest"
+      ]
+    },
+    "manifestRole": {
+      "type": "string",
+      "enum": [
+        "run_input",
+        "product_delivery"
+      ]
+    },
+    "materialKey": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "materialRole": {
+      "type": "string",
+      "enum": [
+        "primary_payload",
+        "structural_dependency",
+        "metadata_sidecar",
+        "poster",
+        "fanart",
+        "subtitle",
+        "external_audio",
+        "chapter"
+      ]
+    },
+    "applicationScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "product_scope",
+            "episode_subset",
+            "production_support"
+          ]
+        },
+        "episodeKeys": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "maxItems": 32,
+          "uniqueItems": true
+        },
+        "scopeDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "kind",
+        "episodeKeys",
+        "scopeDigest"
+      ]
+    },
+    "acceptanceRequirementSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "outputRequirementDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "acceptanceSpecRef",
+    "manifestRole",
+    "materialKey",
+    "materialRole",
+    "applicationScope",
+    "acceptanceRequirementSetDigest",
+    "outputRequirementDigest"
+  ]
+}

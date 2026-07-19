@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/LibraRunAdmissionResult/v1",
+  "title": "LibraRunAdmissionResult@1",
+  "x-helix-ssotRefs": [
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 65536,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "decisionId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "admissionRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "stateRevision": {
+      "const": 1
+    },
+    "stateDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "executionBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "runScopeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "productionMaterialManifestId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "priorityClass": {
+      "type": "string",
+      "enum": [
+        "normal",
+        "expedited"
+      ]
+    },
+    "priorityIntentDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "committedAdmissionHeadRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "activeScopeSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "supersededRunRef": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "libraRunId": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "committedStateRevision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "committedStateDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "libraRunId",
+            "committedStateRevision",
+            "committedStateDigest"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "resultDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "decisionId",
+    "libraRunId",
+    "admissionRevision",
+    "stateRevision",
+    "stateDigest",
+    "executionBasisDigest",
+    "runScopeDigest",
+    "productionMaterialManifestId",
+    "priorityClass",
+    "priorityIntentDigest",
+    "committedAdmissionHeadRevision",
+    "activeScopeSetDigest",
+    "resultDigest"
+  ]
+}

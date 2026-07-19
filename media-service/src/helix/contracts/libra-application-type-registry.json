@@ -5,8 +5,38 @@
   "kind": "application-type-registry",
   "owner": "libra",
   "status": "active",
-  "targetCount": 8,
+  "targetCount": 14,
   "entries": [
+    {
+      "id": "LibraRunAdmissionDecision",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraRunAdmissionDecision/v1",
+      "relativePath": "application-types/LibraRunAdmissionDecision/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "8a037d71e33cd8a5a6a801b81fc545f9b650fa97c481fea62e5dc24cf5fc982e"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "LibraRunAdmissionResult",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraRunAdmissionResult/v1",
+      "relativePath": "application-types/LibraRunAdmissionResult/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "180a3b3821c48f409733577946b25be76e30a620aab0432f52acbb7df5a3a194"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    },
     {
       "id": "LibraRunDiscardCommand",
       "version": 1,
@@ -54,6 +84,36 @@
       ]
     },
     {
+      "id": "LibraRunExecutionBasis",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraRunExecutionBasis/v1",
+      "relativePath": "application-types/LibraRunExecutionBasis/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "d965621d919b538577cbb3349113283288aae0e5417ccc6e5080354fb3f8313d"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "LibraRunExecutionBasisRecord",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraRunExecutionBasisRecord/v1",
+      "relativePath": "application-types/LibraRunExecutionBasisRecord/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "c10d1a9e38e1d600c6c7d031ac7c37c380da3369f8dfbb56601b03c1f22b5bbe"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    },
+    {
       "id": "ProductDeliveryQuery",
       "version": 1,
       "owner": "libra",
@@ -82,6 +142,36 @@
       },
       "ssotRefs": [
         "8.2.2",
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "ProductionMaterialManifest",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ProductionMaterialManifest/v1",
+      "relativePath": "application-types/ProductionMaterialManifest/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "d27905495d42e7297648a1e95aaef3567bbdcd0a2bcb89b331fdd31fba8d2b7e"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "ProductionMaterialOutputRequirement",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ProductionMaterialOutputRequirement/v1",
+      "relativePath": "application-types/ProductionMaterialOutputRequirement/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "5cfe080728a5ba15595ea833317072309635b918d20e6a8a733e1a15b701c3ee"
+      },
+      "ssotRefs": [
         "8.6.21"
       ]
     },

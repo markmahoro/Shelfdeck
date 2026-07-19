@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/LibraRunExecutionBasisRecord/v1",
+  "title": "LibraRunExecutionBasisRecord@1",
+  "x-helix-ssotRefs": [
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 1048576,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "subjectSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "subjectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "intakeRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "structureKind": {
+          "type": "string",
+          "enum": [
+            "single",
+            "season"
+          ]
+        },
+        "contentProfile": {
+          "type": "string",
+          "enum": [
+            "movie",
+            "series",
+            "jav",
+            "western_adult"
+          ]
+        },
+        "continuitySetDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "episodeScopeDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "subjectId",
+        "intakeRevision",
+        "structureKind",
+        "contentProfile",
+        "continuitySetDigest",
+        "episodeScopeDigest"
+      ]
+    },
+    "decisionHeadSnapshot": {
+      "type": "object"
+    },
+    "acceptanceSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "acceptanceSpecId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "specRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "specDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "recordDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "productScopeDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "shelfId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "acceptanceSpecId",
+        "specRevision",
+        "specDigest",
+        "recordDigest",
+        "productScopeDigest",
+        "shelfId"
+      ]
+    },
+    "shelfProjection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "routingProjectionRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "projectionDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "standardRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "standardDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "routingProjectionRevision",
+        "projectionDigest",
+        "standardRevision",
+        "standardDigest"
+      ]
+    },
+    "executionBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "productionMaterialManifestRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "manifestId": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "manifestDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "memberCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "episodeScopeDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "manifestId",
+        "manifestDigest",
+        "memberCount",
+        "episodeScopeDigest"
+      ]
+    }
+  },
+  "required": [
+    "subjectSnapshot",
+    "decisionHeadSnapshot",
+    "acceptanceSpec",
+    "shelfProjection",
+    "executionBasisDigest",
+    "productionMaterialManifestRef"
+  ]
+}

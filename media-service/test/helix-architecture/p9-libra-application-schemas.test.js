@@ -13,7 +13,7 @@ const root = path.resolve(__dirname, '../../src/helix/contracts');
 test('materializes the SSOT-exact Libra production application contracts reproducibly', () => {
   const schemas = buildLibraApplicationSchemas();
   const registry = JSON.parse(fs.readFileSync(path.join(root, 'libra-application-type-registry.json'), 'utf8'));
-  assert.equal(registry.targetCount, 8);
+  assert.equal(registry.targetCount, 14);
   for (const [name, schema] of Object.entries(schemas)) {
     const stored = JSON.parse(fs.readFileSync(path.join(root, 'application-types', name, 'v1/schema.json'), 'utf8'));
     assert.deepEqual(stored, schema);
@@ -21,6 +21,17 @@ test('materializes the SSOT-exact Libra production application contracts reprodu
     assert.equal(entry.schemaId, typeId(name));
     assert.equal(entry.digest.value, schemaDigest(schema));
   }
+});
+
+test('Run Admission schemas close immutable scope, head zero, and Result continuity', () => {
+  const schemas = buildLibraApplicationSchemas();
+  assert.equal(schemas.ProductionMaterialManifest.properties.members.minItems, 1);
+  assert.equal(schemas.ProductionMaterialManifest.properties.members.maxItems, 1024);
+  assert.equal(schemas.ProductionMaterialOutputRequirement.properties.outputRequirementDigest.pattern, '^[a-f0-9]{64}$');
+  assert.equal(schemas.LibraRunAdmissionDecision.properties.expectedRunAdmissionHead.properties.headRevision.minimum, 0);
+  assert.equal(schemas.LibraRunAdmissionDecision.properties.runExecutionBasis.$ref, typeId('LibraRunExecutionBasis'));
+  assert.equal(schemas.LibraRunAdmissionResult.properties.stateRevision.const, 1);
+  assert.equal(schemas.LibraRunExecutionBasisRecord.properties.productionMaterialManifestRef.properties.memberCount.minimum, 1);
 });
 
 test('Workspace Reclamation query closes selector identity and excludes cleanup authority', () => {
