@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Levels 0–10 accepted; P0–P8 complete; no active implementation phase; P9 not opened; E2E, Docker/Canary, production, real-media side effects and `media-desktop` changes paused.
+Status: Levels 0–10 accepted; P0–P8 complete; P9 active under standing Local Implementation authorization; E2E, Docker/Canary, production, real-media side effects and `media-desktop` changes paused.
 
 Last updated: 2026-07-19
 
@@ -12,13 +12,13 @@ Last updated: 2026-07-19
 | Open business decisions | none |
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains；P7 — Procurement；P8 — Handoff A and Libra front half |
-| Current phase | none；P9 not opened |
-| Current phase status | P8-00–P8-11及Exit Audit PASS；Evidence frozen |
+| Current phase | P9 — Libra production and delivery |
+| Current phase status | P9-00 baseline PASS；P9-01 feasibility reverse audit active |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
-| Current allowed work | 等待新的P9自动化周期；standing Local Implementation授权仍有效但本周期不跨Phase |
-| Integration baseline | exact P7 phase closure `2cf98561d7cf785db4005e65e99b0750d84ce5ce` |
-| Phase worktree | `E:\my_project\emby_third_party-helix-p8` on `codex/helix-p8` |
-| Next action | 用户决定是否启动P9自动化周期 |
+| Current allowed work | P9 local code、unit/contract/isolated fixture、docs与Phase内自动闭环；本周期不进入P10 |
+| Integration baseline | exact P8 closure `3184ef4573cb3663e4a1fae87fc65b4d1c270b38` |
+| Phase worktree | `E:\my_project\emby_third_party-helix-p9` on `codex/helix-p9` |
+| Next action | P9-01 Run/Workspace/Product/Package/Discard/Cleanup合同反向审计 |
 
 本Program终点已由用户确认为P13：P13完成operational clean-cut并冻结最终E2E-ready package后，本线程即完成，不再设置后续实施Phase。
 真实来源完整E2E与部署将分别由后续独立任务承担；部署任务只消费通过独立E2E验收的精确Artifact。该调整只涉及工程计划和交接

@@ -1,6 +1,6 @@
 # ShelfDeck / Helix Documentation Index
 
-Status: clean architecture accepted through `PBF-12-R1`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`）；P0–P8 complete；P9 not opened；E2E、Docker/Canary、production、real-media side effects和`media-desktop` changes paused.
+Status: clean architecture accepted through `PBF-12-R1`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`）；P0–P8 complete；P9 active；E2E、Docker/Canary、production、real-media side effects和`media-desktop` changes paused.
 
 工程Program固定为P0–P13；P13交付冻结的E2E-ready package后，本实施线程完成。真实来源完整E2E与部署不再纳入本Program，
 分别由后续独立任务在单独授权下执行。

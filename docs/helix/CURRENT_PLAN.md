@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: Levels 0–10 accepted; P0–P8 complete; no active implementation phase; P9 not opened; external-environment actions and `media-desktop` remain paused.
+Status: Levels 0–10 accepted; P0–P8 complete; P9 active under standing Local Implementation authorization; external-environment actions and `media-desktop` remain paused.
 
 Last updated: 2026-07-19
 
@@ -82,13 +82,13 @@ Handoff、Capability、Result family、表或Canonical Transaction计数。
 
 | Field | Current value |
 | --- | --- |
-| Phase | none；P8已归档，P9尚未打开 |
-| Detailed packet | `implementation/CURRENT_PHASE.md`为无活动Phase指针；P8见`implementation/archive/P8_HANDOFF_A_AND_LIBRA_FRONT_HALF.md` |
-| Status | P8-00–P8-11及P8 Exit Audit PASS；Evidence frozen |
-| Implementation baseline | P8基于exact P7 phase closure `2cf98561d7cf785db4005e65e99b0750d84ce5ce`完成 |
-| Phase branch/worktree | P8 closure位于`codex/helix-p8` / `E:\my_project\emby_third_party-helix-p8` |
-| Allowed now | 等待用户启动新的P9自动化周期；现有外部环境授权边界不变 |
-| Next action | 用户确认后独立打开P9详细执行包；当前不实施P9 |
+| Phase | P9 — Libra production and delivery |
+| Detailed packet | `implementation/CURRENT_PHASE.md` |
+| Status | P9-00 baseline PASS；P9-01 implementation-feasibility reverse audit active |
+| Implementation baseline | exact P8 closure `3184ef4573cb3663e4a1fae87fc65b4d1c270b38` |
+| Phase branch/worktree | `codex/helix-p9` / `E:\my_project\emby_third_party-helix-p9` |
+| Allowed now | P9 local code、unit/contract/isolated fixture、docs与Phase内自动闭环 |
+| Next action | 完成P9全合同反向审计；Ready路径继续实现，SSOT缺口精确返回Architecture Agent |
 
 ## 4. Master roadmap
 
