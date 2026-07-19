@@ -30,7 +30,7 @@ function typedParameters(kind) {
 }
 
 const special = {
-  'AcceptanceSpec.contentProfile': enumText('movie', 'season', 'jav', 'western_adult'),
+  'AcceptanceSpec.contentProfile': enumText('movie', 'series', 'jav', 'western_adult'),
   'ArtifactProfile.artifactKinds': arrayOf(text(), 128),
   'ArtifactRequirement.mandatory': bool(),
   'BoundedLayoutScope.maxDepth': positiveInteger(),
@@ -48,7 +48,7 @@ const special = {
   'PerceptionNormalizationRuleRef.canonicalRatingScale': { const: 'integer_1_5' },
   'PreferenceIntent.preferenceLevel': { type: 'integer', minimum: -2, maximum: 2 },
   'SamplingPlan.maxFrames': positiveInteger(),
-  'ShelfStandard.contentProfile': enumText('movie', 'season', 'jav', 'western_adult'),
+  'ShelfStandard.contentProfile': enumText('movie', 'series', 'jav', 'western_adult'),
   'StructureRequirement.structureKind': enumText('single', 'season'),
   'AcceptedPayload.onDeckProductPackage': typeRef('OnDeckProductPackage'),
   'ActiveShelfEntryIdentityProjection.entries': arrayOf(snapshot('active-shelf-entry-identity'), 4096),
@@ -631,7 +631,7 @@ function personReferenceProjectionSchema() {
 
 function metadataFetchIntentSchema() {
   const common = { intentId: id(), sourceKind: enumText('related_nfo', 'provider'),
-    contentProfile: enumText('movie', 'season', 'jav', 'western_adult'), resolvedIdentityDigest: digest(),
+    contentProfile: enumText('movie', 'series', 'jav', 'western_adult'), resolvedIdentityDigest: digest(),
     requestedFields: arrayOf(text({ maxLength: 128 }), 256), intentDigest: digest() };
   return { $schema: DRAFT, $id: domainTypeId('MetadataFetchIntent'), title: 'MetadataFetchIntent@1',
     'x-helix-ssotRefs': ['8.6.18', '8.6.20'], 'x-helix-role': 'accepted-business-dto', oneOf: [
@@ -644,7 +644,7 @@ function metadataFetchIntentSchema() {
 
 function metadataObservationSetSchema() {
   return exactDomainSchema('MetadataObservationSet', { setId: id(),
-    contentProfile: enumText('movie', 'season', 'jav', 'western_adult'), resolvedIdentityDigest: digest(),
+    contentProfile: enumText('movie', 'series', 'jav', 'western_adult'), resolvedIdentityDigest: digest(),
     observations: arrayOf(typeRef('MetadataObservation'), 16), sourcePrecedence: arrayOf(text({ maxLength: 128 }), 16), setDigest: digest() });
 }
 

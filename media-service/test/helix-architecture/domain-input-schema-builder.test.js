@@ -49,6 +49,13 @@ test('bounded requirements and intents carry identity, revision, digest, and typ
   assert.equal(schemas.HashProfile.properties.fullContentRequired.const, true);
 });
 
+test('keeps canonical content profile separate from season structure', () => {
+  for (const name of ['AcceptanceSpec', 'ShelfStandard']) {
+    assert.deepEqual(schemas[name].properties.contentProfile.enum, ['movie', 'series', 'jav', 'western_adult']);
+    assert.equal(schemas[name].properties.contentProfile.enum.includes('season'), false);
+  }
+});
+
 test('accepted DTOs freeze semantic members instead of exposing arbitrary payloads', () => {
   assert.equal(schemas.CandidateDraft.properties.primaryInputManifestDraft.$ref, 'helix://contracts/types/PrimaryInputManifestDraft/v1');
   assert.equal(schemas.CandidateDraft.properties.structureEvidence.properties.unit.properties.mediaType.enum.includes('group'), true);

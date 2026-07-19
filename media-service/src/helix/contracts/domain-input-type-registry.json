@@ -20,7 +20,7 @@
       "relativePath": "domain-types/AcceptanceSpec/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "b1d2247b37f498d1660bb41ba7d88acc292c2d1c41ab4b07211bcf669ced867e"
+        "value": "416118845237716f3f9f5bd18c6ba4c5ec6d986fd3ce7049e9b635973440b6cf"
       },
       "usedBy": [
         {
@@ -938,7 +938,7 @@
       "relativePath": "domain-types/MetadataFetchIntent/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "299e7e72975da98f880a5cf33a4989a7b2fc1f4d91d18a8c3afef6d4f66d57e8"
+        "value": "523ec50d0ffae2d2dfd490c78a2e653b6c3017d342b4dc4089edfd9d8de07799"
       },
       "usedBy": [
         {
@@ -960,7 +960,7 @@
       "relativePath": "domain-types/MetadataObservationSet/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "4baab3c1658bf8688a9fd89da622f290e11f927f2891b1a5f617f3fc08b9edeb"
+        "value": "240905632f2b1987eb5c16774589a7cf08a28edf8f4cf332e7f012647d3f71e4"
       },
       "usedBy": [
         {
@@ -1860,7 +1860,7 @@
       "relativePath": "domain-types/ShelfStandard/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "f4f7b74e7b59fd359fd6abea4aa529e5def8a879feecdbf6b71cf1d021894ce4"
+        "value": "16f52059ded8e7cd32d67da2cc4842566abe1a49c8a68ec03310ee67e8700b47"
       },
       "usedBy": [
         {

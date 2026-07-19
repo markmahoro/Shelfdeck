@@ -210,7 +210,7 @@ function parameterSchema(name, capabilityRef) {
     return { type: 'string', enum: values };
   }
   if (name === 'structureKind') return { type: 'string', enum: ['single', 'season'] };
-  if (name === 'contentProfile') return { type: 'string', enum: ['movie', 'season', 'jav', 'western_adult'] };
+  if (name === 'contentProfile') return { type: 'string', enum: ['movie', 'series', 'jav', 'western_adult'] };
   if (name === 'artifactKind') return text({ pattern: '^[a-z][a-z0-9_.-]{0,127}$' });
   throw new Error(`Unknown parameter ${name}`);
 }

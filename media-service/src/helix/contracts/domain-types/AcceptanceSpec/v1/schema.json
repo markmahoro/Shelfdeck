@@ -38,7 +38,7 @@
       "type": "string",
       "enum": [
         "movie",
-        "season",
+        "series",
         "jav",
         "western_adult"
       ]

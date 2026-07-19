@@ -717,7 +717,7 @@
       "relativePath": "types/MetadataObservation/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "49e3b98c889fa3f6c0df5a7221e0fc8509ba4ac2b08f989c7e327b5f6463f79b"
+        "value": "e18ad866899118abe6dd679ef5ca965d92199f52135bfcf2a61d97b59ee00ea4"
       },
       "source": {
         "section": "8.6.19",
@@ -1297,7 +1297,7 @@
       "relativePath": "types/ResolvedProductIdentity/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "ae690acbadce1103bc4feb49357026b57592a2897725c2a06b74264efb27bca9"
+        "value": "254e2e3afd19fe08a4fc30ce53a516d03799dd5686ec18fed0d9620a033f7af3"
       },
       "source": {
         "section": "8.6.19",
