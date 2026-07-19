@@ -6,6 +6,7 @@
     "8.6.19"
   ],
   "x-helix-envelopeRef": "helix://contracts/types/ReceiptEnvelope/v1",
+  "x-helix-maxCanonicalBytes": 16384,
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -21,16 +22,13 @@
       "maxLength": 256
     },
     "receiptKind": {
-      "type": "string",
-      "minLength": 1
+      "const": "handoff_b_rejected"
     },
     "ownerDomain": {
-      "type": "string",
-      "minLength": 1
+      "const": "arca"
     },
     "scopeType": {
-      "type": "string",
-      "minLength": 1
+      "const": "acceptance_decision"
     },
     "scopeId": {
       "type": "string",
@@ -58,9 +56,18 @@
       "type": "integer",
       "minimum": 0
     },
-    "handoffKind": {
+    "acceptanceDecisionId": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "handoffKind": {
+      "const": "libra_to_arca"
+    },
+    "offerId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
     },
     "deliverableId": {
       "type": "string",
@@ -71,7 +78,17 @@
       "type": "string",
       "minLength": 1
     },
+    "acceptanceEvidenceSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
     "rejectionDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "receiptDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
@@ -87,9 +104,13 @@
     "scopeId",
     "scopeDigest",
     "committedAtMs",
+    "acceptanceDecisionId",
     "handoffKind",
+    "offerId",
     "deliverableId",
     "rejectionCode",
-    "rejectionDigest"
+    "acceptanceEvidenceSetDigest",
+    "rejectionDigest",
+    "receiptDigest"
   ]
 }

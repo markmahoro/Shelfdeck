@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.libra-handoff-b-rejection-consume/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.libra-handoff-b-rejection-consume",
+    "displayName": "Libra Handoff B Rejection Consume",
+    "ownerScope": "libra",
+    "commitClass": "domain_unit_of_work",
+    "atomicFactSet": "`ArcaProductRejectedMessage@1` + current published Package/Delivery state CAS + Libra Inbox dedup；同事务保存rejected Delivery Receipt并关闭该Package Offer；不改写Package或Arca Decision，重复消息返回同一closure result",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "libra",
+        "access": "write",
+        "tables": [
+          "libra_product_packages",
+          "libra_delivery_receipts"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_inbox"
+        ]
+      }
+    ],
+    "writeTables": [
+      "libra_product_packages",
+      "libra_delivery_receipts",
+      "fx_inbox"
+    ],
+    "readTables": [
+      "libra_product_packages",
+      "libra_delivery_receipts",
+      "fx_inbox"
+    ],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [
+      "arca_"
+    ],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": false,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "libra-handoff-b-rejection-consume",
+        "faultInjectionPoints": "Inbox写入前后、Package digest CAS、Delivery Receipt写入前后、迟到Accepted消息",
+        "requiredInvariant": "immutable Package与rejected Delivery Receipt/Inbox closure全有或全无；重复消息重放同一closure digest，相反终态或digest冲突稳定拒绝；不写Arca Store",
+        "source": {
+          "section": "8.9.7",
+          "line": 9618
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7711,
+      "lineDigest": "b646c48766db798709a13926293769b18b7e044dfb716a1b00afd49e5befecf5"
+    }
+  }
+}

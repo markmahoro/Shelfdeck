@@ -29,14 +29,17 @@
         "ordinal": 3,
         "name": "result",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "accepted",
+          "rejected"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
         "nullable": false
       },
       {
         "ordinal": 4,
-        "name": "rejection_schema_ref",
+        "name": "offer_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -45,7 +48,7 @@
       },
       {
         "ordinal": 5,
-        "name": "decision_digest",
+        "name": "on_deck_package_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -54,6 +57,87 @@
       },
       {
         "ordinal": 6,
+        "name": "package_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "shelf_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "standard_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "placement_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "acceptance_evidence_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "rejection_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 12,
+        "name": "rejection_code",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 13,
+        "name": "rejection_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 14,
+        "name": "decision_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 15,
         "name": "decided_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -66,7 +150,8 @@
       "acceptance_decision_id"
     ],
     "declaredForeignKeyColumns": [
-      "acceptance_attempt_id"
+      "acceptance_attempt_id",
+      "shelf_id"
     ],
     "uniqueConstraints": [
       [
@@ -75,9 +160,20 @@
     ],
     "hotIndexes": [],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "result",
+        "enumValues": [
+          "accepted",
+          "rejected"
+        ]
+      }
+    ],
     "revisionContract": {
-      "revisionColumns": [],
+      "revisionColumns": [
+        "standard_revision",
+        "placement_revision"
+      ],
       "currentPointerColumns": [],
       "pointerTargets": [],
       "pointerRules": []
@@ -94,17 +190,20 @@
       "rules": []
     },
     "semanticRules": [
-      "`UNIQUE(acceptance_attempt_id)`",
+      "`acceptance_decision_id=SHA-256(JCS({schema:\"arca.acceptance-decision-id@1\",acceptanceAttemptId}))`且`UNIQUE(acceptance_attempt_id)`",
+      "Offer/Package pair逐字节等于Attempt",
+      "accepted要求rejection列全NULL",
+      "rejected固定`rejection_schema_ref=StructuredRejection@1`且code/digest非NULL，并逐项重建`ArcaAcceptanceRejectionDecision@1`",
       "immutable"
     ],
     "rawContract": {
-      "columns": "`acceptance_decision_id PK, acceptance_attempt_id FK, result, rejection_schema_ref, decision_digest, decided_at_ms`",
-      "constraints": "`UNIQUE(acceptance_attempt_id)`；immutable"
+      "columns": "`acceptance_decision_id PK, acceptance_attempt_id FK, result(accepted|rejected), offer_id, on_deck_package_id, package_digest, shelf_id FK, standard_revision, placement_revision, acceptance_evidence_set_digest, rejection_schema_ref NULL, rejection_code NULL, rejection_digest NULL, decision_digest, decided_at_ms`",
+      "constraints": "`acceptance_decision_id=SHA-256(JCS({schema:\"arca.acceptance-decision-id@1\",acceptanceAttemptId}))`且`UNIQUE(acceptance_attempt_id)`；Offer/Package pair逐字节等于Attempt；accepted要求rejection列全NULL；rejected固定`rejection_schema_ref=StructuredRejection@1`且code/digest非NULL，并逐项重建`ArcaAcceptanceRejectionDecision@1`；immutable"
     },
     "source": {
       "section": "8.5.12",
-      "line": 7993,
-      "lineDigest": "ce028684e190a9b1555763d0c1260e443767d69182aab08e4b9912acdfc1ba36"
+      "line": 8061,
+      "lineDigest": "75c6f85e8098087ae4f0f9aa8b29d96247bc18432b208c8286747c6696731e70"
     },
     "foreignKeys": [
       {
@@ -114,6 +213,17 @@
         "targetTable": "arca_acceptance_attempts",
         "targetColumns": [
           "acceptance_attempt_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "shelf_id"
+        ],
+        "targetTable": "arca_shelves",
+        "targetColumns": [
+          "shelf_id"
         ],
         "deletePolicy": "RESTRICT",
         "deferrable": false

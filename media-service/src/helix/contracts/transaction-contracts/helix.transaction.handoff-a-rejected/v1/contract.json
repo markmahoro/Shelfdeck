@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.handoff-a-rejected/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.handoff-a-rejected",
+    "displayName": "Handoff A Rejected",
+    "ownerScope": "libra",
+    "commitClass": "domain_fact_commit",
+    "atomicFactSet": "complete `IntakeRejectionDecision@1` + immutable rejected Intake Decision + relationized reason/Evidence rows + rejected `IntakeRejectionReceipt@1` + durable typed Result/commit marker + `LibraCandidateRejectedMessage@1` Outbox；不读取或更新Subject Continuity head，不创建/扩充Subject，不建立Binding或转移Control；Decision/Reasons/Receipt/Result/marker/Outbox全有或全无",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "libra",
+        "access": "write",
+        "tables": [
+          "libra_intake_decisions",
+          "libra_intake_rejection_reason_evidence",
+          "libra_handoff_a_receipts"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_event_result_bindings",
+          "fx_commit_markers",
+          "fx_outbox"
+        ]
+      }
+    ],
+    "writeTables": [
+      "libra_intake_decisions",
+      "libra_intake_rejection_reason_evidence",
+      "libra_handoff_a_receipts",
+      "fx_event_result_bindings",
+      "fx_commit_markers",
+      "fx_outbox"
+    ],
+    "readTables": [
+      "libra_intake_decisions",
+      "libra_intake_rejection_reason_evidence",
+      "libra_handoff_a_receipts",
+      "fx_event_result_bindings",
+      "fx_commit_markers",
+      "fx_outbox"
+    ],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [
+      "proc_",
+      "arca_"
+    ],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": true
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "handoff-a-rejected",
+        "faultInjectionPoints": "Candidate/Material/Control Verification形成前后、Reason/Evidence rows逐项写入中途、Decision/Receipt/Result/marker/Outbox各边界、相同Offer的Accepted竞态",
+        "requiredInvariant": "只允许closed Handoff A reason；Continuity 0/N/overlap不得误判rejected；Decision、全部Reason Evidence、Receipt、Result、marker和Rejected Outbox全有或全无；不读写continuity head、不创建Subject/Binding、不转移Control；同一Offer只有一个terminal Decision",
+        "source": {
+          "section": "8.9.7",
+          "line": 9610
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7706,
+      "lineDigest": "126bd985a59608601c1311e11612cc56da006de70c37874aad7fde2d32139e72"
+    }
+  }
+}

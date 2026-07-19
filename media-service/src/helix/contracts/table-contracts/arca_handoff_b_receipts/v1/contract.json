@@ -27,16 +27,19 @@
       },
       {
         "ordinal": 3,
-        "name": "custody_id",
+        "name": "outcome",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "accepted",
+          "rejected"
+        ],
         "primaryKeyPart": false,
-        "foreignKeyMarker": true,
+        "foreignKeyMarker": false,
         "nullable": false
       },
       {
         "ordinal": 4,
-        "name": "on_deck_package_id",
+        "name": "offer_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -45,16 +48,16 @@
       },
       {
         "ordinal": 5,
-        "name": "package_digest",
+        "name": "custody_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
-        "nullable": false
+        "nullable": true
       },
       {
         "ordinal": 6,
-        "name": "arca_binding_set_digest",
+        "name": "on_deck_package_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -63,7 +66,7 @@
       },
       {
         "ordinal": 7,
-        "name": "control_revision_set_digest",
+        "name": "package_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -72,6 +75,60 @@
       },
       {
         "ordinal": 8,
+        "name": "arca_binding_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 9,
+        "name": "control_revision_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 10,
+        "name": "rejection_code",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 11,
+        "name": "acceptance_evidence_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "rejection_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 13,
+        "name": "receipt_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 14,
         "name": "committed_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -84,18 +141,27 @@
       "receipt_id"
     ],
     "declaredForeignKeyColumns": [
-      "acceptance_decision_id",
-      "custody_id"
+      "acceptance_decision_id"
     ],
     "uniqueConstraints": [
       [
-        "on_deck_package_id",
-        "package_digest"
+        "acceptance_decision_id"
+      ],
+      [
+        "offer_id"
       ]
     ],
     "hotIndexes": [],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "outcome",
+        "enumValues": [
+          "accepted",
+          "rejected"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [],
       "currentPointerColumns": [],
@@ -112,17 +178,20 @@
       "rules": []
     },
     "semanticRules": [
-      "`UNIQUE(on_deck_package_id,package_digest)`",
-      "Accepted事务的durable receipt/outbox source"
+      "`UNIQUE(acceptance_decision_id)`及`UNIQUE(offer_id)`",
+      "Offer/Package pair逐字节等于Decision",
+      "accepted要求Custody/Binding/Control列非NULL、全部rejection列及`receipt_digest`为NULL，按既有合同重建`CustodyAndTransferReceipt@1`",
+      "rejected要求Custody/Binding/Control列NULL且rejection列与`receipt_digest`非NULL，重建`RejectionReceipt@1`",
+      "两种终态都作为各自typed Outbox的durable source，相同marker不新增Receipt或相反终态"
     ],
     "rawContract": {
-      "columns": "`receipt_id PK, acceptance_decision_id FK, custody_id FK, on_deck_package_id, package_digest, arca_binding_set_digest, control_revision_set_digest, committed_at_ms`",
-      "constraints": "`UNIQUE(on_deck_package_id,package_digest)`；Accepted事务的durable receipt/outbox source"
+      "columns": "`receipt_id PK, acceptance_decision_id FK, outcome(accepted|rejected), offer_id, custody_id NULL, on_deck_package_id, package_digest, arca_binding_set_digest NULL, control_revision_set_digest NULL, rejection_code NULL, acceptance_evidence_set_digest, rejection_digest NULL, receipt_digest NULL, committed_at_ms`",
+      "constraints": "`UNIQUE(acceptance_decision_id)`及`UNIQUE(offer_id)`；Offer/Package pair逐字节等于Decision；accepted要求Custody/Binding/Control列非NULL、全部rejection列及`receipt_digest`为NULL，按既有合同重建`CustodyAndTransferReceipt@1`；rejected要求Custody/Binding/Control列NULL且rejection列与`receipt_digest`非NULL，重建`RejectionReceipt@1`；两种终态都作为各自typed Outbox的durable source，相同marker不新增Receipt或相反终态"
     },
     "source": {
       "section": "8.5.12",
-      "line": 7995,
-      "lineDigest": "1bcb5bfcbb51ceebb465ecc19442b99fb2b3b391d66735bf36639496a3768ba7"
+      "line": 8063,
+      "lineDigest": "aae519c2021f9d39bacdcb0e6d9cb70aa26730ce2b9fb1f14ce2fb1a9142b771"
     },
     "foreignKeys": [
       {
@@ -132,17 +201,6 @@
         "targetTable": "arca_acceptance_decisions",
         "targetColumns": [
           "acceptance_decision_id"
-        ],
-        "deletePolicy": "RESTRICT",
-        "deferrable": false
-      },
-      {
-        "columns": [
-          "custody_id"
-        ],
-        "targetTable": "arca_ondeck_custodies",
-        "targetColumns": [
-          "custody_id"
         ],
         "deletePolicy": "RESTRICT",
         "deferrable": false

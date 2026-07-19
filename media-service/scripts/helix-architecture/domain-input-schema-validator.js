@@ -92,7 +92,10 @@ function validateDomainInputSchemas(options) {
       CandidateDeliveryReadResult: ['queryDigest', 'resultKind', 'resultDigest'],
       CandidateDeliverySnapshot: ['snapshotContract', 'deliverySnapshotDigest'],
       SubjectContinuityResolutionDecision: ['decisionId', 'decisionDigest'],
-      AcceptedIntakePayload: ['intakeDecisionId', 'decisionRevision', 'payloadDigest']
+      AcceptedIntakePayload: ['intakeDecisionId', 'decisionRevision', 'payloadDigest'],
+      IntakeRejectionDecision: ['intakeDecisionId', 'decisionRevision', 'offerId', 'candidatePackageId', 'decisionDigest'],
+      ArcaAcceptanceRejectionDecision: ['acceptanceDecisionId', 'acceptanceAttemptId', 'offerId', 'onDeckPackageId', 'decisionDigest'],
+      StructuredRejection: ['handoffKind', 'offerId', 'deliverableId', 'rejectionCode', 'rejectionDigest']
     };
     const identityFields = exactIdentityFields[entry.id] || ['schemaRef', 'schemaVersion', 'revision', 'digest'];
     for (const field of identityFields) {

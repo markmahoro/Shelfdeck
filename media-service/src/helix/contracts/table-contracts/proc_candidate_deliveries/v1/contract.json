@@ -27,6 +27,15 @@
       },
       {
         "ordinal": 3,
+        "name": "package_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
         "name": "package_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -35,7 +44,7 @@
         "nullable": false
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "acceptance_basis_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -44,30 +53,65 @@
         "nullable": false
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
         "name": "state",
         "logicalType": "TEXT",
         "enumValues": [
           "open",
           "accepted",
-          "rejected",
-          "stale"
+          "rejected"
         ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
         "nullable": false
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
+        "name": "handoff_decision_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 8,
+        "name": "handoff_decision_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 9,
         "name": "handoff_receipt_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
-        "nullable": false
+        "nullable": true
       },
       {
-        "ordinal": 7,
+        "ordinal": 10,
+        "name": "handoff_receipt_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 11,
+        "name": "terminal_evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 12,
         "name": "offered_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -76,13 +120,13 @@
         "nullable": false
       },
       {
-        "ordinal": 8,
+        "ordinal": 13,
         "name": "closed_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
-        "nullable": false
+        "nullable": true
       }
     ],
     "primaryKey": [
@@ -105,7 +149,7 @@
       ]
     ],
     "partialUniqueRules": [
-      "同一Candidate至多一个open Offer"
+      "同一Candidate至多一个open Offer。open时全部handoff/terminal/closed列为NULL"
     ],
     "checkRules": [
       {
@@ -113,21 +157,24 @@
         "enumValues": [
           "open",
           "accepted",
-          "rejected",
-          "stale"
+          "rejected"
         ]
       }
     ],
     "revisionContract": {
-      "revisionColumns": [],
+      "revisionColumns": [
+        "package_revision"
+      ],
       "currentPointerColumns": [],
       "pointerTargets": [],
       "pointerRules": []
     },
     "jsonContracts": [],
     "immutability": {
-      "immutable": false,
-      "rules": []
+      "immutable": true,
+      "rules": [
+        "terminal列写后immutable，相同Offer重放不得新增row、Outbox或改写不同终态"
+      ]
     },
     "deletion": {
       "foreignKeyPolicy": "ON DELETE RESTRICT",
@@ -136,18 +183,20 @@
     "semanticRules": [
       "`offer_id`与`acceptance_basis_digest`必须分别等于8.6.18从final `CandidatePackage@1`计算的`CandidateIntakeAcceptanceBasis@1`公式结果，且同事务存在唯一`ProcurementCandidateOfferAvailableMessage@1` Outbox",
       "`UNIQUE(candidate_package_id,package_digest,acceptance_basis_digest)`",
-      "同一Candidate至多一个open Offer",
-      "相同Offer重放不得新增row或Outbox",
+      "同一Candidate至多一个open Offer。open时全部handoff/terminal/closed列为NULL",
+      "accepted要求Decision ID、Receipt ID/digest、terminal Evidence及closed time非NULL，Decision digest沿用既有nullable合同",
+      "rejected要求全部handoff/terminal/closed列非NULL且逐项等于`LibraCandidateRejectedMessage@1`，`terminal_evidence_digest=receiptDigest`",
+      "terminal列写后immutable，相同Offer重放不得新增row、Outbox或改写不同终态",
       "`INDEX(state,offered_at_ms)`"
     ],
     "rawContract": {
-      "columns": "`offer_id PK, candidate_package_id FK, package_digest, acceptance_basis_digest, state, handoff_receipt_id, offered_at_ms, closed_at_ms`",
-      "constraints": "`offer_id`与`acceptance_basis_digest`必须分别等于8.6.18从final `CandidatePackage@1`计算的`CandidateIntakeAcceptanceBasis@1`公式结果，且同事务存在唯一`ProcurementCandidateOfferAvailableMessage@1` Outbox；`UNIQUE(candidate_package_id,package_digest,acceptance_basis_digest)`；同一Candidate至多一个open Offer；相同Offer重放不得新增row或Outbox；`INDEX(state,offered_at_ms)`"
+      "columns": "`offer_id PK, candidate_package_id FK, package_revision, package_digest, acceptance_basis_digest, state(open|accepted|rejected), handoff_decision_id NULL, handoff_decision_digest NULL, handoff_receipt_id NULL, handoff_receipt_digest NULL, terminal_evidence_digest NULL, offered_at_ms, closed_at_ms NULL`",
+      "constraints": "`offer_id`与`acceptance_basis_digest`必须分别等于8.6.18从final `CandidatePackage@1`计算的`CandidateIntakeAcceptanceBasis@1`公式结果，且同事务存在唯一`ProcurementCandidateOfferAvailableMessage@1` Outbox；`UNIQUE(candidate_package_id,package_digest,acceptance_basis_digest)`；同一Candidate至多一个open Offer。open时全部handoff/terminal/closed列为NULL；accepted要求Decision ID、Receipt ID/digest、terminal Evidence及closed time非NULL，Decision digest沿用既有nullable合同；rejected要求全部handoff/terminal/closed列非NULL且逐项等于`LibraCandidateRejectedMessage@1`，`terminal_evidence_digest=receiptDigest`；terminal列写后immutable，相同Offer重放不得新增row、Outbox或改写不同终态；`INDEX(state,offered_at_ms)`"
     },
     "source": {
       "section": "8.5.11",
-      "line": 7943,
-      "lineDigest": "2ac7ad7412afb014b7c6306fb2932f1c9b38fc2dccf81ad2fb228e87e8e8d5cc"
+      "line": 8010,
+      "lineDigest": "dcb9b93dfc96e518052ee866203ddfe9dbf1e2ad32b68f7087f4f67062f6f2ea"
     },
     "foreignKeys": [
       {

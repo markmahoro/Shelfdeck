@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "mapId": "helix.ssot-contract-source-map",
+  "category": "resultFamilies",
+  "startOrdinal": 97,
+  "endOrdinal": 97,
+  "entries": [
+    {
+      "id": "WorkspaceMediaHandle",
+      "kind": "nominal-result",
+      "producedBy": [
+        "libra.media.remux@1",
+        "libra.media.transcode@1",
+        "arca.aftercare.media.remux@1",
+        "arca.aftercare.media.transcode@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 9161,
+        "lineDigest": "00af4225b8e38e45835bd733c51dacc36739d5d85058c94e9a70ad9c6aa50ba9"
+      }
+    }
+  ]
+}

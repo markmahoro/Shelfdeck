@@ -54,7 +54,7 @@ function validateResultTypeSchemas(options) {
   const nominalOutputs = new Set(sourceEntries.filter((entry) => entry.kind === 'nominal-result').map((entry) => entry.id));
   const directOutputs = new Set(sourceEntries.filter((entry) => entry.kind === 'direct-handle-result').map((entry) => entry.id));
   const outcomeOutputs = new Set(sourceEntries.filter((entry) => entry.kind === 'outcome-envelope').map((entry) => entry.id));
-  if (sourceEntries.length !== 96 || nominalOutputs.size !== 86 || directOutputs.size !== 9 || outcomeOutputs.size !== 1) {
+  if (sourceEntries.length !== 97 || nominalOutputs.size !== 87 || directOutputs.size !== 9 || outcomeOutputs.size !== 1) {
     findings.push(finding('RESULT_SOURCE_COUNT_DRIFT', 'SSOT result source map must remain 86 nominal + 9 direct + 1 Outcome.'));
   }
 

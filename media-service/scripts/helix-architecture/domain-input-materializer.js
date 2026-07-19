@@ -30,6 +30,39 @@ function expectedUsages(repositoryRoot) {
   const packages = buildCapabilityPackages(extractSsotContracts(ssot).capabilities);
   const usages = new Map();
   for (const capability of packages) collectDomainRefs(capability.files['inputs.schema.json'], usages, capability);
+  const schemas = buildDomainInputSchemas();
+  const nestedRefs = new Map();
+  for (const [name, schema] of Object.entries(schemas)) {
+    const refs = new Set();
+    (function collect(node) {
+      if (!node || typeof node !== 'object') return;
+      if (typeof node.$ref === 'string' && node.$ref.startsWith('helix://contracts/domain-types/')) {
+        refs.add(node.$ref.split('/').at(-2));
+      }
+      for (const value of Object.values(node)) {
+        if (Array.isArray(value)) value.forEach(collect);
+        else if (value && typeof value === 'object') collect(value);
+      }
+    }(schema));
+    nestedRefs.set(name, refs);
+  }
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const [parent, refs] of nestedRefs) {
+      const parentUsages = usages.get(parent) || [];
+      for (const ref of refs) {
+        if (!usages.has(ref)) usages.set(ref, []);
+        const target = usages.get(ref);
+        for (const usage of parentUsages) {
+          if (!target.some((item) => item.capabilityRef === usage.capabilityRef)) {
+            target.push(usage);
+            changed = true;
+          }
+        }
+      }
+    }
+  }
   for (const values of usages.values()) values.sort((left, right) => left.capabilityRef.localeCompare(right.capabilityRef));
   return usages;
 }

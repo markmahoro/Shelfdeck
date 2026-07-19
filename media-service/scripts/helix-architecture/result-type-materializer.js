@@ -101,7 +101,7 @@ function materializeResultTypes(contractsRoot) {
     owner: 'contracts',
     status: 'active',
     ssotRefs: ['7.7', '8.2.1', '8.6.18', '8.6.19', '8.9.5'],
-    targetCount: 96,
+    targetCount: 97,
     entryFiles
   }, null, 2)}\n`);
   return registry;

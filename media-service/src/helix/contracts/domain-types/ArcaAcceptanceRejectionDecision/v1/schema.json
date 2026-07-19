@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/ArcaAcceptanceRejectionDecision/v1",
+  "title": "ArcaAcceptanceRejectionDecision@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "acceptanceDecisionId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "acceptanceAttemptId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "offerId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "onDeckPackageId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "packageDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "shelfId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "standardRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "placementRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "structuredRejection": {
+      "$ref": "helix://contracts/domain-types/StructuredRejection/v1"
+    },
+    "decisionDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "decidedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "acceptanceDecisionId",
+    "acceptanceAttemptId",
+    "offerId",
+    "onDeckPackageId",
+    "packageDigest",
+    "shelfId",
+    "standardRevision",
+    "placementRevision",
+    "structuredRejection",
+    "decisionDigest",
+    "decidedAtMs"
+  ],
+  "x-helix-maxCanonicalBytes": 32768
+}

@@ -27,6 +27,18 @@
       },
       {
         "ordinal": 3,
+        "name": "outcome",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "accepted",
+          "rejected"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
         "name": "offer_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -35,7 +47,7 @@
         "nullable": false
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "candidate_package_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -44,7 +56,7 @@
         "nullable": false
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
         "name": "package_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -53,7 +65,7 @@
         "nullable": false
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "package_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -62,52 +74,7 @@
         "nullable": false
       },
       {
-        "ordinal": 7,
-        "name": "subject_id",
-        "logicalType": "TEXT",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": false,
-        "nullable": false
-      },
-      {
         "ordinal": 8,
-        "name": "subject_intake_revision",
-        "logicalType": "INTEGER",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": false,
-        "nullable": false
-      },
-      {
-        "ordinal": 9,
-        "name": "subject_continuity_head_revision",
-        "logicalType": "INTEGER",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": false,
-        "nullable": false
-      },
-      {
-        "ordinal": 10,
-        "name": "subject_continuity_set_digest",
-        "logicalType": "TEXT",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": false,
-        "nullable": false
-      },
-      {
-        "ordinal": 11,
-        "name": "subject_episode_scope_digest",
-        "logicalType": "TEXT",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": false,
-        "nullable": false
-      },
-      {
-        "ordinal": 12,
         "name": "candidate_delivery_snapshot_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -116,34 +83,115 @@
         "nullable": false
       },
       {
+        "ordinal": 9,
+        "name": "subject_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 10,
+        "name": "subject_intake_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 11,
+        "name": "subject_continuity_head_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 12,
+        "name": "subject_continuity_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
         "ordinal": 13,
+        "name": "subject_episode_scope_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 14,
         "name": "accepted_payload_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
-        "nullable": false
+        "nullable": true
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "libra_binding_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
-        "nullable": false
+        "nullable": true
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "control_revision_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
-        "nullable": false
+        "nullable": true
       },
       {
-        "ordinal": 16,
+        "ordinal": 17,
+        "name": "rejection_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 18,
+        "name": "primary_rejection_code",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 19,
+        "name": "rejection_reason_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 20,
+        "name": "rejection_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 21,
         "name": "receipt_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -152,7 +200,7 @@
         "nullable": false
       },
       {
-        "ordinal": 17,
+        "ordinal": 22,
         "name": "committed_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -173,8 +221,18 @@
       ]
     ],
     "hotIndexes": [],
-    "partialUniqueRules": [],
-    "checkRules": [],
+    "partialUniqueRules": [
+      "同一Candidate/Package digest最多一个accepted Receipt的partial unique index，新的Acceptance Basis/Offer可以分别保留rejected Receipt。accepted要求Subject、accepted payload、Binding/Control列全部非NULL且rejection列全NULL，重建`SubjectAndTransferReceipt@1`，其`ReceiptEnvelope.scopeDigest=accepted_payload_digest`"
+    ],
+    "checkRules": [
+      {
+        "column": "outcome",
+        "enumValues": [
+          "accepted",
+          "rejected"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
         "package_revision",
@@ -195,19 +253,19 @@
       "rules": []
     },
     "semanticRules": [
-      "`UNIQUE(intake_decision_id)`及同一Candidate/Package digest最多一个Receipt",
-      "所有revision/digest必须等于同一Accepted事务结果",
-      "`accepted_payload_digest`逐字节等于Decision同名列并作为ReceiptEnvelope.scopeDigest，使Subject后续扩充后仍能从本row重建原Receipt",
-      "Accepted typed Outbox引用该Receipt且相同marker重放不新增Receipt或消息"
+      "`UNIQUE(intake_decision_id)`",
+      "同一Candidate/Package digest最多一个accepted Receipt的partial unique index，新的Acceptance Basis/Offer可以分别保留rejected Receipt。accepted要求Subject、accepted payload、Binding/Control列全部非NULL且rejection列全NULL，重建`SubjectAndTransferReceipt@1`，其`ReceiptEnvelope.scopeDigest=accepted_payload_digest`",
+      "rejected要求Subject/accepted/Binding/Control列全NULL、rejection列全非NULL，重建`IntakeRejectionReceipt@1`，其`ReceiptEnvelope.scopeDigest=IntakeRejectionDecision.decisionDigest`。两种Receipt的Snapshot digest均逐字节等于对应Decision",
+      "相同marker重放不新增Receipt或消息"
     ],
     "rawContract": {
-      "columns": "`receipt_id PK, intake_decision_id FK, offer_id, candidate_package_id, package_revision, package_digest, subject_id, subject_intake_revision, subject_continuity_head_revision, subject_continuity_set_digest, subject_episode_scope_digest, candidate_delivery_snapshot_digest, accepted_payload_digest, libra_binding_set_digest, control_revision_set_digest, receipt_digest, committed_at_ms`",
-      "constraints": "`UNIQUE(intake_decision_id)`及同一Candidate/Package digest最多一个Receipt；所有revision/digest必须等于同一Accepted事务结果；`accepted_payload_digest`逐字节等于Decision同名列并作为ReceiptEnvelope.scopeDigest，使Subject后续扩充后仍能从本row重建原Receipt；Accepted typed Outbox引用该Receipt且相同marker重放不新增Receipt或消息"
+      "columns": "`receipt_id PK, intake_decision_id FK, outcome(accepted|rejected), offer_id, candidate_package_id, package_revision, package_digest, candidate_delivery_snapshot_digest, subject_id NULL, subject_intake_revision NULL, subject_continuity_head_revision NULL, subject_continuity_set_digest NULL, subject_episode_scope_digest NULL, accepted_payload_digest NULL, libra_binding_set_digest NULL, control_revision_set_digest NULL, rejection_id NULL, primary_rejection_code NULL, rejection_reason_set_digest NULL, rejection_digest NULL, receipt_digest, committed_at_ms`",
+      "constraints": "`UNIQUE(intake_decision_id)`；同一Candidate/Package digest最多一个accepted Receipt的partial unique index，新的Acceptance Basis/Offer可以分别保留rejected Receipt。accepted要求Subject、accepted payload、Binding/Control列全部非NULL且rejection列全NULL，重建`SubjectAndTransferReceipt@1`，其`ReceiptEnvelope.scopeDigest=accepted_payload_digest`；rejected要求Subject/accepted/Binding/Control列全NULL、rejection列全非NULL，重建`IntakeRejectionReceipt@1`，其`ReceiptEnvelope.scopeDigest=IntakeRejectionDecision.decisionDigest`。两种Receipt的Snapshot digest均逐字节等于对应Decision；相同marker重放不新增Receipt或消息"
     },
     "source": {
       "section": "8.5.11",
-      "line": 7948,
-      "lineDigest": "211447dce94242b18a9f219e7008001d2df1dfd51aeae933dc826ad28245fc07"
+      "line": 8016,
+      "lineDigest": "8ce993cb76303777f93a710530ff4f3d21b62aac093d969773d63e4928e4b834"
     },
     "foreignKeys": [
       {

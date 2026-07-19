@@ -53,14 +53,15 @@ test('persists Subject continuity and Material-to-Episode N:M relations without 
     s.invoke('insert_subject',{ subject_id:subjectId,structure_kind:'season',status:'active',intake_revision:1,
       current_continuity_set_digest:continuityDigest,current_episode_scope_digest:episodeDigest,current_identity_revision:null,
       created_at_ms:at,updated_at_ms:at,terminal_at_ms:null });
-    i.invoke('insert_decision',{ intake_decision_id:decisionId,decision_revision:1,offer_id:'offer-1',candidate_package_id:'candidate-1',package_revision:1,
+    i.invoke('insert_decision',{ intake_decision_id:decisionId,decision_revision:1,decision_kind:'accepted_resolution',offer_id:'offer-1',candidate_package_id:'candidate-1',package_revision:1,
       package_digest:D('package'),acceptance_basis_digest:D('basis'),candidate_delivery_snapshot_digest:D('delivery'),expected_continuity_head_revision:0,
       expected_continuity_head_digest:continuityHeadDigest(0),committed_continuity_head_revision:1,candidate_continuity_set_digest:continuityDigest,
       candidate_episode_scope_digest:episodeDigest,match_cardinality:'none',matched_subject_set_digest:D('matches'),episode_overlap_digest:D('overlap'),
-      result:'new_subject',target_subject_id:subjectId,expected_target_status:null,expected_target_intake_revision:null,
+      accepted_result:'new_subject',target_subject_id:subjectId,expected_target_status:null,expected_target_intake_revision:null,
       expected_target_continuity_set_digest:null,expected_target_episode_scope_digest:null,committed_target_intake_revision:1,
       committed_subject_continuity_set_digest:continuityDigest,committed_subject_episode_scope_digest:episodeDigest,
-      accepted_payload_digest:D('payload'),rejection_schema_ref:null,decision_digest:D('decision'),decided_at_ms:at });
+      accepted_payload_digest:D('payload'),rejection_schema_ref:null,rejection_id:null,primary_rejection_code:null,
+      rejection_reason_set_digest:null,rejection_digest:null,decision_digest:D('decision'),decided_at_ms:at });
     for(const claim of claims)s.invoke('insert_claim',{ subject_id:subjectId,claim_kind:claim.claimKind,claim_namespace:claim.claimNamespace,
       claim_key:claim.claimKey,claim_digest:claim.claimDigest,provenance_kind:claim.provenanceKind,provenance_ref:claim.provenanceRef,accepted_at_ms:at });
     for(const episodeKey of ['S01E01','S01E02'])s.invoke('insert_episode',{ subject_id:subjectId,episode_key:episodeKey,

@@ -5,21 +5,21 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "structuredRejection": {
-      "$ref": "#/$defs/structuredRejection"
+    "arcaAcceptanceRejectionDecision": {
+      "$ref": "#/$defs/arcaAcceptanceRejectionDecision"
     },
     "domainFactCommitHandle": {
       "$ref": "#/$defs/domainFactCommitHandle"
     }
   },
   "required": [
-    "structuredRejection",
+    "arcaAcceptanceRejectionDecision",
     "domainFactCommitHandle"
   ],
   "$defs": {
-    "structuredRejection": {
-      "$ref": "helix://contracts/domain-types/StructuredRejection/v1",
-      "x-helix-typeExpression": "StructuredRejection"
+    "arcaAcceptanceRejectionDecision": {
+      "$ref": "helix://contracts/domain-types/ArcaAcceptanceRejectionDecision/v1",
+      "x-helix-typeExpression": "ArcaAcceptanceRejectionDecision"
     },
     "domainFactCommitHandle": {
       "$ref": "helix://contracts/types/DomainFactCommitHandle/v1",

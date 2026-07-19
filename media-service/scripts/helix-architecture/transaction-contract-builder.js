@@ -15,12 +15,16 @@ const crashFixtures = Object.freeze({
   'direct-person-registration': ['Direct Person Registration提交前、Person/Identity/初始Projection checkpoint写入后、command receipt/Outbox前后、响应前崩溃', 'Person首revision、Alias/Provider Identity、初始Reference Projection checkpoint、durable result、command receipt和Outbox必须全有或全无；重放返回同一结果且不经过Candidate或建立Reference Fact', 11228],
   'people-reference-image': ['Reference Image导入后、Face检测/Embedding前后、Asset/Face/Reference head/Projection checkpoint各participant后、typed Result/marker/Outbox前后、响应前崩溃', '零Face、多Face、handle/digest/model不一致或stale Person/Reference revision整体失败；Asset与唯一Face同事务active或released；Reference revision和所有受影响Projection checkpoint连续；同marker重放返回原typed Result', 11228],
   'handoff-a-accepted': ['Candidate Delivery snapshot重建前后、global continuity head CAS前后、continuity match前后、并发Subject/episode/Resolved Identity exact anchor变化、target Intake CAS前后、Decision/Subject/Binding N:M relation participant后、Control participant前后、Result/marker/Outbox前', 'Snapshot的Offer/Package/Manifest/Location Evidence不一致即fail closed且不旁读proc_*修补；exact claim唯一命中且zero overlap才extension；0/N命中、缺失或overlap新建Subject；global head阻止query phantom，target head阻止唯一Subject stale extension；竞态使Decision失效后重新装配；new Subject identity pointer为NULL；要么全部不存在，要么global/target revision、Decision及match/overlap Evidence、Subject/claim/Episode scope、每Material Binding及全部Episode relation、Control、Receipt/Result/marker/Outbox全部成立；Procurement只异步消费Receipt', 9501],
+  'handoff-a-rejected': ['Candidate/Material/Control Verification形成前后、Reason/Evidence rows逐项写入中途、Decision/Receipt/Result/marker/Outbox各边界、相同Offer的Accepted竞态', '只允许closed Handoff A reason；Continuity 0/N/overlap不得误判rejected；Decision、全部Reason Evidence、Receipt、Result、marker和Rejected Outbox全有或全无；不读写continuity head、不创建Subject/Binding、不转移Control；同一Offer只有一个terminal Decision', 9610],
+  'procurement-handoff-a-rejection-consume': ['Inbox写入前后、open Delivery CAS前后、Reservation逐项释放中途、Delivery terminal与Inbox result提交前后、迟到Accepted消息', 'Delivery、全部Candidate member released+handoff_rejected、同一Receipt Evidence与Inbox result全有或全无；Procurement Material Control不变；重复消息重放同一closure digest，相反终态或digest冲突稳定拒绝', 9611],
   'procurement-failed-run-retry': ['Retry Intent commit前后、新Run建立前后、Intent consume前后', '旧Run始终sealed；一个Intent最多建立一个新Run；观察不伪造Basis revision；失败不会自动连锁重试', 8414],
   'libra-subject-abandon': ['Decision前、Subject terminal后、Primary Control release前后、Receipt/Outbox前', '要么Subject仍active且Control不变，要么abandoned/Primary released/Receipt全部成立；已有Run时Command稳定拒绝', 8415],
   'libra-deliverable-promotion': ['Workspace Identity计算后、Package participant后、Control acquire前后', 'Package可见时所有Product Material已有Libra Control；失败不发布Offer', 8416],
   'libra-run-discard': ['Decision前、Run terminal后、原始Input Control release前后、Cleanup Scope/Outbox前', '要么Run仍frozen且全部Control不变，要么discarded/原始Input released/Cleanup Scope完整成立；受Control Workspace Product不成为无Owner文件', 8417],
   'libra-workspace-cleanup': ['删除intent后、文件删除后Evidence前、Cleanup/Control commit前后', '删除效果幂等；只有Deletion Evidence成立的受Control Product释放Control；重启恢复同一Cleanup member', 8418],
   'handoff-b-accepted': ['Acceptance Decision、Custody/Binding、Control transfer、Receipt/Outbox各边界', 'Arca责任与Control一起成立；Libra Store不被Arca事务写入', 8419],
+  'handoff-b-rejected': ['Acceptance check set形成前后、Attempt terminal CAS、Decision/Receipt/Result/marker/Outbox各边界、并发Accepted竞态', '只允许closed reason；rejected Attempt、Evidence set、Decision、Receipt、Result、marker和Outbox全有或全无；不建立Custody/Binding/On-deck Run、不转移Control；Accepted/Rejected互斥', 9617],
+  'libra-handoff-b-rejection-consume': ['Inbox写入前后、Package digest CAS、Delivery Receipt写入前后、迟到Accepted消息', 'immutable Package与rejected Delivery Receipt/Inbox closure全有或全无；重复消息重放同一closure digest，相反终态或digest冲突稳定拒绝；不写Arca Store', 9618],
   'ondeck-fixed-transaction': ['Slot prepare、Stage、Switch、Final Primary verify、Settlement逐项、On-deck Commit', '已Settlement后只能向前恢复；Shelf Entry/Inventory/Deck/Control/Completion同一commit', 8420],
   'aftercare-basis-inventory': ['Standard/Placement/Decision Fact变化、Case create、Workspace output、Stage/Switch、Settlement、Inventory/Control commit', 'Case冻结完整Care Basis；旧Basis不能提交；原Shelf Entry/Identity/Deck持续；新Inventory revision与Control set一致', 8421],
   'offdeck-review-authorization': ['Review、Reservation、Scope、selection/escalation、Authorization/Case各边界', 'Authorization前不存在Case；Direct Intent不伪造Candidate；high-volume无独立Receipt不能授权；每Entry独立Scope/Case', 8422],
@@ -171,6 +175,22 @@ const definitions = Object.freeze({
       'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox'], fixtureRefs: ['handoff-a-accepted'], hasOutbox: true,
     forbiddenWritePrefixes: ['proc_']
   },
+  'Handoff A Rejected': {
+    commitClass: 'domain_fact_commit',
+    writeTables: ['libra_intake_decisions', 'libra_intake_rejection_reason_evidence', 'libra_handoff_a_receipts',
+      'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox'],
+    readTables: ['libra_intake_decisions', 'libra_intake_rejection_reason_evidence', 'libra_handoff_a_receipts',
+      'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox'],
+    fixtureRefs: ['handoff-a-rejected'], hasOutbox: true,
+    forbiddenWritePrefixes: ['proc_', 'arca_']
+  },
+  'Procurement Handoff A Rejection Consume': {
+    commitClass: 'domain_unit_of_work',
+    writeTables: ['proc_candidate_deliveries', 'proc_run_materials', 'fx_inbox'],
+    readTables: ['proc_candidate_deliveries', 'proc_run_materials', 'fx_inbox'],
+    fixtureRefs: ['procurement-handoff-a-rejection-consume'], hasOutbox: false, commitMarkerRequired: false,
+    forbiddenWriteTables: ['fx_material_controls', 'fx_material_control_revisions']
+  },
   'Libra Subject Abandon Commit': {
     commitClass: 'responsibility_control_commit',
     writeTables: ['libra_subject_abandon_decisions', 'libra_subjects', 'libra_subject_abandon_receipts', 'fx_material_controls', 'fx_material_control_revisions', 'fx_commit_markers', 'fx_outbox'],
@@ -181,6 +201,22 @@ const definitions = Object.freeze({
     writeTables: ['arca_acceptance_decisions', 'arca_ondeck_custodies', 'arca_material_bindings', 'arca_handoff_b_receipts', 'fx_material_controls', 'fx_material_control_revisions', 'fx_commit_markers', 'fx_outbox'],
     readTables: ['arca_acceptance_attempts', 'arca_acceptance_checks'], fixtureRefs: ['handoff-b-accepted'], hasOutbox: true,
     forbiddenWritePrefixes: ['libra_']
+  },
+  'Handoff B Rejected': {
+    commitClass: 'domain_fact_commit',
+    writeTables: ['arca_acceptance_attempts', 'arca_acceptance_decisions', 'arca_handoff_b_receipts',
+      'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox'],
+    readTables: ['arca_acceptance_attempts', 'arca_acceptance_decisions', 'arca_handoff_b_receipts',
+      'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox', 'arca_acceptance_checks'],
+    fixtureRefs: ['handoff-b-rejected'], hasOutbox: true,
+    forbiddenWritePrefixes: ['libra_']
+  },
+  'Libra Handoff B Rejection Consume': {
+    commitClass: 'domain_unit_of_work',
+    writeTables: ['libra_product_packages', 'libra_delivery_receipts', 'fx_inbox'],
+    readTables: ['libra_product_packages', 'libra_delivery_receipts', 'fx_inbox'],
+    fixtureRefs: ['libra-handoff-b-rejection-consume'], hasOutbox: false, commitMarkerRequired: false,
+    forbiddenWritePrefixes: ['arca_']
   },
   'Libra Deliverable Promotion': {
     commitClass: 'responsibility_control_commit',

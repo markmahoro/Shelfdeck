@@ -18,6 +18,15 @@
       },
       {
         "ordinal": 2,
+        "name": "offer_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
         "name": "on_deck_package_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -26,7 +35,7 @@
         "nullable": false
       },
       {
-        "ordinal": 3,
+        "ordinal": 4,
         "name": "package_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -35,7 +44,7 @@
         "nullable": false
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "arca_acceptance_decision_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -44,8 +53,29 @@
         "nullable": false
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
+        "name": "arca_acceptance_decision_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 7,
         "name": "result",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "accepted",
+          "rejected"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "handoff_receipt_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -53,7 +83,34 @@
         "nullable": false
       },
       {
-        "ordinal": 6,
+        "ordinal": 9,
+        "name": "handoff_receipt_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 10,
+        "name": "rejection_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 11,
+        "name": "closure_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 12,
         "name": "received_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -70,8 +127,7 @@
     ],
     "uniqueConstraints": [
       [
-        "on_deck_package_id",
-        "package_digest"
+        "offer_id"
       ]
     ],
     "hotIndexes": [
@@ -81,7 +137,15 @@
       ]
     ],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "result",
+        "enumValues": [
+          "accepted",
+          "rejected"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [],
       "currentPointerColumns": [],
@@ -90,25 +154,30 @@
     },
     "jsonContracts": [],
     "immutability": {
-      "immutable": false,
-      "rules": []
+      "immutable": true,
+      "rules": [
+        "terminal后immutable，相反终态稳定拒绝"
+      ]
     },
     "deletion": {
       "foreignKeyPolicy": "ON DELETE RESTRICT",
       "rules": []
     },
     "semanticRules": [
-      "`UNIQUE(on_deck_package_id,package_digest)`",
+      "`receipt_id=SHA-256(JCS({schema:\"libra.product-delivery-receipt-id@1\",offerId}))`，offer逐字节等于Package row且`UNIQUE(offer_id)`",
+      "accepted沿用既有Handoff B accepted projection并要求rejection/closure列为NULL",
+      "rejected要求decision/receipt/rejection/closure digest逐项等于`ArcaProductRejectedMessage@1`与`LibraProductRejectionClosureResult@1`",
+      "terminal后immutable，相反终态稳定拒绝",
       "`INDEX(result,received_at_ms)`"
     ],
     "rawContract": {
-      "columns": "`receipt_id PK, on_deck_package_id FK, package_digest, arca_acceptance_decision_id, result, received_at_ms`",
-      "constraints": "`UNIQUE(on_deck_package_id,package_digest)`；`INDEX(result,received_at_ms)`"
+      "columns": "`receipt_id PK, offer_id, on_deck_package_id FK, package_digest, arca_acceptance_decision_id, arca_acceptance_decision_digest NULL, result(accepted|rejected), handoff_receipt_id, handoff_receipt_digest NULL, rejection_digest NULL, closure_digest NULL, received_at_ms`",
+      "constraints": "`receipt_id=SHA-256(JCS({schema:\"libra.product-delivery-receipt-id@1\",offerId}))`，offer逐字节等于Package row且`UNIQUE(offer_id)`；accepted沿用既有Handoff B accepted projection并要求rejection/closure列为NULL；rejected要求decision/receipt/rejection/closure digest逐项等于`ArcaProductRejectedMessage@1`与`LibraProductRejectionClosureResult@1`；terminal后immutable，相反终态稳定拒绝；`INDEX(result,received_at_ms)`"
     },
     "source": {
       "section": "8.5.11",
-      "line": 7979,
-      "lineDigest": "a56646b3a3ddbebeadc546aac142d56b33fba1da82ffef1a78d71783b50ed550"
+      "line": 8047,
+      "lineDigest": "fb2541c233cd0aeaf48c6940c806d800a4e63d55dba63245f82670822dd47c23"
     },
     "foreignKeys": [
       {

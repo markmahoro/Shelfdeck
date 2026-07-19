@@ -1,0 +1,229 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/IntakeRejectionDecision/v1",
+  "title": "IntakeRejectionDecision@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "intakeDecisionId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "decisionRevision": {
+      "const": 1
+    },
+    "offerId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "candidatePackageId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "packageRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "packageDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "acceptanceBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "candidateDeliverySnapshotDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "structuredRejection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rejectionId": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "handoffKind": {
+          "const": "procurement_to_libra"
+        },
+        "offerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "deliverableId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "deliverableRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "deliverableDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "decisionBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "observedSnapshotDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "reasonCodes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "candidate_contract_invalid",
+              "candidate_material_identity_changed",
+              "candidate_material_unavailable",
+              "candidate_material_unreadable",
+              "candidate_control_scope_unavailable"
+            ]
+          },
+          "maxItems": 32,
+          "minItems": 1
+        },
+        "primaryRejectionCode": {
+          "type": "string",
+          "enum": [
+            "candidate_contract_invalid",
+            "candidate_material_identity_changed",
+            "candidate_material_unavailable",
+            "candidate_material_unreadable",
+            "candidate_control_scope_unavailable"
+          ]
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "reasonCode": {
+                "type": "string",
+                "enum": [
+                  "candidate_contract_invalid",
+                  "candidate_material_identity_changed",
+                  "candidate_material_unavailable",
+                  "candidate_material_unreadable",
+                  "candidate_control_scope_unavailable"
+                ]
+              },
+              "evidenceRefs": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "evidenceSchemaRef": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "evidenceId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "evidenceDigest": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "evidenceSchemaRef",
+                    "evidenceId",
+                    "evidenceDigest"
+                  ]
+                },
+                "maxItems": 32,
+                "minItems": 1
+              },
+              "reasonDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "reasonCode",
+              "evidenceRefs",
+              "reasonDigest"
+            ]
+          },
+          "maxItems": 32,
+          "minItems": 1
+        },
+        "rejectionReasonSetDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "rejectionDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "decidedAtMs": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "rejectionId",
+        "handoffKind",
+        "offerId",
+        "deliverableId",
+        "deliverableRevision",
+        "deliverableDigest",
+        "decisionBasisDigest",
+        "observedSnapshotDigest",
+        "reasonCodes",
+        "primaryRejectionCode",
+        "reasons",
+        "rejectionReasonSetDigest",
+        "rejectionDigest",
+        "decidedAtMs"
+      ]
+    },
+    "decisionDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "intakeDecisionId",
+    "decisionRevision",
+    "offerId",
+    "candidatePackageId",
+    "packageRevision",
+    "packageDigest",
+    "acceptanceBasisDigest",
+    "candidateDeliverySnapshotDigest",
+    "structuredRejection",
+    "decisionDigest"
+  ],
+  "x-helix-maxCanonicalBytes": 131072
+}

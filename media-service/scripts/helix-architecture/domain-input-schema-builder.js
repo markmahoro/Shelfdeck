@@ -190,7 +190,9 @@ const dtoContracts = {
   ProcurementTriageRuleSnapshot: '',
   StableProviderIdentity: 'providerId,providerObjectId,identityRevision,identityDigest',
   Standard: 'standardId,standardRevision,standardDigest',
-  StructuredRejection: 'handoffKind,deliverableId,reasonCodes,rejectionDigest',
+  IntakeRejectionDecision: 'intakeDecisionId,decisionRevision,offerId,candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest,candidateDeliverySnapshotDigest,structuredRejection,decisionDigest',
+  ArcaAcceptanceRejectionDecision: 'acceptanceDecisionId,acceptanceAttemptId,offerId,onDeckPackageId,packageDigest,shelfId,standardRevision,placementRevision,structuredRejection,decisionDigest,decidedAtMs',
+  StructuredRejection: 'handoffKind,offerId,deliverableId,rejectionCode,acceptanceEvidenceSetDigest,rejectionDigest',
   TargetBindings: 'targetCommitSlotId,bindings,bindingSetDigest',
   TargetEndpoint: 'endpointId,mountScopeRevision,capacityObservationDigest',
   TypedManifest: 'manifest,contractRef,verificationDigest',
@@ -219,6 +221,9 @@ function buildSchema(name, role, fields) {
   if (name === 'CandidateDeliverySnapshot') return candidateDeliverySnapshotSchema();
   if (name === 'SubjectContinuityResolutionDecision') return subjectContinuityResolutionDecisionSchema();
   if (name === 'AcceptedIntakePayload') return acceptedIntakePayloadSchema();
+  if (name === 'IntakeRejectionDecision') return intakeRejectionDecisionSchema();
+  if (name === 'ArcaAcceptanceRejectionDecision') return arcaAcceptanceRejectionDecisionSchema();
+  if (name === 'StructuredRejection') return structuredRejectionSchema();
   if (name === 'SelectedFieldMaterialSet') return selectedFieldMaterialSetSchema();
   if (name === 'CandidateDraft') return candidateDraftSchema();
   if (name === 'ProcurementTriageRuleSnapshot') return procurementTriageRuleSnapshotSchema();
@@ -341,6 +346,44 @@ function subjectContinuityResolutionDecisionSchema() {
   const required = Object.keys(properties).filter((key) => !['allocatedSubjectId', 'targetSubjectId', 'expectedTargetStatus',
     'expectedTargetIntakeRevision', 'expectedTargetContinuitySetDigest', 'expectedTargetEpisodeScopeDigest'].includes(key));
   return { ...exactDomainSchema('SubjectContinuityResolutionDecision', properties, required), 'x-helix-maxCanonicalBytes': 128 * 1024 };
+}
+
+const intakeRejectionCode = () => enumText('candidate_contract_invalid', 'candidate_material_identity_changed',
+  'candidate_material_unavailable', 'candidate_material_unreadable', 'candidate_control_scope_unavailable');
+
+function intakeStructuredRejectionValueSchema() {
+  const evidenceRef = object({ evidenceSchemaRef: text(), evidenceId: id(), evidenceDigest: digest() });
+  const reason = object({ reasonCode: intakeRejectionCode(), evidenceRefs: { ...arrayOf(evidenceRef, 32), minItems: 1 }, reasonDigest: digest() });
+  return object({
+    rejectionId: digest(), handoffKind: { const: 'procurement_to_libra' }, offerId: id(), deliverableId: id(),
+    deliverableRevision: positiveInteger(), deliverableDigest: digest(), decisionBasisDigest: digest(), observedSnapshotDigest: digest(),
+    reasonCodes: { ...arrayOf(intakeRejectionCode(), 32), minItems: 1 }, primaryRejectionCode: intakeRejectionCode(),
+    reasons: { ...arrayOf(reason, 32), minItems: 1 }, rejectionReasonSetDigest: digest(), rejectionDigest: digest(),
+    decidedAtMs: nonNegativeInteger()
+  });
+}
+
+function intakeRejectionDecisionSchema() {
+  return { ...exactDomainSchema('IntakeRejectionDecision', {
+    intakeDecisionId: digest(), decisionRevision: { const: 1 }, offerId: id(), candidatePackageId: id(),
+    packageRevision: positiveInteger(), packageDigest: digest(), acceptanceBasisDigest: digest(),
+    candidateDeliverySnapshotDigest: digest(), structuredRejection: intakeStructuredRejectionValueSchema(), decisionDigest: digest()
+  }), 'x-helix-maxCanonicalBytes': 128 * 1024 };
+}
+
+function structuredRejectionSchema() {
+  return { ...exactDomainSchema('StructuredRejection', {
+    handoffKind: { const: 'libra_to_arca' }, offerId: id(), deliverableId: id(), rejectionCode: text(),
+    acceptanceEvidenceSetDigest: digest(), rejectionDigest: digest()
+  }), 'x-helix-maxCanonicalBytes': 16 * 1024 };
+}
+
+function arcaAcceptanceRejectionDecisionSchema() {
+  return { ...exactDomainSchema('ArcaAcceptanceRejectionDecision', {
+    acceptanceDecisionId: digest(), acceptanceAttemptId: id(), offerId: id(), onDeckPackageId: id(), packageDigest: digest(),
+    shelfId: id(), standardRevision: positiveInteger(), placementRevision: positiveInteger(),
+    structuredRejection: domainRef('StructuredRejection'), decisionDigest: digest(), decidedAtMs: nonNegativeInteger()
+  }), 'x-helix-maxCanonicalBytes': 32 * 1024 };
 }
 
 function acceptedIntakePayloadSchema() {

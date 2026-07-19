@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.procurement-handoff-a-rejection-consume/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.procurement-handoff-a-rejection-consume",
+    "displayName": "Procurement Handoff A Rejection Consume",
+    "ownerScope": "procurement",
+    "commitClass": "domain_unit_of_work",
+    "atomicFactSet": "`LibraCandidateRejectedMessage@1` + current open Candidate Delivery/Reservation CAS + exact Candidate member set + Procurement Inbox dedup；同事务把Delivery置`rejected`、全部对应`proc_run_materials candidate_delivery → released+handoff_rejected`并冻结同一Receipt Evidence；Procurement Material Control保持不变；重复消息返回同一closure result，已accepted或Evidence不一致稳定拒绝",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "procurement",
+        "access": "write",
+        "tables": [
+          "proc_candidate_deliveries",
+          "proc_run_materials"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_inbox"
+        ]
+      }
+    ],
+    "writeTables": [
+      "proc_candidate_deliveries",
+      "proc_run_materials",
+      "fx_inbox"
+    ],
+    "readTables": [
+      "proc_candidate_deliveries",
+      "proc_run_materials",
+      "fx_inbox"
+    ],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [
+      "fx_material_controls",
+      "fx_material_control_revisions"
+    ],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": false,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "procurement-handoff-a-rejection-consume",
+        "faultInjectionPoints": "Inbox写入前后、open Delivery CAS前后、Reservation逐项释放中途、Delivery terminal与Inbox result提交前后、迟到Accepted消息",
+        "requiredInvariant": "Delivery、全部Candidate member released+handoff_rejected、同一Receipt Evidence与Inbox result全有或全无；Procurement Material Control不变；重复消息重放同一closure digest，相反终态或digest冲突稳定拒绝",
+        "source": {
+          "section": "8.9.7",
+          "line": 9611
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7707,
+      "lineDigest": "d46d448e07485265340fc81e3af807d6ebc7ae09879793807e5815f76dc4be7a"
+    }
+  }
+}

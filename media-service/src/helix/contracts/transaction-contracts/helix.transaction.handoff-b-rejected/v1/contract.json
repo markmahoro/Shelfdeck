@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.handoff-b-rejected/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.handoff-b-rejected",
+    "displayName": "Handoff B Rejected",
+    "ownerScope": "arca",
+    "commitClass": "domain_fact_commit",
+    "atomicFactSet": "complete `ArcaAcceptanceRejectionDecision@1` + immutable rejected Acceptance Decision + `RejectionReceipt@1` + durable typed Result/commit marker + `ArcaProductRejectedMessage@1` Outbox；不建立On-deck Custody/Run/Binding、不转移Control；Decision/Receipt/Result/marker/Outbox全有或全无",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "arca",
+        "access": "write",
+        "tables": [
+          "arca_acceptance_attempts",
+          "arca_acceptance_decisions",
+          "arca_handoff_b_receipts"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_event_result_bindings",
+          "fx_commit_markers",
+          "fx_outbox"
+        ]
+      }
+    ],
+    "writeTables": [
+      "arca_acceptance_attempts",
+      "arca_acceptance_decisions",
+      "arca_handoff_b_receipts",
+      "fx_event_result_bindings",
+      "fx_commit_markers",
+      "fx_outbox"
+    ],
+    "readTables": [
+      "arca_acceptance_attempts",
+      "arca_acceptance_decisions",
+      "arca_handoff_b_receipts",
+      "fx_event_result_bindings",
+      "fx_commit_markers",
+      "fx_outbox",
+      "arca_acceptance_checks"
+    ],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [
+      "libra_"
+    ],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": true
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "handoff-b-rejected",
+        "faultInjectionPoints": "Acceptance check set形成前后、Attempt terminal CAS、Decision/Receipt/Result/marker/Outbox各边界、并发Accepted竞态",
+        "requiredInvariant": "只允许closed reason；rejected Attempt、Evidence set、Decision、Receipt、Result、marker和Outbox全有或全无；不建立Custody/Binding/On-deck Run、不转移Control；Accepted/Rejected互斥",
+        "source": {
+          "section": "8.9.7",
+          "line": 9617
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 7710,
+      "lineDigest": "9e446db6f093dda648e004ee746464abc3edd7fb74bf38eaeb6543f079ed6d34"
+    }
+  }
+}

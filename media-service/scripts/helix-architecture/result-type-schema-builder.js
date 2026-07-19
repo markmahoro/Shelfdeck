@@ -372,7 +372,8 @@ const contracts = {
   CandidateContractVerification: ['VerificationEnvelope', 'offerId,candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest,primaryInputManifestDigest,candidateDeliverySnapshotDigest'],
   IntakeMaterialVerification: ['VerificationEnvelope', 'candidatePackageId,packageDigest,candidateDeliverySnapshotDigest,verifiedMaterials,verifiedMaterialSetDigest'],
   LibraBindingDraft: ['DraftEnvelope', 'subjectRef,candidateDeliverySnapshotDigest,bindings,bindingSetDigest'],
-  RejectionReceipt: ['ReceiptEnvelope', 'handoffKind,deliverableId,rejectionCode,rejectionDigest'],
+  IntakeRejectionReceipt: ['ReceiptEnvelope', 'intakeDecisionId,handoffKind,offerId,deliverableId,deliverableRevision,deliverableDigest,rejectionId,primaryRejectionCode,rejectionReasonSetDigest,rejectionDigest,receiptDigest'],
+  RejectionReceipt: ['ReceiptEnvelope', 'acceptanceDecisionId,handoffKind,offerId,deliverableId,rejectionCode,acceptanceEvidenceSetDigest,rejectionDigest,receiptDigest'],
   SubjectAndTransferReceipt: ['ReceiptEnvelope', 'intakeDecisionId,offerId,candidatePackageId,packageRevision,packageDigest,candidateDeliverySnapshotDigest,subjectId,subjectIntakeRevision,subjectContinuityHeadRevision,subjectContinuitySetDigest,subjectEpisodeScopeDigest,libraBindingSetDigest,controlRevisionSetDigest,receiptDigest'],
   VersionedQueryResult: ['EvidenceEnvelope', 'queryContract,queryVersion,inputDigest,resultKind,resultRevision,resultDigest,expiresAtMs'],
   ResolvedProductIdentity: ['EvidenceEnvelope', 'subjectId,structureKind,contentProfile,identityKind,providerIdentities,exactSeasonContinuityClaims,exactSeasonContinuitySetDigest,displayIdentity,identityDigest'],
@@ -450,6 +451,8 @@ special['OnDeckCommitResult.offloadCompletionFact'] = ref('OffloadCompletionFact
 function buildResultTypeSchema(name, [base, fieldList]) {
   if (name === 'ProcurementControlReceipt') return procurementControlReceiptSchema();
   if (name === 'PersonReferenceRevision') return personReferenceRevisionSchema();
+  if (name === 'IntakeRejectionReceipt') return intakeRejectionReceiptSchema();
+  if (name === 'RejectionReceipt') return rejectionReceiptSchema();
   const workspaceFields = base === 'WorkspaceMaterialHandle'
     ? Object.fromEntries(Object.entries(buildSharedTypeSchemas().WorkspaceMaterialHandle.properties)
       .filter(([field]) => field !== 'schemaRef' && field !== 'schemaVersion'))
@@ -504,6 +507,32 @@ function procurementControlReceiptSchema() {
     'x-helix-ssotRefs': ['8.6.18', '8.6.19'], 'x-helix-envelopeRef': typeId('ReceiptEnvelope'),
     'x-helix-maxCanonicalBytes': 64 * 1024, ...object(properties, Object.keys(properties).filter((field) => field !== 'effectReceiptRef'))
   };
+}
+
+function intakeRejectionReceiptSchema() {
+  const properties = {
+    schemaRef: { const: typeId('IntakeRejectionReceipt') }, schemaVersion: { const: 1 },
+    ...envelopeFields.ReceiptEnvelope, receiptKind: { const: 'handoff_a_rejected' }, ownerDomain: { const: 'libra' },
+    scopeType: { const: 'intake_decision' }, intakeDecisionId: id(), handoffKind: { const: 'procurement_to_libra' },
+    offerId: id(), deliverableId: id(), deliverableRevision: positiveInteger(), deliverableDigest: digest(), rejectionId: digest(),
+    primaryRejectionCode: text(), rejectionReasonSetDigest: digest(), rejectionDigest: digest(), receiptDigest: digest()
+  };
+  return { $schema: DRAFT, $id: typeId('IntakeRejectionReceipt'), title: 'IntakeRejectionReceipt@1',
+    'x-helix-ssotRefs': ['8.6.19'], 'x-helix-envelopeRef': typeId('ReceiptEnvelope'),
+    'x-helix-maxCanonicalBytes': 64 * 1024, ...object(properties, Object.keys(properties).filter((field) => field !== 'effectReceiptRef')) };
+}
+
+function rejectionReceiptSchema() {
+  const properties = {
+    schemaRef: { const: typeId('RejectionReceipt') }, schemaVersion: { const: 1 },
+    ...envelopeFields.ReceiptEnvelope, receiptKind: { const: 'handoff_b_rejected' }, ownerDomain: { const: 'arca' },
+    scopeType: { const: 'acceptance_decision' }, acceptanceDecisionId: id(), handoffKind: { const: 'libra_to_arca' },
+    offerId: id(), deliverableId: id(), rejectionCode: text(), acceptanceEvidenceSetDigest: digest(),
+    rejectionDigest: digest(), receiptDigest: digest()
+  };
+  return { $schema: DRAFT, $id: typeId('RejectionReceipt'), title: 'RejectionReceipt@1',
+    'x-helix-ssotRefs': ['8.6.19'], 'x-helix-envelopeRef': typeId('ReceiptEnvelope'),
+    'x-helix-maxCanonicalBytes': 16 * 1024, ...object(properties, Object.keys(properties).filter((field) => field !== 'effectReceiptRef')) };
 }
 
 function personReferenceRevisionSchema() {

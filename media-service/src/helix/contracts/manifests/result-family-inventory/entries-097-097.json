@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "manifestId": "helix.inventory.result-families",
+  "entries": [
+    {
+      "id": "WorkspaceMediaHandle",
+      "version": 1,
+      "owner": "contracts",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.19"
+      ],
+      "sourceLocator": {
+        "section": "8.6.19",
+        "line": 9161,
+        "lineDigest": "00af4225b8e38e45835bd733c51dacc36739d5d85058c94e9a70ad9c6aa50ba9"
+      },
+      "targetLocator": {
+        "path": "types/WorkspaceMediaHandle/v1/schema.json"
+      },
+      "contract": {
+        "resultKind": "nominal-result",
+        "schemaId": "helix://contracts/types/WorkspaceMediaHandle/v1",
+        "schemaPath": "types/WorkspaceMediaHandle/v1/schema.json",
+        "producedBy": [
+          "libra.media.remux@1",
+          "libra.media.transcode@1",
+          "arca.aftercare.media.remux@1",
+          "arca.aftercare.media.transcode@1"
+        ],
+        "sourceSection": "8.6.19"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "d9aa439cccbc228cb825bb8c953e0142d722b77c23b5a911a4703106600f09f7"
+      }
+    }
+  ]
+}

@@ -18,6 +18,15 @@
       },
       {
         "ordinal": 2,
+        "name": "offer_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
         "name": "libra_run_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -26,7 +35,7 @@
         "nullable": false
       },
       {
-        "ordinal": 3,
+        "ordinal": 4,
         "name": "subject_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -35,7 +44,7 @@
         "nullable": false
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "shelf_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -44,7 +53,7 @@
         "nullable": false
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
         "name": "acceptance_spec_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -53,7 +62,7 @@
         "nullable": false
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "product_identity_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -62,7 +71,7 @@
         "nullable": false
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "product_manifest_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -71,7 +80,7 @@
         "nullable": false
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "media_cast_fact_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -80,7 +89,7 @@
         "nullable": false
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "media_cast_fact_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -89,7 +98,7 @@
         "nullable": false
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "offload_context_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -98,7 +107,7 @@
         "nullable": false
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "package_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -107,7 +116,7 @@
         "nullable": false
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "state",
         "logicalType": "TEXT",
         "enumValues": [
@@ -118,7 +127,7 @@
         "nullable": false
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "published_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -167,7 +176,7 @@
     "immutability": {
       "immutable": true,
       "rules": [
-        "published Package immutable"
+        "published Package/Offer immutable"
       ]
     },
     "deletion": {
@@ -175,19 +184,20 @@
       "rules": []
     },
     "semanticRules": [
+      "`offer_id=SHA-256(JCS({schema:\"libra.product-offer-id@1\",onDeckPackageId,packageDigest}))`且唯一",
       "`media_cast_fact_id/digest`必须引用同Run的完整Libra Media-Cast Product Fact snapshot",
       "`UNIQUE(libra_run_id,package_digest)`",
-      "published Package immutable",
+      "published Package/Offer immutable",
       "`INDEX(shelf_id,state,published_at_ms)`"
     ],
     "rawContract": {
-      "columns": "`on_deck_package_id PK, libra_run_id FK, subject_id FK, shelf_id, acceptance_spec_id FK, product_identity_digest, product_manifest_digest, media_cast_fact_id, media_cast_fact_digest, offload_context_digest, package_digest, state, published_at_ms`",
-      "constraints": "`media_cast_fact_id/digest`必须引用同Run的完整Libra Media-Cast Product Fact snapshot；`UNIQUE(libra_run_id,package_digest)`；published Package immutable；`INDEX(shelf_id,state,published_at_ms)`"
+      "columns": "`on_deck_package_id PK, offer_id, libra_run_id FK, subject_id FK, shelf_id, acceptance_spec_id FK, product_identity_digest, product_manifest_digest, media_cast_fact_id, media_cast_fact_digest, offload_context_digest, package_digest, state, published_at_ms`",
+      "constraints": "`offer_id=SHA-256(JCS({schema:\"libra.product-offer-id@1\",onDeckPackageId,packageDigest}))`且唯一；`media_cast_fact_id/digest`必须引用同Run的完整Libra Media-Cast Product Fact snapshot；`UNIQUE(libra_run_id,package_digest)`；published Package/Offer immutable；`INDEX(shelf_id,state,published_at_ms)`"
     },
     "source": {
       "section": "8.5.11",
-      "line": 7976,
-      "lineDigest": "5ee6af983eb9b2d958ff1651c80a6aa08c17d5a5a7c4ceac8155126ba3d55b1a"
+      "line": 8044,
+      "lineDigest": "ca2d2cb207b4e58484fa6cb173aeb07c1f5392dd772009d7530826e9e67741a4"
     },
     "foreignKeys": [
       {

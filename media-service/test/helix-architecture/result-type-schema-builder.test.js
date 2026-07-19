@@ -6,8 +6,8 @@ const { buildResultTypeSchemas } = require('../../scripts/helix-architecture/res
 
 const schemas = buildResultTypeSchemas();
 
-test('builds 86 Catalog Result schemas and the eight SSOT helper types', () => {
-  assert.equal(Object.keys(schemas).length, 94);
+test('builds 87 Catalog Result schemas and the eight SSOT helper types', () => {
+  assert.equal(Object.keys(schemas).length, 95);
   assert.equal(schemas.CandidatePackage.properties.relatedReferences.items.$ref,
     'helix://contracts/types/RelatedMaterialReference/v1');
   for (const helper of ['OnDeckCommitReceipt', 'OffloadCompletionFact', 'PeopleCandidateDraft', 'PrimaryInputManifest',

@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/IntakeRejectionReceipt/v1",
+  "title": "IntakeRejectionReceipt@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "x-helix-envelopeRef": "helix://contracts/types/ReceiptEnvelope/v1",
+  "x-helix-maxCanonicalBytes": 65536,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/IntakeRejectionReceipt/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "receiptId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "receiptKind": {
+      "const": "handoff_a_rejected"
+    },
+    "ownerDomain": {
+      "const": "libra"
+    },
+    "scopeType": {
+      "const": "intake_decision"
+    },
+    "scopeId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "scopeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "effectReceiptRef": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "committedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "intakeDecisionId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "handoffKind": {
+      "const": "procurement_to_libra"
+    },
+    "offerId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "deliverableId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "deliverableRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "deliverableDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "rejectionId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "primaryRejectionCode": {
+      "type": "string",
+      "minLength": 1
+    },
+    "rejectionReasonSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "rejectionDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "receiptDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "receiptId",
+    "receiptKind",
+    "ownerDomain",
+    "scopeType",
+    "scopeId",
+    "scopeDigest",
+    "committedAtMs",
+    "intakeDecisionId",
+    "handoffKind",
+    "offerId",
+    "deliverableId",
+    "deliverableRevision",
+    "deliverableDigest",
+    "rejectionId",
+    "primaryRejectionCode",
+    "rejectionReasonSetDigest",
+    "rejectionDigest",
+    "receiptDigest"
+  ]
+}

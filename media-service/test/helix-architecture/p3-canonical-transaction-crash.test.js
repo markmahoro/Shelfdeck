@@ -347,6 +347,25 @@ function outboxParticipant(contract, owner) {
   });
 }
 
+function inboxParticipant(contract, owner) {
+  const repository = createRepositoryDefinition({
+    repositoryId: 'fixture_inbox', owner: 'execution-foundation', schemaManifest,
+    statements: { insert: { kind: 'insert', tableId: 'fx_inbox', columns: [
+      'consumer_domain', 'message_id', 'dedup_key', 'received_at_ms', 'consumed_at_ms', 'result_digest'
+    ] } }
+  });
+  return {
+    participantId: 'fixture_inbox', owner: 'execution-foundation', boundBusinessOwner: owner, repositories: [repository],
+    execute(context) {
+      const id = contract.transactionId;
+      context.repository('fixture_inbox').invoke('insert', {
+        consumer_domain: owner, message_id: 'message-' + digest(id).slice(0, 16), dedup_key: id,
+        received_at_ms: context.commitTimeMs, consumed_at_ms: context.commitTimeMs, result_digest: digest('inbox/' + id)
+      });
+    }
+  };
+}
+
 function businessOwner(contract) {
   return contract.ownerScope === 'polymorphic-domain-owner' ? 'libra' : contract.ownerScope;
 }
@@ -357,6 +376,7 @@ function participantsFor(contract, unitOfWork, options = {}) {
   if (contract.fenceContract.materialControlCasRequired) result.push(controlParticipant(contract, owner, unitOfWork, options.staleControl));
   if (contract.writeTables.includes('fx_event_result_bindings')) result.push(resultBindingParticipant(contract, owner));
   if (contract.writeTables.includes('fx_command_receipts')) result.push(commandReceiptParticipant(contract, owner));
+  if (contract.writeTables.includes('fx_inbox')) result.push(inboxParticipant(contract, owner));
   if (contract.fenceContract.commitMarkerRequired) result.push(markerParticipant(contract, owner, 'marker-' + digest(contract.transactionId).slice(0, 16)));
   if (contract.fenceContract.outboxRequired) result.push(outboxParticipant(contract, owner));
   return result;
@@ -403,13 +423,13 @@ function fixture(contract, run, options = {}) {
 
 const transactionContracts = contracts();
 
-test('P2 canonical transaction inventory drives exactly 30 isolated contracts', () => {
+test('canonical transaction inventory drives exactly 34 isolated contracts', () => {
   const inventory = loadJson(path.join(serviceRoot, 'src/helix/contracts/manifests/transaction-inventory.json'));
   const inventoryEntries = inventory.entryFiles.flatMap((file) =>
     loadJson(path.join(serviceRoot, 'src/helix/contracts/manifests', file)).entries
   );
-  assert.equal(transactionContracts.length, 30);
-  assert.equal(inventory.targetCount, 30);
+  assert.equal(transactionContracts.length, 34);
+  assert.equal(inventory.targetCount, 34);
   assert.deepEqual(transactionContracts.map((contract) => contract.transactionId),
     [...inventoryEntries].sort((left, right) => left.id.localeCompare(right.id)).map((entry) => entry.id));
   for (const contract of transactionContracts) {

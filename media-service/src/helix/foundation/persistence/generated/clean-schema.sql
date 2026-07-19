@@ -3,12 +3,13 @@
 
 CREATE TABLE "arca_acceptance_attempts" (
   "acceptance_attempt_id" TEXT PRIMARY KEY,
+  "offer_id" TEXT,
   "on_deck_package_id" TEXT,
   "package_digest" TEXT CHECK (length("package_digest") = 64 AND "package_digest" NOT GLOB '*[^0-9a-f]*'),
   "shelf_id" TEXT,
   "standard_revision" INTEGER CHECK ("standard_revision" >= 1),
   "placement_revision" INTEGER CHECK ("placement_revision" >= 1),
-  "state" TEXT CHECK ("state" IN ('active', 'waiting', 'accepted', 'rejected')),
+  "state" TEXT CHECK ("state" IN ('active', 'accepted', 'rejected')),
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
   "finished_at_ms" INTEGER CHECK ("finished_at_ms" >= 0),
   FOREIGN KEY ("shelf_id") REFERENCES "arca_shelves" ("shelf_id") ON DELETE RESTRICT
@@ -30,12 +31,22 @@ CREATE TABLE "arca_acceptance_checks" (
 CREATE TABLE "arca_acceptance_decisions" (
   "acceptance_decision_id" TEXT PRIMARY KEY,
   "acceptance_attempt_id" TEXT,
-  "result" TEXT,
+  "result" TEXT CHECK ("result" IN ('accepted', 'rejected')),
+  "offer_id" TEXT,
+  "on_deck_package_id" TEXT,
+  "package_digest" TEXT CHECK (length("package_digest") = 64 AND "package_digest" NOT GLOB '*[^0-9a-f]*'),
+  "shelf_id" TEXT,
+  "standard_revision" INTEGER CHECK ("standard_revision" >= 1),
+  "placement_revision" INTEGER CHECK ("placement_revision" >= 1),
+  "acceptance_evidence_set_digest" TEXT CHECK (length("acceptance_evidence_set_digest") = 64 AND "acceptance_evidence_set_digest" NOT GLOB '*[^0-9a-f]*'),
   "rejection_schema_ref" TEXT,
+  "rejection_code" TEXT,
+  "rejection_digest" TEXT CHECK (length("rejection_digest") = 64 AND "rejection_digest" NOT GLOB '*[^0-9a-f]*'),
   "decision_digest" TEXT CHECK (length("decision_digest") = 64 AND "decision_digest" NOT GLOB '*[^0-9a-f]*'),
   "decided_at_ms" INTEGER CHECK ("decided_at_ms" >= 0),
   UNIQUE ("acceptance_attempt_id"),
-  FOREIGN KEY ("acceptance_attempt_id") REFERENCES "arca_acceptance_attempts" ("acceptance_attempt_id") ON DELETE RESTRICT
+  FOREIGN KEY ("acceptance_attempt_id") REFERENCES "arca_acceptance_attempts" ("acceptance_attempt_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("shelf_id") REFERENCES "arca_shelves" ("shelf_id") ON DELETE RESTRICT
 );
 
 CREATE TABLE "arca_aftercare_assessments" (
@@ -210,15 +221,21 @@ CREATE TABLE "arca_final_inventory_decisions" (
 CREATE TABLE "arca_handoff_b_receipts" (
   "receipt_id" TEXT PRIMARY KEY,
   "acceptance_decision_id" TEXT,
+  "outcome" TEXT CHECK ("outcome" IN ('accepted', 'rejected')),
+  "offer_id" TEXT,
   "custody_id" TEXT,
   "on_deck_package_id" TEXT,
   "package_digest" TEXT CHECK (length("package_digest") = 64 AND "package_digest" NOT GLOB '*[^0-9a-f]*'),
   "arca_binding_set_digest" TEXT CHECK (length("arca_binding_set_digest") = 64 AND "arca_binding_set_digest" NOT GLOB '*[^0-9a-f]*'),
   "control_revision_set_digest" TEXT CHECK (length("control_revision_set_digest") = 64 AND "control_revision_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "rejection_code" TEXT,
+  "acceptance_evidence_set_digest" TEXT CHECK (length("acceptance_evidence_set_digest") = 64 AND "acceptance_evidence_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "rejection_digest" TEXT CHECK (length("rejection_digest") = 64 AND "rejection_digest" NOT GLOB '*[^0-9a-f]*'),
+  "receipt_digest" TEXT CHECK (length("receipt_digest") = 64 AND "receipt_digest" NOT GLOB '*[^0-9a-f]*'),
   "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
-  UNIQUE ("on_deck_package_id", "package_digest"),
-  FOREIGN KEY ("acceptance_decision_id") REFERENCES "arca_acceptance_decisions" ("acceptance_decision_id") ON DELETE RESTRICT,
-  FOREIGN KEY ("custody_id") REFERENCES "arca_ondeck_custodies" ("custody_id") ON DELETE RESTRICT
+  UNIQUE ("acceptance_decision_id"),
+  UNIQUE ("offer_id"),
+  FOREIGN KEY ("acceptance_decision_id") REFERENCES "arca_acceptance_decisions" ("acceptance_decision_id") ON DELETE RESTRICT
 );
 
 CREATE TABLE "arca_input_settlement_authorization_head" (
@@ -1178,12 +1195,18 @@ CREATE INDEX "idx_libra_decision_basis_revisions_hot_01" ON "libra_decision_basi
 
 CREATE TABLE "libra_delivery_receipts" (
   "receipt_id" TEXT PRIMARY KEY,
+  "offer_id" TEXT,
   "on_deck_package_id" TEXT,
   "package_digest" TEXT CHECK (length("package_digest") = 64 AND "package_digest" NOT GLOB '*[^0-9a-f]*'),
   "arca_acceptance_decision_id" TEXT,
-  "result" TEXT,
+  "arca_acceptance_decision_digest" TEXT CHECK (length("arca_acceptance_decision_digest") = 64 AND "arca_acceptance_decision_digest" NOT GLOB '*[^0-9a-f]*'),
+  "result" TEXT CHECK ("result" IN ('accepted', 'rejected')),
+  "handoff_receipt_id" TEXT,
+  "handoff_receipt_digest" TEXT CHECK (length("handoff_receipt_digest") = 64 AND "handoff_receipt_digest" NOT GLOB '*[^0-9a-f]*'),
+  "rejection_digest" TEXT CHECK (length("rejection_digest") = 64 AND "rejection_digest" NOT GLOB '*[^0-9a-f]*'),
+  "closure_digest" TEXT CHECK (length("closure_digest") = 64 AND "closure_digest" NOT GLOB '*[^0-9a-f]*'),
   "received_at_ms" INTEGER CHECK ("received_at_ms" >= 0),
-  UNIQUE ("on_deck_package_id", "package_digest"),
+  UNIQUE ("offer_id"),
   FOREIGN KEY ("on_deck_package_id") REFERENCES "libra_product_packages" ("on_deck_package_id") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_libra_delivery_receipts_hot_01" ON "libra_delivery_receipts" ("result", "received_at_ms");
@@ -1222,28 +1245,35 @@ CREATE TABLE "libra_field_routing_heads" (
 CREATE TABLE "libra_handoff_a_receipts" (
   "receipt_id" TEXT PRIMARY KEY,
   "intake_decision_id" TEXT,
+  "outcome" TEXT CHECK ("outcome" IN ('accepted', 'rejected')),
   "offer_id" TEXT,
   "candidate_package_id" TEXT,
   "package_revision" INTEGER CHECK ("package_revision" >= 1),
   "package_digest" TEXT CHECK (length("package_digest") = 64 AND "package_digest" NOT GLOB '*[^0-9a-f]*'),
+  "candidate_delivery_snapshot_digest" TEXT CHECK (length("candidate_delivery_snapshot_digest") = 64 AND "candidate_delivery_snapshot_digest" NOT GLOB '*[^0-9a-f]*'),
   "subject_id" TEXT,
   "subject_intake_revision" INTEGER CHECK ("subject_intake_revision" >= 1),
   "subject_continuity_head_revision" INTEGER CHECK ("subject_continuity_head_revision" >= 1),
   "subject_continuity_set_digest" TEXT CHECK (length("subject_continuity_set_digest") = 64 AND "subject_continuity_set_digest" NOT GLOB '*[^0-9a-f]*'),
   "subject_episode_scope_digest" TEXT CHECK (length("subject_episode_scope_digest") = 64 AND "subject_episode_scope_digest" NOT GLOB '*[^0-9a-f]*'),
-  "candidate_delivery_snapshot_digest" TEXT CHECK (length("candidate_delivery_snapshot_digest") = 64 AND "candidate_delivery_snapshot_digest" NOT GLOB '*[^0-9a-f]*'),
   "accepted_payload_digest" TEXT CHECK (length("accepted_payload_digest") = 64 AND "accepted_payload_digest" NOT GLOB '*[^0-9a-f]*'),
   "libra_binding_set_digest" TEXT CHECK (length("libra_binding_set_digest") = 64 AND "libra_binding_set_digest" NOT GLOB '*[^0-9a-f]*'),
   "control_revision_set_digest" TEXT CHECK (length("control_revision_set_digest") = 64 AND "control_revision_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "rejection_id" TEXT,
+  "primary_rejection_code" TEXT,
+  "rejection_reason_set_digest" TEXT CHECK (length("rejection_reason_set_digest") = 64 AND "rejection_reason_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "rejection_digest" TEXT CHECK (length("rejection_digest") = 64 AND "rejection_digest" NOT GLOB '*[^0-9a-f]*'),
   "receipt_digest" TEXT CHECK (length("receipt_digest") = 64 AND "receipt_digest" NOT GLOB '*[^0-9a-f]*'),
   "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
   UNIQUE ("intake_decision_id"),
   FOREIGN KEY ("intake_decision_id") REFERENCES "libra_intake_decisions" ("intake_decision_id") ON DELETE RESTRICT
 );
+CREATE UNIQUE INDEX "uidx_libra_handoff_a_receipts_partial_01" ON "libra_handoff_a_receipts" ("candidate_package_id", "package_digest") WHERE "outcome" = 'accepted';
 
 CREATE TABLE "libra_intake_decisions" (
   "intake_decision_id" TEXT PRIMARY KEY,
   "decision_revision" INTEGER CHECK ("decision_revision" >= 1),
+  "decision_kind" TEXT CHECK ("decision_kind" IN ('accepted_resolution', 'rejected_acceptance')),
   "offer_id" TEXT,
   "candidate_package_id" TEXT,
   "package_revision" INTEGER CHECK ("package_revision" >= 1),
@@ -1258,7 +1288,7 @@ CREATE TABLE "libra_intake_decisions" (
   "match_cardinality" TEXT CHECK ("match_cardinality" IN ('none', 'one', 'multiple')),
   "matched_subject_set_digest" TEXT CHECK (length("matched_subject_set_digest") = 64 AND "matched_subject_set_digest" NOT GLOB '*[^0-9a-f]*'),
   "episode_overlap_digest" TEXT CHECK (length("episode_overlap_digest") = 64 AND "episode_overlap_digest" NOT GLOB '*[^0-9a-f]*'),
-  "result" TEXT CHECK ("result" IN ('new_subject', 'season_extension', 'rejected')),
+  "accepted_result" TEXT CHECK ("accepted_result" IN ('new_subject', 'season_extension')),
   "target_subject_id" TEXT,
   "expected_target_status" TEXT CHECK ("expected_target_status" IN ('active')),
   "expected_target_intake_revision" INTEGER CHECK ("expected_target_intake_revision" >= 1),
@@ -1269,11 +1299,30 @@ CREATE TABLE "libra_intake_decisions" (
   "committed_subject_episode_scope_digest" TEXT CHECK (length("committed_subject_episode_scope_digest") = 64 AND "committed_subject_episode_scope_digest" NOT GLOB '*[^0-9a-f]*'),
   "accepted_payload_digest" TEXT CHECK (length("accepted_payload_digest") = 64 AND "accepted_payload_digest" NOT GLOB '*[^0-9a-f]*'),
   "rejection_schema_ref" TEXT,
+  "rejection_id" TEXT,
+  "primary_rejection_code" TEXT,
+  "rejection_reason_set_digest" TEXT CHECK (length("rejection_reason_set_digest") = 64 AND "rejection_reason_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "rejection_digest" TEXT CHECK (length("rejection_digest") = 64 AND "rejection_digest" NOT GLOB '*[^0-9a-f]*'),
   "decision_digest" TEXT CHECK (length("decision_digest") = 64 AND "decision_digest" NOT GLOB '*[^0-9a-f]*'),
   "decided_at_ms" INTEGER CHECK ("decided_at_ms" >= 0),
   UNIQUE ("offer_id")
 );
-CREATE UNIQUE INDEX "uidx_libra_intake_decisions_partial_01" ON "libra_intake_decisions" ("candidate_package_id", "package_digest") WHERE "result" IN ('new_subject', 'season_extension');
+CREATE UNIQUE INDEX "uidx_libra_intake_decisions_partial_01" ON "libra_intake_decisions" ("candidate_package_id", "package_digest") WHERE "decision_kind" = 'accepted_resolution';
+
+CREATE TABLE "libra_intake_rejection_reason_evidence" (
+  "intake_decision_id" TEXT,
+  "reason_ordinal" INTEGER CHECK ("reason_ordinal" >= 0),
+  "reason_code" TEXT,
+  "evidence_ordinal" INTEGER CHECK ("evidence_ordinal" >= 0),
+  "evidence_schema_ref" TEXT,
+  "evidence_id" TEXT,
+  "evidence_digest" TEXT CHECK (length("evidence_digest") = 64 AND "evidence_digest" NOT GLOB '*[^0-9a-f]*'),
+  "reason_digest" TEXT CHECK (length("reason_digest") = 64 AND "reason_digest" NOT GLOB '*[^0-9a-f]*'),
+  PRIMARY KEY ("intake_decision_id", "reason_ordinal", "evidence_ordinal"),
+  UNIQUE ("intake_decision_id", "reason_ordinal", "evidence_schema_ref", "evidence_id", "evidence_digest"),
+  FOREIGN KEY ("intake_decision_id") REFERENCES "libra_intake_decisions" ("intake_decision_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_libra_intake_rejection_reason_evidence_hot_01" ON "libra_intake_rejection_reason_evidence" ("intake_decision_id", "reason_ordinal", "evidence_ordinal");
 
 CREATE TABLE "libra_intake_resolution_episode_overlaps" (
   "intake_decision_id" TEXT,
@@ -1394,6 +1443,7 @@ CREATE TABLE "libra_product_package_materials" (
 
 CREATE TABLE "libra_product_packages" (
   "on_deck_package_id" TEXT PRIMARY KEY,
+  "offer_id" TEXT,
   "libra_run_id" TEXT,
   "subject_id" TEXT,
   "shelf_id" TEXT,
@@ -2215,10 +2265,15 @@ CREATE TABLE "platform_workspace_roots" (
 CREATE TABLE "proc_candidate_deliveries" (
   "offer_id" TEXT PRIMARY KEY,
   "candidate_package_id" TEXT,
+  "package_revision" INTEGER CHECK ("package_revision" >= 1),
   "package_digest" TEXT CHECK (length("package_digest") = 64 AND "package_digest" NOT GLOB '*[^0-9a-f]*'),
   "acceptance_basis_digest" TEXT CHECK (length("acceptance_basis_digest") = 64 AND "acceptance_basis_digest" NOT GLOB '*[^0-9a-f]*'),
-  "state" TEXT CHECK ("state" IN ('open', 'accepted', 'rejected', 'stale')),
+  "state" TEXT CHECK ("state" IN ('open', 'accepted', 'rejected')),
+  "handoff_decision_id" TEXT,
+  "handoff_decision_digest" TEXT CHECK (length("handoff_decision_digest") = 64 AND "handoff_decision_digest" NOT GLOB '*[^0-9a-f]*'),
   "handoff_receipt_id" TEXT,
+  "handoff_receipt_digest" TEXT CHECK (length("handoff_receipt_digest") = 64 AND "handoff_receipt_digest" NOT GLOB '*[^0-9a-f]*'),
+  "terminal_evidence_digest" TEXT CHECK (length("terminal_evidence_digest") = 64 AND "terminal_evidence_digest" NOT GLOB '*[^0-9a-f]*'),
   "offered_at_ms" INTEGER CHECK ("offered_at_ms" >= 0),
   "closed_at_ms" INTEGER CHECK ("closed_at_ms" >= 0),
   UNIQUE ("candidate_package_id", "package_digest", "acceptance_basis_digest"),

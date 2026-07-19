@@ -26,10 +26,10 @@ test('extracts the accepted P2 SSOT cardinalities with stable digests', () => {
   assert.match(first.aggregateDigest, /^[a-f0-9]{64}$/);
 });
 
-test('derives 95 Capability output families plus the canonical Outcome family', () => {
+test('derives 96 Capability output families plus the canonical Outcome family', () => {
   const result = extractSsotContracts(source);
   const outputs = new Set(result.capabilities.map((item) => item.outputFamily));
-  assert.equal(outputs.size, 95);
+  assert.equal(outputs.size, 96);
   assert.ok(result.resultFamilies.some((item) => item.id === 'CapabilityOutcome' && item.kind === 'outcome-envelope'));
   for (const output of outputs) assert.ok(result.resultFamilies.some((item) => item.id === output), output);
 });

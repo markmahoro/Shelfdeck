@@ -10,13 +10,13 @@ function fail(code, message, details) { throw new LibraIntakeStoreError(code, me
 
 const SUBJECT_COLUMNS = ['subject_id','structure_kind','status','intake_revision','current_continuity_set_digest',
   'current_episode_scope_digest','current_identity_revision','created_at_ms','updated_at_ms','terminal_at_ms'];
-const DECISION_COLUMNS = ['intake_decision_id','decision_revision','offer_id','candidate_package_id','package_revision','package_digest',
+const DECISION_COLUMNS = ['intake_decision_id','decision_revision','decision_kind','offer_id','candidate_package_id','package_revision','package_digest',
   'acceptance_basis_digest','candidate_delivery_snapshot_digest','expected_continuity_head_revision','expected_continuity_head_digest',
   'committed_continuity_head_revision','candidate_continuity_set_digest','candidate_episode_scope_digest','match_cardinality',
-  'matched_subject_set_digest','episode_overlap_digest','result','target_subject_id','expected_target_status','expected_target_intake_revision',
+  'matched_subject_set_digest','episode_overlap_digest','accepted_result','target_subject_id','expected_target_status','expected_target_intake_revision',
   'expected_target_continuity_set_digest','expected_target_episode_scope_digest','committed_target_intake_revision',
   'committed_subject_continuity_set_digest','committed_subject_episode_scope_digest','accepted_payload_digest','rejection_schema_ref',
-  'decision_digest','decided_at_ms'];
+  'rejection_id','primary_rejection_code','rejection_reason_set_digest','rejection_digest','decision_digest','decided_at_ms'];
 
 function createLibraIntakeRepositoryDefinitions(schemaManifest) {
   const subjects = createRepositoryDefinition({ repositoryId:'libra_subject_repository', owner:'libra', schemaManifest, statements:{
@@ -55,8 +55,8 @@ function createLibraIntakeRepositoryDefinitions(schemaManifest) {
     find_match_witnesses:{ kind:'select-all', tableId:'libra_intake_resolution_match_witnesses', columns:['intake_decision_id','ordinal','subject_id','expected_subject_status','expected_subject_intake_revision','expected_subject_continuity_set_digest','expected_subject_episode_scope_digest','claim_kind','claim_namespace','claim_key','candidate_claim_digest','subject_claim_digest','subject_claim_provenance_kind','subject_claim_provenance_ref','witness_digest'], keyColumns:['intake_decision_id'] },
     insert_overlap:{ kind:'insert', tableId:'libra_intake_resolution_episode_overlaps', columns:['intake_decision_id','subject_id','episode_key','overlap_digest'] },
     find_overlaps:{ kind:'select-all', tableId:'libra_intake_resolution_episode_overlaps', columns:['intake_decision_id','subject_id','episode_key','overlap_digest'], keyColumns:['intake_decision_id'] },
-    insert_receipt:{ kind:'insert', tableId:'libra_handoff_a_receipts', columns:['receipt_id','intake_decision_id','offer_id','candidate_package_id','package_revision','package_digest','subject_id','subject_intake_revision','subject_continuity_head_revision','subject_continuity_set_digest','subject_episode_scope_digest','candidate_delivery_snapshot_digest','accepted_payload_digest','libra_binding_set_digest','control_revision_set_digest','receipt_digest','committed_at_ms'] },
-    find_receipt:{ kind:'select-one', tableId:'libra_handoff_a_receipts', columns:['receipt_id','intake_decision_id','offer_id','candidate_package_id','package_revision','package_digest','subject_id','subject_intake_revision','subject_continuity_head_revision','subject_continuity_set_digest','subject_episode_scope_digest','candidate_delivery_snapshot_digest','accepted_payload_digest','libra_binding_set_digest','control_revision_set_digest','receipt_digest','committed_at_ms'], keyColumns:['intake_decision_id'] }
+    insert_receipt:{ kind:'insert', tableId:'libra_handoff_a_receipts', columns:['receipt_id','intake_decision_id','outcome','offer_id','candidate_package_id','package_revision','package_digest','candidate_delivery_snapshot_digest','subject_id','subject_intake_revision','subject_continuity_head_revision','subject_continuity_set_digest','subject_episode_scope_digest','accepted_payload_digest','libra_binding_set_digest','control_revision_set_digest','rejection_id','primary_rejection_code','rejection_reason_set_digest','rejection_digest','receipt_digest','committed_at_ms'] },
+    find_receipt:{ kind:'select-one', tableId:'libra_handoff_a_receipts', columns:['receipt_id','intake_decision_id','outcome','offer_id','candidate_package_id','package_revision','package_digest','candidate_delivery_snapshot_digest','subject_id','subject_intake_revision','subject_continuity_head_revision','subject_continuity_set_digest','subject_episode_scope_digest','accepted_payload_digest','libra_binding_set_digest','control_revision_set_digest','rejection_id','primary_rejection_code','rejection_reason_set_digest','rejection_digest','receipt_digest','committed_at_ms'], keyColumns:['intake_decision_id'] }
   }});
   return Object.freeze({ subjects, bindings, intake, tableIds:Object.freeze([...new Set([
     ...subjects.tableIds,...bindings.tableIds,...intake.tableIds

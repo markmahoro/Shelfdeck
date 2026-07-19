@@ -6,13 +6,24 @@
   "endOrdinal": 130,
   "entries": [
     {
+      "id": "arca_offdeck_reviews",
+      "owner": "arca",
+      "columnsContract": "`review_id PK, origin_kind(candidate|duplicate_group|direct_intent|batch), origin_ref, state(open|selection_confirmed|cancelled|authorized), actor_id, created_at_ms, terminal_at_ms`",
+      "constraintsContract": "`INDEX(state,created_at_ms)`；Authorization前取消只终结Review并释放Reservation",
+      "source": {
+        "section": "8.5.12",
+        "line": 8093,
+        "lineDigest": "599fabeb0091d1dcda2441457cfd875c749581ac6ade12be29f9add4d54c5040"
+      }
+    },
+    {
       "id": "arca_offdeck_reservations",
       "owner": "arca",
       "columnsContract": "`reservation_id PK, review_id FK, shelf_entry_id FK, inventory_revision, control_scope_digest, state(active|released|consumed|stale), created_at_ms, released_at_ms`",
       "constraintsContract": "同一Shelf Entry至多一个active Off-deck Reservation；`INDEX(state,created_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 8026,
+        "line": 8094,
         "lineDigest": "d9ec380f97236575796baeeb3e5ebdce5a3a60d11c825419eb07e7327a4b87c6"
       }
     },
@@ -23,7 +34,7 @@
       "constraintsContract": "`UNIQUE(reservation_id,scope_digest)`；pre-authorization immutable Scope由Reservation拥有，不依赖Case",
       "source": {
         "section": "8.5.12",
-        "line": 8027,
+        "line": 8095,
         "lineDigest": "33e0776f40c6d93014fb3291623746e94cc939bee6f75b325dbffdb5d3306d3a"
       }
     },
@@ -34,7 +45,7 @@
       "constraintsContract": "`PK(destruction_scope_id,ordinal)`及`UNIQUE(destruction_scope_id,material_key,material_role)`",
       "source": {
         "section": "8.5.12",
-        "line": 8028,
+        "line": 8096,
         "lineDigest": "84ca6df6a4203cd2f55d9007ef260daa01b437afeb3408bc8a5b7819fbd07e75"
       }
     },
@@ -45,7 +56,7 @@
       "constraintsContract": "`UNIQUE(review_id,scope_set_digest)`；服务端按当前Scope集合计算，不信任客户端阈值",
       "source": {
         "section": "8.5.12",
-        "line": 8029,
+        "line": 8097,
         "lineDigest": "77ff625978aa23c853bd9e91791693fea79fba47a6af914ec93848082a37c464"
       }
     },
@@ -56,7 +67,7 @@
       "constraintsContract": "`UNIQUE(selection_receipt_id)`；只在high-volume时生成且必须来自独立第二次操作",
       "source": {
         "section": "8.5.12",
-        "line": 8030,
+        "line": 8098,
         "lineDigest": "63661ab1e465cec55b486f8361793d31c5f38bf14b10b4f541dd19f3fae16945"
       }
     },
@@ -67,7 +78,7 @@
       "constraintsContract": "`UNIQUE(review_id,scope_set_digest)`；high-volume时escalation receipt必填；Batch只是一份Envelope",
       "source": {
         "section": "8.5.12",
-        "line": 8031,
+        "line": 8099,
         "lineDigest": "6f6a4f74e1e04cf563db3b897b459abc2d5c4cf59729dc0719c36067a4db059a"
       }
     },
@@ -78,7 +89,7 @@
       "constraintsContract": "`UNIQUE(destruction_scope_id,scope_digest)`；授权后不可取消或改Scope",
       "source": {
         "section": "8.5.12",
-        "line": 8032,
+        "line": 8100,
         "lineDigest": "db1e1f835efe4418958fd09657084cb2209614e665a8eb30a5b17da8f8dd27c8"
       }
     },
@@ -89,7 +100,7 @@
       "constraintsContract": "`UNIQUE(authorization_id)`；只在Authorization事务中创建；Direct Intent不要求Candidate",
       "source": {
         "section": "8.5.12",
-        "line": 8033,
+        "line": 8101,
         "lineDigest": "39431939efb319de4ee6902e53bddf22cf1b589501c695d34392663403c93f3d"
       }
     },
@@ -100,7 +111,7 @@
       "constraintsContract": "`PK(destruction_scope_id,material_key)`；append-only completion evidence",
       "source": {
         "section": "8.5.12",
-        "line": 8034,
+        "line": 8102,
         "lineDigest": "80df836f66b917346071463131df10c28384e576064fc715c70637d03826e7bf"
       }
     },
@@ -111,7 +122,7 @@
       "constraintsContract": "`UNIQUE(offdeck_case_id)`；与Deck Fact terminal和Control release同事务成立",
       "source": {
         "section": "8.5.12",
-        "line": 8035,
+        "line": 8103,
         "lineDigest": "c9422a9dd022288f5e55118613cabb0d1961f91f3e93cd97d92a17f367ce1dca"
       }
     },
@@ -122,7 +133,7 @@
       "constraintsContract": "每个Shelf一个non-terminal Deregistration；Supporting Work通过Foundation反向关联；不得引用Deletion Capability",
       "source": {
         "section": "8.5.12",
-        "line": 8036,
+        "line": 8104,
         "lineDigest": "b15fbdfb86e44ba54914a3af9704aceba5cd4a3366acbeb8b66d4f1df1bf23b1"
       }
     },
@@ -133,19 +144,8 @@
       "constraintsContract": "`PK(deregistration_id,material_key)`",
       "source": {
         "section": "8.5.12",
-        "line": 8037,
+        "line": 8105,
         "lineDigest": "a6975864f9858713c71fd2a87965c46dd8132bd8172b85011d5ac6df8d671698"
-      }
-    },
-    {
-      "id": "arca_deregistration_receipts",
-      "owner": "arca",
-      "columnsContract": "`receipt_id PK, deregistration_id FK, shelf_id FK, released_control_set_digest, terminal_fact_digest, committed_at_ms`",
-      "constraintsContract": "`UNIQUE(deregistration_id)`；与Shelf administrative terminal commit同事务成立",
-      "source": {
-        "section": "8.5.12",
-        "line": 8038,
-        "lineDigest": "ece31b95a4de939548e814885196b887f9a0f38c6507ec76e9eb2165896b7d33"
       }
     }
   ]

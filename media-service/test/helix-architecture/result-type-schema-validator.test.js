@@ -23,11 +23,11 @@ function mutate(filePath, change) {
 
 const codes = (result) => new Set(result.findings.map((item) => item.code));
 
-test('validates the complete 95 Catalog Result graph plus seven helpers', () => {
+test('validates the complete 96 Catalog Result graph plus seven helpers', () => {
   const result = validateResultTypeSchemas({ contractsRoot: actualContractsRoot });
   assert.equal(result.ok, true);
-  assert.equal(result.catalogResultCount, 95);
-  assert.equal(result.nominalResultCount, 86);
+  assert.equal(result.catalogResultCount, 96);
+  assert.equal(result.nominalResultCount, 87);
   assert.equal(result.directResultCount, 9);
   assert.equal(result.helperCount, 7);
 });

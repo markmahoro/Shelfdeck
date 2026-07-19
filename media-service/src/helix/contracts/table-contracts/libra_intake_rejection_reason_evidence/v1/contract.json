@@ -1,0 +1,157 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_intake_rejection_reason_evidence/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_intake_rejection_reason_evidence",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "intake_decision_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "reason_ordinal",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "reason_code",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "evidence_ordinal",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "evidence_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "evidence_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "reason_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "intake_decision_id",
+      "reason_ordinal",
+      "evidence_ordinal"
+    ],
+    "declaredForeignKeyColumns": [
+      "intake_decision_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "intake_decision_id",
+        "reason_ordinal",
+        "evidence_schema_ref",
+        "evidence_id",
+        "evidence_digest"
+      ]
+    ],
+    "hotIndexes": [
+      [
+        "intake_decision_id",
+        "reason_ordinal",
+        "evidence_ordinal"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "全部rows必须精确重建`IntakeStructuredRejection@1`的Reason集合，immutable"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(intake_decision_id,reason_ordinal,evidence_ordinal)`及`UNIQUE(intake_decision_id,reason_ordinal,evidence_schema_ref,evidence_id,evidence_digest)`",
+      "每个reason ordinal至少一行，reason code按8.6.18 Handoff A closed precedence去重排序，组内Evidence按`evidence_schema_ref,evidence_id,evidence_digest`的UTF-8 bytes升序且唯一",
+      "同一reason ordinal全部row的reason code/digest相同",
+      "`reason_digest=SHA-256(JCS({schema:\"handoff-a-rejection-reason@1\",reasonCode,evidenceRefs}))`",
+      "全部rows必须精确重建`IntakeStructuredRejection@1`的Reason集合，immutable",
+      "`INDEX(intake_decision_id,reason_ordinal,evidence_ordinal)`"
+    ],
+    "rawContract": {
+      "columns": "`intake_decision_id FK, reason_ordinal, reason_code, evidence_ordinal, evidence_schema_ref, evidence_id, evidence_digest, reason_digest`",
+      "constraints": "`PK(intake_decision_id,reason_ordinal,evidence_ordinal)`及`UNIQUE(intake_decision_id,reason_ordinal,evidence_schema_ref,evidence_id,evidence_digest)`；每个reason ordinal至少一行，reason code按8.6.18 Handoff A closed precedence去重排序，组内Evidence按`evidence_schema_ref,evidence_id,evidence_digest`的UTF-8 bytes升序且唯一；同一reason ordinal全部row的reason code/digest相同；`reason_digest=SHA-256(JCS({schema:\"handoff-a-rejection-reason@1\",reasonCode,evidenceRefs}))`；全部rows必须精确重建`IntakeStructuredRejection@1`的Reason集合，immutable；`INDEX(intake_decision_id,reason_ordinal,evidence_ordinal)`"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 8015,
+      "lineDigest": "6db269db11f3773220321a552e1c01b690432f818b77773da504dcceca398f61"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "intake_decision_id"
+        ],
+        "targetTable": "libra_intake_decisions",
+        "targetColumns": [
+          "intake_decision_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}
