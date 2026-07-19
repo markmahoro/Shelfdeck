@@ -52,6 +52,12 @@ Handle Owner固定为接收/提交Owner Libra，来源Procurement scope仅由Pay
 historical Projection唯一重算。replay、stale head及Outbox crash反例和完整96-file Architecture gate PASS；Evidence见
 `implementation/evidence/P8_06_HANDOFF_A_ACCEPTED.md`。下一工作包P8-07。
 
+P8-07已完成：Libra Accepted/Rejected typed Outbox与Procurement Delivery/Reservation/Inbox收口对称闭合；Procurement
+不读Libra Store，Accepted不二次转移Control，Rejected不改写Control，terminal replay与Inbox crash反例PASS。Evidence见
+`implementation/evidence/P8_07_RECEIPT_PUBLICATION.md`。P8-08实现前审计发现Routing/Acceptance Spec缺正式DTO、唯一digest、
+head CAS和canonical transaction连续性，且`AcceptanceSpec@1`把canonical contentProfile `series`误写为`season`；精确Design
+Return已发送Architecture Agent，本线程未修改SSOT，受影响路径暂停。
+
 P7-03现已完成：PBF-07-R1重物化提交`3c6e6d6a`冻结64 KiB Page/Result、Observation→Marker FK及25项事务；
 实现提交`15f27b7b`提供pure bounded Observer、Procurement-owned Observation/Material revision Store与canonical Transaction
 Registry。完整Page作为immutable typed Evidence持久化并可由marker replay恢复；Field head/access/work/page/cursor CAS、Material

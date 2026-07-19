@@ -75,11 +75,11 @@ historical Control reconstruction；保持112项Capability、97个Catalog Result
 | --- | --- |
 | Phase | P8 — Handoff A and Libra front half |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | P8-00–P8-06 PASS；P8-07实施中 |
+| Status | P8-00–P8-07 PASS；P8-08 Design Return open |
 | Implementation baseline | exact P7 phase closure `2cf98561d7cf785db4005e65e99b0750d84ce5ce` |
 | Phase branch/worktree | `codex/helix-p8` / `E:\my_project\emby_third_party-helix-p8` |
 | Allowed now | P2–P13本地代码、unit/contract/isolated fixture、文档与Phase自动转换 |
-| Next action | 闭合P8-07 Receipt publication与Procurement boundary |
+| Next action | 等待并复审P8-08 Routing/Acceptance Spec formal-realizability修正 |
 
 ## 4. Master roadmap
 

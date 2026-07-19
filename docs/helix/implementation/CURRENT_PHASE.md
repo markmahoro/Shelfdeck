@@ -1,6 +1,6 @@
 # P8 Handoff A and Libra Front Half Detailed Plan
 
-Status: Active；P8-00–P8-06 complete；P8-07 in progress.
+Status: Active；P8-00–P8-07 complete；P8-08 Design Return open.
 
 Last updated: 2026-07-19
 
@@ -116,11 +116,17 @@ Kairox/Task Runtime，不执行真实媒体生产、Workspace写入、Handoff B�
 
 - Procurement只异步读取Accepted/Rejected Receipt Projection并收口Delivery Reservation；不读Subject Store。
 - receipt丢失、重复、重启由durable Outbox/Inbox与Reconcile恢复。
+- Done：Accepted/Rejected typed Outbox与Procurement Delivery/Reservation/Inbox收口均原子闭合；重复消息从terminal Owner
+  rows恢复，Inbox crash全事务rollback，Accepted不二次转移Control、Rejected不改写Control。Evidence见
+  `evidence/P8_07_RECEIPT_PUBLICATION.md`。
 
 ### P8-08 Shelf Routing and Acceptance Spec front half
 
 - Subject接管后独立执行Routing Assessment、一次性Shelf选择与versioned Acceptance Spec。
 - Candidate/Offer不携带目标Shelf；不启动Production Workspace或Handoff B。
+- Design Return：现有SSOT没有formal Routing Readiness/Decision DTO、Decision Basis三个digest公式、Routing/Spec canonical
+  transaction与head CAS、完整Acceptance Spec requirements/ID/digest/freshness连续性；物化`AcceptanceSpec@1`还把canonical
+  contentProfile `series`错误写成`season`。精确缺口已发送Architecture Agent；受影响路径暂停，不推测实现。
 
 ### P8-09 Capability registration and Foundation integration
 
