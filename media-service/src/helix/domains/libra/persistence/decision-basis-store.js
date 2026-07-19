@@ -142,4 +142,5 @@ function createDecisionBasisStore(options){
   }});
 }
 
-module.exports=Object.freeze({DecisionBasisStoreError,RESULT_SCHEMA,createDecisionBasisStore});
+module.exports=Object.freeze({BASIS_COLUMNS,HEAD_COLUMNS,INPUT_COLUMNS,DecisionBasisStoreError,RESULT_SCHEMA,basisFromRow,
+  createDecisionBasisStore,reconstructInputSet,reconstructSubject,validatePolicy});
