@@ -32,3 +32,10 @@ semantic replay暂不继续。
 read/write set。闭合不得新增跨域 Store、Foundation fallback、兼容路径或 current-head推断。
 
 本 Design Return 已发送架构任务 `019f4a67-4a29-7c62-8af5-bf79083226ca`。实现线程未修改 SSOT。
+# Closure
+
+Architecture Agent提交`72df5a9d`的`PBF-12-R1`后，实现侧只读复审PASS并原样纳入。每个Decision Basis现在恰好保存一份
+`SubjectDecisionHeadSnapshot@1`，Basis row/result冻结expected revision与snapshot digest；首次absent head使用revision 0，
+后续CAS使用present snapshot。Routing Decision与Acceptance Spec Commit均只从Libra Owner rows重建历史Input Set，current head
+前进后semantic replay仍返回原结果。缺失、篡改、ordinal漂移、stale CAS与事务crash反例全部fail closed，未新增Owner、Store、
+Handoff、Capability、表或事务。

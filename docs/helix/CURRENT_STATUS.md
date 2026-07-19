@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Levels 0–10 accepted; P0–P7 complete; P8 in progress under standing P2–P13 Local Implementation authorization; E2E, Docker/Canary, production, real-media side effects and `media-desktop` changes paused.
+Status: Levels 0–10 accepted; P0–P8 complete; no active implementation phase; P9 not opened; E2E, Docker/Canary, production, real-media side effects and `media-desktop` changes paused.
 
 Last updated: 2026-07-19
 
@@ -11,22 +11,22 @@ Last updated: 2026-07-19
 | Architecture | `TOP_DOWN_ARCHITECTURE_CONFIRMATION.md` Level 0–10 accepted and final audit closed |
 | Open business decisions | none |
 | Implementation program | clean-cut Master Plan accepted as direction |
-| Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains；P7 — Procurement |
-| Current phase | P8 — Handoff A and Libra front half |
-| Current phase status | P8-00–P8-07 PASS；P8-08 pure contracts / Decision Basis transaction PASS；Design Return open |
+| Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains；P7 — Procurement；P8 — Handoff A and Libra front half |
+| Current phase | none；P9 not opened |
+| Current phase status | P8-00–P8-11及Exit Audit PASS；Evidence frozen |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
-| Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
+| Current allowed work | 等待新的P9自动化周期；standing Local Implementation授权仍有效但本周期不跨Phase |
 | Integration baseline | exact P7 phase closure `2cf98561d7cf785db4005e65e99b0750d84ce5ce` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p8` on `codex/helix-p8` |
-| Next action | 等待并复审 Decision head reconstruction SSOT闭合；随后完成P8-08 Routing/Spec原子提交 |
+| Next action | 用户决定是否启动P9自动化周期 |
 
-P8-08第一段实现已完成：PBF-12机器合同原样纳入后，pure Decision Input、closed Routing AST/Assessment/Decision、
-Product Scope、六类Acceptance Spec Resolver及Decision Basis 5-table atomic commit均已通过focused 8/8与完整P3
-persistence门禁。实现生成器同时纠正`contentProfile=series`与`structureKind=season`混淆，以及首次Decision Basis的
-logical `expectedHeadRevision=0` DDL约束。完整恢复反证随后发现：`DecisionInputSet.expectedDecisionHead`的digest与三个
-pointer没有Owner历史持久化位置，不能从Basis/relation rows重建完整Input Set；精确Design Return已发送Architecture Agent，
-受影响的Routing Decision Commit与Acceptance Spec Publish暂停。证据见
-`implementation/evidence/P8_08_DECISION_HEAD_RECONSTRUCTION_DESIGN_RETURN.md`。没有业务决策需要用户处理。
+P8已完成并归档：Handoff A Accepted/Rejected、FA-04 Subject continuity、Subject/Binding/Control/Receipt原子连续性、
+Receipt publication、Decision Basis、Routing Decision与Acceptance Spec H0→H4 head CAS均由Owner rows完整历史恢复。
+最终合同固定为112 Capability、97 Result family、169表、38 canonical transaction；七项Libra front-half Capability、
+12个P8 fixture files、Architecture/Persistence及P4–P7回归PASS。Exit Audit返回`findings=[]`、
+`prohibitedActionsRun=[]`，未进入Workspace production、Handoff B、Arca、API/UI/startup或外部副作用。P8详细包见
+`implementation/archive/P8_HANDOFF_A_AND_LIBRA_FRONT_HALF.md`，Exit Evidence见
+`implementation/evidence/P8_11_EXIT_AUDIT.md`。P9尚未打开。
 
 Architecture Agent提交`be3ecb89`已闭合`PBF-11`。实现侧逐项复审确认：Candidate Delivery正式携带完整
 Manifest及逐Material Location Evidence；Subject/Binding Episode关系均可N:M持久化；global continuity head与唯一

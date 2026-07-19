@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: Levels 0–10 accepted; P0–P7 complete; P8 in progress under standing P2–P13 Local Implementation authorization; external-environment actions and `media-desktop` remain paused.
+Status: Levels 0–10 accepted; P0–P8 complete; no active implementation phase; P9 not opened; external-environment actions and `media-desktop` remain paused.
 
 Last updated: 2026-07-19
 
@@ -82,13 +82,13 @@ Handoff、Capability、Result family、表或Canonical Transaction计数。
 
 | Field | Current value |
 | --- | --- |
-| Phase | P8 — Handoff A and Libra front half |
-| Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | P8-00–P8-07 PASS；P8-08 pure contracts / Decision Basis transaction PASS；Decision head reconstruction Design Return open |
-| Implementation baseline | exact P7 phase closure `2cf98561d7cf785db4005e65e99b0750d84ce5ce` |
-| Phase branch/worktree | `codex/helix-p8` / `E:\my_project\emby_third_party-helix-p8` |
-| Allowed now | P2–P13本地代码、unit/contract/isolated fixture、文档与Phase自动转换 |
-| Next action | 等待并复审 Decision head reconstruction SSOT闭合；随后完成P8-08 Routing/Spec原子提交 |
+| Phase | none；P8已归档，P9尚未打开 |
+| Detailed packet | `implementation/CURRENT_PHASE.md`为无活动Phase指针；P8见`implementation/archive/P8_HANDOFF_A_AND_LIBRA_FRONT_HALF.md` |
+| Status | P8-00–P8-11及P8 Exit Audit PASS；Evidence frozen |
+| Implementation baseline | P8基于exact P7 phase closure `2cf98561d7cf785db4005e65e99b0750d84ce5ce`完成 |
+| Phase branch/worktree | P8 closure位于`codex/helix-p8` / `E:\my_project\emby_third_party-helix-p8` |
+| Allowed now | 等待用户启动新的P9自动化周期；现有外部环境授权边界不变 |
+| Next action | 用户确认后独立打开P9详细执行包；当前不实施P9 |
 
 ## 4. Master roadmap
 
