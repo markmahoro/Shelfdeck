@@ -1,8 +1,8 @@
 # Helix Clean Top-down Architecture
 
-Status: ShelfDeck / Helix architecture SSOT; Levels 0–10 accepted; final full-document audit and post-baseline `PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`）bounded corrections closed; implementation not authorized by this document.
+Status: ShelfDeck / Helix architecture SSOT; Levels 0–10 accepted; final full-document audit and post-baseline `PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`）bounded corrections closed; implementation not authorized by this document.
 
-Last updated: 2026-07-19
+Last updated: 2026-07-20
 
 ## Document purpose
 
@@ -7223,8 +7223,11 @@ Discard Cleanup Scope，并按不同资格回收Workspace，不查询Shelf Entry
 
 `ProductDeliveryPort.readPackage(ProductDeliveryQuery@1)`是Handoff B唯一Package读取口，必须从Libra immutable
 Run Basis、Production Material Manifest、Package relation、Product Fact与Off-load Context Owner rows重建完整
-`OnDeckProductPackage@1`；Package/Offer/Run终结后历史读取仍返回同一digest。`WorkspaceReclamationPort`只返回
-Libra-owned Cleanup Scope/Member Projection和Discard command receipt，不接受路径、Material ID或“立即删除”参数。
+`OnDeckProductPackage@1`；Package/Offer/Run终结后历史读取仍返回同一digest。
+`WorkspaceReclamationPort.readCleanupScope(WorkspaceCleanupScopeQuery@1)`只返回Libra-owned Cleanup Scope的current或
+指定历史revision聚合Projection；`WorkspaceReclamationPort.discardFrozenRun(LibraRunDiscardCommand@1)`只接受显式
+用户Discard意图并返回同一durable Discard Receipt结果。两个方法都不接受或返回路径、Material ID、Repository
+handle或“立即删除”参数，Discard成功只建立回收责任，不表示物理删除已经完成。
 `LibraRunCreator`、`LibraProductionCoordinator`、`ProductPackagePublisher`与`WorkspaceReclaimer`分别使用8.6.21的
 application transaction DTO，不能把Run/Workspace lifecycle塞进Capability Executor。
 
@@ -9938,8 +9941,87 @@ current、尚无Delivery Receipt且Package Product/Off-load去重Control仍由Li
 Accepted。Offer或digest不一致
 是contract integrity error而不是not_found。found的`readDigest=SHA-256(JCS({schema:
 "libra.product-delivery-read@1",query,onDeckProductPackage.packageDigest,deliveryFence}))`并携带完整`OnDeckProductPackage@1`，历史Package在Offer/Run
-终结后仍可由Package、relation、Run Material Manifest和immutable Product Fact rows重建。`WorkspaceReclamationPort`
-只暴露Cleanup Scope current/history Query与显式用户Discard command结果，不暴露Repository或提供“按路径清理”。
+终结后仍可由Package、relation、Run Material Manifest和immutable Product Fact rows重建。
+
+`WorkspaceCleanupScopeQuery@1`固定为
+`{queryContract:"libra.workspace-reclamation.scope@1",cleanupScopeId,readSelector{kind(current|revision),
+revision?},expectedCurrent?{stateRevision,stateDigest},queryId,queryDigest}`。`revision` selector要求revision为正整数且
+`expectedCurrent=NULL`；`current` selector要求revision为NULL，`expectedCurrent`可以整体缺省，但一旦存在必须同时
+携带revision与digest。`queryId=SHA-256(JCS({schema:"libra.workspace-cleanup-scope-query-id@1",
+cleanupScopeId,readSelector,expectedCurrent?}))`；`queryDigest=SHA-256(JCS(完整value excluding queryDigest))`。
+该Query不允许以Run、Workspace、路径、Material或时间范围替代唯一`cleanupScopeId`。
+
+`WorkspaceCleanupScopeProjection@1`固定为
+`{cleanupScopeId,libraRunId,triggerKind,state,stateRevision,stateDigest,memberCount,pendingCount,completedCount,
+blockedCount,memberSetDigest,terminalMemberStateSetDigest,createdAtMs,completedAtMs?,projectionDigest}`。
+`memberCount`来自Admission冻结member set；目标revision为1时三个terminal计数为0，此后按
+`committed_scope_state_revision<=目标revision`的member terminal row重建，且
+`pendingCount+completedCount+blockedCount=memberCount`。`terminalMemberStateSetDigest=SHA-256(JCS({schema:
+"libra.workspace-cleanup-terminal-member-states@1",cleanupScopeId,scopeStateRevision:目标revision,
+items:[{committedScopeStateRevision,stateRevision,state,stateDigest}]按committedScopeStateRevision升序}))`；空集也使用
+同一公式。`projectionDigest=SHA-256(JCS(完整value excluding projectionDigest))`。Projection只给出聚合进度，
+不得展开Material、Handle、Reference、Control owner或路径；目标revision尚未completed时`completedAtMs=NULL`，不能
+从later current Scope回填未来完成时间。
+
+`WorkspaceCleanupScopeReadResult@1`固定为closed union：
+
+- `found{queryId,queryDigest,projection,resultDigest}`；
+- `not_found{queryId,queryDigest,reasonCode(scope_missing|revision_missing),resultDigest}`；
+- `stale{queryId,queryDigest,expectedStateRevision,expectedStateDigest,actualStateRevision,actualStateDigest,
+  resultDigest}`；
+- `integrity_error{queryId,queryDigest,reasonCode(owner_rows_incomplete|revision_chain_broken|digest_mismatch|
+  discard_receipt_continuity_broken),resultDigest}`。
+
+每个`resultDigest=SHA-256(JCS({schema:"libra.workspace-cleanup-scope-read-result@1",完整variant excluding
+resultDigest}))`。`readSelector=current`携带`expectedCurrent`且current pair不相等时只返回`stale`；未携带时返回提交
+瞬间的current Projection。`readSelector=revision`只读取该immutable revision，不因为current后来推进而stale。
+历史revision 1由Scope Admission row及完整member set恢复；revision N>1由唯一
+`committed_scope_state_revision=2..N`的member terminal rows顺序恢复，并逐revision重算Scope state digest。
+任何缺号、重复号、member/state digest不一致或run-discard trigger无法连接同一
+`libra_run_discard_receipts`时只返回`integrity_error`，不得返回部分Projection。
+
+`LibraRunDiscardCommand@1`固定为
+`{commandContract:"libra.run-discard@1",commandId,libraRunId,expectedRunStateRevision,
+expectedRunStateDigest,actorId,idempotencyKey,commandDigest}`；
+`commandId=SHA-256(JCS({schema:"libra.run-discard-decision-id@1",libraRunId,actorId,idempotencyKey}))`并逐字节
+等于既有`discardDecisionId`，`commandDigest=SHA-256(JCS(完整value excluding commandDigest))`。
+Command不得携带Control member、Workspace member、Material、路径或删除参数；`LibraRunDiscardCoordinator`必须从
+immutable Run Material Manifest、current frozen Run revision及current Workspace Reference重建完整
+`LibraRunDiscardDecision@1`并调用既有Run Discard canonical transaction。
+
+`LibraRunDiscardCommandResult@1`固定为closed union：
+
+- `discarded{commandId,commandDigest,libraRunId,discardReceipt:LibraRunDiscardReceipt@1,
+  cleanupMemberCount,resultDigest}`；
+- `not_found{commandId,commandDigest,libraRunId,reasonCode(run_missing),resultDigest}`；
+- `stale{commandId,commandDigest,libraRunId,expectedRunStateRevision,expectedRunStateDigest,
+  actualRunStateRevision,actualRunStateDigest,resultDigest}`；
+- `invalid_state{commandId,commandDigest,libraRunId,reasonCode(run_not_frozen),actualRunStateRevision,
+  actualRunStateDigest,resultDigest}`；
+- `conflict{commandId,commandDigest,libraRunId,reasonCode(idempotency_key_reused),existingCommandDigest,
+  resultDigest}`；
+- `integrity_error{commandId,commandDigest,libraRunId,reasonCode(run_history_incomplete|
+  material_manifest_incomplete|workspace_reference_incomplete|control_fence_mismatch|discard_receipt_mismatch),
+  resultDigest}`。
+
+每个`resultDigest=SHA-256(JCS({schema:"libra.run-discard-command-result@1",完整variant excluding resultDigest}))`。
+同一`actorId+idempotencyKey`成功重放必须从`libra_run_discard_decisions/receipts`、对应Run revision、原始Input
+Control revision及可选Cleanup Scope/member rows重建并逐字节返回同一`discarded` Result，不增加“replayed”业务variant，
+不重新释放Control或建立Scope。`cleanupMemberCount=0`时Receipt的`cleanupScopeId=NULL`且member set为正式empty digest；
+非零时必须等于同一Scope relation数量。失败variant不伪造Receipt；integrity失败不得回读Foundation Event Result、
+caller cache、当前目录Reality或另一Domain Store补齐。
+
+两个方法的outcome precedence固定：Scope Query先验证Query形状，再判断scope/revision存在性，再完整重建并校验
+Owner history，随后才比较可选expected current pair，依次得到`not_found|integrity_error|stale|found`；Discard先按
+`actorId+idempotencyKey`检查同一Decision semantic replay或key冲突，再判断Run存在性，再重建并校验Owner history，
+随后比较expected pair与`frozen` state，最后才提交，依次得到`discarded|conflict|not_found|integrity_error|stale|
+invalid_state|discarded`。格式/enum/上限不合法是contract validation error，不伪装成业务Result。
+
+`WorkspaceReclamationPort`的正式callable contract因此只有
+`readCleanupScope(WorkspaceCleanupScopeQuery@1) -> WorkspaceCleanupScopeReadResult@1`与
+`discardFrozenRun(LibraRunDiscardCommand@1) -> LibraRunDiscardCommandResult@1`。这些Application/Facade DTO不属于
+Catalog Capability input/output，不新增Capability或Catalog Result family；Query无副作用，Command只进入既有Run
+Discard事务，不能直接调用Workspace deletion effect。
 以上DTO的任何relation缺失、digest不一致或current CAS改变都是integrity/stale result，不允许从Foundation Event
 Result、caller cache、当前目录Reality或另一Domain Store补值。
 
@@ -10461,7 +10543,7 @@ Status: `ACCEPTED / JOURNEY-AMENDED`（2026-07-16）。下列术语已经通过L
 
 当前确认状态：
 
-- `8.0`–`8.10`：`ACCEPTED / JOURNEY-AMENDED / POST-BASELINE-DOC-CORRECTED`（2026-07-20；用户确认的基线保持，Level 9反向审计与`PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`）bounded修正已回写）；
+- `8.0`–`8.10`：`ACCEPTED / JOURNEY-AMENDED / POST-BASELINE-DOC-CORRECTED`（2026-07-20；用户确认的基线保持，Level 9反向审计与`PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`）bounded修正已回写）；
 - 当前没有开放的Level 8 Business Decision；
 - clean Catalog为`112 refs / 112 unique`，97个Catalog Result family均有typed contract；`PBF-11-R2-R1`把Handoff A专用富拒绝Receipt与Handoff B通用拒绝Receipt拆成不同nominal Result，故Capability数量不变而Result family增加1；
 - 176张关系表的PK、revision、关键列、unique/partial unique、热路径索引和JSON上限已经固化；PBF-10新增
@@ -12843,7 +12925,7 @@ Beta Release Candidate不等于授权部署生产。生产部署、真实媒体�
 | 10.7 | Level 6业务健康、Level 9普通/Advanced边界 | preserved |
 | 10.8 | Level 5/6 Authorization、Level 8 typed Secret与Material safety | preserved |
 | 10.9 | 模块化单体、Physical File Source与Emby External Provider边界 | preserved |
-| 10.10 | 九条旅程、112 Capability、176 tables、43 Canonical Transactions、113 Admin routes、1 public health route及clean-cut门禁 | preserved after bounded final-audit closure and `PBF-02`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`） |
+| 10.10 | 九条旅程、112 Capability、176 tables、43 Canonical Transactions、113 Admin routes、1 public health route及clean-cut门禁 | preserved after bounded final-audit closure and `PBF-02`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`） |
 
 #### 10.11.2 前序Level 10 reservation覆盖审计
 
@@ -12968,7 +13050,7 @@ Automation、Priority、Approval、Workspace与资源配置。它们在被新合
 关闭为历史Evidence。任何新Review Item在完成全局Evidence审计、证明真实缺陷、
 取得必要Owner Decision并形成新的有界Change Set之前，都不能改变本文语义。Level 7、Level 8与Level 9
 均已经Accepted并完成各自必要的Journey amendment；
-post-baseline `PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`）已经按同一纪律完成bounded合同闭合并记录在Review Section 15；实现、测试或
+post-baseline `PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`）已经按同一纪律完成bounded合同闭合并记录在Review Section 15；实现、测试或
 部署仍未由本文件授权。
 
 ## Confirmation state
@@ -12981,11 +13063,11 @@ post-baseline `PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`�
 - Level 5（`5.1`–`5.11`）：`ACCEPTED / JOURNEY-AMENDED`（2026-07-16）
 - Level 6（`6.0`–`6.12`）：`ACCEPTED / JOURNEY-AMENDED`（2026-07-16）
 - Level 7（`7.0`–`7.12`）：`ACCEPTED / JOURNEY-AMENDED`（2026-07-16；durable progress bounded amendment）
-- Level 8（`8.0`–`8.10`）：`ACCEPTED / JOURNEY-AMENDED / POST-BASELINE-DOC-CORRECTED`（2026-07-20；用户确认基线保持，`PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`）已闭合）
+- Level 8（`8.0`–`8.10`）：`ACCEPTED / JOURNEY-AMENDED / POST-BASELINE-DOC-CORRECTED`（2026-07-20；用户确认基线保持，`PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`）已闭合）
 - Level 9（`9.0`–`9.11`）：`ACCEPTED / JOURNEY-AMENDED`
   （2026-07-16；8项Journey bounded gap已关闭，post-amendment audit通过并由用户确认）
 - Level 10（`10.0`–`10.12`）：`ACCEPTED`
   （2026-07-16；结构化正文与运行维度反向审计通过并由用户确认）
 - Final Level 0–10 Audit：`CLOSED / APPLIED_AND_AUDITED`（27项bounded修正、1项false positive关闭、`FA-04`已确认并传播）
-- Post-baseline realizability audit：`PBF-01`–`PBF-13 CLOSED / APPLIED_AND_AUDITED`（包含`PBF-06-R1`、`PBF-07-R1`、`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`与`PBF-12-R1`细化；不新增Domain/Handoff/Capability；`PBF-09`新增一张Procurement-owned retry precondition关系表，`PBF-10`新增一张Procurement-owned Candidate Member↔Episode Claim关系表，`PBF-10-R1`闭合Episode relation机器白名单，`PBF-10-R2`闭合Offer与Continuity正式合同，`PBF-10-R3`闭合Run revision head CAS写集，`PBF-11`新增五张Libra-owned Intake head/N:M关系表并闭合Handoff A，`PBF-11-R1`扩充既有Procurement Related relation以闭合完整Physical Identity/reference digest历史重建，`PBF-11-R2`把Handoff A Rejected拆成独立typed Decision并补齐Reason/Evidence、Receipt、Outbox和Procurement consume原子终态，`PBF-11-R2-R1`恢复Accepted Receipt唯一scopeDigest并把Handoff A富拒绝与Handoff B通用拒绝分型，完整闭合Arca rejected持久化与Libra consume，`PBF-11-R2-R2`修正Candidate Delivery/Reservation的CAS lifecycle机器语义并对称闭合Accepted/Rejected consume，`PBF-11-R3`固定Accepted Receipt的Control revision set唯一公式与historical reconstruction，`PBF-12`闭合Routing/Decision Basis/Acceptance Spec typed input、三项事务、Subject provenance/content profile与Spec scope，`PBF-12-R1`补齐历史pre-CAS Decision Head Snapshot的relationized恢复，`PBF-13`闭合Libra Run/Workspace/Product Package/Discard/Reclamation typed continuity、历史Owner-row恢复和五项Canonical Transaction；关系表总数为176，Catalog Result family为97，Canonical Transaction为43）
+- Post-baseline realizability audit：`PBF-01`–`PBF-13 CLOSED / APPLIED_AND_AUDITED`（包含`PBF-06-R1`、`PBF-07-R1`、`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`与`PBF-13-R1`细化；不新增Domain/Handoff/Capability；`PBF-09`新增一张Procurement-owned retry precondition关系表，`PBF-10`新增一张Procurement-owned Candidate Member↔Episode Claim关系表，`PBF-10-R1`闭合Episode relation机器白名单，`PBF-10-R2`闭合Offer与Continuity正式合同，`PBF-10-R3`闭合Run revision head CAS写集，`PBF-11`新增五张Libra-owned Intake head/N:M关系表并闭合Handoff A，`PBF-11-R1`扩充既有Procurement Related relation以闭合完整Physical Identity/reference digest历史重建，`PBF-11-R2`把Handoff A Rejected拆成独立typed Decision并补齐Reason/Evidence、Receipt、Outbox和Procurement consume原子终态，`PBF-11-R2-R1`恢复Accepted Receipt唯一scopeDigest并把Handoff A富拒绝与Handoff B通用拒绝分型，完整闭合Arca rejected持久化与Libra consume，`PBF-11-R2-R2`修正Candidate Delivery/Reservation的CAS lifecycle机器语义并对称闭合Accepted/Rejected consume，`PBF-11-R3`固定Accepted Receipt的Control revision set唯一公式与historical reconstruction，`PBF-12`闭合Routing/Decision Basis/Acceptance Spec typed input、三项事务、Subject provenance/content profile与Spec scope，`PBF-12-R1`补齐历史pre-CAS Decision Head Snapshot的relationized恢复，`PBF-13`闭合Libra Run/Workspace/Product Package/Discard/Reclamation typed continuity、历史Owner-row恢复和五项Canonical Transaction，`PBF-13-R1`补齐Workspace Reclamation Facade Query/Command的唯一callable contract与Owner-row重建；关系表总数为176，Catalog Result family为97，Canonical Transaction为43）
 - 旧`SD-*`条款：全部撤销，不具有clean Helix合同效力

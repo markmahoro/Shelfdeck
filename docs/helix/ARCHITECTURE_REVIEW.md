@@ -1,6 +1,6 @@
 # Helix Architecture Review Workbench
 
-Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-20；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`）bounded correction均已完成。
+Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-20；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`）bounded correction均已完成。
 
 ## 1. Purpose and authority
 
@@ -2177,3 +2177,32 @@ Catalog Capability、Catalog Result family或用户业务分叉；Capability保�
 增至44、总表由169增至176，Canonical Transaction由38增至43。新增的Product Material↔Episode relation保存
 完整N:M交付成员，避免只存摘要而无法恢复Package。审计结果为
 `PASS / PBF-13 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.26 `PBF-13-R1` — Workspace Reclamation Port callable contract
+
+Status: `CLOSED / BOUNDED DETAIL FIX APPLIED` — 2026-07-20
+
+P9-01在纳入`PBF-13`后继续按Public Port反向实现，证明`WorkspaceReclamationPort`仍只有职责句，没有formal
+method、Query/Command/Result、freshness outcome或Owner-row reconstruction。该反馈成立：Cleanup Scope与Run Discard
+底层事务虽然已经闭合，但实现无法仅凭“暴露current/history Query与Discard receipt”唯一决定读取粒度、历史revision、
+stale/integrity语义或幂等命令返回值；继续实现只能自行发明Facade合同。
+
+Bounded correction没有删除该Port，也没有扩张业务边界，而是固定两个callable method：
+
+- `readCleanupScope(WorkspaceCleanupScopeQuery@1) -> WorkspaceCleanupScopeReadResult@1`以
+  `cleanupScopeId + current|exact revision`为唯一查询identity，current可携带expected state revision/digest；Result
+  使用`found|not_found|stale|integrity_error` closed union，只返回Scope与Member聚合计数/digest，不展开Material、
+  Handle、Control owner或路径；
+- `discardFrozenRun(LibraRunDiscardCommand@1) -> LibraRunDiscardCommandResult@1`只接收Run、expected frozen
+  revision/digest及actor/idempotency。Coordinator从Libra Owner rows重建完整既有`LibraRunDiscardDecision@1`并进入
+  原Run Discard transaction；成功及semantic replay都返回同一durable Receipt，不引入“立即删除”或第二套Discard；
+- 历史Scope revision由Admission row、immutable member set和唯一`committed_scope_state_revision`顺序恢复；Discard
+  Result由Decision/Receipt、Run revision、Input Control history及可选Cleanup Scope/member rows恢复。任何缺号、digest
+  或Receipt连续性破坏只返回typed integrity outcome，不允许Foundation Result、caller cache、目录Reality或跨Store补值；
+- Query/Command、Projection和Result的stable ID/digest公式、closed reason code与nullable Scope语义全部固定。
+
+全文一致性审计覆盖8.2.2 public boundary、8.5.11 Owner rows、8.6.21 application DTO、Run Discard canonical transaction、
+Workspace Cleanup revision history、Level 9无副作用Query和用户不可直接触发物理删除的Authorization语义。修正不新增
+Domain、Owner、Store、Business Object、Handoff、Capability、Catalog Result family、关系表或Canonical Transaction；
+计数保持`112 Capability / 97 Catalog Result family / 176 tables / 43 Canonical Transactions`。审计结果为
+`PASS / PBF-13-R1 CLOSED / NO OPEN BUSINESS DECISION`。
