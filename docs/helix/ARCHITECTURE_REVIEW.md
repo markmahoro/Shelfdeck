@@ -1,6 +1,6 @@
 # Helix Architecture Review Workbench
 
-Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-20；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`）bounded correction均已完成。
+Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-20；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`）bounded correction均已完成。
 
 ## 1. Purpose and authority
 
@@ -2243,3 +2243,35 @@ Run Input与Product Delivery两类Manifest、single/season Episode scope及Owner
 Store、Handoff、Capability、Catalog Result family、关系表或Canonical Transaction；计数保持
 `112 Capability / 97 Catalog Result family / 176 tables / 43 Canonical Transactions`。审计结果为
 `PASS / PBF-13-R2 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.28 `PBF-13-R3` — Run Input Physical Identity与size跨Handoff连续性
+
+Status: `CLOSED / BOUNDED DETAIL FIX APPLIED` — 2026-07-20
+
+P9-02继续对Run Admission反向实现时指出：Field Material current row虽然拥有完整Physical Identity和size，
+但`SelectedFieldMaterialSet@1`及`proc_run_materials`只冻结materialKey和摘要；Candidate Primary relation、
+`CandidatePrimaryMaterialDelivery@1`与`LibraBindingDraft@1`也没有这五项。materialKey/digest不可逆，导致Handoff A
+无法合法写满`libra_material_bindings`，后续Run Creator也无法从Libra Owner rows建立
+`ProductionMaterialManifest@1`。若由caller补值或回读current Field/Provider/Foundation Result，会突破既有Owner、
+Handoff和immutable history合同。
+
+主审沿Field Observation→Procurement Run→Candidate Publication→Candidate Delivery→Handoff A→Libra Binding→Run
+Manifest逐段反证，确认缺口成立且不涉及用户业务分叉。Bounded correction固定：
+
+- `SelectedFieldMaterialSet@1`成员增加完整`PhysicalMaterialIdentity@1`与`sizeBytes`；Run Admission必须同事务从
+  current Field Material重读、验证materialKey公式并写入immutable `proc_run_materials`，纳入member/Basis digest；
+- final `PrimaryInputManifest@1`与`proc_candidate_primary_materials`逐项复制同一Run member的Identity/size，
+  Candidate Publication把它们纳入Manifest、Candidate relation及Delivery digest；
+- `CandidatePrimaryMaterialDelivery@1`正式输出Identity/size；`CandidateDeliverySnapshot@1`必须交叉校验immutable
+  Candidate relation与Run Basis，Candidate/Run/Offer关闭后仍可重建同一Snapshot；
+- `LibraBindingDraft@1`逐项复制Delivery的Identity/size/endpoint/location，Handoff A将其写入既有
+  `libra_material_bindings`；Run Admission只从该immutable Binding revision重建Run Input Manifest；
+- 任一层缺失或不一致返回integrity failure，不允许materialKey反解、current Field/Provider补读、Foundation Result
+  fallback或caller cache。
+
+全文反向审计覆盖Run Basis digest、Candidate Manifest/package/delivery digest、Handoff A exact input、Libra Binding
+历史恢复、Run Input Manifest materialKey验证、Candidate/Run关闭后的historical read以及Candidate Publication/Handoff A/
+Run Admission三项事务。修正只扩充既有typed DTO与`proc_run_materials`、`proc_candidate_primary_materials`、
+`libra_material_bindings`列语义，不新增Domain、Owner、Store、Handoff、Capability、Result family、关系表或Canonical
+Transaction；计数保持`112 Capability / 97 Catalog Result family / 176 tables / 43 Canonical Transactions`。审计结果为
+`PASS / PBF-13-R3 CLOSED / NO OPEN BUSINESS DECISION`。
