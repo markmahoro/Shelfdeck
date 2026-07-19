@@ -15,6 +15,7 @@ const crashFixtures = Object.freeze({
   'direct-person-registration': ['Direct Person Registration提交前、Person/Identity/初始Projection checkpoint写入后、command receipt/Outbox前后、响应前崩溃', 'Person首revision、Alias/Provider Identity、初始Reference Projection checkpoint、durable result、command receipt和Outbox必须全有或全无；重放返回同一结果且不经过Candidate或建立Reference Fact', 11228],
   'people-reference-image': ['Reference Image导入后、Face检测/Embedding前后、Asset/Face/Reference head/Projection checkpoint各participant后、typed Result/marker/Outbox前后、响应前崩溃', '零Face、多Face、handle/digest/model不一致或stale Person/Reference revision整体失败；Asset与唯一Face同事务active或released；Reference revision和所有受影响Projection checkpoint连续；同marker重放返回原typed Result', 11228],
   'handoff-a-accepted': ['Candidate Delivery snapshot重建前后、global continuity head CAS前后、continuity match前后、并发Subject/episode/Resolved Identity exact anchor变化、target Intake CAS前后、Decision/Subject/Binding N:M relation participant后、Control participant前后、Result/marker/Outbox前', 'Snapshot的Offer/Package/Manifest/Location Evidence不一致即fail closed且不旁读proc_*修补；exact claim唯一命中且zero overlap才extension；0/N命中、缺失或overlap新建Subject；global head阻止query phantom，target head阻止唯一Subject stale extension；竞态使Decision失效后重新装配；new Subject identity pointer为NULL；要么全部不存在，要么global/target revision、Decision及match/overlap Evidence、Subject/claim/Episode scope、每Material Binding及全部Episode relation、Control、Receipt/Result/marker/Outbox全部成立；Procurement只异步消费Receipt', 9501],
+  'procurement-handoff-a-acceptance-consume': ['Inbox写入前后、open Delivery CAS前后、Reservation逐项转移中途、Delivery terminal与Inbox result提交前后、迟到Rejected消息', 'Delivery、全部Candidate member transferred+handoff_accepted、同一Receipt Evidence与Inbox result全有或全无；Material Control不变；重复消息重放同一closure digest，相反终态或digest冲突稳定拒绝', 9639],
   'handoff-a-rejected': ['Candidate/Material/Control Verification形成前后、Reason/Evidence rows逐项写入中途、Decision/Receipt/Result/marker/Outbox各边界、相同Offer的Accepted竞态', '只允许closed Handoff A reason；Continuity 0/N/overlap不得误判rejected；Decision、全部Reason Evidence、Receipt、Result、marker和Rejected Outbox全有或全无；不读写continuity head、不创建Subject/Binding、不转移Control；同一Offer只有一个terminal Decision', 9610],
   'procurement-handoff-a-rejection-consume': ['Inbox写入前后、open Delivery CAS前后、Reservation逐项释放中途、Delivery terminal与Inbox result提交前后、迟到Accepted消息', 'Delivery、全部Candidate member released+handoff_rejected、同一Receipt Evidence与Inbox result全有或全无；Procurement Material Control不变；重复消息重放同一closure digest，相反终态或digest冲突稳定拒绝', 9611],
   'procurement-failed-run-retry': ['Retry Intent commit前后、新Run建立前后、Intent consume前后', '旧Run始终sealed；一个Intent最多建立一个新Run；观察不伪造Basis revision；失败不会自动连锁重试', 8414],
@@ -183,6 +184,13 @@ const definitions = Object.freeze({
       'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox'],
     fixtureRefs: ['handoff-a-rejected'], hasOutbox: true,
     forbiddenWritePrefixes: ['proc_', 'arca_']
+  },
+  'Procurement Handoff A Acceptance Consume': {
+    commitClass: 'domain_unit_of_work',
+    writeTables: ['proc_candidate_deliveries', 'proc_run_materials', 'fx_inbox'],
+    readTables: ['proc_candidate_deliveries', 'proc_run_materials', 'fx_inbox'],
+    fixtureRefs: ['procurement-handoff-a-acceptance-consume'], hasOutbox: false, commitMarkerRequired: false,
+    forbiddenWriteTables: ['fx_material_controls', 'fx_material_control_revisions']
   },
   'Procurement Handoff A Rejection Consume': {
     commitClass: 'domain_unit_of_work',

@@ -11,7 +11,11 @@ const HELPER_SOURCES = {
   PrimaryInputManifest: { section: '8.6.19', line: 8932 },
   SeasonContinuityClaim: { section: '8.6.18', line: 8722 },
   CandidateIntakeAcceptanceBasis: { section: '8.6.18', line: 8727 },
-  ProcurementCandidateOfferAvailableMessage: { section: '8.6.18', line: 8728 }
+  ProcurementCandidateOfferAvailableMessage: { section: '8.6.18', line: 8728 },
+  LibraCandidateAcceptedMessage: { section: '8.6.18', line: 8789 },
+  ProcurementCandidateAcceptanceClosureResult: { section: '8.6.18', line: 8887 },
+  LibraCandidateRejectedMessage: { section: '8.6.18', line: 8791 },
+  ProcurementCandidateRejectionClosureResult: { section: '8.6.18', line: 8792 }
 };
 
 function readResultSourceEntries(contractsRoot) {
@@ -43,7 +47,7 @@ function buildResultTypeRegistry(contractsRoot) {
     owner: 'contracts',
     status: 'active',
     targetCatalogResultCount: 86,
-    helperCount: 7,
+    helperCount: 11,
     entries
   };
 }

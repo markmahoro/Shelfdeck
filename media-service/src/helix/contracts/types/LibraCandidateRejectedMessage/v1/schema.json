@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/LibraCandidateRejectedMessage/v1",
+  "title": "LibraCandidateRejectedMessage@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/LibraCandidateRejectedMessage/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "messageKind": {
+      "const": "libra_candidate_rejected"
+    },
+    "offerId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "candidatePackageId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "packageRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "packageDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "acceptanceBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "intakeDecisionId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "decisionDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "rejectionId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "reasonCodes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "candidate_contract_invalid",
+          "candidate_material_identity_changed",
+          "candidate_material_unavailable",
+          "candidate_material_unreadable",
+          "candidate_control_scope_unavailable"
+        ]
+      },
+      "maxItems": 32,
+      "minItems": 1
+    },
+    "primaryRejectionCode": {
+      "type": "string",
+      "enum": [
+        "candidate_contract_invalid",
+        "candidate_material_identity_changed",
+        "candidate_material_unavailable",
+        "candidate_material_unreadable",
+        "candidate_control_scope_unavailable"
+      ]
+    },
+    "rejectionReasonSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "rejectionDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "receiptId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "receiptDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "messageKind",
+    "offerId",
+    "candidatePackageId",
+    "packageRevision",
+    "packageDigest",
+    "acceptanceBasisDigest",
+    "intakeDecisionId",
+    "decisionDigest",
+    "rejectionId",
+    "reasonCodes",
+    "primaryRejectionCode",
+    "rejectionReasonSetDigest",
+    "rejectionDigest",
+    "receiptId",
+    "receiptDigest"
+  ],
+  "x-helix-maxCanonicalBytes": 16384
+}

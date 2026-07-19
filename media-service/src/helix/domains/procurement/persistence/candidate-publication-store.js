@@ -37,7 +37,9 @@ function procurementDefinition(schemaManifest) {
     insert_related:{ kind:'insert', tableId:'proc_candidate_related_references', columns:['candidate_package_id','reference_id','primary_ordinal','role',
       'material_key','mount_scope_id','inode','content_hash_algorithm','content_hash','endpoint_id','location','checksum_algorithm','checksum_hex',
       'association_evidence_digest','reference_digest'] },
-    insert_delivery:{ kind:'insert', tableId:'proc_candidate_deliveries', columns:['offer_id','candidate_package_id','package_digest','acceptance_basis_digest','state','handoff_receipt_id','offered_at_ms','closed_at_ms'] }
+    insert_delivery:{ kind:'insert', tableId:'proc_candidate_deliveries', columns:['offer_id','candidate_package_id','package_revision','package_digest',
+      'acceptance_basis_digest','state','handoff_decision_id','handoff_decision_digest','handoff_receipt_id','handoff_receipt_digest',
+      'terminal_evidence_digest','offered_at_ms','closed_at_ms'] }
   }});
 }
 
@@ -183,8 +185,10 @@ function createCandidatePublicationStore(options) {
             association_evidence_digest:reference.associationEvidenceDigest, reference_digest:reference.referenceDigest });
         }
         repo.invoke('insert_delivery', { offer_id:publication.offerId, candidate_package_id:pkg.candidatePackageId,
-          package_digest:pkg.packageDigest, acceptance_basis_digest:publication.acceptanceBasis.acceptanceBasisDigest,
-          state:'open', handoff_receipt_id:null, offered_at_ms:context.commitTimeMs, closed_at_ms:null });
+          package_revision:pkg.packageRevision, package_digest:pkg.packageDigest,
+          acceptance_basis_digest:publication.acceptanceBasis.acceptanceBasisDigest, state:'open', handoff_decision_id:null,
+          handoff_decision_digest:null, handoff_receipt_id:null, handoff_receipt_digest:null, terminal_evidence_digest:null,
+          offered_at_ms:context.commitTimeMs, closed_at_ms:null });
         return pkg;
       }};
       const outbox = { participantId:'candidate_publication_outbox', owner:'execution-foundation', boundBusinessOwner:'procurement', repositories:[foundation], execute(context) {

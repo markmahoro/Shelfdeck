@@ -9,11 +9,11 @@
       "id": "proc_candidate_deliveries",
       "owner": "procurement",
       "columnsContract": "`offer_id PK, candidate_package_id FK, package_revision, package_digest, acceptance_basis_digest, state(open|accepted|rejected), handoff_decision_id NULL, handoff_decision_digest NULL, handoff_receipt_id NULL, handoff_receipt_digest NULL, terminal_evidence_digest NULL, offered_at_ms, closed_at_ms NULL`",
-      "constraintsContract": "`offer_id`与`acceptance_basis_digest`必须分别等于8.6.18从final `CandidatePackage@1`计算的`CandidateIntakeAcceptanceBasis@1`公式结果，且同事务存在唯一`ProcurementCandidateOfferAvailableMessage@1` Outbox；`UNIQUE(candidate_package_id,package_digest,acceptance_basis_digest)`；同一Candidate至多一个open Offer。open时全部handoff/terminal/closed列为NULL；accepted要求Decision ID、Receipt ID/digest、terminal Evidence及closed time非NULL，Decision digest沿用既有nullable合同；rejected要求全部handoff/terminal/closed列非NULL且逐项等于`LibraCandidateRejectedMessage@1`，`terminal_evidence_digest=receiptDigest`；terminal列写后immutable，相同Offer重放不得新增row、Outbox或改写不同终态；`INDEX(state,offered_at_ms)`",
+      "constraintsContract": "`rowMutability=cas_lifecycle`；唯一closed transition为expected `open → accepted|rejected`，terminal state不得转换或改写。`offer_id`与`acceptance_basis_digest`必须分别等于8.6.18从final `CandidatePackage@1`计算的`CandidateIntakeAcceptanceBasis@1`公式结果，且同事务存在唯一`ProcurementCandidateOfferAvailableMessage@1` Outbox；`UNIQUE(candidate_package_id,package_digest,acceptance_basis_digest)`；同一Candidate至多一个open Offer。open时全部handoff/terminal/closed列为NULL；accepted CAS一次性写Decision ID、Receipt ID/digest、terminal Evidence及closed time，Decision digest沿用既有nullable合同；rejected CAS一次性写全部handoff/terminal/closed列并逐项等于`LibraCandidateRejectedMessage@1`，`terminal_evidence_digest=receiptDigest`；这些终态列是write-once bundle，相同Offer/相同Evidence重放返回既有终态，不得执行第二次UPDATE、改写相反Outcome或新增row/Outbox；`INDEX(state,offered_at_ms)`",
       "source": {
         "section": "8.5.11",
-        "line": 8010,
-        "lineDigest": "dcb9b93dfc96e518052ee866203ddfe9dbf1e2ad32b68f7087f4f67062f6f2ea"
+        "line": 8040,
+        "lineDigest": "5e297dff615cacd717728a40a59fe5befe354d6728d8d216bd7282dee69a3bf1"
       }
     },
     {
@@ -23,7 +23,7 @@
       "constraintsContract": "clean initialization建立唯一revision 0 row；`head_digest=SHA-256(JCS({schema:\"libra.subject-continuity-head@1\",headId,currentRevision}))`；任何改变active Subject集合、exact continuity relation或accepted Episode scope的事务都必须expected-revision CAS并加1，不能按时间戳伪造；Handoff A、Resolved Identity exact anchor publish与Subject terminal均使用同一head",
       "source": {
         "section": "8.5.11",
-        "line": 8011,
+        "line": 8041,
         "lineDigest": "145fce04ca425ec1f8d2c9826f18d100e9ad2611f5d1fd0967aec479d7dc4b3a"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "`decision_revision=1`且`UNIQUE(offer_id)`；`intake_decision_id=SHA-256(JCS({schema:\"libra.intake-decision-id@1\",offerId}))`；common Offer/Package/Acceptance Basis/Snapshot逐项匹配正式Delivery；无法取得完整Snapshot属于Delivery integrity/system failure，不伪造Rejected Decision。`accepted_resolution`要求continuity/match/overlap、accepted result/target、committed Subject digest及accepted payload完整非NULL，全部rejection列为NULL；其`decision_digest`逐字节等于`SubjectContinuityResolutionDecision@1.decisionDigest`。`rejected_acceptance`要求全部continuity/head/match/target/accepted列为NULL，rejection列完整非NULL；其`decision_digest`逐字节等于`IntakeRejectionDecision@1.decisionDigest`。`new_subject`要求target是Libra分配的新ID；`season_extension`要求one match/zero overlap及完整target CAS。Continuity无匹配、多匹配或Episode overlap仍是`new_subject`，不得成为rejection。同一Candidate/Package digest只允许一个accepted Decision的partial unique index；不同Acceptance Basis的新Offer可以各自保留Rejected Decision，但任何后续Accepted仍受该唯一约束；immutable，不接受调用者指定既有Subject或伪造head值",
       "source": {
         "section": "8.5.11",
-        "line": 8012,
+        "line": 8042,
         "lineDigest": "ebf199fe431112720a107f66326d4061bab64dadb8653dc8973856c6361a8985"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "`PK(intake_decision_id,ordinal)`及`UNIQUE(intake_decision_id,subject_id)`；none为0 row、one恰为1 row、multiple恰为按subjectId UTF-8 bytes最小的2个distinct matching Subject witness；每个Subject选择按claim tuple/provenance稳定排序的第一项exact交集作为证明；`witness_digest=SHA-256(JCS(完整row business value excluding intakeDecisionId/ordinal/witnessDigest))`；它证明Decision所需0/1/N cardinality，不声称保存multiple分支的无界全量匹配集合",
       "source": {
         "section": "8.5.11",
-        "line": 8013,
+        "line": 8043,
         "lineDigest": "fee94bb81d3f4603331e4af08ac9821e56582852f46dc03ebba021b85599aa3d"
       }
     },
@@ -56,7 +56,7 @@
       "constraintsContract": "`PK(intake_decision_id,subject_id,episode_key)`；只允许match cardinality=one时保存Candidate Episode scope与唯一Subject current scope的完整交集，按episodeKey排序；`overlap_digest=SHA-256(JCS({schema:\"libra.episode-overlap-member@1\",subjectId,episodeKey}))`；zero overlap合法为0 row；multiple/none不执行overlap并为0 row；aggregate formula按8.6.18",
       "source": {
         "section": "8.5.11",
-        "line": 8014,
+        "line": 8044,
         "lineDigest": "3fdd27a398d8dbf29b751b3e0f4bd67fdfe00efb935f9e9a411df5124757f104"
       }
     },
@@ -67,7 +67,7 @@
       "constraintsContract": "`PK(intake_decision_id,reason_ordinal,evidence_ordinal)`及`UNIQUE(intake_decision_id,reason_ordinal,evidence_schema_ref,evidence_id,evidence_digest)`；每个reason ordinal至少一行，reason code按8.6.18 Handoff A closed precedence去重排序，组内Evidence按`evidence_schema_ref,evidence_id,evidence_digest`的UTF-8 bytes升序且唯一；同一reason ordinal全部row的reason code/digest相同；`reason_digest=SHA-256(JCS({schema:\"handoff-a-rejection-reason@1\",reasonCode,evidenceRefs}))`；全部rows必须精确重建`IntakeStructuredRejection@1`的Reason集合，immutable；`INDEX(intake_decision_id,reason_ordinal,evidence_ordinal)`",
       "source": {
         "section": "8.5.11",
-        "line": 8015,
+        "line": 8045,
         "lineDigest": "6db269db11f3773220321a552e1c01b690432f818b77773da504dcceca398f61"
       }
     },
@@ -78,7 +78,7 @@
       "constraintsContract": "`UNIQUE(intake_decision_id)`；同一Candidate/Package digest最多一个accepted Receipt的partial unique index，新的Acceptance Basis/Offer可以分别保留rejected Receipt。accepted要求Subject、accepted payload、Binding/Control列全部非NULL且rejection列全NULL，重建`SubjectAndTransferReceipt@1`，其`ReceiptEnvelope.scopeDigest=accepted_payload_digest`；rejected要求Subject/accepted/Binding/Control列全NULL、rejection列全非NULL，重建`IntakeRejectionReceipt@1`，其`ReceiptEnvelope.scopeDigest=IntakeRejectionDecision.decisionDigest`。两种Receipt的Snapshot digest均逐字节等于对应Decision；相同marker重放不新增Receipt或消息",
       "source": {
         "section": "8.5.11",
-        "line": 8016,
+        "line": 8046,
         "lineDigest": "8ce993cb76303777f93a710530ff4f3d21b62aac093d969773d63e4928e4b834"
       }
     },
@@ -89,7 +89,7 @@
       "constraintsContract": "`status`至少区分`active|abandoned|completed`；new Subject固定`intake_revision=1`，每次Season extension CAS加1；continuity/Episode digest由本域relation rows按8.6.18重建；`current_identity_revision=NULL`是尚未发布Resolved Product Identity的唯一合法初值，正整数时显式复合FK指向`libra_product_identity_revisions(subject_id,revision)`；`INDEX(status,subject_id)`；Subject不保存Arca Shelf Entry/Deck状态",
       "source": {
         "section": "8.5.11",
-        "line": 8017,
+        "line": 8047,
         "lineDigest": "4d4a88e19a06399209aad0d76f031b30bab1809badb216024a77c92a8c1280f4"
       }
     },
@@ -100,7 +100,7 @@
       "constraintsContract": "`PK(subject_id,claim_kind,claim_namespace,claim_key,provenance_ref)`；Handoff A复制Candidate claim；Resolved Product Identity发布`exactSeasonContinuityClaims`时以`provenance_ref={subjectId}:{identityRevision}`同事务追加；Intake只查询本关系的active Subject rows，不反解`provider_identity_set_digest`；`INDEX(claim_kind,claim_namespace,claim_key,subject_id)`允许检测0/1/N命中但不建立全局unique",
       "source": {
         "section": "8.5.11",
-        "line": 8018,
+        "line": 8048,
         "lineDigest": "88f96a79b2569ac5f29805d10d0db66aad2edd2e93bf9c42c9ca4479d478be51"
       }
     },
@@ -111,7 +111,7 @@
       "constraintsContract": "`PK(subject_id,episode_key)`；只允许Series，Episode key来自Accepted Candidate Delivery Manifest全部Primary member claim的去重并集；append-only且同Episode不能被同Subject第二次接受；该表是FA-04 overlap唯一权威来源，不从Binding JSON或Run推断",
       "source": {
         "section": "8.5.11",
-        "line": 8019,
+        "line": 8049,
         "lineDigest": "a6da2891ebfdb821bbf88db6cdbd5e14ad3793695cdf7ac429706dd6b30372c9"
       }
     },
@@ -122,7 +122,7 @@
       "constraintsContract": "`UNIQUE(subject_id)`；immutable；只允许没有任何current Libra Run且Pre-deck责任仍active的Subject建立",
       "source": {
         "section": "8.5.11",
-        "line": 8020,
+        "line": 8050,
         "lineDigest": "7bdbc6b9de101584a171ad47849cc47d061237bba3fb44ce943e2d047ece924e"
       }
     },
@@ -133,7 +133,7 @@
       "constraintsContract": "`UNIQUE(abandon_decision_id)`；与Subject terminal和精确Primary Control release同一事务成立",
       "source": {
         "section": "8.5.11",
-        "line": 8021,
+        "line": 8051,
         "lineDigest": "ae4b6b78f23821dabe8a903651002644bd555ba5aa5de2dfff90d214a0e9d185"
       }
     },
@@ -144,7 +144,7 @@
       "constraintsContract": "immutable revision以`PK(subject_id,material_key,binding_revision)`保存；每个`subject+material+role`只有一个current row；Handoff A每个Manifest member只建一条Binding，不能为多Episode复制Binding或把Episode拼入字符串",
       "source": {
         "section": "8.5.11",
-        "line": 8022,
+        "line": 8052,
         "lineDigest": "81a807bad4c7726f3de42942d7d957d015b6e7bca6d46bf6d712695e18ad5327"
       }
     }

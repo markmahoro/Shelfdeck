@@ -198,6 +198,20 @@ const special = {
   'ProcurementCandidateOfferAvailableMessage.acceptanceOwnerDomain': { const: 'libra' },
   'ProcurementCandidateOfferAvailableMessage.targetContext': { const: 'libra_intake' },
   'ProcurementCandidateOfferAvailableMessage.packageRevision': positiveInteger(),
+  'LibraCandidateRejectedMessage.messageKind': { const: 'libra_candidate_rejected' },
+  'LibraCandidateRejectedMessage.packageRevision': positiveInteger(),
+  'LibraCandidateRejectedMessage.reasonCodes': { ...arrayOf(enumText('candidate_contract_invalid', 'candidate_material_identity_changed',
+    'candidate_material_unavailable', 'candidate_material_unreadable', 'candidate_control_scope_unavailable'), 32), minItems: 1 },
+  'LibraCandidateRejectedMessage.primaryRejectionCode': enumText('candidate_contract_invalid', 'candidate_material_identity_changed',
+    'candidate_material_unavailable', 'candidate_material_unreadable', 'candidate_control_scope_unavailable'),
+  'LibraCandidateAcceptedMessage.messageKind': { const: 'libra_candidate_accepted' },
+  'LibraCandidateAcceptedMessage.packageRevision': positiveInteger(),
+  'ProcurementCandidateRejectionClosureResult.packageRevision': positiveInteger(),
+  'ProcurementCandidateRejectionClosureResult.terminalDeliveryState': { const: 'rejected' },
+  'ProcurementCandidateRejectionClosureResult.releasedMaterialCount': positiveInteger(),
+  'ProcurementCandidateAcceptanceClosureResult.packageRevision': positiveInteger(),
+  'ProcurementCandidateAcceptanceClosureResult.terminalDeliveryState': { const: 'accepted' },
+  'ProcurementCandidateAcceptanceClosureResult.transferredMaterialCount': positiveInteger(),
   'CandidateContractVerification.packageRevision': positiveInteger(),
   'CandidateContractVerification.primaryInputManifestDigest': digest(),
   'CandidateContractVerification.candidateDeliverySnapshotDigest': digest(),
@@ -369,6 +383,10 @@ const contracts = {
   SeasonContinuityClaim: [null, 'claimKind,claimNamespace,claimKey,claimDigest,evidenceDigest'],
   CandidateIntakeAcceptanceBasis: [null, 'handoffContractRef,acceptanceOwnerDomain,targetContext,candidatePackageId,packageRevision,packageDigest,primaryInputManifestDigest,seasonContinuityClaimSetDigest,relatedReferenceSetDigest,memberControlEvidenceSetDigest,acceptanceBasisDigest'],
   ProcurementCandidateOfferAvailableMessage: [null, 'messageKind,offerId,candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest,acceptanceOwnerDomain,targetContext'],
+  LibraCandidateAcceptedMessage: [null, 'messageKind,offerId,candidatePackageId,packageRevision,packageDigest,intakeDecisionId,subjectId,subjectIntakeRevision,receiptId,receiptDigest'],
+  ProcurementCandidateAcceptanceClosureResult: [null, 'offerId,candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest,terminalDeliveryState,transferredMaterialCount,transferredMaterialSetDigest,handoffReceiptDigest,closureDigest'],
+  LibraCandidateRejectedMessage: [null, 'messageKind,offerId,candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest,intakeDecisionId,decisionDigest,rejectionId,reasonCodes,primaryRejectionCode,rejectionReasonSetDigest,rejectionDigest,receiptId,receiptDigest'],
+  ProcurementCandidateRejectionClosureResult: [null, 'offerId,candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest,terminalDeliveryState,releasedMaterialCount,releasedMaterialSetDigest,rejectionReceiptDigest,closureDigest'],
   CandidateContractVerification: ['VerificationEnvelope', 'offerId,candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest,primaryInputManifestDigest,candidateDeliverySnapshotDigest'],
   IntakeMaterialVerification: ['VerificationEnvelope', 'candidatePackageId,packageDigest,candidateDeliverySnapshotDigest,verifiedMaterials,verifiedMaterialSetDigest'],
   LibraBindingDraft: ['DraftEnvelope', 'subjectRef,candidateDeliverySnapshotDigest,bindings,bindingSetDigest'],
@@ -477,6 +495,9 @@ function buildResultTypeSchema(name, [base, fieldList]) {
   if (name === 'FieldObservationPage' || name === 'ObservationCommitResult') {
     result['x-helix-maxCanonicalBytes'] = 64 * 1024;
   }
+  if (name === 'LibraCandidateAcceptedMessage' || name === 'LibraCandidateRejectedMessage') result['x-helix-maxCanonicalBytes'] = 16 * 1024;
+  if (name === 'ProcurementCandidateRejectionClosureResult') result['x-helix-maxCanonicalBytes'] = 64 * 1024;
+  if (name === 'ProcurementCandidateAcceptanceClosureResult') result['x-helix-maxCanonicalBytes'] = 64 * 1024;
   if (name === 'PerceptionResolutionDraft' || name === 'PerceptionResolutionRevision') {
     result.allOf = [{
       if: { properties: { resultKind: { const: 'found' } }, required: ['resultKind'] },

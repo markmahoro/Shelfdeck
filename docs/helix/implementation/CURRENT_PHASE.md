@@ -1,6 +1,6 @@
 # P8 Handoff A and Libra Front Half Detailed Plan
 
-Status: Active；P8-00–P8-04 complete；P8-05 Design Return awaiting architecture closure.
+Status: Active；P8-00–P8-05 complete；P8-06 in progress.
 
 Last updated: 2026-07-19
 
@@ -98,6 +98,9 @@ Kairox/Task Runtime，不执行真实媒体生产、Workspace写入、Handoff B�
 - Design Return：Rejected row的typed decision digest来源、非空Subject/head列、完整Structured Rejection/Receipt持久化及Libra→
   Procurement拒绝收口事务均未闭合。继续实现会迫使代码虚构Subject或产生不可历史重建的拒绝结果。详见
   `evidence/P8_05_INTAKE_REJECTION_DESIGN_RETURN.md`；等待Architecture Agent提交后复审。
+- Done：Architecture Agent最终修正经只读复审后原样纳入；实现closed rejection、Libra六表原子提交、Rejected Outbox及
+  Procurement Delivery/Reservation/Inbox原子收口。Outbox/Inbox crash、terminal replay、相反状态和零Control写入均有机器反例；
+  Full Architecture 621/621 PASS。Evidence见`evidence/P8_05_INTAKE_REJECTION.md`。
 
 ### P8-06 Handoff A Accepted atomic Transfer Point
 

@@ -13,12 +13,12 @@ Last updated: 2026-07-19
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains；P7 — Procurement |
 | Current phase | P8 — Handoff A and Libra front half |
-| Current phase status | P8-00–P8-04 PASS；P8-05 Design Return（等待架构闭合拒绝事务） |
+| Current phase status | P8-00–P8-05 PASS；P8-06实施中 |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | local code、unit/contract/isolated fixture、docs、automatic Phase transition after PASS |
 | Integration baseline | exact P7 phase closure `2cf98561d7cf785db4005e65e99b0750d84ce5ce` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p8` on `codex/helix-p8` |
-| Next action | 复审并原样纳入Architecture Agent的P8-05拒绝合同修正；PASS后继续实现 |
+| Next action | 实现P8-06 Handoff A Accepted atomic Transfer Point |
 
 Architecture Agent提交`be3ecb89`已闭合`PBF-11`。实现侧逐项复审确认：Candidate Delivery正式携带完整
 Manifest及逐Material Location Evidence；Subject/Binding Episode关系均可N:M持久化；global continuity head与唯一
@@ -211,6 +211,12 @@ P8-05实现前审计已返回Design：`libra_intake_decisions`允许`rejected`�
 closure的正式事务/Outbox合同，无法保证crash atomicity、幂等消费或历史重建。实现线程未虚构Subject、未推进global head、
 未旁读旧Store且未修改SSOT；精确缺口见`implementation/evidence/P8_05_INTAKE_REJECTION_DESIGN_RETURN.md`，已提交Architecture
 Agent独立评估。
+
+P8-05现已完成：Architecture Agent的最终CAS修正`f99428ce`经只读复审PASS并以`bc48fdfb`原样纳入。实现closed
+rejection、完整Decision/Reason/Receipt持久化、Libra Result/marker/Outbox，以及Procurement Delivery/Reservation/Inbox终态收口；
+同时物化Accepted consume合同和原子rollback fixture。P8 focused 8/8、Full Architecture 621/621 PASS，机器基线为
+112/97/169/35，aggregate `5280bc3a5271c7f0605892c616927fe47615240f6e2e3acb55ef4c62c4d41463`；Evidence见
+`implementation/evidence/P8_05_INTAKE_REJECTION.md`。下一工作包P8-06。
 
 Architecture Agent首版修正`b2b5fb9c`在实现侧反向复审中仍未PASS：Accepted Handoff A Receipt的`scopeDigest`同时存在
 `AcceptedIntakePayload.payloadDigest`与“对应Decision digest”两种互斥公式；同时扩展后的通用

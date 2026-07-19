@@ -6,12 +6,14 @@ const { buildResultTypeSchemas } = require('../../scripts/helix-architecture/res
 
 const schemas = buildResultTypeSchemas();
 
-test('builds 87 Catalog Result schemas and the eight SSOT helper types', () => {
-  assert.equal(Object.keys(schemas).length, 95);
+test('builds 87 nominal Catalog Result schemas and the eleven supporting schemas', () => {
+  assert.equal(Object.keys(schemas).length, 99);
   assert.equal(schemas.CandidatePackage.properties.relatedReferences.items.$ref,
     'helix://contracts/types/RelatedMaterialReference/v1');
   for (const helper of ['OnDeckCommitReceipt', 'OffloadCompletionFact', 'PeopleCandidateDraft', 'PrimaryInputManifest',
-    'SeasonContinuityClaim', 'CandidateIntakeAcceptanceBasis', 'ProcurementCandidateOfferAvailableMessage']) assert.ok(schemas[helper]);
+    'SeasonContinuityClaim', 'CandidateIntakeAcceptanceBasis', 'ProcurementCandidateOfferAvailableMessage',
+    'LibraCandidateAcceptedMessage', 'LibraCandidateRejectedMessage', 'ProcurementCandidateAcceptanceClosureResult',
+    'ProcurementCandidateRejectionClosureResult']) assert.ok(schemas[helper]);
 });
 
 test('freezes the normalized media probe raster and bounded stream contract', () => {
@@ -59,6 +61,16 @@ test('freezes Candidate Publication acceptance basis and offer message helpers',
   assert.equal(message.properties.messageKind.const, 'procurement_candidate_offer_available');
   assert.equal(message.properties.acceptanceOwnerDomain.const, 'libra');
   assert.ok(message.required.includes('offerId'));
+});
+
+test('freezes Handoff A rejection message and Procurement closure helpers', () => {
+  assert.equal(schemas.LibraCandidateAcceptedMessage.properties.messageKind.const, 'libra_candidate_accepted');
+  assert.ok(schemas.LibraCandidateAcceptedMessage.required.includes('subjectIntakeRevision'));
+  assert.equal(schemas.LibraCandidateRejectedMessage.properties.messageKind.const, 'libra_candidate_rejected');
+  assert.ok(schemas.LibraCandidateRejectedMessage.required.includes('receiptDigest'));
+  assert.equal(schemas.ProcurementCandidateRejectionClosureResult.properties.terminalDeliveryState.const, 'rejected');
+  assert.equal(schemas.ProcurementCandidateAcceptanceClosureResult.properties.terminalDeliveryState.const, 'accepted');
+  assert.ok(schemas.ProcurementCandidateRejectionClosureResult.required.includes('closureDigest'));
 });
 
 test('freezes the Field Observation page and commit result canonical byte ceilings', () => {

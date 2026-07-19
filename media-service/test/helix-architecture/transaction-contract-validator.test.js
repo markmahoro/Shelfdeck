@@ -27,9 +27,9 @@ const codes = (result) => new Set(result.findings.map((item) => item.code));
 test('validates all canonical transaction participants and crash contracts', () => {
   const result = validateTransactionContracts({ contractsRoot: actualContractsRoot });
   assert.equal(result.ok, true);
-  assert.equal(result.transactionCount, 34);
+  assert.equal(result.transactionCount, 35);
   assert.equal(result.responsibilityControlCount, 12);
-  assert.equal(result.crashFixtureBindingCount, 35);
+  assert.equal(result.crashFixtureBindingCount, 36);
 });
 
 test('rejects upstream Store writes and missing Control CAS participation', () => {
@@ -71,7 +71,7 @@ test('rejects Case creation inside batch intent and a destructive Deregistration
 test('rejects duplicate transaction inventory identities', () => {
   const root = fixture();
   try {
-    mutate(path.join(root, 'manifests', 'transaction-inventory', 'entries-001-034.json'), (shard) => {
+    mutate(path.join(root, 'manifests', 'transaction-inventory', 'entries-001-035.json'), (shard) => {
       shard.entries[1].id = shard.entries[0].id;
     });
     const result = validateTransactionContracts({ contractsRoot: root });

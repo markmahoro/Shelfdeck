@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/LibraCandidateAcceptedMessage/v1",
+  "title": "LibraCandidateAcceptedMessage@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/LibraCandidateAcceptedMessage/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "messageKind": {
+      "const": "libra_candidate_accepted"
+    },
+    "offerId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "candidatePackageId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "packageRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "packageDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "intakeDecisionId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "subjectId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "subjectIntakeRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "receiptId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "receiptDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "messageKind",
+    "offerId",
+    "candidatePackageId",
+    "packageRevision",
+    "packageDigest",
+    "intakeDecisionId",
+    "subjectId",
+    "subjectIntakeRevision",
+    "receiptId",
+    "receiptDigest"
+  ],
+  "x-helix-maxCanonicalBytes": 16384
+}

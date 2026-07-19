@@ -171,32 +171,31 @@
     },
     "jsonContracts": [],
     "immutability": {
-      "immutable": true,
-      "rules": [
-        "terminal列写后immutable，相同Offer重放不得新增row、Outbox或改写不同终态"
-      ]
+      "immutable": false,
+      "rules": []
     },
     "deletion": {
       "foreignKeyPolicy": "ON DELETE RESTRICT",
       "rules": []
     },
     "semanticRules": [
-      "`offer_id`与`acceptance_basis_digest`必须分别等于8.6.18从final `CandidatePackage@1`计算的`CandidateIntakeAcceptanceBasis@1`公式结果，且同事务存在唯一`ProcurementCandidateOfferAvailableMessage@1` Outbox",
+      "`rowMutability=cas_lifecycle`",
+      "唯一closed transition为expected `open → accepted|rejected`，terminal state不得转换或改写。`offer_id`与`acceptance_basis_digest`必须分别等于8.6.18从final `CandidatePackage@1`计算的`CandidateIntakeAcceptanceBasis@1`公式结果，且同事务存在唯一`ProcurementCandidateOfferAvailableMessage@1` Outbox",
       "`UNIQUE(candidate_package_id,package_digest,acceptance_basis_digest)`",
       "同一Candidate至多一个open Offer。open时全部handoff/terminal/closed列为NULL",
-      "accepted要求Decision ID、Receipt ID/digest、terminal Evidence及closed time非NULL，Decision digest沿用既有nullable合同",
-      "rejected要求全部handoff/terminal/closed列非NULL且逐项等于`LibraCandidateRejectedMessage@1`，`terminal_evidence_digest=receiptDigest`",
-      "terminal列写后immutable，相同Offer重放不得新增row、Outbox或改写不同终态",
+      "accepted CAS一次性写Decision ID、Receipt ID/digest、terminal Evidence及closed time，Decision digest沿用既有nullable合同",
+      "rejected CAS一次性写全部handoff/terminal/closed列并逐项等于`LibraCandidateRejectedMessage@1`，`terminal_evidence_digest=receiptDigest`",
+      "这些终态列是write-once bundle，相同Offer/相同Evidence重放返回既有终态，不得执行第二次UPDATE、改写相反Outcome或新增row/Outbox",
       "`INDEX(state,offered_at_ms)`"
     ],
     "rawContract": {
       "columns": "`offer_id PK, candidate_package_id FK, package_revision, package_digest, acceptance_basis_digest, state(open|accepted|rejected), handoff_decision_id NULL, handoff_decision_digest NULL, handoff_receipt_id NULL, handoff_receipt_digest NULL, terminal_evidence_digest NULL, offered_at_ms, closed_at_ms NULL`",
-      "constraints": "`offer_id`与`acceptance_basis_digest`必须分别等于8.6.18从final `CandidatePackage@1`计算的`CandidateIntakeAcceptanceBasis@1`公式结果，且同事务存在唯一`ProcurementCandidateOfferAvailableMessage@1` Outbox；`UNIQUE(candidate_package_id,package_digest,acceptance_basis_digest)`；同一Candidate至多一个open Offer。open时全部handoff/terminal/closed列为NULL；accepted要求Decision ID、Receipt ID/digest、terminal Evidence及closed time非NULL，Decision digest沿用既有nullable合同；rejected要求全部handoff/terminal/closed列非NULL且逐项等于`LibraCandidateRejectedMessage@1`，`terminal_evidence_digest=receiptDigest`；terminal列写后immutable，相同Offer重放不得新增row、Outbox或改写不同终态；`INDEX(state,offered_at_ms)`"
+      "constraints": "`rowMutability=cas_lifecycle`；唯一closed transition为expected `open → accepted|rejected`，terminal state不得转换或改写。`offer_id`与`acceptance_basis_digest`必须分别等于8.6.18从final `CandidatePackage@1`计算的`CandidateIntakeAcceptanceBasis@1`公式结果，且同事务存在唯一`ProcurementCandidateOfferAvailableMessage@1` Outbox；`UNIQUE(candidate_package_id,package_digest,acceptance_basis_digest)`；同一Candidate至多一个open Offer。open时全部handoff/terminal/closed列为NULL；accepted CAS一次性写Decision ID、Receipt ID/digest、terminal Evidence及closed time，Decision digest沿用既有nullable合同；rejected CAS一次性写全部handoff/terminal/closed列并逐项等于`LibraCandidateRejectedMessage@1`，`terminal_evidence_digest=receiptDigest`；这些终态列是write-once bundle，相同Offer/相同Evidence重放返回既有终态，不得执行第二次UPDATE、改写相反Outcome或新增row/Outbox；`INDEX(state,offered_at_ms)`"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8010,
-      "lineDigest": "dcb9b93dfc96e518052ee866203ddfe9dbf1e2ad32b68f7087f4f67062f6f2ea"
+      "line": 8040,
+      "lineDigest": "5e297dff615cacd717728a40a59fe5befe354d6728d8d216bd7282dee69a3bf1"
     },
     "foreignKeys": [
       {

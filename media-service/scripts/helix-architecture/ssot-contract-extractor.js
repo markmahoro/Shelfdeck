@@ -6,7 +6,7 @@ const EXPECTED_COUNTS = Object.freeze({
   capabilities: 112,
   resultFamilies: 97,
   tables: 169,
-  transactions: 34
+  transactions: 35
 });
 
 function sha256(value) {

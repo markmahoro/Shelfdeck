@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/ProcurementCandidateAcceptanceClosureResult/v1",
+  "title": "ProcurementCandidateAcceptanceClosureResult@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/ProcurementCandidateAcceptanceClosureResult/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "offerId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "candidatePackageId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "packageRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "packageDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "acceptanceBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "terminalDeliveryState": {
+      "const": "accepted"
+    },
+    "transferredMaterialCount": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "transferredMaterialSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "handoffReceiptDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "closureDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "offerId",
+    "candidatePackageId",
+    "packageRevision",
+    "packageDigest",
+    "acceptanceBasisDigest",
+    "terminalDeliveryState",
+    "transferredMaterialCount",
+    "transferredMaterialSetDigest",
+    "handoffReceiptDigest",
+    "closureDigest"
+  ],
+  "x-helix-maxCanonicalBytes": 65536
+}

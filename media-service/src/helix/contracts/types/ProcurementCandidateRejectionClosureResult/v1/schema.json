@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/ProcurementCandidateRejectionClosureResult/v1",
+  "title": "ProcurementCandidateRejectionClosureResult@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/ProcurementCandidateRejectionClosureResult/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "offerId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "candidatePackageId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "packageRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "packageDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "acceptanceBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "terminalDeliveryState": {
+      "const": "rejected"
+    },
+    "releasedMaterialCount": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "releasedMaterialSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "rejectionReceiptDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "closureDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "offerId",
+    "candidatePackageId",
+    "packageRevision",
+    "packageDigest",
+    "acceptanceBasisDigest",
+    "terminalDeliveryState",
+    "releasedMaterialCount",
+    "releasedMaterialSetDigest",
+    "rejectionReceiptDigest",
+    "closureDigest"
+  ],
+  "x-helix-maxCanonicalBytes": 65536
+}

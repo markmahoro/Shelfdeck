@@ -23,7 +23,8 @@ const UNIQUE_CONSTRAINT_OVERRIDES = Object.freeze({
 const MUTABLE_LIFECYCLE_TABLES = new Set([
   'proc_procurement_runs',
   'proc_run_materials',
-  'proc_procurement_retry_intent_materials'
+  'proc_procurement_retry_intent_materials',
+  'proc_candidate_deliveries'
 ]);
 // SSOT 8.5.9 requires every state/status column to be closed. Values named by
 // Level 6/7 lifecycles are preserved verbatim; unnamed technical projections

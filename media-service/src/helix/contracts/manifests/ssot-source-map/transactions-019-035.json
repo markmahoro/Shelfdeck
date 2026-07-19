@@ -3,15 +3,25 @@
   "mapId": "helix.ssot-contract-source-map",
   "category": "transactions",
   "startOrdinal": 19,
-  "endOrdinal": 34,
+  "endOrdinal": 35,
   "entries": [
+    {
+      "id": "Handoff A Rejected",
+      "owner": "libra",
+      "atomicFactSet": "complete `IntakeRejectionDecision@1` + immutable rejected Intake Decision + relationized reason/Evidence rows + rejected `IntakeRejectionReceipt@1` + durable typed Result/commit marker + `LibraCandidateRejectedMessage@1` Outbox；不读取或更新Subject Continuity head，不创建/扩充Subject，不建立Binding或转移Control；Decision/Reasons/Receipt/Result/marker/Outbox全有或全无",
+      "source": {
+        "section": "8.5.4",
+        "line": 7719,
+        "lineDigest": "126bd985a59608601c1311e11612cc56da006de70c37874aad7fde2d32139e72"
+      }
+    },
     {
       "id": "Procurement Handoff A Rejection Consume",
       "owner": "procurement",
       "atomicFactSet": "`LibraCandidateRejectedMessage@1` + current open Candidate Delivery/Reservation CAS + exact Candidate member set + Procurement Inbox dedup；同事务把Delivery置`rejected`、全部对应`proc_run_materials candidate_delivery → released+handoff_rejected`并冻结同一Receipt Evidence；Procurement Material Control保持不变；重复消息返回同一closure result，已accepted或Evidence不一致稳定拒绝",
       "source": {
         "section": "8.5.4",
-        "line": 7707,
+        "line": 7720,
         "lineDigest": "d46d448e07485265340fc81e3af807d6ebc7ae09879793807e5815f76dc4be7a"
       }
     },
@@ -21,7 +31,7 @@
       "atomicFactSet": "immutable Subject Abandon Decision + no-Run Pre-deck scope terminal + precise Primary Control release + receipt/Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 7708,
+        "line": 7721,
         "lineDigest": "143372b9d3d1830cec08cab5904e65d186afd25daf4e3e325aeaa089252cb674"
       }
     },
@@ -31,7 +41,7 @@
       "atomicFactSet": "Acceptance Decision + On-deck Material Custody + Arca Binding + precise Control transfer + Handoff Receipt/Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 7709,
+        "line": 7722,
         "lineDigest": "1140129b374858ff75be4bad8e3c3a0ec1b6e1889c4bcd15b1ed3fdaad3e23da"
       }
     },
@@ -41,7 +51,7 @@
       "atomicFactSet": "complete `ArcaAcceptanceRejectionDecision@1` + immutable rejected Acceptance Decision + `RejectionReceipt@1` + durable typed Result/commit marker + `ArcaProductRejectedMessage@1` Outbox；不建立On-deck Custody/Run/Binding、不转移Control；Decision/Receipt/Result/marker/Outbox全有或全无",
       "source": {
         "section": "8.5.4",
-        "line": 7710,
+        "line": 7723,
         "lineDigest": "9e446db6f093dda648e004ee746464abc3edd7fb74bf38eaeb6543f079ed6d34"
       }
     },
@@ -51,7 +61,7 @@
       "atomicFactSet": "`ArcaProductRejectedMessage@1` + current published Package/Delivery state CAS + Libra Inbox dedup；同事务保存rejected Delivery Receipt并关闭该Package Offer；不改写Package或Arca Decision，重复消息返回同一closure result",
       "source": {
         "section": "8.5.4",
-        "line": 7711,
+        "line": 7724,
         "lineDigest": "b646c48766db798709a13926293769b18b7e044dfb716a1b00afd49e5befecf5"
       }
     },
@@ -61,7 +71,7 @@
       "atomicFactSet": "On-deck Product Package + Product Material Identity set + newly produced Material的Libra Control acquire + delivery Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 7712,
+        "line": 7725,
         "lineDigest": "a71ab1170c2cae62ea3f3121da7f6d473c2ca624f6c14b1dc1ff2c68eb0e3ea8"
       }
     },
@@ -71,7 +81,7 @@
       "atomicFactSet": "immutable Discard Decision + Run discarded + Pre-deck scope terminal + original Primary Input Control release + Workspace Cleanup Scope + receipt/Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 7713,
+        "line": 7726,
         "lineDigest": "719467607b21baf19ad7b281a08ece5d1c89faac06c2562c1d6323d2cfb23087"
       }
     },
@@ -81,7 +91,7 @@
       "atomicFactSet": "verified Workspace/Product deletion Evidence + Cleanup member terminal + corresponding Libra Control release + cleanup receipt",
       "source": {
         "section": "8.5.4",
-        "line": 7714,
+        "line": 7727,
         "lineDigest": "0ef98d8d31de4a30c7f34a98bd2e7fc5ba675bd973927f7d3ddfa30df83ccc84"
       }
     },
@@ -91,7 +101,7 @@
       "atomicFactSet": "Shelf Entry create/extend + Canonical Content Identity + Inventory Representation/accepted Product Fact/完整Media-Cast relation snapshot revision + Deck Fact + required Control acquire/release + Off-load Completion Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 7715,
+        "line": 7728,
         "lineDigest": "3bc6c0219ad5a70df82a937621dc2889d8774d3b2fafd2caab032c66c0ac2b90"
       }
     },
@@ -101,7 +111,7 @@
       "atomicFactSet": "immutable Care Basis + relationized Basis inputs + Care Requirement Set + Case active + Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 7716,
+        "line": 7729,
         "lineDigest": "6402976bd648c711162050e188e5b50b575fbcf11f1ae69ebef2a59ccb8c15f2"
       }
     },
@@ -111,7 +121,7 @@
       "atomicFactSet": "Aftercare repair result + Inventory Representation/Product Fact/Media-Cast relation revision + required new Material Control acquire/old Control release（relation-only修正时两者均为空）+ commit receipt",
       "source": {
         "section": "8.5.4",
-        "line": 7717,
+        "line": 7730,
         "lineDigest": "de1c51e6951176758387b3780a09d928791d6d06095421ee2b96ff6cf5d7c45e"
       }
     },
@@ -121,7 +131,7 @@
       "atomicFactSet": "Review + per-Entry Reservation + immutable pre-authorization Destruction Scope + selection basis",
       "source": {
         "section": "8.5.4",
-        "line": 7718,
+        "line": 7731,
         "lineDigest": "d84e96ef7c300f188c7958c64da90cad90657ecdc8ba7aab1237058b1403e2e7"
       }
     },
@@ -131,7 +141,7 @@
       "atomicFactSet": "current Scope set verification + Selection Receipt + required High-volume Escalation Receipt + immutable Authorization Batch envelope；不创建跨Entry Case",
       "source": {
         "section": "8.5.4",
-        "line": 7719,
+        "line": 7732,
         "lineDigest": "cae8451f709cd026085b9cb061981d31da7a71f040b5c417586bfa44b31cc22d"
       }
     },
@@ -141,7 +151,7 @@
       "atomicFactSet": "Batch Intent + one current Scope verification + per-Scope Authorization + one Case + one Shelf Entry `offdeck_in_progress`；每Entry独立事务、幂等向前恢复",
       "source": {
         "section": "8.5.4",
-        "line": 7720,
+        "line": 7733,
         "lineDigest": "e4c3bc41ecb66e8a9d32433eb9626890f9e04770d6d967b5c0131efe88c3a8aa"
       }
     },
@@ -151,7 +161,7 @@
       "atomicFactSet": "全部Deletion Evidence核对后的Deck Fact terminal + Control release + terminal receipt",
       "source": {
         "section": "8.5.4",
-        "line": 7721,
+        "line": 7734,
         "lineDigest": "7dd0033bbb591666aee306f1ac5ec4ea1a987112608dc13ab5e84d5eb1cf0332"
       }
     },
@@ -161,7 +171,7 @@
       "atomicFactSet": "Shelf/Shelf Entry administrative terminal facts + precise Control release + release receipt",
       "source": {
         "section": "8.5.4",
-        "line": 7722,
+        "line": 7735,
         "lineDigest": "b9fcc35f33ee61254788f9e023963bd2ad59075837e41ce005a239807a7502f3"
       }
     }
