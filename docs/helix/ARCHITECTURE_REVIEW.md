@@ -1,6 +1,6 @@
 # Helix Architecture Review Workbench
 
-Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-19；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-11`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`）bounded correction均已完成。
+Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-19；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-11`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`）bounded correction均已完成。
 
 ## 1. Purpose and authority
 
@@ -1949,3 +1949,38 @@ canonical transaction write set、Outbox/Inbox、row-to-typed reconstruction、c
 计数。关系表由168调整为169，`libra_*`由36调整为37；没有新增Domain、Owner、Store、Business Object、Handoff、
 Capability、兼容路径或跨Store读取。审计结果为
 `PASS / PBF-11-R2 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.20 `PBF-11-R2-R1` — Receipt digest consistency and Handoff B rejection propagation
+
+Status: `CLOSED / BOUNDED DETAIL FIX APPLIED` — 2026-07-19
+
+P8-05在重物化`PBF-11-R2`后执行全局反向审计，提出两项回归疑点。主审逐项核对formal nominal type、Owner
+row、Capability output、row-to-typed reconstruction和两次Handoff语义，确认两项都成立：
+
+1. Handoff A accepted的formal `SubjectAndTransferReceipt@1`固定
+   `ReceiptEnvelope.scopeDigest=AcceptedIntakePayload.payloadDigest`，但新Receipt表说明误写成“accepted/rejected
+   都使用Decision digest”，与同节后续重建规则冲突；
+2. Handoff A需要的多Reason/Evidence富拒绝合同被扩成通用`StructuredRejection@1/RejectionReceipt@1`后，
+   `arca.acceptance.rejection.commit@1`也被迫返回同一富类型，而Arca现有Decision/Receipt rows无法在重启后重建
+   这些字段，形成新的Capability↔Owner Store断裂。
+
+Bounded correction没有把Handoff A实现细节强行传播为Arca内部模型，而是按两个既有Handoff的不同验收语义分型：
+
+- Handoff A accepted在所有位置唯一使用`accepted_payload_digest`作为Receipt scope digest；rejected继续使用
+  `IntakeRejectionDecision.decisionDigest`；
+- Handoff A富拒绝改为专用`IntakeStructuredRejection@1`和`IntakeRejectionReceipt@1`，保留PBF-11-R2已经闭合的
+  多Reason/Evidence、closed precedence、Decision、Outbox和Procurement consume合同；
+- Handoff B保留通用`StructuredRejection@1/RejectionReceipt@1`，但收窄为5.7.3 closed rejection code和可由
+  `arca_acceptance_checks`唯一重建的Evidence set；新增formal `ArcaAcceptanceRejectionDecision@1`及
+  `ArcaProductRejectedMessage@1`，不新增Capability；
+- 扩充既有`arca_acceptance_attempts/decisions/handoff_b_receipts`列variant，使Rejected Decision、Receipt和
+  typed Outbox能由Arca Owner Store历史重建；补齐Handoff B Rejected canonical transaction与crash fixture；
+- 扩充既有`libra_delivery_receipts`并固定Libra rejection consume，使Delivery Owner幂等收口Rejected Package，
+  这只是既有Handoff B终态消费，不是反向Handoff；
+- Handoff A/Handoff B rejection output分型后，112项Capability不变，unique Catalog Result family由96变为97；
+  未新增关系表，inventory保持`169 tables / arca_54 / libra_37`。
+
+全文反向审计覆盖Accepted/Rejected Receipt公式、Capability nominal output、Arca/Libra Owner rows、两项canonical
+transaction、Outbox/Inbox、accepted与rejected互斥、crash/replay、table count及Domain/Owner/Handoff不变量。
+没有新增Domain、Owner、Store、Business Object、Handoff、Capability、兼容路径或跨Store读取。审计结果为
+`PASS / PBF-11-R2-R1 CLOSED / NO OPEN BUSINESS DECISION`。
