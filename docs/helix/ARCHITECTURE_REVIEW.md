@@ -1,6 +1,6 @@
 # Helix Architecture Review Workbench
 
-Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-19；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-11`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`）bounded correction均已完成。
+Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-19；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-12`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`）bounded correction均已完成。
 
 ## 1. Purpose and authority
 
@@ -2043,3 +2043,54 @@ Bounded correction没有改变Handoff A业务语义：
 crash fixture、canonical participant及计数。没有新增Domain、Owner、Store、Business Object、Handoff、Capability、
 Result family、关系表或兼容路径；inventory保持`112 Capability / 97 Catalog Result family / 169 tables`。
 审计结果为`PASS / PBF-11-R3 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.23 `PBF-12` — Libra Routing、Decision Basis与Acceptance Spec continuity
+
+Status: `CLOSED / BOUNDED DETAIL FIX APPLIED` — 2026-07-19
+
+P8-08在Handoff A Accepted实现通过后，对Subject接管后的Routing与Acceptance Spec前半链做实现可实现性反证。
+主审沿Level 5已确认的first-match Routing、Decision Preparation、Shelf Standard Projection、六类产品要求和
+Level 8 Owner/Store/Transaction逐段核对，确认实现返回的五项缺口成立，第六项是必须保持的边界：
+
+1. Routing只有概念形状与关系表，没有formal Policy/Subject/Arca Projection/Decision Fact输入、Readiness、
+   Assessment Evidence、Decision DTO及closed unresolved reason；
+2. 35项Canonical Transaction没有Routing Decision、Decision Basis与Acceptance Spec三项Owner commit，head CAS、
+   typed Result/marker和crash replay无法唯一生成；
+3. `DecisionInputSet@1`无法无损映射`queryResultSetDigest/routingInputDigest/specInputDigest`及relation rows；
+4. Acceptance Spec没有六类Requirement的closed typed值、Product Scope、semantic/record digest、ID/revision与publication
+   transaction；
+5. 物化Schema误把Season结构语义写成`contentProfile=season`，与Canonical
+   `movie|series|jav|western_adult`冲突；
+6. Libra不能为补输入跨Store读取Arca，也不能让Candidate提前携带Shelf或在本切片创建Run/Workspace。
+
+纵向审计同时证明两个同根缺口：Handoff A虽有Candidate Snapshot，但Libra Intake rows未保存后续Routing所需的
+Field/content profile provenance，Subject也未固化content profile；Series Acceptance Spec在Run创建前缺少确定
+Product Scope。它们均可扩充既有行与typed DTO闭合，无须新表或新组件。
+
+Bounded correction保持已Accepted业务结构：
+
+- 在既有Handoff A payload/Intake Decision中保存完整Field/profile/Identity Claim provenance，Subject固定
+  `structureKind + contentProfile`；extension要求逐字节相同，Routing不得回读Procurement；
+- Arca通过既有`ArcaShelfFacade`发布versioned `ShelfRoutingTargetProjection@1`与
+  `ShelfStandardProjection@1`，并为Shelf current status/Standard维护routing projection revision/digest；Libra只冻结
+  typed Query snapshot，事务不读取`arca_*`；
+- 固定`RoutingMatchExpression@1`安全AST、Field Routing Policy Snapshot、Subject/Decision Fact Snapshot、
+  Routing Readiness、Assessment Evidence、resolved/unresolved Decision及全部ID/digest/排序/closed reason；
+- 把一次性选Shelf保持为独立`ManualShelfSelectionIntent@1`而非长期Rule Fact；其Command Receipt随routing
+  Decision Basis原子保存，Routing Decision只验证并引用，避免Policy与用户Intent互相污染；
+- 把`DecisionInputSet@1`分为`routing|acceptance_spec`两个closed variant，关系化保存所有typed input snapshot，唯一
+  计算query/routing/spec/input-set digest；`DecisionBasisRevision@1`补齐ID/revision/readiness/basis digest；
+- 固定`ShelfStandard@1`的Profile Rule Set和六类closed Requirement，增加`ProductScopeSnapshot@1`；
+  `AcceptanceSpec@1`唯一使用`contentProfile=series + structureKind=season`，并区分产品要求的semantic
+  `specDigest`与包含Policy/Query provenance的`recordDigest`，避免revision变化误触发生产目标变化；
+- `libra_subject_decision_heads`增加revision/digest CAS；新增三项既有Owner canonical transaction正式物化，均
+  `hasOutbox=false`且使用typed application result/marker。首次Basis才建立head；Spec publication不创建Run，Run Creator
+  在创建前重新Query Arca current Projection并验证freshness；
+- Canonical Transaction由35增至38；112项Capability、97个Catalog Result family、169张关系表、五Domain、两Handoff、
+  Owner/Store和既有物理组件全部不变。
+
+反向审计覆盖Level 3/5语义、Handoff A provenance、Arca public Query、Libra table reconstruction、三项事务
+read/write set、cross-domain freshness、Series Product Scope、Spec semantic equality、machine content profile、crash fixture、
+一次性Routing Intent与长期Rule vocabulary分离、Rating/No-rating分支的确定选择、计数和Run/Workspace负边界。
+没有新的用户业务分叉。审计结果为
+`PASS / PBF-12 CLOSED / NO OPEN BUSINESS DECISION`。

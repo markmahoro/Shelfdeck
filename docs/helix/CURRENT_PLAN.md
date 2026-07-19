@@ -69,17 +69,22 @@ terminal Owner rows重建并使用同一原子性、Evidence与幂等纪律。�
 `PBF-11-R3`固定Handoff A Accepted Control revision set的成员、排序、JCS公式、Payload/Commit Handle绑定及
 historical Control reconstruction；保持112项Capability、97个Catalog Result family、169张关系表和15表事务边界不变。
 
+`PBF-12`闭合Libra Routing、Decision Basis与Acceptance Spec的typed input/output、唯一ID/digest、revision/head CAS、
+Subject Field/profile provenance、Product Scope、Arca只读Projection freshness及三项canonical transaction。它不新增
+Domain、Owner、Store、Handoff、Capability或关系表；保持112项Capability、97个Catalog Result family和169张表，
+Canonical Transaction由35项增至38项。
+
 ## 3. Current phase
 
 | Field | Current value |
 | --- | --- |
 | Phase | P8 — Handoff A and Libra front half |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | P8-00–P8-07 PASS；P8-08 Design Return open |
+| Status | P8-00–P8-07 PASS；P8-08 architecture correction integrated，implementation in progress |
 | Implementation baseline | exact P7 phase closure `2cf98561d7cf785db4005e65e99b0750d84ce5ce` |
 | Phase branch/worktree | `codex/helix-p8` / `E:\my_project\emby_third_party-helix-p8` |
 | Allowed now | P2–P13本地代码、unit/contract/isolated fixture、文档与Phase自动转换 |
-| Next action | 等待并复审P8-08 Routing/Acceptance Spec formal-realizability修正 |
+| Next action | 重物化PBF-12机器合同并实现P8-08 Routing/Decision Basis/Acceptance Spec |
 
 ## 4. Master roadmap
 
