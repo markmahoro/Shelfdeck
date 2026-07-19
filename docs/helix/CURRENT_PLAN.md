@@ -78,6 +78,11 @@ Canonical Transaction由35项增至38项。
 冻结expected revision与snapshot digest；历史Input Set可只由Libra Owner rows重建。它不改变Domain、Owner、Store、
 Handoff、Capability、Result family、表或Canonical Transaction计数。
 
+`PBF-13`闭合Libra生产后半链的Run Admission/Lifecycle、immutable Production Material与N:M Episode scope、
+Workspace admission/reference、完整On-deck Product Package、Discard/Cleanup及Off-load Completion Reclaimer连续性。
+新增七张Libra-owned关系表和五项Canonical Transaction；当前合同为112 Capability、97 Catalog Result family、
+176 tables、43 Canonical Transactions，未新增Domain、Owner、Store、Handoff、Capability或用户业务决策。
+
 ## 3. Current phase
 
 | Field | Current value |

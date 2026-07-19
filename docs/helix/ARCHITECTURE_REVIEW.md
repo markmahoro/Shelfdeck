@@ -1,6 +1,6 @@
 # Helix Architecture Review Workbench
 
-Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-19；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-12`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`）bounded correction均已完成。
+Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-20；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`）bounded correction均已完成。
 
 ## 1. Purpose and authority
 
@@ -2121,3 +2121,59 @@ P8-08在实现Decision Basis Commit并反证Routing Decision重启恢复时指�
 计数保持`112 Capability / 97 Catalog Result family / 38 Canonical Transaction / 169 tables`。实现线程自行修正
 `expected_head_revision>=0`的DDL传播与本合同一致，不需要第二份SSOT规则。审计结果为
 `PASS / PBF-12-R1 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.25 `PBF-13` — Libra Run、Workspace、Product Package与Reclamation continuity
+
+Status: `CLOSED / BOUNDED DETAIL FIX APPLIED` — 2026-07-20
+
+P9-01在P8 Routing/Spec closure后，对Libra Run creation、Production Workspace、Deliverable Promotion、Run
+Discard和Workspace Reclamation做实现可实现性反证。主审从Level 3/6 Accepted业务语义向8.5 Owner rows、8.6
+formal DTO、Canonical Transaction及crash recovery逆向核对，确认六组反馈全部成立且共享同一根因：Level 6已经定义
+Run的业务状态和责任边界，但Level 8只留下digest/current row摘要，没有一条可独立恢复“Run基于什么材料、怎样建立
+Workspace、交付了什么、为何可以Discard/回收”的Libra Owner history。具体表现为：
+
+1. Run Creator没有formal Decision/Result、Subject级admission CAS、state revision或replacement原子事务；
+2. Run的Production Material/Episode scope只有aggregate digest，N:M Episode与完整Binding/Control snapshot无法恢复；
+3. Workspace没有stable aggregate head/revision，Working→Product Staging关系无法证明或安全重放；
+4. On-deck Product Package formal DTO、relation rows和Promotion write set不足以恢复完整Product Fact/Artifact/Media
+   Cast/Physical Reality/Off-load Context/Attestation；
+5. Discard与Cleanup current rows缺expected revision、typed deletion Evidence和合法nullable状态，不能形成安全CAS；
+6. Off-load Completion虽是Arca durable Fact，却没有typed read、grace/reference audit到Cleanup Scope Admission的原子连续性。
+
+Bounded correction严格复用既有Domain、Owner、Business Object与Handoff：
+
+- 增加Subject级`libra_run_admission_heads`、append-only `libra_run_revisions`与formal
+  `LibraRunExecutionBasis/AdmissionDecision/LifecycleDecision`，统一证明single唯一资格、Season Episode不重叠、Spec
+  或初始Execution Basis变化时的replacement和frozen不可自动替代；Run-local Priority与immutable Execution Basis
+  分离，单纯加急不触发replacement，合法replacement仍继承当前Priority；Lifecycle complete variant消费typed `ArcaProductAcceptedMessage`，在Libra事务
+  同时保存Delivery Receipt、Inbox、Run completed revision与active-scope移除，避免Arca跨域写Run；
+- 把旧Episode-only摘要表收敛为通用`libra_run_material_manifests/members`，并新增N:M Episode claim relation，
+  完整冻结Physical Identity、Location、Binding、Control和output Requirement；
+- 增加Workspace revision history，把Platform Root/space admission、完整Workspace Physical Identity与Material Reference
+  固定为append-only
+  `working→product_staging→released`状态流；Reference保留完整bounded Episode claims，Product Promotion不能只凭摘要
+  或caller补Episode；Capability只产生Workspace handle/effect，不能暗写业务relation；
+- 扩充Product Package/Material/Off-load rows并增加Package Fact/Artifact relation，使完整
+  `OnDeckProductPackage@1`只从Libra Owner rows历史重建；Product Fact Manifest在Handoff DTO中展开immutable typed
+  fact value，使Arca不必回读Libra/Provider补Identity或Metadata；direct-original Control assert与new Workspace Product
+  acquire使用显式discriminator，不按handle种类猜测；完整Package不进入64 KiB Foundation Event Result，Catalog
+  commit output改为bounded `OnDeckProductPackageCommitReceipt@1`并占用原Result slot，完整Deliverable只经Port读取；
+  Handoff B Accepted用同一SQLite内的read-only Libra delivery fence消除Run supersede/Acceptance竞态，不写Libra Store；
+- 补齐Run Discard、Cleanup Scope Admission、Cleanup Commit的typed Decision/Evidence/Receipt、closed CAS、nullable
+  状态和exact Control release；superseded Run、Arca Off-load Completion与discard使用互斥资格进入同一Reclaimer，
+  completed/blocked outcome均有typed Evidence；Cleanup成员显式区分uncontrolled、Libra-owned与other-owned，后者
+  只能验证already absent而不能主动删除，避免把Arca Control误当“无Control”；Signal仍只wake；
+- 新增Run Admission、Run Lifecycle Transition、Workspace Admission、Workspace Material Reference Commit、Workspace
+  Cleanup Scope Admission五项Canonical Transaction，精确化既有Deliverable Promotion、Run Discard和Workspace
+  Cleanup的participants/read/write/outbox/crash合同；
+- 新增七张Libra-owned关系表：Run admission head、Run revision、Run Material Episode claim、Workspace revision、
+  Package Material Episode claim、Package Fact ref、Package Artifact ref。旧两张Episode Manifest表被clean
+  rename/generalize，不构成新增计数。
+
+全文一致性审计覆盖Level 3/6业务状态、Run/Subject/Spec owner boundary、Series overlap、Priority延续、Workspace
+containment、Package Handoff B完整快照、Material Control、Discard不可逆授权、Off-load Completion/grace、semantic
+replay、crash matrix、row nullability及machine write set。没有新增Domain、Owner、Store、Business Object、Handoff、
+Catalog Capability、Catalog Result family或用户业务分叉；Capability保持112、Result family保持97，Libra tables由37
+增至44、总表由169增至176，Canonical Transaction由38增至43。新增的Product Material↔Episode relation保存
+完整N:M交付成员，避免只存摘要而无法恢复Package。审计结果为
+`PASS / PBF-13 CLOSED / NO OPEN BUSINESS DECISION`。

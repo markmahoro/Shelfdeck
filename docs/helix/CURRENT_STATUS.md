@@ -13,20 +13,22 @@ Last updated: 2026-07-19
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains；P7 — Procurement；P8 — Handoff A and Libra front half |
 | Current phase | P9 — Libra production and delivery |
-| Current phase status | P9-00 baseline PASS；P9-01 Design Return open；non-blocked audit work continues |
+| Current phase status | P9-00 baseline PASS；P9-01 PBF-13 architecture review PASS；contract rematerialization pending |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | P9 local code、unit/contract/isolated fixture、docs与Phase内自动闭环；本周期不进入P10 |
 | Integration baseline | exact P8 closure `3184ef4573cb3663e4a1fae87fc65b4d1c270b38` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p9` on `codex/helix-p9` |
-| Next action | 等待Architecture Agent独立闭合P9生产合同；并行完成不依赖缺口的boundary/reuse只读审计 |
+| Next action | 原样纳入PBF-13，重物化机器合同并继续P9-01实现与验证 |
 
-P9-01反向实现审计已证明六段正式连续性缺口：Run Creation/Lifecycle没有typed transaction与revision CAS；Run-owned
-Material/Episode scope无法从Owner rows恢复；Workspace没有current head和Working→Staging commit；Package DTO/Promotion
-transaction不能保存完整交接快照；Discard/Cleanup缺Decision/member/control set和合法nullable状态；Off-load Completion没有
-cleanup scope admission transaction。完整Design Return已发送Architecture Agent，当前不涉及业务决策；实现线程未修改SSOT。
-并行function-level reuse audit已完成：旧Transcode Capability wrapper、Task/Node设备池、Metadata Provider adapter、路径/时间GC和
-正式目标replace函数全部拒绝复用；只保留pure FFmpeg command/progress、disc parser、Workspace原子文件不变量和设备识别测试向量，
-且必须在正式P9 typed contract Ready后逐函数提取。
+P9-01反向实现审计证明的六段连续性缺口已由Architecture Agent在`PBF-13`中闭合，并经实现侧只读复审PASS：Run、
+Material/Episode scope、Workspace、完整Package、Discard/Cleanup及Off-load Reclaimer均具备typed DTO、Owner row恢复、
+revision/CAS和原子事务连续性。架构提交已进入纳入与机器合同重物化阶段。旧实现复用结论不变：拒绝旧Capability wrapper、
+Task/Node设备池、Metadata Provider adapter、路径/时间GC和正式目标replace函数；只允许在新合同内原子化提取pure FFmpeg
+command/progress、disc parser、Workspace文件不变量和设备识别测试向量。
+
+Architecture Agent提交`a570be44`的`PBF-13`已通过实现侧只读复审：六段生产连续性均可从正式输入、Owner rows、
+revision/digest/CAS及事务边界唯一实现；计数为112 Capability、97 Catalog Result family、176 tables和43 Canonical
+Transactions。未新增Domain、Owner、Store、Handoff、Capability、跨域写入或用户业务决策；实现线程未修改SSOT正文。
 
 本Program终点已由用户确认为P13：P13完成operational clean-cut并冻结最终E2E-ready package后，本线程即完成，不再设置后续实施Phase。
 真实来源完整E2E与部署将分别由后续独立任务承担；部署任务只消费通过独立E2E验收的精确Artifact。该调整只涉及工程计划和交接
