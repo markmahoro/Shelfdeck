@@ -1,6 +1,6 @@
 # P9 Libra Production and Delivery Detailed Plan
 
-Status: Active；P9-00 complete；P9-01 in progress.
+Status: Active；P9-00 complete；P9-01 Design Return open；non-blocked audit work continues.
 
 Last updated: 2026-07-20
 
@@ -56,6 +56,9 @@ P9不执行Handoff B Acceptance或Arca On-deck Commit，不接真实Provider/FFm
   canonical transaction、Result/Marker/Outbox及重启恢复连续性。
 - 只物化SSOT正式命名的Libra production public contracts；拒绝Store、Arca internal、raw filesystem、generic Runtime或HTTP authority。
 - 若任一路径无法唯一实现，精确Design Return架构Agent；不以调用者补值、Foundation Result或旧Store推断。
+- Design Return：Run Creation/Lifecycle、Run-owned Material/Episode scope、Workspace current/Working→Staging、完整Package
+  Promotion、Discard/Cleanup及Off-load Completion scope admission的DTO→Owner row→transaction→restart连续性存在已证明缺口；
+  精确问题已发送Architecture Agent。Evidence见`evidence/P9_01_PRODUCTION_CONTRACT_DESIGN_RETURN.md`。
 
 ### P9-02 Run Creator and immutable delivery scope
 

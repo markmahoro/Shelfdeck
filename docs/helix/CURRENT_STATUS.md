@@ -13,12 +13,17 @@ Last updated: 2026-07-19
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains；P7 — Procurement；P8 — Handoff A and Libra front half |
 | Current phase | P9 — Libra production and delivery |
-| Current phase status | P9-00 baseline PASS；P9-01 feasibility reverse audit active |
+| Current phase status | P9-00 baseline PASS；P9-01 Design Return open；non-blocked audit work continues |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | P9 local code、unit/contract/isolated fixture、docs与Phase内自动闭环；本周期不进入P10 |
 | Integration baseline | exact P8 closure `3184ef4573cb3663e4a1fae87fc65b4d1c270b38` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p9` on `codex/helix-p9` |
-| Next action | P9-01 Run/Workspace/Product/Package/Discard/Cleanup合同反向审计 |
+| Next action | 等待Architecture Agent独立闭合P9生产合同；并行完成不依赖缺口的boundary/reuse只读审计 |
+
+P9-01反向实现审计已证明六段正式连续性缺口：Run Creation/Lifecycle没有typed transaction与revision CAS；Run-owned
+Material/Episode scope无法从Owner rows恢复；Workspace没有current head和Working→Staging commit；Package DTO/Promotion
+transaction不能保存完整交接快照；Discard/Cleanup缺Decision/member/control set和合法nullable状态；Off-load Completion没有
+cleanup scope admission transaction。完整Design Return已发送Architecture Agent，当前不涉及业务决策；实现线程未修改SSOT。
 
 本Program终点已由用户确认为P13：P13完成operational clean-cut并冻结最终E2E-ready package后，本线程即完成，不再设置后续实施Phase。
 真实来源完整E2E与部署将分别由后续独立任务承担；部署任务只消费通过独立E2E验收的精确Artifact。该调整只涉及工程计划和交接
