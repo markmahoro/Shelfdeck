@@ -58,11 +58,11 @@
     {
       "id": "Handoff A Accepted",
       "owner": "libra",
-      "atomicFactSet": "complete `CandidateDeliverySnapshot@1` + Libra-owned `SubjectContinuityResolutionDecision@1` + `LibraBindingDraft@1` + `AcceptedIntakePayload@1` + global Subject Continuity head CAS + unique extension target Intake head CAS（new Subject只用global CAS）+ immutable Intake Decision/match witness/overlap Evidence + Subject create/extension + accepted continuity/Episode scope + Material Binding及N:M Episode relation + precise Control transfer + `SubjectAndTransferReceipt@1`/commit marker/accepted Outbox；全部事实全有或全无，Libra不得旁读`proc_*`，Commit Participant不得信任调用者指定Subject或重算Provider事实",
+      "atomicFactSet": "complete `CandidateDeliverySnapshot@1` + Libra-owned `SubjectContinuityResolutionDecision@1` + `LibraBindingDraft@1` + `AcceptedIntakePayload@1` + global Subject Continuity head CAS + unique extension target Intake head CAS（new Subject只用global CAS）+ immutable Intake Decision/match witness/overlap Evidence + Subject create/extension + accepted continuity/Episode scope + Material Binding及N:M Episode relation + precise Control transfer + `SubjectAndTransferReceipt@1`/commit marker/accepted Outbox；Material Binding的Physical Identity/size/endpoint/location必须逐项复制Snapshot Delivery，不能由materialKey反解或旁读current Field/Provider补值；全部事实全有或全无，Libra不得旁读`proc_*`，Commit Participant不得信任调用者指定Subject或重算Provider事实",
       "source": {
         "section": "8.5.4",
         "line": 7761,
-        "lineDigest": "be130c62965c4291a401369d3efaef63798da5653e13d4a52fd299c6347249a4"
+        "lineDigest": "afec467069a3c320c20ad0db0c6541c1994126a4ef0b48c9c38f7c5f6161b2a5"
       }
     },
     {

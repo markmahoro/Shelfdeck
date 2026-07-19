@@ -7,7 +7,7 @@
     "displayName": "Procurement Run Admission",
     "ownerScope": "procurement",
     "commitClass": "responsibility_control_commit",
-    "atomicFactSet": "complete `ProcurementRunExecutionBasis@1` + prospective Run identity + `ResponsibilityControlCommitHandle` + current Field/Access/terminal Observation/Policy/active Triage Rule authority/Material/Selection/Control fence + Run及relationized Basis rows + 全部`run_selection` guard + 对全部成员的同Field Procurement Control acquire/assert + durable `ProcurementControlReceipt` + commit marker；Triage Rule必须由注入的Procurement Registry解析并匹配当前active snapshot，不能信任调用者值；`hasOutbox=false`，全部事实/Control全有或全无，禁止分批Control后补建Run",
+    "atomicFactSet": "complete `ProcurementRunExecutionBasis@1` + prospective Run identity + `ResponsibilityControlCommitHandle` + current Field/Access/terminal Observation/Policy/active Triage Rule authority/Material/Selection/Control fence + Run及relationized Basis rows + 全部`run_selection` guard + 对全部成员的同Field Procurement Control acquire/assert + durable `ProcurementControlReceipt` + commit marker；每个Selection member必须从同事务current Field Material row冻结完整Physical Identity四元组与size，写入`proc_run_materials`并纳入Basis member digest，不能只保留不可逆materialKey/摘要；Triage Rule必须由注入的Procurement Registry解析并匹配当前active snapshot，不能信任调用者值；`hasOutbox=false`，全部事实/Control全有或全无，禁止分批Control后补建Run",
     "participants": [
       {
         "participantKind": "domain",
@@ -81,7 +81,7 @@
     "source": {
       "section": "8.5.4",
       "line": 7741,
-      "lineDigest": "bb629d247679d5fe0ccf7417e948d4e94f82197472df5859e9581982a82580be"
+      "lineDigest": "927cca6e27d60003357cb148b8fcc9835b29b88e123705f6cfe81ab777cc44f2"
     }
   }
 }

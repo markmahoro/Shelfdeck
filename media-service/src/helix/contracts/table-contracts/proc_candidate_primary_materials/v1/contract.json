@@ -52,8 +52,8 @@
       },
       {
         "ordinal": 5,
-        "name": "binding_revision",
-        "logicalType": "INTEGER",
+        "name": "mount_scope_id",
+        "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -62,8 +62,8 @@
       },
       {
         "ordinal": 6,
-        "name": "admitted_control_revision",
-        "logicalType": "INTEGER",
+        "name": "inode",
+        "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -72,7 +72,7 @@
       },
       {
         "ordinal": 7,
-        "name": "admitted_control_projection_digest",
+        "name": "content_hash_algorithm",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -82,6 +82,56 @@
       },
       {
         "ordinal": 8,
+        "name": "content_hash",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "size_bytes",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "binding_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "admitted_control_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "admitted_control_projection_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 13,
         "name": "member_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -126,8 +176,11 @@
     },
     "jsonContracts": [],
     "immutability": {
-      "immutable": false,
-      "rules": []
+      "immutable": true,
+      "rules": [
+        "每行必须与Candidate Draft Unit、final Manifest member及对应immutable Run member的material/Physical Identity/size/binding/admitted Control逐项一致",
+        "Identity/size随Candidate Publication原子复制且published row immutable，历史Delivery不得旁读current Field Material补值"
+      ]
     },
     "deletion": {
       "foreignKeyPolicy": "ON DELETE RESTRICT",
@@ -136,16 +189,17 @@
     "semanticRules": [
       "`PK(candidate_package_id,ordinal)`及`UNIQUE(candidate_package_id,material_key)`",
       "ordinal从0连续",
-      "每行必须与Candidate Draft Unit、final Manifest member及对应Run member的material/binding/admitted Control逐项一致"
+      "每行必须与Candidate Draft Unit、final Manifest member及对应immutable Run member的material/Physical Identity/size/binding/admitted Control逐项一致",
+      "Identity/size随Candidate Publication原子复制且published row immutable，历史Delivery不得旁读current Field Material补值"
     ],
     "rawContract": {
-      "columns": "`candidate_package_id FK, ordinal, material_key, role(primary_payload|structural_dependency), binding_revision, admitted_control_revision, admitted_control_projection_digest, member_digest`",
-      "constraints": "`PK(candidate_package_id,ordinal)`及`UNIQUE(candidate_package_id,material_key)`；ordinal从0连续；每行必须与Candidate Draft Unit、final Manifest member及对应Run member的material/binding/admitted Control逐项一致"
+      "columns": "`candidate_package_id FK, ordinal, material_key, role(primary_payload|structural_dependency), mount_scope_id, inode, content_hash_algorithm, content_hash, size_bytes, binding_revision, admitted_control_revision, admitted_control_projection_digest, member_digest`",
+      "constraints": "`PK(candidate_package_id,ordinal)`及`UNIQUE(candidate_package_id,material_key)`；ordinal从0连续；每行必须与Candidate Draft Unit、final Manifest member及对应immutable Run member的material/Physical Identity/size/binding/admitted Control逐项一致；Identity/size随Candidate Publication原子复制且published row immutable，历史Delivery不得旁读current Field Material补值"
     },
     "source": {
       "section": "8.5.11",
       "line": 8240,
-      "lineDigest": "c24ab2a4ae232b7287d9d8123df64aa17b0b18703c5d61c4e88bf45786076b00"
+      "lineDigest": "ecd8dcba4609b46645ff5b2f966d95ea8c2b8e809883ded13af6efe68a5204d9"
     },
     "foreignKeys": [
       {

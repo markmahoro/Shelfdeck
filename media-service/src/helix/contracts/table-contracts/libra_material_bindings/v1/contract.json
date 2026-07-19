@@ -261,7 +261,7 @@
       "immutable": true,
       "rules": [
         "immutable revision以`PK(subject_id,material_key,binding_revision)`保存",
-        "Handoff A每个Manifest member只建一条Binding并逐项复制其immutable Candidate Delivery provenance，后续可通过正式historical `CandidateDeliveryPort`重读随单Related References，不旁读Procurement Store"
+        "Handoff A每个Manifest member只建一条Binding并从`LibraBindingDraft@1`逐项复制`CandidatePrimaryMaterialDelivery@1`的Physical Identity、size、endpoint/location与immutable provenance，五项Identity/size字段不得从materialKey反解、从current Field补读或使用默认值"
       ]
     },
     "deletion": {
@@ -272,17 +272,18 @@
       "immutable revision以`PK(subject_id,material_key,binding_revision)`保存",
       "完整Physical Identity必须逐字节满足materialKey公式且size为non-negative safe integer",
       "每个`subject+material+role`只有一个current row",
-      "Handoff A每个Manifest member只建一条Binding并逐项复制其immutable Candidate Delivery provenance，后续可通过正式historical `CandidateDeliveryPort`重读随单Related References，不旁读Procurement Store",
+      "Handoff A每个Manifest member只建一条Binding并从`LibraBindingDraft@1`逐项复制`CandidatePrimaryMaterialDelivery@1`的Physical Identity、size、endpoint/location与immutable provenance，五项Identity/size字段不得从materialKey反解、从current Field补读或使用默认值",
+      "后续可通过正式historical `CandidateDeliveryPort`重读随单Related References，不旁读Procurement Store",
       "不能为多Episode复制Binding或把Episode拼入字符串"
     ],
     "rawContract": {
       "columns": "`subject_id FK, material_key, role, mount_scope_id, inode, content_hash_algorithm, content_hash, size_bytes, endpoint_id, location, binding_revision, health_state, evidence_digest, origin_intake_decision_id FK, origin_offer_id, origin_candidate_package_id, origin_package_revision, origin_package_digest, origin_candidate_delivery_snapshot_digest, origin_related_reference_set_digest, current`",
-      "constraints": "immutable revision以`PK(subject_id,material_key,binding_revision)`保存；完整Physical Identity必须逐字节满足materialKey公式且size为non-negative safe integer；每个`subject+material+role`只有一个current row；Handoff A每个Manifest member只建一条Binding并逐项复制其immutable Candidate Delivery provenance，后续可通过正式historical `CandidateDeliveryPort`重读随单Related References，不旁读Procurement Store；不能为多Episode复制Binding或把Episode拼入字符串"
+      "constraints": "immutable revision以`PK(subject_id,material_key,binding_revision)`保存；完整Physical Identity必须逐字节满足materialKey公式且size为non-negative safe integer；每个`subject+material+role`只有一个current row；Handoff A每个Manifest member只建一条Binding并从`LibraBindingDraft@1`逐项复制`CandidatePrimaryMaterialDelivery@1`的Physical Identity、size、endpoint/location与immutable provenance，五项Identity/size字段不得从materialKey反解、从current Field补读或使用默认值；后续可通过正式historical `CandidateDeliveryPort`重读随单Related References，不旁读Procurement Store；不能为多Episode复制Binding或把Episode拼入字符串"
     },
     "source": {
       "section": "8.5.11",
       "line": 8255,
-      "lineDigest": "b2ef70f37a24e3b7ff3a9cdb0f94f201170116ff76f94712ee6ed4844862b9fc"
+      "lineDigest": "05fa539f55c8719451e0c6b592465487904a60dcd86e1278846fbb545dd0b430"
     },
     "foreignKeys": [
       {
