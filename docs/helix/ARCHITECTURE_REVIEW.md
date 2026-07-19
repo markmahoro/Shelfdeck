@@ -1,6 +1,6 @@
 # Helix Architecture Review Workbench
 
-Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-20；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`）bounded correction均已完成。
+Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-20；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`）bounded correction均已完成。
 
 ## 1. Purpose and authority
 
@@ -2206,3 +2206,40 @@ Workspace Cleanup revision history、Level 9无副作用Query和用户不可直�
 Domain、Owner、Store、Business Object、Handoff、Capability、Catalog Result family、关系表或Canonical Transaction；
 计数保持`112 Capability / 97 Catalog Result family / 176 tables / 43 Canonical Transactions`。审计结果为
 `PASS / PBF-13-R1 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.27 `PBF-13-R2` — Run initial-zero、Package head与Material requirement binding
+
+Status: `CLOSED / BOUNDED DETAIL FIX APPLIED` — 2026-07-20
+
+P9-02对`PBF-13` Run Admission机器合同反向物化时证明两组独立但同属Run/Promotion连续性的缺口成立：
+
+1. initial Admission formal Decision明确使用absent Run admission head revision 0，实际head row允许不存在，但
+   `libra_run_revisions.expected_admission_head_revision`没有明确non-negative机器约束；生成`CHECK >=1`会使首条
+   Run revision无法保存真实pre-CAS snapshot；
+2. `libra_runs.package_revision_head`语义明确为Run建立时0、每次Promotion CAS+1，但逐表合同没有固定SQLite
+   INTEGER类型，机器物化可能把head误推断为TEXT；
+3. Run/Product `ProductionMaterialManifest@1`都要求每个member携带`outputRequirementDigest`，但该值没有typed
+   Acceptance Spec来源、role/Episode application scope映射或唯一公式，Run Creator只能接受caller opaque值或自行
+   选择六类Requirement子集，破坏Execution Basis与历史恢复。
+
+Bounded correction固定：
+
+- `libra_run_revisions.expected_admission_head_revision`为non-negative INTEGER，只有initial Admission首条revision
+  允许0；`committed_admission_head_revision`及实际`libra_run_admission_heads.head_revision`仍是从1开始的正整数，
+  不建立revision 0 sentinel row；
+- `libra_runs.package_revision_head`为`INTEGER NOT NULL DEFAULT 0 CHECK >=0`；Promotion的
+  `expectedPackageRevisionHead`也是non-negative integer，首个Package expected 0并提交revision 1；
+- 新增formal application data contract `ProductionMaterialOutputRequirement@1`作为既有Manifest字段的唯一来源。
+  它绑定完整immutable Acceptance Spec六类Requirement、manifest/material role、materialKey和closed application
+  scope：primary按single product scope或本member Episode subset建立关联，structural dependency只声明生产辅助，
+  其他Product role关联完整Product scope；所有分支仍绑定完整Requirement set，但不声称单个Material独立满足整份
+  Spec，也不形成member-local Policy；
+- Run与Product历史都只从对应immutable Acceptance Spec及各自Manifest/member/Episode Owner rows重算同一digest，
+  不读取current Spec、caller cache、Foundation Result或跨Domain Store。
+
+反向审计覆盖initial/replacement/Lifecycle Run revision、admission head absent/present、首个/后续Package Promotion、
+Run Input与Product Delivery两类Manifest、single/season Episode scope及Owner-row replay。其余initial-zero字段无需改动：
+实际Run admission revision、state revision、committed head和Package revision均从1开始。修正不新增Domain、Owner、
+Store、Handoff、Capability、Catalog Result family、关系表或Canonical Transaction；计数保持
+`112 Capability / 97 Catalog Result family / 176 tables / 43 Canonical Transactions`。审计结果为
+`PASS / PBF-13-R2 CLOSED / NO OPEN BUSINESS DECISION`。
