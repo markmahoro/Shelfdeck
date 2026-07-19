@@ -21,6 +21,13 @@ const productDeliveryContract = productionCatalog.ports.find((entry) =>
 if (!productDeliveryContract) {
   throw new LibraPublicFacadeError('P9_PRODUCT_DELIVERY_CONTRACT_MISSING', 'Product Delivery public contract is missing.');
 }
+const workspaceReclamationContract = productionCatalog.ports.find((entry) =>
+  entry.packageId === packageId && entry.exportName === 'WorkspaceReclamationPort'
+);
+if (!workspaceReclamationContract) {
+  throw new LibraPublicFacadeError('P9_WORKSPACE_RECLAMATION_CONTRACT_MISSING',
+    'Workspace Reclamation public contract is missing.');
+}
 
 function bind(implementation) {
   if (!implementation || typeof implementation !== 'object' || Array.isArray(implementation)) {
@@ -49,4 +56,28 @@ function bindProductDelivery(implementation) {
   return Object.freeze({ readPackage: (query) => implementation.readPackage(query) });
 }
 
-module.exports = Object.freeze({ PACKAGE_ID:packageId, LibraIntakeFacade:bind, ProductDeliveryPort:bindProductDelivery });
+function bindWorkspaceReclamation(implementation) {
+  if (!implementation || typeof implementation !== 'object' || Array.isArray(implementation)) {
+    throw new LibraPublicFacadeError('P9_WORKSPACE_RECLAMATION_IMPLEMENTATION_REQUIRED',
+      'A typed Workspace Reclamation implementation is required.');
+  }
+  const provided = Object.keys(implementation).sort();
+  const expected = [...workspaceReclamationContract.methods].sort();
+  if (JSON.stringify(provided) !== JSON.stringify(expected)
+    || expected.some((method) => typeof implementation[method] !== 'function')) {
+    throw new LibraPublicFacadeError('P9_WORKSPACE_RECLAMATION_PORT_SHAPE_MISMATCH',
+      'Workspace Reclamation implementation must expose only the frozen readCleanupScope and discardFrozenRun methods.',
+      { expected, provided });
+  }
+  return Object.freeze({
+    readCleanupScope: (query) => implementation.readCleanupScope(query),
+    discardFrozenRun: (command) => implementation.discardFrozenRun(command)
+  });
+}
+
+module.exports = Object.freeze({
+  PACKAGE_ID:packageId,
+  LibraIntakeFacade:bind,
+  ProductDeliveryPort:bindProductDelivery,
+  WorkspaceReclamationPort:bindWorkspaceReclamation
+});

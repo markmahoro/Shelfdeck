@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/LibraRunDiscardCommand/v1",
+  "title": "LibraRunDiscardCommand@1",
+  "x-helix-ssotRefs": [
+    "8.1.4",
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 4096,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "commandContract": {
+      "const": "libra.run-discard@1"
+    },
+    "commandId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "expectedRunStateRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "expectedRunStateDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "actorId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "commandDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "commandContract",
+    "commandId",
+    "libraRunId",
+    "expectedRunStateRevision",
+    "expectedRunStateDigest",
+    "actorId",
+    "idempotencyKey",
+    "commandDigest"
+  ]
+}

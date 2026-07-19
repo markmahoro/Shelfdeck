@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/WorkspaceCleanupScopeQuery/v1",
+  "title": "WorkspaceCleanupScopeQuery@1",
+  "x-helix-ssotRefs": [
+    "8.1.4",
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 4096,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "queryContract": {
+      "const": "libra.workspace-reclamation.scope@1"
+    },
+    "cleanupScopeId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "readSelector": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "current",
+            "revision"
+          ]
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "revision"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "revision"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "revision"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "expectedCurrent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "stateRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "stateDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "stateRevision",
+        "stateDigest"
+      ]
+    },
+    "queryId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "queryDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "queryContract",
+    "cleanupScopeId",
+    "readSelector",
+    "queryId",
+    "queryDigest"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "readSelector": {
+            "properties": {
+              "kind": {
+                "const": "revision"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          }
+        }
+      },
+      "then": {
+        "not": {
+          "required": [
+            "expectedCurrent"
+          ]
+        }
+      }
+    }
+  ]
+}

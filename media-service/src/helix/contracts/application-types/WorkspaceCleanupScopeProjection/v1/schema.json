@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/WorkspaceCleanupScopeProjection/v1",
+  "title": "WorkspaceCleanupScopeProjection@1",
+  "x-helix-ssotRefs": [
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 8192,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "cleanupScopeId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "triggerKind": {
+      "type": "string",
+      "enum": [
+        "offload_completed",
+        "run_superseded",
+        "run_discarded"
+      ]
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "active",
+        "completed",
+        "blocked"
+      ]
+    },
+    "stateRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "stateDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "memberCount": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1024
+    },
+    "pendingCount": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1024
+    },
+    "completedCount": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1024
+    },
+    "blockedCount": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1024
+    },
+    "memberSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "terminalMemberStateSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "createdAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "completedAtMs": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "projectionDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "cleanupScopeId",
+    "libraRunId",
+    "triggerKind",
+    "state",
+    "stateRevision",
+    "stateDigest",
+    "memberCount",
+    "pendingCount",
+    "completedCount",
+    "blockedCount",
+    "memberSetDigest",
+    "terminalMemberStateSetDigest",
+    "createdAtMs",
+    "projectionDigest"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "completed"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "completedAtMs"
+        ],
+        "properties": {
+          "completedAtMs": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "completedAtMs": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ]
+}

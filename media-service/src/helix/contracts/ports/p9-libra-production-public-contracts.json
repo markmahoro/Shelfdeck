@@ -15,6 +15,20 @@
       "outputSchemaRefs": {
         "readPackage": "helix://contracts/application-types/ProductDeliveryReadResult/v1"
       }
+    },
+    {
+      "exportName": "WorkspaceReclamationPort",
+      "packageId": "domains.libra.public",
+      "kind": "workspace-reclamation-port",
+      "methods": ["readCleanupScope", "discardFrozenRun"],
+      "inputSchemaRefs": {
+        "readCleanupScope": "helix://contracts/application-types/WorkspaceCleanupScopeQuery/v1",
+        "discardFrozenRun": "helix://contracts/application-types/LibraRunDiscardCommand/v1"
+      },
+      "outputSchemaRefs": {
+        "readCleanupScope": "helix://contracts/application-types/WorkspaceCleanupScopeReadResult/v1",
+        "discardFrozenRun": "helix://contracts/application-types/LibraRunDiscardCommandResult/v1"
+      }
     }
   ]
 }

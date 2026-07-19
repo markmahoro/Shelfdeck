@@ -2,7 +2,7 @@
 
 Status: Levels 0–10 accepted; P0–P8 complete; P9 active under standing Local Implementation authorization; E2E, Docker/Canary, production, real-media side effects and `media-desktop` changes paused.
 
-Last updated: 2026-07-19
+Last updated: 2026-07-20
 
 ## 1. Current position
 
@@ -13,16 +13,18 @@ Last updated: 2026-07-19
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains；P7 — Procurement；P8 — Handoff A and Libra front half |
 | Current phase | P9 — Libra production and delivery |
-| Current phase status | P9-00 baseline PASS；P9-01 PBF-13 architecture review PASS；contract rematerialization pending |
+| Current phase status | P9-00–P9-01 PASS；P9-02 Run Creator active |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | P9 local code、unit/contract/isolated fixture、docs与Phase内自动闭环；本周期不进入P10 |
 | Integration baseline | exact P8 closure `3184ef4573cb3663e4a1fae87fc65b4d1c270b38` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p9` on `codex/helix-p9` |
-| Next action | 原样纳入PBF-13，重物化机器合同并继续P9-01实现与验证 |
+| Next action | 实现P9-02 Run Creator与immutable delivery scope |
 
-P9-01反向实现审计证明的六段连续性缺口已由Architecture Agent在`PBF-13`中闭合，并经实现侧只读复审PASS：Run、
-Material/Episode scope、Workspace、完整Package、Discard/Cleanup及Off-load Reclaimer均具备typed DTO、Owner row恢复、
-revision/CAS和原子事务连续性。架构提交已进入纳入与机器合同重物化阶段。旧实现复用结论不变：拒绝旧Capability wrapper、
+P9-01已完成：反向实现审计证明的六段连续性缺口已由Architecture Agent在`PBF-13/PBF-13-R1`中闭合，并经实现侧
+只读复审后原样纳入。Run、Material/Episode scope、Workspace、完整Package、Discard/Cleanup及Off-load Reclaimer均具备
+typed DTO、Owner row恢复、revision/CAS和原子事务连续性；112/97/176/43机器合同完成重物化。Product Delivery与
+Workspace Reclamation public boundary、8个Libra production application schema及越权反例已冻结；完整Architecture
+gate 679/679 PASS，`findings=[]`、`prohibitedActionsRun=[]`。旧实现复用结论不变：拒绝旧Capability wrapper、
 Task/Node设备池、Metadata Provider adapter、路径/时间GC和正式目标replace函数；只允许在新合同内原子化提取pure FFmpeg
 command/progress、disc parser、Workspace文件不变量和设备识别测试向量。
 

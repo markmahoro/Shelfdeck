@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/WorkspaceCleanupScopeReadResult/v1",
+  "title": "WorkspaceCleanupScopeReadResult@1",
+  "x-helix-ssotRefs": [
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 16384,
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "resultKind": {
+          "const": "found"
+        },
+        "queryId": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "queryDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "projection": {
+          "$ref": "helix://contracts/application-types/WorkspaceCleanupScopeProjection/v1"
+        },
+        "resultDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "resultKind",
+        "queryId",
+        "queryDigest",
+        "projection",
+        "resultDigest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "resultKind": {
+          "const": "not_found"
+        },
+        "queryId": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "queryDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "reasonCode": {
+          "type": "string",
+          "enum": [
+            "scope_missing",
+            "revision_missing"
+          ]
+        },
+        "resultDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "resultKind",
+        "queryId",
+        "queryDigest",
+        "reasonCode",
+        "resultDigest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "resultKind": {
+          "const": "stale"
+        },
+        "queryId": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "queryDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "expectedStateRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "expectedStateDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "actualStateRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "actualStateDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "resultDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "resultKind",
+        "queryId",
+        "queryDigest",
+        "expectedStateRevision",
+        "expectedStateDigest",
+        "actualStateRevision",
+        "actualStateDigest",
+        "resultDigest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "resultKind": {
+          "const": "integrity_error"
+        },
+        "queryId": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "queryDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "reasonCode": {
+          "type": "string",
+          "enum": [
+            "owner_rows_incomplete",
+            "revision_chain_broken",
+            "digest_mismatch",
+            "discard_receipt_continuity_broken"
+          ]
+        },
+        "resultDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "resultKind",
+        "queryId",
+        "queryDigest",
+        "reasonCode",
+        "resultDigest"
+      ]
+    }
+  ]
+}

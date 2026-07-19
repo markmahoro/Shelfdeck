@@ -1,0 +1,299 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/LibraRunDiscardCommandResult/v1",
+  "title": "LibraRunDiscardCommandResult@1",
+  "x-helix-ssotRefs": [
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 16384,
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "resultKind": {
+          "const": "discarded"
+        },
+        "commandId": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "commandDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "discardReceipt": {
+          "$ref": "helix://contracts/application-types/LibraRunDiscardReceipt/v1"
+        },
+        "cleanupMemberCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1024
+        },
+        "resultDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "resultKind",
+        "commandId",
+        "commandDigest",
+        "libraRunId",
+        "discardReceipt",
+        "cleanupMemberCount",
+        "resultDigest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "resultKind": {
+          "const": "not_found"
+        },
+        "commandId": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "commandDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "reasonCode": {
+          "const": "run_missing"
+        },
+        "resultDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "resultKind",
+        "commandId",
+        "commandDigest",
+        "libraRunId",
+        "reasonCode",
+        "resultDigest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "resultKind": {
+          "const": "stale"
+        },
+        "commandId": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "commandDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "expectedRunStateRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "expectedRunStateDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "actualRunStateRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "actualRunStateDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "resultDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "resultKind",
+        "commandId",
+        "commandDigest",
+        "libraRunId",
+        "expectedRunStateRevision",
+        "expectedRunStateDigest",
+        "actualRunStateRevision",
+        "actualRunStateDigest",
+        "resultDigest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "resultKind": {
+          "const": "invalid_state"
+        },
+        "commandId": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "commandDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "reasonCode": {
+          "const": "run_not_frozen"
+        },
+        "actualRunStateRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "actualRunStateDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "resultDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "resultKind",
+        "commandId",
+        "commandDigest",
+        "libraRunId",
+        "reasonCode",
+        "actualRunStateRevision",
+        "actualRunStateDigest",
+        "resultDigest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "resultKind": {
+          "const": "conflict"
+        },
+        "commandId": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "commandDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "reasonCode": {
+          "const": "idempotency_key_reused"
+        },
+        "existingCommandDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "resultDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "resultKind",
+        "commandId",
+        "commandDigest",
+        "libraRunId",
+        "reasonCode",
+        "existingCommandDigest",
+        "resultDigest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "resultKind": {
+          "const": "integrity_error"
+        },
+        "commandId": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "commandDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "reasonCode": {
+          "type": "string",
+          "enum": [
+            "run_history_incomplete",
+            "material_manifest_incomplete",
+            "workspace_reference_incomplete",
+            "control_fence_mismatch",
+            "discard_receipt_mismatch"
+          ]
+        },
+        "resultDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "resultKind",
+        "commandId",
+        "commandDigest",
+        "libraRunId",
+        "reasonCode",
+        "resultDigest"
+      ]
+    }
+  ]
+}

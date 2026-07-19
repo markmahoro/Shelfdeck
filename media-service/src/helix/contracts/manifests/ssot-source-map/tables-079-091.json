@@ -12,7 +12,7 @@
       "constraintsContract": "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,material_key)`；一个Physical Material在同一Product Manifest只有一个业务role，ordinal从0连续且至少一个primary，只有primary允许Episode relation；`digest_algorithm=content_hash_algorithm=sha256`且`digest_hex=content_hash`，完整Physical Identity/Location/Binding/Requirement/Evidence可重建Product Material Manifest。assert variant固定domain location/Libra Binding，origin Delivery列全非NULL、Workspace/root-relative列全NULL且expected Control非NULL，并逐项命中Run Input；acquire variant固定workspace location/Workspace Reference，origin/location列为NULL而root/relative及typed Handle JSON≤`4 KiB`逐字节命中current Product Staging Reference、expected Control为空并在Promotion事务取得revision 1；member/set digest按8.6.21唯一公式",
       "source": {
         "section": "8.5.11",
-        "line": 8279,
+        "line": 8282,
         "lineDigest": "d351cb766444dd219d30477c5eed6031baceac59a0094e30a9be6448c3e49698"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "`PK(on_deck_package_id,member_ordinal,episode_key)`并复合FK到Product member；只允许season primary payload；每个Material允许0..32个Episode，按episodeKey UTF-8 bytes排序；完整relation与`episode_claim_set_digest`必须按8.6.21逐字节重建，禁止只保存摘要或回读Run current scope补齐",
       "source": {
         "section": "8.5.11",
-        "line": 8280,
+        "line": 8283,
         "lineDigest": "c3d8a18af29cf5b0c742b25e66b56886428475c30ae6110084fec45e316ff66a"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,product_fact_id,fact_revision)`；按factKind/id/revision排序；必须逐项引用同Run immutable Product Fact；历史Package读取以该relation连接`libra_product_fact_revisions`并展开同一typed `fact_json`，完整Product Fact Manifest不依赖current row或另一Domain Store",
       "source": {
         "section": "8.5.11",
-        "line": 8281,
+        "line": 8284,
         "lineDigest": "9dd954abffef9d834c6263741ceaaa7714a33415f6028cf7c65523e09f7c8515"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,artifact_handle_id,artifact_revision)`；按kind/handle/revision排序；只保存typed immutable Artifact Handle ref，不保存大bytes；完整Artifact Manifest由relation重建",
       "source": {
         "section": "8.5.11",
-        "line": 8282,
+        "line": 8285,
         "lineDigest": "32d168641de734faba91e91219a37c082bf076ef79a68d45c4be429deb1bb44a"
       }
     },
@@ -56,7 +56,7 @@
       "constraintsContract": "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,material_key,context_role)`；逐列冻结Arca计算Final Inventory Decision所需Reality，不声明最终动作；按materialKey/contextRole排序并进入offload context digest",
       "source": {
         "section": "8.5.11",
-        "line": 8283,
+        "line": 8286,
         "lineDigest": "d42a868c051259871ef309cec961ed873b7210ab03125b84a19f407e8587e69e"
       }
     },
@@ -67,7 +67,7 @@
       "constraintsContract": "`receipt_id=SHA-256(JCS({schema:\"libra.product-delivery-receipt-id@1\",offerId}))`，offer逐字节等于Package row且`UNIQUE(offer_id)`；accepted要求Custody/Binding/Control列非NULL、rejection/closure列NULL，并逐项无损保存`ArcaProductAcceptedMessage@1` Receipt；rejected要求Custody/Binding/Control列NULL且decision/receipt/rejection/closure digest逐项等于`ArcaProductRejectedMessage@1`与`LibraProductRejectionClosureResult@1`；terminal后immutable，相反终态稳定拒绝；`INDEX(result,received_at_ms)`",
       "source": {
         "section": "8.5.11",
-        "line": 8284,
+        "line": 8287,
         "lineDigest": "8e8f2c4cad18bcfd0002929692d725234f35e17ab99583f0539a5541044d661d"
       }
     },
@@ -78,7 +78,7 @@
       "constraintsContract": "mount scope pair是Platform opaque technical ref；active Shelf name不作为identity；Shelf创建时routing projection revision=1，任何后续`status/current_standard_revision`变化都对该revision执行CAS并加1，再按`ShelfRoutingTargetProjection@1`公式重算digest；`INDEX(status,shelf_id)`；不得保存Libra Routing Priority",
       "source": {
         "section": "8.5.12",
-        "line": 8290,
+        "line": 8293,
         "lineDigest": "fb0d7dd2f0060eb79bacd13ded477487737287361b1f6acf01b597e26f233c18"
       }
     },
@@ -89,7 +89,7 @@
       "constraintsContract": "system template不能archive或创建draft；current revision显式FK；`INDEX(status,owner_kind,rule_template_id)`",
       "source": {
         "section": "8.5.12",
-        "line": 8291,
+        "line": 8294,
         "lineDigest": "bd5c979d8217bbe4ac7c7562b1b9edf0fc2732ef5d8cccbc27f1d01f79fbe829"
       }
     },
@@ -100,7 +100,7 @@
       "constraintsContract": "rules JSON上限`64 KiB`；`PK(rule_template_id,revision)`；immutable",
       "source": {
         "section": "8.5.12",
-        "line": 8292,
+        "line": 8295,
         "lineDigest": "6e3e8f8aa33fe6418af146903da0d1e6e2d7f8fd094681a008803ad07f8ceb51"
       }
     },
@@ -111,7 +111,7 @@
       "constraintsContract": "只允许user template；一个Template最多一份current draft；发布以expected draft revision/digest消费但保留审计Evidence",
       "source": {
         "section": "8.5.12",
-        "line": 8293,
+        "line": 8296,
         "lineDigest": "b27ad6918fa468908a559182fd6d6cce24143d3afa39a1f4c17b0f89bbd6155c"
       }
     },
@@ -122,7 +122,7 @@
       "constraintsContract": "Standard JSON上限`64 KiB`；`PK(shelf_id,revision)`；Shelf current pointer显式FK；当前row中的template pair同时是Shelf current Template binding权威来源；`INDEX(rule_template_id,rule_template_revision)`",
       "source": {
         "section": "8.5.12",
-        "line": 8294,
+        "line": 8297,
         "lineDigest": "4fc3b60852bf253ca8b4f3f3741f542f3d5f5b3468003014b525d2311ab36fdb"
       }
     },
@@ -133,7 +133,7 @@
       "constraintsContract": "Policy JSON上限`16 KiB`；`PK(shelf_id,revision)`；Shelf current pointer显式FK",
       "source": {
         "section": "8.5.12",
-        "line": 8295,
+        "line": 8298,
         "lineDigest": "f1ff9fbfeb19ff8629a2ca30d5d792300614f66d81e5d042e1baf50cb5bfd75a"
       }
     },
@@ -144,7 +144,7 @@
       "constraintsContract": "同一Offer至多一个Attempt且相同`package_digest+standard+placement`至多一个active attempt；accepted/rejected只允许从active以Decision事务CAS一次；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 8296,
+        "line": 8299,
         "lineDigest": "af19a674854f3e2d115dd1b65b79ff6a509c7879b1925266b226963165f3bd88"
       }
     }

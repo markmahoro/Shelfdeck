@@ -1,6 +1,6 @@
 # P9 Libra Production and Delivery Detailed Plan
 
-Status: Active；P9-00 complete；P9-01 Design Return open；non-blocked audit work continues.
+Status: Active；P9-00–P9-01 complete；P9-02 active.
 
 Last updated: 2026-07-20
 
@@ -62,6 +62,10 @@ P9不执行Handoff B Acceptance或Arca On-deck Commit，不接真实Provider/FFm
 - Non-blocked reuse audit Done：0个旧Service/Runtime/Executor/Store可复制；只登记FFmpeg command/progress、disc parser、
   Workspace containment/checksum/atomic rename及设备识别测试向量。正式目标replace函数明确排除P9。Evidence见
   `evidence/P9_01_LEGACY_REUSE_AUDIT.md`。
+- Done：PBF-13与PBF-13-R1均经实现侧只读复审后原样纳入；112/97/176/43机器合同完成重物化。
+  `ProductDeliveryPort`和`WorkspaceReclamationPort`只公开SSOT正式方法，六个Reclamation application DTO与
+  Product Delivery DTO均已冻结。机器反例拒绝Store、Repository、路径、Material ID和删除authority；完整Architecture
+  gate 679/679 PASS。Evidence见`evidence/P9_01_PRODUCTION_CONTRACT_FEASIBILITY.md`。
 
 ### P9-02 Run Creator and immutable delivery scope
 

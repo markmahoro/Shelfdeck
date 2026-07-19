@@ -5,8 +5,54 @@
   "kind": "application-type-registry",
   "owner": "libra",
   "status": "active",
-  "targetCount": 2,
+  "targetCount": 8,
   "entries": [
+    {
+      "id": "LibraRunDiscardCommand",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraRunDiscardCommand/v1",
+      "relativePath": "application-types/LibraRunDiscardCommand/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "f2142d88a003af83f739bcc11777f5eb2c94af29004831a700c26a16151ce24d"
+      },
+      "ssotRefs": [
+        "8.1.4",
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "LibraRunDiscardCommandResult",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraRunDiscardCommandResult/v1",
+      "relativePath": "application-types/LibraRunDiscardCommandResult/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "84f02be4b975b53ca78176ae23eb18a31d5a79ae34529032cc0970a5d19c4246"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "LibraRunDiscardReceipt",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraRunDiscardReceipt/v1",
+      "relativePath": "application-types/LibraRunDiscardReceipt/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "1f66516777e1c70a46db36977c9e9018f0bffeb8e91f3355fbae800841f5be7f"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    },
     {
       "id": "ProductDeliveryQuery",
       "version": 1,
@@ -36,6 +82,52 @@
       },
       "ssotRefs": [
         "8.2.2",
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "WorkspaceCleanupScopeProjection",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/WorkspaceCleanupScopeProjection/v1",
+      "relativePath": "application-types/WorkspaceCleanupScopeProjection/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "56900ccfddd1b5cab120cb13db25990642fddb1ccb61faa5bf141a7aabf1bacb"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "WorkspaceCleanupScopeQuery",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/WorkspaceCleanupScopeQuery/v1",
+      "relativePath": "application-types/WorkspaceCleanupScopeQuery/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "2017a95c4d25f7787d0928952f871f110ee32f87c1b98fe3590d2c9bbbfbb75d"
+      },
+      "ssotRefs": [
+        "8.1.4",
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "WorkspaceCleanupScopeReadResult",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/WorkspaceCleanupScopeReadResult/v1",
+      "relativePath": "application-types/WorkspaceCleanupScopeReadResult/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "af1dcdf22f5e530a44985a7125ecd4914bc9696939eed712bf73d5ac74849dc5"
+      },
+      "ssotRefs": [
         "8.6.21"
       ]
     }

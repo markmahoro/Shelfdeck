@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/LibraRunDiscardReceipt/v1",
+  "title": "LibraRunDiscardReceipt@1",
+  "x-helix-ssotRefs": [
+    "8.6.21"
+  ],
+  "x-helix-envelopeRef": "helix://contracts/types/ReceiptEnvelope/v1",
+  "x-helix-maxCanonicalBytes": 8192,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/application-types/LibraRunDiscardReceipt/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "receiptId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "receiptKind": {
+      "const": "libra_run_discarded"
+    },
+    "ownerDomain": {
+      "const": "libra"
+    },
+    "scopeType": {
+      "const": "libra_run"
+    },
+    "scopeId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "scopeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "effectReceiptRef": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "committedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "discardDecisionId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "committedRunStateRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "releasedInputControlSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "cleanupScopeId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "cleanupMemberSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "commitDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "receiptId",
+    "receiptKind",
+    "ownerDomain",
+    "scopeType",
+    "scopeId",
+    "scopeDigest",
+    "committedAtMs",
+    "discardDecisionId",
+    "libraRunId",
+    "committedRunStateRevision",
+    "releasedInputControlSetDigest",
+    "cleanupMemberSetDigest",
+    "commitDigest"
+  ]
+}
