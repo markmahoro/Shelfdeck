@@ -59,6 +59,9 @@ P9不执行Handoff B Acceptance或Arca On-deck Commit，不接真实Provider/FFm
 - Design Return：Run Creation/Lifecycle、Run-owned Material/Episode scope、Workspace current/Working→Staging、完整Package
   Promotion、Discard/Cleanup及Off-load Completion scope admission的DTO→Owner row→transaction→restart连续性存在已证明缺口；
   精确问题已发送Architecture Agent。Evidence见`evidence/P9_01_PRODUCTION_CONTRACT_DESIGN_RETURN.md`。
+- Non-blocked reuse audit Done：0个旧Service/Runtime/Executor/Store可复制；只登记FFmpeg command/progress、disc parser、
+  Workspace containment/checksum/atomic rename及设备识别测试向量。正式目标replace函数明确排除P9。Evidence见
+  `evidence/P9_01_LEGACY_REUSE_AUDIT.md`。
 
 ### P9-02 Run Creator and immutable delivery scope
 

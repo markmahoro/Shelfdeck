@@ -24,6 +24,9 @@ P9-01反向实现审计已证明六段正式连续性缺口：Run Creation/Lifec
 Material/Episode scope无法从Owner rows恢复；Workspace没有current head和Working→Staging commit；Package DTO/Promotion
 transaction不能保存完整交接快照；Discard/Cleanup缺Decision/member/control set和合法nullable状态；Off-load Completion没有
 cleanup scope admission transaction。完整Design Return已发送Architecture Agent，当前不涉及业务决策；实现线程未修改SSOT。
+并行function-level reuse audit已完成：旧Transcode Capability wrapper、Task/Node设备池、Metadata Provider adapter、路径/时间GC和
+正式目标replace函数全部拒绝复用；只保留pure FFmpeg command/progress、disc parser、Workspace原子文件不变量和设备识别测试向量，
+且必须在正式P9 typed contract Ready后逐函数提取。
 
 本Program终点已由用户确认为P13：P13完成operational clean-cut并冻结最终E2E-ready package后，本线程即完成，不再设置后续实施Phase。
 真实来源完整E2E与部署将分别由后续独立任务承担；部署任务只消费通过独立E2E验收的精确Artifact。该调整只涉及工程计划和交接
