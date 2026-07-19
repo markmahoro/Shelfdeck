@@ -36,3 +36,18 @@ implementation thread did not change the SSOT and did not add a compatibility pa
 - No SSOT file was edited by the implementation thread.
 - No Subject, continuity head, Material Control or reservation mutation was implemented for the ambiguous path.
 - No E2E, Docker, Canary, production, real media operation or `media-desktop` action was run.
+
+## 5. PBF-11-R2 re-review
+
+Architecture commit `b2b5fb9c` closes the four original Handoff A rejection gaps but is not yet safe to ingest because reverse audit
+found two new SSOT contradictions:
+
+1. `libra_handoff_a_receipts` says both outcomes use the corresponding Decision digest as `ReceiptEnvelope.scopeDigest`, while the
+   formal accepted `SubjectAndTransferReceipt@1` and the persistence audit require `AcceptedIntakePayload.payloadDigest`. An accepted
+   row therefore has two incompatible reconstruction formulas.
+2. The commit expands the generic `StructuredRejection@1` and `RejectionReceipt@1` used by Arca, but adds durable Reason/Evidence and
+   rejected Receipt continuity only for Libra. Existing Arca tables cannot reconstruct the expanded generic rejection types after
+   restart, creating a new DTO/Owner Store discontinuity.
+
+These regressions were returned to the Architecture Agent for an independent correction. The implementation branch did not ingest
+`b2b5fb9c` and remains on the last passing SSOT.

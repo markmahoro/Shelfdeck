@@ -207,6 +207,11 @@ closure的正式事务/Outbox合同，无法保证crash atomicity、幂等消费
 未旁读旧Store且未修改SSOT；精确缺口见`implementation/evidence/P8_05_INTAKE_REJECTION_DESIGN_RETURN.md`，已提交Architecture
 Agent独立评估。
 
+Architecture Agent首版修正`b2b5fb9c`在实现侧反向复审中仍未PASS：Accepted Handoff A Receipt的`scopeDigest`同时存在
+`AcceptedIntakePayload.payloadDigest`与“对应Decision digest”两种互斥公式；同时扩展后的通用
+`StructuredRejection@1`/`RejectionReceipt@1`被Arca拒绝Capability复用，但Arca Owner Store没有新增字段或关系可历史重建。
+实现分支未纳入该提交，两个精确回归已返回Architecture Agent继续闭合。
+
 ## 2. Accepted implementation conclusion
 
 clean Helix的业务核心、Persistence、Execution Foundation、Application Facade、API/Auth和Admin Web需要在
