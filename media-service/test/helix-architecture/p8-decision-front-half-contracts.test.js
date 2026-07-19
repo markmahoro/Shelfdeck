@@ -14,7 +14,7 @@ function subject(){return signed({subjectId:'subject-1',status:'active',intakeRe
     sourceFieldContextDigest:D,candidateIdentityClaimDigest:'b'.repeat(64)},currentIdentityRevision:null,currentIdentityDigest:null,
   continuitySetDigest:'c'.repeat(64),episodeScopeDigest:'d'.repeat(64)},'snapshotDigest');}
 function projection(shelfId,status='active'){const currentStandardRevision=status==='active'?1:null,currentStandardDigest=status==='active'?'e'.repeat(64):null;
-  return signed({shelfId,status,routingProjectionRevision:1,currentStandardRevision,currentStandardDigest},'projectionDigest');}
+  const value={shelfId,status,routingProjectionRevision:1,currentStandardRevision,currentStandardDigest};value.projectionDigest=canonicalDigest({schema:'arca.shelf-routing-target-projection@1',...value});return value;}
 function routingFact(kind,value){return signed({factKind:kind,sourceObjectId:'subject-1',sourceRevision:1,schemaRef:'RoutingDecisionFact@1',value},'factDigest');}
 function policyAuthority(targets){const policyTargets=targets.map((item,index)=>{const matchExpression=item.expression;return {shelfId:item.shelfId,rank:index+1,matchExpression,matchRuleDigest:canonicalDigest(matchExpression)};});
   const policy=signed({routingPolicyId:'policy-1',revision:3,fieldId:'field-1',mode:'sorting',targets:policyTargets},'policyDigest');

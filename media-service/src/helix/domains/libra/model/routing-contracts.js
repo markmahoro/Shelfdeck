@@ -11,18 +11,18 @@ function factValues(facts,kind){return facts.filter((fact)=>fact.factKind===kind
 function scalarFact(fact){if(fact.factKind==='material_field')return fact.fieldId;if(fact.factKind==='release_year')return fact.year;return fact.value;}
 function expressionDigest(expression){return canonicalDigest(expression);}
 
-function validateExpression(expression,state={depth:1,nodes:0}){
-  if(!expression||typeof expression!=='object'||Array.isArray(expression)||state.depth>4||state.nodes>=64)fail('P8_ROUTING_EXPRESSION_BOUND','Routing expression exceeds the closed AST bound.');
-  state.nodes+=1;
+function validateExpression(expression,state={depth:1,count:{value:0}}){
+  if(!expression||typeof expression!=='object'||Array.isArray(expression)||state.depth>4||state.count.value>=64)fail('P8_ROUTING_EXPRESSION_BOUND','Routing expression exceeds the closed AST bound.');
+  state.count.value+=1;
   if(!['always','predicate','all','any','not'].includes(expression.nodeKind))fail('P8_ROUTING_EXPRESSION_KIND','Routing expression node is not registered.');
   if(expression.nodeKind==='predicate'){
     if(!['content_profile','structure_kind','material_field','release_year','region','genre','resolved_provider_identity'].includes(expression.factKind)||
         !['eq','one_of','gte','lte','exists'].includes(expression.operator)||!Object.hasOwn(expression,'expectedValue'))fail('P8_ROUTING_PREDICATE','Routing predicate is outside the closed vocabulary.');
   }else if(expression.nodeKind==='all'||expression.nodeKind==='any'){
     if(!Array.isArray(expression.children)||expression.children.length<1||expression.children.length>16)fail('P8_ROUTING_EXPRESSION_CHILDREN','all/any requires 1..16 children.');
-    expression.children.forEach((child)=>validateExpression(child,{depth:state.depth+1,nodes:state.nodes}));
+    expression.children.forEach((child)=>validateExpression(child,{depth:state.depth+1,count:state.count}));
     const digests=expression.children.map(expressionDigest);if(digests.some((value,index)=>index&&utf8Compare(digests[index-1],value)>0))fail('P8_ROUTING_EXPRESSION_ORDER','Expression children are not digest ordered.');
-  }else if(expression.nodeKind==='not')validateExpression(expression.child,{depth:state.depth+1,nodes:state.nodes});
+  }else if(expression.nodeKind==='not')validateExpression(expression.child,{depth:state.depth+1,count:state.count});
   return expression;
 }
 
@@ -57,6 +57,11 @@ function resolveRoutingAssessment(value){
   const authority=inputSet.routingAuthoritySnapshot,fields=authorityFields(authority),subjectId=inputSet.subjectSnapshot.subjectId;
   if(authority.authorityDigest!==canonicalDigest(without(authority,'authorityDigest')))fail('P8_ROUTING_AUTHORITY_DIGEST','Routing authority digest is invalid.');
   const targets=[];let result='unresolved',targetShelfId=null,unresolvedReasonCode=null;
+  for(const projection of inputSet.shelfRoutingTargets){const expected=canonicalDigest({schema:'arca.shelf-routing-target-projection@1',shelfId:projection.shelfId,status:projection.status,
+    routingProjectionRevision:projection.routingProjectionRevision,currentStandardRevision:projection.currentStandardRevision,currentStandardDigest:projection.currentStandardDigest});
+    if(projection.projectionDigest!==expected)fail('P8_ROUTING_PROJECTION_DIGEST','Shelf Routing Projection digest is invalid.');}
+  for(const fact of inputSet.decisionFacts.filter((item)=>['content_profile','structure_kind','material_field','release_year','region','genre','resolved_provider_identity'].includes(item.factKind))){
+    if(fact.factDigest!==canonicalDigest(without(fact,'factDigest')))fail('P8_ROUTING_FACT_DIGEST','Routing Decision Fact digest is invalid.');}
   const byShelf=new Map(inputSet.shelfRoutingTargets.map((projection)=>[projection.shelfId,projection]));
   if(authority.authorityKind==='policy'){
     const policy=authority.policy;if(policy.policyDigest!==canonicalDigest(without(policy,'policyDigest'))||!Array.isArray(policy.targets)||policy.targets.length<1||policy.targets.length>64)fail('P8_ROUTING_POLICY','Routing Policy snapshot is invalid.');
@@ -90,6 +95,8 @@ function resolveRoutingAssessment(value){
 
 function buildRoutingDecision(assessment,decisionRevision){
   if(!assessment||assessment.assessmentDigest!==canonicalDigest(without(assessment,'assessmentDigest'))||!Number.isSafeInteger(decisionRevision)||decisionRevision<1)fail('P8_ROUTING_DECISION_INPUT','Routing Decision input is invalid.');
+  if((assessment.result==='resolved'&&(typeof assessment.targetShelfId!=='string'||!assessment.targetShelfId||assessment.unresolvedReasonCode!==null))||
+      (assessment.result==='unresolved'&&(assessment.targetShelfId!==null||!['higher_priority_rule_unknown','no_matching_shelf','manual_target_invalid','target_shelf_inactive'].includes(assessment.unresolvedReasonCode))))fail('P8_ROUTING_DECISION_VARIANT','Routing Assessment result variant is invalid.');
   const routingDecisionId=canonicalDigest({schema:'libra.routing-decision-id@1',assessmentId:assessment.routingAssessmentId});
   const decision={routingDecisionId,subjectId:assessment.subjectId,decisionRevision,assessmentId:assessment.routingAssessmentId,
     decisionBasisId:assessment.decisionBasisId,routingAuthorityKind:assessment.routingAuthorityKind,routingPolicyId:assessment.routingPolicyId,

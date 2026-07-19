@@ -7,7 +7,7 @@ const { LibraDecisionContractError, REQUIREMENT_KEYS, buildDecisionInputSet } = 
 function fail(code,message,details){throw new LibraDecisionContractError(code,message,details);}
 function without(value,...fields){return Object.fromEntries(Object.entries(value).filter(([key])=>!fields.includes(key)));}
 function exactKeys(value,keys){return value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).length===keys.length&&keys.every((key)=>Object.hasOwn(value,key));}
-function sortedUnique(values,field){if(!Array.isArray(values))fail('P8_SPEC_REQUIREMENT_ARRAY','Requirement list is invalid.',{field});const normalized=[...values].sort(utf8Compare);if(new Set(normalized).size!==normalized.length||normalized.some((item)=>typeof item!=='string'||!item))fail('P8_SPEC_REQUIREMENT_ARRAY','Requirement list must be unique typed text.',{field});return normalized;}
+function sortedUnique(values,field){if(!Array.isArray(values))fail('P8_SPEC_REQUIREMENT_ARRAY','Requirement list is invalid.',{field});const normalized=[...values].sort(utf8Compare);if(new Set(normalized).size!==normalized.length||normalized.some((item)=>typeof item!=='string'||!item)||canonicalJson(normalized)!==canonicalJson(values))fail('P8_SPEC_REQUIREMENT_ARRAY','Requirement list must be unique UTF-8 ordered typed text.',{field});return normalized;}
 
 function buildProductScope(subjectSnapshot,episodeKeys=[]){
   if(!subjectSnapshot||!['single','season'].includes(subjectSnapshot.structureKind)||!['movie','series','jav','western_adult'].includes(subjectSnapshot.contentProfile)||
@@ -59,7 +59,10 @@ function selectRequirements(profileRule,inputSet,structure){
 function resolveAcceptanceSpec(value){
   const inputSet=buildDecisionInputSet(value.inputSet);const basis=value.decisionBasis;
   if(inputSet.basisKind!=='acceptance_spec'||inputSet.readiness.result!=='ready'||!basis||
-      basis.inputSetDigest!==inputSet.inputSetDigest||basis.basisKind!=='acceptance_spec'||basis.readiness!=='ready'||basis.routingDecisionId!==inputSet.routingDecision.routingDecisionId)fail('P8_SPEC_BASIS','Acceptance Spec Resolver requires the exact ready Basis.');
+      basis.inputSetDigest!==inputSet.inputSetDigest||basis.basisKind!=='acceptance_spec'||basis.readiness!=='ready'||basis.routingDecisionId!==inputSet.routingDecision.routingDecisionId||
+      basis.basisDigest!==canonicalDigest({schema:'libra.decision-basis@1',decisionBasisId:basis.decisionBasisId,subjectId:basis.subjectId,basisKind:basis.basisKind,basisRevision:basis.basisRevision,
+        readiness:basis.readiness,unresolvedReasonCode:basis.unresolvedReasonCode,routingDecisionId:basis.routingDecisionId,queryResultSetDigest:basis.queryResultSetDigest,
+        routingInputDigest:basis.routingInputDigest,specInputDigest:basis.specInputDigest,productScopeDigest:basis.productScopeDigest,inputSetDigest:basis.inputSetDigest}))fail('P8_SPEC_BASIS','Acceptance Spec Resolver requires the exact ready Basis.');
   const projection=inputSet.shelfStandardProjection,standard=validateStandard(projection),routing=inputSet.routingDecision,subject=inputSet.subjectSnapshot,scope=inputSet.productScope;
   if(routing.targetShelfId!==projection.shelfId||scope.subjectId!==subject.subjectId||scope.subjectIntakeRevision!==subject.intakeRevision||
       scope.scopeDigest!==canonicalDigest({schema:'libra.product-scope@1',subjectId:scope.subjectId,scopeKind:scope.scopeKind,subjectIntakeRevision:scope.subjectIntakeRevision,episodeKeys:scope.episodeKeys}))fail('P8_SPEC_SCOPE_FRESHNESS','Routing, Standard, Subject, or Product Scope is stale.');

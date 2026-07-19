@@ -18,7 +18,8 @@ function fixture(run){const dir=fs.mkdtempSync(path.join(os.tmpdir(),'helix-p8-b
 function input(policy){const snapshot=signed({subjectId:'subject-1',status:'active',intakeRevision:1,structureKind:'single',contentProfile:'movie',routingAnchorIntakeDecisionId:'intake-1',
   routingProvenance:{candidatePackageId:'candidate-1',sourceFieldId:'field-1',sourceFieldAccessRevision:1,sourceFieldContextDigest:D('field'),candidateIdentityClaimDigest:D('claim')},
   currentIdentityRevision:null,currentIdentityDigest:null,continuitySetDigest:D('continuity'),episodeScopeDigest:D('episodes')},'snapshotDigest');
-  const authority=signed({authorityKind:'policy',policy},'authorityDigest'),projection=signed({shelfId:'shelf-1',status:'active',routingProjectionRevision:1,currentStandardRevision:1,currentStandardDigest:D('standard')},'projectionDigest');
+  const authority=signed({authorityKind:'policy',policy},'authorityDigest'),projectionValue={shelfId:'shelf-1',status:'active',routingProjectionRevision:1,currentStandardRevision:1,currentStandardDigest:D('standard')},
+    projection={...projectionValue,projectionDigest:canonicalDigest({schema:'arca.shelf-routing-target-projection@1',...projectionValue})};
   return buildDecisionInputSet({basisKind:'routing',subjectSnapshot:snapshot,expectedDecisionHead:{revision:0,digest:null,currentRoutingDecisionId:null,currentDecisionBasisId:null,currentAcceptanceSpecId:null},
     readiness:{result:'ready'},routingAuthoritySnapshot:authority,shelfRoutingTargets:[projection],routingDecision:null,shelfStandardProjection:null,productScope:null,decisionFacts:[],queryResults:[]});}
 function request(set,marker='basis-marker'){return {decisionInputSet:set,domainFactCommitHandle:{schemaRef:'helix://contracts/types/DomainFactCommitHandle/v1',schemaVersion:1,handleId:'basis-handle',ownerDomain:'libra',aggregateType:'subject_decision_basis',aggregateId:'subject-1',factType:'decision_basis',factSchemaRef:'libra.decision-basis@1',
