@@ -374,8 +374,16 @@ function createMaterialControlExactTransferParticipant(options) {
       handle.operationKind!=='transfer'||changes.length<1||changes.length>1024) {
     fail('P3_CONTROL_INVALID_HANDLE', 'Exact transfer requires a Responsibility Control transfer Handle and non-empty scope.');
   }
-  for (const field of ['handleId','ownerDomain','processType','processId','receiptContract','receivingDomain','transferPoint']) text(handle[field],field);
+  for (const field of ['handleId','ownerDomain','processType','processId','receivingDomain','transferPoint']) text(handle[field],field);
+  if (!handle.receiptContract || handle.receiptContract.receiptSchemaRef!=='SubjectAndTransferReceipt@1' ||
+      handle.receiptContract.controlRevisionSetSchemaRef!=='libra.handoff-a-transferred-control-set@1' ||
+      Object.keys(handle.receiptContract).length!==2) {
+    fail('P3_CONTROL_TRANSFER_RECEIPT_CONTRACT_MISMATCH','Exact Handoff transfer requires its closed Receipt reconstruction contract.');
+  }
   for (const field of ['basisDigest','canonicalFactSetDigest','bindingSetDigest','controlScopeDigest','eventFenceDigest']) sha(handle[field],field);
+  if (handle.ownerDomain!==handle.receivingDomain) {
+    fail('P3_CONTROL_TRANSFER_HANDLE_OWNER_MISMATCH','Exact Handoff transfer Handle must be owned by the receiving commit Domain.');
+  }
   if (!handle.basisRef||!Number.isSafeInteger(handle.basisRef.revision)||handle.basisRef.revision<1) {
     fail('P3_CONTROL_INVALID_BASIS_REF', 'Control Handle requires a revisioned Basis reference.');
   }
@@ -391,8 +399,8 @@ function createMaterialControlExactTransferParticipant(options) {
       fail('P3_CONTROL_INVALID_CHANGE','Exact transfer Material key and positive expected revision are required.');
     }
     sha(change.expectedProjectionDigest,'expectedProjectionDigest');assertScope(change.fromScope,'fromScope');assertScope(change.toScope,'toScope');
-    if (change.fromScope.ownerDomain!==handle.ownerDomain||change.toScope.ownerDomain!==handle.receivingDomain) {
-      fail('P3_CONTROL_TRANSFER_TARGET_MISMATCH','Transfer scopes do not match the signed owner and receiving Domain.');
+    if (change.toScope.ownerDomain!==handle.receivingDomain) {
+      fail('P3_CONTROL_TRANSFER_TARGET_MISMATCH','Transfer target does not match the receiving commit Domain.');
     }
   }
   const definition=repository(options.schemaManifest);

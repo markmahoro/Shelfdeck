@@ -46,6 +46,12 @@ Architecture Agent提交`f838b63d`的`PBF-11-R3`已通过实现侧只读复审�
 current Control后续变化时仍可从historical revision重建同一Receipt。112 Capability、97 Result family、169表和
 15表事务边界保持不变，未新增Owner、Store、Handoff或兼容路径。
 
+P8-06已完成：accepted Decision、Subject create/extension、continuity/Episode关系、N:M Material Binding、全部Primary
+Control transfer、SubjectAndTransferReceipt、Result/Marker及Accepted Outbox在canonical 15表事务中全有或全无。
+Handle Owner固定为接收/提交Owner Libra，来源Procurement scope仅由Payload冻结；Control set digest由expected/committed
+historical Projection唯一重算。replay、stale head及Outbox crash反例和完整96-file Architecture gate PASS；Evidence见
+`implementation/evidence/P8_06_HANDOFF_A_ACCEPTED.md`。下一工作包P8-07。
+
 P7-03现已完成：PBF-07-R1重物化提交`3c6e6d6a`冻结64 KiB Page/Result、Observation→Marker FK及25项事务；
 实现提交`15f27b7b`提供pure bounded Observer、Procurement-owned Observation/Material revision Store与canonical Transaction
 Registry。完整Page作为immutable typed Evidence持久化并可由marker replay恢复；Field head/access/work/page/cursor CAS、Material

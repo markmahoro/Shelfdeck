@@ -222,7 +222,7 @@
     ],
     "hotIndexes": [],
     "partialUniqueRules": [
-      "同一Candidate/Package digest最多一个accepted Receipt的partial unique index，新的Acceptance Basis/Offer可以分别保留rejected Receipt。accepted要求Subject、accepted payload、Binding/Control列全部非NULL且rejection列全NULL，重建`SubjectAndTransferReceipt@1`，其`ReceiptEnvelope.scopeDigest=accepted_payload_digest`"
+      "同一Candidate/Package digest最多一个accepted Receipt的partial unique index，新的Acceptance Basis/Offer可以分别保留rejected Receipt。accepted要求Subject、accepted payload、Binding/Control列全部非NULL且rejection列全NULL，重建`SubjectAndTransferReceipt@1`，其`ReceiptEnvelope.scopeDigest=accepted_payload_digest`，且`control_revision_set_digest`必须由同一Handoff marker的全部Control transfer revision及各自previous revision按8.6.19唯一公式重建"
     ],
     "checkRules": [
       {
@@ -254,18 +254,18 @@
     },
     "semanticRules": [
       "`UNIQUE(intake_decision_id)`",
-      "同一Candidate/Package digest最多一个accepted Receipt的partial unique index，新的Acceptance Basis/Offer可以分别保留rejected Receipt。accepted要求Subject、accepted payload、Binding/Control列全部非NULL且rejection列全NULL，重建`SubjectAndTransferReceipt@1`，其`ReceiptEnvelope.scopeDigest=accepted_payload_digest`",
+      "同一Candidate/Package digest最多一个accepted Receipt的partial unique index，新的Acceptance Basis/Offer可以分别保留rejected Receipt。accepted要求Subject、accepted payload、Binding/Control列全部非NULL且rejection列全NULL，重建`SubjectAndTransferReceipt@1`，其`ReceiptEnvelope.scopeDigest=accepted_payload_digest`，且`control_revision_set_digest`必须由同一Handoff marker的全部Control transfer revision及各自previous revision按8.6.19唯一公式重建",
       "rejected要求Subject/accepted/Binding/Control列全NULL、rejection列全非NULL，重建`IntakeRejectionReceipt@1`，其`ReceiptEnvelope.scopeDigest=IntakeRejectionDecision.decisionDigest`。两种Receipt的Snapshot digest均逐字节等于对应Decision",
       "相同marker重放不新增Receipt或消息"
     ],
     "rawContract": {
       "columns": "`receipt_id PK, intake_decision_id FK, outcome(accepted|rejected), offer_id, candidate_package_id, package_revision, package_digest, candidate_delivery_snapshot_digest, subject_id NULL, subject_intake_revision NULL, subject_continuity_head_revision NULL, subject_continuity_set_digest NULL, subject_episode_scope_digest NULL, accepted_payload_digest NULL, libra_binding_set_digest NULL, control_revision_set_digest NULL, rejection_id NULL, primary_rejection_code NULL, rejection_reason_set_digest NULL, rejection_digest NULL, receipt_digest, committed_at_ms`",
-      "constraints": "`UNIQUE(intake_decision_id)`；同一Candidate/Package digest最多一个accepted Receipt的partial unique index，新的Acceptance Basis/Offer可以分别保留rejected Receipt。accepted要求Subject、accepted payload、Binding/Control列全部非NULL且rejection列全NULL，重建`SubjectAndTransferReceipt@1`，其`ReceiptEnvelope.scopeDigest=accepted_payload_digest`；rejected要求Subject/accepted/Binding/Control列全NULL、rejection列全非NULL，重建`IntakeRejectionReceipt@1`，其`ReceiptEnvelope.scopeDigest=IntakeRejectionDecision.decisionDigest`。两种Receipt的Snapshot digest均逐字节等于对应Decision；相同marker重放不新增Receipt或消息"
+      "constraints": "`UNIQUE(intake_decision_id)`；同一Candidate/Package digest最多一个accepted Receipt的partial unique index，新的Acceptance Basis/Offer可以分别保留rejected Receipt。accepted要求Subject、accepted payload、Binding/Control列全部非NULL且rejection列全NULL，重建`SubjectAndTransferReceipt@1`，其`ReceiptEnvelope.scopeDigest=accepted_payload_digest`，且`control_revision_set_digest`必须由同一Handoff marker的全部Control transfer revision及各自previous revision按8.6.19唯一公式重建；rejected要求Subject/accepted/Binding/Control列全NULL、rejection列全非NULL，重建`IntakeRejectionReceipt@1`，其`ReceiptEnvelope.scopeDigest=IntakeRejectionDecision.decisionDigest`。两种Receipt的Snapshot digest均逐字节等于对应Decision；相同marker重放不新增Receipt或消息"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8046,
-      "lineDigest": "8ce993cb76303777f93a710530ff4f3d21b62aac093d969773d63e4928e4b834"
+      "line": 8064,
+      "lineDigest": "c25967335613ee9a4bbadbff21c49621a05049b5b2f0e977d01fc0049896727e"
     },
     "foreignKeys": [
       {

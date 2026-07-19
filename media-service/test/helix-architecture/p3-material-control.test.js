@@ -189,8 +189,9 @@ test('exact Handoff transfer recovers Physical Identity only from the Control ow
     const projection=require('../../src/helix/foundation/persistence/material-control').createMaterialControlProjectionPort({schemaManifest,unitOfWork})
       .getMaterialControlProjection(material.materialKey);
     const exact={materialKey:material.materialKey,expectedRevision:1,expectedProjectionDigest:projection.projectionDigest,fromScope:from,toScope:to};
-    const signed=handle('transfer','procurement',[{action:'transfer',identity:material,expectedRevision:1,fromScope:from,toScope:to}],
-      {receivingDomain:'libra',controlScopeDigest:digest('accepted-scope')});
+    const signed=handle('transfer','libra',[{action:'transfer',identity:material,expectedRevision:1,fromScope:from,toScope:to}],
+      {receivingDomain:'libra',transferPoint:'handoff_a_accepted',controlScopeDigest:digest('accepted-scope')});
+    signed.receiptContract={receiptSchemaRef:'SubjectAndTransferReceipt@1',controlRevisionSetSchemaRef:'libra.handoff-a-transferred-control-set@1'};
     unitOfWork.execute([{participantId:'libra',owner:'libra',repositories:[subjects],execute(context){context.repository('subjects').invoke('insert',
       {subject_id:'subject-1',structure_kind:'movie',status:'active',created_at_ms:context.commitTimeMs});}},
     createMaterialControlExactTransferParticipant({schemaManifest,handle:signed,changes:[exact],authorizedScopeDigest:digest('accepted-scope'),

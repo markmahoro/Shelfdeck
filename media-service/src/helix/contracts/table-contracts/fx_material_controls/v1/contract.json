@@ -152,19 +152,19 @@
     },
     "semanticRules": [
       "`UNIQUE(mount_scope_id,inode,content_hash_algorithm,content_hash)`",
-      "一项Identity只有一行current Control",
+      "一项Identity只有一行current Control且Identity列write-once，Control row不得物理删除",
       "controlled必须有完整owner，released必须三个owner列均NULL",
       "首次acquire revision=1，transfer/release必须CAS并递增`control_revision`",
       "从未存在row与released row都可投影uncontrolled，但revision分别为0和当前正整数"
     ],
     "rawContract": {
       "columns": "`material_key PK, mount_scope_id, inode, content_hash_algorithm, content_hash, owner_domain NULL, owner_scope_type NULL, owner_scope_id NULL, control_revision, state(controlled|released), updated_at_ms`",
-      "constraints": "`UNIQUE(mount_scope_id,inode,content_hash_algorithm,content_hash)`；一项Identity只有一行current Control；controlled必须有完整owner，released必须三个owner列均NULL；首次acquire revision=1，transfer/release必须CAS并递增`control_revision`；从未存在row与released row都可投影uncontrolled，但revision分别为0和当前正整数"
+      "constraints": "`UNIQUE(mount_scope_id,inode,content_hash_algorithm,content_hash)`；一项Identity只有一行current Control且Identity列write-once，Control row不得物理删除；controlled必须有完整owner，released必须三个owner列均NULL；首次acquire revision=1，transfer/release必须CAS并递增`control_revision`；从未存在row与released row都可投影uncontrolled，但revision分别为0和当前正整数"
     },
     "source": {
       "section": "8.5.10",
-      "line": 8011,
-      "lineDigest": "4f9b3808278d90fbaf476c838a86d837eba73b6efeab41baef600f7108534246"
+      "line": 8029,
+      "lineDigest": "3c3cd59bea871d89b60f63133a17d1aa87885c19b463e8ba124e7d27b5604352"
     },
     "foreignKeys": []
   }

@@ -134,7 +134,7 @@
       "currentPointerColumns": [],
       "pointerTargets": [],
       "pointerRules": [
-        "current row每次变化必须与对应revision同事务成立"
+        "current row每次变化必须与对应revision同事务成立。任一正整数historical revision的post-state `MaterialControlProjectionSnapshot@1`必须仅由该revision row重建：`resultKind=available,controlRevision=revision`"
       ]
     },
     "jsonContracts": [],
@@ -151,16 +151,19 @@
     "semanticRules": [
       "`PK(material_key,revision)`",
       "append-only",
-      "current row每次变化必须与对应revision同事务成立"
+      "current row每次变化必须与对应revision同事务成立。任一正整数historical revision的post-state `MaterialControlProjectionSnapshot@1`必须仅由该revision row重建：`resultKind=available,controlRevision=revision`",
+      "to-owner完整则`controlState=controlled`并使用to scope，`regionProjection`按`procurement|libra|arca → procurement|production|finished_goods`映射",
+      "to-owner全NULL则`controlState=uncontrolled,regionProjection=uncontrolled`且无owner",
+      "`evidenceDigest/projectionDigest`严格使用8.6.18公式。不得读取后来current owner冒充historical post-state，也不新增projection JSON/digest列"
     ],
     "rawContract": {
       "columns": "`material_key FK, revision, operation_kind, from_owner_domain, from_scope_type, from_scope_id, to_owner_domain, to_scope_type, to_scope_id, basis_digest, commit_marker, committed_at_ms`",
-      "constraints": "`PK(material_key,revision)`；append-only；current row每次变化必须与对应revision同事务成立"
+      "constraints": "`PK(material_key,revision)`；append-only；current row每次变化必须与对应revision同事务成立。任一正整数historical revision的post-state `MaterialControlProjectionSnapshot@1`必须仅由该revision row重建：`resultKind=available,controlRevision=revision`；to-owner完整则`controlState=controlled`并使用to scope，`regionProjection`按`procurement|libra|arca → procurement|production|finished_goods`映射；to-owner全NULL则`controlState=uncontrolled,regionProjection=uncontrolled`且无owner；`evidenceDigest/projectionDigest`严格使用8.6.18公式。不得读取后来current owner冒充historical post-state，也不新增projection JSON/digest列"
     },
     "source": {
       "section": "8.5.10",
-      "line": 8012,
-      "lineDigest": "4d655c5660700eca9eec613a92e72107365c8a6d184db40886572d23b2ddd3f5"
+      "line": 8030,
+      "lineDigest": "81cd50aa78ff9f7a66134cb2e090c8c36390de0aa4fe80c615d200c9eb712db8"
     },
     "foreignKeys": [
       {

@@ -12,7 +12,7 @@
       "constraintsContract": "`PK(subject_id,material_key,binding_revision,episode_key)`并以复合FK指向`libra_material_bindings`；逐项无损复制同一Manifest member的Episode Claim；single与无Episode structural dependency为0 row；Binding set digest包含这些relation，不允许只取第一项",
       "source": {
         "section": "8.5.11",
-        "line": 8053,
+        "line": 8071,
         "lineDigest": "47921a735f544a3ccde2cdeef6ba7c1c413a1af927d5f86971e710796bb8d1fb"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "`PK(subject_id,revision)`；immutable；`libra_subjects.current_identity_revision`正整数时显式指向本表；Series的exact Season Claim完整值保存在`libra_subject_season_continuity_claims`并与本revision同事务成立，digest只用于一致性校验而不是可枚举事实替代品",
       "source": {
         "section": "8.5.11",
-        "line": 8054,
+        "line": 8072,
         "lineDigest": "c12c6c8ed5039eaec90833f0bbf4f5c28a280bb8ab848c5555f5c07ef9f88900"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "Field ID是Procurement公开opaque ref、不建跨Domain FK；current pair显式FK到Policy revision；一片Field恰好至多一份current去向方案",
       "source": {
         "section": "8.5.11",
-        "line": 8055,
+        "line": 8073,
         "lineDigest": "798b380ce2cc0c6b9f83bdc869efb8494d784c4a7776e02bc3e1c35d81ec5d39"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "Policy JSON上限`64 KiB`；`PK(routing_policy_id,revision)`；immutable；`INDEX(field_id,effective_at_ms)`；同一revision只属于一片Field",
       "source": {
         "section": "8.5.11",
-        "line": 8056,
+        "line": 8074,
         "lineDigest": "f1d288d4b709ef019d295af7576074e514b1ff4a568b230461b1168aee26bec8"
       }
     },
@@ -56,7 +56,7 @@
       "constraintsContract": "`PK(routing_policy_id,policy_revision,shelf_id)`及`UNIQUE(routing_policy_id,policy_revision,rank)`；Shelf ID为Arca公开Projection中的opaque ref",
       "source": {
         "section": "8.5.11",
-        "line": 8057,
+        "line": 8075,
         "lineDigest": "e7b4f1178b6790d4ce94ffe85a5e8c583bf04936b84ca24d7aaf93f793982305"
       }
     },
@@ -67,7 +67,7 @@
       "constraintsContract": "`UNIQUE(subject_id,basis_digest,routing_policy_id,routing_policy_revision)`",
       "source": {
         "section": "8.5.11",
-        "line": 8058,
+        "line": 8076,
         "lineDigest": "6bf5f7443b8d299aed7cd871da55c62908f1e2164796180c9658e0a8bee29df4"
       }
     },
@@ -78,7 +78,7 @@
       "constraintsContract": "immutable；同一assessment只有一个Decision；`INDEX(shelf_id,decided_at_ms)`",
       "source": {
         "section": "8.5.11",
-        "line": 8059,
+        "line": 8077,
         "lineDigest": "f02ff6cd336a6811852cefafa8a168373bf16529d23232209e15e8e88587ca0f"
       }
     },
@@ -89,7 +89,7 @@
       "constraintsContract": "`UNIQUE(subject_id,basis_revision)`；`INDEX(subject_id,status,basis_revision)`",
       "source": {
         "section": "8.5.11",
-        "line": 8060,
+        "line": 8078,
         "lineDigest": "f4664a89a72080ae59795550c6db9e170de6cf6740c0e4d1b3a209b87d823f1d"
       }
     },
@@ -100,7 +100,7 @@
       "constraintsContract": "`PK(decision_basis_id,input_kind,provider_domain,query_contract,query_input_digest)`；每项Decision Fact独立可追溯",
       "source": {
         "section": "8.5.11",
-        "line": 8061,
+        "line": 8079,
         "lineDigest": "fe9561c9816dbe88c838892571de994a75812dc9e28850df278b631fcfb45ca4"
       }
     },
@@ -111,7 +111,7 @@
       "constraintsContract": "Spec JSON上限`64 KiB`；`UNIQUE(subject_id,spec_revision)`；相同输入digest只产生一个Spec",
       "source": {
         "section": "8.5.11",
-        "line": 8062,
+        "line": 8080,
         "lineDigest": "3db6b82f4b0fdc9831eb439964a777be18b6c9feffed7c6c933dfe522b49ea9b"
       }
     },
@@ -122,7 +122,7 @@
       "constraintsContract": "Automation/Run Creator只读head；每次切换与对应immutable Decision/Spec同事务成立",
       "source": {
         "section": "8.5.11",
-        "line": 8063,
+        "line": 8081,
         "lineDigest": "44119a06333983fc844d29b0ed5e0798e55ef2997abf1329901750798aa4431a"
       }
     },
@@ -133,7 +133,7 @@
       "constraintsContract": "相同`subject+spec+scope`至多一个non-terminal Run；允许Season不同Episode scope并行；Supporting Work通过`owner_domain+process_type+process_id`形成`0..N`反向关系；`INDEX(state,priority_class,created_at_ms)`",
       "source": {
         "section": "8.5.11",
-        "line": 8064,
+        "line": 8082,
         "lineDigest": "f5720d6d659431f687c47c0f27378868a3154115acb856be36f36be13d851476"
       }
     },
@@ -144,7 +144,7 @@
       "constraintsContract": "`UNIQUE(libra_run_id)`；immutable；只允许当前`frozen` Run建立",
       "source": {
         "section": "8.5.11",
-        "line": 8065,
+        "line": 8083,
         "lineDigest": "41b9f925ffbd84cd97bb1d849077293c6ed5b4ab91dfcdfd89d48361fa7ffafa"
       }
     }

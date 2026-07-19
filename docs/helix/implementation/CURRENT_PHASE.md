@@ -1,6 +1,6 @@
 # P8 Handoff A and Libra Front Half Detailed Plan
 
-Status: Active；P8-00–P8-05 complete；P8-06 in progress.
+Status: Active；P8-00–P8-06 complete；P8-07 in progress.
 
 Last updated: 2026-07-19
 
@@ -107,6 +107,10 @@ Kairox/Task Runtime，不执行真实媒体生产、Workspace写入、Handoff B�
 - 一个canonical transaction原子建立Decision、Subject create/extension、continuity/episode snapshot、Candidate provenance、
   Production Material Binding、全部Primary Control transfer、Receipt/Outbox。
 - crash/fence/CAS反例证明无部分接管、无Owner窗口、Related不进入Control Scope。
+- Done：`PBF-11-R3`经只读复审后原样纳入并重物化；accepted Decision、Subject/continuity/Episode、N:M Binding、
+  exact Primary Control transfer、Receipt、Result/Marker及Outbox在15表单事务闭合。Receiving-owner Handle、唯一Control set digest、
+  replay、stale head与Outbox crash反例PASS；完整Architecture 96 fixtures PASS。Evidence见
+  `evidence/P8_06_HANDOFF_A_ACCEPTED.md`。
 
 ### P8-07 Receipt publication and Procurement boundary
 
