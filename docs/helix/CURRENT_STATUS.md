@@ -41,6 +41,11 @@ Architecture Agent提交`19ed12fa`已闭合`PBF-07-R1`：Page正式收敛为≤6
 Commit Event immutable typed Evidence保存，并通过Observation→Marker→Result Binding形成禁止GC的历史恢复链；
 精确Transaction Contract同时决定Outbox cardinality，Field Observation固定零Outbox。实现线程精确纳入该提交后恢复P7-03。
 
+Architecture Agent提交`f838b63d`的`PBF-11-R3`已通过实现侧只读复审：Handoff A Accepted Control revision set
+具有唯一成员、排序和JCS digest公式，并绑定expected/committed projection、from/to scope、Payload及Commit Handle；
+current Control后续变化时仍可从historical revision重建同一Receipt。112 Capability、97 Result family、169表和
+15表事务边界保持不变，未新增Owner、Store、Handoff或兼容路径。
+
 P7-03现已完成：PBF-07-R1重物化提交`3c6e6d6a`冻结64 KiB Page/Result、Observation→Marker FK及25项事务；
 实现提交`15f27b7b`提供pure bounded Observer、Procurement-owned Observation/Material revision Store与canonical Transaction
 Registry。完整Page作为immutable typed Evidence持久化并可由marker replay恢复；Field head/access/work/page/cursor CAS、Material

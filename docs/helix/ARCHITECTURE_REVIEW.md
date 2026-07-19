@@ -1,6 +1,6 @@
 # Helix Architecture Review Workbench
 
-Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-19；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-11`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`）bounded correction均已完成。
+Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-19；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-11`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`）bounded correction均已完成。
 
 ## 1. Purpose and authority
 
@@ -2014,3 +2014,32 @@ P8-05在注册Procurement Handoff A rejection consume Repository时证明一个�
 canonical transaction write set、crash fixture与计数。没有放宽全局Repository gate，没有新增Domain、Owner、Store、
 Business Object、Handoff、Capability、关系表或兼容路径；inventory保持`112 Capability / 97 Catalog Result family /
 169 tables`。审计结果为`PASS / PBF-11-R2-R2 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.22 `PBF-11-R3` — Handoff A Accepted Control revision-set digest continuity
+
+Status: `CLOSED / BOUNDED DETAIL FIX APPLIED` — 2026-07-19
+
+P8-06在实现Handoff A Accepted canonical transaction前，沿`AcceptedIntakePayload@1`、
+`ResponsibilityControlCommitHandle`、Material Control participant、`SubjectAndTransferReceipt@1`与Owner-row replay
+反证`controlRevisionSetDigest`。主审确认反馈成立：现有合同只保存aggregate digest，没有唯一规定成员字段、scope、
+expected/committed revision与projection digest、排序或historical reconstruction；实现自行选择公式会使同一Receipt
+在不同实现或重启后无法互认。
+
+Bounded correction没有改变Handoff A业务语义：
+
+- 固定Control set为与Payload精确相等的`1..1024`个唯一materialKey，按UTF-8 bytes排序；每项完整包含
+  expected/committed revision及projection digest，以及Procurement Material Field → Libra Subject的from/to scope；
+- 固定`libra.handoff-a-transferred-control-set@1` JCS/SHA-256公式，并把`intakeDecisionId`、`subjectId`与
+  `controlScopeDigest`纳入basis；committed revision严格等于expected revision加1；
+- 固定Commit Handle为Handoff A transfer，逐字节绑定Accepted Payload、Binding set、Control scope、expected revision
+  set及Receipt contract；Control revision的`basis_digest/commit_marker/from/to`必须与其一致；
+- 明确每个historical Control revision的post-state Projection由append-only revision row确定性重建；current Control后来
+  转给Arca或released时不得污染旧Receipt。Receipt Owner row通过同一Handoff commit marker的transfer revisions和各自
+  previous revisions重算set digest，不依赖Foundation Event Result JSON或调用方缓存；
+- Handoff A物理事务表仍是10张Libra加5张Foundation，其中5张可按职责拆读为2张Material Control与3张
+  result/marker/outbox表；总计15张不变。
+
+全文反向审计覆盖Payload/Handle/Receipt、current与historical Control projection、Owner row replay、commit marker、
+crash fixture、canonical participant及计数。没有新增Domain、Owner、Store、Business Object、Handoff、Capability、
+Result family、关系表或兼容路径；inventory保持`112 Capability / 97 Catalog Result family / 169 tables`。
+审计结果为`PASS / PBF-11-R3 CLOSED / NO OPEN BUSINESS DECISION`。

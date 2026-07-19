@@ -66,6 +66,9 @@ Procurement consume，并恢复Accepted Receipt的唯一scope digest；同时分
 `open → accepted|rejected`，`proc_run_materials`只允许合同列出的Reservation转换；Accepted/Rejected consume均从
 terminal Owner rows重建并使用同一原子性、Evidence与幂等纪律。不新增Domain、Owner、Store、Handoff、Capability或表。
 
+`PBF-11-R3`固定Handoff A Accepted Control revision set的成员、排序、JCS公式、Payload/Commit Handle绑定及
+historical Control reconstruction；保持112项Capability、97个Catalog Result family、169张关系表和15表事务边界不变。
+
 ## 3. Current phase
 
 | Field | Current value |
