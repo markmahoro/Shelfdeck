@@ -32,6 +32,11 @@ Architecture Agent提交`5d5e37c9`的`PBF-11-R1`已通过实现侧只读复审�
 Candidate/Run/Offer关闭后的历史Package/Snapshot重建；Candidate Publication 8+3事务与168-table inventory保持不变，
 没有新增Owner、Store、Handoff、Capability或Fallback。
 
+Architecture Agent提交`f99428ce`的`PBF-11-R2-R2`已通过实现侧只读复审：Candidate Delivery只允许一次
+`open → accepted|rejected` CAS，Run Material Reservation只允许closed transition；Accepted/Rejected Procurement consume
+均以Delivery、全部Candidate members、同一Receipt Evidence及Inbox result全有或全无并可从terminal Owner rows重建。
+总量保持112 Capability、97 Catalog Result family、169表；未新增Domain、Owner、Store、Handoff或兼容路径。
+
 Architecture Agent提交`19ed12fa`已闭合`PBF-07-R1`：Page正式收敛为≤65,536 UTF-8 JCS bytes，完整Page作为
 Commit Event immutable typed Evidence保存，并通过Observation→Marker→Result Binding形成禁止GC的历史恢复链；
 精确Transaction Contract同时决定Outbox cardinality，Field Observation固定零Outbox。实现线程精确纳入该提交后恢复P7-03。

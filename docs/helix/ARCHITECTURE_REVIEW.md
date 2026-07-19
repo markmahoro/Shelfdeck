@@ -1,6 +1,6 @@
 # Helix Architecture Review Workbench
 
-Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-19；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-11`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`）bounded correction均已完成。
+Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-19；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-11`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`）bounded correction均已完成。
 
 ## 1. Purpose and authority
 
@@ -1984,3 +1984,33 @@ Bounded correction没有把Handoff A实现细节强行传播为Arca内部模型�
 transaction、Outbox/Inbox、accepted与rejected互斥、crash/replay、table count及Domain/Owner/Handoff不变量。
 没有新增Domain、Owner、Store、Business Object、Handoff、Capability、兼容路径或跨Store读取。审计结果为
 `PASS / PBF-11-R2-R1 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.21 `PBF-11-R2-R2` — Candidate Delivery lifecycle CAS semantics
+
+Status: `CLOSED / BOUNDED DETAIL FIX APPLIED` — 2026-07-19
+
+P8-05在注册Procurement Handoff A rejection consume Repository时证明一个机器合同矛盾：canonical transaction
+要求把`proc_candidate_deliveries`从`open` CAS为`rejected`，但表合同中的“terminal列写后immutable”被materializer
+错误抽取成整表`immutable=true`，Repository因此在执行前拒绝任何UPDATE。反向审计又确认Accepted消息消费需要
+同一类`open → accepted`终态化，不能只修拒绝分支。
+
+该问题成立，但不改变业务语义。Bounded correction：
+
+- 固定逐表`rowMutability`的机器区分：`append_only`禁止UPDATE，`cas_lifecycle`只允许该表closed transition set中的
+  expected-state CAS；列write-once或terminal immutable不得再被推导为整表append-only；
+- 把`proc_candidate_deliveries`显式声明为`cas_lifecycle`，唯一允许的转换为一次
+  `open → accepted|rejected`；Decision/Receipt/terminal Evidence/closed time同一CAS写入，进入任一终态后只能相同
+  Evidence幂等重放，不能改写相反Outcome；
+- 把已有`proc_run_materials`Reservation合同显式声明为`cas_lifecycle`，closed transitions保持
+  `run_selection → candidate_delivery|released`及`candidate_delivery → transferred|released`，Basis、Candidate FK与
+  terminal bundle继续write-once；
+- 对称固化Procurement Handoff A Acceptance Consume application transaction，并定义可从Delivery和Run member终态
+  rows重建的`ProcurementCandidateAcceptanceClosureResult@1`；它与Rejected consume都使用
+  `proc_candidate_deliveries + proc_run_materials + fx_inbox`，均不得再次操作Material Control；
+- crash/replay fixture同时覆盖Accepted与Rejected：Delivery、全部Reservation terminal Evidence和Inbox result全有或
+  全无；迟到的相反消息、缺成员或digest冲突稳定拒绝。
+
+全文审计覆盖两条Handoff A终态消费、Repository注册语义、closed transition set、terminal replay、Owner rows恢复、
+canonical transaction write set、crash fixture与计数。没有放宽全局Repository gate，没有新增Domain、Owner、Store、
+Business Object、Handoff、Capability、关系表或兼容路径；inventory保持`112 Capability / 97 Catalog Result family /
+169 tables`。审计结果为`PASS / PBF-11-R2-R2 CLOSED / NO OPEN BUSINESS DECISION`。

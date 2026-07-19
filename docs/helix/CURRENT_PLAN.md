@@ -58,6 +58,14 @@ global/target CAS、Resolved Identity exact Claim关系化、nullable identity�
 reference digest，使Candidate/Run/Offer关闭后仍能由Procurement Owner rows历史重建完整Package与Delivery Snapshot；
 不新增表、Owner、Store、Handoff或Capability，168-table inventory保持不变。
 
+`PBF-11-R2`与`PBF-11-R2-R1`把Handoff A Rejected闭合为独立typed Decision、Reason/Evidence、Receipt、Outbox及
+Procurement consume，并恢复Accepted Receipt的唯一scope digest；同时分离Handoff A富拒绝与Handoff B通用拒绝，
+完整闭合Arca rejected持久化连续性。关系表调整为169，Catalog Result family调整为97。
+
+`PBF-11-R2-R2`明确区分append-only row与CAS lifecycle row：`proc_candidate_deliveries`仅允许一次
+`open → accepted|rejected`，`proc_run_materials`只允许合同列出的Reservation转换；Accepted/Rejected consume均从
+terminal Owner rows重建并使用同一原子性、Evidence与幂等纪律。不新增Domain、Owner、Store、Handoff、Capability或表。
+
 ## 3. Current phase
 
 | Field | Current value |
