@@ -1,6 +1,6 @@
 # Helix Architecture Review Workbench
 
-Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-20；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R4-R1`、`PBF-13-R4-R2`、`PBF-13-R5`）bounded correction均已完成。
+Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-20；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R4-R1`、`PBF-13-R4-R2`、`PBF-13-R5`、`PBF-13-R5-R1`、`PBF-13-R5-R2`）bounded correction均已完成。
 
 ## 1. Purpose and authority
 
@@ -2375,3 +2375,39 @@ blocker set覆盖Run/Basis/blocker kind与排序后的完整members，Evidence I
 修正不新增Domain、Owner、Handoff、Capability、Result family、关系表或Canonical Transaction；计数保持
 `112 Capability / 97 Catalog Result family / 176 tables / 43 Canonical Transactions`。审计结果为
 `PASS / PBF-13-R4-R2 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.33 `PBF-13-R5-R1` — Workspace aggregate/revision首次建立循环FK
+
+Status: `CLOSED / BOUNDED SQLITE REALIZABILITY FIX APPLIED` — 2026-07-20
+
+P9-04 SQLite fixture证明`libra_workspaces.current_revision`与`libra_workspace_revisions.workspace_id`形成双向
+immediate FK：先插任一row都会立即失败，违反Workspace Admission同事务首次建立aggregate与revision 1的合同。
+该反馈成立，不是插入顺序可以规避的问题。
+
+最小修正只把aggregate的`(workspace_id,current_revision) → libra_workspace_revisions`复合FK固定为
+`DEFERRABLE INITIALLY DEFERRED`；revision→aggregate的普通父FK保持immediate。Admission固定先插
+`libra_workspaces(current_revision=1)`、再插revision 1，transaction commit统一验证复合current head、state与digest。
+任一步失败时aggregate、revision、Foundation Workspace Registry、Result和marker全部回滚。禁止关闭FK、sentinel
+revision、nullable后补或事务外预写。
+
+反向检查Workspace Reference、Cleanup revision和crash fixture后无需其他结构变化。修正不改变Owner、Store、Handoff、
+Capability、Result family、表或Canonical Transaction计数，仍为
+`112 Capability / 97 Catalog Result family / 176 tables / 43 Canonical Transactions`。审计结果为
+`PASS / PBF-13-R5-R1 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.34 `PBF-13-R5-R2` — Workspace space Evidence的Run Manifest read-set
+
+Status: `CLOSED / BOUNDED PROPAGATION FIX APPLIED` — 2026-07-20
+
+P9-04 addendum证明Workspace Admission虽要求从immutable Run Primary members求和`inputPrimaryTotalBytes`，但机器
+read set只有Run aggregate/revision；Execution Basis record明确排除了大型Manifest members，无法重建size或验证
+request/required bytes。信任caller或事务外求和都会破坏Owner验证及TOCTOU合同。该反馈成立。
+
+修正把`libra_run_material_manifests`与`libra_run_material_members`加入既有Workspace Admission exact read set；
+事务内通过Run manifest ref验证identity、member count与member set，仅对完整`role=primary_payload`成员的`sizeBytes`
+求和，随后重算固定空间公式、request digest并交叉验证Platform Evidence。Episode Claim不影响字节，明确不读取
+`libra_run_material_episode_claims`；也不允许改读Binding、Workspace或current Reality。
+
+该修正只扩充既有transaction只读白名单，不改变writeTables、Owner、Store、Handoff、Capability、Result family、
+表或Canonical Transaction计数，仍为`112 / 97 / 176 / 43`。审计结果为
+`PASS / PBF-13-R5-R2 CLOSED / NO OPEN BUSINESS DECISION`。
