@@ -12,7 +12,7 @@
       "constraintsContract": "`PK(acceptance_attempt_id,check_kind,check_revision)`",
       "source": {
         "section": "8.5.12",
-        "line": 8306,
+        "line": 8332,
         "lineDigest": "77d3920ed642da9e59d4fd9c91e1474be0429b26f5f775356b97d12915d5b36a"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "`acceptance_decision_id=SHA-256(JCS({schema:\"arca.acceptance-decision-id@1\",acceptanceAttemptId}))`且`UNIQUE(acceptance_attempt_id)`；Offer/Package pair逐字节等于Attempt；accepted要求rejection列全NULL；rejected固定`rejection_schema_ref=StructuredRejection@1`且code/digest非NULL，并逐项重建`ArcaAcceptanceRejectionDecision@1`；immutable",
       "source": {
         "section": "8.5.12",
-        "line": 8307,
+        "line": 8333,
         "lineDigest": "75c6f85e8098087ae4f0f9aa8b29d96247bc18432b208c8286747c6696731e70"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "`UNIQUE(on_deck_package_id,package_digest)`；只有Accepted Decision可建立",
       "source": {
         "section": "8.5.12",
-        "line": 8308,
+        "line": 8334,
         "lineDigest": "c676837615735e34b1f5442a9252a84ca4c2faf8ad788419bce55378c635e1bb"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "`UNIQUE(acceptance_decision_id)`及`UNIQUE(offer_id)`；Offer/Package pair逐字节等于Decision；accepted要求Custody/Binding/Control列非NULL、全部rejection列为NULL，receipt digest按`CustodyAndTransferReceipt@1`公式重建；rejected要求Custody/Binding/Control列NULL且rejection列非NULL，receipt digest按`RejectionReceipt@1`公式重建；两种终态都必须有receipt digest并作为各自typed Outbox的durable source，相同marker不新增Receipt或相反终态",
       "source": {
         "section": "8.5.12",
-        "line": 8309,
+        "line": 8335,
         "lineDigest": "94fa457d6a9a297539cdcab09cd2cb72a795935917f405e5c232b255131e2129"
       }
     },
@@ -56,7 +56,7 @@
       "constraintsContract": "`PK(owner_object_type,owner_object_id,material_key,role,binding_revision)`；每个关系只有一个current row",
       "source": {
         "section": "8.5.12",
-        "line": 8310,
+        "line": 8336,
         "lineDigest": "24ff36ed66c7d3b2ac2f74f88d2c7541ac985b5c43de231226372cad389fb25e"
       }
     },
@@ -67,7 +67,7 @@
       "constraintsContract": "同一Custody一个non-terminal Run；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 8311,
+        "line": 8337,
         "lineDigest": "4c7f239ddb36b56385d04e80213c4bc1e181c7c817758c89830bc8cbe1ade276"
       }
     },
@@ -78,7 +78,7 @@
       "constraintsContract": "Decision JSON上限`64 KiB`；`UNIQUE(on_deck_run_id)`；immutable；不保存adopt/replace/relocate动作类型",
       "source": {
         "section": "8.5.12",
-        "line": 8312,
+        "line": 8338,
         "lineDigest": "81312748ad150bcb27a432f4e9c00e789cdaa6b7fe762da54df4cfedfa04b55f"
       }
     },
@@ -89,7 +89,7 @@
       "constraintsContract": "`PK(authorization_id,revision)`；immutable；只授权为精确On-deck Scope派生Approval，不授权目录范围",
       "source": {
         "section": "8.5.12",
-        "line": 8313,
+        "line": 8339,
         "lineDigest": "f5152bf12357d5fcfaf6b833ce0d5a6ba8f6ea1775c5463be3fc9c1ae8176d57"
       }
     },
@@ -100,7 +100,7 @@
       "constraintsContract": "singleton key固定；current pair显式FK；启用/撤销均发布新revision，不物理删除历史",
       "source": {
         "section": "8.5.12",
-        "line": 8314,
+        "line": 8340,
         "lineDigest": "52ffab870401a903dde815fbf705331885689f51f7beb840024d9fb4f60f384b"
       }
     },
@@ -111,7 +111,7 @@
       "constraintsContract": "`UNIQUE(on_deck_run_id,settlement_scope_digest)`；自动模式可由当前standing authorization派生，已签发Scope不可扩张",
       "source": {
         "section": "8.5.12",
-        "line": 8315,
+        "line": 8341,
         "lineDigest": "5cbc9ffd7ce5f4c44f861b79ff0c8a6cfa8a090d580f870401be0a08c386ea75"
       }
     },
@@ -122,7 +122,7 @@
       "constraintsContract": "三个current pointer均显式FK；`INDEX(shelf_id,status,shelf_entry_id)`；Movie/JAV/Western可以重复，Season对active `(shelf_id,canonical_identity_key)`建立partial unique，保证后续Episode Run扩充同一Entry",
       "source": {
         "section": "8.5.12",
-        "line": 8316,
+        "line": 8342,
         "lineDigest": "27009726b5c03e4052c17ab37b7c0044faa459ca91d36a211842bb5c4b38eec3"
       }
     },
@@ -133,7 +133,7 @@
       "constraintsContract": "`PK(shelf_entry_id,revision)`；`INDEX(provider,provider_key,structure_kind)`仅供Duplicate Detection，禁止全局unique",
       "source": {
         "section": "8.5.12",
-        "line": 8317,
+        "line": 8343,
         "lineDigest": "b6b7fb7e12bac7da8359799330c6882cb1bcca8f7968ecedda59d0d7a1254df6"
       }
     },
@@ -144,7 +144,7 @@
       "constraintsContract": "`PK(shelf_entry_id,revision)`；Shelf Entry current pointer显式FK",
       "source": {
         "section": "8.5.12",
-        "line": 8318,
+        "line": 8344,
         "lineDigest": "19ea29a73470be4c0f501b30a3cfcfe75272f78f820e2e13af830e0b00d73656"
       }
     }

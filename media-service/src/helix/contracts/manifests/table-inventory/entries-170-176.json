@@ -13,7 +13,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.13",
-        "line": 8389,
+        "line": 8415,
         "lineDigest": "6369e1a33c35dad0faf4d8362fcf1800d8fa6b226fc213359ffbd25c09cddf31"
       },
       "targetLocator": {
@@ -23,11 +23,11 @@
         "tableId": "platform_resource_operating_revisions",
         "owner": "platform-settings",
         "contractRef": "helix://contracts/tables/platform_resource_operating_revisions/v1",
-        "contractDigest": "eb487b3c4fda5fc1bcd45e87dd3002c3c2eec175a640901d399d19efb207596a"
+        "contractDigest": "0828a9275c894267d553c427a00d26e8dec1a8cfa8a8bda9bb4ce15fde81129a"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "ce7ea584ead1d7db0bde4556811413b4afe692a650a2ebe7bea01e3628f5f1e8"
+        "value": "57453f6549f999cf7256a0c3cd2585a5cdc21e2163545271d610a37d9fedf77d"
       }
     },
     {
@@ -41,7 +41,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.13",
-        "line": 8390,
+        "line": 8416,
         "lineDigest": "e3087dc75ea69236f326216af8cc7f16e6e2351b4b24fd0c29e746882a19ba10"
       },
       "targetLocator": {
@@ -51,11 +51,11 @@
         "tableId": "platform_compute_devices",
         "owner": "platform-settings",
         "contractRef": "helix://contracts/tables/platform_compute_devices/v1",
-        "contractDigest": "87e0b68c2676bf58f503ef1092f4defad56068c73d2b4a6be71b0953c0c3e329"
+        "contractDigest": "c20248e891fb098562bdaa3dcdbb7536b44202eebc84471ffbfe8372f5714b4a"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "34893fa45a279f761a68613b520a763cf919905064f523d7e246502601ddaca9"
+        "value": "7b385fac90a5ad987e93cf302ac28e081372e31ff40996ebb9b3a130dc9ed5bf"
       }
     },
     {
@@ -69,7 +69,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.13",
-        "line": 8391,
+        "line": 8417,
         "lineDigest": "3030b4d68bb0dc4ea91ab4c1c77aa9f86ca2265c987b72f542ad55861ba9daad"
       },
       "targetLocator": {
@@ -79,11 +79,11 @@
         "tableId": "platform_compute_device_probes",
         "owner": "platform-settings",
         "contractRef": "helix://contracts/tables/platform_compute_device_probes/v1",
-        "contractDigest": "5ea71d21744bead45ee119511532116901b15b1985d19f940f74781b9c1dfce1"
+        "contractDigest": "24bfd11b820ce23eae906bf5720d691e9dcf2440fafe83f49b62fa836cc60627"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "7bf2610a435bcafb0854b14c801e5cba578ca718e82e93de7ae3ba048a713412"
+        "value": "5194f8692f90834961043cfb64fda35af63d824ae22c6c4595d6f42687b7432f"
       }
     },
     {
@@ -97,7 +97,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.13",
-        "line": 8392,
+        "line": 8418,
         "lineDigest": "6bf55b189dbb45cf52eaf48ad372b60ec11d290dd8bd4127fd84ee745604365b"
       },
       "targetLocator": {
@@ -107,11 +107,11 @@
         "tableId": "platform_workers",
         "owner": "platform-settings",
         "contractRef": "helix://contracts/tables/platform_workers/v1",
-        "contractDigest": "46aa0beb57a2f57758a0b0a35784377e6e426138c69bcc09466a2403a3c0283d"
+        "contractDigest": "2deec1993f1b73f3fd741a8dd649cf5291f0cfef3bf5edd4f070a498ae0e55b3"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "563d9024bdbcd6ef11ee8af0aaa8901cb288f9b56515518d4a895cd2efffc21b"
+        "value": "1e72d747eb2d93697f5da4b254ed0a8bdf569050d642cc27cd8da0c072977bae"
       }
     },
     {
@@ -125,7 +125,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.13",
-        "line": 8393,
+        "line": 8419,
         "lineDigest": "ff9849acc3710deb68332088b189dc8e407b71ad9ebc2093d6045b60a50a42fe"
       },
       "targetLocator": {
@@ -135,11 +135,11 @@
         "tableId": "platform_worker_revisions",
         "owner": "platform-settings",
         "contractRef": "helix://contracts/tables/platform_worker_revisions/v1",
-        "contractDigest": "49f307e8d227479bcac114ec41f5e25eb9563f145cca1a9fce3caaa55203e4db"
+        "contractDigest": "017349292b5bfed2937692c1da0aa3bd7a32e613b013ff58be9356c92aabe629"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "520501ca5d0d686b101af893e206bc854c1994d4d28c71d0fd31546fdc3b2348"
+        "value": "8fcfeb898c60ba0e2b173ca86233b0b11222321c1f889e6e5d9328ac8cd85c0a"
       }
     },
     {
@@ -153,7 +153,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.13",
-        "line": 8394,
+        "line": 8420,
         "lineDigest": "bc0f5d106f86d806a95451a30ad664d4367fd2ef42c0cb6003514196417e2417"
       },
       "targetLocator": {
@@ -163,11 +163,11 @@
         "tableId": "platform_worker_devices",
         "owner": "platform-settings",
         "contractRef": "helix://contracts/tables/platform_worker_devices/v1",
-        "contractDigest": "ec437a3c25084eb4529913d741c28fb7267714678e8d211f2cc373df2722ae28"
+        "contractDigest": "d134ec56de0ef1673edbc40a0cc903d701fea99d8fca4b0cd6d77398ad6ce461"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "e3ead4d0edac8065d0f2c0e9bd23fbd30545b81b28fb65ec1cc2c7f3ca8ded34"
+        "value": "0278b113ea4bdcc2e2ed72134eb9b437ef94a75a8d1b82522c13540d4069f7a9"
       }
     },
     {
@@ -181,7 +181,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.13",
-        "line": 8395,
+        "line": 8421,
         "lineDigest": "c508f77944715e61d0cb76cb13c4bb9a67ecc6e96b21fe744d802ae44636b0b3"
       },
       "targetLocator": {
@@ -191,11 +191,11 @@
         "tableId": "platform_admin_credentials",
         "owner": "platform-settings",
         "contractRef": "helix://contracts/tables/platform_admin_credentials/v1",
-        "contractDigest": "d8b11318e9534f81afb4196ca0656a5c07c3d8d78ae138ef439d1533d3d1feaa"
+        "contractDigest": "e6575b65f7081e5addb0f9a8a8231663377eb91569c3e380aa47bba109ec3a4e"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "a43558f225b5214e8ed587a7acf42b3596b5eb3337e2cc4475bca59c50ccc207"
+        "value": "332dcfd1aab4404ac5a7e81b97bf107e40dd2f397dd55efff61ec484ee6e471e"
       }
     }
   ]
