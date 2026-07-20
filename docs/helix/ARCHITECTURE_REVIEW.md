@@ -1,6 +1,6 @@
 # Helix Architecture Review Workbench
 
-Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-20；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R4-R1`、`PBF-13-R5`）bounded correction均已完成。
+Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-20；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R4-R1`、`PBF-13-R4-R2`、`PBF-13-R5`）bounded correction均已完成。
 
 ## 1. Purpose and authority
 
@@ -2353,3 +2353,20 @@ Bounded correction固定Lifecycle transaction的variant-superset read whitelist�
 Result family、关系表和事务数全部不变，仍为
 `112 Capability / 97 Catalog Result family / 176 tables / 43 Canonical Transactions`。审计结果为
 `PASS / PBF-13-R4-R1 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.32 `PBF-13-R4-R2` — Arca Accepted Message ID canonical object
+
+Status: `CLOSED / BOUNDED FORMULA FIX APPLIED` — 2026-07-20
+
+P9-03-R2证明`ArcaProductAcceptedMessage@1`的ID公式把`handoffReceipt.receiptDigest`写在JCS对象成员位置，
+但没有声明它是顶层property、嵌套对象还是含点号的property name；三种合法JSON shape会得到不同digest，使Arca
+producer与Libra consumer无法互认同一messageId。该反馈成立。
+
+修正把canonical object唯一固定为
+`{schema,offerId,acceptanceDecisionId,receiptDigest:handoffReceipt.receiptDigest}`，恰含四个顶层property；不嵌套
+`handoffReceipt`，不使用点号property name，也不扩大ID对完整Message的覆盖。Message本身字段、Receipt、Owner、
+Handoff、Store、Transaction与dedup语义均不变。反向检查producer/consumer与Lifecycle complete Evidence后无其他冲突。
+
+修正不新增Domain、Owner、Handoff、Capability、Result family、关系表或Canonical Transaction；计数保持
+`112 Capability / 97 Catalog Result family / 176 tables / 43 Canonical Transactions`。审计结果为
+`PASS / PBF-13-R4-R2 CLOSED / NO OPEN BUSINESS DECISION`。

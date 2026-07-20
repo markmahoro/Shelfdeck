@@ -1,6 +1,6 @@
 # Helix Clean Top-down Architecture
 
-Status: ShelfDeck / Helix architecture SSOT; Levels 0–10 accepted; final full-document audit and post-baseline `PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R4-R1`、`PBF-13-R5`）bounded corrections closed; implementation not authorized by this document.
+Status: ShelfDeck / Helix architecture SSOT; Levels 0–10 accepted; final full-document audit and post-baseline `PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R4-R1`、`PBF-13-R4-R2`、`PBF-13-R5`）bounded corrections closed; implementation not authorized by this document.
 
 Last updated: 2026-07-20
 
@@ -9400,6 +9400,8 @@ due/attempt继续，frozen永不自动恢复。它不新增业务状态、组件
 `PBF-13-R4-R1`只把上述Lifecycle强制验证输入传播到Canonical Transaction的精确machine read set：Comparable
 Basis、published Package custody fence与terminal Work Evidence均在同一SQLite事务内由Owner rows重建并交叉验证，
 禁止事务外Assessment造成TOCTOU；write set及全部架构计数不变。
+`PBF-13-R4-R2`只把`ArcaProductAcceptedMessage@1`的ID/dedup JCS basis从含糊取值路径改成显式顶层
+`receiptDigest` property；Message字段、Handoff、事务与全部计数不变。
 `PBF-13-R5`只把既有Platform Workspace配置与Libra Workspace Admission接成正式typed边界：Platform Port返回不含
 resolved path的Root Snapshot，并用Platform内部路径形成30秒有效的space admission Evidence；Libra只冻结Snapshot与
 Evidence并由既有Workspace Admission transaction验证current root fence。它不新增Domain、Handoff、Capability、表或事务。
@@ -9956,7 +9958,9 @@ ID按exact UTF-8 bytes升序，禁止locale/case-fold；所有digest均为小写
   `{messageKind:"arca.product.accepted@1",messageId,offerId,onDeckPackageId,packageDigest,libraRunId,
   acceptanceDecisionId,acceptanceDecisionDigest,handoffReceipt{receiptId,custodyId,arcaBindingSetDigest,
   controlRevisionSetDigest,receiptDigest},dedupKey}`；`messageId=dedupKey=SHA-256(JCS({schema:
-  "arca.product-accepted-message-id@1",offerId,acceptanceDecisionId,handoffReceipt.receiptDigest}))`，producer固定
+  "arca.product-accepted-message-id@1",offerId,acceptanceDecisionId,
+  receiptDigest:handoffReceipt.receiptDigest}))`。该canonical object恰有`schema|offerId|acceptanceDecisionId|
+  receiptDigest`四个顶层property；不嵌套`handoffReceipt`、不使用点号property name，也不覆盖Message其他字段。producer固定
   Arca Handoff B Accepted transaction，consumer固定Libra Run Lifecycle complete；完整message≤`16 KiB`。
 
 **Discard、Cleanup admission与物理删除：**
@@ -13250,4 +13254,6 @@ post-baseline `PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`�
 - Post-baseline realizability audit：`PBF-01`–`PBF-13 CLOSED / APPLIED_AND_AUDITED`（包含`PBF-06-R1`、`PBF-07-R1`、`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`与`PBF-13-R5`细化；不新增Domain/Handoff/Capability；`PBF-09`新增一张Procurement-owned retry precondition关系表，`PBF-10`新增一张Procurement-owned Candidate Member↔Episode Claim关系表，`PBF-10-R1`闭合Episode relation机器白名单，`PBF-10-R2`闭合Offer与Continuity正式合同，`PBF-10-R3`闭合Run revision head CAS写集，`PBF-11`新增五张Libra-owned Intake head/N:M关系表并闭合Handoff A，`PBF-11-R1`扩充既有Procurement Related relation以闭合完整Physical Identity/reference digest历史重建，`PBF-11-R2`把Handoff A Rejected拆成独立typed Decision并补齐Reason/Evidence、Receipt、Outbox和Procurement consume原子终态，`PBF-11-R2-R1`恢复Accepted Receipt唯一scopeDigest并把Handoff A富拒绝与Handoff B通用拒绝分型，完整闭合Arca rejected持久化与Libra consume，`PBF-11-R2-R2`修正Candidate Delivery/Reservation的CAS lifecycle机器语义并对称闭合Accepted/Rejected consume，`PBF-11-R3`固定Accepted Receipt的Control revision set唯一公式与historical reconstruction，`PBF-12`闭合Routing/Decision Basis/Acceptance Spec typed input、三项事务、Subject provenance/content profile与Spec scope，`PBF-12-R1`补齐历史pre-CAS Decision Head Snapshot的relationized恢复，`PBF-13`闭合Libra Run/Workspace/Product Package/Discard/Reclamation typed continuity、历史Owner-row恢复和五项Canonical Transaction，`PBF-13-R1`补齐Workspace Reclamation Facade Query/Command的唯一callable contract与Owner-row重建，`PBF-13-R2`修正initial Admission logical 0、Package head INTEGER及Material requirement binding，`PBF-13-R3`闭合Run Input Physical Identity/size跨Handoff连续性，`PBF-13-R4`闭合Run freshness与有界恢复，`PBF-13-R5`闭合Platform Workspace Root/space admission typed边界；关系表总数为176，Catalog Result family为97，Canonical Transaction为43）
 - `PBF-13-R4-R1` bounded propagation：Lifecycle canonical machine `readTables`已与Freshness/Package custody
   强制Owner-row验证对齐；只扩只读白名单，全部计数不变。
+- `PBF-13-R4-R2` bounded formula：Arca Accepted Message ID basis已固定为四个显式顶层JCS property；
+  Message/Handoff/事务与全部计数不变。
 - 旧`SD-*`条款：全部撤销，不具有clean Helix合同效力
