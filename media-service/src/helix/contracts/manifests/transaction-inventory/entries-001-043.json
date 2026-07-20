@@ -604,11 +604,11 @@
         "transactionId": "helix.transaction.libra-run-lifecycle-transition",
         "ownerScope": "libra",
         "contractRef": "helix://contracts/transactions/helix.transaction.libra-run-lifecycle-transition/v1",
-        "contractDigest": "e20a07af71c9383b4e37b401c18a362f4d2003371209a4d85154bafbeeca85b7"
+        "contractDigest": "c70ac02f8af5fe9098f12f1316339b08ffdad167e3c2a0a2f3f1412ce5a081a6"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "83f72eb0afe19d52fe8627ca1246d1605675d5e0252adbc8b664f32494de61c2"
+        "value": "d6bd77c8964867db0cfde2c0105b2455fd2d8516b74df7b53a77e6f9d902ea2e"
       }
     },
     {

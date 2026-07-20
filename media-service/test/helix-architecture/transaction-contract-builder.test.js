@@ -85,6 +85,22 @@ test('materializes the exact Candidate Publication 8+3 write participant contrac
   assert.ok(contract.crashFixtures[0].requiredInvariant.includes('Episode Claim/Related relation'));
 });
 
+test('materializes the exact lifecycle variant-superset read closure without widening writes', () => {
+  const contract = byName.get('Libra Run Lifecycle Transition');
+  assert.deepEqual(contract.writeTables, [
+    'libra_run_admission_heads', 'libra_runs', 'libra_run_revisions', 'libra_delivery_receipts',
+    'fx_inbox', 'fx_event_result_bindings', 'fx_commit_markers'
+  ]);
+  for (const tableId of [
+    'libra_decision_basis_revisions', 'libra_decision_basis_inputs', 'libra_run_material_manifests',
+    'libra_run_material_members', 'libra_run_material_episode_claims', 'libra_material_bindings',
+    'libra_material_binding_episode_claims', 'fx_material_controls', 'fx_material_control_revisions',
+    'libra_product_package_materials', 'libra_product_package_material_episode_claims',
+    'libra_offload_context_materials', 'fx_supporting_works', 'fx_workflow_plans',
+    'fx_workflow_events', 'fx_event_attempts'
+  ]) assert.ok(contract.readTables.includes(tableId), tableId);
+});
+
 test('keeps batch authorization before per-Entry Authorization and Case creation', () => {
   const batch = byName.get('Off-deck Batch Authorization Intent');
   assert.equal(batch.writeTables.includes('arca_offdeck_cases'), false);
