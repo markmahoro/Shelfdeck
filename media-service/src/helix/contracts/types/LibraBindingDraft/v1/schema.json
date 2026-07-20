@@ -83,6 +83,13 @@
               "structural_dependency"
             ]
           },
+          "physicalIdentity": {
+            "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v1"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "minimum": 0
+          },
           "endpointId": {
             "type": "string",
             "minLength": 1,
@@ -138,6 +145,8 @@
         "required": [
           "materialKey",
           "role",
+          "physicalIdentity",
+          "sizeBytes",
           "endpointId",
           "location",
           "bindingRevision",

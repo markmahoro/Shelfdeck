@@ -37,7 +37,13 @@ function buildLibraBindingDraft(snapshot,decision,producedAtMs){
   }
   const bindings=deliveries.map((item)=>{
     const episodeClaims=[...item.episodeClaims].sort((a,b)=>utf8Compare(a.episodeKey,b.episodeKey));
-    const value={materialKey:item.materialKey,role:item.role,endpointId:item.endpointId,location:item.location,bindingRevision:1,
+    const identity=item.physicalIdentity;
+    if(!identity||identity.materialKey!==item.materialKey||identity.contentHashAlgorithm!=='sha256'||
+        identity.materialKey!==canonicalDigest({schema:'physical-material-identity@1',mountScopeId:identity.mountScopeId,
+          inode:identity.inode,contentHashAlgorithm:'sha256',contentHash:identity.contentHash})||
+        !Number.isSafeInteger(item.sizeBytes)||item.sizeBytes<0)fail('P8_BINDING_IDENTITY_INVALID','Delivery Physical Identity or size is invalid.');
+    const value={materialKey:item.materialKey,role:item.role,physicalIdentity:identity,sizeBytes:item.sizeBytes,
+      endpointId:item.endpointId,location:item.location,bindingRevision:1,
       locationEvidenceDigest:item.deliveryMemberDigest,episodeClaims};
     return {...value,bindingDigest:canonicalDigest(value)};
   }).sort((a,b)=>utf8Compare(a.materialKey,b.materialKey));

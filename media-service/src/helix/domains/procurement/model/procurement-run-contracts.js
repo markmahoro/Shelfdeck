@@ -91,10 +91,19 @@ function activeTriageRule(registry) {
 }
 
 function validateSelectedMember(member, index, fieldId) {
-  exact(member, ['ordinal','materialKey','selectionRole','bindingRevision','eligibilityRevision','eligibilityBasisDigest','lastSnapshotDigest',
+  exact(member, ['ordinal','materialKey','selectionRole','physicalIdentity','sizeBytes','bindingRevision','eligibilityRevision','eligibilityBasisDigest','lastSnapshotDigest',
     'lastObservationId','endpointId','location','realityDigest','provenanceDigest','controlSnapshot','admissionControlAction','basisMemberDigest'], 'P7_RUN_MEMBER_SHAPE');
   if (member.ordinal !== index || member.selectionRole !== 'triage_input') fail('P7_RUN_MEMBER_ORDINAL_ROLE', 'Run member ordinal or role is invalid.');
   digest(member.materialKey, 'materialKey'); revision(member.bindingRevision, 'bindingRevision'); revision(member.eligibilityRevision, 'eligibilityRevision');
+  exact(member.physicalIdentity, ['schemaRef','schemaVersion','materialKey','mountScopeId','inode','contentHashAlgorithm','contentHash'], 'P7_RUN_MEMBER_IDENTITY_SHAPE');
+  const identity = member.physicalIdentity;
+  if (identity.schemaRef !== 'helix://contracts/types/PhysicalMaterialIdentity/v1' || identity.schemaVersion !== 1 ||
+      identity.materialKey !== member.materialKey || identity.contentHashAlgorithm !== 'sha256' ||
+      identity.materialKey !== canonicalDigest({ schema:'physical-material-identity@1', mountScopeId:identity.mountScopeId,
+        inode:identity.inode, contentHashAlgorithm:'sha256', contentHash:identity.contentHash }) ||
+      !Number.isSafeInteger(member.sizeBytes) || member.sizeBytes < 0) {
+    fail('P7_RUN_MEMBER_IDENTITY_INVALID', 'Run member Physical Identity or size is invalid.');
+  }
   for (const field of ['eligibilityBasisDigest','lastSnapshotDigest','realityDigest','provenanceDigest']) digest(member[field], field);
   for (const field of ['lastObservationId','endpointId','location']) text(member[field], field);
   validateControlSnapshot(member.controlSnapshot, member.materialKey);

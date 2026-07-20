@@ -39,7 +39,7 @@ function validateContinuity(claims, setDigest) {
   if (setDigest !== expected) fail('P7_CANDIDATE_CONTINUITY_DIGEST', 'Season Continuity Claim set digest is invalid.');
 }
 
-function validateDraft(draft) {
+function validateDraft(draft, runBasisMembers) {
   if (!draft || typeof draft !== 'object' || Array.isArray(draft) || !Number.isSafeInteger(draft.expectedPackageRevision) ||
       draft.expectedPackageRevision < 1 || !draft.structureEvidence || !draft.structureEvidence.unit || !draft.primaryInputManifestDraft) {
     fail('P7_CANDIDATE_DRAFT_INVALID', 'Candidate Draft is incomplete.');
@@ -115,9 +115,13 @@ function validateDraft(draft) {
   if (draft.memberControlEvidenceSetDigest !== canonicalDigest({ schema:'procurement.candidate-member-control-evidence@1', items:controls })) {
     fail('P7_CANDIDATE_CONTROL_DIGEST', 'Candidate member Control Evidence set digest is invalid.');
   }
+  const basisByKey = new Map((runBasisMembers || []).map((item) => [item.materialKey, item]));
+  if (basisByKey.size !== unit.members.length) fail('P7_CANDIDATE_RUN_BASIS_REQUIRED', 'Candidate Publication requires the exact immutable Run member basis.');
   const manifestDraft = draft.primaryInputManifestDraft;
   const draftMembers = [...unit.members].sort((a, b) => compareUtf8(a.materialKey, b.materialKey)).map((member, ordinal) => ({
-    ordinal, materialKey:member.materialKey, role:member.role, bindingRevision:member.bindingRevision,
+    ordinal, materialKey:member.materialKey, role:member.role, physicalIdentity:basisByKey.get(member.materialKey).physicalIdentity,
+    sizeBytes:basisByKey.get(member.materialKey).sizeBytes,
+    bindingRevision:member.bindingRevision,
     admittedControlRevision:member.admittedControlRevision, admittedControlProjectionDigest:member.admittedControlProjectionDigest,
     episodeClaims:member.episodeClaims
   }));
@@ -166,12 +170,15 @@ function buildOffer(candidatePackage, acceptanceBasis = buildAcceptanceBasis(can
   return freeze({ message, offerId, dedupKey, messageId });
 }
 
-function buildPublication(draft, publishedAtMs) {
-  validateDraft(draft);
+function buildPublication(draft, publishedAtMs, runBasisMembers) {
+  validateDraft(draft, runBasisMembers);
   if (!Number.isSafeInteger(publishedAtMs) || publishedAtMs < 0) fail('P7_CANDIDATE_PUBLISH_TIME', 'Publication time is invalid.');
   const unit = draft.structureEvidence.unit;
+  const basisByKey = new Map(runBasisMembers.map((item) => [item.materialKey, item]));
   const members = [...unit.members].sort((a, b) => compareUtf8(a.materialKey, b.materialKey)).map((member, ordinal) => {
-    const value = { ordinal, materialKey:member.materialKey, role:member.role, bindingRevision:member.bindingRevision,
+    const basis = basisByKey.get(member.materialKey);
+    const value = { ordinal, materialKey:member.materialKey, role:member.role, physicalIdentity:basis.physicalIdentity,
+      sizeBytes:basis.sizeBytes, bindingRevision:member.bindingRevision,
       admittedControlRevision:member.admittedControlRevision, admittedControlProjectionDigest:member.admittedControlProjectionDigest,
       episodeClaims:member.episodeClaims };
     return { ...value, memberDigest:canonicalDigest(value) };

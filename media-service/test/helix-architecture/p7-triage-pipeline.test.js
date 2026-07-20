@@ -11,8 +11,10 @@ const rule = createDefaultTriageRuleRegistry().entries[0];
 const capabilities = createTriageCapabilities({ now:() => 1000 });
 
 function probeMember(ordinal, label, probe = {}) {
-  const materialKey = d(`material:${label}`);
-  const readHandle = { handleId:`handle-${label}`, identity:{ materialKey }, ownerDomain:'procurement', ownerScope:{}, bindingRevision:1,
+  const identity={schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v1',schemaVersion:1,mountScopeId:'mount-1',inode:String(ordinal+1),contentHashAlgorithm:'sha256',contentHash:d(`material:${label}`)};
+  identity.materialKey=canonicalDigest({schema:'physical-material-identity@1',mountScopeId:identity.mountScopeId,inode:identity.inode,contentHashAlgorithm:'sha256',contentHash:identity.contentHash});
+  const materialKey = identity.materialKey;
+  const readHandle = { handleId:`handle-${label}`, identity, ownerDomain:'procurement', ownerScope:{}, bindingRevision:1,
     endpointId:'endpoint-1', location:`shows/Demo/${label}.mkv`, mountScopeRevision:1, expectedSizeBytes:100,
     expectedMtimeNs:'1', expectedCtimeNs:'1', hashVerifiedAtMs:1, readScope:'media_probe', expiresAtMs:2000, fenceDigest:d(`fence:${label}`) };
   const mediaProbe = { sourceHandleDigest:canonicalDigest(readHandle), resultKind:'probed', container:'matroska', durationMs:1000,
@@ -44,7 +46,7 @@ test('structure preserves Selection mapping and carries series mediaType/content
   const member = probeMember(0, 'Demo.S02E03-04'); const probeBatch = batch([member]);
   const playability = capabilities.playabilityInspect.execute({ triageMaterialProbeBatch:probeBatch, procurementTriageRuleSnapshot:rule });
   const selected = { procurementRunId:'run-1', fieldId:'field-1', members:[{ ordinal:0, materialKey:member.materialKey,
-    selectionRole:'triage_input', bindingRevision:1, eligibilityRevision:1, eligibilityBasisDigest:d('eligibility'),
+    selectionRole:'triage_input', physicalIdentity:member.readHandle.identity,sizeBytes:100,bindingRevision:1, eligibilityRevision:1, eligibilityBasisDigest:d('eligibility'),
     lastSnapshotDigest:d('snapshot'), lastObservationId:'observation-1', endpointId:'endpoint-1', location:member.readHandle.location,
     realityDigest:d('reality'), provenanceDigest:d('provenance'), controlSnapshot:{}, admissionControlAction:'acquire',
     basisMemberDigest:d('basis-member') }], selectionDigest:probeBatch.selectionDigest };
@@ -75,7 +77,7 @@ test('structure preserves Selection mapping and carries series mediaType/content
     unit:structure.units[0], preallocatedManifestId:'manifest-1', inputDigest:d('manifest-input') };
   const manifest = capabilities.primaryManifestBuild.execute({ triageManifestBuildInput:manifestInput, procurementTriageRuleSnapshot:rule });
   assert.equal(manifest.memberCount, 1); assert.equal(manifest.structureKind, 'season');
-  const expectedMembers = [{ ordinal:0, materialKey:member.materialKey, role:'primary_payload', bindingRevision:1,
+  const expectedMembers = [{ ordinal:0, materialKey:member.materialKey, role:'primary_payload',physicalIdentity:member.readHandle.identity,sizeBytes:100,bindingRevision:1,
     admittedControlRevision:2, admittedControlProjectionDigest:member.admittedControlProjectionDigest,
     episodeClaims:structure.units[0].members[0].episodeClaims }];
   assert.equal(manifest.membersDigest, canonicalDigest({ schema:'procurement.primary-input-manifest-members@1', items:expectedMembers }));

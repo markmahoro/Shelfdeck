@@ -23,7 +23,9 @@ const D = (value) => canonicalDigest({ value });
 const without = (value, ...fields) => Object.fromEntries(Object.entries(value).filter(([key]) => !fields.includes(key)));
 
 function candidateDraft() {
-  const materialKey = D('material');
+  const physicalIdentity={schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v1',schemaVersion:1,mountScopeId:'mount-1',inode:'41',contentHashAlgorithm:'sha256',contentHash:D('material-content')};
+  physicalIdentity.materialKey=canonicalDigest({schema:'physical-material-identity@1',mountScopeId:physicalIdentity.mountScopeId,inode:physicalIdentity.inode,contentHashAlgorithm:'sha256',contentHash:physicalIdentity.contentHash});
+  const materialKey = physicalIdentity.materialKey;
   const episodeBase = { episodeKey:'E001', seasonClaimDigest:D('season'), claimDigest:'' };
   episodeBase.claimDigest = canonicalDigest(without(episodeBase, 'claimDigest'));
   const member = { materialKey, bindingRevision:1, admittedControlRevision:1, admittedControlProjectionDigest:D('control'),
@@ -60,7 +62,7 @@ function candidateDraft() {
     draftKind:'procurement_identity_claim', basisDigest:D('identity-basis'), draftDigest:'', producedAtMs:1,
     ...identityPayload, claimDigest:'' };
   identityClaim.claimDigest = canonicalDigest(identityPayload); identityClaim.draftDigest = identityClaim.claimDigest;
-  const manifestMembers = [{ ordinal:0, materialKey, role:member.role, bindingRevision:1, admittedControlRevision:1,
+  const manifestMembers = [{ ordinal:0, materialKey, role:member.role, physicalIdentity,sizeBytes:100,bindingRevision:1, admittedControlRevision:1,
     admittedControlProjectionDigest:member.admittedControlProjectionDigest, episodeClaims:member.episodeClaims }];
   const manifestPayload = { preallocatedManifestId:'manifest-1', procurementRunId:'run-1', runBasisDigest:D('run-basis'),
     structureEvidencePayloadDigest:D('structure-evidence'), unitId:unit.unitId, structureKind:'season', memberCount:1,
@@ -102,9 +104,10 @@ function seed(database, draft) {
     triage_rule_authority_digest,run_basis_digest,state,state_revision,candidate_package_revision_head) VALUES(?,?,?,?,?,?,?,?,?,?)`).run(
     'run-1','field-1',1,draft.triageRule.ruleRef,1,draft.triageRule.authorityDigest,draft.runBasisDigest,'active',1,0);
   const member = draft.structureEvidence.unit.members[0];
-  database.prepare(`INSERT INTO proc_run_materials(procurement_run_id,ordinal,material_key,binding_revision,admitted_control_revision,
-    admitted_control_projection_digest,selection_state,candidate_package_id) VALUES(?,?,?,?,?,?,?,?)`).run(
-    'run-1',0,member.materialKey,member.bindingRevision,member.admittedControlRevision,member.admittedControlProjectionDigest,'run_selection',null);
+  const physicalIdentity={schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v1',schemaVersion:1,mountScopeId:'mount-1',inode:'41',contentHashAlgorithm:'sha256',contentHash:D('material-content')};
+  database.prepare(`INSERT INTO proc_run_materials(procurement_run_id,ordinal,material_key,mount_scope_id,inode,content_hash_algorithm,content_hash,size_bytes,binding_revision,admitted_control_revision,
+    admitted_control_projection_digest,selection_state,candidate_package_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+    'run-1',0,member.materialKey,physicalIdentity.mountScopeId,physicalIdentity.inode,physicalIdentity.contentHashAlgorithm,physicalIdentity.contentHash,100,member.bindingRevision,member.admittedControlRevision,member.admittedControlProjectionDigest,'run_selection',null);
   database.pragma('foreign_keys = ON');
 }
 

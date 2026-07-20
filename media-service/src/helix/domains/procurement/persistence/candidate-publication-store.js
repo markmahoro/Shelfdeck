@@ -26,13 +26,13 @@ function foundationDefinition(schemaManifest) {
 function procurementDefinition(schemaManifest) {
   return createRepositoryDefinition({ repositoryId:'candidate_publication', owner:'procurement', schemaManifest, statements:{
     find_run:{ kind:'select-one', tableId:'proc_procurement_runs', columns:['procurement_run_id','field_id','access_revision','triage_rule_ref','triage_rule_revision','triage_rule_authority_digest','run_basis_digest','state','candidate_package_revision_head'], keyColumns:['procurement_run_id'], safeIntegers:true },
-    find_members:{ kind:'select-all', tableId:'proc_run_materials', columns:['ordinal','material_key','binding_revision','admitted_control_revision','admitted_control_projection_digest','selection_state','candidate_package_id'], keyColumns:['procurement_run_id'], safeIntegers:true },
+    find_members:{ kind:'select-all', tableId:'proc_run_materials', columns:['ordinal','material_key','mount_scope_id','inode','content_hash_algorithm','content_hash','size_bytes','binding_revision','admitted_control_revision','admitted_control_projection_digest','selection_state','candidate_package_id'], keyColumns:['procurement_run_id'], safeIntegers:true },
     find_candidate:{ kind:'select-one', tableId:'proc_candidate_packages', columns:['candidate_package_id','package_digest'], keyColumns:['candidate_package_id'] },
     cas_run_head:{ kind:'update', tableId:'proc_procurement_runs', setColumns:['candidate_package_revision_head'], keyColumns:['procurement_run_id'], compareColumns:[{ column:'candidate_package_revision_head', parameter:'expected_head' },{ column:'run_basis_digest', parameter:'expected_run_basis_digest' }] },
     reserve_member:{ kind:'update', tableId:'proc_run_materials', setColumns:['selection_state','candidate_package_id','reservation_updated_at_ms'], keyColumns:['procurement_run_id','material_key'], compareColumns:[{ column:'selection_state', parameter:'expected_selection_state' },{ column:'binding_revision', parameter:'expected_binding_revision' },{ column:'admitted_control_revision', parameter:'expected_control_revision' },{ column:'admitted_control_projection_digest', parameter:'expected_control_digest' }] },
     insert_package:{ kind:'insert', tableId:'proc_candidate_packages', columns:['candidate_package_id','procurement_run_id','package_revision','field_id','field_access_revision','field_context_digest','media_type','content_profile','structure_kind','display_identity','identity_metadata_schema_ref','identity_metadata_json','identity_metadata_digest','identity_claim_schema_ref','identity_claim_json','identity_claim_digest','structure_evidence_id','structure_evidence_payload_digest','structure_unit_id','structure_unit_digest','triage_rule_ref','triage_rule_revision','triage_rule_authority_digest','primary_input_manifest_id','manifest_digest','related_reference_set_digest','member_control_evidence_set_digest','package_digest','state','published_at_ms'] },
     insert_continuity:{ kind:'insert', tableId:'proc_candidate_season_continuity_claims', columns:['candidate_package_id','claim_kind','claim_namespace','claim_key','claim_digest','evidence_digest'] },
-    insert_primary:{ kind:'insert', tableId:'proc_candidate_primary_materials', columns:['candidate_package_id','ordinal','material_key','role','binding_revision','admitted_control_revision','admitted_control_projection_digest','member_digest'] },
+    insert_primary:{ kind:'insert', tableId:'proc_candidate_primary_materials', columns:['candidate_package_id','ordinal','material_key','role','mount_scope_id','inode','content_hash_algorithm','content_hash','size_bytes','binding_revision','admitted_control_revision','admitted_control_projection_digest','member_digest'] },
     insert_episode:{ kind:'insert', tableId:'proc_candidate_primary_material_episode_claims', columns:['candidate_package_id','primary_ordinal','episode_key','season_claim_digest','claim_digest'] },
     insert_related:{ kind:'insert', tableId:'proc_candidate_related_references', columns:['candidate_package_id','reference_id','primary_ordinal','role',
       'material_key','mount_scope_id','inode','content_hash_algorithm','content_hash','endpoint_id','location','checksum_algorithm','checksum_hex',
@@ -105,8 +105,13 @@ function createCandidatePublicationStore(options) {
             Number(run.candidate_package_revision_head) !== draft.expectedPackageRevision - 1) {
           fail('P7_CANDIDATE_RUN_FENCE_STALE', 'Candidate Draft no longer matches the exact Run fence.');
         }
-        publication = buildPublication(draft, context.commitTimeMs);
         const rows = new Map(repo.invoke('find_members', { procurement_run_id:draft.procurementRunId }).map((row) => [row.material_key, row]));
+        const runBasisMembers = draft.structureEvidence.unit.members.map((member) => { const row=rows.get(member.materialKey); return row && {
+          materialKey:row.material_key, physicalIdentity:{ schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v1', schemaVersion:1,
+            materialKey:row.material_key, mountScopeId:row.mount_scope_id, inode:String(row.inode),
+            contentHashAlgorithm:row.content_hash_algorithm, contentHash:row.content_hash }, sizeBytes:Number(row.size_bytes) }; });
+        if (runBasisMembers.some((item) => !item)) fail('P7_CANDIDATE_MEMBER_FENCE_STALE', 'Candidate member is absent from the immutable Run Selection.');
+        publication = buildPublication(draft, context.commitTimeMs, runBasisMembers);
         for (const member of publication.manifest.members) {
           const row = rows.get(member.materialKey);
           if (!row || row.selection_state !== 'run_selection' || row.candidate_package_id !== null ||
@@ -162,7 +167,9 @@ function createCandidatePublicationStore(options) {
         for (const member of manifest.members) {
           ordinals.set(member.materialKey, member.ordinal);
           repo.invoke('insert_primary', { candidate_package_id:pkg.candidatePackageId, ordinal:member.ordinal, material_key:member.materialKey,
-            role:member.role, binding_revision:member.bindingRevision, admitted_control_revision:member.admittedControlRevision,
+            role:member.role, mount_scope_id:member.physicalIdentity.mountScopeId, inode:member.physicalIdentity.inode,
+            content_hash_algorithm:member.physicalIdentity.contentHashAlgorithm, content_hash:member.physicalIdentity.contentHash,
+            size_bytes:member.sizeBytes, binding_revision:member.bindingRevision, admitted_control_revision:member.admittedControlRevision,
             admitted_control_projection_digest:member.admittedControlProjectionDigest, member_digest:member.memberDigest });
           for (const episode of member.episodeClaims) repo.invoke('insert_episode', { candidate_package_id:pkg.candidatePackageId,
             primary_ordinal:member.ordinal, episode_key:episode.episodeKey, season_claim_digest:episode.seasonClaimDigest,

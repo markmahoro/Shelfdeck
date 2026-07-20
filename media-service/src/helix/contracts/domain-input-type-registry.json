@@ -264,7 +264,7 @@
       "relativePath": "domain-types/CandidateDeliverySnapshot/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "a005775c73d34a08aee03800a9842f2b3d69ac72d870bb2769f805998aef541a"
+        "value": "b3dc89bb7e7b3984e735a3d3a5a6595eee5d71334ff34a42fe391d0e02181c17"
       },
       "usedBy": [
         {
@@ -1789,7 +1789,7 @@
       "relativePath": "domain-types/SelectedFieldMaterialSet/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "27040e0bc34dd5d2f32edb7dd62efab990bc8e2ba0e2d3d83dcc92d7d4d50d86"
+        "value": "60989d8bb700e477b6a45b3399641deb0b9e702f0c2b37a8e6a09d4a9a45d5d3"
       },
       "usedBy": [
         {

@@ -273,6 +273,7 @@ function selectedFieldMaterialSetSchema() {
   }, ['materialKey', 'resultKind', 'controlRevision', 'controlState', 'regionProjection', 'evidenceDigest', 'projectionDigest']);
   const member = object({
     ordinal: nonNegativeInteger(), materialKey: digest(), selectionRole: { const: 'triage_input' },
+    physicalIdentity: typeRef('PhysicalMaterialIdentity'), sizeBytes: nonNegativeInteger(),
     bindingRevision: positiveInteger(), eligibilityRevision: positiveInteger(), eligibilityBasisDigest: digest(),
     lastSnapshotDigest: digest(), lastObservationId: id(), endpointId: id(), location: text(), realityDigest: digest(),
     provenanceDigest: digest(), controlSnapshot, admissionControlAction: enumText('acquire', 'assert_same_field'),
@@ -314,6 +315,7 @@ function candidateDeliverySnapshotSchema() {
   const episode = object({ episodeKey: text(), seasonClaimDigest: digest(), claimDigest: digest() });
   const delivery = object({
     ordinal: nonNegativeInteger(), materialKey: digest(), role: enumText('primary_payload', 'structural_dependency'),
+    physicalIdentity: typeRef('PhysicalMaterialIdentity'), sizeBytes: nonNegativeInteger(),
     bindingRevision: positiveInteger(), admittedControlRevision: positiveInteger(), admittedControlProjectionDigest: digest(),
     endpointId: id(), location: text(), lastSnapshotDigest: digest(), realityDigest: digest(), provenanceDigest: digest(),
     manifestMemberDigest: digest(), episodeClaims: arrayOf(episode, 32), deliveryMemberDigest: digest()

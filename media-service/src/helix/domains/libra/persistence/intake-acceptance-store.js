@@ -118,7 +118,10 @@ function createIntakeAcceptanceStore(options){
         for(const claim of candidateClaims)s.invoke('insert_claim',{subject_id:target,claim_kind:claim.claimKind,claim_namespace:claim.claimNamespace,claim_key:claim.claimKey,
           claim_digest:claim.claimDigest,provenance_kind:claim.provenanceKind,provenance_ref:claim.provenanceRef,accepted_at_ms:at});
         for(const key of candidateEpisodes)s.invoke('insert_episode',{subject_id:target,episode_key:key,first_intake_decision_id:decision.decisionId,source_episode_scope_digest:decision.candidateEpisodeScope.episodeScopeDigest,accepted_at_ms:at});
-        for(const item of payload.bindingDraft.bindings){b.invoke('insert_binding',{subject_id:target,material_key:item.materialKey,role:item.role,endpoint_id:item.endpointId,location:item.location,
+        for(const item of payload.bindingDraft.bindings){b.invoke('insert_binding',{subject_id:target,material_key:item.materialKey,role:item.role,
+          mount_scope_id:item.physicalIdentity.mountScopeId,inode:item.physicalIdentity.inode,
+          content_hash_algorithm:item.physicalIdentity.contentHashAlgorithm,content_hash:item.physicalIdentity.contentHash,size_bytes:item.sizeBytes,
+          endpoint_id:item.endpointId,location:item.location,
           binding_revision:item.bindingRevision,health_state:'active',evidence_digest:item.locationEvidenceDigest,current:1});for(const claim of item.episodeClaims)b.invoke('insert_binding_episode',{
           subject_id:target,material_key:item.materialKey,binding_revision:item.bindingRevision,episode_key:claim.episodeKey,season_claim_digest:claim.seasonClaimDigest,claim_digest:claim.claimDigest});}
         if(s.invoke('advance_head',{current_revision:headRevision,head_digest:continuityHeadDigest(headRevision),updated_at_ms:at,head_id:CONTINUITY_HEAD_ID,

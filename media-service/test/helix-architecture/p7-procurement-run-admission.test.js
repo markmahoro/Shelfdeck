@@ -32,7 +32,7 @@ function controlledSnapshot(material) { const evidence={schema:'foundation.mater
   const value={materialKey:material.materialKey,resultKind:'available',controlRevision:1,controlState:'controlled',ownerDomain:'procurement',
     ownerScopeType:'material_field',ownerScopeId:'field-1',regionProjection:'procurement',evidenceDigest:canonicalDigest(evidence)};
   return {...value,projectionDigest:canonicalDigest(value)}; }
-function member(material, control) { const value={ordinal:0,materialKey:material.materialKey,selectionRole:'triage_input',bindingRevision:1,
+function member(material, control) { const value={ordinal:0,materialKey:material.materialKey,selectionRole:'triage_input',physicalIdentity:material,sizeBytes:100,bindingRevision:1,
   eligibilityRevision:2,eligibilityBasisDigest:D('eligibility'),lastSnapshotDigest:D('snapshot'),lastObservationId:'observation-1',
   endpointId:'endpoint-1',location:'/field/title.mkv',realityDigest:D('reality'),provenanceDigest:D('provenance'),
   controlSnapshot:control,admissionControlAction:control.controlState==='controlled'?'assert_same_field':'acquire'}; return {...value,basisMemberDigest:canonicalDigest(value)}; }
@@ -61,7 +61,7 @@ function retryIntent(registry, runBasis, material, expectedControl) {
     retryAdmissionHead,members,retryScopeDigest,preconditionSetDigest,actorId:'actor-1',idempotencyKey:'retry-key-1'};
   return {...value,intentDigest:canonicalDigest(value)};
 }
-function retryRunBasis(registry, material, control) { const rawMember={ordinal:0,materialKey:material.materialKey,selectionRole:'triage_input',bindingRevision:1,
+function retryRunBasis(registry, material, control) { const rawMember={ordinal:0,materialKey:material.materialKey,selectionRole:'triage_input',physicalIdentity:material,sizeBytes:100,bindingRevision:1,
   eligibilityRevision:2,eligibilityBasisDigest:D('eligibility'),lastSnapshotDigest:D('snapshot'),lastObservationId:'observation-1',endpointId:'endpoint-1',
   location:'/field/title.mkv',realityDigest:D('reality'),provenanceDigest:D('provenance'),controlSnapshot:control,admissionControlAction:'assert_same_field'};
   const selected={procurementRunId:'run-2',fieldId:'field-1',members:[{...rawMember,basisMemberDigest:canonicalDigest(rawMember)}]};

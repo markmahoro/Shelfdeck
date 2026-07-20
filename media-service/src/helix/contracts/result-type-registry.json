@@ -575,7 +575,7 @@
       "relativePath": "types/LibraBindingDraft/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "1caed9e100428433534bdeb8c40ca14e2f98fcbbdcb106fed2ca8ebf76bf7c8e"
+        "value": "3771455dc27d9f97e02e9dc741e076ccb130dbc00d3c147fb02d2e97b06f9d72"
       },
       "source": {
         "section": "8.6.19",
@@ -1081,7 +1081,7 @@
       "relativePath": "types/PrimaryInputManifest/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "76b4944d3b58a08a04632274217ed826c406d3602a69b518f1e7a9a0f4c44cdf"
+        "value": "d280a180e605c76869bfef714c90a09f77bddd622cc7a4e754f80bbf374f411c"
       },
       "source": {
         "section": "8.6.19",

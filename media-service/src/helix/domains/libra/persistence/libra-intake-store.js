@@ -43,8 +43,8 @@ function createLibraIntakeRepositoryDefinitions(schemaManifest) {
     find_episodes:{ kind:'select-all', tableId:'libra_subject_episode_scopes', columns:['subject_id','episode_key','first_intake_decision_id','source_episode_scope_digest','accepted_at_ms'], keyColumns:['subject_id'] }
   }});
   const bindings = createRepositoryDefinition({ repositoryId:'libra_binding_repository', owner:'libra', schemaManifest, statements:{
-    insert_binding:{ kind:'insert', tableId:'libra_material_bindings', columns:['subject_id','material_key','role','endpoint_id','location','binding_revision','health_state','evidence_digest','current'] },
-    find_bindings:{ kind:'select-all', tableId:'libra_material_bindings', columns:['subject_id','material_key','role','endpoint_id','location','binding_revision','health_state','evidence_digest','current'], keyColumns:['subject_id'] },
+    insert_binding:{ kind:'insert', tableId:'libra_material_bindings', columns:['subject_id','material_key','role','mount_scope_id','inode','content_hash_algorithm','content_hash','size_bytes','endpoint_id','location','binding_revision','health_state','evidence_digest','current'] },
+    find_bindings:{ kind:'select-all', tableId:'libra_material_bindings', columns:['subject_id','material_key','role','mount_scope_id','inode','content_hash_algorithm','content_hash','size_bytes','endpoint_id','location','binding_revision','health_state','evidence_digest','current'], keyColumns:['subject_id'], safeIntegers:true },
     insert_binding_episode:{ kind:'insert', tableId:'libra_material_binding_episode_claims', columns:['subject_id','material_key','binding_revision','episode_key','season_claim_digest','claim_digest'] },
     find_binding_episodes:{ kind:'select-all', tableId:'libra_material_binding_episode_claims', columns:['subject_id','material_key','binding_revision','episode_key','season_claim_digest','claim_digest'], keyColumns:['subject_id','material_key','binding_revision'] }
   }});

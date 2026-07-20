@@ -48,6 +48,13 @@
               "structural_dependency"
             ]
           },
+          "physicalIdentity": {
+            "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v1"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "minimum": 0
+          },
           "bindingRevision": {
             "type": "integer",
             "minimum": 1
@@ -129,6 +136,8 @@
           "ordinal",
           "materialKey",
           "role",
+          "physicalIdentity",
+          "sizeBytes",
           "bindingRevision",
           "admittedControlRevision",
           "admittedControlProjectionDigest",

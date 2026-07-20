@@ -21,7 +21,7 @@ function digest(value, field) { if (!SHA256.test(value || '')) fail('P7_RUN_ADMI
 function toNumber(value, field) { const number = Number(value); if (!Number.isSafeInteger(number)) fail('P7_RUN_ADMISSION_INTEGER_RANGE', field + ' is outside the safe integer range.'); return number; }
 
 function procurementRepository(schemaManifest) {
-  const materialColumns = ['field_id','material_key','mount_scope_id','inode','content_hash_algorithm','content_hash','endpoint_id','binding_revision',
+  const materialColumns = ['field_id','material_key','mount_scope_id','inode','content_hash_algorithm','content_hash','size_bytes','endpoint_id','binding_revision',
     'current_location','reality_digest','provenance_digest','last_snapshot_digest','last_observation_id','eligibility_revision','eligibility_state',
     'eligibility_basis_digest','eligibility_field_status','eligibility_observation_revision','eligibility_policy_revision','selection_basis_digest',
     'control_projection','control_projection_revision','control_projection_digest'];
@@ -30,7 +30,7 @@ function procurementRepository(schemaManifest) {
     'triage_rule_schema_ref','triage_rule_digest','triage_rule_authority_digest','run_basis_digest','retry_intent_id','state','state_revision',
     'seal_outcome','seal_decision_id','seal_decision_digest','seal_evidence_digest','admission_commit_marker','admission_result_digest',
     'seal_commit_marker','seal_result_digest','priority_class','created_at_ms','finished_at_ms'];
-  const runMaterialColumns = ['procurement_run_id','ordinal','material_key','selection_role','binding_revision','eligibility_revision',
+  const runMaterialColumns = ['procurement_run_id','ordinal','material_key','selection_role','mount_scope_id','inode','content_hash_algorithm','content_hash','size_bytes','binding_revision','eligibility_revision',
     'eligibility_basis_digest','last_snapshot_digest','last_observation_id','endpoint_id','location','reality_digest','provenance_digest',
     'expected_control_revision','expected_control_state','expected_control_owner_domain','expected_control_owner_scope_type',
     'expected_control_owner_scope_id','expected_control_region_projection','expected_control_evidence_digest','expected_control_projection_digest',
@@ -115,6 +115,9 @@ function createProcurementRunAdmissionStore(options) {
             toNumber(row.eligibility_revision, 'eligibilityRevision') !== member.eligibilityRevision || row.eligibility_basis_digest !== member.eligibilityBasisDigest ||
             row.last_snapshot_digest !== member.lastSnapshotDigest || row.last_observation_id !== member.lastObservationId || row.endpoint_id !== member.endpointId ||
             row.current_location !== member.location || row.reality_digest !== member.realityDigest || row.provenance_digest !== member.provenanceDigest ||
+            row.mount_scope_id !== member.physicalIdentity.mountScopeId || String(row.inode) !== member.physicalIdentity.inode ||
+            row.content_hash_algorithm !== member.physicalIdentity.contentHashAlgorithm || row.content_hash !== member.physicalIdentity.contentHash ||
+            toNumber(row.size_bytes, 'sizeBytes') !== member.sizeBytes ||
             row.eligibility_field_status !== 'active' || toNumber(row.eligibility_observation_revision, 'eligibilityObservationRevision') !== basis.terminalObservation.revision ||
             toNumber(row.eligibility_policy_revision, 'eligibilityPolicyRevision') !== basis.extractionPolicy.revision || row.control_projection_digest !== snapshot.projectionDigest) {
           fail('P7_RUN_ADMISSION_MEMBER_STALE', 'Selected Material no longer matches its frozen eligible snapshot.', { materialKey:member.materialKey });
@@ -177,7 +180,9 @@ function createProcurementRunAdmissionStore(options) {
       const resultByKey = new Map(controlResults.map((item) => [item.materialKey, item]));
       for (const member of basis.selectedFieldMaterialSet.members) { const admitted = resultByKey.get(member.materialKey); const controlSnapshot = member.controlSnapshot;
         repo.invoke('insert_run_material', { procurement_run_id:basis.procurementRunId, ordinal:member.ordinal, material_key:member.materialKey,
-          selection_role:member.selectionRole, binding_revision:member.bindingRevision, eligibility_revision:member.eligibilityRevision,
+          selection_role:member.selectionRole, mount_scope_id:member.physicalIdentity.mountScopeId, inode:member.physicalIdentity.inode,
+          content_hash_algorithm:member.physicalIdentity.contentHashAlgorithm, content_hash:member.physicalIdentity.contentHash,
+          size_bytes:member.sizeBytes, binding_revision:member.bindingRevision, eligibility_revision:member.eligibilityRevision,
           eligibility_basis_digest:member.eligibilityBasisDigest, last_snapshot_digest:member.lastSnapshotDigest, last_observation_id:member.lastObservationId,
           endpoint_id:member.endpointId, location:member.location, reality_digest:member.realityDigest, provenance_digest:member.provenanceDigest,
           expected_control_revision:controlSnapshot.controlRevision, expected_control_state:controlSnapshot.controlState,

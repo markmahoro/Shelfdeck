@@ -39,6 +39,13 @@
           "selectionRole": {
             "const": "triage_input"
           },
+          "physicalIdentity": {
+            "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v1"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "minimum": 0
+          },
           "bindingRevision": {
             "type": "integer",
             "minimum": 1
@@ -162,6 +169,8 @@
           "ordinal",
           "materialKey",
           "selectionRole",
+          "physicalIdentity",
+          "sizeBytes",
           "bindingRevision",
           "eligibilityRevision",
           "eligibilityBasisDigest",

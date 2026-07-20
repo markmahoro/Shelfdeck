@@ -7,8 +7,10 @@ const { activeTriageRule, createDefaultTriageRuleRegistry, createProcurementRunE
   createSelectedFieldMaterialSet } = require('../../src/helix/domains/procurement/model/procurement-run-contracts');
 const { retryHeadStaleReason, retryMemberStaleReason } = require('../../src/helix/domains/procurement/model/procurement-retry-contracts');
 
-const MATERIAL = 'a'.repeat(64);
 const DIGEST = 'b'.repeat(64);
+const IDENTITY = {schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v1',schemaVersion:1,mountScopeId:'mount-1',inode:'42',contentHashAlgorithm:'sha256',contentHash:DIGEST};
+IDENTITY.materialKey=canonicalDigest({schema:'physical-material-identity@1',mountScopeId:IDENTITY.mountScopeId,inode:IDENTITY.inode,contentHashAlgorithm:'sha256',contentHash:IDENTITY.contentHash});
+const MATERIAL = IDENTITY.materialKey;
 function controlSnapshot() {
   const evidence = { schema:'foundation.material-control-evidence@1', materialKey:MATERIAL, resultKind:'available',
     controlRevision:0, controlState:'uncontrolled' };
@@ -17,7 +19,7 @@ function controlSnapshot() {
   return { ...basis, projectionDigest:canonicalDigest(basis) };
 }
 function member(overrides = {}) {
-  const value = { ordinal:0, materialKey:MATERIAL, selectionRole:'triage_input', bindingRevision:1, eligibilityRevision:2,
+  const value = { ordinal:0, materialKey:MATERIAL, selectionRole:'triage_input', physicalIdentity:IDENTITY,sizeBytes:100,bindingRevision:1, eligibilityRevision:2,
     eligibilityBasisDigest:DIGEST, lastSnapshotDigest:DIGEST, lastObservationId:'observation-1', endpointId:'endpoint-1',
     location:'/field/title.mkv', realityDigest:DIGEST, provenanceDigest:DIGEST, controlSnapshot:controlSnapshot(),
     admissionControlAction:'acquire', ...overrides };

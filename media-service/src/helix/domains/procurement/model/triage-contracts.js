@@ -224,7 +224,10 @@ function resolveIdentity(input, rule, options = {}) {
 
 function buildPrimaryManifestDraft(input, rule, options = {}) {
   validateTriageRuleSnapshot(rule); const members = [...input.unit.members].sort((a,b) => compareUtf8(a.materialKey,b.materialKey)).map((member, ordinal) => ({
-    ordinal, materialKey:member.materialKey, role:member.role, bindingRevision:member.bindingRevision,
+    ordinal, materialKey:member.materialKey, role:member.role,
+    physicalIdentity:input.selectedFieldMaterialSet.members.find((item)=>item.materialKey===member.materialKey).physicalIdentity,
+    sizeBytes:input.selectedFieldMaterialSet.members.find((item)=>item.materialKey===member.materialKey).sizeBytes,
+    bindingRevision:member.bindingRevision,
     admittedControlRevision:member.admittedControlRevision, admittedControlProjectionDigest:member.admittedControlProjectionDigest,
     episodeClaims:member.episodeClaims
   }));

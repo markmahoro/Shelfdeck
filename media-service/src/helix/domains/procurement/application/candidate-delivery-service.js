@@ -61,7 +61,10 @@ function reconstruct(rows) {
   }
   for (const values of episodes.values()) values.sort((a, b) => compareUtf8(a.episodeKey, b.episodeKey));
   const manifestMembers = primaries.map((row) => {
-    const value = { ordinal:Number(row.ordinal), materialKey:row.material_key, role:row.role,
+    const physicalIdentity = { schemaRef:IDENTITY_SCHEMA, schemaVersion:1, materialKey:row.material_key,
+      mountScopeId:row.mount_scope_id, inode:String(row.inode), contentHashAlgorithm:row.content_hash_algorithm, contentHash:row.content_hash };
+    const value = { ordinal:Number(row.ordinal), materialKey:row.material_key, role:row.role, physicalIdentity,
+      sizeBytes:Number(row.size_bytes),
       bindingRevision:Number(row.binding_revision), admittedControlRevision:Number(row.admitted_control_revision),
       admittedControlProjectionDigest:row.admitted_control_projection_digest, episodeClaims:episodes.get(Number(row.ordinal)) || [] };
     const memberDigest = canonicalDigest(value);
@@ -132,10 +135,13 @@ function reconstruct(rows) {
   const deliveries = manifestMembers.map((member) => {
     const row = runMembers.get(member.materialKey);
     if (!row || Number(row.binding_revision) !== member.bindingRevision || Number(row.admitted_control_revision) !== member.admittedControlRevision ||
-        row.admitted_control_projection_digest !== member.admittedControlProjectionDigest) {
+        row.admitted_control_projection_digest !== member.admittedControlProjectionDigest || row.mount_scope_id !== member.physicalIdentity.mountScopeId ||
+        String(row.inode) !== member.physicalIdentity.inode || row.content_hash_algorithm !== member.physicalIdentity.contentHashAlgorithm ||
+        row.content_hash !== member.physicalIdentity.contentHash || Number(row.size_bytes) !== member.sizeBytes) {
       fail('P8_CANDIDATE_DELIVERY_RUN_BASIS', 'Manifest member does not match its immutable Run Basis row.');
     }
-    const value = { ordinal:member.ordinal, materialKey:member.materialKey, role:member.role, bindingRevision:member.bindingRevision,
+    const value = { ordinal:member.ordinal, materialKey:member.materialKey, role:member.role,
+      physicalIdentity:member.physicalIdentity, sizeBytes:member.sizeBytes, bindingRevision:member.bindingRevision,
       admittedControlRevision:member.admittedControlRevision, admittedControlProjectionDigest:member.admittedControlProjectionDigest,
       endpointId:row.endpoint_id, location:row.location, lastSnapshotDigest:row.last_snapshot_digest, realityDigest:row.reality_digest,
       provenanceDigest:row.provenance_digest, manifestMemberDigest:member.memberDigest, episodeClaims:member.episodeClaims };

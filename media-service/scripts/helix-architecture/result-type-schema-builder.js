@@ -166,6 +166,7 @@ const special = {
   'PrimaryInputManifest.memberCount': positiveInteger(),
   'PrimaryInputManifest.members': { ...arrayOf(object({
     ordinal: nonNegativeInteger(), materialKey: digest(), role: enumText('primary_payload', 'structural_dependency'),
+    physicalIdentity: ref('PhysicalMaterialIdentity'), sizeBytes: nonNegativeInteger(),
     bindingRevision: positiveInteger(), admittedControlRevision: positiveInteger(), admittedControlProjectionDigest: digest(),
     episodeClaims: arrayOf(triageEpisodeClaim(), 32), memberDigest: digest()
   })), minItems: 1 },
@@ -220,7 +221,8 @@ const special = {
     locationEvidenceDigest: digest(), readHandleDigest: digest(), verificationDigest: digest() }), 1024),
   'LibraBindingDraft.subjectRef': object({ subjectId: id(), resolutionKind: enumText('new_subject', 'season_extension') }),
   'LibraBindingDraft.bindings': arrayOf(object({
-    materialKey: digest(), role: enumText('primary_payload', 'structural_dependency'), endpointId: id(), location: text(),
+    materialKey: digest(), role: enumText('primary_payload', 'structural_dependency'),
+    physicalIdentity: ref('PhysicalMaterialIdentity'), sizeBytes: nonNegativeInteger(), endpointId: id(), location: text(),
     bindingRevision: { const: 1 }, locationEvidenceDigest: digest(),
     episodeClaims: arrayOf(object({ episodeKey: text(), seasonClaimDigest: digest(), claimDigest: digest() }), 32), bindingDigest: digest()
   }), 1024),

@@ -15,8 +15,10 @@ const D = (value) => canonicalDigest({ value });
 const without = (value, ...fields) => Object.fromEntries(Object.entries(value).filter(([key]) => !fields.includes(key)));
 
 function ownerRows() {
-  const materialKey=D('primary');
-  const memberBase={ ordinal:0,materialKey,role:'primary_payload',bindingRevision:1,admittedControlRevision:1,
+  const primaryIdentity={schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v1',schemaVersion:1,mountScopeId:'mount-primary',inode:'41',contentHashAlgorithm:'sha256',contentHash:D('primary-content'),materialKey:''};
+  primaryIdentity.materialKey=canonicalDigest({schema:'physical-material-identity@1',mountScopeId:primaryIdentity.mountScopeId,inode:primaryIdentity.inode,contentHashAlgorithm:'sha256',contentHash:primaryIdentity.contentHash});
+  const materialKey=primaryIdentity.materialKey;
+  const memberBase={ ordinal:0,materialKey,role:'primary_payload',physicalIdentity:primaryIdentity,sizeBytes:100,bindingRevision:1,admittedControlRevision:1,
     admittedControlProjectionDigest:D('control'),episodeClaims:[] };
   const member={ ...memberBase,memberDigest:canonicalDigest(memberBase) };
   const membersDigest=canonicalDigest({ schema:'procurement.primary-input-manifest-members@1',items:[memberBase] });
@@ -62,13 +64,15 @@ function ownerRows() {
       related_reference_set_digest:relatedReferenceSetDigest,member_control_evidence_set_digest:D('controls'),
       package_digest:candidatePackage.packageDigest,state:'published',published_at_ms:100 },
     run:{ procurement_run_id:'run-1',run_basis_digest:D('run') },continuity:[],
-    primaries:[{ ordinal:0,material_key:materialKey,role:'primary_payload',binding_revision:1,admitted_control_revision:1,
+    primaries:[{ ordinal:0,material_key:materialKey,role:'primary_payload',mount_scope_id:primaryIdentity.mountScopeId,inode:primaryIdentity.inode,
+      content_hash_algorithm:'sha256',content_hash:primaryIdentity.contentHash,size_bytes:100,binding_revision:1,admitted_control_revision:1,
       admitted_control_projection_digest:D('control'),member_digest:member.memberDigest }],episodes:[],
     related:[{ reference_id:reference.referenceId,primary_ordinal:0,role:reference.role,material_key:identity.materialKey,
       mount_scope_id:identity.mountScopeId,inode:identity.inode,content_hash_algorithm:'sha256',content_hash:identity.contentHash,
       endpoint_id:reference.endpointId,location:reference.location,checksum_algorithm:'sha256',checksum_hex:identity.contentHash,
       association_evidence_digest:reference.associationEvidenceDigest,reference_digest:reference.referenceDigest }],
-    runMembers:[{ ordinal:0,material_key:materialKey,binding_revision:1,last_snapshot_digest:D('snapshot'),endpoint_id:'endpoint-1',
+    runMembers:[{ ordinal:0,material_key:materialKey,mount_scope_id:primaryIdentity.mountScopeId,inode:primaryIdentity.inode,
+      content_hash_algorithm:'sha256',content_hash:primaryIdentity.contentHash,size_bytes:100,binding_revision:1,last_snapshot_digest:D('snapshot'),endpoint_id:'endpoint-1',
       location:'/field/movie.mkv',reality_digest:D('reality'),provenance_digest:D('provenance'),admitted_control_revision:1,
       admitted_control_projection_digest:D('control'),selection_state:'transferred',candidate_package_id:'candidate-1' }]
   } };
