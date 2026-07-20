@@ -259,7 +259,9 @@ const JSON_LIMIT_OVERRIDES = Object.freeze({
   'fx_event_result_bindings.evidence_json': 64 * 1024,
   'people_registration_candidates.candidate_json': 16 * 1024,
   'people_merge_candidates.candidate_json': 16 * 1024,
-  'libra_runs.execution_basis_record_json': 1024 * 1024
+  'libra_runs.execution_basis_record_json': 1024 * 1024,
+  'libra_run_revisions.transition_evidence_json': 1024 * 1024,
+  'libra_workspaces.space_admission_evidence_json': 16 * 1024
 });
 const CURRENT_POINTER_TARGETS = Object.freeze({
   fx_workflow_events: [[['event_id', 'current_progress_revision'], 'fx_event_progress', ['event_id', 'revision']]],

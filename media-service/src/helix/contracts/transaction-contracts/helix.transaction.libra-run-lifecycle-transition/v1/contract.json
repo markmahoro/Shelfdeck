@@ -7,7 +7,7 @@
     "displayName": "Libra Run Lifecycle Transition",
     "ownerScope": "libra",
     "commitClass": "domain_fact_commit",
-    "atomicFactSet": "complete `LibraRunLifecycleDecision@1` + expected Run state revision/digest + expected Run admission head/active scope set CAS + transition-specific fresh Evidence + Run/current revision CAS + immutable new Run revision + durable `LibraRunLifecycleResult@1`/commit marker；complete variant还原子消费`ArcaProductAcceptedMessage@1`、写Libra Delivery Receipt与Inbox；只允许8.6.21 closed transition set，`hasOutbox=false`，不得创建replacement Run、Workspace效果或Package",
+    "atomicFactSet": "complete `LibraRunLifecycleDecision@1` + expected Run state/recovery revision/digest + expected Run admission head/active scope set CAS + variant-specific typed `LibraRunFreshnessAssessment@1|LibraRunTerminalDeliveryEvidence@1|LibraRunPriorityIntent@1|ArcaProductAcceptedMessage@1` + Run/current revision CAS + immutable new Run revision（含完整Evidence JSON与recovery snapshot）+ durable `LibraRunLifecycleResult@1`/commit marker；freshness/recovery严格执行8.6.21固定Policy/attempt/state matrix，complete原子写Delivery Receipt/Inbox；`hasOutbox=false`，不得创建replacement Run、Workspace效果或Package",
     "participants": [
       {
         "participantKind": "domain",
@@ -80,8 +80,8 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7758,
-      "lineDigest": "7201dc4664b5b84beba01cf8fb0aad488f4aed652835d8be0ad3d498aaa6f0b1"
+      "line": 7760,
+      "lineDigest": "229915efdf3e84020eb525b909ecf229ebdae086e23e51b3fb09611fa8cd314f"
     }
   }
 }

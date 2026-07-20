@@ -1798,12 +1798,18 @@ CREATE TABLE "libra_run_revisions" (
   "run_scope_digest" TEXT CHECK (length("run_scope_digest") = 64 AND "run_scope_digest" NOT GLOB '*[^0-9a-f]*'),
   "priority_class" TEXT,
   "priority_intent_digest" TEXT CHECK (length("priority_intent_digest") = 64 AND "priority_intent_digest" NOT GLOB '*[^0-9a-f]*'),
-  "transition_kind" TEXT CHECK ("transition_kind" IN ('admitted', 'suspended', 'resumed', 'reprioritized', 'superseded', 'frozen', 'discarded', 'completed')),
+  "transition_kind" TEXT CHECK ("transition_kind" IN ('admitted', 'freshness_confirmed', 'suspended', 'recovery_reassessed', 'resumed', 'reprioritized', 'superseded', 'frozen', 'discarded', 'completed')),
   "transition_decision_id" TEXT,
   "transition_decision_digest" TEXT CHECK (length("transition_decision_digest") = 64 AND "transition_decision_digest" NOT GLOB '*[^0-9a-f]*'),
   "transition_evidence_schema_ref" TEXT,
   "transition_evidence_id" TEXT,
+  "transition_evidence_json" TEXT,
   "transition_evidence_digest" TEXT CHECK (length("transition_evidence_digest") = 64 AND "transition_evidence_digest" NOT GLOB '*[^0-9a-f]*'),
+  "recovery_policy_ref" TEXT,
+  "recovery_policy_digest" TEXT CHECK (length("recovery_policy_digest") = 64 AND "recovery_policy_digest" NOT GLOB '*[^0-9a-f]*'),
+  "suspension_started_at_ms" INTEGER CHECK ("suspension_started_at_ms" >= 0),
+  "recovery_attempt_ordinal" INTEGER CHECK ("recovery_attempt_ordinal" >= 0),
+  "recovery_next_due_at_ms" INTEGER CHECK ("recovery_next_due_at_ms" >= 0),
   "expected_admission_head_revision" INTEGER NOT NULL CHECK ("expected_admission_head_revision" >= 0),
   "expected_active_scope_set_digest" TEXT CHECK (length("expected_active_scope_set_digest") = 64 AND "expected_active_scope_set_digest" NOT GLOB '*[^0-9a-f]*'),
   "committed_admission_head_revision" INTEGER CHECK ("committed_admission_head_revision" >= 1),
@@ -1812,6 +1818,8 @@ CREATE TABLE "libra_run_revisions" (
   "revision_digest" TEXT CHECK (length("revision_digest") = 64 AND "revision_digest" NOT GLOB '*[^0-9a-f]*'),
   "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
   PRIMARY KEY ("libra_run_id", "state_revision"),
+  CHECK (json_valid("transition_evidence_json")),
+  CHECK (length(CAST("transition_evidence_json" AS BLOB)) <= 1048576),
   FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
   FOREIGN KEY ("acceptance_spec_id") REFERENCES "libra_acceptance_specs" ("acceptance_spec_id") ON DELETE RESTRICT
 );
@@ -1832,6 +1840,13 @@ CREATE TABLE "libra_runs" (
   "package_revision_head" INTEGER NOT NULL DEFAULT 0 CHECK ("package_revision_head" >= 0),
   "priority_class" TEXT CHECK ("priority_class" IN ('normal', 'expedited')),
   "priority_intent_digest" TEXT CHECK (length("priority_intent_digest") = 64 AND "priority_intent_digest" NOT GLOB '*[^0-9a-f]*'),
+  "recovery_policy_ref" TEXT,
+  "recovery_policy_digest" TEXT CHECK (length("recovery_policy_digest") = 64 AND "recovery_policy_digest" NOT GLOB '*[^0-9a-f]*'),
+  "suspension_started_at_ms" INTEGER CHECK ("suspension_started_at_ms" >= 0),
+  "recovery_attempt_ordinal" INTEGER CHECK ("recovery_attempt_ordinal" >= 0),
+  "recovery_next_due_at_ms" INTEGER CHECK ("recovery_next_due_at_ms" >= 0),
+  "latest_freshness_assessment_id" TEXT,
+  "latest_freshness_assessment_digest" TEXT CHECK (length("latest_freshness_assessment_digest") = 64 AND "latest_freshness_assessment_digest" NOT GLOB '*[^0-9a-f]*'),
   "supersedes_run_id" TEXT,
   "superseded_by_run_id" TEXT,
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
@@ -1846,7 +1861,7 @@ CREATE TABLE "libra_runs" (
   FOREIGN KEY ("supersedes_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
   FOREIGN KEY ("superseded_by_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT
 );
-CREATE INDEX "idx_libra_runs_hot_01" ON "libra_runs" ("state", "priority_class", "created_at_ms");
+CREATE INDEX "idx_libra_runs_hot_01" ON "libra_runs" ("state", "recovery_next_due_at_ms", "priority_class", "created_at_ms");
 
 CREATE TABLE "libra_subject_abandon_decisions" (
   "abandon_decision_id" TEXT PRIMARY KEY,
@@ -2044,14 +2059,21 @@ CREATE TABLE "libra_workspaces" (
   "workspace_id" TEXT PRIMARY KEY,
   "libra_run_id" TEXT,
   "platform_workspace_root_id" TEXT,
+  "platform_workspace_root_kind" TEXT,
   "platform_workspace_revision" INTEGER CHECK ("platform_workspace_revision" >= 1),
   "platform_workspace_endpoint_id" TEXT,
   "platform_workspace_mount_scope_id" TEXT,
   "platform_workspace_mount_scope_revision" INTEGER CHECK ("platform_workspace_mount_scope_revision" >= 1),
   "platform_workspace_capability_digest" TEXT CHECK (length("platform_workspace_capability_digest") = 64 AND "platform_workspace_capability_digest" NOT GLOB '*[^0-9a-f]*'),
+  "platform_workspace_snapshot_digest" TEXT CHECK (length("platform_workspace_snapshot_digest") = 64 AND "platform_workspace_snapshot_digest" NOT GLOB '*[^0-9a-f]*'),
   "root_handle_ref" TEXT,
+  "space_admission_evidence_schema_ref" TEXT,
   "space_admission_evidence_id" TEXT,
+  "space_admission_evidence_json" TEXT,
   "space_admission_evidence_digest" TEXT CHECK (length("space_admission_evidence_digest") = 64 AND "space_admission_evidence_digest" NOT GLOB '*[^0-9a-f]*'),
+  "space_admission_required_bytes" INTEGER CHECK ("space_admission_required_bytes" >= 0),
+  "space_admission_available_bytes" INTEGER CHECK ("space_admission_available_bytes" >= 0),
+  "space_admission_expires_at_ms" INTEGER CHECK ("space_admission_expires_at_ms" >= 0),
   "workspace_scope_digest" TEXT CHECK (length("workspace_scope_digest") = 64 AND "workspace_scope_digest" NOT GLOB '*[^0-9a-f]*'),
   "admission_decision_digest" TEXT CHECK (length("admission_decision_digest") = 64 AND "admission_decision_digest" NOT GLOB '*[^0-9a-f]*'),
   "current_revision" INTEGER CHECK ("current_revision" >= 1),
@@ -2060,6 +2082,8 @@ CREATE TABLE "libra_workspaces" (
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
   "completed_at_ms" INTEGER CHECK ("completed_at_ms" >= 0),
   UNIQUE ("libra_run_id"),
+  CHECK (json_valid("space_admission_evidence_json")),
+  CHECK (length(CAST("space_admission_evidence_json" AS BLOB)) <= 16384),
   FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
   FOREIGN KEY ("workspace_id", "current_revision") REFERENCES "libra_workspace_revisions" ("workspace_id", "workspace_revision") ON DELETE RESTRICT
 );
@@ -2627,7 +2651,9 @@ CREATE TABLE "platform_workspace_roots" (
   "resolved_root" TEXT,
   "config_revision" INTEGER CHECK ("config_revision" >= 1),
   "capability_digest" TEXT CHECK (length("capability_digest") = 64 AND "capability_digest" NOT GLOB '*[^0-9a-f]*'),
-  "state" TEXT CHECK ("state" IN ('active', 'disabled', 'faulted')),
+  "state" TEXT CHECK ("state" IN ('active', 'inactive', 'faulted')),
+  "root_handle_ref" TEXT,
+  "snapshot_digest" TEXT CHECK (length("snapshot_digest") = 64 AND "snapshot_digest" NOT GLOB '*[^0-9a-f]*'),
   "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0)
 );
 

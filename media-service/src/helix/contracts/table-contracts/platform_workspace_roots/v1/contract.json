@@ -103,7 +103,7 @@
         "logicalType": "TEXT",
         "enumValues": [
           "active",
-          "disabled",
+          "inactive",
           "faulted"
         ],
         "primaryKeyPart": false,
@@ -113,6 +113,26 @@
       },
       {
         "ordinal": 11,
+        "name": "root_handle_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "snapshot_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 13,
         "name": "updated_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -134,7 +154,7 @@
         "column": "state",
         "enumValues": [
           "active",
-          "disabled",
+          "inactive",
           "faulted"
         ]
       }
@@ -159,16 +179,18 @@
     },
     "semanticRules": [
       "endpoint/mount scope引用Platform current Registry",
-      "root overlap/containment用normalized path unique与保存时probe验证"
+      "root overlap/containment用normalized path unique与保存时probe验证",
+      "`root_handle_ref`与`snapshot_digest`按8.6.21唯一公式由不含`resolved_root`的公开字段计算并在每次config/state revision切换时原子更新",
+      "`resolved_root`只供Platform内部containment/statvfs使用，typed runtime port不得返回"
     ],
     "rawContract": {
-      "columns": "`root_id PK, owner_scope, root_kind, endpoint_id, mount_scope_id, mount_scope_revision, resolved_root, config_revision, capability_digest, state, updated_at_ms`",
-      "constraints": "endpoint/mount scope引用Platform current Registry；root overlap/containment用normalized path unique与保存时probe验证"
+      "columns": "`root_id PK, owner_scope, root_kind, endpoint_id, mount_scope_id, mount_scope_revision, resolved_root, config_revision, capability_digest, state(active|inactive|faulted), root_handle_ref, snapshot_digest, updated_at_ms`",
+      "constraints": "endpoint/mount scope引用Platform current Registry；root overlap/containment用normalized path unique与保存时probe验证；`root_handle_ref`与`snapshot_digest`按8.6.21唯一公式由不含`resolved_root`的公开字段计算并在每次config/state revision切换时原子更新；`resolved_root`只供Platform内部containment/statvfs使用，typed runtime port不得返回"
     },
     "source": {
       "section": "8.5.13",
-      "line": 8379,
-      "lineDigest": "ed7a78af400d6959afde8c2e02e9a8f98a307650de54cc220d52d45479bd03d1"
+      "line": 8385,
+      "lineDigest": "29d80ab4fe6dfe7073903a8f6cd30d8160d8d2c8a37f5d6881ff82edd813c431"
     },
     "foreignKeys": []
   }

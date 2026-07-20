@@ -29,7 +29,31 @@ test('validates all 176 SSOT table contracts without executing DDL', () => {
   assert.equal(result.ok, true);
   assert.equal(result.tableCount, 176);
   assert.equal(result.foreignKeyCount, 209);
-  assert.equal(result.jsonColumnCount, 49);
+  assert.equal(result.jsonColumnCount, 51);
+
+  const runRevisionContract = JSON.parse(fs.readFileSync(
+    contractPath(actualContractsRoot, 'libra_run_revisions'),
+    'utf8'
+  ));
+  assert.deepEqual(runRevisionContract.contract.jsonContracts, [{
+    column: 'transition_evidence_json',
+    schemaRefColumn: 'transition_evidence_schema_ref',
+    maxBytes: 1024 * 1024,
+    source: '8.6.19-typed-payload',
+    requiresJsonValidCheck: true
+  }]);
+
+  const workspaceContract = JSON.parse(fs.readFileSync(
+    contractPath(actualContractsRoot, 'libra_workspaces'),
+    'utf8'
+  ));
+  assert.deepEqual(workspaceContract.contract.jsonContracts, [{
+    column: 'space_admission_evidence_json',
+    schemaRefColumn: 'space_admission_evidence_schema_ref',
+    maxBytes: 16 * 1024,
+    source: '8.6.19-typed-payload',
+    requiresJsonValidCheck: true
+  }]);
 });
 
 test('rejects missing PK, open JSON contract, and unresolved current pointer', () => {

@@ -7,7 +7,7 @@
     "displayName": "Libra Workspace Admission",
     "ownerScope": "libra",
     "commitClass": "domain_unit_of_work",
-    "atomicFactSet": "complete `LibraWorkspaceAdmissionDecision@1` + active Run/current state revision + Platform Workspace policy/space admission + stable Workspace identity + Foundation Workspace Registry row + Libra Workspace/current revision + durable `LibraWorkspaceAdmissionResult@1`/commit marker；同一Run只允许一个current Workspace，`hasOutbox=false`",
+    "atomicFactSet": "complete `LibraWorkspaceAdmissionDecision@1` + active Run/current state revision + current `PlatformWorkspaceRootSnapshot@1` + 未过期admitted `WorkspaceSpaceAdmissionEvidence@1` + stable Workspace identity + Foundation Workspace Registry row + Libra Workspace/current revision及完整typed Evidence快照 + durable `LibraWorkspaceAdmissionResult@1`/commit marker；Platform read participant只验证root current tuple，不向Libra暴露`resolved_root`；同一Run只允许一个current Workspace，`hasOutbox=false`",
     "participants": [
       {
         "participantKind": "domain",
@@ -68,8 +68,8 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7759,
-      "lineDigest": "f4847e4af7cdedf62f7e2e00fd183eef2c0fd24d47ad8ba535db1ae18463df11"
+      "line": 7761,
+      "lineDigest": "93e6291a266e3939b5914fa67fda5d4649136bc893309311927920dbbe9b82d5"
     }
   }
 }

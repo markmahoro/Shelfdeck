@@ -39,6 +39,16 @@
       },
       {
         "ordinal": 4,
+        "name": "platform_workspace_root_kind",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
         "name": "platform_workspace_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -48,7 +58,7 @@
         "nullable": false
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
         "name": "platform_workspace_endpoint_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -58,7 +68,7 @@
         "nullable": false
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "platform_workspace_mount_scope_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -68,7 +78,7 @@
         "nullable": false
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "platform_workspace_mount_scope_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -78,7 +88,7 @@
         "nullable": false
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "platform_workspace_capability_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -88,18 +98,8 @@
         "nullable": false
       },
       {
-        "ordinal": 9,
-        "name": "root_handle_ref",
-        "logicalType": "TEXT",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": false,
-        "inlineUnique": false,
-        "nullable": false
-      },
-      {
         "ordinal": 10,
-        "name": "space_admission_evidence_id",
+        "name": "platform_workspace_snapshot_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -109,7 +109,7 @@
       },
       {
         "ordinal": 11,
-        "name": "space_admission_evidence_digest",
+        "name": "root_handle_ref",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -119,7 +119,7 @@
       },
       {
         "ordinal": 12,
-        "name": "workspace_scope_digest",
+        "name": "space_admission_evidence_schema_ref",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -129,7 +129,7 @@
       },
       {
         "ordinal": 13,
-        "name": "admission_decision_digest",
+        "name": "space_admission_evidence_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -139,6 +139,76 @@
       },
       {
         "ordinal": 14,
+        "name": "space_admission_evidence_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 15,
+        "name": "space_admission_evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 16,
+        "name": "space_admission_required_bytes",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 17,
+        "name": "space_admission_available_bytes",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 18,
+        "name": "space_admission_expires_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 19,
+        "name": "workspace_scope_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 20,
+        "name": "admission_decision_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 21,
         "name": "current_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -148,7 +218,7 @@
         "nullable": false
       },
       {
-        "ordinal": 15,
+        "ordinal": 22,
         "name": "state",
         "logicalType": "TEXT",
         "enumValues": [
@@ -162,7 +232,7 @@
         "nullable": false
       },
       {
-        "ordinal": 16,
+        "ordinal": 23,
         "name": "state_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -172,7 +242,7 @@
         "nullable": false
       },
       {
-        "ordinal": 17,
+        "ordinal": 24,
         "name": "created_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -182,7 +252,7 @@
         "nullable": false
       },
       {
-        "ordinal": 18,
+        "ordinal": 25,
         "name": "completed_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -242,11 +312,19 @@
       ],
       "pointerRules": []
     },
-    "jsonContracts": [],
+    "jsonContracts": [
+      {
+        "column": "space_admission_evidence_json",
+        "schemaRefColumn": "space_admission_evidence_schema_ref",
+        "maxBytes": 16384,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      }
+    ],
     "immutability": {
       "immutable": false,
       "rules": [
-        "Platform/space/scope/admission列在创建后immutable，并与同事务`fx_workspace_registry.root_handle_ref`逐字节一致"
+        "Platform root snapshot/space evidence/scope/admission列在创建后immutable，typed JSON≤`16 KiB`且必须完整重建`WorkspaceSpaceAdmissionEvidence@1`"
       ]
     },
     "deletion": {
@@ -254,20 +332,21 @@
       "rules": []
     },
     "semanticRules": [
-      "Platform/space/scope/admission列在创建后immutable，并与同事务`fx_workspace_registry.root_handle_ref`逐字节一致",
+      "Platform root snapshot/space evidence/scope/admission列在创建后immutable，typed JSON≤`16 KiB`且必须完整重建`WorkspaceSpaceAdmissionEvidence@1`",
+      "root/snapshot/handle与同事务Platform read participant及`fx_workspace_registry.root_handle_ref`逐字节一致。只有`admitted`且`committed_at_ms<=expires_at_ms`的Evidence可建立Workspace，required/available bytes等于typed Evidence",
       "current aggregate row使用`rowMutability=cas_lifecycle`",
       "首次revision 1且与Registry同事务建立",
       "只有Cleanup全部完成才写reclaimed/completed time",
-      "同一Run恰好至多一个Workspace stream，历史Admission Decision只从该row、Run revision与Registry重建"
+      "同一Run恰好至多一个Workspace stream，历史Admission Decision只从该row、Run revision与Registry重建，不依赖后来Platform root current row或resolved path"
     ],
     "rawContract": {
-      "columns": "`workspace_id PK, libra_run_id FK UNIQUE, platform_workspace_root_id, platform_workspace_revision, platform_workspace_endpoint_id, platform_workspace_mount_scope_id, platform_workspace_mount_scope_revision, platform_workspace_capability_digest, root_handle_ref, space_admission_evidence_id, space_admission_evidence_digest, workspace_scope_digest, admission_decision_digest, current_revision, state(active|reclaiming|reclaimed), state_digest, created_at_ms, completed_at_ms NULL`",
-      "constraints": "Platform/space/scope/admission列在创建后immutable，并与同事务`fx_workspace_registry.root_handle_ref`逐字节一致；current aggregate row使用`rowMutability=cas_lifecycle`；首次revision 1且与Registry同事务建立；只有Cleanup全部完成才写reclaimed/completed time；同一Run恰好至多一个Workspace stream，历史Admission Decision只从该row、Run revision与Registry重建"
+      "columns": "`workspace_id PK, libra_run_id FK UNIQUE, platform_workspace_root_id, platform_workspace_root_kind, platform_workspace_revision, platform_workspace_endpoint_id, platform_workspace_mount_scope_id, platform_workspace_mount_scope_revision, platform_workspace_capability_digest, platform_workspace_snapshot_digest, root_handle_ref, space_admission_evidence_schema_ref, space_admission_evidence_id, space_admission_evidence_json, space_admission_evidence_digest, space_admission_required_bytes, space_admission_available_bytes, space_admission_expires_at_ms, workspace_scope_digest, admission_decision_digest, current_revision, state(active|reclaiming|reclaimed), state_digest, created_at_ms, completed_at_ms NULL`",
+      "constraints": "Platform root snapshot/space evidence/scope/admission列在创建后immutable，typed JSON≤`16 KiB`且必须完整重建`WorkspaceSpaceAdmissionEvidence@1`；root/snapshot/handle与同事务Platform read participant及`fx_workspace_registry.root_handle_ref`逐字节一致。只有`admitted`且`committed_at_ms<=expires_at_ms`的Evidence可建立Workspace，required/available bytes等于typed Evidence；current aggregate row使用`rowMutability=cas_lifecycle`；首次revision 1且与Registry同事务建立；只有Cleanup全部完成才写reclaimed/completed time；同一Run恰好至多一个Workspace stream，历史Admission Decision只从该row、Run revision与Registry重建，不依赖后来Platform root current row或resolved path"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8275,
-      "lineDigest": "cd5647ed1877f8780af20ca4546b031edcdf27d9469708f82b1d7d947b11f7f0"
+      "line": 8281,
+      "lineDigest": "7e946448e8571481783b5c88c83108370816cca7f11e29d92a68f3a41803c17f"
     },
     "foreignKeys": [
       {
