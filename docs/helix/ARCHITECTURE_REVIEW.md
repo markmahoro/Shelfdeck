@@ -1,6 +1,6 @@
 # Helix Architecture Review Workbench
 
-Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-20；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R4-R1`、`PBF-13-R4-R2`、`PBF-13-R5`、`PBF-13-R5-R1`、`PBF-13-R5-R2`）bounded correction均已完成。
+Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-20；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R4-R1`、`PBF-13-R4-R2`、`PBF-13-R5`、`PBF-13-R5-R1`、`PBF-13-R5-R2`、`PBF-13-R5-R3`）bounded correction均已完成。
 
 ## 1. Purpose and authority
 
@@ -2411,3 +2411,28 @@ request/required bytes。信任caller或事务外求和都会破坏Owner验证�
 该修正只扩充既有transaction只读白名单，不改变writeTables、Owner、Store、Handoff、Capability、Result family、
 表或Canonical Transaction计数，仍为`112 / 97 / 176 / 43`。审计结果为
 `PASS / PBF-13-R5-R2 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.35 `PBF-13-R5-R3` — Workspace Material Handle与Product Verification连续性
+
+Status: `CLOSED / BOUNDED INPUT-PERSISTENCE FIX APPLIED` — 2026-07-20
+
+Workspace Material Reference Commit反向实现证明四项缺口成立：Foundation material row不能重建完整
+`WorkspaceMaterialHandle@1`；promotion只携带opaque verification pair；Libra reference history不能恢复完整验证输入；
+Decision ID又把property access写成含糊JCS成员。继续实现将被迫信任caller或旁读Foundation Result。
+
+Bounded correction保持既有结构：
+
+- `fx_workspace_materials`增加完整Handle schema/JSON/digest/fence及缺失热字段；Workspace write effect在bytes关闭、
+  stat/hash/containment完成后，把Handle与Effect receipt同事务登记，之后才返回Handle；
+- `WorkspaceMaterialHandle@1`固定Handle ID、fence digest与只读access scope公式；Reference Commit从Foundation Owner row
+  重建并逐字段验证，不能从current Registry或caller重造；
+- 复用既有`libra.product_media.verify@1 → ProductMediaVerification`，补齐Run/Event/Material Handle/fence绑定；新增的
+  `WorkspaceProductVerificationSnapshot@1`只是Application input snapshot，不是Catalog Result family；
+- Decision携带完整passed Verification，Libra reference revision保存schema/JSON/digest；working四列全NULL，staging
+  全非NULL，released逐字节沿用。文件清理后仍能从Libra Owner rows恢复历史Decision/Result；
+- Reference decision ID固定为7个显式顶层property，不使用嵌套推断或点号property name。
+
+反向审计覆盖Workspace write effect、Foundation material lifecycle、Reference attach/promote/release、Deliverable
+Promotion与Cleanup replay。修正只扩充既有两张表的列和既有Capability Result字段，不新增Owner、Store、Handoff、
+Capability、Result family、表或Canonical Transaction，计数保持`112 / 97 / 176 / 43`。审计结果为
+`PASS / PBF-13-R5-R3 CLOSED / NO OPEN BUSINESS DECISION`。
