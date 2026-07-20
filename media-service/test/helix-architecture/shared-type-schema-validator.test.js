@@ -43,6 +43,14 @@ test('requires the exact mandatory Physical Material identity fields', () => {
   assert.equal(schema.properties.contentHash.pattern, '^[a-f0-9]{64}$');
 });
 
+test('freezes the complete read-only Workspace Material Handle', () => {
+  const schema = JSON.parse(fs.readFileSync(path.join(actualContractsRoot, 'types/WorkspaceMaterialHandle/v1/schema.json'), 'utf8'));
+  for (const field of ['endpointId', 'materialKey', 'physicalIdentity', 'rootHandleRef', 'accessScope', 'fenceDigest']) {
+    assert.ok(schema.required.includes(field), field);
+  }
+  assert.equal(schema.properties.accessScope.const, 'workspace_material_read');
+});
+
 test('rejects schema drift, open objects, and unresolved refs', () => {
   const root = fixture();
   try {

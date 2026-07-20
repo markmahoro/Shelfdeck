@@ -54,6 +54,13 @@ function libraDefinition(schemaManifest) {
         ],
         keyColumns: ["libra_run_id"],
       },
+      find_run_revision: {
+        kind: "select-one",
+        tableId: "libra_run_revisions",
+        columns: ["libra_run_id", "state_revision", "state", "execution_basis_digest", "revision_digest"],
+        keyColumns: ["libra_run_id", "state_revision"],
+        safeIntegers: true,
+      },
       find_manifest: {
         kind: "select-one",
         tableId: "libra_run_material_manifests",
@@ -356,6 +363,14 @@ function createWorkspaceAdmissionStore(options) {
               decision.libraRunRef.executionBasisDigest
           )
             fail("P9_WORKSPACE_RUN_STALE", "Run current fence is stale.");
+          const runRevision = repo.invoke("find_run_revision", {
+            libra_run_id: run.libra_run_id,
+            state_revision: Number(run.state_revision),
+          });
+          if (!runRevision || runRevision.state !== "active" ||
+              runRevision.execution_basis_digest !== run.execution_basis_digest ||
+              !/^[a-f0-9]{64}$/.test(runRevision.revision_digest || ""))
+            fail("P9_WORKSPACE_RUN_INTEGRITY", "Run revision continuity is broken.");
           if (
             repo.invoke("find_workspace", {
               workspace_id: decision.workspaceId,

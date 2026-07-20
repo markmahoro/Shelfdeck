@@ -5,6 +5,9 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "workspaceMediaHandle": {
+      "$ref": "#/$defs/workspaceMediaHandle"
+    },
     "mediaProbeEvidence": {
       "$ref": "#/$defs/mediaProbeEvidence"
     },
@@ -13,10 +16,15 @@
     }
   },
   "required": [
+    "workspaceMediaHandle",
     "mediaProbeEvidence",
     "mediaRequirement"
   ],
   "$defs": {
+    "workspaceMediaHandle": {
+      "$ref": "helix://contracts/types/WorkspaceMediaHandle/v1",
+      "x-helix-typeExpression": "WorkspaceMediaHandle"
+    },
     "mediaProbeEvidence": {
       "$ref": "helix://contracts/types/MediaProbeEvidence/v1",
       "x-helix-typeExpression": "MediaProbeEvidence"

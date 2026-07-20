@@ -1133,12 +1133,22 @@ CREATE TABLE "fx_workspace_materials" (
   "digest_hex" TEXT CHECK (length("digest_hex") = 64 AND "digest_hex" NOT GLOB '*[^0-9a-f]*'),
   "size_bytes" INTEGER CHECK ("size_bytes" >= 0),
   "reference_revision" INTEGER CHECK ("reference_revision" >= 1),
+  "owner_domain" TEXT,
+  "process_id" TEXT,
+  "root_handle_ref" TEXT,
+  "access_scope" TEXT,
+  "handle_schema_ref" TEXT,
+  "handle_json" TEXT,
+  "handle_digest" TEXT CHECK (length("handle_digest") = 64 AND "handle_digest" NOT GLOB '*[^0-9a-f]*'),
+  "fence_digest" TEXT CHECK (length("fence_digest") = 64 AND "fence_digest" NOT GLOB '*[^0-9a-f]*'),
   "state" TEXT CHECK ("state" IN ('active', 'reclaimed')),
   "reclaimed_effect_id" TEXT,
   "reclaimed_effect_receipt_digest" TEXT CHECK (length("reclaimed_effect_receipt_digest") = 64 AND "reclaimed_effect_receipt_digest" NOT GLOB '*[^0-9a-f]*'),
   "reclaimed_at_ms" INTEGER CHECK ("reclaimed_at_ms" >= 0),
   PRIMARY KEY ("workspace_id", "material_handle_id"),
   UNIQUE ("workspace_id", "relative_path"),
+  CHECK (json_valid("handle_json")),
+  CHECK (length(CAST("handle_json" AS BLOB)) <= 4096),
   FOREIGN KEY ("workspace_id") REFERENCES "fx_workspace_registry" ("workspace_id") ON DELETE RESTRICT
 );
 
@@ -2025,7 +2035,9 @@ CREATE TABLE "libra_workspace_material_refs" (
   "episode_claims_schema_ref" TEXT,
   "episode_claims_json" TEXT,
   "episode_scope_digest" TEXT CHECK (length("episode_scope_digest") = 64 AND "episode_scope_digest" NOT GLOB '*[^0-9a-f]*'),
+  "product_verification_schema_ref" TEXT,
   "product_verification_id" TEXT,
+  "product_verification_json" TEXT,
   "product_verification_digest" TEXT CHECK (length("product_verification_digest") = 64 AND "product_verification_digest" NOT GLOB '*[^0-9a-f]*'),
   "previous_reference_revision" INTEGER CHECK ("previous_reference_revision" >= 1),
   "committed_workspace_revision" INTEGER CHECK ("committed_workspace_revision" >= 1),
@@ -2037,6 +2049,8 @@ CREATE TABLE "libra_workspace_material_refs" (
   CHECK (length(CAST("workspace_handle_json" AS BLOB)) <= 4096),
   CHECK (json_valid("episode_claims_json")),
   CHECK (length(CAST("episode_claims_json" AS BLOB)) <= 4096),
+  CHECK (json_valid("product_verification_json")),
+  CHECK (length(CAST("product_verification_json" AS BLOB)) <= 4096),
   FOREIGN KEY ("workspace_id") REFERENCES "libra_workspaces" ("workspace_id") ON DELETE RESTRICT,
   FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT
 );

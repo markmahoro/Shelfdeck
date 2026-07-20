@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/LibraWorkspaceMaterialReferenceResult/v1",
+  "title": "LibraWorkspaceMaterialReferenceResult@1",
+  "x-helix-ssotRefs": [
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 131072,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "decisionId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "workspaceId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "workspaceRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "workspaceStateDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "referenceSnapshot": {
+      "$ref": "helix://contracts/application-types/WorkspaceMaterialReferenceSnapshot/v1"
+    },
+    "workspaceMaterialReferenceSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "resultDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "decisionId",
+    "workspaceId",
+    "workspaceRevision",
+    "workspaceStateDigest",
+    "referenceSnapshot",
+    "workspaceMaterialReferenceSetDigest",
+    "resultDigest"
+  ]
+}

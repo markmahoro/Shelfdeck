@@ -416,7 +416,7 @@ const contracts = {
   ProductMetadataFact: ['DomainFactEnvelope', 'subjectId,productMetadataDigest,verifiedArtifactManifestDigest'],
   TranscodeInputVerification: ['VerificationEnvelope', 'sourceHandleDigest,encodeIntentDigest,probeEvidenceDigest,selectedDeviceClass'],
   WorkspaceMediaHandle: ['WorkspaceMaterialHandle', 'mediaProbeRef?,producingEventId,productionIntentDigest'],
-  ProductMediaVerification: ['VerificationEnvelope', 'workspaceMediaHandleId,mediaRequirementDigest,probeEvidenceDigest,qualitySummary,spaceSummary'],
+  ProductMediaVerification: ['VerificationEnvelope', 'libraRunId,producingEventId,workspaceMediaHandleId,workspaceMaterialHandleId,workspaceMaterialHandleDigest,workspaceMaterialFenceDigest,mediaRequirementDigest,probeEvidenceDigest,qualitySummary,spaceSummary'],
   SelectedWorkspaceProduct: ['DraftEnvelope', 'selectedHandleId,selectedVerificationId,candidateSetDigest,selectionReasonCode'],
   ProductConformanceEvidence: ['VerificationEnvelope', 'acceptanceSpecId,productFactSetDigest,unmetRequirementCodes'],
   OnDeckProductPackage: ['ManifestEnvelope', 'onDeckPackageId,packageRevision,libraRunId,runStateRevision,runStateDigest,runExecutionBasisDigest,subjectId,shelfId,acceptanceSpecRef,resolvedIdentitySnapshot,productStructureSnapshot,runMaterialManifestRef,productMaterialManifest,productFactManifest,artifactManifest,mediaCastSnapshot,offloadContextManifest,productionProvenance,productionAttestation,packageDigest'],

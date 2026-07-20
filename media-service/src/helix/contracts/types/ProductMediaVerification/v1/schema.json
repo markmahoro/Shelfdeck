@@ -58,10 +58,35 @@
       "type": "integer",
       "minimum": 0
     },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "producingEventId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
     "workspaceMediaHandleId": {
       "type": "string",
       "minLength": 1,
       "maxLength": 256
+    },
+    "workspaceMaterialHandleId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "workspaceMaterialHandleDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "workspaceMaterialFenceDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     },
     "mediaRequirementDigest": {
       "type": "string",
@@ -196,7 +221,12 @@
     "reasonCodes",
     "evidenceRefs",
     "verifiedAtMs",
+    "libraRunId",
+    "producingEventId",
     "workspaceMediaHandleId",
+    "workspaceMaterialHandleId",
+    "workspaceMaterialHandleDigest",
+    "workspaceMaterialFenceDigest",
     "mediaRequirementDigest",
     "probeEvidenceDigest",
     "qualitySummary",

@@ -86,6 +86,14 @@ test('flattens WorkspaceMediaHandle without accepting a raw nested workspace pay
   assert.equal(schema.additionalProperties, false);
 });
 
+test('binds Product Media Verification to the exact Run, Event, Handle, and fence', () => {
+  const schema = schemas.ProductMediaVerification;
+  for (const field of ['libraRunId', 'producingEventId', 'workspaceMediaHandleId', 'workspaceMaterialHandleId',
+    'workspaceMaterialHandleDigest', 'workspaceMaterialFenceDigest', 'mediaRequirementDigest', 'probeEvidenceDigest']) {
+    assert.ok(schema.required.includes(field), field);
+  }
+});
+
 test('freezes the bounded Perception page, commit draft, typed result, and explicit relation contracts', () => {
   assert.equal(schemas.NormalizedPerceptionRecordDraftList, undefined);
   const page = schemas.PerceptionObservationPage;

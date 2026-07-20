@@ -143,7 +143,7 @@
       },
       {
         "ordinal": 14,
-        "name": "product_verification_id",
+        "name": "product_verification_schema_ref",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -153,7 +153,7 @@
       },
       {
         "ordinal": 15,
-        "name": "product_verification_digest",
+        "name": "product_verification_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -163,6 +163,26 @@
       },
       {
         "ordinal": 16,
+        "name": "product_verification_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 17,
+        "name": "product_verification_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 18,
         "name": "previous_reference_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -172,7 +192,7 @@
         "nullable": true
       },
       {
-        "ordinal": 17,
+        "ordinal": 19,
         "name": "committed_workspace_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -182,7 +202,7 @@
         "nullable": false
       },
       {
-        "ordinal": 18,
+        "ordinal": 20,
         "name": "reference_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -192,7 +212,7 @@
         "nullable": false
       },
       {
-        "ordinal": 19,
+        "ordinal": 21,
         "name": "committed_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -253,6 +273,13 @@
         "maxBytes": 4096,
         "source": "table-row",
         "requiresJsonValidCheck": true
+      },
+      {
+        "column": "product_verification_json",
+        "schemaRefColumn": "product_verification_schema_ref",
+        "maxBytes": 4096,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
       }
     ],
     "immutability": {
@@ -268,23 +295,24 @@
     "semanticRules": [
       "`PK(reference_id,reference_revision)`及`UNIQUE(workspace_id,material_handle_id,reference_revision)`",
       "typed Handle JSON固定`WorkspaceMaterialHandle@1`且≤`4 KiB`，Episode claims JSON固定`LibraWorkspaceEpisodeClaims@1`且≤`16 KiB`，完整保存`0..32`项本节typed Episode claim并重算同一scope digest",
-      "两者与Foundation handle/Material row及Reference Decision逐字节匹配后冻结，允许文件后来被清理后仍重建历史Reference Decision",
-      "每次Reference transition与同一事务Workspace revision一一绑定，历史Workspace revision N按`committed_workspace_revision<=N`选择每个stream最高Reference revision重建set",
+      "Handle必须与`fx_workspace_materials.handle_schema_ref/json/digest/fence_digest`及Decision逐字节一致后冻结，允许Foundation material后来reclaimed仍重建历史Reference。Verification四列在working全NULL",
+      "product_staging全非NULL且schema固定`WorkspaceProductVerificationSnapshot@1`、canonical JSON≤`16 KiB`、ID/digest逐字节匹配",
+      "released逐字节沿用前一revision四列：由working释放时全NULL，由product_staging释放时全非NULL，不能清空或替换。每次Reference transition与同一事务Workspace revision一一绑定，历史Workspace revision N按`committed_workspace_revision<=N`选择每个stream最高Reference revision重建set",
       "每个reference stream从1连续、append-only，最高revision是current",
-      "同一stream后续revision的Handle、materialKey与Episode claims逐字节沿用，product_staging增加Verification，released沿用此前Verification并只改变state/previous/committed字段",
+      "同一stream后续revision的Handle、materialKey与Episode claims逐字节沿用",
       "同一Workspace最多1024个current non-released Reference且同一materialKey至多一个，防止Cleanup无法形成完整Scope或hard-link Handle对同一Control重复release",
-      "working要求verification列NULL，product_staging要求验证列非NULL，released不得再回到前态",
+      "released不得再回到前态",
       "同一handle不能同时存在两个current role",
       "只引用同Workspace的`fx_workspace_materials`"
     ],
     "rawContract": {
-      "columns": "`workspace_id FK, libra_run_id FK, reference_id, material_handle_id, material_key, workspace_handle_schema_ref, workspace_handle_json, workspace_handle_digest, reference_revision, reference_state(working|product_staging|released), episode_claims_schema_ref, episode_claims_json, episode_scope_digest, product_verification_id NULL, product_verification_digest NULL, previous_reference_revision NULL, committed_workspace_revision, reference_digest, committed_at_ms`",
-      "constraints": "`PK(reference_id,reference_revision)`及`UNIQUE(workspace_id,material_handle_id,reference_revision)`；typed Handle JSON固定`WorkspaceMaterialHandle@1`且≤`4 KiB`，Episode claims JSON固定`LibraWorkspaceEpisodeClaims@1`且≤`16 KiB`，完整保存`0..32`项本节typed Episode claim并重算同一scope digest；两者与Foundation handle/Material row及Reference Decision逐字节匹配后冻结，允许文件后来被清理后仍重建历史Reference Decision；每次Reference transition与同一事务Workspace revision一一绑定，历史Workspace revision N按`committed_workspace_revision<=N`选择每个stream最高Reference revision重建set；每个reference stream从1连续、append-only，最高revision是current；同一stream后续revision的Handle、materialKey与Episode claims逐字节沿用，product_staging增加Verification，released沿用此前Verification并只改变state/previous/committed字段；同一Workspace最多1024个current non-released Reference且同一materialKey至多一个，防止Cleanup无法形成完整Scope或hard-link Handle对同一Control重复release；working要求verification列NULL，product_staging要求验证列非NULL，released不得再回到前态；同一handle不能同时存在两个current role；只引用同Workspace的`fx_workspace_materials`"
+      "columns": "`workspace_id FK, libra_run_id FK, reference_id, material_handle_id, material_key, workspace_handle_schema_ref, workspace_handle_json, workspace_handle_digest, reference_revision, reference_state(working|product_staging|released), episode_claims_schema_ref, episode_claims_json, episode_scope_digest, product_verification_schema_ref NULL, product_verification_id NULL, product_verification_json NULL, product_verification_digest NULL, previous_reference_revision NULL, committed_workspace_revision, reference_digest, committed_at_ms`",
+      "constraints": "`PK(reference_id,reference_revision)`及`UNIQUE(workspace_id,material_handle_id,reference_revision)`；typed Handle JSON固定`WorkspaceMaterialHandle@1`且≤`4 KiB`，Episode claims JSON固定`LibraWorkspaceEpisodeClaims@1`且≤`16 KiB`，完整保存`0..32`项本节typed Episode claim并重算同一scope digest；Handle必须与`fx_workspace_materials.handle_schema_ref/json/digest/fence_digest`及Decision逐字节一致后冻结，允许Foundation material后来reclaimed仍重建历史Reference。Verification四列在working全NULL；product_staging全非NULL且schema固定`WorkspaceProductVerificationSnapshot@1`、canonical JSON≤`16 KiB`、ID/digest逐字节匹配；released逐字节沿用前一revision四列：由working释放时全NULL，由product_staging释放时全非NULL，不能清空或替换。每次Reference transition与同一事务Workspace revision一一绑定，历史Workspace revision N按`committed_workspace_revision<=N`选择每个stream最高Reference revision重建set；每个reference stream从1连续、append-only，最高revision是current；同一stream后续revision的Handle、materialKey与Episode claims逐字节沿用；同一Workspace最多1024个current non-released Reference且同一materialKey至多一个，防止Cleanup无法形成完整Scope或hard-link Handle对同一Control重复release；released不得再回到前态；同一handle不能同时存在两个current role；只引用同Workspace的`fx_workspace_materials`"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8320,
-      "lineDigest": "34f4e264df69503e64bdcc6cacc0909a4c965c61c89946680dad765ce6b59396"
+      "line": 8323,
+      "lineDigest": "5c255127652fd209fcf9ed9fd6c9342020621d3ad86e71fe4d3b33c1b59784ea"
     },
     "foreignKeys": [
       {

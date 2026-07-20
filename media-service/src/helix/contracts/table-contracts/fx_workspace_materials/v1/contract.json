@@ -139,6 +139,86 @@
       },
       {
         "ordinal": 14,
+        "name": "owner_domain",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 15,
+        "name": "process_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 16,
+        "name": "root_handle_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 17,
+        "name": "access_scope",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 18,
+        "name": "handle_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 19,
+        "name": "handle_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 20,
+        "name": "handle_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 21,
+        "name": "fence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 22,
         "name": "state",
         "logicalType": "TEXT",
         "enumValues": [
@@ -151,7 +231,7 @@
         "nullable": false
       },
       {
-        "ordinal": 15,
+        "ordinal": 23,
         "name": "reclaimed_effect_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -161,7 +241,7 @@
         "nullable": true
       },
       {
-        "ordinal": 16,
+        "ordinal": 24,
         "name": "reclaimed_effect_receipt_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -171,7 +251,7 @@
         "nullable": true
       },
       {
-        "ordinal": 17,
+        "ordinal": 25,
         "name": "reclaimed_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -213,7 +293,15 @@
       "pointerTargets": [],
       "pointerRules": []
     },
-    "jsonContracts": [],
+    "jsonContracts": [
+      {
+        "column": "handle_json",
+        "schemaRefColumn": "handle_schema_ref",
+        "maxBytes": 4096,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
     "immutability": {
       "immutable": false,
       "rules": []
@@ -226,20 +314,21 @@
       "`PK(workspace_id,material_handle_id)`",
       "`UNIQUE(workspace_id,relative_path)`",
       "`rowMutability=cas_lifecycle`且只允许幂等filesystem cleanup effect以expected Handle fence执行一次`active→reclaimed`，三个reclaimed列在active时全NULL、terminal时全非NULL且write-once",
+      "`handle_schema_ref=WorkspaceMaterialHandle@1`、canonical JSON≤`4 KiB`、`handle_digest=SHA-256(JCS(handle_json typed value))`，全部热列与Handle逐字段一致，`fence_digest=handle_json.fenceDigest`",
       "同一inode的hard-link location允许共享materialKey但必须是不同Handle/relative path",
-      "endpoint/mount scope必须等于Workspace root snapshot",
+      "endpoint/mount/root handle必须等于Workspace Registry/root snapshot",
       "完整Physical Identity由Workspace write effect在同一Effect commit按实际文件stat+sha256形成，`material_key`必须按8.6.18公式重算",
       "路径必须通过containment validator",
-      "Domain Cleanup Commit只读取该terminal row/Evidence并收口Libra Reference/Control，不再次删除bytes或改写本row"
+      "只有bytes关闭、hash/stat/containment完成且完整Handle row与Effect receipt同事务durable后Executor才能返回该Handle。Domain Cleanup Commit只读取该terminal row/Evidence并收口Libra Reference/Control，不再次删除bytes或改写本row"
     ],
     "rawContract": {
-      "columns": "`workspace_id FK, material_handle_id, material_key, endpoint_id, mount_scope_id, inode, content_hash_algorithm, content_hash, relative_path, digest_algorithm, digest_hex, size_bytes, reference_revision, state(active|reclaimed), reclaimed_effect_id NULL, reclaimed_effect_receipt_digest NULL, reclaimed_at_ms NULL`",
-      "constraints": "`PK(workspace_id,material_handle_id)`；`UNIQUE(workspace_id,relative_path)`；`rowMutability=cas_lifecycle`且只允许幂等filesystem cleanup effect以expected Handle fence执行一次`active→reclaimed`，三个reclaimed列在active时全NULL、terminal时全非NULL且write-once；同一inode的hard-link location允许共享materialKey但必须是不同Handle/relative path；endpoint/mount scope必须等于Workspace root snapshot；完整Physical Identity由Workspace write effect在同一Effect commit按实际文件stat+sha256形成，`material_key`必须按8.6.18公式重算；路径必须通过containment validator；Domain Cleanup Commit只读取该terminal row/Evidence并收口Libra Reference/Control，不再次删除bytes或改写本row"
+      "columns": "`workspace_id FK, material_handle_id, material_key, endpoint_id, mount_scope_id, inode, content_hash_algorithm, content_hash, relative_path, digest_algorithm, digest_hex, size_bytes, reference_revision, owner_domain, process_id, root_handle_ref, access_scope, handle_schema_ref, handle_json, handle_digest, fence_digest, state(active|reclaimed), reclaimed_effect_id NULL, reclaimed_effect_receipt_digest NULL, reclaimed_at_ms NULL`",
+      "constraints": "`PK(workspace_id,material_handle_id)`；`UNIQUE(workspace_id,relative_path)`；`rowMutability=cas_lifecycle`且只允许幂等filesystem cleanup effect以expected Handle fence执行一次`active→reclaimed`，三个reclaimed列在active时全NULL、terminal时全非NULL且write-once；`handle_schema_ref=WorkspaceMaterialHandle@1`、canonical JSON≤`4 KiB`、`handle_digest=SHA-256(JCS(handle_json typed value))`，全部热列与Handle逐字段一致，`fence_digest=handle_json.fenceDigest`；同一inode的hard-link location允许共享materialKey但必须是不同Handle/relative path；endpoint/mount/root handle必须等于Workspace Registry/root snapshot；完整Physical Identity由Workspace write effect在同一Effect commit按实际文件stat+sha256形成，`material_key`必须按8.6.18公式重算；路径必须通过containment validator；只有bytes关闭、hash/stat/containment完成且完整Handle row与Effect receipt同事务durable后Executor才能返回该Handle。Domain Cleanup Commit只读取该terminal row/Evidence并收口Libra Reference/Control，不再次删除bytes或改写本row"
     },
     "source": {
       "section": "8.5.10",
-      "line": 8260,
-      "lineDigest": "f16df83eb9a66d40c444b547253e5754d40c6ddc8085de058df01dd57f71b5fd"
+      "line": 8263,
+      "lineDigest": "6be2369fe05bc4c5993785cf606a95d397e0f080b462c584edada4793687aa6b"
     },
     "foreignKeys": [
       {

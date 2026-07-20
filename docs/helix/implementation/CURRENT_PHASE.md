@@ -1,6 +1,6 @@
 # P9 Libra Production and Delivery Detailed Plan
 
-Status: Active；P9-00–P9-03 complete；P9-04 active.
+Status: Active；P9-00–P9-04 complete；P9-05 active.
 
 Last updated: 2026-07-20
 

@@ -13,12 +13,12 @@ Last updated: 2026-07-20
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains；P7 — Procurement；P8 — Handoff A and Libra front half |
 | Current phase | P9 — Libra production and delivery |
-| Current phase status | P9-00–P9-03 PASS；P9-04 Workspace admission active |
+| Current phase status | P9-00–P9-04 PASS；P9-05 Product facts, metadata, cast and artifacts active |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | P9 local code、unit/contract/isolated fixture、docs与Phase内自动闭环；本周期不进入P10 |
 | Integration baseline | exact P8 closure `3184ef4573cb3663e4a1fae87fc65b4d1c270b38` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p9` on `codex/helix-p9` |
-| Next action | 实现P9-04 Workspace registry、material admission与control |
+| Next action | 实现P9-05 Product facts、metadata、cast与artifacts |
 
 P9-01已完成：反向实现审计证明的六段连续性缺口已由Architecture Agent在`PBF-13/PBF-13-R1`中闭合，并经实现侧
 只读复审后原样纳入。Run、Material/Episode scope、Workspace、完整Package、Discard/Cleanup及Off-load Reclaimer均具备
@@ -39,6 +39,14 @@ published Package custody fence与Handoff B accepted consume均闭合。Run/head
 Delivery Receipt/Inbox、typed Result/marker具备replay与crash全回滚反例。Architecture Agent的`P9-03-R1/R2`修正已
 原样纳入；完整Architecture gate PASS（105 fixture files，`findings=[]`），P2 aggregate为
 `1391aa06c35df31c46aeb3221ead3e4cee684d383964233a8b81e1a5718ced9c`。
+
+P9-04已完成：Workspace Admission从active Run及typed Platform Root/Space Evidence建立pathless Registry、Workspace、
+首个revision、Result/marker；完整`WorkspaceMaterialHandle@1`进入Foundation Material并以read-only fence约束。Libra
+Workspace Reference以append-only revision保存Handle、Episode claims及可选Product Verification，working到
+product staging promotion执行Workspace/Reference双连续性、Owner-row replay和同事务CAS；crash、伪造Handle、跨Handle
+Verification及非法转换反例全部PASS。完整Architecture gate PASS（108 fixture files，`findings=[]`），P2 aggregate为
+`530909a2cd450d3638286cb8966ccd6d11bfca67e591da412bd4542ddb8db1a9`；Evidence见
+`implementation/evidence/P9_04_WORKSPACE_ADMISSION_AND_REFERENCE.md`。
 
 Architecture Agent提交`a570be44`的`PBF-13`已通过实现侧只读复审：六段生产连续性均可从正式输入、Owner rows、
 revision/digest/CAS及事务边界唯一实现；计数为112 Capability、97 Catalog Result family、176 tables和43 Canonical

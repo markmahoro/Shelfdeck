@@ -13,7 +13,7 @@ const root = path.resolve(__dirname, '../../src/helix/contracts');
 test('materializes the SSOT-exact Libra production application contracts reproducibly', () => {
   const schemas = buildLibraApplicationSchemas();
   const registry = JSON.parse(fs.readFileSync(path.join(root, 'libra-application-type-registry.json'), 'utf8'));
-  assert.equal(registry.targetCount, 23);
+  assert.equal(registry.targetCount, 28);
   for (const [name, schema] of Object.entries(schemas)) {
     const stored = JSON.parse(fs.readFileSync(path.join(root, 'application-types', name, 'v1/schema.json'), 'utf8'));
     assert.deepEqual(stored, schema);
@@ -31,6 +31,16 @@ test('Workspace Admission schemas freeze the pathless Platform evidence and init
     typeId('WorkspaceSpaceAdmissionEvidence'));
   assert.equal(schemas.LibraWorkspaceAdmissionResult.properties.workspaceRevision.const, 1);
   assert.equal(schemas.LibraWorkspaceAdmissionResult.properties.workspaceState.const, 'active');
+  assert.equal(schemas.WorkspaceProductVerificationSnapshot.properties.verificationValue.$ref,
+    'helix://contracts/types/ProductMediaVerification/v1');
+  assert.equal(schemas.LibraWorkspaceMaterialReferenceDecision.properties.workspaceMaterialHandle.$ref,
+    'helix://contracts/types/WorkspaceMaterialHandle/v1');
+  assert.equal(schemas.LibraWorkspaceMaterialReferenceResult.properties.referenceSnapshot.$ref,
+    'helix://contracts/application-types/WorkspaceMaterialReferenceSnapshot/v1');
+  assert.equal(schemas.LibraWorkspaceEpisodeClaims.type, 'array');
+  assert.equal(schemas.LibraWorkspaceEpisodeClaims.maxItems, 32);
+  assert.deepEqual(Object.keys(schemas.LibraWorkspaceEpisodeClaims.items.properties),
+    ['episodeKey', 'seasonClaimDigest', 'claimDigest']);
 });
 
 test('Run Lifecycle schemas freeze typed evidence and the bounded recovery policy', () => {

@@ -12,7 +12,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 9485,
+        "line": 9490,
         "lineDigest": "1d71092ef1775adb522ba83a1cdb409e2f2309f8194caa67f34537fc87e02662"
       },
       "targetLocator": {
@@ -42,7 +42,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 9549,
+        "line": 9554,
         "lineDigest": "410ff01aa2ffc75d0cbf40b7a5752800ca066105726722ddbe62ced6cc5934cc"
       },
       "targetLocator": {
@@ -72,7 +72,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 9534,
+        "line": 9539,
         "lineDigest": "b157bd3826037172216166d58ecd5207bad62d26028ae576552593ae739fbca8"
       },
       "targetLocator": {
@@ -102,7 +102,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 9515,
+        "line": 9520,
         "lineDigest": "bb76f7ddae0ac2b6fd10d3c186fd2fffae3b5fe85a8ebcf2f7c390ba964d72bb"
       },
       "targetLocator": {
@@ -132,7 +132,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 9559,
+        "line": 9564,
         "lineDigest": "dfbf544c2202f00e30eced9de53a3df6753824523f862774b6128e5d102e4e99"
       },
       "targetLocator": {
@@ -162,7 +162,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 9553,
+        "line": 9558,
         "lineDigest": "33ecd520822c50274c6a50a95ab32350b1925afdb275e8fddc6077b85dac4638"
       },
       "targetLocator": {
@@ -192,7 +192,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 9552,
+        "line": 9557,
         "lineDigest": "6626847551461eaabf36bc5670675829946fc6edc31da9081488b41276437ec5"
       },
       "targetLocator": {
@@ -222,7 +222,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 9554,
+        "line": 9559,
         "lineDigest": "8202910526d04f43693957b91e27f680ac8fb5651923067cfdc217a1142c6732"
       },
       "targetLocator": {
@@ -252,7 +252,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 9555,
+        "line": 9560,
         "lineDigest": "dff760603183ae8ee4868b35dca576e46225f50283d4971ddc4deeb776db80ea"
       },
       "targetLocator": {
@@ -282,7 +282,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 9556,
+        "line": 9561,
         "lineDigest": "1e80f1b2b09a41ad5f3d83fd58da0521428581e9dff06841c929c6b4532e9d57"
       },
       "targetLocator": {
@@ -312,7 +312,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 9483,
+        "line": 9488,
         "lineDigest": "797bcc09aa2b6cbfa79d1473b690fa683268427a5a7e0531fd01b3c50b5a5455"
       },
       "targetLocator": {
@@ -342,7 +342,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 9563,
+        "line": 9568,
         "lineDigest": "c2c9c490acfa1e89ecd7f330cd72c0e92d9afa030824d85140d2f8d39720f6f4"
       },
       "targetLocator": {
@@ -372,7 +372,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 9560,
+        "line": 9565,
         "lineDigest": "5eeee451eabf20b8b826ee0d0eb2c52ac3ee4e64477709e02b4af2473fc374e0"
       },
       "targetLocator": {
@@ -402,7 +402,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 9557,
+        "line": 9562,
         "lineDigest": "3d9e16aa6e10b75844ddf294dcbfa97193e734998ce7333f60741c313c5322bd"
       },
       "targetLocator": {
@@ -432,7 +432,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 9562,
+        "line": 9567,
         "lineDigest": "0662053484959f3cea1d64d762f834d250dec3c6452131fd92594e981ce1e013"
       },
       "targetLocator": {
@@ -462,7 +462,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 9530,
+        "line": 9535,
         "lineDigest": "af6fa5b25e63ed21cdb55f225039a5a2fbdb54729bbda841fca16f982f8b6e22"
       },
       "targetLocator": {
@@ -492,7 +492,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 9487,
+        "line": 9492,
         "lineDigest": "1ded95edf833931b5a9e8152f2c2dfa40475446a18f3ed1bf1fe4d49ee1d6871"
       },
       "targetLocator": {
@@ -522,7 +522,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 9537,
+        "line": 9542,
         "lineDigest": "86438dfbcfc7e68248c39d39e0cc146b0f2dce35a72bbea13f79eae98c044874"
       },
       "targetLocator": {
@@ -552,7 +552,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 9490,
+        "line": 9495,
         "lineDigest": "7a75d1b58a845f01ff10d0fbb1e5246e89ac5cfde44c79cb7364e0cbebd33411"
       },
       "targetLocator": {
@@ -582,7 +582,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 9486,
+        "line": 9491,
         "lineDigest": "2ddc1c09f473609e3ca69c85f552e3d6111b71af988c6183cb350fcc9d2add04"
       },
       "targetLocator": {
@@ -612,7 +612,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 9513,
+        "line": 9518,
         "lineDigest": "0e184bdaa23e168dd03f71f723f2d7353a8c5fe6e57619831d2ceded6cb89fd6"
       },
       "targetLocator": {
@@ -642,8 +642,8 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 9511,
-        "lineDigest": "50e7a545f1336433a2d37d922b4b0406465861e3533d6e20656621192452e771"
+        "line": 9516,
+        "lineDigest": "4c348a750a837ad92d7ead4e220b9ea215c0ec3950195bf904be1da44d4d2075"
       },
       "targetLocator": {
         "path": "types/ProductMediaVerification/v1/schema.json"
@@ -672,7 +672,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 9505,
+        "line": 9510,
         "lineDigest": "04219e9281a43a3c6a213591b520a89778d19683ab742a1ec4b52e11fa2588a2"
       },
       "targetLocator": {
@@ -702,7 +702,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 9508,
+        "line": 9513,
         "lineDigest": "9a34e90aaaf0fcd9981b739b0577f9b1398db7f00657e6960ef311f4c1b69a9d"
       },
       "targetLocator": {

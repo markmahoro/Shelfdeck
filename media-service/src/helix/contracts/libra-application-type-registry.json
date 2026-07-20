@@ -5,7 +5,7 @@
   "kind": "application-type-registry",
   "owner": "libra",
   "status": "active",
-  "targetCount": 23,
+  "targetCount": 28,
   "entries": [
     {
       "id": "LibraRunAdmissionDecision",
@@ -249,6 +249,51 @@
       ]
     },
     {
+      "id": "LibraWorkspaceEpisodeClaims",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraWorkspaceEpisodeClaims/v1",
+      "relativePath": "application-types/LibraWorkspaceEpisodeClaims/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "7403102949099a88b076e9b0d3ffdc58d4362d8eb734ef6dce9f0a17472e6db9"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "LibraWorkspaceMaterialReferenceDecision",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraWorkspaceMaterialReferenceDecision/v1",
+      "relativePath": "application-types/LibraWorkspaceMaterialReferenceDecision/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "a6a78831b1bd0fe3ca6a0f0978f1bbe70359aaadfa090dd4e3666cffe04fa314"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "LibraWorkspaceMaterialReferenceResult",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraWorkspaceMaterialReferenceResult/v1",
+      "relativePath": "application-types/LibraWorkspaceMaterialReferenceResult/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "54ae8a5648d36e524ca5785fb7738651730d8b1255fd2c1e5a790d3ba52f7b4c"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    },
+    {
       "id": "ProductDeliveryQuery",
       "version": 1,
       "owner": "libra",
@@ -351,6 +396,36 @@
       "digest": {
         "algorithm": "sha256",
         "value": "af1dcdf22f5e530a44985a7125ecd4914bc9696939eed712bf73d5ac74849dc5"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "WorkspaceMaterialReferenceSnapshot",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/WorkspaceMaterialReferenceSnapshot/v1",
+      "relativePath": "application-types/WorkspaceMaterialReferenceSnapshot/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "308d7a94df4bf63323e03d7af63c5a9d0dd5f960435a787d50e2d54e990a06e4"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "WorkspaceProductVerificationSnapshot",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/WorkspaceProductVerificationSnapshot/v1",
+      "relativePath": "application-types/WorkspaceProductVerificationSnapshot/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "074eae604918c77baffc4405c52cbfbbd7775724b3dceb71bc2a38857105502f"
       },
       "ssotRefs": [
         "8.6.21"

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/WorkspaceProductVerificationSnapshot/v1",
+  "title": "WorkspaceProductVerificationSnapshot@1",
+  "x-helix-ssotRefs": [
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 16384,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "ProductMediaVerification@1"
+    },
+    "verificationId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "verificationValue": {
+      "$ref": "helix://contracts/types/ProductMediaVerification/v1"
+    },
+    "verificationDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "verificationId",
+    "verificationValue",
+    "verificationDigest"
+  ]
+}

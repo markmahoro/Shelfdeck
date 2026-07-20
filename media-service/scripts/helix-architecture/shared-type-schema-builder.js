@@ -84,7 +84,7 @@ const definitions = {
       inode: text({ pattern: '^(0|[1-9][0-9]*)$' }), contentHashAlgorithm: digestAlgorithm(), contentHash: digestHex() }),
     rootHandleRef: opaqueId(), relativePath: text(),
     digestAlgorithm: digestAlgorithm(), digestHex: digestHex(), sizeBytes: nonNegativeInteger(), referenceRevision: positiveInteger(),
-    accessScope: text(), fenceDigest: digestHex()
+    accessScope: { const: 'workspace_material_read' }, fenceDigest: digestHex()
   }),
   ArtifactHandle: () => nominal('ArtifactHandle', {
     artifactHandleId: opaqueId(), artifactKind: text(), ownerDomain: text(), ownerScope: ownerScope(), storageRef: text(),

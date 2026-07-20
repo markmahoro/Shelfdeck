@@ -469,6 +469,54 @@ function workspaceAdmissionResult() {
       workspaceRevision: { const: 1 }, workspaceState: { const: 'active' }, workspaceStateDigest: digest(), resultDigest: digest() }) };
 }
 
+function workspaceProductVerificationSnapshot() {
+  return { $schema: DRAFT, $id: typeId('WorkspaceProductVerificationSnapshot'), title: 'WorkspaceProductVerificationSnapshot@1',
+    'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 16 * 1024,
+    ...object({ schemaRef: { const: 'ProductMediaVerification@1' }, verificationId: id(),
+      verificationValue: { $ref: 'helix://contracts/types/ProductMediaVerification/v1' }, verificationDigest: digest() }) };
+}
+
+function workspaceEpisodeClaims() {
+  const claim = object({ episodeKey: text(), seasonClaimDigest: digest(), claimDigest: digest() });
+  return {
+    $schema: DRAFT, $id: typeId('LibraWorkspaceEpisodeClaims'), title: 'LibraWorkspaceEpisodeClaims@1',
+    'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 16 * 1024,
+    type: 'array', items: claim, maxItems: 32
+  };
+}
+
+function workspaceMaterialReferenceSnapshot() {
+  const claim = object({ episodeKey: text(), seasonClaimDigest: digest(), claimDigest: digest() });
+  return { $schema: DRAFT, $id: typeId('WorkspaceMaterialReferenceSnapshot'), title: 'WorkspaceMaterialReferenceSnapshot@1',
+    'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 64 * 1024,
+    ...object({ referenceId: digest(), workspaceId: digest(), libraRunId: id(), materialHandleId: digest(), materialKey: digest(),
+      workspaceMaterialHandle: { $ref: 'helix://contracts/types/WorkspaceMaterialHandle/v1' }, workspaceHandleDigest: digest(),
+      referenceRevision: positive(), state: { type: 'string', enum: ['working', 'product_staging', 'released'] },
+      episodeClaims: { type: 'array', items: claim, maxItems: 32 }, episodeScopeDigest: digest(),
+      productVerificationRef: nullable({ $ref: typeId('WorkspaceProductVerificationSnapshot') }),
+      previousReferenceRevision: nullable(positive()), committedWorkspaceRevision: positive(), referenceDigest: digest() }) };
+}
+
+function workspaceMaterialReferenceDecision() {
+  const claim = object({ episodeKey: text(), seasonClaimDigest: digest(), claimDigest: digest() });
+  return { $schema: DRAFT, $id: typeId('LibraWorkspaceMaterialReferenceDecision'), title: 'LibraWorkspaceMaterialReferenceDecision@1',
+    'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 64 * 1024,
+    ...object({ decisionId: digest(), operation: { type: 'string', enum: ['attach_working', 'promote_to_product_staging'] },
+      libraRunId: id(), workspaceId: digest(), expectedWorkspaceRevision: positive(), expectedWorkspaceStateDigest: digest(),
+      expectedReference: object({ state: { type: 'string', enum: ['absent', 'present'] }, revision: nonNegative(), digest: digest() }),
+      workspaceMaterialHandle: { $ref: 'helix://contracts/types/WorkspaceMaterialHandle/v1' },
+      episodeClaims: { type: 'array', items: claim, maxItems: 32 }, episodeScopeDigest: digest(),
+      productVerificationRef: nullable({ $ref: typeId('WorkspaceProductVerificationSnapshot') }), decisionDigest: digest() }) };
+}
+
+function workspaceMaterialReferenceResult() {
+  return { $schema: DRAFT, $id: typeId('LibraWorkspaceMaterialReferenceResult'), title: 'LibraWorkspaceMaterialReferenceResult@1',
+    'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 128 * 1024,
+    ...object({ decisionId: digest(), workspaceId: digest(), workspaceRevision: positive(), workspaceStateDigest: digest(),
+      referenceSnapshot: { $ref: typeId('WorkspaceMaterialReferenceSnapshot') },
+      workspaceMaterialReferenceSetDigest: digest(), resultDigest: digest() }) };
+}
+
 function buildLibraApplicationSchemas() {
   return Object.freeze({
     ProductDeliveryQuery: productDeliveryQuery(),
@@ -493,7 +541,12 @@ function buildLibraApplicationSchemas() {
     LibraRunLifecycleDecision: runLifecycleDecision(),
     LibraRunLifecycleResult: runLifecycleResult(),
     LibraWorkspaceAdmissionDecision: workspaceAdmissionDecision(),
-    LibraWorkspaceAdmissionResult: workspaceAdmissionResult()
+    LibraWorkspaceAdmissionResult: workspaceAdmissionResult(),
+    LibraWorkspaceEpisodeClaims: workspaceEpisodeClaims(),
+    WorkspaceProductVerificationSnapshot: workspaceProductVerificationSnapshot(),
+    WorkspaceMaterialReferenceSnapshot: workspaceMaterialReferenceSnapshot(),
+    LibraWorkspaceMaterialReferenceDecision: workspaceMaterialReferenceDecision(),
+    LibraWorkspaceMaterialReferenceResult: workspaceMaterialReferenceResult()
   });
 }
 

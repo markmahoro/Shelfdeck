@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/WorkspaceMaterialReferenceSnapshot/v1",
+  "title": "WorkspaceMaterialReferenceSnapshot@1",
+  "x-helix-ssotRefs": [
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 65536,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "referenceId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "workspaceId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "materialHandleId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "materialKey": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "workspaceMaterialHandle": {
+      "$ref": "helix://contracts/types/WorkspaceMaterialHandle/v1"
+    },
+    "workspaceHandleDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "referenceRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "working",
+        "product_staging",
+        "released"
+      ]
+    },
+    "episodeClaims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "episodeKey": {
+            "type": "string",
+            "minLength": 1
+          },
+          "seasonClaimDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "claimDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "episodeKey",
+          "seasonClaimDigest",
+          "claimDigest"
+        ]
+      },
+      "maxItems": 32
+    },
+    "episodeScopeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "productVerificationRef": {
+      "anyOf": [
+        {
+          "$ref": "helix://contracts/application-types/WorkspaceProductVerificationSnapshot/v1"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "previousReferenceRevision": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "committedWorkspaceRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "referenceDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "referenceId",
+    "workspaceId",
+    "libraRunId",
+    "materialHandleId",
+    "materialKey",
+    "workspaceMaterialHandle",
+    "workspaceHandleDigest",
+    "referenceRevision",
+    "state",
+    "episodeClaims",
+    "episodeScopeDigest",
+    "productVerificationRef",
+    "previousReferenceRevision",
+    "committedWorkspaceRevision",
+    "referenceDigest"
+  ]
+}

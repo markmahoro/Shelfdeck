@@ -99,8 +99,7 @@
       "minimum": 1
     },
     "accessScope": {
-      "type": "string",
-      "minLength": 1
+      "const": "workspace_material_read"
     },
     "fenceDigest": {
       "type": "string",

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/LibraWorkspaceEpisodeClaims/v1",
+  "title": "LibraWorkspaceEpisodeClaims@1",
+  "x-helix-ssotRefs": [
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 16384,
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "episodeKey": {
+        "type": "string",
+        "minLength": 1
+      },
+      "seasonClaimDigest": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[a-f0-9]{64}$"
+      },
+      "claimDigest": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[a-f0-9]{64}$"
+      }
+    },
+    "required": [
+      "episodeKey",
+      "seasonClaimDigest",
+      "claimDigest"
+    ]
+  },
+  "maxItems": 32
+}
