@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/LibraRunPriorityIntent/v1",
+  "title": "LibraRunPriorityIntent@1",
+  "x-helix-ssotRefs": [
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 8192,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "intentId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "actorId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "expectedPriorityClass": {
+      "type": "string",
+      "enum": [
+        "normal",
+        "expedited"
+      ]
+    },
+    "requestedPriorityClass": {
+      "type": "string",
+      "enum": [
+        "normal",
+        "expedited"
+      ]
+    },
+    "intentKind": {
+      "type": "string",
+      "enum": [
+        "accelerate",
+        "cancel_acceleration"
+      ]
+    },
+    "issuedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "intentDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "intentId",
+    "libraRunId",
+    "actorId",
+    "idempotencyKey",
+    "expectedPriorityClass",
+    "requestedPriorityClass",
+    "intentKind",
+    "issuedAtMs",
+    "intentDigest"
+  ]
+}

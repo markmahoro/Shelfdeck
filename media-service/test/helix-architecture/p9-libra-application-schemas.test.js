@@ -13,7 +13,7 @@ const root = path.resolve(__dirname, '../../src/helix/contracts');
 test('materializes the SSOT-exact Libra production application contracts reproducibly', () => {
   const schemas = buildLibraApplicationSchemas();
   const registry = JSON.parse(fs.readFileSync(path.join(root, 'libra-application-type-registry.json'), 'utf8'));
-  assert.equal(registry.targetCount, 14);
+  assert.equal(registry.targetCount, 21);
   for (const [name, schema] of Object.entries(schemas)) {
     const stored = JSON.parse(fs.readFileSync(path.join(root, 'application-types', name, 'v1/schema.json'), 'utf8'));
     assert.deepEqual(stored, schema);
@@ -21,6 +21,20 @@ test('materializes the SSOT-exact Libra production application contracts reprodu
     assert.equal(entry.schemaId, typeId(name));
     assert.equal(entry.digest.value, schemaDigest(schema));
   }
+});
+
+test('Run Lifecycle schemas freeze typed evidence and the bounded recovery policy', () => {
+  const schemas = buildLibraApplicationSchemas();
+  assert.deepEqual(schemas.LibraRunRecoveryPolicySnapshot.properties.assessmentOffsetsMs.prefixItems.map((item) => item.const),
+    [60000, 300000, 900000, 1800000, 3600000]);
+  assert.equal(schemas.LibraRunRecoveryPolicySnapshot.properties.maxRecoveryAssessments.const, 5);
+  assert.equal(schemas.LibraRunFreshnessAssessment.properties.dimensionResults.minItems, 5);
+  assert.equal(schemas.LibraRunFreshnessAssessment.properties.dimensionResults.maxItems, 5);
+  assert.deepEqual(schemas.LibraRunLifecycleDecision.properties.transitionKind.enum,
+    ['suspend', 'resume', 'freeze', 'freshness_confirmed', 'recovery_reassessed', 'set_priority', 'complete']);
+  assert.deepEqual(schemas.LibraRunLifecycleDecision.properties.transitionEvidence.oneOf.slice(0, 3).map((item) => item.$ref),
+    [typeId('LibraRunFreshnessAssessment'), typeId('LibraRunTerminalDeliveryEvidence'), typeId('LibraRunPriorityIntent')]);
+  assert.equal(schemas.LibraRunTerminalDeliveryEvidence.properties.blockedWorks.maxItems, 256);
 });
 
 test('Run Admission schemas close immutable scope, head zero, and Result continuity', () => {

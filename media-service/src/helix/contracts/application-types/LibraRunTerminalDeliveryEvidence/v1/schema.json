@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/LibraRunTerminalDeliveryEvidence/v1",
+  "title": "LibraRunTerminalDeliveryEvidence@1",
+  "x-helix-ssotRefs": [
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 262144,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "evidenceId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "executionBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "blockerKind": {
+      "type": "string",
+      "enum": [
+        "capability_exhausted",
+        "integration_exhausted",
+        "product_unachievable"
+      ]
+    },
+    "blockedWorks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "workId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "planId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "workBasisDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "terminalEventId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "capabilityRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "failureClass": {
+            "type": "string",
+            "minLength": 1
+          },
+          "failureCode": {
+            "type": "string",
+            "minLength": 1
+          },
+          "attemptCount": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "retryPolicyDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "terminalEvidenceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "memberDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "workId",
+          "planId",
+          "workBasisDigest",
+          "terminalEventId",
+          "capabilityRef",
+          "failureClass",
+          "failureCode",
+          "attemptCount",
+          "retryPolicyDigest",
+          "terminalEvidenceDigest",
+          "memberDigest"
+        ]
+      },
+      "minItems": 1,
+      "maxItems": 256
+    },
+    "blockerSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "assessedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "evidenceDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "evidenceId",
+    "libraRunId",
+    "executionBasisDigest",
+    "blockerKind",
+    "blockedWorks",
+    "blockerSetDigest",
+    "assessedAtMs",
+    "evidenceDigest"
+  ]
+}

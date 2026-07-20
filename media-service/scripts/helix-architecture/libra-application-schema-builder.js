@@ -366,6 +366,92 @@ function runAdmissionResult() {
       'committedAdmissionHeadRevision', 'activeScopeSetDigest', 'resultDigest']) };
 }
 
+function runComparableBasisSnapshot() {
+  const member = object({ materialKey: digest(), role: text(), physicalIdentity: { type: 'object' }, sizeBytes: nonNegative(),
+    bindingRevision: positive(), bindingEvidenceDigest: digest(), episodeClaimSetDigest: digest(), controlRevision: positive(),
+    controlProjectionDigest: digest(), outputRequirementDigest: digest(), memberComparisonDigest: digest() });
+  return { $schema: DRAFT, $id: typeId('LibraRunComparableBasisSnapshot'), title: 'LibraRunComparableBasisSnapshot@1',
+    'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 1024 * 1024,
+    ...object({ subjectId: id(), structureKind: { type: 'string', enum: ['single', 'season'] },
+      contentProfile: { type: 'string', enum: ['movie', 'series', 'jav', 'western_adult'] },
+      acceptanceSpecRef: object({ acceptanceSpecId: id(), specRevision: positive(), specDigest: digest(), recordDigest: digest() }),
+      productScopeDigest: digest(), members: { type: 'array', items: member, minItems: 1, maxItems: 1024 },
+      memberSetDigest: digest(), comparableBasisDigest: digest() }) };
+}
+
+function runRecoveryPolicySnapshot() {
+  return { $schema: DRAFT, $id: typeId('LibraRunRecoveryPolicySnapshot'), title: 'LibraRunRecoveryPolicySnapshot@1',
+    'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 4 * 1024,
+    ...object({ policyRef: { const: 'libra.run-recovery.beta@1' }, policyRevision: { const: 1 },
+      assessmentOffsetsMs: { type: 'array', prefixItems: [60000, 300000, 900000, 1800000, 3600000].map((value) => ({ const: value })), minItems: 5, maxItems: 5 },
+      maxRecoveryAssessments: { const: 5 }, heavyPermitAllowed: { const: false },
+      frozenAutoResumeAllowed: { const: false }, policyDigest: digest() }) };
+}
+
+function runFreshnessAssessment() {
+  const dimension = object({ dimension: { type: 'string', enum: ['acceptance_spec', 'product_scope', 'material_binding', 'material_control', 'output_requirement'] },
+    result: { type: 'string', enum: ['same', 'changed', 'unresolved'] }, evidenceDigest: digest() });
+  return { $schema: DRAFT, $id: typeId('LibraRunFreshnessAssessment'), title: 'LibraRunFreshnessAssessment@1',
+    'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 1024 * 1024,
+    ...object({ assessmentId: digest(), libraRunId: digest(), expectedState: object({ state: { type: 'string', enum: ['active', 'suspended'] }, stateRevision: positive(), stateDigest: digest() }),
+      assessmentKind: { type: 'string', enum: ['active_checkpoint', 'suspension_recovery'] },
+      recoveryPolicy: { $ref: typeId('LibraRunRecoveryPolicySnapshot') },
+      recoveryEpisode: object({ startedAtMs: nonNegative(), attemptOrdinal: nonNegative(), dueAtMs: nonNegative() }, ['attemptOrdinal']),
+      assessedAtMs: nonNegative(), currentDecisionHead: { type: 'object' },
+      originalBasis: { $ref: typeId('LibraRunComparableBasisSnapshot') }, readiness: { type: 'string', enum: ['ready', 'unresolved'] },
+      currentBasis: { $ref: typeId('LibraRunComparableBasisSnapshot') }, unresolvedReasonCodes: { type: 'array', uniqueItems: true,
+        items: { type: 'string', enum: ['decision_basis_unresolved', 'acceptance_spec_unavailable', 'product_scope_unresolved', 'material_binding_unavailable', 'material_control_unavailable', 'required_query_unresolved'] } },
+      dimensionResults: { type: 'array', items: dimension, minItems: 5, maxItems: 5 },
+      comparison: { type: 'string', enum: ['same', 'changed', 'unresolved'] }, assessmentDigest: digest()
+    }, ['assessmentId', 'libraRunId', 'expectedState', 'assessmentKind', 'recoveryPolicy', 'recoveryEpisode', 'assessedAtMs',
+      'currentDecisionHead', 'originalBasis', 'readiness', 'unresolvedReasonCodes', 'dimensionResults', 'comparison', 'assessmentDigest']) };
+}
+
+function runPriorityIntent() {
+  return { $schema: DRAFT, $id: typeId('LibraRunPriorityIntent'), title: 'LibraRunPriorityIntent@1',
+    'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 8 * 1024,
+    ...object({ intentId: digest(), libraRunId: digest(), actorId: id(), idempotencyKey: id(),
+      expectedPriorityClass: { type: 'string', enum: ['normal', 'expedited'] },
+      requestedPriorityClass: { type: 'string', enum: ['normal', 'expedited'] },
+      intentKind: { type: 'string', enum: ['accelerate', 'cancel_acceleration'] }, issuedAtMs: nonNegative(), intentDigest: digest() }) };
+}
+
+function runTerminalDeliveryEvidence() {
+  const work = object({ workId: id(), planId: id(), workBasisDigest: digest(), terminalEventId: id(), capabilityRef: id(),
+    failureClass: text(), failureCode: text(), attemptCount: positive(), retryPolicyDigest: digest(),
+    terminalEvidenceDigest: digest(), memberDigest: digest() });
+  return { $schema: DRAFT, $id: typeId('LibraRunTerminalDeliveryEvidence'), title: 'LibraRunTerminalDeliveryEvidence@1',
+    'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 256 * 1024,
+    ...object({ evidenceId: digest(), libraRunId: digest(), executionBasisDigest: digest(),
+      blockerKind: { type: 'string', enum: ['capability_exhausted', 'integration_exhausted', 'product_unachievable'] },
+      blockedWorks: { type: 'array', items: work, minItems: 1, maxItems: 256 }, blockerSetDigest: digest(),
+      assessedAtMs: nonNegative(), evidenceDigest: digest() }) };
+}
+
+function runLifecycleDecision() {
+  return { $schema: DRAFT, $id: typeId('LibraRunLifecycleDecision'), title: 'LibraRunLifecycleDecision@1',
+    'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 1024 * 1024,
+    ...object({ decisionId: digest(), libraRunId: digest(), expectedStateRevision: positive(), expectedStateDigest: digest(),
+      transitionKind: { type: 'string', enum: ['suspend', 'resume', 'freeze', 'freshness_confirmed', 'recovery_reassessed', 'set_priority', 'complete'] },
+      newPriority: object({ priorityClass: { type: 'string', enum: ['normal', 'expedited'] }, priorityIntentDigest: digest() }),
+      transitionEvidence: { oneOf: [{ $ref: typeId('LibraRunFreshnessAssessment') }, { $ref: typeId('LibraRunTerminalDeliveryEvidence') },
+        { $ref: typeId('LibraRunPriorityIntent') }, { $ref: 'helix://contracts/messages/ArcaProductAcceptedMessage/v1' }] },
+      expectedAdmissionHeadRevision: positive(), expectedActiveScopeSetDigest: digest(), decisionDigest: digest()
+    }, ['decisionId', 'libraRunId', 'expectedStateRevision', 'expectedStateDigest', 'transitionKind', 'transitionEvidence',
+      'expectedAdmissionHeadRevision', 'expectedActiveScopeSetDigest', 'decisionDigest']) };
+}
+
+function runLifecycleResult() {
+  return { $schema: DRAFT, $id: typeId('LibraRunLifecycleResult'), title: 'LibraRunLifecycleResult@1',
+    'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 16 * 1024,
+    ...object({ decisionId: digest(), libraRunId: digest(), previousStateRevision: positive(), previousStateDigest: digest(),
+      committedState: { type: 'string', enum: ['active', 'suspended', 'frozen', 'completed'] }, committedStateRevision: positive(),
+      committedStateDigest: digest(), committedAdmissionHeadRevision: positive(), activeScopeSetDigest: digest(),
+      deliveryReceiptId: id(), terminalAtMs: nonNegative(), resultDigest: digest()
+    }, ['decisionId', 'libraRunId', 'previousStateRevision', 'previousStateDigest', 'committedState',
+      'committedStateRevision', 'committedStateDigest', 'committedAdmissionHeadRevision', 'activeScopeSetDigest', 'resultDigest']) };
+}
+
 function buildLibraApplicationSchemas() {
   return Object.freeze({
     ProductDeliveryQuery: productDeliveryQuery(),
@@ -381,7 +467,14 @@ function buildLibraApplicationSchemas() {
     LibraRunExecutionBasis: runExecutionBasis(),
     LibraRunExecutionBasisRecord: runExecutionBasisRecord(),
     LibraRunAdmissionDecision: runAdmissionDecision(),
-    LibraRunAdmissionResult: runAdmissionResult()
+    LibraRunAdmissionResult: runAdmissionResult(),
+    LibraRunComparableBasisSnapshot: runComparableBasisSnapshot(),
+    LibraRunRecoveryPolicySnapshot: runRecoveryPolicySnapshot(),
+    LibraRunFreshnessAssessment: runFreshnessAssessment(),
+    LibraRunPriorityIntent: runPriorityIntent(),
+    LibraRunTerminalDeliveryEvidence: runTerminalDeliveryEvidence(),
+    LibraRunLifecycleDecision: runLifecycleDecision(),
+    LibraRunLifecycleResult: runLifecycleResult()
   });
 }
 

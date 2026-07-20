@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/LibraRunFreshnessAssessment/v1",
+  "title": "LibraRunFreshnessAssessment@1",
+  "x-helix-ssotRefs": [
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 1048576,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "assessmentId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "expectedState": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "active",
+            "suspended"
+          ]
+        },
+        "stateRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "stateDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "state",
+        "stateRevision",
+        "stateDigest"
+      ]
+    },
+    "assessmentKind": {
+      "type": "string",
+      "enum": [
+        "active_checkpoint",
+        "suspension_recovery"
+      ]
+    },
+    "recoveryPolicy": {
+      "$ref": "helix://contracts/application-types/LibraRunRecoveryPolicySnapshot/v1"
+    },
+    "recoveryEpisode": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "startedAtMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "attemptOrdinal": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "dueAtMs": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "attemptOrdinal"
+      ]
+    },
+    "assessedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "currentDecisionHead": {
+      "type": "object"
+    },
+    "originalBasis": {
+      "$ref": "helix://contracts/application-types/LibraRunComparableBasisSnapshot/v1"
+    },
+    "readiness": {
+      "type": "string",
+      "enum": [
+        "ready",
+        "unresolved"
+      ]
+    },
+    "currentBasis": {
+      "$ref": "helix://contracts/application-types/LibraRunComparableBasisSnapshot/v1"
+    },
+    "unresolvedReasonCodes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "decision_basis_unresolved",
+          "acceptance_spec_unavailable",
+          "product_scope_unresolved",
+          "material_binding_unavailable",
+          "material_control_unavailable",
+          "required_query_unresolved"
+        ]
+      }
+    },
+    "dimensionResults": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "dimension": {
+            "type": "string",
+            "enum": [
+              "acceptance_spec",
+              "product_scope",
+              "material_binding",
+              "material_control",
+              "output_requirement"
+            ]
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "same",
+              "changed",
+              "unresolved"
+            ]
+          },
+          "evidenceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "dimension",
+          "result",
+          "evidenceDigest"
+        ]
+      },
+      "minItems": 5,
+      "maxItems": 5
+    },
+    "comparison": {
+      "type": "string",
+      "enum": [
+        "same",
+        "changed",
+        "unresolved"
+      ]
+    },
+    "assessmentDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "assessmentId",
+    "libraRunId",
+    "expectedState",
+    "assessmentKind",
+    "recoveryPolicy",
+    "recoveryEpisode",
+    "assessedAtMs",
+    "currentDecisionHead",
+    "originalBasis",
+    "readiness",
+    "unresolvedReasonCodes",
+    "dimensionResults",
+    "comparison",
+    "assessmentDigest"
+  ]
+}

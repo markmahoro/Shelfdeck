@@ -5,7 +5,7 @@
   "kind": "application-type-registry",
   "owner": "libra",
   "status": "active",
-  "targetCount": 14,
+  "targetCount": 21,
   "entries": [
     {
       "id": "LibraRunAdmissionDecision",
@@ -32,6 +32,21 @@
       "digest": {
         "algorithm": "sha256",
         "value": "180a3b3821c48f409733577946b25be76e30a620aab0432f52acbb7df5a3a194"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "LibraRunComparableBasisSnapshot",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraRunComparableBasisSnapshot/v1",
+      "relativePath": "application-types/LibraRunComparableBasisSnapshot/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "d45f8f0405918392ee7ad6313338b0f789216f205e81363564b31547bee940a6"
       },
       "ssotRefs": [
         "8.6.21"
@@ -108,6 +123,96 @@
       "digest": {
         "algorithm": "sha256",
         "value": "c10d1a9e38e1d600c6c7d031ac7c37c380da3369f8dfbb56601b03c1f22b5bbe"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "LibraRunFreshnessAssessment",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraRunFreshnessAssessment/v1",
+      "relativePath": "application-types/LibraRunFreshnessAssessment/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "909cd576b5e99e0bc05807d040b6402b02d2c4a512a160aff8f818dcf1e5bb0e"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "LibraRunLifecycleDecision",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraRunLifecycleDecision/v1",
+      "relativePath": "application-types/LibraRunLifecycleDecision/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "5f8227d78e104b4de1abc9992f3fd4b07b202f29ec2c9dee0264f204b1b273b4"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "LibraRunLifecycleResult",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraRunLifecycleResult/v1",
+      "relativePath": "application-types/LibraRunLifecycleResult/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "23a346c5e9c307e4a2cf591097566faddf56ec13e8b06ee9389612dc4556a225"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "LibraRunPriorityIntent",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraRunPriorityIntent/v1",
+      "relativePath": "application-types/LibraRunPriorityIntent/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "1271f3539ee399119e02646b08bc6da464b7ad6b22a3c3ba4e2471005fba085e"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "LibraRunRecoveryPolicySnapshot",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraRunRecoveryPolicySnapshot/v1",
+      "relativePath": "application-types/LibraRunRecoveryPolicySnapshot/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "44bc3b4e930fa32d706bd8a38d7c3bc83b7194e1bfcb0fe114dc4eead3303624"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "LibraRunTerminalDeliveryEvidence",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraRunTerminalDeliveryEvidence/v1",
+      "relativePath": "application-types/LibraRunTerminalDeliveryEvidence/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "3b06593af5abeb997b10322c273125653e14ae67956e3c4f351868191766a455"
       },
       "ssotRefs": [
         "8.6.21"

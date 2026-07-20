@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/LibraRunLifecycleDecision/v1",
+  "title": "LibraRunLifecycleDecision@1",
+  "x-helix-ssotRefs": [
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 1048576,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "decisionId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "expectedStateRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "expectedStateDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "transitionKind": {
+      "type": "string",
+      "enum": [
+        "suspend",
+        "resume",
+        "freeze",
+        "freshness_confirmed",
+        "recovery_reassessed",
+        "set_priority",
+        "complete"
+      ]
+    },
+    "newPriority": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "priorityClass": {
+          "type": "string",
+          "enum": [
+            "normal",
+            "expedited"
+          ]
+        },
+        "priorityIntentDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "priorityClass",
+        "priorityIntentDigest"
+      ]
+    },
+    "transitionEvidence": {
+      "oneOf": [
+        {
+          "$ref": "helix://contracts/application-types/LibraRunFreshnessAssessment/v1"
+        },
+        {
+          "$ref": "helix://contracts/application-types/LibraRunTerminalDeliveryEvidence/v1"
+        },
+        {
+          "$ref": "helix://contracts/application-types/LibraRunPriorityIntent/v1"
+        },
+        {
+          "$ref": "helix://contracts/messages/ArcaProductAcceptedMessage/v1"
+        }
+      ]
+    },
+    "expectedAdmissionHeadRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "expectedActiveScopeSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "decisionDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "decisionId",
+    "libraRunId",
+    "expectedStateRevision",
+    "expectedStateDigest",
+    "transitionKind",
+    "transitionEvidence",
+    "expectedAdmissionHeadRevision",
+    "expectedActiveScopeSetDigest",
+    "decisionDigest"
+  ]
+}

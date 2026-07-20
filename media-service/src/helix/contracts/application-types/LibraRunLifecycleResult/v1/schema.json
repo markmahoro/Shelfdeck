@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/LibraRunLifecycleResult/v1",
+  "title": "LibraRunLifecycleResult@1",
+  "x-helix-ssotRefs": [
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 16384,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "decisionId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "previousStateRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "previousStateDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "committedState": {
+      "type": "string",
+      "enum": [
+        "active",
+        "suspended",
+        "frozen",
+        "completed"
+      ]
+    },
+    "committedStateRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "committedStateDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "committedAdmissionHeadRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "activeScopeSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "deliveryReceiptId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "terminalAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "resultDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "decisionId",
+    "libraRunId",
+    "previousStateRevision",
+    "previousStateDigest",
+    "committedState",
+    "committedStateRevision",
+    "committedStateDigest",
+    "committedAdmissionHeadRevision",
+    "activeScopeSetDigest",
+    "resultDigest"
+  ]
+}

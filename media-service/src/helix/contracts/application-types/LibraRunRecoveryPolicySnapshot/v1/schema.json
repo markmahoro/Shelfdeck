@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/LibraRunRecoveryPolicySnapshot/v1",
+  "title": "LibraRunRecoveryPolicySnapshot@1",
+  "x-helix-ssotRefs": [
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 4096,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "policyRef": {
+      "const": "libra.run-recovery.beta@1"
+    },
+    "policyRevision": {
+      "const": 1
+    },
+    "assessmentOffsetsMs": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "const": 60000
+        },
+        {
+          "const": 300000
+        },
+        {
+          "const": 900000
+        },
+        {
+          "const": 1800000
+        },
+        {
+          "const": 3600000
+        }
+      ],
+      "minItems": 5,
+      "maxItems": 5
+    },
+    "maxRecoveryAssessments": {
+      "const": 5
+    },
+    "heavyPermitAllowed": {
+      "const": false
+    },
+    "frozenAutoResumeAllowed": {
+      "const": false
+    },
+    "policyDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "policyRef",
+    "policyRevision",
+    "assessmentOffsetsMs",
+    "maxRecoveryAssessments",
+    "heavyPermitAllowed",
+    "frozenAutoResumeAllowed",
+    "policyDigest"
+  ]
+}

@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/LibraRunComparableBasisSnapshot/v1",
+  "title": "LibraRunComparableBasisSnapshot@1",
+  "x-helix-ssotRefs": [
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 1048576,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "subjectId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "structureKind": {
+      "type": "string",
+      "enum": [
+        "single",
+        "season"
+      ]
+    },
+    "contentProfile": {
+      "type": "string",
+      "enum": [
+        "movie",
+        "series",
+        "jav",
+        "western_adult"
+      ]
+    },
+    "acceptanceSpecRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "acceptanceSpecId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "specRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "specDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "recordDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "acceptanceSpecId",
+        "specRevision",
+        "specDigest",
+        "recordDigest"
+      ]
+    },
+    "productScopeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "members": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "materialKey": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "role": {
+            "type": "string",
+            "minLength": 1
+          },
+          "physicalIdentity": {
+            "type": "object"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "bindingRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "bindingEvidenceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "episodeClaimSetDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "controlRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "controlProjectionDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "outputRequirementDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "memberComparisonDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "materialKey",
+          "role",
+          "physicalIdentity",
+          "sizeBytes",
+          "bindingRevision",
+          "bindingEvidenceDigest",
+          "episodeClaimSetDigest",
+          "controlRevision",
+          "controlProjectionDigest",
+          "outputRequirementDigest",
+          "memberComparisonDigest"
+        ]
+      },
+      "minItems": 1,
+      "maxItems": 1024
+    },
+    "memberSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "comparableBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "subjectId",
+    "structureKind",
+    "contentProfile",
+    "acceptanceSpecRef",
+    "productScopeDigest",
+    "members",
+    "memberSetDigest",
+    "comparableBasisDigest"
+  ]
+}
