@@ -1,6 +1,6 @@
 # Helix Clean Top-down Architecture
 
-Status: ShelfDeck / Helix architecture SSOT; Levels 0–10 accepted; final full-document audit and post-baseline `PBF-01`–`PBF-14`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R4-R1`、`PBF-13-R4-R2`、`PBF-13-R5`、`PBF-13-R5-R1`、`PBF-13-R5-R2`、`PBF-13-R5-R3`、`PBF-14-R1`）bounded corrections closed; implementation not authorized by this document.
+Status: ShelfDeck / Helix architecture SSOT; Levels 0–10 accepted; final full-document audit and post-baseline `PBF-01`–`PBF-14`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R4-R1`、`PBF-13-R4-R2`、`PBF-13-R5`、`PBF-13-R5-R1`、`PBF-13-R5-R2`、`PBF-13-R5-R3`、`PBF-14-R1`、`PBF-14-R2`）bounded corrections closed; implementation not authorized by this document.
 
 Last updated: 2026-07-20
 
@@ -7766,8 +7766,7 @@ Repository注册对这两张表只按各自声明允许列出的CAS，不能按�
 
 | Commit | Atomic fact set |
 | --- | --- |
-| Domain Fact Commit | Owner-defined Canonical/Process Fact + revision fence + commit marker + durable typed result + contract-declared Outbox |
-| Libra Product Fact Commit | exact `media_cast|product_metadata` variant + current Run/fact revision fence + complete typed commit payload + immutable Product Fact revision + exact closed Source Basis Result references（Metadata Observation或Western Analysis/Normalize/Match）+ commit marker + durable typed Result；两种variant均`outboxRequired=false`，Fact、Source refs、Result与marker全有或全无 |
+| Domain Fact Commit | Owner-defined Canonical/Process Fact + revision fence + commit marker + durable typed result + contract-declared Outbox；其Libra `media_cast|product_metadata` closed variants还必须包含current Run/fact revision fence、完整typed commit payload、immutable Product Fact revision与精确closed Source Basis Result references（Metadata Observation或Western Analysis/Normalize/Match），两种variant均`outboxRequired=false`且Fact、Source refs、Result与marker全有或全无；variant精确表集只由本节后文PBF-14 machine matrix展开，不形成额外顶层Commit行 |
 | Field Observation Page Commit | validated complete `FieldObservationPage`同时作为本Commit Event的immutable durable Evidence写入`fx_event_result_bindings.evidence_json` + current Field Observation head CAS + immutable page revision + Field Material current-row insert/update + durable `ObservationCommitResult` + commit marker；全部同事务成立；新Material只置`unknown/unknown`初值，Observation Commit不计算最终Eligibility/Region，也不发布Outbox |
 | Field Eligibility Reconcile Commit | bounded `ExtractionEligibilityDecisionBatch` + current Field/Access/terminal Observation head/Policy/Material Binding和既有Eligibility revision CAS + 同事务重读并验证Selection conflict与Foundation Material Control revision/digest + 更新Field Material current Eligibility/Control Projection；更新后的rows就是唯一durable output，事务只返回typed summary；这是可重建的Procurement current decision-fact transaction，basis不变时幂等no-op，不写Event Result、commit marker或Outbox |
 | Procurement Run Admission | complete `ProcurementRunExecutionBasis@1` + prospective Run identity + `ResponsibilityControlCommitHandle` + current Field/Access/terminal Observation/Policy/active Triage Rule authority/Material/Selection/Control fence + Run及relationized Basis rows + 全部`run_selection` guard + 对全部成员的同Field Procurement Control acquire/assert + durable `ProcurementControlReceipt` + commit marker；每个Selection member必须从同事务current Field Material row冻结完整Physical Identity四元组与size，写入`proc_run_materials`并纳入Basis member digest，不能只保留不可逆materialKey/摘要；Triage Rule必须由注入的Procurement Registry解析并匹配当前active snapshot，不能信任调用者值；`hasOutbox=false`，全部事实/Control全有或全无，禁止分批Control后补建Run |
@@ -10647,6 +10646,8 @@ application transaction result与Facade Read DTO，以及`PBF-14`新增的Commit
 均不属于Capability output family。43项Canonical Transaction包含
 Routing/Decision Basis/Acceptance Spec三项及PBF-13的Run/Workspace/Cleanup Scope五项既有Owner事务正式物化。
 `PBF-14`的两个Product Fact variants属于既有Domain Fact Commit内部closed variants，不重复计数。
+`PBF-14-R2`已移除会被机器抽取为第44项的重复顶层Commit行；按`8.5.4`主表逐行抽取必须得到
+`43 transactions / 43 unique transaction IDs`，variant matrix不得再次提升为顶层计数项。
 
 #### 8.9.5 Persistence closure audit
 
@@ -13389,4 +13390,6 @@ post-baseline `PBF-01`–`PBF-14`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`�
   强制Owner-row验证对齐；只扩只读白名单，全部计数不变。
 - `PBF-13-R4-R2` bounded formula：Arca Accepted Message ID basis已固定为四个显式顶层JCS property；
   Message/Handoff/事务与全部计数不变。
+- `PBF-14-R2` bounded machine extraction：两个Product Fact closed variants只在既有Domain Fact Commit内展开；
+  当前SSOT extractor结果固定为`112 Capability / 97 Result family / 177 tables / 43 unique Canonical Transactions`。
 - 旧`SD-*`条款：全部撤销，不具有clean Helix合同效力

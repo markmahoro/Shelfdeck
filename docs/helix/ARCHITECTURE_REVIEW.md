@@ -2439,7 +2439,7 @@ Capability、Result family、表或Canonical Transaction，计数保持`112 / 97
 
 ### 15.36 `PBF-14` — Product Metadata / Media-Cast Fact commit闭包
 
-Status: `CLOSED / BOUNDED INPUT-PERSISTENCE FIX APPLIED / REFINED_BY_PBF-14-R1` — 2026-07-20
+Status: `CLOSED / BOUNDED INPUT-PERSISTENCE FIX APPLIED / REFINED_BY_PBF-14-R1-R2` — 2026-07-20
 
 P9-05反向实现审计证明四项缺口成立：两个`domain_fact_commit`没有可选择的no-Outbox精确variant；Product Fact
 缺稳定ID/revision/Handle/marker与Evidence映射；Planner所谓“当前Metadata Observation集合”没有正式选择及历史
@@ -2492,3 +2492,20 @@ Bounded correction不增加组件或能力：
 marker replay及Product Package读取。只替换PBF-14新增的同一张Libra关系表，不改变表总数；Domain、Owner、Handoff、
 Capability、Catalog Result family和Canonical Transaction均不变，仍为`112 / 97 / 177 / 43`。审计结果为
 `PASS / PBF-14-R1 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.38 `PBF-14-R2` — Canonical Transaction顶层计数恢复
+
+Status: `CLOSED / BOUNDED MACHINE-EXTRACTION FIX APPLIED` — 2026-07-20
+
+Implementation machine复审证明PBF-14在`8.5.4 Canonical transaction boundaries`主表中新增的
+`Libra Product Fact Commit`独立行会被SSOT extractor稳定抽取为第44项，这与同节后文“两个Product Fact
+variant属于既有Domain Fact Commit且不重复计数”直接冲突。该问题是Canonical机器表达回归，不是新的业务事务。
+
+Bounded correction删除重复的顶层Commit行，把其atomic fact set合并进既有`Domain Fact Commit`行；
+`domain-fact-commit@1/libra_media_cast_fact@1`与
+`domain-fact-commit@1/libra_product_metadata_fact@1`仍只在PBF-14 machine matrix中作为closed variants展开。
+Source Basis、Owner rows、no-Outbox cardinality、crash atomicity和PBF-14-R1 Western连续性均不改变。
+
+按现有主表抽取规则复核得到43个唯一顶层Transaction；Capability、Catalog Result family和table inventory仍为
+`112 / 97 / 177`。没有新增Domain、Owner、Store、Handoff、Capability或Canonical Transaction。审计结果为
+`PASS / PBF-14-R2 CLOSED / 112-97-177-43 RESTORED / NO OPEN BUSINESS DECISION`。
