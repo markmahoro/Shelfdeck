@@ -9760,7 +9760,15 @@ ID按exact UTF-8 bytes升序，禁止locale/case-fold；所有digest均为小写
   product_unachievable),blockedWorks[1..256 {workId,planId,workBasisDigest,terminalEventId,capabilityRef,
   failureClass,failureCode,attemptCount,retryPolicyDigest,terminalEvidenceDigest,memberDigest}],blockerSetDigest,
   assessedAtMs,evidenceDigest}`；members按workId/eventId排序且只能从同Run immutable Plan、terminal Event/Attempt rows和
-  对应versioned Retry Policy重建；`memberDigest`、set/evidence digest均覆盖完整稳定值并排除自身。它只授权
+  对应versioned Retry Policy重建；`workId+terminalEventId`必须唯一，先按workId、再按terminalEventId的UTF-8 bytes
+  升序。`memberDigest=SHA-256(JCS({schema:"libra.run-terminal-blocker-member@1",workId,planId,
+  workBasisDigest,terminalEventId,capabilityRef,failureClass,failureCode,attemptCount,retryPolicyDigest,
+  terminalEvidenceDigest}))`；`blockerSetDigest=SHA-256(JCS({schema:
+  "libra.run-terminal-blocker-set@1",libraRunId,executionBasisDigest,blockerKind,items:blockedWorks}))`，items是上述
+  排序后的完整member（含memberDigest），不能只覆盖ID或由数组输入顺序决定。`evidenceId=SHA-256(JCS({schema:
+  "libra.run-terminal-delivery-evidence-id@1",libraRunId,executionBasisDigest,blockerKind,blockerSetDigest,
+  assessedAtMs}))`；`evidenceDigest=SHA-256(JCS(完整value excluding evidenceDigest))`。同一evidenceId必须逐字节得到
+  同一完整Evidence，重放不得刷新assessedAtMs或重排members。它只授权
   `active→frozen`的“产品手段已确定耗尽”路径，不用于Decision Basis unresolved；资源等待、可重试Provider故障或
   单个非terminal Event不得形成该Evidence。完整JCS≤`256 KiB`，写入Run revision后不得依赖Foundation Result JSON补值。
 - `LibraRunLifecycleDecision@1`固定为

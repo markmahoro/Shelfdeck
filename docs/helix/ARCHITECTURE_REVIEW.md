@@ -2367,6 +2367,11 @@ producer与Libra consumer无法互认同一messageId。该反馈成立。
 `handoffReceipt`，不使用点号property name，也不扩大ID对完整Message的覆盖。Message本身字段、Receipt、Owner、
 Handoff、Store、Transaction与dedup语义均不变。反向检查producer/consumer与Lifecycle complete Evidence后无其他冲突。
 
+同轮addendum继续证明`LibraRunTerminalDeliveryEvidence@1`虽已要求逐项验证，却未固定`evidenceId`与
+`blockerSetDigest`。补充修正固定member的完整typed JCS公式、`workId+terminalEventId`唯一键及两级UTF-8排序；
+blocker set覆盖Run/Basis/blocker kind与排序后的完整members，Evidence ID覆盖Run/Basis/kind/set/assessedAt。
+相同ID必须对应逐字节相同Evidence，重放不得刷新时间或依赖caller数组顺序。该补充同样不改变字段或业务语义。
+
 修正不新增Domain、Owner、Handoff、Capability、Result family、关系表或Canonical Transaction；计数保持
 `112 Capability / 97 Catalog Result family / 176 tables / 43 Canonical Transactions`。审计结果为
 `PASS / PBF-13-R4-R2 CLOSED / NO OPEN BUSINESS DECISION`。
