@@ -1583,7 +1583,7 @@
       "relativePath": "types/WorkspaceMediaHandle/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "8cbf19d0ff6d0a7746600b376a60edee945d926a31e1d0be84cce9422f02fc64"
+        "value": "c54cdb6ea0007c79d96af9e399d6e18e6ab7e7e77dbc19cafb87c60f8755d2cc"
       },
       "source": {
         "section": "8.6.19",

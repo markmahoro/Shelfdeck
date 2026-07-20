@@ -34,6 +34,51 @@
       "minLength": 1,
       "maxLength": 256
     },
+    "endpointId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "materialKey": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "physicalIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mountScopeId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "inode": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "contentHashAlgorithm": {
+          "const": "sha256"
+        },
+        "contentHash": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "mountScopeId",
+        "inode",
+        "contentHashAlgorithm",
+        "contentHash"
+      ]
+    },
+    "rootHandleRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
     "relativePath": {
       "type": "string",
       "minLength": 1
@@ -93,6 +138,10 @@
     "workspaceId",
     "ownerDomain",
     "processId",
+    "endpointId",
+    "materialKey",
+    "physicalIdentity",
+    "rootHandleRef",
     "relativePath",
     "digestAlgorithm",
     "digestHex",

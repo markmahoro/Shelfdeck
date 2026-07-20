@@ -79,7 +79,10 @@ const definitions = {
     hashVerifiedAtMs: nonNegativeInteger(), readScope: text(), expiresAtMs: nonNegativeInteger(), fenceDigest: digestHex()
   }),
   WorkspaceMaterialHandle: () => nominal('WorkspaceMaterialHandle', {
-    handleId: opaqueId(), workspaceId: opaqueId(), ownerDomain: text(), processId: opaqueId(), relativePath: text(),
+    handleId: opaqueId(), workspaceId: opaqueId(), ownerDomain: text(), processId: opaqueId(), endpointId: opaqueId(),
+    materialKey: digestHex(), physicalIdentity: object({ mountScopeId: opaqueId(),
+      inode: text({ pattern: '^(0|[1-9][0-9]*)$' }), contentHashAlgorithm: digestAlgorithm(), contentHash: digestHex() }),
+    rootHandleRef: opaqueId(), relativePath: text(),
     digestAlgorithm: digestAlgorithm(), digestHex: digestHex(), sizeBytes: nonNegativeInteger(), referenceRevision: positiveInteger(),
     accessScope: text(), fenceDigest: digestHex()
   }),
