@@ -13,6 +13,7 @@ const { createPathAuthority } = require('../../src/helix/platform/model/path-aut
 const { createLocationRegistryRepository } = require('../../src/helix/platform/persistence/location-registry-repository');
 const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
+const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 
 const generatedRoot = path.resolve(__dirname, '../../src/helix/foundation/persistence/generated');
 const schemaDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 'utf8');
@@ -35,14 +36,15 @@ function fixture(run, overrides = {}) {
     inodeCapabilityDigest: hash(`inode:${request.mountScopeId}`),
     probeEvidenceDigest: hash(`mount-probe:${request.mountScopeId}`)
   }) };
-  const workspaceProbe = overrides.workspaceProbe || { inspect: (request) => ({
+  const defaultWorkspaceProbe = { inspect: (request) => ({
     resolvedRoot: request.resolvedRoot, created: true, writable: true, atomicRename: true, readable: true,
     deletable: true, availableBytes: 1_000_000, capabilityDigest: hash(`capability:${request.resolvedRoot}`),
     probeEvidenceDigest: hash(`root-probe:${request.resolvedRoot}`)
-  }) };
+  }), assessSpace: () => ({ availableBytes: 10_000_000_000 }) };
+  const workspaceProbe = { ...defaultWorkspaceProbe, ...(overrides.workspaceProbe || {}) };
   const service = createLocationRegistryService({
     repository, pathAuthority, mountProbe, workspaceProbe,
-    reservedRootQuery: { list: () => reserved }
+    reservedRootQuery: { list: () => reserved }, clock: { now: () => now++ }
   });
   try {
     return run({ databasePath, repository, service });
@@ -61,7 +63,12 @@ function mountRequest(mountScopeId, revision, mountBoundary) {
 }
 
 function rootRequest(rootId, rootKind, requestedRoot, expectedConfigRevision = null) {
-  return { rootId, rootKind, requestedRoot, expectedConfigRevision, updatedAtMs: 1_700_000_200_000 };
+  return { rootId, rootKind, endpointId: 'endpoint:workspace', mountScopeId: 'mount:workspace', mountScopeRevision: 1,
+    requestedRoot, expectedConfigRevision, updatedAtMs: 1_700_000_200_000 };
+}
+function rootQuery(rootId, expectedConfigRevision) {
+  const value = expectedConfigRevision === undefined ? { rootId } : { rootId, expectedConfigRevision };
+  return { ...value, queryDigest: canonicalDigest(value) };
 }
 
 test('atomically bootstraps Mount Scope head and advances immutable revisions', () => {
@@ -125,13 +132,14 @@ test('publishes non-overlapping Workspace Roots with exact CAS revisions and own
     assert.throws(() => service.publishWorkspaceRoot(rootRequest(
       'root-production', 'production-workspace', '/srv/stale', 1
     )), (error) => error.code === 'P5_WORKSPACE_ROOT_REVISION_CONFLICT');
-    const resolved = service.resolveWorkspaceRoot({
-      rootId: 'root-production', expectedConfigRevision: 2, ownerScope: 'libra', rootKind: 'production-workspace'
-    });
-    assert.equal(resolved.resolvedRoot, '/srv/new/production');
-    assert.throws(() => service.resolveWorkspaceRoot({
-      rootId: 'root-production', expectedConfigRevision: 2, ownerScope: 'arca', rootKind: 'production-workspace'
-    }), (error) => error.code === 'P5_WORKSPACE_ROOT_STALE');
+    const resolved = service.resolveWorkspaceRoot(rootQuery('root-production', 2));
+    assert.equal(resolved.resultKind, 'found');
+    assert.equal(resolved.snapshot.ownerScope, 'libra');
+    assert.equal(resolved.snapshot.resolvedRoot, undefined);
+    assert.equal(resolved.resultDigest, canonicalDigest(Object.fromEntries(Object.entries(resolved).filter(([key]) => key !== 'resultDigest'))));
+    const stale = service.resolveWorkspaceRoot(rootQuery('root-production', 1));
+    assert.equal(stale.resultKind, 'stale');
+    assert.equal(stale.snapshot, undefined);
   });
 });
 
@@ -159,6 +167,23 @@ test('rejects Workspace overlap, traversal, symlink-style resolution escape, and
     resolvedRoot: request.resolvedRoot, created: true, writable: true, atomicRename: false, readable: true,
     deletable: true, availableBytes: 1, capabilityDigest: hash('cap'), probeEvidenceDigest: hash('probe')
   }) } });
+});
+
+test('assesses Workspace space from internal path without leaking it to typed evidence', () => {
+  fixture(({ service }) => {
+    const root = service.publishWorkspaceRoot(rootRequest('root-production', 'production-workspace', '/srv/work/production'));
+    const inputPrimaryTotalBytes = 1_000_000_000;
+    const value = { workspaceId: hash('workspace'), libraRunId: hash('run'), executionBasisDigest: hash('basis'),
+      rootId: root.rootId, rootSnapshotDigest: root.snapshotDigest, inputPrimaryTotalBytes,
+      requiredFreeBytes: Math.ceil(inputPrimaryTotalBytes * 120 / 100) + 5368709120 };
+    const evidence = service.assessWorkspaceSpace({ ...value, requestDigest: canonicalDigest(value) });
+    assert.equal(evidence.result, 'admitted');
+    assert.equal(evidence.reasonCode, undefined);
+    assert.equal(evidence.availableBytes, 10_000_000_000);
+    assert.equal(evidence.expiresAtMs, evidence.observedAtMs + 30000);
+    assert.equal(evidence.resolvedRoot, undefined);
+    assert.equal(evidence.evidenceDigest, canonicalDigest(Object.fromEntries(Object.entries(evidence).filter(([key]) => key !== 'evidenceDigest'))));
+  });
 });
 
 test('rejects overlap with formal Material Field and Shelf target projections', () => {

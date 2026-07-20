@@ -14,8 +14,7 @@ const EFFECT_CLASSES = new Set(['pure_observation', 'workspace_write', 'external
 const PLATFORM_EXPORTS = [
   'AdminCredentialRevisionQueryPort', 'ComputeDeviceQueryPort',
   'IntegrationHandleResolverPort', 'IntegrationQueryPort', 'MountScopeResolverPort',
-  'ResourceProfileQueryPort', 'SecretLeaseResolverPort', 'WorkerHandleResolverPort',
-  'WorkspaceRootResolverPort'
+  'PlatformWorkspaceRuntimePort', 'ResourceProfileQueryPort', 'SecretLeaseResolverPort', 'WorkerHandleResolverPort'
 ];
 const INTEGRATION_EXPORTS = [
   'ContentHashPort', 'ExternalProviderArtifactPort', 'ExternalProviderObservationPort', 'ExternalProviderRequestPort',
@@ -33,9 +32,13 @@ test('P5 nominal port catalog is exact, typed, bounded, fenced, and owner-declar
     assert.match(contract.portId, /@1$/);
     assert.ok(['platform.public', 'foundation.public', 'integrations'].includes(contract.packageId));
     assert.ok(['platform-settings', 'execution-foundation', 'integration-boundary'].includes(contract.owner));
-    assert.ok(['query', 'resolve', 'execute'].includes(contract.method));
-    assert.match(contract.inputSchemaRef, /^helix:\/\/contracts\/ports\/.+\/v1\/input$/);
-    assert.match(contract.outputSchemaRef, /^helix:\/\/contracts\/ports\/.+\/v1\/output$/);
+    const methods = contract.methods || [{ name: contract.method, inputSchemaRef: contract.inputSchemaRef, outputSchemaRef: contract.outputSchemaRef }];
+    assert.ok(methods.length >= 1 && methods.length <= 2);
+    for (const method of methods) {
+      assert.ok(['query', 'resolve', 'execute', 'resolveWorkspaceRoot', 'assessWorkspaceSpace'].includes(method.name));
+      assert.match(method.inputSchemaRef, /^helix:\/\/contracts\/(ports|application-types)\/.+\/v1(\/input)?$/);
+      assert.match(method.outputSchemaRef, /^helix:\/\/contracts\/(ports|application-types)\/.+\/v1(\/output)?$/);
+    }
     assert.ok(EFFECT_CLASSES.has(contract.effectClass));
     assert.equal(typeof contract.idempotency.required, 'boolean');
     assert.equal(typeof contract.idempotency.scope, 'string');
@@ -57,9 +60,13 @@ test('Platform and Integration entry points export only nominal factories plus p
   const platformPort = platformPublic.MountScopeResolverPort({ resolve: (input) => input });
   const integrationPort = integrations.ContentHashPort({ execute: (input) => input });
   const artifactPort = foundationPublic.ArtifactQueryPort({ query: (input) => input });
+  const workspacePort = platformPublic.PlatformWorkspaceRuntimePort({
+    resolveWorkspaceRoot: (input) => input, assessWorkspaceSpace: (input) => input
+  });
   assert.deepEqual(platformPort.resolve({ scope: 'scope-1' }), { scope: 'scope-1' });
   assert.deepEqual(integrationPort.execute({ handle: 'handle-1' }), { handle: 'handle-1' });
   assert.deepEqual(artifactPort.query({ artifactHandleId: 'artifact-1' }), { artifactHandleId: 'artifact-1' });
+  assert.deepEqual(workspacePort.assessWorkspaceSpace({ workspaceId: 'workspace-1' }), { workspaceId: 'workspace-1' });
   assert.equal(Object.isFrozen(platformPort), true);
   assert.equal(Object.isFrozen(integrationPort), true);
 });

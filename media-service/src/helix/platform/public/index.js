@@ -22,13 +22,14 @@ function bind(exportName, implementation) {
   if (!implementation || typeof implementation !== 'object' || Array.isArray(implementation)) {
     throw new PlatformPublicPortError('P5_PLATFORM_PORT_IMPLEMENTATION_REQUIRED', 'A typed implementation object is required.', { exportName });
   }
+  const expected = contract.methods ? contract.methods.map((item) => item.name).sort() : [contract.method];
   const provided = Object.keys(implementation).sort();
-  if (provided.length !== 1 || provided[0] !== contract.method || typeof implementation[contract.method] !== 'function') {
+  if (JSON.stringify(provided) !== JSON.stringify(expected) || expected.some((method) => typeof implementation[method] !== 'function')) {
     throw new PlatformPublicPortError('P5_PLATFORM_PORT_SHAPE_MISMATCH', 'Implementation must match the nominal method exactly.', {
-      exportName, expected: [contract.method], provided
+      exportName, expected, provided
     });
   }
-  return Object.freeze({ [contract.method]: (input) => implementation[contract.method](input) });
+  return Object.freeze(Object.fromEntries(expected.map((method) => [method, (input) => implementation[method](input)])));
 }
 
 const exported = { PACKAGE_ID: packageId };

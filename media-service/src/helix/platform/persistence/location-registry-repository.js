@@ -38,16 +38,20 @@ function createLocationRegistryRepository(options) {
         'inode_capability_digest', 'probe_evidence_digest', 'effective_at_ms'
       ], keyColumns: ['mount_scope_id', 'revision'] },
       insert_workspace_root: { kind: 'insert', tableId: 'platform_workspace_roots', columns: [
-        'root_id', 'owner_scope', 'root_kind', 'resolved_root', 'config_revision', 'capability_digest', 'state', 'updated_at_ms'
+        'root_id', 'owner_scope', 'root_kind', 'endpoint_id', 'mount_scope_id', 'mount_scope_revision', 'resolved_root',
+        'config_revision', 'capability_digest', 'state', 'root_handle_ref', 'snapshot_digest', 'updated_at_ms'
       ] },
       update_workspace_root: { kind: 'update', tableId: 'platform_workspace_roots',
-        setColumns: ['owner_scope', 'root_kind', 'resolved_root', 'config_revision', 'capability_digest', 'state', 'updated_at_ms'],
+        setColumns: ['owner_scope', 'root_kind', 'endpoint_id', 'mount_scope_id', 'mount_scope_revision', 'resolved_root',
+          'config_revision', 'capability_digest', 'state', 'root_handle_ref', 'snapshot_digest', 'updated_at_ms'],
         keyColumns: ['root_id'], compareColumns: [{ column: 'config_revision', parameter: 'expected_config_revision' }] },
       find_workspace_root: { kind: 'select-one', tableId: 'platform_workspace_roots', columns: [
-        'root_id', 'owner_scope', 'root_kind', 'resolved_root', 'config_revision', 'capability_digest', 'state', 'updated_at_ms'
+        'root_id', 'owner_scope', 'root_kind', 'endpoint_id', 'mount_scope_id', 'mount_scope_revision', 'resolved_root',
+        'config_revision', 'capability_digest', 'state', 'root_handle_ref', 'snapshot_digest', 'updated_at_ms'
       ], keyColumns: ['root_id'] },
       list_workspace_roots: { kind: 'select-all', tableId: 'platform_workspace_roots', columns: [
-        'root_id', 'owner_scope', 'root_kind', 'resolved_root', 'config_revision', 'capability_digest', 'state', 'updated_at_ms'
+        'root_id', 'owner_scope', 'root_kind', 'endpoint_id', 'mount_scope_id', 'mount_scope_revision', 'resolved_root',
+        'config_revision', 'capability_digest', 'state', 'root_handle_ref', 'snapshot_digest', 'updated_at_ms'
       ] }
     }
   });
@@ -65,7 +69,9 @@ function createLocationRegistryRepository(options) {
   });
   const mapRoot = (row) => row && createWorkspaceRoot({
     rootId: row.root_id, ownerScope: row.owner_scope, rootKind: row.root_kind, resolvedRoot: row.resolved_root,
-    configRevision: row.config_revision, capabilityDigest: row.capability_digest, state: row.state, updatedAtMs: row.updated_at_ms
+    endpointId: row.endpoint_id, mountScopeId: row.mount_scope_id, mountScopeRevision: row.mount_scope_revision,
+    configRevision: row.config_revision, capabilityDigest: row.capability_digest, state: row.state,
+    rootHandleRef: row.root_handle_ref, snapshotDigest: row.snapshot_digest, updatedAtMs: row.updated_at_ms
   });
 
   return Object.freeze({
@@ -157,7 +163,9 @@ function toRevisionRow(item) {
 function toRootRow(item) {
   return {
     root_id: item.rootId, owner_scope: item.ownerScope, root_kind: item.rootKind, resolved_root: item.resolvedRoot,
+    endpoint_id: item.endpointId, mount_scope_id: item.mountScopeId, mount_scope_revision: item.mountScopeRevision,
     config_revision: item.configRevision, capability_digest: item.capabilityDigest, state: item.state,
+    root_handle_ref: item.rootHandleRef, snapshot_digest: item.snapshotDigest,
     updated_at_ms: item.updatedAtMs
   };
 }

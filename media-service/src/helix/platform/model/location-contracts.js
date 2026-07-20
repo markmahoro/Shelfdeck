@@ -1,5 +1,7 @@
 'use strict';
 
+const { canonicalDigest } = require('../../contracts/canonical-json');
+
 const TOKEN = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,255}$/;
 const DIGEST = /^[0-9a-f]{64}$/;
 const ROOT_STATES = new Set(['active', 'disabled', 'faulted']);
@@ -52,7 +54,8 @@ function createMountScopeRevision(value) {
 }
 
 function createWorkspaceRoot(value) {
-  const expected = ['capabilityDigest', 'configRevision', 'ownerScope', 'resolvedRoot', 'rootId', 'rootKind', 'state', 'updatedAtMs'];
+  const expected = ['capabilityDigest', 'configRevision', 'endpointId', 'mountScopeId', 'mountScopeRevision',
+    'ownerScope', 'resolvedRoot', 'rootHandleRef', 'rootId', 'rootKind', 'snapshotDigest', 'state', 'updatedAtMs'];
   if (!value || JSON.stringify(Object.keys(value).sort()) !== JSON.stringify(expected.sort())) {
     fail('P5_WORKSPACE_ROOT_SHAPE', 'Workspace Root must match the exact contract.');
   }
@@ -60,13 +63,36 @@ function createWorkspaceRoot(value) {
     fail('P5_WORKSPACE_ROOT_PATH', 'Workspace Root path is invalid.');
   }
   if (!ROOT_STATES.has(value.state)) fail('P5_WORKSPACE_ROOT_STATE', 'Workspace Root state is invalid.');
+  const rootHandleRef = canonicalDigest({ schema: 'platform.workspace-root-handle@1', rootId: value.rootId,
+    endpointId: value.endpointId, mountScopeId: value.mountScopeId, mountScopeRevision: value.mountScopeRevision,
+    configRevision: value.configRevision, capabilityDigest: value.capabilityDigest });
+  const snapshot = { rootId: value.rootId, ownerScope: value.ownerScope, rootKind: value.rootKind,
+    endpointId: value.endpointId, mountScopeId: value.mountScopeId, mountScopeRevision: value.mountScopeRevision,
+    configRevision: value.configRevision, capabilityDigest: value.capabilityDigest, state: value.state, rootHandleRef };
+  if (value.rootHandleRef !== rootHandleRef || value.snapshotDigest !== canonicalDigest(snapshot)) {
+    fail('P5_WORKSPACE_ROOT_DIGEST', 'Workspace Root handle or snapshot digest is invalid.');
+  }
   return Object.freeze({
     rootId: token(value.rootId, 'rootId'), ownerScope: token(value.ownerScope, 'ownerScope'),
-    rootKind: token(value.rootKind, 'rootKind'), resolvedRoot: value.resolvedRoot,
+    rootKind: token(value.rootKind, 'rootKind'), endpointId: token(value.endpointId, 'endpointId'),
+    mountScopeId: token(value.mountScopeId, 'mountScopeId'), mountScopeRevision: positive(value.mountScopeRevision, 'mountScopeRevision'),
+    resolvedRoot: value.resolvedRoot,
     configRevision: positive(value.configRevision, 'configRevision'),
     capabilityDigest: digest(value.capabilityDigest, 'capabilityDigest'), state: value.state,
+    rootHandleRef, snapshotDigest: value.snapshotDigest,
     updatedAtMs: time(value.updatedAtMs, 'updatedAtMs')
   });
 }
 
-module.exports = Object.freeze({ LocationContractError, createMountScopeRevision, createWorkspaceRoot });
+function createWorkspaceRootSnapshot(value) {
+  const root = createWorkspaceRoot(value);
+  if (root.ownerScope !== 'libra' || root.state !== 'active') {
+    fail('P5_WORKSPACE_ROOT_SNAPSHOT_SCOPE', 'Only an active Libra Workspace Root has a public snapshot.');
+  }
+  return Object.freeze({ rootId: root.rootId, ownerScope: root.ownerScope, rootKind: root.rootKind,
+    endpointId: root.endpointId, mountScopeId: root.mountScopeId, mountScopeRevision: root.mountScopeRevision,
+    configRevision: root.configRevision, capabilityDigest: root.capabilityDigest, state: 'active',
+    rootHandleRef: root.rootHandleRef, snapshotDigest: root.snapshotDigest });
+}
+
+module.exports = Object.freeze({ LocationContractError, createMountScopeRevision, createWorkspaceRoot, createWorkspaceRootSnapshot });
