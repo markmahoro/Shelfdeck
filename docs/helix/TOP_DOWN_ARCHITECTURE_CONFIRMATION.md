@@ -1,6 +1,6 @@
 # Helix Clean Top-down Architecture
 
-Status: ShelfDeck / Helix architecture SSOT; Levels 0–10 accepted; final full-document audit and post-baseline `PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R5`）bounded corrections closed; implementation not authorized by this document.
+Status: ShelfDeck / Helix architecture SSOT; Levels 0–10 accepted; final full-document audit and post-baseline `PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R4-R1`、`PBF-13-R5`）bounded corrections closed; implementation not authorized by this document.
 
 Last updated: 2026-07-20
 
@@ -7999,6 +7999,32 @@ Subject接管后的唯一Decision前半链，但仍是三个独立事务：
   不能直接写Libra Run。任何非complete transition若该Run已有published Package，必须重验其Product/Off-load
   Control仍由Libra持有；Control已经转给Arca但Accepted message尚未消费时不得把Run改成superseded/frozen等状态，
   只能等待durable Handoff Outbox/Inbox收敛后执行complete。
+
+`helix.transaction.libra-run-lifecycle-transition`的机器合同必须物化为以下唯一表集，不能从某一variant的较窄
+读取需求推导全局`readTables`：
+
+- `participants[domain=libra].tables`固定为`libra_run_admission_heads`、`libra_runs`、
+  `libra_run_revisions`、`libra_delivery_receipts`；`participants[foundation=execution-foundation].tables`固定为
+  `fx_inbox`、`fx_event_result_bindings`、`fx_commit_markers`；这7张表构成精确`writeTables`，不得扩大；
+- `readTables`固定为上述7张表，加上`libra_subjects`、`libra_subject_decision_heads`、
+  `libra_decision_basis_revisions`、`libra_decision_basis_inputs`、`libra_acceptance_specs`、
+  `libra_run_material_manifests`、`libra_run_material_members`、`libra_run_material_episode_claims`、
+  `libra_material_bindings`、`libra_material_binding_episode_claims`、`fx_material_controls`、
+  `fx_material_control_revisions`、`libra_product_packages`、`libra_product_package_materials`、
+  `libra_product_package_material_episode_claims`、`libra_offload_context_materials`、`fx_supporting_works`、
+  `fx_workflow_plans`、`fx_workflow_events`、`fx_event_attempts`的精确并集；variant没有相应业务row时允许空结果，
+  但不得从machine manifest删表；
+- freshness/recovery从Subject/Decision Basis input/Spec、Run immutable Manifest、current Binding/Episode relation和
+  historical/current Control在同一SQLite事务内重建original/current Comparable Basis；任何必需row缺失或digest不一致
+  是integrity fault，ready条件暂时无法满足才是typed unresolved；caller Evidence只用于逐字节交叉验证，不能替代Owner row；
+- 任一非complete variant若Run已有published Package，必须从Package、Package Material、Material↔Episode与Off-load
+  Context relation重建完整Product/Off-load Control member set，并在同事务重验对应current Control仍归Libra；没有
+  published Package时这四组relation合法为空。Product Fact/Artifact relation不参与Control member set，不属于本事务
+  freshness或custody fence，禁止为“完整Package”之名无界扩读；
+- direct terminal freeze才消费同RunWork/Plan/Event/Attempt rows；complete才消费typed Arca accepted message并重验
+  Package/Receipt/Inbox fence。把这些variant-superset表保留在read whitelist不授权其他variant使用无关事实，也不形成
+  Foundation Result fallback。Assessment构造、Owner-row重读、Run/head CAS、revision/Result/marker提交必须处于同一事务，
+  禁止事务外Assessment后再提交造成TOCTOU。
 - **Workspace Admission**固定写`libra_workspaces`、`libra_workspace_revisions`、`fx_workspace_registry`及
   Result/marker；Platform read participant读取`platform_workspace_roots`并重验Snapshot current tuple/state，Libra读取
   active Run/Basis并验证完整Space Evidence的workspace/run/root/snapshot/request/bytes/expiry。resolved root只在Platform
@@ -9371,6 +9397,9 @@ materialKey反解、current Field、Provider、Foundation Result或caller cache�
 Snapshot、随binary版本化恢复Policy、五次有界assessment、typed Priority/terminal/complete Evidence与唯一digest映射；
 每次suspend/reassess/resume/freeze都在既有Run aggregate与append-only revision中CAS并冻结完整Evidence，重启按持久化
 due/attempt继续，frozen永不自动恢复。它不新增业务状态、组件、表、事务、Capability或Result family。
+`PBF-13-R4-R1`只把上述Lifecycle强制验证输入传播到Canonical Transaction的精确machine read set：Comparable
+Basis、published Package custody fence与terminal Work Evidence均在同一SQLite事务内由Owner rows重建并交叉验证，
+禁止事务外Assessment造成TOCTOU；write set及全部架构计数不变。
 `PBF-13-R5`只把既有Platform Workspace配置与Libra Workspace Admission接成正式typed边界：Platform Port返回不含
 resolved path的Root Snapshot，并用Platform内部路径形成30秒有效的space admission Evidence；Libra只冻结Snapshot与
 Evidence并由既有Workspace Admission transaction验证current root fence。它不新增Domain、Handoff、Capability、表或事务。
@@ -10179,7 +10208,7 @@ PBF-13相关Canonical Transaction的机器表集固定如下；`Result/marker`�
 | Transaction | Exact write tables | Additional exact fence/read tables | Outbox |
 | --- | --- | --- | --- |
 | Run Admission | `libra_run_admission_heads,libra_runs,libra_run_revisions,libra_run_material_manifests,libra_run_material_members,libra_run_material_episode_claims` + Result/marker | `libra_subjects,libra_subject_decision_heads,libra_acceptance_specs,libra_material_bindings,libra_material_binding_episode_claims,fx_material_controls,fx_material_control_revisions`及全部write tables | no |
-| Run Lifecycle Transition | `libra_run_admission_heads,libra_runs,libra_run_revisions,libra_delivery_receipts,fx_inbox` + Result/marker | 上述write tables；freshness/recovery读取`libra_subjects,libra_subject_decision_heads,libra_decision_basis_revisions,libra_decision_basis_inputs,libra_acceptance_specs,libra_run_material_manifests,libra_run_material_members,libra_run_material_episode_claims,libra_material_bindings,libra_material_binding_episode_claims,fx_material_controls,fx_material_control_revisions`；direct terminal freeze还读同Run`fx_supporting_works,fx_workflow_plans,fx_workflow_events,fx_event_attempts`；complete重验`libra_product_packages`及typed Arca accepted message | no |
+| Run Lifecycle Transition | `libra_run_admission_heads,libra_runs,libra_run_revisions,libra_delivery_receipts,fx_inbox` + Result/marker | 上述全部write tables与`libra_subjects,libra_subject_decision_heads,libra_decision_basis_revisions,libra_decision_basis_inputs,libra_acceptance_specs,libra_run_material_manifests,libra_run_material_members,libra_run_material_episode_claims,libra_material_bindings,libra_material_binding_episode_claims,fx_material_controls,fx_material_control_revisions,libra_product_packages,libra_product_package_materials,libra_product_package_material_episode_claims,libra_offload_context_materials,fx_supporting_works,fx_workflow_plans,fx_workflow_events,fx_event_attempts`的精确variant-superset；freshness/recovery同事务重建Comparable Basis；非complete且已有Package时重验完整Product/Off-load Control set；direct terminal freeze消费Work/Plan/Event/Attempt；complete消费typed Arca accepted message | no |
 | Workspace Admission | `libra_workspaces,libra_workspace_revisions,fx_workspace_registry` + Result/marker | `libra_runs,libra_run_revisions`及Platform read participant的`platform_workspace_roots`；Root/space typed port输出作为Decision输入，Platform内部resolved path不进入read result或Libra rows | no |
 | Workspace Material Reference Commit | `libra_workspaces,libra_workspace_revisions,libra_workspace_material_refs` + Result/marker | `libra_runs,libra_run_revisions,fx_workspace_materials`及全部write tables | no |
 | Deliverable Promotion | `libra_runs,libra_product_packages,libra_product_package_materials,libra_product_package_material_episode_claims,libra_product_package_fact_refs,libra_product_package_artifact_refs,libra_offload_context_materials,fx_material_controls,fx_material_control_revisions` + Result/marker/`fx_outbox` | `libra_run_revisions,libra_run_material_manifests,libra_run_material_members,libra_run_material_episode_claims,libra_workspaces,libra_workspace_revisions,libra_workspace_material_refs,libra_material_bindings,libra_material_binding_episode_claims,libra_product_fact_revisions,libra_acceptance_specs,fx_workspace_registry,fx_workspace_materials`及全部write tables | `LibraProductOfferAvailableMessage@1` |
@@ -10692,7 +10721,7 @@ Status: `ACCEPTED / JOURNEY-AMENDED`（2026-07-16）。下列术语已经通过L
 
 当前确认状态：
 
-- `8.0`–`8.10`：`ACCEPTED / JOURNEY-AMENDED / POST-BASELINE-DOC-CORRECTED`（2026-07-20；用户确认的基线保持，Level 9反向审计与`PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R5`）bounded修正已回写）；
+- `8.0`–`8.10`：`ACCEPTED / JOURNEY-AMENDED / POST-BASELINE-DOC-CORRECTED`（2026-07-20；用户确认的基线保持，Level 9反向审计与`PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R4-R1`、`PBF-13-R5`）bounded修正已回写）；
 - 当前没有开放的Level 8 Business Decision；
 - clean Catalog为`112 refs / 112 unique`，97个Catalog Result family均有typed contract；`PBF-11-R2-R1`把Handoff A专用富拒绝Receipt与Handoff B通用拒绝Receipt拆成不同nominal Result，故Capability数量不变而Result family增加1；
 - 176张关系表的PK、revision、关键列、unique/partial unique、热路径索引和JSON上限已经固化；PBF-10新增
@@ -10700,7 +10729,7 @@ Status: `ACCEPTED / JOURNEY-AMENDED`（2026-07-16）。下列术语已经通过L
   head/N:M关系表，PBF-11-R2新增一张Libra-owned Handoff A Rejection Reason/Evidence关系表，PBF-13新增七张
   Libra-owned Run/Workspace/Package关系表，均不新增Store；
 - 当前62项Capability registration、named helper和直接依赖已经完成function-level conservation；
-- Level 8 post-amendment closure audit、`PBF-02`纵向传播、`PBF-03` Acquisition可实现性、`PBF-04` People Candidate数据守恒、`PBF-05` Perception Resolution输入闭包/Person Schema复审、`PBF-06`（含`PBF-06-R1`）Reference/Person/Metadata/Media-Cast、`PBF-07`（含`PBF-07-R1`）Field Observation输入/revision/payload persistence continuity、`PBF-08` Extraction Eligibility、`PBF-09`（含`PBF-09-R1`）Procurement Run Admission、`PBF-10`（含`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`）Triage/Candidate Publication、`PBF-11`（含`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`）Libra Intake/Handoff、`PBF-12`（含`PBF-12-R1`）Routing/Decision Basis/Acceptance Spec及`PBF-13`（含`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R5`）Libra Run/Workspace/Package/Reclamation正式化结果为`PASS / NO BLOCKING GAP / NO OPEN BUSINESS DECISION`；
+- Level 8 post-amendment closure audit、`PBF-02`纵向传播、`PBF-03` Acquisition可实现性、`PBF-04` People Candidate数据守恒、`PBF-05` Perception Resolution输入闭包/Person Schema复审、`PBF-06`（含`PBF-06-R1`）Reference/Person/Metadata/Media-Cast、`PBF-07`（含`PBF-07-R1`）Field Observation输入/revision/payload persistence continuity、`PBF-08` Extraction Eligibility、`PBF-09`（含`PBF-09-R1`）Procurement Run Admission、`PBF-10`（含`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`）Triage/Candidate Publication、`PBF-11`（含`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`）Libra Intake/Handoff、`PBF-12`（含`PBF-12-R1`）Routing/Decision Basis/Acceptance Spec及`PBF-13`（含`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R4-R1`、`PBF-13-R5`）Libra Run/Workspace/Package/Reclamation正式化结果为`PASS / NO BLOCKING GAP / NO OPEN BUSINESS DECISION`；
 - JSON Schema/DDL文件与contract fixture是未来Implementation交付物，其合同已经确定；
 - Level 9可以开始Public Interface and Product Surface结构化设计；
 - Implementation、E2E、Docker与生产部署继续暂停。
@@ -13074,7 +13103,7 @@ Beta Release Candidate不等于授权部署生产。生产部署、真实媒体�
 | 10.7 | Level 6业务健康、Level 9普通/Advanced边界 | preserved |
 | 10.8 | Level 5/6 Authorization、Level 8 typed Secret与Material safety | preserved |
 | 10.9 | 模块化单体、Physical File Source与Emby External Provider边界 | preserved |
-| 10.10 | 九条旅程、112 Capability、176 tables、43 Canonical Transactions、113 Admin routes、1 public health route及clean-cut门禁 | preserved after bounded final-audit closure and `PBF-02`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R5`） |
+| 10.10 | 九条旅程、112 Capability、176 tables、43 Canonical Transactions、113 Admin routes、1 public health route及clean-cut门禁 | preserved after bounded final-audit closure and `PBF-02`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R4-R1`、`PBF-13-R5`） |
 
 #### 10.11.2 前序Level 10 reservation覆盖审计
 
@@ -13199,7 +13228,7 @@ Automation、Priority、Approval、Workspace与资源配置。它们在被新合
 关闭为历史Evidence。任何新Review Item在完成全局Evidence审计、证明真实缺陷、
 取得必要Owner Decision并形成新的有界Change Set之前，都不能改变本文语义。Level 7、Level 8与Level 9
 均已经Accepted并完成各自必要的Journey amendment；
-post-baseline `PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R5`）已经按同一纪律完成bounded合同闭合并记录在Review Section 15；实现、测试或
+post-baseline `PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R4-R1`、`PBF-13-R5`）已经按同一纪律完成bounded合同闭合并记录在Review Section 15；实现、测试或
 部署仍未由本文件授权。
 
 ## Confirmation state
@@ -13212,11 +13241,13 @@ post-baseline `PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`�
 - Level 5（`5.1`–`5.11`）：`ACCEPTED / JOURNEY-AMENDED`（2026-07-16）
 - Level 6（`6.0`–`6.12`）：`ACCEPTED / JOURNEY-AMENDED`（2026-07-16）
 - Level 7（`7.0`–`7.12`）：`ACCEPTED / JOURNEY-AMENDED`（2026-07-16；durable progress bounded amendment）
-- Level 8（`8.0`–`8.10`）：`ACCEPTED / JOURNEY-AMENDED / POST-BASELINE-DOC-CORRECTED`（2026-07-20；用户确认基线保持，`PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R5`）已闭合）
+- Level 8（`8.0`–`8.10`）：`ACCEPTED / JOURNEY-AMENDED / POST-BASELINE-DOC-CORRECTED`（2026-07-20；用户确认基线保持，`PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R4-R1`、`PBF-13-R5`）已闭合）
 - Level 9（`9.0`–`9.11`）：`ACCEPTED / JOURNEY-AMENDED`
   （2026-07-16；8项Journey bounded gap已关闭，post-amendment audit通过并由用户确认）
 - Level 10（`10.0`–`10.12`）：`ACCEPTED`
   （2026-07-16；结构化正文与运行维度反向审计通过并由用户确认）
 - Final Level 0–10 Audit：`CLOSED / APPLIED_AND_AUDITED`（27项bounded修正、1项false positive关闭、`FA-04`已确认并传播）
 - Post-baseline realizability audit：`PBF-01`–`PBF-13 CLOSED / APPLIED_AND_AUDITED`（包含`PBF-06-R1`、`PBF-07-R1`、`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`与`PBF-13-R5`细化；不新增Domain/Handoff/Capability；`PBF-09`新增一张Procurement-owned retry precondition关系表，`PBF-10`新增一张Procurement-owned Candidate Member↔Episode Claim关系表，`PBF-10-R1`闭合Episode relation机器白名单，`PBF-10-R2`闭合Offer与Continuity正式合同，`PBF-10-R3`闭合Run revision head CAS写集，`PBF-11`新增五张Libra-owned Intake head/N:M关系表并闭合Handoff A，`PBF-11-R1`扩充既有Procurement Related relation以闭合完整Physical Identity/reference digest历史重建，`PBF-11-R2`把Handoff A Rejected拆成独立typed Decision并补齐Reason/Evidence、Receipt、Outbox和Procurement consume原子终态，`PBF-11-R2-R1`恢复Accepted Receipt唯一scopeDigest并把Handoff A富拒绝与Handoff B通用拒绝分型，完整闭合Arca rejected持久化与Libra consume，`PBF-11-R2-R2`修正Candidate Delivery/Reservation的CAS lifecycle机器语义并对称闭合Accepted/Rejected consume，`PBF-11-R3`固定Accepted Receipt的Control revision set唯一公式与historical reconstruction，`PBF-12`闭合Routing/Decision Basis/Acceptance Spec typed input、三项事务、Subject provenance/content profile与Spec scope，`PBF-12-R1`补齐历史pre-CAS Decision Head Snapshot的relationized恢复，`PBF-13`闭合Libra Run/Workspace/Product Package/Discard/Reclamation typed continuity、历史Owner-row恢复和五项Canonical Transaction，`PBF-13-R1`补齐Workspace Reclamation Facade Query/Command的唯一callable contract与Owner-row重建，`PBF-13-R2`修正initial Admission logical 0、Package head INTEGER及Material requirement binding，`PBF-13-R3`闭合Run Input Physical Identity/size跨Handoff连续性，`PBF-13-R4`闭合Run freshness与有界恢复，`PBF-13-R5`闭合Platform Workspace Root/space admission typed边界；关系表总数为176，Catalog Result family为97，Canonical Transaction为43）
+- `PBF-13-R4-R1` bounded propagation：Lifecycle canonical machine `readTables`已与Freshness/Package custody
+  强制Owner-row验证对齐；只扩只读白名单，全部计数不变。
 - 旧`SD-*`条款：全部撤销，不具有clean Helix合同效力

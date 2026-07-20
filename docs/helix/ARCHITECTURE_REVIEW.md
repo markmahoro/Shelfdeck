@@ -1,6 +1,6 @@
 # Helix Architecture Review Workbench
 
-Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-20；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R5`）bounded correction均已完成。
+Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-20；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R4-R1`、`PBF-13-R5`）bounded correction均已完成。
 
 ## 1. Purpose and authority
 
@@ -2327,3 +2327,29 @@ Bounded correction把既有P5 runtime port正式重签为`PlatformWorkspaceRunti
 Catalog Result family、关系表或Canonical Transaction；计数保持
 `112 Capability / 97 Catalog Result family / 176 tables / 43 Canonical Transactions`。审计结果为
 `PASS / PBF-13-R5 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.31 `PBF-13-R4-R1` — Run Lifecycle canonical read-set与TOCTOU闭合
+
+Status: `CLOSED / BOUNDED PROPAGATION FIX APPLIED` — 2026-07-20
+
+P9-03-R1证明`PBF-13-R4`的业务正文与Owner-row重建规则已经正确，但Canonical Transaction机器清单仍保留旧的
+窄`readTables`。如果实现只接受事务外构造的Freshness Assessment，Decision Basis、Binding或Control可在Assessment
+与Run CAS之间变化；如果只信caller Evidence，又违反Owner-row与integrity fault合同。该反馈成立，是同一修正没有
+完整传播到machine transaction manifest，而非新业务缺口。
+
+Bounded correction固定Lifecycle transaction的variant-superset read whitelist：
+
+- freshness/recovery必须在同一SQLite事务读取Subject Decision Head、Decision Basis及input relation、Acceptance Spec、
+  immutable Run Manifest/member/Episode、current Binding/Episode与historical/current Material Control，并重建两个
+  Comparable Basis；
+- 非complete且已有published Package时，额外从Package、Package Material、Material↔Episode与Off-load Context
+  relation重建完整Product/Off-load Control member set并重验Control仍归Libra；无Package时这些relation合法为空；
+- Product Fact/Artifact不参与custody fence，明确不扩读；direct terminal freeze才使用Work/Plan/Event/Attempt，complete
+  才消费Arca accepted message；
+- Assessment构造、Owner-row验证、Run/head CAS和revision/Result/marker提交必须处于同一事务。caller typed Evidence只做
+  逐字节交叉验证，不能替代Owner事实或把缺失事实伪装成unresolved。
+
+修正只扩充既有Canonical Transaction的只读白名单；writeTables、participant owner、Domain、Handoff、Capability、
+Result family、关系表和事务数全部不变，仍为
+`112 Capability / 97 Catalog Result family / 176 tables / 43 Canonical Transactions`。审计结果为
+`PASS / PBF-13-R4-R1 CLOSED / NO OPEN BUSINESS DECISION`。
