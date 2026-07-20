@@ -2439,7 +2439,7 @@ Capability、Result family、表或Canonical Transaction，计数保持`112 / 97
 
 ### 15.36 `PBF-14` — Product Metadata / Media-Cast Fact commit闭包
 
-Status: `CLOSED / BOUNDED INPUT-PERSISTENCE FIX APPLIED` — 2026-07-20
+Status: `CLOSED / BOUNDED INPUT-PERSISTENCE FIX APPLIED / REFINED_BY_PBF-14-R1` — 2026-07-20
 
 P9-05反向实现审计证明四项缺口成立：两个`domain_fact_commit`没有可选择的no-Outbox精确variant；Product Fact
 缺稳定ID/revision/Handle/marker与Evidence映射；Planner所谓“当前Metadata Observation集合”没有正式选择及历史
@@ -2465,3 +2465,30 @@ marker replay、Deliverable Promotion与Product Fact Manifest。没有新增Busi
 Capability、Catalog Result family或顶层Canonical Transaction；新增1张Libra-owned关系表，计数更新为
 `112 Capability / 97 Catalog Result family / 177 tables / 43 Canonical Transactions`。审计结果为
 `PASS / PBF-14 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.37 `PBF-14-R1` — Western Product Fact Source Basis连续性
+
+Status: `CLOSED / BOUNDED SOURCE-BASIS FIX APPLIED` — 2026-07-20
+
+PBF-14 implementation复审证明首版修正把`MetadataObservationSelectionSnapshot + MetadataObservationSet`错误提升为
+两个Product Fact Commit的统一mandatory input，因而切断了已接受的Western
+`analysis.observe → metadata.normalize → ProductMetadataDraft`路径；Western既不能伪造TMDB/JAV Provider
+Observation，也无法满足非空Observation relation。Media-Cast在没有人物match时同样会被错误阻塞。该回归成立。
+
+Bounded correction不增加组件或能力：
+
+- 两个Commit改为closed Source Basis union。Movie/Series/JAV继续使用`metadata_observation`；Western Product
+  Metadata使用`western_analysis`，Western Media-Cast使用`western_match`；
+- 定义`WesternAnalysisVariant`、`WesternProductMetadataBasisSnapshot`与`WesternMediaCastBasisSnapshot`，只引用同
+  Run/Execution Basis的durable Work→Plan→Event→Result链；Normalize Result必须逐字节等于Commit Draft；
+- `shared.face.reference.match@1 → PersonMatchEvidence@1`的`matches=[]`成为Western空Media-Cast Fact的正式basis；
+  空关系不再依赖Metadata Observation，也不允许在有match时静默丢关系；
+- 将首版Observation专用relation有界改名/泛化为`libra_product_fact_source_refs`，保存capability、result schema/digest、
+  input binding与basis discriminator；Fact row同步保存source basis kind/id/digest/count；
+- Commit payload、Draft/Fact discriminator、Evidence digest及exact transaction read set全部改为Source Basis连续性；禁止
+  Provider伪装、Foundation Result扫描、caller cache或hidden fallback。
+
+反向审计覆盖Movie/Series/JAV原Observation路径、Western Analysis/Normalize、Western空/非空Media-Cast、Fact revision、
+marker replay及Product Package读取。只替换PBF-14新增的同一张Libra关系表，不改变表总数；Domain、Owner、Handoff、
+Capability、Catalog Result family和Canonical Transaction均不变，仍为`112 / 97 / 177 / 43`。审计结果为
+`PASS / PBF-14-R1 CLOSED / NO OPEN BUSINESS DECISION`。
