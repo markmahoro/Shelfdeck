@@ -1,0 +1,320 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_product_fact_source_refs/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_product_fact_source_refs",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "product_fact_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "ordinal",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "source_basis_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "metadata_observation",
+          "western_analysis",
+          "western_match"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "work_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "attempt_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "plan_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "event_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "result_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "capability_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "result_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "result_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "source_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 13,
+        "name": "source_order",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 14,
+        "name": "evidence_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 15,
+        "name": "evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 16,
+        "name": "input_binding_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 17,
+        "name": "reference_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "product_fact_id",
+      "ordinal"
+    ],
+    "declaredForeignKeyColumns": [
+      "product_fact_id",
+      "work_id",
+      "attempt_id",
+      "plan_id",
+      "event_id",
+      "result_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "product_fact_id",
+        "result_id"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "source_basis_kind",
+        "enumValues": [
+          "metadata_observation",
+          "western_analysis",
+          "western_match"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": [
+        "不得用later current Result替换历史引用"
+      ]
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(product_fact_id,ordinal)`、`UNIQUE(product_fact_id,result_id)`",
+      "ordinal从0连续且恰等于Fact row的`source_ref_count`，`source_order=ordinal`，全部Work/Attempt/Plan/Event必须构成同一Run、同一Execution Basis",
+      "`input_binding_digest=SHA-256(JCS(fx_plan_nodes.input_bindings_json解析后的完整typed value))`。`metadata_observation`固定`libra.product_metadata.fetch@1 → MetadataObservation@1`，`source_ref=MetadataObservation.sourceRef`，按`sourcePriority,evidence_id`排序且Evidence列非NULL",
+      "`western_analysis`固定一至16项`libra.western.analysis.observe@1 → WesternAnalysisResult@1`后恰一项`libra.western.metadata.normalize@1 → ProductMetadataDraft@1`，observe的`source_ref=externalJobReceiptId`且Evidence列非NULL，normalize的`source_ref=WesternAnalysisVariant.variantId`且Evidence列全NULL",
+      "normalize Plan input必须显式引用前序Result且最后Result逐字节等于Commit Draft",
+      "`western_match`恰一项`shared.face.reference.match@1 → PersonMatchEvidence@1`且`source_ref=PersonMatchEvidence.evidenceId`、Evidence列非NULL，其matches可为空。`reference_digest=SHA-256(JCS({schema:\"libra.product-fact-source-ref@1\",productFactId,ordinal,sourceBasisKind,workId,attemptId,planId,eventId,resultId,capabilityRef,resultSchemaRef,resultDigest,sourceRef,sourceOrder,evidenceId,evidenceDigest,inputBindingDigest}))`",
+      "relation存在期间所指Foundation链不得GC",
+      "不得用later current Result替换历史引用"
+    ],
+    "rawContract": {
+      "columns": "`product_fact_id FK, ordinal, source_basis_kind(metadata_observation|western_analysis|western_match), work_id FK, attempt_id FK, plan_id FK, event_id FK, result_id FK, capability_ref, result_schema_ref, result_digest, source_ref, source_order, evidence_id NULL, evidence_digest NULL, input_binding_digest, reference_digest`",
+      "constraints": "`PK(product_fact_id,ordinal)`、`UNIQUE(product_fact_id,result_id)`；ordinal从0连续且恰等于Fact row的`source_ref_count`，`source_order=ordinal`，全部Work/Attempt/Plan/Event必须构成同一Run、同一Execution Basis；`input_binding_digest=SHA-256(JCS(fx_plan_nodes.input_bindings_json解析后的完整typed value))`。`metadata_observation`固定`libra.product_metadata.fetch@1 → MetadataObservation@1`，`source_ref=MetadataObservation.sourceRef`，按`sourcePriority,evidence_id`排序且Evidence列非NULL；`western_analysis`固定一至16项`libra.western.analysis.observe@1 → WesternAnalysisResult@1`后恰一项`libra.western.metadata.normalize@1 → ProductMetadataDraft@1`，observe的`source_ref=externalJobReceiptId`且Evidence列非NULL，normalize的`source_ref=WesternAnalysisVariant.variantId`且Evidence列全NULL；normalize Plan input必须显式引用前序Result且最后Result逐字节等于Commit Draft；`western_match`恰一项`shared.face.reference.match@1 → PersonMatchEvidence@1`且`source_ref=PersonMatchEvidence.evidenceId`、Evidence列非NULL，其matches可为空。`reference_digest=SHA-256(JCS({schema:\"libra.product-fact-source-ref@1\",productFactId,ordinal,sourceBasisKind,workId,attemptId,planId,eventId,resultId,capabilityRef,resultSchemaRef,resultDigest,sourceRef,sourceOrder,evidenceId,evidenceDigest,inputBindingDigest}))`；relation存在期间所指Foundation链不得GC；不得用later current Result替换历史引用"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 8377,
+      "lineDigest": "e9566527f7991890624d4e852d660e8854c19d751bf03f0200a3f916a4d3a02f"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "product_fact_id"
+        ],
+        "targetTable": "libra_product_fact_revisions",
+        "targetColumns": [
+          "product_fact_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "work_id"
+        ],
+        "targetTable": "fx_supporting_works",
+        "targetColumns": [
+          "work_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "attempt_id"
+        ],
+        "targetTable": "fx_work_attempts",
+        "targetColumns": [
+          "attempt_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "plan_id"
+        ],
+        "targetTable": "fx_workflow_plans",
+        "targetColumns": [
+          "plan_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "event_id"
+        ],
+        "targetTable": "fx_workflow_events",
+        "targetColumns": [
+          "event_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "result_id"
+        ],
+        "targetTable": "fx_event_result_bindings",
+        "targetColumns": [
+          "result_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

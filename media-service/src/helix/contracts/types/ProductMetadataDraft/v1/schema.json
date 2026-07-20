@@ -3,9 +3,11 @@
   "$id": "helix://contracts/types/ProductMetadataDraft/v1",
   "title": "ProductMetadataDraft@1",
   "x-helix-ssotRefs": [
+    "6.4.7.1",
     "8.6.19"
   ],
   "x-helix-envelopeRef": "helix://contracts/types/DraftEnvelope/v1",
+  "x-helix-maxCanonicalBytes": 65536,
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -42,6 +44,74 @@
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
+    },
+    "sourceBasisKind": {
+      "type": "string",
+      "enum": [
+        "metadata_observation",
+        "western_analysis"
+      ]
+    },
+    "metadataObservationSetDigest": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "westernAnalysisVariantDigest": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "fieldProvenance": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "fieldPath": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sourceKind": {
+            "type": "string",
+            "enum": [
+              "related_nfo",
+              "provider",
+              "western_analysis"
+            ]
+          },
+          "sourceRef": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidenceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "fieldPath",
+          "sourceKind",
+          "sourceRef",
+          "evidenceDigest"
+        ]
+      },
+      "maxItems": 1024
     },
     "descriptiveFacts": {
       "type": "object",
@@ -197,8 +267,13 @@
     "draftDigest",
     "producedAtMs",
     "resolvedIdentityDigest",
+    "sourceBasisKind",
+    "metadataObservationSetDigest",
+    "westernAnalysisVariantDigest",
+    "fieldProvenance",
     "descriptiveFacts",
     "providerIdentities",
+    "mediaCastDraftRef",
     "artifactRequirements"
   ]
 }

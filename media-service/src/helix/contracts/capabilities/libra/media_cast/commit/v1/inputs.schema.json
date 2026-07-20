@@ -5,6 +5,9 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "libraMediaCastSourceBasisMetadataObservationOrWesternMatch": {
+      "$ref": "#/$defs/libraMediaCastSourceBasisMetadataObservationOrWesternMatch"
+    },
     "mediaCastDraft": {
       "$ref": "#/$defs/mediaCastDraft"
     },
@@ -13,10 +16,15 @@
     }
   },
   "required": [
+    "libraMediaCastSourceBasisMetadataObservationOrWesternMatch",
     "mediaCastDraft",
     "domainFactCommitHandle"
   ],
   "$defs": {
+    "libraMediaCastSourceBasisMetadataObservationOrWesternMatch": {
+      "$ref": "helix://contracts/domain-types/LibraMediaCastSourceBasisMetadataObservationWesternMatch/v1",
+      "x-helix-typeExpression": "LibraMediaCastSourceBasis(metadata_observation|western_match)"
+    },
     "mediaCastDraft": {
       "$ref": "helix://contracts/types/MediaCastDraft/v1",
       "x-helix-typeExpression": "MediaCastDraft"

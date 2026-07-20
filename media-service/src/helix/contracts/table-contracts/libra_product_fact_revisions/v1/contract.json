@@ -49,6 +49,16 @@
       },
       {
         "ordinal": 5,
+        "name": "aggregate_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 6,
         "name": "schema_ref",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -58,7 +68,7 @@
         "nullable": false
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "fact_json",
         "logicalType": "TEXT_JSON",
         "enumValues": [],
@@ -68,7 +78,7 @@
         "nullable": false
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "fact_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -78,7 +88,7 @@
         "nullable": false
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "evidence_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -88,7 +98,101 @@
         "nullable": false
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
+        "name": "source_basis_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "metadata_observation",
+          "western_analysis",
+          "western_match"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 11,
+        "name": "source_basis_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 12,
+        "name": "source_basis_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 13,
+        "name": "source_ref_count",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 14,
+        "name": "commit_payload_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 15,
+        "name": "commit_payload_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 16,
+        "name": "event_fence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 17,
+        "name": "commit_marker",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 18,
+        "name": "result_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 19,
         "name": "committed_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -119,7 +223,16 @@
       ]
     ],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "source_basis_kind",
+        "enumValues": [
+          "metadata_observation",
+          "western_analysis",
+          "western_match"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
         "fact_revision"
@@ -146,18 +259,24 @@
       "rules": []
     },
     "semanticRules": [
+      "`fact_kind`必须是Catalog已注册的Product Fact kind，不由Store发明open value",
       "Fact JSON上限`64 KiB`且大Artifact只含handle",
+      "`media_cast|product_metadata`按8.6.19固定`product_fact_id/aggregate_id/revision/commit/evidence/result`，要求全部新增commit/Source Basis列非NULL。Product Metadata只允许`metadata_observation|western_analysis`，Media Cast只允许`metadata_observation|western_match`",
+      "Observation basis的`source_ref_count=1..16`",
+      "Western Product Metadata basis为`2..17`（至少一项Analysis Result加恰一项Normalize Result）",
+      "Western Media-Cast basis恰为1项Match Result。其他已注册kind继续服从各自既有精确合同，允许这些PBF-14专用列为NULL且count=0，不能被本修正反向套用未定义公式",
+      "非NULL `commit_marker`显式FK到`fx_commit_markers`且唯一，`result_digest`逐字节等于marker所指`fx_event_result_bindings`",
       "`UNIQUE(libra_run_id,fact_kind,fact_revision)`",
       "`INDEX(libra_run_id,fact_kind,fact_revision)`"
     ],
     "rawContract": {
-      "columns": "`product_fact_id PK, libra_run_id FK, fact_kind, fact_revision, schema_ref, fact_json, fact_digest, evidence_digest, committed_at_ms`",
-      "constraints": "Fact JSON上限`64 KiB`且大Artifact只含handle；`UNIQUE(libra_run_id,fact_kind,fact_revision)`；`INDEX(libra_run_id,fact_kind,fact_revision)`"
+      "columns": "`product_fact_id PK, libra_run_id FK, fact_kind, fact_revision, aggregate_id NULL, schema_ref, fact_json, fact_digest, evidence_digest, source_basis_kind(metadata_observation|western_analysis|western_match) NULL, source_basis_id NULL, source_basis_digest NULL, source_ref_count, commit_payload_schema_ref NULL, commit_payload_digest NULL, event_fence_digest NULL, commit_marker NULL, result_digest NULL, committed_at_ms`",
+      "constraints": "`fact_kind`必须是Catalog已注册的Product Fact kind，不由Store发明open value；Fact JSON上限`64 KiB`且大Artifact只含handle；`media_cast|product_metadata`按8.6.19固定`product_fact_id/aggregate_id/revision/commit/evidence/result`，要求全部新增commit/Source Basis列非NULL。Product Metadata只允许`metadata_observation|western_analysis`，Media Cast只允许`metadata_observation|western_match`；Observation basis的`source_ref_count=1..16`；Western Product Metadata basis为`2..17`（至少一项Analysis Result加恰一项Normalize Result）；Western Media-Cast basis恰为1项Match Result。其他已注册kind继续服从各自既有精确合同，允许这些PBF-14专用列为NULL且count=0，不能被本修正反向套用未定义公式；非NULL `commit_marker`显式FK到`fx_commit_markers`且唯一，`result_digest`逐字节等于marker所指`fx_event_result_bindings`；`UNIQUE(libra_run_id,fact_kind,fact_revision)`；`INDEX(libra_run_id,fact_kind,fact_revision)`"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8326,
-      "lineDigest": "fb61c0883c686a47a6335ea88ef460a2978dba9fff90b7fdd125dae99d667a4b"
+      "line": 8376,
+      "lineDigest": "575e4595f961899349ec80a176c5dcc6e9cfa9dc70f3fdb63e54dc907ba838c1"
     },
     "foreignKeys": [
       {

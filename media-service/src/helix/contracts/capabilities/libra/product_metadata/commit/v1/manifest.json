@@ -5,6 +5,11 @@
   "ownerScope": "libra",
   "effectClass": "domain_fact_commit",
   "inputPorts": {
+    "libraProductMetadataSourceBasisMetadataObservationOrWesternAnalysis": {
+      "schemaRef": "helix://contracts/capabilities/libra.product_metadata.commit/v1/inputs#/$defs/libraProductMetadataSourceBasisMetadataObservationOrWesternAnalysis",
+      "required": true,
+      "cardinality": "one"
+    },
     "productMetadataDraft": {
       "schemaRef": "helix://contracts/capabilities/libra.product_metadata.commit/v1/inputs#/$defs/productMetadataDraft",
       "required": true,
@@ -34,7 +39,7 @@
   },
   "sourceLocator": {
     "section": "8.6.6",
-    "line": 8740,
-    "lineDigest": "06245ff89a480cbdc9050739085acd3978824274b8d94fbbaf722adb71e3a502"
+    "line": 8791,
+    "lineDigest": "d785b5b9ce1851c66b9f48b5325eb89ab69781fcfeeb0394d703af9aea9efcc5"
   }
 }

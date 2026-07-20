@@ -81,7 +81,6 @@ const special = {
   'StructuredRejection.reasonCodes': arrayOf(text(), 128),
   'TargetBindings.bindings': arrayOf(snapshot('target-material-binding'), 4096),
   'TypedManifest.manifest': snapshot('typed-manifest'),
-  'VerifiedArtifactManifest.artifactHandles': arrayOf(typeRef('ArtifactHandle'), 1024),
   'VerifiedCareInventoryChange.verifications': arrayOf(typeRef('CareProductVerification'), 1024),
 };
 
@@ -123,7 +122,6 @@ const boundedContracts = {
   SidecarProfile: 'format,fileNamePolicyDigest,contentSchemaRef',
   SpaceRequirement: 'requiredBytes,reserveBytes',
   StructureRequirement: 'structureKind,memberConstraintDigest',
-  WesternAnalysisVariant: 'modelRef,analysisKind,outputSchemaRef',
   WorkspaceDeliveryContract: 'workspaceId,targetRelativePath,expectedDigest'
 };
 
@@ -152,7 +150,9 @@ const dtoContracts = {
   LibraWorkspaceScope: 'workspaceId,workspaceHandles,scopeDigest',
   LibraDeliverablePromotionDecision: '',
   MetadataFetchIntent: '',
-  MetadataObservationSet: '',
+  WesternAnalysisVariant: '',
+  LibraMediaCastSourceBasisMetadataObservationWesternMatch: '',
+  LibraProductMetadataSourceBasisMetadataObservationWesternAnalysis: '',
   OffLoadContext: 'onDeckPackageId,materials,contextDigest',
   OnDeckPersonEvidenceProjectionItem: '',
   PackageIdentity: 'onDeckPackageId,resolvedIdentityDigest,packageDigest',
@@ -195,7 +195,7 @@ const dtoContracts = {
   TargetBindings: 'targetCommitSlotId,bindings,bindingSetDigest',
   TargetEndpoint: 'endpointId,mountScopeRevision,capacityObservationDigest',
   TypedManifest: 'manifest,contractRef,verificationDigest',
-  VerifiedArtifactManifest: 'manifestDigest,artifactHandles,verificationId',
+  VerifiedArtifactManifest: '',
   VerifiedCareInventoryChange: 'aftercareCaseId,verifications,changeDigest',
   WorkspaceCleanupEffectIntent: '',
   WorkspaceCleanupCommitDecision: ''
@@ -216,6 +216,7 @@ function idField(name) {
 }
 
 function buildSchema(name, role, fields) {
+  if (name === 'WesternAnalysisVariant') return westernAnalysisVariantSchema();
   if (name === 'CandidateDeliveryQuery') return candidateDeliveryQuerySchema();
   if (name === 'CandidateDeliveryReadResult') return candidateDeliveryReadResultSchema();
   if (name === 'CandidateDeliverySnapshot') return candidateDeliverySnapshotSchema();
@@ -236,7 +237,9 @@ function buildSchema(name, role, fields) {
   if (name === 'PeopleReferenceMaintenanceDecision') return peopleReferenceMaintenanceDecisionSchema();
   if (name === 'PersonReferenceProjection') return personReferenceProjectionSchema();
   if (name === 'MetadataFetchIntent') return metadataFetchIntentSchema();
-  if (name === 'MetadataObservationSet') return metadataObservationSetSchema();
+  if (name === 'LibraMediaCastSourceBasisMetadataObservationWesternMatch') return libraMediaCastSourceBasisSchema(name);
+  if (name === 'LibraProductMetadataSourceBasisMetadataObservationWesternAnalysis') return libraProductMetadataSourceBasisSchema(name);
+  if (name === 'VerifiedArtifactManifest') return verifiedArtifactManifestSchema();
   if (name === 'OnDeckPersonEvidenceProjectionItem') return onDeckPersonEvidenceProjectionItemSchema();
   if (name === 'PerceptionResolutionQuery') return perceptionResolutionQuerySchema();
   if (name === 'PerceptionResolutionRecordSet') return perceptionResolutionRecordSetSchema();
@@ -635,11 +638,13 @@ function personReferenceProjectionSchema() {
 }
 
 function metadataFetchIntentSchema() {
-  const common = { intentId: id(), sourceKind: enumText('related_nfo', 'provider'),
-    contentProfile: enumText('movie', 'series', 'jav', 'western_adult'), resolvedIdentityDigest: digest(),
+  const common = { intentId: id(), libraRunId: id(), runExecutionBasisDigest: digest(),
+    sourceKind: enumText('related_nfo', 'provider'), sourcePriority: nonNegativeInteger(),
+    contentProfile: enumText('movie', 'series', 'jav'), resolvedIdentityDigest: digest(),
     requestedFields: arrayOf(text({ maxLength: 128 }), 256), intentDigest: digest() };
   return { $schema: DRAFT, $id: domainTypeId('MetadataFetchIntent'), title: 'MetadataFetchIntent@1',
-    'x-helix-ssotRefs': ['8.6.18', '8.6.20'], 'x-helix-role': 'accepted-business-dto', oneOf: [
+    'x-helix-ssotRefs': ['6.4.7.1', '8.6.18', '8.6.20'], 'x-helix-role': 'accepted-business-dto',
+    'x-helix-maxCanonicalBytes': 16 * 1024, oneOf: [
       object({ ...common, sourceKind: { const: 'related_nfo' }, relatedReferenceId: id(), relatedReferenceDigest: digest(), expectedChecksum: digest() },
         [...Object.keys(common), 'relatedReferenceId', 'relatedReferenceDigest', 'expectedChecksum']),
       object({ ...common, sourceKind: { const: 'provider' }, providerKind: enumText('tmdb', 'jav'), integrationId: id(), configRevision: positiveInteger() },
@@ -647,10 +652,76 @@ function metadataFetchIntentSchema() {
     ] };
 }
 
-function metadataObservationSetSchema() {
-  return exactDomainSchema('MetadataObservationSet', { setId: id(),
-    contentProfile: enumText('movie', 'series', 'jav', 'western_adult'), resolvedIdentityDigest: digest(),
-    observations: arrayOf(typeRef('MetadataObservation'), 16), sourcePrecedence: arrayOf(text({ maxLength: 128 }), 16), setDigest: digest() });
+function westernAnalysisVariantSchema() {
+  const analysisResult = object({ eventId: id(), resultId: id(), resultDigest: digest(), result: typeRef('WesternAnalysisResult') });
+  return { $schema: DRAFT, $id: domainTypeId('WesternAnalysisVariant'), title: 'WesternAnalysisVariant@1',
+    'x-helix-ssotRefs': ['6.4.7.1', '8.6.20'], 'x-helix-role': 'accepted-business-dto',
+    'x-helix-maxCanonicalBytes': 256 * 1024,
+    ...object({ variantId: id(), libraRunId: id(), runExecutionBasisDigest: digest(), resolvedIdentityDigest: digest(),
+      analysisResults: { ...arrayOf(analysisResult, 16), minItems: 1 }, variantDigest: digest() }) };
+}
+
+function metadataObservationSetValue() {
+  return object({ setId: id(), contentProfile: enumText('movie', 'series', 'jav'), resolvedIdentityDigest: digest(),
+    observations: { ...arrayOf(typeRef('MetadataObservation'), 16), minItems: 1 },
+    sourcePrecedence: { ...arrayOf(object({ fetchIntentDigest: digest(), sourcePriority: nonNegativeInteger() }), 16), minItems: 1 },
+    setDigest: digest() });
+}
+
+function metadataObservationSelectionValue() {
+  const item = object({ ordinal: nonNegativeInteger(), workId: id(), attemptId: id(), planId: id(), eventId: id(), resultId: id(),
+    fetchIntentDigest: digest(), sourceKind: enumText('related_nfo', 'provider'), sourceRef: text(), sourcePriority: nonNegativeInteger(),
+    evidenceId: id(), observationDigest: digest(), sourceReferenceDigest: digest() });
+  return object({ selectionId: id(), libraRunId: id(), runExecutionBasisDigest: digest(), setId: id(), setDigest: digest(),
+    items: { ...arrayOf(item, 16), minItems: 1 }, selectionDigest: digest() });
+}
+
+function westernProductMetadataBasisValue() {
+  const analysisRef = object({ workId: id(), attemptId: id(), planId: id(), eventId: id(), resultId: id(), resultDigest: digest(),
+    inputBindingDigest: digest(), externalJobReceiptId: id(), evidenceId: id(), evidenceDigest: digest() });
+  const normalizeRef = object({ workId: id(), attemptId: id(), planId: id(), eventId: id(), resultId: id(), resultDigest: digest(),
+    inputBindingDigest: digest(), analysisVariantId: id(), productMetadataDraftDigest: digest() });
+  return object({ basisId: id(), basisKind: { const: 'western_analysis' }, libraRunId: id(), runExecutionBasisDigest: digest(),
+    resolvedIdentityDigest: digest(), analysisVariantDigest: digest(),
+    analysisRefs: { ...arrayOf(analysisRef, 16), minItems: 1 }, normalizeRef, sourceRefsDigest: digest(), basisDigest: digest() });
+}
+
+function westernMediaCastBasisValue() {
+  const matchRef = object({ workId: id(), attemptId: id(), planId: id(), eventId: id(), resultId: id(), resultDigest: digest(),
+    inputBindingDigest: digest(), evidenceId: id(), evidenceDigest: digest(), personMatchEvidenceDigest: digest() });
+  return object({ basisId: id(), basisKind: { const: 'western_match' }, libraRunId: id(), runExecutionBasisDigest: digest(),
+    resolvedIdentityDigest: digest(), matchRef, matchState: enumText('matches_found', 'no_matches'), basisDigest: digest() });
+}
+
+function sourceBasisEnvelope(name, variants, maxCanonicalBytes) {
+  return { $schema: DRAFT, $id: domainTypeId(name), title: `${name}@1`,
+    'x-helix-ssotRefs': ['6.4.7.1', '8.5.4', '8.6.20'], 'x-helix-role': 'accepted-business-dto',
+    'x-helix-maxCanonicalBytes': maxCanonicalBytes, oneOf: variants };
+}
+
+function libraProductMetadataSourceBasisSchema(name) {
+  return sourceBasisEnvelope(name, [
+    object({ sourceBasisKind: { const: 'metadata_observation' }, selection: metadataObservationSelectionValue(),
+      observationSet: metadataObservationSetValue(), sourceBasisDigest: digest() }),
+    object({ sourceBasisKind: { const: 'western_analysis' }, westernBasis: westernProductMetadataBasisValue(), sourceBasisDigest: digest() })
+  ], 512 * 1024);
+}
+
+function libraMediaCastSourceBasisSchema(name) {
+  return sourceBasisEnvelope(name, [
+    object({ sourceBasisKind: { const: 'metadata_observation' }, selection: metadataObservationSelectionValue(),
+      observationSet: metadataObservationSetValue(), sourceBasisDigest: digest() }),
+    object({ sourceBasisKind: { const: 'western_match' }, westernBasis: westernMediaCastBasisValue(), sourceBasisDigest: digest() })
+  ], 512 * 1024);
+}
+
+function verifiedArtifactManifestSchema() {
+  const item = object({ ordinal: nonNegativeInteger(), artifactHandleId: id(), artifactKind: text(), artifactRevision: positiveInteger(),
+    artifactDigest: digest(), requirementDigest: digest(), verificationEvidenceId: id(), verificationEvidenceDigest: digest(),
+    referenceDigest: digest() });
+  return exactDomainSchema('VerifiedArtifactManifest', { manifestId: id(), libraRunId: id(),
+    items: arrayOf(item, 256), artifactSetDigest: digest(), manifestDigest: digest() }, undefined,
+  { 'x-helix-maxCanonicalBytes': 256 * 1024 });
 }
 
 function onDeckPersonEvidenceProjectionItemSchema() {

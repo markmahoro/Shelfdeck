@@ -3,9 +3,11 @@
   "$id": "helix://contracts/types/MediaCastFact/v1",
   "title": "MediaCastFact@1",
   "x-helix-ssotRefs": [
+    "6.4.7.1",
     "8.6.19"
   ],
   "x-helix-envelopeRef": "helix://contracts/types/DomainFactEnvelope/v1",
+  "x-helix-maxCanonicalBytes": 65536,
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -60,6 +62,125 @@
       "minLength": 1,
       "maxLength": 256
     },
+    "sourceBasisKind": {
+      "type": "string",
+      "enum": [
+        "metadata_observation",
+        "western_match"
+      ]
+    },
+    "sourceBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "relations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "relationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "personId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "displayNameNormalized": {
+            "type": "string",
+            "minLength": 1
+          },
+          "role": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "providerIdentities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "objectId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "schemaRef": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "snapshotDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "objectKind": {
+                  "const": "provider-identity"
+                }
+              },
+              "required": [
+                "objectId",
+                "revision",
+                "schemaRef",
+                "snapshotDigest",
+                "objectKind"
+              ]
+            },
+            "maxItems": 128
+          },
+          "originEvidenceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "confidenceClass": {
+            "type": "string",
+            "minLength": 1
+          },
+          "relationDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "relationId",
+          "personId",
+          "displayName",
+          "displayNameNormalized",
+          "role",
+          "source",
+          "providerIdentities",
+          "originEvidenceDigest",
+          "confidenceClass",
+          "relationDigest"
+        ]
+      },
+      "maxItems": 4096
+    },
     "relationsDigest": {
       "type": "string",
       "minLength": 1,
@@ -83,6 +204,9 @@
     "commitMarker",
     "committedAtMs",
     "subjectId",
+    "sourceBasisKind",
+    "sourceBasisDigest",
+    "relations",
     "relationsDigest",
     "relationCount"
   ]

@@ -5,6 +5,9 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "libraProductMetadataSourceBasisMetadataObservationOrWesternAnalysis": {
+      "$ref": "#/$defs/libraProductMetadataSourceBasisMetadataObservationOrWesternAnalysis"
+    },
     "productMetadataDraft": {
       "$ref": "#/$defs/productMetadataDraft"
     },
@@ -16,11 +19,16 @@
     }
   },
   "required": [
+    "libraProductMetadataSourceBasisMetadataObservationOrWesternAnalysis",
     "productMetadataDraft",
     "verifiedArtifactManifest",
     "domainFactCommitHandle"
   ],
   "$defs": {
+    "libraProductMetadataSourceBasisMetadataObservationOrWesternAnalysis": {
+      "$ref": "helix://contracts/domain-types/LibraProductMetadataSourceBasisMetadataObservationWesternAnalysis/v1",
+      "x-helix-typeExpression": "LibraProductMetadataSourceBasis(metadata_observation|western_analysis)"
+    },
     "productMetadataDraft": {
       "$ref": "helix://contracts/types/ProductMetadataDraft/v1",
       "x-helix-typeExpression": "ProductMetadataDraft"

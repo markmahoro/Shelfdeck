@@ -3,99 +3,81 @@
   "$id": "helix://contracts/domain-types/WesternAnalysisVariant/v1",
   "title": "WesternAnalysisVariant@1",
   "x-helix-ssotRefs": [
+    "6.4.7.1",
     "8.6.20"
   ],
-  "x-helix-role": "bounded-contract",
+  "x-helix-role": "accepted-business-dto",
+  "x-helix-maxCanonicalBytes": 262144,
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "schemaRef": {
-      "const": "helix://contracts/domain-types/WesternAnalysisVariant/v1"
-    },
-    "schemaVersion": {
-      "const": 1
-    },
     "variantId": {
       "type": "string",
       "minLength": 1,
       "maxLength": 256
     },
-    "revision": {
-      "type": "integer",
-      "minimum": 1
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
     },
-    "digest": {
+    "runExecutionBasisDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
-    "modelRef": {
+    "resolvedIdentityDigest": {
       "type": "string",
       "minLength": 1,
-      "maxLength": 256
+      "pattern": "^[a-f0-9]{64}$"
     },
-    "analysisKind": {
-      "type": "string",
-      "minLength": 1
-    },
-    "outputSchemaRef": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 256
-    },
-    "typedParameters": {
+    "analysisResults": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "parameter": {
+          "eventId": {
             "type": "string",
             "minLength": 1,
-            "pattern": "^[a-z][a-zA-Z0-9_.-]{0,127}$"
+            "maxLength": 256
           },
-          "valueType": {
+          "resultId": {
             "type": "string",
-            "enum": [
-              "string",
-              "integer",
-              "number",
-              "boolean"
-            ]
+            "minLength": 1,
+            "maxLength": 256
           },
-          "value": {
-            "type": [
-              "string",
-              "integer",
-              "number",
-              "boolean"
-            ]
-          },
-          "valueDigest": {
+          "resultDigest": {
             "type": "string",
             "minLength": 1,
             "pattern": "^[a-f0-9]{64}$"
+          },
+          "result": {
+            "$ref": "helix://contracts/types/WesternAnalysisResult/v1"
           }
         },
         "required": [
-          "parameter",
-          "valueType",
-          "value",
-          "valueDigest"
+          "eventId",
+          "resultId",
+          "resultDigest",
+          "result"
         ]
       },
-      "maxItems": 256
+      "maxItems": 16,
+      "minItems": 1
+    },
+    "variantDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     }
   },
   "required": [
-    "schemaRef",
-    "schemaVersion",
     "variantId",
-    "revision",
-    "digest",
-    "modelRef",
-    "analysisKind",
-    "outputSchemaRef",
-    "typedParameters"
+    "libraRunId",
+    "runExecutionBasisDigest",
+    "resolvedIdentityDigest",
+    "analysisResults",
+    "variantDigest"
   ]
 }

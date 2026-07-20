@@ -478,6 +478,11 @@ special['OnDeckCommitResult.onDeckCommitReceipt'] = ref('OnDeckCommitReceipt');
 special['OnDeckCommitResult.offloadCompletionFact'] = ref('OffloadCompletionFact');
 
 function buildResultTypeSchema(name, [base, fieldList]) {
+  if (name === 'MetadataObservation') return metadataObservationSchema();
+  if (name === 'ProductMetadataDraft') return productMetadataDraftSchema();
+  if (name === 'MediaCastDraft') return mediaCastDraftSchema();
+  if (name === 'MediaCastFact') return mediaCastFactSchema();
+  if (name === 'ProductMetadataFact') return productMetadataFactSchema();
   if (name === 'ProcurementControlReceipt') return procurementControlReceiptSchema();
   if (name === 'PersonReferenceRevision') return personReferenceRevisionSchema();
   if (name === 'IntakeRejectionReceipt') return intakeRejectionReceiptSchema();
@@ -526,6 +531,68 @@ function buildResultTypeSchema(name, [base, fieldList]) {
     }];
   }
   return result;
+}
+
+function resultSchema(name, base, properties, options = {}) {
+  const inherited = { schemaRef: { const: typeId(name) }, schemaVersion: { const: 1 }, ...envelopeFields[base] };
+  return { $schema: DRAFT, $id: typeId(name), title: `${name}@1`, 'x-helix-ssotRefs': ['6.4.7.1', '8.6.19'],
+    'x-helix-envelopeRef': typeId(base), ...options, ...object({ ...inherited, ...properties }) };
+}
+
+function metadataObservationSchema() {
+  return resultSchema('MetadataObservation', 'EvidenceEnvelope', {
+    fetchIntentDigest: digest(), sourceKind: enumText('related_nfo', 'provider'), sourceRef: text(),
+    sourcePriority: nonNegativeInteger(), identityDigest: digest(), contentProfile: enumText('movie', 'series', 'jav'),
+    descriptiveFacts: boundedRecord('descriptive-facts'), providerIdentitySet: boundedRecord('provider-identity-set'),
+    peopleHints: arrayOf(snapshot('people-hint'), 1024), artifactHints: arrayOf(snapshot('artifact-hint'), 1024)
+  }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
+}
+
+function fieldProvenanceSchema() {
+  return object({ fieldPath: text(), sourceKind: enumText('related_nfo', 'provider', 'western_analysis'),
+    sourceRef: text(), evidenceDigest: digest() });
+}
+
+function mediaCastRelationSchema() {
+  return object({ relationId: id(), personId: nullable(id()), displayName: text(), displayNameNormalized: text(), role: text(),
+    source: text(), providerIdentities: arrayOf(snapshot('provider-identity'), 128), originEvidenceDigest: digest(),
+    confidenceClass: text(), relationDigest: digest() });
+}
+
+function productMetadataDraftSchema() {
+  return resultSchema('ProductMetadataDraft', 'DraftEnvelope', {
+    resolvedIdentityDigest: digest(), sourceBasisKind: enumText('metadata_observation', 'western_analysis'),
+    metadataObservationSetDigest: nullable(digest()), westernAnalysisVariantDigest: nullable(digest()),
+    fieldProvenance: arrayOf(fieldProvenanceSchema(), 1024), descriptiveFacts: boundedRecord('descriptive-facts'),
+    providerIdentities: arrayOf(snapshot('provider-identity'), 128), mediaCastDraftRef: nullable(id()),
+    artifactRequirements: arrayOf(snapshot('artifact-requirement'), 256)
+  }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
+}
+
+function mediaCastDraftSchema() {
+  return resultSchema('MediaCastDraft', 'DraftEnvelope', {
+    subjectId: id(), sourceBasisKind: enumText('metadata_observation', 'western_match'),
+    metadataObservationSetDigest: nullable(digest()), westernMatchBasisDigest: nullable(digest()),
+    relations: arrayOf(mediaCastRelationSchema(), 4096)
+  }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
+}
+
+function mediaCastFactSchema() {
+  return resultSchema('MediaCastFact', 'DomainFactEnvelope', {
+    subjectId: id(), sourceBasisKind: enumText('metadata_observation', 'western_match'), sourceBasisDigest: digest(),
+    relations: arrayOf(mediaCastRelationSchema(), 4096), relationsDigest: digest(), relationCount: nonNegativeInteger()
+  }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
+}
+
+function productMetadataFactSchema() {
+  const mediaCastFactRef = object({ productFactId: id(), factRevision: positiveInteger(), factDigest: digest() });
+  return resultSchema('ProductMetadataFact', 'DomainFactEnvelope', {
+    subjectId: id(), resolvedIdentityDigest: digest(), sourceBasisKind: enumText('metadata_observation', 'western_analysis'),
+    sourceBasisDigest: digest(), metadataObservationSetDigest: nullable(digest()), westernAnalysisVariantDigest: nullable(digest()),
+    fieldProvenance: arrayOf(fieldProvenanceSchema(), 1024), descriptiveFacts: boundedRecord('descriptive-facts'),
+    providerIdentities: arrayOf(snapshot('provider-identity'), 128), mediaCastFactRef: nullable(mediaCastFactRef),
+    verifiedArtifactManifestDigest: digest(), productMetadataDigest: digest()
+  }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
 }
 
 function onDeckProductPackageCommitReceiptSchema() {

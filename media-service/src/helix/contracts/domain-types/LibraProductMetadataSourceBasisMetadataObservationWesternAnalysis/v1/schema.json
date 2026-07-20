@@ -1,0 +1,448 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/LibraProductMetadataSourceBasisMetadataObservationWesternAnalysis/v1",
+  "title": "LibraProductMetadataSourceBasisMetadataObservationWesternAnalysis@1",
+  "x-helix-ssotRefs": [
+    "6.4.7.1",
+    "8.5.4",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "x-helix-maxCanonicalBytes": 524288,
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sourceBasisKind": {
+          "const": "metadata_observation"
+        },
+        "selection": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "selectionId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "libraRunId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "runExecutionBasisDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "setId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "setDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "ordinal": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "fetchIntentDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "sourceKind": {
+                    "type": "string",
+                    "enum": [
+                      "related_nfo",
+                      "provider"
+                    ]
+                  },
+                  "sourceRef": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "sourcePriority": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "evidenceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "observationDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "sourceReferenceDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "ordinal",
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "fetchIntentDigest",
+                  "sourceKind",
+                  "sourceRef",
+                  "sourcePriority",
+                  "evidenceId",
+                  "observationDigest",
+                  "sourceReferenceDigest"
+                ]
+              },
+              "maxItems": 16,
+              "minItems": 1
+            },
+            "selectionDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "selectionId",
+            "libraRunId",
+            "runExecutionBasisDigest",
+            "setId",
+            "setDigest",
+            "items",
+            "selectionDigest"
+          ]
+        },
+        "observationSet": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "setId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "contentProfile": {
+              "type": "string",
+              "enum": [
+                "movie",
+                "series",
+                "jav"
+              ]
+            },
+            "resolvedIdentityDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "observations": {
+              "type": "array",
+              "items": {
+                "$ref": "helix://contracts/types/MetadataObservation/v1"
+              },
+              "maxItems": 16,
+              "minItems": 1
+            },
+            "sourcePrecedence": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "fetchIntentDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "sourcePriority": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "fetchIntentDigest",
+                  "sourcePriority"
+                ]
+              },
+              "maxItems": 16,
+              "minItems": 1
+            },
+            "setDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "setId",
+            "contentProfile",
+            "resolvedIdentityDigest",
+            "observations",
+            "sourcePrecedence",
+            "setDigest"
+          ]
+        },
+        "sourceBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "sourceBasisKind",
+        "selection",
+        "observationSet",
+        "sourceBasisDigest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sourceBasisKind": {
+          "const": "western_analysis"
+        },
+        "westernBasis": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "basisId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "basisKind": {
+              "const": "western_analysis"
+            },
+            "libraRunId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "runExecutionBasisDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "resolvedIdentityDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "analysisVariantDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "analysisRefs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "externalJobReceiptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "evidenceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "evidenceDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "resultDigest",
+                  "inputBindingDigest",
+                  "externalJobReceiptId",
+                  "evidenceId",
+                  "evidenceDigest"
+                ]
+              },
+              "maxItems": 16,
+              "minItems": 1
+            },
+            "normalizeRef": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "workId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "attemptId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "planId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "eventId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "resultId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "resultDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "inputBindingDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "analysisVariantId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "productMetadataDraftDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "required": [
+                "workId",
+                "attemptId",
+                "planId",
+                "eventId",
+                "resultId",
+                "resultDigest",
+                "inputBindingDigest",
+                "analysisVariantId",
+                "productMetadataDraftDigest"
+              ]
+            },
+            "sourceRefsDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "basisDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "basisId",
+            "basisKind",
+            "libraRunId",
+            "runExecutionBasisDigest",
+            "resolvedIdentityDigest",
+            "analysisVariantDigest",
+            "analysisRefs",
+            "normalizeRef",
+            "sourceRefsDigest",
+            "basisDigest"
+          ]
+        },
+        "sourceBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "sourceBasisKind",
+        "westernBasis",
+        "sourceBasisDigest"
+      ]
+    }
+  ]
+}

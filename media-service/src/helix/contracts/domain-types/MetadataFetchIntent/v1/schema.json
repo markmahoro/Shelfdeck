@@ -3,10 +3,12 @@
   "$id": "helix://contracts/domain-types/MetadataFetchIntent/v1",
   "title": "MetadataFetchIntent@1",
   "x-helix-ssotRefs": [
+    "6.4.7.1",
     "8.6.18",
     "8.6.20"
   ],
   "x-helix-role": "accepted-business-dto",
+  "x-helix-maxCanonicalBytes": 16384,
   "oneOf": [
     {
       "type": "object",
@@ -17,16 +19,29 @@
           "minLength": 1,
           "maxLength": 256
         },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "runExecutionBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
         "sourceKind": {
           "const": "related_nfo"
+        },
+        "sourcePriority": {
+          "type": "integer",
+          "minimum": 0
         },
         "contentProfile": {
           "type": "string",
           "enum": [
             "movie",
             "series",
-            "jav",
-            "western_adult"
+            "jav"
           ]
         },
         "resolvedIdentityDigest": {
@@ -66,7 +81,10 @@
       },
       "required": [
         "intentId",
+        "libraRunId",
+        "runExecutionBasisDigest",
         "sourceKind",
+        "sourcePriority",
         "contentProfile",
         "resolvedIdentityDigest",
         "requestedFields",
@@ -85,16 +103,29 @@
           "minLength": 1,
           "maxLength": 256
         },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "runExecutionBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
         "sourceKind": {
           "const": "provider"
+        },
+        "sourcePriority": {
+          "type": "integer",
+          "minimum": 0
         },
         "contentProfile": {
           "type": "string",
           "enum": [
             "movie",
             "series",
-            "jav",
-            "western_adult"
+            "jav"
           ]
         },
         "resolvedIdentityDigest": {
@@ -135,7 +166,10 @@
       },
       "required": [
         "intentId",
+        "libraRunId",
+        "runExecutionBasisDigest",
         "sourceKind",
+        "sourcePriority",
         "contentProfile",
         "resolvedIdentityDigest",
         "requestedFields",

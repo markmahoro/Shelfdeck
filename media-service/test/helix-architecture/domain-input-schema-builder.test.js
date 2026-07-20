@@ -6,10 +6,25 @@ const { buildDomainInputSchemas } = require('../../scripts/helix-architecture/do
 
 const schemas = buildDomainInputSchemas();
 
-test('builds exactly the 97 formal domain input contracts', () => {
-  assert.equal(Object.keys(schemas).length, 97);
-  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'bounded-contract').length, 26);
-  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'accepted-business-dto').length, 71);
+test('builds exactly the 98 formal domain input contracts', () => {
+  assert.equal(Object.keys(schemas).length, 98);
+  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'bounded-contract').length, 25);
+  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'accepted-business-dto').length, 73);
+});
+
+test('freezes product fact source basis variants and exact artifact manifest inputs', () => {
+  const mediaCastBasis = schemas.LibraMediaCastSourceBasisMetadataObservationWesternMatch;
+  const metadataBasis = schemas.LibraProductMetadataSourceBasisMetadataObservationWesternAnalysis;
+  assert.deepEqual(mediaCastBasis.oneOf.map((branch) => branch.properties.sourceBasisKind.const),
+    ['metadata_observation', 'western_match']);
+  assert.deepEqual(metadataBasis.oneOf.map((branch) => branch.properties.sourceBasisKind.const),
+    ['metadata_observation', 'western_analysis']);
+  assert.equal(metadataBasis.oneOf[0].properties.selection.properties.items.minItems, 1);
+  assert.equal(metadataBasis.oneOf[0].properties.observationSet.properties.sourcePrecedence.items.additionalProperties, false);
+  assert.equal(metadataBasis.oneOf[1].properties.westernBasis.properties.analysisRefs.minItems, 1);
+  assert.equal(schemas.VerifiedArtifactManifest.properties.items.maxItems, 256);
+  assert.equal(schemas.MetadataFetchIntent.oneOf[0].properties.sourcePriority.minimum, 0);
+  assert.deepEqual(schemas.MetadataFetchIntent.oneOf[0].properties.contentProfile.enum, ['movie', 'series', 'jav']);
 });
 
 test('freezes executable Perception resolution inputs and removes digest-only placeholders', () => {

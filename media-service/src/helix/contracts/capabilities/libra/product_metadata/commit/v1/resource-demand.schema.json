@@ -9,11 +9,17 @@
       "type": "array",
       "prefixItems": [
         {
+          "const": "compute_device"
+        },
+        {
+          "const": "cpu"
+        },
+        {
           "const": "disk_io"
         }
       ],
-      "minItems": 1,
-      "maxItems": 1
+      "minItems": 3,
+      "maxItems": 3
     },
     "demandDigest": {
       "type": "string",

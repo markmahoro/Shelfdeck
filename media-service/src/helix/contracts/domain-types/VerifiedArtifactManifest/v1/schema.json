@@ -3,28 +3,88 @@
   "$id": "helix://contracts/domain-types/VerifiedArtifactManifest/v1",
   "title": "VerifiedArtifactManifest@1",
   "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
     "8.6.20"
   ],
   "x-helix-role": "accepted-business-dto",
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "schemaRef": {
-      "const": "helix://contracts/domain-types/VerifiedArtifactManifest/v1"
-    },
-    "schemaVersion": {
-      "const": 1
-    },
-    "objectId": {
+    "manifestId": {
       "type": "string",
       "minLength": 1,
       "maxLength": 256
     },
-    "revision": {
-      "type": "integer",
-      "minimum": 1
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
     },
-    "digest": {
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ordinal": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "artifactHandleId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "artifactKind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "artifactRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "artifactDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "requirementDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "verificationEvidenceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "verificationEvidenceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "referenceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "ordinal",
+          "artifactHandleId",
+          "artifactKind",
+          "artifactRevision",
+          "artifactDigest",
+          "requirementDigest",
+          "verificationEvidenceId",
+          "verificationEvidenceDigest",
+          "referenceDigest"
+        ]
+      },
+      "maxItems": 256
+    },
+    "artifactSetDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
@@ -33,28 +93,14 @@
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
-    },
-    "artifactHandles": {
-      "type": "array",
-      "items": {
-        "$ref": "helix://contracts/types/ArtifactHandle/v1"
-      },
-      "maxItems": 1024
-    },
-    "verificationId": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 256
     }
   },
   "required": [
-    "schemaRef",
-    "schemaVersion",
-    "objectId",
-    "revision",
-    "digest",
-    "manifestDigest",
-    "artifactHandles",
-    "verificationId"
-  ]
+    "manifestId",
+    "libraRunId",
+    "items",
+    "artifactSetDigest",
+    "manifestDigest"
+  ],
+  "x-helix-maxCanonicalBytes": 262144
 }

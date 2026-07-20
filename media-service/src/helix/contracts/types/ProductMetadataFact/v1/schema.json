@@ -3,9 +3,11 @@
   "$id": "helix://contracts/types/ProductMetadataFact/v1",
   "title": "ProductMetadataFact@1",
   "x-helix-ssotRefs": [
+    "6.4.7.1",
     "8.6.19"
   ],
   "x-helix-envelopeRef": "helix://contracts/types/DomainFactEnvelope/v1",
+  "x-helix-maxCanonicalBytes": 65536,
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -60,12 +62,216 @@
       "minLength": 1,
       "maxLength": 256
     },
-    "productMetadataDigest": {
+    "resolvedIdentityDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
+    "sourceBasisKind": {
+      "type": "string",
+      "enum": [
+        "metadata_observation",
+        "western_analysis"
+      ]
+    },
+    "sourceBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "metadataObservationSetDigest": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "westernAnalysisVariantDigest": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "fieldProvenance": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "fieldPath": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sourceKind": {
+            "type": "string",
+            "enum": [
+              "related_nfo",
+              "provider",
+              "western_analysis"
+            ]
+          },
+          "sourceRef": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidenceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "fieldPath",
+          "sourceKind",
+          "sourceRef",
+          "evidenceDigest"
+        ]
+      },
+      "maxItems": 1024
+    },
+    "descriptiveFacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "schemaVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "recordKind": {
+          "const": "descriptive-facts"
+        },
+        "recordDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "key": {
+                "type": "string",
+                "minLength": 1
+              },
+              "value": {
+                "type": [
+                  "string",
+                  "number",
+                  "integer",
+                  "boolean",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "key",
+              "value"
+            ]
+          },
+          "maxItems": 256
+        }
+      },
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "recordKind",
+        "recordDigest",
+        "entries"
+      ]
+    },
+    "providerIdentities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "objectId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "schemaRef": {
+            "type": "string",
+            "minLength": 1
+          },
+          "snapshotDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "objectKind": {
+            "const": "provider-identity"
+          }
+        },
+        "required": [
+          "objectId",
+          "revision",
+          "schemaRef",
+          "snapshotDigest",
+          "objectKind"
+        ]
+      },
+      "maxItems": 128
+    },
+    "mediaCastFactRef": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "productFactId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "factRevision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "factDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "productFactId",
+            "factRevision",
+            "factDigest"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "verifiedArtifactManifestDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "productMetadataDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
@@ -84,7 +290,16 @@
     "commitMarker",
     "committedAtMs",
     "subjectId",
-    "productMetadataDigest",
-    "verifiedArtifactManifestDigest"
+    "resolvedIdentityDigest",
+    "sourceBasisKind",
+    "sourceBasisDigest",
+    "metadataObservationSetDigest",
+    "westernAnalysisVariantDigest",
+    "fieldProvenance",
+    "descriptiveFacts",
+    "providerIdentities",
+    "mediaCastFactRef",
+    "verifiedArtifactManifestDigest",
+    "productMetadataDigest"
   ]
 }

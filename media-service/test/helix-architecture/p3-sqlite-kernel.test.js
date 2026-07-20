@@ -45,12 +45,12 @@ const open = (databasePath, options = {}) => openSqliteKernel({
   Database, databasePath, schemaDdl, schemaManifest, now: options.now
 });
 
-test('creates and reopens the only clean 176-table WAL generation with hard startup gates', () => {
+test('creates and reopens the only clean 177-table WAL generation with hard startup gates', () => {
   temporaryDatabase((databasePath) => {
     let firstGeneration;
     {
       const first = open(databasePath, { now: () => 1700000000000 });
-      assert.equal(first.generation.tableCount, 176);
+      assert.equal(first.generation.tableCount, 177);
       assert.equal(first.generation.indexCount, 77);
       assert.equal(first.generation.partialUniqueCount, 21);
       assert.equal(first.generation.schemaDigest, schemaManifest.ddlDigest);

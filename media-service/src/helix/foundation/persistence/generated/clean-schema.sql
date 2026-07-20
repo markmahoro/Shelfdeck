@@ -1454,10 +1454,20 @@ CREATE TABLE "libra_product_fact_revisions" (
   "libra_run_id" TEXT,
   "fact_kind" TEXT,
   "fact_revision" INTEGER CHECK ("fact_revision" >= 1),
+  "aggregate_id" TEXT,
   "schema_ref" TEXT,
   "fact_json" TEXT,
   "fact_digest" TEXT CHECK (length("fact_digest") = 64 AND "fact_digest" NOT GLOB '*[^0-9a-f]*'),
   "evidence_digest" TEXT CHECK (length("evidence_digest") = 64 AND "evidence_digest" NOT GLOB '*[^0-9a-f]*'),
+  "source_basis_kind" TEXT CHECK ("source_basis_kind" IN ('metadata_observation', 'western_analysis', 'western_match')),
+  "source_basis_id" TEXT,
+  "source_basis_digest" TEXT CHECK (length("source_basis_digest") = 64 AND "source_basis_digest" NOT GLOB '*[^0-9a-f]*'),
+  "source_ref_count" INTEGER CHECK ("source_ref_count" >= 0),
+  "commit_payload_schema_ref" TEXT,
+  "commit_payload_digest" TEXT CHECK (length("commit_payload_digest") = 64 AND "commit_payload_digest" NOT GLOB '*[^0-9a-f]*'),
+  "event_fence_digest" TEXT CHECK (length("event_fence_digest") = 64 AND "event_fence_digest" NOT GLOB '*[^0-9a-f]*'),
+  "commit_marker" TEXT,
+  "result_digest" TEXT CHECK (length("result_digest") = 64 AND "result_digest" NOT GLOB '*[^0-9a-f]*'),
   "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
   UNIQUE ("libra_run_id", "fact_kind", "fact_revision"),
   CHECK (json_valid("fact_json")),
@@ -1465,6 +1475,34 @@ CREATE TABLE "libra_product_fact_revisions" (
   FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_libra_product_fact_revisions_hot_01" ON "libra_product_fact_revisions" ("libra_run_id", "fact_kind", "fact_revision");
+
+CREATE TABLE "libra_product_fact_source_refs" (
+  "product_fact_id" TEXT,
+  "ordinal" INTEGER CHECK ("ordinal" >= 0),
+  "source_basis_kind" TEXT CHECK ("source_basis_kind" IN ('metadata_observation', 'western_analysis', 'western_match')),
+  "work_id" TEXT,
+  "attempt_id" TEXT,
+  "plan_id" TEXT,
+  "event_id" TEXT,
+  "result_id" TEXT,
+  "capability_ref" TEXT,
+  "result_schema_ref" TEXT,
+  "result_digest" TEXT CHECK (length("result_digest") = 64 AND "result_digest" NOT GLOB '*[^0-9a-f]*'),
+  "source_ref" TEXT,
+  "source_order" TEXT,
+  "evidence_id" TEXT,
+  "evidence_digest" TEXT CHECK (length("evidence_digest") = 64 AND "evidence_digest" NOT GLOB '*[^0-9a-f]*'),
+  "input_binding_digest" TEXT CHECK (length("input_binding_digest") = 64 AND "input_binding_digest" NOT GLOB '*[^0-9a-f]*'),
+  "reference_digest" TEXT CHECK (length("reference_digest") = 64 AND "reference_digest" NOT GLOB '*[^0-9a-f]*'),
+  PRIMARY KEY ("product_fact_id", "ordinal"),
+  UNIQUE ("product_fact_id", "result_id"),
+  FOREIGN KEY ("product_fact_id") REFERENCES "libra_product_fact_revisions" ("product_fact_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("work_id") REFERENCES "fx_supporting_works" ("work_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("attempt_id") REFERENCES "fx_work_attempts" ("attempt_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("plan_id") REFERENCES "fx_workflow_plans" ("plan_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("event_id") REFERENCES "fx_workflow_events" ("event_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("result_id") REFERENCES "fx_event_result_bindings" ("result_id") ON DELETE RESTRICT
+);
 
 CREATE TABLE "libra_product_identity_revisions" (
   "subject_id" TEXT,
