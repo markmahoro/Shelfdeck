@@ -1,6 +1,6 @@
 # P9 Libra Production and Delivery Detailed Plan
 
-Status: Active；P9-00–P9-01 complete；P9-02 active.
+Status: Active；P9-00–P9-02 complete；P9-03 active.
 
 Last updated: 2026-07-20
 
@@ -71,6 +71,9 @@ P9不执行Handoff B Acceptance或Arca On-deck Commit，不接真实Provider/FFm
 
 - 从ready Acceptance Spec建立Run，冻结initial Material Manifest、Execution Basis、Priority及Series Episode Delivery Manifest。
 - 强制single唯一最终提交资格、Series non-overlap、frozen replacement prohibition和稳定Run identity/replay。
+- Done：Run Admission只从Libra Owner rows与同事务Material Control snapshot建立immutable Basis/Manifest；initial、
+  replacement、active scope set CAS、旧Run supersede、Result/marker replay和crash rollback均PASS，且零Outbox。
+  Evidence见`evidence/P9_02_RUN_CREATOR.md`。
 
 ### P9-03 Run freshness, lifecycle and priority
 
