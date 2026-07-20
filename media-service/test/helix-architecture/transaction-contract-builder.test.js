@@ -101,6 +101,18 @@ test('materializes the exact lifecycle variant-superset read closure without wid
   ]) assert.ok(contract.readTables.includes(tableId), tableId);
 });
 
+test('materializes the Workspace Admission Platform read participant without widening writes', () => {
+  const contract = contracts.find((item) => item.displayName === 'Libra Workspace Admission');
+  assert.ok(contract.readTables.includes('platform_workspace_roots'));
+  assert.ok(contract.readTables.includes('libra_run_material_manifests'));
+  assert.ok(contract.readTables.includes('libra_run_material_members'));
+  assert.equal(contract.readTables.includes('libra_run_material_episode_claims'), false);
+  assert.equal(contract.writeTables.includes('platform_workspace_roots'), false);
+  assert.deepEqual(contract.participants.find((item) => item.owner === 'platform-settings'), {
+    participantKind: 'platform-read', owner: 'platform-settings', access: 'read', tables: ['platform_workspace_roots']
+  });
+});
+
 test('keeps batch authorization before per-Entry Authorization and Case creation', () => {
   const batch = byName.get('Off-deck Batch Authorization Intent');
   assert.equal(batch.writeTables.includes('arca_offdeck_cases'), false);

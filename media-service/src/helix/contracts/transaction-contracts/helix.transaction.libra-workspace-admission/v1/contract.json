@@ -27,6 +27,14 @@
           "fx_event_result_bindings",
           "fx_commit_markers"
         ]
+      },
+      {
+        "participantKind": "platform-read",
+        "owner": "platform-settings",
+        "access": "read",
+        "tables": [
+          "platform_workspace_roots"
+        ]
       }
     ],
     "writeTables": [
@@ -38,7 +46,10 @@
     ],
     "readTables": [
       "libra_runs",
-      "libra_run_revisions"
+      "libra_run_revisions",
+      "libra_run_material_manifests",
+      "libra_run_material_members",
+      "platform_workspace_roots"
     ],
     "variants": [],
     "dynamicTableRequirements": [],

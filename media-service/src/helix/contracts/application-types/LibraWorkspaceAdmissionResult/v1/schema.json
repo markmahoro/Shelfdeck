@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/LibraWorkspaceAdmissionResult/v1",
+  "title": "LibraWorkspaceAdmissionResult@1",
+  "x-helix-ssotRefs": [
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 16384,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "decisionId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "workspaceId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "platformWorkspaceRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "workspaceRevision": {
+      "const": 1
+    },
+    "workspaceState": {
+      "const": "active"
+    },
+    "workspaceStateDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "resultDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "decisionId",
+    "libraRunId",
+    "workspaceId",
+    "platformWorkspaceRevision",
+    "workspaceRevision",
+    "workspaceState",
+    "workspaceStateDigest",
+    "resultDigest"
+  ]
+}

@@ -5,7 +5,7 @@
   "kind": "application-type-registry",
   "owner": "libra",
   "status": "active",
-  "targetCount": 21,
+  "targetCount": 23,
   "entries": [
     {
       "id": "LibraRunAdmissionDecision",
@@ -213,6 +213,36 @@
       "digest": {
         "algorithm": "sha256",
         "value": "3b06593af5abeb997b10322c273125653e14ae67956e3c4f351868191766a455"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "LibraWorkspaceAdmissionDecision",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraWorkspaceAdmissionDecision/v1",
+      "relativePath": "application-types/LibraWorkspaceAdmissionDecision/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "d7a9b0852cb8e640622b4f2c51fa7611e1de9b73748add3a04433a5eb035c7b7"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "LibraWorkspaceAdmissionResult",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraWorkspaceAdmissionResult/v1",
+      "relativePath": "application-types/LibraWorkspaceAdmissionResult/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "2d18bbc794ba476d05490b77fc3b84da97ea5f0a3d784b38bccdb8c2bbff2042"
       },
       "ssotRefs": [
         "8.6.21"

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/PlatformWorkspaceRootQuery/v1",
+  "title": "PlatformWorkspaceRootQuery@1",
+  "x-helix-ssotRefs": [
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 4096,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "rootId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "expectedConfigRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "queryDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "rootId",
+    "queryDigest"
+  ]
+}

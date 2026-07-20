@@ -633,11 +633,11 @@
         "transactionId": "helix.transaction.libra-workspace-admission",
         "ownerScope": "libra",
         "contractRef": "helix://contracts/transactions/helix.transaction.libra-workspace-admission/v1",
-        "contractDigest": "22f19df6d9286e1481f2f6fca95afcd5a6cc77d8b6598a0c1bacdea4e0fb695e"
+        "contractDigest": "72c963e1238e0cb260aabe8b9361185c0f19d87534d17ddb1f60e6718d58814e"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "87d4af11af3c7ee0630f5f544e22c579ce549761bb172697bcceb45d5e7e58ed"
+        "value": "2c9fd22aae8be3ef970f219da1470529ee151bcf39c1d6e9ede89c471b66d73c"
       }
     },
     {

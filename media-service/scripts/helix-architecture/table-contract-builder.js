@@ -237,6 +237,7 @@ const DEFERRED_FOREIGN_KEY_PAIRS = new Set([
   'proc_procurement_retry_intents>proc_procurement_runs',
   'libra_subjects>libra_intake_decisions', 'libra_intake_decisions>libra_subjects',
   'libra_runs>libra_run_material_manifests', 'libra_run_material_manifests>libra_runs',
+  'libra_workspaces>libra_workspace_revisions',
   'people_persons>people_person_revisions', 'people_person_revisions>people_persons',
   'people_persons>people_preference_revisions', 'people_preference_revisions>people_persons',
   'people_persons>people_reference_revisions',

@@ -307,10 +307,12 @@
           ],
           "consistencyColumns": [],
           "deletePolicy": "RESTRICT",
-          "deferrable": false
+          "deferrable": true
         }
       ],
-      "pointerRules": []
+      "pointerRules": [
+        "`FOREIGN KEY(workspace_id,current_revision) REFERENCES libra_workspace_revisions(workspace_id,workspace_revision) DEFERRABLE INITIALLY DEFERRED`，禁止物化为immediate FK、nullable后补或sentinel revision。首次Admission在同一事务先插入`current_revision=1`的aggregate，再插入revision 1，commit前复合FK与state/digest必须全部成立"
+      ]
     },
     "jsonContracts": [
       {
@@ -335,18 +337,18 @@
       "Platform root snapshot/space evidence/scope/admission列在创建后immutable，typed JSON≤`16 KiB`且必须完整重建`WorkspaceSpaceAdmissionEvidence@1`",
       "root/snapshot/handle与同事务Platform read participant及`fx_workspace_registry.root_handle_ref`逐字节一致。只有`admitted`且`committed_at_ms<=expires_at_ms`的Evidence可建立Workspace，required/available bytes等于typed Evidence",
       "current aggregate row使用`rowMutability=cas_lifecycle`",
-      "首次revision 1且与Registry同事务建立",
+      "`FOREIGN KEY(workspace_id,current_revision) REFERENCES libra_workspace_revisions(workspace_id,workspace_revision) DEFERRABLE INITIALLY DEFERRED`，禁止物化为immediate FK、nullable后补或sentinel revision。首次Admission在同一事务先插入`current_revision=1`的aggregate，再插入revision 1，commit前复合FK与state/digest必须全部成立",
       "只有Cleanup全部完成才写reclaimed/completed time",
       "同一Run恰好至多一个Workspace stream，历史Admission Decision只从该row、Run revision与Registry重建，不依赖后来Platform root current row或resolved path"
     ],
     "rawContract": {
       "columns": "`workspace_id PK, libra_run_id FK UNIQUE, platform_workspace_root_id, platform_workspace_root_kind, platform_workspace_revision, platform_workspace_endpoint_id, platform_workspace_mount_scope_id, platform_workspace_mount_scope_revision, platform_workspace_capability_digest, platform_workspace_snapshot_digest, root_handle_ref, space_admission_evidence_schema_ref, space_admission_evidence_id, space_admission_evidence_json, space_admission_evidence_digest, space_admission_required_bytes, space_admission_available_bytes, space_admission_expires_at_ms, workspace_scope_digest, admission_decision_digest, current_revision, state(active|reclaiming|reclaimed), state_digest, created_at_ms, completed_at_ms NULL`",
-      "constraints": "Platform root snapshot/space evidence/scope/admission列在创建后immutable，typed JSON≤`16 KiB`且必须完整重建`WorkspaceSpaceAdmissionEvidence@1`；root/snapshot/handle与同事务Platform read participant及`fx_workspace_registry.root_handle_ref`逐字节一致。只有`admitted`且`committed_at_ms<=expires_at_ms`的Evidence可建立Workspace，required/available bytes等于typed Evidence；current aggregate row使用`rowMutability=cas_lifecycle`；首次revision 1且与Registry同事务建立；只有Cleanup全部完成才写reclaimed/completed time；同一Run恰好至多一个Workspace stream，历史Admission Decision只从该row、Run revision与Registry重建，不依赖后来Platform root current row或resolved path"
+      "constraints": "Platform root snapshot/space evidence/scope/admission列在创建后immutable，typed JSON≤`16 KiB`且必须完整重建`WorkspaceSpaceAdmissionEvidence@1`；root/snapshot/handle与同事务Platform read participant及`fx_workspace_registry.root_handle_ref`逐字节一致。只有`admitted`且`committed_at_ms<=expires_at_ms`的Evidence可建立Workspace，required/available bytes等于typed Evidence；current aggregate row使用`rowMutability=cas_lifecycle`；`FOREIGN KEY(workspace_id,current_revision) REFERENCES libra_workspace_revisions(workspace_id,workspace_revision) DEFERRABLE INITIALLY DEFERRED`，禁止物化为immediate FK、nullable后补或sentinel revision。首次Admission在同一事务先插入`current_revision=1`的aggregate，再插入revision 1，commit前复合FK与state/digest必须全部成立；只有Cleanup全部完成才写reclaimed/completed time；同一Run恰好至多一个Workspace stream，历史Admission Decision只从该row、Run revision与Registry重建，不依赖后来Platform root current row或resolved path"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8307,
-      "lineDigest": "7e946448e8571481783b5c88c83108370816cca7f11e29d92a68f3a41803c17f"
+      "line": 8318,
+      "lineDigest": "673d118034020983a368f24cff761c7bd790000af110d4602d1082be17159d4f"
     },
     "foreignKeys": [
       {

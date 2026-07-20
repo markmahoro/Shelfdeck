@@ -251,7 +251,10 @@ const definitions = Object.freeze({
     commitClass: 'domain_unit_of_work',
     writeTables: ['libra_workspaces', 'libra_workspace_revisions', 'fx_workspace_registry',
       'fx_event_result_bindings', 'fx_commit_markers'],
-    readTables: ['libra_runs', 'libra_run_revisions'],
+    readTables: ['libra_runs', 'libra_run_revisions', 'libra_run_material_manifests',
+      'libra_run_material_members', 'platform_workspace_roots'],
+    readParticipants: [{ participantKind: 'platform-read', owner: 'platform-settings', access: 'read',
+      tables: ['platform_workspace_roots'] }],
     fixtureRefs: ['libra-workspace-admission'], hasOutbox: false,
     forbiddenWritePrefixes: ['proc_', 'arca_']
   },
@@ -484,7 +487,7 @@ function buildTransactionContracts(entries) {
       writeTables.splice(markerIndex < 0 ? writeTables.length : markerIndex, 0, 'fx_event_result_bindings');
     }
     const materialControlRequired = definition.commitClass === 'responsibility_control_commit';
-    const participants = participantsFor(entry.owner, writeTables);
+    const participants = [...participantsFor(entry.owner, writeTables), ...(definition.readParticipants || [])];
     for (const dynamic of definition.dynamicTableRequirements || []) participants.unshift({
       participantKind: dynamic.participant,
       owner: dynamic.ownerConstraint,

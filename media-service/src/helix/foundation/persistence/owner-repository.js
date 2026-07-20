@@ -113,6 +113,8 @@ function createRepositoryDefinition(options) {
   const definition = Object.freeze({
     repositoryId: options.repositoryId,
     owner: options.owner,
+    readOnly: [...compiled.values()].every((statement) =>
+      statement.kind === 'select-one' || statement.kind === 'select-all' || statement.kind === 'select-in'),
     statementIds: Object.freeze([...compiled.keys()].sort()),
     tableIds: Object.freeze([...tableIds].sort())
   });

@@ -53,7 +53,13 @@ function validateParticipants(participants) {
       businessOwners, boundBusinessOwners: [...boundBusinessOwners]
     });
   }
-  if (owners.has('platform-settings') && owners.size > 1) fail('P3_UOW_PLATFORM_OWNER_MIX', 'Platform settings transactions cannot obtain Domain/Foundation Repositories.');
+  if (owners.has('platform-settings') && owners.size > 1) {
+    const platformParticipants = participants.filter((participant) => participant.owner === 'platform-settings');
+    const platformReadsAreBound = businessOwners.length === 1 && platformParticipants.every((participant) =>
+      participant.boundBusinessOwner === businessOwners[0] && participant.repositories.every((repository) => repository.readOnly === true));
+    if (!platformReadsAreBound) fail('P3_UOW_PLATFORM_OWNER_MIX',
+      'Only read-only Platform repositories bound to the transaction Business Owner may join a Domain unit of work.');
+  }
 }
 
 function createSqliteUnitOfWork(options) {

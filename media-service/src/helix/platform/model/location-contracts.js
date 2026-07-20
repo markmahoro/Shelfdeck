@@ -4,7 +4,7 @@ const { canonicalDigest } = require('../../contracts/canonical-json');
 
 const TOKEN = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,255}$/;
 const DIGEST = /^[0-9a-f]{64}$/;
-const ROOT_STATES = new Set(['active', 'disabled', 'faulted']);
+const ROOT_STATES = new Set(['active', 'inactive', 'faulted']);
 
 class LocationContractError extends Error {
   constructor(code, message, details = {}) {

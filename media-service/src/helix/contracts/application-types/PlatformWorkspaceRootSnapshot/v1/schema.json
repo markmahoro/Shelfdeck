@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/PlatformWorkspaceRootSnapshot/v1",
+  "title": "PlatformWorkspaceRootSnapshot@1",
+  "x-helix-ssotRefs": [
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 8192,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "rootId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "ownerScope": {
+      "const": "libra"
+    },
+    "rootKind": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "endpointId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "mountScopeId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "mountScopeRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "configRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "capabilityDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "state": {
+      "const": "active"
+    },
+    "rootHandleRef": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "snapshotDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "rootId",
+    "ownerScope",
+    "rootKind",
+    "endpointId",
+    "mountScopeId",
+    "mountScopeRevision",
+    "configRevision",
+    "capabilityDigest",
+    "state",
+    "rootHandleRef",
+    "snapshotDigest"
+  ]
+}

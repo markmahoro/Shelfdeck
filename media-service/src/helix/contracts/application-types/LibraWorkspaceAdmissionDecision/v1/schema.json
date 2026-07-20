@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/LibraWorkspaceAdmissionDecision/v1",
+  "title": "LibraWorkspaceAdmissionDecision@1",
+  "x-helix-ssotRefs": [
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 65536,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "decisionId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "libraRunRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "stateRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "stateDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "executionBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "libraRunId",
+        "stateRevision",
+        "stateDigest",
+        "executionBasisDigest"
+      ]
+    },
+    "workspaceId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "platformWorkspaceRootSnapshot": {
+      "$ref": "helix://contracts/application-types/PlatformWorkspaceRootSnapshot/v1"
+    },
+    "spaceAdmissionEvidence": {
+      "$ref": "helix://contracts/application-types/WorkspaceSpaceAdmissionEvidence/v1"
+    },
+    "workspaceScopeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "decisionDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "decisionId",
+    "libraRunRef",
+    "workspaceId",
+    "platformWorkspaceRootSnapshot",
+    "spaceAdmissionEvidence",
+    "workspaceScopeDigest",
+    "decisionDigest"
+  ]
+}

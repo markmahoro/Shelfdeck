@@ -452,6 +452,23 @@ function runLifecycleResult() {
       'committedStateRevision', 'committedStateDigest', 'committedAdmissionHeadRevision', 'activeScopeSetDigest', 'resultDigest']) };
 }
 
+function workspaceAdmissionDecision() {
+  const runRef = object({ libraRunId: id(), stateRevision: positive(), stateDigest: digest(), executionBasisDigest: digest() });
+  return { $schema: DRAFT, $id: typeId('LibraWorkspaceAdmissionDecision'), title: 'LibraWorkspaceAdmissionDecision@1',
+    'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 64 * 1024,
+    ...object({ decisionId: digest(), libraRunRef: runRef, workspaceId: digest(),
+      platformWorkspaceRootSnapshot: { $ref: typeId('PlatformWorkspaceRootSnapshot') },
+      spaceAdmissionEvidence: { $ref: typeId('WorkspaceSpaceAdmissionEvidence') },
+      workspaceScopeDigest: digest(), decisionDigest: digest() }) };
+}
+
+function workspaceAdmissionResult() {
+  return { $schema: DRAFT, $id: typeId('LibraWorkspaceAdmissionResult'), title: 'LibraWorkspaceAdmissionResult@1',
+    'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 16 * 1024,
+    ...object({ decisionId: digest(), libraRunId: id(), workspaceId: digest(), platformWorkspaceRevision: positive(),
+      workspaceRevision: { const: 1 }, workspaceState: { const: 'active' }, workspaceStateDigest: digest(), resultDigest: digest() }) };
+}
+
 function buildLibraApplicationSchemas() {
   return Object.freeze({
     ProductDeliveryQuery: productDeliveryQuery(),
@@ -474,7 +491,9 @@ function buildLibraApplicationSchemas() {
     LibraRunPriorityIntent: runPriorityIntent(),
     LibraRunTerminalDeliveryEvidence: runTerminalDeliveryEvidence(),
     LibraRunLifecycleDecision: runLifecycleDecision(),
-    LibraRunLifecycleResult: runLifecycleResult()
+    LibraRunLifecycleResult: runLifecycleResult(),
+    LibraWorkspaceAdmissionDecision: workspaceAdmissionDecision(),
+    LibraWorkspaceAdmissionResult: workspaceAdmissionResult()
   });
 }
 

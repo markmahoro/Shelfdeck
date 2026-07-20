@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "manifestVersion": 1,
+  "manifestId": "helix.platform-application-type-registry",
+  "kind": "application-type-registry",
+  "owner": "platform-settings",
+  "status": "active",
+  "targetCount": 5,
+  "entries": [
+    {
+      "id": "PlatformWorkspaceRootQuery",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/PlatformWorkspaceRootQuery/v1",
+      "relativePath": "application-types/PlatformWorkspaceRootQuery/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "0fe6ddc408245c3db192883e4794049fd3c34b094a2e701bdcdcc71124bc8d3c"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "PlatformWorkspaceRootReadResult",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/PlatformWorkspaceRootReadResult/v1",
+      "relativePath": "application-types/PlatformWorkspaceRootReadResult/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "ae02fde0345e6183881edc3bc4c19481d6cec702e8b0a5595ab215c37d9b9ddd"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "PlatformWorkspaceRootSnapshot",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/PlatformWorkspaceRootSnapshot/v1",
+      "relativePath": "application-types/PlatformWorkspaceRootSnapshot/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "64f5a1b9505b84ccb67f63f477fae66042e74ba06c33eec2807a966fd6710d8f"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "WorkspaceSpaceAdmissionEvidence",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/WorkspaceSpaceAdmissionEvidence/v1",
+      "relativePath": "application-types/WorkspaceSpaceAdmissionEvidence/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "37235a50a6208d6d3f75a9c236db9defe921721e2ccbdeeb3bb2e4f224a0cb49"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "WorkspaceSpaceAdmissionRequest",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/WorkspaceSpaceAdmissionRequest/v1",
+      "relativePath": "application-types/WorkspaceSpaceAdmissionRequest/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "95e79aece668aa45e45401e57c8453afe685af886ad3f5824356c6f6ac1d39d4"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    }
+  ]
+}

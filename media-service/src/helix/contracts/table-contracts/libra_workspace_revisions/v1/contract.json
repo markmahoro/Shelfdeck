@@ -165,16 +165,17 @@
     "semanticRules": [
       "`PK(workspace_id,workspace_revision)`",
       "append-only且从1连续",
+      "`workspace_id`到`libra_workspaces`的普通父FK保持immediate，配合上述固定aggregate-first插入顺序消除首次建立循环",
       "current Workspace row由最高revision重建，set digest来自每个handle最高Reference revision"
     ],
     "rawContract": {
       "columns": "`workspace_id FK, workspace_revision, state, material_reference_set_digest, transition_kind(admitted|reference_attached|product_staged|reference_released|reclaiming|reclaimed), transition_evidence_digest, previous_revision NULL, revision_digest, committed_at_ms`",
-      "constraints": "`PK(workspace_id,workspace_revision)`；append-only且从1连续；current Workspace row由最高revision重建，set digest来自每个handle最高Reference revision"
+      "constraints": "`PK(workspace_id,workspace_revision)`；append-only且从1连续；`workspace_id`到`libra_workspaces`的普通父FK保持immediate，配合上述固定aggregate-first插入顺序消除首次建立循环；current Workspace row由最高revision重建，set digest来自每个handle最高Reference revision"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8308,
-      "lineDigest": "fffe5946c4917dd2f4cb8b46631e08641df8646e77230d47a949c7490efbc219"
+      "line": 8319,
+      "lineDigest": "c9feabe34057b46e3f19b7e6c5778ba9a7b7ef32f118ee77c625b572fb4726f7"
     },
     "foreignKeys": [
       {

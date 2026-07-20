@@ -51,6 +51,39 @@ const arcaShelves = createRepositoryDefinition({
     insert_shelf: { kind: 'insert', tableId: 'arca_shelves', columns: ['shelf_id', 'name', 'status', 'created_at_ms'] }
   }
 });
+const platformRootRead = createRepositoryDefinition({
+  repositoryId: 'platform_root_read', owner: 'platform-settings', schemaManifest,
+  statements: {
+    find_root: { kind: 'select-one', tableId: 'platform_workspace_roots', columns: ['root_id', 'state'], keyColumns: ['root_id'] }
+  }
+});
+const platformRootWrite = createRepositoryDefinition({
+  repositoryId: 'platform_root_write', owner: 'platform-settings', schemaManifest,
+  statements: {
+    insert_root: { kind: 'insert', tableId: 'platform_workspace_roots', columns: [
+      'root_id', 'owner_scope', 'root_kind', 'endpoint_id', 'mount_scope_id', 'mount_scope_revision', 'resolved_root',
+      'config_revision', 'capability_digest', 'state', 'root_handle_ref', 'snapshot_digest', 'updated_at_ms'
+    ] }
+  }
+});
+
+test('allows only an Owner-bound read-only Platform participant in a Domain unit of work', () => {
+  temporaryKernel(({ kernel }) => {
+    const unitOfWork = createSqliteUnitOfWork({ kernel });
+    const participants = [
+      { participantId: 'libra', owner: 'libra', repositories: [libraSubjects], execute() {} },
+      { participantId: 'platform_read', owner: 'platform-settings', boundBusinessOwner: 'libra',
+        repositories: [platformRootRead], execute(context) {
+          return context.repository('platform_root_read').invoke('find_root', { root_id: 'missing' });
+        } }
+    ];
+    assert.equal(unitOfWork.execute(participants).platform_read, undefined);
+    assert.throws(() => unitOfWork.execute([participants[0], { ...participants[1], boundBusinessOwner: undefined }]),
+      (error) => error.code === 'P3_UOW_PLATFORM_OWNER_MIX');
+    assert.throws(() => unitOfWork.execute([participants[0], { ...participants[1], repositories: [platformRootWrite] }]),
+      (error) => error.code === 'P3_UOW_PLATFORM_OWNER_MIX');
+  });
+});
 
 test('commits one Domain plus separate Control and Foundation participants with one commit time', () => {
   temporaryKernel(({ kernel, databasePath }) => {

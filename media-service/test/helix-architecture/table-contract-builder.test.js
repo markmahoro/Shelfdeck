@@ -146,6 +146,16 @@ test('binds every Field Observation revision to its durable Foundation commit ma
   assert.equal(marker.deferrable, true);
 });
 
+test('defers only the Workspace aggregate current-head link needed for revision-one admission', () => {
+  const byId = new Map(contracts.map((contract) => [contract.tableId, contract]));
+  const aggregate = byId.get('libra_workspaces').revisionContract.pointerTargets.find((entry) =>
+    JSON.stringify(entry.sourceColumns) === JSON.stringify(['workspace_id', 'current_revision']));
+  const revision = byId.get('libra_workspace_revisions').foreignKeys.find((entry) =>
+    JSON.stringify(entry.columns) === JSON.stringify(['workspace_id']));
+  assert.equal(aggregate.deferrable, true);
+  assert.equal(revision.deferrable, false);
+});
+
 test('relationizes Retry head, marker, and one-to-one Run continuity with deferred circular links',()=>{
   const byId=new Map(contracts.map((contract)=>[contract.tableId,contract])),intent=byId.get('proc_procurement_retry_intents'),run=byId.get('proc_procurement_runs');
   assert.deepEqual(intent.columns.find((column)=>column.name==='retry_field_status').enumValues,['active']);

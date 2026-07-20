@@ -2085,7 +2085,7 @@ CREATE TABLE "libra_workspaces" (
   CHECK (json_valid("space_admission_evidence_json")),
   CHECK (length(CAST("space_admission_evidence_json" AS BLOB)) <= 16384),
   FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
-  FOREIGN KEY ("workspace_id", "current_revision") REFERENCES "libra_workspace_revisions" ("workspace_id", "workspace_revision") ON DELETE RESTRICT
+  FOREIGN KEY ("workspace_id", "current_revision") REFERENCES "libra_workspace_revisions" ("workspace_id", "workspace_revision") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED
 );
 
 CREATE TABLE "people_aliases" (

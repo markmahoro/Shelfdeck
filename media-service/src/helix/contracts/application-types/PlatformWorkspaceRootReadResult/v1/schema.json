@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/PlatformWorkspaceRootReadResult/v1",
+  "title": "PlatformWorkspaceRootReadResult@1",
+  "x-helix-ssotRefs": [
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 16384,
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "queryDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "resultKind": {
+          "const": "found"
+        },
+        "snapshot": {
+          "$ref": "helix://contracts/application-types/PlatformWorkspaceRootSnapshot/v1"
+        },
+        "resultDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "queryDigest",
+        "resultKind",
+        "snapshot",
+        "resultDigest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "queryDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "resultDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "resultKind": {
+          "const": "not_found"
+        },
+        "reasonCode": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "queryDigest",
+        "resultDigest",
+        "resultKind",
+        "reasonCode"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "queryDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "resultDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "resultKind": {
+          "const": "stale"
+        },
+        "reasonCode": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "queryDigest",
+        "resultDigest",
+        "resultKind",
+        "reasonCode"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "queryDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "resultDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "resultKind": {
+          "const": "inactive"
+        },
+        "reasonCode": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "queryDigest",
+        "resultDigest",
+        "resultKind",
+        "reasonCode"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "queryDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "resultDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "resultKind": {
+          "const": "integrity_error"
+        },
+        "reasonCode": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "queryDigest",
+        "resultDigest",
+        "resultKind",
+        "reasonCode"
+      ]
+    }
+  ]
+}
