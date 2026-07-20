@@ -1,6 +1,6 @@
 # Helix Architecture Review Workbench
 
-Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-20；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`）bounded correction均已完成。
+Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-20；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R5`）bounded correction均已完成。
 
 ## 1. Purpose and authority
 
@@ -2275,3 +2275,55 @@ Run Admission三项事务。修正只扩充既有typed DTO与`proc_run_materials
 `libra_material_bindings`列语义，不新增Domain、Owner、Store、Handoff、Capability、Result family、关系表或Canonical
 Transaction；计数保持`112 Capability / 97 Catalog Result family / 176 tables / 43 Canonical Transactions`。审计结果为
 `PASS / PBF-13-R3 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.29 `PBF-13-R4` — Run Freshness与suspended bounded recovery
+
+Status: `CLOSED / BOUNDED DETAIL FIX APPLIED` — 2026-07-20
+
+P9-03反向实现证明原SSOT只描述了`active→suspended→resume|frozen`的业务结果，却没有给出可执行的freshness
+输入、原始/当前Basis比较、恢复预算、attempt持久化和重启连续性。通用Evidence ref不足以证明“为什么暂停、为什么恢复、
+为什么第五次后冻结”；按revision数量或墙钟时间猜测又会让frozen边界随实现变化。set_priority也缺唯一typed授权输入。
+
+Bounded correction没有增加状态或组件，而是固定：
+
+- `LibraRunComparableBasisSnapshot@1`从旧Run immutable Basis/Manifest与current Spec/Binding/Episode/Control分别重建，
+  只比较Acceptance Spec、Product Scope、Material Binding、Material Control和Output Requirement五个会改变订单的维度；
+- `LibraRunRecoveryPolicySnapshot@1`作为随binary版本化的Beta工程合同，固定五个due offset和最多五次assessment；
+  `LibraRunFreshnessAssessment@1`给出ready|unresolved、same|changed|unresolved、closed reason、完整Owner evidence与唯一digest；
+- 首次unresolved进入suspended attempt 0；due point 1..4仍unresolved只更新suspended revision；第5次仍unresolved
+  进入frozen且永不自动恢复。重启只读持久化Policy/start/attempt/next due，不从revision数量或caller cache恢复；
+- active ready/same只追加freshness-confirmed revision；ready/changed只作为replacement Admission的旧Run Evidence；
+  production手段确定耗尽的active→frozen继续使用独立typed terminal Evidence，不与freshness unresolved混淆；
+- `LibraRunPriorityIntent@1`成为set_priority唯一Authorization Evidence；complete继续消费既有
+  `ArcaProductAcceptedMessage@1`、Delivery Receipt和Inbox，无需新增Handoff合同；四种Evidence的ID/digest映射唯一。
+
+全文反向审计覆盖active/suspended/frozen状态机、replacement Admission、Priority、Handoff B complete、Run aggregate/
+revision历史恢复、attempt 4/5、跨due重启和crash fixture。修正不新增Domain、Owner、Store、Handoff、Capability、
+Catalog Result family、关系表或Canonical Transaction；计数保持
+`112 Capability / 97 Catalog Result family / 176 tables / 43 Canonical Transactions`。审计结果为
+`PASS / PBF-13-R4 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.30 `PBF-13-R5` — Platform Workspace Root与space admission typed边界
+
+Status: `CLOSED / BOUNDED DETAIL FIX APPLIED` — 2026-07-20
+
+P9-04证明Workspace Admission要求的`PlatformWorkspaceRootSnapshot@1`与既有P5 runtime port不连续：旧输出暴露
+resolved path，却缺endpoint、mount scope revision、state、opaque handle与snapshot digest；space admission又只有
+opaque Evidence ref，没有authority、bytes、freshness或workspace/run/root绑定。Libra因此既无法验证Admission，也无法在
+重启后从Owner rows重建当时使用的Platform事实。
+
+Bounded correction把既有P5 runtime port正式重签为`PlatformWorkspaceRuntimePort@1`：
+
+- `resolveWorkspaceRoot`只返回closed found/not-found/stale/inactive/integrity result与不含路径的完整Root Snapshot；
+  `resolved_root`仍由Platform Owner保存，只允许Platform内部用于containment与statvfs；
+- `assessWorkspaceSpace`接收绑定workspace、Run Basis、Root Snapshot和input bytes的typed Request；Beta按既有
+  120%+5GiB fallback形成需求，返回30秒有效的typed Evidence及admitted/insufficient/root-unavailable/range outcome；
+- Workspace Admission只接受current active Root tuple和未过期admitted Evidence，逐项验证workspace/run/root/request/
+  bytes，随后把完整Snapshot和Evidence复制进既有Libra Workspace row；历史恢复不依赖后来Platform current row或路径；
+- Canonical transaction只增加既有`platform_workspace_roots`只读participant，Domain write set、表数和事务数不变。
+
+全文审计覆盖Platform Owner边界、P5 port语义、Workspace Admission input/row/replay、resolved-path禁止传播、空间不足与
+过期Evidence、Workspace后续写入重新校验以及crash fixture。修正不新增Domain、Owner、Store、Handoff、Capability、
+Catalog Result family、关系表或Canonical Transaction；计数保持
+`112 Capability / 97 Catalog Result family / 176 tables / 43 Canonical Transactions`。审计结果为
+`PASS / PBF-13-R5 CLOSED / NO OPEN BUSINESS DECISION`。
