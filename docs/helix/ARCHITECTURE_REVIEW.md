@@ -2436,3 +2436,32 @@ Bounded correction保持既有结构：
 Promotion与Cleanup replay。修正只扩充既有两张表的列和既有Capability Result字段，不新增Owner、Store、Handoff、
 Capability、Result family、表或Canonical Transaction，计数保持`112 / 97 / 176 / 43`。审计结果为
 `PASS / PBF-13-R5-R3 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.36 `PBF-14` — Product Metadata / Media-Cast Fact commit闭包
+
+Status: `CLOSED / BOUNDED INPUT-PERSISTENCE FIX APPLIED` — 2026-07-20
+
+P9-05反向实现审计证明四项缺口成立：两个`domain_fact_commit`没有可选择的no-Outbox精确variant；Product Fact
+缺稳定ID/revision/Handle/marker与Evidence映射；Planner所谓“当前Metadata Observation集合”没有正式选择及历史
+连续性；正文完整DTO与机器物化存在缩水漂移。继续实现会迫使Coordinator伪造Outbox、信任caller revision，或把
+Foundation Result作为未声明Store旁读。
+
+Bounded correction保持既有Domain与组件结构：
+
+- 在已计数的`domain-fact-commit@1`内注册`libra_media_cast_fact@1`与
+  `libra_product_metadata_fact@1`两个exact variants，均`outboxRequired=false`；固定Libra/ Foundation read/write
+  tables，禁止generic模板注入`fx_outbox`；
+- 按`libraRunId+factKind`固定aggregate ID，以同kind immutable rows的最高revision执行logical 0 / CAS+1，固定
+  Product Fact ID、Handle ID、commit key、payload/evidence/result digest和marker replay；不新增可变head；
+- `MetadataFetchIntent`显式绑定Run Execution Basis与source priority；只从同Run/Basis的正式
+  Work→Attempt→Plan→Event→typed Result链构造Set，相同Intent不同digest为integrity fault；
+- 新增`libra_product_fact_observation_refs`，逐项FK引用被选中的durable Result。Fact Commit同时写Fact与refs，历史
+  Fact只由这些refs重建原Set；Foundation Result由显式relation引用并受保留，不再是隐藏fallback；
+- 补齐`MetadataObservation(Set/Selection)`、`VerifiedArtifactManifest`、Draft/Fact完整字段、排序、大小及JCS公式；
+  两个Commit的完整named payload与Domain Fact Handle逐字节绑定，缩水DTO不能进入实现。
+
+反向审计覆盖Observation重复/replacement、Run/identity fence、Fact revision并发、Artifact/Media-Cast引用、crash
+marker replay、Deliverable Promotion与Product Fact Manifest。没有新增Business Domain、Owner、Store、Handoff、
+Capability、Catalog Result family或顶层Canonical Transaction；新增1张Libra-owned关系表，计数更新为
+`112 Capability / 97 Catalog Result family / 177 tables / 43 Canonical Transactions`。审计结果为
+`PASS / PBF-14 CLOSED / NO OPEN BUSINESS DECISION`。
