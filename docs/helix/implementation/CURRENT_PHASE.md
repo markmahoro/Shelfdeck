@@ -1,6 +1,6 @@
 # P9 Libra Production and Delivery Detailed Plan
 
-Status: Active；P9-00–P9-02 complete；P9-03 active.
+Status: Active；P9-00–P9-03 complete；P9-04 active.
 
 Last updated: 2026-07-20
 
@@ -79,6 +79,9 @@ P9不执行Handoff B Acceptance或Arca On-deck Commit，不接真实Provider/FFm
 
 - 实现active/suspended/superseded/frozen状态机、bounded freshness recovery和合法replacement Run。
 - expedited只在合法替代Run延续，Handoff B Accepted后终止；不得下沉为用户Task priority。
+- Done：Lifecycle原子事务闭合Comparable Basis、bounded recovery、priority、terminal freeze、published Package
+  custody fence与Handoff B accepted consume；Result/marker replay和crash rollback均PASS。Evidence见
+  `evidence/P9_03_RUN_LIFECYCLE.md`。
 
 ### P9-04 Workspace registry, material admission and control
 

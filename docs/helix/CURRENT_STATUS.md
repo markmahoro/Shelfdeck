@@ -13,12 +13,12 @@ Last updated: 2026-07-20
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains；P7 — Procurement；P8 — Handoff A and Libra front half |
 | Current phase | P9 — Libra production and delivery |
-| Current phase status | P9-00–P9-02 PASS；P9-03 Run freshness/lifecycle active |
+| Current phase status | P9-00–P9-03 PASS；P9-04 Workspace admission active |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | P9 local code、unit/contract/isolated fixture、docs与Phase内自动闭环；本周期不进入P10 |
 | Integration baseline | exact P8 closure `3184ef4573cb3663e4a1fae87fc65b4d1c270b38` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p9` on `codex/helix-p9` |
-| Next action | 实现P9-03 Run freshness、lifecycle与priority |
+| Next action | 实现P9-04 Workspace registry、material admission与control |
 
 P9-01已完成：反向实现审计证明的六段连续性缺口已由Architecture Agent在`PBF-13/PBF-13-R1`中闭合，并经实现侧
 只读复审后原样纳入。Run、Material/Episode scope、Workspace、完整Package、Discard/Cleanup及Off-load Reclaimer均具备
@@ -32,6 +32,13 @@ P9-02已完成：Run Creator从Libra Subject/Decision Head/Acceptance Spec/Bindi
 snapshot建立immutable Run Input Manifest及Execution Basis；initial/replacement、single/Season scope exclusivity、
 active scope head CAS、旧Run supersede、Priority继承、durable Result/marker replay和crash rollback均已闭合。完整Architecture
 gate PASS，103 fixture files、`findings=[]`、`prohibitedActionsRun=[]`；无Outbox、跨Store补读、兼容路径或旧Runtime fallback。
+
+P9-03已完成：Lifecycle从immutable Run Basis/Manifest、current Subject Decision/Spec/Binding及historical/current
+Material Control在同一事务重建Comparable Basis；fixed bounded recovery、active-only Priority、typed terminal freeze、
+published Package custody fence与Handoff B accepted consume均闭合。Run/head双CAS、完整Evidence/recovery revision、
+Delivery Receipt/Inbox、typed Result/marker具备replay与crash全回滚反例。Architecture Agent的`P9-03-R1/R2`修正已
+原样纳入；完整Architecture gate PASS（105 fixture files，`findings=[]`），P2 aggregate为
+`1391aa06c35df31c46aeb3221ead3e4cee684d383964233a8b81e1a5718ced9c`。
 
 Architecture Agent提交`a570be44`的`PBF-13`已通过实现侧只读复审：六段生产连续性均可从正式输入、Owner rows、
 revision/digest/CAS及事务边界唯一实现；计数为112 Capability、97 Catalog Result family、176 tables和43 Canonical
