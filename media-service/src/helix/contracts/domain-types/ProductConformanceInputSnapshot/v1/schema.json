@@ -474,208 +474,31 @@
       ]
     },
     "resolvedIdentitySnapshot": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "objectId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 256
-        },
-        "revision": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "schemaRef": {
-          "type": "string",
-          "minLength": 1
-        },
-        "objectKind": {
-          "const": "resolved-identity"
-        },
-        "snapshotDigest": {
-          "type": "string",
-          "minLength": 1,
-          "pattern": "^[a-f0-9]{64}$"
-        }
-      },
-      "required": [
-        "objectId",
-        "revision",
-        "schemaRef",
-        "objectKind",
-        "snapshotDigest"
-      ]
+      "$ref": "helix://contracts/domain-types/ProductConformanceFactSnapshot/v1"
     },
     "productStructureSnapshot": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "objectId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 256
-        },
-        "revision": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "schemaRef": {
-          "type": "string",
-          "minLength": 1
-        },
-        "objectKind": {
-          "const": "product-structure"
-        },
-        "snapshotDigest": {
-          "type": "string",
-          "minLength": 1,
-          "pattern": "^[a-f0-9]{64}$"
-        }
-      },
-      "required": [
-        "objectId",
-        "revision",
-        "schemaRef",
-        "objectKind",
-        "snapshotDigest"
-      ]
+      "$ref": "helix://contracts/domain-types/ProductStructureSnapshot/v1"
     },
     "productFactSnapshots": {
       "type": "array",
       "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "productFactId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256
-          },
-          "factKind": {
-            "type": "string",
-            "minLength": 1
-          },
-          "factRevision": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "schemaRef": {
-            "type": "string",
-            "minLength": 1
-          },
-          "factValue": {
-            "oneOf": [
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "objectId": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 256
-                  },
-                  "revision": {
-                    "type": "integer",
-                    "minimum": 1
-                  },
-                  "schemaRef": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "objectKind": {
-                    "const": "product-fact-value"
-                  },
-                  "snapshotDigest": {
-                    "type": "string",
-                    "minLength": 1,
-                    "pattern": "^[a-f0-9]{64}$"
-                  }
-                },
-                "required": [
-                  "objectId",
-                  "revision",
-                  "schemaRef",
-                  "objectKind",
-                  "snapshotDigest"
-                ]
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "valueDigest": {
-                    "type": "string",
-                    "minLength": 1,
-                    "pattern": "^[a-f0-9]{64}$"
-                  }
-                },
-                "required": [
-                  "valueDigest"
-                ]
-              }
-            ]
-          },
-          "factDigest": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
-          },
-          "evidenceDigest": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
-          }
-        },
-        "required": [
-          "productFactId",
-          "factKind",
-          "factRevision",
-          "schemaRef",
-          "factValue",
-          "factDigest",
-          "evidenceDigest"
-        ]
+        "$ref": "helix://contracts/domain-types/ProductConformanceFactSnapshot/v1"
       },
-      "maxItems": 64,
+      "maxItems": 3,
       "minItems": 1
     },
     "verifiedArtifactManifest": {
       "$ref": "helix://contracts/domain-types/VerifiedArtifactManifest/v1"
     },
-    "productMaterialManifest": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "objectId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 256
-        },
-        "revision": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "schemaRef": {
-          "type": "string",
-          "minLength": 1
-        },
-        "objectKind": {
-          "const": "production-material-manifest"
-        },
-        "snapshotDigest": {
-          "type": "string",
-          "minLength": 1,
-          "pattern": "^[a-f0-9]{64}$"
-        }
+    "artifactVerificationSnapshots": {
+      "type": "array",
+      "items": {
+        "$ref": "helix://contracts/domain-types/ArtifactConformanceVerificationSnapshot/v1"
       },
-      "required": [
-        "objectId",
-        "revision",
-        "schemaRef",
-        "objectKind",
-        "snapshotDigest"
-      ]
+      "maxItems": 256
+    },
+    "inventorySnapshot": {
+      "$ref": "helix://contracts/domain-types/ProductInventoryConformanceSnapshot/v1"
     },
     "selectedProducts": {
       "type": "array",
@@ -711,58 +534,17 @@
       "maxItems": 32,
       "minItems": 1
     },
-    "inventoryBindingSnapshots": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "materialKey": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
-          },
-          "bindingRevision": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "bindingDigest": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
-          },
-          "controlRevision": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "controlProjectionDigest": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
-          }
-        },
-        "required": [
-          "materialKey",
-          "bindingRevision",
-          "bindingDigest",
-          "controlRevision",
-          "controlProjectionDigest"
-        ]
-      },
-      "maxItems": 1024,
-      "minItems": 1
-    },
     "productFactSetDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
-    "selectedProductSetDigest": {
+    "artifactVerificationSetDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
-    "inventoryBindingSetDigest": {
+    "selectedProductSetDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
@@ -787,14 +569,14 @@
     "productStructureSnapshot",
     "productFactSnapshots",
     "verifiedArtifactManifest",
-    "productMaterialManifest",
+    "artifactVerificationSnapshots",
+    "inventorySnapshot",
     "selectedProducts",
-    "inventoryBindingSnapshots",
     "productFactSetDigest",
+    "artifactVerificationSetDigest",
     "selectedProductSetDigest",
-    "inventoryBindingSetDigest",
     "productSnapshotDigest",
     "snapshotDigest"
   ],
-  "x-helix-maxCanonicalBytes": 4194304
+  "x-helix-maxCanonicalBytes": 8388608
 }

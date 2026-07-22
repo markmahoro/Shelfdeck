@@ -1,0 +1,284 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/ArtifactConformanceVerificationSnapshot/v1",
+  "title": "ArtifactConformanceVerificationSnapshot@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "ordinal": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "verifiedManifestItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ordinal": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "artifactHandleId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "artifactKind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifactRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "artifactDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "requirementId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "requirementRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "requirementSchemaRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "requirementDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "verificationEvidenceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "verificationEvidenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "verificationResultRef": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "workId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "attemptId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "planId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "eventId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "resultId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "capabilityRef": {
+              "const": "shared.artifact.manifest.verify@1"
+            },
+            "resultSchemaRef": {
+              "const": "helix://contracts/types/ArtifactManifestVerification/v1"
+            },
+            "resultDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "inputBindingDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "workId",
+            "attemptId",
+            "planId",
+            "eventId",
+            "resultId",
+            "capabilityRef",
+            "resultSchemaRef",
+            "resultDigest",
+            "inputBindingDigest"
+          ]
+        },
+        "referenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "ordinal",
+        "artifactHandleId",
+        "artifactKind",
+        "artifactRevision",
+        "artifactDigest",
+        "requirementId",
+        "requirementRevision",
+        "requirementSchemaRef",
+        "requirementDigest",
+        "verificationEvidenceId",
+        "verificationEvidenceDigest",
+        "verificationResultRef",
+        "referenceDigest"
+      ]
+    },
+    "artifactManifestItem": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "artifactHandleId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "artifactKind": {
+              "type": "string",
+              "minLength": 1
+            },
+            "artifactRevision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "artifactDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "requirementDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "materializationState": {
+              "type": "string",
+              "enum": [
+                "workspace_only",
+                "included_product"
+              ]
+            },
+            "referenceDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "artifactHandleId",
+            "artifactKind",
+            "artifactRevision",
+            "artifactDigest",
+            "requirementDigest",
+            "materializationState",
+            "referenceDigest"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "verificationResultRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "workId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "attemptId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "planId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "eventId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "resultId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "capabilityRef": {
+          "const": "shared.artifact.manifest.verify@1"
+        },
+        "resultSchemaRef": {
+          "const": "helix://contracts/types/ArtifactManifestVerification/v1"
+        },
+        "resultDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "inputBindingDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "workId",
+        "attemptId",
+        "planId",
+        "eventId",
+        "resultId",
+        "capabilityRef",
+        "resultSchemaRef",
+        "resultDigest",
+        "inputBindingDigest"
+      ]
+    },
+    "verificationValue": {
+      "$ref": "helix://contracts/types/ArtifactManifestVerification/v1"
+    },
+    "snapshotDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "ordinal",
+    "verifiedManifestItem",
+    "artifactManifestItem",
+    "verificationResultRef",
+    "verificationValue",
+    "snapshotDigest"
+  ]
+}

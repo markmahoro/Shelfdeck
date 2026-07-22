@@ -6,10 +6,10 @@ const { buildDomainInputSchemas } = require('../../scripts/helix-architecture/do
 
 const schemas = buildDomainInputSchemas();
 
-test('builds exactly the 100 formal domain input contracts', () => {
-  assert.equal(Object.keys(schemas).length, 100);
-  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'bounded-contract').length, 23);
-  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'accepted-business-dto').length, 77);
+test('builds exactly the 108 formal domain input contracts', () => {
+  assert.equal(Object.keys(schemas).length, 108);
+  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'bounded-contract').length, 24);
+  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'accepted-business-dto').length, 84);
 });
 
 test('freezes product fact source basis variants and exact artifact manifest inputs', () => {
@@ -65,12 +65,24 @@ test('freezes the three exact Perception acquisition named inputs', () => {
   ].sort());
 });
 
-test('bounded requirements and intents carry identity, revision, digest, and typed parameters', () => {
-  for (const name of ['EncodeIntent', 'ArtifactProfile', 'ShelfStandard']) {
+test('legacy bounded inputs stay generic while media intents are exact and typed', () => {
+  for (const name of ['ArtifactProfile', 'ShelfStandard']) {
     const schema = schemas[name];
     for (const field of ['schemaRef', 'schemaVersion', 'revision', 'digest', 'typedParameters']) assert.ok(schema.required.includes(field));
     assert.equal(schema.properties.typedParameters.items.additionalProperties, false);
   }
+  assert.equal(schemas.EncodeIntent.properties.typedParameters, undefined);
+  assert.equal(schemas.EncodeIntent.properties.schemaRef.const, 'EncodeIntent@1');
+  assert.equal(schemas.EncodeIntent.properties.intentDigest.pattern, '^[a-f0-9]{64}$');
+  assert.equal(schemas.EncodeIntent.properties.video.oneOf.length, 2);
+  assert.equal(schemas.EncodeIntent.properties.video.oneOf[0].properties.rateControlMode.const, 'target_size');
+  assert.equal(schemas.EncodeIntent.properties.video.oneOf[1].properties.rateControlMode.const, 'quality_bound');
+  assert.equal(schemas.RemuxIntent.properties.streamPolicy.const, 'copy_all_supported');
+  assert.equal(schemas.RemuxIntent.properties.schemaRef.const, 'RemuxIntent@1');
+  assert.equal(schemas.MediaRequirement.properties.schemaRef.const, 'MediaRequirement@1');
+  assert.equal(schemas.MediaRequirement.properties.mandatoryMedia.additionalProperties, false);
+  assert.equal(schemas.ProductConformanceInputSnapshot.properties.inventorySnapshot.$ref,
+    'helix://contracts/domain-types/ProductInventoryConformanceSnapshot/v1');
   assert.equal(schemas.HashProfile.properties.algorithm.const, 'sha256');
   assert.equal(schemas.HashProfile.properties.fullContentRequired.const, true);
 });

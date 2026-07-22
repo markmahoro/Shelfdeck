@@ -102,7 +102,7 @@ const boundedContracts = {
   BoundedLayoutScope: 'rootHandleDigest,maxDepth,maxMembers',
   CareRequirement: 'careBasisDigest,requiredEffects,acceptanceDigest',
   ClusterParameters: 'modelRef,distanceThreshold,minClusterSize',
-  EncodeIntent: 'container,videoCodec,audioCodec,targetQuality,deviceClass',
+  EncodeIntent: '',
   FaceModelRef: 'modelId,modelRevision,modelDigest',
   HashProfile: 'algorithm,chunkSizeBytes,fullContentRequired',
   IdentityRequirement: 'expectedIdentityDigest,strengthClass',
@@ -111,7 +111,8 @@ const boundedContracts = {
   MetadataRequirement: 'requiredFactKeys,artifactRequirementDigest',
   PlacementPolicy: 'shelfId,targetEndpointIds,minimumFreeBytes',
   PreferenceIntent: 'personId,preferenceLevel,reason',
-  RemuxIntent: 'container,streamPolicyDigest',
+  RemuxIntent: '',
+  MediaRequirement: '',
   SamplingPlan: 'intervalMs,maxFrames,frameProfileDigest',
   SelectionCriteria: 'hardConstraintDigest,rankingPolicyDigest',
   ShelfStandard: 'shelfId,contentProfile,ruleSetRevision,acceptanceRuleDigest',
@@ -164,6 +165,13 @@ const dtoContracts = {
   Placement: 'shelfEntryId,placementRevision,targetEndpointId,placementDigest',
   PolicyResult: 'policyRevision,resultCode,reasonDigest',
   MediaExecutionDeviceSnapshot: '',
+  ResolvedProviderIdentity: '',
+  ProductStructureSnapshot: '',
+  ProductConformanceFactSnapshot: '',
+  ProductionMaterialManifest: '',
+  ArtifactManifest: '',
+  ArtifactConformanceVerificationSnapshot: '',
+  ProductInventoryConformanceSnapshot: '',
   WorkspaceMediaOutputTarget: '',
   ProductMediaCandidateInput: '',
   ProductOutputSelectionInput: '',
@@ -216,6 +224,9 @@ function idField(name) {
 }
 
 function buildSchema(name, role, fields) {
+  if (name === 'EncodeIntent') return encodeIntentSchema();
+  if (name === 'RemuxIntent') return remuxIntentSchema();
+  if (name === 'MediaRequirement') return mediaRequirementSchema();
   if (name === 'ArtifactRequirement') return artifactRequirementSchema();
   if (name === 'WesternAnalysisVariant') return westernAnalysisVariantSchema();
   if (name === 'CandidateDeliveryQuery') return candidateDeliveryQuerySchema();
@@ -249,6 +260,13 @@ function buildSchema(name, role, fields) {
   if (name === 'WorkspaceCleanupEffectIntent') return workspaceCleanupEffectIntentSchema();
   if (name === 'WorkspaceCleanupCommitDecision') return workspaceCleanupCommitDecisionSchema();
   if (name === 'MediaExecutionDeviceSnapshot') return mediaExecutionDeviceSnapshotSchema();
+  if (name === 'ResolvedProviderIdentity') return resolvedProviderIdentitySchema();
+  if (name === 'ProductStructureSnapshot') return productStructureSnapshotSchema();
+  if (name === 'ProductConformanceFactSnapshot') return productConformanceFactSnapshotSchema();
+  if (name === 'ProductionMaterialManifest') return productionMaterialManifestSchema();
+  if (name === 'ArtifactManifest') return artifactManifestSchema();
+  if (name === 'ArtifactConformanceVerificationSnapshot') return artifactConformanceVerificationSnapshotSchema();
+  if (name === 'ProductInventoryConformanceSnapshot') return productInventoryConformanceSnapshotSchema();
   if (name === 'WorkspaceMediaOutputTarget') return workspaceMediaOutputTargetSchema();
   if (name === 'ProductMediaCandidateInput') return productMediaCandidateInputSchema();
   if (name === 'ProductOutputSelectionInput') return productOutputSelectionInputSchema();
@@ -885,11 +903,120 @@ function acceptanceSpecValueSchema() {
 }
 
 function mediaRequirementValueSchema() {
+  return domainRef('MediaRequirement');
+}
+
+function mediaRequirementSchema() {
   const requirements = acceptanceRequirementSetSchema().properties;
-  return object({ requirementId: id(), revision: positiveInteger(), schemaRef: { const: 'libra.media-requirement@1' },
-    schemaVersion: { const: 1 }, acceptanceSpecId: id(), acceptanceSpecRecordDigest: digest(), contentProfile: contentProfile(),
+  return { ...exactDomainSchema('MediaRequirement', { requirementId: id(), revision: positiveInteger(),
+    schemaRef: { const: 'MediaRequirement@1' }, acceptanceSpecId: id(), acceptanceSpecRecordDigest: digest(), contentProfile: contentProfile(),
     structureKind: acceptanceStructureKind(), mandatoryMedia: requirements.mandatoryMedia, space: requirements.space,
-    requirementDigest: digest() });
+    requirementDigest: digest() }, undefined, { 'x-helix-role': 'bounded-contract' }),
+    'x-helix-maxCanonicalBytes': 16 * 1024 };
+}
+
+function encodeIntentSchema() {
+  const videoBase = { codec: { const: 'hevc' }, preserveRaster: { const: true }, forbidUpscale: { const: true } };
+  const video = { oneOf: [
+    object({ ...videoBase, rateControlMode: { const: 'target_size' }, targetVideoBitrateBps: positiveInteger(), qualityBound: { type: 'null' } }),
+    object({ ...videoBase, rateControlMode: { const: 'quality_bound' }, targetVideoBitrateBps: { type: 'null' },
+      qualityBound: { type: 'integer', minimum: 0, maximum: 63 } })
+  ] };
+  return { ...exactDomainSchema('EncodeIntent', { intentId: id(), revision: positiveInteger(), schemaRef: { const: 'EncodeIntent@1' }, libraRunId: id(),
+    sourceHandleDigest: digest(), mediaRequirementDigest: digest(), outputContainer: { const: 'matroska' },
+    outputExtension: { const: 'mkv' }, video, audio: object({ mode: { const: 'copy' } }),
+    subtitle: object({ mode: { const: 'copy' } }), deviceClass: deviceClass(), intentDigest: digest()
+  }, undefined, { 'x-helix-role': 'bounded-contract' }), 'x-helix-maxCanonicalBytes': 16 * 1024 };
+}
+
+function remuxIntentSchema() {
+  return { ...exactDomainSchema('RemuxIntent', { intentId: id(), revision: positiveInteger(), schemaRef: { const: 'RemuxIntent@1' }, libraRunId: id(),
+    sourceHandleDigest: digest(), mediaRequirementDigest: digest(), outputContainer: { const: 'matroska' },
+    outputExtension: { const: 'mkv' }, streamPolicy: { const: 'copy_all_supported' }, intentDigest: digest()
+  }, undefined, { 'x-helix-role': 'bounded-contract' }), 'x-helix-maxCanonicalBytes': 16 * 1024 };
+}
+
+function resolvedProviderIdentitySchema() {
+  return exactDomainSchema('ResolvedProviderIdentity', { provider: enumText('tmdb', 'jav', 'internal'),
+    namespace: enumText('tmdb_movie', 'tmdb_series', 'jav_code', 'internal_identity'), providerKey: text(),
+    seasonNumber: nullable(positiveInteger()), identityAnchorDigest: digest() });
+}
+
+function productStructureSnapshotSchema() {
+  return exactDomainSchema('ProductStructureSnapshot', { structureKind: acceptanceStructureKind(), contentProfile: contentProfile(),
+    productScopeDigest: digest(), episodeScopeDigest: digest(), primaryMaterialCount: positiveInteger(),
+    structuralDependencyCount: nonNegativeInteger(), productStructureDigest: digest() });
+}
+
+function productConformanceFactSnapshotSchema() {
+  const variant = (factKind, typeName) => object({ productFactId: id(), factKind: { const: factKind }, factRevision: positiveInteger(),
+    schemaRef: { const: `helix://contracts/types/${typeName}/v1` }, factValue: typeRef(typeName), factDigest: digest(),
+    evidenceDigest: digest(), referenceDigest: digest() });
+  return { $schema: DRAFT, $id: domainTypeId('ProductConformanceFactSnapshot'), title: 'ProductConformanceFactSnapshot@1',
+    'x-helix-ssotRefs': ['8.6.18', '8.6.19'], 'x-helix-role': 'accepted-business-dto',
+    oneOf: [variant('resolved_identity', 'ResolvedProductIdentity'), variant('product_metadata', 'ProductMetadataFact'),
+      variant('media_cast', 'MediaCastFact')] };
+}
+
+function episodeClaimSchema() {
+  return object({ episodeKey: text(), seasonClaimDigest: digest(), claimDigest: digest() });
+}
+
+function productionMaterialMemberSchema() {
+  return object({ ordinal: nonNegativeInteger(), materialKey: digest(),
+    role: enumText('primary_payload', 'structural_dependency', 'metadata_sidecar', 'poster', 'fanart', 'subtitle', 'external_audio', 'chapter'),
+    physicalIdentity: typeRef('PhysicalMaterialIdentity'), locationKind: enumText('domain_binding', 'workspace_handle'), endpointId: id(),
+    location: nullable(text()), rootHandleRef: nullable(id()), relativePath: nullable(text()),
+    bindingKind: enumText('libra_material_binding', 'workspace_material_reference'), bindingRevision: positiveInteger(),
+    bindingEvidenceDigest: digest(), episodeClaims: arrayOf(episodeClaimSchema(), 32), episodeClaimSetDigest: digest(),
+    outputRequirementDigest: digest(), controlOperation: enumText('assert_existing_input', 'acquire_workspace_product'),
+    expectedControlRevision: nullable(nonNegativeInteger()), expectedControlProjectionDigest: nullable(digest()), memberDigest: digest() });
+}
+
+function productionMaterialManifestSchema() {
+  return exactDomainSchema('ProductionMaterialManifest', { manifestId: id(), manifestRole: { const: 'product_delivery' },
+    manifestRevision: positiveInteger(), libraRunId: id(), members: { ...arrayOf(productionMaterialMemberSchema(), 1024), minItems: 1 },
+    memberSetDigest: digest(), episodeScopeDigest: digest(), manifestDigest: digest() });
+}
+
+function artifactManifestItemSchema() {
+  return object({ artifactHandleId: id(), artifactKind: text(), artifactRevision: positiveInteger(), artifactDigest: digest(),
+    requirementDigest: digest(), materializationState: enumText('workspace_only', 'included_product'), referenceDigest: digest() });
+}
+
+function artifactManifestSchema() {
+  return exactDomainSchema('ArtifactManifest', { manifestId: id(), manifestRevision: positiveInteger(), libraRunId: id(),
+    items: arrayOf(artifactManifestItemSchema(), 256), artifactSetDigest: digest(), manifestDigest: digest() });
+}
+
+function verifiedArtifactManifestItemSchema() {
+  const resultRef = object({ workId:id(), attemptId:id(), planId:id(), eventId:id(), resultId:id(),
+    capabilityRef:{ const:'shared.artifact.manifest.verify@1' },
+    resultSchemaRef:{ const:'helix://contracts/types/ArtifactManifestVerification/v1' },
+    resultDigest:digest(), inputBindingDigest:digest() });
+  return object({ ordinal: nonNegativeInteger(), artifactHandleId: id(), artifactKind: text(), artifactRevision: positiveInteger(),
+    artifactDigest: digest(), requirementId:id(), requirementRevision:positiveInteger(), requirementSchemaRef:text(),
+    requirementDigest: digest(), verificationEvidenceId: id(), verificationEvidenceDigest: digest(),
+    verificationResultRef:resultRef, referenceDigest: digest() });
+}
+
+function artifactVerificationResultRefSchema() {
+  return object({ workId:id(), attemptId:id(), planId:id(), eventId:id(), resultId:id(),
+    capabilityRef:{ const:'shared.artifact.manifest.verify@1' },
+    resultSchemaRef:{ const:'helix://contracts/types/ArtifactManifestVerification/v1' },
+    resultDigest:digest(), inputBindingDigest:digest() });
+}
+
+function artifactConformanceVerificationSnapshotSchema() {
+  return exactDomainSchema('ArtifactConformanceVerificationSnapshot', { ordinal: nonNegativeInteger(),
+    verifiedManifestItem: verifiedArtifactManifestItemSchema(), artifactManifestItem: nullable(artifactManifestItemSchema()),
+    verificationResultRef: artifactVerificationResultRefSchema(), verificationValue: typeRef('ArtifactManifestVerification'),
+    snapshotDigest: digest() });
+}
+
+function productInventoryConformanceSnapshotSchema() {
+  return exactDomainSchema('ProductInventoryConformanceSnapshot', { productStructureSnapshot: domainRef('ProductStructureSnapshot'),
+    productMaterialManifest: domainRef('ProductionMaterialManifest'), artifactManifest: domainRef('ArtifactManifest'), inventoryDigest: digest() });
 }
 
 function mediaExecutionDeviceSnapshotSchema() {
@@ -935,19 +1062,18 @@ function productOutputSelectionInputSchema() {
 }
 
 function productConformanceInputSnapshotSchema() {
-  const fact = object({ productFactId: id(), factKind: text(), factRevision: positiveInteger(), schemaRef: text(),
-    factValue: { oneOf: [boundedSnapshotValue('product-fact-value'), object({ valueDigest: digest() })] }, factDigest: digest(), evidenceDigest: digest() });
   const selected = object({ selectedProduct: typeRef('SelectedProductOutput'), verification: typeRef('ProductMediaVerification'),
     workspaceHandleDigest: nullable(digest()) });
-  const binding = object({ materialKey: digest(), bindingRevision: positiveInteger(), bindingDigest: digest(),
-    controlRevision: nonNegativeInteger(), controlProjectionDigest: digest() });
   return { ...exactDomainSchema('ProductConformanceInputSnapshot', { snapshotId: id(), libraRunId: id(), runExecutionBasisDigest: digest(),
-    acceptanceSpec: acceptanceSpecValueSchema(), resolvedIdentitySnapshot: boundedSnapshotValue('resolved-identity'),
-    productStructureSnapshot: boundedSnapshotValue('product-structure'), productFactSnapshots: { ...arrayOf(fact, 64), minItems: 1 },
-    verifiedArtifactManifest: domainRef('VerifiedArtifactManifest'), productMaterialManifest: boundedSnapshotValue('production-material-manifest'),
-    selectedProducts: { ...arrayOf(selected, 32), minItems: 1 }, inventoryBindingSnapshots: { ...arrayOf(binding, 1024), minItems: 1 },
-    productFactSetDigest: digest(), selectedProductSetDigest: digest(), inventoryBindingSetDigest: digest(),
-    productSnapshotDigest: digest(), snapshotDigest: digest() }), 'x-helix-maxCanonicalBytes': 4 * 1024 * 1024 };
+    acceptanceSpec: acceptanceSpecValueSchema(), resolvedIdentitySnapshot: domainRef('ProductConformanceFactSnapshot'),
+    productStructureSnapshot: domainRef('ProductStructureSnapshot'),
+    productFactSnapshots: { ...arrayOf(domainRef('ProductConformanceFactSnapshot'), 3), minItems: 1 },
+    verifiedArtifactManifest: domainRef('VerifiedArtifactManifest'),
+    artifactVerificationSnapshots: arrayOf(domainRef('ArtifactConformanceVerificationSnapshot'), 256),
+    inventorySnapshot: domainRef('ProductInventoryConformanceSnapshot'),
+    selectedProducts: { ...arrayOf(selected, 32), minItems: 1 }, productFactSetDigest: digest(),
+    artifactVerificationSetDigest: digest(), selectedProductSetDigest: digest(), productSnapshotDigest: digest(), snapshotDigest: digest()
+  }), 'x-helix-maxCanonicalBytes': 8 * 1024 * 1024 };
 }
 
 function boundedSnapshotValue(kind) {

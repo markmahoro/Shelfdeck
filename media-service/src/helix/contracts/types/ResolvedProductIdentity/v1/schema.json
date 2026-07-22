@@ -65,45 +65,25 @@
     },
     "identityKind": {
       "type": "string",
-      "minLength": 1
+      "enum": [
+        "tmdb_movie",
+        "tmdb_series_season",
+        "jav_code",
+        "internal_identity"
+      ]
     },
     "providerIdentities": {
       "type": "array",
       "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "objectId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256
-          },
-          "revision": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "schemaRef": {
-            "type": "string",
-            "minLength": 1
-          },
-          "snapshotDigest": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
-          },
-          "objectKind": {
-            "const": "provider-identity"
-          }
-        },
-        "required": [
-          "objectId",
-          "revision",
-          "schemaRef",
-          "snapshotDigest",
-          "objectKind"
-        ]
+        "$ref": "helix://contracts/domain-types/ResolvedProviderIdentity/v1"
       },
-      "maxItems": 128
+      "maxItems": 16,
+      "minItems": 1
+    },
+    "providerIdentitySetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     },
     "exactSeasonContinuityClaims": {
       "type": "array",
@@ -193,6 +173,7 @@
     "contentProfile",
     "identityKind",
     "providerIdentities",
+    "providerIdentitySetDigest",
     "exactSeasonContinuityClaims",
     "exactSeasonContinuitySetDigest",
     "displayIdentity",

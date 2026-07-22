@@ -106,6 +106,16 @@ function validateDomainInputSchemas(options) {
       WorkspaceCleanupEffectIntent: ['intentId', 'cleanupScopeId', 'workspaceId', 'materialHandleId', 'intentDigest'],
       WorkspaceCleanupCommitDecision: ['decisionId', 'cleanupScopeId', 'workspaceId', 'materialHandleId', 'decisionDigest'],
       MediaExecutionDeviceSnapshot: ['deviceId', 'probeRevision', 'capabilityDigest', 'snapshotDigest'],
+      EncodeIntent: ['intentId', 'revision', 'schemaRef', 'libraRunId', 'sourceHandleDigest', 'mediaRequirementDigest', 'intentDigest'],
+      RemuxIntent: ['intentId', 'revision', 'schemaRef', 'libraRunId', 'sourceHandleDigest', 'mediaRequirementDigest', 'intentDigest'],
+      MediaRequirement: ['requirementId', 'revision', 'schemaRef', 'acceptanceSpecId', 'acceptanceSpecRecordDigest', 'requirementDigest'],
+      ResolvedProviderIdentity: ['provider', 'namespace', 'providerKey', 'identityAnchorDigest'],
+      ProductStructureSnapshot: ['structureKind', 'contentProfile', 'productScopeDigest', 'episodeScopeDigest', 'productStructureDigest'],
+      ProductConformanceFactSnapshot: ['schemaRef', 'productFactId', 'factKind', 'factRevision', 'factDigest', 'referenceDigest'],
+      ProductionMaterialManifest: ['manifestId', 'manifestRevision', 'libraRunId', 'memberSetDigest', 'manifestDigest'],
+      ArtifactManifest: ['manifestId', 'manifestRevision', 'libraRunId', 'artifactSetDigest', 'manifestDigest'],
+      ArtifactConformanceVerificationSnapshot: ['ordinal', 'verificationResultRef', 'verificationValue', 'snapshotDigest'],
+      ProductInventoryConformanceSnapshot: ['productStructureSnapshot', 'productMaterialManifest', 'artifactManifest', 'inventoryDigest'],
       WorkspaceMediaOutputTarget: ['targetId', 'libraRunId', 'workspaceId', 'targetDigest'],
       ProductMediaCandidateInput: ['schemaRef', 'schemaVersion', 'candidateId', 'candidateNodeId', 'candidateBasisDigest', 'inputDigest'],
       ProductOutputSelectionInput: ['criteria', 'candidateSetDigest', 'inputDigest'],
@@ -122,7 +132,8 @@ function validateDomainInputSchemas(options) {
         }));
       }
     }
-    if (schema['x-helix-role'] === 'bounded-contract' && entry.id !== 'ArtifactRequirement' && !(schema.required || []).includes('typedParameters')) findings.push(finding(
+    const exactBoundedContracts = new Set(['ArtifactRequirement', 'EncodeIntent', 'RemuxIntent', 'MediaRequirement']);
+    if (schema['x-helix-role'] === 'bounded-contract' && !exactBoundedContracts.has(entry.id) && !(schema.required || []).includes('typedParameters')) findings.push(finding(
       'UNBOUNDED_INTENT_PARAMETERS', 'Bounded intent/requirement contracts require typedParameters.', { entryId: entry.id }
     ));
     inspectNode(schema, schema.$id, knownRefs, findings);
@@ -132,7 +143,9 @@ function validateDomainInputSchemas(options) {
   for (const name of usages.keys()) {
     if (!ids.has(name)) findings.push(finding('MISSING_DOMAIN_INPUT_TYPE', 'Catalog input reference has no schema.', { entryId: name }));
   }
-  const facadeOnlyTypes = new Set(['DirectPersonRegistrationDecision', 'CandidateDeliveryQuery', 'CandidateDeliveryReadResult']);
+  const facadeOnlyTypes = new Set(['DirectPersonRegistrationDecision', 'CandidateDeliveryQuery', 'CandidateDeliveryReadResult',
+    'ResolvedProviderIdentity', 'ProductStructureSnapshot', 'ProductConformanceFactSnapshot', 'ProductionMaterialManifest',
+    'ArtifactManifest', 'ArtifactConformanceVerificationSnapshot', 'ProductInventoryConformanceSnapshot']);
   for (const name of ids) {
     if (!usages.has(name) && !facadeOnlyTypes.has(name)) findings.push(finding('UNUSED_DOMAIN_INPUT_TYPE', 'Domain input schema is not referenced by the Catalog.', { entryId: name }));
   }

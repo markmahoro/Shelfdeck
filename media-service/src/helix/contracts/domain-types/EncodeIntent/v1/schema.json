@@ -3,18 +3,14 @@
   "$id": "helix://contracts/domain-types/EncodeIntent/v1",
   "title": "EncodeIntent@1",
   "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
     "8.6.20"
   ],
   "x-helix-role": "bounded-contract",
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "schemaRef": {
-      "const": "helix://contracts/domain-types/EncodeIntent/v1"
-    },
-    "schemaVersion": {
-      "const": 1
-    },
     "intentId": {
       "type": "string",
       "minLength": 1,
@@ -24,86 +20,155 @@
       "type": "integer",
       "minimum": 1
     },
-    "digest": {
+    "schemaRef": {
+      "const": "EncodeIntent@1"
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "sourceHandleDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
-    "container": {
+    "mediaRequirementDigest": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     },
-    "videoCodec": {
-      "type": "string",
-      "minLength": 1
+    "outputContainer": {
+      "const": "matroska"
     },
-    "audioCodec": {
-      "type": "string",
-      "minLength": 1
+    "outputExtension": {
+      "const": "mkv"
     },
-    "targetQuality": {
-      "type": "string",
-      "minLength": 1
+    "video": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "codec": {
+              "const": "hevc"
+            },
+            "preserveRaster": {
+              "const": true
+            },
+            "forbidUpscale": {
+              "const": true
+            },
+            "rateControlMode": {
+              "const": "target_size"
+            },
+            "targetVideoBitrateBps": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "qualityBound": {
+              "type": "null"
+            }
+          },
+          "required": [
+            "codec",
+            "preserveRaster",
+            "forbidUpscale",
+            "rateControlMode",
+            "targetVideoBitrateBps",
+            "qualityBound"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "codec": {
+              "const": "hevc"
+            },
+            "preserveRaster": {
+              "const": true
+            },
+            "forbidUpscale": {
+              "const": true
+            },
+            "rateControlMode": {
+              "const": "quality_bound"
+            },
+            "targetVideoBitrateBps": {
+              "type": "null"
+            },
+            "qualityBound": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 63
+            }
+          },
+          "required": [
+            "codec",
+            "preserveRaster",
+            "forbidUpscale",
+            "rateControlMode",
+            "targetVideoBitrateBps",
+            "qualityBound"
+          ]
+        }
+      ]
+    },
+    "audio": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "const": "copy"
+        }
+      },
+      "required": [
+        "mode"
+      ]
+    },
+    "subtitle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "const": "copy"
+        }
+      },
+      "required": [
+        "mode"
+      ]
     },
     "deviceClass": {
       "type": "string",
-      "minLength": 1
+      "enum": [
+        "software_cpu",
+        "intel_qsv",
+        "nvidia_nvenc",
+        "amd_vaapi",
+        "remote_worker"
+      ]
     },
-    "typedParameters": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "parameter": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-z][a-zA-Z0-9_.-]{0,127}$"
-          },
-          "valueType": {
-            "type": "string",
-            "enum": [
-              "string",
-              "integer",
-              "number",
-              "boolean"
-            ]
-          },
-          "value": {
-            "type": [
-              "string",
-              "integer",
-              "number",
-              "boolean"
-            ]
-          },
-          "valueDigest": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
-          }
-        },
-        "required": [
-          "parameter",
-          "valueType",
-          "value",
-          "valueDigest"
-        ]
-      },
-      "maxItems": 256
+    "intentDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     }
   },
   "required": [
-    "schemaRef",
-    "schemaVersion",
     "intentId",
     "revision",
-    "digest",
-    "container",
-    "videoCodec",
-    "audioCodec",
-    "targetQuality",
+    "schemaRef",
+    "libraRunId",
+    "sourceHandleDigest",
+    "mediaRequirementDigest",
+    "outputContainer",
+    "outputExtension",
+    "video",
+    "audio",
+    "subtitle",
     "deviceClass",
-    "typedParameters"
-  ]
+    "intentDigest"
+  ],
+  "x-helix-maxCanonicalBytes": 16384
 }

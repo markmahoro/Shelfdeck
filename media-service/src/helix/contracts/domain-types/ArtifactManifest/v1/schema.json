@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/ArtifactManifest/v1",
+  "title": "ArtifactManifest@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "manifestId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "manifestRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "artifactHandleId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "artifactKind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "artifactRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "artifactDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "requirementDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "materializationState": {
+            "type": "string",
+            "enum": [
+              "workspace_only",
+              "included_product"
+            ]
+          },
+          "referenceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "artifactHandleId",
+          "artifactKind",
+          "artifactRevision",
+          "artifactDigest",
+          "requirementDigest",
+          "materializationState",
+          "referenceDigest"
+        ]
+      },
+      "maxItems": 256
+    },
+    "artifactSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "manifestDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "manifestId",
+    "manifestRevision",
+    "libraRunId",
+    "items",
+    "artifactSetDigest",
+    "manifestDigest"
+  ]
+}

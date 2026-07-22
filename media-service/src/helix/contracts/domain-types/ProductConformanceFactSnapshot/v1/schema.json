@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/ProductConformanceFactSnapshot/v1",
+  "title": "ProductConformanceFactSnapshot@1",
+  "x-helix-ssotRefs": [
+    "8.6.18",
+    "8.6.19"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "productFactId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "factKind": {
+          "const": "resolved_identity"
+        },
+        "factRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "schemaRef": {
+          "const": "helix://contracts/types/ResolvedProductIdentity/v1"
+        },
+        "factValue": {
+          "$ref": "helix://contracts/types/ResolvedProductIdentity/v1"
+        },
+        "factDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "evidenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "referenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "productFactId",
+        "factKind",
+        "factRevision",
+        "schemaRef",
+        "factValue",
+        "factDigest",
+        "evidenceDigest",
+        "referenceDigest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "productFactId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "factKind": {
+          "const": "product_metadata"
+        },
+        "factRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "schemaRef": {
+          "const": "helix://contracts/types/ProductMetadataFact/v1"
+        },
+        "factValue": {
+          "$ref": "helix://contracts/types/ProductMetadataFact/v1"
+        },
+        "factDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "evidenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "referenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "productFactId",
+        "factKind",
+        "factRevision",
+        "schemaRef",
+        "factValue",
+        "factDigest",
+        "evidenceDigest",
+        "referenceDigest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "productFactId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "factKind": {
+          "const": "media_cast"
+        },
+        "factRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "schemaRef": {
+          "const": "helix://contracts/types/MediaCastFact/v1"
+        },
+        "factValue": {
+          "$ref": "helix://contracts/types/MediaCastFact/v1"
+        },
+        "factDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "evidenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "referenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "productFactId",
+        "factKind",
+        "factRevision",
+        "schemaRef",
+        "factValue",
+        "factDigest",
+        "evidenceDigest",
+        "referenceDigest"
+      ]
+    }
+  ]
+}

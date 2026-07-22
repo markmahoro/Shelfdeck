@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/ProductStructureSnapshot/v1",
+  "title": "ProductStructureSnapshot@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "structureKind": {
+      "type": "string",
+      "enum": [
+        "single",
+        "season"
+      ]
+    },
+    "contentProfile": {
+      "type": "string",
+      "enum": [
+        "movie",
+        "series",
+        "jav",
+        "western_adult"
+      ]
+    },
+    "productScopeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "episodeScopeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "primaryMaterialCount": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "structuralDependencyCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "productStructureDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "structureKind",
+    "contentProfile",
+    "productScopeDigest",
+    "episodeScopeDigest",
+    "primaryMaterialCount",
+    "structuralDependencyCount",
+    "productStructureDigest"
+  ]
+}

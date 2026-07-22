@@ -230,7 +230,9 @@ const special = {
   'VersionedQueryResult.resultKind': enumText('found', 'not_found'),
   'ResolvedProductIdentity.structureKind': enumText('single', 'season'),
   'ResolvedProductIdentity.contentProfile': enumText('movie', 'series', 'jav', 'western_adult'),
-  'ResolvedProductIdentity.providerIdentities': arrayOf(snapshot('provider-identity'), 128),
+  'ResolvedProductIdentity.identityKind': enumText('tmdb_movie', 'tmdb_series_season', 'jav_code', 'internal_identity'),
+  'ResolvedProductIdentity.providerIdentities': { ...arrayOf(domainRef('ResolvedProviderIdentity'), 16), minItems: 1 },
+  'ResolvedProductIdentity.providerIdentitySetDigest': digest(),
   'ResolvedProductIdentity.exactSeasonContinuityClaims': arrayOf(ref('SeasonContinuityClaim'), 64),
   'ResolvedProductIdentity.displayIdentity': boundedRecord('display-identity'),
   'MetadataObservation.contentProfile': enumText('movie', 'series', 'jav', 'western_adult'),
@@ -244,7 +246,7 @@ const special = {
   'ArtifactAcquisitionResult.reasonCode': nullable(text()),
   'ArtifactAcquisitionResult.evidence': ref('EvidenceEnvelope'),
   'ProductMetadataDraft.descriptiveFacts': boundedRecord('descriptive-facts'),
-  'ProductMetadataDraft.providerIdentities': arrayOf(snapshot('provider-identity'), 128),
+  'ProductMetadataDraft.providerIdentities': arrayOf(domainRef('ResolvedProviderIdentity'), 16),
   'ProductMetadataDraft.artifactRequirements': arrayOf(domainRef('ArtifactRequirement'), 256),
   'MediaCastDraft.relations': arrayOf(object({
     personId: nullable(id()), displayName: text(), role: text(), source: text(), confidenceClass: text()
@@ -425,7 +427,7 @@ const contracts = {
   RejectionReceipt: ['ReceiptEnvelope', 'acceptanceDecisionId,handoffKind,offerId,deliverableId,rejectionCode,acceptanceEvidenceSetDigest,rejectionDigest,receiptDigest'],
   SubjectAndTransferReceipt: ['ReceiptEnvelope', 'intakeDecisionId,offerId,candidatePackageId,packageRevision,packageDigest,candidateDeliverySnapshotDigest,subjectId,subjectIntakeRevision,subjectContinuityHeadRevision,subjectContinuitySetDigest,subjectEpisodeScopeDigest,libraBindingSetDigest,controlRevisionSetDigest,receiptDigest'],
   VersionedQueryResult: ['EvidenceEnvelope', 'queryContract,queryVersion,inputDigest,resultKind,resultRevision,resultDigest,expiresAtMs'],
-  ResolvedProductIdentity: ['EvidenceEnvelope', 'subjectId,structureKind,contentProfile,identityKind,providerIdentities,exactSeasonContinuityClaims,exactSeasonContinuitySetDigest,displayIdentity,identityDigest'],
+  ResolvedProductIdentity: ['EvidenceEnvelope', 'subjectId,structureKind,contentProfile,identityKind,providerIdentities,providerIdentitySetDigest,exactSeasonContinuityClaims,exactSeasonContinuitySetDigest,displayIdentity,identityDigest'],
   MetadataObservation: ['EvidenceEnvelope', 'identityDigest,contentProfile,descriptiveFacts,providerIdentitySet,peopleHints,artifactHints'],
   DecisionBasisRevision: ['DomainFactEnvelope', 'subjectId,queryResultSetDigest,routingInputDigest,specInputDigest'],
   FrameArtifactSet: ['ManifestEnvelope', 'sourceMaterialDigest,samplingPlanDigest,frameArtifactHandles'],
@@ -596,7 +598,7 @@ function productMetadataDraftSchema() {
     resolvedIdentityDigest: digest(), sourceBasisKind: enumText('metadata_observation', 'western_analysis'),
     metadataObservationSetDigest: nullable(digest()), westernAnalysisVariantDigest: nullable(digest()),
     fieldProvenance: arrayOf(fieldProvenanceSchema(), 1024), descriptiveFacts: boundedRecord('descriptive-facts'),
-    providerIdentities: arrayOf(snapshot('provider-identity'), 128),
+    providerIdentities: arrayOf(domainRef('ResolvedProviderIdentity'), 16),
     artifactRequirements: arrayOf(domainRef('ArtifactRequirement'), 256)
   }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
 }
@@ -622,7 +624,7 @@ function productMetadataFactSchema() {
     subjectId: id(), resolvedIdentityDigest: digest(), sourceBasisKind: enumText('metadata_observation', 'western_analysis'),
     sourceBasisDigest: digest(), metadataObservationSetDigest: nullable(digest()), westernAnalysisVariantDigest: nullable(digest()),
     fieldProvenance: arrayOf(fieldProvenanceSchema(), 1024), descriptiveFacts: boundedRecord('descriptive-facts'),
-    providerIdentities: arrayOf(snapshot('provider-identity'), 128), mediaCastFactRef: nullable(mediaCastFactRef),
+    providerIdentities: arrayOf(domainRef('ResolvedProviderIdentity'), 16), mediaCastFactRef: nullable(mediaCastFactRef),
     verifiedArtifactManifestDigest: digest(), productMetadataDigest: digest()
   }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
 }

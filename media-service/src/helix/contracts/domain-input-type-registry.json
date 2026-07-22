@@ -5,7 +5,7 @@
   "kind": "domain-input-type-registry",
   "owner": "contracts",
   "status": "active",
-  "targetCount": 100,
+  "targetCount": 108,
   "ssotRefs": [
     "8.6.3",
     "8.6.14",
@@ -141,6 +141,50 @@
             "lineDigest": "3cb1b32e9f6b048446e75a97524c24cc764a8bceeb00dcefcd2dacc9febb20d7"
           },
           "typeExpression": "ArcaAcceptanceRejectionDecision"
+        }
+      ]
+    },
+    {
+      "id": "ArtifactConformanceVerificationSnapshot",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/ArtifactConformanceVerificationSnapshot/v1",
+      "relativePath": "domain-types/ArtifactConformanceVerificationSnapshot/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "de87a357579788a59dee10ab89c07280e5cfe096c831c07d4e33d25eacb93394"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.product.conformance.verify@1",
+          "source": {
+            "section": "8.6.7",
+            "line": 8847,
+            "lineDigest": "71182ad2790275909551e3fde64298f0c712cef281413343ecf8ac7be9d3f06e"
+          },
+          "typeExpression": "ProductConformanceInputSnapshot"
+        }
+      ]
+    },
+    {
+      "id": "ArtifactManifest",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/ArtifactManifest/v1",
+      "relativePath": "domain-types/ArtifactManifest/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "02786ccec7c4516d6a6fc8a52d8c7f54d46b59f3fa496005c056a6709b1b6b22"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.product.conformance.verify@1",
+          "source": {
+            "section": "8.6.7",
+            "line": 8847,
+            "lineDigest": "71182ad2790275909551e3fde64298f0c712cef281413343ecf8ac7be9d3f06e"
+          },
+          "typeExpression": "ProductConformanceInputSnapshot"
         }
       ]
     },
@@ -515,7 +559,7 @@
       "relativePath": "domain-types/EncodeIntent/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "13431e278f8a4b0924bfab5ec9513a430225d54a0deeb170b98baca55b0b2fd2"
+        "value": "db7726298127d55c4c81873b69117e06a37d157c73434a216cc01dbf42790b05"
       },
       "usedBy": [
         {
@@ -967,6 +1011,28 @@
             "lineDigest": "b0fafb7638df6655784f49673941ba924b78e7abfc70dafca20b5db3f9c04f83"
           },
           "typeExpression": "MediaExecutionDeviceSnapshot"
+        }
+      ]
+    },
+    {
+      "id": "MediaRequirement",
+      "version": 1,
+      "role": "bounded-contract",
+      "schemaId": "helix://contracts/domain-types/MediaRequirement/v1",
+      "relativePath": "domain-types/MediaRequirement/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "cf3cff4878c5122a8f11dbf989ec639140b0bf86447b1a202b6314ae93ad58a4"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.product_media.verify@1",
+          "source": {
+            "section": "8.6.7",
+            "line": 8845,
+            "lineDigest": "6ca7365e09bf70b37f854f2497da9caa04165b49516c6216ba4cb00669b0fb4e"
+          },
+          "typeExpression": "ProductMediaCandidateInput"
         }
       ]
     },
@@ -1469,6 +1535,28 @@
       ]
     },
     {
+      "id": "ProductConformanceFactSnapshot",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/ProductConformanceFactSnapshot/v1",
+      "relativePath": "domain-types/ProductConformanceFactSnapshot/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "bee1e440b9fadb25446b90f31153988e8a331408cf59902d7084bdb251f16e4a"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.product.conformance.verify@1",
+          "source": {
+            "section": "8.6.7",
+            "line": 8847,
+            "lineDigest": "71182ad2790275909551e3fde64298f0c712cef281413343ecf8ac7be9d3f06e"
+          },
+          "typeExpression": "ProductConformanceInputSnapshot"
+        }
+      ]
+    },
+    {
       "id": "ProductConformanceInputSnapshot",
       "version": 1,
       "role": "accepted-business-dto",
@@ -1476,7 +1564,29 @@
       "relativePath": "domain-types/ProductConformanceInputSnapshot/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "3b7cfa14d7a2514a316f17c1b60f9cc790ebeaccc9c766ff9a40232be87f8f72"
+        "value": "7ca2710fc48f1fcba23e4e94a59b321a8d8cfab2c62b91ea690ee24b4c54643e"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.product.conformance.verify@1",
+          "source": {
+            "section": "8.6.7",
+            "line": 8847,
+            "lineDigest": "71182ad2790275909551e3fde64298f0c712cef281413343ecf8ac7be9d3f06e"
+          },
+          "typeExpression": "ProductConformanceInputSnapshot"
+        }
+      ]
+    },
+    {
+      "id": "ProductInventoryConformanceSnapshot",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/ProductInventoryConformanceSnapshot/v1",
+      "relativePath": "domain-types/ProductInventoryConformanceSnapshot/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "f81ef84bae0b865fac353831351a1f373dbeb2673f17d88eb928a1cd556b4c87"
       },
       "usedBy": [
         {
@@ -1538,7 +1648,7 @@
       "relativePath": "domain-types/ProductMediaCandidateInput/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "f58367272deba801f662cbd9a1fb90393f92ee8dd01fe49cc95f5b320c54e702"
+        "value": "e9ad33c01d03a33db63548950bdb40925c4295d5d65528489d2c03d59344246e"
       },
       "usedBy": [
         {
@@ -1633,6 +1743,50 @@
             "lineDigest": "6dce1265b0101081f5902721342d86b96e19ad4165b69dd8ef7b9cf241da261f"
           },
           "typeExpression": "ProductStructure"
+        }
+      ]
+    },
+    {
+      "id": "ProductStructureSnapshot",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/ProductStructureSnapshot/v1",
+      "relativePath": "domain-types/ProductStructureSnapshot/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "3cae41b90dc673233501abb25315138a307d72d5191bd0fac3979fad461ddfde"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.product.conformance.verify@1",
+          "source": {
+            "section": "8.6.7",
+            "line": 8847,
+            "lineDigest": "71182ad2790275909551e3fde64298f0c712cef281413343ecf8ac7be9d3f06e"
+          },
+          "typeExpression": "ProductConformanceInputSnapshot"
+        }
+      ]
+    },
+    {
+      "id": "ProductionMaterialManifest",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/ProductionMaterialManifest/v1",
+      "relativePath": "domain-types/ProductionMaterialManifest/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "d1d2af5952ec65f0d2ae8bd36417669435fcc56db1cf63cb367e12a6268965bf"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.product.conformance.verify@1",
+          "source": {
+            "section": "8.6.7",
+            "line": 8847,
+            "lineDigest": "71182ad2790275909551e3fde64298f0c712cef281413343ecf8ac7be9d3f06e"
+          },
+          "typeExpression": "ProductConformanceInputSnapshot"
         }
       ]
     },
@@ -1785,7 +1939,7 @@
       "relativePath": "domain-types/RemuxIntent/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "193cd8f6167230191b04c88bb34a07465721f9f306c6c23e238dd6dcf6d4c562"
+        "value": "51a56d5af95182df1b3b503a92a63dd4361b15bc3b3dbc05a7eb9792e89b6693"
       },
       "usedBy": [
         {
@@ -1798,6 +1952,18 @@
           "typeExpression": "RemuxIntent"
         }
       ]
+    },
+    {
+      "id": "ResolvedProviderIdentity",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/ResolvedProviderIdentity/v1",
+      "relativePath": "domain-types/ResolvedProviderIdentity/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "3942e6f11fe4c2f3927d2a7f2f62f98a381fd5ea62abc7be44e7849f19d071fc"
+      },
+      "usedBy": []
     },
     {
       "id": "SamplingPlan",

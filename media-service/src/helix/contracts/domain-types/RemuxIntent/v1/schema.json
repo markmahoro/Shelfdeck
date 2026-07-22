@@ -3,18 +3,14 @@
   "$id": "helix://contracts/domain-types/RemuxIntent/v1",
   "title": "RemuxIntent@1",
   "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
     "8.6.20"
   ],
   "x-helix-role": "bounded-contract",
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "schemaRef": {
-      "const": "helix://contracts/domain-types/RemuxIntent/v1"
-    },
-    "schemaVersion": {
-      "const": 1
-    },
     "intentId": {
       "type": "string",
       "minLength": 1,
@@ -24,72 +20,50 @@
       "type": "integer",
       "minimum": 1
     },
-    "digest": {
+    "schemaRef": {
+      "const": "RemuxIntent@1"
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "sourceHandleDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
-    "container": {
-      "type": "string",
-      "minLength": 1
-    },
-    "streamPolicyDigest": {
+    "mediaRequirementDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
-    "typedParameters": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "parameter": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-z][a-zA-Z0-9_.-]{0,127}$"
-          },
-          "valueType": {
-            "type": "string",
-            "enum": [
-              "string",
-              "integer",
-              "number",
-              "boolean"
-            ]
-          },
-          "value": {
-            "type": [
-              "string",
-              "integer",
-              "number",
-              "boolean"
-            ]
-          },
-          "valueDigest": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
-          }
-        },
-        "required": [
-          "parameter",
-          "valueType",
-          "value",
-          "valueDigest"
-        ]
-      },
-      "maxItems": 256
+    "outputContainer": {
+      "const": "matroska"
+    },
+    "outputExtension": {
+      "const": "mkv"
+    },
+    "streamPolicy": {
+      "const": "copy_all_supported"
+    },
+    "intentDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     }
   },
   "required": [
-    "schemaRef",
-    "schemaVersion",
     "intentId",
     "revision",
-    "digest",
-    "container",
-    "streamPolicyDigest",
-    "typedParameters"
-  ]
+    "schemaRef",
+    "libraRunId",
+    "sourceHandleDigest",
+    "mediaRequirementDigest",
+    "outputContainer",
+    "outputExtension",
+    "streamPolicy",
+    "intentDigest"
+  ],
+  "x-helix-maxCanonicalBytes": 16384
 }
