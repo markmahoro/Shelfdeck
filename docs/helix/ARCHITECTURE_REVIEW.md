@@ -2653,3 +2653,30 @@ Bounded correction保持既有业务边界：
 Product Staging与P9-08 Attestation。修正只新增formal input DTO和typed runtime-port合同并扩充既有Result family；不新增
 Business Domain、Owner、Store、Handoff、Catalog Capability、Catalog Result family、table或Canonical Transaction，
 inventory保持`112 / 97 / 177 / 43`。结果为`PASS / PBF-15 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.45 `PBF-15-R1` — Product Conformance完整输入与Media Intent机器合同
+
+Status: `CLOSED / BOUNDED MACHINE-CONTRACT FIX APPLIED` — 2026-07-23
+
+P9-06实现复审证明PBF-15仍有两类正文—机器合同断层：Conformance input中的Resolved Identity、Product Fact、
+Artifact Verification与Inventory仍可被物化为generic snapshot/digest，无法执行已确认的六组验收；同时
+`EncodeIntent/RemuxIntent/MediaRequirement`机器合同仍保留旧opaque parameters，Capability validator不能接受正文定义的
+typed输入。缺口成立，但不改变任何用户可见Policy或业务流程。
+
+Bounded correction固定：
+
+- `ResolvedProviderIdentity@1`明确Provider/namespace/key/season tuple，`ResolvedProductIdentity@1`按identity kind要求唯一
+  Anchor与稳定set digest，TMDB Movie、TMDB Series Season、JAV code和internal identity均可精确判断；
+- Conformance Fact输入改为closed union，完整内联`ResolvedProductIdentity@1`、`ProductMetadataFact@1`与
+  `MediaCastFact@1` typed value；缺少可选业务Fact产生unmet，schema/digest/ref断裂才是integrity failure；
+- 每个Verified Artifact显式携带完整`ArtifactManifestVerification@1` snapshot并交叉匹配Requirement、Handle、Result ref
+  与最终Artifact Manifest；NFO renderable及poster/fanart decodable不再从摘要推断；
+- Inventory直接使用完整`ProductionMaterialManifest@1 + ArtifactManifest@1 + ProductStructureSnapshot@1`，固定Binding、
+  checksum、Artifact materialization和single/season logical layout的closed判定；
+- `LibraProductionCoordinator`只按显式Owner ID/revision与Result ref组装immutable Snapshot，pure Executor没有Store/Query
+  port，只复验完整输入并执行规则；P9-08 Attestation逐字节引用同一product snapshot/evidence；
+- `EncodeIntent@1`、`RemuxIntent@1`和`MediaRequirement@1`分别建立exact、`additionalProperties:false`机器schema，删除
+  旧`digest/targetQuality/typedParameters`双路径；Conformance所有nested type使用exact `$ref/oneOf`，禁止generic降级。
+
+该修正不新增Domain、Owner、Store、Handoff、Capability、Result family、table或Canonical Transaction；inventory保持
+`112 / 97 / 177 / 43`。结果为`PASS / PBF-15-R1 CLOSED / NO OPEN BUSINESS DECISION`。
