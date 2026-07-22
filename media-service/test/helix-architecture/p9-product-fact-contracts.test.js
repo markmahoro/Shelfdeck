@@ -157,7 +157,10 @@ test('verifies artifact handles without embedding bytes or reading a second owne
   const inputBindings={artifactHandleList:[handle],artifactRequirement:requirement};
   const binding={workId:'work-verify',attemptId:'attempt-verify',planId:'plan-verify',eventId:'event-verify',resultId:'result-verify',
     capabilityRef:'shared.artifact.manifest.verify@1',resultSchemaRef:result.schemaRef,result,
-    resultDigest:canonicalDigest(result),inputBindings,inputBindingDigest:canonicalDigest(inputBindings)};
+    resultDigest:canonicalDigest(result),inputBindings,inputBindingDigest:canonicalDigest(inputBindings),ownerDomain:'libra',
+    processType:'libra_run',processId:'run-1',workState:'succeeded',attemptState:'succeeded',planState:'completed',eventState:'succeeded',
+    eventOwnerDomain:'libra',attemptWorkId:'work-verify',planAttemptId:'attempt-verify',eventWorkId:'work-verify',
+    eventAttemptId:'attempt-verify',eventPlanId:'plan-verify',eventResultId:'result-verify',nodeCapabilityRef:'shared.artifact.manifest.verify@1'};
   const ref={workId:binding.workId,attemptId:binding.attemptId,planId:binding.planId,eventId:binding.eventId,resultId:binding.resultId,
     capabilityRef:binding.capabilityRef,resultSchemaRef:binding.resultSchemaRef,resultDigest:binding.resultDigest,
     inputBindingDigest:binding.inputBindingDigest};

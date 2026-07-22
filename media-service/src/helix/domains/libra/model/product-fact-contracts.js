@@ -336,6 +336,13 @@ function validateVerifiedArtifactManifest(value, context) {
     const ref = item.verificationResultRef, binding = bindings.get(ref?.resultId), result = binding?.result;
     if (!binding || !result || ref.workId !== binding.workId || ref.attemptId !== binding.attemptId ||
         ref.planId !== binding.planId || ref.eventId !== binding.eventId ||
+        binding.ownerDomain !== 'libra' || binding.processType !== 'libra_run' || binding.processId !== value.libraRunId ||
+        binding.workState !== 'succeeded' || binding.attemptState !== 'succeeded' || binding.planState !== 'completed' ||
+        binding.eventState !== 'succeeded' || binding.eventOwnerDomain !== 'libra' ||
+        binding.attemptWorkId !== binding.workId || binding.planAttemptId !== binding.attemptId ||
+        binding.eventWorkId !== binding.workId || binding.eventAttemptId !== binding.attemptId ||
+        binding.eventPlanId !== binding.planId || binding.eventResultId !== binding.resultId ||
+        binding.nodeCapabilityRef !== binding.capabilityRef ||
         ref.capabilityRef !== 'shared.artifact.manifest.verify@1' || ref.capabilityRef !== binding.capabilityRef ||
         ref.resultSchemaRef !== 'helix://contracts/types/ArtifactManifestVerification/v1' ||
         ref.resultSchemaRef !== binding.resultSchemaRef || ref.resultDigest !== binding.resultDigest ||
