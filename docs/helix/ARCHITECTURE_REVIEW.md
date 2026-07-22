@@ -2439,7 +2439,7 @@ Capability、Result family、表或Canonical Transaction，计数保持`112 / 97
 
 ### 15.36 `PBF-14` — Product Metadata / Media-Cast Fact commit闭包
 
-Status: `CLOSED / BOUNDED INPUT-PERSISTENCE FIX APPLIED / REFINED_BY_PBF-14-R1-R2-R3-R4-R5` — 2026-07-20
+Status: `CLOSED / BOUNDED INPUT-PERSISTENCE FIX APPLIED / REFINED_BY_PBF-14-R1-R2-R3-R4-R5-R6` — 2026-07-20
 
 P9-05反向实现审计证明四项缺口成立：两个`domain_fact_commit`没有可选择的no-Outbox精确variant；Product Fact
 缺稳定ID/revision/Handle/marker与Evidence映射；Planner所谓“当前Metadata Observation集合”没有正式选择及历史
@@ -2582,3 +2582,22 @@ Bounded correction固定：
 
 该修正不新增Domain、Owner、Store、Handoff、Capability、Result family、table或transaction，inventory保持
 `112 / 97 / 177 / 43`。结果为`PASS / PBF-14-R5 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.42 `PBF-14-R6` — Western Analysis digest传播连续性
+
+Status: `CLOSED / BOUNDED DIGEST-PROPAGATION FIX APPLIED` — 2026-07-22
+
+R5之后的Western Product Fact反向审计证明旧“三者相等”表述仍把`WesternAnalysisResult`领域内摘要与Foundation
+完整Result storage digest混为一体，导致Variant、Basis、Normalize和Product Fact Source relation不可同时成立。
+
+Bounded correction固定：
+
+- `WesternAnalysisVariant.analysisResults[].resultDigest`保存包含内部`result.resultDigest`的完整typed Result storage
+  digest，并逐字节命中`fx_event_result_bindings.result_digest`；
+- 嵌入`result.resultDigest`继续按排除自身公式独立验证，不与外层/storage digest比较；
+- `WesternProductMetadataBasisSnapshot.analysisRefs/normalizeRef`及`libra_product_fact_source_refs.result_digest`
+  一律沿用Foundation storage digest；Evidence Envelope的ID/digest保持原语义；
+- 全局旧“三者相等”表述已移除，Western链不再存在两种Result ref口径。
+
+该修正不新增Domain、Owner、Store、Handoff、Capability、Result family、table或transaction，inventory保持
+`112 / 97 / 177 / 43`。结果为`PASS / PBF-14-R6 CLOSED / NO OPEN BUSINESS DECISION`。
