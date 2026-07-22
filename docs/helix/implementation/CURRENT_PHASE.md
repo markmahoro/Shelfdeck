@@ -1,8 +1,8 @@
 # P9 Libra Production and Delivery Detailed Plan
 
-Status: Active；P9-00–P9-04 complete；P9-05 active.
+Status: Active；P9-00–P9-05 complete；P9-06 active.
 
-Last updated: 2026-07-20
+Last updated: 2026-07-23
 
 ## 1. Objective
 
@@ -92,6 +92,9 @@ P9不执行Handoff B Acceptance或Arca On-deck Commit，不接真实Provider/FFm
 
 - 按fixed source order和durable Observation实现Metadata gap reconcile、Draft、Artifact验证及Product Fact commit。
 - Media-Cast由Libra拥有；People只提供Projection，不接管Media-Cast或跨Store补读。
+- Done：Observation与Western两类Source Basis、Artifact验证、Media Cast/Product Metadata Fact、显式同Run
+  `mediaCastFactRef`、Source refs及SQLite crash atomicity均PASS。Evidence见
+  `evidence/P9_05_PRODUCT_FACTS_METADATA_CAST_ARTIFACTS.md`。
 
 ### P9-06 Media production, output selection and conformance
 

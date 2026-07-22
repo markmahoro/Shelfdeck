@@ -2,7 +2,7 @@
 
 Status: Levels 0–10 accepted; P0–P8 complete; P9 active under standing Local Implementation authorization; E2E, Docker/Canary, production, real-media side effects and `media-desktop` changes paused.
 
-Last updated: 2026-07-20
+Last updated: 2026-07-23
 
 ## 1. Current position
 
@@ -13,12 +13,12 @@ Last updated: 2026-07-20
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains；P7 — Procurement；P8 — Handoff A and Libra front half |
 | Current phase | P9 — Libra production and delivery |
-| Current phase status | P9-00–P9-04 PASS；P9-05 Product facts, metadata, cast and artifacts active |
+| Current phase status | P9-00–P9-05 PASS；P9-06 Media production, output selection and conformance active |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | P9 local code、unit/contract/isolated fixture、docs与Phase内自动闭环；本周期不进入P10 |
 | Integration baseline | exact P8 closure `3184ef4573cb3663e4a1fae87fc65b4d1c270b38` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p9` on `codex/helix-p9` |
-| Next action | 实现P9-05 Product facts、metadata、cast与artifacts |
+| Next action | 实现P9-06 Media production、output selection与conformance |
 
 P9-01已完成：反向实现审计证明的六段连续性缺口已由Architecture Agent在`PBF-13/PBF-13-R1`中闭合，并经实现侧
 只读复审后原样纳入。Run、Material/Episode scope、Workspace、完整Package、Discard/Cleanup及Off-load Reclaimer均具备
@@ -47,6 +47,14 @@ product staging promotion执行Workspace/Reference双连续性、Owner-row repla
 Verification及非法转换反例全部PASS。完整Architecture gate PASS（108 fixture files，`findings=[]`），P2 aggregate为
 `530909a2cd450d3638286cb8966ccd6d11bfca67e591da412bd4542ddb8db1a9`；Evidence见
 `implementation/evidence/P9_04_WORKSPACE_ADMISSION_AND_REFERENCE.md`。
+
+P9-05已完成：Movie/Series/JAV Metadata只从显式durable Observation链按固定顺序补缺；Western Analysis把Result内部领域
+digest与Foundation完整typed Result storage digest分开验证，并冻结Analysis→Normalize→Commit及Match→Cast连续性。
+Product Metadata Commit显式提交nullable `mediaCastFactRef`，非NULL只精确读取同Run immutable Media Cast Fact；Artifact
+Requirement、Handle、Verification Result、Manifest、Product Fact及Source refs均可从Owner/Foundation rows重建。完整Architecture
+gate PASS（111 fixture files，`findings=[]`），P2 aggregate为
+`fd28a03618c383e694933867719478fbf24f263571cfbe0b7880b55fb9696633`；Evidence见
+`implementation/evidence/P9_05_PRODUCT_FACTS_METADATA_CAST_ARTIFACTS.md`。
 
 Architecture Agent提交`a570be44`的`PBF-13`已通过实现侧只读复审：六段生产连续性均可从正式输入、Owner rows、
 revision/digest/CAS及事务边界唯一实现；计数为112 Capability、97 Catalog Result family、176 tables和43 Canonical

@@ -89,11 +89,11 @@ Workspace admission/reference、完整On-deck Product Package、Discard/Cleanup�
 | --- | --- |
 | Phase | P9 — Libra production and delivery |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | P9-00–P9-04 PASS；P9-05 Product facts, metadata, cast and artifacts active |
+| Status | P9-00–P9-05 PASS；P9-06 Media production, output selection and conformance active |
 | Implementation baseline | exact P8 closure `3184ef4573cb3663e4a1fae87fc65b4d1c270b38` |
 | Phase branch/worktree | `codex/helix-p9` / `E:\my_project\emby_third_party-helix-p9` |
 | Allowed now | P9 local code、unit/contract/isolated fixture、docs与Phase内自动闭环 |
-| Next action | 实现P9-05 Product facts、metadata、cast与artifacts；继续逐包执行反向审计和机器反例 |
+| Next action | 实现P9-06 Media production、output selection与conformance；继续逐包执行反向审计和机器反例 |
 
 ## 4. Master roadmap
 
