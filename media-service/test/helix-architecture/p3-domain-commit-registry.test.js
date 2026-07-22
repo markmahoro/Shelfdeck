@@ -87,14 +87,26 @@ function productFactRegistration(readRepository = workReads) {
     } };
 }
 
-function fixture(run, registrations = [registration()]) {
+function postMarkerRegistration(failWrite = false) {
+  return { ownerDomain:'libra',aggregateType:'subject',factType:'media_cast',
+    factSchemaRef:'helix://contracts/types/MediaCastFact/v1',effectClass:'domain_fact_commit',revisionFence:true,
+    createParticipant({handle,payload}) { const participant={participantId:'libra_media_cast_prepare',owner:'libra',boundBusinessOwner:'libra',
+      repositories:[subjects],execute(){return Object.freeze({schemaRef:handle.resultSchemaRef,schemaVersion:1,subjectId:payload.subjectId,revision:1});}};
+      participant.postMarkerParticipants=[{participantId:'libra_media_cast_owner_write',owner:'libra',boundBusinessOwner:'libra',repositories:[subjects],
+        execute(context){if(failWrite)throw Object.assign(new Error('Owner write failed'),{code:'TEST_POST_MARKER_WRITE'});
+          context.repository('subjects').invoke('insert',{routing_policy_id:payload.subjectId,revision:1,field_id:'fixture-field',mode:'direct',
+            policy_schema_ref:'helix://fixtures/routing-policy/v1',policy_json:'{}',policy_digest:digest(payload.subjectId),effective_at_ms:context.commitTimeMs});}}];
+      return participant;} };
+}
+
+function fixture(run, registrations = [registration()], contracts = [domainFactTransaction]) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-domain-commit-'));
   const databasePath = path.join(root, 'shelfdeck.db');
   let clock = 1700000000600;
   const kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest, now: () => clock++ });
   const registry = createDomainCommitRegistry({ registrations });
   const coordinator = createDomainCommitCoordinator({
-    schemaManifest, registry, transactionRegistry: createCanonicalTransactionRegistry({ contracts: [domainFactTransaction] }),
+    schemaManifest, registry, transactionRegistry: createCanonicalTransactionRegistry({ contracts }),
     unitOfWork: createSqliteUnitOfWork({ kernel })
   });
   const setup = new Database(databasePath);
@@ -271,6 +283,27 @@ test('runs bounded typed read participants inside the exact Product Fact transac
   const value=payload(),handle=domainHandle(value,{factType:'media_cast',factSchemaRef:'helix://contracts/types/MediaCastFact/v1',
     resultSchemaRef:'helix://contracts/types/MediaCastFact/v1'});
   assert.throws(()=>registry.resolve(handle,value),(error)=>error.code==='P3_DOMAIN_COMMIT_READ_PARTICIPANT_INVALID');
+});
+
+test('runs declared Owner writes after Result and Marker and rolls the whole transaction back on failure',()=>{
+  const mediaVariant=domainFactTransaction.contract.variants.find((item)=>item.variantId==='libra_media_cast_fact@1');
+  const declaredVariant={...mediaVariant,writeTables:[...mediaVariant.writeTables,'libra_routing_policy_revisions'],
+    participants:mediaVariant.participants.map((participant)=>participant.owner==='libra'
+      ? {...participant,tables:[...participant.tables,'libra_routing_policy_revisions']}:participant)};
+  const transaction={...domainFactTransaction,contract:{...domainFactTransaction.contract,
+    variants:domainFactTransaction.contract.variants.map((item)=>item.variantId===declaredVariant.variantId?declaredVariant:item)}};
+  const execute=(coordinator)=>{const value=payload(),handle=domainHandle(value,{factType:'media_cast',
+    factSchemaRef:'helix://contracts/types/MediaCastFact/v1',resultSchemaRef:'helix://contracts/types/MediaCastFact/v1'});
+    return coordinator.execute({...request(value,{handle,outboxMessages:[]}),supportingWorkId:'work-1'});};
+  fixture(({coordinator,databasePath})=>{assert.equal(execute(coordinator).replayed,false);const database=new Database(databasePath,{readonly:true});
+    assert.equal(database.prepare('SELECT COUNT(*) count FROM libra_routing_policy_revisions').get().count,1);
+    assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_event_result_bindings').get().count,1);
+    assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_commit_markers').get().count,1);database.close();},[postMarkerRegistration()],[transaction]);
+  fixture(({coordinator,databasePath})=>{assert.throws(()=>execute(coordinator),(error)=>error.code==='TEST_POST_MARKER_WRITE');
+    const database=new Database(databasePath,{readonly:true});
+    assert.equal(database.prepare('SELECT COUNT(*) count FROM libra_routing_policy_revisions').get().count,0);
+    assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_event_result_bindings').get().count,0);
+    assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_commit_markers').get().count,0);database.close();},[postMarkerRegistration(true)],[transaction]);
 });
 
 test('rejects unregistered Owner/fact schema, payload drift, and wrong-Owner participant factory', () => {

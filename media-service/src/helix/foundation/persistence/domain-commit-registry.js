@@ -103,6 +103,13 @@ function createDomainCommitRegistry(options) {
           item.repositories.length === 0 || item.repositories.some((repository) => repository.readOnly !== true))) {
         fail('P3_DOMAIN_COMMIT_READ_PARTICIPANT_INVALID', 'Typed pre-commit readers must be bounded read-only participants.');
       }
+      const postMarkerParticipants = participant.postMarkerParticipants || [];
+      if (!Array.isArray(postMarkerParticipants) || postMarkerParticipants.some((item) => !item ||
+          item.owner !== handle.ownerDomain || item.boundBusinessOwner !== handle.ownerDomain ||
+          !Array.isArray(item.repositories) || item.repositories.length === 0 ||
+          item.repositories.some((repository) => repository.owner !== handle.ownerDomain))) {
+        fail('P3_DOMAIN_COMMIT_POST_MARKER_PARTICIPANT_INVALID', 'Post-Marker Owner writes must remain inside the registered Domain.');
+      }
       return participant;
     }
   });
@@ -254,6 +261,7 @@ function createDomainCommitCoordinator(options) {
       if (supportingWorkRequired) text(request.supportingWorkId, 'supportingWorkId');
       const resolvedParticipant = options.registry.resolve(handle, request.payload, { commitMarker:commitMarkerId });
       const readParticipants = resolvedParticipant.readParticipants || [];
+      const postMarkerParticipants = resolvedParticipant.postMarkerParticipants || [];
       const readParticipantIds = new Set();
       for (const participant of readParticipants) {
         if (typeof participant.participantId !== 'string' || !participant.participantId ||
@@ -263,10 +271,20 @@ function createDomainCommitCoordinator(options) {
         }
         readParticipantIds.add(participant.participantId);
       }
+      const postMarkerIds = new Set();
+      for (const participant of postMarkerParticipants) {
+        if (typeof participant.participantId !== 'string' || !participant.participantId ||
+            postMarkerIds.has(participant.participantId) || readParticipantIds.has(participant.participantId) ||
+            participant.repositories.some((repository) => repository.tableIds.some((tableId) => !transaction.writeTables.includes(tableId)))) {
+          fail('P3_DOMAIN_COMMIT_POST_MARKER_PARTICIPANT_UNDECLARED', 'Post-Marker Owner write escapes the canonical transaction write set.');
+        }
+        postMarkerIds.add(participant.participantId);
+      }
       let typedResult;
       const domainParticipant = {
         ...resolvedParticipant,
         readParticipants: undefined,
+        postMarkerParticipants: undefined,
         execute(context) {
           typedResult = resolvedParticipant.execute(context);
           if (!typedResult || typeof typedResult !== 'object' || Array.isArray(typedResult) || typedResult.schemaRef !== handle.resultSchemaRef) {
@@ -350,6 +368,7 @@ function createDomainCommitCoordinator(options) {
           });
         }
       });
+      participants.push(...postMarkerParticipants);
       if (outboxRequired) participants.push(createOutboxParticipant({
         schemaManifest: options.schemaManifest, participantId: 'domain_commit_outbox',
         producerDomain: handle.ownerDomain, messages: request.outboxMessages
