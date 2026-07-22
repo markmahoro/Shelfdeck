@@ -281,6 +281,94 @@ Change Set出现未讨论的新Object、状态、Policy、Handoff、配置或Sch
 只有完成Step 7和Step 8才可标记`CLOSED`。仅用户口头确认、仅写入本文、仅修改状态文档，均只能是
 `CONFIRMED_PENDING_APPLY`。
 
+## 4A. Implementation feasibility feedback process
+
+本节自P9-06后续切片起约束实施线程与架构线程的往返方式。它只优化协作粒度，不降低SSOT严谨度，也不构成
+第二套产品合同。
+
+### 4A.1 以垂直切片为最小预检单位
+
+实施线程在开始一个切片的主体编码前，必须先一次性反向检查完整链路：
+
+```text
+formal named input
+→ Capability / Application transaction
+→ typed Result / Receipt
+→ Owner row与revision/CAS
+→ 下游consumer / Handoff
+→ semantic replay / crash recovery
+→ machine schema / DDL / registry materialization
+```
+
+预检单位是能够形成业务结果的完整切片，不是单个Capability或单张表。相互依赖的Capability必须放在同一轮检查；
+除非发现会导致跨Owner写入、不可逆错误或数据破坏的即时安全阻塞，否则不得在尚未检查同切片其余节点时逐项
+发送Design Return。
+
+### 4A.2 一份consolidated Design Return
+
+同一切片的真实SSOT缺口合并为一份问题包，按共同根因分组。每组必须给出：
+
+- 精确SSOT条款和机器产物；
+- 无法唯一实现的input → output或persistence → recovery断点；
+- 一个可复现的反例；
+- 受影响的全部下游consumer，而非当前刚好开工的文件；
+- 明确排除的Owner、Handoff、Capability和业务语义变化；
+- 是否需要用户业务决策。
+
+同一根因不得拆成连续R1/R2问题；首次返回前必须完成该根因的上下游影响扫描。后续只有新证据证明首次影响扫描
+客观无法覆盖的独立断点，才建立bounded revision。
+
+### 4A.3 三类问题分流
+
+| Class | Owner | Examples |
+| --- | --- | --- |
+| `SSOT_REALIZABILITY_GAP` | 架构线程 | 正式输入不足、Owner row无法恢复、revision/CAS矛盾、正文存在两个合法解释、已确认边界下没有合法实现路径 |
+| `MATERIALIZER_DEFECT` | 实施线程 | SSOT已经逐字段唯一明确，但extractor、schema builder、DDL generator、registry或validator没有原样物化 |
+| `IMPLEMENTATION_CHOICE` | 实施线程 | 合同内的数据结构、pure algorithm、repository组织、测试夹具和性能优化，不改变正式输入输出或Owner边界 |
+
+实现线程不得把已明确的SSOT重复提交给用户或架构线程重新决定；架构线程也不得为了修复生成器缺陷而追加重复正文。
+如果分类存在争议，先用“现有SSOT能否让两个独立实现生成逐字节相同的正式值”反证：能则属于实现；不能才可能
+属于SSOT。
+
+### 4A.4 四类复用闭包模板
+
+每个切片预检必须先套用最接近的既有模板，再判断是否真的需要新合同：
+
+1. **Pure evaluator**：完整closed typed snapshot输入；Executor无Store/Query；Application按显式ID/ref组装；Result含
+   stable basis/evidence/result digest。
+2. **Workspace effect**：明确Source Handle、Target、Fence、idempotency key、Effect Receipt、Handle registration与
+   crash recovery；Executor不选路径或fallback。
+3. **Domain commit**：完整Commit Payload、Handle、expected revision、Owner row、Result、Marker及明确Outbox cardinality；
+   semantic replay只从Owner rows恢复。
+4. **Deterministic selection**：完整候选集、显式Policy/Criteria、稳定排序与tie-break、empty outcome和全部set/decision
+   digest；禁止依赖caller数组顺序。
+
+已经符合模板的链路只允许补传播遗漏，不能重新设计一套近似合同。
+
+### 4A.5 批量闭合与基线冻结
+
+每个垂直切片固定执行以下节奏：
+
+```text
+1. Freeze SSOT commit
+2. Complete vertical preflight
+3. Submit one consolidated Design Return（若有）
+4. Architecture applies one bounded correction
+5. Re-materialize all affected machine contracts
+6. Run schema/DDL/registry plus crash/replay counterexamples
+7. Implement the whole slice
+8. Run one end-of-slice reverse audit
+```
+
+步骤5发现的纯materializer问题不回流架构；步骤8只允许报告新的、可证明的SSOT断点，不能把已经通过步骤2的同一
+检查换个字段名再次拆单。架构修正必须记录唯一commit；实施以该commit为新冻结基线，不混用多个SSOT版本。
+
+### 4A.6 Beta范围控制
+
+只有以下问题值得阻塞实施并回到SSOT：无法唯一生成正式业务结果、无法保持Owner/Handoff边界、无法安全提交或
+恢复、或者两个正式合同直接矛盾。为了未来扩展而新增组件、状态、通用查询、动态Policy或历史兼容路径，不在Beta
+实施途中补入；若某项用户旅程必须突破已冻结结构才能实现，则按既有原则移出Beta，而不是持续扩大当前SSOT。
+
 ## 5. Review Item template
 
 ```markdown
