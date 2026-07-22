@@ -5,29 +5,29 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "selectedCandidate": {
-      "$ref": "#/$defs/selectedCandidate"
+    "selectedCandidateSelected": {
+      "$ref": "#/$defs/selectedCandidateSelected"
     },
-    "workspaceDeliveryContract": {
-      "$ref": "#/$defs/workspaceDeliveryContract"
+    "acquisitionQuery": {
+      "$ref": "#/$defs/acquisitionQuery"
     },
     "integrationHandle": {
       "$ref": "#/$defs/integrationHandle"
     }
   },
   "required": [
-    "selectedCandidate",
-    "workspaceDeliveryContract",
+    "selectedCandidateSelected",
+    "acquisitionQuery",
     "integrationHandle"
   ],
   "$defs": {
-    "selectedCandidate": {
-      "$ref": "helix://contracts/types/SelectedCandidate/v1",
-      "x-helix-typeExpression": "SelectedCandidate"
+    "selectedCandidateSelected": {
+      "$ref": "helix://contracts/domain-types/SelectedCandidateSelected/v1",
+      "x-helix-typeExpression": "SelectedCandidate(selected)"
     },
-    "workspaceDeliveryContract": {
-      "$ref": "helix://contracts/domain-types/WorkspaceDeliveryContract/v1",
-      "x-helix-typeExpression": "WorkspaceDeliveryContract"
+    "acquisitionQuery": {
+      "$ref": "helix://contracts/types/AcquisitionQuery/v1",
+      "x-helix-typeExpression": "AcquisitionQuery"
     },
     "integrationHandle": {
       "$ref": "helix://contracts/types/IntegrationHandle/v1",

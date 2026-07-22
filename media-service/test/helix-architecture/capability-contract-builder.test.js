@@ -61,6 +61,27 @@ test('moves only SSOT-declared parameter tokens out of named inputs', () => {
   assert.equal(fetch['manifest.json'].effectClass, 'pure_observation');
 });
 
+test('propagates PBF-16 selected-only acquisition and one-member import bindings', () => {
+  const packages = buildCapabilityPackages(extracted.capabilities);
+  const acquire = packages.find((item) => item.capabilityRef === 'libra.external_material.acquire.request@1').files;
+  assert.equal(acquire['inputs.schema.json'].$defs.selectedCandidateSelected.$ref,
+    'helix://contracts/domain-types/SelectedCandidateSelected/v1');
+  assert.equal(acquire['inputs.schema.json'].$defs.acquisitionQuery.$ref,
+    'helix://contracts/types/AcquisitionQuery/v1');
+
+  const stability = packages.find((item) => item.capabilityRef === 'libra.external_material.stability.observe@1').files;
+  assert.deepEqual(stability['parameters.schema.json'].required, ['quietWindowMs']);
+  assert.equal(stability['parameters.schema.json'].properties.quietWindowMs.minimum, 1);
+  assert.equal(stability['parameters.schema.json'].properties.quietWindowMs.maximum, 86400000);
+
+  const verify = packages.find((item) => item.capabilityRef === 'libra.external_material.package.verify@1').files;
+  assert.equal(verify['inputs.schema.json'].$defs.identityVerification.$ref,
+    'helix://contracts/types/IdentityVerification/v1');
+  const imported = packages.find((item) => item.capabilityRef === 'libra.workspace.material.import@1').files;
+  assert.equal(imported['inputs.schema.json'].$defs.workspaceDeliveryContract.$ref,
+    'helix://contracts/domain-types/WorkspaceDeliveryContract/v1');
+});
+
 test('keeps settlement Approval separate from destructive Authorization', () => {
   const packages = buildCapabilityPackages(extracted.capabilities);
   const ondeck = packages.find((item) => item.capabilityRef === 'arca.ondeck.input_settlement.delete@1').files['manifest.json'];

@@ -3,9 +3,11 @@
   "$id": "helix://contracts/types/AcquisitionQuery/v1",
   "title": "AcquisitionQuery@1",
   "x-helix-ssotRefs": [
+    "6.4.7.1",
     "8.6.19"
   ],
   "x-helix-envelopeRef": "helix://contracts/types/DraftEnvelope/v1",
+  "x-helix-maxCanonicalBytes": 16384,
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -38,7 +40,22 @@
       "type": "integer",
       "minimum": 0
     },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "runExecutionBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
     "resolvedIdentityDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "productStructureDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
@@ -50,116 +67,92 @@
         "season"
       ]
     },
+    "contentProfile": {
+      "type": "string",
+      "enum": [
+        "movie",
+        "series",
+        "jav",
+        "western_adult"
+      ]
+    },
+    "providerIdentityAnchors": {
+      "type": "array",
+      "items": {
+        "$ref": "helix://contracts/domain-types/ResolvedProviderIdentity/v1"
+      },
+      "maxItems": 16,
+      "minItems": 1
+    },
+    "requestedEpisodeKeys": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "maxItems": 256
+    },
     "queryTerms": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "schemaRef": {
-          "type": "string",
-          "minLength": 1
-        },
-        "schemaVersion": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "recordKind": {
-          "const": "acquisition-query-terms"
-        },
-        "recordDigest": {
-          "type": "string",
-          "minLength": 1,
-          "pattern": "^[a-f0-9]{64}$"
-        },
-        "entries": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "key": {
-                "type": "string",
-                "minLength": 1
-              },
-              "value": {
-                "type": [
-                  "string",
-                  "number",
-                  "integer",
-                  "boolean",
-                  "null"
-                ]
-              }
-            },
-            "required": [
-              "key",
-              "value"
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ordinal": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "termKind": {
+            "type": "string",
+            "enum": [
+              "provider_key",
+              "title",
+              "season"
             ]
           },
-          "maxItems": 256
-        }
+          "value": {
+            "type": "string",
+            "minLength": 1
+          },
+          "termDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "ordinal",
+          "termKind",
+          "value",
+          "termDigest"
+        ]
       },
-      "required": [
-        "schemaRef",
-        "schemaVersion",
-        "recordKind",
-        "recordDigest",
-        "entries"
-      ]
+      "maxItems": 32,
+      "minItems": 1
     },
     "hardConstraints": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "schemaRef": {
+        "requiredStructureKind": {
           "type": "string",
-          "minLength": 1
+          "enum": [
+            "single",
+            "season"
+          ]
         },
-        "schemaVersion": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "recordKind": {
-          "const": "acquisition-hard-constraints"
-        },
-        "recordDigest": {
-          "type": "string",
-          "minLength": 1,
-          "pattern": "^[a-f0-9]{64}$"
-        },
-        "entries": {
+        "requiredEpisodeKeys": {
           "type": "array",
           "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "key": {
-                "type": "string",
-                "minLength": 1
-              },
-              "value": {
-                "type": [
-                  "string",
-                  "number",
-                  "integer",
-                  "boolean",
-                  "null"
-                ]
-              }
-            },
-            "required": [
-              "key",
-              "value"
-            ]
+            "type": "string",
+            "minLength": 1
           },
           "maxItems": 256
         }
       },
       "required": [
-        "schemaRef",
-        "schemaVersion",
-        "recordKind",
-        "recordDigest",
-        "entries"
+        "requiredStructureKind",
+        "requiredEpisodeKeys"
       ]
     },
     "queryDigest": {
@@ -176,8 +169,14 @@
     "basisDigest",
     "draftDigest",
     "producedAtMs",
+    "libraRunId",
+    "runExecutionBasisDigest",
     "resolvedIdentityDigest",
+    "productStructureDigest",
     "structureKind",
+    "contentProfile",
+    "providerIdentityAnchors",
+    "requestedEpisodeKeys",
     "queryTerms",
     "hardConstraints",
     "queryDigest"

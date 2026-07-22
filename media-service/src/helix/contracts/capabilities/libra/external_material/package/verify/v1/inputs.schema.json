@@ -5,8 +5,11 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "externalHandle": {
-      "$ref": "#/$defs/externalHandle"
+    "stableEvidence": {
+      "$ref": "#/$defs/stableEvidence"
+    },
+    "identityVerification": {
+      "$ref": "#/$defs/identityVerification"
     },
     "episodeDeliveryManifest": {
       "$ref": "#/$defs/episodeDeliveryManifest"
@@ -16,14 +19,19 @@
     }
   },
   "required": [
-    "externalHandle",
+    "stableEvidence",
+    "identityVerification",
     "episodeDeliveryManifest",
     "identityRequirement"
   ],
   "$defs": {
-    "externalHandle": {
-      "$ref": "helix://contracts/types/ExternalMaterialHandle/v1",
-      "x-helix-typeExpression": "External handle"
+    "stableEvidence": {
+      "$ref": "helix://contracts/types/StableExternalMaterialEvidence/v1",
+      "x-helix-typeExpression": "Stable evidence"
+    },
+    "identityVerification": {
+      "$ref": "helix://contracts/types/IdentityVerification/v1",
+      "x-helix-typeExpression": "IdentityVerification"
     },
     "episodeDeliveryManifest": {
       "$ref": "helix://contracts/domain-types/EpisodeDeliveryManifest/v1",

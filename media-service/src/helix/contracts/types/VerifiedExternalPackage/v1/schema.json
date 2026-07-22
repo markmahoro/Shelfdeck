@@ -3,9 +3,11 @@
   "$id": "helix://contracts/types/VerifiedExternalPackage/v1",
   "title": "VerifiedExternalPackage@1",
   "x-helix-ssotRefs": [
+    "6.4.7.1",
     "8.6.19"
   ],
   "x-helix-envelopeRef": "helix://contracts/types/VerificationEnvelope/v1",
+  "x-helix-maxCanonicalBytes": 16384,
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -33,17 +35,21 @@
       "type": "string",
       "enum": [
         "passed",
-        "failed",
-        "not_applicable"
+        "failed"
       ]
     },
     "reasonCodes": {
       "type": "array",
       "items": {
         "type": "string",
-        "minLength": 1
+        "enum": [
+          "identity_verification_failed",
+          "structure_mismatch",
+          "episode_coverage_mismatch",
+          "package_integrity_failure"
+        ]
       },
-      "maxItems": 1024
+      "maxItems": 4
     },
     "evidenceRefs": {
       "type": "array",
@@ -58,10 +64,15 @@
       "type": "integer",
       "minimum": 0
     },
-    "externalMaterialHandleId": {
+    "stableExternalMaterialHandleId": {
       "type": "string",
       "minLength": 1,
       "maxLength": 256
+    },
+    "stableManifestDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     },
     "episodeDeliveryManifestDigest": {
       "type": "string",
@@ -72,6 +83,26 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 256
+    },
+    "identityVerificationDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "verifiedMemberIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "maxItems": 256,
+      "minItems": 1
+    },
+    "verifiedMemberSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     },
     "packageManifestDigest": {
       "type": "string",
@@ -89,9 +120,13 @@
     "reasonCodes",
     "evidenceRefs",
     "verifiedAtMs",
-    "externalMaterialHandleId",
+    "stableExternalMaterialHandleId",
+    "stableManifestDigest",
     "episodeDeliveryManifestDigest",
     "identityVerificationId",
+    "identityVerificationDigest",
+    "verifiedMemberIds",
+    "verifiedMemberSetDigest",
     "packageManifestDigest"
   ]
 }

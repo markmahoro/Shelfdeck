@@ -5,25 +5,33 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "externalMaterialHandle": {
-      "$ref": "#/$defs/externalMaterialHandle"
+    "stableEvidence": {
+      "$ref": "#/$defs/stableEvidence"
     },
-    "libraWorkspaceScope": {
-      "$ref": "#/$defs/libraWorkspaceScope"
+    "verifiedExternalPackage": {
+      "$ref": "#/$defs/verifiedExternalPackage"
+    },
+    "workspaceDeliveryContract": {
+      "$ref": "#/$defs/workspaceDeliveryContract"
     }
   },
   "required": [
-    "externalMaterialHandle",
-    "libraWorkspaceScope"
+    "stableEvidence",
+    "verifiedExternalPackage",
+    "workspaceDeliveryContract"
   ],
   "$defs": {
-    "externalMaterialHandle": {
-      "$ref": "helix://contracts/types/ExternalMaterialHandle/v1",
-      "x-helix-typeExpression": "ExternalMaterialHandle"
+    "stableEvidence": {
+      "$ref": "helix://contracts/types/StableExternalMaterialEvidence/v1",
+      "x-helix-typeExpression": "Stable evidence"
     },
-    "libraWorkspaceScope": {
-      "$ref": "helix://contracts/domain-types/LibraWorkspaceScope/v1",
-      "x-helix-typeExpression": "Libra Workspace scope"
+    "verifiedExternalPackage": {
+      "$ref": "helix://contracts/types/VerifiedExternalPackage/v1",
+      "x-helix-typeExpression": "VerifiedExternalPackage"
+    },
+    "workspaceDeliveryContract": {
+      "$ref": "helix://contracts/domain-types/WorkspaceDeliveryContract/v1",
+      "x-helix-typeExpression": "WorkspaceDeliveryContract"
     }
   }
 }

@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const { contracts: RESULT_TYPE_CONTRACTS } = require('./result-type-schema-builder');
 
 const DRAFT = 'https://json-schema.org/draft/2020-12/schema';
-const PARAMETER_NAMES = new Set(['cursor', 'pageBudget', 'phase', 'artifactKind', 'structureKind', 'contentProfile']);
+const PARAMETER_NAMES = new Set(['cursor', 'pageBudget', 'phase', 'quietWindowMs', 'artifactKind', 'structureKind', 'contentProfile']);
 const SHARED_TYPES = new Set([
   'PhysicalMaterialIdentity', 'PhysicalMaterialReadHandle', 'WorkspaceMaterialHandle', 'ArtifactHandle', 'FieldAccessHandle', 'FieldObservationPageRequest',
   'IntegrationHandle', 'WorkerHandle', 'CanonicalQueryHandle', 'DomainFactCommitHandle', 'ResponsibilityControlCommitHandle',
@@ -222,6 +222,7 @@ function parameterSchema(name, capabilityRef) {
     const values = capabilityRef.includes('acquire.observe') ? ['download', 'transfer'] : ['observe'];
     return { type: 'string', enum: values };
   }
+  if (name === 'quietWindowMs') return { type: 'integer', minimum: 1, maximum: 86400000 };
   if (name === 'structureKind') return { type: 'string', enum: ['single', 'season'] };
   if (name === 'contentProfile') return { type: 'string', enum: ['movie', 'series', 'jav', 'western_adult'] };
   if (name === 'artifactKind') return text({ pattern: '^[a-z][a-z0-9_.-]{0,127}$' });

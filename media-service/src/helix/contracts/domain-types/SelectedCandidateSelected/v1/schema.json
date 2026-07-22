@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/SelectedCandidateSelected/v1",
+  "title": "SelectedCandidateSelected@1",
+  "x-helix-ssotRefs": [
+    "8.6.8",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "x-helix-maxCanonicalBytes": 65536,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/SelectedCandidate/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "draftId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "draftKind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "basisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "draftDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "producedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "queryDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "candidateSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "selectionCriteriaDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "result": {
+      "const": "selected"
+    },
+    "selectedCandidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "candidateId": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "integrationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "configRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "providerCandidateRef": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "objectType": {
+              "const": "acquisition_candidate"
+            },
+            "objectId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "digest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "objectType",
+            "objectId",
+            "revision",
+            "digest"
+          ]
+        },
+        "providerRank": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 99
+        },
+        "identityAnchors": {
+          "type": "array",
+          "items": {
+            "$ref": "helix://contracts/domain-types/ResolvedProviderIdentity/v1"
+          },
+          "maxItems": 16
+        },
+        "structureKind": {
+          "type": "string",
+          "enum": [
+            "single",
+            "season"
+          ]
+        },
+        "episodeKeys": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "maxItems": 256
+        },
+        "availability": {
+          "type": "string",
+          "enum": [
+            "available",
+            "unavailable"
+          ]
+        },
+        "candidateDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "candidateId",
+        "integrationId",
+        "configRevision",
+        "providerCandidateRef",
+        "providerRank",
+        "identityAnchors",
+        "structureKind",
+        "episodeKeys",
+        "availability",
+        "candidateDigest"
+      ]
+    },
+    "selectedCandidateId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "selectionReasonCode": {
+      "const": "selected_by_provider_rank"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "draftId",
+    "draftKind",
+    "basisDigest",
+    "draftDigest",
+    "producedAtMs",
+    "queryDigest",
+    "candidateSetDigest",
+    "selectionCriteriaDigest",
+    "result",
+    "selectedCandidate",
+    "selectedCandidateId",
+    "selectionReasonCode"
+  ]
+}

@@ -7,15 +7,23 @@
   "properties": {
     "externalJobReceipt": {
       "$ref": "#/$defs/externalJobReceipt"
+    },
+    "integrationHandle": {
+      "$ref": "#/$defs/integrationHandle"
     }
   },
   "required": [
-    "externalJobReceipt"
+    "externalJobReceipt",
+    "integrationHandle"
   ],
   "$defs": {
     "externalJobReceipt": {
       "$ref": "helix://contracts/types/ExternalJobReceipt/v1",
       "x-helix-typeExpression": "ExternalJobReceipt"
+    },
+    "integrationHandle": {
+      "$ref": "helix://contracts/types/IntegrationHandle/v1",
+      "x-helix-typeExpression": "IntegrationHandle"
     }
   }
 }

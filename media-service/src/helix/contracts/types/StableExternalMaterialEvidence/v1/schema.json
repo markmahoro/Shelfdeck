@@ -3,9 +3,11 @@
   "$id": "helix://contracts/types/StableExternalMaterialEvidence/v1",
   "title": "StableExternalMaterialEvidence@1",
   "x-helix-ssotRefs": [
+    "6.4.7.1",
     "8.6.19"
   ],
   "x-helix-envelopeRef": "helix://contracts/types/VerificationEnvelope/v1",
+  "x-helix-maxCanonicalBytes": 65536,
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -32,9 +34,7 @@
     "result": {
       "type": "string",
       "enum": [
-        "passed",
-        "failed",
-        "not_applicable"
+        "passed"
       ]
     },
     "reasonCodes": {
@@ -43,7 +43,7 @@
         "type": "string",
         "minLength": 1
       },
-      "maxItems": 1024
+      "maxItems": 0
     },
     "evidenceRefs": {
       "type": "array",
@@ -58,10 +58,13 @@
       "type": "integer",
       "minimum": 0
     },
-    "externalMaterialHandleId": {
+    "sourceExternalMaterialHandleId": {
       "type": "string",
       "minLength": 1,
       "maxLength": 256
+    },
+    "stableExternalMaterialHandle": {
+      "$ref": "helix://contracts/types/ExternalMaterialHandle/v1"
     },
     "observationWindow": {
       "type": "object",
@@ -74,11 +77,21 @@
         "endedAtMs": {
           "type": "integer",
           "minimum": 0
+        },
+        "quietWindowMs": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "newestMutationAtMs": {
+          "type": "integer",
+          "minimum": 0
         }
       },
       "required": [
         "startedAtMs",
-        "endedAtMs"
+        "endedAtMs",
+        "quietWindowMs",
+        "newestMutationAtMs"
       ]
     },
     "stableDigest": {
@@ -97,7 +110,8 @@
     "reasonCodes",
     "evidenceRefs",
     "verifiedAtMs",
-    "externalMaterialHandleId",
+    "sourceExternalMaterialHandleId",
+    "stableExternalMaterialHandle",
     "observationWindow",
     "stableDigest"
   ]

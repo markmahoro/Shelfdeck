@@ -13,6 +13,75 @@ const operationCatalog = require('../../src/helix/contracts/ports/p5-provider-op
 const NOW = 1_700_000_000_000;
 const digest = (value) => crypto.createHash('sha256').update(value).digest('hex');
 const ref = (name) => Object.freeze({ objectType: name, objectId: name + '-1', revision: 1, digest: digest(name) });
+const identity = Object.freeze({ provider: 'tmdb', namespace: 'tmdb_movie', providerKey: '550', seasonNumber: null,
+  identityAnchorDigest: digest('identity-anchor') });
+
+function acquisitionQuery() {
+  const term = Object.freeze({ ordinal: 0, termKind: 'provider_key', value: '550',
+    termDigest: digest(canonicalJson({ schema: 'libra.external-acquisition-query-term@1', termKind: 'provider_key', value: '550' })) });
+  const value = {
+    schemaRef: 'helix://contracts/types/AcquisitionQuery/v1', schemaVersion: 1, draftId: 'query-1',
+    draftKind: 'external-acquisition-query', basisDigest: digest('query-basis'), draftDigest: digest('query-draft'),
+    producedAtMs: NOW, libraRunId: 'run-1', runExecutionBasisDigest: digest('run-basis'),
+    resolvedIdentityDigest: digest('resolved-identity'), productStructureDigest: digest('product-structure'),
+    structureKind: 'single', contentProfile: 'movie', providerIdentityAnchors: [identity], requestedEpisodeKeys: [],
+    queryTerms: [term], hardConstraints: { requiredStructureKind: 'single', requiredEpisodeKeys: [] }
+  };
+  value.queryDigest = digest(canonicalJson({ schema: 'libra.external-acquisition-query@1', libraRunId: value.libraRunId,
+    runExecutionBasisDigest: value.runExecutionBasisDigest, resolvedIdentityDigest: value.resolvedIdentityDigest,
+    productStructureDigest: value.productStructureDigest, structureKind: value.structureKind, contentProfile: value.contentProfile,
+    providerIdentityAnchors: value.providerIdentityAnchors, requestedEpisodeKeys: value.requestedEpisodeKeys,
+    queryTerms: value.queryTerms, hardConstraints: value.hardConstraints }));
+  return Object.freeze(value);
+}
+
+function candidate() {
+  const providerCandidateRef = ref('acquisition_candidate');
+  const value = { integrationId: 'integration-1', configRevision: 3, providerCandidateRef, providerRank: 0,
+    identityAnchors: [identity], structureKind: 'single', episodeKeys: [], availability: 'available' };
+  value.candidateId = digest(canonicalJson({ schema: 'provider-acquisition-candidate-id@1', integrationId: value.integrationId,
+    configRevision: value.configRevision, providerCandidateRef }));
+  const ordered = { candidateId: value.candidateId, integrationId: value.integrationId, configRevision: value.configRevision,
+    providerCandidateRef, providerRank: value.providerRank, identityAnchors: value.identityAnchors,
+    structureKind: value.structureKind, episodeKeys: value.episodeKeys, availability: value.availability };
+  return Object.freeze({ ...ordered, candidateDigest: digest(canonicalJson(ordered)) });
+}
+
+function selectedCandidate() {
+  const selected = candidate();
+  return Object.freeze({ schemaRef: 'helix://contracts/types/SelectedCandidate/v1', schemaVersion: 1,
+    draftId: 'selected-1', draftKind: 'external-selected-candidate', basisDigest: digest('selection-basis'),
+    draftDigest: digest('selection-draft'), producedAtMs: NOW, queryDigest: acquisitionQuery().queryDigest,
+    candidateSetDigest: digest('candidate-set'), selectionCriteriaDigest: digest('selection-criteria'), result: 'selected',
+    selectedCandidate: selected, selectedCandidateId: selected.candidateId, selectionReasonCode: 'selected_by_provider_rank' });
+}
+
+function outputSnapshot() {
+  const memberBasis = { ordinal: 0, externalMemberId: 'member-1', relativePath: 'movie.mkv', sizeBytes: 42,
+    checksumAlgorithm: 'sha256', checksumHex: digest('movie'), episodeClaims: [] };
+  const members = [Object.freeze({ ...memberBasis, memberDigest: digest(canonicalJson(memberBasis)) })];
+  const memberSetDigest = digest(canonicalJson({ schema: 'provider-external-material-members@1', items: members }));
+  const value = { integrationId: 'integration-1', configRevision: 3, externalObjectRef: 'external-1', endpointId: 'endpoint-1',
+    location: '/provider/external-1', structureKind: 'single', members, identityAnchors: [identity], observedTitle: 'Movie',
+    releaseYear: 1999, observedAtMs: NOW, newestMutationAtMs: NOW - 60_000, memberSetDigest,
+    manifestDigest: digest(canonicalJson({ schema: 'provider-external-material-manifest@1', structureKind: 'single', memberSetDigest })) };
+  return Object.freeze({ ...value, snapshotDigest: digest(canonicalJson(value)) });
+}
+
+function externalMaterialHandle() {
+  const snapshot = outputSnapshot();
+  return Object.freeze({ schemaRef: 'helix://contracts/types/ExternalMaterialHandle/v1', schemaVersion: 1,
+    handleId: 'external-handle-1', integrationId: snapshot.integrationId, configRevision: snapshot.configRevision,
+    externalObjectRef: snapshot.externalObjectRef, endpointId: snapshot.endpointId, location: snapshot.location,
+    structureKind: snapshot.structureKind, outputSnapshot: snapshot, manifestDigest: snapshot.manifestDigest,
+    observationRevision: 1, accessFenceDigest: digest('external-access-fence') });
+}
+
+function jobReceipt(operationId = 'libra.external_material.acquire.request@1', requestDigest = digest('acquire-request')) {
+  return Object.freeze({ schemaRef: 'helix://contracts/types/ExternalJobReceipt/v1', schemaVersion: 1,
+    receiptId: 'receipt-1', integrationId: 'integration-1', externalJobId: 'job-1', operationKind: operationId,
+    idempotencyKey: 'acquire-idem', requestDigest, configRevision: 3, createdAtMs: NOW });
+}
 
 function handle(operation, providerType) {
   return Object.freeze({
@@ -37,10 +106,12 @@ const inputs = Object.freeze({
   'perception.source.acquire@1': Object.freeze({ sourceRef: ref('perception-source'), cursor: null, limit: 20 }),
   'people.registration_evidence.observe@1': Object.freeze({ personHintRef: ref('person-hint'), limit: 10 }),
   'libra.product_metadata.fetch@1': Object.freeze({ productIdentityRef: ref('product-identity'), locale: 'zh-CN' }),
-  'libra.external_material.search@1': Object.freeze({ acquisitionQueryRef: ref('acquisition-query'), limit: 25 }),
+  'libra.external_material.search@1': Object.freeze({ acquisitionQuery: acquisitionQuery(), limit: 25 }),
+  'libra.external_material.acquire.observe@1': Object.freeze({ externalJobReceipt: jobReceipt(), phase: 'download' }),
+  'libra.external_material.stability.observe@1': Object.freeze({ externalMaterialHandle: externalMaterialHandle(), quietWindowMs: 60_000 }),
   'libra.product_artifact.acquire@1': Object.freeze({ sourceRef: ref('provider-asset'), workspaceTargetRef: ref('workspace-target') }),
   'arca.aftercare.binary_artifact.acquire@1': Object.freeze({ sourceRef: ref('provider-asset'), workspaceTargetRef: ref('workspace-target') }),
-  'libra.external_material.acquire.request@1': Object.freeze({ candidateRef: ref('candidate'), deliveryContractRef: ref('delivery-contract') })
+  'libra.external_material.acquire.request@1': Object.freeze({ acquisitionQuery: acquisitionQuery(), selectedCandidate: selectedCandidate() })
 });
 
 function artifactHandle() {
@@ -58,6 +129,24 @@ function resultFor(operation, request) {
   if (operation.resultKind === 'reference') return Object.freeze({ resultRef: ref('metadata-observation') });
   if (operation.resultKind === 'reference-list') return Object.freeze({ resultRefs: Object.freeze([ref('provider-observation')]), nextCursor: null });
   if (operation.resultKind === 'artifact') return Object.freeze({ artifactHandle: artifactHandle() });
+  if (operation.resultKind === 'acquisition-candidate-list') {
+    const candidates = [candidate()];
+    return Object.freeze({ queryDigest: request.input.acquisitionQuery.queryDigest, candidates,
+      candidateSetDigest: digest(canonicalJson({ schema: 'libra.external-acquisition-candidate-set@1',
+        queryDigest: request.input.acquisitionQuery.queryDigest, integrationId: request.integrationHandle.integrationId,
+        configRevision: request.integrationHandle.configRevision, items: candidates })) });
+  }
+  if (operation.resultKind === 'acquisition-job-snapshot') {
+    const value = { externalJobReceiptId: request.input.externalJobReceipt.receiptId,
+      requestDigest: request.input.externalJobReceipt.requestDigest, providerObservationRevision: 1,
+      state: 'ready', outputSnapshot: outputSnapshot() };
+    return Object.freeze({ ...value, snapshotDigest: digest(canonicalJson(value)) });
+  }
+  if (operation.resultKind === 'external-material-snapshot') {
+    const value = { sourceExternalMaterialHandleId: request.input.externalMaterialHandle.handleId,
+      providerObservationRevision: 2, outputSnapshot: outputSnapshot() };
+    return Object.freeze({ ...value, snapshotDigest: digest(canonicalJson(value)) });
+  }
   return Object.freeze({ externalJobReceipt: Object.freeze({
     schemaRef: 'helix://contracts/types/ExternalJobReceipt/v1', schemaVersion: 1,
     receiptId: 'receipt-1', integrationId: request.integrationHandle.integrationId, externalJobId: 'job-1',
@@ -108,7 +197,7 @@ function fixture(operation, overrides = {}) {
   };
 }
 
-test('operation catalog exactly traces all eight IntegrationHandle Capability contracts and their Effect Classes', () => {
+test('operation catalog exactly traces all ten IntegrationHandle Capability contracts and their Effect Classes', () => {
   const manifestRoot = path.resolve(__dirname, '../../src/helix/contracts/capabilities');
   const manifests = [];
   (function walk(root) {
@@ -132,6 +221,10 @@ test('operation catalog exactly traces all eight IntegrationHandle Capability co
   for (const [providerType, atomId] of atoms) {
     assert.ok(operationCatalog.providerTypes.includes(providerType));
     assert.match(atomId, new RegExp('^' + providerType.replace('-', '\\-') + '\\..+@1$'));
+  }
+  for (const operation of operationCatalog.operations) {
+    assert.ok(Number.isSafeInteger(operation.maxInputBytes) && operation.maxInputBytes > 0);
+    assert.ok(Number.isSafeInteger(operation.maxResponseBytes) && operation.maxResponseBytes > 0);
   }
 });
 
@@ -205,6 +298,47 @@ test('external job receipt must match exact integration, operation, idempotency,
   }) };
   const f = fixture(operation, { request, transport });
   await assert.rejects(() => f.adapter.execute(request), (error) => error.code === 'P5_PROVIDER_JOB_MISMATCH');
+});
+
+test('old acquisition refs, forged candidate sets, and foreign material snapshots fail closed', async () => {
+  const search = operationCatalog.operations.find((item) => item.operationId === 'libra.external_material.search@1');
+  let request = requestFor(search, 'moviepilot');
+  let f = fixture(search, { request });
+  await assert.rejects(() => f.adapter.execute({ ...request, input: { acquisitionQueryRef: ref('acquisition-query'), limit: 25 } }),
+    (error) => error.code === 'P5_PROVIDER_INPUT_SHAPE');
+
+  const forged = resultFor(search, request);
+  const forgedResult = { ...forged, candidates: [{ ...forged.candidates[0], candidateDigest: digest('forged') }] };
+  f = fixture(search, { request, transport: { execute: async () => ({ transportRequestId: 'transport-request-1', statusCode: 200,
+    responseBytes: Buffer.byteLength(canonicalJson(forgedResult)), responseDigest: digest(canonicalJson(forgedResult)), result: forgedResult }) } });
+  await assert.rejects(() => f.adapter.execute(request), (error) => error.code === 'P5_PROVIDER_CANDIDATE_DIGEST');
+
+  const observe = operationCatalog.operations.find((item) => item.operationId === 'libra.external_material.stability.observe@1');
+  request = requestFor(observe, 'moviepilot');
+  const foreign = resultFor(observe, request);
+  const foreignBasis = { ...foreign, outputSnapshot: { ...foreign.outputSnapshot, externalObjectRef: 'foreign-object' } };
+  delete foreignBasis.snapshotDigest;
+  const foreignResult = { ...foreignBasis, snapshotDigest: digest(canonicalJson(foreignBasis)) };
+  f = fixture(observe, { request, transport: { execute: async () => ({ transportRequestId: 'transport-request-1', statusCode: 200,
+    responseBytes: Buffer.byteLength(canonicalJson(foreignResult)), responseDigest: digest(canonicalJson(foreignResult)), result: foreignResult }) } });
+  await assert.rejects(() => f.adapter.execute(request), (error) =>
+    ['P5_PROVIDER_OUTPUT_DIGEST', 'P5_PROVIDER_EXTERNAL_MATERIAL_CONTINUITY'].includes(error.code));
+});
+
+test('job observation closed union rejects payload on pending and unknown terminal reason', async () => {
+  const operation = operationCatalog.operations.find((item) => item.operationId === 'libra.external_material.acquire.observe@1');
+  const request = requestFor(operation, 'moviepilot');
+  for (const result of [
+    { externalJobReceiptId: request.input.externalJobReceipt.receiptId, requestDigest: request.input.externalJobReceipt.requestDigest,
+      providerObservationRevision: 1, state: 'pending', outputSnapshot: outputSnapshot(), snapshotDigest: digest('pending') },
+    { externalJobReceiptId: request.input.externalJobReceipt.receiptId, requestDigest: request.input.externalJobReceipt.requestDigest,
+      providerObservationRevision: 1, state: 'failed', reasonCode: 'unknown', snapshotDigest: digest('failed') }
+  ]) {
+    const f = fixture(operation, { request, transport: { execute: async () => ({ transportRequestId: 'transport-request-1', statusCode: 200,
+      responseBytes: Buffer.byteLength(canonicalJson(result)), responseDigest: digest(canonicalJson(result)), result }) } });
+    await assert.rejects(() => f.adapter.execute(request), (error) =>
+      ['P5_PROVIDER_ACQUISITION_JOB_SNAPSHOT_SHAPE', 'P5_PROVIDER_ACQUISITION_JOB_REASON'].includes(error.code));
+  }
 });
 
 test('transport failures are redacted and secret bytes never enter outputs or errors', async () => {

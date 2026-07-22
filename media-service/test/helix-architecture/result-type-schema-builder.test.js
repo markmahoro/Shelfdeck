@@ -110,6 +110,35 @@ test('binds Product Media Verification to the exact candidate, Run, Handle, Requ
   }
 });
 
+test('materializes the complete PBF-16 external acquisition Result chain', () => {
+  const query = schemas.AcquisitionQuery;
+  for (const field of ['libraRunId', 'runExecutionBasisDigest', 'resolvedIdentityDigest', 'productStructureDigest',
+    'structureKind', 'contentProfile', 'providerIdentityAnchors', 'requestedEpisodeKeys', 'queryTerms',
+    'hardConstraints', 'queryDigest']) assert.ok(query.required.includes(field), field);
+  assert.equal(query.properties.providerIdentityAnchors.minItems, 1);
+  assert.equal(query.properties.queryTerms.minItems, 1);
+  assert.equal(query.properties.queryTerms.maxItems, 32);
+
+  const candidates = schemas.AcquisitionCandidates.properties.candidates;
+  assert.equal(candidates.maxItems, 100);
+  for (const field of ['candidateId', 'integrationId', 'configRevision', 'providerCandidateRef', 'providerRank',
+    'identityAnchors', 'structureKind', 'episodeKeys', 'availability', 'candidateDigest']) {
+    assert.ok(candidates.items.required.includes(field), field);
+  }
+  assert.equal(candidates.items.properties.providerCandidateRef.properties.objectType.const, 'acquisition_candidate');
+  assert.deepEqual(schemas.SelectedCandidate.oneOf.map((branch) => branch.properties.result.const), ['selected', 'not_selected']);
+  assert.equal(schemas.SelectedCandidate.oneOf[0].properties.selectedCandidate.additionalProperties, false);
+  assert.equal(schemas.AcquisitionObservation.properties.outputRefs, undefined);
+  assert.equal(schemas.AcquisitionObservation.properties.outputSnapshot.additionalProperties, false);
+  assert.ok(schemas.AcquisitionObservation.required.includes('externalJobReceipt'));
+  assert.ok(schemas.StableExternalMaterialEvidence.required.includes('stableExternalMaterialHandle'));
+  assert.deepEqual(schemas.IdentityVerification.properties.strengthClass.enum, ['exact_provider_identity', 'unverified']);
+  for (const field of ['stableExternalMaterialHandleId', 'stableManifestDigest', 'identityVerificationId',
+    'identityVerificationDigest', 'verifiedMemberIds', 'verifiedMemberSetDigest', 'packageManifestDigest']) {
+    assert.ok(schemas.VerifiedExternalPackage.required.includes(field), field);
+  }
+});
+
 test('freezes the bounded Perception page, commit draft, typed result, and explicit relation contracts', () => {
   assert.equal(schemas.NormalizedPerceptionRecordDraftList, undefined);
   const page = schemas.PerceptionObservationPage;

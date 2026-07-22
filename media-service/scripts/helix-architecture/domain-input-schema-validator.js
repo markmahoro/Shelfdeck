@@ -52,9 +52,12 @@ function validateDomainInputSchemas(options) {
 
   const sharedRegistry = readJson(path.join(contractsRoot, 'shared-type-registry.json'), findings);
   const resultRegistry = readJson(path.join(contractsRoot, 'result-type-registry.json'), findings);
+  const applicationRegistries = ['libra-application-type-registry.json', 'platform-application-type-registry.json']
+    .map((file) => readJson(path.join(contractsRoot, file), findings));
   const knownRefs = new Set([
     ...(sharedRegistry && sharedRegistry.entries || []).map((entry) => entry.schemaId),
     ...(resultRegistry && resultRegistry.entries || []).map((entry) => entry.schemaId),
+    ...applicationRegistries.flatMap((registry) => (registry && registry.entries || []).map((entry) => entry.schemaId)),
     ...(registry.entries || []).map((entry) => entry.schemaId)
   ]);
   const ids = new Set();
@@ -120,6 +123,14 @@ function validateDomainInputSchemas(options) {
       ProductMediaCandidateInput: ['schemaRef', 'schemaVersion', 'candidateId', 'candidateNodeId', 'candidateBasisDigest', 'inputDigest'],
       ProductOutputSelectionInput: ['criteria', 'candidateSetDigest', 'inputDigest'],
       ProductConformanceInputSnapshot: ['snapshotId', 'libraRunId', 'runExecutionBasisDigest', 'productSnapshotDigest', 'snapshotDigest']
+      ,ProductStructure: ['objectId', 'revision', 'digest', 'subjectId', 'structureKind', 'episodeClaims', 'structureDigest']
+      ,EpisodeDeliveryManifest: ['objectId', 'revision', 'digest', 'libraRunId', 'subjectId', 'structureKind', 'episodeClaims', 'deliveryDigest']
+      ,IdentityRequirement: ['requirementId', 'revision', 'schemaRef', 'expectedIdentityDigest', 'strengthClass', 'digest']
+      ,SelectionCriteria: ['contractId', 'revision', 'schemaRef', 'queryDigest', 'strategy', 'criteriaDigest']
+      ,WorkspaceDeliveryContract: ['contractId', 'revision', 'schemaRef', 'libraRunId', 'workspaceId', 'stableExternalMaterialHandleId',
+        'verifiedPackageDigest', 'externalMemberId', 'targetRelativePath', 'digest']
+      ,SelectedCandidateSelected: ['schemaRef', 'schemaVersion', 'draftId', 'queryDigest', 'candidateSetDigest', 'result',
+        'selectedCandidate', 'selectedCandidateId', 'selectionReasonCode']
     };
     const identityFields = exactIdentityFields[entry.id] || ['schemaRef', 'schemaVersion', 'revision', 'digest'];
     for (const field of identityFields) {
@@ -132,7 +143,8 @@ function validateDomainInputSchemas(options) {
         }));
       }
     }
-    const exactBoundedContracts = new Set(['ArtifactRequirement', 'EncodeIntent', 'RemuxIntent', 'MediaRequirement']);
+    const exactBoundedContracts = new Set(['ArtifactRequirement', 'EncodeIntent', 'RemuxIntent', 'MediaRequirement',
+      'IdentityRequirement', 'SelectionCriteria', 'WorkspaceDeliveryContract']);
     if (schema['x-helix-role'] === 'bounded-contract' && !exactBoundedContracts.has(entry.id) && !(schema.required || []).includes('typedParameters')) findings.push(finding(
       'UNBOUNDED_INTENT_PARAMETERS', 'Bounded intent/requirement contracts require typedParameters.', { entryId: entry.id }
     ));

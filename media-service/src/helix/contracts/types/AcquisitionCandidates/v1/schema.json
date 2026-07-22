@@ -3,9 +3,11 @@
   "$id": "helix://contracts/types/AcquisitionCandidates/v1",
   "title": "AcquisitionCandidates@1",
   "x-helix-ssotRefs": [
+    "6.4.7.1",
     "8.6.19"
   ],
   "x-helix-envelopeRef": "helix://contracts/types/EvidenceEnvelope/v1",
+  "x-helix-maxCanonicalBytes": 65536,
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -52,43 +54,113 @@
       "minLength": 1,
       "maxLength": 256
     },
+    "configRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
     "candidates": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "objectId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256
-          },
-          "revision": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "schemaRef": {
-            "type": "string",
-            "minLength": 1
-          },
-          "snapshotDigest": {
+          "candidateId": {
             "type": "string",
             "minLength": 1,
             "pattern": "^[a-f0-9]{64}$"
           },
-          "objectKind": {
-            "const": "acquisition-candidate"
+          "integrationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "configRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "providerCandidateRef": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "objectType": {
+                "const": "acquisition_candidate"
+              },
+              "objectId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "digest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "objectType",
+              "objectId",
+              "revision",
+              "digest"
+            ]
+          },
+          "providerRank": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 99
+          },
+          "identityAnchors": {
+            "type": "array",
+            "items": {
+              "$ref": "helix://contracts/domain-types/ResolvedProviderIdentity/v1"
+            },
+            "maxItems": 16
+          },
+          "structureKind": {
+            "type": "string",
+            "enum": [
+              "single",
+              "season"
+            ]
+          },
+          "episodeKeys": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "maxItems": 256
+          },
+          "availability": {
+            "type": "string",
+            "enum": [
+              "available",
+              "unavailable"
+            ]
+          },
+          "candidateDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
           }
         },
         "required": [
-          "objectId",
-          "revision",
-          "schemaRef",
-          "snapshotDigest",
-          "objectKind"
+          "candidateId",
+          "integrationId",
+          "configRevision",
+          "providerCandidateRef",
+          "providerRank",
+          "identityAnchors",
+          "structureKind",
+          "episodeKeys",
+          "availability",
+          "candidateDigest"
         ]
       },
-      "maxItems": 1024
+      "maxItems": 100
     },
     "candidateSetDigest": {
       "type": "string",
@@ -107,6 +179,7 @@
     "observedAtMs",
     "queryDigest",
     "integrationId",
+    "configRevision",
     "candidates",
     "candidateSetDigest"
   ]

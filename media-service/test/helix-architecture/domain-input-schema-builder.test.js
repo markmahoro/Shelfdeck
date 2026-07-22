@@ -131,6 +131,27 @@ test('propagates the nominal Production Material Manifest into Promotion without
   assert.equal(serialized.includes('"committedControlRevision"'), false);
 });
 
+test('materializes the exact PBF-16 acquisition and one-member import inputs', () => {
+  assert.equal(schemas.LibraWorkspaceScope, undefined);
+  assert.ok(schemas.SelectedCandidateSelected);
+  assert.equal(schemas.SelectedCandidateSelected.properties.result.const, 'selected');
+  assert.equal(schemas.SelectedCandidateSelected.properties.selectedCandidate.additionalProperties, false);
+
+  assert.deepEqual(schemas.ProductStructure.properties.structureKind.enum, ['single', 'season']);
+  assert.equal(schemas.ProductStructure.properties.episodeClaims.maxItems, 256);
+  assert.equal(schemas.EpisodeDeliveryManifest.properties.episodeClaims.maxItems, 256);
+  assert.equal(schemas.IdentityRequirement.properties.typedParameters, undefined);
+  assert.equal(schemas.IdentityRequirement.properties.strengthClass.const, 'exact_provider_identity');
+  assert.equal(schemas.SelectionCriteria.properties.strategy.const, 'available_provider_rank_then_candidate_id');
+
+  const delivery = schemas.WorkspaceDeliveryContract;
+  assert.equal(delivery.properties.typedParameters, undefined);
+  assert.equal(delivery.properties.memberSelector.const, 'external_member_id');
+  for (const field of ['libraRunId', 'workspaceId', 'expectedWorkspaceRevision', 'expectedWorkspaceStateDigest',
+    'rootSnapshot', 'stableExternalMaterialHandleId', 'verifiedPackageDigest', 'externalMemberId',
+    'targetRelativePath', 'digest']) assert.ok(delivery.required.includes(field), field);
+});
+
 test('keeps canonical content profile separate from season structure', () => {
   for (const name of ['ShelfStandard']) {
     assert.deepEqual(schemas[name].properties.contentProfile.enum, ['movie', 'series', 'jav', 'western_adult']);

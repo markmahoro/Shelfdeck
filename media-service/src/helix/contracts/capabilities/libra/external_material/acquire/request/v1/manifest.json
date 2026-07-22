@@ -5,13 +5,13 @@
   "ownerScope": "libra",
   "effectClass": "external_request",
   "inputPorts": {
-    "selectedCandidate": {
-      "schemaRef": "helix://contracts/capabilities/libra.external_material.acquire.request/v1/inputs#/$defs/selectedCandidate",
+    "selectedCandidateSelected": {
+      "schemaRef": "helix://contracts/capabilities/libra.external_material.acquire.request/v1/inputs#/$defs/selectedCandidateSelected",
       "required": true,
       "cardinality": "one"
     },
-    "workspaceDeliveryContract": {
-      "schemaRef": "helix://contracts/capabilities/libra.external_material.acquire.request/v1/inputs#/$defs/workspaceDeliveryContract",
+    "acquisitionQuery": {
+      "schemaRef": "helix://contracts/capabilities/libra.external_material.acquire.request/v1/inputs#/$defs/acquisitionQuery",
       "required": true,
       "cardinality": "one"
     },
@@ -35,6 +35,6 @@
   "sourceLocator": {
     "section": "8.6.8",
     "line": 8880,
-    "lineDigest": "1fbaaf3302a2dd833ae99c0c9895bfdeb0fe051fffe5ad0a766e2a78828608cf"
+    "lineDigest": "c8febb3ce98234bb108e61882ba6bf4d66181180f40481c556d133c9845f70f8"
   }
 }

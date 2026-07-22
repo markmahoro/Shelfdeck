@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const DRAFT = 'https://json-schema.org/draft/2020-12/schema';
 const typeId = (name) => `helix://contracts/types/${name}/v1`;
 const ref = (name) => ({ $ref: typeId(name) });
+const domainRef = (name) => ({ $ref: `helix://contracts/domain-types/${name}/v1` });
 const text = (options = {}) => ({ type: 'string', minLength: 1, ...options });
 const opaqueId = () => text({ maxLength: 256 });
 const nonNegativeInteger = () => ({ type: 'integer', minimum: 0 });
@@ -67,6 +68,29 @@ function plainSchema(name, properties, required = Object.keys(properties), optio
 const ownerScope = () => object({ scopeType: text(), scopeId: opaqueId() });
 const objectRef = () => object({ objectType: text(), objectId: opaqueId(), revision: positiveInteger(), digest: digestHex() });
 const basisRef = () => object({ basisType: text(), basisId: opaqueId(), revision: positiveInteger(), digest: digestHex() });
+
+function externalOutputSnapshotSchema() {
+  const episodeClaim = object({ episodeKey: text(), claimDigest: digestHex() });
+  const member = object({ ordinal: nonNegativeInteger(), externalMemberId: opaqueId(), relativePath: text(),
+    sizeBytes: nonNegativeInteger(), checksumAlgorithm: { const: 'sha256' }, checksumHex: digestHex(),
+    episodeClaims: arrayOf(episodeClaim, 32), memberDigest: digestHex() });
+  return object({ integrationId: opaqueId(), configRevision: positiveInteger(), externalObjectRef: opaqueId(), endpointId: opaqueId(),
+    location: text(), structureKind: enumText('single', 'season'), members: { ...arrayOf(member, 256), minItems: 1 },
+    identityAnchors: arrayOf(domainRef('ResolvedProviderIdentity'), 16), observedTitle: text(), releaseYear: positiveInteger(),
+    observedAtMs: nonNegativeInteger(), newestMutationAtMs: nonNegativeInteger(), memberSetDigest: digestHex(),
+    manifestDigest: digestHex(), snapshotDigest: digestHex()
+  }, ['integrationId', 'configRevision', 'externalObjectRef', 'endpointId', 'location', 'structureKind', 'members',
+    'identityAnchors', 'observedAtMs', 'newestMutationAtMs', 'memberSetDigest', 'manifestDigest', 'snapshotDigest']);
+}
+
+function providerAcquisitionCandidateSnapshotSchema() {
+  return object({ candidateId: digestHex(), integrationId: opaqueId(), configRevision: positiveInteger(),
+    providerCandidateRef: object({ objectType: { const: 'acquisition_candidate' }, objectId: opaqueId(),
+      revision: positiveInteger(), digest: digestHex() }), providerRank: { type: 'integer', minimum: 0, maximum: 99 },
+    identityAnchors: arrayOf(domainRef('ResolvedProviderIdentity'), 16), structureKind: enumText('single', 'season'),
+    episodeKeys: arrayOf(text(), 256), availability: enumText('available', 'unavailable'), candidateDigest: digestHex()
+  });
+}
 
 const definitions = {
   PhysicalMaterialIdentity: () => nominal('PhysicalMaterialIdentity', {
@@ -159,8 +183,9 @@ const definitions = {
     finalInventoryDecisionDigest: digestHex(), transactionRevision: positiveInteger(), containmentDigest: digestHex()
   }),
   ExternalMaterialHandle: () => nominal('ExternalMaterialHandle', {
-    handleId: opaqueId(), integrationId: opaqueId(), externalObjectRef: opaqueId(), endpointId: opaqueId(), location: text(),
-    structureKind: enumText('single', 'season'), manifestDigest: digestHex(), observationRevision: positiveInteger(), accessFenceDigest: digestHex()
+    handleId: opaqueId(), integrationId: opaqueId(), configRevision: positiveInteger(), externalObjectRef: opaqueId(), endpointId: opaqueId(), location: text(),
+    structureKind: enumText('single', 'season'), outputSnapshot: externalOutputSnapshotSchema(), manifestDigest: digestHex(),
+    observationRevision: positiveInteger(), accessFenceDigest: digestHex()
   }),
   WorkerAssetReceipt: () => nominal('WorkerAssetReceipt', {
     workerAssetId: opaqueId(), workerId: opaqueId(), sourceHandleDigest: digestHex(), registrationReceipt: opaqueId(),
@@ -254,4 +279,5 @@ function schemaDigest(schema) {
   return crypto.createHash('sha256').update(JSON.stringify(canonicalize(schema))).digest('hex');
 }
 
-module.exports = Object.freeze({ buildSharedTypeSchemas, schemaDigest, typeId });
+module.exports = Object.freeze({ buildSharedTypeSchemas, externalOutputSnapshotSchema,
+  providerAcquisitionCandidateSnapshotSchema, schemaDigest, typeId });

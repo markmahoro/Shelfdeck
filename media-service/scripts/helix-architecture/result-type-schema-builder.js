@@ -1,7 +1,8 @@
 'use strict';
 
 const crypto = require('crypto');
-const { buildSharedTypeSchemas } = require('./shared-type-schema-builder');
+const { buildSharedTypeSchemas, externalOutputSnapshotSchema,
+  providerAcquisitionCandidateSnapshotSchema } = require('./shared-type-schema-builder');
 
 const DRAFT = 'https://json-schema.org/draft/2020-12/schema';
 const typeId = (name) => `helix://contracts/types/${name}/v1`;
@@ -297,10 +298,7 @@ const special = {
   'AcquisitionQuery.structureKind': enumText('single', 'season'),
   'AcquisitionQuery.queryTerms': boundedRecord('acquisition-query-terms'),
   'AcquisitionQuery.hardConstraints': boundedRecord('acquisition-hard-constraints'),
-  'AcquisitionCandidates.candidates': arrayOf(snapshot('acquisition-candidate'), 1024),
   'AcquisitionObservation.phase': enumText('download', 'transfer'),
-  'AcquisitionObservation.outputRefs': arrayOf(id(), 1024),
-  'StableExternalMaterialEvidence.observationWindow': object({ startedAtMs: nonNegativeInteger(), endedAtMs: nonNegativeInteger() }),
   'AcceptanceCheck.checkKind': enumText('identity', 'structure', 'metadata', 'mandatory_media', 'space'),
   'StagedInventoryManifest.stagedMembers': arrayOf(snapshot('staged-inventory-member'), 4096),
   'SettlementDeletionEvidence.postDeleteReality': boundedRecord('post-delete-reality'),
@@ -453,13 +451,13 @@ const contracts = {
   OnDeckProductPackageCommitReceipt: ['ReceiptEnvelope', 'promotionDecisionDigest,onDeckPackageId,packageRevision,packageDigest,offerId,libraRunId,verifiedRunStateRevision,verifiedRunStateDigest,productMaterialManifestDigest,productFactSetDigest,productFactManifestDigest,artifactManifestDigest,offloadContextDigest,controlRevisionSetDigest,receiptDigest'],
   ReclamationReceipt: ['ReceiptEnvelope', 'workspaceId,reclaimedHandleIds,retainedHandleIds,reclaimedBytes'],
   WorkspaceCleanupCommitReceipt: ['ReceiptEnvelope', 'cleanupScopeId,materialHandleId,deletionEvidenceDigest,releasedControlRevision?,cleanupState'],
-  AcquisitionQuery: ['DraftEnvelope', 'resolvedIdentityDigest,structureKind,queryTerms,hardConstraints,queryDigest'],
-  AcquisitionCandidates: ['EvidenceEnvelope', 'queryDigest,integrationId,candidates,candidateSetDigest'],
-  SelectedCandidate: ['DraftEnvelope', 'candidateSetDigest,selectedCandidateId,selectionCriteriaDigest,selectionReasonCodes'],
-  AcquisitionObservation: ['EvidenceEnvelope', 'externalJobReceiptId,phase,externalState,outputRefs'],
-  StableExternalMaterialEvidence: ['VerificationEnvelope', 'externalMaterialHandleId,observationWindow,stableDigest'],
+  AcquisitionQuery: ['DraftEnvelope', 'libraRunId,runExecutionBasisDigest,resolvedIdentityDigest,productStructureDigest,structureKind,contentProfile,providerIdentityAnchors,requestedEpisodeKeys,queryTerms,hardConstraints,queryDigest'],
+  AcquisitionCandidates: ['EvidenceEnvelope', 'queryDigest,integrationId,configRevision,candidates,candidateSetDigest'],
+  SelectedCandidate: ['DraftEnvelope', 'queryDigest,candidateSetDigest,selectionCriteriaDigest,result,selectedCandidate,selectedCandidateId,selectionReasonCode'],
+  AcquisitionObservation: ['EvidenceEnvelope', 'externalJobReceipt,phase,providerObservationRevision,outputSnapshot,observationDigest'],
+  StableExternalMaterialEvidence: ['VerificationEnvelope', 'sourceExternalMaterialHandleId,stableExternalMaterialHandle,observationWindow,stableDigest'],
   IdentityVerification: ['VerificationEnvelope', 'expectedIdentityDigest,observedIdentityDigest,strengthClass'],
-  VerifiedExternalPackage: ['VerificationEnvelope', 'externalMaterialHandleId,episodeDeliveryManifestDigest,identityVerificationId,packageManifestDigest'],
+  VerifiedExternalPackage: ['VerificationEnvelope', 'stableExternalMaterialHandleId,stableManifestDigest,episodeDeliveryManifestDigest,identityVerificationId,identityVerificationDigest,verifiedMemberIds,verifiedMemberSetDigest,packageManifestDigest'],
   AcceptanceCheck: ['VerificationEnvelope', 'acceptanceAttemptId,checkKind,standardRevision,packageDigest'],
   InventoryFeasibilityEvidence: ['EvidenceEnvelope', 'shelfId,placementRevision,targetEndpointId,requiredBytes,availableBytes,finalInventoryDecisionDraftDigest'],
   CustodyAndTransferReceipt: ['ReceiptEnvelope', 'acceptanceDecisionId,custodyId,arcaBindingSetDigest,controlRevisionSetDigest'],
@@ -519,6 +517,13 @@ function buildResultTypeSchema(name, [base, fieldList]) {
   if (name === 'IntakeRejectionReceipt') return intakeRejectionReceiptSchema();
   if (name === 'RejectionReceipt') return rejectionReceiptSchema();
   if (name === 'OnDeckProductPackageCommitReceipt') return onDeckProductPackageCommitReceiptSchema();
+  if (name === 'AcquisitionQuery') return acquisitionQuerySchema();
+  if (name === 'AcquisitionCandidates') return acquisitionCandidatesSchema();
+  if (name === 'SelectedCandidate') return selectedCandidateSchema();
+  if (name === 'AcquisitionObservation') return acquisitionObservationSchema();
+  if (name === 'StableExternalMaterialEvidence') return stableExternalMaterialEvidenceSchema();
+  if (name === 'IdentityVerification') return identityVerificationSchema();
+  if (name === 'VerifiedExternalPackage') return verifiedExternalPackageSchema();
   const workspaceFields = base === 'WorkspaceMaterialHandle'
     ? Object.fromEntries(Object.entries(buildSharedTypeSchemas().WorkspaceMaterialHandle.properties)
       .filter(([field]) => field !== 'schemaRef' && field !== 'schemaVersion'))
@@ -568,6 +573,66 @@ function resultSchema(name, base, properties, options = {}) {
   const inherited = { schemaRef: { const: typeId(name) }, schemaVersion: { const: 1 }, ...envelopeFields[base] };
   return { $schema: DRAFT, $id: typeId(name), title: `${name}@1`, 'x-helix-ssotRefs': ['6.4.7.1', '8.6.19'],
     'x-helix-envelopeRef': typeId(base), ...options, ...object({ ...inherited, ...properties }) };
+}
+
+function acquisitionQuerySchema() {
+  const queryTerm=object({ordinal:nonNegativeInteger(),termKind:enumText('provider_key','title','season'),value:text(),termDigest:digest()});
+  return resultSchema('AcquisitionQuery','DraftEnvelope',{libraRunId:id(),runExecutionBasisDigest:digest(),resolvedIdentityDigest:digest(),
+    productStructureDigest:digest(),structureKind:enumText('single','season'),contentProfile:enumText('movie','series','jav','western_adult'),
+    providerIdentityAnchors:{...arrayOf(domainRef('ResolvedProviderIdentity'),16),minItems:1},requestedEpisodeKeys:arrayOf(text(),256),
+    queryTerms:{...arrayOf(queryTerm,32),minItems:1},hardConstraints:object({requiredStructureKind:enumText('single','season'),
+      requiredEpisodeKeys:arrayOf(text(),256)}),queryDigest:digest()},{'x-helix-maxCanonicalBytes':16*1024});
+}
+
+function acquisitionCandidatesSchema() {
+  return resultSchema('AcquisitionCandidates','EvidenceEnvelope',{queryDigest:digest(),integrationId:id(),configRevision:positiveInteger(),
+    candidates:arrayOf(providerAcquisitionCandidateSnapshotSchema(),100),candidateSetDigest:digest()},{'x-helix-maxCanonicalBytes':64*1024});
+}
+
+function selectedCandidateSchema() {
+  const inherited={schemaRef:{const:typeId('SelectedCandidate')},schemaVersion:{const:1},...envelopeFields.DraftEnvelope},
+    common={...inherited,queryDigest:digest(),candidateSetDigest:digest(),selectionCriteriaDigest:digest()};
+  return {$schema:DRAFT,$id:typeId('SelectedCandidate'),title:'SelectedCandidate@1','x-helix-ssotRefs':['6.4.7.1','8.6.19'],
+    'x-helix-envelopeRef':typeId('DraftEnvelope'),'x-helix-maxCanonicalBytes':64*1024,oneOf:[
+      selectedCandidateSelectedValueSchema(common),
+      object({...common,result:{const:'not_selected'},selectedCandidate:{type:'null'},selectedCandidateId:{type:'null'},
+        selectionReasonCode:{const:'no_available_candidate'}})
+    ]};
+}
+
+function selectedCandidateSelectedValueSchema(commonFields = null) {
+  const common=commonFields||{schemaRef:{const:typeId('SelectedCandidate')},schemaVersion:{const:1},...envelopeFields.DraftEnvelope,
+    queryDigest:digest(),candidateSetDigest:digest(),selectionCriteriaDigest:digest()};
+  return object({...common,result:{const:'selected'},selectedCandidate:providerAcquisitionCandidateSnapshotSchema(),selectedCandidateId:id(),
+    selectionReasonCode:{const:'selected_by_provider_rank'}});
+}
+
+function acquisitionObservationSchema() {
+  return resultSchema('AcquisitionObservation','EvidenceEnvelope',{externalJobReceipt:ref('ExternalJobReceipt'),
+    phase:enumText('download','transfer'),providerObservationRevision:positiveInteger(),outputSnapshot:externalOutputSnapshotSchema(),
+    observationDigest:digest()},{'x-helix-maxCanonicalBytes':64*1024});
+}
+
+function stableExternalMaterialEvidenceSchema() {
+  return resultSchema('StableExternalMaterialEvidence','VerificationEnvelope',{result:enumText('passed'),
+    reasonCodes:{type:'array',items:text(),maxItems:0},sourceExternalMaterialHandleId:id(),stableExternalMaterialHandle:ref('ExternalMaterialHandle'),
+    observationWindow:object({startedAtMs:nonNegativeInteger(),endedAtMs:nonNegativeInteger(),quietWindowMs:positiveInteger(),
+      newestMutationAtMs:nonNegativeInteger()}),stableDigest:digest()},{'x-helix-maxCanonicalBytes':64*1024});
+}
+
+function identityVerificationSchema() {
+  return resultSchema('IdentityVerification','VerificationEnvelope',{result:enumText('passed','failed'),
+    reasonCodes:arrayOf(enumText('identity_anchor_missing','identity_mismatch','identity_evidence_integrity_failure'),3),
+    expectedIdentityDigest:digest(),observedIdentityDigest:digest(),strengthClass:enumText('exact_provider_identity','unverified')},
+  {'x-helix-maxCanonicalBytes':16*1024});
+}
+
+function verifiedExternalPackageSchema() {
+  return resultSchema('VerifiedExternalPackage','VerificationEnvelope',{result:enumText('passed','failed'),
+    reasonCodes:arrayOf(enumText('identity_verification_failed','structure_mismatch','episode_coverage_mismatch','package_integrity_failure'),4),
+    stableExternalMaterialHandleId:id(),stableManifestDigest:digest(),episodeDeliveryManifestDigest:digest(),identityVerificationId:id(),
+    identityVerificationDigest:digest(),verifiedMemberIds:{...arrayOf(id(),256),minItems:1},verifiedMemberSetDigest:digest(),
+    packageManifestDigest:digest()},{'x-helix-maxCanonicalBytes':16*1024});
 }
 
 function metadataObservationSchema() {
@@ -721,4 +786,4 @@ function schemaDigest(schema) {
   return crypto.createHash('sha256').update(JSON.stringify(canonicalize(schema))).digest('hex');
 }
 
-module.exports = Object.freeze({ buildResultTypeSchemas, contracts, schemaDigest, typeId });
+module.exports = Object.freeze({ buildResultTypeSchemas, contracts, schemaDigest, selectedCandidateSelectedValueSchema, typeId });

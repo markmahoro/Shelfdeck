@@ -9,6 +9,11 @@
       "schemaRef": "helix://contracts/capabilities/libra.external_material.stability.observe/v1/inputs#/$defs/externalMaterialHandle",
       "required": true,
       "cardinality": "one"
+    },
+    "integrationHandle": {
+      "schemaRef": "helix://contracts/capabilities/libra.external_material.stability.observe/v1/inputs#/$defs/integrationHandle",
+      "required": true,
+      "cardinality": "one"
     }
   },
   "parametersSchemaRef": "helix://contracts/capabilities/libra.external_material.stability.observe/v1/parameters",
@@ -25,6 +30,6 @@
   "sourceLocator": {
     "section": "8.6.8",
     "line": 8883,
-    "lineDigest": "fbc109a53424d1f92f01ee89e5a483cba98e06fdb1d056bdf7e698026e8af81f"
+    "lineDigest": "5383eabcd2a0298df16d1d5050a9dbdc25ae6af69f3573a55c84a82ee97425c8"
   }
 }

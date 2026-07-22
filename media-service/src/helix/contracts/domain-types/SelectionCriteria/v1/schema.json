@@ -3,18 +3,14 @@
   "$id": "helix://contracts/domain-types/SelectionCriteria/v1",
   "title": "SelectionCriteria@1",
   "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
     "8.6.20"
   ],
   "x-helix-role": "bounded-contract",
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "schemaRef": {
-      "const": "helix://contracts/domain-types/SelectionCriteria/v1"
-    },
-    "schemaVersion": {
-      "const": 1
-    },
     "contractId": {
       "type": "string",
       "minLength": 1,
@@ -24,73 +20,30 @@
       "type": "integer",
       "minimum": 1
     },
-    "digest": {
+    "schemaRef": {
+      "const": "SelectionCriteria@1"
+    },
+    "queryDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
-    "hardConstraintDigest": {
+    "strategy": {
+      "const": "available_provider_rank_then_candidate_id"
+    },
+    "criteriaDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
-    },
-    "rankingPolicyDigest": {
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^[a-f0-9]{64}$"
-    },
-    "typedParameters": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "parameter": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-z][a-zA-Z0-9_.-]{0,127}$"
-          },
-          "valueType": {
-            "type": "string",
-            "enum": [
-              "string",
-              "integer",
-              "number",
-              "boolean"
-            ]
-          },
-          "value": {
-            "type": [
-              "string",
-              "integer",
-              "number",
-              "boolean"
-            ]
-          },
-          "valueDigest": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
-          }
-        },
-        "required": [
-          "parameter",
-          "valueType",
-          "value",
-          "valueDigest"
-        ]
-      },
-      "maxItems": 256
     }
   },
   "required": [
-    "schemaRef",
-    "schemaVersion",
     "contractId",
     "revision",
-    "digest",
-    "hardConstraintDigest",
-    "rankingPolicyDigest",
-    "typedParameters"
-  ]
+    "schemaRef",
+    "queryDigest",
+    "strategy",
+    "criteriaDigest"
+  ],
+  "x-helix-maxCanonicalBytes": 16384
 }

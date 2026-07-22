@@ -1,11 +1,13 @@
 'use strict';
 
 const crypto = require('crypto');
+const { selectedCandidateSelectedValueSchema } = require('./result-type-schema-builder');
 
 const DRAFT = 'https://json-schema.org/draft/2020-12/schema';
 const domainTypeId = (name) => `helix://contracts/domain-types/${name}/v1`;
 const domainRef = (name) => ({ $ref: domainTypeId(name) });
 const typeRef = (name) => ({ $ref: `helix://contracts/types/${name}/v1` });
+const applicationRef = (name) => ({ $ref: `helix://contracts/application-types/${name}/v1` });
 const text = (options = {}) => ({ type: 'string', minLength: 1, ...options });
 const id = () => text({ maxLength: 256 });
 const digest = () => text({ pattern: '^[a-f0-9]{64}$' });
@@ -62,7 +64,6 @@ const special = {
   'InventoryMetadataArtifactRefs.metadataFactRefs': arrayOf(id(), 1024),
   'InventoryMetadataArtifactRefs.artifactHandles': arrayOf(typeRef('ArtifactHandle'), 1024),
   'KnownBindings.bindings': arrayOf(snapshot('arca-material-binding'), 4096),
-  'LibraWorkspaceScope.workspaceHandles': arrayOf(typeRef('WorkspaceMaterialHandle'), 4096),
   'OffLoadContext.materials': arrayOf(snapshot('offload-material'), 4096),
   'PeopleWorkspace.workspaceHandles': arrayOf(typeRef('WorkspaceMaterialHandle'), 4096),
   'PersonIdentitiesAliasesReferences.people': arrayOf(snapshot('person-identity-alias-reference'), 4096),
@@ -105,7 +106,7 @@ const boundedContracts = {
   EncodeIntent: '',
   FaceModelRef: 'modelId,modelRevision,modelDigest',
   HashProfile: 'algorithm,chunkSizeBytes,fullContentRequired',
-  IdentityRequirement: 'expectedIdentityDigest,strengthClass',
+  IdentityRequirement: '',
   MandatoryRequirement: 'requirementCodes',
   ManifestContract: 'manifestKind,memberSchemaRef,minMembers,maxMembers',
   MetadataRequirement: 'requiredFactKeys,artifactRequirementDigest',
@@ -114,12 +115,12 @@ const boundedContracts = {
   RemuxIntent: '',
   MediaRequirement: '',
   SamplingPlan: 'intervalMs,maxFrames,frameProfileDigest',
-  SelectionCriteria: 'hardConstraintDigest,rankingPolicyDigest',
+  SelectionCriteria: '',
   ShelfStandard: 'shelfId,contentProfile,ruleSetRevision,acceptanceRuleDigest',
   SidecarProfile: 'format,fileNamePolicyDigest,contentSchemaRef',
   SpaceRequirement: 'requiredBytes,reserveBytes',
   StructureRequirement: 'structureKind,memberConstraintDigest',
-  WorkspaceDeliveryContract: 'workspaceId,targetRelativePath,expectedDigest'
+  WorkspaceDeliveryContract: ''
 };
 
 const dtoContracts = {
@@ -138,13 +139,13 @@ const dtoContracts = {
   DecisionInputSet: 'subjectId,inputs,inputSetDigest',
   DestructionScope: 'destructionScopeId,inventoryRevision,materialKeys,controlRevisionSetDigest',
   EpisodeDeliveryManifest: 'episodeClaims,deliveryDigest',
+  SelectedCandidateSelected: '',
   FinalBindings: 'shelfEntryId,bindings,bindingSetDigest',
   FinalInventoryDecision: 'onDeckRunId,shelfId,members,placementRevision,decisionDigest',
   FinalReality: 'shelfEntryId,inventoryRevision,realityDigest',
   InventoryMetadataArtifactRefs: 'shelfEntryId,inventoryRevision,metadataFactRefs,artifactHandles',
   InventoryRevision: 'shelfEntryId,inventoryRevision,inventoryDigest',
   KnownBindings: 'shelfEntryId,bindings,bindingSetDigest',
-  LibraWorkspaceScope: 'workspaceId,workspaceHandles,scopeDigest',
   LibraDeliverablePromotionDecision: '',
   MetadataFetchIntent: '',
   WesternAnalysisVariant: '',
@@ -271,6 +272,12 @@ function buildSchema(name, role, fields) {
   if (name === 'ProductMediaCandidateInput') return productMediaCandidateInputSchema();
   if (name === 'ProductOutputSelectionInput') return productOutputSelectionInputSchema();
   if (name === 'ProductConformanceInputSnapshot') return productConformanceInputSnapshotSchema();
+  if (name === 'IdentityRequirement') return identityRequirementSchema();
+  if (name === 'SelectionCriteria') return selectionCriteriaSchema();
+  if (name === 'WorkspaceDeliveryContract') return workspaceDeliveryContractSchema();
+  if (name === 'EpisodeDeliveryManifest') return episodeDeliveryManifestSchema();
+  if (name === 'ProductStructure') return productStructureSchema();
+  if (name === 'SelectedCandidateSelected') return selectedCandidateSelectedSchema();
   const identityField = role === 'bounded-contract' ? idField(name) : 'objectId';
   const properties = {
     schemaRef: { const: domainTypeId(name) }, schemaVersion: { const: 1 }, [identityField]: id(), revision: positiveInteger(), digest: digest()
@@ -930,6 +937,45 @@ function resolvedProviderIdentitySchema() {
   return exactDomainSchema('ResolvedProviderIdentity', { provider: enumText('tmdb', 'jav', 'internal'),
     namespace: enumText('tmdb_movie', 'tmdb_series', 'jav_code', 'internal_identity'), providerKey: text(),
     seasonNumber: nullable(positiveInteger()), identityAnchorDigest: digest() });
+}
+
+function productStructureSchema() {
+  const claim=object({episodeKey:text(),seasonClaimDigest:digest(),claimDigest:digest()});
+  return exactDomainSchema('ProductStructure',{objectId:id(),revision:positiveInteger(),digest:digest(),subjectId:id(),
+    structureKind:acceptanceStructureKind(),episodeClaims:arrayOf(claim,256),structureDigest:digest()});
+}
+
+function episodeDeliveryManifestSchema() {
+  const claim=object({episodeKey:text(),seasonClaimDigest:digest(),outputRequirementDigest:digest(),claimDigest:digest()});
+  return exactDomainSchema('EpisodeDeliveryManifest',{objectId:id(),revision:positiveInteger(),digest:digest(),libraRunId:id(),subjectId:id(),
+    structureKind:acceptanceStructureKind(),seasonScopeDigest:nullable(digest()),episodeClaims:arrayOf(claim,256),deliveryDigest:digest()});
+}
+
+function identityRequirementSchema() {
+  return {...exactDomainSchema('IdentityRequirement',{requirementId:id(),revision:positiveInteger(),schemaRef:{const:'IdentityRequirement@1'},
+    expectedIdentityDigest:digest(),strengthClass:{const:'exact_provider_identity'},digest:digest()},undefined,
+  {'x-helix-role':'bounded-contract'}),'x-helix-maxCanonicalBytes':16*1024};
+}
+
+function selectionCriteriaSchema() {
+  return {...exactDomainSchema('SelectionCriteria',{contractId:id(),revision:positiveInteger(),schemaRef:{const:'SelectionCriteria@1'},
+    queryDigest:digest(),strategy:{const:'available_provider_rank_then_candidate_id'},criteriaDigest:digest()},undefined,
+  {'x-helix-role':'bounded-contract'}),'x-helix-maxCanonicalBytes':16*1024};
+}
+
+function workspaceDeliveryContractSchema() {
+  return {...exactDomainSchema('WorkspaceDeliveryContract',{contractId:id(),revision:positiveInteger(),
+    schemaRef:{const:'WorkspaceDeliveryContract@1'},libraRunId:id(),workspaceId:id(),expectedWorkspaceRevision:positiveInteger(),
+    expectedWorkspaceStateDigest:digest(),rootSnapshot:applicationRef('PlatformWorkspaceRootSnapshot'),stableExternalMaterialHandleId:id(),
+    verifiedPackageDigest:digest(),memberSelector:{const:'external_member_id'},externalMemberId:id(),targetRelativePath:text(),digest:digest()},
+  undefined,{'x-helix-role':'bounded-contract'}),'x-helix-maxCanonicalBytes':32*1024};
+}
+
+function selectedCandidateSelectedSchema() {
+  const value=selectedCandidateSelectedValueSchema();
+  return {$schema:DRAFT,$id:domainTypeId('SelectedCandidateSelected'),title:'SelectedCandidateSelected@1',
+    'x-helix-ssotRefs':['8.6.8','8.6.20'],'x-helix-role':'accepted-business-dto','x-helix-maxCanonicalBytes':64*1024,
+    ...value};
 }
 
 function productStructureSnapshotSchema() {

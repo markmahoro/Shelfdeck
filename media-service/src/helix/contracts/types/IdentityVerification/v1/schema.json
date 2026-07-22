@@ -3,9 +3,11 @@
   "$id": "helix://contracts/types/IdentityVerification/v1",
   "title": "IdentityVerification@1",
   "x-helix-ssotRefs": [
+    "6.4.7.1",
     "8.6.19"
   ],
   "x-helix-envelopeRef": "helix://contracts/types/VerificationEnvelope/v1",
+  "x-helix-maxCanonicalBytes": 16384,
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -33,17 +35,20 @@
       "type": "string",
       "enum": [
         "passed",
-        "failed",
-        "not_applicable"
+        "failed"
       ]
     },
     "reasonCodes": {
       "type": "array",
       "items": {
         "type": "string",
-        "minLength": 1
+        "enum": [
+          "identity_anchor_missing",
+          "identity_mismatch",
+          "identity_evidence_integrity_failure"
+        ]
       },
-      "maxItems": 1024
+      "maxItems": 3
     },
     "evidenceRefs": {
       "type": "array",
@@ -69,12 +74,11 @@
       "pattern": "^[a-f0-9]{64}$"
     },
     "strengthClass": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "minLength": 1
-      },
-      "maxItems": 1024
+      "type": "string",
+      "enum": [
+        "exact_provider_identity",
+        "unverified"
+      ]
     }
   },
   "required": [

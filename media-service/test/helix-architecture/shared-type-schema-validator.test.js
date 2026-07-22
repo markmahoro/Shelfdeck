@@ -51,6 +51,19 @@ test('freezes the complete read-only Workspace Material Handle', () => {
   assert.equal(schema.properties.accessScope.const, 'workspace_material_read');
 });
 
+test('freezes the complete external material Handle and normalized provider snapshot', () => {
+  const schema = JSON.parse(fs.readFileSync(path.join(actualContractsRoot, 'types/ExternalMaterialHandle/v1/schema.json'), 'utf8'));
+  for (const field of ['configRevision', 'externalObjectRef', 'endpointId', 'location', 'structureKind', 'outputSnapshot',
+    'manifestDigest', 'observationRevision', 'accessFenceDigest']) assert.ok(schema.required.includes(field), field);
+  const snapshot = schema.properties.outputSnapshot;
+  for (const field of ['integrationId', 'configRevision', 'externalObjectRef', 'endpointId', 'location', 'structureKind',
+    'members', 'identityAnchors', 'observedAtMs', 'newestMutationAtMs', 'memberSetDigest', 'manifestDigest',
+    'snapshotDigest']) assert.ok(snapshot.required.includes(field), field);
+  const member = snapshot.properties.members.items;
+  for (const field of ['ordinal', 'externalMemberId', 'relativePath', 'sizeBytes', 'checksumAlgorithm', 'checksumHex',
+    'episodeClaims', 'memberDigest']) assert.ok(member.required.includes(field), field);
+});
+
 test('rejects schema drift, open objects, and unresolved refs', () => {
   const root = fixture();
   try {

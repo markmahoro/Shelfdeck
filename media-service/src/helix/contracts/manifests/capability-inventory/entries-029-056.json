@@ -657,21 +657,21 @@
       "sourceLocator": {
         "section": "8.6.8",
         "line": 8880,
-        "lineDigest": "1fbaaf3302a2dd833ae99c0c9895bfdeb0fe051fffe5ad0a766e2a78828608cf"
+        "lineDigest": "c8febb3ce98234bb108e61882ba6bf4d66181180f40481c556d133c9845f70f8"
       },
       "targetLocator": {
         "path": "capabilities/libra/external_material/acquire/request/v1/manifest.json"
       },
       "contract": {
         "packagePath": "capabilities/libra/external_material/acquire/request/v1",
-        "packageDigest": "617e5d8f1c29a4d3238b8a2a168a4f6a0593a5391b629df8062d922e976f33de",
+        "packageDigest": "302299204ac82e759d6c60a2b0fca5f6ebb728232e1fb934d9adbe5ad125d464",
         "effectClass": "external_request",
-        "inputSummary": "SelectedCandidate + WorkspaceDeliveryContract + IntegrationHandle",
+        "inputSummary": "SelectedCandidate(selected) + AcquisitionQuery + IntegrationHandle",
         "outputFamily": "ExternalJobReceipt"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "19f183fdc563bdde1013790a14416f13e653f1ca4e90fcd7c1866dca8c661d5e"
+        "value": "37755a37b5c964c9a7c1f0ce1e9886414f10f079b31bd0c9d0e833ee334d3fb9"
       }
     },
     {
@@ -685,21 +685,21 @@
       "sourceLocator": {
         "section": "8.6.8",
         "line": 8881,
-        "lineDigest": "35c13d0e6a1de81f0eff4fa972f7eb13668afe227bef6ad942a84b603473cc6b"
+        "lineDigest": "b03c29fa6a35ba1ebf6a464a81c4807c3be7ace3aab02b78fcefd93be3dd4515"
       },
       "targetLocator": {
         "path": "capabilities/libra/external_material/acquire/observe/v1/manifest.json"
       },
       "contract": {
         "packagePath": "capabilities/libra/external_material/acquire/observe/v1",
-        "packageDigest": "0898e3823b8156267cbd7ed3281e69115c35b7048af317c5e8f4742c547f7e40",
+        "packageDigest": "3ddfd1105b6959ced3e1ce7b76cdf0418a2ba7dce177dddeee35a9d04046fac3",
         "effectClass": "pure_observation",
-        "inputSummary": "ExternalJobReceipt + phase",
+        "inputSummary": "ExternalJobReceipt + IntegrationHandle + phase",
         "outputFamily": "AcquisitionObservation"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "cee06e722fb1c53511dbe6c664f716eff6e6a3db9dea1045b990e0e5ed88aaf8"
+        "value": "81fb2de403f0f636750d5ff83dc8f1e4d76b2788858fa486ea69151a1c80dd25"
       }
     },
     {
@@ -741,21 +741,21 @@
       "sourceLocator": {
         "section": "8.6.8",
         "line": 8883,
-        "lineDigest": "fbc109a53424d1f92f01ee89e5a483cba98e06fdb1d056bdf7e698026e8af81f"
+        "lineDigest": "5383eabcd2a0298df16d1d5050a9dbdc25ae6af69f3573a55c84a82ee97425c8"
       },
       "targetLocator": {
         "path": "capabilities/libra/external_material/stability/observe/v1/manifest.json"
       },
       "contract": {
         "packagePath": "capabilities/libra/external_material/stability/observe/v1",
-        "packageDigest": "5d05ed7301e60c446617ef8c3491f5322a8cd2d1f4f39e5e985b3540883ce9f5",
+        "packageDigest": "be0af0bd99536ab1ba97fa129afdfeb3ac936114dc3d3f90b2640542932a633c",
         "effectClass": "pure_observation",
-        "inputSummary": "ExternalMaterialHandle",
+        "inputSummary": "ExternalMaterialHandle + IntegrationHandle + quietWindowMs",
         "outputFamily": "StableExternalMaterialEvidence"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "f7304fb6021b5c5f51ff0001bbadb20d50dea8b9c6e2becc407c1e50d4e69259"
+        "value": "1894750d3b7eee475fd6295f4aa3f4f03e8343a93548f568cd094b6f160dc684"
       }
     },
     {

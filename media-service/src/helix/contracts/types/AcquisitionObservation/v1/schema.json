@@ -3,9 +3,11 @@
   "$id": "helix://contracts/types/AcquisitionObservation/v1",
   "title": "AcquisitionObservation@1",
   "x-helix-ssotRefs": [
+    "6.4.7.1",
     "8.6.19"
   ],
   "x-helix-envelopeRef": "helix://contracts/types/EvidenceEnvelope/v1",
+  "x-helix-maxCanonicalBytes": 65536,
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -42,10 +44,8 @@
       "type": "integer",
       "minimum": 0
     },
-    "externalJobReceiptId": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 256
+    "externalJobReceipt": {
+      "$ref": "helix://contracts/types/ExternalJobReceipt/v1"
     },
     "phase": {
       "type": "string",
@@ -54,18 +54,177 @@
         "transfer"
       ]
     },
-    "externalState": {
-      "type": "string",
-      "minLength": 1
+    "providerObservationRevision": {
+      "type": "integer",
+      "minimum": 1
     },
-    "outputRefs": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "minLength": 1,
-        "maxLength": 256
+    "outputSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "integrationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "configRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "externalObjectRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "endpointId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "location": {
+          "type": "string",
+          "minLength": 1
+        },
+        "structureKind": {
+          "type": "string",
+          "enum": [
+            "single",
+            "season"
+          ]
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "ordinal": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "externalMemberId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "relativePath": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sizeBytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "checksumAlgorithm": {
+                "const": "sha256"
+              },
+              "checksumHex": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "episodeClaims": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "episodeKey": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "claimDigest": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "episodeKey",
+                    "claimDigest"
+                  ]
+                },
+                "maxItems": 32
+              },
+              "memberDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "ordinal",
+              "externalMemberId",
+              "relativePath",
+              "sizeBytes",
+              "checksumAlgorithm",
+              "checksumHex",
+              "episodeClaims",
+              "memberDigest"
+            ]
+          },
+          "maxItems": 256,
+          "minItems": 1
+        },
+        "identityAnchors": {
+          "type": "array",
+          "items": {
+            "$ref": "helix://contracts/domain-types/ResolvedProviderIdentity/v1"
+          },
+          "maxItems": 16
+        },
+        "observedTitle": {
+          "type": "string",
+          "minLength": 1
+        },
+        "releaseYear": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "observedAtMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "newestMutationAtMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "memberSetDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "manifestDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "snapshotDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
       },
-      "maxItems": 1024
+      "required": [
+        "integrationId",
+        "configRevision",
+        "externalObjectRef",
+        "endpointId",
+        "location",
+        "structureKind",
+        "members",
+        "identityAnchors",
+        "observedAtMs",
+        "newestMutationAtMs",
+        "memberSetDigest",
+        "manifestDigest",
+        "snapshotDigest"
+      ]
+    },
+    "observationDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     }
   },
   "required": [
@@ -77,9 +236,10 @@
     "basisDigest",
     "payloadDigest",
     "observedAtMs",
-    "externalJobReceiptId",
+    "externalJobReceipt",
     "phase",
-    "externalState",
-    "outputRefs"
+    "providerObservationRevision",
+    "outputSnapshot",
+    "observationDigest"
   ]
 }

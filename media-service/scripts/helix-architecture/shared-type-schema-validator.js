@@ -87,6 +87,8 @@ function validateSharedTypeSchemas(options) {
 
   const entryIds = new Set();
   const schemaIds = new Set();
+  const domainRegistry = readJson(path.join(contractsRoot, 'domain-input-type-registry.json'), findings);
+  for (const entry of domainRegistry?.entries || []) schemaIds.add(entry.schemaId);
   const paths = new Set();
   for (const entry of registry.entries || []) {
     const valid = entry && typeof entry.id === 'string' && !entryIds.has(entry.id) &&

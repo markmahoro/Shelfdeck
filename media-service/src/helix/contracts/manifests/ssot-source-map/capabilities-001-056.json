@@ -672,26 +672,26 @@
       "id": "libra.external_material.acquire.request@1",
       "contractVersion": 1,
       "owner": "libra",
-      "inputSummary": "SelectedCandidate + WorkspaceDeliveryContract + IntegrationHandle",
+      "inputSummary": "SelectedCandidate(selected) + AcquisitionQuery + IntegrationHandle",
       "outputFamily": "ExternalJobReceipt",
       "effectClass": "external_request",
       "source": {
         "section": "8.6.8",
         "line": 8880,
-        "lineDigest": "1fbaaf3302a2dd833ae99c0c9895bfdeb0fe051fffe5ad0a766e2a78828608cf"
+        "lineDigest": "c8febb3ce98234bb108e61882ba6bf4d66181180f40481c556d133c9845f70f8"
       }
     },
     {
       "id": "libra.external_material.acquire.observe@1",
       "contractVersion": 1,
       "owner": "libra",
-      "inputSummary": "ExternalJobReceipt + phase",
+      "inputSummary": "ExternalJobReceipt + IntegrationHandle + phase",
       "outputFamily": "AcquisitionObservation",
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.8",
         "line": 8881,
-        "lineDigest": "35c13d0e6a1de81f0eff4fa972f7eb13668afe227bef6ad942a84b603473cc6b"
+        "lineDigest": "b03c29fa6a35ba1ebf6a464a81c4807c3be7ace3aab02b78fcefd93be3dd4515"
       }
     },
     {
@@ -711,13 +711,13 @@
       "id": "libra.external_material.stability.observe@1",
       "contractVersion": 1,
       "owner": "libra",
-      "inputSummary": "ExternalMaterialHandle",
+      "inputSummary": "ExternalMaterialHandle + IntegrationHandle + quietWindowMs",
       "outputFamily": "StableExternalMaterialEvidence",
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.8",
         "line": 8883,
-        "lineDigest": "fbc109a53424d1f92f01ee89e5a483cba98e06fdb1d056bdf7e698026e8af81f"
+        "lineDigest": "5383eabcd2a0298df16d1d5050a9dbdc25ae6af69f3573a55c84a82ee97425c8"
       }
     },
     {

@@ -245,7 +245,7 @@
       "relativePath": "types/ExternalMaterialHandle/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "5587bb35a23d7f0090d24b58c5cdfe1946fdef16a1c45c15dae14bac1bae2812"
+        "value": "5a3b5e365bac1bd571390c2ade0c7808fbdf48fb63ec815f63ecb525aebf11e4"
       },
       "ssotRefs": [
         "8.6.18"

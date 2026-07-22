@@ -9,6 +9,11 @@
       "schemaRef": "helix://contracts/capabilities/libra.external_material.acquire.observe/v1/inputs#/$defs/externalJobReceipt",
       "required": true,
       "cardinality": "one"
+    },
+    "integrationHandle": {
+      "schemaRef": "helix://contracts/capabilities/libra.external_material.acquire.observe/v1/inputs#/$defs/integrationHandle",
+      "required": true,
+      "cardinality": "one"
     }
   },
   "parametersSchemaRef": "helix://contracts/capabilities/libra.external_material.acquire.observe/v1/parameters",
@@ -25,6 +30,6 @@
   "sourceLocator": {
     "section": "8.6.8",
     "line": 8881,
-    "lineDigest": "35c13d0e6a1de81f0eff4fa972f7eb13668afe227bef6ad942a84b603473cc6b"
+    "lineDigest": "b03c29fa6a35ba1ebf6a464a81c4807c3be7ace3aab02b78fcefd93be3dd4515"
   }
 }
