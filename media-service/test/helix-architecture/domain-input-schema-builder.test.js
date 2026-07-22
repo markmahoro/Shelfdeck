@@ -83,8 +83,44 @@ test('legacy bounded inputs stay generic while media intents are exact and typed
   assert.equal(schemas.MediaRequirement.properties.mandatoryMedia.additionalProperties, false);
   assert.equal(schemas.ProductConformanceInputSnapshot.properties.inventorySnapshot.$ref,
     'helix://contracts/domain-types/ProductInventoryConformanceSnapshot/v1');
+  const productionManifest = schemas.ProductionMaterialManifest;
+  assert.deepEqual(productionManifest.oneOf.map((branch) => branch.properties.manifestRole.const), ['run_input', 'product_delivery']);
+  for (const branch of productionManifest.oneOf) {
+    assert.ok(branch.required.includes('scopeKind'));
+    const member = branch.properties.members.items;
+    for (const field of ['sizeBytes', 'location', 'originCandidateDeliveryRef', 'workspaceReferenceId',
+      'workspaceMaterialHandle', 'admittedControlRevision', 'admittedControlProjectionDigest']) assert.ok(member.required.includes(field));
+    assert.equal(member.properties.location.additionalProperties, false);
+    assert.deepEqual(member.properties.location.required, ['locationKind', 'endpointId', 'location', 'rootHandleRef', 'relativePath']);
+  }
+  const deliveryMember = productionManifest.oneOf[1].properties.members.items;
+  for (const field of ['controlOperation', 'expectedControlRevision', 'expectedControlProjectionDigest',
+    'committedControlRevision', 'committedControlProjectionDigest']) assert.ok(deliveryMember.required.includes(field));
+  assert.equal(productionManifest.oneOf[0].properties.members.items.properties.controlOperation, undefined);
   assert.equal(schemas.HashProfile.properties.algorithm.const, 'sha256');
   assert.equal(schemas.HashProfile.properties.fullContentRequired.const, true);
+});
+
+test('conserves complete run-input and product-delivery Production Material members', () => {
+  const location = { locationKind:'domain_binding', endpointId:'endpoint-1', location:'movie.mkv', rootHandleRef:null, relativePath:null };
+  const common = { ordinal:0, materialKey:'a'.repeat(64), role:'primary_payload', physicalIdentity:{}, sizeBytes:1,
+    location, bindingKind:'libra_material_binding', bindingRevision:1, bindingEvidenceDigest:'b'.repeat(64),
+    originCandidateDeliveryRef:{ intakeDecisionId:'intake-1', offerId:'offer-1', candidatePackageId:'candidate-1',
+      packageRevision:1, packageDigest:'c'.repeat(64), candidateDeliverySnapshotDigest:'d'.repeat(64), relatedReferenceSetDigest:'e'.repeat(64) },
+    workspaceReferenceId:null, workspaceMaterialHandle:null, admittedControlRevision:1,
+    admittedControlProjectionDigest:'f'.repeat(64), outputRequirementDigest:'1'.repeat(64), episodeClaims:[],
+    episodeClaimSetDigest:'2'.repeat(64), memberDigest:'3'.repeat(64) };
+  const runInput = { manifestId:'run-manifest', manifestRole:'run_input', manifestRevision:1, libraRunId:'run-1', scopeKind:'single',
+    members:[common], memberSetDigest:'4'.repeat(64), episodeScopeDigest:'5'.repeat(64), manifestDigest:'6'.repeat(64) };
+  const productDelivery = { ...runInput, manifestId:'product-manifest', manifestRole:'product_delivery',
+    members:[{ ...common, controlOperation:'assert_existing_input', expectedControlRevision:1,
+      expectedControlProjectionDigest:'7'.repeat(64), committedControlRevision:2, committedControlProjectionDigest:'8'.repeat(64) }] };
+  const [runSchema, deliverySchema] = schemas.ProductionMaterialManifest.oneOf;
+  assert.deepEqual(Object.keys(runInput).sort(), [...runSchema.required].sort());
+  assert.deepEqual(Object.keys(runInput.members[0]).sort(), [...runSchema.properties.members.items.required].sort());
+  assert.deepEqual(Object.keys(productDelivery).sort(), [...deliverySchema.required].sort());
+  assert.deepEqual(Object.keys(productDelivery.members[0]).sort(), [...deliverySchema.properties.members.items.required].sort());
+  assert.deepEqual(Object.keys(location).sort(), [...deliverySchema.properties.members.items.properties.location.required].sort());
 });
 
 test('keeps canonical content profile separate from season structure', () => {

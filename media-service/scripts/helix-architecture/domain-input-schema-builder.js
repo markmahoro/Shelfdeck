@@ -962,21 +962,42 @@ function episodeClaimSchema() {
   return object({ episodeKey: text(), seasonClaimDigest: digest(), claimDigest: digest() });
 }
 
-function productionMaterialMemberSchema() {
-  return object({ ordinal: nonNegativeInteger(), materialKey: digest(),
+function productionMaterialLocationSchema() {
+  return object({ locationKind: enumText('domain_binding', 'workspace_handle'), endpointId: id(),
+    location: nullable(text()), rootHandleRef: nullable(id()), relativePath: nullable(text()) });
+}
+
+function candidateDeliveryOriginRefSchema() {
+  return object({ intakeDecisionId:id(), offerId:id(), candidatePackageId:id(), packageRevision:positiveInteger(),
+    packageDigest:digest(), candidateDeliverySnapshotDigest:digest(), relatedReferenceSetDigest:digest() });
+}
+
+function productionMaterialMemberSchema(manifestRole) {
+  const properties = { ordinal: nonNegativeInteger(), materialKey: digest(),
     role: enumText('primary_payload', 'structural_dependency', 'metadata_sidecar', 'poster', 'fanart', 'subtitle', 'external_audio', 'chapter'),
-    physicalIdentity: typeRef('PhysicalMaterialIdentity'), locationKind: enumText('domain_binding', 'workspace_handle'), endpointId: id(),
-    location: nullable(text()), rootHandleRef: nullable(id()), relativePath: nullable(text()),
+    physicalIdentity: typeRef('PhysicalMaterialIdentity'), sizeBytes:nonNegativeInteger(), location:productionMaterialLocationSchema(),
     bindingKind: enumText('libra_material_binding', 'workspace_material_reference'), bindingRevision: positiveInteger(),
+    originCandidateDeliveryRef:nullable(candidateDeliveryOriginRefSchema()), workspaceReferenceId:nullable(id()),
+    workspaceMaterialHandle:nullable(typeRef('WorkspaceMaterialHandle')),
+    admittedControlRevision:nullable(positiveInteger()), admittedControlProjectionDigest:nullable(digest()),
     bindingEvidenceDigest: digest(), episodeClaims: arrayOf(episodeClaimSchema(), 32), episodeClaimSetDigest: digest(),
-    outputRequirementDigest: digest(), controlOperation: enumText('assert_existing_input', 'acquire_workspace_product'),
-    expectedControlRevision: nullable(nonNegativeInteger()), expectedControlProjectionDigest: nullable(digest()), memberDigest: digest() });
+    outputRequirementDigest: digest(), memberDigest: digest() };
+  if (manifestRole === 'product_delivery') Object.assign(properties, {
+    controlOperation:enumText('assert_existing_input', 'acquire_workspace_product'),
+    expectedControlRevision:nullable(nonNegativeInteger()), expectedControlProjectionDigest:nullable(digest()),
+    committedControlRevision:positiveInteger(), committedControlProjectionDigest:digest()
+  });
+  return object(properties);
 }
 
 function productionMaterialManifestSchema() {
-  return exactDomainSchema('ProductionMaterialManifest', { manifestId: id(), manifestRole: { const: 'product_delivery' },
-    manifestRevision: positiveInteger(), libraRunId: id(), members: { ...arrayOf(productionMaterialMemberSchema(), 1024), minItems: 1 },
-    memberSetDigest: digest(), episodeScopeDigest: digest(), manifestDigest: digest() });
+  const branch = (manifestRole) => object({ manifestId:id(), manifestRole:{ const:manifestRole },
+    manifestRevision:positiveInteger(), libraRunId:id(), scopeKind:enumText('single', 'episode_delivery'),
+    members:{ ...arrayOf(productionMaterialMemberSchema(manifestRole), 1024), minItems:1 },
+    memberSetDigest:digest(), episodeScopeDigest:digest(), manifestDigest:digest() });
+  return { $schema:DRAFT, $id:domainTypeId('ProductionMaterialManifest'), title:'ProductionMaterialManifest@1',
+    'x-helix-ssotRefs':['8.6.18', '8.6.19'], 'x-helix-role':'accepted-business-dto',
+    oneOf:[branch('run_input'), branch('product_delivery')] };
 }
 
 function artifactManifestItemSchema() {
