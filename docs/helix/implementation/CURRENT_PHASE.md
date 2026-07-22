@@ -1,8 +1,7 @@
-# P11 Arca Post-deck Detailed Plan
+# P13 Operational Cutover and E2E-ready Package
 
-Status: Complete；P12 not started.
+Status: Complete；P14 not started.
 
-P11 Aftercare、Off-deck与Shelf Deregistration全部工作包、Exit Audit和Implementation Contract Baseline已完成并冻结。按FAST MODE授权硬终点，本线程在此停止，不创建或实施P12工作包。
+P12 Product Surface与P13 Operational Cutover全部工作包、Exit Audit和最终Implementation Contract Baseline已完成并冻结。本线程在P13硬终点停止；P14真实E2E资格验收与后续部署由独立任务另行授权和执行。
 
-Evidence：`evidence/P11_EXIT_AUDIT.md`、`evidence/P11_IMPLEMENTATION_CONTRACT_BASELINE.md`。
-
+Evidence：`evidence/P12_EXIT_AUDIT.md`、`evidence/P13_EXIT_AUDIT.md`、`evidence/P13_IMPLEMENTATION_CONTRACT_BASELINE.md`、`evidence/P13_E2E_READY_PACKAGE.json`。

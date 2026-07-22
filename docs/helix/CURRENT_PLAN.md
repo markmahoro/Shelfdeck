@@ -1,8 +1,8 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: Levels 0–10 accepted; P0–P8 complete; P9 active under standing Local Implementation authorization; external-environment actions and `media-desktop` remain paused.
+Status: Levels 0–10 accepted; P0–P13 complete; Helix Local Implementation closed; independent P14 qualification not started.
 
-Last updated: 2026-07-19
+Last updated: 2026-07-23
 
 ## 1. Role and authority
 
@@ -87,13 +87,13 @@ Workspace admission/reference、完整On-deck Product Package、Discard/Cleanup�
 
 | Field | Current value |
 | --- | --- |
-| Phase | P11 — Arca post-deck |
+| Phase | P13 — Operational cutover and E2E-ready package |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | P11 complete and archived；P12 not started |
-| Implementation baseline | P9 implementation closure `fff40f8d92dbff88f07435a49bb0bcbae4934578` |
+| Status | P13 complete；final Implementation Contract Baseline and E2E-ready package frozen |
+| Implementation baseline | P13 implementation closure `bd75e7e4`；product surface `23e3b930` |
 | Phase branch/worktree | `codex/helix-p9` / `E:\my_project\emby_third_party-helix-p9` |
-| Allowed now | Paused at P11 hard stop；await explicit P12 authorization |
-| Next action | 用户确认后另行启动P12 Product surface；当前不得实施 |
+| Allowed now | 本实施线程停止；不得进入P14、E2E或部署 |
+| Next action | 独立P14资格验收任务消费冻结package；需用户单独授权 |
 
 ## 4. Master roadmap
 
@@ -107,12 +107,12 @@ Workspace admission/reference、完整On-deck Product Package、Discard/Cleanup�
 | P5 Platform and integrations | Secret/Mount/Workspace/Artifact/Resource/Worker及typed Provider/FFmpeg/file libraries | P3–P4 ports | **complete**；10 fixture families / 31 recovery scenarios；Exit Audit PASS |
 | P6 Horizontal domains | Perception和People独立Store/Facade/Process/Projection | P3–P5 | **complete**；Exit Audit PASS；两域Owner与cross-domain边界闭合 |
 | P7 Procurement | Material Field、Observation、Region、Triage、Candidate Package | P3–P5 | **complete**；Exit Audit PASS；15表/8 Capability与Candidate原子性闭合 |
-| P8 Handoff A and Libra front half | Handoff A、FA-04 continuity、Subject、Decision、Routing、Acceptance Spec | P6–P7 | Decision/Subject/Binding/Control/Receipt单事务 |
-| P9 Libra production and delivery | Run、Workspace、Product、Conformance、On-deck Package、Discard/Cleanup/Reclaimer | P4–P5、P8 | Libra只写Workspace；Promotion/Discard/Cleanup原子闭合 |
-| P10 Handoff B and On-deck | Shelf/Standard/Placement、Acceptance、Custody、Off-load、Inventory、Shelf Entry、Deck | P5、P9 | Handoff B不建Own；只有On-deck Commit建立/扩展Deck |
-| P11 Arca post-deck | Aftercare、Off-deck、Shelf Deregistration | P10 | 三种旅程/授权独立；Deregistration零Delete |
-| P12 Product surface | Projection/Activity、Facade、113 Admin route、Session/Auth、九页Admin Web | P6–P11 | 113/113+health；GET无副作用；九旅程和a11y通过 |
-| P13 Operational cutover and E2E-ready package | clean init/backup/restore/Safety、readiness；Root/API/UI一次切换；旧路径退役；冻结独立E2E任务可直接消费的版本化交付包 | P2–P12 | mixed generation拒写；无dual path；全部local gate通过；package manifest、commit、digest、运行说明和已知限制完整 |
+| P8 Handoff A and Libra front half | Handoff A、FA-04 continuity、Subject、Decision、Routing、Acceptance Spec | P6–P7 | **complete**；原子连续性和Exit Audit PASS |
+| P9 Libra production and delivery | Run、Workspace、Product、Conformance、On-deck Package、Discard/Cleanup/Reclaimer | P4–P5、P8 | **complete**；baseline frozen |
+| P10 Handoff B and On-deck | Shelf/Standard/Placement、Acceptance、Custody、Off-load、Inventory、Shelf Entry、Deck | P5、P9 | **complete**；Exit Audit PASS |
+| P11 Arca post-deck | Aftercare、Off-deck、Shelf Deregistration | P10 | **complete**；baseline frozen |
+| P12 Product surface | Projection/Activity、Facade、113 Admin route、Session/Auth、九页Admin Web | P6–P11 | **complete**；114 route、18 surface、build/tests PASS |
+| P13 Operational cutover and E2E-ready package | clean init/backup/restore/Safety、readiness；Root/API/UI一次切换；旧路径退役；冻结独立E2E任务可直接消费的版本化交付包 | P2–P12 | **complete**；local gates PASS；package frozen |
 
 P1–P13是本线程的完整逻辑实施Phase，不是版本名或自动部署节点。P13 Exit Audit PASS且E2E-ready package冻结后，
 本线程的Helix开发任务即完成。

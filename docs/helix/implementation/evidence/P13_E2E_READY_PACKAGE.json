@@ -1,0 +1,54 @@
+{
+  "schema": "helix-e2e-ready-package@1",
+  "status": "frozen",
+  "architectureGovernanceCommit": "1619735c",
+  "acceptedBaselines": {
+    "p9": "7005b36d",
+    "p11": "61e42c39"
+  },
+  "implementationCommits": {
+    "p12": "23e3b930",
+    "p13": "bd75e7e4"
+  },
+  "entrypoints": {
+    "composition": "media-service/src/helix/composition/createHelixApplication.js",
+    "routeInventory": "media-service/src/helix/contracts/manifests/route-inventory.json",
+    "uiInventory": "media-service/src/helix/contracts/manifests/ui-surface-inventory.json",
+    "cleanInit": "media-service/scripts/helix-clean-init.js"
+  },
+  "counts": {
+    "capabilities": 112,
+    "results": 97,
+    "tables": 177,
+    "transactions": 43,
+    "sharedTypes": 29,
+    "domainInputs": 108,
+    "routes": 114,
+    "uiSurfaces": 18
+  },
+  "digests": {
+    "coreContracts": "c7e08ddbccb71e864846c5cb0ef923d3e48f37af30d1111acb0e0316544a0288",
+    "routeInventory": "fb228da21e0afe3a03330e5234b3ff38bf64c281016eabd9891841de4b5abc2e",
+    "uiInventory": "095cd9c9b20a95fb93d18e715c6ea17444ecdc11b7e55ad57a53809ce0445902",
+    "productSurfaceAggregate": "b7fd10af998ac1c3c60d1d973fa60b3b40c27da924ede9b3bbf402e35b4afc76"
+  },
+  "verification": {
+    "p12Focused": "7/7 PASS",
+    "p13Focused": "9/9 PASS",
+    "adminWebUnit": "3/3 PASS",
+    "adminWebBuild": "PASS",
+    "serviceUnit": "227 PASS, 2 SKIP, 0 FAIL",
+    "helixArchitecture": "120 fixture files PASS",
+    "prohibitedActions": 0
+  },
+  "excluded": [
+    "P14",
+    "real-source E2E",
+    "Docker",
+    "Canary",
+    "production",
+    "real-media destructive verification",
+    "media-desktop"
+  ]
+}
+

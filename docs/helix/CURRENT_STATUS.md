@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Levels 0–10 accepted; P0–P11 complete; P12 not started; E2E, Docker/Canary, production, real-media side effects and `media-desktop` changes paused.
+Status: Levels 0–10 accepted; P0–P13 complete; P14 independent qualification not started; Docker/Canary, production, real-media side effects and `media-desktop` changes paused.
 
 Last updated: 2026-07-23
 
@@ -11,14 +11,14 @@ Last updated: 2026-07-23
 | Architecture | `TOP_DOWN_ARCHITECTURE_CONFIRMATION.md` Level 0–10 accepted and final audit closed |
 | Open business decisions | none |
 | Implementation program | clean-cut Master Plan accepted as direction |
-| Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains；P7 — Procurement；P8 — Handoff A and Libra front half；P9 — Libra production and delivery；P10 — Handoff B and On-deck；P11 — Arca post-deck |
-| Current phase | P11 — Arca post-deck |
-| Current phase status | P11 Exit Audit and Implementation Contract Baseline frozen；P12 not started |
+| Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains；P7 — Procurement；P8 — Handoff A and Libra front half；P9 — Libra production and delivery；P10 — Handoff B and On-deck；P11 — Arca post-deck；P12 — Product surface；P13 — Operational cutover and E2E-ready package |
+| Current phase | P13 — complete；P14 independent qualification not started |
+| Current phase status | P13 Exit Audit and final Implementation Contract Baseline frozen |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
-| Current allowed work | Paused at authorized P11 hard stop；awaiting explicit P12 authorization |
-| Integration baseline | P9 implementation closure `fff40f8d92dbff88f07435a49bb0bcbae4934578` |
+| Current allowed work | 本线程停止；P14、E2E与部署须由独立任务另行授权 |
+| Integration baseline | P13 implementation closure `bd75e7e4`；P12 closure `23e3b930` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p9` on `codex/helix-p9` |
-| Next action | 等待P12独立授权；不得自动进入P12 |
+| Next action | 独立P14资格验收任务消费`implementation/evidence/P13_E2E_READY_PACKAGE.json`；本线程不得继续 |
 
 P9-01已完成：反向实现审计证明的六段连续性缺口已由Architecture Agent在`PBF-13/PBF-13-R1`中闭合，并经实现侧
 只读复审后原样纳入。Run、Material/Episode scope、Workspace、完整Package、Discard/Cleanup及Off-load Reclaimer均具备
@@ -379,9 +379,9 @@ P1与P2已关闭；clean root仍未接入`server.js`、`app.js`或任何旧Runti
 
 - `CURRENT_PLAN.md`：精简Master Roadmap和授权边界；
 - `ENGINEERING_PLAYBOOK.md`：Ready/Done、Work Package、门禁、测试、Review、复用、Git和停线规则；
-- `implementation/CURRENT_PHASE.md`：唯一活动P6详细执行包；
+- `implementation/CURRENT_PHASE.md`：P13完成指针；当前无活动实施Phase；
 - `implementation/evidence/`：冻结审计与验收Evidence；
-- `implementation/archive/`：保存已冻结的P1–P5执行包。
+- `implementation/archive/`：保存已冻结的历史Phase执行包。
 
 工程文档不能覆盖架构SSOT。任意时刻禁止出现第二份活动Phase详细计划。
 
@@ -389,9 +389,9 @@ P1与P2已关闭；clean root仍未接入`server.js`、`app.js`或任何旧Runti
 
 - NAS ShelfDeck Docker `192.168.12.230:18080`保持生产边界，当前不接触；
 - 四库真实来源E2E保持停止；
-- P6本地实现已打开；不运行E2E、Admin Web构建或Docker构建；
+- P0–P13本地实现已关闭；不得在本线程启动P14、E2E或Docker构建；
 - 不部署、不初始化生产数据、不执行真实媒体副作用；
-- 当前旧`helixCleanState`/preflight不得用于clean切换或生产；
+- 旧`helixCleanState`/preflight不属于冻结E2E-ready package；
 - `media-desktop`继续排除并保留用户未提交修改；
 - 用户`media-service/package.json`分析入口和未跟踪分析脚本保持不变；
 - P2使用独立worktree完成；P3–P13继续按Phase隔离，不能直接使用原dirty工作区。
@@ -406,7 +406,7 @@ P1与P2已关闭；clean root仍未接入`server.js`、`app.js`或任何旧Runti
 | R1 | 后续为进度创建新旧混合路径 | Master dependency invariant和Phase Exit Audit |
 | active control | Standing授权仅限本地且clean root不得接旧产品主路径 | Current Phase Non-goals与Master dependency invariant |
 
-## 8. Next checkpoint
+## 8. Historical checkpoint record
 
 P2 Exit Audit已在fresh-worktree复现性修正后PASS并归档。审计闭合提交`a735781010ee58c4119d93bb320bfe11bf1d4b7f`，合同aggregate digest为
 原始aggregate为`ebbfda8885837170d48a0feb8f3aaad9a32aa35c44dc2db21704f820a6e3fc4a`，Exit evidence digest为
