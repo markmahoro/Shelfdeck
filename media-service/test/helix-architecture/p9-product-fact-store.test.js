@@ -12,7 +12,7 @@ const {openSqliteKernel}=require('../../src/helix/foundation/persistence/sqlite-
 const {createSqliteUnitOfWork}=require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
 const domainFactTransaction=require('../../src/helix/contracts/transaction-contracts/helix.transaction.domain-fact-commit/v1/contract.json');
 const {buildArtifactManifestVerification,buildMediaCastDraft,buildMetadataFetchIntent,buildMetadataObservationBasis,
-  buildProductFactHandle,buildProductMetadataDraft}=
+  buildMediaCastFact,buildProductFactHandle,buildProductMetadataDraft}=
   require('../../src/helix/domains/libra/model/product-fact-contracts');
 const {createProductFactRegistrations}=require('../../src/helix/domains/libra/persistence/product-fact-store');
 
@@ -36,7 +36,7 @@ function fixture(factKind='media_cast'){const intent=buildMetadataFetchIntent({l
   const handle=buildProductFactHandle({libraRunId:'run-1',factKind:'media_cast',expectedRevision:0,payloadDigest:canonicalDigest(payload),eventFenceDigest:d('fence')});
   return {basis,draft,handle,intent,payload,result};}
 
-function metadataFixture(){const source=fixture('product_metadata'),requirement={requirementId:'',revision:1,
+function metadataFixture(mediaCastFactRef=null){const source=fixture('product_metadata'),requirement={requirementId:'',revision:1,
   schemaRef:'helix://contracts/requirements/poster/v1',artifactKind:'poster',requirementPayload:{minimumWidth:1000},requirementDigest:''};
   requirement.requirementDigest=canonicalDigest({schema:'shared.artifact-requirement@1',revision:1,schemaRef:requirement.schemaRef,
     artifactKind:'poster',requirementPayload:requirement.requirementPayload});
@@ -58,7 +58,8 @@ function metadataFixture(){const source=fixture('product_metadata'),requirement=
   const artifactSetDigest=canonicalDigest({schema:'libra.verified-artifact-set@1',items:[item]}),manifest={manifestId:canonicalDigest({
     schema:'libra.verified-artifact-manifest-id@1',libraRunId:'run-1',artifactSetDigest}),libraRunId:'run-1',items:[item],artifactSetDigest};
   manifest.manifestDigest=canonicalDigest(manifest);
-  const payload={schema:'libra.product-metadata-fact-commit-payload@1',sourceBasis:source.basis,productMetadataDraft:draft,verifiedArtifactManifest:manifest};
+  const payload={schema:'libra.product-metadata-fact-commit-payload@1',sourceBasis:source.basis,productMetadataDraft:draft,
+    verifiedArtifactManifest:manifest,mediaCastFactRef};
   const commitHandle=buildProductFactHandle({libraRunId:'run-1',factKind:'product_metadata',expectedRevision:0,
     payloadDigest:canonicalDigest(payload),eventFenceDigest:d('metadata-fence')});
   return {...source,draft,requirement,artifactHandle:handle,verification,inputBindings,manifest,payload,handle:commitHandle};}
@@ -88,7 +89,10 @@ test('registers exact Product Fact variants and writes reconstructable Libra Own
 });
 
 test('persists Product Metadata only after the explicit Requirement, Artifact, Plan input, and Result chain agrees',()=>{
-  const value=metadataFixture(),registry=createDomainCommitRegistry({registrations:createProductFactRegistrations({schemaManifest})}),
+  const mediaSource=fixture(),mediaFact=buildMediaCastFact({libraRunId:'run-1',subjectId:'subject-1',sourceBasis:mediaSource.basis,
+    mediaCastDraft:mediaSource.draft,expectedRevision:0,commitMarker:'media-marker',committedAtMs:5});
+  const value=metadataFixture({productFactId:mediaFact.factId,factRevision:mediaFact.revision,factDigest:mediaFact.factDigest}),
+    registry=createDomainCommitRegistry({registrations:createProductFactRegistrations({schemaManifest})}),
     participant=registry.resolve(value.handle,value.payload,{commitMarker:'marker-metadata'}),inserted={facts:[],sources:[]};
   const sourceRows={work:{work_id:'work-source',owner_domain:'libra',process_type:'libra_run',process_id:'run-1',state:'succeeded'},
     attempt:{attempt_id:'attempt-source',work_id:'work-source',state:'succeeded'},plan:{plan_id:'plan-source',attempt_id:'attempt-source',state:'planned'},
@@ -109,11 +113,21 @@ test('persists Product Metadata only after the explicit Requirement, Artifact, P
     if(statement==='find_artifact')return {artifact_handle_id:'artifact-1',artifact_kind:'poster',digest_algorithm:'sha256',
       digest_hex:value.artifactHandle.digestHex,reference_revision:1,state:'active'};throw new Error(statement);}};
   const owner={invoke(statement,parameters){if(statement==='find_run')return {libra_run_id:'run-1',subject_id:'subject-1',state:'active',state_revision:1,state_digest:d('state')};
-    if(statement==='find_fact')return undefined;if(statement==='insert_fact'){inserted.facts.push(parameters);return {changes:1};}
+    if(statement==='find_fact')return undefined;if(statement==='find_fact_by_id')return {product_fact_id:mediaFact.factId,libra_run_id:'run-1',fact_kind:'media_cast',
+      fact_revision:mediaFact.revision,schema_ref:mediaFact.schemaRef,fact_json:JSON.stringify(mediaFact),fact_digest:mediaFact.factDigest,
+      commit_marker:mediaFact.commitMarker,result_digest:canonicalDigest(mediaFact)};
+    if(statement==='insert_fact'){inserted.facts.push(parameters);return {changes:1};}
     if(statement==='insert_source'){inserted.sources.push(parameters);return {changes:1};}throw new Error(statement);}};
-  participant.readParticipants[0].execute({repository:()=>foundation});const fact=participant.execute({repository:()=>owner,commitTimeMs:20});
+  participant.readParticipants[0].execute({repository:()=>foundation});
+  const crossRunOwner={invoke(statement,parameters){const row=owner.invoke(statement,parameters);
+    return statement==='find_fact_by_id'?{...row,libra_run_id:'other-run'}:row;}};
+  assert.throws(()=>participant.execute({repository:()=>crossRunOwner,commitTimeMs:20}),
+    (error)=>error.code==='P9_PRODUCT_METADATA_CAST_REF_MISMATCH');
+  assert.deepEqual(inserted,{facts:[],sources:[]});
+  const fact=participant.execute({repository:()=>owner,commitTimeMs:20});
   participant.postMarkerParticipants[0].execute({repository:()=>owner,commitTimeMs:20});
-  assert.equal(fact.schemaRef,'helix://contracts/types/ProductMetadataFact/v1');assert.equal(inserted.facts[0].artifact_verification_result_count,1);
+  assert.equal(fact.schemaRef,'helix://contracts/types/ProductMetadataFact/v1');assert.deepEqual(fact.mediaCastFactRef,value.payload.mediaCastFactRef);
+  assert.equal(inserted.facts[0].artifact_verification_result_count,1);
   assert.equal(inserted.facts[0].verified_artifact_manifest_digest,value.manifest.manifestDigest);
 });
 

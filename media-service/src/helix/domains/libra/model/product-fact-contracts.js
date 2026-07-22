@@ -264,8 +264,7 @@ function buildProductMetadataDraft(value) {
     metadataObservationSetDigest:basis.observationSet.setDigest, westernAnalysisVariantDigest:null,
     fieldProvenance:provenance, descriptiveFacts:{ schemaRef:'helix://contracts/records/descriptive-facts/v1', schemaVersion:1,
       recordKind:'descriptive-facts', recordDigest:'', entries:[...winners].map(([key, itemValue]) => ({ key, value:itemValue })).sort((a,b)=>compare(a.key,b.key)) },
-    providerIdentities:[...(value.providerIdentities || [])], mediaCastDraftRef:value.mediaCastDraftRef || null,
-    artifactRequirements };
+    providerIdentities:[...(value.providerIdentities || [])], artifactRequirements };
   draft.descriptiveFacts.recordDigest = canonicalDigest(Object.fromEntries(Object.entries(draft.descriptiveFacts).filter(([key]) => key !== 'recordDigest')));
   draft.draftId = canonicalDigest({ schema:'libra.product-metadata-draft-id@1', resolvedIdentityDigest:draft.resolvedIdentityDigest,
     sourceBasisDigest:basis.sourceBasisDigest, descriptiveFactsDigest:draft.descriptiveFacts.recordDigest });

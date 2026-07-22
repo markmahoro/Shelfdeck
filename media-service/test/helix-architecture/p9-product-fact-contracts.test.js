@@ -115,6 +115,7 @@ test('builds a closed observation basis and NFO-first complete metadata draft', 
   const built = buildProductMetadataDraft({ sourceBasis:basis, requiredFields:['title','plot'], producedAtMs:100,
     providerIdentities:[], artifactRequirements:[] });
   assert.equal(built.ready, true);
+  assert.equal(Object.hasOwn(built.draft,'mediaCastDraftRef'),false);
   assert.deepEqual(built.draft.descriptiveFacts.entries, [{ key:'plot', value:'Plot' }, { key:'title', value:'Local title' }]);
   assert.equal(built.draft.fieldProvenance.find((item) => item.fieldPath === 'title').sourceKind, 'related_nfo');
   assert.deepEqual(buildProductMetadataDraft({ sourceBasis:basis, requiredFields:['title','runtime'], producedAtMs:100 }).missingFields,
