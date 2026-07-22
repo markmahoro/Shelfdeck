@@ -195,6 +195,38 @@ function buildMetadataObservationBasis(value) {
     observationSet:Object.freeze(set), sourceBasisDigest:selection.selectionDigest });
 }
 
+function buildProductFactSourceRefs(value) {
+  const basis=value?.sourceBasis, chains=new Map((value?.foundationChains || []).map((item)=>[item.resultId,item]));
+  if (!basis || basis.sourceBasisKind !== 'metadata_observation' || !Array.isArray(basis.selection?.items) ||
+      basis.selection.items.length < 1 || basis.selection.items.length > 16)
+    fail('P9_PRODUCT_FACT_SOURCE_BASIS', 'A bounded Metadata Observation basis is required.');
+  return Object.freeze(basis.selection.items.map((selection,ordinal)=>{
+    const chain=chains.get(selection.resultId),result=chain?.result,inputBindings=chain?.inputBindings;
+    if (!chain || !result || selection.ordinal !== ordinal || chain.workId !== selection.workId ||
+        chain.attemptId !== selection.attemptId || chain.planId !== selection.planId || chain.eventId !== selection.eventId ||
+        chain.ownerDomain !== 'libra' || chain.processType !== 'libra_run' || chain.processId !== basis.selection.libraRunId ||
+        chain.workState !== 'succeeded' || chain.attemptWorkId !== chain.workId || chain.planAttemptId !== chain.attemptId ||
+        chain.eventWorkId !== chain.workId || chain.eventAttemptId !== chain.attemptId || chain.eventPlanId !== chain.planId ||
+        chain.eventResultId !== chain.resultId || chain.capabilityRef !== 'libra.product_metadata.fetch@1' ||
+        chain.resultSchemaRef !== 'helix://contracts/types/MetadataObservation/v1' || result.schemaRef !== chain.resultSchemaRef ||
+        canonicalDigest(result) !== chain.resultDigest || canonicalDigest(inputBindings) !== chain.inputBindingDigest ||
+        result.fetchIntentDigest !== selection.fetchIntentDigest || result.sourceKind !== selection.sourceKind ||
+        result.sourceRef !== selection.sourceRef || result.sourcePriority !== selection.sourcePriority ||
+        result.evidenceId !== selection.evidenceId || result.payloadDigest !== selection.observationDigest ||
+        chain.evidenceDigest !== result.payloadDigest)
+      fail('P9_PRODUCT_FACT_SOURCE_CHAIN', 'Source reference is outside its exact Work to Result chain.');
+    const reference={productFactId:basis.productFactId,ordinal,sourceBasisKind:'metadata_observation',workId:chain.workId,
+      attemptId:chain.attemptId,planId:chain.planId,eventId:chain.eventId,resultId:chain.resultId,
+      capabilityRef:chain.capabilityRef,resultSchemaRef:chain.resultSchemaRef,resultDigest:chain.resultDigest,
+      sourceRef:result.sourceRef,sourceOrder:ordinal,evidenceId:result.evidenceId,evidenceDigest:chain.evidenceDigest,
+      inputBindingDigest:chain.inputBindingDigest};
+    reference.referenceDigest=canonicalDigest({schema:'libra.product-fact-source-ref@1',...reference});
+    if(reference.referenceDigest!==selection.sourceReferenceDigest)
+      fail('P9_PRODUCT_FACT_SOURCE_DIGEST','Source reference digest does not match the frozen Selection.');
+    return Object.freeze(reference);
+  }));
+}
+
 function descriptiveEntries(observation) {
   const record = observation?.descriptiveFacts;
   if (!record || !Array.isArray(record.entries)) fail('P9_METADATA_FACTS', 'Observation descriptive facts are invalid.');
@@ -428,6 +460,6 @@ function buildProductFactEvidence(value) {
 }
 
 module.exports = Object.freeze({ ProductFactContractError, buildArtifactManifestVerification, buildMediaCastDraft, buildMediaCastFact, buildMetadataFetchIntent,
-  buildMetadataObservationBasis, buildProductFactHandle, buildProductMetadataDraft, metadataObservationWorkIdempotencyKey,
+  buildMetadataObservationBasis, buildProductFactHandle, buildProductFactSourceRefs, buildProductMetadataDraft, metadataObservationWorkIdempotencyKey,
   buildProductMetadataFact, buildProductFactEvidence, metadataSourceRef, selectMetadataObservations,
   validateArtifactRequirement, validateVerifiedArtifactManifest });

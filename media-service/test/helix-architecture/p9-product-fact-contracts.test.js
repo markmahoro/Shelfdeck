@@ -5,6 +5,7 @@ const test = require('node:test');
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const { buildArtifactManifestVerification, buildMediaCastDraft, buildMediaCastFact, buildMetadataFetchIntent, buildMetadataObservationBasis, buildProductFactEvidence,
   buildProductFactHandle, buildProductMetadataDraft, buildProductMetadataFact, metadataObservationWorkIdempotencyKey, selectMetadataObservations,
+  buildProductFactSourceRefs,
   validateVerifiedArtifactManifest } =
   require('../../src/helix/domains/libra/model/product-fact-contracts');
 
@@ -102,6 +103,14 @@ test('builds a closed observation basis and NFO-first complete metadata draft', 
     planId:'plan-0',eventId:'event-0',resultId:'result-0',capabilityRef:'libra.product_metadata.fetch@1',
     resultSchemaRef:'helix://contracts/types/MetadataObservation/v1',resultDigest:nfo.resultDigest,sourceRef:'ref-nfo',
     sourceOrder:0,evidenceId:'evidence-0',evidenceDigest:nfo.result.payloadDigest,inputBindingDigest:nfo.inputBindingDigest}));
+  const chains=[nfo,tmdb].map((item,index)=>({...item,inputBindings:sourceIntents[index],attemptWorkId:item.workId,
+    planAttemptId:item.attemptId,eventWorkId:item.workId,eventAttemptId:item.attemptId,eventPlanId:item.planId,
+    eventResultId:item.resultId}));
+  const sourceRefs=buildProductFactSourceRefs({sourceBasis:basis,foundationChains:chains});
+  assert.equal(sourceRefs.length,2);
+  assert.equal(sourceRefs[0].referenceDigest,basis.selection.items[0].sourceReferenceDigest);
+  assert.throws(()=>buildProductFactSourceRefs({sourceBasis:basis,foundationChains:[{...chains[0],eventPlanId:'other'},chains[1]]}),
+    (error)=>error.code==='P9_PRODUCT_FACT_SOURCE_CHAIN');
   const built = buildProductMetadataDraft({ sourceBasis:basis, requiredFields:['title','plot'], producedAtMs:100,
     providerIdentities:[], artifactRequirements:[] });
   assert.equal(built.ready, true);
