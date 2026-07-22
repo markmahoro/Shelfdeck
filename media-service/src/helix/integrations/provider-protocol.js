@@ -109,7 +109,8 @@ function validateAcquisitionQuery(value, digest) {
     productStructureDigest: value.productStructureDigest, structureKind: value.structureKind, contentProfile: value.contentProfile,
     providerIdentityAnchors: value.providerIdentityAnchors, requestedEpisodeKeys: value.requestedEpisodeKeys,
     queryTerms: value.queryTerms, hardConstraints: value.hardConstraints }));
-  if (value.queryDigest !== expectedQueryDigest) fail('P5_PROVIDER_ACQUISITION_QUERY_DIGEST', 'Acquisition Query digest is invalid.');
+  const { draftDigest, ...draftBasis } = value;
+  if (value.queryDigest !== expectedQueryDigest || draftDigest !== digest(canonicalJson(draftBasis))) fail('P5_PROVIDER_ACQUISITION_QUERY_DIGEST', 'Acquisition Query or Draft digest is invalid.');
   return freezeClone(value);
 }
 
@@ -139,7 +140,13 @@ function validateSelectedCandidate(value, digest) {
     'selectionReasonCode'], 'P5_PROVIDER_SELECTED_CANDIDATE_SHAPE');
   if (value.schemaRef !== 'helix://contracts/types/SelectedCandidate/v1' || value.schemaVersion !== 1 || value.result !== 'selected' || value.selectionReasonCode !== 'selected_by_provider_rank') fail('P5_PROVIDER_SELECTED_CANDIDATE_REQUIRED', 'Acquire Request requires the selected candidate variant.');
   validateCandidate(value.selectedCandidate, value.selectedCandidate.integrationId, value.selectedCandidate.configRevision, digest);
-  if (value.selectedCandidateId !== value.selectedCandidate.candidateId) fail('P5_PROVIDER_SELECTED_CANDIDATE_ID', 'Selected candidate identity is invalid.');
+  const expectedBasisDigest = digest(canonicalJson({ schema: 'libra.external-candidate-selection-basis@1', queryDigest: value.queryDigest,
+    candidateSetDigest: value.candidateSetDigest, selectionCriteriaDigest: value.selectionCriteriaDigest }));
+  const expectedDraftId = digest(canonicalJson({ schema: 'libra.external-selected-candidate-id@1', queryDigest: value.queryDigest,
+    candidateSetDigest: value.candidateSetDigest, selectionCriteriaDigest: value.selectionCriteriaDigest }));
+  const { draftDigest, ...draftBasis } = value;
+  if (value.selectedCandidateId !== value.selectedCandidate.candidateId || value.selectedCandidate.availability !== 'available' ||
+      value.basisDigest !== expectedBasisDigest || value.draftId !== expectedDraftId || draftDigest !== digest(canonicalJson(draftBasis))) fail('P5_PROVIDER_SELECTED_CANDIDATE_ID', 'Selected candidate identity or Draft digest is invalid.');
   ['basisDigest', 'draftDigest', 'queryDigest', 'candidateSetDigest', 'selectionCriteriaDigest'].forEach((field) => sha(value[field], field));
   return freezeClone(value);
 }
@@ -153,12 +160,22 @@ function validateJobReceiptInput(value) {
   return freezeClone(value);
 }
 
-function validateExternalMaterialHandleInput(value) {
+function validateExternalMaterialHandleInput(value, digest) {
   exact(value, ['schemaRef', 'schemaVersion', 'handleId', 'integrationId', 'configRevision', 'externalObjectRef', 'endpointId',
     'location', 'structureKind', 'outputSnapshot', 'manifestDigest', 'observationRevision', 'accessFenceDigest'], 'P5_PROVIDER_EXTERNAL_HANDLE_SHAPE');
   if (value.schemaRef !== 'helix://contracts/types/ExternalMaterialHandle/v1' || value.schemaVersion !== 1) fail('P5_PROVIDER_EXTERNAL_HANDLE_KIND', 'External Material Handle is invalid.');
   [value.handleId, value.integrationId, value.externalObjectRef, value.endpointId].forEach((item) => token(item, 'externalMaterialHandle'));
   positive(value.configRevision, 'configRevision'); positive(value.observationRevision, 'observationRevision'); sha(value.manifestDigest, 'manifestDigest'); sha(value.accessFenceDigest, 'accessFenceDigest');
+  validateOutputSnapshot(value.outputSnapshot, value.integrationId, value.configRevision, digest);
+  if (value.externalObjectRef !== value.outputSnapshot.externalObjectRef || value.endpointId !== value.outputSnapshot.endpointId ||
+      value.location !== value.outputSnapshot.location || value.structureKind !== value.outputSnapshot.structureKind ||
+      value.manifestDigest !== value.outputSnapshot.manifestDigest) fail('P5_PROVIDER_EXTERNAL_HANDLE_CONTINUITY', 'External Material Handle does not conserve its output snapshot.');
+  const expectedHandleId = digest(canonicalJson({ schema: 'libra.external-material-handle-id@1', integrationId: value.integrationId,
+    configRevision: value.configRevision, externalObjectRef: value.externalObjectRef, observationRevision: value.observationRevision,
+    manifestDigest: value.manifestDigest }));
+  const expectedFence = digest(canonicalJson({ schema: 'libra.external-material-access-fence@1', handleId: value.handleId,
+    endpointId: value.endpointId, location: value.location, outputSnapshotDigest: value.outputSnapshot.snapshotDigest }));
+  if (value.handleId !== expectedHandleId || value.accessFenceDigest !== expectedFence) fail('P5_PROVIDER_EXTERNAL_HANDLE_FENCE', 'External Material Handle identity or access fence is invalid.');
   return freezeClone(value);
 }
 
@@ -203,7 +220,7 @@ function validateInput(kind, input, digest) {
   if (kind === 'external-material-observation') {
     exact(input, ['externalMaterialHandle', 'quietWindowMs'], 'P5_PROVIDER_INPUT_SHAPE');
     if (!Number.isSafeInteger(input.quietWindowMs) || input.quietWindowMs < 1 || input.quietWindowMs > 86400000) fail('P5_PROVIDER_QUIET_WINDOW', 'External material quiet window is invalid.');
-    return Object.freeze({ externalMaterialHandle: validateExternalMaterialHandleInput(input.externalMaterialHandle), quietWindowMs: input.quietWindowMs });
+    return Object.freeze({ externalMaterialHandle: validateExternalMaterialHandleInput(input.externalMaterialHandle, digest), quietWindowMs: input.quietWindowMs });
   }
   fail('P5_PROVIDER_INPUT_KIND', 'Provider input kind is unsupported.');
 }
@@ -225,9 +242,13 @@ function validateLease(lease, handle, operation, now) {
     'purpose', 'revision', 'issuedAtMs', 'expiresAtMs', 'fenceDigest'], 'P5_PROVIDER_LEASE_SHAPE');
   if (lease.schemaRef !== 'helix://contracts/ports/platform.secret-lease.resolve/v1/output' || lease.schemaVersion !== 1 ||
       lease.secretRef !== handle.secretRef || lease.ownerScopeType !== 'integration' || lease.ownerScopeId !== handle.integrationId ||
-      lease.purpose !== operation.operationId || lease.expiresAtMs < now || !SHA256.test(lease.fenceDigest || '')) {
+      lease.purpose !== operation.operationId || !Number.isSafeInteger(lease.issuedAtMs) || lease.issuedAtMs < 0 ||
+      !Number.isSafeInteger(lease.expiresAtMs) || lease.expiresAtMs < now || lease.expiresAtMs <= lease.issuedAtMs ||
+      !SHA256.test(lease.fenceDigest || '')) {
     fail('P5_PROVIDER_LEASE_DENIED', 'Secret lease does not match the exact provider operation.');
   }
+  token(lease.handleId, 'lease.handleId'); token(lease.secretRef, 'lease.secretRef'); token(lease.secretKind, 'lease.secretKind');
+  positive(lease.revision, 'lease.revision');
 }
 
 function validateArtifact(value) {
@@ -247,6 +268,8 @@ function validateJob(value, request) {
       value.integrationId !== request.integrationHandle.integrationId || value.operationKind !== request.operationId ||
       value.idempotencyKey !== request.idempotencyKey || value.requestDigest !== request.requestDigest ||
       value.configRevision !== request.integrationHandle.configRevision) fail('P5_PROVIDER_JOB_MISMATCH', 'External Job Receipt does not match the request fence.');
+  token(value.receiptId, 'receiptId'); token(value.externalJobId, 'externalJobId');
+  positive(value.configRevision, 'configRevision'); nonNegative(value.createdAtMs, 'createdAtMs'); sha(value.requestDigest, 'requestDigest');
   return value;
 }
 
@@ -260,10 +283,15 @@ function validateOutputSnapshot(value, integrationId, configRevision, digest) {
   [value.externalObjectRef, value.endpointId].forEach((item) => token(item, 'outputSnapshot'));
   if (typeof value.location !== 'string' || !value.location) fail('P5_PROVIDER_OUTPUT_LOCATION', 'External output location is invalid.');
   if (!Array.isArray(value.members) || value.members.length < 1 || value.members.length > 256) fail('P5_PROVIDER_OUTPUT_MEMBERS', 'External output members are invalid.');
+  const memberIds = new Set(), memberPaths = new Set();
   value.members.forEach((member, index) => {
     exact(member, ['ordinal', 'externalMemberId', 'relativePath', 'sizeBytes', 'checksumAlgorithm', 'checksumHex', 'episodeClaims', 'memberDigest'], 'P5_PROVIDER_OUTPUT_MEMBER_SHAPE');
-    if (member.ordinal !== index || member.checksumAlgorithm !== 'sha256' || typeof member.relativePath !== 'string' || !member.relativePath) fail('P5_PROVIDER_OUTPUT_MEMBER', 'External output member is invalid.');
+    const pathParts = typeof member.relativePath === 'string' ? member.relativePath.split('/') : [];
+    if (member.ordinal !== index || member.checksumAlgorithm !== 'sha256' || !member.relativePath || member.relativePath.includes('\\') ||
+        member.relativePath.startsWith('/') || /^[A-Za-z]:/.test(member.relativePath) || pathParts.some((part) => !part || part === '.' || part === '..') ||
+        memberIds.has(member.externalMemberId) || memberPaths.has(member.relativePath)) fail('P5_PROVIDER_OUTPUT_MEMBER', 'External output member is invalid or escapes Endpoint containment.');
     token(member.externalMemberId, 'externalMemberId'); nonNegative(member.sizeBytes, 'sizeBytes'); sha(member.checksumHex, 'checksumHex');
+    memberIds.add(member.externalMemberId); memberPaths.add(member.relativePath);
     if (!Array.isArray(member.episodeClaims) || member.episodeClaims.length > 32) fail('P5_PROVIDER_OUTPUT_EPISODES', 'External output episode claims are invalid.');
     const seen = new Set();
     member.episodeClaims.forEach((claim) => {

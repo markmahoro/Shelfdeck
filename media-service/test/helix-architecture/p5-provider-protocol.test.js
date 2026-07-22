@@ -21,7 +21,7 @@ function acquisitionQuery() {
     termDigest: digest(canonicalJson({ schema: 'libra.external-acquisition-query-term@1', termKind: 'provider_key', value: '550' })) });
   const value = {
     schemaRef: 'helix://contracts/types/AcquisitionQuery/v1', schemaVersion: 1, draftId: 'query-1',
-    draftKind: 'external-acquisition-query', basisDigest: digest('query-basis'), draftDigest: digest('query-draft'),
+    draftKind: 'external-acquisition-query', basisDigest: digest('query-basis'),
     producedAtMs: NOW, libraRunId: 'run-1', runExecutionBasisDigest: digest('run-basis'),
     resolvedIdentityDigest: digest('resolved-identity'), productStructureDigest: digest('product-structure'),
     structureKind: 'single', contentProfile: 'movie', providerIdentityAnchors: [identity], requestedEpisodeKeys: [],
@@ -32,6 +32,7 @@ function acquisitionQuery() {
     productStructureDigest: value.productStructureDigest, structureKind: value.structureKind, contentProfile: value.contentProfile,
     providerIdentityAnchors: value.providerIdentityAnchors, requestedEpisodeKeys: value.requestedEpisodeKeys,
     queryTerms: value.queryTerms, hardConstraints: value.hardConstraints }));
+  value.draftDigest = digest(canonicalJson(value));
   return Object.freeze(value);
 }
 
@@ -48,12 +49,15 @@ function candidate() {
 }
 
 function selectedCandidate() {
-  const selected = candidate();
-  return Object.freeze({ schemaRef: 'helix://contracts/types/SelectedCandidate/v1', schemaVersion: 1,
-    draftId: 'selected-1', draftKind: 'external-selected-candidate', basisDigest: digest('selection-basis'),
-    draftDigest: digest('selection-draft'), producedAtMs: NOW, queryDigest: acquisitionQuery().queryDigest,
-    candidateSetDigest: digest('candidate-set'), selectionCriteriaDigest: digest('selection-criteria'), result: 'selected',
-    selectedCandidate: selected, selectedCandidateId: selected.candidateId, selectionReasonCode: 'selected_by_provider_rank' });
+  const selected = candidate(), queryDigest = acquisitionQuery().queryDigest, candidateSetDigest = digest('candidate-set'),
+    selectionCriteriaDigest = digest('selection-criteria');
+  const value = { schemaRef: 'helix://contracts/types/SelectedCandidate/v1', schemaVersion: 1,
+    draftId: digest(canonicalJson({ schema: 'libra.external-selected-candidate-id@1', queryDigest, candidateSetDigest,
+      selectionCriteriaDigest })), draftKind: 'external-selected-candidate',
+    basisDigest: digest(canonicalJson({ schema: 'libra.external-candidate-selection-basis@1', queryDigest, candidateSetDigest,
+      selectionCriteriaDigest })), producedAtMs: NOW, queryDigest, candidateSetDigest, selectionCriteriaDigest, result: 'selected',
+    selectedCandidate: selected, selectedCandidateId: selected.candidateId, selectionReasonCode: 'selected_by_provider_rank' };
+  return Object.freeze({ ...value, draftDigest: digest(canonicalJson(value)) });
 }
 
 function outputSnapshot() {
@@ -70,11 +74,15 @@ function outputSnapshot() {
 
 function externalMaterialHandle() {
   const snapshot = outputSnapshot();
+  const handleId = digest(canonicalJson({ schema: 'libra.external-material-handle-id@1', integrationId: snapshot.integrationId,
+    configRevision: snapshot.configRevision, externalObjectRef: snapshot.externalObjectRef, observationRevision: 1,
+    manifestDigest: snapshot.manifestDigest }));
   return Object.freeze({ schemaRef: 'helix://contracts/types/ExternalMaterialHandle/v1', schemaVersion: 1,
-    handleId: 'external-handle-1', integrationId: snapshot.integrationId, configRevision: snapshot.configRevision,
+    handleId, integrationId: snapshot.integrationId, configRevision: snapshot.configRevision,
     externalObjectRef: snapshot.externalObjectRef, endpointId: snapshot.endpointId, location: snapshot.location,
     structureKind: snapshot.structureKind, outputSnapshot: snapshot, manifestDigest: snapshot.manifestDigest,
-    observationRevision: 1, accessFenceDigest: digest('external-access-fence') });
+    observationRevision: 1, accessFenceDigest: digest(canonicalJson({ schema: 'libra.external-material-access-fence@1',
+      handleId, endpointId: snapshot.endpointId, location: snapshot.location, outputSnapshotDigest: snapshot.snapshotDigest })) });
 }
 
 function jobReceipt(operationId = 'libra.external_material.acquire.request@1', requestDigest = digest('acquire-request')) {
@@ -323,6 +331,30 @@ test('old acquisition refs, forged candidate sets, and foreign material snapshot
     responseBytes: Buffer.byteLength(canonicalJson(foreignResult)), responseDigest: digest(canonicalJson(foreignResult)), result: foreignResult }) } });
   await assert.rejects(() => f.adapter.execute(request), (error) =>
     ['P5_PROVIDER_OUTPUT_DIGEST', 'P5_PROVIDER_EXTERNAL_MATERIAL_CONTINUITY'].includes(error.code));
+});
+
+test('material observation rejects forged Handle fence and escaping or duplicate member paths before transport', async () => {
+  const operation = operationCatalog.operations.find((item) => item.operationId === 'libra.external_material.stability.observe@1');
+  let request = requestFor(operation, 'moviepilot');
+  let f = fixture(operation, { request });
+  await assert.rejects(() => f.adapter.execute({ ...request, input: { ...request.input,
+    externalMaterialHandle: { ...request.input.externalMaterialHandle, accessFenceDigest: digest('forged-fence') } } }),
+  (error) => error.code === 'P5_PROVIDER_EXTERNAL_HANDLE_FENCE');
+
+  const snapshot = outputSnapshot(), badMember = { ...snapshot.members[0], relativePath: '../escape.mkv' };
+  const { memberDigest: ignored, ...memberBasis } = badMember;
+  badMember.memberDigest = digest(canonicalJson(memberBasis));
+  const members = [badMember], memberSetDigest = digest(canonicalJson({ schema: 'provider-external-material-members@1', items: members }));
+  const snapshotBasis = { ...snapshot, members, memberSetDigest,
+    manifestDigest: digest(canonicalJson({ schema: 'provider-external-material-manifest@1', structureKind: snapshot.structureKind, memberSetDigest })) };
+  delete snapshotBasis.snapshotDigest;
+  const badSnapshot = { ...snapshotBasis, snapshotDigest: digest(canonicalJson(snapshotBasis)) };
+  request = requestFor(operation, 'moviepilot');
+  f = fixture(operation, { request });
+  await assert.rejects(() => f.adapter.execute({ ...request, input: { ...request.input,
+    externalMaterialHandle: { ...request.input.externalMaterialHandle, outputSnapshot: badSnapshot } } }),
+  (error) => error.code === 'P5_PROVIDER_OUTPUT_MEMBER');
+  assert.equal(f.calls.length, 0);
 });
 
 test('job observation closed union rejects payload on pending and unknown terminal reason', async () => {
