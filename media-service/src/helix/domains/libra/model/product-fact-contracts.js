@@ -92,12 +92,12 @@ function selectMetadataObservations(value) {
         candidate.result?.schemaRef !== candidate.resultSchemaRef || candidate.result?.schemaVersion !== 1 ||
         candidate.result.identityDigest !== intent.resolvedIdentityDigest || candidate.result.contentProfile !== intent.contentProfile ||
         candidate.result.sourceKind !== intent.sourceKind || candidate.result.sourceRef !== metadataSourceRef(intent) ||
-        candidate.result.sourcePriority !== intent.sourcePriority || candidate.result.payloadDigest !== candidate.resultDigest ||
-        canonicalDigest(candidate.result) !== candidate.resultBindingDigest || candidate.inputBindingDigest !== canonicalDigest(intent)) {
+        candidate.result.sourcePriority !== intent.sourcePriority || candidate.result.payloadDigest !== candidate.evidenceDigest ||
+        canonicalDigest(candidate.result) !== candidate.resultDigest || candidate.inputBindingDigest !== canonicalDigest(intent)) {
       fail('P9_METADATA_OBSERVATION_CHAIN', 'Observation is outside the exact Supporting Work chain.');
     }
     const prior = selected.get(intent.intentDigest);
-    if (prior && prior.resultDigest !== candidate.resultDigest) fail('P9_METADATA_OBSERVATION_CONFLICT', 'Semantic replay changed payload digest.');
+    if (prior && prior.evidenceDigest !== candidate.evidenceDigest) fail('P9_METADATA_OBSERVATION_CONFLICT', 'Semantic replay changed payload digest.');
     if (!prior || compare(candidate.resultId, prior.resultId) < 0) selected.set(intent.intentDigest, candidate);
   }
   const items = [...selected.values()].sort((left, right) =>
@@ -127,7 +127,7 @@ function buildMetadataObservationBasis(value) {
       sourceBasisKind:'metadata_observation', workId:item.workId, attemptId:item.attemptId, planId:item.planId,
       eventId:item.eventId, resultId:item.resultId, capabilityRef:item.capabilityRef,
       resultSchemaRef:item.resultSchemaRef, resultDigest:item.resultDigest, sourceRef:item.result.sourceRef,
-      sourceOrder:ordinal, evidenceId:item.result.evidenceId, evidenceDigest:item.result.payloadDigest,
+      sourceOrder:ordinal, evidenceId:item.result.evidenceId, evidenceDigest:item.evidenceDigest,
       inputBindingDigest:item.inputBindingDigest };
     return { ordinal, workId:item.workId, attemptId:item.attemptId, planId:item.planId, eventId:item.eventId,
       resultId:item.resultId, fetchIntentDigest:item.result.fetchIntentDigest, sourceKind:item.result.sourceKind,

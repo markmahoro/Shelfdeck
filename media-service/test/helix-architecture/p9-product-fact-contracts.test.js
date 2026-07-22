@@ -37,8 +37,8 @@ function observation(intent, options = {}) {
   const resultId = options.resultId || `result-${intent.sourcePriority}`;
   return { ownerDomain:'libra', processType:'libra_run', processId:'run-1', workKind:'product_metadata_observation',
     workState:'succeeded', capabilityRef:'libra.product_metadata.fetch@1',
-    resultSchemaRef:result.schemaRef, result, resultId, resultDigest:result.payloadDigest,
-    resultBindingDigest:canonicalDigest(result), inputBindingDigest:canonicalDigest(intent),
+    resultSchemaRef:result.schemaRef, result, resultId, resultDigest:canonicalDigest(result),
+    evidenceDigest:result.payloadDigest, inputBindingDigest:canonicalDigest(intent),
     workId:`work-${intent.sourcePriority}`, attemptId:`attempt-${intent.sourcePriority}`,
     planId:`plan-${intent.sourcePriority}`, eventId:`event-${intent.sourcePriority}` };
 }
@@ -60,13 +60,13 @@ test('selects only exact durable observation chains and collapses semantic repla
     earlier = observation(sourceIntents[0], { resultId:'a-result' }), provider = observation(sourceIntents[1]);
   earlier.result = later.result;
   earlier.resultDigest = later.resultDigest;
-  earlier.resultBindingDigest = later.resultBindingDigest;
+  earlier.evidenceDigest = later.evidenceDigest;
   const selected = selectMetadataObservations({ intents:sourceIntents, results:[later, provider, earlier] });
   assert.deepEqual(selected.items.map((item) => item.resultId), ['a-result', 'result-1']);
   const divergentResult={ ...earlier.result, payloadDigest:d('changed') };
   assert.throws(() => selectMetadataObservations({ intents:sourceIntents,
-    results:[later, { ...earlier, result:divergentResult, resultDigest:divergentResult.payloadDigest,
-      resultBindingDigest:canonicalDigest(divergentResult) }] }), (error) => error.code === 'P9_METADATA_OBSERVATION_CONFLICT');
+    results:[later, { ...earlier, result:divergentResult, resultDigest:canonicalDigest(divergentResult),
+      evidenceDigest:divergentResult.payloadDigest }] }), (error) => error.code === 'P9_METADATA_OBSERVATION_CONFLICT');
   assert.throws(() => selectMetadataObservations({ intents:sourceIntents, results:[{ ...later, ownerDomain:'people' }] }),
     (error) => error.code === 'P9_METADATA_OBSERVATION_CHAIN');
 });
