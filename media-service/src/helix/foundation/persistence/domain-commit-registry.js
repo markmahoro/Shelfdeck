@@ -97,6 +97,12 @@ function createDomainCommitRegistry(options) {
       if (!participant || participant.owner !== handle.ownerDomain || participant.boundBusinessOwner !== undefined && participant.boundBusinessOwner !== handle.ownerDomain) {
         fail('P3_DOMAIN_COMMIT_PARTICIPANT_OWNER_MISMATCH', 'Typed participant does not preserve the registered Domain Owner.');
       }
+      const readParticipants = participant.readParticipants || [];
+      if (!Array.isArray(readParticipants) || readParticipants.some((item) => !item ||
+          item.boundBusinessOwner !== handle.ownerDomain || !Array.isArray(item.repositories) ||
+          item.repositories.length === 0 || item.repositories.some((repository) => repository.readOnly !== true))) {
+        fail('P3_DOMAIN_COMMIT_READ_PARTICIPANT_INVALID', 'Typed pre-commit readers must be bounded read-only participants.');
+      }
       return participant;
     }
   });
@@ -247,9 +253,20 @@ function createDomainCommitCoordinator(options) {
       const supportingWorkRequired = transaction.readTables.includes('fx_supporting_works');
       if (supportingWorkRequired) text(request.supportingWorkId, 'supportingWorkId');
       const resolvedParticipant = options.registry.resolve(handle, request.payload, { commitMarker:commitMarkerId });
+      const readParticipants = resolvedParticipant.readParticipants || [];
+      const readParticipantIds = new Set();
+      for (const participant of readParticipants) {
+        if (typeof participant.participantId !== 'string' || !participant.participantId ||
+            participant.participantId === 'domain_commit_preflight' || readParticipantIds.has(participant.participantId) ||
+            participant.repositories.some((repository) => repository.tableIds.some((tableId) => !transaction.readTables.includes(tableId)))) {
+          fail('P3_DOMAIN_COMMIT_READ_PARTICIPANT_UNDECLARED', 'Typed pre-commit reader escapes the canonical transaction read set.');
+        }
+        readParticipantIds.add(participant.participantId);
+      }
       let typedResult;
       const domainParticipant = {
         ...resolvedParticipant,
+        readParticipants: undefined,
         execute(context) {
           typedResult = resolvedParticipant.execute(context);
           if (!typedResult || typeof typedResult !== 'object' || Array.isArray(typedResult) || typedResult.schemaRef !== handle.resultSchemaRef) {
@@ -287,7 +304,7 @@ function createDomainCommitCoordinator(options) {
           const stored = parseStoredBinding(context.repository('domain_commit_result').invoke('find', { result_id: existing.result_id }), existing);
           throw new DomainCommitReplay(Object.freeze({ ...existing, ...stored }));
         }
-      }, domainParticipant, {
+      }, ...readParticipants, domainParticipant, {
         participantId: 'domain_commit_result', owner: 'execution-foundation', boundBusinessOwner: handle.ownerDomain,
         repositories: [resultBinding],
         execute(context) {

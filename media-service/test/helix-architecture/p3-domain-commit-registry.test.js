@@ -55,6 +55,38 @@ function registration(owner = 'libra') {
   };
 }
 
+const workReads = createRepositoryDefinition({
+  repositoryId: 'product_fact_work_reads', owner: 'execution-foundation', schemaManifest,
+  statements: { find: { kind:'select-one', tableId:'fx_supporting_works',
+    columns:['work_id','owner_domain','process_type','process_id','state'], keyColumns:['work_id'] } }
+});
+
+const undeclaredReads = createRepositoryDefinition({
+  repositoryId:'undeclared_product_fact_reads', owner:'libra', schemaManifest,
+  statements:{ find:{kind:'select-one',tableId:'libra_routing_policy_revisions',columns:['routing_policy_id','revision'],
+    keyColumns:['routing_policy_id','revision']} }
+});
+
+function productFactRegistration(readRepository = workReads) {
+  return { ownerDomain:'libra', aggregateType:'subject', factType:'media_cast',
+    factSchemaRef:'helix://contracts/types/MediaCastFact/v1', effectClass:'domain_fact_commit', revisionFence:true,
+    createParticipant({ handle, payload }) {
+      let observedWork;
+      const participant = { participantId:'libra_media_cast_fact', owner:'libra', boundBusinessOwner:'libra', repositories:[subjects],
+        execute(context) {
+          if (!observedWork || observedWork.work_id !== 'work-1' || observedWork.owner_domain !== 'libra')
+            throw Object.assign(new Error('Product Fact read continuity failed'), { code:'TEST_PRODUCT_FACT_READ' });
+          context.repository('subjects').invoke('insert',{routing_policy_id:payload.subjectId,revision:1,field_id:'fixture-field',mode:'direct',
+            policy_schema_ref:'helix://fixtures/routing-policy/v1',policy_json:'{}',policy_digest:digest(payload.subjectId),effective_at_ms:context.commitTimeMs});
+          return Object.freeze({schemaRef:handle.resultSchemaRef,schemaVersion:1,subjectId:payload.subjectId,revision:1});
+        } };
+      participant.readParticipants=[{participantId:'product_fact_exact_reads',owner:'execution-foundation',boundBusinessOwner:'libra',
+        repositories:[readRepository],execute(context){if(readRepository===workReads)
+          observedWork=context.repository('product_fact_work_reads').invoke('find',{work_id:'work-1'});}}];
+      return participant;
+    } };
+}
+
 function fixture(run, registrations = [registration()]) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-domain-commit-'));
   const databasePath = path.join(root, 'shelfdeck.db');
@@ -217,6 +249,28 @@ test('atomically coordinates typed Domain fact, Commit Marker, Outbox, and stabl
     assert.equal(marker.result_digest, first.resultBinding.resultDigest);
     database.close();
   });
+});
+
+test('runs bounded typed read participants inside the exact Product Fact transaction', () => {
+  fixture(({ coordinator, databasePath }) => {
+    const value=payload(), handle=domainHandle(value,{factType:'media_cast',
+      factSchemaRef:'helix://contracts/types/MediaCastFact/v1',resultSchemaRef:'helix://contracts/types/MediaCastFact/v1'});
+    const committed=coordinator.execute({...request(value,{handle,outboxMessages:[]}),supportingWorkId:'work-1'});
+    assert.equal(committed.replayed,false);
+    const database=new Database(databasePath,{readonly:true});
+    assert.equal(database.prepare('SELECT COUNT(*) count FROM libra_routing_policy_revisions').get().count,1);
+    assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_commit_markers').get().count,1);
+    assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_outbox').get().count,0);
+    database.close();
+  },[productFactRegistration()]);
+  fixture(({coordinator})=>{const value=payload(),handle=domainHandle(value,{factType:'media_cast',
+    factSchemaRef:'helix://contracts/types/MediaCastFact/v1',resultSchemaRef:'helix://contracts/types/MediaCastFact/v1'});
+    assert.throws(()=>coordinator.execute({...request(value,{handle,outboxMessages:[]}),supportingWorkId:'work-1'}),
+      (error)=>error.code==='P3_DOMAIN_COMMIT_READ_PARTICIPANT_UNDECLARED');},[productFactRegistration(undeclaredReads)]);
+  const registry=createDomainCommitRegistry({registrations:[productFactRegistration(subjects)]});
+  const value=payload(),handle=domainHandle(value,{factType:'media_cast',factSchemaRef:'helix://contracts/types/MediaCastFact/v1',
+    resultSchemaRef:'helix://contracts/types/MediaCastFact/v1'});
+  assert.throws(()=>registry.resolve(handle,value),(error)=>error.code==='P3_DOMAIN_COMMIT_READ_PARTICIPANT_INVALID');
 });
 
 test('rejects unregistered Owner/fact schema, payload drift, and wrong-Owner participant factory', () => {
