@@ -685,7 +685,7 @@
       "relativePath": "types/MediaProbeEvidence/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "3f3a2ff253db9032b20686b08f2f5060dc7bf2b4e70d44d50743338bcb3a22e7"
+        "value": "9d197eb26e6d923be62d6608edc7d200be8a5c5ad5f8c8f16a2be1ddb5f5ab8d"
       },
       "source": {
         "section": "8.6.19",
@@ -1189,7 +1189,7 @@
       "relativePath": "types/ProductMediaVerification/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "0c6af694e2e6ae2968fd1d1fa64d4c02ad49733f95d2d2185a496820de77e7b4"
+        "value": "a97753914efcdba11e60cb9326ba43a94cd400ada86fc4528639ef034da5f4d6"
       },
       "source": {
         "section": "8.6.19",

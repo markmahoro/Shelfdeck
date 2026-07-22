@@ -32,14 +32,50 @@ function buildMediaRequirement(spec) {
     fail('P9_MEDIA_SPEC', 'Acceptance Spec is not the immutable accepted contract.');
   const requirements = spec.requirements;
   if (!requirements?.mandatoryMedia || !requirements?.space) fail('P9_MEDIA_SPEC', 'Acceptance Spec lacks media or space requirements.');
+  const mandatoryMedia=JSON.parse(canonicalJson(requirements.mandatoryMedia)),space=JSON.parse(canonicalJson(requirements.space));
+  sortedUnique(mandatoryMedia.acceptedPrimaryAudioClasses, 'acceptedPrimaryAudioClasses');
+  const hasLimit=space.maxSizeGiB!==null||space.maxSizeBytes!==null;
+  if((space.maxSizeGiB===null)!==(space.maxSizeBytes===null)||
+      (hasLimit&&(!Number.isSafeInteger(space.maxSizeGiB)||space.maxSizeGiB<1||space.maxSizeBytes!==space.maxSizeGiB*1073741824)))
+    fail('P9_MEDIA_REQUIREMENT_SPACE','Media Requirement space limit is not exact.');
   const result = { requirementId:'', revision:integer(spec.specRevision, 'specRevision', 1), schemaRef:'MediaRequirement@1',
     acceptanceSpecId:text(spec.acceptanceSpecId, 'acceptanceSpecId'), acceptanceSpecRecordDigest:digest(spec.recordDigest, 'recordDigest'),
     contentProfile:spec.contentProfile, structureKind:spec.structureKind,
-    mandatoryMedia:JSON.parse(canonicalJson(requirements.mandatoryMedia)), space:JSON.parse(canonicalJson(requirements.space)) };
+    mandatoryMedia, space };
   result.requirementId = canonicalDigest({ schema:'libra.media-requirement-id@1', acceptanceSpecId:result.acceptanceSpecId,
     revision:result.revision, mandatoryMedia:result.mandatoryMedia, space:result.space });
   result.requirementDigest = canonicalDigest(result);
   return limited(result, 16 * 1024, 'P9_MEDIA_REQUIREMENT_SIZE');
+}
+
+function assertExactMediaRequirement(value) {
+  const rebuilt=buildMediaRequirement({schemaRef:'libra.acceptance-spec@1',schemaVersion:1,specRevision:value?.revision,
+    acceptanceSpecId:value?.acceptanceSpecId,recordDigest:value?.acceptanceSpecRecordDigest,contentProfile:value?.contentProfile,
+    structureKind:value?.structureKind,requirements:{mandatoryMedia:value?.mandatoryMedia,space:value?.space}});
+  if(canonicalJson(rebuilt)!==canonicalJson(value))fail('P9_MEDIA_REQUIREMENT_INTEGRITY','Media Requirement identity or digest is invalid.');
+  return value;
+}
+
+function assertProbeEvidence(value) {
+  if(!value||value.schemaRef!=='helix://contracts/types/MediaProbeEvidence/v1'||value.schemaVersion!==1||
+      !Array.isArray(value.videoStreams)||!Array.isArray(value.audioStreams)||!Array.isArray(value.subtitleStreams))
+    fail('P9_MEDIA_PROBE_INTEGRITY','Media Probe Evidence shape is invalid.');
+  for(const streams of [value.videoStreams,value.audioStreams,value.subtitleStreams]){
+    if(new Set(streams.map((item)=>item.streamIndex)).size!==streams.length||streams.some((item,index)=>index&&item.streamIndex<=streams[index-1].streamIndex))
+      fail('P9_MEDIA_PROBE_INTEGRITY','Media Probe streams must be unique and sorted by streamIndex.');
+  }
+  if(value.videoStreams.some((item)=>typeof item.dispositionDefault!=='boolean')||value.audioStreams.some((item)=>
+    typeof item.dispositionDefault!=='boolean'||!['eac3_atmos','truehd','truehd_atmos','dts_hd_ma','dts_x','other'].includes(item.normalizedAudioClass)))
+    fail('P9_MEDIA_PROBE_INTEGRITY','Media Probe primary stream facts are incomplete.');
+  if(value.resultKind==='probed'){
+    if(!value.container||!Number.isSafeInteger(value.durationMs)||value.durationMs<0||value.reasonCode!==undefined)
+      fail('P9_MEDIA_PROBE_INTEGRITY','Probed Evidence branch is invalid.');
+  }else if(value.resultKind!=='not_media'||value.reasonCode!=='probe_not_media'||value.videoStreams.length||value.audioStreams.length||value.subtitleStreams.length){
+    fail('P9_MEDIA_PROBE_INTEGRITY','Not-media Evidence branch is invalid.');
+  }
+  const withoutPayload=Object.fromEntries(Object.entries(value).filter(([key])=>key!=='payloadDigest'));
+  if(canonicalDigest(withoutPayload)!==value.payloadDigest)fail('P9_MEDIA_PROBE_INTEGRITY','Media Probe payload digest is invalid.');
+  return value;
 }
 
 function finalizeProductionIntent(value) {
@@ -80,7 +116,7 @@ function validateDeviceSnapshot(value) {
 }
 
 function buildTranscodeInputVerification(value) {
-  const sourceHandleDigest = canonicalDigest(value.sourceHandle), intent = value.encodeIntent, probe = value.probeEvidence,
+  const sourceHandleDigest = canonicalDigest(value.sourceHandle), intent = value.encodeIntent, probe = assertProbeEvidence(value.probeEvidence),
     device = validateDeviceSnapshot(value.deviceSnapshot), reasons = [];
   if (probe?.sourceHandleDigest !== sourceHandleDigest) reasons.push('source_handle_mismatch');
   if (probe?.resultKind !== 'probed') reasons.push(probe?.resultKind === 'not_media' ? 'source_not_media' : 'probe_integrity_failure');
@@ -102,8 +138,7 @@ function buildTranscodeInputVerification(value) {
 }
 
 function buildWorkspaceMediaOutputTarget(value) {
-  const target = { schemaRef:'helix://contracts/domain-types/WorkspaceMediaOutputTarget/v1', schemaVersion:1,
-    targetId:'', libraRunId:text(value.libraRunId, 'libraRunId'), executionBasisDigest:digest(value.executionBasisDigest, 'executionBasisDigest'),
+  const target = { targetId:'', libraRunId:text(value.libraRunId, 'libraRunId'), executionBasisDigest:digest(value.executionBasisDigest, 'executionBasisDigest'),
     workspaceId:digest(value.workspaceId, 'workspaceId'), expectedWorkspaceRevision:integer(value.expectedWorkspaceRevision, 'expectedWorkspaceRevision', 1),
     expectedWorkspaceStateDigest:digest(value.expectedWorkspaceStateDigest, 'expectedWorkspaceStateDigest'), rootSnapshot:value.rootSnapshot,
     workspaceScopeDigest:digest(value.workspaceScopeDigest, 'workspaceScopeDigest'), targetRelativePath:text(value.targetRelativePath, 'targetRelativePath'),
@@ -124,7 +159,9 @@ function buildWorkspaceMediaHandle(value) {
   const target = value.outputTarget, handle = value.workspaceMaterialHandle, intent = value.productionIntent,
     sourceMaterialHandleDigest = canonicalDigest(value.sourceHandle);
   if (!target || target.productionIntentDigest !== intent?.intentDigest || handle?.workspaceId !== target.workspaceId ||
-      handle?.relativePath !== target.targetRelativePath || value.effectReceipt?.effectScopeDigest !== target.effectScopeDigest)
+      handle?.ownerDomain!=='libra'||handle?.processId!==target.libraRunId||handle?.endpointId!==target.rootSnapshot?.endpointId||
+      handle?.physicalIdentity?.mountScopeId!==target.rootSnapshot?.mountScopeId||handle?.relativePath !== target.targetRelativePath ||
+      value.effectReceipt?.effectScopeDigest !== target.effectScopeDigest)
     fail('P9_MEDIA_OUTPUT_CONTINUITY', 'Workspace output does not match its frozen target and Effect scope.');
   const kind = value.productionIntentKind;
   if (!['remux','encode'].includes(kind) || (kind === 'encode') !== Boolean(value.deviceSnapshot)) fail('P9_MEDIA_OUTPUT_KIND', 'Production intent kind is invalid.');
@@ -144,7 +181,7 @@ function buildWorkspaceMediaHandle(value) {
 }
 
 function buildProductMediaCandidateInput(value) {
-  const requirement = value.mediaRequirement, kind = value.candidateKind;
+  const requirement = assertExactMediaRequirement(value.mediaRequirement), kind = value.candidateKind;
   if (!['direct_input','workspace_output'].includes(kind)) fail('P9_MEDIA_CANDIDATE_KIND', 'Candidate kind is invalid.');
   const common = { schemaRef:'helix://contracts/domain-types/ProductMediaCandidateInput/v1', schemaVersion:1, candidateId:'',
     candidateNodeId:text(value.candidateNodeId, 'candidateNodeId'), candidateBasisDigest:'', libraRunId:text(value.libraRunId, 'libraRunId'),
@@ -152,12 +189,13 @@ function buildProductMediaCandidateInput(value) {
   let result;
   if (kind === 'direct_input') {
     common.candidateBasisDigest = canonicalDigest(value.sourceMaterialHandle);
-    result = { ...common, sourceMaterialHandle:value.sourceMaterialHandle, sourceProbeEvidence:value.sourceProbeEvidence };
+    result = { ...common, sourceMaterialHandle:value.sourceMaterialHandle, sourceProbeEvidence:assertProbeEvidence(value.sourceProbeEvidence) };
   } else {
     const workspace = value.workspaceMediaHandle;
     common.candidateBasisDigest = canonicalDigest({ schema:'libra.workspace-product-candidate-basis@1', outputTargetId:workspace.outputTargetId,
       outputTargetDigest:workspace.outputTargetDigest, productionIntentDigest:workspace.productionIntentDigest });
-    result = { ...common, workspaceMediaHandle:workspace, sourceProbeEvidence:value.sourceProbeEvidence, outputProbeEvidence:value.outputProbeEvidence };
+    result = { ...common, workspaceMediaHandle:workspace, sourceProbeEvidence:assertProbeEvidence(value.sourceProbeEvidence),
+      outputProbeEvidence:assertProbeEvidence(value.outputProbeEvidence) };
   }
   result.candidateId = canonicalDigest({ schema:'libra.product-media-candidate-id@1', candidateNodeId:common.candidateNodeId,
     candidateKind:kind, candidateBasisDigest:common.candidateBasisDigest, mediaRequirementDigest:requirement.requirementDigest });
@@ -165,21 +203,39 @@ function buildProductMediaCandidateInput(value) {
   return limited(result, 64 * 1024, 'P9_MEDIA_CANDIDATE_SIZE');
 }
 
-function rasterClass(probe) {
-  const streams = probe?.videoStreams || [], maximum = streams.reduce((result, item) => Math.max(result, item.longEdge || 0), 0);
-  return maximum >= 3840 ? '4k' : maximum > 0 ? 'below_4k' : 'none';
+function primaryStreams(streams) {
+  const defaults=(streams||[]).filter((item)=>item.dispositionDefault===true);
+  if(defaults.length)return defaults;
+  return [...(streams||[])].sort((a,b)=>a.streamIndex-b.streamIndex).slice(0,1);
 }
-function primaryAudioClasses(probe) { return sortedUnique((probe?.audioStreams || []).map((item) => item.normalizedClass || item.codec), 'primaryAudioClasses'); }
+function rasterClass(probe) {
+  const streams=primaryStreams(probe?.videoStreams);
+  return streams.length&&streams.every((item)=>item.longEdge>=3840)?'4k':streams.length?'below_4k':'none';
+}
+function primaryVideoCodec(probe){const codecs=[...new Set(primaryStreams(probe?.videoStreams).map((item)=>item.codec))];return codecs.length===1?codecs[0]:codecs.length?'mixed':'none';}
+function primaryAudioClasses(probe) { return sortedUnique([...new Set(primaryStreams(probe?.audioStreams).map((item) => item.normalizedAudioClass))]
+  .sort((a,b)=>Buffer.from(a).compare(Buffer.from(b))), 'primaryAudioClasses'); }
 
 function buildProductMediaVerification(value) {
-  const input = value.input, requirement = input.mediaRequirement, mandatory = requirement.mandatoryMedia, outputProbe =
+  const input = value.input;let requirementIntegrity=true;try{assertExactMediaRequirement(input.mediaRequirement);}catch{requirementIntegrity=false;}
+  const requirement = input.mediaRequirement, mandatory = requirement.mandatoryMedia, outputProbe =
     input.candidateKind === 'direct_input' ? input.sourceProbeEvidence : input.outputProbeEvidence,
     handle = input.candidateKind === 'direct_input' ? input.sourceMaterialHandle : input.workspaceMediaHandle.workspaceMaterialHandle;
   const reasons = [];
+  const inputValue=Object.fromEntries(Object.entries(input).filter(([key])=>key!=='inputDigest'));
+  if(canonicalDigest(inputValue)!==input.inputDigest)requirementIntegrity=false;
+  const expectedCandidateBasis=input.candidateKind==='direct_input'?canonicalDigest(input.sourceMaterialHandle):canonicalDigest({
+    schema:'libra.workspace-product-candidate-basis@1',outputTargetId:input.workspaceMediaHandle?.outputTargetId,
+    outputTargetDigest:input.workspaceMediaHandle?.outputTargetDigest,productionIntentDigest:input.workspaceMediaHandle?.productionIntentDigest});
+  const expectedCandidateId=canonicalDigest({schema:'libra.product-media-candidate-id@1',candidateNodeId:input.candidateNodeId,
+    candidateKind:input.candidateKind,candidateBasisDigest:expectedCandidateBasis,mediaRequirementDigest:requirement?.requirementDigest});
+  if(input.candidateBasisDigest!==expectedCandidateBasis||input.candidateId!==expectedCandidateId)requirementIntegrity=false;
+  try{assertProbeEvidence(input.sourceProbeEvidence);assertProbeEvidence(outputProbe);}catch{reasons.push('output_not_media');}
+  if(!requirementIntegrity)reasons.push('requirement_integrity_failure');
   if (outputProbe?.sourceHandleDigest !== canonicalDigest(handle)) reasons.push('output_handle_mismatch');
   if (outputProbe?.resultKind !== 'probed') reasons.push('output_not_media');
   if (mandatory.mediaForm === 'stream_file' && outputProbe?.discTopology) reasons.push('media_form_unmet');
-  const videoCodec = outputProbe?.videoStreams?.[0]?.codec || 'none', container = outputProbe?.container || 'none', extension = (handle.relativePath || handle.location || '').split('.').pop().toLowerCase();
+  const videoCodec = primaryVideoCodec(outputProbe), container = outputProbe?.container || 'none', extension = (handle.relativePath || handle.location || '').split('.').pop().toLowerCase();
   if (mandatory.videoCodec !== 'any' && videoCodec !== mandatory.videoCodec) reasons.push('video_codec_unmet');
   if (mandatory.container !== 'any' && container !== mandatory.container) reasons.push('container_unmet');
   if (mandatory.fileExtension !== 'any' && extension !== mandatory.fileExtension) reasons.push('file_extension_unmet');
@@ -228,8 +284,7 @@ function buildProductOutputSelectionInput(value) {
   const candidates=[...value.candidates].sort((a,b)=>Buffer.from(a.verificationId).compare(Buffer.from(b.verificationId)));
   if(canonicalJson(candidates)!==canonicalJson(value.candidates)||candidates.length!==ranked.length||candidates.some((item)=>
     !ranked.some((rank)=>rank.candidateId===item.candidateId&&rank.candidateNodeId===item.candidateNodeId))) fail('P9_OUTPUT_CANDIDATES','Candidate set does not match criteria.');
-  const result={schemaRef:'helix://contracts/domain-types/ProductOutputSelectionInput/v1',schemaVersion:1,criteria,
-    candidates:Object.freeze(candidates),candidateSetDigest:canonicalDigest({schema:'libra.product-media-verification-set@1',items:candidates})};
+  const result={criteria,candidates:Object.freeze(candidates),candidateSetDigest:canonicalDigest({schema:'libra.product-media-verification-set@1',items:candidates})};
   result.inputDigest=canonicalDigest(result);return limited(result,512*1024,'P9_OUTPUT_INPUT_SIZE');
 }
 
@@ -250,4 +305,4 @@ function selectProductOutput(value) {
 
 module.exports=Object.freeze({MediaProductionContractError,buildMediaRequirement,buildEncodeIntent,buildRemuxIntent,buildTranscodeInputVerification,
   buildWorkspaceMediaOutputTarget,buildWorkspaceMediaHandle,buildProductMediaCandidateInput,buildProductMediaVerification,
-  buildProductOutputSelectionInput,selectProductOutput});
+  buildProductOutputSelectionInput,selectProductOutput,assertExactMediaRequirement,assertProbeEvidence});

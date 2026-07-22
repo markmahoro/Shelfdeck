@@ -82,6 +82,9 @@
             "type": "integer",
             "minimum": 0
           },
+          "dispositionDefault": {
+            "type": "boolean"
+          },
           "codec": {
             "type": "string",
             "minLength": 1
@@ -122,6 +125,7 @@
         },
         "required": [
           "streamIndex",
+          "dispositionDefault",
           "codec",
           "codedWidth",
           "codedHeight",
@@ -145,9 +149,43 @@
             "type": "integer",
             "minimum": 0
           },
+          "dispositionDefault": {
+            "type": "boolean"
+          },
           "codec": {
             "type": "string",
             "minLength": 1
+          },
+          "profile": {
+            "type": "string",
+            "minLength": 1
+          },
+          "channels": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "channelLayout": {
+            "type": "string",
+            "minLength": 1
+          },
+          "formatTags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "maxItems": 64
+          },
+          "normalizedAudioClass": {
+            "type": "string",
+            "enum": [
+              "eac3_atmos",
+              "truehd",
+              "truehd_atmos",
+              "dts_hd_ma",
+              "dts_x",
+              "other"
+            ]
           },
           "language": {
             "anyOf": [
@@ -163,7 +201,13 @@
         },
         "required": [
           "streamIndex",
-          "codec"
+          "dispositionDefault",
+          "codec",
+          "profile",
+          "channels",
+          "channelLayout",
+          "formatTags",
+          "normalizedAudioClass"
         ]
       },
       "maxItems": 128

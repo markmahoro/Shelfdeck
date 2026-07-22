@@ -86,10 +86,14 @@ const perceptionResolvedProvenance = object({
 });
 
 const stream = object({
-  streamIndex: nonNegativeInteger(), codec: text(), codedWidth: positiveInteger(), codedHeight: positiveInteger(),
+  streamIndex: nonNegativeInteger(), dispositionDefault: bool(), codec: text(), codedWidth: positiveInteger(), codedHeight: positiveInteger(),
   sampleAspectRatio: text(), rotation: { type: 'integer', minimum: -359, maximum: 359 }, displayWidth: positiveInteger(),
   displayHeight: positiveInteger(), longEdge: positiveInteger(), shortEdge: positiveInteger()
 });
+const audioStream = object({ streamIndex: nonNegativeInteger(), dispositionDefault: bool(), codec: text(), profile: text(),
+  channels: positiveInteger(), channelLayout: text(), formatTags: arrayOf(text(), 64),
+  normalizedAudioClass: enumText('eac3_atmos', 'truehd', 'truehd_atmos', 'dts_hd_ma', 'dts_x', 'other'), language: nullable(text()) },
+['streamIndex', 'dispositionDefault', 'codec', 'profile', 'channels', 'channelLayout', 'formatTags', 'normalizedAudioClass']);
 const simpleStream = object({ streamIndex: nonNegativeInteger(), codec: text(), language: nullable(text()) }, ['streamIndex', 'codec']);
 const decimalInt64 = text({ pattern: '^(0|[1-9][0-9]{0,18})$' });
 const fieldMaterialObservation = object({
@@ -136,7 +140,7 @@ const special = {
     location: text(), sizeBytes: nonNegativeInteger(), mtimeNs: text(), checksumAlgorithm: { const: 'sha256' }, checksumHex: digest(),
     entryDigest: digest() }, ['entryOrdinal', 'entryKind', 'relativeLocation', 'baseName', 'endpointId', 'location', 'entryDigest']), 256),
   'MediaProbeEvidence.videoStreams': arrayOf(stream, 64),
-  'MediaProbeEvidence.audioStreams': arrayOf(simpleStream, 128),
+  'MediaProbeEvidence.audioStreams': arrayOf(audioStream, 128),
   'MediaProbeEvidence.subtitleStreams': arrayOf(simpleStream, 256),
   'PersonMatchEvidence.matches': arrayOf(object({ clusterId: id(), personId: id(), confidenceClass: text(), evidenceDigest: digest() })),
   'FieldObservationPage.materialObservations': arrayOf(fieldMaterialObservation, 100),
@@ -275,6 +279,9 @@ const special = {
     'media_form_unmet', 'video_codec_unmet', 'container_unmet', 'file_extension_unmet', 'minimum_raster_unmet',
     'system_upscale_forbidden', 'primary_audio_unmet', 'max_size_exceeded', 'domain_binding_unmet', 'checksum_unmet',
     'artifact_materialization_unmet', 'layout_unmet'), 20),
+  'ProductMediaVerification.reasonCodes': arrayOf(enumText('output_handle_mismatch', 'output_not_media', 'media_form_unmet',
+    'video_codec_unmet', 'container_unmet', 'file_extension_unmet', 'minimum_raster_unmet', 'system_upscale_forbidden',
+    'primary_audio_unmet', 'max_size_exceeded', 'requirement_integrity_failure'), 11),
   'OnDeckProductPackage.productMaterialManifest': snapshot('product-material-manifest'),
   'OnDeckProductPackage.acceptanceSpecRef': object({ id: id(), recordDigest: digest() }),
   'OnDeckProductPackage.resolvedIdentitySnapshot': snapshot('resolved-identity-product-fact'),

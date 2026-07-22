@@ -68,12 +68,18 @@ function createProductConformanceCoordinator(options){
       let workspaceHandleDigest=null;
       if(verification.candidateKind==='workspace_output'){
         const staging=await read('stagingReference',ref.provenanceRef);
-        if(staging.productMaterialHandleId!==verification.productMaterialHandleId||staging.workspaceHandleDigest!==ref.workspaceHandleDigest)
+        const workspace=staging.workspaceMediaHandle,material=workspace?.workspaceMaterialHandle,actualWorkspaceDigest=canonicalDigest(workspace);
+        if(staging.libraRunId!==runBasis.libraRunId||workspace?.producingEventId!==verification.producingEventId||
+            workspace?.workspaceMediaHandleId!==verification.workspaceMediaHandleId||material?.handleId!==verification.productMaterialHandleId||
+            canonicalDigest(material)!==verification.productMaterialHandleDigest||material?.fenceDigest!==verification.productMaterialFenceDigest||
+            staging.workspaceHandleDigest!==actualWorkspaceDigest||actualWorkspaceDigest!==ref.workspaceHandleDigest)
           fail('P9_CONFORMANCE_STAGING_REF','Product Staging Reference does not match the selected Product.');
         workspaceHandleDigest=staging.workspaceHandleDigest;
       }else{
         const input=await read('directInputMaterial',ref.provenanceRef);
-        if(input.productMaterialHandleId!==verification.productMaterialHandleId)
+        const material=input.productMaterialHandle;
+        if(input.libraRunId!==runBasis.libraRunId||material?.handleId!==verification.productMaterialHandleId||
+            canonicalDigest(material)!==verification.productMaterialHandleDigest||material?.fenceDigest!==verification.productMaterialFenceDigest)
           fail('P9_CONFORMANCE_INPUT_REF','Immutable Run input does not match the selected Product.');
       }
       selectedProducts.push({selectedProduct,verification,workspaceHandleDigest});

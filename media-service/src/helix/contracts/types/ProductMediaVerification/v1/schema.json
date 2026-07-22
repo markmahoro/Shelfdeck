@@ -41,9 +41,21 @@
       "type": "array",
       "items": {
         "type": "string",
-        "minLength": 1
+        "enum": [
+          "output_handle_mismatch",
+          "output_not_media",
+          "media_form_unmet",
+          "video_codec_unmet",
+          "container_unmet",
+          "file_extension_unmet",
+          "minimum_raster_unmet",
+          "system_upscale_forbidden",
+          "primary_audio_unmet",
+          "max_size_exceeded",
+          "requirement_integrity_failure"
+        ]
       },
-      "maxItems": 1024
+      "maxItems": 11
     },
     "evidenceRefs": {
       "type": "array",

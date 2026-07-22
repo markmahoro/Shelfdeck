@@ -1,6 +1,7 @@
 'use strict';
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
+const { buildMediaRequirement } = require('./media-production-contracts');
 
 class ProductConformanceError extends Error {
   constructor(code, message) { super(message); this.name = 'ProductConformanceError'; this.code = code; }
@@ -102,6 +103,29 @@ function validateArtifactVerificationSnapshot(value, manifestItem) {
   if (!verification.verifiedArtifacts?.some((item) => item.artifactHandleId === verified.artifactHandleId &&
       item.artifactRevision === verified.artifactRevision && item.artifactDigest === verified.artifactDigest))
     fail('P9_CONFORMANCE_ARTIFACT_VERIFICATION', 'Artifact verification Result does not cover the manifest item.');
+  const requirement=verification.requirement,expectedRequirementDigest=canonicalDigest({schema:'shared.artifact-requirement@1',
+    revision:requirement?.revision,schemaRef:requirement?.schemaRef,artifactKind:requirement?.artifactKind,requirementPayload:requirement?.requirementPayload}),
+    expectedRequirementId=canonicalDigest({schema:'shared.artifact-requirement-id@1',requirementDigest:expectedRequirementDigest});
+  if(!requirement||requirement.requirementDigest!==expectedRequirementDigest||requirement.requirementId!==expectedRequirementId||
+      verified.requirementId!==requirement.requirementId||verified.requirementRevision!==requirement.revision||
+      verified.requirementSchemaRef!==requirement.schemaRef||verified.requirementDigest!==requirement.requirementDigest)
+    fail('P9_CONFORMANCE_ARTIFACT_REQUIREMENT','Artifact verification Requirement continuity failed.');
+  const verificationItems=verification.verifiedArtifacts;
+  assertSorted(verificationItems,(a,b)=>utf8(a.artifactKind,b.artifactKind)||utf8(a.artifactHandleId,b.artifactHandleId)||
+    a.artifactRevision-b.artifactRevision,'P9_CONFORMANCE_ARTIFACT_VERIFICATION');
+  verificationItems.forEach((item,ordinal)=>{if(item.ordinal!==ordinal)fail('P9_CONFORMANCE_ARTIFACT_VERIFICATION','Artifact verification ordinal is invalid.');
+    assertDigest(item,'referenceDigest');});
+  const expectedManifestDigest=canonicalDigest({schema:'shared.artifact-verification-input-manifest@1',
+    requirementDigest:requirement.requirementDigest,items:verificationItems});
+  const expectedBasisDigest=canonicalDigest({schema:'shared.artifact-manifest-verification-basis@1',manifestDigest:expectedManifestDigest,
+    requirementDigest:requirement.requirementDigest});
+  if(verification.manifestDigest!==expectedManifestDigest||verification.basisDigest!==expectedBasisDigest||
+      verification.verificationId!==canonicalDigest({schema:'shared.artifact-manifest-verification-id@1',manifestDigest:expectedManifestDigest,
+        requirementDigest:requirement.requirementDigest,basisDigest:expectedBasisDigest})||
+      canonicalJson(verification.artifactDigests)!==canonicalJson(verificationItems.map((item)=>item.artifactDigest))||
+      verification.verificationDigest!==canonicalDigest(without(verification,'verificationDigest'))||
+      verified.verificationEvidenceId!==verification.verificationId||verified.verificationEvidenceDigest!==verification.verificationDigest)
+    fail('P9_CONFORMANCE_ARTIFACT_VERIFICATION','Artifact verification digest closure failed.');
   if (result.artifactManifestItem !== null && (!manifestItem ||
       ['artifactHandleId','artifactKind','artifactRevision','artifactDigest','requirementDigest'].some((key) =>
         result.artifactManifestItem[key] !== verified[key] || result.artifactManifestItem[key] !== manifestItem[key])))
@@ -185,7 +209,7 @@ function buildProductConformanceInputSnapshot(value) {
       artifactVerificationSnapshots.some((item, index) => item.ordinal !== index ||
         canonicalJson(item.verifiedManifestItem) !== canonicalJson(verifiedArtifactManifest.items[index])))
     fail('P9_CONFORMANCE_ARTIFACT_COVERAGE', 'Artifact verification snapshots must exactly cover the verified manifest.');
-  const selectedProducts = value.selectedProducts.map((item) => clone(item));
+  const mediaRequirement=buildMediaRequirement(acceptanceSpec),selectedProducts = value.selectedProducts.map((item) => clone(item));
   assertSorted(selectedProducts, (a, b) => utf8(a.selectedProduct.selectedHandleId, b.selectedProduct.selectedHandleId) ||
     utf8(a.selectedProduct.selectedVerificationId, b.selectedProduct.selectedVerificationId), 'P9_CONFORMANCE_SELECTED_ORDER');
   if (!selectedProducts.length || selectedProducts.length > 32 || new Set(selectedProducts.map((item) =>
@@ -196,8 +220,17 @@ function buildProductConformanceInputSnapshot(value) {
     if (selected.result !== 'selected' || verification.result !== 'passed' ||
         selected.selectedVerificationId !== verification.verificationId || selected.selectedVerificationDigest !== canonicalDigest(verification) ||
         selected.selectedHandleId !== verification.productMaterialHandleId || selected.libraRunId !== libraRunId || verification.libraRunId !== libraRunId ||
+        selected.acceptanceSpecId!==acceptanceSpec.acceptanceSpecId||selected.mediaRequirementDigest!==mediaRequirement.requirementDigest||
+        verification.mediaRequirementId!==mediaRequirement.requirementId||verification.mediaRequirementDigest!==mediaRequirement.requirementDigest||
+        verification.reasonCodes.length!==0||
         (verification.candidateKind === 'workspace_output') !== Boolean(item.workspaceHandleDigest))
       fail('P9_CONFORMANCE_SELECTED_CONTINUITY', 'Selected Product and passed verification continuity failed.');
+    const expectedVerificationId=canonicalDigest({schema:'libra.product-media-verification-id@1',candidateId:verification.candidateId,
+      candidateNodeId:verification.candidateNodeId,candidateBasisDigest:verification.candidateBasisDigest,candidateKind:verification.candidateKind,
+      libraRunId:verification.libraRunId,productMaterialHandleId:verification.productMaterialHandleId,
+      productMaterialFenceDigest:verification.productMaterialFenceDigest,mediaRequirementDigest:verification.mediaRequirementDigest,
+      sourceProbeEvidenceDigest:verification.sourceProbeEvidenceDigest,outputProbeEvidenceDigest:verification.outputProbeEvidenceDigest});
+    if(verification.verificationId!==expectedVerificationId)fail('P9_CONFORMANCE_SELECTED_CONTINUITY','Product Media Verification identity is invalid.');
   }
   const productFactSetDigest = canonicalDigest({ schema:'libra.product-conformance-fact-set@1', items:facts });
   const artifactVerificationSetDigest = canonicalDigest({ schema:'libra.product-conformance-artifact-verification-set@1', items:artifactVerificationSnapshots });
