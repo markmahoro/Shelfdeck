@@ -2621,3 +2621,35 @@ Media Cast Fact输入，无法构造输出Fact三元组。把字符串猜成Fact
 
 该修正不新增Domain、Owner、Store、Handoff、Capability、Result family、table或transaction，inventory保持
 `112 / 97 / 177 / 43`。结果为`PASS / PBF-14-R7 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.44 `PBF-15` — Media Production、Output Selection与Conformance输入输出闭包
+
+Status: `CLOSED / BOUNDED INPUT-RESULT FIX APPLIED` — 2026-07-23
+
+P9-06反向实现审计证明六项合同缺口成立：Transcode Input Verification缺Probe/Device Authority；Remux/Transcode
+缺Workspace Target与Effect recovery identity；Workspace Media Result存在两个未定义Handle ID及opaque Probe ref；
+Product Media Verification只有Requirement digest而没有可执行Requirement；Output Selection依赖未声明数组顺序；
+Product Conformance只有Fact/Spec摘要，无法执行六类Requirement或形成可验证Attestation。继续实现将迫使Executor
+读取current Device/Workspace、隐藏probe/replan、硬编码Policy或扫描latest Owner rows。
+
+Bounded correction保持既有业务边界：
+
+- 复用Platform现有Compute Device Owner rows，正式定义只读`PlatformComputeRuntimePort` Query/Result及
+  `MediaExecutionDeviceSnapshot`；Planner选择并冻结Snapshot，Governor只发Permit，Executor不得换Device；
+- 固化`EncodeIntent/RemuxIntent`、`WorkspaceMediaOutputTarget`与Effect idempotency/fence公式；workspace-write只向
+  Plan声明的relative target产生一个Foundation `WorkspaceMaterialHandle`，重启经Effect Journal恢复相同效果；
+- `WorkspaceMediaHandle`改为嵌套唯一Handle并显式保存source handle digest、Target/Intent/Event/Effect receipt；Probe由
+  既有`shared.material.media.probe@1`另行产生，不再使用opaque `mediaProbeRef`；
+- `MediaRequirement`完整复制Acceptance Spec的Mandatory Media与Space对象；`ProductMediaCandidateInput`以closed union
+  对称支持direct-original input与Workspace output，Product Verification固定Probe/Handle/Requirement一致性、closed
+  reason、音轨分类、4K非系统放大和size判定公式；
+- Output Selection使用Planner冻结的显式rank和verification ID tie-break，返回`selected|not_selected` typed Draft，
+  不依赖caller数组顺序，也不在Executor发明质量偏好；原窄化的`SelectedWorkspaceProduct` nominal Result由同计数的
+  `SelectedProductOutput`替换，使direct-original与Workspace output共用一套选择合同且不建立兼容别名；
+- Product Conformance消费完整bounded Spec/Product snapshot，按六组Requirement和closed unmet code评估；只有passed
+  Evidence可逐字节进入Production Attestation，禁止latest/current Store扫描或Foundation Result补值。
+
+反向审计覆盖Platform Device authority、P4 Effect/recovery、P5 probe/Worker边界、Workspace Reference promotion、
+Product Staging与P9-08 Attestation。修正只新增formal input DTO和typed runtime-port合同并扩充既有Result family；不新增
+Business Domain、Owner、Store、Handoff、Catalog Capability、Catalog Result family、table或Canonical Transaction，
+inventory保持`112 / 97 / 177 / 43`。结果为`PASS / PBF-15 CLOSED / NO OPEN BUSINESS DECISION`。
