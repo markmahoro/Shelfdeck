@@ -1,8 +1,8 @@
 # Helix Clean Top-down Architecture
 
-Status: ShelfDeck / Helix architecture SSOT; Levels 0–10 accepted; final full-document audit and post-baseline `PBF-01`–`PBF-14`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R4-R1`、`PBF-13-R4-R2`、`PBF-13-R5`、`PBF-13-R5-R1`、`PBF-13-R5-R2`、`PBF-13-R5-R3`、`PBF-14-R1`、`PBF-14-R2`、`PBF-14-R3`、`PBF-14-R4`、`PBF-14-R5`、`PBF-14-R6`、`PBF-14-R7`）bounded corrections closed; implementation not authorized by this document.
+Status: ShelfDeck / Helix architecture SSOT; Levels 0–10 accepted; final full-document audit and post-baseline `PBF-01`–`PBF-16`（含各自已记录的bounded revisions）closed; implementation not authorized by this document.
 
-Last updated: 2026-07-22
+Last updated: 2026-07-23
 
 ## Document purpose
 
@@ -8877,16 +8877,173 @@ Package中的每个新Physical Material Identity取得Libra Control，并验证�
 | `libra.external_material.query.prepare@1` | `ResolvedProductIdentity + ProductStructure → AcquisitionQuery` | `pure_observation` |
 | `libra.external_material.search@1` | `AcquisitionQuery + IntegrationHandle → AcquisitionCandidates` | `pure_observation` |
 | `libra.external_material.candidate.select@1` | `Candidates + SelectionCriteria → SelectedCandidate` | `pure_observation` |
-| `libra.external_material.acquire.request@1` | `SelectedCandidate + WorkspaceDeliveryContract + IntegrationHandle → ExternalJobReceipt` | `external_request` |
-| `libra.external_material.acquire.observe@1` | `ExternalJobReceipt + phase → AcquisitionObservation`（未完成使用Outcome `deferred`） | `pure_observation` |
+| `libra.external_material.acquire.request@1` | `SelectedCandidate(selected) + AcquisitionQuery + IntegrationHandle → ExternalJobReceipt` | `external_request` |
+| `libra.external_material.acquire.observe@1` | `ExternalJobReceipt + IntegrationHandle + phase → AcquisitionObservation`（未完成使用Outcome `deferred`） | `pure_observation` |
 | `libra.external_material.output.resolve@1` | `AcquisitionObservation + ProductStructure → ExternalMaterialHandle` | `pure_observation` |
-| `libra.external_material.stability.observe@1` | `ExternalMaterialHandle → StableExternalMaterialEvidence`（未稳定使用Outcome `deferred`） | `pure_observation` |
+| `libra.external_material.stability.observe@1` | `ExternalMaterialHandle + IntegrationHandle + quietWindowMs → StableExternalMaterialEvidence`（未稳定使用Outcome `deferred`） | `pure_observation` |
 | `libra.external_material.identity.verify@1` | `Stable evidence + ResolvedProductIdentity → IdentityVerification` | `pure_observation` |
-| `libra.external_material.package.verify@1` | `External handle + Episode Delivery Manifest + Identity Requirement → VerifiedExternalPackage` | `pure_observation` |
-| `libra.workspace.material.import@1` | `ExternalMaterialHandle + Libra Workspace scope → WorkspaceMaterialHandle` | `workspace_write` |
+| `libra.external_material.package.verify@1` | `Stable evidence + IdentityVerification + Episode Delivery Manifest + Identity Requirement → VerifiedExternalPackage` | `pure_observation` |
+| `libra.workspace.material.import@1` | `Stable evidence + VerifiedExternalPackage + WorkspaceDeliveryContract → WorkspaceMaterialHandle` | `workspace_write` |
 
 请求、观察、稳定性和导入必须分开。`acquire.observe`一次只观察一次，不在Executor内部轮询；Downloaded
 Material在导入Libra Workspace前不是Libra Product，也不能直接成为Arca Inventory。
+
+`PBF-16`把这条既有链路收窄为一条无旁读的typed continuity，且不增加Business Domain、Owner、Store、
+Handoff或Catalog Capability：
+
+- 本链路读取的`ProductStructure@1`固定为`{objectId,revision,digest,subjectId,structureKind(single|season),
+  episodeClaims[0..256]{episodeKey,seasonClaimDigest,claimDigest},structureDigest}`；single的Claim固定为空，season按
+  episodeKey UTF-8 bytes排序且key唯一，Claim/set digest沿用8.6.18 Production Episode公式，`structureDigest=
+  SHA-256(JCS({schema:"libra.product-structure@1",subjectId,structureKind,episodeClaims}))`且`digest=structureDigest`。
+  `AcquisitionQuery@1`固定为`DraftEnvelope + libraRunId + runExecutionBasisDigest + resolvedIdentityDigest +
+  productStructureDigest + structureKind(single|season) + contentProfile(movie|series|jav|western_adult) +
+  providerIdentityAnchors[1..16 ResolvedProviderIdentity@1] + requestedEpisodeKeys[0..256] + queryTerms[1..32]{
+  ordinal,termKind(provider_key|title|season),value,termDigest} +
+  hardConstraints{requiredStructureKind,requiredEpisodeKeys} + queryDigest`。Anchor及Episode key分别按8.6.18既定
+  顺序稳定排序；term ordinal从0连续，`termDigest=SHA-256(JCS({schema:
+  "libra.external-acquisition-query-term@1",termKind,value}))`。`queryDigest=SHA-256(JCS({schema:"libra.external-acquisition-query@1",libraRunId,
+  runExecutionBasisDigest,resolvedIdentityDigest,productStructureDigest,structureKind,contentProfile,
+  providerIdentityAnchors,requestedEpisodeKeys,queryTerms,hardConstraints}))`，Draft digest覆盖完整value，完整JCS
+  不超过`16 KiB`。它只表达搜索目标，不携带Workspace路径或Provider secret。
+- `AcquisitionCandidates@1.candidates[]`不再是generic object ref，而是`0..100`项完整
+  `ProviderAcquisitionCandidateSnapshot`：`{candidateId,integrationId,configRevision,providerCandidateRef{
+  objectType:"acquisition_candidate",objectId,revision,digest},providerRank,
+  identityAnchors[0..16 ResolvedProviderIdentity@1],structureKind,
+  episodeKeys[0..256],availability(available|unavailable),candidateDigest}`；`providerRank`为`0..99`且集合内
+  从0连续、candidate ID唯一。`candidateId=SHA-256(JCS({schema:
+  "provider-acquisition-candidate-id@1",integrationId,configRevision,providerCandidateRef}))`，`candidateDigest=
+  SHA-256(JCS(完整candidate excluding candidateDigest))`；按`providerRank,candidateId`排序且tuple唯一，
+  `candidateSetDigest=SHA-256(JCS({schema:"libra.external-acquisition-candidate-set@1",queryDigest,
+  integrationId,configRevision,items:candidates}))`。Evidence payload覆盖query、Integration fence与完整集合，完整Result
+  不超过`65,536` bytes；P5 Adapter不得只返回不可解析字符串或另一个Store的locator。
+- `SelectionCriteria@1`在本链路固定为`{contractId,revision,schemaRef:"SelectionCriteria@1",queryDigest,
+  strategy:"available_provider_rank_then_candidate_id",criteriaDigest}`；它不是用户Means Policy。Candidate Select先
+  丢弃`unavailable`，再按已经冻结的`providerRank,candidateId`选择，禁止数组位置、文件大小、时间或Provider
+  current状态参与。`SelectedCandidate@1`改为closed `selected|not_selected` union，公共部分为
+  `DraftEnvelope + queryDigest + candidateSetDigest + selectionCriteriaDigest + result + selectionReasonCode`；
+  selected恰含完整`selectedCandidate`及同值`selectedCandidateId`，reason为`selected_by_provider_rank`；
+  not_selected两项均为NULL，reason为`no_available_candidate`。`draftId=SHA-256(JCS({schema:
+  "libra.external-selected-candidate-id@1",queryDigest,candidateSetDigest,selectionCriteriaDigest}))`，完整值不超过
+  `65,536` bytes，Draft `basisDigest=SHA-256(JCS({schema:"libra.external-candidate-selection-basis@1",
+  queryDigest,candidateSetDigest,selectionCriteriaDigest}))`且draftDigest按Envelope通则。Acquire Request只接受selected
+  variant并从其完整`providerCandidateRef`逐字节构造P5 request；
+  `AcquisitionQuery`同时进入request digest，故revision/digest/objectType/provider locator均不靠隐藏lookup恢复。
+- `AcquisitionObservation@1`只在Provider job ready时发布，固定为`EvidenceEnvelope + externalJobReceipt(
+  ExternalJobReceipt@1) + phase(download|transfer) + providerObservationRevision + outputSnapshot +
+  observationDigest`。未完成不发布该Result而返回`deferred`，Provider terminal failure形成Attempt failure。
+  `outputSnapshot`固定为`{integrationId,configRevision,externalObjectRef,endpointId,location,structureKind,
+  members[1..256]{ordinal,externalMemberId,relativePath,sizeBytes,checksumAlgorithm(sha256),checksumHex,
+  episodeClaims[0..32]{episodeKey,claimDigest},memberDigest},
+  identityAnchors[0..16 ResolvedProviderIdentity@1],observedTitle?,releaseYear?,
+  observedAtMs,newestMutationAtMs,memberSetDigest,manifestDigest,snapshotDigest}`；member按ordinal从0连续；本链路的
+  `claimDigest=SHA-256(JCS({schema:"provider-external-member-episode-claim@1",episodeKey}))`，同一member内
+  Episode key按UTF-8 bytes排序且唯一；
+  `memberSetDigest=SHA-256(JCS({schema:"provider-external-material-members@1",items:members}))`，
+  `manifestDigest=SHA-256(JCS({schema:"provider-external-material-manifest@1",structureKind,memberSetDigest}))`，
+  `snapshotDigest=SHA-256(JCS(完整outputSnapshot excluding snapshotDigest))`。location/relativePath必须位于返回
+  Endpoint的Integration containment内；完整Observation最多`65,536` bytes，超限稳定失败而不能裁剪成员或写
+  opaque outputRefs。`observationDigest=SHA-256(JCS({schema:"libra.external-acquisition-observation@1",
+  externalJobReceipt,phase,providerObservationRevision,outputSnapshot}))`且等于Evidence `payloadDigest`；`basisDigest=
+  SHA-256(JCS({schema:"libra.external-acquisition-observation-basis@1",externalJobReceiptId:
+  externalJobReceipt.receiptId,requestDigest:externalJobReceipt.requestDigest,phase,integrationId:
+  externalJobReceipt.integrationId,configRevision:externalJobReceipt.configRevision}))`。
+- `ExternalMaterialHandle@1`固定为`{handleId,integrationId,configRevision,externalObjectRef,endpointId,location,
+  structureKind,outputSnapshot,manifestDigest,observationRevision,accessFenceDigest}`；Output Resolve逐字节复制ready
+  Observation并验证Product Structure/Episode scope，`handleId=SHA-256(JCS({schema:
+  "libra.external-material-handle-id@1",integrationId,configRevision,externalObjectRef,observationRevision,
+  manifestDigest}))`，`accessFenceDigest=SHA-256(JCS({schema:"libra.external-material-access-fence@1",handleId,
+  endpointId,location,outputSnapshotDigest:outputSnapshot.snapshotDigest}))`，完整值不超过`65,536` bytes。
+- Stability Observe必须使用与Handle相同integration/config revision、allowed operation与secret lease的
+  `IntegrationHandle`调用P5一次；Adapter返回同形完整`outputSnapshot`。`quietWindowMs`固定在Plan参数中并为
+  `1..86400000`。当前snapshot的`observedAtMs-newestMutationAtMs`未达到窗口时返回`deferred`；达到后发布
+  `StableExternalMaterialEvidence@1 = VerificationEnvelope + sourceExternalMaterialHandleId +
+  stableExternalMaterialHandle(由当前snapshot重新签发) + observationWindow{startedAtMs,endedAtMs,
+  quietWindowMs,newestMutationAtMs} + stableDigest`。因此初次Resolve后Material继续变化不会修改旧Handle，也不会把
+  旧manifest冒充稳定结果；下游只使用Evidence内的stable Handle。`stableDigest=SHA-256(JCS(完整value excluding
+  stableDigest))`，完整Result不超过`65,536` bytes。
+- Identity Verify只读取Stable Evidence中的完整identity Anchors；`IdentityVerification@1`的strengthClass closed为
+  `exact_provider_identity|unverified`。只有至少一项Observed Anchor与`ResolvedProductIdentity@1`的provider/
+  namespace/key/season tuple逐字节匹配时为`passed + exact_provider_identity`；无Anchor或不匹配分别为failed reason
+  `identity_anchor_missing|identity_mismatch`，schema/digest断裂为`identity_evidence_integrity_failure`。不得以query
+  echo、title模糊匹配或路径名升级为Observed Identity。`expectedIdentityDigest`复制Resolved Identity，
+  `observedIdentityDigest=SHA-256(JCS({schema:"libra.external-observed-identity@1",identityAnchors,
+  observedTitle:observedTitle??null,releaseYear:releaseYear??null}))`；`basisDigest=SHA-256(JCS({schema:
+  "libra.external-identity-verification-basis@1",stableDigest,expectedIdentityDigest,observedIdentityDigest}))`，
+  `verificationId=SHA-256(JCS({schema:"libra.external-identity-verification-id@1",basisDigest}))`，其余按Envelope通则。
+- 本链路使用的`EpisodeDeliveryManifest@1`固定为`{objectId,revision,digest,libraRunId,subjectId,
+  structureKind(single|season),seasonScopeDigest?,episodeClaims[0..256]{episodeKey,seasonClaimDigest,
+  outputRequirementDigest,claimDigest},deliveryDigest}`；single的Claim为空且seasonScope为NULL，season按episodeKey排序
+  且key唯一，Claim及set digest沿用Production Material公式。`IdentityRequirement@1`固定为
+  `{requirementId,revision,schemaRef:"IdentityRequirement@1",expectedIdentityDigest,
+  strengthClass:"exact_provider_identity",digest}`，删除generic typedParameters；digest覆盖完整value excluding digest。
+  Package Verify必须同时消费同一Stable Evidence、passed Identity Verification、上述Episode Manifest和Requirement；
+  不能从Handle ID推导前序Verification。`VerifiedExternalPackage@1`固定追加
+  `stableExternalMaterialHandleId,stableManifestDigest,identityVerificationId,identityVerificationDigest,
+  verifiedMemberIds[],verifiedMemberSetDigest`。single要求恰一primary member且无Episode Claim；season要求每个
+  Delivery Episode至少由一项member覆盖、每个verified member至少承载一项本次Delivery Episode且无scope外Episode；
+  `E01-E02`共用member或一个Episode由多个part member承载仍是合法Pre-deck N:M输入，后续必须由Libra Production
+  规范化，不能被Package Verify提前伪装成最终一对一产品。member ID按UTF-8 bytes排序且唯一，
+  `verifiedMemberSetDigest=SHA-256(JCS({schema:"libra.verified-external-package-members@1",
+  items:verifiedMemberIds}))`，`packageManifestDigest=SHA-256(JCS({schema:
+  "libra.verified-external-package-manifest@1",stableManifestDigest,episodeDeliveryManifestDigest,
+  identityVerificationDigest,verifiedMemberSetDigest}))`；`basisDigest=SHA-256(JCS({schema:
+  "libra.external-package-verification-basis@1",stableDigest,identityVerificationDigest,
+  episodeDeliveryManifestDigest,identityRequirementDigest:IdentityRequirement.digest}))`，`verificationId=
+  SHA-256(JCS({schema:"libra.external-package-verification-id@1",basisDigest,packageManifestDigest}))`。reason closed为
+  `identity_verification_failed|structure_mismatch|episode_coverage_mismatch|package_integrity_failure`并按该precedence
+  去重；reason空为passed，否则failed，完整Result不超过`16 KiB`。
+- `WorkspaceDeliveryContract@1`只用于Import并改为exact contract：`{contractId,revision,schemaRef:
+  "WorkspaceDeliveryContract@1",libraRunId,workspaceId,expectedWorkspaceRevision,expectedWorkspaceStateDigest,
+  rootSnapshot(PlatformWorkspaceRootSnapshot@1),stableExternalMaterialHandleId,verifiedPackageDigest,
+  memberSelector:"external_member_id",externalMemberId,targetRelativePath,digest}`。`externalMemberId`必须是
+  Verified Package成员集合中的唯一成员；target必须是Workspace-root-relative且在同一Package内唯一。Planner按已冻结的
+  verified member集合为每个成员生成一个Import Event；Executor从Stable Handle中选择该唯一成员，一次只复制一个
+  Physical Material。这样N:M Episode输入不会被重复导入，也不会在Import Executor内偷偷拆分或合并文件。
+  Effect idempotency key固定为`SHA-256(JCS({schema:
+  "libra.external-material-import-effect@1",contractId,stableExternalMaterialHandleId,externalMemberId,
+  targetRelativePath}))`，重启从Effect Journal与`fx_workspace_materials`恢复同一`WorkspaceMaterialHandle@1`；禁止
+  动态扩Graph、批量隐藏写入、让Provider直接写Workspace或把外部路径作为裸input。这里的
+  `verifiedPackageDigest=SHA-256(JCS(完整VerifiedExternalPackage@1))`，逐字节等于Foundation Event Result storage
+  digest；不能用`packageManifestDigest`或caller缓存代替。`contractId=SHA-256(JCS({schema:
+  "libra.workspace-external-import-contract-id@1",libraRunId,workspaceId,stableExternalMaterialHandleId,
+  verifiedPackageDigest,memberSelector,externalMemberId,targetRelativePath}))`，`digest=SHA-256(JCS(完整value
+  excluding digest))`。
+
+P5 External Provider protocol在既有三个typed Port内补齐四项exact operation contract，不新增Catalog Capability：
+
+- Search固定为`libra.external_material.search@1 → moviepilot.acquisition-search.observe@1`，input kind
+  `acquisition-query-snapshot`恰为`{acquisitionQuery(AcquisitionQuery@1),limit(1..100)}`；result kind
+  `acquisition-candidate-list`恰为`{queryDigest,candidates[0..100 ProviderAcquisitionCandidateSnapshot],
+  candidateSetDigest}`，其Query、Integration/config、排序、公式和64 KiB双界逐字节服从本节定义，不得返回
+  `reference-list`或需要第二次Provider读取的locator；input最多`32 KiB`、result最多`65,536` bytes；
+- Request固定为`libra.external_material.acquire.request@1 → moviepilot.acquisition.request@1`，input kind
+  `acquisition-request-snapshot`恰为`{acquisitionQuery(AcquisitionQuery@1),selectedCandidate(
+  SelectedCandidate@1 selected variant)}`，result kind仍为`job`且只返回与本次canonical request digest、
+  idempotency key、Integration/config逐字节绑定的`ExternalJobReceipt@1`；不再接收Workspace Delivery ref；
+  input最多`96 KiB`、result最多`16 KiB`；
+- Job Observe固定为`libra.external_material.acquire.observe@1 → moviepilot.acquisition.observe@1`，input kind
+  `acquisition-job-observation`恰为`{externalJobReceipt(ExternalJobReceipt@1),phase(download|transfer)}`；result kind
+  `acquisition-job-snapshot`是closed union，公共字段为`{externalJobReceiptId,requestDigest,
+  providerObservationRevision,state(pending|ready|failed),snapshotDigest}`，pending没有payload，ready恰含上述完整
+  `outputSnapshot`，failed恰含`reasonCode(job_not_found|job_failed|job_cancelled|provider_observation_invalid)`；
+  `snapshotDigest=SHA-256(JCS(完整result excluding snapshotDigest))`。Capability把pending映射为`deferred`、failed映射
+  为Attempt failure，只为ready形成`AcquisitionObservation@1`；input最多`16 KiB`、result最多`65,536` bytes；
+- Material Observe固定为`libra.external_material.stability.observe@1 → moviepilot.external-material.observe@1`，
+  input kind`external-material-observation`恰为`{externalMaterialHandle(ExternalMaterialHandle@1),quietWindowMs}`；
+  result kind`external-material-snapshot`恰为`{sourceExternalMaterialHandleId,providerObservationRevision,
+  outputSnapshot,snapshotDigest}`，并逐字节验证external object、Endpoint containment与Handle fence，不返回路径字符串
+  或Result ref；`snapshotDigest=SHA-256(JCS(完整result excluding snapshotDigest))`，input最多`128 KiB`、result最多
+  `65,536` bytes。
+
+每次P5调用都使用一份只授权该operation ID的`IntegrationHandle`和一份`purpose=该operation ID`的Secret Lease；
+四份Handle/Lease不相同，但必须具有同一Integration ID、同一config revision和同一secretRef lineage。Search Result与
+Request Handle、Selected Candidate逐字节匹配；Job Observe Handle与Receipt的Integration/config/request digest匹配；
+Material Observe Handle与External Material Handle的Integration/config/access fence匹配。各调用的`requestDigest`分别按
+P5统一公式覆盖`integrationId,integrationType,configRevision,operationId,idempotencyKey,input`，不得把四个不同请求伪装成
+同一digest；P5 operation registry必须显式保存各项`maxInputBytes/maxResponseBytes`并在调用Transport前后分别执行JCS
+byte bound，不能继续用一个隐藏的全局input上限改变本合同。P5 response只返回上述bounded operation DTO，不拥有Libra Fact，不建立Workspace Material，也不允许
+Executor直连Provider或把Result ref当业务payload。现有`WorkspaceDeliveryContract`的旧generic `typedParameters`、
+Acquire Request中的Workspace path和上述旧`reference-list/acquisition-request`瘦输入语义删除，不形成兼容分支。
 
 #### 8.6.9 Arca Shelf Acceptance Capability
 
@@ -9268,7 +9425,7 @@ Executor只能返回以下discriminated union，且每个variant都`additionalPr
 | `ExternalJobReceipt` | `receiptId, integrationId, externalJobId, operationKind, idempotencyKey, requestDigest, configRevision, createdAtMs` |
 | `EffectReceipt` | `effectReceiptId, effectId, effectClass, idempotencyKey, commitMarker, externalReceiptRef?, outputDigest, verificationEvidenceDigest, committedAtMs` |
 | `TargetCommitSlotHandle` | `slotId, onDeckRunId, targetEndpointId, targetDirectory, slotDirectory, finalInventoryDecisionDigest, transactionRevision, containmentDigest`；只属于Arca |
-| `ExternalMaterialHandle` | `handleId, integrationId, externalObjectRef, endpointId, location, structureKind, manifestDigest, observationRevision, accessFenceDigest`；导入Workspace前不具有Libra Material Control |
+| `ExternalMaterialHandle` | `handleId, integrationId, configRevision, externalObjectRef, endpointId, location, structureKind, outputSnapshot, manifestDigest, observationRevision, accessFenceDigest`；完整bounded output Snapshot与ID/fence公式见8.6.8 `PBF-16`；导入Workspace前不具有Libra Material Control |
 | `WorkerAssetReceipt` | `workerAssetId, workerId, sourceHandleDigest, registrationReceipt, configRevision, createdAtMs` |
 | `WorkerUploadReceipt` | `workerAssetId, workerId, uploadReceipt, uploadedDigest, sizeBytes, completedAtMs` |
 | `FaceEmbeddingSetHandle` | `artifactHandleId, modelRef, sourceArtifactSetDigest, detectedFaceCount, vectorCount, dimension, digestHex`；向后续节点传handle而非向量数组；single-reference模式要求两个count都恰为1 |
@@ -9637,13 +9794,13 @@ Accepted variant的`rejection_schema_ref`及全部rejection列必须为NULL。SQ
 | `OnDeckProductPackageCommitReceipt` | `ReceiptEnvelope + promotionDecisionDigest + onDeckPackageId + packageRevision + packageDigest + offerId + libraRunId + verifiedRunStateRevision + verifiedRunStateDigest + productMaterialManifestDigest + productFactSetDigest + productFactManifestDigest + artifactManifestDigest + offloadContextDigest + controlRevisionSetDigest + receiptDigest`；固定`receiptKind=libra_product_package_published,ownerDomain=libra,scopeType=on_deck_package,scopeId=onDeckPackageId,scopeDigest=promotionDecisionDigest`，`receiptId=SHA-256(JCS({schema:"libra.product-package-commit-receipt-id@1",onDeckPackageId,packageRevision}))`；完整JCS≤`16 KiB`，`receiptDigest=SHA-256(JCS(完整value excluding receiptDigest))`；它是Catalog commit Result，不替代完整Package Deliverable，marker重放由Package/Control/Offer Owner rows重建同一Receipt |
 | `ReclamationReceipt` | `ReceiptEnvelope + workspaceId + memberResults[1..32 WorkspaceMaterialDeletionEvidence] + reclaimedHandleIds[] + retainedHandleIds[] + reclaimedBytes + receiptDigest`；member按materialHandleId排序且两类handle数组从member结果确定性派生；Libra一次调用固定恰一项，Arca/People同类Workspace回收允许有界批次；完整JCS≤`64 KiB`，`receiptDigest=SHA-256(JCS(完整value excluding receiptDigest))` |
 | `WorkspaceCleanupCommitReceipt` | `ReceiptEnvelope + cleanupScopeId + scopeStateRevision + materialHandleId + memberStateRevision + outcomeEvidenceDigest + releasedControlRevision? + releasedControlProjectionDigest? + cleanupState(completed|blocked) + receiptDigest`；固定`receiptKind=libra_workspace_cleanup_member,ownerDomain=libra,scopeType=workspace_cleanup_member,scopeId=cleanupScopeId+":"+materialHandleId,scopeDigest=WorkspaceCleanupCommitDecision.decisionDigest`，`receiptId=SHA-256(JCS({schema:"libra.workspace-cleanup-receipt-id@1",cleanupScopeId,materialHandleId,memberStateRevision}))`；completed的outcome是Deletion Evidence，blocked的outcome是Blocking Evidence；Control双字段同为NULL或同为非NULL且blocked恒为NULL；`receiptDigest=SHA-256(JCS(完整value excluding receiptDigest))` |
-| `AcquisitionQuery` | `DraftEnvelope + resolvedIdentityDigest + structureKind + queryTerms + hardConstraints + queryDigest` |
-| `AcquisitionCandidates` | `EvidenceEnvelope + queryDigest + integrationId + candidates[] + candidateSetDigest` |
-| `SelectedCandidate` | `DraftEnvelope + candidateSetDigest + selectedCandidateId + selectionCriteriaDigest + selectionReasonCodes[]` |
-| `AcquisitionObservation` | `EvidenceEnvelope + externalJobReceiptId + phase(download|transfer) + externalState + outputRefs[]` |
-| `StableExternalMaterialEvidence` | `VerificationEnvelope + externalMaterialHandleId + observationWindow + stableDigest` |
-| `IdentityVerification` | `VerificationEnvelope + expectedIdentityDigest + observedIdentityDigest + strengthClass` |
-| `VerifiedExternalPackage` | `VerificationEnvelope + externalMaterialHandleId + episodeDeliveryManifestDigest + identityVerificationId + packageManifestDigest` |
+| `AcquisitionQuery` | 8.6.8 `PBF-16` exact Query：完整Run/Basis、Resolved Identity Anchor、Product Structure/Episode scope、terms/constraints及唯一query digest；不含Workspace path |
+| `AcquisitionCandidates` | `EvidenceEnvelope + queryDigest + integrationId + configRevision + candidates[0..100 ProviderAcquisitionCandidateSnapshot] + candidateSetDigest`；完整typed集合、排序、digest与64 KiB双界见8.6.8 |
+| `SelectedCandidate` | 8.6.8 closed `selected|not_selected` Draft；selected内联完整selected Provider Candidate Snapshot，not_selected不伪造ID；两者均绑定Query/Criteria/Candidate set |
+| `AcquisitionObservation` | ready-only `EvidenceEnvelope + ExternalJobReceipt完整值 + phase + providerObservationRevision + outputSnapshot + observationDigest`；pending使用`deferred`且不发布Result，禁止free-form state/outputRefs |
+| `StableExternalMaterialEvidence` | `VerificationEnvelope + sourceExternalMaterialHandleId + stableExternalMaterialHandle完整值 + observationWindow + stableDigest`；只由一次P5 bounded observation形成，最终Handle允许相对初次Resolve签发新revision/manifest |
+| `IdentityVerification` | `VerificationEnvelope + expectedIdentityDigest + observedIdentityDigest + strengthClass(exact_provider_identity|unverified)`；closed result/reason与Anchor tuple算法见8.6.8 |
+| `VerifiedExternalPackage` | `VerificationEnvelope + stableExternalMaterialHandleId + stableManifestDigest + episodeDeliveryManifestDigest + identityVerificationId + identityVerificationDigest + verifiedMemberIds[] + verifiedMemberSetDigest + packageManifestDigest`；只接受同一Stable Evidence和passed Identity Verification |
 | `AcceptanceCheck` | `VerificationEnvelope + acceptanceAttemptId + checkKind + standardRevision + packageDigest` |
 | `InventoryFeasibilityEvidence` | `EvidenceEnvelope + shelfId + placementRevision + targetEndpointId + requiredBytes + availableBytes + finalInventoryDecisionDraftDigest` |
 | `CustodyAndTransferReceipt` | `ReceiptEnvelope + acceptanceDecisionId + custodyId + arcaBindingSetDigest + controlRevisionSetDigest + receiptDigest`；`receiptDigest=SHA-256(JCS(完整value excluding receiptDigest))`，完整value≤`16 KiB` |
@@ -10989,7 +11146,7 @@ Status: `ACCEPTED / JOURNEY-AMENDED`（2026-07-16）。下列术语已经通过L
 
 当前确认状态：
 
-- `8.0`–`8.10`：`ACCEPTED / JOURNEY-AMENDED / POST-BASELINE-DOC-CORRECTED`（2026-07-20；用户确认的基线保持，Level 9反向审计与`PBF-01`–`PBF-14`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R4-R1`、`PBF-13-R5`、`PBF-14-R1`）bounded修正已回写）；
+- `8.0`–`8.10`：`ACCEPTED / JOURNEY-AMENDED / POST-BASELINE-DOC-CORRECTED`（2026-07-23；用户确认的基线保持，Level 9反向审计与`PBF-01`–`PBF-16`各项bounded修正已回写）；
 - 当前没有开放的Level 8 Business Decision；
 - clean Catalog为`112 refs / 112 unique`，97个Catalog Result family均有typed contract；`PBF-11-R2-R1`把Handoff A专用富拒绝Receipt与Handoff B通用拒绝Receipt拆成不同nominal Result，故Capability数量不变而Result family增加1；
 - 177张关系表的PK、revision、关键列、unique/partial unique、热路径索引和JSON上限已经固化；PBF-10新增
@@ -10998,7 +11155,7 @@ Status: `ACCEPTED / JOURNEY-AMENDED`（2026-07-16）。下列术语已经通过L
   Libra-owned Run/Workspace/Package关系表，PBF-14新增一张Libra-owned Product Fact Source Basis引用关系表，均不
   新增Store；
 - 当前62项Capability registration、named helper和直接依赖已经完成function-level conservation；
-- Level 8 post-amendment closure audit、`PBF-02`纵向传播、`PBF-03` Acquisition可实现性、`PBF-04` People Candidate数据守恒、`PBF-05` Perception Resolution输入闭包/Person Schema复审、`PBF-06`（含`PBF-06-R1`）Reference/Person/Metadata/Media-Cast、`PBF-07`（含`PBF-07-R1`）Field Observation输入/revision/payload persistence continuity、`PBF-08` Extraction Eligibility、`PBF-09`（含`PBF-09-R1`）Procurement Run Admission、`PBF-10`（含`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`）Triage/Candidate Publication、`PBF-11`（含`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`）Libra Intake/Handoff、`PBF-12`（含`PBF-12-R1`）Routing/Decision Basis/Acceptance Spec、`PBF-13`（含`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R4-R1`、`PBF-13-R5`）Libra Run/Workspace/Package/Reclamation及`PBF-14`（含`PBF-14-R1`）Product Metadata/Media-Cast Fact commit正式化结果为`PASS / NO BLOCKING GAP / NO OPEN BUSINESS DECISION`；
+- Level 8 post-amendment closure audit及`PBF-02`–`PBF-16`纵向传播结果为`PASS / NO BLOCKING GAP / NO OPEN BUSINESS DECISION`；各项输入、事务、持久化、Provider port与机器合同的bounded细节以Review Section 15对应条目为准；
 - JSON Schema/DDL文件与contract fixture是未来Implementation交付物，其合同已经确定；
 - Level 9可以开始Public Interface and Product Surface结构化设计；
 - Implementation、E2E、Docker与生产部署继续暂停。
@@ -13372,7 +13529,7 @@ Beta Release Candidate不等于授权部署生产。生产部署、真实媒体�
 | 10.7 | Level 6业务健康、Level 9普通/Advanced边界 | preserved |
 | 10.8 | Level 5/6 Authorization、Level 8 typed Secret与Material safety | preserved |
 | 10.9 | 模块化单体、Physical File Source与Emby External Provider边界 | preserved |
-| 10.10 | 九条旅程、112 Capability、177 tables、43 Canonical Transactions、113 Admin routes、1 public health route及clean-cut门禁 | preserved after bounded final-audit closure and `PBF-02`–`PBF-14`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R4-R1`、`PBF-13-R5`、`PBF-14-R1`） |
+| 10.10 | 九条旅程、112 Capability、177 tables、43 Canonical Transactions、113 Admin routes、1 public health route及clean-cut门禁 | preserved after bounded final-audit closure and `PBF-02`–`PBF-16`（含各节记录的bounded revisions） |
 
 #### 10.11.2 前序Level 10 reservation覆盖审计
 
@@ -13497,7 +13654,7 @@ Automation、Priority、Approval、Workspace与资源配置。它们在被新合
 关闭为历史Evidence。任何新Review Item在完成全局Evidence审计、证明真实缺陷、
 取得必要Owner Decision并形成新的有界Change Set之前，都不能改变本文语义。Level 7、Level 8与Level 9
 均已经Accepted并完成各自必要的Journey amendment；
-post-baseline `PBF-01`–`PBF-14`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R4-R1`、`PBF-13-R5`、`PBF-14-R1`）已经按同一纪律完成bounded合同闭合并记录在Review Section 15；实现、测试或
+post-baseline `PBF-01`–`PBF-16`（含各节记录的bounded revisions）已经按同一纪律完成bounded合同闭合并记录在Review Section 15；实现、测试或
 部署仍未由本文件授权。
 
 ## Confirmation state
@@ -13510,13 +13667,13 @@ post-baseline `PBF-01`–`PBF-14`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`�
 - Level 5（`5.1`–`5.11`）：`ACCEPTED / JOURNEY-AMENDED`（2026-07-16）
 - Level 6（`6.0`–`6.12`）：`ACCEPTED / JOURNEY-AMENDED`（2026-07-16）
 - Level 7（`7.0`–`7.12`）：`ACCEPTED / JOURNEY-AMENDED`（2026-07-16；durable progress bounded amendment）
-- Level 8（`8.0`–`8.10`）：`ACCEPTED / JOURNEY-AMENDED / POST-BASELINE-DOC-CORRECTED`（2026-07-20；用户确认基线保持，`PBF-01`–`PBF-14`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R4-R1`、`PBF-13-R5`、`PBF-14-R1`）已闭合）
+- Level 8（`8.0`–`8.10`）：`ACCEPTED / JOURNEY-AMENDED / POST-BASELINE-DOC-CORRECTED`（2026-07-23；用户确认基线保持，`PBF-01`–`PBF-16`已闭合）
 - Level 9（`9.0`–`9.11`）：`ACCEPTED / JOURNEY-AMENDED`
   （2026-07-16；8项Journey bounded gap已关闭，post-amendment audit通过并由用户确认）
 - Level 10（`10.0`–`10.12`）：`ACCEPTED`
   （2026-07-16；结构化正文与运行维度反向审计通过并由用户确认）
 - Final Level 0–10 Audit：`CLOSED / APPLIED_AND_AUDITED`（27项bounded修正、1项false positive关闭、`FA-04`已确认并传播）
-- Post-baseline realizability audit：`PBF-01`–`PBF-14 CLOSED / APPLIED_AND_AUDITED`（包含`PBF-06-R1`、`PBF-07-R1`、`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R5`与`PBF-14-R1`细化；不新增Domain/Handoff/Capability；`PBF-09`新增一张Procurement-owned retry precondition关系表，`PBF-10`新增一张Procurement-owned Candidate Member↔Episode Claim关系表，`PBF-10-R1`闭合Episode relation机器白名单，`PBF-10-R2`闭合Offer与Continuity正式合同，`PBF-10-R3`闭合Run revision head CAS写集，`PBF-11`新增五张Libra-owned Intake head/N:M关系表并闭合Handoff A，`PBF-11-R1`扩充既有Procurement Related relation以闭合完整Physical Identity/reference digest历史重建，`PBF-11-R2`把Handoff A Rejected拆成独立typed Decision并补齐Reason/Evidence、Receipt、Outbox和Procurement consume原子终态，`PBF-11-R2-R1`恢复Accepted Receipt唯一scopeDigest并把Handoff A富拒绝与Handoff B通用拒绝分型，完整闭合Arca rejected持久化与Libra consume，`PBF-11-R2-R2`修正Candidate Delivery/Reservation的CAS lifecycle机器语义并对称闭合Accepted/Rejected consume，`PBF-11-R3`固定Accepted Receipt的Control revision set唯一公式与historical reconstruction，`PBF-12`闭合Routing/Decision Basis/Acceptance Spec typed input、三项事务、Subject provenance/content profile与Spec scope，`PBF-12-R1`补齐历史pre-CAS Decision Head Snapshot的relationized恢复，`PBF-13`闭合Libra Run/Workspace/Product Package/Discard/Reclamation typed continuity、历史Owner-row恢复和五项Canonical Transaction，`PBF-13-R1`补齐Workspace Reclamation Facade Query/Command的唯一callable contract与Owner-row重建，`PBF-13-R2`修正initial Admission logical 0、Package head INTEGER及Material requirement binding，`PBF-13-R3`闭合Run Input Physical Identity/size跨Handoff连续性，`PBF-13-R4`闭合Run freshness与有界恢复，`PBF-13-R5`闭合Platform Workspace Root/space admission typed边界，`PBF-14`闭合Product Metadata/Media-Cast Source Basis、Fact revision/Handle/marker与no-Outbox variants，`PBF-14-R1`补齐Western Analysis/Normalize/Match与空Media-Cast连续性；关系表总数为177，Catalog Result family为97，Canonical Transaction为43）
+- Post-baseline realizability audit：`PBF-01`–`PBF-16 CLOSED / APPLIED_AND_AUDITED`；PBF-09–PBF-14的持久化与事务细节继续按Review Section 15既有条目生效，PBF-15闭合Media Production/Conformance，PBF-16闭合External Material Acquisition/P5 observe/import连续性；关系表总数为177，Catalog Result family为97，Canonical Transaction为43。
 - `PBF-13-R4-R1` bounded propagation：Lifecycle canonical machine `readTables`已与Freshness/Package custody
   强制Owner-row验证对齐；只扩只读白名单，全部计数不变。
 - `PBF-13-R4-R2` bounded formula：Arca Accepted Message ID basis已固定为四个显式顶层JCS property；

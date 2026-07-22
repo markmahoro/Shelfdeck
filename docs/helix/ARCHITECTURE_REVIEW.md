@@ -1,6 +1,6 @@
 # Helix Architecture Review Workbench
 
-Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-20；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R4-R1`、`PBF-13-R4-R2`、`PBF-13-R5`、`PBF-13-R5-R1`、`PBF-13-R5-R2`、`PBF-13-R5-R3`）bounded correction均已完成。
+Status: `CLOSED — FINAL_SSOT_AUDIT_APPLIED_AND_AUDITED / POST-BASELINE DOC FIXES CLOSED` — 2026-07-23；历史Review保持关闭，Level 0–10最终全文审计、`FA-04`用户决定传播与`PBF-01`–`PBF-16`（含各节已记录的bounded revisions）均已完成。
 
 ## 1. Purpose and authority
 
@@ -2768,3 +2768,40 @@ Bounded correction固定：
 
 该修正不新增Domain、Owner、Store、Handoff、Capability、Result family、table或Canonical Transaction；inventory保持
 `112 / 97 / 177 / 43`。结果为`PASS / PBF-15-R1 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.46 `PBF-16` — External Material Acquisition纵向输入守恒
+
+Status: `CLOSED / BOUNDED INPUT-PORT FIX APPLIED` — 2026-07-23
+
+P9-07完整vertical precheck证明既有Catalog名称虽已覆盖Query、Search、Selection、Request、Observe、Resolve、
+Stability、Identity、Package与Workspace Import，但正式DTO和P5 operation只保留了ID/digest或free-form字符串：
+Selected Candidate无法恢复Provider candidate revision/digest/object type；Acquisition Observation不能形成Endpoint/location/
+Manifest；Stable Evidence没有Observed Identity；P5缺acquire/stability observe operation。反向审计还发现Package Verify
+没有接收前一步Identity Verification，而Workspace Import没有绑定Verified Package或单成员selector。继续实现会迫使
+Executor旁读Provider/current Result、动态扩Graph，或把一个多文件Package偷偷批量写入Workspace。缺口成立。
+
+Bounded correction保持既有业务流程与组件数：
+
+- Search Result改为完整bounded Provider Candidate Snapshot集合；Selected Candidate成为`selected|not_selected` union，
+  selected分支保留完整Provider candidate ref，Acquire Request同时消费原Acquisition Query，故跨Event不丢
+  object type/revision/digest/Integration fence；
+- Selection Criteria固定为系统内部provider-rank deterministic rule，不外化为用户Means Policy；不确定或无可用候选
+  返回typed not-selected诊断；
+- Acquire Observe新增同revision Integration Handle并只在ready时发布含完整bounded output Snapshot的Result；pending走
+  Runtime deferred。External Material Handle冻结Endpoint/location/Material manifest/Observed Identity及唯一access fence；
+- Stability Observe新增P5单次observation operation，Evidence内携带根据最终稳定Snapshot重新签发的Handle；下游不把
+  初次Resolve后可能过期的manifest冒充稳定事实；Identity Verify只接受exact Provider Identity Anchor，title/path/query
+  echo不能升级身份；
+- Package Verify显式消费Stable Evidence、Identity Verification、Episode Manifest和Identity Requirement，关系化地验证
+  single/season member coverage，同时保留`E01-E02`与multipart的Pre-deck N:M输入语义；Workspace Import使用exact
+  Workspace Delivery Contract按明确external member ID选择唯一verified member，一次Event只写一个Workspace Material，
+  后续由Libra Production完成一对一规范化，重启经Effect Journal恢复；
+- P5既有Provider ports补齐search/request/job observe/external material observe四项exact operation atom与bounded
+  request/result；每次调用使用operation-specific Integration Handle/Secret Lease并保持同一Integration/config/secret
+  lineage，禁止旧reference list、Workspace delivery ref或共用request digest；不新增Catalog Capability、Domain Store
+  或跨域authority。
+
+所有普通Event Result继续服从`65,536` bytes上限；候选/外部Manifest另有item count双界，超限稳定失败而不裁剪或
+建立隐藏Artifact Store。本修正不新增Business Domain、Owner、Store、Handoff、Catalog Capability、Catalog Result
+family、table或Canonical Transaction，inventory保持`112 / 97 / 177 / 43`；只扩充/替换既有helper DTO和P5 operation
+machine contract。结果为`PASS / PBF-16 CLOSED / NO OPEN BUSINESS DECISION`。
