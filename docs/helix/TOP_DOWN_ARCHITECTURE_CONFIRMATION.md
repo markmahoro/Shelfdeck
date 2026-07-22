@@ -1,6 +1,6 @@
 # Helix Clean Top-down Architecture
 
-Status: ShelfDeck / Helix architecture SSOT; Levels 0–10 accepted; final full-document audit and post-baseline `PBF-01`–`PBF-14`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R4-R1`、`PBF-13-R4-R2`、`PBF-13-R5`、`PBF-13-R5-R1`、`PBF-13-R5-R2`、`PBF-13-R5-R3`、`PBF-14-R1`、`PBF-14-R2`）bounded corrections closed; implementation not authorized by this document.
+Status: ShelfDeck / Helix architecture SSOT; Levels 0–10 accepted; final full-document audit and post-baseline `PBF-01`–`PBF-14`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`、`PBF-13-R1`、`PBF-13-R2`、`PBF-13-R3`、`PBF-13-R4`、`PBF-13-R4-R1`、`PBF-13-R4-R2`、`PBF-13-R5`、`PBF-13-R5-R1`、`PBF-13-R5-R2`、`PBF-13-R5-R3`、`PBF-14-R1`、`PBF-14-R2`、`PBF-14-R3`）bounded corrections closed; implementation not authorized by this document.
 
 Last updated: 2026-07-20
 
@@ -8170,6 +8170,24 @@ Transaction：
   按`WesternProductMetadataBasisSnapshot@1`或`WesternMediaCastBasisSnapshot@1`的显式Result ID读取。禁止扫描无关
   Result、读取Provider/current文件Reality或把Foundation Result当成未声明的Fact来源。
 
+这里的`variant`是`helix.transaction.domain-fact-commit@1`内部可机器选择的exact override，不是base contract的
+additional tables：
+
+- selector固定读取同一`DomainFactCommitHandle`的`factType + factSchemaRef + resultSchemaRef`三元组；只有三项逐字节
+  命中一个registered selector时才选择该variant，零命中走generic Domain Fact Commit，多个命中是Registry integrity
+  fault；若任一字段命中已注册Product Fact selector namespace（`media_cast|product_metadata|MediaCastFact@1|
+  ProductMetadataFact@1`）但三元组未完整命中，必须以`P3_TRANSACTION_VARIANT_SELECTOR_MISMATCH`拒绝；只有三字段均
+  不属于该namespace的零命中才允许走generic，禁止部分匹配退回generic并伪造Outbox；
+- selected variant的`participants/writeTables/readTables/dynamicTableRequirements/fenceContract/rollbackInvariant/crashFixtureRefs`
+  **完整替换**generic对应字段，不与base取union；transaction ID、display name、commit class和共同source provenance
+  仍继承父事务。故Product Fact variant不得继承`fx_outbox`、generic dynamic participant或只适用于Outbox的fixture；
+- generic variant继续服务其他正式Domain Fact，保留Handle-selected dynamic Owner participant、`fx_outbox`和
+  `outboxRequired=true`。Runtime只调用Registry的统一`resolveVariant(handle)`结果，不读取SSOT prose、不按Capability
+  name硬编码分支；
+- materializer必须把下述machine table逐项写入父contract的`variants[]`；validator必须分别验证每个variant的selector
+  唯一性、participant覆盖、read/write table存在性、variant-level fence与Outbox一致性、rollback invariant，并验证所有
+  variant ID在父事务内唯一。顶层transaction inventory仍只计父事务一次。
+
 两种variant都先在同一SQLite write transaction内按`(libraRunId,factKind)`读取最高immutable Fact revision；不存在
 row时logical current revision为0，否则为最高正整数。它必须逐字节等于Handle `expectedRevision`，新revision固定为
 `expectedRevision+1`；SQLite单writer与`UNIQUE(libra_run_id,fact_kind,fact_revision)`共同序列化并发，不另建current
@@ -10330,13 +10348,42 @@ PBF-13相关Canonical Transaction的机器表集固定如下；`Result/marker`�
 | Workspace Cleanup Scope Admission | `libra_workspace_cleanup_scopes,libra_workspace_cleanup_members,libra_workspaces,libra_workspace_revisions` + Result/marker | `libra_runs,libra_run_revisions,libra_workspace_material_refs,libra_product_packages,libra_delivery_receipts,fx_material_controls,fx_material_control_revisions`及全部write tables | no |
 | Workspace Cleanup Commit | `libra_workspace_cleanup_scopes,libra_workspace_cleanup_members,libra_workspaces,libra_workspace_revisions,libra_workspace_material_refs,fx_workspace_registry,fx_material_controls,fx_material_control_revisions` + Result/marker | `fx_workspace_materials,fx_effect_journal`及全部write tables | no |
 
-`PBF-14`把既有Domain Fact Commit的两个Product Fact variants固定如下；它们属于同一个已计数Canonical
-Transaction，不新增第44项：
+`PBF-14`把既有Domain Fact Commit的两个Product Fact variants固定为下述可抽取machine contract；它们属于同一个
+已计数Canonical Transaction，不新增第44项。表中逗号分隔的table set均为exact complete set，不是additional set；
+`participants`、`writeTables`、`readTables`、`fenceContract`和`rollbackInvariant`逐项物化进对应variant：
 
-| Exact transaction variant | Exact write tables | Additional exact fence/read tables | Outbox |
-| --- | --- | --- | --- |
-| `domain-fact-commit@1/libra_media_cast_fact@1` | `libra_product_fact_revisions,libra_product_fact_source_refs` + Result/marker | `libra_runs,fx_supporting_works,fx_work_attempts,fx_workflow_plans,fx_plan_nodes,fx_workflow_events,fx_event_result_bindings`及全部write tables；同`factKind`历史rows用于revision fence；closed source basis为metadata Observation或Western Match | no |
-| `domain-fact-commit@1/libra_product_metadata_fact@1` | `libra_product_fact_revisions,libra_product_fact_source_refs` + Result/marker | Media Cast variant全部read tables + `fx_artifact_registry`；同Run Media Cast Fact与Artifact Handle均在事务内验证；closed source basis为metadata Observation或Western Analysis+Normalize | no |
+~~~text
+CanonicalTransactionVariantOverride@1 {
+  variantId
+  selector {
+    selectorKind: domain_fact_handle_exact
+    factType
+    factSchemaRef
+    resultSchemaRef
+  }
+  participants[]
+  writeTables[]
+  readTables[]
+  dynamicTableRequirements[]
+  fenceContract {
+    domainRevisionFenceRequired
+    materialControlCasRequired
+    commitMarkerRequired
+    outboxRequired
+  }
+  rollbackInvariant
+  crashFixtureRefs[]
+}
+~~~
+
+数组按`variantId` UTF-8 bytes升序物化；selector三个value均为required exact string且同一父事务内不得重复。
+`selectorKind`只允许上述closed value；未来增加其他selector kind必须升级该nominal schema，不能把任意表达式或函数塞入
+Registry。
+
+| Parent transaction | variantId | Exact selector | Exact participants / writeTables | Exact readTables | Exact fenceContract | Exact rollbackInvariant | Exact crashFixtureRefs |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `helix.transaction.domain-fact-commit@1` | `libra_media_cast_fact@1` | `DomainFactCommitHandle.factType=media_cast; factSchemaRef=MediaCastFact@1; resultSchemaRef=MediaCastFact@1` | `domain(owner=libra,access=write,tables=[libra_product_fact_revisions,libra_product_fact_source_refs]); foundation(owner=execution-foundation,access=write,tables=[fx_event_result_bindings,fx_commit_markers])`；`writeTables=[libra_product_fact_revisions,libra_product_fact_source_refs,fx_event_result_bindings,fx_commit_markers]`；`dynamicTableRequirements=[]` | `[libra_runs,libra_product_fact_revisions,libra_product_fact_source_refs,fx_supporting_works,fx_work_attempts,fx_workflow_plans,fx_plan_nodes,fx_workflow_events,fx_event_result_bindings,fx_commit_markers]`；同`factKind`历史rows用于revision fence；closed Source Basis为Metadata Observation或Western Match | `{domainRevisionFenceRequired:true,materialControlCasRequired:false,commitMarkerRequired:true,outboxRequired:false}` | `Fact revision、全部Source refs、durable typed Result与commit marker全有或全无；任何selector、Run/revision/source-basis/Result/schema/digest/fence失败时零写入可见，且不得存在fx_outbox row` | `[Libra Product Fact Commit variants]` |
+| `helix.transaction.domain-fact-commit@1` | `libra_product_metadata_fact@1` | `DomainFactCommitHandle.factType=product_metadata; factSchemaRef=ProductMetadataFact@1; resultSchemaRef=ProductMetadataFact@1` | `domain(owner=libra,access=write,tables=[libra_product_fact_revisions,libra_product_fact_source_refs]); foundation(owner=execution-foundation,access=write,tables=[fx_event_result_bindings,fx_commit_markers])`；`writeTables=[libra_product_fact_revisions,libra_product_fact_source_refs,fx_event_result_bindings,fx_commit_markers]`；`dynamicTableRequirements=[]` | `[libra_runs,libra_product_fact_revisions,libra_product_fact_source_refs,fx_supporting_works,fx_work_attempts,fx_workflow_plans,fx_plan_nodes,fx_workflow_events,fx_event_result_bindings,fx_commit_markers,fx_artifact_registry]`；同Run Media Cast Fact与Artifact Handle在事务内验证；closed Source Basis为Metadata Observation或Western Analysis+Normalize | `{domainRevisionFenceRequired:true,materialControlCasRequired:false,commitMarkerRequired:true,outboxRequired:false}` | `Fact revision、全部Source refs、Artifact fence、durable typed Result与commit marker全有或全无；任何selector、Run/revision/source-basis/Artifact/Result/schema/digest/fence失败时零写入可见，且不得存在fx_outbox row` | `[Libra Product Fact Commit variants]` |
 
 两个variant写入Source refs前必须按discriminator从Selection完整重建Observation Set，或从Western Basis完整重建
 Analysis→Normalize / Match链，并逐项重验Work→Attempt→Plan→Event→Result；
@@ -10722,6 +10769,7 @@ Level 8固定后续实现必须建立的可执行contract fixture，不把“以
 | Libra Deliverable Promotion | numeric package head 0/1及后续CAS、Package relation写入中间、Product member Output Requirement重算、direct assert/new Product Control acquire前后、Offer/Outbox前 | 首个Package expected head 0并提交revision 1；Package可见时完整Product/Fact/Artifact/Off-load/Requirement snapshot可重建且所有Product Material已有Libra Control；任一缺失不发布Package或Offer，同marker返回原Package |
 | Libra Run Discard | Decision前、Run/admission head terminal后、原始Input Control release前后、Cleanup Scope/member/Outbox前 | 要么Run仍frozen且全部Control不变，要么discarded/active scope移除/原始Input released/完整Cleanup Scope成立；受Control Workspace Product不成为无Owner文件 |
 | Libra Cleanup Scope Admission/Commit | Off-load Projection/grace/reference audit前后、Scope/member insert中间、删除intent后、文件删除后Evidence前、Cleanup/Control commit前后 | Signal不建资格；Scope/member全有或全无；删除效果幂等；只有Deletion Evidence成立的受Control Product释放Control；重启恢复同一Scope/member，空Workspace不建空Scope |
+| Libra Product Fact Commit variants | Handle variant selector解析前后、Run/fact revision fence前后、Source Basis Result逐项验证与relation写入中间、metadata Artifact fence前后、Fact/typed Result/marker各边界、相同Handle重放、伪造或缺失Outbox | selector三元组必须唯一命中或按closed规则拒绝；Product Fact variant绝不fallback到generic；Fact revision、完整Source refs、typed Result与marker全有或全无，metadata variant还必须同时验证全部Artifact fence；任何崩溃/不一致均零写入可见；成功重放返回同一Fact revision/digest且不追加Source refs；始终不存在本Commit的Outbox row |
 | Handoff B Accepted | Acceptance Decision、Custody/Binding、Control transfer、Receipt/Outbox各边界 | Arca责任与Control一起成立；Libra Store不被Arca事务写入 |
 | Handoff B Rejected | Acceptance check set形成前后、Attempt terminal CAS、Decision/Receipt/Result/marker/Outbox各边界、并发Accepted竞态 | 只允许5.7.3 closed reason；要么Attempt仍active且无终态事实，要么rejected Attempt、可由checks重建的Evidence set、Decision、Receipt、Result/marker及Rejected Outbox全部成立；不建立Custody/Binding/On-deck Run、不转移Control；相同marker重放原Receipt，Accepted/Rejected互斥 |
 | Libra Handoff B rejection consume | Inbox写入前后、Package digest CAS、Delivery Receipt写入前后、迟到Accepted消息 | immutable Package与rejected Delivery Receipt/Inbox closure全有或全无；相同Message重放同一closure digest，已accepted或digest冲突稳定拒绝；不修改Package、不写Arca Store、不把Rejected伪装成反向Handoff |
@@ -13392,4 +13440,6 @@ post-baseline `PBF-01`–`PBF-14`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`�
   Message/Handoff/事务与全部计数不变。
 - `PBF-14-R2` bounded machine extraction：两个Product Fact closed variants只在既有Domain Fact Commit内展开；
   当前SSOT extractor结果固定为`112 Capability / 97 Result family / 177 tables / 43 unique Canonical Transactions`。
+- `PBF-14-R3` bounded variant materialization：父事务内两个Product Fact exact selector/override、no-Outbox fence、
+  participants/table sets、rollback与独立crash fixture已经机器化；全部inventory计数不变。
 - 旧`SD-*`条款：全部撤销，不具有clean Helix合同效力

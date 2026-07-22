@@ -2439,7 +2439,7 @@ Capability、Result family、表或Canonical Transaction，计数保持`112 / 97
 
 ### 15.36 `PBF-14` — Product Metadata / Media-Cast Fact commit闭包
 
-Status: `CLOSED / BOUNDED INPUT-PERSISTENCE FIX APPLIED / REFINED_BY_PBF-14-R1-R2` — 2026-07-20
+Status: `CLOSED / BOUNDED INPUT-PERSISTENCE FIX APPLIED / REFINED_BY_PBF-14-R1-R2-R3` — 2026-07-20
 
 P9-05反向实现审计证明四项缺口成立：两个`domain_fact_commit`没有可选择的no-Outbox精确variant；Product Fact
 缺稳定ID/revision/Handle/marker与Evidence映射；Planner所谓“当前Metadata Observation集合”没有正式选择及历史
@@ -2509,3 +2509,29 @@ Source Basis、Owner rows、no-Outbox cardinality、crash atomicity和PBF-14-R1 
 按现有主表抽取规则复核得到43个唯一顶层Transaction；Capability、Catalog Result family和table inventory仍为
 `112 / 97 / 177`。没有新增Domain、Owner、Store、Handoff、Capability或Canonical Transaction。审计结果为
 `PASS / PBF-14-R2 CLOSED / 112-97-177-43 RESTORED / NO OPEN BUSINESS DECISION`。
+
+### 15.39 `PBF-14-R3` — Domain Fact Commit machine variant闭包
+
+Status: `CLOSED / BOUNDED VARIANT-MATERIALIZATION FIX APPLIED` — 2026-07-22
+
+P9-05 implementation reverse audit证明PBF-14的两个Product Fact variants虽然已有正确业务语义和exact table matrix，
+但未形成可物化的父事务variant override。既有machine contract因此仍保持generic
+`variants=[] / fx_outbox / outboxRequired=true`，零Outbox Product Fact commit必然被拒绝；伪造Outbox则违反SSOT。
+该问题是machine contract闭包缺失，不是新的业务分叉。
+
+Bounded correction在不增加顶层Transaction的前提下完成：
+
+- 定义`CanonicalTransactionVariantOverride@1`机器形状，固定variant ID、基于
+  `DomainFactCommitHandle.factType + factSchemaRef + resultSchemaRef`的closed exact selector、participants、
+  read/write tables、dynamic table requirements、variant-level fence及rollback invariant；
+- 明确selected variant对generic字段执行完整override而非additional-table union；两个Product Fact variant均精确移除
+  `fx_outbox`并固定`outboxRequired=false`，generic Domain Fact Commit对其他Fact仍保持Outbox合同；
+- selector零命中仅对非Product Fact走generic；Product Fact schema pair不匹配稳定拒绝，禁止以generic fallback伪造
+  Outbox；Registry统一解析variant，Runtime不读prose、不按Capability name special-case；
+- materializer/validator必须验证selector/variant ID唯一、participant覆盖、table存在、variant fence与Outbox一致以及
+  crash rollback，不得只验证父contract base字段；两个variant使用独立`Libra Product Fact Commit variants`
+  crash fixture，不继承generic的Outbox recovery fixture。
+
+反向审计确认两个variant仍属于`helix.transaction.domain-fact-commit@1`，顶层抽取保持43项；Domain、Owner、Store、
+Handoff、Capability、Result family和table inventory不变，计数仍为`112 / 97 / 177 / 43`。结果为
+`PASS / PBF-14-R3 CLOSED / NO OPEN BUSINESS DECISION`。
