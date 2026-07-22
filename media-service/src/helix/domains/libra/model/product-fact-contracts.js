@@ -205,7 +205,7 @@ function buildProductFactSourceRefs(value) {
     if (!chain || !result || selection.ordinal !== ordinal || chain.workId !== selection.workId ||
         chain.attemptId !== selection.attemptId || chain.planId !== selection.planId || chain.eventId !== selection.eventId ||
         chain.ownerDomain !== 'libra' || chain.processType !== 'libra_run' || chain.processId !== basis.selection.libraRunId ||
-        chain.workState !== 'succeeded' || chain.attemptState !== 'succeeded' || chain.planState !== 'completed' ||
+        chain.workState !== 'succeeded' || chain.attemptState !== 'succeeded' || chain.planState !== 'planned' ||
         chain.eventState !== 'succeeded' || chain.eventOwnerDomain !== 'libra' || chain.attemptWorkId !== chain.workId ||
         chain.planAttemptId !== chain.attemptId || chain.nodeCapabilityRef !== chain.capabilityRef ||
         chain.eventWorkId !== chain.workId || chain.eventAttemptId !== chain.attemptId || chain.eventPlanId !== chain.planId ||
@@ -337,7 +337,7 @@ function validateVerifiedArtifactManifest(value, context) {
     if (!binding || !result || ref.workId !== binding.workId || ref.attemptId !== binding.attemptId ||
         ref.planId !== binding.planId || ref.eventId !== binding.eventId ||
         binding.ownerDomain !== 'libra' || binding.processType !== 'libra_run' || binding.processId !== value.libraRunId ||
-        binding.workState !== 'succeeded' || binding.attemptState !== 'succeeded' || binding.planState !== 'completed' ||
+        binding.workState !== 'succeeded' || binding.attemptState !== 'succeeded' || binding.planState !== 'planned' ||
         binding.eventState !== 'succeeded' || binding.eventOwnerDomain !== 'libra' ||
         binding.attemptWorkId !== binding.workId || binding.planAttemptId !== binding.attemptId ||
         binding.eventWorkId !== binding.workId || binding.eventAttemptId !== binding.attemptId ||

@@ -12,20 +12,22 @@ const fail=(code,message)=>{throw new ProductFactStoreError(code,message);};
 const MEDIA_SCHEMA='helix://contracts/types/MediaCastFact/v1';
 const METADATA_SCHEMA='helix://contracts/types/ProductMetadataFact/v1';
 
-function ownerRepository(schemaManifest){return createRepositoryDefinition({repositoryId:'libra_product_facts',owner:'libra',schemaManifest,
+function ownerReadRepository(schemaManifest){return createRepositoryDefinition({repositoryId:'libra_product_fact_reads',owner:'libra',schemaManifest,
   statements:{find_run:{kind:'select-one',tableId:'libra_runs',columns:['libra_run_id','subject_id','state','state_revision','state_digest'],keyColumns:['libra_run_id']},
-    find_fact:{kind:'select-one',tableId:'libra_product_fact_revisions',columns:['product_fact_id','libra_run_id','fact_kind','fact_revision','schema_ref','fact_json','fact_digest','commit_marker','result_digest'],keyColumns:['libra_run_id','fact_kind','fact_revision']},
-    insert_fact:{kind:'insert',tableId:'libra_product_fact_revisions',columns:['product_fact_id','libra_run_id','fact_kind','fact_revision','aggregate_id','schema_ref','fact_json','fact_digest','evidence_digest','source_basis_kind','source_basis_id','source_basis_digest','source_ref_count','verified_artifact_manifest_schema_ref','verified_artifact_manifest_json','verified_artifact_manifest_digest','artifact_verification_result_count','commit_payload_schema_ref','commit_payload_digest','event_fence_digest','commit_marker','result_digest','committed_at_ms']},
+    find_fact:{kind:'select-one',tableId:'libra_product_fact_revisions',columns:['product_fact_id','libra_run_id','fact_kind','fact_revision','schema_ref','fact_json','fact_digest','commit_marker','result_digest'],keyColumns:['libra_run_id','fact_kind','fact_revision']}}});}
+
+function ownerWriteRepository(schemaManifest){return createRepositoryDefinition({repositoryId:'libra_product_fact_writes',owner:'libra',schemaManifest,
+  statements:{insert_fact:{kind:'insert',tableId:'libra_product_fact_revisions',columns:['product_fact_id','libra_run_id','fact_kind','fact_revision','aggregate_id','schema_ref','fact_json','fact_digest','evidence_digest','source_basis_kind','source_basis_id','source_basis_digest','source_ref_count','verified_artifact_manifest_schema_ref','verified_artifact_manifest_json','verified_artifact_manifest_digest','artifact_verification_result_count','commit_payload_schema_ref','commit_payload_digest','event_fence_digest','commit_marker','result_digest','committed_at_ms']},
     insert_source:{kind:'insert',tableId:'libra_product_fact_source_refs',columns:['product_fact_id','ordinal','source_basis_kind','work_id','attempt_id','plan_id','event_id','result_id','capability_ref','result_schema_ref','result_digest','source_ref','source_order','evidence_id','evidence_digest','input_binding_digest','reference_digest']}}});}
 
-function foundationRepository(schemaManifest){return createRepositoryDefinition({repositoryId:'libra_product_fact_foundation_reads',owner:'execution-foundation',schemaManifest,
-  statements:{find_work:{kind:'select-one',tableId:'fx_supporting_works',columns:['work_id','owner_domain','process_type','process_id','state'],keyColumns:['work_id']},
+function foundationRepository(schemaManifest,factKind){const statements={find_work:{kind:'select-one',tableId:'fx_supporting_works',columns:['work_id','owner_domain','process_type','process_id','state'],keyColumns:['work_id']},
     find_attempt:{kind:'select-one',tableId:'fx_work_attempts',columns:['attempt_id','work_id','state'],keyColumns:['attempt_id']},
     find_plan:{kind:'select-one',tableId:'fx_workflow_plans',columns:['plan_id','attempt_id','state'],keyColumns:['plan_id']},
     find_event:{kind:'select-one',tableId:'fx_workflow_events',columns:['event_id','plan_id','node_id','work_id','attempt_id','owner_domain','capability_ref','state','result_id'],keyColumns:['event_id']},
     find_node:{kind:'select-one',tableId:'fx_plan_nodes',columns:['plan_id','node_id','capability_ref','input_bindings_json'],keyColumns:['plan_id','node_id']},
-    find_result:{kind:'select-one',tableId:'fx_event_result_bindings',columns:['result_id','event_id','result_schema_ref','result_json','result_digest','evidence_digest'],keyColumns:['result_id']},
-    find_artifact:{kind:'select-one',tableId:'fx_artifact_registry',columns:['artifact_handle_id','artifact_kind','digest_algorithm','digest_hex','reference_revision','state'],keyColumns:['artifact_handle_id']}}});}
+    find_result:{kind:'select-one',tableId:'fx_event_result_bindings',columns:['result_id','event_id','result_schema_ref','result_json','result_digest','evidence_digest'],keyColumns:['result_id']}};
+  if(factKind==='product_metadata')statements.find_artifact={kind:'select-one',tableId:'fx_artifact_registry',columns:['artifact_handle_id','artifact_kind','digest_algorithm','digest_hex','reference_revision','state'],keyColumns:['artifact_handle_id']};
+  return createRepositoryDefinition({repositoryId:'libra_product_fact_foundation_reads',owner:'execution-foundation',schemaManifest,statements});}
 
 function parseJson(value,code){try{return JSON.parse(value);}catch{fail(code,'Stored typed JSON is invalid.');}}
 
@@ -42,7 +44,7 @@ function readChain(repo,ref){const work=repo.invoke('find_work',{work_id:ref.wor
     result:parseJson(binding.result_json,'P9_PRODUCT_FACT_RESULT_JSON'),resultDigest:binding.result_digest,evidenceDigest:binding.evidence_digest,
     inputBindings:parseJson(node.input_bindings_json,'P9_PRODUCT_FACT_INPUT_JSON'),inputBindingDigest:canonicalDigest(parseJson(node.input_bindings_json,'P9_PRODUCT_FACT_INPUT_JSON'))});}
 
-function registration(options,factKind,factSchemaRef){const owner=options.owner,foundation=options.foundation;
+function registration(options,factKind,factSchemaRef){const ownerRead=options.ownerRead,ownerWrite=options.ownerWrite,foundation=options.foundation;
   return {ownerDomain:'libra',aggregateType:'libra_product_fact',factType:factKind,factSchemaRef,effectClass:'domain_fact_commit',revisionFence:true,
     createParticipant({handle,payload,commitMarker}){let sourceChains=[],verificationBindings=[],artifactSnapshots=[],fact,sourceRefs;
       const refs=payload.sourceBasis?.selection?.items||[],verificationRefs=factKind==='product_metadata'
@@ -52,7 +54,7 @@ function registration(options,factKind,factSchemaRef){const owner=options.owner,
         if(factKind==='product_metadata')artifactSnapshots=(payload.verifiedArtifactManifest.items||[]).map((item)=>{const row=repo.invoke('find_artifact',{artifact_handle_id:item.artifactHandleId});
           if(!row)fail('P9_PRODUCT_FACT_ARTIFACT_MISSING','Referenced Artifact is absent.');return {artifactHandleId:row.artifact_handle_id,artifactKind:row.artifact_kind,
             digestAlgorithm:row.digest_algorithm,digestHex:row.digest_hex,referenceRevision:Number(row.reference_revision),state:row.state};});}};
-      const prepare={participantId:'libra_product_fact_prepare',owner:'libra',boundBusinessOwner:'libra',repositories:[owner],execute(context){const repo=context.repository(owner.repositoryId),run=repo.invoke('find_run',{libra_run_id:payload.sourceBasis?.selection?.libraRunId||payload.verifiedArtifactManifest?.libraRunId});
+      const prepare={participantId:'libra_product_fact_prepare',owner:'libra',boundBusinessOwner:'libra',repositories:[ownerRead],execute(context){const repo=context.repository(ownerRead.repositoryId),run=repo.invoke('find_run',{libra_run_id:payload.sourceBasis?.selection?.libraRunId||payload.verifiedArtifactManifest?.libraRunId});
         if(!run||!['active','suspended'].includes(run.state))fail('P9_PRODUCT_FACT_RUN_FENCE','Product Fact Run is absent or not eligible.');
         const expected=buildProductFactHandle({libraRunId:run.libra_run_id,factKind,expectedRevision:handle.expectedRevision,payloadDigest:handle.payloadDigest,eventFenceDigest:handle.eventFenceDigest});
         if(canonicalJson(expected)!==canonicalJson(handle))fail('P9_PRODUCT_FACT_HANDLE_FENCE','Product Fact Handle identity is invalid.');
@@ -68,7 +70,7 @@ function registration(options,factKind,factSchemaRef){const owner=options.owner,
             productMetadataDraft:payload.productMetadataDraft,verifiedArtifactManifest:manifest,mediaCastFactRef:payload.productMetadataDraft.mediaCastDraftRef||null,
             expectedRevision:handle.expectedRevision,commitMarker,committedAtMs:context.commitTimeMs});}
         return fact;}};
-      prepare.readParticipants=[readParticipant];prepare.postMarkerParticipants=[{participantId:'libra_product_fact_owner_write',owner:'libra',boundBusinessOwner:'libra',repositories:[owner],execute(context){const repo=context.repository(owner.repositoryId),manifest=factKind==='product_metadata'?payload.verifiedArtifactManifest:null;
+      prepare.readParticipants=[readParticipant];prepare.postMarkerParticipants=[{participantId:'libra_product_fact_owner_write',owner:'libra',boundBusinessOwner:'libra',repositories:[ownerWrite],execute(context){const repo=context.repository(ownerWrite.repositoryId),manifest=factKind==='product_metadata'?payload.verifiedArtifactManifest:null;
         const evidenceDigest=buildProductFactEvidence({libraRunId:factKind==='product_metadata'?manifest.libraRunId:payload.sourceBasis.selection.libraRunId,factKind,factRevision:fact.revision,
           sourceBasisKind:payload.sourceBasis.sourceBasisKind,sourceBasisDigest:payload.sourceBasis.sourceBasisDigest,commitPayloadDigest:handle.payloadDigest,eventFenceDigest:handle.eventFenceDigest});
         repo.invoke('insert_fact',{product_fact_id:fact.factId,libra_run_id:factKind==='product_metadata'?manifest.libraRunId:payload.sourceBasis.selection.libraRunId,fact_kind:factKind,
@@ -85,7 +87,8 @@ function registration(options,factKind,factSchemaRef){const owner=options.owner,
           input_binding_digest:item.inputBindingDigest,reference_digest:item.referenceDigest});}}];return prepare;}};}
 
 function createProductFactRegistrations(options){if(!options?.schemaManifest)fail('P9_PRODUCT_FACT_STORE_DEPENDENCIES','Schema manifest is required.');
-  const dependencies={owner:ownerRepository(options.schemaManifest),foundation:foundationRepository(options.schemaManifest)};
-  return Object.freeze([registration(dependencies,'media_cast',MEDIA_SCHEMA),registration(dependencies,'product_metadata',METADATA_SCHEMA)]);}
+  const ownerRead=ownerReadRepository(options.schemaManifest),ownerWrite=ownerWriteRepository(options.schemaManifest);
+  return Object.freeze([registration({ownerRead,ownerWrite,foundation:foundationRepository(options.schemaManifest,'media_cast')},'media_cast',MEDIA_SCHEMA),
+    registration({ownerRead,ownerWrite,foundation:foundationRepository(options.schemaManifest,'product_metadata')},'product_metadata',METADATA_SCHEMA)]);}
 
 module.exports=Object.freeze({MEDIA_SCHEMA,METADATA_SCHEMA,ProductFactStoreError,createProductFactRegistrations});

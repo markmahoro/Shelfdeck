@@ -2,16 +2,22 @@
 
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
+const os=require('node:os');
 const path=require('node:path');
 const test=require('node:test');
+const Database=require('better-sqlite3');
 const {canonicalDigest}=require('../../src/helix/contracts/canonical-json');
-const {createDomainCommitRegistry}=require('../../src/helix/foundation/persistence/domain-commit-registry');
+const {createCanonicalTransactionRegistry,createDomainCommitCoordinator,createDomainCommitRegistry}=require('../../src/helix/foundation/persistence/domain-commit-registry');
+const {openSqliteKernel}=require('../../src/helix/foundation/persistence/sqlite-kernel');
+const {createSqliteUnitOfWork}=require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
+const domainFactTransaction=require('../../src/helix/contracts/transaction-contracts/helix.transaction.domain-fact-commit/v1/contract.json');
 const {buildArtifactManifestVerification,buildMediaCastDraft,buildMetadataFetchIntent,buildMetadataObservationBasis,
   buildProductFactHandle,buildProductMetadataDraft}=
   require('../../src/helix/domains/libra/model/product-fact-contracts');
 const {createProductFactRegistrations}=require('../../src/helix/domains/libra/persistence/product-fact-store');
 
 const schemaManifest=JSON.parse(fs.readFileSync(path.resolve(__dirname,'../../src/helix/foundation/persistence/generated/clean-schema.manifest.json'),'utf8'));
+const schemaDdl=fs.readFileSync(path.resolve(__dirname,'../../src/helix/foundation/persistence/generated/clean-schema.sql'),'utf8');
 const d=(value)=>canonicalDigest({value});
 
 function fixture(factKind='media_cast'){const intent=buildMetadataFetchIntent({libraRunId:'run-1',runExecutionBasisDigest:d('run-basis'),sourceKind:'provider',
@@ -63,7 +69,7 @@ test('registers exact Product Fact variants and writes reconstructable Libra Own
   const registry=createDomainCommitRegistry({registrations}),value=fixture(),participant=registry.resolve(value.handle,value.payload,{commitMarker:'marker-1'});
   const inserted={facts:[],sources:[]};
   const foundation={invoke(statement,parameters){const rows={find_work:{work_id:'work-source',owner_domain:'libra',process_type:'libra_run',process_id:'run-1',state:'succeeded'},
-    find_attempt:{attempt_id:'attempt-source',work_id:'work-source',state:'succeeded'},find_plan:{plan_id:'plan-source',attempt_id:'attempt-source',state:'completed'},
+    find_attempt:{attempt_id:'attempt-source',work_id:'work-source',state:'succeeded'},find_plan:{plan_id:'plan-source',attempt_id:'attempt-source',state:'planned'},
     find_event:{event_id:'event-source',plan_id:'plan-source',node_id:'node-source',work_id:'work-source',attempt_id:'attempt-source',owner_domain:'libra',capability_ref:'libra.product_metadata.fetch@1',state:'succeeded',result_id:'result-source'},
     find_node:{plan_id:'plan-source',node_id:'node-source',capability_ref:'libra.product_metadata.fetch@1',input_bindings_json:JSON.stringify(value.intent)},
     find_result:{result_id:'result-source',event_id:'event-source',result_schema_ref:value.result.schemaRef,result_json:JSON.stringify(value.result),result_digest:canonicalDigest(value.result),evidence_digest:value.result.payloadDigest}};
@@ -85,10 +91,10 @@ test('persists Product Metadata only after the explicit Requirement, Artifact, P
   const value=metadataFixture(),registry=createDomainCommitRegistry({registrations:createProductFactRegistrations({schemaManifest})}),
     participant=registry.resolve(value.handle,value.payload,{commitMarker:'marker-metadata'}),inserted={facts:[],sources:[]};
   const sourceRows={work:{work_id:'work-source',owner_domain:'libra',process_type:'libra_run',process_id:'run-1',state:'succeeded'},
-    attempt:{attempt_id:'attempt-source',work_id:'work-source',state:'succeeded'},plan:{plan_id:'plan-source',attempt_id:'attempt-source',state:'completed'},
+    attempt:{attempt_id:'attempt-source',work_id:'work-source',state:'succeeded'},plan:{plan_id:'plan-source',attempt_id:'attempt-source',state:'planned'},
     event:{event_id:'event-source',plan_id:'plan-source',node_id:'node-source',work_id:'work-source',attempt_id:'attempt-source',owner_domain:'libra',capability_ref:'libra.product_metadata.fetch@1',state:'succeeded',result_id:'result-source'}};
   const verifyRows={work:{work_id:'work-verify',owner_domain:'libra',process_type:'libra_run',process_id:'run-1',state:'succeeded'},
-    attempt:{attempt_id:'attempt-verify',work_id:'work-verify',state:'succeeded'},plan:{plan_id:'plan-verify',attempt_id:'attempt-verify',state:'completed'},
+    attempt:{attempt_id:'attempt-verify',work_id:'work-verify',state:'succeeded'},plan:{plan_id:'plan-verify',attempt_id:'attempt-verify',state:'planned'},
     event:{event_id:'event-verify',plan_id:'plan-verify',node_id:'node-verify',work_id:'work-verify',attempt_id:'attempt-verify',owner_domain:'libra',capability_ref:'shared.artifact.manifest.verify@1',state:'succeeded',result_id:'result-verify'}};
   const foundation={invoke(statement,parameters){const verify=Object.values(parameters).includes('result-verify')||Object.values(parameters).includes('work-verify')||
     Object.values(parameters).includes('attempt-verify')||Object.values(parameters).includes('plan-verify')||Object.values(parameters).includes('event-verify');
@@ -110,3 +116,44 @@ test('persists Product Metadata only after the explicit Requirement, Artifact, P
   assert.equal(fact.schemaRef,'helix://contracts/types/ProductMetadataFact/v1');assert.equal(inserted.facts[0].artifact_verification_result_count,1);
   assert.equal(inserted.facts[0].verified_artifact_manifest_digest,value.manifest.manifestDigest);
 });
+
+function withProductDatabase(run){const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-p9-fact-')),databasePath=path.join(root,'db.sqlite');let now=100;
+  const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>now++});
+  try{return run({databasePath,kernel,unitOfWork:createSqliteUnitOfWork({kernel})});}finally{kernel.close();fs.rmSync(root,{recursive:true,force:true});}}
+
+function seedProductDatabase(kernel,value){kernel.runPrimitive(({prepare})=>{
+  prepare('INSERT INTO libra_subjects(subject_id,structure_kind,content_profile,status,intake_revision,current_continuity_set_digest,current_episode_scope_digest,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,?,?)').run('subject-1','single','movie','active',1,d('continuity'),d('episodes'),1,1);
+  prepare('INSERT INTO libra_runs(libra_run_id,subject_id,admission_revision,state,state_revision,state_digest,priority_class,priority_intent_digest,created_at_ms) VALUES(?,?,?,?,?,?,?,?,?)').run('run-1','subject-1',1,'active',1,d('state'),'normal',d('priority'),1);
+  for(const item of [{suffix:'source',state:'succeeded',capability:'libra.product_metadata.fetch@1',input:value.intent,result:value.result},
+    {suffix:'commit',state:'running',capability:'libra.product_fact.commit@1',input:{schema:'libra.product-fact-commit-input@1'},result:null}]){
+    prepare('INSERT INTO fx_supporting_works(work_id,owner_domain,process_type,process_id,work_kind,basis_digest,priority_class,state,idempotency_key,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?)').run(`work-${item.suffix}`,'libra','libra_run','run-1','product_fact',d(`basis-${item.suffix}`),'normal',item.state,`key-${item.suffix}`,1,1);
+    prepare('INSERT INTO fx_work_attempts(attempt_id,work_id,ordinal,basis_digest,state,started_at_ms,finished_at_ms) VALUES(?,?,?,?,?,?,?)').run(`attempt-${item.suffix}`,`work-${item.suffix}`,0,d(`attempt-${item.suffix}`),item.state,1,item.state==='succeeded'?2:null);
+    prepare('INSERT INTO fx_workflow_plans(plan_id,attempt_id,planner_ref,planner_version,catalog_digest,basis_digest,graph_digest,state,created_at_ms) VALUES(?,?,?,?,?,?,?,?,?)').run(`plan-${item.suffix}`,`attempt-${item.suffix}`,'libra.planner',1,d('catalog'),d(`plan-basis-${item.suffix}`),d(`graph-${item.suffix}`),'planned',1);
+    prepare('INSERT INTO fx_plan_nodes(plan_id,node_id,capability_ref,contract_version,input_binding_schema_ref,input_bindings_json,parameters_json,when_json,fence_basis_json,resource_demand_json) VALUES(?,?,?,?,?,?,?,?,?,?)').run(`plan-${item.suffix}`,`node-${item.suffix}`,item.capability,1,'helix://contracts/test/input/v1',JSON.stringify(item.input),'{}','{}','{}','{}');
+    prepare('INSERT INTO fx_workflow_events(event_id,plan_id,node_id,work_id,attempt_id,owner_domain,capability_ref,contract_version,state,priority_class,ready_at_ms,result_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)').run(`event-${item.suffix}`,`plan-${item.suffix}`,`node-${item.suffix}`,`work-${item.suffix}`,`attempt-${item.suffix}`,'libra',item.capability,1,item.state==='succeeded'?'succeeded':'executing','normal',1,item.result?'result-source':null);
+  }
+  prepare('INSERT INTO fx_event_result_bindings(result_id,event_id,outcome_kind,result_schema_ref,result_json,result_digest,evidence_schema_ref,evidence_json,evidence_digest,committed_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?)').run('result-source','event-source','succeeded',value.result.schemaRef,JSON.stringify(value.result),canonicalDigest(value.result),'helix://contracts/test/evidence/v1','{}',value.result.payloadDigest,2);
+});}
+
+function coordinator(unitOfWork){return createDomainCommitCoordinator({schemaManifest,unitOfWork,
+  registry:createDomainCommitRegistry({registrations:createProductFactRegistrations({schemaManifest})}),
+  transactionRegistry:createCanonicalTransactionRegistry({contracts:[domainFactTransaction]})});}
+
+function commitRequest(value){return {transactionId:'helix.transaction.domain-fact-commit',handle:value.handle,payload:value.payload,supportingWorkId:'work-commit',outboxMessages:[],
+  commitMarker:{commitMarker:'marker-product-fact',commitDigest:d('commit')},resultBinding:{resultId:'result-product-fact',eventId:'event-commit',evidenceSchemaRef:'helix://contracts/types/LibraProductFactEvidence/v1',evidence:{schemaRef:'helix://contracts/types/LibraProductFactEvidence/v1',schemaVersion:1,evidenceId:'evidence-product-fact',evidenceDigest:d('fact-evidence')}}};}
+
+test('commits Result, marker, Product Fact, and source refs atomically in the clean SQLite schema',()=>withProductDatabase(({databasePath,kernel,unitOfWork})=>{
+  const value=fixture();seedProductDatabase(kernel,value);const result=coordinator(unitOfWork).execute(commitRequest(value));assert.equal(result.replayed,false);
+  const db=new Database(databasePath,{readonly:true});for(const table of ['fx_event_result_bindings','fx_commit_markers','libra_product_fact_revisions','libra_product_fact_source_refs']){
+    const expected=table==='fx_event_result_bindings'?2:1;assert.equal(db.prepare(`SELECT COUNT(*) count FROM ${table}`).get().count,expected);}
+  const fact=db.prepare('SELECT fact_json,fact_digest,commit_marker,result_digest FROM libra_product_fact_revisions').get(),typed=JSON.parse(fact.fact_json);
+  assert.equal(canonicalDigest(typed),fact.result_digest);assert.equal(typed.factDigest,fact.fact_digest);assert.equal(fact.commit_marker,'marker-product-fact');
+  assert.equal(db.prepare('SELECT COUNT(*) count FROM fx_outbox').get().count,0);db.close();
+}));
+
+test('rolls back Result and marker when the post-marker Libra Owner write crashes',()=>withProductDatabase(({databasePath,kernel,unitOfWork})=>{
+  const value=fixture();seedProductDatabase(kernel,value);const crashing={execute(participants){return unitOfWork.execute(participants.map((participant)=>participant.participantId!=='libra_product_fact_owner_write'?participant:{...participant,execute(){throw new Error('fixture-owner-write-crash');}}));}};
+  assert.throws(()=>coordinator(crashing).execute(commitRequest(value)),/fixture-owner-write-crash/);const db=new Database(databasePath,{readonly:true});
+  assert.equal(db.prepare("SELECT COUNT(*) count FROM fx_event_result_bindings WHERE result_id='result-product-fact'").get().count,0);
+  for(const table of ['fx_commit_markers','libra_product_fact_revisions','libra_product_fact_source_refs'])assert.equal(db.prepare(`SELECT COUNT(*) count FROM ${table}`).get().count,0);db.close();
+}));
