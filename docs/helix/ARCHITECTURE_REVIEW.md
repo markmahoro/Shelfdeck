@@ -2439,7 +2439,7 @@ Capability、Result family、表或Canonical Transaction，计数保持`112 / 97
 
 ### 15.36 `PBF-14` — Product Metadata / Media-Cast Fact commit闭包
 
-Status: `CLOSED / BOUNDED INPUT-PERSISTENCE FIX APPLIED / REFINED_BY_PBF-14-R1-R2-R3-R4-R5-R6` — 2026-07-20
+Status: `CLOSED / BOUNDED INPUT-PERSISTENCE FIX APPLIED / REFINED_BY_PBF-14-R1-R2-R3-R4-R5-R6-R7` — 2026-07-20
 
 P9-05反向实现审计证明四项缺口成立：两个`domain_fact_commit`没有可选择的no-Outbox精确variant；Product Fact
 缺稳定ID/revision/Handle/marker与Evidence映射；Planner所谓“当前Metadata Observation集合”没有正式选择及历史
@@ -2601,3 +2601,23 @@ Bounded correction固定：
 
 该修正不新增Domain、Owner、Store、Handoff、Capability、Result family、table或transaction，inventory保持
 `112 / 97 / 177 / 43`。结果为`PASS / PBF-14-R6 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.43 `PBF-14-R7` — Product Metadata到Media Cast Fact引用闭包
+
+Status: `CLOSED / BOUNDED FACT-REFERENCE FIX APPLIED` — 2026-07-22
+
+反向审计证明原`ProductMetadataDraft.mediaCastDraftRef?`只是不可解析字符串，而Product Metadata Commit没有正式
+Media Cast Fact输入，无法构造输出Fact三元组。把字符串猜成Fact ID或扫描同Run latest Fact均无合同授权。
+
+执行顺序审计同时证明不能把Draft强制改成“已提交Fact ID”：Western Normalize生成Draft时Media Cast Fact未必存在。
+因此本次解除错误时序耦合：
+
+- `ProductMetadataDraft`移除`mediaCastDraftRef`，继续只描述Product Metadata与Artifact Requirements；
+- `LibraProductMetadataCommitPayload`新增nullable完整`mediaCastFactRef{productFactId,factRevision,factDigest}`，并纳入
+  Handle payload digest；
+- NULL输入严格产生NULL输出且禁止扫描；非NULL按ID精确读取同Run、`fact_kind=media_cast`的Owner row，验证revision、
+  完整Fact JSON与fact digest后原样构造输出三元组；
+- exact Product Metadata transaction既有read set已包含`libra_product_fact_revisions`，无需新增表或事务。
+
+该修正不新增Domain、Owner、Store、Handoff、Capability、Result family、table或transaction，inventory保持
+`112 / 97 / 177 / 43`。结果为`PASS / PBF-14-R7 CLOSED / NO OPEN BUSINESS DECISION`。
