@@ -31,7 +31,7 @@ test('closes the exact current 112/97/177/43 baseline with a stable aggregate di
     capabilities: 112, resultFamilies: 97, tables: 177, transactions: 43,
     sharedTypes: 29, domainInputs: 98, referencedTypeRefs: 202, unresolvedTypeRefs: 0
   });
-  assert.equal(first.aggregateDigest, 'b53c7fa13d7ffa094448dfb028339ca61d8aeffed81a1c3163993c68362a675e');
+  assert.equal(first.aggregateDigest, '22aaebe6784c25b3c6356b26199d39c24266aa7b2fe82f2e23a5457f4df523d2');
   assert.equal(first.aggregateDigest, second.aggregateDigest);
   assert.deepEqual(first.prohibitedActionsRun, []);
 });

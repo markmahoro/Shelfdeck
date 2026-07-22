@@ -33,7 +33,141 @@
       "fx_outbox"
     ],
     "readTables": [],
-    "variants": [],
+    "variants": [
+      {
+        "variantId": "libra_media_cast_fact@1",
+        "participants": [
+          {
+            "participantKind": "domain",
+            "owner": "libra",
+            "access": "write",
+            "tables": [
+              "libra_product_fact_revisions",
+              "libra_product_fact_source_refs"
+            ]
+          },
+          {
+            "participantKind": "foundation",
+            "owner": "execution-foundation",
+            "access": "write",
+            "tables": [
+              "fx_event_result_bindings",
+              "fx_commit_markers"
+            ]
+          }
+        ],
+        "writeTables": [
+          "libra_product_fact_revisions",
+          "libra_product_fact_source_refs",
+          "fx_event_result_bindings",
+          "fx_commit_markers"
+        ],
+        "readTables": [
+          "libra_runs",
+          "libra_product_fact_revisions",
+          "libra_product_fact_source_refs",
+          "fx_supporting_works",
+          "fx_work_attempts",
+          "fx_workflow_plans",
+          "fx_plan_nodes",
+          "fx_workflow_events",
+          "fx_event_result_bindings",
+          "fx_commit_markers"
+        ],
+        "selector": {
+          "selectorKind": "domain_fact_handle_exact",
+          "factType": "media_cast",
+          "factSchemaRef": "helix://contracts/types/MediaCastFact/v1",
+          "resultSchemaRef": "helix://contracts/types/MediaCastFact/v1"
+        },
+        "dynamicTableRequirements": [],
+        "fenceContract": {
+          "domainRevisionFenceRequired": true,
+          "materialControlCasRequired": false,
+          "commitMarkerRequired": true,
+          "outboxRequired": false
+        },
+        "rollbackInvariant": "Fact revision, complete Source refs, durable typed Result, and commit marker are all present or all absent; selector, Run, revision, source-basis, Result, schema, digest, or fence failure leaves zero writes and no Outbox row.",
+        "crashFixtures": [
+          {
+            "fixtureId": "libra-product-fact-variants",
+            "faultInjectionPoints": "Handle variant selector解析前后、Run/fact revision fence前后、Source Basis Result逐项验证与relation写入中间、metadata Artifact fence前后、Fact/typed Result/marker各边界、相同Handle重放、伪造或缺失Outbox",
+            "requiredInvariant": "selector三元组必须唯一命中或按closed规则拒绝；Product Fact variant绝不fallback到generic；Fact revision、完整Source refs、typed Result与marker全有或全无，metadata variant还必须同时验证全部Artifact fence；任何崩溃/不一致均零写入可见；成功重放返回同一Fact revision/digest且不追加Source refs；始终不存在本Commit的Outbox row",
+            "source": {
+              "section": "8.9.7",
+              "line": 10771
+            }
+          }
+        ]
+      },
+      {
+        "variantId": "libra_product_metadata_fact@1",
+        "participants": [
+          {
+            "participantKind": "domain",
+            "owner": "libra",
+            "access": "write",
+            "tables": [
+              "libra_product_fact_revisions",
+              "libra_product_fact_source_refs"
+            ]
+          },
+          {
+            "participantKind": "foundation",
+            "owner": "execution-foundation",
+            "access": "write",
+            "tables": [
+              "fx_event_result_bindings",
+              "fx_commit_markers"
+            ]
+          }
+        ],
+        "writeTables": [
+          "libra_product_fact_revisions",
+          "libra_product_fact_source_refs",
+          "fx_event_result_bindings",
+          "fx_commit_markers"
+        ],
+        "readTables": [
+          "libra_runs",
+          "libra_product_fact_revisions",
+          "libra_product_fact_source_refs",
+          "fx_supporting_works",
+          "fx_work_attempts",
+          "fx_workflow_plans",
+          "fx_plan_nodes",
+          "fx_workflow_events",
+          "fx_event_result_bindings",
+          "fx_commit_markers",
+          "fx_artifact_registry"
+        ],
+        "selector": {
+          "selectorKind": "domain_fact_handle_exact",
+          "factType": "product_metadata",
+          "factSchemaRef": "helix://contracts/types/ProductMetadataFact/v1",
+          "resultSchemaRef": "helix://contracts/types/ProductMetadataFact/v1"
+        },
+        "dynamicTableRequirements": [],
+        "fenceContract": {
+          "domainRevisionFenceRequired": true,
+          "materialControlCasRequired": false,
+          "commitMarkerRequired": true,
+          "outboxRequired": false
+        },
+        "rollbackInvariant": "Fact revision, complete Source refs, Artifact fence, durable typed Result, and commit marker are all present or all absent; selector, Run, revision, source-basis, Artifact, Result, schema, digest, or fence failure leaves zero writes and no Outbox row.",
+        "crashFixtures": [
+          {
+            "fixtureId": "libra-product-fact-variants",
+            "faultInjectionPoints": "Handle variant selector解析前后、Run/fact revision fence前后、Source Basis Result逐项验证与relation写入中间、metadata Artifact fence前后、Fact/typed Result/marker各边界、相同Handle重放、伪造或缺失Outbox",
+            "requiredInvariant": "selector三元组必须唯一命中或按closed规则拒绝；Product Fact variant绝不fallback到generic；Fact revision、完整Source refs、typed Result与marker全有或全无，metadata variant还必须同时验证全部Artifact fence；任何崩溃/不一致均零写入可见；成功重放返回同一Fact revision/digest且不追加Source refs；始终不存在本Commit的Outbox row",
+            "source": {
+              "section": "8.9.7",
+              "line": 10771
+            }
+          }
+        ]
+      }
+    ],
     "dynamicTableRequirements": [
       {
         "participant": "domain",

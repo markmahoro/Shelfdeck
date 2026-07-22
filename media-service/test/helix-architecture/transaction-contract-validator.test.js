@@ -80,3 +80,25 @@ test('rejects duplicate transaction inventory identities', () => {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('rejects Product Fact selector, Outbox, participant, and crash override drift', () => {
+  const root = fixture();
+  try {
+    mutate(transactionPath(root, 'helix.transaction.domain-fact-commit'), (document) => {
+      const variants = document.contract.variants;
+      variants[1].selector = { ...variants[0].selector };
+      variants[0].writeTables.push('fx_outbox');
+      variants[0].participants[0].tables = variants[0].participants[0].tables
+        .filter((table) => table !== 'libra_product_fact_revisions');
+      variants[0].crashFixtures = [];
+    });
+    const result = validateTransactionContracts({ contractsRoot: root });
+    assert.ok(codes(result).has('INVALID_TRANSACTION_VARIANT_SELECTOR'));
+    assert.ok(codes(result).has('UNOWNED_TRANSACTION_VARIANT_WRITE'));
+    assert.ok(codes(result).has('TRANSACTION_VARIANT_FENCE_MISMATCH'));
+    assert.ok(codes(result).has('MISSING_TRANSACTION_VARIANT_CRASH_FIXTURE'));
+    assert.ok(codes(result).has('INVALID_PRODUCT_FACT_VARIANT_OVERRIDE'));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

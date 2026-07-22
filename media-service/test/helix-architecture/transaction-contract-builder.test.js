@@ -129,6 +129,19 @@ test('models polymorphic Domain Fact ownership without generic SQL authority', (
   assert.equal(dynamic.dynamicTableSelector, 'DomainFactCommitHandle.factSchemaRef');
   assert.equal(dynamic.owner, 'execution_owner');
   assert.deepEqual(contract.writeTables, ['fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox']);
+  assert.deepEqual(contract.variants.map((variant) => variant.variantId), [
+    'libra_media_cast_fact@1', 'libra_product_metadata_fact@1'
+  ]);
+  for (const variant of contract.variants) {
+    assert.equal(variant.selector.selectorKind, 'domain_fact_handle_exact');
+    assert.deepEqual(variant.dynamicTableRequirements, []);
+    assert.equal(variant.fenceContract.outboxRequired, false);
+    assert.equal(variant.writeTables.includes('fx_outbox'), false);
+    assert.deepEqual(variant.crashFixtures.map((fixture) => fixture.fixtureId), ['libra-product-fact-variants']);
+    assert.deepEqual(variant.participants.map((participant) => participant.owner), ['libra', 'execution-foundation']);
+  }
+  assert.ok(contract.variants.find((variant) => variant.variantId === 'libra_product_metadata_fact@1')
+    .readTables.includes('fx_artifact_registry'));
 });
 
 test('freezes the Perception page as one typed-result transaction and keeps its Outbox internal', () => {

@@ -177,6 +177,23 @@ test('builds a deterministic exact typed registration manifest', () => {
   (error) => error.code === 'P3_DOMAIN_COMMIT_INVALID_TRANSACTION_CONTRACT');
 });
 
+test('selects exact Product Fact transaction variants and rejects partial namespace matches', () => {
+  const transactions = createCanonicalTransactionRegistry({ contracts: [domainFactTransaction] });
+  const generic = transactions.resolveVariant('helix.transaction.domain-fact-commit', domainHandle());
+  assert.equal(generic.fenceContract.outboxRequired, true);
+  const mediaCast = transactions.resolveVariant('helix.transaction.domain-fact-commit', domainHandle(payload(), {
+    factType: 'media_cast', factSchemaRef: 'helix://contracts/types/MediaCastFact/v1',
+    resultSchemaRef: 'helix://contracts/types/MediaCastFact/v1'
+  }));
+  assert.equal(mediaCast.variantId, 'libra_media_cast_fact@1');
+  assert.equal(mediaCast.fenceContract.outboxRequired, false);
+  assert.equal(mediaCast.writeTables.includes('fx_outbox'), false);
+  assert.throws(() => transactions.resolveVariant('helix.transaction.domain-fact-commit', domainHandle(payload(), {
+    factType: 'media_cast', factSchemaRef: 'helix://contracts/types/ProductMetadataFact/v1',
+    resultSchemaRef: 'helix://contracts/types/MediaCastFact/v1'
+  })), (error) => error.code === 'P3_TRANSACTION_VARIANT_SELECTOR_MISMATCH');
+});
+
 test('atomically coordinates typed Domain fact, Commit Marker, Outbox, and stable replay', () => {
   fixture(({ coordinator, databasePath, kernel }) => {
     const first = coordinator.execute(request());

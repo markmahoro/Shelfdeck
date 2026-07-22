@@ -31,6 +31,7 @@ const crashFixtures = Object.freeze({
   'libra-deliverable-promotion': ['Workspace Identity计算后、Package participant后、Control acquire前后', 'Package可见时所有Product Material已有Libra Control；失败不发布Offer', 8416],
   'libra-run-discard': ['Decision前、Run terminal后、原始Input Control release前后、Cleanup Scope/Outbox前', '要么Run仍frozen且全部Control不变，要么discarded/原始Input released/Cleanup Scope完整成立；受Control Workspace Product不成为无Owner文件', 8417],
   'libra-workspace-cleanup': ['删除intent后、文件删除后Evidence前、Cleanup/Control commit前后', '删除效果幂等；只有Deletion Evidence成立的受Control Product释放Control；重启恢复同一Cleanup member', 8418],
+  'libra-product-fact-variants': ['Handle variant selector解析前后、Run/fact revision fence前后、Source Basis Result逐项验证与relation写入中间、metadata Artifact fence前后、Fact/typed Result/marker各边界、相同Handle重放、伪造或缺失Outbox', 'selector三元组必须唯一命中或按closed规则拒绝；Product Fact variant绝不fallback到generic；Fact revision、完整Source refs、typed Result与marker全有或全无，metadata variant还必须同时验证全部Artifact fence；任何崩溃/不一致均零写入可见；成功重放返回同一Fact revision/digest且不追加Source refs；始终不存在本Commit的Outbox row', 10771],
   'handoff-b-accepted': ['Acceptance Decision、Custody/Binding、Control transfer、Receipt/Outbox各边界', 'Arca责任与Control一起成立；Libra Store不被Arca事务写入', 8419],
   'handoff-b-rejected': ['Acceptance check set形成前后、Attempt terminal CAS、Decision/Receipt/Result/marker/Outbox各边界、并发Accepted竞态', '只允许closed reason；rejected Attempt、Evidence set、Decision、Receipt、Result、marker和Outbox全有或全无；不建立Custody/Binding/On-deck Run、不转移Control；Accepted/Rejected互斥', 9617],
   'libra-handoff-b-rejection-consume': ['Inbox写入前后、Package digest CAS、Delivery Receipt写入前后、迟到Accepted消息', 'immutable Package与rejected Delivery Receipt/Inbox closure全有或全无；重复消息重放同一closure digest，相反终态或digest冲突稳定拒绝；不写Arca Store', 9618],
@@ -49,7 +50,29 @@ const definitions = Object.freeze({
     commitClass: 'domain_fact_commit',
     writeTables: ['fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox'],
     dynamicTableRequirements: [{ participant: 'domain', selector: 'DomainFactCommitHandle.factSchemaRef', ownerConstraint: 'execution_owner' }],
-    readTables: [], fixtureRefs: ['command-idempotency', 'effect-outbox-recovery'], hasOutbox: true
+    readTables: [], fixtureRefs: ['command-idempotency', 'effect-outbox-recovery'], hasOutbox: true,
+    variants: [
+      {
+        variantId: 'libra_media_cast_fact@1', exactOverride: true,
+        selector: { selectorKind: 'domain_fact_handle_exact', factType: 'media_cast',
+          factSchemaRef: 'helix://contracts/types/MediaCastFact/v1', resultSchemaRef: 'helix://contracts/types/MediaCastFact/v1' },
+        writeTables: ['libra_product_fact_revisions', 'libra_product_fact_source_refs', 'fx_event_result_bindings', 'fx_commit_markers'],
+        readTables: ['libra_runs', 'libra_product_fact_revisions', 'libra_product_fact_source_refs', 'fx_supporting_works',
+          'fx_work_attempts', 'fx_workflow_plans', 'fx_plan_nodes', 'fx_workflow_events', 'fx_event_result_bindings', 'fx_commit_markers'],
+        dynamicTableRequirements: [], hasOutbox: false, fixtureRefs: ['libra-product-fact-variants'],
+        rollbackInvariant: 'Fact revision, complete Source refs, durable typed Result, and commit marker are all present or all absent; selector, Run, revision, source-basis, Result, schema, digest, or fence failure leaves zero writes and no Outbox row.'
+      },
+      {
+        variantId: 'libra_product_metadata_fact@1', exactOverride: true,
+        selector: { selectorKind: 'domain_fact_handle_exact', factType: 'product_metadata',
+          factSchemaRef: 'helix://contracts/types/ProductMetadataFact/v1', resultSchemaRef: 'helix://contracts/types/ProductMetadataFact/v1' },
+        writeTables: ['libra_product_fact_revisions', 'libra_product_fact_source_refs', 'fx_event_result_bindings', 'fx_commit_markers'],
+        readTables: ['libra_runs', 'libra_product_fact_revisions', 'libra_product_fact_source_refs', 'fx_supporting_works',
+          'fx_work_attempts', 'fx_workflow_plans', 'fx_plan_nodes', 'fx_workflow_events', 'fx_event_result_bindings', 'fx_commit_markers', 'fx_artifact_registry'],
+        dynamicTableRequirements: [], hasOutbox: false, fixtureRefs: ['libra-product-fact-variants'],
+        rollbackInvariant: 'Fact revision, complete Source refs, Artifact fence, durable typed Result, and commit marker are all present or all absent; selector, Run, revision, source-basis, Artifact, Result, schema, digest, or fence failure leaves zero writes and no Outbox row.'
+      }
+    ]
   },
   'Field Observation Page Commit': {
     commitClass: 'domain_fact_commit',
@@ -460,13 +483,29 @@ function participantsFor(owner, writeTables) {
 
 function buildVariants(owner, baseWriteTables, baseReadTables, variants = []) {
   return variants.map((variant) => {
-    const writeTables = [...new Set([...baseWriteTables, ...(variant.additionalWriteTables || [])])];
-    const readTables = [...new Set([...baseReadTables, ...(variant.additionalReadTables || [])])];
-    return {
+    const writeTables = variant.exactOverride ? [...variant.writeTables]
+      : [...new Set([...baseWriteTables, ...(variant.additionalWriteTables || [])])];
+    const readTables = variant.exactOverride ? [...variant.readTables]
+      : [...new Set([...baseReadTables, ...(variant.additionalReadTables || [])])];
+    const built = {
       variantId: variant.variantId,
       participants: participantsFor(owner, writeTables),
       writeTables,
       readTables
+    };
+    if (!variant.exactOverride) return built;
+    return {
+      ...built,
+      selector: variant.selector,
+      dynamicTableRequirements: variant.dynamicTableRequirements,
+      fenceContract: {
+        domainRevisionFenceRequired: true,
+        materialControlCasRequired: false,
+        commitMarkerRequired: true,
+        outboxRequired: variant.hasOutbox
+      },
+      rollbackInvariant: variant.rollbackInvariant,
+      crashFixtures: variant.fixtureRefs.map(buildCrashFixture)
     };
   });
 }

@@ -118,12 +118,43 @@ function createCanonicalTransactionRegistry(options) {
       fail('P3_DOMAIN_COMMIT_INVALID_TRANSACTION_CONTRACT', 'Exact domain fact transaction contract is invalid.');
     }
     if (entries.has(contract.transactionId)) fail('P3_DOMAIN_COMMIT_DUPLICATE_TRANSACTION', 'Transaction identity must be unique.');
+    const exactSelectors = new Set();
+    for (const variant of contract.variants || []) {
+      if (!variant.selector) continue;
+      const selector = variant.selector;
+      const selectorKey = [selector.factType, selector.factSchemaRef, selector.resultSchemaRef].join('|');
+      if (selector.selectorKind !== 'domain_fact_handle_exact' || !selector.factType || !selector.factSchemaRef ||
+          !selector.resultSchemaRef || exactSelectors.has(selectorKey) || !Array.isArray(variant.participants) ||
+          !Array.isArray(variant.writeTables) || !Array.isArray(variant.readTables) ||
+          !Array.isArray(variant.dynamicTableRequirements) || !variant.fenceContract ||
+          variant.fenceContract.outboxRequired !== variant.writeTables.includes('fx_outbox')) {
+        fail('P3_DOMAIN_COMMIT_INVALID_TRANSACTION_VARIANT', 'Exact transaction variant contract is invalid.', {
+          transactionId: contract.transactionId, variantId: variant.variantId
+        });
+      }
+      exactSelectors.add(selectorKey);
+    }
     entries.set(contract.transactionId, Object.freeze(contract));
   }
   return Object.freeze({
-    resolve(transactionId) {
+    resolveVariant(transactionId, handle) {
       const contract = entries.get(transactionId);
       if (!contract) fail('P3_DOMAIN_COMMIT_UNKNOWN_TRANSACTION', 'Domain commit must name an exact canonical transaction.', { transactionId });
+      validateHandle(handle);
+      const variants = (contract.variants || []).filter((variant) => variant.selector);
+      const matches = variants.filter((variant) => variant.selector.factType === handle.factType &&
+        variant.selector.factSchemaRef === handle.factSchemaRef && variant.selector.resultSchemaRef === handle.resultSchemaRef);
+      if (matches.length > 1) fail('P3_TRANSACTION_VARIANT_REGISTRY_INTEGRITY', 'More than one exact transaction variant matched the Handle.');
+      if (matches.length === 1) return Object.freeze({ ...contract, ...matches[0], variants: contract.variants });
+      const namespaces = {
+        factType: new Set(variants.map((variant) => variant.selector.factType)),
+        factSchemaRef: new Set(variants.map((variant) => variant.selector.factSchemaRef)),
+        resultSchemaRef: new Set(variants.map((variant) => variant.selector.resultSchemaRef))
+      };
+      if (namespaces.factType.has(handle.factType) || namespaces.factSchemaRef.has(handle.factSchemaRef) ||
+          namespaces.resultSchemaRef.has(handle.resultSchemaRef)) fail(
+        'P3_TRANSACTION_VARIANT_SELECTOR_MISMATCH', 'Product Fact selector namespace requires an exact three-field match.'
+      );
       return contract;
     }
   });
@@ -187,7 +218,7 @@ function supportingWorkRepository(schemaManifest) {
 
 function createDomainCommitCoordinator(options) {
   if (!options || !options.schemaManifest || !options.registry || typeof options.registry.resolve !== 'function' ||
-      !options.transactionRegistry || typeof options.transactionRegistry.resolve !== 'function' ||
+      !options.transactionRegistry || typeof options.transactionRegistry.resolveVariant !== 'function' ||
       !options.unitOfWork || typeof options.unitOfWork.execute !== 'function') {
     fail('P3_DOMAIN_COMMIT_INVALID_COORDINATOR', 'Schema manifest, typed registry, and SqliteUnitOfWork are required.');
   }
@@ -201,7 +232,7 @@ function createDomainCommitCoordinator(options) {
         fail('P3_DOMAIN_COMMIT_INVALID_REQUEST', 'Transaction, Handle, durable typed Result binding, commit marker, and Outbox declaration are required.');
       }
       const handle = request.handle;
-      const transaction = options.transactionRegistry.resolve(text(request.transactionId, 'transactionId'));
+      const transaction = options.transactionRegistry.resolveVariant(text(request.transactionId, 'transactionId'), handle);
       if (transaction.ownerScope !== 'polymorphic-domain-owner' && transaction.ownerScope !== handle.ownerDomain) {
         fail('P3_DOMAIN_COMMIT_TRANSACTION_OWNER_MISMATCH', 'Canonical transaction does not authorize this Domain Owner.');
       }
