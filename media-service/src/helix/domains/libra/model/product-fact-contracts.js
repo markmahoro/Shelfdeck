@@ -276,6 +276,64 @@ function buildProductFactHandle(value) {
   return Object.freeze(handle);
 }
 
-module.exports = Object.freeze({ ProductFactContractError, buildMediaCastDraft, buildMetadataFetchIntent,
+function productFactEnvelope(value, factKind, factDigest) {
+  const libraRunId = text(value?.libraRunId, 'libraRunId');
+  const revision = integer(value?.expectedRevision, 'expectedRevision') + 1;
+  const aggregateId = canonicalDigest({ schema:'libra.product-fact-aggregate-id@1', libraRunId, factKind });
+  const factId = canonicalDigest({ schema:'libra.product-fact-id@1', libraRunId, factKind, factRevision:revision });
+  return { factId, ownerDomain:'libra', aggregateType:'libra_product_fact', aggregateId, revision,
+    factSchemaRef:factKind === 'media_cast' ? 'helix://contracts/types/MediaCastFact/v1' :
+      'helix://contracts/types/ProductMetadataFact/v1', factDigest,
+    commitMarker:text(value?.commitMarker, 'commitMarker'), committedAtMs:integer(value?.committedAtMs, 'committedAtMs') };
+}
+
+function buildMediaCastFact(value) {
+  const draft = value?.mediaCastDraft, basis = value?.sourceBasis;
+  if (!draft || draft.schemaRef !== 'helix://contracts/types/MediaCastDraft/v1' || !basis ||
+      draft.subjectId !== value.subjectId || draft.sourceBasisKind !== basis.sourceBasisKind ||
+      draft.basisDigest !== basis.sourceBasisDigest) fail('P9_MEDIA_CAST_FACT_INPUT', 'Media Cast Draft and Source Basis disagree.');
+  const relations = [...draft.relations], relationsDigest = canonicalDigest({ schema:'libra.media-cast-relations@1', relations });
+  const body = { subjectId:text(value.subjectId, 'subjectId'), sourceBasisKind:basis.sourceBasisKind,
+    sourceBasisDigest:digest(basis.sourceBasisDigest, 'sourceBasisDigest'), relations, relationsDigest, relationCount:relations.length };
+  const factDigest = canonicalDigest({ schema:'libra.media-cast-fact@1', ...body });
+  return Object.freeze(bytes({ schemaRef:'helix://contracts/types/MediaCastFact/v1', schemaVersion:1,
+    ...productFactEnvelope(value, 'media_cast', factDigest), ...body }, 64 * 1024, 'P9_MEDIA_CAST_FACT_SIZE'));
+}
+
+function buildProductMetadataFact(value) {
+  const draft = value?.productMetadataDraft, basis = value?.sourceBasis, manifest = value?.verifiedArtifactManifest;
+  if (!draft || draft.schemaRef !== 'helix://contracts/types/ProductMetadataDraft/v1' || !basis || !manifest ||
+      manifest.libraRunId !== value.libraRunId || draft.sourceBasisKind !== basis.sourceBasisKind ||
+      (basis.sourceBasisKind === 'metadata_observation' && (draft.metadataObservationSetDigest !== basis.observationSet?.setDigest ||
+        draft.westernAnalysisVariantDigest !== null)) ||
+      (basis.sourceBasisKind === 'western_analysis' && (draft.westernAnalysisVariantDigest !== basis.westernBasis?.analysisVariantDigest ||
+        draft.metadataObservationSetDigest !== null))) {
+    fail('P9_PRODUCT_METADATA_FACT_INPUT', 'Metadata Draft, Source Basis, or Artifact Manifest disagree.');
+  }
+  const mediaCastFactRef = value.mediaCastFactRef || null;
+  if (mediaCastFactRef !== null && (!text(mediaCastFactRef.productFactId, 'productFactId') ||
+      !Number.isSafeInteger(mediaCastFactRef.factRevision) || mediaCastFactRef.factRevision < 1 ||
+      !DIGEST.test(mediaCastFactRef.factDigest || ''))) fail('P9_PRODUCT_METADATA_CAST_REF', 'Media Cast Fact reference is invalid.');
+  const body = { subjectId:text(value.subjectId, 'subjectId'), resolvedIdentityDigest:digest(draft.resolvedIdentityDigest, 'resolvedIdentityDigest'),
+    sourceBasisKind:basis.sourceBasisKind, sourceBasisDigest:digest(basis.sourceBasisDigest, 'sourceBasisDigest'),
+    metadataObservationSetDigest:draft.metadataObservationSetDigest, westernAnalysisVariantDigest:draft.westernAnalysisVariantDigest,
+    fieldProvenance:[...draft.fieldProvenance], descriptiveFacts:draft.descriptiveFacts,
+    providerIdentities:[...draft.providerIdentities], mediaCastFactRef,
+    verifiedArtifactManifestDigest:digest(manifest.manifestDigest, 'verifiedArtifactManifestDigest') };
+  body.productMetadataDigest = canonicalDigest({ schema:'libra.product-metadata@1', ...body });
+  return Object.freeze(bytes({ schemaRef:'helix://contracts/types/ProductMetadataFact/v1', schemaVersion:1,
+    ...productFactEnvelope(value, 'product_metadata', body.productMetadataDigest), ...body },
+  64 * 1024, 'P9_PRODUCT_METADATA_FACT_SIZE'));
+}
+
+function buildProductFactEvidence(value) {
+  return canonicalDigest({ schema:'libra.product-fact-evidence@1', libraRunId:text(value?.libraRunId, 'libraRunId'),
+    factKind:text(value?.factKind, 'factKind'), factRevision:integer(value?.factRevision, 'factRevision', 1),
+    sourceBasisKind:text(value?.sourceBasisKind, 'sourceBasisKind'), sourceBasisDigest:digest(value?.sourceBasisDigest, 'sourceBasisDigest'),
+    commitPayloadDigest:digest(value?.commitPayloadDigest, 'commitPayloadDigest'),
+    eventFenceDigest:digest(value?.eventFenceDigest, 'eventFenceDigest') });
+}
+
+module.exports = Object.freeze({ ProductFactContractError, buildMediaCastDraft, buildMediaCastFact, buildMetadataFetchIntent,
   buildMetadataObservationBasis, buildProductFactHandle, buildProductMetadataDraft, metadataObservationWorkIdempotencyKey,
-  metadataSourceRef, selectMetadataObservations, validateVerifiedArtifactManifest });
+  buildProductMetadataFact, buildProductFactEvidence, metadataSourceRef, selectMetadataObservations, validateVerifiedArtifactManifest });

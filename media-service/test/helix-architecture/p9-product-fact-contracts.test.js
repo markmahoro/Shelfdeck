@@ -3,8 +3,8 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
-const { buildMediaCastDraft, buildMetadataFetchIntent, buildMetadataObservationBasis, buildProductFactHandle,
-  buildProductMetadataDraft, metadataObservationWorkIdempotencyKey, selectMetadataObservations,
+const { buildMediaCastDraft, buildMediaCastFact, buildMetadataFetchIntent, buildMetadataObservationBasis, buildProductFactEvidence,
+  buildProductFactHandle, buildProductMetadataDraft, buildProductMetadataFact, metadataObservationWorkIdempotencyKey, selectMetadataObservations,
   validateVerifiedArtifactManifest } =
   require('../../src/helix/domains/libra/model/product-fact-contracts');
 
@@ -137,4 +137,39 @@ test('verifies artifact handles without embedding bytes or reading a second owne
   assert.deepEqual(validateVerifiedArtifactManifest(manifest,[snapshot]),manifest);
   assert.throws(()=>validateVerifiedArtifactManifest(manifest,[{...snapshot,artifactDigest:d('tampered')}]),
     (error)=>error.code==='P9_ARTIFACT_HANDLE_MISMATCH');
+});
+
+test('builds complete immutable Product Facts and their exact evidence digest', () => {
+  const sourceIntents=intents(), basis=buildMetadataObservationBasis({intents:sourceIntents,
+    results:[observation(sourceIntents[0],{entries:[{key:'title',value:'A'}]})],factKind:'media_cast',expectedRevision:0});
+  const mediaDraft=buildMediaCastDraft({subjectId:'subject-1',sourceBasis:basis,relations:[],producedAtMs:10});
+  const mediaFact=buildMediaCastFact({libraRunId:'run-1',subjectId:'subject-1',sourceBasis:basis,mediaCastDraft:mediaDraft,
+    expectedRevision:0,commitMarker:'media-marker',committedAtMs:20});
+  assert.equal(mediaFact.revision,1);
+  assert.equal(mediaFact.relationCount,0);
+  assert.equal(mediaFact.factDigest,canonicalDigest({schema:'libra.media-cast-fact@1',subjectId:'subject-1',
+    sourceBasisKind:'metadata_observation',sourceBasisDigest:basis.sourceBasisDigest,relations:[],
+    relationsDigest:mediaFact.relationsDigest,relationCount:0}));
+
+  const metadataBasis=buildMetadataObservationBasis({intents:sourceIntents,
+    results:[observation(sourceIntents[0],{entries:[{key:'title',value:'A'}]})],factKind:'product_metadata',expectedRevision:0});
+  const metadataDraft=buildProductMetadataDraft({sourceBasis:metadataBasis,requiredFields:['title'],producedAtMs:10,
+    providerIdentities:[],artifactRequirements:[]}).draft;
+  const artifactSetDigest=canonicalDigest({schema:'libra.verified-artifact-set@1',items:[]});
+  const manifest={manifestId:canonicalDigest({schema:'libra.verified-artifact-manifest-id@1',libraRunId:'run-1',artifactSetDigest}),
+    libraRunId:'run-1',items:[],artifactSetDigest};
+  manifest.manifestDigest=canonicalDigest(manifest);
+  const metadataFact=buildProductMetadataFact({libraRunId:'run-1',subjectId:'subject-1',sourceBasis:metadataBasis,
+    productMetadataDraft:metadataDraft,verifiedArtifactManifest:manifest,mediaCastFactRef:{productFactId:mediaFact.factId,
+      factRevision:mediaFact.revision,factDigest:mediaFact.factDigest},expectedRevision:0,commitMarker:'metadata-marker',committedAtMs:30});
+  assert.equal(metadataFact.factDigest,metadataFact.productMetadataDigest);
+  assert.deepEqual(metadataFact.descriptiveFacts,metadataDraft.descriptiveFacts);
+  assert.equal(buildProductFactEvidence({libraRunId:'run-1',factKind:'product_metadata',factRevision:1,
+    sourceBasisKind:'metadata_observation',sourceBasisDigest:metadataBasis.sourceBasisDigest,
+    commitPayloadDigest:d('commit-payload'),eventFenceDigest:d('event-fence')}),canonicalDigest({schema:'libra.product-fact-evidence@1',
+    libraRunId:'run-1',factKind:'product_metadata',factRevision:1,sourceBasisKind:'metadata_observation',
+    sourceBasisDigest:metadataBasis.sourceBasisDigest,commitPayloadDigest:d('commit-payload'),eventFenceDigest:d('event-fence')}));
+  assert.throws(()=>buildProductMetadataFact({libraRunId:'other-run',subjectId:'subject-1',sourceBasis:metadataBasis,
+    productMetadataDraft:metadataDraft,verifiedArtifactManifest:manifest,expectedRevision:0,commitMarker:'x',committedAtMs:1}),
+  (error)=>error.code==='P9_PRODUCT_METADATA_FACT_INPUT');
 });
