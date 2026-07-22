@@ -87,13 +87,13 @@ Workspace admission/reference、完整On-deck Product Package、Discard/Cleanup�
 
 | Field | Current value |
 | --- | --- |
-| Phase | P9 — Libra production and delivery |
+| Phase | P10 — Handoff B and On-deck |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | P9-00–P9-06 PASS；P9-07 External material acquisition and import active |
-| Implementation baseline | exact P8 closure `3184ef4573cb3663e4a1fae87fc65b4d1c270b38` |
+| Status | P9 complete and archived；P10 active |
+| Implementation baseline | P9 implementation closure `fff40f8d92dbff88f07435a49bb0bcbae4934578` |
 | Phase branch/worktree | `codex/helix-p9` / `E:\my_project\emby_third_party-helix-p9` |
-| Allowed now | P9 local code、unit/contract/isolated fixture、docs与Phase内自动闭环 |
-| Next action | 完成P9-07机器合同主动复审后，实现External material acquisition、verification与one-member Workspace import |
+| Allowed now | P10/P11 local code、unit/contract/isolated fixture、docs与Phase内自动闭环；P11后停止 |
+| Next action | 完成P10 Handoff B、custody、Inventory与On-deck Commit垂直链 |
 
 ## 4. Master roadmap
 
