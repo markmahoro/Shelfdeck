@@ -5,7 +5,7 @@ const test = require('node:test');
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const { buildArtifactManifestVerification, buildMediaCastDraft, buildMediaCastFact, buildMetadataFetchIntent, buildMetadataObservationBasis, buildProductFactEvidence,
   buildProductFactHandle, buildProductMetadataDraft, buildProductMetadataFact, metadataObservationWorkIdempotencyKey, selectMetadataObservations,
-  buildProductFactSourceRefs,
+  buildProductFactSourceRefs, buildWesternProductMetadataDraft,
   validateVerifiedArtifactManifest } =
   require('../../src/helix/domains/libra/model/product-fact-contracts');
 
@@ -58,6 +58,17 @@ function observation(intent, options = {}) {
     evidenceDigest:result.payloadDigest, inputBindingDigest:canonicalDigest(intent),
     workId:`work-${intent.sourcePriority}`, attemptId:`attempt-${intent.sourcePriority}`,
     planId:`plan-${intent.sourcePriority}`, eventId:`event-${intent.sourcePriority}` };
+}
+
+function exactChain({suffix,capabilityRef,result,inputBindings,processId='run-1'}) {
+  return {workId:`work-${suffix}`,attemptId:`attempt-${suffix}`,planId:`plan-${suffix}`,eventId:`event-${suffix}`,
+    resultId:`result-${suffix}`,ownerDomain:'libra',processType:'libra_run',processId,workState:'succeeded',
+    attemptState:'succeeded',planState:'planned',eventState:'succeeded',eventOwnerDomain:'libra',
+    attemptWorkId:`work-${suffix}`,planAttemptId:`attempt-${suffix}`,eventWorkId:`work-${suffix}`,
+    eventAttemptId:`attempt-${suffix}`,eventPlanId:`plan-${suffix}`,eventResultId:`result-${suffix}`,
+    nodeCapabilityRef:capabilityRef,capabilityRef,resultSchemaRef:result.schemaRef,result,
+    resultDigest:canonicalDigest(result),evidenceDigest:result.payloadDigest||null,inputBindings,
+    inputBindingDigest:canonicalDigest(inputBindings)};
 }
 
 test('freezes fixed metadata source identity and rejects cross-profile fallback', () => {
@@ -120,6 +131,80 @@ test('builds a closed observation basis and NFO-first complete metadata draft', 
   assert.equal(built.draft.fieldProvenance.find((item) => item.fieldPath === 'title').sourceKind, 'related_nfo');
   assert.deepEqual(buildProductMetadataDraft({ sourceBasis:basis, requiredFields:['title','runtime'], producedAtMs:100 }).missingFields,
     ['runtime']);
+});
+
+test('freezes Western Analysis and Match source refs without confusing internal and storage digests', () => {
+  const analysis={schemaRef:'helix://contracts/types/WesternAnalysisResult/v1',schemaVersion:1,evidenceId:'analysis-evidence',
+    evidenceKind:'western_analysis',producerRef:'libra.western.analysis.observe@1',basisDigest:d('analysis-basis'),
+    payloadDigest:d('analysis-payload'),observedAtMs:10,externalJobReceiptId:'job-1',analysisVariantRef:'variant-spec-1',
+    resultArtifactHandle:artifactHandle('analysis-artifact'),resultDigest:''};
+  analysis.resultDigest=canonicalDigest(Object.fromEntries(Object.entries(analysis).filter(([key])=>key!=='resultDigest')));
+  const analysisInput={libraRunId:'run-1',runExecutionBasisDigest:d('run-basis'),analysisSpec:{specId:'spec-1'}},
+    analysisChain=exactChain({suffix:'analysis',capabilityRef:'libra.western.analysis.observe@1',result:analysis,inputBindings:analysisInput});
+  const analysisResults=[{eventId:analysisChain.eventId,resultId:analysisChain.resultId,
+    resultDigest:analysisChain.resultDigest,result:analysis}];
+  const variant={variantId:'',libraRunId:'run-1',runExecutionBasisDigest:d('run-basis'),resolvedIdentityDigest:d('identity'),
+    analysisResults,variantDigest:''};
+  variant.variantDigest=canonicalDigest({libraRunId:variant.libraRunId,runExecutionBasisDigest:variant.runExecutionBasisDigest,
+    resolvedIdentityDigest:variant.resolvedIdentityDigest,analysisResults});
+  variant.variantId=canonicalDigest({schema:'libra.western-analysis-variant-id@1',libraRunId:variant.libraRunId,
+    runExecutionBasisDigest:variant.runExecutionBasisDigest,resolvedIdentityDigest:variant.resolvedIdentityDigest,
+    variantDigest:variant.variantDigest});
+  const draft=buildWesternProductMetadataDraft({analysisVariant:variant,requiredFields:['title'],producedAtMs:20,
+    descriptiveFacts:[{key:'title',value:'Western title'}],fieldProvenance:[{fieldPath:'title',sourceKind:'western_analysis',
+      sourceRef:analysis.externalJobReceiptId,evidenceDigest:analysis.payloadDigest}],providerIdentities:[],artifactRequirements:[]}).draft;
+  const normalizeChain=exactChain({suffix:'normalize',capabilityRef:'libra.western.metadata.normalize@1',result:draft,
+    inputBindings:{westernAnalysisVariant:variant}});
+  const analysisRef={workId:analysisChain.workId,attemptId:analysisChain.attemptId,planId:analysisChain.planId,
+    eventId:analysisChain.eventId,resultId:analysisChain.resultId,resultDigest:analysisChain.resultDigest,
+    inputBindingDigest:analysisChain.inputBindingDigest,externalJobReceiptId:analysis.externalJobReceiptId,
+    evidenceId:analysis.evidenceId,evidenceDigest:analysis.payloadDigest};
+  const normalizeRef={workId:normalizeChain.workId,attemptId:normalizeChain.attemptId,planId:normalizeChain.planId,
+    eventId:normalizeChain.eventId,resultId:normalizeChain.resultId,resultDigest:normalizeChain.resultDigest,
+    inputBindingDigest:normalizeChain.inputBindingDigest,analysisVariantId:variant.variantId,productMetadataDraftDigest:draft.draftDigest};
+  const canonicalItems=[{ordinal:0,capabilityRef:analysisChain.capabilityRef,resultSchemaRef:analysisChain.resultSchemaRef,
+    workId:analysisChain.workId,attemptId:analysisChain.attemptId,planId:analysisChain.planId,eventId:analysisChain.eventId,
+    resultId:analysisChain.resultId,resultDigest:analysisChain.resultDigest,sourceRef:analysis.externalJobReceiptId,sourceOrder:0,
+    evidenceId:analysis.evidenceId,evidenceDigest:analysis.payloadDigest,inputBindingDigest:analysisChain.inputBindingDigest},
+  {ordinal:1,capabilityRef:normalizeChain.capabilityRef,resultSchemaRef:normalizeChain.resultSchemaRef,
+    workId:normalizeChain.workId,attemptId:normalizeChain.attemptId,planId:normalizeChain.planId,eventId:normalizeChain.eventId,
+    resultId:normalizeChain.resultId,resultDigest:normalizeChain.resultDigest,sourceRef:variant.variantId,sourceOrder:1,
+    evidenceId:null,evidenceDigest:null,inputBindingDigest:normalizeChain.inputBindingDigest}];
+  const sourceRefsDigest=canonicalDigest({schema:'libra.western-product-metadata-source-refs@1',items:canonicalItems});
+  const westernBasis={basisId:canonicalDigest({schema:'libra.western-product-metadata-basis-id@1',libraRunId:'run-1',
+    runExecutionBasisDigest:d('run-basis'),sourceRefsDigest}),basisKind:'western_analysis',libraRunId:'run-1',
+    runExecutionBasisDigest:d('run-basis'),resolvedIdentityDigest:d('identity'),analysisVariantDigest:variant.variantDigest,
+    analysisRefs:[analysisRef],normalizeRef,sourceRefsDigest,basisDigest:''};
+  westernBasis.basisDigest=canonicalDigest(Object.fromEntries(Object.entries(westernBasis).filter(([key])=>key!=='basisDigest')));
+  const sourceBasis={sourceBasisKind:'western_analysis',westernBasis,sourceBasisDigest:westernBasis.basisDigest};
+  const refs=buildProductFactSourceRefs({sourceBasis,foundationChains:[analysisChain,normalizeChain],
+    productFactId:'product-fact-western',productMetadataDraft:draft});
+  assert.equal(refs.length,2);assert.equal(refs[0].resultDigest,canonicalDigest(analysis));
+  assert.notEqual(refs[0].resultDigest,analysis.resultDigest);assert.equal(refs[1].evidenceId,null);
+  const wrongBasis={...sourceBasis,westernBasis:{...westernBasis,analysisRefs:[{...analysisRef,resultDigest:analysis.resultDigest}]}};
+  assert.throws(()=>buildProductFactSourceRefs({sourceBasis:wrongBasis,foundationChains:[analysisChain,normalizeChain],
+    productFactId:'product-fact-western',productMetadataDraft:draft}),
+  (error)=>error.code==='P9_PRODUCT_FACT_SOURCE_CHAIN');
+
+  const match={schemaRef:'helix://contracts/types/PersonMatchEvidence/v1',schemaVersion:1,evidenceId:'match-evidence',
+    evidenceKind:'person_match',producerRef:'shared.face.reference.match@1',basisDigest:d('match-input'),
+    payloadDigest:d('match-payload'),observedAtMs:30,clusterSetDigest:d('clusters'),referenceProjectionRevision:1,
+    matches:[],unmatchedClusterIds:['cluster-1']};
+  const matchChain=exactChain({suffix:'match',capabilityRef:'shared.face.reference.match@1',result:match,
+    inputBindings:{faceClusterSetHandle:{handleId:'clusters'},personReferenceProjection:{projectionRevision:1}}});
+  const matchRef={workId:matchChain.workId,attemptId:matchChain.attemptId,planId:matchChain.planId,eventId:matchChain.eventId,
+    resultId:matchChain.resultId,resultDigest:matchChain.resultDigest,inputBindingDigest:matchChain.inputBindingDigest,
+    evidenceId:match.evidenceId,evidenceDigest:match.payloadDigest,personMatchEvidenceDigest:match.payloadDigest};
+  const matchBasis={basisId:canonicalDigest({schema:'libra.western-media-cast-basis-id@1',libraRunId:'run-1',
+    runExecutionBasisDigest:d('run-basis'),matchResultId:matchRef.resultId,matchResultDigest:matchRef.resultDigest}),
+    basisKind:'western_match',libraRunId:'run-1',runExecutionBasisDigest:d('run-basis'),resolvedIdentityDigest:d('identity'),
+    matchRef,matchState:'no_matches',basisDigest:''};
+  matchBasis.basisDigest=canonicalDigest(Object.fromEntries(Object.entries(matchBasis).filter(([key])=>key!=='basisDigest')));
+  const matchSourceBasis={sourceBasisKind:'western_match',westernBasis:matchBasis,sourceBasisDigest:matchBasis.basisDigest},
+    mediaDraft=buildMediaCastDraft({subjectId:'subject-1',sourceBasis:matchSourceBasis,relations:[],producedAtMs:31});
+  const matchRefs=buildProductFactSourceRefs({sourceBasis:matchSourceBasis,foundationChains:[matchChain],
+    productFactId:'product-fact-match',mediaCastDraft:mediaDraft});
+  assert.equal(matchRefs.length,1);assert.equal(matchRefs[0].sourceRef,match.evidenceId);
 });
 
 test('derives stable Product Fact aggregate, revision fence, handle, and marker identity', () => {

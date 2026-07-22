@@ -70,26 +70,39 @@ function readChain(repo,ref){const work=repo.invoke('find_work',{work_id:ref.wor
     result:parseJson(binding.result_json,'P9_PRODUCT_FACT_RESULT_JSON'),resultDigest:binding.result_digest,evidenceDigest:binding.evidence_digest,
     inputBindings:parseJson(node.input_bindings_json,'P9_PRODUCT_FACT_INPUT_JSON'),inputBindingDigest:canonicalDigest(parseJson(node.input_bindings_json,'P9_PRODUCT_FACT_INPUT_JSON'))});}
 
+function basisRunId(payload){return payload.sourceBasis?.selection?.libraRunId||payload.sourceBasis?.westernBasis?.libraRunId||
+  payload.verifiedArtifactManifest?.libraRunId;}
+function basisId(sourceBasis){return sourceBasis.selection?.selectionId||sourceBasis.westernBasis?.basisId;}
+function sourceResultRefs(sourceBasis){
+  if(sourceBasis?.sourceBasisKind==='metadata_observation')return sourceBasis.selection?.items||[];
+  if(sourceBasis?.sourceBasisKind==='western_analysis')return [...(sourceBasis.westernBasis?.analysisRefs||[]),sourceBasis.westernBasis?.normalizeRef].filter(Boolean);
+  if(sourceBasis?.sourceBasisKind==='western_match')return sourceBasis.westernBasis?.matchRef?[sourceBasis.westernBasis.matchRef]:[];
+  return [];
+}
+
 function registration(options,factKind,factSchemaRef){const ownerRead=options.ownerRead,ownerWrite=options.ownerWrite,foundation=options.foundation;
   return {ownerDomain:'libra',aggregateType:'libra_product_fact',factType:factKind,factSchemaRef,effectClass:'domain_fact_commit',revisionFence:true,
     createParticipant({handle,payload,commitMarker}){let sourceChains=[],verificationBindings=[],artifactSnapshots=[],fact,sourceRefs;
       if(factKind==='product_metadata'&&!Object.hasOwn(payload,'mediaCastFactRef'))
         fail('P9_PRODUCT_METADATA_CAST_REF','Product Metadata commit must explicitly carry nullable mediaCastFactRef.');
-      const refs=payload.sourceBasis?.selection?.items||[],verificationRefs=factKind==='product_metadata'
+      const refs=sourceResultRefs(payload.sourceBasis),verificationRefs=factKind==='product_metadata'
         ? [...new Map((payload.verifiedArtifactManifest?.items||[]).map((item)=>[item.verificationResultRef.resultId,item.verificationResultRef])).values()]:[];
       const readParticipant={participantId:'libra_product_fact_exact_reads',owner:'execution-foundation',boundBusinessOwner:'libra',repositories:[foundation],execute(context){const repo=context.repository(foundation.repositoryId);
         sourceChains=refs.map((ref)=>readChain(repo,ref));verificationBindings=verificationRefs.map((ref)=>readChain(repo,ref));
         if(factKind==='product_metadata')artifactSnapshots=(payload.verifiedArtifactManifest.items||[]).map((item)=>{const row=repo.invoke('find_artifact',{artifact_handle_id:item.artifactHandleId});
           if(!row)fail('P9_PRODUCT_FACT_ARTIFACT_MISSING','Referenced Artifact is absent.');return {artifactHandleId:row.artifact_handle_id,artifactKind:row.artifact_kind,
             digestAlgorithm:row.digest_algorithm,digestHex:row.digest_hex,referenceRevision:Number(row.reference_revision),state:row.state};});}};
-      const prepare={participantId:'libra_product_fact_prepare',owner:'libra',boundBusinessOwner:'libra',repositories:[ownerRead],execute(context){const repo=context.repository(ownerRead.repositoryId),run=repo.invoke('find_run',{libra_run_id:payload.sourceBasis?.selection?.libraRunId||payload.verifiedArtifactManifest?.libraRunId});
+      const prepare={participantId:'libra_product_fact_prepare',owner:'libra',boundBusinessOwner:'libra',repositories:[ownerRead],execute(context){const repo=context.repository(ownerRead.repositoryId),run=repo.invoke('find_run',{libra_run_id:basisRunId(payload)});
         if(!run||!['active','suspended'].includes(run.state))fail('P9_PRODUCT_FACT_RUN_FENCE','Product Fact Run is absent or not eligible.');
         const expected=buildProductFactHandle({libraRunId:run.libra_run_id,factKind,expectedRevision:handle.expectedRevision,payloadDigest:handle.payloadDigest,eventFenceDigest:handle.eventFenceDigest});
         if(canonicalJson(expected)!==canonicalJson(handle))fail('P9_PRODUCT_FACT_HANDLE_FENCE','Product Fact Handle identity is invalid.');
         const prior=handle.expectedRevision===0?null:repo.invoke('find_fact',{libra_run_id:run.libra_run_id,fact_kind:factKind,fact_revision:handle.expectedRevision});
         const next=repo.invoke('find_fact',{libra_run_id:run.libra_run_id,fact_kind:factKind,fact_revision:handle.expectedRevision+1});
         if((handle.expectedRevision===0&&prior)||(handle.expectedRevision>0&&!prior)||next)fail('P9_PRODUCT_FACT_REVISION_FENCE','Product Fact revision fence failed.');
-        sourceRefs=buildProductFactSourceRefs({sourceBasis:payload.sourceBasis,foundationChains:sourceChains});
+        const productFactId=canonicalDigest({schema:'libra.product-fact-id@1',libraRunId:run.libra_run_id,
+          factKind,factRevision:handle.expectedRevision+1});
+        sourceRefs=buildProductFactSourceRefs({sourceBasis:payload.sourceBasis,foundationChains:sourceChains,productFactId,
+          productMetadataDraft:payload.productMetadataDraft,mediaCastDraft:payload.mediaCastDraft});
         if(factKind==='media_cast')fact=buildMediaCastFact({libraRunId:run.libra_run_id,subjectId:run.subject_id,sourceBasis:payload.sourceBasis,
           mediaCastDraft:payload.mediaCastDraft,expectedRevision:handle.expectedRevision,commitMarker,committedAtMs:context.commitTimeMs});
         else{const manifest=validateVerifiedArtifactManifest(payload.verifiedArtifactManifest,{artifactSnapshots,
@@ -100,11 +113,11 @@ function registration(options,factKind,factSchemaRef){const ownerRead=options.ow
             expectedRevision:handle.expectedRevision,commitMarker,committedAtMs:context.commitTimeMs});}
         return fact;}};
       prepare.readParticipants=[readParticipant];prepare.postMarkerParticipants=[{participantId:'libra_product_fact_owner_write',owner:'libra',boundBusinessOwner:'libra',repositories:[ownerWrite],execute(context){const repo=context.repository(ownerWrite.repositoryId),manifest=factKind==='product_metadata'?payload.verifiedArtifactManifest:null;
-        const evidenceDigest=buildProductFactEvidence({libraRunId:factKind==='product_metadata'?manifest.libraRunId:payload.sourceBasis.selection.libraRunId,factKind,factRevision:fact.revision,
+        const libraRunId=basisRunId(payload),evidenceDigest=buildProductFactEvidence({libraRunId,factKind,factRevision:fact.revision,
           sourceBasisKind:payload.sourceBasis.sourceBasisKind,sourceBasisDigest:payload.sourceBasis.sourceBasisDigest,commitPayloadDigest:handle.payloadDigest,eventFenceDigest:handle.eventFenceDigest});
-        repo.invoke('insert_fact',{product_fact_id:fact.factId,libra_run_id:factKind==='product_metadata'?manifest.libraRunId:payload.sourceBasis.selection.libraRunId,fact_kind:factKind,
+        repo.invoke('insert_fact',{product_fact_id:fact.factId,libra_run_id:libraRunId,fact_kind:factKind,
           fact_revision:fact.revision,aggregate_id:fact.aggregateId,schema_ref:fact.schemaRef,fact_json:canonicalJson(fact),fact_digest:fact.factDigest,evidence_digest:evidenceDigest,
-          source_basis_kind:payload.sourceBasis.sourceBasisKind,source_basis_id:payload.sourceBasis.selection.selectionId,source_basis_digest:payload.sourceBasis.sourceBasisDigest,
+          source_basis_kind:payload.sourceBasis.sourceBasisKind,source_basis_id:basisId(payload.sourceBasis),source_basis_digest:payload.sourceBasis.sourceBasisDigest,
           source_ref_count:sourceRefs.length,verified_artifact_manifest_schema_ref:manifest?'helix://contracts/domain-types/VerifiedArtifactManifest/v1':null,
           verified_artifact_manifest_json:manifest?canonicalJson(manifest):null,verified_artifact_manifest_digest:manifest?manifest.manifestDigest:null,
           artifact_verification_result_count:manifest?new Set(manifest.items.map((item)=>item.verificationResultRef.resultId)).size:0,

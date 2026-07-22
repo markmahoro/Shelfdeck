@@ -195,12 +195,78 @@ function buildMetadataObservationBasis(value) {
     observationSet:Object.freeze(set), sourceBasisDigest:selection.selectionDigest });
 }
 
+function exactResultChain(chain, ref, options) {
+  const result=chain?.result,inputBindings=chain?.inputBindings;
+  if(!chain||!result||chain.workId!==ref.workId||chain.attemptId!==ref.attemptId||chain.planId!==ref.planId||
+      chain.eventId!==ref.eventId||chain.resultId!==ref.resultId||chain.ownerDomain!=='libra'||
+      chain.processType!=='libra_run'||chain.processId!==options.libraRunId||chain.workState!=='succeeded'||
+      chain.attemptState!=='succeeded'||chain.planState!=='planned'||chain.eventState!=='succeeded'||
+      chain.eventOwnerDomain!=='libra'||chain.attemptWorkId!==chain.workId||chain.planAttemptId!==chain.attemptId||
+      chain.eventWorkId!==chain.workId||chain.eventAttemptId!==chain.attemptId||chain.eventPlanId!==chain.planId||
+      chain.eventResultId!==chain.resultId||chain.nodeCapabilityRef!==chain.capabilityRef||
+      chain.capabilityRef!==options.capabilityRef||chain.resultSchemaRef!==options.resultSchemaRef||
+      result.schemaRef!==chain.resultSchemaRef||canonicalDigest(result)!==chain.resultDigest||
+      chain.resultDigest!==ref.resultDigest||canonicalDigest(inputBindings)!==chain.inputBindingDigest||
+      chain.inputBindingDigest!==ref.inputBindingDigest)
+    fail('P9_PRODUCT_FACT_SOURCE_CHAIN','Source reference is outside its exact Work to Result chain.');
+  return {result,inputBindings};
+}
+
+function sourceReference(productFactId,ordinal,kind,chain,sourceRef,evidenceId,evidenceDigest){
+  const reference={productFactId,ordinal,sourceBasisKind:kind,workId:chain.workId,attemptId:chain.attemptId,
+    planId:chain.planId,eventId:chain.eventId,resultId:chain.resultId,capabilityRef:chain.capabilityRef,
+    resultSchemaRef:chain.resultSchemaRef,resultDigest:chain.resultDigest,sourceRef,sourceOrder:ordinal,
+    evidenceId,evidenceDigest,inputBindingDigest:chain.inputBindingDigest};
+  reference.referenceDigest=canonicalDigest({schema:'libra.product-fact-source-ref@1',...reference});
+  return Object.freeze(reference);
+}
+
+function validateWesternAnalysisVariantValue(variant){
+  if(!variant||!Array.isArray(variant.analysisResults)||variant.analysisResults.length<1||variant.analysisResults.length>16)
+    fail('P9_WESTERN_ANALYSIS_VARIANT','Western Analysis Variant is invalid.');
+  const sorted=[...variant.analysisResults].sort((left,right)=>compare(left.eventId,right.eventId)||compare(left.resultId,right.resultId));
+  if(canonicalJson(sorted)!==canonicalJson(variant.analysisResults)||new Set(sorted.map((item)=>item.eventId+'|'+item.resultId)).size!==sorted.length)
+    fail('P9_WESTERN_ANALYSIS_VARIANT_ORDER','Western Analysis Results are not uniquely and canonically ordered.');
+  for(const item of variant.analysisResults){
+    const result=item.result,internalDigest=result&&canonicalDigest(Object.fromEntries(Object.entries(result).filter(([key])=>key!=='resultDigest')));
+    if(!result||result.schemaRef!=='helix://contracts/types/WesternAnalysisResult/v1'||result.schemaVersion!==1||
+        result.resultDigest!==internalDigest||item.resultDigest!==canonicalDigest(result))
+      fail('P9_WESTERN_ANALYSIS_RESULT','Western Analysis Result digest continuity is invalid.');
+  }
+  const variantDigest=canonicalDigest({libraRunId:variant.libraRunId,runExecutionBasisDigest:variant.runExecutionBasisDigest,
+    resolvedIdentityDigest:variant.resolvedIdentityDigest,analysisResults:variant.analysisResults});
+  const variantId=canonicalDigest({schema:'libra.western-analysis-variant-id@1',libraRunId:variant.libraRunId,
+    runExecutionBasisDigest:variant.runExecutionBasisDigest,resolvedIdentityDigest:variant.resolvedIdentityDigest,variantDigest});
+  if(variant.variantDigest!==variantDigest||variant.variantId!==variantId)
+    fail('P9_WESTERN_ANALYSIS_VARIANT_DIGEST','Western Analysis Variant identity is invalid.');
+  return Object.freeze(bytes(variant,256*1024,'P9_WESTERN_ANALYSIS_VARIANT_SIZE'));
+}
+
+function validateWesternAnalysisVariant(variant,basis,chains){
+  validateWesternAnalysisVariantValue(variant);
+  if(variant.libraRunId!==basis.libraRunId||variant.runExecutionBasisDigest!==basis.runExecutionBasisDigest||
+      variant.resolvedIdentityDigest!==basis.resolvedIdentityDigest||variant.variantDigest!==basis.analysisVariantDigest||
+      variant.analysisResults.length!==basis.analysisRefs.length)
+    fail('P9_WESTERN_ANALYSIS_VARIANT','Western Analysis Variant does not match its Basis.');
+  variant.analysisResults.forEach((item,index)=>{
+    const ref=basis.analysisRefs[index],chain=chains.get(ref.resultId);
+    const {result}=exactResultChain(chain,ref,{libraRunId:basis.libraRunId,
+      capabilityRef:'libra.western.analysis.observe@1',resultSchemaRef:'helix://contracts/types/WesternAnalysisResult/v1'});
+    if(item.eventId!==ref.eventId||item.resultId!==ref.resultId||item.resultDigest!==ref.resultDigest||
+        canonicalJson(item.result)!==canonicalJson(result)||
+        result.externalJobReceiptId!==ref.externalJobReceiptId||result.evidenceId!==ref.evidenceId||
+        result.payloadDigest!==ref.evidenceDigest||chain.evidenceDigest!==ref.evidenceDigest)
+      fail('P9_WESTERN_ANALYSIS_RESULT','Western Analysis Result continuity is invalid.');
+  });
+}
+
 function buildProductFactSourceRefs(value) {
   const basis=value?.sourceBasis, chains=new Map((value?.foundationChains || []).map((item)=>[item.resultId,item]));
-  if (!basis || basis.sourceBasisKind !== 'metadata_observation' || !Array.isArray(basis.selection?.items) ||
-      basis.selection.items.length < 1 || basis.selection.items.length > 16)
-    fail('P9_PRODUCT_FACT_SOURCE_BASIS', 'A bounded Metadata Observation basis is required.');
-  return Object.freeze(basis.selection.items.map((selection,ordinal)=>{
+  if (!basis) fail('P9_PRODUCT_FACT_SOURCE_BASIS','Product Fact Source Basis is required.');
+  if(basis.sourceBasisKind==='metadata_observation'){
+    if(!Array.isArray(basis.selection?.items)||basis.selection.items.length<1||basis.selection.items.length>16)
+      fail('P9_PRODUCT_FACT_SOURCE_BASIS','A bounded Metadata Observation basis is required.');
+    return Object.freeze(basis.selection.items.map((selection,ordinal)=>{
     const chain=chains.get(selection.resultId),result=chain?.result,inputBindings=chain?.inputBindings;
     if (!chain || !result || selection.ordinal !== ordinal || chain.workId !== selection.workId ||
         chain.attemptId !== selection.attemptId || chain.planId !== selection.planId || chain.eventId !== selection.eventId ||
@@ -226,7 +292,59 @@ function buildProductFactSourceRefs(value) {
     if(reference.referenceDigest!==selection.sourceReferenceDigest)
       fail('P9_PRODUCT_FACT_SOURCE_DIGEST','Source reference digest does not match the frozen Selection.');
     return Object.freeze(reference);
-  }));
+    }));
+  }
+  const productFactId=text(value?.productFactId,'productFactId');
+  if(basis.sourceBasisKind==='western_analysis'){
+    const western=basis.westernBasis;
+    if(!western||western.basisKind!=='western_analysis'||basis.sourceBasisDigest!==western.basisDigest||
+        !Array.isArray(western.analysisRefs)||western.analysisRefs.length<1||western.analysisRefs.length>16||!western.normalizeRef)
+      fail('P9_PRODUCT_FACT_SOURCE_BASIS','Western Product Metadata basis is invalid.');
+    const normalizeChain=chains.get(western.normalizeRef.resultId),variant=normalizeChain?.inputBindings?.westernAnalysisVariant;
+    validateWesternAnalysisVariant(variant,western,chains);
+    const refs=western.analysisRefs.map((ref,ordinal)=>{
+      const chain=chains.get(ref.resultId);
+      return sourceReference(productFactId,ordinal,'western_analysis',chain,ref.externalJobReceiptId,ref.evidenceId,ref.evidenceDigest);
+    });
+    const normalize=western.normalizeRef,{result}=exactResultChain(normalizeChain,normalize,{libraRunId:western.libraRunId,
+      capabilityRef:'libra.western.metadata.normalize@1',resultSchemaRef:'helix://contracts/types/ProductMetadataDraft/v1'});
+    if(normalize.analysisVariantId!==variant.variantId||normalize.productMetadataDraftDigest!==result.draftDigest||
+        canonicalJson(result)!==canonicalJson(value.productMetadataDraft))
+      fail('P9_WESTERN_NORMALIZE_RESULT','Western Normalize input or Result does not match the Commit Draft.');
+    refs.push(sourceReference(productFactId,refs.length,'western_analysis',normalizeChain,variant.variantId,null,null));
+    const canonicalSourceRefs=refs.map(({ordinal,capabilityRef,resultSchemaRef,workId,attemptId,planId,eventId,resultId,
+      resultDigest,sourceRef,sourceOrder,evidenceId,evidenceDigest,inputBindingDigest})=>({ordinal,capabilityRef,resultSchemaRef,
+      workId,attemptId,planId,eventId,resultId,resultDigest,sourceRef,sourceOrder,evidenceId,evidenceDigest,inputBindingDigest}));
+    const sourceRefsDigest=canonicalDigest({schema:'libra.western-product-metadata-source-refs@1',items:canonicalSourceRefs});
+    const basisId=canonicalDigest({schema:'libra.western-product-metadata-basis-id@1',libraRunId:western.libraRunId,
+      runExecutionBasisDigest:western.runExecutionBasisDigest,sourceRefsDigest});
+    const basisDigest=canonicalDigest(Object.fromEntries(Object.entries(western).filter(([key])=>key!=='basisDigest')));
+    if(western.sourceRefsDigest!==sourceRefsDigest||western.basisId!==basisId||western.basisDigest!==basisDigest)
+      fail('P9_WESTERN_METADATA_BASIS_DIGEST','Western Product Metadata basis identity is invalid.');
+    return Object.freeze(refs);
+  }
+  if(basis.sourceBasisKind==='western_match'){
+    const western=basis.westernBasis,ref=western?.matchRef,chain=ref&&chains.get(ref.resultId);
+    if(!western||western.basisKind!=='western_match'||basis.sourceBasisDigest!==western.basisDigest||!ref)
+      fail('P9_PRODUCT_FACT_SOURCE_BASIS','Western Media Cast basis is invalid.');
+    const {result}=exactResultChain(chain,ref,{libraRunId:western.libraRunId,
+      capabilityRef:'shared.face.reference.match@1',resultSchemaRef:'helix://contracts/types/PersonMatchEvidence/v1'});
+    const matchState=result.matches?.length?'matches_found':'no_matches';
+    const relations=value.mediaCastDraft?.relations||[];
+    const allMatchesExplained=(result.matches||[]).every((match)=>relations.some((relation)=>relation.personId===match.personId&&
+      relation.confidenceClass===match.confidenceClass&&relation.originEvidenceDigest===match.evidenceDigest));
+    if(result.evidenceId!==ref.evidenceId||result.payloadDigest!==ref.evidenceDigest||chain.evidenceDigest!==ref.evidenceDigest||
+        result.payloadDigest!==ref.personMatchEvidenceDigest||western.matchState!==matchState||
+        (matchState==='no_matches'&&relations.length!==0)||(matchState==='matches_found'&&(!relations.length||!allMatchesExplained)))
+      fail('P9_WESTERN_MATCH_RESULT','Western match Evidence does not explain the Media Cast Draft.');
+    const basisId=canonicalDigest({schema:'libra.western-media-cast-basis-id@1',libraRunId:western.libraRunId,
+      runExecutionBasisDigest:western.runExecutionBasisDigest,matchResultId:ref.resultId,matchResultDigest:ref.resultDigest});
+    const basisDigest=canonicalDigest(Object.fromEntries(Object.entries(western).filter(([key])=>key!=='basisDigest')));
+    if(western.basisId!==basisId||western.basisDigest!==basisDigest)
+      fail('P9_WESTERN_MATCH_BASIS_DIGEST','Western Media Cast basis identity is invalid.');
+    return Object.freeze([sourceReference(productFactId,0,'western_match',chain,result.evidenceId,result.evidenceId,result.payloadDigest)]);
+  }
+  fail('P9_PRODUCT_FACT_SOURCE_BASIS','Product Fact Source Basis kind is invalid.');
 }
 
 function descriptiveEntries(observation) {
@@ -270,6 +388,44 @@ function buildProductMetadataDraft(value) {
     sourceBasisDigest:basis.sourceBasisDigest, descriptiveFactsDigest:draft.descriptiveFacts.recordDigest });
   draft.draftDigest = canonicalDigest(Object.fromEntries(Object.entries(draft).filter(([key]) => key !== 'draftDigest')));
   return Object.freeze({ ready:true, draft:Object.freeze(bytes(draft, 64 * 1024, 'P9_METADATA_DRAFT_SIZE')) });
+}
+
+function buildWesternProductMetadataDraft(value) {
+  const variant=validateWesternAnalysisVariantValue(value?.analysisVariant),required=[...(value?.requiredFields||[])];
+  const entries=[...(value?.descriptiveFacts||[])].map((item)=>({key:text(item?.key,'key'),value:item?.value}));
+  const sortedEntries=[...entries].sort((left,right)=>compare(left.key,right.key));
+  if(required.length>256||required.some((item)=>typeof item!=='string'||!item)||entries.length>256||
+      canonicalJson(entries)!==canonicalJson(sortedEntries)||new Set(entries.map((item)=>item.key)).size!==entries.length)
+    fail('P9_WESTERN_METADATA_FIELDS','Western metadata fields are invalid.');
+  const missingFields=required.filter((field)=>!entries.some((item)=>item.key===field&&item.value!==null&&item.value!==''));
+  if(missingFields.length)return Object.freeze({ready:false,missingFields:Object.freeze(missingFields.sort(compare))});
+  const sourceEvidence=new Set(variant.analysisResults.map((item)=>item.result.externalJobReceiptId+'|'+item.result.payloadDigest));
+  const fieldProvenance=[...(value?.fieldProvenance||[])].map((item)=>({fieldPath:text(item?.fieldPath,'fieldPath'),
+    sourceKind:item?.sourceKind,sourceRef:text(item?.sourceRef,'sourceRef'),evidenceDigest:digest(item?.evidenceDigest,'evidenceDigest')}));
+  const sortedProvenance=[...fieldProvenance].sort((left,right)=>compare(left.fieldPath,right.fieldPath)||compare(left.sourceRef,right.sourceRef));
+  if(fieldProvenance.length!==entries.length||canonicalJson(fieldProvenance)!==canonicalJson(sortedProvenance)||
+      new Set(fieldProvenance.map((item)=>item.fieldPath)).size!==fieldProvenance.length||
+      fieldProvenance.some((item)=>item.sourceKind!=='western_analysis'||!sourceEvidence.has(item.sourceRef+'|'+item.evidenceDigest)||
+        !entries.some((entry)=>entry.key===item.fieldPath)))
+    fail('P9_WESTERN_METADATA_PROVENANCE','Western metadata fields lack exact Analysis provenance.');
+  if((value?.providerIdentities||[]).length!==0)
+    fail('P9_WESTERN_METADATA_PROVIDER','Western metadata cannot invent Provider identities.');
+  const artifactRequirements=(value?.artifactRequirements||[]).map(validateArtifactRequirement),sortedRequirements=[...artifactRequirements]
+    .sort((left,right)=>compare(left.artifactKind,right.artifactKind)||compare(left.requirementId,right.requirementId)||left.revision-right.revision);
+  if(artifactRequirements.length>256||canonicalJson(artifactRequirements)!==canonicalJson(sortedRequirements)||
+      new Set(artifactRequirements.map((item)=>item.artifactKind+'|'+item.requirementId+'|'+item.revision)).size!==artifactRequirements.length)
+    fail('P9_ARTIFACT_REQUIREMENT_ORDER','Artifact Requirements must be unique and canonically sorted.');
+  const descriptiveFacts={schemaRef:'helix://contracts/records/descriptive-facts/v1',schemaVersion:1,
+    recordKind:'descriptive-facts',recordDigest:'',entries};
+  descriptiveFacts.recordDigest=canonicalDigest(Object.fromEntries(Object.entries(descriptiveFacts).filter(([key])=>key!=='recordDigest')));
+  const draft={schemaRef:'helix://contracts/types/ProductMetadataDraft/v1',schemaVersion:1,draftId:'',draftKind:'product_metadata',
+    basisDigest:variant.variantDigest,draftDigest:'',producedAtMs:integer(value?.producedAtMs,'producedAtMs'),
+    resolvedIdentityDigest:variant.resolvedIdentityDigest,sourceBasisKind:'western_analysis',metadataObservationSetDigest:null,
+    westernAnalysisVariantDigest:variant.variantDigest,fieldProvenance,descriptiveFacts,providerIdentities:[],artifactRequirements};
+  draft.draftId=canonicalDigest({schema:'libra.product-metadata-draft-id@1',resolvedIdentityDigest:draft.resolvedIdentityDigest,
+    sourceBasisDigest:variant.variantDigest,descriptiveFactsDigest:descriptiveFacts.recordDigest});
+  draft.draftDigest=canonicalDigest(Object.fromEntries(Object.entries(draft).filter(([key])=>key!=='draftDigest')));
+  return Object.freeze({ready:true,draft:Object.freeze(bytes(draft,64*1024,'P9_METADATA_DRAFT_SIZE'))});
 }
 
 function buildMediaCastDraft(value) {
@@ -424,7 +580,9 @@ function buildMediaCastFact(value) {
   const draft = value?.mediaCastDraft, basis = value?.sourceBasis;
   if (!draft || draft.schemaRef !== 'helix://contracts/types/MediaCastDraft/v1' || !basis ||
       draft.subjectId !== value.subjectId || draft.sourceBasisKind !== basis.sourceBasisKind ||
-      draft.basisDigest !== basis.sourceBasisDigest) fail('P9_MEDIA_CAST_FACT_INPUT', 'Media Cast Draft and Source Basis disagree.');
+      draft.basisDigest !== basis.sourceBasisDigest||draft.draftDigest!==canonicalDigest(Object.fromEntries(
+        Object.entries(draft).filter(([key])=>key!=='draftDigest'))))
+    fail('P9_MEDIA_CAST_FACT_INPUT', 'Media Cast Draft and Source Basis disagree.');
   const relations = [...draft.relations], relationsDigest = canonicalDigest({ schema:'libra.media-cast-relations@1', relations });
   const body = { subjectId:text(value.subjectId, 'subjectId'), sourceBasisKind:basis.sourceBasisKind,
     sourceBasisDigest:digest(basis.sourceBasisDigest, 'sourceBasisDigest'), relations, relationsDigest, relationCount:relations.length };
@@ -437,10 +595,15 @@ function buildProductMetadataFact(value) {
   const draft = value?.productMetadataDraft, basis = value?.sourceBasis, manifest = value?.verifiedArtifactManifest;
   if (!draft || draft.schemaRef !== 'helix://contracts/types/ProductMetadataDraft/v1' || !basis || !manifest ||
       manifest.libraRunId !== value.libraRunId || draft.sourceBasisKind !== basis.sourceBasisKind ||
-      (basis.sourceBasisKind === 'metadata_observation' && (draft.metadataObservationSetDigest !== basis.observationSet?.setDigest ||
+      draft.draftDigest!==canonicalDigest(Object.fromEntries(Object.entries(draft).filter(([key])=>key!=='draftDigest')))||
+      draft.descriptiveFacts?.recordDigest!==canonicalDigest(Object.fromEntries(
+        Object.entries(draft.descriptiveFacts||{}).filter(([key])=>key!=='recordDigest')))||
+      (basis.sourceBasisKind === 'metadata_observation' && (draft.basisDigest!==basis.sourceBasisDigest||
+        draft.metadataObservationSetDigest !== basis.observationSet?.setDigest ||
         draft.westernAnalysisVariantDigest !== null)) ||
-      (basis.sourceBasisKind === 'western_analysis' && (draft.westernAnalysisVariantDigest !== basis.westernBasis?.analysisVariantDigest ||
-        draft.metadataObservationSetDigest !== null))) {
+      (basis.sourceBasisKind === 'western_analysis' && (draft.basisDigest!==basis.westernBasis?.analysisVariantDigest||
+        draft.resolvedIdentityDigest!==basis.westernBasis?.resolvedIdentityDigest||draft.providerIdentities?.length!==0||
+        draft.westernAnalysisVariantDigest !== basis.westernBasis?.analysisVariantDigest ||draft.metadataObservationSetDigest !== null))) {
     fail('P9_PRODUCT_METADATA_FACT_INPUT', 'Metadata Draft, Source Basis, or Artifact Manifest disagree.');
   }
   const mediaCastFactRef = value.mediaCastFactRef || null;
@@ -469,5 +632,5 @@ function buildProductFactEvidence(value) {
 
 module.exports = Object.freeze({ ProductFactContractError, buildArtifactManifestVerification, buildMediaCastDraft, buildMediaCastFact, buildMetadataFetchIntent,
   buildMetadataObservationBasis, buildProductFactHandle, buildProductFactSourceRefs, buildProductMetadataDraft, metadataObservationWorkIdempotencyKey,
-  buildProductMetadataFact, buildProductFactEvidence, metadataSourceRef, selectMetadataObservations,
+  buildProductMetadataFact, buildProductFactEvidence, buildWesternProductMetadataDraft, metadataSourceRef, selectMetadataObservations,
   validateArtifactRequirement, validateVerifiedArtifactManifest });
