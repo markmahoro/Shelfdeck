@@ -8,13 +8,12 @@ const test = require('node:test');
 const root = path.resolve(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
-test('Admin Web exposes exactly the eight product routes and lazy-loads heavy pages', () => {
+test('Admin Web exposes exactly the nine Helix journey pages', () => {
   const app = read('web/src/App.tsx');
-  const routes = [...app.matchAll(/<Route path="([^"]+)"/g)].map((match) => match[1]);
-  assert.deepStrictEqual(routes, ['libraries', 'media', 'people', 'tasks', 'cleanup', 'policies', 'settings', '*']);
-  for (const page of ['OverviewPage', 'LibrariesPage', 'MediaPage', 'PeoplePage', 'TasksPage', 'CleanupPage', 'PoliciesPage', 'SettingsPage']) {
-    assert.match(app, new RegExp(`lazy\\(\\(\\) => import\\('./pages/${page}'\\)\\)`));
-  }
+  const model = read('web/src/helix/surface-model.ts');
+  assert.match(app, /pages\.map/);
+  for (const slug of ['overview', 'material-fields', 'shelves', 'collection', 'formation', 'care', 'offdeck', 'people', 'settings']) assert.match(model, new RegExp(`slug:'${slug}'`));
+  assert.doesNotMatch(app, /TasksPage|LibrariesPage|CleanupPage|PoliciesPage/);
 });
 
 test('legacy Admin routes, pages and style layers are absent', () => {

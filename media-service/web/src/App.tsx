@@ -1,31 +1,20 @@
-import { lazy, Suspense } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
-import Layout from './components/Layout';
-import { ErrorBoundary, Loading } from './components/ui';
-
-const OverviewPage = lazy(() => import('./pages/OverviewPage'));
-const LibrariesPage = lazy(() => import('./pages/LibrariesPage'));
-const MediaPage = lazy(() => import('./pages/MediaPage'));
-const PeoplePage = lazy(() => import('./pages/PeoplePage'));
-const TasksPage = lazy(() => import('./pages/TasksPage'));
-const CleanupPage = lazy(() => import('./pages/CleanupPage'));
-const PoliciesPage = lazy(() => import('./pages/PoliciesPage'));
-const SettingsPage = lazy(() => import('./pages/SettingsPage'));
-
-const page = (element: React.ReactNode) => <Suspense fallback={<Loading />}>{element}</Suspense>;
+import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
+import { pages } from './helix/surface-model';
+import HelixPage from './helix/HelixPage';
+import './helix/helix.css';
 
 export default function App() {
-  return <ErrorBoundary><Routes>
-    <Route element={<Layout />}>
-      <Route index element={page(<OverviewPage />)} />
-      <Route path="libraries" element={page(<LibrariesPage />)} />
-      <Route path="media" element={page(<MediaPage />)} />
-      <Route path="people" element={page(<PeoplePage />)} />
-      <Route path="tasks" element={page(<TasksPage />)} />
-      <Route path="cleanup" element={page(<CleanupPage />)} />
-      <Route path="policies" element={page(<PoliciesPage />)} />
-      <Route path="settings" element={page(<SettingsPage />)} />
-    </Route>
-    <Route path="*" element={<Navigate to="/" replace />} />
-  </Routes></ErrorBoundary>;
+  return <div className="helix-shell">
+    <a className="skip-link" href="#main">跳到主要内容</a>
+    <aside className="helix-rail" aria-label="ShelfDeck 主导航">
+      <div className="helix-brand"><span className="brand-mark" aria-hidden="true">SD</span><div><strong>ShelfDeck</strong><small>收藏运营台</small></div></div>
+      <nav>{pages.map((page) => <NavLink key={page.slug} to={page.path} end={page.path === '/'} className={({isActive}) => isActive ? 'active' : ''}><span aria-hidden="true">{page.glyph}</span>{page.label}</NavLink>)}</nav>
+      <div className="rail-status"><span className="pulse" aria-hidden="true"/>正常运行<small>本地 Projection</small></div>
+    </aside>
+    <main id="main" className="helix-main"><Routes>
+      {pages.map((page) => <Route key={page.slug} path={page.path} element={<HelixPage page={page}/>}/>) }
+      <Route path="*" element={<Navigate to="/" replace/>}/>
+    </Routes></main>
+  </div>;
 }
+

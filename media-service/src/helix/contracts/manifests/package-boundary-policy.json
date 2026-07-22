@@ -10,6 +10,12 @@
       ]
     },
     {
+      "source": "platform.public",
+      "allow": [
+        "node:crypto"
+      ]
+    },
+    {
       "source": "foundation.capability",
       "allow": [
         "ajv/dist/2020",

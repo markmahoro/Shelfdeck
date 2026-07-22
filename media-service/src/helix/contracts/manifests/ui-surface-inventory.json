@@ -4,9 +4,521 @@
   "manifestId": "helix.inventory.ui-surfaces",
   "kind": "ui-surface-inventory",
   "owner": "contracts",
-  "status": "framework_only",
-  "ssotRefs": ["9.3", "9.4", "9.9.3"],
+  "status": "active",
+  "ssotRefs": [
+    "9.3",
+    "9.4",
+    "9.9.3"
+  ],
   "targetCount": 18,
-  "targetSegments": { "pages": 9, "journeys": 9 },
-  "entries": []
+  "targetSegments": {
+    "pages": 9,
+    "journeys": 9
+  },
+  "entries": [
+    {
+      "id": "page:overview",
+      "version": 1,
+      "owner": "application-composition",
+      "status": "verified",
+      "ssotRefs": [
+        "9.4"
+      ],
+      "sourceLocator": {
+        "section": "9.4",
+        "line": 11490,
+        "lineDigest": "626e2ff17819b598b12ad0f4215c2a72f1f5a2a1199f09a52177cbf2316a2613"
+      },
+      "targetLocator": {
+        "path": "web/src/helix/surface-model.ts"
+      },
+      "contract": {
+        "surfaceKind": "page",
+        "slug": "overview",
+        "ordinal": 1,
+        "readModelOnly": true,
+        "commandAuthority": "application_facade_only"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "50ae42d0296272711d8feb9ec09a80626fb8eb5f7b7f285597ecbfad5302f681"
+      }
+    },
+    {
+      "id": "page:material-fields",
+      "version": 1,
+      "owner": "application-composition",
+      "status": "verified",
+      "ssotRefs": [
+        "9.4"
+      ],
+      "sourceLocator": {
+        "section": "9.4",
+        "line": 11491,
+        "lineDigest": "011367e129106dd357fa455c65ed5d8d540434cc11e9d0807198fba3dc227423"
+      },
+      "targetLocator": {
+        "path": "web/src/helix/surface-model.ts"
+      },
+      "contract": {
+        "surfaceKind": "page",
+        "slug": "material-fields",
+        "ordinal": 2,
+        "readModelOnly": true,
+        "commandAuthority": "application_facade_only"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "f5f0a5a0ecfcf730bf0f2d3802de3d55c1426a45499ff5e3851584dd268377d1"
+      }
+    },
+    {
+      "id": "page:shelves",
+      "version": 1,
+      "owner": "application-composition",
+      "status": "verified",
+      "ssotRefs": [
+        "9.4"
+      ],
+      "sourceLocator": {
+        "section": "9.4",
+        "line": 11492,
+        "lineDigest": "7c65a9aeff2eef4a7131b1e04153eb7b891a1be9afbb3e1124ce5fa600c2a467"
+      },
+      "targetLocator": {
+        "path": "web/src/helix/surface-model.ts"
+      },
+      "contract": {
+        "surfaceKind": "page",
+        "slug": "shelves",
+        "ordinal": 3,
+        "readModelOnly": true,
+        "commandAuthority": "application_facade_only"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "f3a881fe2d4667ca5f136bbd641cae60e6dfc9a280ba25eac4b4ea7f652db7e3"
+      }
+    },
+    {
+      "id": "page:collection",
+      "version": 1,
+      "owner": "application-composition",
+      "status": "verified",
+      "ssotRefs": [
+        "9.4"
+      ],
+      "sourceLocator": {
+        "section": "9.4",
+        "line": 11493,
+        "lineDigest": "2e255c74891611cfa92563cc80143bb1948e8729e2667218f96856f68685f929"
+      },
+      "targetLocator": {
+        "path": "web/src/helix/surface-model.ts"
+      },
+      "contract": {
+        "surfaceKind": "page",
+        "slug": "collection",
+        "ordinal": 4,
+        "readModelOnly": true,
+        "commandAuthority": "application_facade_only"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "ceb6c0f011e833c9f3adb25e9252017aef0ab1cfedf93da7c64d31aaa4aad06f"
+      }
+    },
+    {
+      "id": "page:formation",
+      "version": 1,
+      "owner": "application-composition",
+      "status": "verified",
+      "ssotRefs": [
+        "9.4"
+      ],
+      "sourceLocator": {
+        "section": "9.4",
+        "line": 11494,
+        "lineDigest": "64d0759b13a97f9188ed038f9d2a2a643286383d89567ccca5d12cd9ca885e31"
+      },
+      "targetLocator": {
+        "path": "web/src/helix/surface-model.ts"
+      },
+      "contract": {
+        "surfaceKind": "page",
+        "slug": "formation",
+        "ordinal": 5,
+        "readModelOnly": true,
+        "commandAuthority": "application_facade_only"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "2c406ee504eed3a62f3af308a17a8c05f56a48cb275156c6a9eb16d9d8ccb617"
+      }
+    },
+    {
+      "id": "page:care",
+      "version": 1,
+      "owner": "application-composition",
+      "status": "verified",
+      "ssotRefs": [
+        "9.4"
+      ],
+      "sourceLocator": {
+        "section": "9.4",
+        "line": 11495,
+        "lineDigest": "811c941f68be9632ee7acf68c43526cfcde9f66f28b4945cfc5e30a262c93c63"
+      },
+      "targetLocator": {
+        "path": "web/src/helix/surface-model.ts"
+      },
+      "contract": {
+        "surfaceKind": "page",
+        "slug": "care",
+        "ordinal": 6,
+        "readModelOnly": true,
+        "commandAuthority": "application_facade_only"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "1ac9d7fb65ed694edf52eb8e2031e99a5409062d924c7a3eabcd92fd68efaf51"
+      }
+    },
+    {
+      "id": "page:offdeck",
+      "version": 1,
+      "owner": "application-composition",
+      "status": "verified",
+      "ssotRefs": [
+        "9.4"
+      ],
+      "sourceLocator": {
+        "section": "9.4",
+        "line": 11496,
+        "lineDigest": "e19f2a65e20f63c54dd652d214cde83661f97cfa44308794d5d70519bac6337d"
+      },
+      "targetLocator": {
+        "path": "web/src/helix/surface-model.ts"
+      },
+      "contract": {
+        "surfaceKind": "page",
+        "slug": "offdeck",
+        "ordinal": 7,
+        "readModelOnly": true,
+        "commandAuthority": "application_facade_only"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "f198b807bb5237bf9a4a78365f31b753bc9c1ab0099ce945e487b4e37f4e1147"
+      }
+    },
+    {
+      "id": "page:people",
+      "version": 1,
+      "owner": "application-composition",
+      "status": "verified",
+      "ssotRefs": [
+        "9.4"
+      ],
+      "sourceLocator": {
+        "section": "9.4",
+        "line": 11497,
+        "lineDigest": "33345dae0d397e1f6056d3b8a1bd29b709df68325ea9ec131612608eacfb2419"
+      },
+      "targetLocator": {
+        "path": "web/src/helix/surface-model.ts"
+      },
+      "contract": {
+        "surfaceKind": "page",
+        "slug": "people",
+        "ordinal": 8,
+        "readModelOnly": true,
+        "commandAuthority": "application_facade_only"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "1d54c31d01424e3cc59c3c01d315dbaa5ce68f50900b97d55e52eb4936d92773"
+      }
+    },
+    {
+      "id": "page:settings",
+      "version": 1,
+      "owner": "application-composition",
+      "status": "verified",
+      "ssotRefs": [
+        "9.4"
+      ],
+      "sourceLocator": {
+        "section": "9.4",
+        "line": 11498,
+        "lineDigest": "9997f7848203499c410fc3d885a9bd50096a0be33b79a60ba1ce768f869fccb3"
+      },
+      "targetLocator": {
+        "path": "web/src/helix/surface-model.ts"
+      },
+      "contract": {
+        "surfaceKind": "page",
+        "slug": "settings",
+        "ordinal": 9,
+        "readModelOnly": true,
+        "commandAuthority": "application_facade_only"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "0f5a885fbaca0596d1285d87f29844ab268d9b612fb3dc2e3bf9822a950f8b8f"
+      }
+    },
+    {
+      "id": "journey:setup",
+      "version": 1,
+      "owner": "application-composition",
+      "status": "verified",
+      "ssotRefs": [
+        "9.1"
+      ],
+      "sourceLocator": {
+        "section": "9.1",
+        "line": 11280,
+        "lineDigest": "be395b3b277ab906fdcec6e003d520d3c1fa0e9b7b5283ea0b2f5e2dea6c0b1a"
+      },
+      "targetLocator": {
+        "path": "web/src/helix/surface-model.ts"
+      },
+      "contract": {
+        "surfaceKind": "journey",
+        "slug": "setup",
+        "ordinal": 1,
+        "readModelOnly": false,
+        "commandAuthority": "application_facade_only"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "b6e32ec37c38002b25f1c735f4ce04fcd20857c3eee62d2e0f3b9b69d77a5f37"
+      }
+    },
+    {
+      "id": "journey:formation",
+      "version": 1,
+      "owner": "application-composition",
+      "status": "verified",
+      "ssotRefs": [
+        "9.1"
+      ],
+      "sourceLocator": {
+        "section": "9.1",
+        "line": 11281,
+        "lineDigest": "5441e54ab733c8aa0fc5d3ecbd411b3b1149fe8261c3fe0f3e02beb5688f1a81"
+      },
+      "targetLocator": {
+        "path": "web/src/helix/surface-model.ts"
+      },
+      "contract": {
+        "surfaceKind": "journey",
+        "slug": "formation",
+        "ordinal": 2,
+        "readModelOnly": false,
+        "commandAuthority": "application_facade_only"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "3850a82320afb4033d1f1b527af929d570d6785e639969f5b8da72b354eb631b"
+      }
+    },
+    {
+      "id": "journey:browse",
+      "version": 1,
+      "owner": "application-composition",
+      "status": "verified",
+      "ssotRefs": [
+        "9.1"
+      ],
+      "sourceLocator": {
+        "section": "9.1",
+        "line": 11282,
+        "lineDigest": "f60e48d5a4e6930b20da938191cebdb03eeda7df4e01fbde9832e8ab22c212d4"
+      },
+      "targetLocator": {
+        "path": "web/src/helix/surface-model.ts"
+      },
+      "contract": {
+        "surfaceKind": "journey",
+        "slug": "browse",
+        "ordinal": 3,
+        "readModelOnly": false,
+        "commandAuthority": "application_facade_only"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "57bac8fecf50a64286a3d4d01f5b0b115c6ab113bac06dbd84ff7cf9be4f48c7"
+      }
+    },
+    {
+      "id": "journey:health-proof",
+      "version": 1,
+      "owner": "application-composition",
+      "status": "verified",
+      "ssotRefs": [
+        "9.1"
+      ],
+      "sourceLocator": {
+        "section": "9.1",
+        "line": 11283,
+        "lineDigest": "20bf2bfca94ed207feb3c1e2388c1cfa078219bb6f53f4fe100cdb6150cdef0b"
+      },
+      "targetLocator": {
+        "path": "web/src/helix/surface-model.ts"
+      },
+      "contract": {
+        "surfaceKind": "journey",
+        "slug": "health-proof",
+        "ordinal": 4,
+        "readModelOnly": false,
+        "commandAuthority": "application_facade_only"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "311ae15fd2910367095bcc9aab364c6d8e8012c904da4c28c656587d12067bf2"
+      }
+    },
+    {
+      "id": "journey:standards-improvement",
+      "version": 1,
+      "owner": "application-composition",
+      "status": "verified",
+      "ssotRefs": [
+        "9.1"
+      ],
+      "sourceLocator": {
+        "section": "9.1",
+        "line": 11284,
+        "lineDigest": "6abc488cc1e9c672a9ae29ca36e2cd1c460b1c51c59e3da698904eb8f8702c66"
+      },
+      "targetLocator": {
+        "path": "web/src/helix/surface-model.ts"
+      },
+      "contract": {
+        "surfaceKind": "journey",
+        "slug": "standards-improvement",
+        "ordinal": 5,
+        "readModelOnly": false,
+        "commandAuthority": "application_facade_only"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "534771410e5c56d596a6dd84471d33f49c4cdd1454fe3be41242cdf345db6913"
+      }
+    },
+    {
+      "id": "journey:knowledge",
+      "version": 1,
+      "owner": "application-composition",
+      "status": "verified",
+      "ssotRefs": [
+        "9.1"
+      ],
+      "sourceLocator": {
+        "section": "9.1",
+        "line": 11285,
+        "lineDigest": "39b235366f0d2a8b12edd230d0f25170565caec4d8a344a6d75148d99cc1a7a1"
+      },
+      "targetLocator": {
+        "path": "web/src/helix/surface-model.ts"
+      },
+      "contract": {
+        "surfaceKind": "journey",
+        "slug": "knowledge",
+        "ordinal": 6,
+        "readModelOnly": false,
+        "commandAuthority": "application_facade_only"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "858afbc6e149142609ada86252e39eb68420d6895cf24341fbf1cb6d10dfdb70"
+      }
+    },
+    {
+      "id": "journey:collection-exit",
+      "version": 1,
+      "owner": "application-composition",
+      "status": "verified",
+      "ssotRefs": [
+        "9.1"
+      ],
+      "sourceLocator": {
+        "section": "9.1",
+        "line": 11286,
+        "lineDigest": "0dd15397e55267076bd70946a4ccbda3a09f6c6003bfcffa967cf7119455bc53"
+      },
+      "targetLocator": {
+        "path": "web/src/helix/surface-model.ts"
+      },
+      "contract": {
+        "surfaceKind": "journey",
+        "slug": "collection-exit",
+        "ordinal": 7,
+        "readModelOnly": false,
+        "commandAuthority": "application_facade_only"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "13e3e45f3f6653479280b1867da58af0335b99e46d44ebd8eb88418913f48b3a"
+      }
+    },
+    {
+      "id": "journey:shelf-deregistration",
+      "version": 1,
+      "owner": "application-composition",
+      "status": "verified",
+      "ssotRefs": [
+        "9.1"
+      ],
+      "sourceLocator": {
+        "section": "9.1",
+        "line": 11287,
+        "lineDigest": "66901d76e13eba073d265300348af86f8ed01bb0ade095f7b9a037b772f7eee8"
+      },
+      "targetLocator": {
+        "path": "web/src/helix/surface-model.ts"
+      },
+      "contract": {
+        "surfaceKind": "journey",
+        "slug": "shelf-deregistration",
+        "ordinal": 8,
+        "readModelOnly": false,
+        "commandAuthority": "application_facade_only"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "665eae6c5ea43531b42158654a0e3d5b6a250021f4cb0f0aa115ad129c776ecf"
+      }
+    },
+    {
+      "id": "journey:value-overview",
+      "version": 1,
+      "owner": "application-composition",
+      "status": "verified",
+      "ssotRefs": [
+        "9.1"
+      ],
+      "sourceLocator": {
+        "section": "9.1",
+        "line": 11288,
+        "lineDigest": "54c496f3ae761cc9fb6a2ee392d3d42fe5c025bc574c92def3da84d9082fde84"
+      },
+      "targetLocator": {
+        "path": "web/src/helix/surface-model.ts"
+      },
+      "contract": {
+        "surfaceKind": "journey",
+        "slug": "value-overview",
+        "ordinal": 9,
+        "readModelOnly": false,
+        "commandAuthority": "application_facade_only"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "70f01d46d2d5eb306ba2cbb7b6c8aed5f9b9234b7adf3a8abbca0ab37ee6fcc2"
+      }
+    }
+  ]
 }

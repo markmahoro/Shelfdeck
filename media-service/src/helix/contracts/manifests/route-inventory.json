@@ -4,9 +4,3322 @@
   "manifestId": "helix.inventory.routes",
   "kind": "route-inventory",
   "owner": "contracts",
-  "status": "framework_only",
-  "ssotRefs": ["9.7", "9.9.7"],
+  "status": "active",
+  "ssotRefs": [
+    "9.7",
+    "9.9.7"
+  ],
   "targetCount": 114,
-  "targetSegments": { "admin": 113, "publicHealth": 1 },
-  "entries": []
+  "targetSegments": {
+    "admin": 113,
+    "publicHealth": 1
+  },
+  "entries": [
+    {
+      "id": "get:/v1/health",
+      "version": 1,
+      "owner": "application-composition",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7.2"
+      ],
+      "sourceLocator": {
+        "section": "9.7.2",
+        "line": 11990,
+        "lineDigest": "a06f6f27007133c74e1ab1b3a3990a7ddb742d1d7200ef3b09b044372db61667"
+      },
+      "targetLocator": {
+        "path": "public/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/health",
+        "facade": "HealthFacade",
+        "facadeMethod": "read_health",
+        "authentication": "public",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "027d6102704a2ae673fc17b9a53c7a78dccf06429752d442c0430babc2533c2f"
+      }
+    },
+    {
+      "id": "get:/v1/admin/overview",
+      "version": 1,
+      "owner": "read-model",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12070,
+        "lineDigest": "b73f75182ab498c3435d18872a5bbef041f8c4cdaa9691cc6d85d9eda31db46f"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/overview",
+        "facade": "OverviewQueryFacade",
+        "facadeMethod": "get_overview",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "0a5a4379e633e6d93be68c5bb3195865e56faf092d15957871cc394011ae7dd6"
+      }
+    },
+    {
+      "id": "get:/v1/admin/action-center",
+      "version": 1,
+      "owner": "read-model",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12071,
+        "lineDigest": "119ce732b28dd72941396475cdba00936ca1e958a3860f9da4f0e74d39500782"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/action-center",
+        "facade": "OverviewQueryFacade",
+        "facadeMethod": "get_action_center",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "3a05b0a12d1fe57d0c49174c07debb3d615a6b2007909eb2371c6cd6358c9728"
+      }
+    },
+    {
+      "id": "get:/v1/admin/setup-readiness",
+      "version": 1,
+      "owner": "read-model",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12072,
+        "lineDigest": "72067c922ffaff780dd98a0cd17486fe1b9c0a3221bbfe3d727b9e1f63781d0e"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/setup-readiness",
+        "facade": "OverviewQueryFacade",
+        "facadeMethod": "get_setup_readiness",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "ce7c151f4db85fe9622586e5191140b0f03dc47c29baa5a36e218bbf7fd9189e"
+      }
+    },
+    {
+      "id": "post:/v1/admin/session",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12073,
+        "lineDigest": "6f061a2e89296d90aeb8b731b795e97146310eafa2c9eb596fb1f5b2d02946c9"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/session",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "post_session",
+        "authentication": "api_key_exchange",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "57cbac137ddfbeeef8ed9baa50966f8b3132d82b75749fcbc517ee71f7778beb"
+      }
+    },
+    {
+      "id": "delete:/v1/admin/session",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12073,
+        "lineDigest": "6f061a2e89296d90aeb8b731b795e97146310eafa2c9eb596fb1f5b2d02946c9"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "DELETE",
+        "path": "/v1/admin/session",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "delete_session",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "1f2fcebbd987f4c3e3f392064224e8ca2da719070ba14137e063efc753d38209"
+      }
+    },
+    {
+      "id": "get:/v1/admin/material-fields",
+      "version": 1,
+      "owner": "procurement",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12083,
+        "lineDigest": "1b694973bd9d247101ade4f944508f23382251d6fc89406658c48775765619cb"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/material-fields",
+        "facade": "ProcurementAdminFacade",
+        "facadeMethod": "get_material_fields",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "e367af0f0d5690be72aec6db2a33e13b08de060805a3b2f4c1daf944859f7ec2"
+      }
+    },
+    {
+      "id": "post:/v1/admin/material-fields",
+      "version": 1,
+      "owner": "procurement",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12083,
+        "lineDigest": "1b694973bd9d247101ade4f944508f23382251d6fc89406658c48775765619cb"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/material-fields",
+        "facade": "ProcurementAdminFacade",
+        "facadeMethod": "post_material_fields",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "a196cd7f640fedb48c1380cd982926e1754bc00eb8495a997ec7ce77622d7a14"
+      }
+    },
+    {
+      "id": "get:/v1/admin/material-fields/:fieldId",
+      "version": 1,
+      "owner": "procurement",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12084,
+        "lineDigest": "1286c59e01650c7f147f2e84a0a75f6c47e9df6f0747900d64c84b7ce8acbfb1"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/material-fields/:fieldId",
+        "facade": "ProcurementAdminFacade",
+        "facadeMethod": "get_material_fields_fieldid",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "c2a3367888b4a3b074a5e84fad420c9e354d98abdf72a45213d604c30a8041b7"
+      }
+    },
+    {
+      "id": "patch:/v1/admin/material-fields/:fieldId",
+      "version": 1,
+      "owner": "procurement",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12084,
+        "lineDigest": "1286c59e01650c7f147f2e84a0a75f6c47e9df6f0747900d64c84b7ce8acbfb1"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "PATCH",
+        "path": "/v1/admin/material-fields/:fieldId",
+        "facade": "ProcurementAdminFacade",
+        "facadeMethod": "patch_material_fields_fieldid",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "ffa92de1be46a12f99cb9d7d1b651142fd012c2db899f7c98002f7e9cd2bc1ed"
+      }
+    },
+    {
+      "id": "get:/v1/admin/material-fields/:fieldId/extraction-policy",
+      "version": 1,
+      "owner": "procurement",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12085,
+        "lineDigest": "832a81b95669100b582d3ae895a5f8d8b5ac575b066656536cacbc04531bd539"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/material-fields/:fieldId/extraction-policy",
+        "facade": "ProcurementAdminFacade",
+        "facadeMethod": "get_material_fields_fieldid_extraction_policy",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "6c09b0bec0a8a7a4bde507229b08096cd8b663c792042344cdbf84e84e81da1e"
+      }
+    },
+    {
+      "id": "patch:/v1/admin/material-fields/:fieldId/extraction-policy",
+      "version": 1,
+      "owner": "procurement",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12085,
+        "lineDigest": "832a81b95669100b582d3ae895a5f8d8b5ac575b066656536cacbc04531bd539"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "PATCH",
+        "path": "/v1/admin/material-fields/:fieldId/extraction-policy",
+        "facade": "ProcurementAdminFacade",
+        "facadeMethod": "patch_material_fields_fieldid_extraction_policy",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "f9ae44b69c3fede23906d05c00660bbe9f03e7c11beab90f7da95577b0bd17da"
+      }
+    },
+    {
+      "id": "post:/v1/admin/material-fields/:fieldId/actions/observe",
+      "version": 1,
+      "owner": "procurement",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12086,
+        "lineDigest": "160317cde7ebdf6bff053dec24ac6d819e710da69218733712a4484a9b755eb7"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/material-fields/:fieldId/actions/observe",
+        "facade": "ProcurementAdminFacade",
+        "facadeMethod": "post_material_fields_fieldid_actions_observe",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "637dd3941856789d309933a792616854284f33f10e843f0782cd268c77cc60d3"
+      }
+    },
+    {
+      "id": "post:/v1/admin/material-fields/:fieldId/actions/retry-failed-preparation",
+      "version": 1,
+      "owner": "procurement",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12087,
+        "lineDigest": "658c88ba614f0eaafc12a10fdc95cfdea418ff55c8cb64f88b2aedadbb26a874"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/material-fields/:fieldId/actions/retry-failed-preparation",
+        "facade": "ProcurementAdminFacade",
+        "facadeMethod": "post_material_fields_fieldid_actions_retry_failed_preparation",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "ecdc5d820e5946fabcc90ce3d577407872d1d5486fa3bfa69588e5c9eb7ad01a"
+      }
+    },
+    {
+      "id": "post:/v1/admin/material-fields/:fieldId/actions/deregister",
+      "version": 1,
+      "owner": "procurement",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12088,
+        "lineDigest": "3b2a6996392b4595bce211c34c7e681dd4dd8dc569c2dad1890c8f248d9f19fa"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/material-fields/:fieldId/actions/deregister",
+        "facade": "ProcurementAdminFacade",
+        "facadeMethod": "post_material_fields_fieldid_actions_deregister",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "cf515ff378f6d2f4e38b4e8bf48a589b00520820721a4630de86d3d1244447cf"
+      }
+    },
+    {
+      "id": "get:/v1/admin/routing/material-fields/:fieldId",
+      "version": 1,
+      "owner": "libra",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12090,
+        "lineDigest": "8a8ecb16e7bf4f49a38aae86d93e448a6086f69d412f9de699bae02478e18cda"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/routing/material-fields/:fieldId",
+        "facade": "LibraFormationFacade",
+        "facadeMethod": "get_routing_material_fields_fieldid",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "bb945464a75a2747aa504345e4cc9c12f5b95668e68212771a15ff2fbe5d2052"
+      }
+    },
+    {
+      "id": "post:/v1/admin/routing/material-fields/:fieldId/actions/preview",
+      "version": 1,
+      "owner": "libra",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12091,
+        "lineDigest": "38b6b7f2e5b9a8ddc6b3dd664549aebf19a6172c70824dc577268a34e2cbe818"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/routing/material-fields/:fieldId/actions/preview",
+        "facade": "LibraFormationFacade",
+        "facadeMethod": "post_routing_material_fields_fieldid_actions_preview",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "a0d7180631b730591c2f67fe497f4bb179bab234151d5bdee90fbaff60a45fcc"
+      }
+    },
+    {
+      "id": "patch:/v1/admin/routing/material-fields/:fieldId",
+      "version": 1,
+      "owner": "libra",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12090,
+        "lineDigest": "8a8ecb16e7bf4f49a38aae86d93e448a6086f69d412f9de699bae02478e18cda"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "PATCH",
+        "path": "/v1/admin/routing/material-fields/:fieldId",
+        "facade": "LibraFormationFacade",
+        "facadeMethod": "patch_routing_material_fields_fieldid",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "6d49be53aa316db7b5716d3e1a81dd0476a642ce341b051c0bb4ac4560666fb4"
+      }
+    },
+    {
+      "id": "get:/v1/admin/routing/material-fields/:fieldId/revisions",
+      "version": 1,
+      "owner": "libra",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12093,
+        "lineDigest": "259bdcd9670e3d61ae3e0b826007115fde92d1319c9d3c39910b0f7ddf9252db"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/routing/material-fields/:fieldId/revisions",
+        "facade": "LibraFormationFacade",
+        "facadeMethod": "get_routing_material_fields_fieldid_revisions",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "9ff753b00750ab7fcf46ca7c9cb49324dd40fbf0289ed8d25e91e929948c36b7"
+      }
+    },
+    {
+      "id": "get:/v1/admin/shelves",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12103,
+        "lineDigest": "c4f2124800368a886962b857f4ca1a3fa0c82f16396d34ce33666883a35c650e"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/shelves",
+        "facade": "ArcaShelfAdminFacade",
+        "facadeMethod": "get_shelves",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "a5f3f787e738643f9922839b6054c2c9fff1d41fddc6c3f2ac4e1b0b1ae4655c"
+      }
+    },
+    {
+      "id": "post:/v1/admin/shelves",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12103,
+        "lineDigest": "c4f2124800368a886962b857f4ca1a3fa0c82f16396d34ce33666883a35c650e"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/shelves",
+        "facade": "ArcaShelfAdminFacade",
+        "facadeMethod": "post_shelves",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "b080992af41d4c5a7a4d7932404680c3db5a74ad0c97f58aae13eaaf7f2b312b"
+      }
+    },
+    {
+      "id": "get:/v1/admin/shelves/:shelfId",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12104,
+        "lineDigest": "72bcad71e5d05dcee50133cd00251095b95b33fb426abf951480d7b0350eb246"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/shelves/:shelfId",
+        "facade": "ArcaShelfAdminFacade",
+        "facadeMethod": "get_shelves_shelfid",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "2ab26c3c3ca82127fb36bacb83a5ea3d8696925c5005e0fd93abb3c9f16eaebb"
+      }
+    },
+    {
+      "id": "patch:/v1/admin/shelves/:shelfId",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12104,
+        "lineDigest": "72bcad71e5d05dcee50133cd00251095b95b33fb426abf951480d7b0350eb246"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "PATCH",
+        "path": "/v1/admin/shelves/:shelfId",
+        "facade": "ArcaShelfAdminFacade",
+        "facadeMethod": "patch_shelves_shelfid",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "785b4cb9c428671c8b895e9bba791f013397c218552f16197cc4b2e557be67e8"
+      }
+    },
+    {
+      "id": "get:/v1/admin/shelves/:shelfId/placement",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12105,
+        "lineDigest": "d831a96e29fe4cfe89e5278fb707b4f5352b2d718896bc17ce150f525406c531"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/shelves/:shelfId/placement",
+        "facade": "ArcaShelfAdminFacade",
+        "facadeMethod": "get_shelves_shelfid_placement",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "947fa2f20ee22b083f6ed0e33d7acac671f55a7a26912a108b8de12d638c9fda"
+      }
+    },
+    {
+      "id": "patch:/v1/admin/shelves/:shelfId/placement",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12105,
+        "lineDigest": "d831a96e29fe4cfe89e5278fb707b4f5352b2d718896bc17ce150f525406c531"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "PATCH",
+        "path": "/v1/admin/shelves/:shelfId/placement",
+        "facade": "ArcaShelfAdminFacade",
+        "facadeMethod": "patch_shelves_shelfid_placement",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "745acee706ac04a63424c4fff4f356c8676985f3d0500fbb9b1ec76cc37bf40c"
+      }
+    },
+    {
+      "id": "post:/v1/admin/shelves/:shelfId/placement/actions/preview",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12106,
+        "lineDigest": "d00c01273cd89ba2d55fd4e84f37f54498c8210abec8befcff02319f238495d3"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/shelves/:shelfId/placement/actions/preview",
+        "facade": "ArcaShelfAdminFacade",
+        "facadeMethod": "post_shelves_shelfid_placement_actions_preview",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "36b99a8838a2eccfe7662662d4a1d4bfa0985df212800c0c57f4ad52fdfd6f34"
+      }
+    },
+    {
+      "id": "get:/v1/admin/shelves/:shelfId/standard",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12107,
+        "lineDigest": "0e591c9d208d1965ee6556b93f5f9499f2d96b3e36977d38bc85fe5a9fadcd1b"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/shelves/:shelfId/standard",
+        "facade": "ArcaShelfAdminFacade",
+        "facadeMethod": "get_shelves_shelfid_standard",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "2af248d85de422559d00c928c4a5d81dac1c006b0adc724cbfc96aa19add3437"
+      }
+    },
+    {
+      "id": "post:/v1/admin/shelves/:shelfId/actions/bind-template",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12108,
+        "lineDigest": "27e43801136cb829f74fec31d211b4c0c57e55f97058b4293df702a5b60a1e9b"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/shelves/:shelfId/actions/bind-template",
+        "facade": "ArcaShelfAdminFacade",
+        "facadeMethod": "post_shelves_shelfid_actions_bind_template",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "c6ad39be26b90b6e7f34d4d8d8c1f495aa90221c9067edf1d8095b973b205574"
+      }
+    },
+    {
+      "id": "post:/v1/admin/shelves/:shelfId/actions/deregister",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12109,
+        "lineDigest": "6721bc4ab83228dcd6cba0e9beaac2ea392fd91e14f37272ef72b2ae5db50b05"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/shelves/:shelfId/actions/deregister",
+        "facade": "ArcaShelfAdminFacade",
+        "facadeMethod": "post_shelves_shelfid_actions_deregister",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "cca8b1872dc288b5cfebdd7b2bbe4c46843ed59de041143f89c9f26a23ecefef"
+      }
+    },
+    {
+      "id": "get:/v1/admin/rule-templates",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12111,
+        "lineDigest": "73a152a007a4c34eaed675398b7a0ab6e733f2330757438231172e8e13e29024"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/rule-templates",
+        "facade": "ArcaShelfAdminFacade",
+        "facadeMethod": "get_rule_templates",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "8c9868236c5b81547eb40639af2fa39980e86eb3ef97513d1cde07bcbe92c5af"
+      }
+    },
+    {
+      "id": "get:/v1/admin/rule-templates/:templateId",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12112,
+        "lineDigest": "f61f8625996b23303bb7fccb81ebd529557ff45d401d1d9bcc29c5cbc7d6e517"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/rule-templates/:templateId",
+        "facade": "ArcaShelfAdminFacade",
+        "facadeMethod": "get_rule_templates_templateid",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "819e36b4ab171e99ad8632616608864f1315aa5be349d50e2d62be84fd4f7ba5"
+      }
+    },
+    {
+      "id": "post:/v1/admin/rule-templates/:templateId/actions/copy",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12113,
+        "lineDigest": "bb0132645295d41fd4b8ff20fcbb2a47a7b29e94bd21dfcdf93dde5ef622863c"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/rule-templates/:templateId/actions/copy",
+        "facade": "ArcaShelfAdminFacade",
+        "facadeMethod": "post_rule_templates_templateid_actions_copy",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "bbd42447d2081ef133030f33c26a63939402f0778ad354c9b2c19096995dbf1d"
+      }
+    },
+    {
+      "id": "get:/v1/admin/rule-templates/:templateId/draft",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12114,
+        "lineDigest": "8895f09198c456df8ee9c9e4b2f259b8ba77049ab167969df6d26d0f3bddafe0"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/rule-templates/:templateId/draft",
+        "facade": "ArcaShelfAdminFacade",
+        "facadeMethod": "get_rule_templates_templateid_draft",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "b14af95d7378b077e9b177e81a22839fdf949035168433ce6fa72efcc6a6070e"
+      }
+    },
+    {
+      "id": "patch:/v1/admin/rule-templates/:templateId/draft",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12114,
+        "lineDigest": "8895f09198c456df8ee9c9e4b2f259b8ba77049ab167969df6d26d0f3bddafe0"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "PATCH",
+        "path": "/v1/admin/rule-templates/:templateId/draft",
+        "facade": "ArcaShelfAdminFacade",
+        "facadeMethod": "patch_rule_templates_templateid_draft",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "8605de6aad1abaaa48cd71c1cc614a98b1abc99afd79f564313790c12c4fc87a"
+      }
+    },
+    {
+      "id": "post:/v1/admin/rule-templates/:templateId/actions/preview",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12115,
+        "lineDigest": "0dd043681f487dfadf73e33842aad949864d96fdc39cf9cc7f712c851b268f61"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/rule-templates/:templateId/actions/preview",
+        "facade": "ArcaShelfAdminFacade",
+        "facadeMethod": "post_rule_templates_templateid_actions_preview",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "c427cb5872a901a9076bfbe88029fbcfee760fc96c25d416e28a0c65138f4612"
+      }
+    },
+    {
+      "id": "post:/v1/admin/rule-templates/:templateId/actions/publish",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12116,
+        "lineDigest": "0936b3fc8850525036663a27cff5be390fd50b5ec28992e29e3a3669c67a4d8b"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/rule-templates/:templateId/actions/publish",
+        "facade": "ArcaShelfAdminFacade",
+        "facadeMethod": "post_rule_templates_templateid_actions_publish",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "ca91540c87f9185beea2b20c5561da957256abcf2c1fccedff7e0098e1d4a986"
+      }
+    },
+    {
+      "id": "post:/v1/admin/rule-templates/:templateId/actions/archive",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12117,
+        "lineDigest": "3b20554a153b1b129edebcfa414cb55ae7c4acc2553cb35d84ea9531a97b9936"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/rule-templates/:templateId/actions/archive",
+        "facade": "ArcaShelfAdminFacade",
+        "facadeMethod": "post_rule_templates_templateid_actions_archive",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "09d7319e4e353d249a8635ed6616adfed939d63ab9c6faf4fce98137df1e10b9"
+      }
+    },
+    {
+      "id": "get:/v1/admin/rule-templates/:templateId/revisions",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12118,
+        "lineDigest": "47cba5d6e4722e5887aabcc093396561dfd26f0aac0a3c119bec6abf74b32c95"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/rule-templates/:templateId/revisions",
+        "facade": "ArcaShelfAdminFacade",
+        "facadeMethod": "get_rule_templates_templateid_revisions",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "b0f4e9ed4aa36f49693446a7c6dc213de3c51e1b267cc7dd89fe31d207a5d8ca"
+      }
+    },
+    {
+      "id": "get:/v1/admin/collection",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12120,
+        "lineDigest": "c17ef57fe3ac6a554769ecf10acc571061ce8df70f331c204cac0a0a65bdc137"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/collection",
+        "facade": "ArcaCollectionFacade",
+        "facadeMethod": "get_collection",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "a46fa2841f2b9d05c7c5507c15971d08486f11c9c49417d07fb82377225c208d"
+      }
+    },
+    {
+      "id": "get:/v1/admin/collection/:shelfEntryId",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12121,
+        "lineDigest": "d647cc682fab9dd51023aa5506a92ec88dd7375efa66aaa091f25bd7fed4b6d3"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/collection/:shelfEntryId",
+        "facade": "ArcaCollectionFacade",
+        "facadeMethod": "get_collection_shelfentryid",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "04f1974311ba74ca368166a65d57d4a0d05b203815ade70773027dbb59318caa"
+      }
+    },
+    {
+      "id": "get:/v1/admin/formation",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12134,
+        "lineDigest": "e50e26fa3de4e82a164990f419a040e52e95cf82b3029bfa1a05a6bbbd63723b"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/formation",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "get_formation",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "1394e056a627b7cacff4693964396c3a155f179e98bb9fb4cf4101c8b4a0f9e3"
+      }
+    },
+    {
+      "id": "get:/v1/admin/formation/:formationViewId",
+      "version": 1,
+      "owner": "libra",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12135,
+        "lineDigest": "3378d25beccc566f3e88765f8f4f1a04684623ca551ad69f4d0726477727bb03"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/formation/:formationViewId",
+        "facade": "LibraFormationFacade",
+        "facadeMethod": "get_formation_formationviewid",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "88f5e26f76bd72939cc896a6528e2e46ffc3f0f0d37a5edb31e69cf8d5906c30"
+      }
+    },
+    {
+      "id": "post:/v1/admin/formation/subjects/:subjectId/actions/choose-shelf",
+      "version": 1,
+      "owner": "libra",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12136,
+        "lineDigest": "b87e91caf3fd62ded4833f6cf7fc3b18c3793f253386a112d303c9faa7539c30"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/formation/subjects/:subjectId/actions/choose-shelf",
+        "facade": "LibraFormationFacade",
+        "facadeMethod": "post_formation_subjects_subjectid_actions_choose_shelf",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "c1944e745c29d13b74bdcc683fdd7be89a8f584f888bf678ec68284955d431b0"
+      }
+    },
+    {
+      "id": "post:/v1/admin/formation/subjects/:subjectId/actions/abandon",
+      "version": 1,
+      "owner": "libra",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12137,
+        "lineDigest": "5ba524377aaf6c3cd21a37906076340ea6cd11f3575a7d3c65a14b84a71a5b76"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/formation/subjects/:subjectId/actions/abandon",
+        "facade": "LibraFormationFacade",
+        "facadeMethod": "post_formation_subjects_subjectid_actions_abandon",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "679e419170dcfa1552335b50fb4ed13186ecdba17bcdb82d33b0ff53bfe95e0b"
+      }
+    },
+    {
+      "id": "post:/v1/admin/formation/runs/:libraRunId/actions/expedite",
+      "version": 1,
+      "owner": "libra",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12138,
+        "lineDigest": "5e2e6643655f250716d099f0488329b44cadad0ef563e104f6fb3b77a612a998"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/formation/runs/:libraRunId/actions/expedite",
+        "facade": "LibraFormationFacade",
+        "facadeMethod": "post_formation_runs_librarunid_actions_expedite",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "8b7f3a911480546299f30609d5a6a37bcfa593d31445f1982e796bf412d24231"
+      }
+    },
+    {
+      "id": "post:/v1/admin/formation/runs/:libraRunId/actions/cancel-expedite",
+      "version": 1,
+      "owner": "libra",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12139,
+        "lineDigest": "8b7eaee71bf2889157bf824cde5c03910d363b3e3d9a2a2e0674e37bdd99d382"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/formation/runs/:libraRunId/actions/cancel-expedite",
+        "facade": "LibraFormationFacade",
+        "facadeMethod": "post_formation_runs_librarunid_actions_cancel_expedite",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "da4c19034793c3c0a602573b4084f9e3d9b24de668942be72d177120b2ee0e96"
+      }
+    },
+    {
+      "id": "post:/v1/admin/formation/runs/:libraRunId/actions/discard",
+      "version": 1,
+      "owner": "libra",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12140,
+        "lineDigest": "599fe7802d84c78626e9ca59f4cbe0db9cd71b8380c9acf39d22f77fee24fed3"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/formation/runs/:libraRunId/actions/discard",
+        "facade": "LibraFormationFacade",
+        "facadeMethod": "post_formation_runs_librarunid_actions_discard",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "f39ad8012a896d172a03ba65db86133db8be2ae1822cdfc0e433ca974e167252"
+      }
+    },
+    {
+      "id": "post:/v1/admin/formation/on-deck-runs/:onDeckRunId/actions/approve-input-settlement",
+      "version": 1,
+      "owner": "libra",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12141,
+        "lineDigest": "492a7c8e9e315f4040da5f0f04d44cad37f8916319b62c584f2971d2495b6547"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/formation/on-deck-runs/:onDeckRunId/actions/approve-input-settlement",
+        "facade": "LibraFormationFacade",
+        "facadeMethod": "post_formation_on_deck_runs_ondeckrunid_actions_approve_input_settlement",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "f9980f0bce7ff733e217f8e8539f486a6449ab34efb2a43b3f9fe7b42b94cb33"
+      }
+    },
+    {
+      "id": "get:/v1/admin/care",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12151,
+        "lineDigest": "bf915df4bdf463e6053d7dfd299067bb7ca48d5d988fcb30210c2f062e92831f"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/care",
+        "facade": "ArcaCareFacade",
+        "facadeMethod": "get_care",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "012258b76ad4484fe085d68d59c4d1a2a80a492cc73d309f875840ffe1d5e630"
+      }
+    },
+    {
+      "id": "get:/v1/admin/care/:shelfEntryId",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12152,
+        "lineDigest": "fda34eb89bf8994d998a021fb33e76834c18d6522c5b59124abb8eaac23a7a9d"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/care/:shelfEntryId",
+        "facade": "ArcaCareFacade",
+        "facadeMethod": "get_care_shelfentryid",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "cce92b0b398b2e84ca28542aa69660c35347efd8781feadedc332cd5f57a3f8f"
+      }
+    },
+    {
+      "id": "post:/v1/admin/care/:shelfEntryId/actions/check",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12153,
+        "lineDigest": "5280b61ce5b1fd403c39b3ba6b30134812e588227a5e9b2a5cdff1026e1a2fd4"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/care/:shelfEntryId/actions/check",
+        "facade": "ArcaCareFacade",
+        "facadeMethod": "post_care_shelfentryid_actions_check",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "a20260d3aa8149fdcce8dac523043090c1b8d80e5c80dbdc8c1682aec5aeb113"
+      }
+    },
+    {
+      "id": "get:/v1/admin/offdeck/policies",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12155,
+        "lineDigest": "23778a956eb09ac062ecccd8683f30ce951f65c8e22f0b16609f41b33aea527c"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/offdeck/policies",
+        "facade": "ArcaOffdeckFacade",
+        "facadeMethod": "get_offdeck_policies",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "d8fc09139ef30832d10aef5236f672335796855e9ff7bddecca4feb1db9dbb21"
+      }
+    },
+    {
+      "id": "patch:/v1/admin/offdeck/policies",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12155,
+        "lineDigest": "23778a956eb09ac062ecccd8683f30ce951f65c8e22f0b16609f41b33aea527c"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "PATCH",
+        "path": "/v1/admin/offdeck/policies",
+        "facade": "ArcaOffdeckFacade",
+        "facadeMethod": "patch_offdeck_policies",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "7950dd004697a1b46d8068afc33d81e5f77267ee9dba82f707cbd5568bad2a10"
+      }
+    },
+    {
+      "id": "get:/v1/admin/offdeck/candidates",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12156,
+        "lineDigest": "3bb96cea458fbe944f02d332f6e444266e0c7f2ccd96f3eaf2b4997f04db8867"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/offdeck/candidates",
+        "facade": "ArcaOffdeckFacade",
+        "facadeMethod": "get_offdeck_candidates",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "8989dd0ab2dcc10ecb7a2586ef750dd57c99ffea33ae800e5d1763de2e752f82"
+      }
+    },
+    {
+      "id": "post:/v1/admin/offdeck/actions/evaluate",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12157,
+        "lineDigest": "abe2abfb9ee498c5866a34cfc5acc87a3c928c3b9b4cbc7b36f01d242639168d"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/offdeck/actions/evaluate",
+        "facade": "ArcaOffdeckFacade",
+        "facadeMethod": "post_offdeck_actions_evaluate",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "d3e8c39a1c7e4187df1ba1cb5f408fc16a59e6dce6140b6d9167446f4fdc2841"
+      }
+    },
+    {
+      "id": "post:/v1/admin/offdeck/actions/detect-duplicates",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12158,
+        "lineDigest": "05313bdb2e6c9142b09f1ab9ebaeb1b9e51c91c57170c2ad94bf1872819d295d"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/offdeck/actions/detect-duplicates",
+        "facade": "ArcaOffdeckFacade",
+        "facadeMethod": "post_offdeck_actions_detect_duplicates",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "c1171ee3109089a2c0901473c71b146e8817c76e01d2abaee6620e1dcc2d16d2"
+      }
+    },
+    {
+      "id": "post:/v1/admin/offdeck/candidates/:candidateId/actions/suppress",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12159,
+        "lineDigest": "eee87d64f44bd9bd5b59654bdccaa33804e2566c8957a25a59f8cbc419e2d934"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/offdeck/candidates/:candidateId/actions/suppress",
+        "facade": "ArcaOffdeckFacade",
+        "facadeMethod": "post_offdeck_candidates_candidateid_actions_suppress",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "cb8cb415845695fda7d43053a7330c1411056357f68b96937982e0a8a4b3a746"
+      }
+    },
+    {
+      "id": "post:/v1/admin/offdeck/duplicate-groups/:groupId/actions/whitelist",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12160,
+        "lineDigest": "c9a170b79428ab61eb07cf12dcfdf7d54dbba39be9d5f59253e91568e502ff67"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/offdeck/duplicate-groups/:groupId/actions/whitelist",
+        "facade": "ArcaOffdeckFacade",
+        "facadeMethod": "post_offdeck_duplicate_groups_groupid_actions_whitelist",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "12ed02d17e11f07483e14e5b783e73e2b59223f043f0836e9f47bdab5ad96359"
+      }
+    },
+    {
+      "id": "delete:/v1/admin/offdeck/suppressions/:suppressionId",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12161,
+        "lineDigest": "ad3ec7e2c8abf985d53342380ec282ea81d4350664d3e9e4dd6c816420d13d89"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "DELETE",
+        "path": "/v1/admin/offdeck/suppressions/:suppressionId",
+        "facade": "ArcaOffdeckFacade",
+        "facadeMethod": "delete_offdeck_suppressions_suppressionid",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "4fc21f3d8deae03235a7f4096ed4b4bfe87abfa83c5a2062c94d4fdc0fbf0805"
+      }
+    },
+    {
+      "id": "delete:/v1/admin/offdeck/duplicate-whitelists/:whitelistId",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12162,
+        "lineDigest": "21e3140cdc1de3e20d10bc61f9ab14ad476a9da9aed91f003980322e0dc9df05"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "DELETE",
+        "path": "/v1/admin/offdeck/duplicate-whitelists/:whitelistId",
+        "facade": "ArcaOffdeckFacade",
+        "facadeMethod": "delete_offdeck_duplicate_whitelists_whitelistid",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "2693d50c3b47adf788489b052a11a049e3321785776786800cc074609b409a8c"
+      }
+    },
+    {
+      "id": "post:/v1/admin/offdeck/reviews",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12163,
+        "lineDigest": "1f76504f66f152087b833706b85974e59f35b16fa8658aaa816a874fd47a3b86"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/offdeck/reviews",
+        "facade": "ArcaOffdeckFacade",
+        "facadeMethod": "post_offdeck_reviews",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "7b389329fcded2747ced33265229a0cab9fc05f96bbbde7df81cfca1c19964c6"
+      }
+    },
+    {
+      "id": "get:/v1/admin/offdeck/reviews/:reviewId",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12164,
+        "lineDigest": "47905481242481174dd05e1986b11f4871c4a410f3d84ba3dac87c7b6c958b55"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/offdeck/reviews/:reviewId",
+        "facade": "ArcaOffdeckFacade",
+        "facadeMethod": "get_offdeck_reviews_reviewid",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "d96878efa9043f1ae18408135aa834cf1f4b369905151af37fbdce9259052c60"
+      }
+    },
+    {
+      "id": "delete:/v1/admin/offdeck/reviews/:reviewId",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12164,
+        "lineDigest": "47905481242481174dd05e1986b11f4871c4a410f3d84ba3dac87c7b6c958b55"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "DELETE",
+        "path": "/v1/admin/offdeck/reviews/:reviewId",
+        "facade": "ArcaOffdeckFacade",
+        "facadeMethod": "delete_offdeck_reviews_reviewid",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "0f80da7bd3b8b953842c0dd95406fbc1423cdd60f8288633bd8c393f1419d81b"
+      }
+    },
+    {
+      "id": "post:/v1/admin/offdeck/reviews/:reviewId/actions/confirm-selection",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12166,
+        "lineDigest": "f2f150016c7330a04e07ecca0074eabaac43a8c4f6f27673faf174f280881f1a"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/offdeck/reviews/:reviewId/actions/confirm-selection",
+        "facade": "ArcaOffdeckFacade",
+        "facadeMethod": "post_offdeck_reviews_reviewid_actions_confirm_selection",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "bae8deb29cb03c58b356b0f88e14662f76c3423aef7b80e1ffe7ee521e707b4f"
+      }
+    },
+    {
+      "id": "post:/v1/admin/offdeck/reviews/:reviewId/actions/confirm-high-volume",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12167,
+        "lineDigest": "02394a341ab90ed677734c93a5c48d056dfe1188ed042f9d4ad9617ba8ac3a60"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/offdeck/reviews/:reviewId/actions/confirm-high-volume",
+        "facade": "ArcaOffdeckFacade",
+        "facadeMethod": "post_offdeck_reviews_reviewid_actions_confirm_high_volume",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "80bd247988fb648d79ba4f876947137deb25e1e6b80edacafae461e455c96c9e"
+      }
+    },
+    {
+      "id": "post:/v1/admin/offdeck/authorizations",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12168,
+        "lineDigest": "a20d569f096445d63c34e70a4ba599f7b18bf8d47b595f79eba611e1107950b3"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/offdeck/authorizations",
+        "facade": "ArcaOffdeckFacade",
+        "facadeMethod": "post_offdeck_authorizations",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "1915cb12055c518994740dd2d80faeacf117ef97a004741ec6037728d426aa3c"
+      }
+    },
+    {
+      "id": "get:/v1/admin/offdeck/cases",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12169,
+        "lineDigest": "161b69a83810393c48ff15a7039e60214da43be9d593af76e6b337f45abf6f04"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/offdeck/cases",
+        "facade": "ArcaOffdeckFacade",
+        "facadeMethod": "get_offdeck_cases",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "b0c3a36358ae0fb3f0136c3ccbb1f9e0a5ef4b875057ac4654a2b1d8063821cd"
+      }
+    },
+    {
+      "id": "get:/v1/admin/offdeck/cases/:caseId",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12170,
+        "lineDigest": "204987969ad1f8fcd51d70c7c988f2919aaad120acae5d66c41cb8bafee4b166"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/offdeck/cases/:caseId",
+        "facade": "ArcaOffdeckFacade",
+        "facadeMethod": "get_offdeck_cases_caseid",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "a5d03c450e3f71ed88dbd4d74691c3e5ac551a2bda165ed7ad6ddbe3882a6250"
+      }
+    },
+    {
+      "id": "post:/v1/admin/perception/records",
+      "version": 1,
+      "owner": "perception",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12182,
+        "lineDigest": "d0c898e0fe57aafb97821ebfab84a98a69dd4892bb903191a3cbeca81ad546cf"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/perception/records",
+        "facade": "PerceptionAdminFacade",
+        "facadeMethod": "post_perception_records",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "62296cd62821085e992cb83886bc52cde4005357ac4b2dbd181a1c9ab9192062"
+      }
+    },
+    {
+      "id": "get:/v1/admin/perception/acquisitions",
+      "version": 1,
+      "owner": "perception",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12183,
+        "lineDigest": "4fd856a7e3e712d005f3012058d53b485e2873da5d7a26c65fec87dfa7b1c1f7"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/perception/acquisitions",
+        "facade": "PerceptionAdminFacade",
+        "facadeMethod": "get_perception_acquisitions",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "7b58f3511c9fd25d3d0cff19713b5c55a5bfa206b96e3dc823dfa7aca4d59cea"
+      }
+    },
+    {
+      "id": "post:/v1/admin/perception/actions/sync",
+      "version": 1,
+      "owner": "perception",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12184,
+        "lineDigest": "49aa5042ebec70c2db22f02183789bde3267417d8dfd9fd17eca56e40db8295b"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/perception/actions/sync",
+        "facade": "PerceptionAdminFacade",
+        "facadeMethod": "post_perception_actions_sync",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "ea6c340a3dda03f605dcad945cd35f2c6bb8873e54401fddeae42b9ac4f4921c"
+      }
+    },
+    {
+      "id": "get:/v1/admin/perception/sync-state",
+      "version": 1,
+      "owner": "perception",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12185,
+        "lineDigest": "95fd9d7c132d5abcbb2d1ff72759c185bfbf0cb1e9c3a99788c838818aa3c3b4"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/perception/sync-state",
+        "facade": "PerceptionAdminFacade",
+        "facadeMethod": "get_perception_sync_state",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "cc7a536bafa2a105a0f2cba24a77339854a3fe81be8e6092801d63cae8054b40"
+      }
+    },
+    {
+      "id": "get:/v1/admin/people",
+      "version": 1,
+      "owner": "people",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12187,
+        "lineDigest": "28aa23fb0e64ca44e85e35f7ccf3a3f7a2912a434887bb9534bf8e656ea520a5"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/people",
+        "facade": "PeopleAdminFacade",
+        "facadeMethod": "get_people",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "2b15f0d5941a3155cff02ee41f90db8287f80ae8aa65329b25b1e502ef8f247d"
+      }
+    },
+    {
+      "id": "post:/v1/admin/people",
+      "version": 1,
+      "owner": "people",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12187,
+        "lineDigest": "28aa23fb0e64ca44e85e35f7ccf3a3f7a2912a434887bb9534bf8e656ea520a5"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/people",
+        "facade": "PeopleAdminFacade",
+        "facadeMethod": "post_people",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "f7ee821811342f14d6809049e5f1f41804bf4ca543bd96792e083b8926ba67b4"
+      }
+    },
+    {
+      "id": "get:/v1/admin/people/:personId",
+      "version": 1,
+      "owner": "people",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12188,
+        "lineDigest": "3f68bb8fc73ae9aa11c3f97c0fe25cc19090d9149fd9d6438a3b52be33bbc859"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/people/:personId",
+        "facade": "PeopleAdminFacade",
+        "facadeMethod": "get_people_personid",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "ffff2da63b6c1b6a086eda79a4f47c1813ffefa97fc6196b7fcd52a8f85bda10"
+      }
+    },
+    {
+      "id": "patch:/v1/admin/people/:personId",
+      "version": 1,
+      "owner": "people",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12188,
+        "lineDigest": "3f68bb8fc73ae9aa11c3f97c0fe25cc19090d9149fd9d6438a3b52be33bbc859"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "PATCH",
+        "path": "/v1/admin/people/:personId",
+        "facade": "PeopleAdminFacade",
+        "facadeMethod": "patch_people_personid",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "4f18b4b69bfe4195aeab7532aaa0960554575054821634f6680866eec7618003"
+      }
+    },
+    {
+      "id": "get:/v1/admin/people/:personId/collection",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12189,
+        "lineDigest": "9cabb2b2e8a1bbacffd615c40dad40fc1238949310b190a9bc769c79e2875bd2"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/people/:personId/collection",
+        "facade": "ArcaCollectionFacade",
+        "facadeMethod": "get_people_personid_collection",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "c36d58c63d1011d7248028c9f2fe51f2ec493cf1610eb2b7e87e924d9d6ba532"
+      }
+    },
+    {
+      "id": "post:/v1/admin/people/:personId/reference-assets",
+      "version": 1,
+      "owner": "people",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12190,
+        "lineDigest": "5c353baa0d8cbc645f2efe2005f0eaace52b80575bbec8666fadd5acc4cbb9ca"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/people/:personId/reference-assets",
+        "facade": "PeopleAdminFacade",
+        "facadeMethod": "post_people_personid_reference_assets",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "3612aa7a554c1a20b64c19d9d3dd492efb0237e47323f1c76e1f32baae74d778"
+      }
+    },
+    {
+      "id": "delete:/v1/admin/people/:personId/reference-assets/:assetId",
+      "version": 1,
+      "owner": "people",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12191,
+        "lineDigest": "46be426d1a7295a92ef2743c188b1d2942810d8ef71e18dc7522ab2867f41352"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "DELETE",
+        "path": "/v1/admin/people/:personId/reference-assets/:assetId",
+        "facade": "PeopleAdminFacade",
+        "facadeMethod": "delete_people_personid_reference_assets_assetid",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "bd3f23ace77e21f422faaa6470761731fde39c0a1f8954a8df7bc17700a4886d"
+      }
+    },
+    {
+      "id": "get:/v1/admin/people/registration-candidates",
+      "version": 1,
+      "owner": "people",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12192,
+        "lineDigest": "0032473101a567d0e51c829d4a1fcf75727ffb88b99fb265814f91fcbeb75cc5"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/people/registration-candidates",
+        "facade": "PeopleAdminFacade",
+        "facadeMethod": "get_people_registration_candidates",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "eb215f99788547c25d938c8407a8740c8199309294e18a4f908a85273ac5bfb9"
+      }
+    },
+    {
+      "id": "get:/v1/admin/people/merge-candidates",
+      "version": 1,
+      "owner": "people",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12193,
+        "lineDigest": "0373018cfbd0c14055e16430c52b85e7673af2dbda96c4c65c399f730bad500d"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/people/merge-candidates",
+        "facade": "PeopleAdminFacade",
+        "facadeMethod": "get_people_merge_candidates",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "f94f956c9e44e42081a09b216acf2e4804505319caddfe81114ef997a8b894e6"
+      }
+    },
+    {
+      "id": "post:/v1/admin/people/actions/register",
+      "version": 1,
+      "owner": "people",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12194,
+        "lineDigest": "267b3229290c061ebb6fa36b5b1770044894a584095051b37a3cd00ebb49a97e"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/people/actions/register",
+        "facade": "PeopleAdminFacade",
+        "facadeMethod": "post_people_actions_register",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "bf69644a8f9c0bb5a28bbff1cdd9329ec048e6d47a828c1ac1e85800f0f36bf4"
+      }
+    },
+    {
+      "id": "post:/v1/admin/people/actions/merge",
+      "version": 1,
+      "owner": "people",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12195,
+        "lineDigest": "f5812cf6c5bf5f514f506e657f013813a9444bb481d03e7fc216036c204fb7e5"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/people/actions/merge",
+        "facade": "PeopleAdminFacade",
+        "facadeMethod": "post_people_actions_merge",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "f925a02798efc5cd8c9542f669572f16e784a767d9b9c99240710c3c9c8aac79"
+      }
+    },
+    {
+      "id": "post:/v1/admin/people/actions/dismiss-candidate",
+      "version": 1,
+      "owner": "people",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12196,
+        "lineDigest": "d1fbf3b332041526fdcc3f902dd1796687deffc3b01aae16bb88fc4564b607e1"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/people/actions/dismiss-candidate",
+        "facade": "PeopleAdminFacade",
+        "facadeMethod": "post_people_actions_dismiss_candidate",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "855e271b9a6a06b72d41d0b2871d2027067fef40e1be67f6fd14b1940782ce65"
+      }
+    },
+    {
+      "id": "get:/v1/admin/settings/integrations/:kind",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12223,
+        "lineDigest": "35903fe51d698ce48d9c7c391c07b2d7af1033317ff447a8b43f5f9db3902e5a"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/settings/integrations/:kind",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "get_settings_integrations_kind",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "3536ea044ccf6f8fad388f518de18b347efada104802d407c6b887f7218183bf"
+      }
+    },
+    {
+      "id": "patch:/v1/admin/settings/integrations/:kind",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12223,
+        "lineDigest": "35903fe51d698ce48d9c7c391c07b2d7af1033317ff447a8b43f5f9db3902e5a"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "PATCH",
+        "path": "/v1/admin/settings/integrations/:kind",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "patch_settings_integrations_kind",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "07223d67ec7dba9b01131a7d4f284055a4921075db23a4bbfc319165cb2202ca"
+      }
+    },
+    {
+      "id": "post:/v1/admin/settings/integrations/:kind/actions/test",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12224,
+        "lineDigest": "af9843a3a2205f6578d1dc0b75dd07ae0ea78e9750249146d73c9c1bf7e1922a"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/settings/integrations/:kind/actions/test",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "post_settings_integrations_kind_actions_test",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "2b1160bb9b47f48bf863056141907a0e93e7c8d8ae03bf60c1498de5baecefe2"
+      }
+    },
+    {
+      "id": "post:/v1/admin/settings/integrations/:kind/actions/disconnect",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12225,
+        "lineDigest": "64acdf0ce3c63d2f914398e115aa3af036c00334552055126d26dce1d111df0b"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/settings/integrations/:kind/actions/disconnect",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "post_settings_integrations_kind_actions_disconnect",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "df8c29ecfde6094702e355f122fdf4cb29efd661a30b066929e269bdd24f78b5"
+      }
+    },
+    {
+      "id": "get:/v1/admin/settings/workspaces",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12226,
+        "lineDigest": "a1edb2edecf08ed99685c75c96af86990422398c02fbeeb142776ecd3dcf7c6c"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/settings/workspaces",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "get_settings_workspaces",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "fd6fe211ca33fee57bc079213aea383941f393dcfac1fa4c8e45621b4151b777"
+      }
+    },
+    {
+      "id": "patch:/v1/admin/settings/workspaces",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12226,
+        "lineDigest": "a1edb2edecf08ed99685c75c96af86990422398c02fbeeb142776ecd3dcf7c6c"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "PATCH",
+        "path": "/v1/admin/settings/workspaces",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "patch_settings_workspaces",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "917af3ec8814856ea106eef4d57620bab4033fb6731f8f11253ee7c84a6aba23"
+      }
+    },
+    {
+      "id": "post:/v1/admin/settings/workspaces/actions/probe",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12227,
+        "lineDigest": "47ae6f5b25abac5099b1410ef730177a40a21d521f13da1c8c2a99de431d8275"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/settings/workspaces/actions/probe",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "post_settings_workspaces_actions_probe",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "0651e39677a8e87793d23b599c3aba46183e12d61ceb52dfa1f510e2dce4a189"
+      }
+    },
+    {
+      "id": "get:/v1/admin/settings/resources",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12228,
+        "lineDigest": "dd770dd76e491a9002821291ba003256f551f9353be9ab8ea9059e1bc6da3460"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/settings/resources",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "get_settings_resources",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "f98f169d476feddd65db7c448137f7718ad72284b4585a4bbe873ca892f789fb"
+      }
+    },
+    {
+      "id": "patch:/v1/admin/settings/resources",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12228,
+        "lineDigest": "dd770dd76e491a9002821291ba003256f551f9353be9ab8ea9059e1bc6da3460"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "PATCH",
+        "path": "/v1/admin/settings/resources",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "patch_settings_resources",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "991408f18cd7720a5a2a8f2d2813b610de97160600b883553ce4a787c9dcb113"
+      }
+    },
+    {
+      "id": "post:/v1/admin/settings/resources/actions/probe-devices",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12229,
+        "lineDigest": "5cc3ef32e2cb08d6c9c59563d8afb65eaec39dc012685552cdbf1e71d52b7bb9"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/settings/resources/actions/probe-devices",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "post_settings_resources_actions_probe_devices",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "099a3229f43922f2226ab3498c9d3f1fb873063ada94916907b62252640994b9"
+      }
+    },
+    {
+      "id": "get:/v1/admin/settings/workers",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12230,
+        "lineDigest": "d2ddce0e9810b21f75e6fc79a4f9802666bab3f0e75645f39bead288a2024ec7"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/settings/workers",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "get_settings_workers",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "d476fe02873683beb3a639bab28fb487a585845399de18d1deda2addca3f9bbf"
+      }
+    },
+    {
+      "id": "post:/v1/admin/settings/workers",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12230,
+        "lineDigest": "d2ddce0e9810b21f75e6fc79a4f9802666bab3f0e75645f39bead288a2024ec7"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/settings/workers",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "post_settings_workers",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "fe308cb3fb18bb9c040e9a397e67ae563b16dcef991b4d5246f99c811818ba43"
+      }
+    },
+    {
+      "id": "get:/v1/admin/settings/workers/:workerId",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12231,
+        "lineDigest": "2796208e9162391e92ed8e712764044ca0e21a081c5bd037bbc10e01fb220032"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/settings/workers/:workerId",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "get_settings_workers_workerid",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "f3fd7c09474be9187a894cb2091397051147081a1a723ff62e246c1e25a790c1"
+      }
+    },
+    {
+      "id": "patch:/v1/admin/settings/workers/:workerId",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12231,
+        "lineDigest": "2796208e9162391e92ed8e712764044ca0e21a081c5bd037bbc10e01fb220032"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "PATCH",
+        "path": "/v1/admin/settings/workers/:workerId",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "patch_settings_workers_workerid",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "84f5484cb0b04f1234c1bc59c0fc2169861cd83b36c95a0be251b84e49ce462a"
+      }
+    },
+    {
+      "id": "post:/v1/admin/settings/workers/:workerId/actions/probe",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12232,
+        "lineDigest": "2c8abc1f8bf3b25432f50c41eee5b41a8fbd2fbc35384fabf46dbe52856b25c4"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/settings/workers/:workerId/actions/probe",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "post_settings_workers_workerid_actions_probe",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "97248b5733a336a336be8f05c1f63f92aec76c2bcdd03b108c01c42c1c2e4522"
+      }
+    },
+    {
+      "id": "post:/v1/admin/settings/workers/:workerId/actions/deregister",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12233,
+        "lineDigest": "59da540fdff53a528bad649e089b41f7f6b2af307e3d1b1d886fa4618aeefe12"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/settings/workers/:workerId/actions/deregister",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "post_settings_workers_workerid_actions_deregister",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "581cf617e863bf55299442787c8f6f3c13261a0587ee105ab944f032a7ed358b"
+      }
+    },
+    {
+      "id": "get:/v1/admin/settings/automatic-operation",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12234,
+        "lineDigest": "4b6f0bedd97d80145051411f414544412d40e85078e5e5e60dc7cf788373a7b5"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/settings/automatic-operation",
+        "facade": "ArcaShelfAdminFacade",
+        "facadeMethod": "get_settings_automatic_operation",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "862da38395fa18bb3dbdd14af17ce4fe3c856342c3b443ea14434e2f57a3ed14"
+      }
+    },
+    {
+      "id": "post:/v1/admin/settings/automatic-operation/actions/enable-full",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12235,
+        "lineDigest": "8f4e6247899e3403ceb606aea604ab3eee013ba35d5b77784bc9656729fa44bf"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/settings/automatic-operation/actions/enable-full",
+        "facade": "ArcaShelfAdminFacade",
+        "facadeMethod": "post_settings_automatic_operation_actions_enable_full",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "23f644fd4b13cbb8d9e1d6ff3e857a5bd280069fea1a43c21a2397443fd30157"
+      }
+    },
+    {
+      "id": "post:/v1/admin/settings/automatic-operation/actions/require-settlement-confirmation",
+      "version": 1,
+      "owner": "arca",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12236,
+        "lineDigest": "250925d7c58640648117df8fe2fbe50d2794f5f92ba622db3918a60c8b1ce4bf"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/settings/automatic-operation/actions/require-settlement-confirmation",
+        "facade": "ArcaShelfAdminFacade",
+        "facadeMethod": "post_settings_automatic_operation_actions_require_settlement_confirmation",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "f22d842b615015f85d0feffb48744df043821b1ce7b2cef2a899c00fee54b602"
+      }
+    },
+    {
+      "id": "get:/v1/admin/settings/security",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12237,
+        "lineDigest": "dc542326964f891dbab8224f0be6d247bd6fb77e8cfadd8f6a8fbb9a8399db04"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/settings/security",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "get_settings_security",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "b47867eb6f30c6ccc00d3e4efdb1dd339f8eead4ba1d475a51ba4bdbbaa54624"
+      }
+    },
+    {
+      "id": "post:/v1/admin/settings/security/actions/rotate-api-key",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12238,
+        "lineDigest": "54242ad4049f72218ce302c05e301454bc012d4ac600e67e7e612af156f9a405"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/settings/security/actions/rotate-api-key",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "post_settings_security_actions_rotate_api_key",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "c72e04cbd9cf5b0de7c63225b1a0e643223f473e5904eadc76ca9a1ef8eb7c05"
+      }
+    },
+    {
+      "id": "get:/v1/admin/diagnostics/processes",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12240,
+        "lineDigest": "f80dda6d5ebce6ac0303fffb84dcb35ce642e946abc8c9f0503429a46f800fee"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/diagnostics/processes",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "get_diagnostics_processes",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "90b667c2e21a62ef63d3db4415dbfbd4214a37298277b3e756ef706e3355a1e8"
+      }
+    },
+    {
+      "id": "get:/v1/admin/diagnostics/works",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12241,
+        "lineDigest": "ef4d978281527dbfd0e6ba29305bfaca81d9664e9698c093a56323732ee41e93"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/diagnostics/works",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "get_diagnostics_works",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "783f1fbfbb45127b19ccf2cb1ad56f8c9901b56f9f91abe40c006a3ad7b9a471"
+      }
+    },
+    {
+      "id": "get:/v1/admin/diagnostics/workflows/:planId",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12242,
+        "lineDigest": "43c2ab698cdd0a78fd0aad92f5623c5d8d3be745ab052a783d2ffc62e0977219"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/diagnostics/workflows/:planId",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "get_diagnostics_workflows_planid",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "0f43084a1338591e76dc78fd292ba576579650d346114dbc4d82da27b911f791"
+      }
+    },
+    {
+      "id": "get:/v1/admin/diagnostics/events",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12243,
+        "lineDigest": "bb0c4f8244f7b530b2c0f2f1f228448cc6b39be787b10a073021d4d70391b207"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/diagnostics/events",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "get_diagnostics_events",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "c65d3231126074092014100a079eb22769aaebe9588d17ada48ed96daae15d57"
+      }
+    },
+    {
+      "id": "get:/v1/admin/diagnostics/effects",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12244,
+        "lineDigest": "c0b6cc27231fb7ebfbaab9f9576442290d466da83884a1b546d979369643d587"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/diagnostics/effects",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "get_diagnostics_effects",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "73055169973afb681fbdf634425ea0ce8b2ef9aeab126355adc71d7dc4849042"
+      }
+    },
+    {
+      "id": "get:/v1/admin/diagnostics/resources",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12245,
+        "lineDigest": "259c0e858a4dc36164e6bf71d4c3c0b19f7d3396e8ddc7f690be9833562a8b83"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/diagnostics/resources",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "get_diagnostics_resources",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "e2e7891825d860e3a3d0359e5ee4ec1ab62e16390d2143db21f77b341f95e732"
+      }
+    },
+    {
+      "id": "get:/v1/admin/diagnostics/integrations",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12246,
+        "lineDigest": "f4a80134134e33680e7912c82ec592bdce8c027b27a88c237b10ce85eb0c7749"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/diagnostics/integrations",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "get_diagnostics_integrations",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "f82474458a19076b5adaca4db5d87bc6589345dae8bcb9baec58729d540141c2"
+      }
+    },
+    {
+      "id": "get:/v1/admin/diagnostics/projections",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12247,
+        "lineDigest": "f1ec4e4be36ac5cddfd110597092c2331a389063b2693ab400aef417cef3aa70"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/diagnostics/projections",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "get_diagnostics_projections",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "29367b8c067f5eb3e5810081ea2c91a0f529e446504a02245ada411e78690954"
+      }
+    },
+    {
+      "id": "get:/v1/admin/diagnostics/logs",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "9.7",
+        "line": 12248,
+        "lineDigest": "f4353af35565811c5e6b83c4db0749e1631af54d563ecfbef455f13becf73f55"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/diagnostics/logs",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "get_diagnostics_logs",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "03494db6b359d756bc7056836e665c31e9d3e44dd353e5ed4de5ccbbc10618d1"
+      }
+    }
+  ]
 }

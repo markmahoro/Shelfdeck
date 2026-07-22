@@ -1,0 +1,7 @@
+'use strict';
+const {canonicalDigest,canonicalJson}=require('../contracts/canonical-json');
+const clone=(value)=>JSON.parse(canonicalJson(value));
+function buildProjection(value){if(!value||!Number.isSafeInteger(value.projectionVersion)||value.projectionVersion<1||!['fresh','stale','rebuilding'].includes(value.freshness))throw new Error('PROJECTION_ENVELOPE_INVALID');const sources=clone(value.sources||[]).sort((a,b)=>a.owner.localeCompare(b.owner)||a.revision-b.revision);const availableActions=value.freshness==='fresh'?clone(value.availableActions||[]):[];return Object.freeze({projectionVersion:value.projectionVersion,asOf:value.asOf,sourceRevisionSetDigest:canonicalDigest(sources),freshness:value.freshness,data:clone(value.data),availableActions});}
+function buildActivityLedger(value){const domain=clone(value.domainProcessFacts||[]),technical=clone(value.activitySummaries||[]);const byRef=new Map(technical.map((item)=>[item.processRef,item]));return Object.freeze(domain.map((fact)=>{const summary=byRef.get(fact.processRef);return Object.freeze({activityId:fact.activityId,businessStage:fact.businessStage,label:fact.userLabel,state:summary?.state||fact.state,progress:summary?.progress??null,waitingReason:summary?.waitingReason||null,resultSummary:fact.resultSummary||null,diagnosticRef:summary?.diagnosticRef||null});}));}
+module.exports=Object.freeze({buildProjection,buildActivityLedger});
+

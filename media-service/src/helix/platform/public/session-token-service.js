@@ -1,0 +1,6 @@
+'use strict';
+const crypto=require('node:crypto');
+const encode=(value)=>Buffer.from(JSON.stringify(value)).toString('base64url');
+function createSessionTokenService(options){const credential=()=>options.readActiveCredential();function issue(value){const current=credential();if(!current||value.apiKey!==current.apiKey)throw new Error('ADMIN_CREDENTIAL_INVALID');const payload={credentialRevision:current.revision,issuedAt:value.nowMs,expiresAt:value.nowMs+value.ttlMs,nonce:value.nonce};const body=encode(payload),signature=crypto.createHmac('sha256',current.signingSecret).update(body).digest('base64url');return body+'.'+signature;}function verify(token,nowMs){const [body,signature,extra]=String(token||'').split('.');if(!body||!signature||extra)throw new Error('ADMIN_SESSION_INVALID');const current=credential(),expected=crypto.createHmac('sha256',current.signingSecret).update(body).digest('base64url');if(!crypto.timingSafeEqual(Buffer.from(signature),Buffer.from(expected)))throw new Error('ADMIN_SESSION_INVALID');const payload=JSON.parse(Buffer.from(body,'base64url'));if(payload.credentialRevision!==current.revision||nowMs>=payload.expiresAt)throw new Error('ADMIN_SESSION_EXPIRED');return Object.freeze(payload);}return Object.freeze({issue,verify});}
+module.exports=Object.freeze({createSessionTokenService});
+
