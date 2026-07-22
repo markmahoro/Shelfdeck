@@ -2439,7 +2439,7 @@ Capability、Result family、表或Canonical Transaction，计数保持`112 / 97
 
 ### 15.36 `PBF-14` — Product Metadata / Media-Cast Fact commit闭包
 
-Status: `CLOSED / BOUNDED INPUT-PERSISTENCE FIX APPLIED / REFINED_BY_PBF-14-R1-R2-R3` — 2026-07-20
+Status: `CLOSED / BOUNDED INPUT-PERSISTENCE FIX APPLIED / REFINED_BY_PBF-14-R1-R2-R3-R4` — 2026-07-20
 
 P9-05反向实现审计证明四项缺口成立：两个`domain_fact_commit`没有可选择的no-Outbox精确variant；Product Fact
 缺稳定ID/revision/Handle/marker与Evidence映射；Planner所谓“当前Metadata Observation集合”没有正式选择及历史
@@ -2535,3 +2535,29 @@ Bounded correction在不增加顶层Transaction的前提下完成：
 反向审计确认两个variant仍属于`helix.transaction.domain-fact-commit@1`，顶层抽取保持43项；Domain、Owner、Store、
 Handoff、Capability、Result family和table inventory不变，计数仍为`112 / 97 / 177 / 43`。结果为
 `PASS / PBF-14-R3 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.40 `PBF-14-R4` — Product Artifact Verification持久化连续性
+
+Status: `CLOSED / BOUNDED ARTIFACT-EVIDENCE FIX APPLIED` — 2026-07-22
+
+P9-05 Product Metadata commit反向审计证明`VerifiedArtifactManifest`原合同只保存调用者提供的
+`verificationEvidenceId/digest`，而`fx_artifact_registry`不拥有这类上下文验证事实；Manifest也没有显式Result ref。
+因此Commit既无法证明Evidence对应同一Handle/Requirement，也无法在重启后恢复完整Manifest/Commit Payload。缺口成立。
+
+本次选择显式Result provenance方案，不把Requirement验证塞入Artifact Registry：
+
+- 固化`ArtifactRequirement@1`的ID/revision/schema/kind/payload/digest，`ProductMetadataDraft`保存完整、稳定排序的
+  Requirement集合；`requirementDigest`不再是调用者可自由替换的孤立摘要；
+- 扩充既有`ArtifactManifestVerification@1`，逐项冻结Handle identity/kind/revision/digest与完整Requirement，固定
+  verification ID/digest及passed语义；不新增Capability或Result family；
+- `VerifiedArtifactManifest`每项携带明确Work→Attempt→Plan→Event→Result ref。Product Fact transaction只按这些ID
+  读取Result，逐项验证Plan input、passed Result、Draft Requirement、Manifest item与Registry row五方一致；禁止扫描
+  Foundation Result或信任裸Evidence pair；
+- `libra_product_fact_revisions`既有表增列保存完整bounded Manifest JSON/schema/digest和去重Result count，使
+  Product Fact Owner rows可独立恢复原Commit Payload；相关Result链和Registry row在仍被Fact引用时不得GC；
+- exact Product Metadata variant read/write table集合不变，仍无Outbox；crash fixture补充Manifest写入与Artifact
+  Verification边界。
+
+该修正不改变业务结果、Domain、Owner、Store、Handoff、Capability、Result family、table或transaction数量；仅扩充
+既有typed DTO与表列，inventory保持`112 / 97 / 177 / 43`。结果为
+`PASS / PBF-14-R4 CLOSED / NO OPEN BUSINESS DECISION`。
