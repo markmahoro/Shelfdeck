@@ -89,11 +89,11 @@ Workspace admission/reference、完整On-deck Product Package、Discard/Cleanup�
 | --- | --- |
 | Phase | P11 — Arca post-deck |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | P10 complete and archived；P11 active |
+| Status | P11 complete and archived；P12 not started |
 | Implementation baseline | P9 implementation closure `fff40f8d92dbff88f07435a49bb0bcbae4934578` |
 | Phase branch/worktree | `codex/helix-p9` / `E:\my_project\emby_third_party-helix-p9` |
-| Allowed now | P10/P11 local code、unit/contract/isolated fixture、docs与Phase内自动闭环；P11后停止 |
-| Next action | 完成P11 Aftercare、Off-deck与Shelf Deregistration垂直链；P11 Exit后停止 |
+| Allowed now | Paused at P11 hard stop；await explicit P12 authorization |
+| Next action | 用户确认后另行启动P12 Product surface；当前不得实施 |
 
 ## 4. Master roadmap
 

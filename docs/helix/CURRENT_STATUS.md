@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Levels 0–10 accepted; P0–P10 complete; P11 active under FAST MODE Local Implementation authorization; E2E, Docker/Canary, production, real-media side effects and `media-desktop` changes paused.
+Status: Levels 0–10 accepted; P0–P11 complete; P12 not started; E2E, Docker/Canary, production, real-media side effects and `media-desktop` changes paused.
 
 Last updated: 2026-07-23
 
@@ -11,14 +11,14 @@ Last updated: 2026-07-23
 | Architecture | `TOP_DOWN_ARCHITECTURE_CONFIRMATION.md` Level 0–10 accepted and final audit closed |
 | Open business decisions | none |
 | Implementation program | clean-cut Master Plan accepted as direction |
-| Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains；P7 — Procurement；P8 — Handoff A and Libra front half；P9 — Libra production and delivery |
+| Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains；P7 — Procurement；P8 — Handoff A and Libra front half；P9 — Libra production and delivery；P10 — Handoff B and On-deck；P11 — Arca post-deck |
 | Current phase | P11 — Arca post-deck |
-| Current phase status | P10 Exit Audit PASS；P11 active |
+| Current phase status | P11 Exit Audit and Implementation Contract Baseline frozen；P12 not started |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
-| Current allowed work | P10/P11 local code、unit/contract/isolated fixture、docs与Phase内自动闭环；P11后停止 |
+| Current allowed work | Paused at authorized P11 hard stop；awaiting explicit P12 authorization |
 | Integration baseline | P9 implementation closure `fff40f8d92dbff88f07435a49bb0bcbae4934578` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p9` on `codex/helix-p9` |
-| Next action | 实现P11 Aftercare、Off-deck与Shelf Deregistration三条独立旅程 |
+| Next action | 等待P12独立授权；不得自动进入P12 |
 
 P9-01已完成：反向实现审计证明的六段连续性缺口已由Architecture Agent在`PBF-13/PBF-13-R1`中闭合，并经实现侧
 只读复审后原样纳入。Run、Material/Episode scope、Workspace、完整Package、Discard/Cleanup及Off-load Reclaimer均具备
