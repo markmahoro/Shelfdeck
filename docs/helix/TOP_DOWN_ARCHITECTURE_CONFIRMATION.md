@@ -20,6 +20,47 @@ Mirex、Kairox Classic、历代Helix文档、现有实现和此前对话只作�
 被取代的旧Helix合同保存在`docs/helix/archive/`，只作为历史证据，不再
 与本文竞争架构优先级。本文当前仍处于Design阶段，不授权代码实施、数据迁移、E2E或生产部署。
 
+## SSOT authority boundary
+
+本文是ShelfDeck业务与架构语义的SSOT，不是能够逐字段、逐表、逐字节直接编译为Runtime的
+Executable Specification。它的Canonical Authority固定覆盖：
+
+- 用户可见的业务结果、产品旅程和不可逆授权；
+- Business Domain、Canonical Owner、Business Object、Process、Handoff及其责任转移；
+- Policy与Decision的权威来源、业务状态含义和跨域Fact continuity；
+- Capability的原子责任、Effect Class、安全边界，以及恢复后必须保持的业务不变量；
+- 为证明上述语义必须跨边界传递的信息集合。
+
+Implementation Contract负责把这些架构要求投影为可执行形式，包括DTO/JSON的精确字段与嵌套、stable ID与
+digest算法、排序和去重、byte bound、revision/CAS初值、nullable、数据库列/FK/index、事务精确
+read/write set、marker/replay以及machine materialization。Implementation Contract必须能够追溯并证明不违反
+本文，但不是与本文并列的第二份架构SSOT，也不要求本文穷举每一个实现字节。
+
+因此，本文中的Schema、JSON shape、digest公式、表清单、列约束、数量快照和machine contract片段按以下规则解释：
+
+1. 它们记录当时用于证明架构可实现性的设计基线；其中明确保护Canonical Owner、Handoff、业务状态、
+   不可逆授权、安全边界或跨域Fact continuity的部分继续是Architecture Invariant。
+2. 其余物理表达属于Implementation Contract。实现可以采用语义等价且更可执行的字段、公式、约束或表内映射，
+   但不得改变上款Architecture Invariant，不得建立隐藏Owner、跨Store旁读、兼容双轨或新的业务路径。
+3. SSOT没有穷举某个实现细节，表示该细节留给实现选择，不构成architecture gap。实现必须采用确定性惯例、
+   建立自动化反例并在Implementation Evidence中记录选择。
+4. machine extractor、materializer、DDL或Runtime validator没有准确承载本文已有语义，首先属于实现缺陷；
+   生成结果或测试不能反向改写本文。
+5. Implementation Contract发现低层文字或物理表达不能直接落地时，按照
+   `已确认业务语义 → Domain/Owner/Handoff → cross-boundary fact meaning → local persistence/serialization → generated artifact`
+   的顺序消解。只要更高层语义唯一，实施可以有界闭合并继续，不需要把字段级问题升级为用户或架构决策。
+
+只有下列情况属于必须返回Architecture的Blocking Design Return：
+
+- 用户可见业务结果或不可逆授权存在两个不同且都合理的解释；
+- Canonical Owner、Business Domain、Business Handoff或Business Object continuity无法由现有合同确定；
+- 合法实现必须新增或改变上述业务边界，或者把Fact/Decision移交给不同Owner；
+- 两项已经Accepted的Architecture Invariant互相排斥，无法由上述权威顺序消解。
+
+ID/digest细节、字段传播、排序、nullable、revision初值、FK/DDL、transaction table set、byte limit、
+Result binding和同一Owner内部的历史恢复映射，默认属于Engineering Closure。它们可以形成实现侧差异台账并在
+阶段结束时批量回看；除非它们证明了上述Architecture Invariant冲突，否则不得单项停线，也不得提交用户决策。
+
 ## Confirmation protocol
 
 1. 架构从Level 0开始，只有上层确认后才进入下一层。
@@ -13656,6 +13697,11 @@ Automation、Priority、Approval、Workspace与资源配置。它们在被新合
 均已经Accepted并完成各自必要的Journey amendment；
 post-baseline `PBF-01`–`PBF-16`（含各节记录的bounded revisions）已经按同一纪律完成bounded合同闭合并记录在Review Section 15；实现、测试或
 部署仍未由本文件授权。
+
+Post-baseline实现阶段不再把每项formal-realizability detail自动升级为Architecture Review Item。实现线程按照
+`SSOT authority boundary`自行闭合Engineering Closure，并把必要差异集中记录在Implementation Evidence；架构线程
+只审查Blocking Design Return，或在阶段里程碑批量检查实现合同是否保持Canonical语义。低层合同的遗漏、机器
+传播偏差或等价物理实现不会单独重新打开已经Accepted的Level，也不要求用户确认。
 
 ## Confirmation state
 
