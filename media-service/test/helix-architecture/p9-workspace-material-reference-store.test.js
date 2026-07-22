@@ -49,10 +49,16 @@ function attachDecision(input) {
 
 function verification(handle) {
   const value={schemaRef:'helix://contracts/types/ProductMediaVerification/v1',schemaVersion:1,verificationId:'',verificationKind:'libra_product_media',basisDigest:D('verification-basis'),result:'passed',reasonCodes:[],evidenceRefs:['probe-1'],verifiedAtMs:1700000000000,
-    libraRunId:'run-1',producingEventId:'event-1',workspaceMediaHandleId:'workspace-media-1',workspaceMaterialHandleId:handle.handleId,
-    workspaceMaterialHandleDigest:canonicalDigest(handle),workspaceMaterialFenceDigest:handle.fenceDigest,mediaRequirementDigest:D('requirement'),probeEvidenceDigest:D('probe'),
-    qualitySummary:{schemaRef:'quality@1',schemaVersion:1,recordKind:'quality-summary',recordDigest:D('quality'),entries:[]},spaceSummary:{schemaRef:'space@1',schemaVersion:1,recordKind:'space-summary',recordDigest:D('space'),entries:[]}};
-  value.verificationId=canonicalDigest({schema:'libra.product-media-verification-id@1',libraRunId:'run-1',workspaceMaterialHandleId:handle.handleId,workspaceMaterialFenceDigest:handle.fenceDigest,mediaRequirementDigest:value.mediaRequirementDigest,probeEvidenceDigest:value.probeEvidenceDigest});
+    candidateId:D('candidate'),candidateNodeId:'node-1',candidateBasisDigest:D('candidate-basis'),candidateKind:'workspace_output',
+    libraRunId:'run-1',producingEventId:'event-1',workspaceMediaHandleId:'workspace-media-1',productMaterialHandleId:handle.handleId,
+    productMaterialHandleDigest:canonicalDigest(handle),productMaterialFenceDigest:handle.fenceDigest,mediaRequirementId:D('requirement-id'),mediaRequirementDigest:D('requirement'),
+    sourceProbeEvidenceId:'source-probe',sourceProbeEvidenceDigest:D('source-probe'),outputProbeEvidenceId:'output-probe',outputProbeEvidenceDigest:D('output-probe'),
+    qualitySummary:{videoCodec:'hevc',container:'matroska',fileExtension:'mkv',displayRasterClass:'4k',primaryAudioClasses:[],sourceDisplayRasterClass:'4k',systemUpscaleDetected:false},
+    spaceSummary:{unit:'product',actualSizeBytes:100,maxSizeBytes:null,withinLimit:true}};
+  value.verificationId=canonicalDigest({schema:'libra.product-media-verification-id@1',candidateId:value.candidateId,candidateNodeId:value.candidateNodeId,
+    candidateBasisDigest:value.candidateBasisDigest,candidateKind:value.candidateKind,libraRunId:'run-1',productMaterialHandleId:handle.handleId,
+    productMaterialFenceDigest:handle.fenceDigest,mediaRequirementDigest:value.mediaRequirementDigest,sourceProbeEvidenceDigest:value.sourceProbeEvidenceDigest,
+    outputProbeEvidenceDigest:value.outputProbeEvidenceDigest});
   return {schemaRef:'ProductMediaVerification@1',verificationId:value.verificationId,verificationValue:value,verificationDigest:canonicalDigest(value)};
 }
 
@@ -73,6 +79,6 @@ test('rolls Reference, Workspace revision, CAS, Result, and marker back on a cra
 
 test('rejects forged Handle and cross-Handle Product Verification',()=>fixture((input)=>{
   const forged={...input.handle,fenceDigest:D('forged')};assert.throws(()=>buildReferenceDecision({...attachDecision(input),workspaceMaterialHandle:forged,decisionId:undefined,decisionDigest:undefined}),(error)=>error.code==='P9_REFERENCE_HANDLE');
-  const other={...verification(input.handle),verificationValue:{...verification(input.handle).verificationValue,workspaceMaterialHandleId:D('other')}};other.verificationDigest=canonicalDigest(other.verificationValue);
+  const other={...verification(input.handle),verificationValue:{...verification(input.handle).verificationValue,productMaterialHandleId:D('other')}};other.verificationDigest=canonicalDigest(other.verificationValue);
   assert.throws(()=>buildReferenceDecision({operation:'promote_to_product_staging',libraRunId:'run-1',workspaceId:input.handle.workspaceId,expectedWorkspaceRevision:2,expectedWorkspaceStateDigest:D('state'),expectedReference:{state:'present',revision:1,digest:D('reference')},workspaceMaterialHandle:input.handle,episodeClaims:[],episodeScopeDigest:canonicalDigest({schema:'libra.production-episode-scope@1',items:[]}),productVerificationRef:other}),(error)=>error.code==='P9_REFERENCE_VERIFICATION');
 }));

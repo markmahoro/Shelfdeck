@@ -7,6 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 const Database = require('better-sqlite3');
+const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 
 const { createResourceWorkerRegistry } = require('../../src/helix/platform/application/resource-worker-registry');
 const { createResourceWorkerRepository } = require('../../src/helix/platform/persistence/resource-worker-repository');
@@ -161,4 +162,12 @@ test('P3 Platform Repository atomically advances immutable Profile, Device, Poli
     assert.equal(inspected.prepare('SELECT current_revision FROM platform_workers WHERE worker_id=?').get('worker-1').current_revision, 2);
     inspected.close();
   });
+});
+
+test('reads one exact P9 MediaExecutionDeviceSnapshot without current/latest fallback',()=>{
+  const {service}=fixture();seed(service);const query={deviceId:'encoder-1',expectedProbeRevision:1};
+  query.queryDigest=canonicalDigest(query);const found=service.readDeviceSnapshot(query);
+  assert.equal(found.resultKind,'found');assert.equal(found.snapshot.deviceClass,'nvidia_nvenc');assert.equal(found.snapshot.state,'ready');
+  const stale={...query,expectedProbeRevision:2};stale.queryDigest=canonicalDigest({deviceId:stale.deviceId,expectedProbeRevision:2});
+  assert.equal(service.readDeviceSnapshot(stale).reasonCode,'device_probe_changed');
 });

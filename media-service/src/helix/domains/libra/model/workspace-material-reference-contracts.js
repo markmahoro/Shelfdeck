@@ -65,16 +65,20 @@ function validateProductVerification(value, handle, libraRunId) {
   if (value.schemaRef !== 'ProductMediaVerification@1' || !verification ||
       verification.schemaRef !== 'helix://contracts/types/ProductMediaVerification/v1' || verification.schemaVersion !== 1 ||
       verification.verificationKind !== 'libra_product_media' || verification.result !== 'passed' ||
-      verification.libraRunId !== libraRunId || verification.workspaceMaterialHandleId !== handle.handleId ||
-      verification.workspaceMaterialHandleDigest !== canonicalDigest(handle) || verification.workspaceMaterialFenceDigest !== handle.fenceDigest)
+      verification.candidateKind !== 'workspace_output' || verification.libraRunId !== libraRunId ||
+      verification.productMaterialHandleId !== handle.handleId || verification.productMaterialHandleDigest !== canonicalDigest(handle) ||
+      verification.productMaterialFenceDigest !== handle.fenceDigest)
     fail('P9_REFERENCE_VERIFICATION', 'Product Verification does not bind the same Run and Workspace Handle.');
-  for (const [name, item] of [['basisDigest',verification.basisDigest],['mediaRequirementDigest',verification.mediaRequirementDigest],
-    ['probeEvidenceDigest',verification.probeEvidenceDigest]]) digest(item, name);
+  for (const [name, item] of [['basisDigest',verification.basisDigest],['candidateBasisDigest',verification.candidateBasisDigest],
+    ['mediaRequirementDigest',verification.mediaRequirementDigest],['sourceProbeEvidenceDigest',verification.sourceProbeEvidenceDigest],
+    ['outputProbeEvidenceDigest',verification.outputProbeEvidenceDigest]]) digest(item, name);
   text(verification.workspaceMediaHandleId, 'workspaceMediaHandleId');
   text(verification.producingEventId, 'producingEventId');
-  const verificationId = canonicalDigest({ schema:'libra.product-media-verification-id@1', libraRunId,
-    workspaceMaterialHandleId:handle.handleId, workspaceMaterialFenceDigest:handle.fenceDigest,
-    mediaRequirementDigest:verification.mediaRequirementDigest, probeEvidenceDigest:verification.probeEvidenceDigest });
+  const verificationId = canonicalDigest({ schema:'libra.product-media-verification-id@1', candidateId:verification.candidateId,
+    candidateNodeId:verification.candidateNodeId,candidateBasisDigest:verification.candidateBasisDigest,
+    candidateKind:verification.candidateKind,libraRunId,productMaterialHandleId:handle.handleId,
+    productMaterialFenceDigest:handle.fenceDigest,mediaRequirementDigest:verification.mediaRequirementDigest,
+    sourceProbeEvidenceDigest:verification.sourceProbeEvidenceDigest,outputProbeEvidenceDigest:verification.outputProbeEvidenceDigest });
   const verificationDigest = canonicalDigest(verification);
   if (verification.verificationId !== verificationId || value.verificationId !== verificationId || value.verificationDigest !== verificationDigest)
     fail('P9_REFERENCE_VERIFICATION', 'Product Verification identity or digest is invalid.');

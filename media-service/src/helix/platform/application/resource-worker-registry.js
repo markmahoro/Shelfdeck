@@ -141,6 +141,33 @@ function createResourceWorkerRegistry(options) {
     return freeze({ ...item });
   }
 
+  function readDeviceSnapshot(query) {
+    if (!query || typeof query !== 'object' || Array.isArray(query) ||
+        Object.keys(query).some((key) => !['deviceId', 'expectedCapabilityDigest', 'expectedProbeRevision', 'queryDigest'].includes(key)) ||
+        !Object.hasOwn(query, 'deviceId') || !Object.hasOwn(query, 'queryDigest')) {
+      fail('P9_COMPUTE_DEVICE_QUERY_SHAPE', 'Platform Compute Device query has unknown or missing fields.');
+    }
+    const queryValue={deviceId:token(query.deviceId,'deviceId')};
+    if (Object.hasOwn(query, 'expectedProbeRevision')) queryValue.expectedProbeRevision=positive(query.expectedProbeRevision,'expectedProbeRevision',1000000);
+    if (Object.hasOwn(query, 'expectedCapabilityDigest')) queryValue.expectedCapabilityDigest=digest(query.expectedCapabilityDigest,'expectedCapabilityDigest');
+    if(options.digest(canonical(queryValue))!==query.queryDigest)fail('P9_COMPUTE_DEVICE_QUERY_DIGEST','Compute Device query digest is invalid.');
+    const item=options.repository.getDevice(queryValue.deviceId);let resultKind='found',reasonCode,snapshot;
+    if(!item){resultKind='not_found';reasonCode='device_not_found';}
+    else if(queryValue.expectedProbeRevision!==undefined&&item.revision!==queryValue.expectedProbeRevision){resultKind='stale';reasonCode='device_probe_changed';}
+    else if(queryValue.expectedCapabilityDigest!==undefined&&item.capabilityDigest!==queryValue.expectedCapabilityDigest){resultKind='stale';reasonCode='device_probe_changed';}
+    else if(!item.enabled){resultKind='unavailable';reasonCode='device_disabled';}
+    else if(item.state!=='ready'){resultKind='unavailable';reasonCode='device_not_ready';}
+    else if(item.probeResult!=='passed'||options.digest(canonical(item.capability))!==item.capabilityDigest){resultKind='integrity_error';reasonCode='device_probe_integrity_failure';}
+    else {
+      snapshot={deviceId:item.deviceId,deviceClass:item.deviceKind,probeRevision:item.revision,
+        capabilitySchemaRef:'helix://platform/compute-device-capability/v1',capabilityPayload:item.capability,
+        capabilityDigest:item.capabilityDigest,enabled:true,state:'ready',workerRef:null};
+      snapshot.snapshotDigest=options.digest(canonical(snapshot));freeze(snapshot);
+    }
+    const result={queryDigest:query.queryDigest,resultKind,snapshot:snapshot??null,reasonCode:reasonCode??null};
+    result.resultDigest=options.digest(canonical(result));return freeze(result);
+  }
+
   function resolveWorkerHandle(request) {
     exact(request, ['allowedOperation', 'expectedWorkerRevision', 'ttlMs', 'workerId'], 'P5_WORKER_HANDLE_REQUEST_SHAPE');
     const worker = options.repository.getWorker(token(request.workerId, 'workerId'));
@@ -158,7 +185,8 @@ function createResourceWorkerRegistry(options) {
       allowedOperation: request.allowedOperation, expiresAtMs, fenceDigest });
   }
 
-  return freeze({ publishProfile, publishOperatingPolicy, publishDevice, publishWorker, queryResourceProfile, queryDevice, resolveWorkerHandle });
+  return freeze({ publishProfile, publishOperatingPolicy, publishDevice, publishWorker, queryResourceProfile, queryDevice,
+    readDeviceSnapshot, resolveWorkerHandle });
 }
 
 function deviceProjection(item) {
