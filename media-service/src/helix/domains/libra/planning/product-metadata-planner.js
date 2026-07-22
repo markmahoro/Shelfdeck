@@ -24,7 +24,13 @@ function planMetadataGap(value) {
       requiredFields.some((field) => typeof field !== 'string' || !field) || new Set(requiredFields).size !== requiredFields.length) {
     fail('P9_METADATA_PLAN_INPUT', 'Metadata planning input is invalid.');
   }
-  const observations = [...(value.observations || [])], present = observedFields(observations),
+  const observations = [...(value.observations || [])];
+  if (observations.length > 16 || observations.some((item, ordinal) => !item || item.sourcePriority !== ordinal ||
+      item.contentProfile !== profile || item.identityDigest !== value.resolvedIdentityDigest ||
+      !['related_nfo', 'provider'].includes(item.sourceKind))) {
+    fail('P9_METADATA_PLAN_OBSERVATION_SCOPE', 'Metadata observations must be a bounded contiguous set for the exact profile and identity.');
+  }
+  const present = observedFields(observations),
     missingFields = requiredFields.filter((field) => !present.has(field));
   if (profile === 'western_adult') {
     if (observations.length !== 0) fail('P9_METADATA_PLAN_WESTERN_OBSERVATION', 'Western metadata cannot consume Provider Observations.');

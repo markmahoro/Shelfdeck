@@ -10,7 +10,7 @@ const base = { libraRunId:'run-1',runExecutionBasisDigest:d('basis'),resolvedIde
   requiredFields:['plot','title'],contentProfile:'movie',observations:[],relatedNfo:{referenceId:'nfo-1',referenceDigest:d('nfo'),expectedChecksum:d('checksum')},
   provider:{providerKind:'tmdb',integrationId:'tmdb-main',configRevision:2} };
 
-function observed(sourceKind,sourceRef,priority,entries){return {sourceKind,sourceRef,sourcePriority:priority,
+function observed(sourceKind,sourceRef,priority,entries){return {sourceKind,sourceRef,sourcePriority:priority,contentProfile:'movie',identityDigest:d('identity'),
   descriptiveFacts:{entries}};}
 
 test('plans Related NFO then TMDB and never performs executor fallback',()=>{
@@ -34,7 +34,7 @@ test('keeps JAV and Western on their own closed source paths',()=>{
   const western=planMetadataGap({...base,contentProfile:'western_adult',relatedNfo:null,provider:null});
   assert.equal(western.planKind,'western_analysis');
   assert.equal(western.nextIntent,null);
-  assert.throws(()=>planMetadataGap({...base,contentProfile:'western_adult',observations:[observed('provider','tmdb:x@1',0,[])]}),
+  assert.throws(()=>planMetadataGap({...base,contentProfile:'western_adult',observations:[{...observed('provider','tmdb:x@1',0,[]),contentProfile:'western_adult'}]}),
     (error)=>error.code==='P9_METADATA_PLAN_WESTERN_OBSERVATION');
 });
 
@@ -42,4 +42,14 @@ test('returns an explicit unresolved gap when the fixed source budget is exhaust
   const unresolved=planMetadataGap({...base,relatedNfo:null,observations:[observed('provider','tmdb:tmdb-main@2',0,[])]});
   assert.equal(unresolved.planKind,'gap_unresolved');
   assert.deepEqual(unresolved.missingFields,['plot','title']);
+});
+
+test('rejects cross-profile, cross-identity, and non-contiguous Observation input before planning',()=>{
+  const first=observed('related_nfo','nfo-1',0,[{key:'title',value:'A'}]);
+  assert.throws(()=>planMetadataGap({...base,observations:[{...first,contentProfile:'series'}]}),
+    (error)=>error.code==='P9_METADATA_PLAN_OBSERVATION_SCOPE');
+  assert.throws(()=>planMetadataGap({...base,observations:[{...first,identityDigest:d('other')}]}),
+    (error)=>error.code==='P9_METADATA_PLAN_OBSERVATION_SCOPE');
+  assert.throws(()=>planMetadataGap({...base,observations:[{...first,sourcePriority:1}]}),
+    (error)=>error.code==='P9_METADATA_PLAN_OBSERVATION_SCOPE');
 });
