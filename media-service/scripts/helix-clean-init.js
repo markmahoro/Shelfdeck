@@ -1,7 +1,7 @@
 'use strict';
 
-const path = require('path');
-const cleanState = require('../src/helixCleanState');
+const path = require('node:path');
+const { initializeCleanData, inspectReadiness } = require('./helix-operational-safety');
 
 function valueAfter(args, flag) {
   const index = args.indexOf(flag);
@@ -10,29 +10,34 @@ function valueAfter(args, flag) {
 
 function main(argv = process.argv.slice(2)) {
   const dataDir = path.resolve(valueAfter(argv, '--data-dir')
-    || process.env.CONTROL_PLANE_DATA_DIR
     || process.env.MEDIA_SERVICE_DATA_DIR
     || path.join(__dirname, '..', 'data'));
-  const backupDir = valueAfter(argv, '--backup-dir');
-  const apply = argv.includes('--apply');
-  const options = {
+  const backup = valueAfter(argv, '--backup-dir');
+
+  if (argv.includes('--readiness')) {
+    return inspectReadiness({ dataDir, adminDistDir: path.join(__dirname, '../dist/admin') });
+  }
+  if (!argv.includes('--apply')) {
+    return {
+      operation: 'initialize_clean_data',
+      generation: 'helix-clean-v1',
+      dataDir,
+      backupDir: backup ? path.resolve(backup) : null,
+      confirmationRequired: 'INITIALIZE_HELIX_CLEAN_V1',
+    };
+  }
+  return initializeCleanData({
     dataDir,
-    backupDir: backupDir ? path.resolve(backupDir) : undefined,
+    backupDir: backup ? path.resolve(backup) : undefined,
     confirmation: valueAfter(argv, '--confirm'),
-  };
-  const result = apply ? cleanState.applyCleanInit(options) : cleanState.buildPlan(options);
-  process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  });
 }
 
 try {
-  main();
+  process.stdout.write(`${JSON.stringify(main(), null, 2)}\n`);
 } catch (error) {
   process.stderr.write(`${JSON.stringify({
-    error: {
-      code: error.code || 'HELIX_CLEAN_INIT_FAILED',
-      message: error.message,
-      details: error.details || undefined,
-    },
+    error: { code: error.message, message: error.message },
   }, null, 2)}\n`);
   process.exitCode = 1;
 }

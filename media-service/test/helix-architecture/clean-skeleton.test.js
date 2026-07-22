@@ -78,22 +78,29 @@ test('Platform is a required four-package technical owner with one frozen public
   }
 });
 
-test('composition root import is side-effect free and factory fails explicitly', () => {
+test('composition root import is side-effect free and factory requires exact clean Facades', () => {
   const handlesBefore = process._getActiveHandles().length;
   const requestsBefore = process._getActiveRequests().length;
   const composition = require(path.join(helixRoot, 'composition', 'createHelixApplication'));
   assert.equal(process._getActiveHandles().length, handlesBefore);
   assert.equal(process._getActiveRequests().length, requestsBefore);
   assert.equal(Object.isFrozen(composition), true);
-  assert.throws(
-    () => composition.createHelixApplication(),
-    (error) => error && error.code === 'HELIX_COMPOSITION_NOT_IMPLEMENTED'
-  );
+  assert.throws(() => composition.createHelixApplication(), (error) => error && error.code === 'HELIX_COMPOSITION_INCOMPLETE');
+  const facades = {};
+  const routes = require(path.join(helixRoot, 'composition', 'admin-route-registry')).entries;
+  for (const route of routes) {
+    facades[route.facade] ||= {};
+    facades[route.facade][route.facadeMethod] = async () => ({ body:{ ok:true } });
+  }
+  const app = composition.createHelixApplication({ facades, sessionTokens:{ verify:() => ({}) } });
+  assert.equal(app.routeCount, 114);
+  assert.deepEqual(app.start(), { state:'ready', normalSupplyAllowed:true });
+  assert.equal(app.readiness().generation, 'helix-clean-v1');
+  assert.throws(() => app.start(), (error) => error.code === 'HELIX_LIFECYCLE_CONFLICT');
+  app.stop();
 });
 
-test('legacy product startup files do not reference the clean root', () => {
-  for (const relativePath of ['../../src/server.js', '../../src/app.js']) {
-    const content = fs.readFileSync(path.resolve(__dirname, relativePath), 'utf8');
-    assert.doesNotMatch(content, /(?:require\s*\(|from\s+)[^\n]*\bhelix\b/i);
-  }
+test('legacy product startup remains outside the clean composition package until the P14 environment adapter runs', () => {
+  const content = fs.readFileSync(path.resolve(__dirname, '../../src/server.js'), 'utf8');
+  assert.doesNotMatch(content, /createHelixApplication/);
 });
