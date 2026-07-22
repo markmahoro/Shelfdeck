@@ -87,13 +87,13 @@ Workspace admission/reference、完整On-deck Product Package、Discard/Cleanup�
 
 | Field | Current value |
 | --- | --- |
-| Phase | P10 — Handoff B and On-deck |
+| Phase | P11 — Arca post-deck |
 | Detailed packet | `implementation/CURRENT_PHASE.md` |
-| Status | P9 complete and archived；P10 active |
+| Status | P10 complete and archived；P11 active |
 | Implementation baseline | P9 implementation closure `fff40f8d92dbff88f07435a49bb0bcbae4934578` |
 | Phase branch/worktree | `codex/helix-p9` / `E:\my_project\emby_third_party-helix-p9` |
 | Allowed now | P10/P11 local code、unit/contract/isolated fixture、docs与Phase内自动闭环；P11后停止 |
-| Next action | 完成P10 Handoff B、custody、Inventory与On-deck Commit垂直链 |
+| Next action | 完成P11 Aftercare、Off-deck与Shelf Deregistration垂直链；P11 Exit后停止 |
 
 ## 4. Master roadmap
 
