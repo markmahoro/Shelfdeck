@@ -151,6 +151,16 @@ function splitTopLevelUnion(expression) {
 }
 
 function expressionSchema(expression) {
+  if (expression === 'mediaCastFactRef?{productFactId,factRevision,factDigest}') {
+    return {
+      anyOf: [object({
+        productFactId: text({ maxLength: 256 }),
+        factRevision: { type: 'integer', minimum: 1 },
+        factDigest: digest()
+      }), { type: 'null' }],
+      'x-helix-typeExpression': expression
+    };
+  }
   if (expression === '(Provider person hint + IntegrationHandle) | OnDeckPersonEvidenceProjectionItem') {
     return { oneOf: [object({ providerPersonHint: { $ref: typeRef('ProviderPersonHint') },
       integrationHandle: { $ref: typeRef('IntegrationHandle') } }),

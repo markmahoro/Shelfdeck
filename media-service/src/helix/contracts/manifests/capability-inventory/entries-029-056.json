@@ -293,21 +293,21 @@
       "sourceLocator": {
         "section": "8.6.6",
         "line": 8812,
-        "lineDigest": "d785b5b9ce1851c66b9f48b5325eb89ab69781fcfeeb0394d703af9aea9efcc5"
+        "lineDigest": "2ddcea693a7d4c45c435bc7512662e90575f2ca17e684c8395f89722a5d7f21d"
       },
       "targetLocator": {
         "path": "capabilities/libra/product_metadata/commit/v1/manifest.json"
       },
       "contract": {
         "packagePath": "capabilities/libra/product_metadata/commit/v1",
-        "packageDigest": "cada5c046536fc7fe457bda59d6d16a0d65295628da9a4f9cc328dbf2ec31d94",
+        "packageDigest": "34cbf8a8cbe18522e93a8f5caf118e169ba9ab6d21ff991b1a7e976789664d18",
         "effectClass": "domain_fact_commit",
-        "inputSummary": "LibraProductMetadataSourceBasis(metadata_observation|western_analysis) + ProductMetadataDraft + VerifiedArtifactManifest + DomainFactCommitHandle",
+        "inputSummary": "LibraProductMetadataSourceBasis(metadata_observation|western_analysis) + ProductMetadataDraft + VerifiedArtifactManifest + mediaCastFactRef?{productFactId,factRevision,factDigest} + DomainFactCommitHandle",
         "outputFamily": "ProductMetadataFact"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "9d46d0a0ef74cdb4676e0c3fbb368903140fa4d157fa68770e5085e971e4381e"
+        "value": "ffdbf6ba9d01b79306812230bb36a73289ce67dd7d4ee67277d6f773961745e0"
       }
     },
     {

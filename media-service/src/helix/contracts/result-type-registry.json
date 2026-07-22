@@ -1205,12 +1205,12 @@
       "relativePath": "types/ProductMetadataDraft/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "d11c876ef9038189accdbb844af9019d842a4c4a5e05285e3bd1c80d75849210"
+        "value": "fc6f355c0b621fdeb6c457273dc4d1b90d12554789482fb00cf9d6fde6ee6ef7"
       },
       "source": {
         "section": "8.6.19",
         "line": 9599,
-        "lineDigest": "5ad454ad945d32ba4f9db8603d4f982b6999e90edeb0ea769263dc57fe06d348"
+        "lineDigest": "b7d969b78d192123e0f38a5ff47e9f42b861b61f0bf38723bd2b450843682c29"
       }
     },
     {

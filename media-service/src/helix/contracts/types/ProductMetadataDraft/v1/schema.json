@@ -207,18 +207,6 @@
       },
       "maxItems": 128
     },
-    "mediaCastDraftRef": {
-      "anyOf": [
-        {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 256
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "artifactRequirements": {
       "type": "array",
       "items": {
@@ -242,7 +230,6 @@
     "fieldProvenance",
     "descriptiveFacts",
     "providerIdentities",
-    "mediaCastDraftRef",
     "artifactRequirements"
   ]
 }

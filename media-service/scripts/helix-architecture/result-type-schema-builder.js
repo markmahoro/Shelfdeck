@@ -245,7 +245,6 @@ const special = {
   'ArtifactAcquisitionResult.evidence': ref('EvidenceEnvelope'),
   'ProductMetadataDraft.descriptiveFacts': boundedRecord('descriptive-facts'),
   'ProductMetadataDraft.providerIdentities': arrayOf(snapshot('provider-identity'), 128),
-  'ProductMetadataDraft.mediaCastDraftRef': nullable(id()),
   'ProductMetadataDraft.artifactRequirements': arrayOf(domainRef('ArtifactRequirement'), 256),
   'MediaCastDraft.relations': arrayOf(object({
     personId: nullable(id()), displayName: text(), role: text(), source: text(), confidenceClass: text()
@@ -411,7 +410,7 @@ const contracts = {
   FrameArtifactSet: ['ManifestEnvelope', 'sourceMaterialDigest,samplingPlanDigest,frameArtifactHandles'],
   WesternAnalysisResult: ['EvidenceEnvelope', 'externalJobReceiptId,analysisVariantRef,resultArtifactHandle,resultDigest'],
   ArtifactAcquisitionResult: [null, 'resultKind,artifactHandle?,reasonCode?,evidence'],
-  ProductMetadataDraft: ['DraftEnvelope', 'resolvedIdentityDigest,descriptiveFacts,providerIdentities,mediaCastDraftRef?,artifactRequirements'],
+  ProductMetadataDraft: ['DraftEnvelope', 'resolvedIdentityDigest,descriptiveFacts,providerIdentities,artifactRequirements'],
   MediaCastDraft: ['DraftEnvelope', 'subjectId,metadataObservationDigest,relations'],
   MediaCastFact: ['DomainFactEnvelope', 'subjectId,relationsDigest,relationCount'],
   ProductMetadataFact: ['DomainFactEnvelope', 'subjectId,productMetadataDigest,verifiedArtifactManifestDigest'],
@@ -576,7 +575,7 @@ function productMetadataDraftSchema() {
     resolvedIdentityDigest: digest(), sourceBasisKind: enumText('metadata_observation', 'western_analysis'),
     metadataObservationSetDigest: nullable(digest()), westernAnalysisVariantDigest: nullable(digest()),
     fieldProvenance: arrayOf(fieldProvenanceSchema(), 1024), descriptiveFacts: boundedRecord('descriptive-facts'),
-    providerIdentities: arrayOf(snapshot('provider-identity'), 128), mediaCastDraftRef: nullable(id()),
+    providerIdentities: arrayOf(snapshot('provider-identity'), 128),
     artifactRequirements: arrayOf(domainRef('ArtifactRequirement'), 256)
   }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
 }

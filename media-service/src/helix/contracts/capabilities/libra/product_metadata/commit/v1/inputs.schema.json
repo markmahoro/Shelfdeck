@@ -14,6 +14,9 @@
     "verifiedArtifactManifest": {
       "$ref": "#/$defs/verifiedArtifactManifest"
     },
+    "mediaCastFactRefProductFactIdFactRevisionFactDigest": {
+      "$ref": "#/$defs/mediaCastFactRefProductFactIdFactRevisionFactDigest"
+    },
     "domainFactCommitHandle": {
       "$ref": "#/$defs/domainFactCommitHandle"
     }
@@ -22,6 +25,7 @@
     "libraProductMetadataSourceBasisMetadataObservationOrWesternAnalysis",
     "productMetadataDraft",
     "verifiedArtifactManifest",
+    "mediaCastFactRefProductFactIdFactRevisionFactDigest",
     "domainFactCommitHandle"
   ],
   "$defs": {
@@ -36,6 +40,39 @@
     "verifiedArtifactManifest": {
       "$ref": "helix://contracts/domain-types/VerifiedArtifactManifest/v1",
       "x-helix-typeExpression": "VerifiedArtifactManifest"
+    },
+    "mediaCastFactRefProductFactIdFactRevisionFactDigest": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "productFactId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "factRevision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "factDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "productFactId",
+            "factRevision",
+            "factDigest"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "x-helix-typeExpression": "mediaCastFactRef?{productFactId,factRevision,factDigest}"
     },
     "domainFactCommitHandle": {
       "$ref": "helix://contracts/types/DomainFactCommitHandle/v1",
