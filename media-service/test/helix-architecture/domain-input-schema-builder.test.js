@@ -6,10 +6,10 @@ const { buildDomainInputSchemas } = require('../../scripts/helix-architecture/do
 
 const schemas = buildDomainInputSchemas();
 
-test('builds exactly the 98 formal domain input contracts', () => {
-  assert.equal(Object.keys(schemas).length, 98);
-  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'bounded-contract').length, 25);
-  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'accepted-business-dto').length, 73);
+test('builds exactly the 100 formal domain input contracts', () => {
+  assert.equal(Object.keys(schemas).length, 100);
+  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'bounded-contract').length, 23);
+  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'accepted-business-dto').length, 77);
 });
 
 test('freezes product fact source basis variants and exact artifact manifest inputs', () => {
@@ -66,7 +66,7 @@ test('freezes the three exact Perception acquisition named inputs', () => {
 });
 
 test('bounded requirements and intents carry identity, revision, digest, and typed parameters', () => {
-  for (const name of ['MediaRequirement', 'EncodeIntent', 'ArtifactProfile', 'AcceptanceSpec']) {
+  for (const name of ['EncodeIntent', 'ArtifactProfile', 'ShelfStandard']) {
     const schema = schemas[name];
     for (const field of ['schemaRef', 'schemaVersion', 'revision', 'digest', 'typedParameters']) assert.ok(schema.required.includes(field));
     assert.equal(schema.properties.typedParameters.items.additionalProperties, false);
@@ -76,10 +76,13 @@ test('bounded requirements and intents carry identity, revision, digest, and typ
 });
 
 test('keeps canonical content profile separate from season structure', () => {
-  for (const name of ['AcceptanceSpec', 'ShelfStandard']) {
+  for (const name of ['ShelfStandard']) {
     assert.deepEqual(schemas[name].properties.contentProfile.enum, ['movie', 'series', 'jav', 'western_adult']);
     assert.equal(schemas[name].properties.contentProfile.enum.includes('season'), false);
   }
+  const spec = schemas.ProductConformanceInputSnapshot.properties.acceptanceSpec;
+  assert.deepEqual(spec.properties.contentProfile.enum, ['movie', 'series', 'jav', 'western_adult']);
+  assert.equal(spec.properties.contentProfile.enum.includes('season'), false);
 });
 
 test('accepted DTOs freeze semantic members instead of exposing arbitrary payloads', () => {

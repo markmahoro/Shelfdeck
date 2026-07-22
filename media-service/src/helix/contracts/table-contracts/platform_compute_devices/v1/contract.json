@@ -21,7 +21,13 @@
         "ordinal": 2,
         "name": "device_kind",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "software_cpu",
+          "intel_qsv",
+          "nvidia_nvenc",
+          "amd_vaapi",
+          "remote_worker"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
         "inlineUnique": false,
@@ -62,9 +68,9 @@
         "name": "state",
         "logicalType": "TEXT",
         "enumValues": [
-          "available",
+          "ready",
           "unavailable",
-          "disabled"
+          "faulted"
         ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -101,11 +107,21 @@
     "partialUniqueRules": [],
     "checkRules": [
       {
+        "column": "device_kind",
+        "enumValues": [
+          "software_cpu",
+          "intel_qsv",
+          "nvidia_nvenc",
+          "amd_vaapi",
+          "remote_worker"
+        ]
+      },
+      {
         "column": "state",
         "enumValues": [
-          "available",
+          "ready",
           "unavailable",
-          "disabled"
+          "faulted"
         ]
       }
     ],
@@ -145,17 +161,18 @@
     },
     "semanticRules": [
       "`UNIQUE(stable_device_key)`",
-      "只有已验证能力可enabled",
+      "`deviceClass=device_kind`为唯一公开映射",
+      "只有current probe验证能力且state=ready才可enabled",
       "`INDEX(enabled,state,device_id)`"
     ],
     "rawContract": {
-      "columns": "`device_id PK, device_kind, stable_device_key, current_probe_revision, enabled, state, updated_at_ms`",
-      "constraints": "`UNIQUE(stable_device_key)`；只有已验证能力可enabled；`INDEX(enabled,state,device_id)`"
+      "columns": "`device_id PK, device_kind(software_cpu|intel_qsv|nvidia_nvenc|amd_vaapi|remote_worker), stable_device_key, current_probe_revision, enabled, state(ready|unavailable|faulted), updated_at_ms`",
+      "constraints": "`UNIQUE(stable_device_key)`；`deviceClass=device_kind`为唯一公开映射；只有current probe验证能力且state=ready才可enabled；`INDEX(enabled,state,device_id)`"
     },
     "source": {
       "section": "8.5.13",
-      "line": 8502,
-      "lineDigest": "e3087dc75ea69236f326216af8cc7f16e6e2351b4b24fd0c29e746882a19ba10"
+      "line": 8506,
+      "lineDigest": "7850e6ee687246a509e42f0fe14880e7a296167abbf096259a806dd931572d68"
     },
     "foreignKeys": []
   }

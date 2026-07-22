@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/ProductOutputSelectionInput/v1",
+  "title": "ProductOutputSelectionInput@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "criteria": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "criteriaId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "acceptanceSpecId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "acceptanceSpecRecordDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "mediaRequirementDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "rankedCandidates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "rank": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "candidateId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "candidateNodeId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              }
+            },
+            "required": [
+              "rank",
+              "candidateId",
+              "candidateNodeId"
+            ]
+          },
+          "maxItems": 32,
+          "minItems": 1
+        },
+        "tieBreak": {
+          "const": "verification_id_utf8"
+        },
+        "criteriaDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "criteriaId",
+        "libraRunId",
+        "acceptanceSpecId",
+        "acceptanceSpecRecordDigest",
+        "mediaRequirementDigest",
+        "rankedCandidates",
+        "tieBreak",
+        "criteriaDigest"
+      ]
+    },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "$ref": "helix://contracts/types/ProductMediaVerification/v1"
+      },
+      "maxItems": 32,
+      "minItems": 1
+    },
+    "candidateSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "inputDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "criteria",
+    "candidates",
+    "candidateSetDigest",
+    "inputDigest"
+  ],
+  "x-helix-maxCanonicalBytes": 524288
+}

@@ -5,35 +5,48 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "materialHandle": {
-      "$ref": "#/$defs/materialHandle"
+    "physicalMaterialReadHandleOrWorkspaceMaterialHandle": {
+      "$ref": "#/$defs/physicalMaterialReadHandleOrWorkspaceMaterialHandle"
+    },
+    "mediaProbeEvidence": {
+      "$ref": "#/$defs/mediaProbeEvidence"
     },
     "encodeIntent": {
       "$ref": "#/$defs/encodeIntent"
+    },
+    "mediaExecutionDeviceSnapshot": {
+      "$ref": "#/$defs/mediaExecutionDeviceSnapshot"
     }
   },
   "required": [
-    "materialHandle",
-    "encodeIntent"
+    "physicalMaterialReadHandleOrWorkspaceMaterialHandle",
+    "mediaProbeEvidence",
+    "encodeIntent",
+    "mediaExecutionDeviceSnapshot"
   ],
   "$defs": {
-    "materialHandle": {
+    "physicalMaterialReadHandleOrWorkspaceMaterialHandle": {
       "oneOf": [
         {
           "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1"
         },
         {
           "$ref": "helix://contracts/types/WorkspaceMaterialHandle/v1"
-        },
-        {
-          "$ref": "helix://contracts/types/ArtifactHandle/v1"
         }
       ],
-      "x-helix-typeExpression": "Material handle"
+      "x-helix-typeExpression": "PhysicalMaterialReadHandle\\|WorkspaceMaterialHandle"
+    },
+    "mediaProbeEvidence": {
+      "$ref": "helix://contracts/types/MediaProbeEvidence/v1",
+      "x-helix-typeExpression": "MediaProbeEvidence"
     },
     "encodeIntent": {
       "$ref": "helix://contracts/domain-types/EncodeIntent/v1",
       "x-helix-typeExpression": "EncodeIntent"
+    },
+    "mediaExecutionDeviceSnapshot": {
+      "$ref": "helix://contracts/domain-types/MediaExecutionDeviceSnapshot/v1",
+      "x-helix-typeExpression": "MediaExecutionDeviceSnapshot"
     }
   }
 }

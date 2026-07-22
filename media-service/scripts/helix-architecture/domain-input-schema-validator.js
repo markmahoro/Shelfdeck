@@ -104,7 +104,12 @@ function validateDomainInputSchemas(options) {
       StructuredRejection: ['handoffKind', 'offerId', 'deliverableId', 'rejectionCode', 'rejectionDigest'],
       LibraDeliverablePromotionDecision: ['decisionId', 'libraRunRef', 'onDeckPackageId', 'packageRevision', 'packageDigest', 'decisionDigest'],
       WorkspaceCleanupEffectIntent: ['intentId', 'cleanupScopeId', 'workspaceId', 'materialHandleId', 'intentDigest'],
-      WorkspaceCleanupCommitDecision: ['decisionId', 'cleanupScopeId', 'workspaceId', 'materialHandleId', 'decisionDigest']
+      WorkspaceCleanupCommitDecision: ['decisionId', 'cleanupScopeId', 'workspaceId', 'materialHandleId', 'decisionDigest'],
+      MediaExecutionDeviceSnapshot: ['deviceId', 'probeRevision', 'capabilityDigest', 'snapshotDigest'],
+      WorkspaceMediaOutputTarget: ['targetId', 'libraRunId', 'workspaceId', 'targetDigest'],
+      ProductMediaCandidateInput: ['schemaRef', 'schemaVersion', 'candidateId', 'candidateNodeId', 'candidateBasisDigest', 'inputDigest'],
+      ProductOutputSelectionInput: ['criteria', 'candidateSetDigest', 'inputDigest'],
+      ProductConformanceInputSnapshot: ['snapshotId', 'libraRunId', 'runExecutionBasisDigest', 'productSnapshotDigest', 'snapshotDigest']
     };
     const identityFields = exactIdentityFields[entry.id] || ['schemaRef', 'schemaVersion', 'revision', 'digest'];
     for (const field of identityFields) {

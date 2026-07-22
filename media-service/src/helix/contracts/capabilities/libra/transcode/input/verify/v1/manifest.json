@@ -5,13 +5,23 @@
   "ownerScope": "libra",
   "effectClass": "pure_observation",
   "inputPorts": {
-    "materialHandle": {
-      "schemaRef": "helix://contracts/capabilities/libra.transcode.input.verify/v1/inputs#/$defs/materialHandle",
+    "physicalMaterialReadHandleOrWorkspaceMaterialHandle": {
+      "schemaRef": "helix://contracts/capabilities/libra.transcode.input.verify/v1/inputs#/$defs/physicalMaterialReadHandleOrWorkspaceMaterialHandle",
+      "required": true,
+      "cardinality": "one"
+    },
+    "mediaProbeEvidence": {
+      "schemaRef": "helix://contracts/capabilities/libra.transcode.input.verify/v1/inputs#/$defs/mediaProbeEvidence",
       "required": true,
       "cardinality": "one"
     },
     "encodeIntent": {
       "schemaRef": "helix://contracts/capabilities/libra.transcode.input.verify/v1/inputs#/$defs/encodeIntent",
+      "required": true,
+      "cardinality": "one"
+    },
+    "mediaExecutionDeviceSnapshot": {
+      "schemaRef": "helix://contracts/capabilities/libra.transcode.input.verify/v1/inputs#/$defs/mediaExecutionDeviceSnapshot",
       "required": true,
       "cardinality": "one"
     }
@@ -29,7 +39,7 @@
   },
   "sourceLocator": {
     "section": "8.6.7",
-    "line": 8838,
-    "lineDigest": "7e3dd0dd3ad7d4bbb44093fd6a68fddf7c8fe8d45defdc22c44da21b3399c066"
+    "line": 8842,
+    "lineDigest": "b0fafb7638df6655784f49673941ba924b78e7abfc70dafca20b5db3f9c04f83"
   }
 }

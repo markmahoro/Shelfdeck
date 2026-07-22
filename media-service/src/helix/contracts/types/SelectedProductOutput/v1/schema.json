@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/SelectedProductOutput/v1",
+  "title": "SelectedProductOutput@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "x-helix-envelopeRef": "helix://contracts/types/DraftEnvelope/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/SelectedProductOutput/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "draftId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "draftKind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "basisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "draftDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "producedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "acceptanceSpecId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "mediaRequirementDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "criteriaId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "criteriaDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "candidateSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "result": {
+      "type": "string",
+      "enum": [
+        "selected",
+        "not_selected"
+      ]
+    },
+    "selectedCandidateKind": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "direct_input",
+            "workspace_output"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "selectedHandleId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "selectedWorkspaceMediaHandleId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "selectedVerificationId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "selectedVerificationDigest": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "selectionReasonCode": {
+      "type": "string",
+      "enum": [
+        "selected_by_declared_rank",
+        "no_passed_candidate"
+      ]
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "draftId",
+    "draftKind",
+    "basisDigest",
+    "draftDigest",
+    "producedAtMs",
+    "libraRunId",
+    "acceptanceSpecId",
+    "mediaRequirementDigest",
+    "criteriaId",
+    "criteriaDigest",
+    "candidateSetDigest",
+    "result",
+    "selectedCandidateKind",
+    "selectedHandleId",
+    "selectedWorkspaceMediaHandleId",
+    "selectedVerificationId",
+    "selectedVerificationDigest",
+    "selectionReasonCode"
+  ]
+}

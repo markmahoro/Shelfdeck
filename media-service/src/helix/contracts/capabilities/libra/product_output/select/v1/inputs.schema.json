@@ -5,21 +5,17 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "productMediaVerificationList": {
-      "$ref": "#/$defs/productMediaVerificationList"
+    "productOutputSelectionInput": {
+      "$ref": "#/$defs/productOutputSelectionInput"
     }
   },
   "required": [
-    "productMediaVerificationList"
+    "productOutputSelectionInput"
   ],
   "$defs": {
-    "productMediaVerificationList": {
-      "type": "array",
-      "items": {
-        "$ref": "helix://contracts/types/ProductMediaVerification/v1"
-      },
-      "maxItems": 1024,
-      "x-helix-typeExpression": "ProductMediaVerification[]"
+    "productOutputSelectionInput": {
+      "$ref": "helix://contracts/domain-types/ProductOutputSelectionInput/v1",
+      "x-helix-typeExpression": "ProductOutputSelectionInput"
     }
   }
 }

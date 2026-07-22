@@ -58,12 +58,37 @@
       "type": "integer",
       "minimum": 0
     },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
     "acceptanceSpecId": {
       "type": "string",
       "minLength": 1,
       "maxLength": 256
     },
+    "acceptanceSpecRecordDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "runExecutionBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "productSnapshotDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
     "productFactSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "evaluatedRequirementSetDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
@@ -72,9 +97,30 @@
       "type": "array",
       "items": {
         "type": "string",
-        "minLength": 1
+        "enum": [
+          "identity_unmet",
+          "season_identity_unmet",
+          "structure_unmet",
+          "episode_coverage_unmet",
+          "metadata_field_unmet",
+          "metadata_artifact_unmet",
+          "sidecar_unrenderable",
+          "image_undecodable",
+          "media_form_unmet",
+          "video_codec_unmet",
+          "container_unmet",
+          "file_extension_unmet",
+          "minimum_raster_unmet",
+          "system_upscale_forbidden",
+          "primary_audio_unmet",
+          "max_size_exceeded",
+          "domain_binding_unmet",
+          "checksum_unmet",
+          "artifact_materialization_unmet",
+          "layout_unmet"
+        ]
       },
-      "maxItems": 1024
+      "maxItems": 20
     }
   },
   "required": [
@@ -87,8 +133,13 @@
     "reasonCodes",
     "evidenceRefs",
     "verifiedAtMs",
+    "libraRunId",
     "acceptanceSpecId",
+    "acceptanceSpecRecordDigest",
+    "runExecutionBasisDigest",
+    "productSnapshotDigest",
     "productFactSetDigest",
+    "evaluatedRequirementSetDigest",
     "unmetRequirementCodes"
   ]
 }

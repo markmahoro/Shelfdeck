@@ -5,25 +5,17 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "productFacts": {
-      "$ref": "#/$defs/productFacts"
-    },
-    "acceptanceSpec": {
-      "$ref": "#/$defs/acceptanceSpec"
+    "productConformanceInputSnapshot": {
+      "$ref": "#/$defs/productConformanceInputSnapshot"
     }
   },
   "required": [
-    "productFacts",
-    "acceptanceSpec"
+    "productConformanceInputSnapshot"
   ],
   "$defs": {
-    "productFacts": {
-      "$ref": "helix://contracts/domain-types/ProductFacts/v1",
-      "x-helix-typeExpression": "Product Facts"
-    },
-    "acceptanceSpec": {
-      "$ref": "helix://contracts/domain-types/AcceptanceSpec/v1",
-      "x-helix-typeExpression": "Acceptance Spec"
+    "productConformanceInputSnapshot": {
+      "$ref": "helix://contracts/domain-types/ProductConformanceInputSnapshot/v1",
+      "x-helix-typeExpression": "ProductConformanceInputSnapshot"
     }
   }
 }

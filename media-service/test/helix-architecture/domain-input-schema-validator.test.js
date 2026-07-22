@@ -27,9 +27,9 @@ const codes = (result) => new Set(result.findings.map((item) => item.code));
 test('validates all Catalog domain inputs and their exact usage traceability', () => {
   const result = validateDomainInputSchemas({ contractsRoot, repositoryRoot });
   assert.equal(result.ok, true);
-  assert.equal(result.typeCount, 98);
-  assert.equal(result.boundedContractCount, 25);
-  assert.equal(result.acceptedDtoCount, 73);
+  assert.equal(result.typeCount, 100);
+  assert.equal(result.boundedContractCount, 23);
+  assert.equal(result.acceptedDtoCount, 77);
 });
 
 test('rejects contract drift, open objects, raw paths, and unresolved refs', () => {
@@ -59,7 +59,7 @@ test('rejects duplicate registry entries and unbounded requirement contracts', (
     mutate(path.join(root, 'domain-input-type-registry.json'), (registry) => {
       registry.entries[1].id = registry.entries[0].id;
     });
-    mutate(path.join(root, 'domain-types', 'MediaRequirement', 'v1', 'schema.json'), (schema) => {
+    mutate(path.join(root, 'domain-types', 'EncodeIntent', 'v1', 'schema.json'), (schema) => {
       schema.required = schema.required.filter((field) => field !== 'typedParameters');
     });
     const result = validateDomainInputSchemas({ contractsRoot: root, repositoryRoot });

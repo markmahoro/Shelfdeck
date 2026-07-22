@@ -61,7 +61,10 @@
         "ordinal": 6,
         "name": "probe_result",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "passed",
+          "failed"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
         "inlineUnique": false,
@@ -88,7 +91,15 @@
     "uniqueConstraints": [],
     "hotIndexes": [],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "probe_result",
+        "enumValues": [
+          "passed",
+          "failed"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
         "revision"
@@ -109,7 +120,7 @@
     "immutability": {
       "immutable": true,
       "rules": [
-        "actual probe Evidence immutable"
+        "actual probe Evidence immutable，只有passed可成为ready Snapshot"
       ]
     },
     "deletion": {
@@ -118,17 +129,17 @@
     },
     "semanticRules": [
       "`PK(device_id,revision)`",
-      "Capability JSON上限`16 KiB`",
-      "actual probe Evidence immutable"
+      "Capability JSON上限`16 KiB`且至少关系化声明`supportedVideoCodecs[]/supportedRateControlModes[]`的closed typed payload",
+      "actual probe Evidence immutable，只有passed可成为ready Snapshot"
     ],
     "rawContract": {
-      "columns": "`device_id FK, revision, capability_schema_ref, capability_json, capability_digest, probe_result, probed_at_ms`",
-      "constraints": "`PK(device_id,revision)`；Capability JSON上限`16 KiB`；actual probe Evidence immutable"
+      "columns": "`device_id FK, revision, capability_schema_ref, capability_json, capability_digest, probe_result(passed|failed), probed_at_ms`",
+      "constraints": "`PK(device_id,revision)`；Capability JSON上限`16 KiB`且至少关系化声明`supportedVideoCodecs[]/supportedRateControlModes[]`的closed typed payload；actual probe Evidence immutable，只有passed可成为ready Snapshot"
     },
     "source": {
       "section": "8.5.13",
-      "line": 8503,
-      "lineDigest": "3030b4d68bb0dc4ea91ab4c1c77aa9f86ca2265c987b72f542ad55861ba9daad"
+      "line": 8507,
+      "lineDigest": "7fea41108abbfafdc75b7e3a09361786efe1fefc8cd2f18d9b97a95992d70a6a"
     },
     "foreignKeys": [
       {

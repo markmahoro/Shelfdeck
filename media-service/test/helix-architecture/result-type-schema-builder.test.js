@@ -78,11 +78,12 @@ test('freezes the Field Observation page and commit result canonical byte ceilin
   assert.equal(schemas.ObservationCommitResult['x-helix-maxCanonicalBytes'], 64 * 1024);
 });
 
-test('flattens WorkspaceMediaHandle without accepting a raw nested workspace payload', () => {
+test('freezes WorkspaceMediaHandle around one nested Foundation handle', () => {
   const schema = schemas.WorkspaceMediaHandle;
-  assert.ok(schema.required.includes('workspaceId'));
-  assert.ok(schema.required.includes('relativePath'));
-  assert.equal(Object.hasOwn(schema.properties, 'workspaceMaterial'), false);
+  assert.ok(schema.required.includes('workspaceMediaHandleId'));
+  assert.ok(schema.required.includes('workspaceMaterialHandle'));
+  assert.equal(schema.properties.workspaceMaterialHandle.$ref, 'helix://contracts/types/WorkspaceMaterialHandle/v1');
+  assert.equal(Object.hasOwn(schema.properties, 'mediaProbeRef'), false);
   assert.equal(schema.additionalProperties, false);
 });
 
@@ -100,10 +101,11 @@ test('materializes Artifact Requirement and bounded verification Result continui
     'helix://contracts/domain-types/ArtifactRequirement/v1');
 });
 
-test('binds Product Media Verification to the exact Run, Event, Handle, and fence', () => {
+test('binds Product Media Verification to the exact candidate, Run, Handle, Requirement, and probes', () => {
   const schema = schemas.ProductMediaVerification;
-  for (const field of ['libraRunId', 'producingEventId', 'workspaceMediaHandleId', 'workspaceMaterialHandleId',
-    'workspaceMaterialHandleDigest', 'workspaceMaterialFenceDigest', 'mediaRequirementDigest', 'probeEvidenceDigest']) {
+  for (const field of ['candidateId', 'candidateNodeId', 'candidateBasisDigest', 'candidateKind', 'libraRunId',
+    'productMaterialHandleId', 'productMaterialHandleDigest', 'productMaterialFenceDigest', 'mediaRequirementId',
+    'mediaRequirementDigest', 'sourceProbeEvidenceDigest', 'outputProbeEvidenceDigest']) {
     assert.ok(schema.required.includes(field), field);
   }
 });

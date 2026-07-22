@@ -2536,7 +2536,7 @@ CREATE TABLE "platform_compute_device_probes" (
   "capability_schema_ref" TEXT,
   "capability_json" TEXT,
   "capability_digest" TEXT CHECK (length("capability_digest") = 64 AND "capability_digest" NOT GLOB '*[^0-9a-f]*'),
-  "probe_result" TEXT,
+  "probe_result" TEXT CHECK ("probe_result" IN ('passed', 'failed')),
   "probed_at_ms" INTEGER CHECK ("probed_at_ms" >= 0),
   PRIMARY KEY ("device_id", "revision"),
   CHECK (json_valid("capability_json")),
@@ -2546,11 +2546,11 @@ CREATE TABLE "platform_compute_device_probes" (
 
 CREATE TABLE "platform_compute_devices" (
   "device_id" TEXT PRIMARY KEY,
-  "device_kind" TEXT,
+  "device_kind" TEXT CHECK ("device_kind" IN ('software_cpu', 'intel_qsv', 'nvidia_nvenc', 'amd_vaapi', 'remote_worker')),
   "stable_device_key" TEXT,
   "current_probe_revision" INTEGER CHECK ("current_probe_revision" >= 1),
   "enabled" INTEGER CHECK ("enabled" IN (0, 1)),
-  "state" TEXT CHECK ("state" IN ('available', 'unavailable', 'disabled')),
+  "state" TEXT CHECK ("state" IN ('ready', 'unavailable', 'faulted')),
   "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
   UNIQUE ("stable_device_key"),
   FOREIGN KEY ("device_id", "current_probe_revision") REFERENCES "platform_compute_device_probes" ("device_id", "revision") ON DELETE RESTRICT

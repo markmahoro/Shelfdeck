@@ -10,11 +10,15 @@
     },
     "remuxIntent": {
       "$ref": "#/$defs/remuxIntent"
+    },
+    "workspaceMediaOutputTarget": {
+      "$ref": "#/$defs/workspaceMediaOutputTarget"
     }
   },
   "required": [
     "materialHandle",
-    "remuxIntent"
+    "remuxIntent",
+    "workspaceMediaOutputTarget"
   ],
   "$defs": {
     "materialHandle": {
@@ -34,6 +38,10 @@
     "remuxIntent": {
       "$ref": "helix://contracts/domain-types/RemuxIntent/v1",
       "x-helix-typeExpression": "RemuxIntent"
+    },
+    "workspaceMediaOutputTarget": {
+      "$ref": "helix://contracts/domain-types/WorkspaceMediaOutputTarget/v1",
+      "x-helix-typeExpression": "WorkspaceMediaOutputTarget"
     }
   }
 }

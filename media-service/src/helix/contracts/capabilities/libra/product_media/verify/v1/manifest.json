@@ -5,18 +5,8 @@
   "ownerScope": "libra",
   "effectClass": "pure_observation",
   "inputPorts": {
-    "workspaceMediaHandle": {
-      "schemaRef": "helix://contracts/capabilities/libra.product_media.verify/v1/inputs#/$defs/workspaceMediaHandle",
-      "required": true,
-      "cardinality": "one"
-    },
-    "mediaProbeEvidence": {
-      "schemaRef": "helix://contracts/capabilities/libra.product_media.verify/v1/inputs#/$defs/mediaProbeEvidence",
-      "required": true,
-      "cardinality": "one"
-    },
-    "mediaRequirement": {
-      "schemaRef": "helix://contracts/capabilities/libra.product_media.verify/v1/inputs#/$defs/mediaRequirement",
+    "productMediaCandidateInput": {
+      "schemaRef": "helix://contracts/capabilities/libra.product_media.verify/v1/inputs#/$defs/productMediaCandidateInput",
       "required": true,
       "cardinality": "one"
     }
@@ -34,7 +24,7 @@
   },
   "sourceLocator": {
     "section": "8.6.7",
-    "line": 8841,
-    "lineDigest": "77b68c65d4e6f851884475e0b0cb6be4d4cded661c323034e99d880aee9c5b82"
+    "line": 8845,
+    "lineDigest": "6ca7365e09bf70b37f854f2497da9caa04165b49516c6216ba4cb00669b0fb4e"
   }
 }

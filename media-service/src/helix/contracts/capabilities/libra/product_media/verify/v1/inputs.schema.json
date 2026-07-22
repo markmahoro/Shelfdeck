@@ -5,33 +5,17 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "workspaceMediaHandle": {
-      "$ref": "#/$defs/workspaceMediaHandle"
-    },
-    "mediaProbeEvidence": {
-      "$ref": "#/$defs/mediaProbeEvidence"
-    },
-    "mediaRequirement": {
-      "$ref": "#/$defs/mediaRequirement"
+    "productMediaCandidateInput": {
+      "$ref": "#/$defs/productMediaCandidateInput"
     }
   },
   "required": [
-    "workspaceMediaHandle",
-    "mediaProbeEvidence",
-    "mediaRequirement"
+    "productMediaCandidateInput"
   ],
   "$defs": {
-    "workspaceMediaHandle": {
-      "$ref": "helix://contracts/types/WorkspaceMediaHandle/v1",
-      "x-helix-typeExpression": "WorkspaceMediaHandle"
-    },
-    "mediaProbeEvidence": {
-      "$ref": "helix://contracts/types/MediaProbeEvidence/v1",
-      "x-helix-typeExpression": "MediaProbeEvidence"
-    },
-    "mediaRequirement": {
-      "$ref": "helix://contracts/domain-types/MediaRequirement/v1",
-      "x-helix-typeExpression": "MediaRequirement"
+    "productMediaCandidateInput": {
+      "$ref": "helix://contracts/domain-types/ProductMediaCandidateInput/v1",
+      "x-helix-typeExpression": "ProductMediaCandidateInput"
     }
   }
 }

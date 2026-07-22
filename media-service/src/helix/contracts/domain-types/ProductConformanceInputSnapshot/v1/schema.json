@@ -1,0 +1,800 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/ProductConformanceInputSnapshot/v1",
+  "title": "ProductConformanceInputSnapshot@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "snapshotId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "runExecutionBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "acceptanceSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "const": "libra.acceptance-spec@1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "draftId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "draftKind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "basisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "draftDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "producedAtMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "subjectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "targetShelfId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "contentProfile": {
+          "type": "string",
+          "enum": [
+            "movie",
+            "series",
+            "jav",
+            "western_adult"
+          ]
+        },
+        "structureKind": {
+          "type": "string",
+          "enum": [
+            "single",
+            "season"
+          ]
+        },
+        "productScope": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "scopeKind": {
+              "type": "string",
+              "enum": [
+                "product",
+                "season"
+              ]
+            },
+            "episodeKeys": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "maxItems": 32768
+            },
+            "scopeDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "scopeKind",
+            "episodeKeys",
+            "scopeDigest"
+          ]
+        },
+        "shelfRoutingProjectionRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "shelfProjectionDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "shelfStandardRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "shelfStandardDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "decisionBasisId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "decisionBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "requirements": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "identity": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "identityKind": {
+                  "type": "string",
+                  "enum": [
+                    "tmdb_movie",
+                    "tmdb_series_season",
+                    "jav_code",
+                    "internal_identity"
+                  ]
+                },
+                "requiredProvider": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "tmdb"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "requireSeasonNumber": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "identityKind",
+                "requiredProvider",
+                "requireSeasonNumber"
+              ]
+            },
+            "structure": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "structureKind": {
+                  "type": "string",
+                  "enum": [
+                    "single",
+                    "season"
+                  ]
+                },
+                "primaryModel": {
+                  "type": "string",
+                  "enum": [
+                    "single_primary",
+                    "episode_primary"
+                  ]
+                },
+                "requireOnePrimaryPerEpisode": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "structureKind",
+                "primaryModel",
+                "requireOnePrimaryPerEpisode"
+              ]
+            },
+            "metadata": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "requiredFieldCodes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "tmdb_movie_id",
+                      "tmdb_series_id",
+                      "title",
+                      "series_title",
+                      "year_or_release_date",
+                      "release_date",
+                      "plot",
+                      "genre",
+                      "actor",
+                      "director",
+                      "season_number",
+                      "episode_number",
+                      "episode_title",
+                      "episode_plot",
+                      "jav_code",
+                      "studio",
+                      "internal_identity"
+                    ]
+                  },
+                  "maxItems": 18
+                },
+                "requiredArtifactKinds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "nfo",
+                      "poster",
+                      "fanart"
+                    ]
+                  },
+                  "maxItems": 3
+                },
+                "requireRenderableSidecar": {
+                  "type": "boolean"
+                },
+                "requireDecodableImages": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "requiredFieldCodes",
+                "requiredArtifactKinds",
+                "requireRenderableSidecar",
+                "requireDecodableImages"
+              ]
+            },
+            "mandatoryMedia": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "mediaForm": {
+                  "type": "string",
+                  "enum": [
+                    "any",
+                    "stream_file"
+                  ]
+                },
+                "videoCodec": {
+                  "type": "string",
+                  "enum": [
+                    "any",
+                    "hevc"
+                  ]
+                },
+                "container": {
+                  "type": "string",
+                  "enum": [
+                    "any",
+                    "matroska"
+                  ]
+                },
+                "fileExtension": {
+                  "type": "string",
+                  "enum": [
+                    "any",
+                    "mkv"
+                  ]
+                },
+                "minimumRasterClass": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "4k"
+                  ]
+                },
+                "acceptedPrimaryAudioClasses": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "eac3_atmos",
+                      "truehd",
+                      "truehd_atmos",
+                      "dts_hd_ma",
+                      "dts_x"
+                    ]
+                  },
+                  "maxItems": 5
+                },
+                "forbidSystemUpscaleFor4k": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "mediaForm",
+                "videoCodec",
+                "container",
+                "fileExtension",
+                "minimumRasterClass",
+                "acceptedPrimaryAudioClasses",
+                "forbidSystemUpscaleFor4k"
+              ]
+            },
+            "space": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "unit": {
+                  "type": "string",
+                  "enum": [
+                    "product",
+                    "episode"
+                  ]
+                },
+                "maxSizeGiB": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "maxSizeBytes": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "unit",
+                "maxSizeGiB",
+                "maxSizeBytes"
+              ]
+            },
+            "inventory": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "requireDomainBinding": {
+                  "type": "boolean"
+                },
+                "requireChecksum": {
+                  "type": "boolean"
+                },
+                "requiredMaterializedArtifactKinds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "nfo",
+                      "poster",
+                      "fanart"
+                    ]
+                  },
+                  "maxItems": 3
+                },
+                "layoutModel": {
+                  "type": "string",
+                  "enum": [
+                    "single",
+                    "season_episode"
+                  ]
+                }
+              },
+              "required": [
+                "requireDomainBinding",
+                "requireChecksum",
+                "requiredMaterializedArtifactKinds",
+                "layoutModel"
+              ]
+            }
+          },
+          "required": [
+            "identity",
+            "structure",
+            "metadata",
+            "mandatoryMedia",
+            "space",
+            "inventory"
+          ]
+        },
+        "specDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "acceptanceSpecId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "specRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "recordDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "publishedAtMs": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "draftId",
+        "draftKind",
+        "basisDigest",
+        "draftDigest",
+        "producedAtMs",
+        "subjectId",
+        "targetShelfId",
+        "contentProfile",
+        "structureKind",
+        "productScope",
+        "shelfRoutingProjectionRevision",
+        "shelfProjectionDigest",
+        "shelfStandardRevision",
+        "shelfStandardDigest",
+        "decisionBasisId",
+        "decisionBasisDigest",
+        "requirements",
+        "specDigest",
+        "acceptanceSpecId",
+        "specRevision",
+        "recordDigest",
+        "publishedAtMs"
+      ]
+    },
+    "resolvedIdentitySnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "objectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "schemaRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "objectKind": {
+          "const": "resolved-identity"
+        },
+        "snapshotDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "objectId",
+        "revision",
+        "schemaRef",
+        "objectKind",
+        "snapshotDigest"
+      ]
+    },
+    "productStructureSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "objectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "schemaRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "objectKind": {
+          "const": "product-structure"
+        },
+        "snapshotDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "objectId",
+        "revision",
+        "schemaRef",
+        "objectKind",
+        "snapshotDigest"
+      ]
+    },
+    "productFactSnapshots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "productFactId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "factKind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "factRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "schemaRef": {
+            "type": "string",
+            "minLength": 1
+          },
+          "factValue": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "objectId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "revision": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "schemaRef": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "objectKind": {
+                    "const": "product-fact-value"
+                  },
+                  "snapshotDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "objectId",
+                  "revision",
+                  "schemaRef",
+                  "objectKind",
+                  "snapshotDigest"
+                ]
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "valueDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "valueDigest"
+                ]
+              }
+            ]
+          },
+          "factDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "evidenceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "productFactId",
+          "factKind",
+          "factRevision",
+          "schemaRef",
+          "factValue",
+          "factDigest",
+          "evidenceDigest"
+        ]
+      },
+      "maxItems": 64,
+      "minItems": 1
+    },
+    "verifiedArtifactManifest": {
+      "$ref": "helix://contracts/domain-types/VerifiedArtifactManifest/v1"
+    },
+    "productMaterialManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "objectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "schemaRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "objectKind": {
+          "const": "production-material-manifest"
+        },
+        "snapshotDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "objectId",
+        "revision",
+        "schemaRef",
+        "objectKind",
+        "snapshotDigest"
+      ]
+    },
+    "selectedProducts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "selectedProduct": {
+            "$ref": "helix://contracts/types/SelectedProductOutput/v1"
+          },
+          "verification": {
+            "$ref": "helix://contracts/types/ProductMediaVerification/v1"
+          },
+          "workspaceHandleDigest": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "selectedProduct",
+          "verification",
+          "workspaceHandleDigest"
+        ]
+      },
+      "maxItems": 32,
+      "minItems": 1
+    },
+    "inventoryBindingSnapshots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "materialKey": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "bindingRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "bindingDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "controlRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "controlProjectionDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "materialKey",
+          "bindingRevision",
+          "bindingDigest",
+          "controlRevision",
+          "controlProjectionDigest"
+        ]
+      },
+      "maxItems": 1024,
+      "minItems": 1
+    },
+    "productFactSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "selectedProductSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "inventoryBindingSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "productSnapshotDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "snapshotDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "snapshotId",
+    "libraRunId",
+    "runExecutionBasisDigest",
+    "acceptanceSpec",
+    "resolvedIdentitySnapshot",
+    "productStructureSnapshot",
+    "productFactSnapshots",
+    "verifiedArtifactManifest",
+    "productMaterialManifest",
+    "selectedProducts",
+    "inventoryBindingSnapshots",
+    "productFactSetDigest",
+    "selectedProductSetDigest",
+    "inventoryBindingSetDigest",
+    "productSnapshotDigest",
+    "snapshotDigest"
+  ],
+  "x-helix-maxCanonicalBytes": 4194304
+}

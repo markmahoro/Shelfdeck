@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/MediaExecutionDeviceSnapshot/v1",
+  "title": "MediaExecutionDeviceSnapshot@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "deviceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "deviceClass": {
+      "type": "string",
+      "enum": [
+        "software_cpu",
+        "intel_qsv",
+        "nvidia_nvenc",
+        "amd_vaapi",
+        "remote_worker"
+      ]
+    },
+    "probeRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "capabilitySchemaRef": {
+      "type": "string",
+      "minLength": 1
+    },
+    "capabilityPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "supportedVideoCodecs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "maxItems": 64,
+          "minItems": 1
+        },
+        "supportedRateControlModes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "target_size",
+              "quality_bound"
+            ]
+          },
+          "maxItems": 2,
+          "minItems": 1
+        }
+      },
+      "required": [
+        "supportedVideoCodecs",
+        "supportedRateControlModes"
+      ]
+    },
+    "capabilityDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "enabled": {
+      "const": true
+    },
+    "state": {
+      "const": "ready"
+    },
+    "workerRef": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "workerId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "workerRevision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "capabilityDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "workerId",
+            "workerRevision",
+            "capabilityDigest"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "snapshotDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "deviceId",
+    "deviceClass",
+    "probeRevision",
+    "capabilitySchemaRef",
+    "capabilityPayload",
+    "capabilityDigest",
+    "enabled",
+    "state",
+    "workerRef",
+    "snapshotDigest"
+  ],
+  "x-helix-maxCanonicalBytes": 16384
+}

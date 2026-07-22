@@ -249,9 +249,30 @@ const special = {
   'MediaCastDraft.relations': arrayOf(object({
     personId: nullable(id()), displayName: text(), role: text(), source: text(), confidenceClass: text()
   }, ['displayName', 'role', 'source', 'confidenceClass']), 4096),
-  'WorkspaceMediaHandle.mediaProbeRef': nullable(id()),
-  'ProductMediaVerification.qualitySummary': boundedRecord('quality-summary'),
-  'ProductMediaVerification.spaceSummary': boundedRecord('space-summary'),
+  'TranscodeInputVerification.selectedDeviceClass': enumText('software_cpu', 'intel_qsv', 'nvidia_nvenc', 'amd_vaapi', 'remote_worker'),
+  'WorkspaceMediaHandle.workspaceMaterialHandle': ref('WorkspaceMaterialHandle'),
+  'WorkspaceMediaHandle.executionDeviceRef': nullable(object({ deviceId: id(),
+    deviceClass: enumText('software_cpu', 'intel_qsv', 'nvidia_nvenc', 'amd_vaapi', 'remote_worker'), deviceSnapshotDigest: digest() })),
+  'WorkspaceMediaHandle.effectReceiptRef': object({ effectId: id(), effectReceiptId: id(), effectReceiptDigest: digest() }),
+  'ProductMediaVerification.candidateKind': enumText('direct_input', 'workspace_output'),
+  'ProductMediaVerification.producingEventId': nullable(id()),
+  'ProductMediaVerification.workspaceMediaHandleId': nullable(id()),
+  'ProductMediaVerification.qualitySummary': object({ videoCodec: text(), container: text(), fileExtension: text(),
+    displayRasterClass: text(), primaryAudioClasses: arrayOf(text(), 128), sourceDisplayRasterClass: text(), systemUpscaleDetected: bool() }),
+  'ProductMediaVerification.spaceSummary': object({ unit: enumText('product', 'episode'), actualSizeBytes: nonNegativeInteger(),
+    maxSizeBytes: nullable(positiveInteger()), withinLimit: bool() }),
+  'SelectedProductOutput.result': enumText('selected', 'not_selected'),
+  'SelectedProductOutput.selectedCandidateKind': nullable(enumText('direct_input', 'workspace_output')),
+  'SelectedProductOutput.selectedHandleId': nullable(id()),
+  'SelectedProductOutput.selectedWorkspaceMediaHandleId': nullable(id()),
+  'SelectedProductOutput.selectedVerificationId': nullable(id()),
+  'SelectedProductOutput.selectedVerificationDigest': nullable(digest()),
+  'SelectedProductOutput.selectionReasonCode': enumText('selected_by_declared_rank', 'no_passed_candidate'),
+  'ProductConformanceEvidence.unmetRequirementCodes': arrayOf(enumText('identity_unmet', 'season_identity_unmet', 'structure_unmet',
+    'episode_coverage_unmet', 'metadata_field_unmet', 'metadata_artifact_unmet', 'sidecar_unrenderable', 'image_undecodable',
+    'media_form_unmet', 'video_codec_unmet', 'container_unmet', 'file_extension_unmet', 'minimum_raster_unmet',
+    'system_upscale_forbidden', 'primary_audio_unmet', 'max_size_exceeded', 'domain_binding_unmet', 'checksum_unmet',
+    'artifact_materialization_unmet', 'layout_unmet'), 20),
   'OnDeckProductPackage.productMaterialManifest': snapshot('product-material-manifest'),
   'OnDeckProductPackage.acceptanceSpecRef': object({ id: id(), recordDigest: digest() }),
   'OnDeckProductPackage.resolvedIdentitySnapshot': snapshot('resolved-identity-product-fact'),
@@ -414,11 +435,11 @@ const contracts = {
   MediaCastDraft: ['DraftEnvelope', 'subjectId,metadataObservationDigest,relations'],
   MediaCastFact: ['DomainFactEnvelope', 'subjectId,relationsDigest,relationCount'],
   ProductMetadataFact: ['DomainFactEnvelope', 'subjectId,productMetadataDigest,verifiedArtifactManifestDigest'],
-  TranscodeInputVerification: ['VerificationEnvelope', 'sourceHandleDigest,encodeIntentDigest,probeEvidenceDigest,selectedDeviceClass'],
-  WorkspaceMediaHandle: ['WorkspaceMaterialHandle', 'mediaProbeRef?,producingEventId,productionIntentDigest'],
-  ProductMediaVerification: ['VerificationEnvelope', 'libraRunId,producingEventId,workspaceMediaHandleId,workspaceMaterialHandleId,workspaceMaterialHandleDigest,workspaceMaterialFenceDigest,mediaRequirementDigest,probeEvidenceDigest,qualitySummary,spaceSummary'],
-  SelectedWorkspaceProduct: ['DraftEnvelope', 'selectedHandleId,selectedVerificationId,candidateSetDigest,selectionReasonCode'],
-  ProductConformanceEvidence: ['VerificationEnvelope', 'acceptanceSpecId,productFactSetDigest,unmetRequirementCodes'],
+  TranscodeInputVerification: ['VerificationEnvelope', 'sourceHandleDigest,encodeIntentDigest,probeEvidenceId,probeEvidenceDigest,deviceId,deviceSnapshotDigest,selectedDeviceClass,reasonCodes'],
+  WorkspaceMediaHandle: [null, 'workspaceMediaHandleId,sourceMaterialHandleDigest,workspaceMaterialHandle,workspaceMaterialHandleDigest,outputTargetId,outputTargetDigest,producingEventId,productionIntentKind,productionIntentDigest,executionDeviceRef,effectReceiptRef,resultDigest'],
+  ProductMediaVerification: ['VerificationEnvelope', 'candidateId,candidateNodeId,candidateBasisDigest,candidateKind,libraRunId,producingEventId,productMaterialHandleId,productMaterialHandleDigest,productMaterialFenceDigest,workspaceMediaHandleId,mediaRequirementId,mediaRequirementDigest,sourceProbeEvidenceId,sourceProbeEvidenceDigest,outputProbeEvidenceId,outputProbeEvidenceDigest,qualitySummary,spaceSummary,reasonCodes'],
+  SelectedProductOutput: ['DraftEnvelope', 'libraRunId,acceptanceSpecId,mediaRequirementDigest,criteriaId,criteriaDigest,candidateSetDigest,result,selectedCandidateKind,selectedHandleId,selectedWorkspaceMediaHandleId,selectedVerificationId,selectedVerificationDigest,selectionReasonCode'],
+  ProductConformanceEvidence: ['VerificationEnvelope', 'libraRunId,acceptanceSpecId,acceptanceSpecRecordDigest,runExecutionBasisDigest,productSnapshotDigest,productFactSetDigest,evaluatedRequirementSetDigest,unmetRequirementCodes,reasonCodes'],
   OnDeckProductPackage: ['ManifestEnvelope', 'onDeckPackageId,packageRevision,libraRunId,runStateRevision,runStateDigest,runExecutionBasisDigest,subjectId,shelfId,acceptanceSpecRef,resolvedIdentitySnapshot,productStructureSnapshot,runMaterialManifestRef,productMaterialManifest,productFactManifest,artifactManifest,mediaCastSnapshot,offloadContextManifest,productionProvenance,productionAttestation,packageDigest'],
   OnDeckProductPackageCommitReceipt: ['ReceiptEnvelope', 'promotionDecisionDigest,onDeckPackageId,packageRevision,packageDigest,offerId,libraRunId,verifiedRunStateRevision,verifiedRunStateDigest,productMaterialManifestDigest,productFactSetDigest,productFactManifestDigest,artifactManifestDigest,offloadContextDigest,controlRevisionSetDigest,receiptDigest'],
   ReclamationReceipt: ['ReceiptEnvelope', 'workspaceId,reclaimedHandleIds,retainedHandleIds,reclaimedBytes'],
@@ -503,7 +524,7 @@ function buildResultTypeSchema(name, [base, fieldList]) {
     const optional = token.endsWith('?');
     const fieldName = token.replace(/\?$/, '');
     properties[fieldName] = inferredField(name, fieldName);
-    if (!optional) required.push(fieldName);
+    if (!optional && !required.includes(fieldName)) required.push(fieldName);
   }
   const result = {
     $schema: DRAFT, $id: typeId(name), title: `${name}@1`, 'x-helix-ssotRefs': ['8.6.19'],

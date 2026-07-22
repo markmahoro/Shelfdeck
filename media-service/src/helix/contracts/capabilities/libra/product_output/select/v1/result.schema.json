@@ -2,5 +2,5 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "helix://contracts/capabilities/libra.product_output.select/v1/result",
   "title": "libra.product_output.select@1 succeeded result",
-  "$ref": "helix://contracts/types/SelectedWorkspaceProduct/v1"
+  "$ref": "helix://contracts/types/SelectedProductOutput/v1"
 }

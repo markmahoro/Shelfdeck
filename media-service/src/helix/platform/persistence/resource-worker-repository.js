@@ -113,7 +113,7 @@ function createResourceWorkerRepository(options) {
         stable_device_key: item.stableDeviceKey, enabled: item.enabled ? 1 : 0, state: item.state, updated_at_ms: context.commitTimeMs });
       repo.invoke('device_probe_insert', { device_id: item.deviceId, revision: item.revision,
         capability_schema_ref: 'helix://platform/compute-device-capability/v1', capability_json: JSON.stringify(item.capability),
-        capability_digest: item.capabilityDigest, probe_result: item.probeEvidenceDigest, probed_at_ms: item.probedAtMs });
+        capability_digest: item.capabilityDigest, probe_result: item.probeResult, probed_at_ms: item.probedAtMs });
       const result = repo.invoke(head ? 'device_head_advance' : 'device_head_init', { device_id: item.deviceId,
         current_probe_revision: item.revision, enabled: item.enabled ? 1 : 0, state: item.state, updated_at_ms: context.commitTimeMs,
         ...(head ? { expected_current_probe_revision: head.current_probe_revision } : {}) });
@@ -156,7 +156,7 @@ function currentDevice(repo, deviceId) { const head = repo.invoke('device_head_f
   const probe = repo.invoke('device_probe_find', { device_id: deviceId, revision: head.current_probe_revision }); return Object.freeze({
     deviceId: head.device_id, deviceKind: head.device_kind, stableDeviceKey: head.stable_device_key, revision: probe.revision,
     enabled: head.enabled === 1, state: head.state, capability: JSON.parse(probe.capability_json), capabilityDigest: probe.capability_digest,
-    probeEvidenceDigest: probe.probe_result, validatedConcurrentSlots: JSON.parse(probe.capability_json).validatedConcurrentSlots,
+    probeResult: probe.probe_result, validatedConcurrentSlots: JSON.parse(probe.capability_json).validatedConcurrentSlots,
     probedAtMs: probe.probed_at_ms }); }
 function currentWorker(repo, workerId) { const head = repo.invoke('worker_head_find', { worker_id: workerId }); if (!head) return undefined;
   const revision = repo.invoke('worker_revision_find', { worker_id: workerId, revision: head.current_revision });

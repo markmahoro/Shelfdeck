@@ -67,7 +67,6 @@ const special = {
   'PeopleWorkspace.workspaceHandles': arrayOf(typeRef('WorkspaceMaterialHandle'), 4096),
   'PersonIdentitiesAliasesReferences.people': arrayOf(snapshot('person-identity-alias-reference'), 4096),
   'PersonReferenceProjection.people': arrayOf(snapshot('person-reference'), 4096),
-  'ProductFacts.factRefs': arrayOf(id(), 1024),
   'ProductManifest.members': arrayOf(snapshot('product-material-member'), 4096),
   'ProductMetadataArtifact.metadataFactRefs': arrayOf(id(), 1024),
   'ProductMetadataArtifact.artifactHandles': arrayOf(typeRef('ArtifactHandle'), 1024),
@@ -97,7 +96,6 @@ function inferredField(typeName, fieldName) {
 }
 
 const boundedContracts = {
-  AcceptanceSpec: 'shelfId,contentProfile,standardRevision,requirementsDigest',
   AnalysisSpec: 'analysisVariantRef,outputContractDigest',
   ArtifactProfile: 'artifactKinds,qualityPolicyDigest',
   ArtifactRequirement: 'artifactKind,requirementPayload,requirementDigest',
@@ -110,7 +108,6 @@ const boundedContracts = {
   IdentityRequirement: 'expectedIdentityDigest,strengthClass',
   MandatoryRequirement: 'requirementCodes',
   ManifestContract: 'manifestKind,memberSchemaRef,minMembers,maxMembers',
-  MediaRequirement: 'videoRequirementDigest,audioRequirementDigest,subtitleRequirementDigest',
   MetadataRequirement: 'requiredFactKeys,artifactRequirementDigest',
   PlacementPolicy: 'shelfId,targetEndpointIds,minimumFreeBytes',
   PreferenceIntent: 'personId,preferenceLevel,reason',
@@ -166,7 +163,11 @@ const dtoContracts = {
   PersonReferenceProjection: '',
   Placement: 'shelfEntryId,placementRevision,targetEndpointId,placementDigest',
   PolicyResult: 'policyRevision,resultCode,reasonDigest',
-  ProductFacts: 'subjectId,factRefs,productFactSetDigest',
+  MediaExecutionDeviceSnapshot: '',
+  WorkspaceMediaOutputTarget: '',
+  ProductMediaCandidateInput: '',
+  ProductOutputSelectionInput: '',
+  ProductConformanceInputSnapshot: '',
   ProductManifest: 'manifestId,members,manifestDigest',
   ProductMetadataArtifact: 'subjectId,metadataFactRefs,artifactHandles,setDigest',
   ProductStructure: 'subjectId,structureKind,episodeClaims,structureDigest',
@@ -247,6 +248,11 @@ function buildSchema(name, role, fields) {
   if (name === 'LibraDeliverablePromotionDecision') return libraDeliverablePromotionDecisionSchema();
   if (name === 'WorkspaceCleanupEffectIntent') return workspaceCleanupEffectIntentSchema();
   if (name === 'WorkspaceCleanupCommitDecision') return workspaceCleanupCommitDecisionSchema();
+  if (name === 'MediaExecutionDeviceSnapshot') return mediaExecutionDeviceSnapshotSchema();
+  if (name === 'WorkspaceMediaOutputTarget') return workspaceMediaOutputTargetSchema();
+  if (name === 'ProductMediaCandidateInput') return productMediaCandidateInputSchema();
+  if (name === 'ProductOutputSelectionInput') return productOutputSelectionInputSchema();
+  if (name === 'ProductConformanceInputSnapshot') return productConformanceInputSnapshotSchema();
   const identityField = role === 'bounded-contract' ? idField(name) : 'objectId';
   const properties = {
     schemaRef: { const: domainTypeId(name) }, schemaVersion: { const: 1 }, [identityField]: id(), revision: positiveInteger(), digest: digest()
@@ -842,6 +848,110 @@ function workspaceCleanupCommitDecisionSchema() {
     expectedControlFence: object({ materialKey: digest(), controlDisposition: enumText('uncontrolled', 'libra_owned', 'other_owned'),
       revision: nonNegativeInteger(), projectionDigest: digest(), ownerDomain: nullable(text()), ownerScopeType: nullable(text()), ownerScopeId: nullable(id()) }),
     decisionDigest: digest() });
+}
+
+const deviceClass = () => enumText('software_cpu', 'intel_qsv', 'nvidia_nvenc', 'amd_vaapi', 'remote_worker');
+const contentProfile = () => enumText('movie', 'series', 'jav', 'western_adult');
+const acceptanceStructureKind = () => enumText('single', 'season');
+const nullablePositiveInteger = () => nullable(positiveInteger());
+
+function acceptanceRequirementSetSchema() {
+  const identity = object({ identityKind: enumText('tmdb_movie', 'tmdb_series_season', 'jav_code', 'internal_identity'),
+    requiredProvider: nullable(enumText('tmdb')), requireSeasonNumber: bool() });
+  const structure = object({ structureKind: acceptanceStructureKind(), primaryModel: enumText('single_primary', 'episode_primary'),
+    requireOnePrimaryPerEpisode: bool() });
+  const metadata = object({ requiredFieldCodes: arrayOf(enumText('tmdb_movie_id', 'tmdb_series_id', 'title', 'series_title',
+    'year_or_release_date', 'release_date', 'plot', 'genre', 'actor', 'director', 'season_number', 'episode_number',
+    'episode_title', 'episode_plot', 'jav_code', 'studio', 'internal_identity'), 18),
+    requiredArtifactKinds: arrayOf(enumText('nfo', 'poster', 'fanart'), 3), requireRenderableSidecar: bool(), requireDecodableImages: bool() });
+  const mandatoryMedia = object({ mediaForm: enumText('any', 'stream_file'), videoCodec: enumText('any', 'hevc'),
+    container: enumText('any', 'matroska'), fileExtension: enumText('any', 'mkv'), minimumRasterClass: enumText('none', '4k'),
+    acceptedPrimaryAudioClasses: arrayOf(enumText('eac3_atmos', 'truehd', 'truehd_atmos', 'dts_hd_ma', 'dts_x'), 5),
+    forbidSystemUpscaleFor4k: bool() });
+  const space = object({ unit: enumText('product', 'episode'), maxSizeGiB: nullablePositiveInteger(), maxSizeBytes: nullablePositiveInteger() });
+  const inventory = object({ requireDomainBinding: bool(), requireChecksum: bool(),
+    requiredMaterializedArtifactKinds: arrayOf(enumText('nfo', 'poster', 'fanart'), 3), layoutModel: enumText('single', 'season_episode') });
+  return object({ identity, structure, metadata, mandatoryMedia, space, inventory });
+}
+
+function acceptanceSpecValueSchema() {
+  return object({ schemaRef: { const: 'libra.acceptance-spec@1' }, schemaVersion: { const: 1 },
+    draftId: id(), draftKind: text(), basisDigest: digest(), draftDigest: digest(), producedAtMs: nonNegativeInteger(),
+    subjectId: id(), targetShelfId: id(), contentProfile: contentProfile(), structureKind: acceptanceStructureKind(),
+    productScope: object({ scopeKind: enumText('product', 'season'), episodeKeys: arrayOf(text(), 32768), scopeDigest: digest() }),
+    shelfRoutingProjectionRevision: positiveInteger(), shelfProjectionDigest: digest(), shelfStandardRevision: positiveInteger(),
+    shelfStandardDigest: digest(), decisionBasisId: id(), decisionBasisDigest: digest(), requirements: acceptanceRequirementSetSchema(),
+    specDigest: digest(), acceptanceSpecId: id(), specRevision: positiveInteger(), recordDigest: digest(), publishedAtMs: nonNegativeInteger() });
+}
+
+function mediaRequirementValueSchema() {
+  const requirements = acceptanceRequirementSetSchema().properties;
+  return object({ requirementId: id(), revision: positiveInteger(), schemaRef: { const: 'libra.media-requirement@1' },
+    schemaVersion: { const: 1 }, acceptanceSpecId: id(), acceptanceSpecRecordDigest: digest(), contentProfile: contentProfile(),
+    structureKind: acceptanceStructureKind(), mandatoryMedia: requirements.mandatoryMedia, space: requirements.space,
+    requirementDigest: digest() });
+}
+
+function mediaExecutionDeviceSnapshotSchema() {
+  const workerRef = object({ workerId: id(), workerRevision: positiveInteger(), capabilityDigest: digest() });
+  const capabilityPayload = object({ supportedVideoCodecs: { ...arrayOf(text(), 64), minItems: 1 },
+    supportedRateControlModes: { ...arrayOf(enumText('target_size', 'quality_bound'), 2), minItems: 1 } });
+  return { ...exactDomainSchema('MediaExecutionDeviceSnapshot', { deviceId: id(), deviceClass: deviceClass(),
+    probeRevision: positiveInteger(), capabilitySchemaRef: text(), capabilityPayload, capabilityDigest: digest(),
+    enabled: { const: true }, state: { const: 'ready' }, workerRef: nullable(workerRef), snapshotDigest: digest() }),
+    'x-helix-maxCanonicalBytes': 16 * 1024 };
+}
+
+function workspaceMediaOutputTargetSchema() {
+  const rootSnapshot = object({ workspaceRootId: id(), rootRevision: positiveInteger(), endpointId: id(), mountScopeId: id(),
+    rootLocation: text(), containmentDigest: digest(), capacitySnapshotDigest: digest(), snapshotDigest: digest() });
+  return { ...exactDomainSchema('WorkspaceMediaOutputTarget', { targetId: id(), libraRunId: id(), executionBasisDigest: digest(),
+    workspaceId: id(), expectedWorkspaceRevision: positiveInteger(), expectedWorkspaceStateDigest: digest(),
+    rootSnapshot, workspaceScopeDigest: digest(), targetRelativePath: text(),
+    outputRole: { const: 'product_media' }, productionIntentDigest: digest(), effectScopeDigest: digest(), targetDigest: digest() }),
+    'x-helix-maxCanonicalBytes': 16 * 1024 };
+}
+
+function productMediaCandidateInputSchema() {
+  const common = { schemaRef: { const: domainTypeId('ProductMediaCandidateInput') }, schemaVersion: { const: 1 }, candidateId: id(),
+    candidateNodeId: id(), candidateBasisDigest: digest(), libraRunId: id(), mediaRequirement: mediaRequirementValueSchema(), inputDigest: digest() };
+  const direct = object({ ...common, candidateKind: { const: 'direct_input' }, sourceMaterialHandle: typeRef('PhysicalMaterialReadHandle'),
+    sourceProbeEvidence: typeRef('MediaProbeEvidence') });
+  const workspace = object({ ...common, candidateKind: { const: 'workspace_output' }, workspaceMediaHandle: typeRef('WorkspaceMediaHandle'),
+    sourceProbeEvidence: typeRef('MediaProbeEvidence'), outputProbeEvidence: typeRef('MediaProbeEvidence') });
+  return { $schema: DRAFT, $id: domainTypeId('ProductMediaCandidateInput'), title: 'ProductMediaCandidateInput@1',
+    'x-helix-ssotRefs': ['8.6.18'], 'x-helix-role': 'accepted-business-dto', 'x-helix-maxCanonicalBytes': 64 * 1024,
+    oneOf: [direct, workspace] };
+}
+
+function productOutputSelectionInputSchema() {
+  const rankedCandidate = object({ rank: positiveInteger(), candidateId: id(), candidateNodeId: id() });
+  const criteria = object({ criteriaId: id(), libraRunId: id(), acceptanceSpecId: id(), acceptanceSpecRecordDigest: digest(),
+    mediaRequirementDigest: digest(), rankedCandidates: { ...arrayOf(rankedCandidate, 32), minItems: 1 },
+    tieBreak: { const: 'verification_id_utf8' }, criteriaDigest: digest() });
+  return { ...exactDomainSchema('ProductOutputSelectionInput', { criteria,
+    candidates: { ...arrayOf(typeRef('ProductMediaVerification'), 32), minItems: 1 }, candidateSetDigest: digest(), inputDigest: digest() }),
+    'x-helix-maxCanonicalBytes': 512 * 1024 };
+}
+
+function productConformanceInputSnapshotSchema() {
+  const fact = object({ productFactId: id(), factKind: text(), factRevision: positiveInteger(), schemaRef: text(),
+    factValue: { oneOf: [boundedSnapshotValue('product-fact-value'), object({ valueDigest: digest() })] }, factDigest: digest(), evidenceDigest: digest() });
+  const selected = object({ selectedProduct: typeRef('SelectedProductOutput'), verification: typeRef('ProductMediaVerification'),
+    workspaceHandleDigest: nullable(digest()) });
+  const binding = object({ materialKey: digest(), bindingRevision: positiveInteger(), bindingDigest: digest(),
+    controlRevision: nonNegativeInteger(), controlProjectionDigest: digest() });
+  return { ...exactDomainSchema('ProductConformanceInputSnapshot', { snapshotId: id(), libraRunId: id(), runExecutionBasisDigest: digest(),
+    acceptanceSpec: acceptanceSpecValueSchema(), resolvedIdentitySnapshot: boundedSnapshotValue('resolved-identity'),
+    productStructureSnapshot: boundedSnapshotValue('product-structure'), productFactSnapshots: { ...arrayOf(fact, 64), minItems: 1 },
+    verifiedArtifactManifest: domainRef('VerifiedArtifactManifest'), productMaterialManifest: boundedSnapshotValue('production-material-manifest'),
+    selectedProducts: { ...arrayOf(selected, 32), minItems: 1 }, inventoryBindingSnapshots: { ...arrayOf(binding, 1024), minItems: 1 },
+    productFactSetDigest: digest(), selectedProductSetDigest: digest(), inventoryBindingSetDigest: digest(),
+    productSnapshotDigest: digest(), snapshotDigest: digest() }), 'x-helix-maxCanonicalBytes': 4 * 1024 * 1024 };
+}
+
+function boundedSnapshotValue(kind) {
+  return object({ objectId: id(), revision: positiveInteger(), schemaRef: text(), objectKind: { const: kind }, snapshotDigest: digest() });
 }
 
 function buildDomainInputSchemas() {

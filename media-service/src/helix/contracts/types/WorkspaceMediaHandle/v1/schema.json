@@ -5,7 +5,6 @@
   "x-helix-ssotRefs": [
     "8.6.19"
   ],
-  "x-helix-envelopeRef": "helix://contracts/types/WorkspaceMaterialHandle/v1",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -15,116 +14,113 @@
     "schemaVersion": {
       "const": 1
     },
-    "handleId": {
+    "workspaceMediaHandleId": {
       "type": "string",
       "minLength": 1,
       "maxLength": 256
     },
-    "workspaceId": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 256
-    },
-    "ownerDomain": {
-      "type": "string",
-      "minLength": 1
-    },
-    "processId": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 256
-    },
-    "endpointId": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 256
-    },
-    "materialKey": {
+    "sourceMaterialHandleDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
-    "physicalIdentity": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "mountScopeId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 256
-        },
-        "inode": {
-          "type": "string",
-          "minLength": 1,
-          "pattern": "^(0|[1-9][0-9]*)$"
-        },
-        "contentHashAlgorithm": {
-          "const": "sha256"
-        },
-        "contentHash": {
-          "type": "string",
-          "minLength": 1,
-          "pattern": "^[a-f0-9]{64}$"
-        }
-      },
-      "required": [
-        "mountScopeId",
-        "inode",
-        "contentHashAlgorithm",
-        "contentHash"
-      ]
+    "workspaceMaterialHandle": {
+      "$ref": "helix://contracts/types/WorkspaceMaterialHandle/v1"
     },
-    "rootHandleRef": {
+    "workspaceMaterialHandleDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "outputTargetId": {
       "type": "string",
       "minLength": 1,
       "maxLength": 256
     },
-    "relativePath": {
-      "type": "string",
-      "minLength": 1
-    },
-    "digestAlgorithm": {
-      "const": "sha256"
-    },
-    "digestHex": {
+    "outputTargetDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
-    },
-    "sizeBytes": {
-      "type": "integer",
-      "minimum": 0
-    },
-    "referenceRevision": {
-      "type": "integer",
-      "minimum": 1
-    },
-    "accessScope": {
-      "const": "workspace_material_read"
-    },
-    "fenceDigest": {
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^[a-f0-9]{64}$"
-    },
-    "mediaProbeRef": {
-      "anyOf": [
-        {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 256
-        },
-        {
-          "type": "null"
-        }
-      ]
     },
     "producingEventId": {
       "type": "string",
       "minLength": 1,
       "maxLength": 256
     },
+    "productionIntentKind": {
+      "type": "string",
+      "minLength": 1
+    },
     "productionIntentDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "executionDeviceRef": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "deviceId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "deviceClass": {
+              "type": "string",
+              "enum": [
+                "software_cpu",
+                "intel_qsv",
+                "nvidia_nvenc",
+                "amd_vaapi",
+                "remote_worker"
+              ]
+            },
+            "deviceSnapshotDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "deviceId",
+            "deviceClass",
+            "deviceSnapshotDigest"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "effectReceiptRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "effectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "effectReceiptId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "effectReceiptDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "effectId",
+        "effectReceiptId",
+        "effectReceiptDigest"
+      ]
+    },
+    "resultDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
@@ -133,22 +129,17 @@
   "required": [
     "schemaRef",
     "schemaVersion",
-    "handleId",
-    "workspaceId",
-    "ownerDomain",
-    "processId",
-    "endpointId",
-    "materialKey",
-    "physicalIdentity",
-    "rootHandleRef",
-    "relativePath",
-    "digestAlgorithm",
-    "digestHex",
-    "sizeBytes",
-    "referenceRevision",
-    "accessScope",
-    "fenceDigest",
+    "workspaceMediaHandleId",
+    "sourceMaterialHandleDigest",
+    "workspaceMaterialHandle",
+    "workspaceMaterialHandleDigest",
+    "outputTargetId",
+    "outputTargetDigest",
     "producingEventId",
-    "productionIntentDigest"
+    "productionIntentKind",
+    "productionIntentDigest",
+    "executionDeviceRef",
+    "effectReceiptRef",
+    "resultDigest"
   ]
 }

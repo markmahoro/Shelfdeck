@@ -12,7 +12,7 @@
       "constraintsContract": "`PK(subject_id,material_key,binding_revision,episode_key)`并以复合FK指向`libra_material_bindings`；逐项无损复制同一Manifest member的Episode Claim；single与无Episode structural dependency为0 row；Binding set digest包含这些relation，不允许只取第一项",
       "source": {
         "section": "8.5.11",
-        "line": 8373,
+        "line": 8377,
         "lineDigest": "47921a735f544a3ccde2cdeef6ba7c1c413a1af927d5f86971e710796bb8d1fb"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "`PK(subject_id,revision)`；immutable；`libra_subjects.current_identity_revision`正整数时显式指向本表；Series的exact Season Claim完整值保存在`libra_subject_season_continuity_claims`并与本revision同事务成立，digest只用于一致性校验而不是可枚举事实替代品",
       "source": {
         "section": "8.5.11",
-        "line": 8374,
+        "line": 8378,
         "lineDigest": "c12c6c8ed5039eaec90833f0bbf4f5c28a280bb8ab848c5555f5c07ef9f88900"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "Field ID是Procurement公开opaque ref、不建跨Domain FK；current pair显式FK到Policy revision；一片Field恰好至多一份current去向方案",
       "source": {
         "section": "8.5.11",
-        "line": 8375,
+        "line": 8379,
         "lineDigest": "798b380ce2cc0c6b9f83bdc869efb8494d784c4a7776e02bc3e1c35d81ec5d39"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "Policy JSON上限`64 KiB`；`PK(routing_policy_id,revision)`；immutable；`INDEX(field_id,effective_at_ms)`；同一revision只属于一片Field",
       "source": {
         "section": "8.5.11",
-        "line": 8376,
+        "line": 8380,
         "lineDigest": "f1d288d4b709ef019d295af7576074e514b1ff4a568b230461b1168aee26bec8"
       }
     },
@@ -56,7 +56,7 @@
       "constraintsContract": "`PK(routing_policy_id,policy_revision,shelf_id)`及`UNIQUE(routing_policy_id,policy_revision,rank)`；Rule固定`RoutingMatchExpression@1`，JSON≤`16 KiB`、AST深度≤4、节点≤64；Shelf ID为Arca公开Projection中的opaque ref",
       "source": {
         "section": "8.5.11",
-        "line": 8377,
+        "line": 8381,
         "lineDigest": "c8d677a64b58754a2abd5ccba0071c8b049a56f01a597124c2f304630ab578bf"
       }
     },
@@ -67,7 +67,7 @@
       "constraintsContract": "policy与manual列variant互斥；JSON≤`64 KiB`并完整重建`RoutingAssessmentEvidence@1`；`UNIQUE(subject_id,decision_basis_id,routing_input_digest)`；immutable",
       "source": {
         "section": "8.5.11",
-        "line": 8378,
+        "line": 8382,
         "lineDigest": "85c68ee54029d863bb07647404c1d4bd8a21f6620ee23df9a8f858c724e19bcf"
       }
     },
@@ -78,7 +78,7 @@
       "constraintsContract": "authority列variant互斥；resolved要求shelf非NULL/reason NULL，unresolved相反；同一assessment只有一个Decision；`UNIQUE(subject_id,decision_revision)`；immutable；`INDEX(shelf_id,decided_at_ms)`",
       "source": {
         "section": "8.5.11",
-        "line": 8379,
+        "line": 8383,
         "lineDigest": "4d81260004fcd8848c270f5bd695c3467f193875693611044b90f24ef8cdce94"
       }
     },
@@ -89,7 +89,7 @@
       "constraintsContract": "`UNIQUE(subject_id,basis_revision)`及`UNIQUE(subject_id,basis_kind,input_set_digest)`；`expected_head_revision>=0`且必须等于本Basis唯一`decision_head_snapshot` input的head revision，`expected_head_snapshot_digest`逐字节等于该input row digest；routing的routing input始终非NULL且spec/scope NULL；acceptance_spec的routing/spec input始终非NULL，ready时current Routing与scope非NULL，unresolved时只允许按closed reason置对应pointer/scope NULL；ready无reason，unresolved必须有reason；immutable；`INDEX(subject_id,status,basis_revision)`",
       "source": {
         "section": "8.5.11",
-        "line": 8380,
+        "line": 8384,
         "lineDigest": "98cc10d16110980ea5b7f5668de384cde3d77e97b287e8b336cad681f222ffd3"
       }
     },
@@ -100,7 +100,7 @@
       "constraintsContract": "`PK(decision_basis_id,input_ordinal)`及`UNIQUE(decision_basis_id,input_kind,input_object_id,input_revision,input_digest)`；ordinal从0连续，ordinal 0固定为唯一`subject_snapshot`，ordinal 1固定为唯一`decision_head_snapshot`，其后依次为routing authority、按rank的Shelf projection、Routing Decision、Shelf Standard、Product Scope、按正式ID/digest排序的Facts、按正式tuple排序的Query Result；不存在的variant段跳过但不得改变剩余相对顺序。`decision_head_snapshot`固定`input_object_id=subjectId,input_revision=headRevision,input_digest=snapshotDigest`且该variant的input revision允许0；其他variant按各自typed contract使用正整数revision；逐项typed JSON≤`64 KiB`、总JCS≤`1 MiB`；query variant填写query列，其他variant全部query列NULL；全部rows按8.6.18可重建同一`DecisionInputSet@1`，不得旁读Owner/Provider、current Head或Foundation Result补值",
       "source": {
         "section": "8.5.11",
-        "line": 8381,
+        "line": 8385,
         "lineDigest": "341a2b91d073a956dc8470eee3f4ddd089831dc4229619e709351eccfcc25b20"
       }
     },
@@ -111,7 +111,7 @@
       "constraintsContract": "Spec JSON上限`64 KiB`并完整重建`AcceptanceSpec@1`六类Requirement与Product Scope；`spec_digest`是semantic digest、`record_digest`是含Basis provenance的完整record digest；`UNIQUE(subject_id,spec_revision)`及`UNIQUE(subject_id,decision_basis_id,product_scope_digest,record_digest)`；相同Input Set只产生一个Spec；immutable",
       "source": {
         "section": "8.5.11",
-        "line": 8382,
+        "line": 8386,
         "lineDigest": "278c0c3873b753354fac321418aa5928f3f9bdee2fdc6212123f987ed8fded77"
       }
     },
@@ -122,7 +122,7 @@
       "constraintsContract": "Subject刚Accepted时允许无row；首次Decision Basis Commit以logical expected revision 0原子建立revision 1，后续每次pointer切换expected CAS并加1；row存在时current Basis必须非NULL，current Routing非NULL时Basis也必须非NULL，current Spec非NULL时Routing/Basis都必须非NULL；`head_digest=SHA-256(JCS({schema:\"libra.subject-decision-head@1\",subjectId,headRevision,currentRoutingDecisionId,currentDecisionBasisId,currentAcceptanceSpecId}))`；Automation/Run Creator只读head，不按时间戳猜revision",
       "source": {
         "section": "8.5.11",
-        "line": 8383,
+        "line": 8387,
         "lineDigest": "d1b21bbe6c4ae290efe1ea32253d64bccaf72c2a385f8762341b068cd0b3cd75"
       }
     },
@@ -133,7 +133,7 @@
       "constraintsContract": "Subject没有Run时允许无row并以logical revision 0/空set验证；该logical 0不建立sentinel row，实际row的`head_revision`为正整数并从1开始；每次Run admission/replacement、全部Lifecycle transition及Discard都对expected head CAS并加1，因为active scope set同时绑定member Run的state revision/digest；`active_scope_set_digest=SHA-256(JCS({schema:\"libra.active-run-scopes@1\",subjectId,items:[{libraRunId,runScopeDigest,stateRevision,stateDigest}]按libraRunId UTF-8 bytes排序}))`，只收录具有最终提交资格的`active|suspended|frozen` Run；不能按时间戳或扫描Supporting Work猜current scope",
       "source": {
         "section": "8.5.11",
-        "line": 8384,
+        "line": 8388,
         "lineDigest": "3e11f13a4455c3103a5b17435dcd35de2d7f7e89a4b275bb039ee46100a54aed"
       }
     },
@@ -144,7 +144,7 @@
       "constraintsContract": "`run_material_manifest_id`与Manifest回指Run的复合建立使用`DEFERRABLE INITIALLY DEFERRED` FK并在事务commit前完整验证，禁止nullable后补。`execution_basis_schema_ref=LibraRunExecutionBasisRecord@1`且typed JSON≤`1 MiB`，保存除大Manifest成员外的完整冻结Basis及Manifest ref；与Manifest relation展开后必须重算同一execution basis digest。`UNIQUE(subject_id,admission_revision)`及`UNIQUE(subject_id,acceptance_spec_id,run_scope_digest,admission_revision)`；current aggregate row使用`rowMutability=cas_lifecycle`：每次state/priority/freshness/recovery变化必须同时追加`libra_run_revisions`，Deliverable Promotion只允许expected `package_revision_head` CAS加1且不得改state；`package_revision_head`固定为`INTEGER NOT NULL DEFAULT 0 CHECK(package_revision_head >= 0)`，Run Admission初值0，每次Promotion以expected数值CAS后加1，禁止物化为TEXT或从时间戳推导。Admission固定`recovery_attempt_ordinal=0`且其余recovery/freshness列为NULL；首次`suspended`写固定Policy、start、attempt 0、首个next due与Assessment pair；`suspended`要求attempt `0..4`且next due非NULL，每次unresolved恢复点CAS递增attempt并更新next due；第5次仍unresolved原子进入`frozen`、attempt=5且next due=NULL；`active`不得有next due，resume后保留latest Assessment及历史Policy/start/attempt供审计但下一次suspend按新Evidence重置恢复episode；`frozen`不得被Lifecycle或Run Creator自动恢复。`terminal_at_ms`仅`completed|superseded|discarded`非NULL，其他状态为NULL；same-spec/scope semantic replay返回原Run，新的合法replacement使用新admission revision；`INDEX(state,recovery_next_due_at_ms,priority_class,created_at_ms)`",
       "source": {
         "section": "8.5.11",
-        "line": 8385,
+        "line": 8389,
         "lineDigest": "c5f67c728e365476cc6f78f90231fe0188376c75405e10ef587726387e186021"
       }
     }

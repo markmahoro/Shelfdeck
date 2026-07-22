@@ -1,7 +1,7 @@
 'use strict';
 
 const PROFILE_KEYS = new Set(['default', 'full']);
-const DEVICE_KINDS = new Set(['encoder', 'ai_device']);
+const DEVICE_KINDS = new Set(['software_cpu', 'intel_qsv', 'nvidia_nvenc', 'amd_vaapi', 'remote_worker']);
 const SHA256 = /^[0-9a-f]{64}$/;
 const TOKEN = /^[a-zA-Z0-9][a-zA-Z0-9._:@-]{0,255}$/;
 
@@ -68,20 +68,24 @@ function createResourceWorkerRegistry(options) {
   }
 
   function publishDevice(request) {
-    exact(request, ['availability', 'capability', 'deviceId', 'deviceKind', 'enabled', 'probeEvidenceDigest', 'probedAtMs', 'revision',
+    exact(request, ['availability', 'capability', 'deviceId', 'deviceKind', 'enabled', 'probeResult', 'probedAtMs', 'revision',
       'stableDeviceKey', 'validatedConcurrentSlots'], 'P5_COMPUTE_DEVICE_SHAPE');
     token(request.deviceId, 'deviceId'); token(request.stableDeviceKey, 'stableDeviceKey');
     if (!DEVICE_KINDS.has(request.deviceKind) || typeof request.enabled !== 'boolean' || !['available', 'unavailable'].includes(request.availability) ||
         (request.enabled && request.availability !== 'available')) fail('P5_COMPUTE_DEVICE_KIND', 'Compute Device kind/state is invalid.');
     positive(request.revision, 'revision', 1000000); positive(request.validatedConcurrentSlots, 'validatedConcurrentSlots', 1024);
-    digest(request.probeEvidenceDigest, 'probeEvidenceDigest');
+    if (!['passed', 'failed'].includes(request.probeResult) || (request.enabled && request.probeResult !== 'passed')) {
+      fail('P5_COMPUTE_DEVICE_PROBE_RESULT', 'Compute Device probe result is invalid.');
+    }
     if (!request.capability || typeof request.capability !== 'object' || Array.isArray(request.capability) ||
+        !Array.isArray(request.capability.supportedVideoCodecs) || request.capability.supportedVideoCodecs.length < 1 ||
+        !Array.isArray(request.capability.supportedRateControlModes) || request.capability.supportedRateControlModes.length < 1 ||
         Buffer.byteLength(canonical(request.capability), 'utf8') > 16384) fail('P5_COMPUTE_DEVICE_CAPABILITY', 'Compute Device capability is invalid.');
-    const capability = freeze({ details: request.capability, validatedConcurrentSlots: request.validatedConcurrentSlots });
+    const capability = freeze({ ...request.capability, validatedConcurrentSlots: request.validatedConcurrentSlots });
     const capabilityDigest = options.digest(canonical(capability));
     const proposal = freeze({ deviceId: request.deviceId, deviceKind: request.deviceKind, stableDeviceKey: request.stableDeviceKey,
-      revision: request.revision, enabled: request.enabled, state: request.availability, capability, capabilityDigest,
-      probeEvidenceDigest: request.probeEvidenceDigest, validatedConcurrentSlots: request.validatedConcurrentSlots, probedAtMs: request.probedAtMs });
+      revision: request.revision, enabled: request.enabled, state: request.availability === 'available' ? 'ready' : 'unavailable', capability, capabilityDigest,
+      probeResult: request.probeResult, validatedConcurrentSlots: request.validatedConcurrentSlots, probedAtMs: request.probedAtMs });
     if (options.probeVerifier.verifyDevice(proposal) !== true) fail('P5_COMPUTE_DEVICE_PROBE_REJECTED', 'Compute Device probe was not verified.');
     return options.repository.publishDevice(proposal);
   }
@@ -124,8 +128,8 @@ function createResourceWorkerRegistry(options) {
     exact(infrastructure, ['integrations', 'volumes'], 'P5_RESOURCE_INFRASTRUCTURE_SHAPE');
     return freeze({ profileKey: profile.profileKey, profileRevision: profile.revision, logicalCpu: profile.logicalCpu,
       integrations: infrastructure.integrations, volumes: infrastructure.volumes,
-      encoders: devices.filter((item) => item.deviceKind === 'encoder').map(deviceProjection),
-      aiDevices: devices.filter((item) => item.deviceKind === 'ai_device').map(deviceProjection),
+      encoders: devices.map(deviceProjection),
+      aiDevices: [],
       workers: workers.map((item) => ({ nodeKey: item.workerId, enabled: item.status === 'active', validated: item.health === 'healthy',
         validatedAdvertisedSlots: item.health === 'healthy' ? item.devices.filter((device) => device.enabled).reduce((sum, device) => sum + device.maxSlots, 0) : 0 })) });
   }
@@ -158,7 +162,7 @@ function createResourceWorkerRegistry(options) {
 }
 
 function deviceProjection(item) {
-  const healthy = item.state === 'available';
+  const healthy = item.state === 'ready';
   return { deviceKey: item.stableDeviceKey, enabled: item.enabled, validated: healthy,
     validatedConcurrentSlots: healthy ? item.validatedConcurrentSlots : 0 };
 }

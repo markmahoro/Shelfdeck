@@ -58,42 +58,98 @@
       "type": "integer",
       "minimum": 0
     },
+    "candidateId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "candidateNodeId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "candidateBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "candidateKind": {
+      "type": "string",
+      "enum": [
+        "direct_input",
+        "workspace_output"
+      ]
+    },
     "libraRunId": {
       "type": "string",
       "minLength": 1,
       "maxLength": 256
     },
     "producingEventId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "productMaterialHandleId": {
       "type": "string",
       "minLength": 1,
       "maxLength": 256
+    },
+    "productMaterialHandleDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "productMaterialFenceDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     },
     "workspaceMediaHandleId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "mediaRequirementId": {
       "type": "string",
       "minLength": 1,
       "maxLength": 256
-    },
-    "workspaceMaterialHandleId": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 256
-    },
-    "workspaceMaterialHandleDigest": {
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^[a-f0-9]{64}$"
-    },
-    "workspaceMaterialFenceDigest": {
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^[a-f0-9]{64}$"
     },
     "mediaRequirementDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
-    "probeEvidenceDigest": {
+    "sourceProbeEvidenceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "sourceProbeEvidenceDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "outputProbeEvidenceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "outputProbeEvidenceDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
@@ -102,112 +158,83 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "schemaRef": {
+        "videoCodec": {
           "type": "string",
           "minLength": 1
         },
-        "schemaVersion": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "recordKind": {
-          "const": "quality-summary"
-        },
-        "recordDigest": {
+        "container": {
           "type": "string",
-          "minLength": 1,
-          "pattern": "^[a-f0-9]{64}$"
+          "minLength": 1
         },
-        "entries": {
+        "fileExtension": {
+          "type": "string",
+          "minLength": 1
+        },
+        "displayRasterClass": {
+          "type": "string",
+          "minLength": 1
+        },
+        "primaryAudioClasses": {
           "type": "array",
           "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "key": {
-                "type": "string",
-                "minLength": 1
-              },
-              "value": {
-                "type": [
-                  "string",
-                  "number",
-                  "integer",
-                  "boolean",
-                  "null"
-                ]
-              }
-            },
-            "required": [
-              "key",
-              "value"
-            ]
+            "type": "string",
+            "minLength": 1
           },
-          "maxItems": 256
+          "maxItems": 128
+        },
+        "sourceDisplayRasterClass": {
+          "type": "string",
+          "minLength": 1
+        },
+        "systemUpscaleDetected": {
+          "type": "boolean"
         }
       },
       "required": [
-        "schemaRef",
-        "schemaVersion",
-        "recordKind",
-        "recordDigest",
-        "entries"
+        "videoCodec",
+        "container",
+        "fileExtension",
+        "displayRasterClass",
+        "primaryAudioClasses",
+        "sourceDisplayRasterClass",
+        "systemUpscaleDetected"
       ]
     },
     "spaceSummary": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "schemaRef": {
+        "unit": {
           "type": "string",
-          "minLength": 1
+          "enum": [
+            "product",
+            "episode"
+          ]
         },
-        "schemaVersion": {
+        "actualSizeBytes": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 0
         },
-        "recordKind": {
-          "const": "space-summary"
-        },
-        "recordDigest": {
-          "type": "string",
-          "minLength": 1,
-          "pattern": "^[a-f0-9]{64}$"
-        },
-        "entries": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "key": {
-                "type": "string",
-                "minLength": 1
-              },
-              "value": {
-                "type": [
-                  "string",
-                  "number",
-                  "integer",
-                  "boolean",
-                  "null"
-                ]
-              }
+        "maxSizeBytes": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
             },
-            "required": [
-              "key",
-              "value"
-            ]
-          },
-          "maxItems": 256
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "withinLimit": {
+          "type": "boolean"
         }
       },
       "required": [
-        "schemaRef",
-        "schemaVersion",
-        "recordKind",
-        "recordDigest",
-        "entries"
+        "unit",
+        "actualSizeBytes",
+        "maxSizeBytes",
+        "withinLimit"
       ]
     }
   },
@@ -221,14 +248,22 @@
     "reasonCodes",
     "evidenceRefs",
     "verifiedAtMs",
+    "candidateId",
+    "candidateNodeId",
+    "candidateBasisDigest",
+    "candidateKind",
     "libraRunId",
     "producingEventId",
+    "productMaterialHandleId",
+    "productMaterialHandleDigest",
+    "productMaterialFenceDigest",
     "workspaceMediaHandleId",
-    "workspaceMaterialHandleId",
-    "workspaceMaterialHandleDigest",
-    "workspaceMaterialFenceDigest",
+    "mediaRequirementId",
     "mediaRequirementDigest",
-    "probeEvidenceDigest",
+    "sourceProbeEvidenceId",
+    "sourceProbeEvidenceDigest",
+    "outputProbeEvidenceId",
+    "outputProbeEvidenceDigest",
     "qualitySummary",
     "spaceSummary"
   ]

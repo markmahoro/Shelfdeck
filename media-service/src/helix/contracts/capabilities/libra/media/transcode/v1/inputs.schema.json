@@ -10,11 +10,23 @@
     },
     "encodeIntent": {
       "$ref": "#/$defs/encodeIntent"
+    },
+    "mediaExecutionDeviceSnapshot": {
+      "$ref": "#/$defs/mediaExecutionDeviceSnapshot"
+    },
+    "transcodeInputVerification": {
+      "$ref": "#/$defs/transcodeInputVerification"
+    },
+    "workspaceMediaOutputTarget": {
+      "$ref": "#/$defs/workspaceMediaOutputTarget"
     }
   },
   "required": [
     "materialHandle",
-    "encodeIntent"
+    "encodeIntent",
+    "mediaExecutionDeviceSnapshot",
+    "transcodeInputVerification",
+    "workspaceMediaOutputTarget"
   ],
   "$defs": {
     "materialHandle": {
@@ -34,6 +46,18 @@
     "encodeIntent": {
       "$ref": "helix://contracts/domain-types/EncodeIntent/v1",
       "x-helix-typeExpression": "EncodeIntent"
+    },
+    "mediaExecutionDeviceSnapshot": {
+      "$ref": "helix://contracts/domain-types/MediaExecutionDeviceSnapshot/v1",
+      "x-helix-typeExpression": "MediaExecutionDeviceSnapshot"
+    },
+    "transcodeInputVerification": {
+      "$ref": "helix://contracts/types/TranscodeInputVerification/v1",
+      "x-helix-typeExpression": "TranscodeInputVerification"
+    },
+    "workspaceMediaOutputTarget": {
+      "$ref": "helix://contracts/domain-types/WorkspaceMediaOutputTarget/v1",
+      "x-helix-typeExpression": "WorkspaceMediaOutputTarget"
     }
   }
 }

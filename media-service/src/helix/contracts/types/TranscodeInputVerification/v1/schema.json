@@ -68,18 +68,35 @@
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
+    "probeEvidenceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
     "probeEvidenceDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
+    "deviceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "deviceSnapshotDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
     "selectedDeviceClass": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "minLength": 1
-      },
-      "maxItems": 1024
+      "type": "string",
+      "enum": [
+        "software_cpu",
+        "intel_qsv",
+        "nvidia_nvenc",
+        "amd_vaapi",
+        "remote_worker"
+      ]
     }
   },
   "required": [
@@ -94,7 +111,10 @@
     "verifiedAtMs",
     "sourceHandleDigest",
     "encodeIntentDigest",
+    "probeEvidenceId",
     "probeEvidenceDigest",
+    "deviceId",
+    "deviceSnapshotDigest",
     "selectedDeviceClass"
   ]
 }

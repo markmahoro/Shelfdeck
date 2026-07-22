@@ -14,6 +14,21 @@
       "schemaRef": "helix://contracts/capabilities/libra.media.transcode/v1/inputs#/$defs/encodeIntent",
       "required": true,
       "cardinality": "one"
+    },
+    "mediaExecutionDeviceSnapshot": {
+      "schemaRef": "helix://contracts/capabilities/libra.media.transcode/v1/inputs#/$defs/mediaExecutionDeviceSnapshot",
+      "required": true,
+      "cardinality": "one"
+    },
+    "transcodeInputVerification": {
+      "schemaRef": "helix://contracts/capabilities/libra.media.transcode/v1/inputs#/$defs/transcodeInputVerification",
+      "required": true,
+      "cardinality": "one"
+    },
+    "workspaceMediaOutputTarget": {
+      "schemaRef": "helix://contracts/capabilities/libra.media.transcode/v1/inputs#/$defs/workspaceMediaOutputTarget",
+      "required": true,
+      "cardinality": "one"
     }
   },
   "parametersSchemaRef": "helix://contracts/capabilities/libra.media.transcode/v1/parameters",
@@ -29,7 +44,7 @@
   },
   "sourceLocator": {
     "section": "8.6.7",
-    "line": 8840,
-    "lineDigest": "0e3dadb1b3a43510bf89001548fe717332e6fac6db5a58d84d8367eb7754aa9c"
+    "line": 8844,
+    "lineDigest": "ef71734c274acc77af8ecf650abcd3c0adf58e61d1a59246d364609eccaa55c4"
   }
 }

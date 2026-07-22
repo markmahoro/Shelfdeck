@@ -61,8 +61,8 @@ function seed(service) {
   service.publishProfile({ profileId: 'profile-default', profileKey: 'default', revision: 1, logicalCpu: 8, publishedAtMs: 1 });
   service.publishProfile({ profileId: 'profile-full', profileKey: 'full', revision: 1, logicalCpu: 8, publishedAtMs: 1 });
   service.publishOperatingPolicy({ revision: 1, immediateProfileKey: 'default', timezone: 'Asia/Shanghai', schedule: {}, scheduleDigest: digest('{}'), effectiveAtMs: 1 });
-  service.publishDevice({ deviceId: 'encoder-1', deviceKind: 'encoder', stableDeviceKey: 'nvenc-1', revision: 1, availability: 'available', enabled: true,
-    validatedConcurrentSlots: 3, capability: { codec: 'hevc' }, probeEvidenceDigest: SHA, probedAtMs: 1 });
+  service.publishDevice({ deviceId: 'encoder-1', deviceKind: 'nvidia_nvenc', stableDeviceKey: 'nvenc-1', revision: 1, availability: 'available', enabled: true,
+    validatedConcurrentSlots: 3, capability: { supportedVideoCodecs: ['hevc'], supportedRateControlModes: ['target_size', 'quality_bound'] }, probeResult: 'passed', probedAtMs: 1 });
   service.publishWorker({ workerId: 'worker-1', name: 'Worker-1', revision: 1, healthState: 'healthy', endpointRef: 'endpoint-worker-1', protocolVersion: 'worker-v1',
     secretRef: 'secret-worker-1', capabilityDigest: SHA, allowedOperations: ['asset.register@1'], effectiveAtMs: 1,
     devices: [{ deviceKey: 'worker-gpu-1', capabilityDigest: SHA, enabled: true, maxSlots: 2 }] });
@@ -93,8 +93,8 @@ test('full profile changes only P4 capacity mapping, not Worker or Device owners
 test('unverified devices and workers are rejected before Registry publication', () => {
   const { service, probes } = fixture();
   probes.rejectDevice = true;
-  assert.throws(() => service.publishDevice({ deviceId: 'device-1', deviceKind: 'encoder', stableDeviceKey: 'gpu-1', revision: 1, availability: 'available',
-    enabled: true, validatedConcurrentSlots: 1, capability: {}, probeEvidenceDigest: SHA, probedAtMs: 1 }),
+  assert.throws(() => service.publishDevice({ deviceId: 'device-1', deviceKind: 'nvidia_nvenc', stableDeviceKey: 'gpu-1', revision: 1, availability: 'available',
+    enabled: true, validatedConcurrentSlots: 1, capability: { supportedVideoCodecs: ['hevc'], supportedRateControlModes: ['target_size'] }, probeResult: 'passed', probedAtMs: 1 }),
   (error) => error.code === 'P5_COMPUTE_DEVICE_PROBE_REJECTED');
   probes.rejectWorker = true;
   assert.throws(() => service.publishWorker({ workerId: 'worker-1', name: 'Worker-1', revision: 1, healthState: 'healthy', endpointRef: 'endpoint-1', protocolVersion: 'v1',
@@ -125,9 +125,10 @@ test('stale policy/device/worker revisions and unadvertised operation fail close
 
 test('persisted unavailable Device and offline Worker contribute zero capacity and cannot issue handles', () => {
   const { service } = fixture(); seed(service);
-  service.publishDevice({ deviceId: 'encoder-1', deviceKind: 'encoder', stableDeviceKey: 'nvenc-1', revision: 2,
-    availability: 'unavailable', enabled: false, validatedConcurrentSlots: 3, capability: { codec: 'hevc' },
-    probeEvidenceDigest: SHA, probedAtMs: 2 });
+  service.publishDevice({ deviceId: 'encoder-1', deviceKind: 'nvidia_nvenc', stableDeviceKey: 'nvenc-1', revision: 2,
+    availability: 'unavailable', enabled: false, validatedConcurrentSlots: 3,
+    capability: { supportedVideoCodecs: ['hevc'], supportedRateControlModes: ['target_size', 'quality_bound'] },
+    probeResult: 'passed', probedAtMs: 2 });
   service.publishWorker({ workerId: 'worker-1', name: 'Worker-1', revision: 2, healthState: 'offline',
     endpointRef: 'endpoint-worker-1', protocolVersion: 'worker-v1', secretRef: 'secret-worker-1', capabilityDigest: SHA,
     allowedOperations: ['asset.register@1'], effectiveAtMs: 2,
@@ -143,8 +144,8 @@ test('P3 Platform Repository atomically advances immutable Profile, Device, Poli
   persistentFixture(({ databasePath, service }) => {
     seed(service);
     service.publishProfile({ profileId: 'profile-default', profileKey: 'default', revision: 2, logicalCpu: 12, publishedAtMs: 2 });
-    service.publishDevice({ deviceId: 'encoder-1', deviceKind: 'encoder', stableDeviceKey: 'nvenc-1', revision: 2, availability: 'available', enabled: true,
-      validatedConcurrentSlots: 4, capability: { codec: 'hevc' }, probeEvidenceDigest: SHA, probedAtMs: 2 });
+    service.publishDevice({ deviceId: 'encoder-1', deviceKind: 'nvidia_nvenc', stableDeviceKey: 'nvenc-1', revision: 2, availability: 'available', enabled: true,
+      validatedConcurrentSlots: 4, capability: { supportedVideoCodecs: ['hevc'], supportedRateControlModes: ['target_size', 'quality_bound'] }, probeResult: 'passed', probedAtMs: 2 });
     service.publishWorker({ workerId: 'worker-1', name: 'Worker-1', revision: 2, healthState: 'healthy', endpointRef: 'endpoint-worker-1', protocolVersion: 'worker-v1',
       secretRef: 'secret-worker-1', capabilityDigest: SHA, allowedOperations: ['asset.register@1'], effectiveAtMs: 2,
       devices: [{ deviceKey: 'worker-gpu-1', capabilityDigest: SHA, enabled: true, maxSlots: 3 }] });
