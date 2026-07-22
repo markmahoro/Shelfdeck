@@ -105,7 +105,8 @@ test('builds a closed observation basis and NFO-first complete metadata draft', 
     sourceOrder:0,evidenceId:'evidence-0',evidenceDigest:nfo.result.payloadDigest,inputBindingDigest:nfo.inputBindingDigest}));
   const chains=[nfo,tmdb].map((item,index)=>({...item,inputBindings:sourceIntents[index],attemptWorkId:item.workId,
     planAttemptId:item.attemptId,eventWorkId:item.workId,eventAttemptId:item.attemptId,eventPlanId:item.planId,
-    eventResultId:item.resultId}));
+    eventResultId:item.resultId,attemptState:'succeeded',planState:'completed',eventState:'succeeded',eventOwnerDomain:'libra',
+    nodeCapabilityRef:item.capabilityRef}));
   const sourceRefs=buildProductFactSourceRefs({sourceBasis:basis,foundationChains:chains});
   assert.equal(sourceRefs.length,2);
   assert.equal(sourceRefs[0].referenceDigest,basis.selection.items[0].sourceReferenceDigest);

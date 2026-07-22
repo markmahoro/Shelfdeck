@@ -205,7 +205,9 @@ function buildProductFactSourceRefs(value) {
     if (!chain || !result || selection.ordinal !== ordinal || chain.workId !== selection.workId ||
         chain.attemptId !== selection.attemptId || chain.planId !== selection.planId || chain.eventId !== selection.eventId ||
         chain.ownerDomain !== 'libra' || chain.processType !== 'libra_run' || chain.processId !== basis.selection.libraRunId ||
-        chain.workState !== 'succeeded' || chain.attemptWorkId !== chain.workId || chain.planAttemptId !== chain.attemptId ||
+        chain.workState !== 'succeeded' || chain.attemptState !== 'succeeded' || chain.planState !== 'completed' ||
+        chain.eventState !== 'succeeded' || chain.eventOwnerDomain !== 'libra' || chain.attemptWorkId !== chain.workId ||
+        chain.planAttemptId !== chain.attemptId || chain.nodeCapabilityRef !== chain.capabilityRef ||
         chain.eventWorkId !== chain.workId || chain.eventAttemptId !== chain.attemptId || chain.eventPlanId !== chain.planId ||
         chain.eventResultId !== chain.resultId || chain.capabilityRef !== 'libra.product_metadata.fetch@1' ||
         chain.resultSchemaRef !== 'helix://contracts/types/MetadataObservation/v1' || result.schemaRef !== chain.resultSchemaRef ||
