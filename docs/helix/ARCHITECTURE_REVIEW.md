@@ -2439,7 +2439,7 @@ Capability、Result family、表或Canonical Transaction，计数保持`112 / 97
 
 ### 15.36 `PBF-14` — Product Metadata / Media-Cast Fact commit闭包
 
-Status: `CLOSED / BOUNDED INPUT-PERSISTENCE FIX APPLIED / REFINED_BY_PBF-14-R1-R2-R3-R4` — 2026-07-20
+Status: `CLOSED / BOUNDED INPUT-PERSISTENCE FIX APPLIED / REFINED_BY_PBF-14-R1-R2-R3-R4-R5` — 2026-07-20
 
 P9-05反向实现审计证明四项缺口成立：两个`domain_fact_commit`没有可选择的no-Outbox精确variant；Product Fact
 缺稳定ID/revision/Handle/marker与Evidence映射；Planner所谓“当前Metadata Observation集合”没有正式选择及历史
@@ -2561,3 +2561,24 @@ P9-05 Product Metadata commit反向审计证明`VerifiedArtifactManifest`原合�
 该修正不改变业务结果、Domain、Owner、Store、Handoff、Capability、Result family、table或transaction数量；仅扩充
 既有typed DTO与表列，inventory保持`112 / 97 / 177 / 43`。结果为
 `PASS / PBF-14-R4 CLOSED / NO OPEN BUSINESS DECISION`。
+
+### 15.41 `PBF-14-R5` — Result Storage Digest、大小上限与Marker约束
+
+Status: `CLOSED / BOUNDED MACHINE-REALIZABILITY FIX APPLIED` — 2026-07-22
+
+PBF-14-R4实现复审证明三项机器矛盾成立：`ArtifactManifestVerification.verificationDigest`排除自身，不能同时
+等于包含该字段的Foundation完整Result摘要；其`256 KiB`上限超过`fx_event_result_bindings`的`65,536` bytes；
+`libra_product_fact_revisions.commit_marker`虽有正文语义，却没有可物化的FK/UNIQUE列语法。
+
+Bounded correction固定：
+
+- 领域内`verificationDigest`继续排除自身；Foundation `result_digest`统一覆盖包含该字段的完整typed Result，Manifest
+  的`verificationEvidenceDigest`引用前者，`verificationResultRef.resultDigest`引用后者，Runtime无需Result-family特判；
+- 单个`shared.artifact.manifest.verify@1`固定`1..64`个Handle且完整Result≤`65,536` bytes；一个0..256项Manifest可由
+  多个原子验证Event覆盖，不缩小Manifest业务容量；
+- 同路径`WesternAnalysisResult`按相同领域摘要/Foundation storage摘要分层，消除既有同类自引用表述；
+- `libra_product_fact_revisions.commit_marker`机器列明确为nullable FK + UNIQUE，目标
+  `fx_commit_markers(commit_marker)`且`ON DELETE RESTRICT`，保持Fact→Marker→Result历史恢复唯一性。
+
+该修正不新增Domain、Owner、Store、Handoff、Capability、Result family、table或transaction，inventory保持
+`112 / 97 / 177 / 43`。结果为`PASS / PBF-14-R5 CLOSED / NO OPEN BUSINESS DECISION`。
