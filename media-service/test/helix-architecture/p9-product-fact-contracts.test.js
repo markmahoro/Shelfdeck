@@ -3,12 +3,28 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
-const { buildMediaCastDraft, buildMediaCastFact, buildMetadataFetchIntent, buildMetadataObservationBasis, buildProductFactEvidence,
+const { buildArtifactManifestVerification, buildMediaCastDraft, buildMediaCastFact, buildMetadataFetchIntent, buildMetadataObservationBasis, buildProductFactEvidence,
   buildProductFactHandle, buildProductMetadataDraft, buildProductMetadataFact, metadataObservationWorkIdempotencyKey, selectMetadataObservations,
   validateVerifiedArtifactManifest } =
   require('../../src/helix/domains/libra/model/product-fact-contracts');
 
 const d = (value) => canonicalDigest({ value });
+
+function artifactRequirement(kind = 'poster') {
+  const value = { requirementId:'', revision:1, schemaRef:'helix://contracts/requirements/poster/v1', artifactKind:kind,
+    requirementPayload:{ minimumWidth:1000 }, requirementDigest:'' };
+  value.requirementDigest = canonicalDigest({ schema:'shared.artifact-requirement@1', revision:value.revision,
+    schemaRef:value.schemaRef, artifactKind:value.artifactKind, requirementPayload:value.requirementPayload });
+  value.requirementId = canonicalDigest({ schema:'shared.artifact-requirement-id@1', requirementDigest:value.requirementDigest });
+  return value;
+}
+
+function artifactHandle(id = 'artifact-1') {
+  return { schemaRef:'helix://contracts/types/ArtifactHandle/v1', schemaVersion:1, artifactHandleId:id,
+    artifactKind:'poster', ownerDomain:'libra', ownerScope:{scopeType:'libra_run',scopeId:'run-1'}, storageRef:'artifact://poster',
+    digestAlgorithm:'sha256', digestHex:d(id), sizeBytes:123, mediaType:'image/jpeg',
+    provenanceRef:{objectType:'libra_run',objectId:'run-1',revision:1,digest:d('provenance')}, referenceRevision:1 };
+}
 
 function intents() {
   return [
@@ -126,17 +142,31 @@ test('keeps Media Cast in Libra and accepts only explicit People Projection refe
 });
 
 test('verifies artifact handles without embedding bytes or reading a second owner', () => {
-  const snapshot={artifactHandleId:'artifact-1',artifactKind:'poster',artifactRevision:1,artifactDigest:d('artifact'),
-    verificationEvidenceId:'verify-1',verificationEvidenceDigest:d('verification')};
-  const item={ordinal:0,...snapshot,requirementDigest:d('requirement')};
+  const requirement=artifactRequirement(), handle=artifactHandle(), snapshot={...handle,state:'active'};
+  const result=buildArtifactManifestVerification({requirement,artifactHandles:[handle],verifiedAtMs:20});
+  const inputBindings={artifactHandleList:[handle],artifactRequirement:requirement};
+  const binding={workId:'work-verify',attemptId:'attempt-verify',planId:'plan-verify',eventId:'event-verify',resultId:'result-verify',
+    capabilityRef:'shared.artifact.manifest.verify@1',resultSchemaRef:result.schemaRef,result,
+    resultDigest:canonicalDigest(result),inputBindings,inputBindingDigest:canonicalDigest(inputBindings)};
+  const ref={workId:binding.workId,attemptId:binding.attemptId,planId:binding.planId,eventId:binding.eventId,resultId:binding.resultId,
+    capabilityRef:binding.capabilityRef,resultSchemaRef:binding.resultSchemaRef,resultDigest:binding.resultDigest,
+    inputBindingDigest:binding.inputBindingDigest};
+  const item={ordinal:0,artifactHandleId:snapshot.artifactHandleId,artifactKind:snapshot.artifactKind,
+    artifactRevision:snapshot.referenceRevision,artifactDigest:snapshot.digestHex,requirementId:requirement.requirementId,
+    requirementRevision:requirement.revision,requirementSchemaRef:requirement.schemaRef,requirementDigest:requirement.requirementDigest,
+    verificationEvidenceId:result.verificationId,verificationEvidenceDigest:result.verificationDigest,verificationResultRef:ref};
   item.referenceDigest=canonicalDigest(item);
   const artifactSetDigest=canonicalDigest({schema:'libra.verified-artifact-set@1',items:[item]});
   const manifestId=canonicalDigest({schema:'libra.verified-artifact-manifest-id@1',libraRunId:'run-1',artifactSetDigest});
   const manifest={manifestId,libraRunId:'run-1',items:[item],artifactSetDigest};
   manifest.manifestDigest=canonicalDigest(manifest);
-  assert.deepEqual(validateVerifiedArtifactManifest(manifest,[snapshot]),manifest);
-  assert.throws(()=>validateVerifiedArtifactManifest(manifest,[{...snapshot,artifactDigest:d('tampered')}]),
+  const context={artifactSnapshots:[snapshot],artifactRequirements:[requirement],verificationBindings:[binding]};
+  assert.deepEqual(validateVerifiedArtifactManifest(manifest,context),manifest);
+  assert.throws(()=>validateVerifiedArtifactManifest(manifest,{...context,
+    artifactSnapshots:[{...snapshot,digestHex:d('tampered')}]}),
     (error)=>error.code==='P9_ARTIFACT_HANDLE_MISMATCH');
+  assert.throws(()=>validateVerifiedArtifactManifest(manifest,{...context,verificationBindings:[{...binding,
+    inputBindingDigest:d('tampered')}]}),(error)=>error.code==='P9_ARTIFACT_VERIFICATION_CHAIN');
 });
 
 test('builds complete immutable Product Facts and their exact evidence digest', () => {

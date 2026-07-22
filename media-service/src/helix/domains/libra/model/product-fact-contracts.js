@@ -26,6 +26,56 @@ const bytes = (value, maximum, code) => {
 };
 const compare = (left, right) => Buffer.from(left).compare(Buffer.from(right));
 
+function validateArtifactRequirement(value) {
+  if (!value || typeof value.requirementPayload !== 'object' || value.requirementPayload === null ||
+      Array.isArray(value.requirementPayload)) fail('P9_ARTIFACT_REQUIREMENT', 'Artifact Requirement payload is invalid.');
+  const requirement = { requirementId:text(value.requirementId, 'requirementId'),
+    revision:integer(value.revision, 'revision', 1), schemaRef:text(value.schemaRef, 'schemaRef'),
+    artifactKind:text(value.artifactKind, 'artifactKind'), requirementPayload:value.requirementPayload,
+    requirementDigest:digest(value.requirementDigest, 'requirementDigest') };
+  const expectedDigest = canonicalDigest({ schema:'shared.artifact-requirement@1', revision:requirement.revision,
+    schemaRef:requirement.schemaRef, artifactKind:requirement.artifactKind, requirementPayload:requirement.requirementPayload });
+  const expectedId = canonicalDigest({ schema:'shared.artifact-requirement-id@1', requirementDigest:expectedDigest });
+  if (requirement.requirementDigest !== expectedDigest || requirement.requirementId !== expectedId)
+    fail('P9_ARTIFACT_REQUIREMENT_IDENTITY', 'Artifact Requirement identity is invalid.');
+  return Object.freeze(bytes(requirement, 16 * 1024, 'P9_ARTIFACT_REQUIREMENT_SIZE'));
+}
+
+function artifactVerificationItem(handle, ordinal) {
+  const item = { ordinal, artifactHandleId:text(handle?.artifactHandleId, 'artifactHandleId'),
+    artifactKind:text(handle?.artifactKind, 'artifactKind'),
+    artifactRevision:integer(handle?.referenceRevision, 'referenceRevision', 1),
+    artifactDigest:digest(handle?.digestHex, 'digestHex') };
+  item.referenceDigest = canonicalDigest(item);
+  return Object.freeze(item);
+}
+
+function buildArtifactManifestVerification(value) {
+  const requirement = validateArtifactRequirement(value?.requirement);
+  const handles = [...(value?.artifactHandles || [])];
+  if (handles.length < 1 || handles.length > 64 || handles.some((item) => item.artifactKind !== requirement.artifactKind))
+    fail('P9_ARTIFACT_VERIFICATION_INPUT', 'Artifact verification requires 1..64 matching handles.');
+  const verifiedArtifacts = handles.map(artifactVerificationItem);
+  const sorted = [...verifiedArtifacts].sort((left, right) => compare(left.artifactKind, right.artifactKind) ||
+    compare(left.artifactHandleId, right.artifactHandleId) || left.artifactRevision - right.artifactRevision);
+  if (canonicalJson(verifiedArtifacts) !== canonicalJson(sorted) ||
+      new Set(verifiedArtifacts.map((item) => item.artifactHandleId + '|' + item.artifactRevision)).size !== verifiedArtifacts.length)
+    fail('P9_ARTIFACT_VERIFICATION_ORDER', 'Artifact verification handles must be unique and canonically sorted.');
+  const manifestDigest = canonicalDigest({ schema:'shared.artifact-verification-input-manifest@1',
+    requirementDigest:requirement.requirementDigest, items:verifiedArtifacts });
+  const basisDigest = canonicalDigest({ schema:'shared.artifact-manifest-verification-basis@1', manifestDigest,
+    requirementDigest:requirement.requirementDigest });
+  const verification = { schemaRef:'helix://contracts/types/ArtifactManifestVerification/v1', schemaVersion:1,
+    verificationId:canonicalDigest({ schema:'shared.artifact-manifest-verification-id@1', manifestDigest,
+      requirementDigest:requirement.requirementDigest, basisDigest }), verificationKind:'artifact_manifest', basisDigest,
+    result:'passed', reasonCodes:[], evidenceRefs:[], verifiedAtMs:integer(value?.verifiedAtMs, 'verifiedAtMs'),
+    manifestDigest, contractRef:requirement.schemaRef, requirement, verifiedArtifacts,
+    artifactDigests:verifiedArtifacts.map((item) => item.artifactDigest), verificationDigest:'' };
+  verification.verificationDigest = canonicalDigest(Object.fromEntries(
+    Object.entries(verification).filter(([key]) => key !== 'verificationDigest')));
+  return Object.freeze(bytes(verification, 64 * 1024, 'P9_ARTIFACT_VERIFICATION_SIZE'));
+}
+
 function buildMetadataFetchIntent(value) {
   const common = {
     intentId: '', libraRunId: text(value?.libraRunId, 'libraRunId'),
@@ -168,6 +218,12 @@ function buildProductMetadataDraft(value) {
   }
   const missingFields = required.filter((field) => !winners.has(field));
   if (missingFields.length) return Object.freeze({ ready:false, missingFields:Object.freeze(missingFields) });
+  const artifactRequirements = (value.artifactRequirements || []).map(validateArtifactRequirement);
+  const sortedRequirements = [...artifactRequirements].sort((left, right) => compare(left.artifactKind, right.artifactKind) ||
+    compare(left.requirementId, right.requirementId) || left.revision - right.revision);
+  if (artifactRequirements.length > 256 || canonicalJson(artifactRequirements) !== canonicalJson(sortedRequirements) ||
+      new Set(artifactRequirements.map((item) => item.artifactKind + '|' + item.requirementId + '|' + item.revision)).size !== artifactRequirements.length)
+    fail('P9_ARTIFACT_REQUIREMENT_ORDER', 'Artifact Requirements must be unique and canonically sorted.');
   const draft = { schemaRef:'helix://contracts/types/ProductMetadataDraft/v1', schemaVersion:1,
     draftId:'', draftKind:'product_metadata', basisDigest:basis.sourceBasisDigest, draftDigest:'', producedAtMs:integer(value.producedAtMs, 'producedAtMs'),
     resolvedIdentityDigest:basis.observationSet.resolvedIdentityDigest, sourceBasisKind:'metadata_observation',
@@ -175,7 +231,7 @@ function buildProductMetadataDraft(value) {
     fieldProvenance:provenance, descriptiveFacts:{ schemaRef:'helix://contracts/records/descriptive-facts/v1', schemaVersion:1,
       recordKind:'descriptive-facts', recordDigest:'', entries:[...winners].map(([key, itemValue]) => ({ key, value:itemValue })).sort((a,b)=>compare(a.key,b.key)) },
     providerIdentities:[...(value.providerIdentities || [])], mediaCastDraftRef:value.mediaCastDraftRef || null,
-    artifactRequirements:[...(value.artifactRequirements || [])] };
+    artifactRequirements };
   draft.descriptiveFacts.recordDigest = canonicalDigest(Object.fromEntries(Object.entries(draft.descriptiveFacts).filter(([key]) => key !== 'recordDigest')));
   draft.draftId = canonicalDigest({ schema:'libra.product-metadata-draft-id@1', resolvedIdentityDigest:draft.resolvedIdentityDigest,
     sourceBasisDigest:basis.sourceBasisDigest, descriptiveFactsDigest:draft.descriptiveFacts.recordDigest });
@@ -224,23 +280,60 @@ function buildMediaCastDraft(value) {
   return Object.freeze(bytes(draft, 64 * 1024, 'P9_MEDIA_CAST_DRAFT_SIZE'));
 }
 
-function validateVerifiedArtifactManifest(value, artifactSnapshots) {
+function validateVerifiedArtifactManifest(value, context) {
   if (!value || value.libraRunId === undefined || !Array.isArray(value.items) || value.items.length > 256)
     fail('P9_ARTIFACT_MANIFEST', 'Verified Artifact Manifest is invalid.');
-  const snapshots = new Map((artifactSnapshots || []).map((item) => [item.artifactHandleId + '|' + item.artifactRevision, item]));
+  const snapshots = new Map((context?.artifactSnapshots || []).map((item) =>
+    [item.artifactHandleId + '|' + item.referenceRevision, item]));
+  const requirements = new Map((context?.artifactRequirements || []).map(validateArtifactRequirement).map((item) =>
+    [item.requirementId + '|' + item.revision + '|' + item.schemaRef + '|' + item.requirementDigest, item]));
+  const bindings = new Map((context?.verificationBindings || []).map((item) => [item.resultId, item]));
   const items = value.items.map((item, ordinal) => {
     if (item.ordinal !== ordinal) fail('P9_ARTIFACT_MANIFEST_ORDER', 'Artifact ordinals must be contiguous from zero.');
     const snapshot = snapshots.get(item.artifactHandleId + '|' + item.artifactRevision);
-    if (!snapshot || snapshot.artifactKind !== item.artifactKind || snapshot.artifactDigest !== item.artifactDigest ||
-        snapshot.verificationEvidenceId !== item.verificationEvidenceId ||
-        snapshot.verificationEvidenceDigest !== item.verificationEvidenceDigest) {
+    if (!snapshot || snapshot.state !== 'active' || snapshot.artifactKind !== item.artifactKind ||
+        snapshot.digestHex !== item.artifactDigest) {
       fail('P9_ARTIFACT_HANDLE_MISMATCH', 'Artifact item does not match the immutable Registry Handle.');
     }
+    const requirement = requirements.get(item.requirementId + '|' + item.requirementRevision + '|' +
+      item.requirementSchemaRef + '|' + item.requirementDigest);
+    if (!requirement || requirement.artifactKind !== item.artifactKind)
+      fail('P9_ARTIFACT_REQUIREMENT_MISMATCH', 'Artifact item does not match a Draft Requirement.');
+    const ref = item.verificationResultRef, binding = bindings.get(ref?.resultId), result = binding?.result;
+    if (!binding || !result || ref.workId !== binding.workId || ref.attemptId !== binding.attemptId ||
+        ref.planId !== binding.planId || ref.eventId !== binding.eventId ||
+        ref.capabilityRef !== 'shared.artifact.manifest.verify@1' || ref.capabilityRef !== binding.capabilityRef ||
+        ref.resultSchemaRef !== 'helix://contracts/types/ArtifactManifestVerification/v1' ||
+        ref.resultSchemaRef !== binding.resultSchemaRef || ref.resultDigest !== binding.resultDigest ||
+        ref.inputBindingDigest !== binding.inputBindingDigest || canonicalDigest(result) !== ref.resultDigest ||
+        canonicalDigest(binding.inputBindings) !== ref.inputBindingDigest ||
+        canonicalJson(binding.inputBindings?.artifactRequirement) !== canonicalJson(requirement) ||
+        result.result !== 'passed' || result.verificationId !== item.verificationEvidenceId ||
+        result.verificationDigest !== item.verificationEvidenceDigest ||
+        result.requirement?.requirementDigest !== requirement.requirementDigest ||
+        result.verificationDigest !== canonicalDigest(Object.fromEntries(
+          Object.entries(result).filter(([key]) => key !== 'verificationDigest'))))
+      fail('P9_ARTIFACT_VERIFICATION_CHAIN', 'Artifact item does not match its explicit verification Result chain.');
+    const verified = (result.verifiedArtifacts || []).find((candidate) => candidate.artifactHandleId === item.artifactHandleId &&
+      candidate.artifactRevision === item.artifactRevision);
+    const inputHandle = (binding.inputBindings.artifactHandleList || []).find((candidate) =>
+      candidate.artifactHandleId === item.artifactHandleId && candidate.referenceRevision === item.artifactRevision);
+    if (!verified || !inputHandle || verified.artifactKind !== item.artifactKind || verified.artifactDigest !== item.artifactDigest ||
+        verified.referenceDigest !== canonicalDigest(Object.fromEntries(
+          Object.entries(verified).filter(([key]) => key !== 'referenceDigest'))) ||
+        inputHandle.artifactKind !== item.artifactKind || inputHandle.digestHex !== item.artifactDigest)
+      fail('P9_ARTIFACT_VERIFICATION_ITEM', 'Artifact item is absent from the explicit verification input or Result.');
     const canonical = { ordinal, artifactHandleId:text(item.artifactHandleId, 'artifactHandleId'),
       artifactKind:text(item.artifactKind, 'artifactKind'), artifactRevision:integer(item.artifactRevision, 'artifactRevision', 1),
-      artifactDigest:digest(item.artifactDigest, 'artifactDigest'), requirementDigest:digest(item.requirementDigest, 'requirementDigest'),
+      artifactDigest:digest(item.artifactDigest, 'artifactDigest'), requirementId:text(item.requirementId, 'requirementId'),
+      requirementRevision:integer(item.requirementRevision, 'requirementRevision', 1),
+      requirementSchemaRef:text(item.requirementSchemaRef, 'requirementSchemaRef'),
+      requirementDigest:digest(item.requirementDigest, 'requirementDigest'),
       verificationEvidenceId:text(item.verificationEvidenceId, 'verificationEvidenceId'),
-      verificationEvidenceDigest:digest(item.verificationEvidenceDigest, 'verificationEvidenceDigest') };
+      verificationEvidenceDigest:digest(item.verificationEvidenceDigest, 'verificationEvidenceDigest'),
+      verificationResultRef:{ workId:ref.workId, attemptId:ref.attemptId, planId:ref.planId, eventId:ref.eventId,
+        resultId:ref.resultId, capabilityRef:ref.capabilityRef, resultSchemaRef:ref.resultSchemaRef,
+        resultDigest:ref.resultDigest, inputBindingDigest:ref.inputBindingDigest } };
     canonical.referenceDigest = canonicalDigest(canonical);
     if (item.referenceDigest !== canonical.referenceDigest) fail('P9_ARTIFACT_REFERENCE_DIGEST', 'Artifact reference digest is invalid.');
     return Object.freeze(canonical);
@@ -334,6 +427,7 @@ function buildProductFactEvidence(value) {
     eventFenceDigest:digest(value?.eventFenceDigest, 'eventFenceDigest') });
 }
 
-module.exports = Object.freeze({ ProductFactContractError, buildMediaCastDraft, buildMediaCastFact, buildMetadataFetchIntent,
+module.exports = Object.freeze({ ProductFactContractError, buildArtifactManifestVerification, buildMediaCastDraft, buildMediaCastFact, buildMetadataFetchIntent,
   buildMetadataObservationBasis, buildProductFactHandle, buildProductMetadataDraft, metadataObservationWorkIdempotencyKey,
-  buildProductMetadataFact, buildProductFactEvidence, metadataSourceRef, selectMetadataObservations, validateVerifiedArtifactManifest });
+  buildProductMetadataFact, buildProductFactEvidence, metadataSourceRef, selectMetadataObservations,
+  validateArtifactRequirement, validateVerifiedArtifactManifest });
