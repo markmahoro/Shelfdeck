@@ -1,6 +1,6 @@
 # P9 Libra Production and Delivery Detailed Plan
 
-Status: Active；P9-00–P9-05 complete；P9-06 active.
+Status: Active；P9-00–P9-06 complete；P9-07 active.
 
 Last updated: 2026-07-23
 
@@ -100,11 +100,17 @@ P9不执行Handoff B Acceptance或Arca On-deck Commit，不接真实Provider/FFm
 
 - 实现input verify、remux/transcode fake-port执行、Product Media verify、output selection及Acceptance Spec Conformance。
 - 未验证输出不得进入Staging；无真实FFmpeg或媒体副作用。
+- Done：完整Media Requirement、Primary stream、direct/workspace Handle provenance、Artifact Requirement、显式rank选择、
+  六组pure Product Conformance及Effect Journal restart/replay均已闭合；Architecture Agent主动复审接受`4267410f`。
+  聚焦15/15及接受点完整Architecture 768/768 PASS。Evidence见
+  `evidence/P9_06_MEDIA_PRODUCTION_OUTPUT_CONFORMANCE.md`。
 
 ### P9-07 External material acquisition and import
 
 - 实现query/search/select/request/observe/stability/identity/package verify与Workspace import的正式链。
 - Provider/Worker只经P5 typed ports；deferred/retry/recovery不产生隐藏fallback或外部来源切换。
+- Active：PBF-16已原样纳入；exact P5 operation与全链机器合同已在`6ace8501`重物化并提交架构主动复审，
+  Runtime实现等待机器检查点接受后开始。
 
 ### P9-08 Deliverable promotion and package publication
 

@@ -13,12 +13,12 @@ Last updated: 2026-07-23
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains；P7 — Procurement；P8 — Handoff A and Libra front half |
 | Current phase | P9 — Libra production and delivery |
-| Current phase status | P9-00–P9-05 PASS；P9-06 Media production, output selection and conformance active |
+| Current phase status | P9-00–P9-06 PASS；P9-07 External material acquisition and import active |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
 | Current allowed work | P9 local code、unit/contract/isolated fixture、docs与Phase内自动闭环；本周期不进入P10 |
 | Integration baseline | exact P8 closure `3184ef4573cb3663e4a1fae87fc65b4d1c270b38` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-p9` on `codex/helix-p9` |
-| Next action | 实现P9-06 Media production、output selection与conformance |
+| Next action | 等待P9-07机器合同主动复审；PASS后实现External material acquisition与one-member Workspace import |
 
 P9-01已完成：反向实现审计证明的六段连续性缺口已由Architecture Agent在`PBF-13/PBF-13-R1`中闭合，并经实现侧
 只读复审后原样纳入。Run、Material/Episode scope、Workspace、完整Package、Discard/Cleanup及Off-load Reclaimer均具备
@@ -55,6 +55,13 @@ Requirement、Handle、Verification Result、Manifest、Product Fact及Source re
 gate PASS（111 fixture files，`findings=[]`），P2 aggregate为
 `fd28a03618c383e694933867719478fbf24f263571cfbe0b7880b55fb9696633`；Evidence见
 `implementation/evidence/P9_05_PRODUCT_FACTS_METADATA_CAST_ARTIFACTS.md`。
+
+P9-06已完成：Media Requirement只从同一immutable Acceptance Spec完整派生；Primary stream、direct/workspace Handle
+provenance、Artifact Requirement continuity、显式rank Output Selection及六组pure Product Conformance均已闭合。
+Effect Journal restart/replay只返回同一Workspace output。Architecture Agent主动复审接受`4267410f`；聚焦15/15与接受点
+完整Architecture 768/768 PASS。Evidence见
+`implementation/evidence/P9_06_MEDIA_PRODUCTION_OUTPUT_CONFORMANCE.md`。P9-07的PBF-16 exact机器合同与P5 operation已在
+`6ace8501`重物化，计数保持112/97/177/43，当前等待架构主动复审后进入Runtime实现。
 
 Architecture Agent提交`a570be44`的`PBF-13`已通过实现侧只读复审：六段生产连续性均可从正式输入、Owner rows、
 revision/digest/CAS及事务边界唯一实现；计数为112 Capability、97 Catalog Result family、176 tables和43 Canonical
