@@ -39,7 +39,7 @@ function observation(intent, options = {}) {
     workState:'succeeded', capabilityRef:'libra.product_metadata.fetch@1',
     resultSchemaRef:result.schemaRef, result, resultId, resultDigest:result.payloadDigest,
     resultBindingDigest:canonicalDigest(result), inputBindingDigest:canonicalDigest(intent),
-    sourceReferenceDigest:d(`source-ref-${resultId}`), workId:`work-${intent.sourcePriority}`, attemptId:`attempt-${intent.sourcePriority}`,
+    workId:`work-${intent.sourcePriority}`, attemptId:`attempt-${intent.sourcePriority}`,
     planId:`plan-${intent.sourcePriority}`, eventId:`event-${intent.sourcePriority}` };
 }
 
@@ -75,10 +75,17 @@ test('builds a closed observation basis and NFO-first complete metadata draft', 
   const sourceIntents = intents();
   const nfo = observation(sourceIntents[0], { entries:[{ key:'title', value:'Local title' }] });
   const tmdb = observation(sourceIntents[1], { entries:[{ key:'title', value:'Provider title' }, { key:'plot', value:'Plot' }] });
-  const basis = buildMetadataObservationBasis({ intents:sourceIntents, results:[tmdb,nfo] });
+  const basis = buildMetadataObservationBasis({ intents:sourceIntents, results:[tmdb,nfo], factKind:'product_metadata', expectedRevision:0 });
   assert.equal(basis.sourceBasisKind, 'metadata_observation');
   assert.deepEqual(basis.observationSet.sourcePrecedence.map((item) => item.sourcePriority), [0,1]);
   assert.equal(basis.selection.items[0].resultId, 'result-0');
+  assert.equal(basis.productFactId, canonicalDigest({schema:'libra.product-fact-id@1',libraRunId:'run-1',
+    factKind:'product_metadata',factRevision:1}));
+  assert.equal(basis.selection.items[0].sourceReferenceDigest, canonicalDigest({schema:'libra.product-fact-source-ref@1',
+    productFactId:basis.productFactId,ordinal:0,sourceBasisKind:'metadata_observation',workId:'work-0',attemptId:'attempt-0',
+    planId:'plan-0',eventId:'event-0',resultId:'result-0',capabilityRef:'libra.product_metadata.fetch@1',
+    resultSchemaRef:'helix://contracts/types/MetadataObservation/v1',resultDigest:nfo.resultDigest,sourceRef:'ref-nfo',
+    sourceOrder:0,evidenceId:'evidence-0',evidenceDigest:nfo.result.payloadDigest,inputBindingDigest:nfo.inputBindingDigest}));
   const built = buildProductMetadataDraft({ sourceBasis:basis, requiredFields:['title','plot'], producedAtMs:100,
     providerIdentities:[], artifactRequirements:[] });
   assert.equal(built.ready, true);
@@ -102,7 +109,7 @@ test('derives stable Product Fact aggregate, revision fence, handle, and marker 
 
 test('keeps Media Cast in Libra and accepts only explicit People Projection references', () => {
   const sourceIntents=intents(), basis=buildMetadataObservationBasis({intents:sourceIntents,
-    results:[observation(sourceIntents[0],{entries:[{key:'title',value:'A'}]})]});
+    results:[observation(sourceIntents[0],{entries:[{key:'title',value:'A'}]})],factKind:'media_cast',expectedRevision:0});
   const relation={ relationId:'cast-1',personId:'person-1',displayName:'Actor',displayNameNormalized:'actor',role:'actor',
     source:'related_nfo',providerIdentities:[],originEvidenceDigest:d('cast-evidence'),confidenceClass:'declared' };
   const draft=buildMediaCastDraft({subjectId:'subject-1',sourceBasis:basis,relations:[relation],producedAtMs:10,

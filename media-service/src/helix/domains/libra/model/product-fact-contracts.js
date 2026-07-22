@@ -108,6 +108,11 @@ function selectMetadataObservations(value) {
 function buildMetadataObservationBasis(value) {
   const selected = selectMetadataObservations(value), observations = selected.items.map((item) => item.result);
   if (observations.length < 1) fail('P9_METADATA_OBSERVATION_EMPTY', 'At least one durable Observation is required.');
+  const factKind = value?.factKind;
+  if (!['media_cast', 'product_metadata'].includes(factKind)) fail('P9_PRODUCT_FACT_KIND', 'Product Fact kind is invalid.');
+  const expectedRevision = integer(value?.expectedRevision, 'expectedRevision');
+  const productFactId = canonicalDigest({ schema:'libra.product-fact-id@1', libraRunId:selected.intents[0].libraRunId,
+    factKind, factRevision:expectedRevision + 1 });
   const contentProfile = observations[0].contentProfile, resolvedIdentityDigest = observations[0].identityDigest;
   if (observations.some((item) => item.contentProfile !== contentProfile || item.identityDigest !== resolvedIdentityDigest))
     fail('P9_METADATA_OBSERVATION_SCOPE', 'Observation set spans multiple identities or profiles.');
@@ -117,11 +122,18 @@ function buildMetadataObservationBasis(value) {
       resolvedIdentityDigest, identityItems }), contentProfile, resolvedIdentityDigest, observations,
     sourcePrecedence:observations.map((item) => ({ fetchIntentDigest:item.fetchIntentDigest, sourcePriority:item.sourcePriority })) };
   set.setDigest = canonicalDigest(set);
-  const relationItems = selected.items.map((item, ordinal) => ({ ordinal, workId:item.workId, attemptId:item.attemptId,
-    planId:item.planId, eventId:item.eventId, resultId:item.resultId, fetchIntentDigest:item.result.fetchIntentDigest,
-    sourceKind:item.result.sourceKind, sourceRef:item.result.sourceRef, sourcePriority:item.result.sourcePriority,
-    evidenceId:item.result.evidenceId, observationDigest:item.result.payloadDigest,
-    sourceReferenceDigest:digest(item.sourceReferenceDigest, 'sourceReferenceDigest') }));
+  const relationItems = selected.items.map((item, ordinal) => {
+    const sourceReference = { schema:'libra.product-fact-source-ref@1', productFactId, ordinal,
+      sourceBasisKind:'metadata_observation', workId:item.workId, attemptId:item.attemptId, planId:item.planId,
+      eventId:item.eventId, resultId:item.resultId, capabilityRef:item.capabilityRef,
+      resultSchemaRef:item.resultSchemaRef, resultDigest:item.resultDigest, sourceRef:item.result.sourceRef,
+      sourceOrder:ordinal, evidenceId:item.result.evidenceId, evidenceDigest:item.result.payloadDigest,
+      inputBindingDigest:item.inputBindingDigest };
+    return { ordinal, workId:item.workId, attemptId:item.attemptId, planId:item.planId, eventId:item.eventId,
+      resultId:item.resultId, fetchIntentDigest:item.result.fetchIntentDigest, sourceKind:item.result.sourceKind,
+      sourceRef:item.result.sourceRef, sourcePriority:item.result.sourcePriority, evidenceId:item.result.evidenceId,
+      observationDigest:item.result.payloadDigest, sourceReferenceDigest:canonicalDigest(sourceReference) };
+  });
   const selection = { selectionId:canonicalDigest({ schema:'libra.metadata-observation-selection-id@1',
       libraRunId:selected.intents[0].libraRunId, runExecutionBasisDigest:selected.intents[0].runExecutionBasisDigest,
       setId:set.setId, setDigest:set.setDigest }), libraRunId:selected.intents[0].libraRunId,
@@ -129,7 +141,7 @@ function buildMetadataObservationBasis(value) {
     items:relationItems };
   selection.selectionDigest = canonicalDigest(selection);
   bytes(set, 512 * 1024, 'P9_METADATA_SET_SIZE');
-  return Object.freeze({ sourceBasisKind:'metadata_observation', selection:Object.freeze(selection),
+  return Object.freeze({ sourceBasisKind:'metadata_observation', productFactId, selection:Object.freeze(selection),
     observationSet:Object.freeze(set), sourceBasisDigest:selection.selectionDigest });
 }
 
