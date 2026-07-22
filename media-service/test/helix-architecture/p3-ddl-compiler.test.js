@@ -63,6 +63,7 @@ test('emits JSON validity and byte limits, enum checks, RESTRICT foreign keys, a
   assert.match(ddl, /"revision" INTEGER CHECK \("revision" >= 1\)/);
   assert.match(ddl, /"package_revision_head" INTEGER NOT NULL DEFAULT 0 CHECK \("package_revision_head" >= 0\)/);
   assert.match(ddl, /"expected_admission_head_revision" INTEGER NOT NULL CHECK \("expected_admission_head_revision" >= 0\)/);
+  assert.match(ddl, /CHECK \(length\(CAST\("verified_artifact_manifest_json" AS BLOB\)\) <= 262144\)/);
   assert.match(ddl, /FOREIGN KEY \("run_material_manifest_id", "member_ordinal"\) REFERENCES "libra_run_material_members" \("run_material_manifest_id", "ordinal"\) ON DELETE RESTRICT/);
   assert.match(ddl, /FOREIGN KEY \("reference_asset_id"\) REFERENCES "people_reference_assets" \("reference_asset_id"\) ON DELETE RESTRICT/);
   assert.match(ddl, /FOREIGN KEY \("reference_face_id"\) REFERENCES "people_reference_faces" \("reference_face_id"\) ON DELETE RESTRICT/);

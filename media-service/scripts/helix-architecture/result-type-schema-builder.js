@@ -6,6 +6,7 @@ const { buildSharedTypeSchemas } = require('./shared-type-schema-builder');
 const DRAFT = 'https://json-schema.org/draft/2020-12/schema';
 const typeId = (name) => `helix://contracts/types/${name}/v1`;
 const ref = (name) => ({ $ref: typeId(name) });
+const domainRef = (name) => ({ $ref: `helix://contracts/domain-types/${name}/v1` });
 const text = (options = {}) => ({ type: 'string', minLength: 1, ...options });
 const id = () => text({ maxLength: 256 });
 const digest = () => text({ pattern: '^[a-f0-9]{64}$' });
@@ -245,7 +246,7 @@ const special = {
   'ProductMetadataDraft.descriptiveFacts': boundedRecord('descriptive-facts'),
   'ProductMetadataDraft.providerIdentities': arrayOf(snapshot('provider-identity'), 128),
   'ProductMetadataDraft.mediaCastDraftRef': nullable(id()),
-  'ProductMetadataDraft.artifactRequirements': arrayOf(snapshot('artifact-requirement'), 256),
+  'ProductMetadataDraft.artifactRequirements': arrayOf(domainRef('ArtifactRequirement'), 256),
   'MediaCastDraft.relations': arrayOf(object({
     personId: nullable(id()), displayName: text(), role: text(), source: text(), confidenceClass: text()
   }, ['displayName', 'role', 'source', 'confidenceClass']), 4096),
@@ -377,7 +378,7 @@ const contracts = {
   MediaProbeEvidence: ['EvidenceEnvelope', 'sourceHandleDigest,resultKind,reasonCode?,container?,durationMs?,sizeBytes,videoStreams,audioStreams,subtitleStreams,discTopology?'],
   LayoutEvidence: ['EvidenceEnvelope', 'sourceHandleDigest,boundedScopeDigest,entries,entriesDigest,layoutDigest'],
   ManifestVerification: ['VerificationEnvelope', 'manifestDigest,contractRef'],
-  ArtifactManifestVerification: ['VerificationEnvelope', 'manifestDigest,contractRef,artifactDigests'],
+  ArtifactManifestVerification: ['VerificationEnvelope', 'manifestDigest,contractRef,requirement,verifiedArtifacts,artifactDigests,verificationDigest'],
   IntegrationAvailabilityEvidence: ['EvidenceEnvelope', 'integrationId,configRevision,availabilityState,latencyMs?'],
   PersonMatchEvidence: ['EvidenceEnvelope', 'clusterSetDigest,referenceProjectionRevision,matches,unmatchedClusterIds'],
   FieldObservationPage: ['EvidenceEnvelope', 'fieldObservationWorkId,observationId,fieldId,accessRevision,pageOrdinal,expectedObservationRevision,cursorIn,cursorOut,materialObservations,pageDigest,hasMore'],
@@ -478,6 +479,7 @@ special['OnDeckCommitResult.onDeckCommitReceipt'] = ref('OnDeckCommitReceipt');
 special['OnDeckCommitResult.offloadCompletionFact'] = ref('OffloadCompletionFact');
 
 function buildResultTypeSchema(name, [base, fieldList]) {
+  if (name === 'ArtifactManifestVerification') return artifactManifestVerificationSchema();
   if (name === 'MetadataObservation') return metadataObservationSchema();
   if (name === 'ProductMetadataDraft') return productMetadataDraftSchema();
   if (name === 'MediaCastDraft') return mediaCastDraftSchema();
@@ -553,6 +555,16 @@ function fieldProvenanceSchema() {
     sourceRef: text(), evidenceDigest: digest() });
 }
 
+function artifactManifestVerificationSchema() {
+  const verifiedArtifact = object({ ordinal:nonNegativeInteger(), artifactHandleId:id(), artifactKind:text(),
+    artifactRevision:positiveInteger(), artifactDigest:digest(), referenceDigest:digest() });
+  return resultSchema('ArtifactManifestVerification', 'VerificationEnvelope', {
+    manifestDigest:digest(), contractRef:text(), requirement:domainRef('ArtifactRequirement'),
+    verifiedArtifacts:{ ...arrayOf(verifiedArtifact, 64), minItems:1 }, artifactDigests:{ ...arrayOf(digest(), 64), minItems:1 },
+    verificationDigest:digest()
+  }, { 'x-helix-maxCanonicalBytes':64 * 1024 });
+}
+
 function mediaCastRelationSchema() {
   return object({ relationId: id(), personId: nullable(id()), displayName: text(), displayNameNormalized: text(), role: text(),
     source: text(), providerIdentities: arrayOf(snapshot('provider-identity'), 128), originEvidenceDigest: digest(),
@@ -565,7 +577,7 @@ function productMetadataDraftSchema() {
     metadataObservationSetDigest: nullable(digest()), westernAnalysisVariantDigest: nullable(digest()),
     fieldProvenance: arrayOf(fieldProvenanceSchema(), 1024), descriptiveFacts: boundedRecord('descriptive-facts'),
     providerIdentities: arrayOf(snapshot('provider-identity'), 128), mediaCastDraftRef: nullable(id()),
-    artifactRequirements: arrayOf(snapshot('artifact-requirement'), 256)
+    artifactRequirements: arrayOf(domainRef('ArtifactRequirement'), 256)
   }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
 }
 

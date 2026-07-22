@@ -91,7 +91,7 @@ function splitSummary(inputSummary) {
 }
 
 function normalizedTypeName(value) {
-  const direct = value.trim().replace(/\[\]$/, '');
+  const direct = value.trim().replace(/\[(?:\d+\.\.\d+)?\]$/, '');
   const aliases = {
     'Material handle': 'MaterialHandle',
     'Material handles': 'MaterialHandle',
@@ -176,8 +176,9 @@ function expressionSchema(expression) {
       'x-helix-typeExpression': expression
     };
   }
-  const isMany = /\[\]/.test(expression) || HANDLE_LIST_EXPRESSIONS.has(expression);
-  let normalizedExpression = expression.replace(/\[\]/g, '').trim();
+  const boundedList = expression.match(/\[(\d+)\.\.(\d+)\]/);
+  const isMany = /\[\]/.test(expression) || boundedList !== null || HANDLE_LIST_EXPRESSIONS.has(expression);
+  let normalizedExpression = expression.replace(/\[(?:\d+\.\.\d+)?\]/g, '').trim();
   if (normalizedExpression.startsWith('(') && normalizedExpression.endsWith(')')) normalizedExpression = normalizedExpression.slice(1, -1).trim();
   const unionParts = splitTopLevelUnion(normalizedExpression).map((value) => normalizedTypeName(value));
   let itemSchema;
@@ -185,14 +186,16 @@ function expressionSchema(expression) {
   else if (unionParts[0] === 'MaterialHandle') {
     itemSchema = { oneOf: ['PhysicalMaterialReadHandle', 'WorkspaceMaterialHandle', 'ArtifactHandle'].map((name) => ({ $ref: typeRef(name) })) };
   } else itemSchema = { $ref: typeRef(unionParts[0]) };
-  const schema = isMany ? arrayOf(itemSchema) : itemSchema;
+  const schema = isMany ? { ...arrayOf(itemSchema), ...(boundedList ? {
+    minItems:Number(boundedList[1]), maxItems:Number(boundedList[2])
+  } : {}) } : itemSchema;
   return { ...schema, 'x-helix-typeExpression': expression };
 }
 
 function uniquePortName(expression, used) {
   const base = camel(expression
     .replace(/\|/g, ' Or ')
-    .replace(/\[\]/g, ' List')
+    .replace(/\[(?:\d+\.\.\d+)?\]/g, ' List')
     .replace(/\bhandles\b/ig, 'HandleList')
     .replace(/\bmaterials\b/ig, 'MaterialList'));
   let candidate = base;

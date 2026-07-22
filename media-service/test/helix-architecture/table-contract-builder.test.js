@@ -92,7 +92,7 @@ test('closes every PK, declared FK, JSON contract, and current revision pointer'
     }
     for (const json of contract.jsonContracts) {
       assert.ok(json.schemaRefColumn, `${contract.tableId}.${json.column}`);
-      assert.ok([4 * 1024, 16 * 1024, 64 * 1024, 1024 * 1024].includes(json.maxBytes));
+      assert.ok([4 * 1024, 16 * 1024, 64 * 1024, 256 * 1024, 1024 * 1024].includes(json.maxBytes));
     }
     const covered = new Set(contract.revisionContract.pointerTargets.flatMap((target) => [...target.sourceColumns, ...target.consistencyColumns]));
     for (const pointer of contract.revisionContract.currentPointerColumns) assert.ok(covered.has(pointer), `${contract.tableId}.${pointer}`);
@@ -144,6 +144,13 @@ test('binds every Field Observation revision to its durable Foundation commit ma
   assert.deepEqual(marker.targetTable, 'fx_commit_markers');
   assert.deepEqual(marker.targetColumns, ['commit_marker']);
   assert.equal(marker.deferrable, true);
+});
+
+test('preserves distinct Product Fact and verified Artifact Manifest JSON bounds', () => {
+  const contract = contracts.find((item) => item.tableId === 'libra_product_fact_revisions');
+  const byColumn = new Map(contract.jsonContracts.map((item) => [item.column, item]));
+  assert.equal(byColumn.get('fact_json').maxBytes, 64 * 1024);
+  assert.equal(byColumn.get('verified_artifact_manifest_json').maxBytes, 256 * 1024);
 });
 
 test('defers only the Workspace aggregate current-head link needed for revision-one admission', () => {

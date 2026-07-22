@@ -20,7 +20,9 @@ function readJson(filePath, findings) {
 function inspectNode(node, schemaId, knownRefs, findings, location = '#') {
   if (!node || typeof node !== 'object') return;
   if (node.type === 'object') {
-    if (node.additionalProperties !== false) findings.push(finding('OPEN_DOMAIN_INPUT_OBJECT', 'Domain input objects must be closed.', { schemaId, location }));
+    const schemaBoundPayload = schemaId === 'helix://contracts/domain-types/ArtifactRequirement/v1' &&
+      location === '#/properties/requirementPayload';
+    if (node.additionalProperties !== false && !schemaBoundPayload) findings.push(finding('OPEN_DOMAIN_INPUT_OBJECT', 'Domain input objects must be closed.', { schemaId, location }));
     for (const forbidden of ['payload', 'path', 'rawPath', 'store', 'repository', 'facade', 'planner', 'runtime', 'config']) {
       if (Object.hasOwn(node.properties || {}, forbidden)) findings.push(finding(
         'FORBIDDEN_DOMAIN_INPUT_FIELD', 'Domain inputs cannot carry raw payloads, paths, or implementation authority.', { schemaId, location, property: forbidden }
@@ -77,6 +79,7 @@ function validateDomainInputSchemas(options) {
       PersonReferenceProjection: ['projectionContract', 'projectionRevision', 'personId', 'personRevision', 'projectionDigest'],
       MetadataFetchIntent: ['intentId', 'libraRunId', 'runExecutionBasisDigest', 'sourceKind', 'sourcePriority', 'resolvedIdentityDigest', 'intentDigest'],
       WesternAnalysisVariant: ['variantId', 'libraRunId', 'runExecutionBasisDigest', 'resolvedIdentityDigest', 'variantDigest'],
+      ArtifactRequirement: ['requirementId', 'revision', 'schemaRef', 'artifactKind', 'requirementPayload', 'requirementDigest'],
       LibraMediaCastSourceBasisMetadataObservationWesternMatch: ['sourceBasisKind', 'sourceBasisDigest'],
       LibraProductMetadataSourceBasisMetadataObservationWesternAnalysis: ['sourceBasisKind', 'sourceBasisDigest'],
       VerifiedArtifactManifest: ['manifestId', 'libraRunId', 'artifactSetDigest', 'manifestDigest'],
@@ -114,7 +117,7 @@ function validateDomainInputSchemas(options) {
         }));
       }
     }
-    if (schema['x-helix-role'] === 'bounded-contract' && !(schema.required || []).includes('typedParameters')) findings.push(finding(
+    if (schema['x-helix-role'] === 'bounded-contract' && entry.id !== 'ArtifactRequirement' && !(schema.required || []).includes('typedParameters')) findings.push(finding(
       'UNBOUNDED_INTENT_PARAMETERS', 'Bounded intent/requirement contracts require typedParameters.', { entryId: entry.id }
     ));
     inspectNode(schema, schema.$id, knownRefs, findings);

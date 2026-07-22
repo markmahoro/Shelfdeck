@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/ArtifactRequirement/v1",
+  "title": "ArtifactRequirement@1",
+  "x-helix-ssotRefs": [
+    "8.6.18",
+    "8.6.19"
+  ],
+  "x-helix-maxCanonicalBytes": 16384,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "requirementId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "schemaRef": {
+      "type": "string",
+      "pattern": "^helix://",
+      "maxLength": 256
+    },
+    "artifactKind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "requirementPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "schemaVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "recordKind": {
+          "const": "artifact-requirement-payload"
+        },
+        "recordDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "key": {
+                "type": "string",
+                "minLength": 1
+              },
+              "value": {
+                "type": [
+                  "string",
+                  "number",
+                  "integer",
+                  "boolean",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "key",
+              "value"
+            ]
+          },
+          "maxItems": 256
+        }
+      },
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "recordKind",
+        "recordDigest",
+        "entries"
+      ]
+    },
+    "requirementDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "requirementId",
+    "revision",
+    "schemaRef",
+    "artifactKind",
+    "requirementPayload",
+    "requirementDigest"
+  ]
+}

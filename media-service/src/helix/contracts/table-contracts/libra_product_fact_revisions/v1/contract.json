@@ -143,7 +143,7 @@
       },
       {
         "ordinal": 14,
-        "name": "commit_payload_schema_ref",
+        "name": "verified_artifact_manifest_schema_ref",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -153,8 +153,8 @@
       },
       {
         "ordinal": 15,
-        "name": "commit_payload_digest",
-        "logicalType": "TEXT",
+        "name": "verified_artifact_manifest_json",
+        "logicalType": "TEXT_JSON",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -163,7 +163,7 @@
       },
       {
         "ordinal": 16,
-        "name": "event_fence_digest",
+        "name": "verified_artifact_manifest_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -173,17 +173,17 @@
       },
       {
         "ordinal": 17,
-        "name": "commit_marker",
-        "logicalType": "TEXT",
+        "name": "artifact_verification_result_count",
+        "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
         "inlineUnique": false,
-        "nullable": true
+        "nullable": false
       },
       {
         "ordinal": 18,
-        "name": "result_digest",
+        "name": "commit_payload_schema_ref",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -193,6 +193,46 @@
       },
       {
         "ordinal": 19,
+        "name": "commit_payload_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 20,
+        "name": "event_fence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 21,
+        "name": "commit_marker",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": true,
+        "nullable": true
+      },
+      {
+        "ordinal": 22,
+        "name": "result_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 23,
         "name": "committed_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -206,9 +246,13 @@
       "product_fact_id"
     ],
     "declaredForeignKeyColumns": [
-      "libra_run_id"
+      "libra_run_id",
+      "commit_marker"
     ],
     "uniqueConstraints": [
+      [
+        "commit_marker"
+      ],
       [
         "libra_run_id",
         "fact_kind",
@@ -248,6 +292,13 @@
         "maxBytes": 65536,
         "source": "table-row",
         "requiresJsonValidCheck": true
+      },
+      {
+        "column": "verified_artifact_manifest_json",
+        "schemaRefColumn": "verified_artifact_manifest_schema_ref",
+        "maxBytes": 262144,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
       }
     ],
     "immutability": {
@@ -260,23 +311,22 @@
     },
     "semanticRules": [
       "`fact_kind`必须是Catalog已注册的Product Fact kind，不由Store发明open value",
-      "Fact JSON上限`64 KiB`且大Artifact只含handle",
-      "`media_cast|product_metadata`按8.6.19固定`product_fact_id/aggregate_id/revision/commit/evidence/result`，要求全部新增commit/Source Basis列非NULL。Product Metadata只允许`metadata_observation|western_analysis`，Media Cast只允许`metadata_observation|western_match`",
-      "Observation basis的`source_ref_count=1..16`",
+      "Fact JSON上限`64 KiB`且大Artifact只含handle。`media_cast|product_metadata`按8.6.19固定`product_fact_id/aggregate_id/revision/commit/evidence/result`，要求全部commit/Source Basis列非NULL。Product Metadata只允许`metadata_observation|western_analysis`，且三个Artifact Manifest列全非NULL、schema固定`VerifiedArtifactManifest@1`、canonical JSON≤`256 KiB`、digest逐字节等于Manifest `manifestDigest`，`artifact_verification_result_count`等于items中去重后的显式verification Result ID数并为`0..256`",
+      "Media Cast只允许`metadata_observation|western_match`，三个Manifest列全NULL且该count=0。Observation basis的`source_ref_count=1..16`",
       "Western Product Metadata basis为`2..17`（至少一项Analysis Result加恰一项Normalize Result）",
-      "Western Media-Cast basis恰为1项Match Result。其他已注册kind继续服从各自既有精确合同，允许这些PBF-14专用列为NULL且count=0，不能被本修正反向套用未定义公式",
-      "非NULL `commit_marker`显式FK到`fx_commit_markers`且唯一，`result_digest`逐字节等于marker所指`fx_event_result_bindings`",
+      "Western Media-Cast basis恰为1项Match Result。其他已注册kind继续服从各自既有精确合同，允许这些PBF-14专用列为NULL且两个count=0，不能被本修正反向套用未定义公式",
+      "非NULL `commit_marker`显式FK到`fx_commit_markers(commit_marker)`，`ON DELETE RESTRICT`且唯一，`result_digest`逐字节等于marker所指`fx_event_result_bindings`",
       "`UNIQUE(libra_run_id,fact_kind,fact_revision)`",
       "`INDEX(libra_run_id,fact_kind,fact_revision)`"
     ],
     "rawContract": {
-      "columns": "`product_fact_id PK, libra_run_id FK, fact_kind, fact_revision, aggregate_id NULL, schema_ref, fact_json, fact_digest, evidence_digest, source_basis_kind(metadata_observation|western_analysis|western_match) NULL, source_basis_id NULL, source_basis_digest NULL, source_ref_count, commit_payload_schema_ref NULL, commit_payload_digest NULL, event_fence_digest NULL, commit_marker NULL, result_digest NULL, committed_at_ms`",
-      "constraints": "`fact_kind`必须是Catalog已注册的Product Fact kind，不由Store发明open value；Fact JSON上限`64 KiB`且大Artifact只含handle；`media_cast|product_metadata`按8.6.19固定`product_fact_id/aggregate_id/revision/commit/evidence/result`，要求全部新增commit/Source Basis列非NULL。Product Metadata只允许`metadata_observation|western_analysis`，Media Cast只允许`metadata_observation|western_match`；Observation basis的`source_ref_count=1..16`；Western Product Metadata basis为`2..17`（至少一项Analysis Result加恰一项Normalize Result）；Western Media-Cast basis恰为1项Match Result。其他已注册kind继续服从各自既有精确合同，允许这些PBF-14专用列为NULL且count=0，不能被本修正反向套用未定义公式；非NULL `commit_marker`显式FK到`fx_commit_markers`且唯一，`result_digest`逐字节等于marker所指`fx_event_result_bindings`；`UNIQUE(libra_run_id,fact_kind,fact_revision)`；`INDEX(libra_run_id,fact_kind,fact_revision)`"
+      "columns": "`product_fact_id PK, libra_run_id FK, fact_kind, fact_revision, aggregate_id NULL, schema_ref, fact_json, fact_digest, evidence_digest, source_basis_kind(metadata_observation|western_analysis|western_match) NULL, source_basis_id NULL, source_basis_digest NULL, source_ref_count, verified_artifact_manifest_schema_ref NULL, verified_artifact_manifest_json NULL, verified_artifact_manifest_digest NULL, artifact_verification_result_count, commit_payload_schema_ref NULL, commit_payload_digest NULL, event_fence_digest NULL, commit_marker NULL FK UNIQUE, result_digest NULL, committed_at_ms`",
+      "constraints": "`fact_kind`必须是Catalog已注册的Product Fact kind，不由Store发明open value；Fact JSON上限`64 KiB`且大Artifact只含handle。`media_cast|product_metadata`按8.6.19固定`product_fact_id/aggregate_id/revision/commit/evidence/result`，要求全部commit/Source Basis列非NULL。Product Metadata只允许`metadata_observation|western_analysis`，且三个Artifact Manifest列全非NULL、schema固定`VerifiedArtifactManifest@1`、canonical JSON≤`256 KiB`、digest逐字节等于Manifest `manifestDigest`，`artifact_verification_result_count`等于items中去重后的显式verification Result ID数并为`0..256`；Media Cast只允许`metadata_observation|western_match`，三个Manifest列全NULL且该count=0。Observation basis的`source_ref_count=1..16`；Western Product Metadata basis为`2..17`（至少一项Analysis Result加恰一项Normalize Result）；Western Media-Cast basis恰为1项Match Result。其他已注册kind继续服从各自既有精确合同，允许这些PBF-14专用列为NULL且两个count=0，不能被本修正反向套用未定义公式；非NULL `commit_marker`显式FK到`fx_commit_markers(commit_marker)`，`ON DELETE RESTRICT`且唯一，`result_digest`逐字节等于marker所指`fx_event_result_bindings`；`UNIQUE(libra_run_id,fact_kind,fact_revision)`；`INDEX(libra_run_id,fact_kind,fact_revision)`"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8394,
-      "lineDigest": "575e4595f961899349ec80a176c5dcc6e9cfa9dc70f3fdb63e54dc907ba838c1"
+      "line": 8397,
+      "lineDigest": "1ac5c18c220b829770431e8a720b32adf3835a6156e073c9145de8f581d98777"
     },
     "foreignKeys": [
       {
@@ -286,6 +336,17 @@
         "targetTable": "libra_runs",
         "targetColumns": [
           "libra_run_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "commit_marker"
+        ],
+        "targetTable": "fx_commit_markers",
+        "targetColumns": [
+          "commit_marker"
         ],
         "deletePolicy": "RESTRICT",
         "deferrable": false

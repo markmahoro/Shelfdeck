@@ -49,6 +49,19 @@
             "minLength": 1,
             "pattern": "^[a-f0-9]{64}$"
           },
+          "requirementId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "requirementRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "requirementSchemaRef": {
+            "type": "string",
+            "minLength": 1
+          },
           "requirementDigest": {
             "type": "string",
             "minLength": 1,
@@ -64,6 +77,64 @@
             "minLength": 1,
             "pattern": "^[a-f0-9]{64}$"
           },
+          "verificationResultRef": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "workId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "attemptId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "planId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "eventId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "resultId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "capabilityRef": {
+                "const": "shared.artifact.manifest.verify@1"
+              },
+              "resultSchemaRef": {
+                "const": "helix://contracts/types/ArtifactManifestVerification/v1"
+              },
+              "resultDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "inputBindingDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "workId",
+              "attemptId",
+              "planId",
+              "eventId",
+              "resultId",
+              "capabilityRef",
+              "resultSchemaRef",
+              "resultDigest",
+              "inputBindingDigest"
+            ]
+          },
           "referenceDigest": {
             "type": "string",
             "minLength": 1,
@@ -76,9 +147,13 @@
           "artifactKind",
           "artifactRevision",
           "artifactDigest",
+          "requirementId",
+          "requirementRevision",
+          "requirementSchemaRef",
           "requirementDigest",
           "verificationEvidenceId",
           "verificationEvidenceDigest",
+          "verificationResultRef",
           "referenceDigest"
         ]
       },

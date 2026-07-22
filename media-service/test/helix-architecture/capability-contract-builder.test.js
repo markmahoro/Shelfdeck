@@ -36,6 +36,17 @@ test('preserves Owner, Effect Class, output family, and source locator from SSOT
   }
 });
 
+test('preserves explicit bounded Artifact Handle list cardinality', () => {
+  const item = buildCapabilityPackages(extracted.capabilities)
+    .find((candidate) => candidate.capabilityRef === 'shared.artifact.manifest.verify@1');
+  const handles = item.files['inputs.schema.json'].properties.artifactHandle164;
+  assert.equal(handles, undefined);
+  const bounded = item.files['inputs.schema.json'].$defs.artifactHandleList;
+  assert.equal(bounded.items.$ref, 'helix://contracts/types/ArtifactHandle/v1');
+  assert.equal(bounded.minItems, 1);
+  assert.equal(bounded.maxItems, 64);
+});
+
 test('moves only SSOT-declared parameter tokens out of named inputs', () => {
   const packages = buildCapabilityPackages(extracted.capabilities);
   const observe = packages.find((item) => item.capabilityRef === 'procurement.field.page.observe@1').files;

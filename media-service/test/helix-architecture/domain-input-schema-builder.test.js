@@ -23,6 +23,17 @@ test('freezes product fact source basis variants and exact artifact manifest inp
   assert.equal(metadataBasis.oneOf[0].properties.observationSet.properties.sourcePrecedence.items.additionalProperties, false);
   assert.equal(metadataBasis.oneOf[1].properties.westernBasis.properties.analysisRefs.minItems, 1);
   assert.equal(schemas.VerifiedArtifactManifest.properties.items.maxItems, 256);
+  const requirement = schemas.ArtifactRequirement;
+  for (const field of ['requirementId', 'revision', 'schemaRef', 'artifactKind', 'requirementPayload', 'requirementDigest']) {
+    assert.ok(requirement.required.includes(field), field);
+  }
+  assert.equal(requirement['x-helix-maxCanonicalBytes'], 16 * 1024);
+  const manifestItem = schemas.VerifiedArtifactManifest.properties.items.items;
+  for (const field of ['requirementId', 'requirementRevision', 'requirementSchemaRef', 'verificationResultRef']) {
+    assert.ok(manifestItem.required.includes(field), field);
+  }
+  assert.equal(manifestItem.properties.verificationResultRef.properties.capabilityRef.const,
+    'shared.artifact.manifest.verify@1');
   assert.equal(schemas.MetadataFetchIntent.oneOf[0].properties.sourcePriority.minimum, 0);
   assert.deepEqual(schemas.MetadataFetchIntent.oneOf[0].properties.contentProfile.enum, ['movie', 'series', 'jav']);
 });

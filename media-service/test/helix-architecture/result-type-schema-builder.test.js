@@ -86,6 +86,20 @@ test('flattens WorkspaceMediaHandle without accepting a raw nested workspace pay
   assert.equal(schema.additionalProperties, false);
 });
 
+test('materializes Artifact Requirement and bounded verification Result continuity', () => {
+  const verification = schemas.ArtifactManifestVerification;
+  for (const field of ['requirement', 'verifiedArtifacts', 'artifactDigests', 'verificationDigest']) {
+    assert.ok(verification.required.includes(field), field);
+  }
+  assert.equal(verification.properties.requirement.$ref, 'helix://contracts/domain-types/ArtifactRequirement/v1');
+  assert.equal(verification.properties.verifiedArtifacts.minItems, 1);
+  assert.equal(verification.properties.verifiedArtifacts.maxItems, 64);
+  assert.equal(verification.properties.artifactDigests.maxItems, 64);
+  assert.equal(verification['x-helix-maxCanonicalBytes'], 64 * 1024);
+  assert.equal(schemas.ProductMetadataDraft.properties.artifactRequirements.items.$ref,
+    'helix://contracts/domain-types/ArtifactRequirement/v1');
+});
+
 test('binds Product Media Verification to the exact Run, Event, Handle, and fence', () => {
   const schema = schemas.ProductMediaVerification;
   for (const field of ['libraRunId', 'producingEventId', 'workspaceMediaHandleId', 'workspaceMaterialHandleId',

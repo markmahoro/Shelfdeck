@@ -222,38 +222,7 @@
     "artifactRequirements": {
       "type": "array",
       "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "objectId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256
-          },
-          "revision": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "schemaRef": {
-            "type": "string",
-            "minLength": 1
-          },
-          "snapshotDigest": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
-          },
-          "objectKind": {
-            "const": "artifact-requirement"
-          }
-        },
-        "required": [
-          "objectId",
-          "revision",
-          "schemaRef",
-          "snapshotDigest",
-          "objectKind"
-        ]
+        "$ref": "helix://contracts/domain-types/ArtifactRequirement/v1"
       },
       "maxItems": 256
     }

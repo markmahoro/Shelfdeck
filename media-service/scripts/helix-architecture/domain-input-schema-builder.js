@@ -33,7 +33,6 @@ function typedParameters(kind) {
 const special = {
   'AcceptanceSpec.contentProfile': enumText('movie', 'series', 'jav', 'western_adult'),
   'ArtifactProfile.artifactKinds': arrayOf(text(), 128),
-  'ArtifactRequirement.mandatory': bool(),
   'BoundedLayoutScope.maxDepth': positiveInteger(),
   'BoundedLayoutScope.maxMembers': positiveInteger(),
   'ClusterParameters.distanceThreshold': { type: 'number', minimum: 0, maximum: 1 },
@@ -101,7 +100,7 @@ const boundedContracts = {
   AcceptanceSpec: 'shelfId,contentProfile,standardRevision,requirementsDigest',
   AnalysisSpec: 'analysisVariantRef,outputContractDigest',
   ArtifactProfile: 'artifactKinds,qualityPolicyDigest',
-  ArtifactRequirement: 'artifactKind,mandatory,sourcePolicyDigest',
+  ArtifactRequirement: 'artifactKind,requirementPayload,requirementDigest',
   BoundedLayoutScope: 'rootHandleDigest,maxDepth,maxMembers',
   CareRequirement: 'careBasisDigest,requiredEffects,acceptanceDigest',
   ClusterParameters: 'modelRef,distanceThreshold,minClusterSize',
@@ -216,6 +215,7 @@ function idField(name) {
 }
 
 function buildSchema(name, role, fields) {
+  if (name === 'ArtifactRequirement') return artifactRequirementSchema();
   if (name === 'WesternAnalysisVariant') return westernAnalysisVariantSchema();
   if (name === 'CandidateDeliveryQuery') return candidateDeliveryQuerySchema();
   if (name === 'CandidateDeliveryReadResult') return candidateDeliveryReadResultSchema();
@@ -716,12 +716,23 @@ function libraMediaCastSourceBasisSchema(name) {
 }
 
 function verifiedArtifactManifestSchema() {
+  const resultRef = object({ workId:id(), attemptId:id(), planId:id(), eventId:id(), resultId:id(),
+    capabilityRef:{ const:'shared.artifact.manifest.verify@1' },
+    resultSchemaRef:{ const:'helix://contracts/types/ArtifactManifestVerification/v1' },
+    resultDigest:digest(), inputBindingDigest:digest() });
   const item = object({ ordinal: nonNegativeInteger(), artifactHandleId: id(), artifactKind: text(), artifactRevision: positiveInteger(),
-    artifactDigest: digest(), requirementDigest: digest(), verificationEvidenceId: id(), verificationEvidenceDigest: digest(),
-    referenceDigest: digest() });
+    artifactDigest: digest(), requirementId:id(), requirementRevision:positiveInteger(), requirementSchemaRef:text(),
+    requirementDigest: digest(), verificationEvidenceId: id(), verificationEvidenceDigest: digest(),
+    verificationResultRef:resultRef, referenceDigest: digest() });
   return exactDomainSchema('VerifiedArtifactManifest', { manifestId: id(), libraRunId: id(),
     items: arrayOf(item, 256), artifactSetDigest: digest(), manifestDigest: digest() }, undefined,
   { 'x-helix-maxCanonicalBytes': 256 * 1024 });
+}
+
+function artifactRequirementSchema() {
+  return exactDomainSchema('ArtifactRequirement', { requirementId:id(), revision:positiveInteger(),
+    schemaRef:text(), artifactKind:text(), requirementPayload:object({}, [], { additionalProperties:true }), requirementDigest:digest() }, undefined,
+  { 'x-helix-role':'bounded-contract', 'x-helix-maxCanonicalBytes':16 * 1024 });
 }
 
 function onDeckPersonEvidenceProjectionItemSchema() {

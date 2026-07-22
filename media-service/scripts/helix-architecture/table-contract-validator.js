@@ -91,8 +91,8 @@ function validateTableContracts(options) {
       if (!json.schemaRefColumn || !contract.columns.some((column) => column.name === json.schemaRefColumn)) findings.push(finding(
         'JSON_SCHEMA_REF_MISSING', 'Every JSON column requires a fixed schema_ref column.', { tableId: entry.id, column: json.column }
       ));
-      if (![4 * 1024, 16 * 1024, 64 * 1024, 1024 * 1024].includes(json.maxBytes) || json.requiresJsonValidCheck !== true) findings.push(finding(
-        'INVALID_JSON_COLUMN_CONTRACT', 'JSON columns require json_valid and an SSOT-bounded 4/16/64 KiB or 1 MiB byte limit.', { tableId: entry.id, column: json.column }
+      if (![4 * 1024, 16 * 1024, 64 * 1024, 256 * 1024, 1024 * 1024].includes(json.maxBytes) || json.requiresJsonValidCheck !== true) findings.push(finding(
+        'INVALID_JSON_COLUMN_CONTRACT', 'JSON columns require json_valid and an SSOT-bounded 4/16/64/256 KiB or 1 MiB byte limit.', { tableId: entry.id, column: json.column }
       ));
     }
     const coveredPointers = new Set();

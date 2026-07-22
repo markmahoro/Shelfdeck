@@ -28,8 +28,8 @@ test('validates all 177 SSOT table contracts without executing DDL', () => {
   const result = validateTableContracts({ contractsRoot: actualContractsRoot });
   assert.equal(result.ok, true);
   assert.equal(result.tableCount, 177);
-  assert.equal(result.foreignKeyCount, 215);
-  assert.equal(result.jsonColumnCount, 53);
+  assert.equal(result.foreignKeyCount, 216);
+  assert.equal(result.jsonColumnCount, 54);
 
   const runRevisionContract = JSON.parse(fs.readFileSync(
     contractPath(actualContractsRoot, 'libra_run_revisions'),

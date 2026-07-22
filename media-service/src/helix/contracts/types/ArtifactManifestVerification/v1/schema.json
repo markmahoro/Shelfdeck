@@ -3,9 +3,11 @@
   "$id": "helix://contracts/types/ArtifactManifestVerification/v1",
   "title": "ArtifactManifestVerification@1",
   "x-helix-ssotRefs": [
+    "6.4.7.1",
     "8.6.19"
   ],
   "x-helix-envelopeRef": "helix://contracts/types/VerificationEnvelope/v1",
+  "x-helix-maxCanonicalBytes": 65536,
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -65,8 +67,56 @@
     },
     "contractRef": {
       "type": "string",
-      "minLength": 1,
-      "maxLength": 256
+      "minLength": 1
+    },
+    "requirement": {
+      "$ref": "helix://contracts/domain-types/ArtifactRequirement/v1"
+    },
+    "verifiedArtifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ordinal": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "artifactHandleId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "artifactKind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "artifactRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "artifactDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "referenceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "ordinal",
+          "artifactHandleId",
+          "artifactKind",
+          "artifactRevision",
+          "artifactDigest",
+          "referenceDigest"
+        ]
+      },
+      "maxItems": 64,
+      "minItems": 1
     },
     "artifactDigests": {
       "type": "array",
@@ -75,7 +125,13 @@
         "minLength": 1,
         "pattern": "^[a-f0-9]{64}$"
       },
-      "maxItems": 1024
+      "maxItems": 64,
+      "minItems": 1
+    },
+    "verificationDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     }
   },
   "required": [
@@ -90,6 +146,9 @@
     "verifiedAtMs",
     "manifestDigest",
     "contractRef",
-    "artifactDigests"
+    "requirement",
+    "verifiedArtifacts",
+    "artifactDigests",
+    "verificationDigest"
   ]
 }

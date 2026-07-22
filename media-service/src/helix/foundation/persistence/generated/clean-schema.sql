@@ -1463,16 +1463,24 @@ CREATE TABLE "libra_product_fact_revisions" (
   "source_basis_id" TEXT,
   "source_basis_digest" TEXT CHECK (length("source_basis_digest") = 64 AND "source_basis_digest" NOT GLOB '*[^0-9a-f]*'),
   "source_ref_count" INTEGER CHECK ("source_ref_count" >= 0),
+  "verified_artifact_manifest_schema_ref" TEXT,
+  "verified_artifact_manifest_json" TEXT,
+  "verified_artifact_manifest_digest" TEXT CHECK (length("verified_artifact_manifest_digest") = 64 AND "verified_artifact_manifest_digest" NOT GLOB '*[^0-9a-f]*'),
+  "artifact_verification_result_count" INTEGER CHECK ("artifact_verification_result_count" >= 0),
   "commit_payload_schema_ref" TEXT,
   "commit_payload_digest" TEXT CHECK (length("commit_payload_digest") = 64 AND "commit_payload_digest" NOT GLOB '*[^0-9a-f]*'),
   "event_fence_digest" TEXT CHECK (length("event_fence_digest") = 64 AND "event_fence_digest" NOT GLOB '*[^0-9a-f]*'),
   "commit_marker" TEXT,
   "result_digest" TEXT CHECK (length("result_digest") = 64 AND "result_digest" NOT GLOB '*[^0-9a-f]*'),
   "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  UNIQUE ("commit_marker"),
   UNIQUE ("libra_run_id", "fact_kind", "fact_revision"),
   CHECK (json_valid("fact_json")),
   CHECK (length(CAST("fact_json" AS BLOB)) <= 65536),
-  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT
+  CHECK (json_valid("verified_artifact_manifest_json")),
+  CHECK (length(CAST("verified_artifact_manifest_json" AS BLOB)) <= 262144),
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("commit_marker") REFERENCES "fx_commit_markers" ("commit_marker") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_libra_product_fact_revisions_hot_01" ON "libra_product_fact_revisions" ("libra_run_id", "fact_kind", "fact_revision");
 

@@ -277,7 +277,7 @@ function compileTable(contract, allContracts) {
   }
   for (const json of contract.jsonContracts) {
     requireColumns(contract, [json.column], contract.tableId + ':json');
-    if (!json.requiresJsonValidCheck || ![4096, 16384, 65536, 1048576].includes(json.maxBytes)) {
+    if (!json.requiresJsonValidCheck || ![4096, 16384, 65536, 262144, 1048576].includes(json.maxBytes)) {
       throw new Error('P3_DDL_UNSUPPORTED_JSON_CONTRACT:' + contract.tableId + '.' + json.column);
     }
     definitions.push('CHECK (json_valid(' + quoteIdentifier(json.column) + '))');
