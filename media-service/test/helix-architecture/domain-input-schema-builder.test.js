@@ -123,6 +123,14 @@ test('conserves complete run-input and product-delivery Production Material memb
   assert.deepEqual(Object.keys(location).sort(), [...deliverySchema.properties.members.items.properties.location.required].sort());
 });
 
+test('propagates the nominal Production Material Manifest into Promotion without an inline subset', () => {
+  const promotion = schemas.LibraDeliverablePromotionDecision.properties.productMaterialManifest;
+  assert.deepEqual(promotion, { $ref:'helix://contracts/domain-types/ProductionMaterialManifest/v1' });
+  const serialized = JSON.stringify(schemas.LibraDeliverablePromotionDecision);
+  assert.equal(serialized.includes('"locationKind"'), false);
+  assert.equal(serialized.includes('"committedControlRevision"'), false);
+});
+
 test('keeps canonical content profile separate from season structure', () => {
   for (const name of ['ShelfStandard']) {
     assert.deepEqual(schemas[name].properties.contentProfile.enum, ['movie', 'series', 'jav', 'western_adult']);

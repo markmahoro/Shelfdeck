@@ -5,347 +5,724 @@
   "x-helix-ssotRefs": [
     "8.6.21"
   ],
-  "x-helix-maxCanonicalBytes": 8388608,
-  "type": "object",
-  "additionalProperties": false,
-  "properties": {
-    "manifestId": {
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^[a-f0-9]{64}$"
-    },
-    "manifestRole": {
-      "type": "string",
-      "enum": [
-        "run_input",
-        "product_delivery"
-      ]
-    },
-    "manifestRevision": {
-      "type": "integer",
-      "minimum": 1
-    },
-    "libraRunId": {
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^[a-f0-9]{64}$"
-    },
-    "scopeKind": {
-      "type": "string",
-      "enum": [
-        "single",
-        "episode_delivery"
-      ]
-    },
-    "members": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "ordinal": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "materialKey": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
-          },
-          "role": {
-            "type": "string",
-            "enum": [
-              "primary_payload",
-              "structural_dependency",
-              "metadata_sidecar",
-              "poster",
-              "fanart",
-              "subtitle",
-              "external_audio",
-              "chapter"
-            ]
-          },
-          "physicalIdentity": {
+  "x-helix-role": "accepted-business-dto",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "manifestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "manifestRole": {
+          "const": "run_input"
+        },
+        "manifestRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "scopeKind": {
+          "type": "string",
+          "enum": [
+            "single",
+            "episode_delivery"
+          ]
+        },
+        "members": {
+          "type": "array",
+          "items": {
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "mountScopeId": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 256
+              "ordinal": {
+                "type": "integer",
+                "minimum": 0
               },
-              "inode": {
-                "type": "string",
-                "minLength": 1,
-                "pattern": "^(0|[1-9][0-9]*)$"
-              },
-              "contentHashAlgorithm": {
-                "const": "sha256"
-              },
-              "contentHash": {
+              "materialKey": {
                 "type": "string",
                 "minLength": 1,
                 "pattern": "^[a-f0-9]{64}$"
-              }
-            },
-            "required": [
-              "mountScopeId",
-              "inode",
-              "contentHashAlgorithm",
-              "contentHash"
-            ]
-          },
-          "sizeBytes": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "location": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "locationKind": {
+              },
+              "role": {
                 "type": "string",
                 "enum": [
-                  "domain_binding",
-                  "workspace_handle"
+                  "primary_payload",
+                  "structural_dependency",
+                  "metadata_sidecar",
+                  "poster",
+                  "fanart",
+                  "subtitle",
+                  "external_audio",
+                  "chapter"
                 ]
               },
-              "endpointId": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 256
+              "physicalIdentity": {
+                "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v1"
+              },
+              "sizeBytes": {
+                "type": "integer",
+                "minimum": 0
               },
               "location": {
-                "type": "string",
-                "minLength": 1
-              },
-              "rootHandleRef": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 256
-              },
-              "relativePath": {
-                "type": "string",
-                "minLength": 1
-              }
-            },
-            "required": [
-              "locationKind",
-              "endpointId"
-            ]
-          },
-          "bindingKind": {
-            "type": "string",
-            "enum": [
-              "libra_material_binding",
-              "workspace_material_reference"
-            ]
-          },
-          "bindingRevision": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "bindingEvidenceDigest": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
-          },
-          "originCandidateDeliveryRef": {
-            "anyOf": [
-              {
                 "type": "object",
                 "additionalProperties": false,
                 "properties": {
-                  "intakeDecisionId": {
+                  "locationKind": {
+                    "type": "string",
+                    "enum": [
+                      "domain_binding",
+                      "workspace_handle"
+                    ]
+                  },
+                  "endpointId": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 256
                   },
-                  "offerId": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 256
+                  "location": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
-                  "candidatePackageId": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 256
+                  "rootHandleRef": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
-                  "packageRevision": {
-                    "type": "integer",
-                    "minimum": 1
-                  },
-                  "packageDigest": {
-                    "type": "string",
-                    "minLength": 1,
-                    "pattern": "^[a-f0-9]{64}$"
-                  },
-                  "candidateDeliverySnapshotDigest": {
-                    "type": "string",
-                    "minLength": 1,
-                    "pattern": "^[a-f0-9]{64}$"
-                  },
-                  "relatedReferenceSetDigest": {
-                    "type": "string",
-                    "minLength": 1,
-                    "pattern": "^[a-f0-9]{64}$"
+                  "relativePath": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
-                  "intakeDecisionId",
-                  "offerId",
-                  "candidatePackageId",
-                  "packageRevision",
-                  "packageDigest",
-                  "candidateDeliverySnapshotDigest",
-                  "relatedReferenceSetDigest"
+                  "locationKind",
+                  "endpointId",
+                  "location",
+                  "rootHandleRef",
+                  "relativePath"
                 ]
               },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "workspaceReferenceId": {
-            "anyOf": [
-              {
+              "bindingKind": {
                 "type": "string",
-                "minLength": 1,
-                "maxLength": 256
+                "enum": [
+                  "libra_material_binding",
+                  "workspace_material_reference"
+                ]
               },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "workspaceMaterialHandle": {
-            "anyOf": [
-              {
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "admittedControlRevision": {
-            "anyOf": [
-              {
+              "bindingRevision": {
                 "type": "integer",
                 "minimum": 1
               },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "admittedControlProjectionDigest": {
-            "anyOf": [
-              {
+              "originCandidateDeliveryRef": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "intakeDecisionId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "offerId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "candidatePackageId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "packageRevision": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "packageDigest": {
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "candidateDeliverySnapshotDigest": {
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "relatedReferenceSetDigest": {
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "^[a-f0-9]{64}$"
+                      }
+                    },
+                    "required": [
+                      "intakeDecisionId",
+                      "offerId",
+                      "candidatePackageId",
+                      "packageRevision",
+                      "packageDigest",
+                      "candidateDeliverySnapshotDigest",
+                      "relatedReferenceSetDigest"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "workspaceReferenceId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "workspaceMaterialHandle": {
+                "anyOf": [
+                  {
+                    "$ref": "helix://contracts/types/WorkspaceMaterialHandle/v1"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "admittedControlRevision": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "admittedControlProjectionDigest": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "bindingEvidenceDigest": {
                 "type": "string",
                 "minLength": 1,
                 "pattern": "^[a-f0-9]{64}$"
               },
-              {
-                "type": "null"
+              "episodeClaims": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "episodeKey": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "seasonClaimDigest": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "claimDigest": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "episodeKey",
+                    "seasonClaimDigest",
+                    "claimDigest"
+                  ]
+                },
+                "maxItems": 32
+              },
+              "episodeClaimSetDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "outputRequirementDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "memberDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
               }
+            },
+            "required": [
+              "ordinal",
+              "materialKey",
+              "role",
+              "physicalIdentity",
+              "sizeBytes",
+              "location",
+              "bindingKind",
+              "bindingRevision",
+              "originCandidateDeliveryRef",
+              "workspaceReferenceId",
+              "workspaceMaterialHandle",
+              "admittedControlRevision",
+              "admittedControlProjectionDigest",
+              "bindingEvidenceDigest",
+              "episodeClaims",
+              "episodeClaimSetDigest",
+              "outputRequirementDigest",
+              "memberDigest"
             ]
           },
-          "outputRequirementDigest": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
-          },
-          "episodeClaims": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "episodeKey": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "seasonClaimDigest": {
-                  "type": "string",
-                  "minLength": 1,
-                  "pattern": "^[a-f0-9]{64}$"
-                },
-                "claimDigest": {
-                  "type": "string",
-                  "minLength": 1,
-                  "pattern": "^[a-f0-9]{64}$"
-                }
-              },
-              "required": [
-                "episodeKey",
-                "seasonClaimDigest",
-                "claimDigest"
-              ]
-            },
-            "maxItems": 32,
-            "uniqueItems": true
-          },
-          "episodeClaimSetDigest": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
-          },
-          "memberDigest": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
-          }
+          "maxItems": 1024,
+          "minItems": 1
         },
-        "required": [
-          "ordinal",
-          "materialKey",
-          "role",
-          "physicalIdentity",
-          "sizeBytes",
-          "location",
-          "bindingKind",
-          "bindingRevision",
-          "bindingEvidenceDigest",
-          "originCandidateDeliveryRef",
-          "workspaceReferenceId",
-          "workspaceMaterialHandle",
-          "admittedControlRevision",
-          "admittedControlProjectionDigest",
-          "outputRequirementDigest",
-          "episodeClaims",
-          "episodeClaimSetDigest",
-          "memberDigest"
-        ]
+        "memberSetDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "episodeScopeDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "manifestDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
       },
-      "minItems": 1,
-      "maxItems": 1024
+      "required": [
+        "manifestId",
+        "manifestRole",
+        "manifestRevision",
+        "libraRunId",
+        "scopeKind",
+        "members",
+        "memberSetDigest",
+        "episodeScopeDigest",
+        "manifestDigest"
+      ]
     },
-    "memberSetDigest": {
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^[a-f0-9]{64}$"
-    },
-    "episodeScopeDigest": {
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^[a-f0-9]{64}$"
-    },
-    "manifestDigest": {
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^[a-f0-9]{64}$"
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "manifestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "manifestRole": {
+          "const": "product_delivery"
+        },
+        "manifestRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "scopeKind": {
+          "type": "string",
+          "enum": [
+            "single",
+            "episode_delivery"
+          ]
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "ordinal": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "materialKey": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "primary_payload",
+                  "structural_dependency",
+                  "metadata_sidecar",
+                  "poster",
+                  "fanart",
+                  "subtitle",
+                  "external_audio",
+                  "chapter"
+                ]
+              },
+              "physicalIdentity": {
+                "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v1"
+              },
+              "sizeBytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "location": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "locationKind": {
+                    "type": "string",
+                    "enum": [
+                      "domain_binding",
+                      "workspace_handle"
+                    ]
+                  },
+                  "endpointId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "location": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "rootHandleRef": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "relativePath": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "locationKind",
+                  "endpointId",
+                  "location",
+                  "rootHandleRef",
+                  "relativePath"
+                ]
+              },
+              "bindingKind": {
+                "type": "string",
+                "enum": [
+                  "libra_material_binding",
+                  "workspace_material_reference"
+                ]
+              },
+              "bindingRevision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "originCandidateDeliveryRef": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "intakeDecisionId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "offerId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "candidatePackageId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "packageRevision": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "packageDigest": {
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "candidateDeliverySnapshotDigest": {
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "relatedReferenceSetDigest": {
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "^[a-f0-9]{64}$"
+                      }
+                    },
+                    "required": [
+                      "intakeDecisionId",
+                      "offerId",
+                      "candidatePackageId",
+                      "packageRevision",
+                      "packageDigest",
+                      "candidateDeliverySnapshotDigest",
+                      "relatedReferenceSetDigest"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "workspaceReferenceId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "workspaceMaterialHandle": {
+                "anyOf": [
+                  {
+                    "$ref": "helix://contracts/types/WorkspaceMaterialHandle/v1"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "admittedControlRevision": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "admittedControlProjectionDigest": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "bindingEvidenceDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "episodeClaims": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "episodeKey": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "seasonClaimDigest": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "claimDigest": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "episodeKey",
+                    "seasonClaimDigest",
+                    "claimDigest"
+                  ]
+                },
+                "maxItems": 32
+              },
+              "episodeClaimSetDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "outputRequirementDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "memberDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "controlOperation": {
+                "type": "string",
+                "enum": [
+                  "assert_existing_input",
+                  "acquire_workspace_product"
+                ]
+              },
+              "expectedControlRevision": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "expectedControlProjectionDigest": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "committedControlRevision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "committedControlProjectionDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "ordinal",
+              "materialKey",
+              "role",
+              "physicalIdentity",
+              "sizeBytes",
+              "location",
+              "bindingKind",
+              "bindingRevision",
+              "originCandidateDeliveryRef",
+              "workspaceReferenceId",
+              "workspaceMaterialHandle",
+              "admittedControlRevision",
+              "admittedControlProjectionDigest",
+              "bindingEvidenceDigest",
+              "episodeClaims",
+              "episodeClaimSetDigest",
+              "outputRequirementDigest",
+              "memberDigest",
+              "controlOperation",
+              "expectedControlRevision",
+              "expectedControlProjectionDigest",
+              "committedControlRevision",
+              "committedControlProjectionDigest"
+            ]
+          },
+          "maxItems": 1024,
+          "minItems": 1
+        },
+        "memberSetDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "episodeScopeDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "manifestDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "manifestId",
+        "manifestRole",
+        "manifestRevision",
+        "libraRunId",
+        "scopeKind",
+        "members",
+        "memberSetDigest",
+        "episodeScopeDigest",
+        "manifestDigest"
+      ]
     }
-  },
-  "required": [
-    "manifestId",
-    "manifestRole",
-    "manifestRevision",
-    "libraRunId",
-    "scopeKind",
-    "members",
-    "memberSetDigest",
-    "episodeScopeDigest",
-    "manifestDigest"
-  ]
+  ],
+  "x-helix-maxCanonicalBytes": 8388608
 }

@@ -850,7 +850,7 @@
       "relativePath": "domain-types/LibraDeliverablePromotionDecision/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "220a93fc8d50060ce3ca077d0d9e4dadd0c376bfb1eea5ae5bcdf7e6c33a0cb1"
+        "value": "848c5ca9b91fc8511fc7d431c6db00e0c5faa3d1125b9e68329037ff0fc3ed7a"
       },
       "usedBy": [
         {
@@ -1779,6 +1779,15 @@
         "value": "51e9ae847979dc085cec16696949d7f59ddcbb464306d46a61bffbd0462ac00f"
       },
       "usedBy": [
+        {
+          "capabilityRef": "libra.product_package.publish@1",
+          "source": {
+            "section": "8.6.7",
+            "line": 8848,
+            "lineDigest": "2afbdf078f649b9d09daca7c48fc359f5558659d7aa34487fe42f4f9321026e9"
+          },
+          "typeExpression": "LibraDeliverablePromotionDecision"
+        },
         {
           "capabilityRef": "libra.product.conformance.verify@1",
           "source": {

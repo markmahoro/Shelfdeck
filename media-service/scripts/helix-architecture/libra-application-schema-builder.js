@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto = require('crypto');
+const { buildDomainInputSchemas } = require('./domain-input-schema-builder');
 
 const DRAFT = 'https://json-schema.org/draft/2020-12/schema';
 const typeId = (name) => `helix://contracts/application-types/${name}/v1`;
@@ -285,30 +286,9 @@ function outputRequirement() {
 }
 
 function productionMaterialManifest() {
-  const claim = object({ episodeKey: text(), seasonClaimDigest: digest(), claimDigest: digest() });
-  const physicalIdentity = object({ mountScopeId: id(), inode: text({ pattern: '^(0|[1-9][0-9]*)$' }),
-    contentHashAlgorithm: { const: 'sha256' }, contentHash: digest() });
-  const origin = object({ intakeDecisionId: id(), offerId: id(), candidatePackageId: id(), packageRevision: positive(),
-    packageDigest: digest(), candidateDeliverySnapshotDigest: digest(), relatedReferenceSetDigest: digest() });
-  const location = object({ locationKind: { type: 'string', enum: ['domain_binding', 'workspace_handle'] }, endpointId: id(),
-    location: text(), rootHandleRef: id(), relativePath: text() }, ['locationKind', 'endpointId']);
-  const member = object({ ordinal: nonNegative(), materialKey: digest(), role: { type: 'string', enum: [
-    'primary_payload', 'structural_dependency', 'metadata_sidecar', 'poster', 'fanart', 'subtitle', 'external_audio', 'chapter'
-  ] }, physicalIdentity, sizeBytes: nonNegative(), location,
-  bindingKind: { type: 'string', enum: ['libra_material_binding', 'workspace_material_reference'] }, bindingRevision: positive(),
-  bindingEvidenceDigest: digest(), originCandidateDeliveryRef: nullable(origin), workspaceReferenceId: nullable(id()),
-  workspaceMaterialHandle: nullable({ type: 'object' }), admittedControlRevision: nullable(positive()),
-  admittedControlProjectionDigest: nullable(digest()), outputRequirementDigest: digest(),
-  episodeClaims: { type: 'array', items: claim, maxItems: 32, uniqueItems: true }, episodeClaimSetDigest: digest(), memberDigest: digest()
-  });
-  return {
-    $schema: DRAFT, $id: typeId('ProductionMaterialManifest'), title: 'ProductionMaterialManifest@1',
-    'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 8 * 1024 * 1024,
-    ...object({ manifestId: digest(), manifestRole: { type: 'string', enum: ['run_input', 'product_delivery'] },
-      manifestRevision: positive(), libraRunId: digest(), scopeKind: { type: 'string', enum: ['single', 'episode_delivery'] },
-      members: { type: 'array', items: member, minItems: 1, maxItems: 1024 }, memberSetDigest: digest(),
-      episodeScopeDigest: digest(), manifestDigest: digest() })
-  };
+  const schema = buildDomainInputSchemas().ProductionMaterialManifest;
+  return { ...schema, $id:typeId('ProductionMaterialManifest'), 'x-helix-ssotRefs':['8.6.21'],
+    'x-helix-maxCanonicalBytes':8 * 1024 * 1024 };
 }
 
 function runExecutionBasis() {

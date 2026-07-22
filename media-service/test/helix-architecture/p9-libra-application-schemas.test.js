@@ -59,8 +59,11 @@ test('Run Lifecycle schemas freeze typed evidence and the bounded recovery polic
 
 test('Run Admission schemas close immutable scope, head zero, and Result continuity', () => {
   const schemas = buildLibraApplicationSchemas();
-  assert.equal(schemas.ProductionMaterialManifest.properties.members.minItems, 1);
-  assert.equal(schemas.ProductionMaterialManifest.properties.members.maxItems, 1024);
+  assert.deepEqual(schemas.ProductionMaterialManifest.oneOf.map((branch) => branch.properties.manifestRole.const),
+    ['run_input', 'product_delivery']);
+  assert.equal(schemas.ProductionMaterialManifest.oneOf[0].properties.members.minItems, 1);
+  assert.equal(schemas.ProductionMaterialManifest.oneOf[0].properties.members.maxItems, 1024);
+  assert.ok(schemas.ProductionMaterialManifest.oneOf[1].properties.members.items.required.includes('committedControlRevision'));
   assert.equal(schemas.ProductionMaterialOutputRequirement.properties.outputRequirementDigest.pattern, '^[a-f0-9]{64}$');
   assert.equal(schemas.LibraRunAdmissionDecision.properties.expectedRunAdmissionHead.properties.headRevision.minimum, 0);
   assert.equal(schemas.LibraRunAdmissionDecision.properties.runExecutionBasis.$ref, typeId('LibraRunExecutionBasis'));

@@ -778,16 +778,6 @@ function libraDeliverablePromotionDecisionSchema() {
     requirementDigest: digest(), materializationState: enumText('workspace_only', 'included_product'), referenceDigest: digest() });
   const artifactManifest = object({ manifestId: id(), manifestRevision: positiveInteger(), libraRunId: id(),
     items: arrayOf(artifactItem, 256), artifactSetDigest: digest(), manifestDigest: digest() });
-  const materialMember = object({ ordinal: nonNegativeInteger(), materialKey: digest(),
-    role: enumText('primary_payload', 'structural_dependency', 'metadata_sidecar', 'poster', 'fanart', 'subtitle', 'external_audio', 'chapter'),
-    physicalIdentity: typeRef('PhysicalMaterialIdentity'), locationKind: enumText('domain_binding', 'workspace_handle'), endpointId: id(),
-    location: nullable(text()), rootHandleRef: nullable(id()), relativePath: nullable(text()),
-    bindingKind: enumText('libra_material_binding', 'workspace_material_reference'), bindingRevision: positiveInteger(),
-    bindingEvidenceDigest: digest(), episodeClaims: arrayOf(episodeClaim, 32), episodeClaimSetDigest: digest(),
-    outputRequirementDigest: digest(), controlOperation: enumText('assert_existing_input', 'acquire_workspace_product'),
-    expectedControlRevision: nullable(nonNegativeInteger()), expectedControlProjectionDigest: nullable(digest()), memberDigest: digest() });
-  const productMaterialManifest = object({ manifestId: id(), manifestRole: { const: 'product_delivery' }, manifestRevision: positiveInteger(),
-    libraRunId: id(), members: { ...arrayOf(materialMember, 1024), minItems: 1 }, memberSetDigest: digest(), episodeScopeDigest: digest(), manifestDigest: digest() });
   const offloadMember = object({ ordinal: nonNegativeInteger(), materialKey: digest(), contextRole: enumText('original_input', 'structural_dependency'),
     physicalIdentity: typeRef('PhysicalMaterialIdentity'), location: text(), bindingRevision: positiveInteger(), bindingEvidenceDigest: digest(),
     admittedControlRevision: positiveInteger(), admittedControlProjectionDigest: digest(),
@@ -821,7 +811,7 @@ function libraDeliverablePromotionDecisionSchema() {
     mediaCastSnapshot: object({ mediaCastFactId: id(), mediaCastFactRevision: positiveInteger(), schemaRef: text(), factValue: typedFactValue,
       factDigest: digest(), evidenceDigest: digest(), relations: arrayOf(object({ relationId: id(), displayName: text(), role: text(), relationDigest: digest() }), 4096),
       relationsDigest: digest() }),
-    productMaterialManifest, offloadContextManifest: offloadManifest,
+    productMaterialManifest:domainRef('ProductionMaterialManifest'), offloadContextManifest: offloadManifest,
     productionProvenance: object({ libraRunId: id(), runExecutionBasisDigest: digest(), acceptanceSpecRecordDigest: digest(),
       workflowPlanRefs: arrayOf(object({ planId: id(), planRevision: positiveInteger(), planDigest: digest() }), 256),
       productVerificationRefs: arrayOf(object({ verificationId: id(), verificationDigest: digest() }), 256),
