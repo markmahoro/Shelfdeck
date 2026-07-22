@@ -22,10 +22,19 @@ function probe(handle,id='probe-1'){return {schemaRef:'helix://contracts/types/M
 function device(){const value={deviceId:'device-1',deviceClass:'nvidia_nvenc',probeRevision:3,capabilitySchemaRef:'platform.compute-device-capability@1',
   capabilityPayload:{supportedVideoCodecs:['hevc'],supportedRateControlModes:['quality_bound']},capabilityDigest:'',enabled:true,state:'ready'};
   value.capabilityDigest=canonicalDigest(value.capabilityPayload);value.snapshotDigest=canonicalDigest(value);return value;}
-function encodeIntent(handle,requirement){const value={intentId:D('encode-intent'),revision:1,schemaRef:'libra.encode-intent@1',libraRunId:'run-1',
-  sourceHandleDigest:canonicalDigest(handle),mediaRequirementDigest:requirement.requirementDigest,outputContainer:'matroska',outputExtension:'mkv',
-  video:{codec:'hevc',rateControlMode:'quality_bound',qualityBound:20,preserveRaster:true,forbidUpscale:true},audio:{mode:'copy'},subtitle:{mode:'copy'},
-  deviceClass:'nvidia_nvenc'};value.intentDigest=canonicalDigest(value);return value;}
+function encodeIntent(handle,requirement){return media.buildEncodeIntent({revision:1,libraRunId:'run-1',sourceHandleDigest:canonicalDigest(handle),
+  mediaRequirementDigest:requirement.requirementDigest,rateControlMode:'quality_bound',qualityBound:20,deviceClass:'nvidia_nvenc'});}
+
+test('compiles exact media requirements and mutually exclusive production intents',()=>{
+  const handle=source(),requirement=media.buildMediaRequirement(spec()),encoded=encodeIntent(handle,requirement),remuxed=media.buildRemuxIntent({revision:1,
+    libraRunId:'run-1',sourceHandleDigest:canonicalDigest(handle),mediaRequirementDigest:requirement.requirementDigest});
+  assert.equal(requirement.schemaRef,'MediaRequirement@1');assert.equal(requirement.schemaVersion,undefined);
+  assert.equal(encoded.schemaRef,'EncodeIntent@1');assert.equal(encoded.video.targetVideoBitrateBps,null);
+  assert.equal(remuxed.schemaRef,'RemuxIntent@1');assert.equal(remuxed.video,undefined);
+  assert.throws(()=>media.buildEncodeIntent({revision:1,libraRunId:'run-1',sourceHandleDigest:canonicalDigest(handle),
+    mediaRequirementDigest:requirement.requirementDigest,rateControlMode:'quality_bound',qualityBound:64,deviceClass:'nvidia_nvenc'}),
+  (error)=>error.code==='P9_MEDIA_RATE_CONTROL');
+});
 
 test('freezes transcode verification from the exact probe, intent, and device snapshot',()=>{
   const handle=source(),requirement=media.buildMediaRequirement(spec()),intent=encodeIntent(handle,requirement),snapshot=device();
@@ -89,4 +98,27 @@ test('coordinator accepts only a receipt bound to the frozen target and a passed
   const forged=createMediaProductionCoordinator({mediaEffectPort:{executeRemux:async()=>({...receipt,outputTargetId:D('wrong')}),executeTranscode:async()=>receipt}});
   await assert.rejects(()=>forged.executeRemux({sourceHandle:handle,productionIntent:{...intent,intentDigest:target.productionIntentDigest},
     outputTarget:target,producingEventId:'event-2'}),(error)=>error.code==='P9_MEDIA_EFFECT_RECEIPT');
+});
+
+test('restart replays one journaled media effect without producing a second Workspace output',async()=>{
+  const handle=source(),requirement=media.buildMediaRequirement(spec()),intent=media.buildRemuxIntent({revision:1,libraRunId:'run-1',
+    sourceHandleDigest:canonicalDigest(handle),mediaRequirementDigest:requirement.requirementDigest}),workspaceId=D('workspace-replay'),
+    target=media.buildWorkspaceMediaOutputTarget({libraRunId:'run-1',executionBasisDigest:D('basis-replay'),workspaceId,
+      expectedWorkspaceRevision:2,expectedWorkspaceStateDigest:D('workspace-state-replay'),rootSnapshot:{snapshotDigest:D('root-replay')},
+      workspaceScopeDigest:D('scope-replay'),targetRelativePath:'products/replay.mkv',productionIntentDigest:intent.intentDigest});
+  const output={schemaRef:'helix://contracts/types/WorkspaceMaterialHandle/v1',schemaVersion:1,handleId:D('replay-output'),workspaceId,
+    ownerDomain:'libra',processId:'run-1',endpointId:'endpoint-1',materialKey:D('replay-material'),physicalIdentity:{mountScopeId:'mount-1',
+      inode:'4',contentHashAlgorithm:'sha256',contentHash:D('replay-bytes')},rootHandleRef:'root-handle',relativePath:target.targetRelativePath,
+    digestAlgorithm:'sha256',digestHex:D('replay-bytes'),sizeBytes:100,referenceRevision:1,accessScope:'workspace_material_read',fenceDigest:D('replay-fence')};
+  const journal=new Map();let physicalWrites=0,crashOnce=true;
+  const effectPort={async executeRemux(value){let receipt=journal.get(value.outputTarget.effectScopeDigest);if(!receipt){physicalWrites+=1;
+    receipt={effectId:'effect-replay',effectReceiptId:'receipt-replay',effectReceiptDigest:D('receipt-replay'),
+      effectScopeDigest:target.effectScopeDigest,outputTargetId:target.targetId,outputTargetDigest:target.targetDigest,workspaceMaterialHandle:output};
+    journal.set(value.outputTarget.effectScopeDigest,receipt);}if(crashOnce){crashOnce=false;throw Object.assign(new Error('post-effect crash'),{code:'FIXTURE_CRASH'});}return receipt;},
+    async executeTranscode(){throw new Error('unexpected');}};
+  const coordinator=createMediaProductionCoordinator({mediaEffectPort:effectPort}),command={sourceHandle:handle,productionIntent:intent,
+    outputTarget:target,producingEventId:'event-replay'};
+  await assert.rejects(()=>coordinator.executeRemux(command),(error)=>error.code==='FIXTURE_CRASH');
+  const recovered=await coordinator.executeRemux(command),replayed=await coordinator.executeRemux(command);
+  assert.equal(physicalWrites,1);assert.deepEqual(recovered,replayed);assert.equal(recovered.outputTargetId,target.targetId);
 });

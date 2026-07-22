@@ -32,7 +32,7 @@ function buildMediaRequirement(spec) {
     fail('P9_MEDIA_SPEC', 'Acceptance Spec is not the immutable accepted contract.');
   const requirements = spec.requirements;
   if (!requirements?.mandatoryMedia || !requirements?.space) fail('P9_MEDIA_SPEC', 'Acceptance Spec lacks media or space requirements.');
-  const result = { requirementId:'', revision:integer(spec.specRevision, 'specRevision', 1), schemaRef:'libra.media-requirement@1', schemaVersion:1,
+  const result = { requirementId:'', revision:integer(spec.specRevision, 'specRevision', 1), schemaRef:'MediaRequirement@1',
     acceptanceSpecId:text(spec.acceptanceSpecId, 'acceptanceSpecId'), acceptanceSpecRecordDigest:digest(spec.recordDigest, 'recordDigest'),
     contentProfile:spec.contentProfile, structureKind:spec.structureKind,
     mandatoryMedia:JSON.parse(canonicalJson(requirements.mandatoryMedia)), space:JSON.parse(canonicalJson(requirements.space)) };
@@ -40,6 +40,33 @@ function buildMediaRequirement(spec) {
     revision:result.revision, mandatoryMedia:result.mandatoryMedia, space:result.space });
   result.requirementDigest = canonicalDigest(result);
   return limited(result, 16 * 1024, 'P9_MEDIA_REQUIREMENT_SIZE');
+}
+
+function finalizeProductionIntent(value) {
+  const semanticIntent = Object.fromEntries(Object.entries(value).filter(([key]) => !['intentId','intentDigest'].includes(key)));
+  value.intentId = canonicalDigest({ schema:'libra.media-production-intent-id@1', semanticIntent });
+  value.intentDigest = canonicalDigest(Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'intentDigest')));
+  return limited(value, 16 * 1024, 'P9_MEDIA_INTENT_SIZE');
+}
+
+function buildEncodeIntent(value) {
+  const mode = value?.rateControlMode;
+  if (!['target_size','quality_bound'].includes(mode)) fail('P9_MEDIA_RATE_CONTROL', 'Encode rate-control mode is invalid.');
+  const targetVideoBitrateBps = mode === 'target_size' ? integer(value.targetVideoBitrateBps, 'targetVideoBitrateBps', 1) : null;
+  const qualityBound = mode === 'quality_bound' ? integer(value.qualityBound, 'qualityBound') : null;
+  if (qualityBound !== null && qualityBound > 63) fail('P9_MEDIA_RATE_CONTROL', 'Encode quality bound is invalid.');
+  return finalizeProductionIntent({ intentId:'', revision:integer(value.revision, 'revision', 1), schemaRef:'EncodeIntent@1',
+    libraRunId:text(value.libraRunId, 'libraRunId'), sourceHandleDigest:digest(value.sourceHandleDigest, 'sourceHandleDigest'),
+    mediaRequirementDigest:digest(value.mediaRequirementDigest, 'mediaRequirementDigest'), outputContainer:'matroska', outputExtension:'mkv',
+    video:{codec:'hevc',rateControlMode:mode,targetVideoBitrateBps,qualityBound,preserveRaster:true,forbidUpscale:true},
+    audio:{mode:'copy'},subtitle:{mode:'copy'},deviceClass:text(value.deviceClass, 'deviceClass') });
+}
+
+function buildRemuxIntent(value) {
+  return finalizeProductionIntent({ intentId:'', revision:integer(value.revision, 'revision', 1), schemaRef:'RemuxIntent@1',
+    libraRunId:text(value.libraRunId, 'libraRunId'), sourceHandleDigest:digest(value.sourceHandleDigest, 'sourceHandleDigest'),
+    mediaRequirementDigest:digest(value.mediaRequirementDigest, 'mediaRequirementDigest'), outputContainer:'matroska', outputExtension:'mkv',
+    streamPolicy:'copy_all_supported' });
 }
 
 function validateDeviceSnapshot(value) {
@@ -221,6 +248,6 @@ function selectProductOutput(value) {
   return limited(result,16*1024,'P9_SELECTED_OUTPUT_SIZE');
 }
 
-module.exports=Object.freeze({MediaProductionContractError,buildMediaRequirement,buildTranscodeInputVerification,
+module.exports=Object.freeze({MediaProductionContractError,buildMediaRequirement,buildEncodeIntent,buildRemuxIntent,buildTranscodeInputVerification,
   buildWorkspaceMediaOutputTarget,buildWorkspaceMediaHandle,buildProductMediaCandidateInput,buildProductMediaVerification,
   buildProductOutputSelectionInput,selectProductOutput});
