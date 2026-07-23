@@ -43,7 +43,7 @@ function createShelfQueryStore(options) {
   } });
   const commandEvidence = createRepositoryDefinition({ repositoryId: 'arca_shelf_command_evidence', owner: 'execution-foundation', schemaManifest: options.schemaManifest, statements: {
     find_receipt_by_id: { kind: 'select-one', tableId: 'fx_command_receipts', columns: ['command_receipt_id','owner_domain','command_contract','caller_scope','idempotency_key','request_digest','target_id','result_ref_json','result_digest'], keyColumns: ['command_receipt_id'] },
-    find_receipt_by_key: { kind: 'select-one', tableId: 'fx_command_receipts', columns: ['command_receipt_id','request_digest'], keyColumns: ['owner_domain','command_contract','caller_scope','idempotency_key'] },
+    find_receipt_by_key: { kind: 'select-one', tableId: 'fx_command_receipts', columns: ['command_receipt_id','request_digest','target_id','result_ref_json','result_digest'], keyColumns: ['owner_domain','command_contract','caller_scope','idempotency_key'] },
   } });
   const deregistrationFoundation = createRepositoryDefinition({ repositoryId: 'arca_shelf_deregistration_foundation', owner: 'execution-foundation', schemaManifest: options.schemaManifest, statements: {
     find_marker: { kind: 'select-one', tableId: 'fx_commit_markers', columns: ['commit_marker','owner_domain','scope_type','scope_id','commit_digest','result_id','result_schema_ref','result_digest','committed_at_ms'], keyColumns: ['commit_marker'] },
@@ -101,7 +101,10 @@ function createShelfQueryStore(options) {
 
   function commitMutation(request, operation, apply) {
     if (!request || typeof request.idempotencyKey !== 'string' || !request.idempotencyKey) fail('IDEMPOTENCY_KEY_REQUIRED', 'Shelf mutation requires idempotencyKey.');
-    const commandContract = 'arca.admin.shelf.' + operation + '@1'; const requestDigest = canonicalDigest({ commandContract, input: request.input });
+    const commandContract = 'arca.admin.shelf.' + operation + '@1';
+    const requestDigest = operation === 'revise_placement'
+      ? placementCommandDigest(commandContract, request.input)
+      : canonicalDigest({ commandContract, input: request.input });
     const keyDigest = canonicalDigest({ commandContract, idempotencyKey: request.idempotencyKey, shelfId: request.input?.shelfId });
     const committed = commandCommit.execute({
       command: { commandReceiptId: 'arca-shelf-receipt-' + keyDigest.slice(0, 32), ownerDomain: 'arca', commandContract, callerScope: 'admin', idempotencyKey: request.idempotencyKey, requestDigest, targetType: 'shelf', targetId: request.input?.shelfId },
@@ -194,7 +197,7 @@ function createShelfQueryStore(options) {
   function previewPlacement(request) {
     if (!request || typeof request.idempotencyKey !== 'string' || !request.idempotencyKey) fail('IDEMPOTENCY_KEY_REQUIRED', 'Shelf Placement preview requires idempotencyKey.');
     const commandContract = 'arca.admin.shelf.placement_preview@1';
-    const requestDigest = canonicalDigest({ commandContract, input: request.input });
+    const requestDigest = placementCommandDigest(commandContract, request.input);
     const keyDigest = canonicalDigest({ commandContract, idempotencyKey: request.idempotencyKey, shelfId: request.input?.shelfId });
     const previewId = 'arca-placement-preview-' + keyDigest.slice(0, 32);
     const committed = commandCommit.execute({
@@ -233,9 +236,14 @@ function createShelfQueryStore(options) {
     return Object.freeze({ ...committed.receipt.resultRef, replayed: committed.replayed });
   }
 
-  function existingPlacementCommand(request) {
-    const commandContract = 'arca.admin.shelf.revise_placement@1';
-    const requestDigest = canonicalDigest({ commandContract, input: request.input });
+  function placementCommandDigest(commandContract, input) {
+    const { targetReadiness: _targetReadiness, ...semanticInput } = input || {};
+    return canonicalDigest({ commandContract, input: semanticInput });
+  }
+
+  function existingPlacementCommand(request, operation = 'revise_placement') {
+    const commandContract = 'arca.admin.shelf.' + operation + '@1';
+    const requestDigest = placementCommandDigest(commandContract, request.input);
     const row = readCommandEvidence((context) => context.repository(commandEvidence.repositoryId).invoke('find_receipt_by_key', {
       owner_domain: 'arca',
       command_contract: commandContract,
@@ -243,7 +251,15 @@ function createShelfQueryStore(options) {
       idempotency_key: request.idempotencyKey,
     }));
     if (row && row.request_digest !== requestDigest) fail('P3_COMMAND_IDEMPOTENCY_CONFLICT', 'Idempotency key already belongs to another Placement request.');
-    return row;
+    if (!row) return null;
+    let resultRef;
+    try { resultRef = JSON.parse(row.result_ref_json); } catch (_error) {
+      fail('P3_COMMAND_RECEIPT_CORRUPT', 'Stored Placement command Result is invalid JSON.');
+    }
+    if (!resultRef || canonicalDigest(resultRef) !== row.result_digest || row.target_id !== request.input?.shelfId) {
+      fail('P3_COMMAND_RECEIPT_CORRUPT', 'Stored Placement command Result digest or target is invalid.');
+    }
+    return Object.freeze({ ...resultRef, replayed: true });
   }
 
   function verifyPlacementPreview(input) {
@@ -549,9 +565,11 @@ function createShelfQueryStore(options) {
     previewPlacement,
     revisePlacement: (request) => {
       const existing = existingPlacementCommand(request);
-      if (!existing) verifyPlacementPreview(request.input);
+      if (existing) return existing;
+      verifyPlacementPreview(request.input);
       return commitMutation(request, 'revise_placement', revisePlacement);
     },
+    preflightPlacementCommand: (request, operation) => existingPlacementCommand(request, operation),
     deregisterShelf,
     listShelves: () => execute((context) => context.repository(repository.repositoryId).invoke('list_shelves').map((row) => readShelf(context.repository(repository.repositoryId), row.shelf_id))),
     getShelf,

@@ -27,7 +27,7 @@ function createArcaShelfAdminApplication(options) {
       throw new ArcaShelfAdminApplicationError('ADMIN_SHELF_COMMAND_REJECTED', 'Shelf请求未通过Arca Owner-local合同校验。', { reasonCode: error.code || 'ARCA_SHELF_CONTRACT_REJECTED' });
     }
   }
-  function placementRequest(shelfId, body) {
+  function placementEnvelope(shelfId, body) {
     if (!body || typeof body !== 'object' || Array.isArray(body) ||
         body.shelfId !== shelfId) {
       throw new ArcaShelfAdminApplicationError(
@@ -37,12 +37,22 @@ function createArcaShelfAdminApplication(options) {
       );
     }
     const { idempotencyKey, ...input } = body;
+    if (typeof idempotencyKey !== 'string' || idempotencyKey.length === 0) {
+      throw new ArcaShelfAdminApplicationError(
+        'IDEMPOTENCY_KEY_REQUIRED',
+        'Shelf Placement操作必须提供幂等键。',
+      );
+    }
+    return { idempotencyKey, input };
+  }
+  function placementRequest(envelope, shelfId) {
+    const input = envelope.input;
     const observation = targetFolderProbe.inspect({
       shelfId,
       target: input.target,
     });
     return {
-      idempotencyKey,
+      idempotencyKey: envelope.idempotencyKey,
       input: {
         ...input,
         target: observation.target,
@@ -74,10 +84,20 @@ function createArcaShelfAdminApplication(options) {
       return invoke(() => store.reviseStandard({ idempotencyKey, input }));
     },
     revisePlacement(shelfId, body) {
-      return invoke(() => store.revisePlacement(placementRequest(shelfId, body)));
+      return invoke(() => {
+        const envelope = placementEnvelope(shelfId, body);
+        const replay = store.preflightPlacementCommand(envelope, 'revise_placement');
+        if (replay) return replay;
+        return store.revisePlacement(placementRequest(envelope, shelfId));
+      });
     },
     previewPlacement(shelfId, body) {
-      return invoke(() => store.previewPlacement(placementRequest(shelfId, body)));
+      return invoke(() => {
+        const envelope = placementEnvelope(shelfId, body);
+        const replay = store.preflightPlacementCommand(envelope, 'placement_preview');
+        if (replay) return replay;
+        return store.previewPlacement(placementRequest(envelope, shelfId));
+      });
     },
     deregisterShelf(shelfId, body) {
       if (!body || typeof body !== 'object' || Array.isArray(body) || body.shelfId !== shelfId) throw new ArcaShelfAdminApplicationError('ADMIN_SHELF_TARGET_MISMATCH', 'URL中的Shelf与请求体目标必须一致。', { pathShelfId: shelfId, bodyShelfId: body?.shelfId });

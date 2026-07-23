@@ -99,6 +99,7 @@ test('formal server dependency graph reaches only the clean Helix root', () => {
       relative === 'src/server.js' ||
         relative === 'src/clean-service-host.js' ||
         relative === 'src/clean-shelf-target-folder-probe.js' ||
+        relative === 'src/clean-field-observation-enumerator.js' ||
         relative === 'src/admin-credential-secret-store.js' ||
         relative.startsWith('src/helix/'),
       `unexpected runtime dependency: ${relative}`,
@@ -586,6 +587,7 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
     });
     const placementReplay = await host.inject({ method: 'PATCH', url: '/v1/admin/shelves/shelf-http-1/placement', headers: { cookie }, payload: placementCommand });
     assert.equal(placementReplay.statusCode, 200);
+    assert.equal(placementReplay.json().replayed, true);
     const placementConflict = await host.inject({ method: 'PATCH', url: '/v1/admin/shelves/shelf-http-1/placement', headers: { cookie }, payload: { ...placementCommand, placement: { ...placementCommand.placement, value: placementValue } } });
     assert.equal(placementConflict.statusCode, 409);
     const invalidPlacement = await host.inject({ method: 'PATCH', url: '/v1/admin/shelves/shelf-http-1/placement', headers: { cookie }, payload: { ...placementCommand, idempotencyKey: 'placement-invalid', placement: { ...placementCommand.placement, digest: '0'.repeat(64) } } });
