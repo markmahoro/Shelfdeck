@@ -66,8 +66,10 @@ its target.
 
 ## Batch 1 implementation progress
 
-`GET /v1/admin/material-fields`, `POST /v1/admin/material-fields`, and
-`GET /v1/admin/material-fields/:fieldId` are now real Product routes.  Their
+`GET /v1/admin/material-fields`, `POST /v1/admin/material-fields`,
+`GET /v1/admin/material-fields/:fieldId`, the current extraction-policy read,
+Access revision, Policy revision, and non-destructive Field deregistration are
+now real Product routes.  Their
 path is `Admin HTTP → ProcurementAdminFacade → Procurement owner-local
 construction adapter → ProcurementCommand/QueryFacade → MaterialFieldRepository
 transaction`; Composition only passes clean construction dependencies and never
@@ -81,6 +83,8 @@ obtains the Repository/Store.
 - Recovery: the Field remains readable after clean host restart using the same
   database and Secret Root.
 
-Current route status: **7 real**, **6 intentional Worker 404**, **101 remaining
-product routes fail closed with 503**.  This is a progress count only; the exact
+Current route status: **11 real**, **6 intentional Worker 404**, **97 remaining
+product routes fail closed with 503**.  Field observation and failed-preparation
+retry remain fail-closed until their Supporting Work/Capability journey is
+wired; they are not claimed complete.  This is a progress count only; the exact
 construction batch assignment remains the 4/6/59/7/38 matrix above.

@@ -37,6 +37,14 @@ function commandPayload(body) {
   return payload;
 }
 
+function invokeCommand(operation) {
+  try {
+    return operation();
+  } catch (error) {
+    rejected(error);
+  }
+}
+
 function createProcurementAdminApplication(options) {
   if (!options?.schemaManifest || !options.unitOfWork) {
     throw new TypeError('Procurement Admin application requires clean persistence dependencies.');
@@ -44,7 +52,11 @@ function createProcurementAdminApplication(options) {
   const store = createMaterialFieldStore(options);
   const commands = procurementPublic.ProcurementCommandFacade({
     registerMaterialField: (input) => store.registerMaterialField(input),
-    updateMaterialField: unavailable('updateMaterialField'),
+    updateMaterialField: (input) => {
+      if (input?.operation !== 'revise_access') return unavailable('updateMaterialField')();
+      const { operation, ...revision } = input;
+      return store.reviseFieldAccess(revision);
+    },
     publishExtractionPolicy: (input) => store.publishExtractionPolicy(input),
     requestFieldObservation: unavailable('requestFieldObservation'),
     retryFailedPreparation: unavailable('retryFailedPreparation'),
@@ -68,12 +80,27 @@ function createProcurementAdminApplication(options) {
       }
       return Object.freeze({ materialField });
     },
-    registerMaterialField(body) {
-      try {
-        return Object.freeze({ materialField: commands.registerMaterialField(commandPayload(body)) });
-      } catch (error) {
-        rejected(error);
+    getExtractionPolicy(fieldId) {
+      const field = queries.getMaterialField({ fieldId });
+      if (!field) {
+        throw new ProcurementAdminApplicationError('ADMIN_FIELD_NOT_FOUND', 'Material Field不存在。', { fieldId });
       }
+      return Object.freeze({ extractionPolicy: queries.getExtractionPolicy({
+        extractionPolicyId: field.extractionPolicyId,
+        revision: field.extractionPolicyRevision,
+      }) });
+    },
+    registerMaterialField(body) {
+      return Object.freeze({ materialField: invokeCommand(() => commands.registerMaterialField(commandPayload(body))) });
+    },
+    reviseMaterialFieldAccess(body) {
+      return Object.freeze({ materialField: invokeCommand(() => commands.updateMaterialField(commandPayload(body))) });
+    },
+    publishExtractionPolicy(body) {
+      return Object.freeze({ materialField: invokeCommand(() => commands.publishExtractionPolicy(commandPayload(body))) });
+    },
+    deregisterMaterialField(body) {
+      return Object.freeze({ materialField: invokeCommand(() => commands.deregisterMaterialField(commandPayload(body))) });
     },
   });
 }
