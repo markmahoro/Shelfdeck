@@ -420,26 +420,25 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
     } });
     assert.equal(rejected.statusCode, 400);
     assert.equal(rejected.json().error.code, 'ADMIN_SHELF_COMMAND_REJECTED');
-    const standardValue2 = { ...standardValue, profileRuleSets: [{ ...standardValue.profileRuleSets[0], quality: { minimumHeight: 1080 } }] };
     const standardCommand = {
       idempotencyKey: 'shelf-http-standard-2', shelfId: 'shelf-http-1', expectedStandardRevision: 1, expectedRoutingProjectionRevision: 1,
-      standard: { ...body.standard, value: standardValue2, digest: canonicalDigest(standardValue2) },
+      ruleTemplateId: 'system-beta-recommended', expectedTemplateRevision: 1,
     };
     const standardRevision = await host.inject({ method: 'POST', url: '/v1/admin/shelves/shelf-http-1/actions/bind-template', headers: { cookie }, payload: standardCommand });
     assert.equal(standardRevision.statusCode, 200);
-    assert.equal(standardRevision.json().shelf.currentStandardRevision, 2);
-    assert.equal(standardRevision.json().shelf.routingProjection.revision, 2);
+    assert.equal(standardRevision.json().binding.standard.standardRevision, 2);
+    assert.equal(standardRevision.json().binding.routingProjection.revision, 2);
     const standardReplay = await host.inject({ method: 'POST', url: '/v1/admin/shelves/shelf-http-1/actions/bind-template', headers: { cookie }, payload: standardCommand });
     assert.equal(standardReplay.statusCode, 200);
-    assert.equal(standardReplay.json().shelf.standard.digest, canonicalDigest(standardValue2));
+    assert.equal(standardReplay.json().binding.standard.ruleTemplateId, 'system-beta-recommended');
     const standardMismatch = await host.inject({ method: 'POST', url: '/v1/admin/shelves/shelf-http-1/actions/bind-template', headers: { cookie }, payload: { ...standardCommand, idempotencyKey: 'standard-target-mismatch', shelfId: 'other-shelf' } });
     assert.equal(standardMismatch.statusCode, 400);
     assert.equal(standardMismatch.json().error.code, 'ADMIN_SHELF_TARGET_MISMATCH');
     const standardStale = await host.inject({ method: 'POST', url: '/v1/admin/shelves/shelf-http-1/actions/bind-template', headers: { cookie }, payload: { ...standardCommand, idempotencyKey: 'standard-stale' } });
-    assert.equal(standardStale.statusCode, 400);
+    assert.equal(standardStale.statusCode, 409);
     const renameCommand = {
       idempotencyKey: 'shelf-http-rename-1', shelfId: 'shelf-http-1',
-      expectedUpdatedAtMs: standardRevision.json().shelf.updatedAtMs, name: 'Movie Library',
+      expectedUpdatedAtMs: (await host.inject({ method: 'GET', url: '/v1/admin/shelves/shelf-http-1', headers: { cookie } })).json().shelf.updatedAtMs, name: 'Movie Library',
     };
     const renameUnauthenticated = await host.inject({ method: 'PATCH', url: '/v1/admin/shelves/shelf-http-1', payload: renameCommand });
     assert.equal(renameUnauthenticated.statusCode, 401);
@@ -527,7 +526,10 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
     const exact = await host.inject({ method: 'GET', url: '/v1/admin/shelves/shelf-http-1', headers: { cookie } });
     assert.equal(exact.statusCode, 200);
     assert.equal(exact.json().shelf.name, 'Movie Library');
-    assert.equal(exact.json().shelf.standard.digest, canonicalDigest(standardValue2));
+    assert.equal(
+      exact.json().shelf.standard.digest,
+      standardRevision.json().binding.standard.standardDigest,
+    );
     assert.equal(exact.json().shelf.placement.digest, canonicalDigest(placementValue2));
     const currentStandard = await host.inject({ method: 'GET', url: '/v1/admin/shelves/shelf-http-1/standard', headers: { cookie } });
     assert.equal(currentStandard.statusCode, 200);

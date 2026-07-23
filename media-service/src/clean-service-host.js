@@ -10,7 +10,10 @@ const routeRegistry = require('./helix/composition/admin-route-registry');
 const { createHelixApplication } = require('./helix/composition/createHelixApplication');
 const { createCleanFacades } = require('./helix/composition/create-clean-facades');
 const { createProcurementAdminApplication } = require('./helix/domains/procurement/public/admin-application');
-const { createArcaShelfAdminApplication } = require('./helix/domains/arca/public/admin-application');
+const {
+  createArcaRuleTemplateAdminApplication,
+  createArcaShelfAdminApplication,
+} = require('./helix/domains/arca/public/admin-application');
 const { createShelfRoutingTargetProjection } = require('./helix/domains/arca/public/routing-target-projection');
 const { createLibraRoutingAdminApplication } = require('./helix/domains/libra/public/admin-application');
 const { createSessionTokenService } = require('./helix/platform/public/session-token-service');
@@ -86,6 +89,16 @@ function errorResponse(error, correlationId) {
   else if (error.code === 'ADMIN_SHELF_NOT_FOUND') status = 404;
   else if (error.code === 'ADMIN_SHELF_COMMAND_REJECTED' || error.code === 'ADMIN_SHELF_TARGET_MISMATCH') status = 400;
   else if (error.code === 'ADMIN_SHELF_IDEMPOTENCY_CONFLICT') status = 409;
+  else if (error.code === 'ADMIN_RULE_TEMPLATE_NOT_FOUND') status = 404;
+  else if (
+    error.code === 'ADMIN_RULE_TEMPLATE_COMMAND_REJECTED' ||
+    error.code === 'ADMIN_RULE_TEMPLATE_TARGET_MISMATCH'
+  ) status = 400;
+  else if (
+    error.code === 'ADMIN_RULE_TEMPLATE_CONFLICT' ||
+    error.code === 'ADMIN_RULE_TEMPLATE_IDEMPOTENCY_CONFLICT' ||
+    error.code === 'SYSTEM_TEMPLATE_IMMUTABLE'
+  ) status = 409;
   else if (error.code === 'ADMIN_ROUTING_COMMAND_REJECTED' || error.code === 'ADMIN_ROUTING_TARGET_MISMATCH') status = 400;
   else if (error.code === 'ADMIN_ROUTING_IDEMPOTENCY_CONFLICT') status = 409;
   else if (error.code === 'ADMIN_FIELD_COMMAND_REJECTED' || error.code === 'ADMIN_FIELD_TARGET_MISMATCH') status = 400;
@@ -218,6 +231,9 @@ async function createCleanServiceHost(options) {
     readActiveCredential: runtime.readActiveCredential,
   });
   const arcaShelfAdmin = createArcaShelfAdminApplication(constructed.applicationDependencies);
+  const arcaRuleTemplateAdmin = createArcaRuleTemplateAdminApplication(
+    constructed.applicationDependencies,
+  );
   const arcaRoutingTargets = createShelfRoutingTargetProjection(constructed.applicationDependencies);
   const libraRoutingAdmin = createLibraRoutingAdminApplication({
     ...constructed.applicationDependencies,
@@ -229,6 +245,7 @@ async function createCleanServiceHost(options) {
     credentialMetadata: runtime.readActiveCredential,
     procurementAdmin: createProcurementAdminApplication(constructed.applicationDependencies),
     arcaShelfAdmin,
+    arcaRuleTemplateAdmin,
     libraRoutingAdmin,
     nonce: crypto.randomUUID,
   });

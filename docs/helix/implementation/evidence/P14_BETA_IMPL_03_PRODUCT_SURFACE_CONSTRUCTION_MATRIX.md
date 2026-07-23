@@ -121,6 +121,43 @@ Shelf Entry的Inventory/Material Control release assembler，遇到
 `P14_SHELF_DEREGISTRATION_NON_EMPTY_UNWIRED` fail closed；本checkpoint
 不声称非空Shelf注销已完成，也不伪造跨Store读取或空Control释放记录。
 
+### Arca Rule Template与automatic-follow
+
+114-route registry中的9条Rule Template route及既有Shelf bind route已经接通
+真实Arca Owner-local application：
+
+- Template list/exact-read/revision history；
+- system/user Template copy；
+- durable user Draft read/CAS revision；
+- impact preview、publish与archive；
+- Shelf bind及Template新revision发布后的automatic-follow。
+
+Clean init在同一Arca aggregate transaction冻结唯一
+`system-beta-recommended`系统Template revision 1，包含Movie、Series、JAV、
+Western Adult四组UTF-8稳定排序的Profile Rule Set，以及SSOT确认的
+No-rating、1–5星、HEVC、stream file、4K、高质量主音轨、Matroska和
+空间上限。系统Template无Draft且所有编辑/发布/归档命令稳定返回
+`SYSTEM_TEMPLATE_IMMUTABLE`；copy原子建立新的User Template、published
+revision和可恢复Draft。
+
+Draft更新验证closed Outcome vocabulary、profile/draft/rules digest和
+`draftRevision + basePublishedRevision` CAS。Preview以durable Command
+Receipt冻结Template/Draft head及全部当前绑定Shelf head set；当前尚无正式
+Libra未On-deck Subject impact public projection，因此对应数量显式为`null`
+并带`libra_subject_impact_projection_unavailable`，不跨Store补读或伪造0。
+Publish消费同一preview/draft digest，在
+`helix.transaction.rule-template-publish`边界内原子建立immutable Template
+revision、切换Template head、为所有active bound Shelf建立完整
+`ShelfStandard` revision、切换Shelf/routing projection head并发布Outbox。
+任一Shelf CAS/insert失败时Template/Shelf/Receipt/marker/Outbox全回滚。
+
+真实Admin HTTP fixture覆盖auth、URL/body target、closed shape、stable ID、
+rules/profile digest、system immutability、copy/draft/preview/publish/archive、
+idempotent replay/conflict、history、restart及故障回滚。源码反例证明Arca
+Rule Template实现不导入Libra package，Composition只装配public application
+port，不持有Repository或Store。绑定中的User Template不能archive；未绑定
+User Template可非破坏性终结aggregate。
+
 ### Libra Field Routing Policy
 
 以下 exact 4 条 Batch 1 Routing route 已经接通真实 Libra Owner-local
@@ -143,9 +180,9 @@ stale head、idempotency conflict、restart/history，以及在 target insert
 处注入故障后的 revision/head/receipt/outbox 全部回滚均由 public HTTP
 fixture 覆盖。
 
-Current route status: **25 real**, **6 intentional Worker 404**, **83 remaining
+Current route status: **34 real**, **6 intentional Worker 404**, **74 remaining
 product routes fail closed with 503**.  Field observation and failed-preparation
 retry remain fail-closed until their Supporting Work/Capability journey is
-wired；非空Shelf deregistration与全部Rule Template routes仍未宣称完成。
+wired；非空Shelf deregistration仍未宣称完成。
 This is a progress count only; the exact construction batch
 assignment remains the 4/6/59/7/38 matrix above.

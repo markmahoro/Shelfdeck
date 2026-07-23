@@ -101,11 +101,43 @@ function createCleanFacades(options) {
     facades.ArcaShelfAdminFacade.get_shelves_shelfid = async (input) => ({ body: options.arcaShelfAdmin.getShelf(input.params.shelfId) });
     facades.ArcaShelfAdminFacade.patch_shelves_shelfid = async (input) => ({ body: options.arcaShelfAdmin.renameShelf(input.params.shelfId, input.body) });
     facades.ArcaShelfAdminFacade.get_shelves_shelfid_standard = async (input) => ({ body: options.arcaShelfAdmin.getStandard(input.params.shelfId) });
-    facades.ArcaShelfAdminFacade.post_shelves_shelfid_actions_bind_template = async (input) => ({ body: options.arcaShelfAdmin.reviseStandard(input.params.shelfId, input.body) });
     facades.ArcaShelfAdminFacade.get_shelves_shelfid_placement = async (input) => ({ body: options.arcaShelfAdmin.getPlacement(input.params.shelfId) });
     facades.ArcaShelfAdminFacade.patch_shelves_shelfid_placement = async (input) => ({ body: options.arcaShelfAdmin.revisePlacement(input.params.shelfId, input.body) });
     facades.ArcaShelfAdminFacade.post_shelves_shelfid_placement_actions_preview = async (input) => ({ body: options.arcaShelfAdmin.previewPlacement(input.params.shelfId, input.body) });
     facades.ArcaShelfAdminFacade.post_shelves_shelfid_actions_deregister = async (input) => ({ body: options.arcaShelfAdmin.deregisterShelf(input.params.shelfId, input.body) });
+  }
+  if (options.arcaRuleTemplateAdmin) {
+    facades.ArcaShelfAdminFacade.post_shelves_shelfid_actions_bind_template = async (input) => ({
+      body: options.arcaRuleTemplateAdmin.bindShelf(input.params.shelfId, input.body),
+    });
+    facades.ArcaShelfAdminFacade.get_rule_templates = async () => ({
+      body: options.arcaRuleTemplateAdmin.listTemplates(),
+    });
+    facades.ArcaShelfAdminFacade.get_rule_templates_templateid = async (input) => ({
+      body: options.arcaRuleTemplateAdmin.getTemplate(input.params.templateId),
+    });
+    facades.ArcaShelfAdminFacade.post_rule_templates_templateid_actions_copy = async (input) => ({
+      status: 201,
+      body: options.arcaRuleTemplateAdmin.copyTemplate(input.params.templateId, input.body),
+    });
+    facades.ArcaShelfAdminFacade.get_rule_templates_templateid_draft = async (input) => ({
+      body: options.arcaRuleTemplateAdmin.getDraft(input.params.templateId),
+    });
+    facades.ArcaShelfAdminFacade.patch_rule_templates_templateid_draft = async (input) => ({
+      body: options.arcaRuleTemplateAdmin.reviseDraft(input.params.templateId, input.body),
+    });
+    facades.ArcaShelfAdminFacade.post_rule_templates_templateid_actions_preview = async (input) => ({
+      body: options.arcaRuleTemplateAdmin.previewTemplate(input.params.templateId, input.body),
+    });
+    facades.ArcaShelfAdminFacade.post_rule_templates_templateid_actions_publish = async (input) => ({
+      body: options.arcaRuleTemplateAdmin.publishTemplate(input.params.templateId, input.body),
+    });
+    facades.ArcaShelfAdminFacade.post_rule_templates_templateid_actions_archive = async (input) => ({
+      body: options.arcaRuleTemplateAdmin.archiveTemplate(input.params.templateId, input.body),
+    });
+    facades.ArcaShelfAdminFacade.get_rule_templates_templateid_revisions = async (input) => ({
+      body: options.arcaRuleTemplateAdmin.history(input.params.templateId),
+    });
   }
   if (options.libraRoutingAdmin) {
     facades.LibraFormationFacade.get_routing_material_fields_fieldid = async (input) => ({ body: options.libraRoutingAdmin.get(input.params.fieldId) });
