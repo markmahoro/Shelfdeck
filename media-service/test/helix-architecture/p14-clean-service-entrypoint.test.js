@@ -9,6 +9,7 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 const { initializeCleanData } = require('../../scripts/helix-operational-safety');
+const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const {
   createCleanServiceHost,
 } = require('../../src/clean-service-host');
@@ -228,6 +229,57 @@ test('clean host restarts with the same credential and fails closed on readiness
   );
 });
 
+test('Procurement Material Field registration is a real authenticated Owner-local HTTP journey', async () => {
+  const value = fixture();
+  const policyValue = {
+    includedDirectories: ['incoming'], excludedDirectories: [], allowedExtensions: ['.mkv'],
+    minimumSizeBytes: 0, excludedMaterialKeys: [],
+  };
+  const policyBasis = {
+    extractionPolicyId: 'policy-http-1', revision: 1, ...policyValue,
+  };
+  const accessBasis = {
+    fieldId: 'field-http-1', revision: 1, endpointId: 'endpoint-http-1', rootLocation: 'incoming',
+    mountScopeId: 'mount-http-1', mountScopeRevision: 1, accessSchemaRef: 'helix://fixtures/http-access/v1',
+  };
+  const body = {
+    idempotencyKey: 'field-http-registration-1', fieldId: 'field-http-1', name: 'Incoming HTTP',
+    policy: {
+      extractionPolicyId: policyBasis.extractionPolicyId, revision: policyBasis.revision,
+      policySchemaRef: 'helix://contracts/domain-types/ExtractionPolicy/v1', policy: policyValue,
+      policyDigest: canonicalDigest(policyBasis),
+    },
+    access: { ...accessBasis, accessDigest: canonicalDigest(accessBasis) },
+  };
+  const host = await createCleanServiceHost({ dataDir: value.dataDir, adminDistDir: value.adminDistDir, secretRoot });
+  try {
+    const unauthenticated = await host.inject({ method: 'POST', url: '/v1/admin/material-fields', payload: body });
+    assert.equal(unauthenticated.statusCode, 401);
+    const exchange = await host.inject({ method: 'POST', url: '/v1/admin/session', headers: { 'x-api-key': value.initialized.adminApiKey } });
+    const cookie = exchange.headers['set-cookie'];
+    const created = await host.inject({ method: 'POST', url: '/v1/admin/material-fields', headers: { cookie }, payload: body });
+    assert.equal(created.statusCode, 201);
+    assert.equal(created.json().materialField.fieldId, 'field-http-1');
+    const listed = await host.inject({ method: 'GET', url: '/v1/admin/material-fields', headers: { cookie } });
+    assert.equal(listed.statusCode, 200);
+    assert.deepEqual(listed.json().items.map((item) => item.fieldId), ['field-http-1']);
+    const duplicate = await host.inject({ method: 'POST', url: '/v1/admin/material-fields', headers: { cookie }, payload: body });
+    assert.equal(duplicate.statusCode, 400);
+    assert.equal(duplicate.json().error.code, 'ADMIN_FIELD_COMMAND_REJECTED');
+  } finally {
+    await host.close();
+  }
+  const restarted = await createCleanServiceHost({ dataDir: value.dataDir, adminDistDir: value.adminDistDir, secretRoot });
+  try {
+    const exchange = await restarted.inject({ method: 'POST', url: '/v1/admin/session', headers: { 'x-api-key': value.initialized.adminApiKey } });
+    const response = await restarted.inject({ method: 'GET', url: '/v1/admin/material-fields/field-http-1', headers: { cookie: exchange.headers['set-cookie'] } });
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json().materialField.access.endpointId, 'endpoint-http-1');
+  } finally {
+    await restarted.close();
+  }
+});
+
 test('formal node entrypoint starts, authenticates and shuts down through public HTTP', async () => {
   const value = fixture();
   const port = await reservePort();
@@ -266,6 +318,30 @@ test('formal node entrypoint starts, authenticates and shuts down through public
     });
     assert.equal(security.status, 200);
     assert.equal((await security.json()).credentialConfigured, true);
+    const policyValue = {
+      includedDirectories: ['formal-http'], excludedDirectories: [], allowedExtensions: ['.mkv'],
+      minimumSizeBytes: 0, excludedMaterialKeys: [],
+    };
+    const policyBasis = { extractionPolicyId: 'policy-formal-http-1', revision: 1, ...policyValue };
+    const accessBasis = {
+      fieldId: 'field-formal-http-1', revision: 1, endpointId: 'endpoint-formal-http-1', rootLocation: 'formal-http',
+      mountScopeId: 'mount-formal-http-1', mountScopeRevision: 1, accessSchemaRef: 'helix://fixtures/formal-http-access/v1',
+    };
+    const fieldCreate = await fetch(`${base}/v1/admin/material-fields`, {
+      method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({
+        idempotencyKey: 'formal-http-field-1', fieldId: accessBasis.fieldId, name: 'Formal HTTP Field',
+        policy: {
+          extractionPolicyId: policyBasis.extractionPolicyId, revision: 1,
+          policySchemaRef: 'helix://contracts/domain-types/ExtractionPolicy/v1', policy: policyValue,
+          policyDigest: canonicalDigest(policyBasis),
+        },
+        access: { ...accessBasis, accessDigest: canonicalDigest(accessBasis) },
+      }),
+    });
+    assert.equal(fieldCreate.status, 201);
+    const fields = await fetch(`${base}/v1/admin/material-fields`, { headers: { cookie } });
+    assert.equal(fields.status, 200);
+    assert.deepEqual((await fields.json()).items.map((item) => item.fieldId), ['field-formal-http-1']);
   } finally {
     if (child.exitCode === null) child.kill('SIGTERM');
     await Promise.race([

@@ -71,6 +71,18 @@ function createCleanFacades(options) {
       },
     };
   };
+  if (options.procurementAdmin) {
+    facades.ProcurementAdminFacade.get_material_fields = async () => ({
+      body: options.procurementAdmin.listMaterialFields(),
+    });
+    facades.ProcurementAdminFacade.get_material_fields_fieldid = async (input) => ({
+      body: options.procurementAdmin.getMaterialField(input.params.fieldId),
+    });
+    facades.ProcurementAdminFacade.post_material_fields = async (input) => ({
+      status: 201,
+      body: options.procurementAdmin.registerMaterialField(input.body),
+    });
+  }
 
   return Object.freeze(Object.fromEntries(
     Object.entries(facades).map(([name, methods]) => [name, Object.freeze(methods)]),

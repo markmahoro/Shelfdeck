@@ -9,6 +9,7 @@ const fastifyStatic = require('@fastify/static');
 const routeRegistry = require('./helix/composition/admin-route-registry');
 const { createHelixApplication } = require('./helix/composition/createHelixApplication');
 const { createCleanFacades } = require('./helix/composition/create-clean-facades');
+const { createProcurementAdminApplication } = require('./helix/domains/procurement/public/admin-application');
 const { createSessionTokenService } = require('./helix/platform/public/session-token-service');
 const {
   createAdminCredentialRuntime,
@@ -78,6 +79,8 @@ function clearSessionCookie() {
 function errorResponse(error, correlationId) {
   let status = 500;
   if (AUTH_ERROR_CODES.has(error.code)) status = 401;
+  else if (error.code === 'ADMIN_FIELD_NOT_FOUND') status = 404;
+  else if (error.code === 'ADMIN_FIELD_COMMAND_REJECTED') status = 400;
   else if (
     error.code === 'IDEMPOTENCY_KEY_REQUIRED' ||
     error.code === 'GET_SIDE_EFFECT_INPUT_REJECTED' ||
@@ -155,6 +158,7 @@ function createRuntime(options) {
     });
     return Object.freeze({
       runtime,
+      applicationDependencies: Object.freeze({ schemaManifest, unitOfWork }),
       findings: Object.freeze([]),
       close: () => kernel.close(),
     });
@@ -208,6 +212,7 @@ async function createCleanServiceHost(options) {
     sessionTokens,
     readiness,
     credentialMetadata: runtime.readActiveCredential,
+    procurementAdmin: createProcurementAdminApplication(constructed.applicationDependencies),
     nonce: crypto.randomUUID,
   });
   const application = createHelixApplication({ facades, sessionTokens });

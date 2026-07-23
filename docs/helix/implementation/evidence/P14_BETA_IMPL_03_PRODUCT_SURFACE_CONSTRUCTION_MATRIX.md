@@ -63,3 +63,24 @@ its target.
 - The six `PlatformAdminFacade` Worker routes remain explicit `404
   REMOTE_WORKER_NOT_AVAILABLE_IN_BETA`.  They are not work items and must never
   acquire a Worker probe, configuration dependency, or fallback.
+
+## Batch 1 implementation progress
+
+`GET /v1/admin/material-fields`, `POST /v1/admin/material-fields`, and
+`GET /v1/admin/material-fields/:fieldId` are now real Product routes.  Their
+path is `Admin HTTP → ProcurementAdminFacade → Procurement owner-local
+construction adapter → ProcurementCommand/QueryFacade → MaterialFieldRepository
+transaction`; Composition only passes clean construction dependencies and never
+obtains the Repository/Store.
+
+- Positive: authenticated create → list → exact read, including the full Policy
+  and Field Access digest basis.
+- Negative: missing Admin session is `401`; duplicate Field is an Owner-local
+  `400 ADMIN_FIELD_COMMAND_REJECTED`; malformed input cannot be admitted by the
+  closed MaterialField contract.
+- Recovery: the Field remains readable after clean host restart using the same
+  database and Secret Root.
+
+Current route status: **7 real**, **6 intentional Worker 404**, **101 remaining
+product routes fail closed with 503**.  This is a progress count only; the exact
+construction batch assignment remains the 4/6/59/7/38 matrix above.
