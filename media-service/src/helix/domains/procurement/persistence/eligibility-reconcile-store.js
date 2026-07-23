@@ -34,9 +34,12 @@ function definition(schemaManifest) {
   } });
 }
 function relativeLocation(root, location) {
-  const prefix = root.endsWith('/') ? root : root + '/';
-  if (!location.startsWith(prefix) || location.length === prefix.length) return null;
-  return location.slice(prefix.length);
+  const normalizedRoot = root.replace(/\\/g, '/').replace(/\/+$/, '');
+  const normalizedLocation = location.replace(/\\/g, '/');
+  const prefix = normalizedRoot + '/';
+  if (!normalizedLocation.startsWith(prefix) ||
+      normalizedLocation.length === prefix.length) return null;
+  return normalizedLocation.slice(prefix.length);
 }
 function extension(location) { const name = location.slice(location.lastIndexOf('/') + 1); const index = name.lastIndexOf('.');
   return index < 0 ? '' : name.slice(index).replace(/[A-Z]/g, (character) => character.toLowerCase()); }

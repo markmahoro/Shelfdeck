@@ -15,10 +15,51 @@ const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const {
   createCleanServiceHost,
 } = require('../../src/clean-service-host');
+const {
+  createWorkAdmission,
+} = require('../../src/helix/foundation/execution/work-admission');
+const {
+  createSynchronousDomainWork,
+} = require('../../src/helix/foundation/execution/synchronous-domain-work');
+const {
+  createMaterialControlProjectionPort,
+} = require('../../src/helix/foundation/persistence/material-control');
+const {
+  openSqliteKernel,
+} = require('../../src/helix/foundation/persistence/sqlite-kernel');
+const {
+  createSqliteUnitOfWork,
+} = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
+const {
+  evaluateExtractionEligibility,
+} = require('../../src/helix/domains/procurement/model/extraction-eligibility');
+const {
+  createDefaultTriageRuleRegistry,
+  createProcurementRunExecutionBasis,
+} = require('../../src/helix/domains/procurement/model/procurement-run-contracts');
+const {
+  createEligibilityReconcileStore,
+} = require('../../src/helix/domains/procurement/persistence/eligibility-reconcile-store');
+const {
+  createProcurementRunAdmissionStore,
+} = require('../../src/helix/domains/procurement/persistence/procurement-run-admission-store');
+const {
+  createProcurementRunSealStore,
+} = require('../../src/helix/domains/procurement/persistence/procurement-run-seal-store');
+const cleanSchemaManifest = require(
+  '../../src/helix/foundation/persistence/generated/clean-schema.manifest.json'
+);
 
 const serviceRoot = path.resolve(__dirname, '../..');
 const secretRoot = 'p14-clean-entrypoint-secret-root-0123456789abcdef';
 const roots = [];
+const cleanSchemaDdl = fs.readFileSync(
+  path.join(
+    serviceRoot,
+    'src/helix/foundation/persistence/generated/clean-schema.sql',
+  ),
+  'utf8',
+);
 const validateDeregistrationReceipt = new Ajv2020({ allErrors: true, strict: false }).compile(
   require('../../src/helix/contracts/types/DeregistrationReceipt/v1/schema.json'),
 );
@@ -642,6 +683,866 @@ test('explicit Field Observation scans disposable files read-only and resumes fr
     assert.deepEqual(fs.readFileSync(file), before[index].content);
     assert.equal(fs.statSync(file).mtimeMs, before[index].mtimeMs);
   });
+});
+
+test('failed-preparation retry uses exact failed Run facts and resumes one new Run across restart', async () => {
+  const value = fixture();
+  const databasePath = path.join(value.dataDir, 'shelfdeck.db');
+  const fieldRoot = path.join(path.dirname(value.dataDir), 'retry-field');
+  const sourceFile = path.join(fieldRoot, 'retry-title.mkv');
+  fs.mkdirSync(fieldRoot, { recursive: true });
+  fs.writeFileSync(sourceFile, Buffer.from('immutable-retry-source'));
+  const sourceBefore = fs.readFileSync(sourceFile);
+  const policyValue = {
+    includedDirectories: [],
+    excludedDirectories: [],
+    allowedExtensions: ['.mkv'],
+    minimumSizeBytes: 0,
+    excludedMaterialKeys: [],
+  };
+  const policyBasis = {
+    extractionPolicyId: 'policy-retry-http-1',
+    revision: 1,
+    ...policyValue,
+  };
+  const accessBasis = {
+    fieldId: 'field-retry-http-1',
+    revision: 1,
+    endpointId: 'endpoint-retry-http-1',
+    rootLocation: fieldRoot,
+    mountScopeId: 'mount-retry-http-1',
+    mountScopeRevision: 1,
+    accessSchemaRef: 'helix://fixtures/http-retry-access/v1',
+  };
+  const registration = {
+    idempotencyKey: 'field-retry-registration-1',
+    fieldId: 'field-retry-http-1',
+    name: 'Retry Source',
+    policy: {
+      extractionPolicyId: 'policy-retry-http-1',
+      revision: 1,
+      policySchemaRef: 'helix://contracts/domain-types/ExtractionPolicy/v1',
+      policy: policyValue,
+      policyDigest: canonicalDigest(policyBasis),
+    },
+    access: { ...accessBasis, accessDigest: canonicalDigest(accessBasis) },
+  };
+  const observeCommand = {
+    idempotencyKey: 'field-retry-observation-1',
+    fieldId: 'field-retry-http-1',
+    expectedAccessRevision: 1,
+    expectedObservationRevision: 0,
+    pageBudget: 10,
+  };
+  let host = await createCleanServiceHost({
+    dataDir: value.dataDir,
+    adminDistDir: value.adminDistDir,
+    secretRoot,
+  });
+  let cookie;
+  try {
+    let exchange = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/session',
+      headers: { 'x-api-key': value.initialized.adminApiKey },
+    });
+    cookie = exchange.headers['set-cookie'];
+    let response = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/material-fields',
+      headers: { cookie },
+      payload: registration,
+    });
+    assert.equal(response.statusCode, 201, response.body);
+    response = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/material-fields/field-retry-http-1/actions/observe',
+      headers: { cookie },
+      payload: observeCommand,
+    });
+    assert.equal(response.statusCode, 200, response.body);
+    assert.equal(response.json().observation.state, 'succeeded');
+  } finally {
+    await host.close();
+  }
+
+  let kernel = openSqliteKernel({
+    Database,
+    databasePath,
+    schemaDdl: cleanSchemaDdl,
+    schemaManifest: cleanSchemaManifest,
+  });
+  let unitOfWork = createSqliteUnitOfWork({ kernel });
+  const read = new Database(databasePath, { readonly: true });
+  let material = read.prepare(
+    `SELECT material_key,mount_scope_id,inode,content_hash_algorithm,content_hash,
+            size_bytes,endpoint_id,binding_revision,current_location,reality_digest,
+            provenance_digest,last_snapshot_digest,last_observation_id,
+            eligibility_revision
+       FROM proc_field_materials
+      WHERE field_id=?`
+  ).get('field-retry-http-1');
+  const observation = read.prepare(
+    `SELECT revision,observation_id,field_observation_work_id
+       FROM proc_field_observations
+      WHERE field_id=? AND completed=1`
+  ).get('field-retry-http-1');
+  read.close();
+  const initialControl = createMaterialControlProjectionPort({
+    schemaManifest: cleanSchemaManifest,
+    unitOfWork,
+  }).getMaterialControlProjection(material.material_key);
+  const selectionValue = {
+    materialKey: material.material_key,
+    activeSelections: [],
+    hasConflict: false,
+  };
+  const extractionPolicy = {
+    extractionPolicyId: 'policy-retry-http-1',
+    revision: 1,
+    ...policyValue,
+    policyDigest: canonicalDigest(policyBasis),
+  };
+  const eligibilityDecision = evaluateExtractionEligibility({
+    fieldId: 'field-retry-http-1',
+    fieldStatus: 'active',
+    materialKey: material.material_key,
+    expectedEligibilityRevision: Number(material.eligibility_revision),
+    accessRevision: 1,
+    accessDigest: registration.access.accessDigest,
+    terminalObservationRevision: Number(observation.revision),
+    fieldObservationWorkId: observation.field_observation_work_id,
+    materialBindingRevision: Number(material.binding_revision),
+    lastSnapshotDigest: material.last_snapshot_digest,
+    lastObservationId: material.last_observation_id,
+    appearedInTerminalWork: true,
+    materialRelativeLocation: 'retry-title.mkv',
+    sizeBytes: Number(material.size_bytes),
+    observedExtension: '.mkv',
+    extractionPolicy,
+    selectionSnapshot: {
+      ...selectionValue,
+      selectionBasisDigest: canonicalDigest(selectionValue),
+    },
+    controlSnapshot: initialControl,
+  });
+  const eligibilityBasis = {
+    fieldId: 'field-retry-http-1',
+    accessRevision: 1,
+    terminalObservationRevision: Number(observation.revision),
+    policyRevision: 1,
+    decisions: [eligibilityDecision],
+  };
+  const eligibility = createEligibilityReconcileStore({
+    schemaManifest: cleanSchemaManifest,
+    unitOfWork,
+  }).reconcile({
+    ...eligibilityBasis,
+    batchDigest: canonicalDigest(eligibilityBasis),
+  });
+  assert.equal(eligibility.applied.length, 1, JSON.stringify(eligibility));
+  const refreshed = new Database(databasePath, { readonly: true });
+  material = refreshed.prepare(
+    `SELECT material_key,mount_scope_id,inode,content_hash_algorithm,content_hash,
+            size_bytes,endpoint_id,binding_revision,current_location,reality_digest,
+            provenance_digest,last_snapshot_digest,last_observation_id,
+            eligibility_revision,eligibility_basis_digest
+       FROM proc_field_materials
+      WHERE field_id=?`
+  ).get('field-retry-http-1');
+  refreshed.close();
+
+  const registry = createDefaultTriageRuleRegistry();
+  const originalMemberValue = {
+    ordinal: 0,
+    materialKey: material.material_key,
+    selectionRole: 'triage_input',
+    physicalIdentity: {
+      schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v1',
+      schemaVersion: 1,
+      materialKey: material.material_key,
+      mountScopeId: material.mount_scope_id,
+      inode: String(material.inode),
+      contentHashAlgorithm: material.content_hash_algorithm,
+      contentHash: material.content_hash,
+    },
+    sizeBytes: Number(material.size_bytes),
+    bindingRevision: Number(material.binding_revision),
+    eligibilityRevision: Number(material.eligibility_revision),
+    eligibilityBasisDigest: material.eligibility_basis_digest,
+    lastSnapshotDigest: material.last_snapshot_digest,
+    lastObservationId: material.last_observation_id,
+    endpointId: material.endpoint_id,
+    location: material.current_location,
+    realityDigest: material.reality_digest,
+    provenanceDigest: material.provenance_digest,
+    controlSnapshot: initialControl,
+    admissionControlAction: 'acquire',
+  };
+  const originalMember = {
+    ...originalMemberValue,
+    basisMemberDigest: canonicalDigest(originalMemberValue),
+  };
+  const selectionSetValue = {
+    procurementRunId: 'procurement-run-http-failed-1',
+    fieldId: 'field-retry-http-1',
+    members: [originalMember],
+  };
+  const selectedFieldMaterialSet = {
+    ...selectionSetValue,
+    selectionDigest: canonicalDigest({
+      schema: 'procurement.selected-field-material-set@1',
+      ...selectionSetValue,
+    }),
+  };
+  const originalBasisValue = {
+    procurementRunId: 'procurement-run-http-failed-1',
+    fieldId: 'field-retry-http-1',
+    fieldStatus: 'active',
+    fieldAccess: { revision: 1, digest: registration.access.accessDigest },
+    terminalObservation: {
+      revision: Number(observation.revision),
+      fieldObservationWorkId: observation.field_observation_work_id,
+    },
+    extractionPolicy: {
+      policyId: 'policy-retry-http-1',
+      revision: 1,
+      digest: registration.policy.policyDigest,
+    },
+    triageRule: registry.entries[0],
+    selectedFieldMaterialSet,
+  };
+  const originalBasis = createProcurementRunExecutionBasis({
+    ...originalBasisValue,
+    basisDigest: canonicalDigest(originalBasisValue),
+  }, registry);
+  const originalControlHandle = {
+    schemaRef: 'helix://contracts/types/ResponsibilityControlCommitHandle/v1',
+    schemaVersion: 1,
+    handleId: 'p14-http-failed-run-control-handle',
+    operationKind: 'acquire',
+    ownerDomain: 'procurement',
+    processType: 'procurement_run',
+    processId: originalBasis.procurementRunId,
+    basisRef: {
+      objectType: 'procurement_run_execution_basis',
+      objectId: originalBasis.procurementRunId,
+      revision: 1,
+      digest: originalBasis.basisDigest,
+    },
+    basisDigest: originalBasis.basisDigest,
+    canonicalFactSetDigest: originalBasis.basisDigest,
+    bindingSetDigest: originalBasis.selectedFieldMaterialSet.selectionDigest,
+    controlScopeDigest: originalBasis.selectedFieldMaterialSet.selectionDigest,
+    expectedControlRevisions: [{
+      materialKey: material.material_key,
+      revision: initialControl.controlRevision,
+    }],
+    receiptContract: 'helix://contracts/types/ProcurementControlReceipt/v1',
+    eventFenceDigest: canonicalDigest({
+      schema: 'p14.failed-run-admission-fence@1',
+      procurementRunId: originalBasis.procurementRunId,
+    }),
+  };
+  const failedSealValue = {
+    decisionId: 'p14-http-failed-run-seal-decision',
+    procurementRunId: originalBasis.procurementRunId,
+    expectedStateRevision: 1,
+    expectedRunBasisDigest: originalBasis.basisDigest,
+    sealOutcome: 'failed',
+    publishedCandidates: [],
+    releasedMembers: [{
+      materialKey: material.material_key,
+      disposition: 'triage_failed',
+      evidenceDigest: canonicalDigest({
+        schema: 'p14.formal-preparation-failure@1',
+        procurementRunId: originalBasis.procurementRunId,
+        materialKey: material.material_key,
+      }),
+    }],
+  };
+  const failedSealDecision = {
+    ...failedSealValue,
+    decisionDigest: canonicalDigest(failedSealValue),
+  };
+  const setupWorkId = 'p14-http-formal-failed-run-work';
+  const setupBasisDigest = canonicalDigest({
+    schema: 'p14.formal-failed-run-setup@1',
+    runBasisDigest: originalBasis.basisDigest,
+    sealDecisionDigest: failedSealDecision.decisionDigest,
+  });
+  const setupAdmission = createWorkAdmission({
+    schemaManifest: cleanSchemaManifest,
+    unitOfWork,
+    eligibilityProvider: {
+      check: () => ({
+        eligible: true,
+        basisDigest: setupBasisDigest,
+        reasonCode: 'NOT_APPLICABLE',
+      }),
+    },
+    limits: { globalOpenWorks: 1_000, ownerOpenWorks: 500, openEvents: 100_000 },
+  });
+  assert.equal(setupAdmission.submit({
+    schemaRef: 'helix://foundation/types/SupportingWorkDefinition/v1',
+    schemaVersion: 1,
+    workId: setupWorkId,
+    ownerDomain: 'procurement',
+    processType: 'procurement_run',
+    processId: originalBasis.procurementRunId,
+    workKind: 'p14_formal_failed_preparation',
+    workObjectiveTypeRef: 'helix://procurement/work/Preparation/v1',
+    workObjectiveVersion: 1,
+    executionBasisId: 'p14-http-formal-failed-run-basis',
+    executionBasisDigest: setupBasisDigest,
+    dependencyRefs: [],
+    priorityClass: 'normal_foreground',
+    priorityRevision: 1,
+    capabilityCatalogScope: 'procurement',
+    workspaceMaterialScope: [],
+    idempotencyKey: 'p14-http-formal-failed-run',
+    concurrencyScope: 'field-retry-http-1/p14-formal-preparation',
+    outputContractRef:
+      'helix://contracts/application-types/ProcurementRunSealReceipt/v1',
+  }).kind, 'admitted');
+  const demand = { resourceKinds: ['cpu'] };
+  const setupStep = (
+    nodeId,
+    eventId,
+    capabilityRef,
+    input,
+    stepBasisDigest = setupBasisDigest,
+  ) => ({
+    nodeId,
+    eventId,
+    capabilityRef,
+    effectClass: 'domain_fact_commit',
+    inputSchemaRef: 'helix://fixtures/p14/formal-run-command/v1',
+    input,
+    parametersSchemaRef: 'helix://fixtures/p14/empty-parameters/v1',
+    parameters: {},
+    fenceSchemaRef: 'helix://fixtures/p14/formal-run-fence/v1',
+    fenceBasis: {
+      basisDigest: stepBasisDigest,
+      inputSetDigest: canonicalDigest(input),
+      eventFenceDigest: canonicalDigest({ schema: 'p14.event-fence@1', eventId }),
+      effectScopeDigest: canonicalDigest({
+        schema: 'p14.effect-scope@1',
+        procurementRunId: originalBasis.procurementRunId,
+        capabilityRef,
+      }),
+    },
+    resourceDemandSchemaRef: 'helix://fixtures/p14/cpu-demand/v1',
+    resourceDemand: { ...demand, demandDigest: canonicalDigest(demand) },
+  });
+  let setupRuntime = createSynchronousDomainWork({
+    schemaManifest: cleanSchemaManifest,
+    unitOfWork,
+  });
+  setupRuntime.activate({
+    workId: setupWorkId,
+    ownerDomain: 'procurement',
+    basisDigest: setupBasisDigest,
+    plannerRef: 'p14.formal-failed-run-planner@1',
+    catalogDigest: canonicalDigest({
+      schema: 'p14.formal-failed-run-catalog@1',
+      capabilities: ['procurement.run.admit@1', 'procurement.run.seal@1'],
+    }),
+    steps: [
+      setupStep(
+        'run-admission',
+        'p14-http-failed-run-admission-event',
+        'procurement.run.admit@1',
+        { runBasisDigest: originalBasis.basisDigest },
+      ),
+      setupStep(
+        'run-seal',
+        'p14-http-failed-run-seal-event',
+        'procurement.run.seal@1',
+        { sealDecisionDigest: failedSealDecision.decisionDigest },
+      ),
+    ],
+  });
+  setupRuntime.beginEvent('p14-http-failed-run-admission-event');
+  createProcurementRunAdmissionStore({
+    schemaManifest: cleanSchemaManifest,
+    unitOfWork,
+    triageRegistry: registry,
+  }).admit({
+    basis: originalBasis,
+    controlHandle: originalControlHandle,
+    commitMarker: {
+      commitMarker: 'p14-http-failed-run-admission-marker',
+      commitDigest: canonicalDigest({
+        schema: 'p14.failed-run-admission-command@1',
+        runBasisDigest: originalBasis.basisDigest,
+      }),
+    },
+    resultBinding: {
+      resultId: 'p14-http-failed-run-admission-result',
+      eventId: 'p14-http-failed-run-admission-event',
+    },
+  });
+  setupRuntime.completeEvent(
+    'p14-http-failed-run-admission-event',
+    'p14-http-failed-run-admission-result',
+  );
+  kernel.close();
+
+  const retryCommand = {
+    idempotencyKey: 'p14-http-failed-run-retry-1',
+    fieldId: 'field-retry-http-1',
+    failedProcurementRunId: originalBasis.procurementRunId,
+    expectedFailedRunStateRevision: 2,
+    expectedFailedRunBasisDigest: originalBasis.basisDigest,
+  };
+  host = await createCleanServiceHost({
+    dataDir: value.dataDir,
+    adminDistDir: value.adminDistDir,
+    secretRoot,
+  });
+  try {
+    const exchange = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/session',
+      headers: { 'x-api-key': value.initialized.adminApiKey },
+    });
+    cookie = exchange.headers['set-cookie'];
+    const unauthorized = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/material-fields/field-retry-http-1/actions/retry-failed-preparation',
+      payload: retryCommand,
+    });
+    assert.equal(unauthorized.statusCode, 401);
+    const mismatch = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/material-fields/field-retry-http-1/actions/retry-failed-preparation',
+      headers: { cookie },
+      payload: {
+        ...retryCommand,
+        idempotencyKey: 'p14-http-retry-target-mismatch',
+        fieldId: 'another-field',
+      },
+    });
+    assert.equal(mismatch.statusCode, 400);
+    assert.equal(mismatch.json().error.code, 'ADMIN_FIELD_TARGET_MISMATCH');
+    const closed = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/material-fields/field-retry-http-1/actions/retry-failed-preparation',
+      headers: { cookie },
+      payload: {
+        ...retryCommand,
+        idempotencyKey: 'p14-http-retry-closed',
+        unexpected: true,
+      },
+    });
+    assert.equal(closed.statusCode, 400);
+    const running = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/material-fields/field-retry-http-1/actions/retry-failed-preparation',
+      headers: { cookie },
+      payload: {
+        ...retryCommand,
+        idempotencyKey: 'p14-http-retry-running',
+        expectedFailedRunStateRevision: 1,
+      },
+    });
+    assert.equal(running.statusCode, 409, running.body);
+  } finally {
+    await host.close();
+  }
+
+  kernel = openSqliteKernel({
+    Database,
+    databasePath,
+    schemaDdl: cleanSchemaDdl,
+    schemaManifest: cleanSchemaManifest,
+  });
+  unitOfWork = createSqliteUnitOfWork({ kernel });
+  setupRuntime = createSynchronousDomainWork({
+    schemaManifest: cleanSchemaManifest,
+    unitOfWork,
+  });
+  setupRuntime.beginEvent('p14-http-failed-run-seal-event');
+  createProcurementRunSealStore({
+    schemaManifest: cleanSchemaManifest,
+    unitOfWork,
+  }).seal({
+    decision: failedSealDecision,
+    commitMarker: {
+      commitMarker: 'p14-http-failed-run-seal-marker',
+      commitDigest: canonicalDigest({
+        schema: 'p14.failed-run-seal-command@1',
+        decisionDigest: failedSealDecision.decisionDigest,
+      }),
+    },
+    resultBinding: {
+      resultId: 'p14-http-failed-run-seal-result',
+      eventId: 'p14-http-failed-run-seal-event',
+    },
+  });
+  setupRuntime.completeEvent(
+    'p14-http-failed-run-seal-event',
+    'p14-http-failed-run-seal-result',
+  );
+  setupRuntime.complete(setupWorkId);
+  kernel.close();
+
+  host = await createCleanServiceHost({
+    dataDir: value.dataDir,
+    adminDistDir: value.adminDistDir,
+    secretRoot,
+  });
+  try {
+    const exchange = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/session',
+      headers: { 'x-api-key': value.initialized.adminApiKey },
+    });
+    cookie = exchange.headers['set-cookie'];
+    const fault = new Database(databasePath);
+    fault.exec(`
+      CREATE TRIGGER p14_retry_admission_fault
+      BEFORE INSERT ON proc_procurement_runs
+      WHEN NEW.retry_intent_id IS NOT NULL
+      BEGIN
+        SELECT RAISE(ABORT, 'p14-retry-admission-fault');
+      END
+    `);
+    fault.close();
+    const interrupted = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/material-fields/field-retry-http-1/actions/retry-failed-preparation',
+      headers: { cookie },
+      payload: retryCommand,
+    });
+    assert.equal(interrupted.statusCode, 400, interrupted.body);
+    assert.equal(interrupted.json().error.details.reasonCode, 'SQLITE_CONSTRAINT_TRIGGER');
+  } finally {
+    await host.close();
+  }
+  const interruptedEvidence = new Database(databasePath);
+  assert.deepEqual(
+    interruptedEvidence.prepare(
+      `SELECT state,state_revision,new_run_id
+         FROM proc_procurement_retry_intents`
+    ).get(),
+    { state: 'open', state_revision: 1, new_run_id: null },
+  );
+  assert.equal(
+    interruptedEvidence.prepare('SELECT count(*) count FROM proc_procurement_runs').get().count,
+    1,
+  );
+  assert.deepEqual(
+    interruptedEvidence.prepare(
+      `SELECT state
+         FROM fx_supporting_works
+        WHERE work_kind='failed_preparation_retry'`
+    ).get(),
+    { state: 'running' },
+  );
+  assert.deepEqual(
+    interruptedEvidence.prepare(
+      `SELECT capability_ref,state
+         FROM fx_workflow_events
+        WHERE work_id=(SELECT work_id FROM fx_supporting_works
+                        WHERE work_kind='failed_preparation_retry')
+        ORDER BY capability_ref`
+    ).all(),
+    [
+      { capability_ref: 'procurement.retry.admit@1', state: 'executing' },
+      { capability_ref: 'procurement.retry.intent.create@1', state: 'succeeded' },
+    ],
+  );
+  assert.equal(
+    interruptedEvidence.prepare(
+      `SELECT count(*) count
+         FROM fx_commit_markers
+        WHERE scope_type='procurement_retry_intent'`
+    ).get().count,
+    1,
+  );
+  interruptedEvidence.exec('DROP TRIGGER p14_retry_admission_fault');
+  interruptedEvidence.close();
+
+  let createdResult;
+  host = await createCleanServiceHost({
+    dataDir: value.dataDir,
+    adminDistDir: value.adminDistDir,
+    secretRoot,
+  });
+  try {
+    const exchange = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/session',
+      headers: { 'x-api-key': value.initialized.adminApiKey },
+    });
+    cookie = exchange.headers['set-cookie'];
+    const resumed = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/material-fields/field-retry-http-1/actions/retry-failed-preparation',
+      headers: { cookie },
+      payload: retryCommand,
+    });
+    assert.equal(resumed.statusCode, 200, resumed.body);
+    createdResult = resumed.json().retry;
+    assert.equal(createdResult.state, 'succeeded');
+    assert.equal(createdResult.retryIntentReceipt.intentState, 'open');
+    assert.equal(createdResult.retryAdmissionResult.resultKind, 'created');
+    const replay = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/material-fields/field-retry-http-1/actions/retry-failed-preparation',
+      headers: { cookie },
+      payload: retryCommand,
+    });
+    assert.equal(replay.statusCode, 200, replay.body);
+    assert.deepEqual(
+      replay.json().retry.retryAdmissionResult,
+      createdResult.retryAdmissionResult,
+    );
+    const conflict = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/material-fields/field-retry-http-1/actions/retry-failed-preparation',
+      headers: { cookie },
+      payload: {
+        ...retryCommand,
+        expectedFailedRunStateRevision: 3,
+      },
+    });
+    assert.equal(conflict.statusCode, 409, conflict.body);
+    assert.equal(conflict.json().error.code, 'ADMIN_FIELD_IDEMPOTENCY_CONFLICT');
+    const duplicate = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/material-fields/field-retry-http-1/actions/retry-failed-preparation',
+      headers: { cookie },
+      payload: {
+        ...retryCommand,
+        idempotencyKey: 'p14-http-failed-run-retry-duplicate',
+      },
+    });
+    assert.equal(duplicate.statusCode, 409, duplicate.body);
+    const absent = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/material-fields/field-retry-http-1/actions/retry-failed-preparation',
+      headers: { cookie },
+      payload: {
+        ...retryCommand,
+        idempotencyKey: 'p14-http-failed-run-retry-absent',
+        failedProcurementRunId: 'missing-run',
+      },
+    });
+    assert.equal(absent.statusCode, 409, absent.body);
+  } finally {
+    await host.close();
+  }
+
+  host = await createCleanServiceHost({
+    dataDir: value.dataDir,
+    adminDistDir: value.adminDistDir,
+    secretRoot,
+  });
+  try {
+    const exchange = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/session',
+      headers: { 'x-api-key': value.initialized.adminApiKey },
+    });
+    const restartedReplay = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/material-fields/field-retry-http-1/actions/retry-failed-preparation',
+      headers: { cookie: exchange.headers['set-cookie'] },
+      payload: retryCommand,
+    });
+    assert.equal(restartedReplay.statusCode, 200, restartedReplay.body);
+    assert.deepEqual(
+      restartedReplay.json().retry.retryAdmissionResult,
+      createdResult.retryAdmissionResult,
+    );
+  } finally {
+    await host.close();
+  }
+
+  const completedEvidence = new Database(databasePath, { readonly: true });
+  const runs = completedEvidence.prepare(
+    `SELECT procurement_run_id,retry_intent_id,state,state_revision,run_basis_digest
+       FROM proc_procurement_runs
+      ORDER BY created_at_ms,procurement_run_id`
+  ).all();
+  assert.equal(runs.length, 2);
+  const retryRun = runs.find((run) => run.retry_intent_id !== null);
+  assert.equal(retryRun.state, 'active');
+  assert.equal(retryRun.state_revision, 1);
+  assert.equal(
+    completedEvidence.prepare(
+      `SELECT count(*) count
+         FROM proc_procurement_runs
+        WHERE retry_intent_id IS NOT NULL`
+    ).get().count,
+    1,
+  );
+  assert.deepEqual(
+    completedEvidence.prepare(
+      `SELECT state,state_revision,new_run_id
+         FROM proc_procurement_retry_intents`
+    ).get(),
+    {
+      state: 'consumed',
+      state_revision: 2,
+      new_run_id: retryRun.procurement_run_id,
+    },
+  );
+  assert.equal(
+    completedEvidence.prepare(
+      `SELECT state
+         FROM fx_supporting_works
+        WHERE work_kind='failed_preparation_retry'`
+    ).get().state,
+    'succeeded',
+  );
+  completedEvidence.close();
+
+  kernel = openSqliteKernel({
+    Database,
+    databasePath,
+    schemaDdl: cleanSchemaDdl,
+    schemaManifest: cleanSchemaManifest,
+  });
+  unitOfWork = createSqliteUnitOfWork({ kernel });
+  const completedSealValue = {
+    decisionId: 'p14-http-retry-run-completed-decision',
+    procurementRunId: retryRun.procurement_run_id,
+    expectedStateRevision: 1,
+    expectedRunBasisDigest: retryRun.run_basis_digest,
+    sealOutcome: 'completed',
+    publishedCandidates: [],
+    releasedMembers: [{
+      materialKey: material.material_key,
+      disposition: 'completed_without_candidate',
+      evidenceDigest: canonicalDigest({
+        schema: 'p14.retry-run-completed@1',
+        procurementRunId: retryRun.procurement_run_id,
+        materialKey: material.material_key,
+      }),
+    }],
+  };
+  const completedSealDecision = {
+    ...completedSealValue,
+    decisionDigest: canonicalDigest(completedSealValue),
+  };
+  const completedWorkBasis = canonicalDigest({
+    schema: 'p14.completed-run-seal-work@1',
+    decisionDigest: completedSealDecision.decisionDigest,
+  });
+  const completedWorkId = 'p14-http-retry-run-completed-work';
+  const completedWorkAdmission = createWorkAdmission({
+    schemaManifest: cleanSchemaManifest,
+    unitOfWork,
+    eligibilityProvider: {
+      check: () => ({
+        eligible: true,
+        basisDigest: completedWorkBasis,
+        reasonCode: 'NOT_APPLICABLE',
+      }),
+    },
+    limits: { globalOpenWorks: 1_000, ownerOpenWorks: 500, openEvents: 100_000 },
+  });
+  assert.equal(completedWorkAdmission.submit({
+    schemaRef: 'helix://foundation/types/SupportingWorkDefinition/v1',
+    schemaVersion: 1,
+    workId: completedWorkId,
+    ownerDomain: 'procurement',
+    processType: 'procurement_run',
+    processId: retryRun.procurement_run_id,
+    workKind: 'p14_formal_completed_preparation',
+    workObjectiveTypeRef: 'helix://procurement/work/Preparation/v1',
+    workObjectiveVersion: 1,
+    executionBasisId: 'p14-http-retry-run-completed-basis',
+    executionBasisDigest: completedWorkBasis,
+    dependencyRefs: [],
+    priorityClass: 'normal_foreground',
+    priorityRevision: 1,
+    capabilityCatalogScope: 'procurement',
+    workspaceMaterialScope: [],
+    idempotencyKey: 'p14-http-retry-run-completed',
+    concurrencyScope: 'field-retry-http-1/p14-completed-preparation',
+    outputContractRef:
+      'helix://contracts/application-types/ProcurementRunSealReceipt/v1',
+  }).kind, 'admitted');
+  const completedRuntime = createSynchronousDomainWork({
+    schemaManifest: cleanSchemaManifest,
+    unitOfWork,
+  });
+  const completedEventId = 'p14-http-retry-run-completed-event';
+  completedRuntime.activate({
+    workId: completedWorkId,
+    ownerDomain: 'procurement',
+    basisDigest: completedWorkBasis,
+    plannerRef: 'p14.completed-run-seal-planner@1',
+    catalogDigest: canonicalDigest({
+      schema: 'p14.completed-run-seal-catalog@1',
+      capabilities: ['procurement.run.seal@1'],
+    }),
+    steps: [setupStep(
+      'completed-run-seal',
+      completedEventId,
+      'procurement.run.seal@1',
+      { decisionDigest: completedSealDecision.decisionDigest },
+      completedWorkBasis,
+    )],
+  });
+  completedRuntime.beginEvent(completedEventId);
+  createProcurementRunSealStore({
+    schemaManifest: cleanSchemaManifest,
+    unitOfWork,
+  }).seal({
+    decision: completedSealDecision,
+    commitMarker: {
+      commitMarker: 'p14-http-retry-run-completed-marker',
+      commitDigest: canonicalDigest({
+        schema: 'p14.completed-run-seal-command@1',
+        decisionDigest: completedSealDecision.decisionDigest,
+      }),
+    },
+    resultBinding: {
+      resultId: 'p14-http-retry-run-completed-result',
+      eventId: completedEventId,
+    },
+  });
+  completedRuntime.completeEvent(
+    completedEventId,
+    'p14-http-retry-run-completed-result',
+  );
+  completedRuntime.complete(completedWorkId);
+  kernel.close();
+
+  host = await createCleanServiceHost({
+    dataDir: value.dataDir,
+    adminDistDir: value.adminDistDir,
+    secretRoot,
+  });
+  try {
+    const exchange = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/session',
+      headers: { 'x-api-key': value.initialized.adminApiKey },
+    });
+    const completedTarget = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/material-fields/field-retry-http-1/actions/retry-failed-preparation',
+      headers: { cookie: exchange.headers['set-cookie'] },
+      payload: {
+        idempotencyKey: 'p14-http-completed-run-retry',
+        fieldId: 'field-retry-http-1',
+        failedProcurementRunId: retryRun.procurement_run_id,
+        expectedFailedRunStateRevision: 2,
+        expectedFailedRunBasisDigest: retryRun.run_basis_digest,
+      },
+    });
+    assert.equal(completedTarget.statusCode, 409, completedTarget.body);
+  } finally {
+    await host.close();
+  }
+  assert.deepEqual(fs.readFileSync(sourceFile), sourceBefore);
 });
 
 test('Arca Shelf projection reads use the authenticated public HTTP path and owner-local query repository', async () => {

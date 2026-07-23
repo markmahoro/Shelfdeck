@@ -108,6 +108,31 @@ immutable Plan input冻结；Procurement业务事实仍只写Owner Store。
 不重新解释已提交页面，最终连续提交revision 1..3。三份disposable sample
 文件在首次执行、故障、restart和exact replay前后内容及mtime均不变。
 
+### Procurement Failed-preparation Retry
+
+`POST /v1/admin/material-fields/:fieldId/actions/retry-failed-preparation`
+现已接通正式失败重试纵切。closed Admin command必须显式携带
+`failedProcurementRunId + expectedFailedRunStateRevision +
+expectedFailedRunBasisDigest`，只按该精确Run读取，不搜索latest/current Run。
+仅`sealed + failed|partial_failure`且具有`released + triage_failed`成员的
+正式历史可建立重试；active、completed、缺失或target不一致均fail closed。
+
+一次命令建立两节点Foundation Supporting Work：第一节点执行既有
+`helix.transaction.procurement-retry-intent-commit`，第二节点执行既有
+`helix.transaction.procurement-retry-admission`。完整Intent与Admission
+request作为immutable Plan input冻结。Intent创建按`fieldId +
+idempotencyKey`稳定重放；消费使用`open@revision/digest` CAS，并与唯一新
+`ProcurementRunExecutionBasis`、新Run、Selection、Control assertion/acquire、
+typed Result和marker原子提交。旧失败Run及其terminal evidence不修改。
+
+真实HTTP fixture使用正式Field Observation与Eligibility Reconcile，再通过
+正式Run Admission/Seal fault path制造失败事实。Admission insert故障证明
+Intent可已提交而新Run/consume marker保持全无；重启通过Event Result/marker
+恢复，只产生一个新Run。同key同payload在同进程及跨重启返回原typed result，
+同key异payload为409，第二key不得重复消费同一失败Basis。Windows路径分隔符
+在Owner-local Eligibility Reconcile中统一规范化，真实Observation文件可合法
+进入Eligibility，来源文件内容保持零变化。
+
 ### Arca Shelf aggregate
 
 以下 10 条 Shelf route 已经接通真实 Arca Owner-local application：
@@ -213,9 +238,7 @@ stale head、idempotency conflict、restart/history，以及在 target insert
 处注入故障后的 revision/head/receipt/outbox 全部回滚均由 public HTTP
 fixture 覆盖。
 
-Current route status: **35 real**, **6 intentional Worker 404**, **73 remaining
-product routes fail closed with 503**.  Failed-preparation retry remains
-fail-closed until its formal Retry Intent journey is wired；非空Shelf
-deregistration仍未宣称完成。
+Current route status: **36 real**, **6 intentional Worker 404**, **72 remaining
+product routes fail closed with 503**. 非空Shelf deregistration仍未宣称完成。
 This is a progress count only; the exact construction batch
 assignment remains the 4/6/59/7/38 matrix above.

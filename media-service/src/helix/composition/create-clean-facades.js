@@ -97,6 +97,13 @@ function createCleanFacades(options) {
     facades.ProcurementAdminFacade.post_material_fields_fieldid_actions_observe = async (input) => ({
       body: await options.procurementAdmin.requestFieldObservation(input.params.fieldId, input.body),
     });
+    facades.ProcurementAdminFacade.post_material_fields_fieldid_actions_retry_failed_preparation = async (input) => ({
+      body: options.procurementAdmin.retryFailedPreparation(
+        input.params.fieldId,
+        input.body,
+        input.actor,
+      ),
+    });
   }
   if (options.arcaShelfAdmin) {
     facades.ArcaShelfAdminFacade.get_shelves = async () => ({ body: options.arcaShelfAdmin.listShelves() });

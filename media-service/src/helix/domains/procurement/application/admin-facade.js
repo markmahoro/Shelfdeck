@@ -5,6 +5,12 @@ const { createMaterialFieldStore } = require('../persistence/material-field-stor
 const {
   createFieldObservationAdminService,
 } = require('./field-observation-admin-service');
+const {
+  createFailedPreparationRetryAdminService,
+} = require('./failed-preparation-retry-admin-service');
+const {
+  createDefaultTriageRuleRegistry,
+} = require('../model/procurement-run-contracts');
 
 class ProcurementAdminApplicationError extends Error {
   constructor(code, message, details = {}) {
@@ -40,8 +46,24 @@ function rejected(error) {
     );
   }
   if (
+    error.code === 'FAILED_PREPARATION_RETRY_IDEMPOTENCY_CONFLICT' ||
+    error.code === 'P7_RETRY_INTENT_IDEMPOTENCY_CONFLICT'
+  ) {
+    throw new ProcurementAdminApplicationError(
+      'ADMIN_FIELD_IDEMPOTENCY_CONFLICT',
+      '同一幂等键不能用于不同的失败准备重试请求。',
+    );
+  }
+  if (
     error.code === 'FIELD_OBSERVATION_ADMIN_FENCE_CONFLICT' ||
-    error.code === 'FIELD_OBSERVATION_WORK_DEFERRED'
+    error.code === 'FIELD_OBSERVATION_WORK_DEFERRED' ||
+    error.code === 'FAILED_PREPARATION_RETRY_SOURCE_INVALID' ||
+    error.code === 'FAILED_PREPARATION_RETRY_HEAD_UNAVAILABLE' ||
+    error.code === 'FAILED_PREPARATION_RETRY_MEMBER_INELIGIBLE' ||
+    error.code === 'FAILED_PREPARATION_RETRY_SCOPE_INVALID' ||
+    error.code === 'FAILED_PREPARATION_RETRY_ALREADY_EXISTS' ||
+    error.code === 'FAILED_PREPARATION_RETRY_WORK_DEFERRED' ||
+    error.code === 'P7_RETRY_ADMISSION_CAS_CONFLICT'
   ) {
     throw new ProcurementAdminApplicationError(
       'ADMIN_FIELD_CONFLICT',
@@ -92,6 +114,11 @@ function createProcurementAdminApplication(options) {
     materialFieldStore: store,
     now: options.now || Date.now,
   });
+  const triageRegistry = options.triageRegistry || createDefaultTriageRuleRegistry();
+  const retry = createFailedPreparationRetryAdminService({
+    ...options,
+    triageRegistry,
+  });
   const commands = procurementPublic.ProcurementCommandFacade({
     registerMaterialField: (envelope) => store.commitAdminCommand({ operation: 'register', ...envelope }),
     updateMaterialField: (envelope) => {
@@ -104,7 +131,11 @@ function createProcurementAdminApplication(options) {
       ...envelope.input,
       idempotencyKey: envelope.idempotencyKey,
     }),
-    retryFailedPreparation: unavailable('retryFailedPreparation'),
+    retryFailedPreparation: (envelope) => retry.retry({
+      ...envelope.input,
+      idempotencyKey: envelope.idempotencyKey,
+      actorId: envelope.actorId,
+    }),
     deregisterMaterialField: (envelope) => store.commitAdminCommand({ operation: 'deregister', ...envelope }),
   });
   const queries = procurementPublic.ProcurementQueryFacade({
@@ -151,6 +182,19 @@ function createProcurementAdminApplication(options) {
       try {
         return Object.freeze({
           observation: await commands.requestFieldObservation(commandEnvelope(body, fieldId)),
+        });
+      } catch (error) {
+        rejected(error);
+      }
+    },
+    retryFailedPreparation(fieldId, body, actor) {
+      try {
+        const envelope = commandEnvelope(body, fieldId);
+        return Object.freeze({
+          retry: commands.retryFailedPreparation({
+            ...envelope,
+            actorId: 'admin-credential-revision:' + String(actor.credentialRevision),
+          }),
         });
       } catch (error) {
         rejected(error);
