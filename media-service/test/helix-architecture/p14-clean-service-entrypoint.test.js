@@ -98,6 +98,7 @@ test('formal server dependency graph reaches only the clean Helix root', () => {
     assert.ok(
       relative === 'src/server.js' ||
         relative === 'src/clean-service-host.js' ||
+        relative === 'src/clean-shelf-target-folder-probe.js' ||
         relative === 'src/admin-credential-secret-store.js' ||
         relative.startsWith('src/helix/'),
       `unexpected runtime dependency: ${relative}`,
@@ -110,6 +111,28 @@ test('formal server dependency graph reaches only the clean Helix root', () => {
     source,
     /services\/transcodeService|helixRuntimePreflight|all-in-one-supervisor|face-service|19110|ollama/i,
   );
+});
+
+test('Shelf Target Folder probe is a read-only Clean Service adapter', () => {
+  const probeSource = fs.readFileSync(
+    path.join(
+      serviceRoot,
+      'src/clean-shelf-target-folder-probe.js',
+    ),
+    'utf8',
+  );
+  assert.doesNotMatch(
+    probeSource,
+    /\.(?:writeFile|rename|copyFile|unlink|mkdir|rm|rmdir)Sync\(/,
+  );
+  assert.match(probeSource, /realpathSync/);
+  assert.match(probeSource, /statSync/);
+  assert.match(probeSource, /accessSync/);
+  const compositionSource = fs.readFileSync(
+    path.join(serviceRoot, 'src/helix/composition/create-clean-facades.js'),
+    'utf8',
+  );
+  assert.doesNotMatch(compositionSource, /shelf-query-store|better-sqlite3|node:fs/);
 });
 
 test('Libra Routing reads only its exact head and the formal Arca public projection', () => {
@@ -385,18 +408,24 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
   const value = fixture();
   const standardValue = { profileRuleSets: [{ contentProfile: 'movie', mandatoryMedia: [], quality: {}, space: {} }] };
   const placementValue = { folderTemplate: '{title} ({year})', collisionPolicy: 'reject' };
+  const physicalShelfRoot = path.join(path.dirname(value.dataDir), 'physical-shelf');
+  const physicalSentinel = path.join(physicalShelfRoot, 'movie.mkv');
+  const nextPhysicalShelfRoot = path.join(path.dirname(value.dataDir), 'next-physical-shelf');
+  const nextPhysicalSentinel = path.join(nextPhysicalShelfRoot, 'existing.txt');
+  fs.mkdirSync(physicalShelfRoot);
+  fs.mkdirSync(nextPhysicalShelfRoot);
+  fs.writeFileSync(physicalSentinel, Buffer.from('immutable-physical-media-snapshot'));
+  fs.writeFileSync(nextPhysicalSentinel, Buffer.from('immutable-target-folder-snapshot'));
+  const physicalBefore = fs.readFileSync(physicalSentinel);
+  const nextPhysicalBefore = fs.readFileSync(nextPhysicalSentinel);
   const body = {
     idempotencyKey: 'shelf-http-create-1', shelfId: 'shelf-http-1', name: 'Movies',
-    target: { endpointId: 'shelf-endpoint-1', rootLocation: 'movies', mountScopeId: 'shelf-mount-1', mountScopeRevision: 1 },
+    target: { endpointId: 'shelf-endpoint-1', rootLocation: physicalShelfRoot, mountScopeId: 'shelf-mount-1', mountScopeRevision: 1 },
     standard: { ruleTemplateId: 'template-http-1', ruleTemplateRevision: 1, schemaRef: 'helix://fixtures/shelf-standard/v1', value: standardValue, digest: canonicalDigest(standardValue) },
     placement: { schemaRef: 'helix://fixtures/placement-policy/v1', value: placementValue, digest: canonicalDigest(placementValue) },
   };
-  const physicalShelfRoot = path.join(path.dirname(value.dataDir), 'physical-shelf');
-  const physicalSentinel = path.join(physicalShelfRoot, 'movie.mkv');
-  fs.mkdirSync(physicalShelfRoot);
-  fs.writeFileSync(physicalSentinel, Buffer.from('immutable-physical-media-snapshot'));
-  const physicalBefore = fs.readFileSync(physicalSentinel);
   let deregistrationCommand;
+  let placementCommand;
   const host = await createCleanServiceHost({ dataDir: value.dataDir, adminDistDir: value.adminDistDir, secretRoot });
   try {
     const unauthenticated = await host.inject({ method: 'POST', url: '/v1/admin/shelves', payload: body });
@@ -460,14 +489,40 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
     const placementValue2 = { ...placementValue, collisionPolicy: 'suffix' };
     const placementDraft = {
       shelfId: 'shelf-http-1', expectedPlacementRevision: 1,
+      target: {
+        endpointId: 'shelf-endpoint-2',
+        rootLocation: nextPhysicalShelfRoot,
+        mountScopeId: 'shelf-mount-2',
+        mountScopeRevision: 2,
+      },
       placement: { ...body.placement, value: placementValue2, digest: canonicalDigest(placementValue2) },
     };
+    const unavailableTarget = path.join(path.dirname(value.dataDir), 'missing-target');
+    const unavailablePreview = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/shelves/shelf-http-1/placement/actions/preview',
+      headers: { cookie },
+      payload: {
+        idempotencyKey: 'placement-preview-unavailable-target',
+        ...placementDraft,
+        target: { ...placementDraft.target, rootLocation: unavailableTarget },
+      },
+    });
+    assert.equal(unavailablePreview.statusCode, 400);
+    assert.equal(
+      unavailablePreview.json().error.details.reasonCode,
+      'P14_SHELF_TARGET_UNAVAILABLE',
+    );
+    assert.equal(fs.existsSync(unavailableTarget), false);
     const placementPreview = await host.inject({ method: 'POST', url: '/v1/admin/shelves/shelf-http-1/placement/actions/preview', headers: { cookie }, payload: {
       idempotencyKey: 'shelf-http-placement-preview-2', ...placementDraft,
     } });
     assert.equal(placementPreview.statusCode, 200, placementPreview.body);
     assert.equal(placementPreview.json().physicalEffect, 'none');
     assert.equal(placementPreview.json().affectedActiveEntryCount, 0);
+    assert.equal(placementPreview.json().proposedTarget.rootLocation, fs.realpathSync(nextPhysicalShelfRoot));
+    assert.equal(placementPreview.json().targetReadinessEvidence.observationMode, 'read_only');
+    assert.equal(placementPreview.json().targetReadinessEvidence.safeMaterialCommit, true);
     const placementPreviewReplay = await host.inject({ method: 'POST', url: '/v1/admin/shelves/shelf-http-1/placement/actions/preview', headers: { cookie }, payload: {
       idempotencyKey: 'shelf-http-placement-preview-2', ...placementDraft,
     } });
@@ -487,8 +542,9 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
       idempotencyKey: 'placement-preview-closed', ...placementDraft, unexpected: true,
     } });
     assert.equal(placementPreviewClosed.statusCode, 400);
-    const placementCommand = {
+    placementCommand = {
       idempotencyKey: 'shelf-http-placement-2', ...placementDraft,
+      expectedCurrentTargetDigest: placementPreview.json().currentTargetDigest,
       previewId: placementPreview.json().previewId, previewDigest: placementPreview.json().previewDigest,
     };
     const placementFaultDatabase = new Database(path.join(value.dataDir, 'shelfdeck.db'));
@@ -507,11 +563,27 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
     const placementCrashEvidence = new Database(path.join(value.dataDir, 'shelfdeck.db'));
     assert.equal(placementCrashEvidence.prepare("SELECT count(*) AS count FROM arca_placement_policy_revisions WHERE shelf_id='shelf-http-1' AND revision=2").get().count, 0);
     assert.equal(placementCrashEvidence.prepare("SELECT count(*) AS count FROM fx_command_receipts WHERE owner_domain='arca' AND idempotency_key='placement-publish-crash'").get().count, 0);
+    assert.deepEqual(
+      placementCrashEvidence.prepare('SELECT target_endpoint_id,target_root_location,target_mount_scope_id,target_mount_scope_revision,current_placement_revision FROM arca_shelves WHERE shelf_id=?').get('shelf-http-1'),
+      {
+        target_endpoint_id: 'shelf-endpoint-1',
+        target_root_location: physicalShelfRoot,
+        target_mount_scope_id: 'shelf-mount-1',
+        target_mount_scope_revision: 1,
+        current_placement_revision: 1,
+      },
+    );
     placementCrashEvidence.exec('DROP TRIGGER p14_placement_publish_fault');
     placementCrashEvidence.close();
     const placementRevision = await host.inject({ method: 'PATCH', url: '/v1/admin/shelves/shelf-http-1/placement', headers: { cookie }, payload: placementCommand });
     assert.equal(placementRevision.statusCode, 200, placementRevision.body);
     assert.equal(placementRevision.json().shelf.currentPlacementRevision, 2);
+    assert.deepEqual(placementRevision.json().shelf.target, {
+      endpointId: 'shelf-endpoint-2',
+      rootLocation: fs.realpathSync(nextPhysicalShelfRoot),
+      mountScopeId: 'shelf-mount-2',
+      mountScopeRevision: 2,
+    });
     const placementReplay = await host.inject({ method: 'PATCH', url: '/v1/admin/shelves/shelf-http-1/placement', headers: { cookie }, payload: placementCommand });
     assert.equal(placementReplay.statusCode, 200);
     const placementConflict = await host.inject({ method: 'PATCH', url: '/v1/admin/shelves/shelf-http-1/placement', headers: { cookie }, payload: { ...placementCommand, placement: { ...placementCommand.placement, value: placementValue } } });
@@ -519,7 +591,7 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
     const invalidPlacement = await host.inject({ method: 'PATCH', url: '/v1/admin/shelves/shelf-http-1/placement', headers: { cookie }, payload: { ...placementCommand, idempotencyKey: 'placement-invalid', placement: { ...placementCommand.placement, digest: '0'.repeat(64) } } });
     assert.equal(invalidPlacement.statusCode, 400);
     const stalePlacement = await host.inject({ method: 'PATCH', url: '/v1/admin/shelves/shelf-http-1/placement', headers: { cookie }, payload: { ...placementCommand, idempotencyKey: 'placement-stale' } });
-    assert.equal(stalePlacement.statusCode, 400);
+    assert.equal(stalePlacement.statusCode, 409);
     const listed = await host.inject({ method: 'GET', url: '/v1/admin/shelves', headers: { cookie } });
     assert.equal(listed.statusCode, 200);
     assert.deepEqual(listed.json().items.map((item) => item.shelfId), ['shelf-http-1']);
@@ -537,8 +609,11 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
     const currentPlacement = await host.inject({ method: 'GET', url: '/v1/admin/shelves/shelf-http-1/placement', headers: { cookie } });
     assert.equal(currentPlacement.statusCode, 200);
     assert.equal(currentPlacement.json().placement.revision, 2);
+    assert.equal(currentPlacement.json().target.rootLocation, fs.realpathSync(nextPhysicalShelfRoot));
     assert.deepEqual(fs.readFileSync(physicalSentinel), physicalBefore);
     assert.deepEqual(fs.readdirSync(physicalShelfRoot), ['movie.mkv']);
+    assert.deepEqual(fs.readFileSync(nextPhysicalSentinel), nextPhysicalBefore);
+    assert.deepEqual(fs.readdirSync(nextPhysicalShelfRoot), ['existing.txt']);
     const routingPolicy = { routingPolicyId: 'routing-http-1', mode: 'sorting', targets: [
       { shelfId: 'shelf-http-1', rank: 1, matchExpression: { nodeKind: 'always' } },
     ] };
@@ -758,6 +833,20 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
       },
     });
     assert.equal(deregistrationConflict.statusCode, 409);
+    const inactivePlacementPreview = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/shelves/shelf-http-1/placement/actions/preview',
+      headers: { cookie },
+      payload: {
+        idempotencyKey: 'placement-preview-inactive-shelf',
+        shelfId: 'shelf-http-1',
+        expectedPlacementRevision: 2,
+        target: placementDraft.target,
+        placement: placementDraft.placement,
+      },
+    });
+    assert.equal(inactivePlacementPreview.statusCode, 409);
+    assert.equal(inactivePlacementPreview.json().error.code, 'ADMIN_SHELF_CONFLICT');
     const inactiveRoutingPreview = await host.inject({
       method: 'POST',
       url: '/v1/admin/routing/material-fields/field-http-1/actions/preview',
@@ -773,6 +862,8 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
     assert.equal(inactiveRoutingPreview.json().error.details.reasonCode, 'P14_ROUTING_TARGET_INACTIVE');
     assert.deepEqual(fs.readFileSync(physicalSentinel), physicalBefore);
     assert.deepEqual(fs.readdirSync(physicalShelfRoot), ['movie.mkv']);
+    assert.deepEqual(fs.readFileSync(nextPhysicalSentinel), nextPhysicalBefore);
+    assert.deepEqual(fs.readdirSync(nextPhysicalShelfRoot), ['existing.txt']);
   } finally { await host.close(); }
   const ownerEvidence = new Database(path.join(value.dataDir, 'shelfdeck.db'), { readonly: true });
   try {
@@ -781,6 +872,15 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
     assert.deepEqual(ownerEvidence.prepare('SELECT current_standard_revision,current_placement_revision,routing_projection_revision FROM arca_shelves WHERE shelf_id=?').get('shelf-http-1'), {
       current_standard_revision: 2, current_placement_revision: 2, routing_projection_revision: 3,
     });
+    assert.deepEqual(
+      ownerEvidence.prepare('SELECT target_endpoint_id,target_root_location,target_mount_scope_id,target_mount_scope_revision FROM arca_shelves WHERE shelf_id=?').get('shelf-http-1'),
+      {
+        target_endpoint_id: 'shelf-endpoint-2',
+        target_root_location: fs.realpathSync(nextPhysicalShelfRoot),
+        target_mount_scope_id: 'shelf-mount-2',
+        target_mount_scope_revision: 2,
+      },
+    );
     assert.equal(ownerEvidence.prepare("SELECT count(*) AS count FROM fx_command_receipts WHERE owner_domain='arca' AND target_id='shelf-http-1'").get().count, 5);
     assert.equal(ownerEvidence.prepare('SELECT state,release_manifest_digest FROM arca_deregistrations WHERE shelf_id=?').get('shelf-http-1').state, 'committed');
     assert.equal(ownerEvidence.prepare('SELECT count(*) AS count FROM arca_deregistration_releases').get().count, 0);
@@ -804,6 +904,16 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
     assert.equal(exact.json().shelf.name, 'Movie Library');
     assert.equal(exact.json().shelf.standard.revision, 2);
     assert.equal(exact.json().shelf.placement.revision, 2);
+    assert.equal(exact.json().shelf.target.rootLocation, fs.realpathSync(nextPhysicalShelfRoot));
+    const placementReplay = await restarted.inject({
+      method: 'PATCH',
+      url: '/v1/admin/shelves/shelf-http-1/placement',
+      headers: { cookie: exchange.headers['set-cookie'] },
+      payload: placementCommand,
+    });
+    assert.equal(placementReplay.statusCode, 200);
+    assert.equal(placementReplay.json().replayed, true);
+    assert.equal(placementReplay.json().shelf.target.endpointId, 'shelf-endpoint-2');
     const routing = await restarted.inject({ method: 'GET', url: '/v1/admin/routing/material-fields/field-http-1', headers: { cookie: exchange.headers['set-cookie'] } });
     assert.equal(routing.statusCode, 200);
     assert.equal(routing.json().policy.routingPolicyId, 'routing-http-1');
@@ -827,6 +937,7 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
     assert.equal(deregistrationReplay.json().replayed, true);
     assert.equal(deregistrationReplay.json().shelf.status, 'deregistered');
     assert.deepEqual(fs.readFileSync(physicalSentinel), physicalBefore);
+    assert.deepEqual(fs.readFileSync(nextPhysicalSentinel), nextPhysicalBefore);
   } finally { await restarted.close(); }
 });
 

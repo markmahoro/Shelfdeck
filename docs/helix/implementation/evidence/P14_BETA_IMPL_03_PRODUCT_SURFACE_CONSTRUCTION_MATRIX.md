@@ -104,10 +104,23 @@ projection；Standard/Placement 后续 revision 使用显式 expected revision
 restart/history 以及故障后的零部分写均已有 HTTP/Owner-row 证据。
 Shelf rename只修改非Identity名称并用monotonic `updatedAtMs`做CAS，不改变
 Target Folder、Standard、Placement或routing projection。Placement preview
-形成durable Command Receipt；PATCH必须携带并匹配同一Shelf、同一expected
-revision和同一proposed digest的`previewId/previewDigest`。在Placement
-revision insert处注入故障后，revision/head/receipt均保持零部分写；独立
-physical sentinel在rename、preview和publish前后逐字节不变。
+形成durable Command Receipt；Target Folder proposal使用closed
+`endpointId + canonical absolute rootLocation + mountScopeId/revision`
+四元组。Clean Service技术adapter只执行`realpath/stat/access/statfs`，
+并把typed read-only probe port注入Arca application；它形成可达、可读、
+可写和target-local-slot atomic-switch protocol的readiness Evidence，
+不创建探针文件。PATCH必须携带并匹配同一Shelf、
+同一expected Placement revision、current Target digest、proposed Target/
+Placement digest及`previewId/previewDigest`。发布只在同一Arca transaction
+中追加Placement revision并CAS切换`arca_shelves` Target四元组和Placement
+head；不执行Inventory迁移、文件移动、复制、删除或重命名。routing
+projection不因纯物理Target变化而伪造新Standard/status revision。
+
+在Placement revision insert处注入故障后，Target四元组、
+revision/head/receipt均保持零部分写；inactive Shelf稳定拒绝新preview。
+旧Target和新Target中的独立physical sentinel在preview、publish、故障、
+restart及idempotent replay前后逐字节不变，目录成员集合也不变。不可达目录
+在Arca transaction前fail closed且不会被自动创建。
 
 Shelf Deregistration当前闭合的是**empty Shelf正式终态纵切**：请求必须包含
 exact-Shelf行政注销authorization和显式active/updatedAt/routing projection

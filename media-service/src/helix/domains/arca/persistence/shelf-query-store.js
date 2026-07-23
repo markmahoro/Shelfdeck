@@ -3,6 +3,10 @@
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createCommandCommitCoordinator } = require('../../../foundation/persistence/commit-foundation');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
+const {
+  EVIDENCE_SCHEMA_REF,
+  targetDigest,
+} = require('../model/shelf-target-folder-contracts');
 
 class ArcaShelfStoreError extends Error {
   constructor(code, message, details = {}) { super(message); this.name = 'ArcaShelfStoreError'; this.code = code; this.details = details; }
@@ -28,7 +32,7 @@ function createShelfQueryStore(options) {
     rename_shelf: { kind: 'update', tableId: 'arca_shelves', setColumns: ['name','updated_at_ms'], keyColumns: ['shelf_id'], compareColumns: [{ column: 'updated_at_ms', parameter: 'expected_updated_at_ms' }, { column: 'status', parameter: 'expected_status' }] },
     deregister_shelf: { kind: 'update', tableId: 'arca_shelves', setColumns: ['status','routing_projection_revision','routing_projection_digest','updated_at_ms'], keyColumns: ['shelf_id'], compareColumns: [{ column: 'updated_at_ms', parameter: 'expected_updated_at_ms' }, { column: 'routing_projection_revision', parameter: 'expected_projection_revision' }, { column: 'status', parameter: 'expected_status' }] },
     advance_standard_head: { kind: 'update', tableId: 'arca_shelves', setColumns: ['current_standard_revision','routing_projection_revision','routing_projection_digest','updated_at_ms'], keyColumns: ['shelf_id'], compareColumns: [{ column: 'current_standard_revision', parameter: 'expected_standard_revision' }, { column: 'routing_projection_revision', parameter: 'expected_projection_revision' }, { column: 'status', parameter: 'expected_status' }] },
-    advance_placement_head: { kind: 'update', tableId: 'arca_shelves', setColumns: ['current_placement_revision','updated_at_ms'], keyColumns: ['shelf_id'], compareColumns: [{ column: 'current_placement_revision', parameter: 'expected_placement_revision' }, { column: 'status', parameter: 'expected_status' }] },
+    advance_placement_head: { kind: 'update', tableId: 'arca_shelves', setColumns: ['target_endpoint_id','target_root_location','target_mount_scope_id','target_mount_scope_revision','current_placement_revision','updated_at_ms'], keyColumns: ['shelf_id'], compareColumns: [{ column: 'target_endpoint_id', parameter: 'expected_target_endpoint_id' }, { column: 'target_root_location', parameter: 'expected_target_root_location' }, { column: 'target_mount_scope_id', parameter: 'expected_target_mount_scope_id' }, { column: 'target_mount_scope_revision', parameter: 'expected_target_mount_scope_revision' }, { column: 'current_placement_revision', parameter: 'expected_placement_revision' }, { column: 'status', parameter: 'expected_status' }] },
     insert_standard: { kind: 'insert', tableId: 'arca_shelf_standard_revisions', columns: ['shelf_id','revision','rule_template_id','rule_template_revision','standard_schema_ref','standard_json','standard_digest','effective_at_ms'] },
     find_standard: { kind: 'select-one', tableId: 'arca_shelf_standard_revisions', columns: ['shelf_id','revision','rule_template_id','rule_template_revision','standard_schema_ref','standard_json','standard_digest','effective_at_ms'], keyColumns: ['shelf_id','revision'] },
     insert_placement: { kind: 'insert', tableId: 'arca_placement_policy_revisions', columns: ['shelf_id','revision','policy_schema_ref','policy_json','policy_digest','effective_at_ms'] },
@@ -135,6 +139,58 @@ function createShelfQueryStore(options) {
     if (input.placement.digest !== canonicalDigest(input.placement.value)) fail('P14_SHELF_DIGEST_MISMATCH', 'Shelf Placement digest is invalid.');
   }
 
+  function validateTargetBundle(input) {
+    exact(input.target, ['endpointId','rootLocation','mountScopeId','mountScopeRevision'], 'P14_SHELF_TARGET_INPUT');
+    text(input.target.endpointId, 'target.endpointId');
+    text(input.target.rootLocation, 'target.rootLocation');
+    text(input.target.mountScopeId, 'target.mountScopeId');
+    if (!Number.isSafeInteger(input.target.mountScopeRevision) ||
+        input.target.mountScopeRevision < 1) {
+      fail('P14_SHELF_TARGET_MOUNT_REVISION', 'Shelf Target Mount Scope revision is invalid.');
+    }
+    exact(input.targetReadiness, [
+      'schemaRef',
+      'shelfId',
+      'targetDigest',
+      'endpointId',
+      'rootLocation',
+      'mountScopeId',
+      'mountScopeRevision',
+      'directoryReadable',
+      'directoryWritable',
+      'safeMaterialCommit',
+      'commitProtocol',
+      'observationMode',
+      'filesystemType',
+      'physicalEffect',
+      'probeDigest',
+    ], 'P14_SHELF_TARGET_READINESS_INPUT');
+    const evidence = input.targetReadiness;
+    const evidenceBase = Object.fromEntries(
+      Object.entries(evidence).filter(([key]) => key !== 'probeDigest'),
+    );
+    if (evidence.schemaRef !== EVIDENCE_SCHEMA_REF ||
+        evidence.shelfId !== input.shelfId ||
+        evidence.targetDigest !== targetDigest(input.shelfId, input.target) ||
+        evidence.endpointId !== input.target.endpointId ||
+        evidence.rootLocation !== input.target.rootLocation ||
+        evidence.mountScopeId !== input.target.mountScopeId ||
+        evidence.mountScopeRevision !== input.target.mountScopeRevision ||
+        evidence.directoryReadable !== true ||
+        evidence.directoryWritable !== true ||
+        evidence.safeMaterialCommit !== true ||
+        evidence.commitProtocol !== 'target_local_slot_then_atomic_switch' ||
+        evidence.observationMode !== 'read_only' ||
+        typeof evidence.filesystemType !== 'string' ||
+        evidence.physicalEffect !== 'none' ||
+        evidence.probeDigest !== canonicalDigest(evidenceBase)) {
+      fail(
+        'P14_SHELF_TARGET_READINESS_MISMATCH',
+        'Shelf Target readiness evidence does not match the proposed Target.',
+      );
+    }
+  }
+
   function previewPlacement(request) {
     if (!request || typeof request.idempotencyKey !== 'string' || !request.idempotencyKey) fail('IDEMPOTENCY_KEY_REQUIRED', 'Shelf Placement preview requires idempotencyKey.');
     const commandContract = 'arca.admin.shelf.placement_preview@1';
@@ -145,18 +201,24 @@ function createShelfQueryStore(options) {
       command: { commandReceiptId: previewId, ownerDomain: 'arca', commandContract, callerScope: 'admin', idempotencyKey: request.idempotencyKey, requestDigest, targetType: 'shelf', targetId: request.input?.shelfId },
       domainParticipant: { participantId: 'arca_shelf_placement_preview', owner: 'arca', repositories: [repository], execute(context) {
         const input = request.input;
-        exact(input, ['shelfId','expectedPlacementRevision','placement'], 'P14_SHELF_PLACEMENT_PREVIEW_INPUT');
+        exact(input, ['shelfId','expectedPlacementRevision','target','placement','targetReadiness'], 'P14_SHELF_PLACEMENT_PREVIEW_INPUT');
         validatePlacement(input);
+        validateTargetBundle(input);
         const repo = context.repository(repository.repositoryId);
         const shelf = readShelf(repo, input.shelfId);
         if (!shelf) fail('P14_SHELF_NOT_FOUND', 'Shelf does not exist.');
         if (shelf.status !== 'active' || shelf.currentPlacementRevision !== input.expectedPlacementRevision) fail('P14_SHELF_PLACEMENT_CAS', 'Shelf Placement head is stale.');
+        const currentTargetDigest = targetDigest(input.shelfId, shelf.target);
         const affectedActiveEntryCount = repo.invoke('list_shelf_entries', { shelf_id: input.shelfId }).filter((entry) =>
           entry.status === 'active' || entry.status === 'offdeck_in_progress').length;
         const result = {
           previewId,
           shelfId: input.shelfId,
           expectedPlacementRevision: input.expectedPlacementRevision,
+          currentTargetDigest,
+          proposedTarget: input.target,
+          proposedTargetDigest: input.targetReadiness.targetDigest,
+          targetReadinessEvidence: input.targetReadiness,
           currentPlacementDigest: shelf.placement.digest,
           proposedPlacementDigest: input.placement.digest,
           affectedActiveEntryCount,
@@ -194,6 +256,10 @@ function createShelfQueryStore(options) {
     try { result = JSON.parse(row.result_ref_json); } catch (_error) { fail('P14_SHELF_PLACEMENT_PREVIEW_CORRUPT', 'Placement preview receipt is corrupt.'); }
     if (!result || canonicalDigest(result) !== row.result_digest || result.previewId !== input.previewId ||
         result.shelfId !== input.shelfId || result.expectedPlacementRevision !== input.expectedPlacementRevision ||
+        result.currentTargetDigest !== input.expectedCurrentTargetDigest ||
+        result.proposedTargetDigest !== input.targetReadiness.targetDigest ||
+        canonicalDigest(result.proposedTarget) !== canonicalDigest(input.target) ||
+        canonicalDigest(result.targetReadinessEvidence) !== canonicalDigest(input.targetReadiness) ||
         result.proposedPlacementDigest !== input.placement.digest || result.previewDigest !== input.previewDigest ||
         result.physicalEffect !== 'none') fail('P14_SHELF_PLACEMENT_PREVIEW_MISMATCH', 'Placement publish does not match its durable preview.');
   }
@@ -215,14 +281,39 @@ function createShelfQueryStore(options) {
   }
 
   function revisePlacement(input, context) {
-    exact(input, ['shelfId','expectedPlacementRevision','previewId','previewDigest','placement'], 'P14_SHELF_PLACEMENT_REVISION_INPUT');
+    exact(input, ['shelfId','expectedPlacementRevision','expectedCurrentTargetDigest','target','previewId','previewDigest','placement','targetReadiness'], 'P14_SHELF_PLACEMENT_REVISION_INPUT');
     validatePlacement(input);
+    validateTargetBundle(input);
     const repo = context.repository(repository.repositoryId); const current = repo.invoke('find_shelf', { shelf_id: input.shelfId });
     if (!current) fail('P14_SHELF_NOT_FOUND', 'Shelf does not exist.');
-    if (current.status !== 'active' || current.current_placement_revision !== input.expectedPlacementRevision) fail('P14_SHELF_PLACEMENT_CAS', 'Shelf Placement head is stale.');
+    const currentTarget = {
+      endpointId: current.target_endpoint_id,
+      rootLocation: current.target_root_location,
+      mountScopeId: current.target_mount_scope_id,
+      mountScopeRevision: current.target_mount_scope_revision,
+    };
+    if (current.status !== 'active' ||
+        current.current_placement_revision !== input.expectedPlacementRevision ||
+        targetDigest(input.shelfId, currentTarget) !== input.expectedCurrentTargetDigest) {
+      fail('P14_SHELF_PLACEMENT_CAS', 'Shelf Target Folder or Placement head is stale.');
+    }
     const revision = input.expectedPlacementRevision + 1;
     repo.invoke('insert_placement', { shelf_id: input.shelfId, revision, policy_schema_ref: text(input.placement.schemaRef, 'placement.schemaRef'), policy_json: canonicalJson(input.placement.value), policy_digest: input.placement.digest, effective_at_ms: context.commitTimeMs });
-    const changed = repo.invoke('advance_placement_head', { current_placement_revision: revision, updated_at_ms: context.commitTimeMs, shelf_id: input.shelfId, expected_placement_revision: input.expectedPlacementRevision, expected_status: 'active' });
+    const changed = repo.invoke('advance_placement_head', {
+      target_endpoint_id: input.target.endpointId,
+      target_root_location: input.target.rootLocation,
+      target_mount_scope_id: input.target.mountScopeId,
+      target_mount_scope_revision: input.target.mountScopeRevision,
+      current_placement_revision: revision,
+      updated_at_ms: context.commitTimeMs,
+      shelf_id: input.shelfId,
+      expected_target_endpoint_id: currentTarget.endpointId,
+      expected_target_root_location: currentTarget.rootLocation,
+      expected_target_mount_scope_id: currentTarget.mountScopeId,
+      expected_target_mount_scope_revision: currentTarget.mountScopeRevision,
+      expected_placement_revision: input.expectedPlacementRevision,
+      expected_status: 'active',
+    });
     if (changed.changes !== 1) fail('P14_SHELF_PLACEMENT_CAS', 'Shelf Placement head CAS failed.');
     return readShelf(repo, input.shelfId);
   }

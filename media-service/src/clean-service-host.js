@@ -24,6 +24,9 @@ const {
   createAdminCredentialRepository,
 } = require('./helix/platform/persistence/admin-credential-repository');
 const {
+  createCleanShelfTargetFolderProbe,
+} = require('./clean-shelf-target-folder-probe');
+const {
   GENERATION,
   SCHEMA_NAME,
   openSqliteKernel,
@@ -88,7 +91,10 @@ function errorResponse(error, correlationId) {
   else if (error.code === 'ADMIN_FIELD_NOT_FOUND') status = 404;
   else if (error.code === 'ADMIN_SHELF_NOT_FOUND') status = 404;
   else if (error.code === 'ADMIN_SHELF_COMMAND_REJECTED' || error.code === 'ADMIN_SHELF_TARGET_MISMATCH') status = 400;
-  else if (error.code === 'ADMIN_SHELF_IDEMPOTENCY_CONFLICT') status = 409;
+  else if (
+    error.code === 'ADMIN_SHELF_IDEMPOTENCY_CONFLICT' ||
+    error.code === 'ADMIN_SHELF_CONFLICT'
+  ) status = 409;
   else if (error.code === 'ADMIN_RULE_TEMPLATE_NOT_FOUND') status = 404;
   else if (
     error.code === 'ADMIN_RULE_TEMPLATE_COMMAND_REJECTED' ||
@@ -230,7 +236,10 @@ async function createCleanServiceHost(options) {
   const sessionTokens = createSessionTokenService({
     readActiveCredential: runtime.readActiveCredential,
   });
-  const arcaShelfAdmin = createArcaShelfAdminApplication(constructed.applicationDependencies);
+  const arcaShelfAdmin = createArcaShelfAdminApplication({
+    ...constructed.applicationDependencies,
+    targetFolderProbe: createCleanShelfTargetFolderProbe(),
+  });
   const arcaRuleTemplateAdmin = createArcaRuleTemplateAdminApplication(
     constructed.applicationDependencies,
   );
