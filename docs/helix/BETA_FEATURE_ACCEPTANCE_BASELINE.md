@@ -439,7 +439,7 @@ P14与实现任务不得绕过Architecture / Product直接协商产品语义或�
 | F18.03 | 用户可以测试并保存真实MoviePilot搜索/Acquisition Integration | `UI,API,PROVIDER,NEG` | `EV-UI,EV-API,EV-PROVIDER,EV-NEG` | `NOT_RUN` |
 | F18.04 | 用户可以测试并保存已配置JAV/Adult Provider | `UI,API,PROVIDER,NEG` | `EV-UI,EV-API,EV-PROVIDER,EV-NEG` | `NOT_RUN` |
 | F18.05 | 用户可以认证/测试可选Emby Provider；ShelfDeck保存签发的Access Token/Secret Handle而非密码 | `UI,API,PROVIDER,NEG` | `EV-UI,EV-API,EV-PROVIDER,EV-NEG` | `NOT_RUN` |
-| F18.06 | 用户可以探测并保存真实兼容Remote Worker | `UI,API,PROVIDER,NEG` | `EV-UI,EV-API,EV-PROVIDER,EV-NEG` | `NOT_RUN` |
+| F18.06 | Beta不交付Remote Worker探测或保存；该组件在ShelfDeck Service完整验收后再决定是否重建 | `NOT_APPLICABLE` | `EV-AUDIT` | `NOT_APPLICABLE` |
 | F18.07 | “测试连接”在显式Save前绝不持久化配置 | `UI,API,PROVIDER,NEG` | `EV-UI,EV-API,EV-PROVIDER,EV-NEG` | `NOT_RUN` |
 | F18.08 | 已保存Secret只显示掩码，GET、错误、审计、HTML和日志均不返回明文 | `UI,API,NEG,AUDIT` | `EV-UI,EV-API,EV-NEG,EV-AUDIT` | `NOT_RUN` |
 | F18.09 | Provider失败在受影响Work上形成用户可行动Integration状态 | `UI,API,E2E,PROVIDER` | `EV-UI,EV-API,EV-PROVIDER,EV-ACT` | `NOT_RUN` |
@@ -459,7 +459,7 @@ P14与实现任务不得绕过Architecture / Product直接协商产品语义或�
 | F19.06 | Workspace/Artifact Root相互不能重叠，也不能与active Field/Shelf Target重叠 | `UI,API,FS,NEG` | `EV-UI,EV-API,EV-FS,EV-NEG` | `NOT_RUN` |
 | F19.07 | 本机CPU/GPU设备只有通过真实短编码/Probe后才显示可用 | `UI,API,PROBE,NEG` | `EV-UI,EV-API,EV-MEDIA,EV-NEG` | `NOT_RUN` |
 | F19.08 | 仅列出NVENC/QSV/AMF名称不能算设备可用 | `UI,API,PROBE,NEG` | `EV-UI,EV-API,EV-MEDIA,EV-NEG` | `NOT_RUN` |
-| F19.09 | 用户可以注册和注销兼容Remote Worker | `UI,API,PROVIDER,RECOVERY` | `EV-UI,EV-API,EV-PROVIDER,EV-REC` | `NOT_RUN` |
+| F19.09 | Beta不交付Remote Worker注册或注销；P14把Worker视为不存在 | `NOT_APPLICABLE` | `EV-AUDIT` | `NOT_APPLICABLE` |
 | F19.10 | 用户可以选择“默认”Resource Operating Profile | `UI,API` | `EV-UI,EV-API,EV-FACT` | `NOT_RUN` |
 | F19.11 | 用户可以选择“火力全开”；它提高eligible计算供给，但不降低验证要求 | `UI,API,E2E,PROBE,NEG` | `EV-UI,EV-API,EV-ACT,EV-MEDIA,EV-NEG` | `NOT_RUN` |
 | F19.12 | 用户可以按配置时区设置每周“火力全开”时段 | `UI,API` | `EV-UI,EV-API,EV-FACT` | `NOT_RUN` |
@@ -521,8 +521,8 @@ P14与实现任务不得绕过Architecture / Product直接协商产品语义或�
 | `P14-J11` | Field与Shelf注销 | 在途影响Preview → 注销Field但保留文件/责任 → Shelf注销强警告 → 收藏事实结束 → 精确释放Control → 物理文件不变且历史保留 | F02.15–F02.18, F03.11–F03.13, F13.12 |
 | `P14-J12` | Perception与People | On-deck前后Rating/Watched → no-rating与更强Identity解析 → 直接注册Person → 有效/零人脸/多人脸Reference → NFO强/弱Candidate → 接受/忽略/Merge | F14, F17, X03–X05 |
 | `P14-J13` | 可选外部Acquisition | 已配置MoviePilot搜索 → 确定性选择Candidate → Acquisition Observe/Stability/Identity/Package Verification → 单成员Workspace Import → Product链路；包含中断与Replay | F11.14, F18.03 |
-| `P14-J14` | 运行、Provider与资源 | 真实连接测试、Secret掩码、CPU/GPU Probe、默认/火力全开时段、可选Worker、Overview/Projection、Credential轮换、Backup/Restore/Tamper/Rollback | F18, F19, F21, X10 |
-| `P14-J15` | 产品表面与架构负向审计 | 复制系统Template形成User Template并验证Draft/Preview/Revision；枚举Admin Route/UI与Runtime依赖图；尝试所有禁止输入/动作 | F06.08, F11.16, F12.11–F12.16, F17.09, F19.14, F21.11, X01–X13 |
+| `P14-J14` | 运行、Provider与资源 | 真实连接测试、Secret掩码、CPU/GPU Probe、默认/火力全开时段、Overview/Projection、Credential轮换、Backup/Restore/Tamper/Rollback；不启动或测试Worker | F18, F19, F21, X10, X14 |
+| `P14-J15` | 产品表面与架构负向审计 | 复制系统Template形成User Template并验证Draft/Preview/Revision；枚举Admin Route/UI与Runtime依赖图；尝试所有禁止输入/动作 | F06.08, F11.16, F12.11–F12.16, F17.09, F19.14, F21.11, X01–X14 |
 
 ### 5.1 必须覆盖的环境
 
@@ -537,7 +537,7 @@ P14与实现任务不得绕过Architecture / Product直接协商产品语义或�
 | Douban | 对最终用户是可选Perception来源；为了使F14.09/F18.02最终`PASS`，P14必须配置真实可用来源 |
 | Emby | 对最终用户是可选Provider；为了使F18.05/F18.11/F18.12最终`PASS`，P14必须配置真实服务，同时验证ShelfDeck不拥有或配置Emby Library |
 | GPU加速 | CPU路径始终必测；P14还必须使用当前可用GPU完成真实Probe与短编码，证明可用性判断 |
-| Remote Worker | 对最终用户可选；为了使F18.06/F19.09最终`PASS`，P14必须运行一套真实兼容Worker |
+| Remote Worker | 不属于本次ShelfDeck Service Beta验收范围；P14不得启动、配置或依赖Worker，F18.06/F19.09固定为`NOT_APPLICABLE` |
 | 生产NAS/Canary | P14禁止使用；必须等待用户后续明确授权 |
 
 ### 5.1.1 已知Beta实施遗留
@@ -613,8 +613,9 @@ cosine similarity、聚类规则、模型缓存及故障反例的算法知识。
 | X09 自动选择重复项赢家 | 系统不推荐也不自动选择应保留的重复版本 | `UI,API,NEG,AUDIT` | `EV-UI,EV-API,EV-NEG,EV-AUDIT` | `NOT_RUN` |
 | X10 Emby Library配置 | ShelfDeck不创建/修改Emby Library，也不要求Library Mapping | `UI,API,PROVIDER,NEG,AUDIT` | `EV-UI,EV-API,EV-PROVIDER,EV-NEG,EV-AUDIT` | `NOT_RUN` |
 | X11 旧架构兼容 | 不存在可达的Kairox/Mirex dual-read/write/run、fallback或compatibility入口 | `API,NEG,AUDIT` | `EV-API,EV-NEG,EV-AUDIT` | `NOT_RUN` |
-| X12 media-desktop | Electron Desktop变更不属于冻结的Beta Package | `AUDIT` | `EV-AUDIT` | `NOT_RUN` |
+| X12 media-desktop | Electron Desktop不属于本次ShelfDeck Service Beta；P14不构建、不启动、不测试，后续可在Service完成后重建 | `AUDIT` | `EV-AUDIT` | `NOT_RUN` |
 | X13 生产部署 | P14不执行NAS部署、Canary或任何生产变更 | `FS,NEG,AUDIT` | `EV-FS,EV-NEG,EV-AUDIT` | `NOT_RUN` |
+| X14 media-worker | Worker视为不存在；P14不构建、不启动、不配置、不调用，ShelfDeck Service的Beta结果不得依赖Worker可用性 | `API,E2E,NEG,AUDIT` | `EV-API,EV-NEG,EV-AUDIT` | `NOT_RUN` |
 
 ## 7. P14执行协议
 
@@ -637,7 +638,7 @@ cosine similarity、聚类规则、模型缓存及故障反例的算法知识。
 
 P14完成首轮执行后，Architecture / Product独立执行：
 
-1. 核对全部271条Feature与`X01`–`X13`均存在；
+1. 核对全部271条Feature与`X01`–`X14`均存在；
 2. 质疑Evidence证明的究竟是用户可见结果，还是仅证明内部机制运行；
 3. 抽查重放关键Formation、On-deck、Recovery、Aftercare及破坏性Exit Evidence；
 4. 依据规定样本层级检查Movie、Season、JAV和Western Adult覆盖；
