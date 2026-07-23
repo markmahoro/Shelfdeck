@@ -77,11 +77,14 @@ obtains the Repository/Store.
 
 - Positive: authenticated create → list → exact read, including the full Policy
   and Field Access digest basis.
-- Negative: missing Admin session is `401`; duplicate Field is an Owner-local
-  `400 ADMIN_FIELD_COMMAND_REJECTED`; malformed input cannot be admitted by the
-  closed MaterialField contract.
-- Recovery: the Field remains readable after clean host restart using the same
-  database and Secret Root.
+- Negative: missing Admin session is `401`; URL `:fieldId` and body `fieldId`
+  mismatch fails closed before the Owner command; a reused idempotency key with
+  a different request is `409 ADMIN_FIELD_IDEMPOTENCY_CONFLICT`; malformed
+  input cannot be admitted by the closed MaterialField contract.
+- Recovery: each Field mutation atomically persists its Procurement write with
+  the bound Foundation receipt/marker/audit record.  Same key and exact payload
+  returns the stored typed result without another write; the Field remains
+  readable after clean host restart using the same database and Secret Root.
 
 Current route status: **11 real**, **6 intentional Worker 404**, **97 remaining
 product routes fail closed with 503**.  Field observation and failed-preparation
