@@ -8,6 +8,7 @@ const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
+const Database = require('better-sqlite3');
 const { initializeCleanData } = require('../../scripts/helix-operational-safety');
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const {
@@ -391,23 +392,71 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
     } });
     assert.equal(rejected.statusCode, 400);
     assert.equal(rejected.json().error.code, 'ADMIN_SHELF_COMMAND_REJECTED');
+    const standardValue2 = { ...standardValue, profileRuleSets: [{ ...standardValue.profileRuleSets[0], quality: { minimumHeight: 1080 } }] };
+    const standardCommand = {
+      idempotencyKey: 'shelf-http-standard-2', shelfId: 'shelf-http-1', expectedStandardRevision: 1, expectedRoutingProjectionRevision: 1,
+      standard: { ...body.standard, value: standardValue2, digest: canonicalDigest(standardValue2) },
+    };
+    const standardRevision = await host.inject({ method: 'POST', url: '/v1/admin/shelves/shelf-http-1/actions/bind-template', headers: { cookie }, payload: standardCommand });
+    assert.equal(standardRevision.statusCode, 200);
+    assert.equal(standardRevision.json().shelf.currentStandardRevision, 2);
+    assert.equal(standardRevision.json().shelf.routingProjection.revision, 2);
+    const standardReplay = await host.inject({ method: 'POST', url: '/v1/admin/shelves/shelf-http-1/actions/bind-template', headers: { cookie }, payload: standardCommand });
+    assert.equal(standardReplay.statusCode, 200);
+    assert.equal(standardReplay.json().shelf.standard.digest, canonicalDigest(standardValue2));
+    const standardMismatch = await host.inject({ method: 'POST', url: '/v1/admin/shelves/shelf-http-1/actions/bind-template', headers: { cookie }, payload: { ...standardCommand, idempotencyKey: 'standard-target-mismatch', shelfId: 'other-shelf' } });
+    assert.equal(standardMismatch.statusCode, 400);
+    assert.equal(standardMismatch.json().error.code, 'ADMIN_SHELF_TARGET_MISMATCH');
+    const standardStale = await host.inject({ method: 'POST', url: '/v1/admin/shelves/shelf-http-1/actions/bind-template', headers: { cookie }, payload: { ...standardCommand, idempotencyKey: 'standard-stale' } });
+    assert.equal(standardStale.statusCode, 400);
+    const placementValue2 = { ...placementValue, collisionPolicy: 'suffix' };
+    const placementCommand = {
+      idempotencyKey: 'shelf-http-placement-2', shelfId: 'shelf-http-1', expectedPlacementRevision: 1,
+      placement: { ...body.placement, value: placementValue2, digest: canonicalDigest(placementValue2) },
+    };
+    const placementRevision = await host.inject({ method: 'PATCH', url: '/v1/admin/shelves/shelf-http-1/placement', headers: { cookie }, payload: placementCommand });
+    assert.equal(placementRevision.statusCode, 200);
+    assert.equal(placementRevision.json().shelf.currentPlacementRevision, 2);
+    const placementReplay = await host.inject({ method: 'PATCH', url: '/v1/admin/shelves/shelf-http-1/placement', headers: { cookie }, payload: placementCommand });
+    assert.equal(placementReplay.statusCode, 200);
+    const placementConflict = await host.inject({ method: 'PATCH', url: '/v1/admin/shelves/shelf-http-1/placement', headers: { cookie }, payload: { ...placementCommand, placement: { ...placementCommand.placement, value: placementValue } } });
+    assert.equal(placementConflict.statusCode, 409);
+    const invalidPlacement = await host.inject({ method: 'PATCH', url: '/v1/admin/shelves/shelf-http-1/placement', headers: { cookie }, payload: { ...placementCommand, idempotencyKey: 'placement-invalid', placement: { ...placementCommand.placement, digest: '0'.repeat(64) } } });
+    assert.equal(invalidPlacement.statusCode, 400);
     const listed = await host.inject({ method: 'GET', url: '/v1/admin/shelves', headers: { cookie } });
     assert.equal(listed.statusCode, 200);
     assert.deepEqual(listed.json().items.map((item) => item.shelfId), ['shelf-http-1']);
     const exact = await host.inject({ method: 'GET', url: '/v1/admin/shelves/shelf-http-1', headers: { cookie } });
     assert.equal(exact.statusCode, 200);
-    assert.equal(exact.json().shelf.standard.digest, canonicalDigest(standardValue));
-    assert.equal(exact.json().shelf.placement.digest, canonicalDigest(placementValue));
+    assert.equal(exact.json().shelf.standard.digest, canonicalDigest(standardValue2));
+    assert.equal(exact.json().shelf.placement.digest, canonicalDigest(placementValue2));
+    const currentStandard = await host.inject({ method: 'GET', url: '/v1/admin/shelves/shelf-http-1/standard', headers: { cookie } });
+    assert.equal(currentStandard.statusCode, 200);
+    assert.equal(currentStandard.json().standard.revision, 2);
+    const currentPlacement = await host.inject({ method: 'GET', url: '/v1/admin/shelves/shelf-http-1/placement', headers: { cookie } });
+    assert.equal(currentPlacement.statusCode, 200);
+    assert.equal(currentPlacement.json().placement.revision, 2);
     const missing = await host.inject({ method: 'GET', url: '/v1/admin/shelves/missing-shelf', headers: { cookie } });
     assert.equal(missing.statusCode, 404);
     assert.equal(missing.json().error.code, 'ADMIN_SHELF_NOT_FOUND');
   } finally { await host.close(); }
+  const ownerEvidence = new Database(path.join(value.dataDir, 'shelfdeck.db'), { readonly: true });
+  try {
+    assert.deepEqual(ownerEvidence.prepare('SELECT revision FROM arca_shelf_standard_revisions WHERE shelf_id=? ORDER BY revision').all('shelf-http-1').map((row) => row.revision), [1, 2]);
+    assert.deepEqual(ownerEvidence.prepare('SELECT revision FROM arca_placement_policy_revisions WHERE shelf_id=? ORDER BY revision').all('shelf-http-1').map((row) => row.revision), [1, 2]);
+    assert.deepEqual(ownerEvidence.prepare('SELECT current_standard_revision,current_placement_revision,routing_projection_revision FROM arca_shelves WHERE shelf_id=?').get('shelf-http-1'), {
+      current_standard_revision: 2, current_placement_revision: 2, routing_projection_revision: 2,
+    });
+    assert.equal(ownerEvidence.prepare("SELECT count(*) AS count FROM fx_command_receipts WHERE owner_domain='arca' AND target_id='shelf-http-1'").get().count, 3);
+  } finally { ownerEvidence.close(); }
   const restarted = await createCleanServiceHost({ dataDir: value.dataDir, adminDistDir: value.adminDistDir, secretRoot });
   try {
     const exchange = await restarted.inject({ method: 'POST', url: '/v1/admin/session', headers: { 'x-api-key': value.initialized.adminApiKey } });
     const exact = await restarted.inject({ method: 'GET', url: '/v1/admin/shelves/shelf-http-1', headers: { cookie: exchange.headers['set-cookie'] } });
     assert.equal(exact.statusCode, 200);
-    assert.equal(exact.json().shelf.routingProjection.revision, 1);
+    assert.equal(exact.json().shelf.routingProjection.revision, 2);
+    assert.equal(exact.json().shelf.standard.revision, 2);
+    assert.equal(exact.json().shelf.placement.revision, 2);
   } finally { await restarted.close(); }
 });
 
