@@ -97,6 +97,7 @@ function createCleanFacades(options) {
   }
   if (options.arcaShelfAdmin) {
     facades.ArcaShelfAdminFacade.get_shelves = async () => ({ body: options.arcaShelfAdmin.listShelves() });
+    facades.ArcaShelfAdminFacade.post_shelves = async (input) => ({ status: 201, body: options.arcaShelfAdmin.createShelf(input.body) });
     facades.ArcaShelfAdminFacade.get_shelves_shelfid = async (input) => ({ body: options.arcaShelfAdmin.getShelf(input.params.shelfId) });
   }
 

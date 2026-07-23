@@ -360,15 +360,44 @@ test('Procurement Material Field registration is a real authenticated Owner-loca
 
 test('Arca Shelf projection reads use the authenticated public HTTP path and owner-local query repository', async () => {
   const value = fixture();
+  const standardValue = { profileRuleSets: [{ contentProfile: 'movie', mandatoryMedia: [], quality: {}, space: {} }] };
+  const placementValue = { folderTemplate: '{title} ({year})', collisionPolicy: 'reject' };
+  const body = {
+    idempotencyKey: 'shelf-http-create-1', shelfId: 'shelf-http-1', name: 'Movies',
+    target: { endpointId: 'shelf-endpoint-1', rootLocation: 'movies', mountScopeId: 'shelf-mount-1', mountScopeRevision: 1 },
+    standard: { ruleTemplateId: 'template-http-1', ruleTemplateRevision: 1, schemaRef: 'helix://fixtures/shelf-standard/v1', value: standardValue, digest: canonicalDigest(standardValue) },
+    placement: { schemaRef: 'helix://fixtures/placement-policy/v1', value: placementValue, digest: canonicalDigest(placementValue) },
+  };
   const host = await createCleanServiceHost({ dataDir: value.dataDir, adminDistDir: value.adminDistDir, secretRoot });
   try {
-    const unauthenticated = await host.inject({ method: 'GET', url: '/v1/admin/shelves' });
+    const unauthenticated = await host.inject({ method: 'POST', url: '/v1/admin/shelves', payload: body });
     assert.equal(unauthenticated.statusCode, 401);
     const exchange = await host.inject({ method: 'POST', url: '/v1/admin/session', headers: { 'x-api-key': value.initialized.adminApiKey } });
     const cookie = exchange.headers['set-cookie'];
+    const created = await host.inject({ method: 'POST', url: '/v1/admin/shelves', headers: { cookie }, payload: body });
+    assert.equal(created.statusCode, 201);
+    assert.equal(created.json().shelf.shelfId, 'shelf-http-1');
+    assert.equal(created.json().shelf.currentStandardRevision, 1);
+    assert.equal(created.json().shelf.currentPlacementRevision, 1);
+    const replay = await host.inject({ method: 'POST', url: '/v1/admin/shelves', headers: { cookie }, payload: body });
+    assert.equal(replay.statusCode, 201);
+    assert.equal(replay.json().shelf.routingProjection.digest, created.json().shelf.routingProjection.digest);
+    const conflict = await host.inject({ method: 'POST', url: '/v1/admin/shelves', headers: { cookie }, payload: { ...body, name: 'Changed' } });
+    assert.equal(conflict.statusCode, 409);
+    assert.equal(conflict.json().error.code, 'ADMIN_SHELF_IDEMPOTENCY_CONFLICT');
+    const rejected = await host.inject({ method: 'POST', url: '/v1/admin/shelves', headers: { cookie }, payload: {
+      ...body, idempotencyKey: 'shelf-http-create-invalid', shelfId: 'shelf-invalid',
+      standard: { ...body.standard, digest: '0'.repeat(64) },
+    } });
+    assert.equal(rejected.statusCode, 400);
+    assert.equal(rejected.json().error.code, 'ADMIN_SHELF_COMMAND_REJECTED');
     const listed = await host.inject({ method: 'GET', url: '/v1/admin/shelves', headers: { cookie } });
     assert.equal(listed.statusCode, 200);
-    assert.deepEqual(listed.json().items, []);
+    assert.deepEqual(listed.json().items.map((item) => item.shelfId), ['shelf-http-1']);
+    const exact = await host.inject({ method: 'GET', url: '/v1/admin/shelves/shelf-http-1', headers: { cookie } });
+    assert.equal(exact.statusCode, 200);
+    assert.equal(exact.json().shelf.standard.digest, canonicalDigest(standardValue));
+    assert.equal(exact.json().shelf.placement.digest, canonicalDigest(placementValue));
     const missing = await host.inject({ method: 'GET', url: '/v1/admin/shelves/missing-shelf', headers: { cookie } });
     assert.equal(missing.statusCode, 404);
     assert.equal(missing.json().error.code, 'ADMIN_SHELF_NOT_FOUND');
@@ -376,9 +405,9 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
   const restarted = await createCleanServiceHost({ dataDir: value.dataDir, adminDistDir: value.adminDistDir, secretRoot });
   try {
     const exchange = await restarted.inject({ method: 'POST', url: '/v1/admin/session', headers: { 'x-api-key': value.initialized.adminApiKey } });
-    const listed = await restarted.inject({ method: 'GET', url: '/v1/admin/shelves', headers: { cookie: exchange.headers['set-cookie'] } });
-    assert.equal(listed.statusCode, 200);
-    assert.deepEqual(listed.json().items, []);
+    const exact = await restarted.inject({ method: 'GET', url: '/v1/admin/shelves/shelf-http-1', headers: { cookie: exchange.headers['set-cookie'] } });
+    assert.equal(exact.statusCode, 200);
+    assert.equal(exact.json().shelf.routingProjection.revision, 1);
   } finally { await restarted.close(); }
 });
 

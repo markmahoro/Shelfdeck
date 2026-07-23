@@ -269,6 +269,11 @@ function openSqliteKernel(options) {
         if (transactionActive) fail('P3_SQLITE_NESTED_TRANSACTION', 'Nested SQLite Kernel transactions are forbidden.');
         transactionActive = true;
         database.exec('BEGIN IMMEDIATE');
+        // Several clean aggregate roots have mutually dependent current-head
+        // pointers and revision rows. SQLite's transaction-scoped deferral
+        // preserves every declared FK at COMMIT while allowing the complete
+        // aggregate to be inserted atomically.
+        database.pragma('defer_foreign_keys = ON');
         try {
           const commitTimeMs = now();
           if (!Number.isSafeInteger(commitTimeMs) || commitTimeMs < 0) fail('P3_SQLITE_INVALID_COMMIT_TIME', 'Commit time must be a non-negative safe UTC epoch millisecond.');
