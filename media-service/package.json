@@ -26,6 +26,7 @@
     "build:web": "cd web && npm run build",
     "helix:clean-init": "node scripts/helix-clean-init.js",
     "test:helix-p14-docker-entrypoint": "node scripts/p14-beta-impl-02-docker-retest.js",
+    "test:helix-p14-product-surface-matrix": "node scripts/p14-product-surface-matrix-check.js",
     "dist:win": "node scripts/package-win.js"
   },
   "dependencies": {
