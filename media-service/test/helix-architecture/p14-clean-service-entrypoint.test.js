@@ -8,6 +8,7 @@ const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
+const Ajv2020 = require('ajv/dist/2020');
 const Database = require('better-sqlite3');
 const { initializeCleanData } = require('../../scripts/helix-operational-safety');
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
@@ -18,6 +19,9 @@ const {
 const serviceRoot = path.resolve(__dirname, '../..');
 const secretRoot = 'p14-clean-entrypoint-secret-root-0123456789abcdef';
 const roots = [];
+const validateDeregistrationReceipt = new Ajv2020({ allErrors: true, strict: false }).compile(
+  require('../../src/helix/contracts/types/DeregistrationReceipt/v1/schema.json'),
+);
 
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-p14-entry-'));
@@ -392,6 +396,7 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
   fs.mkdirSync(physicalShelfRoot);
   fs.writeFileSync(physicalSentinel, Buffer.from('immutable-physical-media-snapshot'));
   const physicalBefore = fs.readFileSync(physicalSentinel);
+  let deregistrationCommand;
   const host = await createCleanServiceHost({ dataDir: value.dataDir, adminDistDir: value.adminDistDir, secretRoot });
   try {
     const unauthenticated = await host.inject({ method: 'POST', url: '/v1/admin/shelves', payload: body });
@@ -644,15 +649,144 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
     const missing = await host.inject({ method: 'GET', url: '/v1/admin/shelves/missing-shelf', headers: { cookie } });
     assert.equal(missing.statusCode, 404);
     assert.equal(missing.json().error.code, 'ADMIN_SHELF_NOT_FOUND');
+    deregistrationCommand = {
+      idempotencyKey: 'shelf-http-deregister-1',
+      shelfId: 'shelf-http-1',
+      expectedStatus: 'active',
+      expectedUpdatedAtMs: exact.json().shelf.updatedAtMs,
+      expectedRoutingProjectionRevision: 2,
+      authorization: {
+        authorizationId: 'shelf-http-deregister-authorization-1',
+        decision: 'deregister_shelf',
+        shelfId: 'shelf-http-1',
+      },
+    };
+    const deregistrationUnauthenticated = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/shelves/shelf-http-1/actions/deregister',
+      payload: deregistrationCommand,
+    });
+    assert.equal(deregistrationUnauthenticated.statusCode, 401);
+    const deregistrationTargetMismatch = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/shelves/shelf-http-1/actions/deregister',
+      headers: { cookie },
+      payload: { ...deregistrationCommand, idempotencyKey: 'deregister-target-mismatch', shelfId: 'other-shelf' },
+    });
+    assert.equal(deregistrationTargetMismatch.statusCode, 400);
+    const deregistrationClosed = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/shelves/shelf-http-1/actions/deregister',
+      headers: { cookie },
+      payload: { ...deregistrationCommand, idempotencyKey: 'deregister-closed-input', unexpected: true },
+    });
+    assert.equal(deregistrationClosed.statusCode, 400);
+    const deregistrationAuthorizationMismatch = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/shelves/shelf-http-1/actions/deregister',
+      headers: { cookie },
+      payload: {
+        ...deregistrationCommand,
+        idempotencyKey: 'deregister-authorization-mismatch',
+        authorization: { ...deregistrationCommand.authorization, shelfId: 'other-shelf' },
+      },
+    });
+    assert.equal(deregistrationAuthorizationMismatch.statusCode, 400);
+    const deregistrationStale = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/shelves/shelf-http-1/actions/deregister',
+      headers: { cookie },
+      payload: { ...deregistrationCommand, idempotencyKey: 'deregister-stale', expectedUpdatedAtMs: deregistrationCommand.expectedUpdatedAtMs - 1 },
+    });
+    assert.equal(deregistrationStale.statusCode, 400);
+    const deregistrationFaultDatabase = new Database(path.join(value.dataDir, 'shelfdeck.db'));
+    deregistrationFaultDatabase.exec(`
+      CREATE TRIGGER p14_shelf_deregistration_fault
+      BEFORE INSERT ON arca_deregistration_receipts
+      BEGIN
+        SELECT RAISE(ABORT, 'p14-shelf-deregistration-fault');
+      END
+    `);
+    deregistrationFaultDatabase.close();
+    const deregistrationCrash = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/shelves/shelf-http-1/actions/deregister',
+      headers: { cookie },
+      payload: { ...deregistrationCommand, idempotencyKey: 'shelf-http-deregister-crash' },
+    });
+    assert.equal(deregistrationCrash.statusCode, 400);
+    const deregistrationCrashEvidence = new Database(path.join(value.dataDir, 'shelfdeck.db'));
+    assert.deepEqual(deregistrationCrashEvidence.prepare('SELECT status,routing_projection_revision FROM arca_shelves WHERE shelf_id=?').get('shelf-http-1'), {
+      status: 'active',
+      routing_projection_revision: 2,
+    });
+    assert.equal(deregistrationCrashEvidence.prepare('SELECT count(*) AS count FROM arca_deregistrations WHERE shelf_id=?').get('shelf-http-1').count, 0);
+    assert.equal(deregistrationCrashEvidence.prepare("SELECT count(*) AS count FROM fx_event_result_bindings WHERE result_schema_ref='helix://contracts/types/DeregistrationReceipt/v1'").get().count, 0);
+    assert.equal(deregistrationCrashEvidence.prepare("SELECT count(*) AS count FROM fx_commit_markers WHERE commit_marker LIKE 'arca-shelf-deregister-%'").get().count, 0);
+    deregistrationCrashEvidence.exec('DROP TRIGGER p14_shelf_deregistration_fault');
+    deregistrationCrashEvidence.close();
+    const deregistered = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/shelves/shelf-http-1/actions/deregister',
+      headers: { cookie },
+      payload: deregistrationCommand,
+    });
+    assert.equal(deregistered.statusCode, 200, deregistered.body);
+    assert.equal(deregistered.json().shelf.status, 'deregistered');
+    assert.equal(deregistered.json().shelf.routingProjection.revision, 3);
+    assert.equal(deregistered.json().receipt.receiptKind, 'shelf_deregistration');
+    assert.equal(deregistered.json().receipt.effectReceiptRef, null);
+    assert.equal(validateDeregistrationReceipt(deregistered.json().receipt), true, JSON.stringify(validateDeregistrationReceipt.errors));
+    const deregistrationReplay = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/shelves/shelf-http-1/actions/deregister',
+      headers: { cookie },
+      payload: deregistrationCommand,
+    });
+    assert.equal(deregistrationReplay.statusCode, 200);
+    assert.equal(deregistrationReplay.json().replayed, true);
+    assert.equal(deregistrationReplay.json().receipt.receiptId, deregistered.json().receipt.receiptId);
+    const deregistrationConflict = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/shelves/shelf-http-1/actions/deregister',
+      headers: { cookie },
+      payload: {
+        ...deregistrationCommand,
+        authorization: { ...deregistrationCommand.authorization, authorizationId: 'conflicting-authorization' },
+      },
+    });
+    assert.equal(deregistrationConflict.statusCode, 409);
+    const inactiveRoutingPreview = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/routing/material-fields/field-http-1/actions/preview',
+      headers: { cookie },
+      payload: {
+        idempotencyKey: 'routing-preview-deregistered-shelf',
+        fieldId: 'field-http-1',
+        policy: routingPolicy,
+        facts: [],
+      },
+    });
+    assert.equal(inactiveRoutingPreview.statusCode, 400);
+    assert.equal(inactiveRoutingPreview.json().error.details.reasonCode, 'P14_ROUTING_TARGET_INACTIVE');
+    assert.deepEqual(fs.readFileSync(physicalSentinel), physicalBefore);
+    assert.deepEqual(fs.readdirSync(physicalShelfRoot), ['movie.mkv']);
   } finally { await host.close(); }
   const ownerEvidence = new Database(path.join(value.dataDir, 'shelfdeck.db'), { readonly: true });
   try {
     assert.deepEqual(ownerEvidence.prepare('SELECT revision FROM arca_shelf_standard_revisions WHERE shelf_id=? ORDER BY revision').all('shelf-http-1').map((row) => row.revision), [1, 2]);
     assert.deepEqual(ownerEvidence.prepare('SELECT revision FROM arca_placement_policy_revisions WHERE shelf_id=? ORDER BY revision').all('shelf-http-1').map((row) => row.revision), [1, 2]);
     assert.deepEqual(ownerEvidence.prepare('SELECT current_standard_revision,current_placement_revision,routing_projection_revision FROM arca_shelves WHERE shelf_id=?').get('shelf-http-1'), {
-      current_standard_revision: 2, current_placement_revision: 2, routing_projection_revision: 2,
+      current_standard_revision: 2, current_placement_revision: 2, routing_projection_revision: 3,
     });
     assert.equal(ownerEvidence.prepare("SELECT count(*) AS count FROM fx_command_receipts WHERE owner_domain='arca' AND target_id='shelf-http-1'").get().count, 5);
+    assert.equal(ownerEvidence.prepare('SELECT state,release_manifest_digest FROM arca_deregistrations WHERE shelf_id=?').get('shelf-http-1').state, 'committed');
+    assert.equal(ownerEvidence.prepare('SELECT count(*) AS count FROM arca_deregistration_releases').get().count, 0);
+    assert.equal(ownerEvidence.prepare('SELECT count(*) AS count FROM arca_deregistration_receipts WHERE shelf_id=?').get('shelf-http-1').count, 1);
+    assert.equal(ownerEvidence.prepare("SELECT count(*) AS count FROM fx_event_result_bindings WHERE result_schema_ref='helix://contracts/types/DeregistrationReceipt/v1'").get().count, 1);
+    assert.equal(ownerEvidence.prepare("SELECT count(*) AS count FROM fx_commit_markers WHERE owner_domain='arca' AND scope_type='shelf' AND scope_id='shelf-http-1' AND result_schema_ref='helix://contracts/types/DeregistrationReceipt/v1'").get().count, 1);
+    assert.equal(ownerEvidence.prepare('SELECT count(*) AS count FROM arca_shelf_entries WHERE shelf_id=?').get('shelf-http-1').count, 0);
+    assert.equal(ownerEvidence.prepare('SELECT count(*) AS count FROM fx_material_controls').get().count, 0);
     assert.equal(ownerEvidence.prepare("SELECT count(*) AS count FROM libra_routing_policy_revisions WHERE field_id='field-http-1'").get().count, 2);
     assert.equal(ownerEvidence.prepare("SELECT count(*) AS count FROM libra_routing_policy_targets WHERE routing_policy_id='routing-http-1'").get().count, 2);
     assert.equal(ownerEvidence.prepare("SELECT count(*) AS count FROM fx_outbox WHERE producer_domain='libra' AND aggregate_id='routing-http-1'").get().count, 2);
@@ -663,7 +797,8 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
     const exchange = await restarted.inject({ method: 'POST', url: '/v1/admin/session', headers: { 'x-api-key': value.initialized.adminApiKey } });
     const exact = await restarted.inject({ method: 'GET', url: '/v1/admin/shelves/shelf-http-1', headers: { cookie: exchange.headers['set-cookie'] } });
     assert.equal(exact.statusCode, 200);
-    assert.equal(exact.json().shelf.routingProjection.revision, 2);
+    assert.equal(exact.json().shelf.routingProjection.revision, 3);
+    assert.equal(exact.json().shelf.status, 'deregistered');
     assert.equal(exact.json().shelf.name, 'Movie Library');
     assert.equal(exact.json().shelf.standard.revision, 2);
     assert.equal(exact.json().shelf.placement.revision, 2);
@@ -680,6 +815,16 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
     assert.equal(replayAfterRestart.statusCode, 200);
     assert.equal(replayAfterRestart.json().policy.revision, 1);
     assert.equal(replayAfterRestart.json().replayed, true);
+    const deregistrationReplay = await restarted.inject({
+      method: 'POST',
+      url: '/v1/admin/shelves/shelf-http-1/actions/deregister',
+      headers: { cookie: exchange.headers['set-cookie'] },
+      payload: deregistrationCommand,
+    });
+    assert.equal(deregistrationReplay.statusCode, 200);
+    assert.equal(deregistrationReplay.json().replayed, true);
+    assert.equal(deregistrationReplay.json().shelf.status, 'deregistered');
+    assert.deepEqual(fs.readFileSync(physicalSentinel), physicalBefore);
   } finally { await restarted.close(); }
 });
 
