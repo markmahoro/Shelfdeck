@@ -99,10 +99,12 @@ function createCleanFacades(options) {
     facades.ArcaShelfAdminFacade.get_shelves = async () => ({ body: options.arcaShelfAdmin.listShelves() });
     facades.ArcaShelfAdminFacade.post_shelves = async (input) => ({ status: 201, body: options.arcaShelfAdmin.createShelf(input.body) });
     facades.ArcaShelfAdminFacade.get_shelves_shelfid = async (input) => ({ body: options.arcaShelfAdmin.getShelf(input.params.shelfId) });
+    facades.ArcaShelfAdminFacade.patch_shelves_shelfid = async (input) => ({ body: options.arcaShelfAdmin.renameShelf(input.params.shelfId, input.body) });
     facades.ArcaShelfAdminFacade.get_shelves_shelfid_standard = async (input) => ({ body: options.arcaShelfAdmin.getStandard(input.params.shelfId) });
     facades.ArcaShelfAdminFacade.post_shelves_shelfid_actions_bind_template = async (input) => ({ body: options.arcaShelfAdmin.reviseStandard(input.params.shelfId, input.body) });
     facades.ArcaShelfAdminFacade.get_shelves_shelfid_placement = async (input) => ({ body: options.arcaShelfAdmin.getPlacement(input.params.shelfId) });
     facades.ArcaShelfAdminFacade.patch_shelves_shelfid_placement = async (input) => ({ body: options.arcaShelfAdmin.revisePlacement(input.params.shelfId, input.body) });
+    facades.ArcaShelfAdminFacade.post_shelves_shelfid_placement_actions_preview = async (input) => ({ body: options.arcaShelfAdmin.previewPlacement(input.params.shelfId, input.body) });
   }
   if (options.libraRoutingAdmin) {
     facades.LibraFormationFacade.get_routing_material_fields_fieldid = async (input) => ({ body: options.libraRoutingAdmin.get(input.params.fieldId) });

@@ -25,6 +25,11 @@ function createArcaShelfAdminApplication(options) {
       const { idempotencyKey, ...input } = body;
       return invoke(() => store.createShelf({ idempotencyKey, input }));
     },
+    renameShelf(shelfId, body) {
+      if (!body || typeof body !== 'object' || Array.isArray(body) || body.shelfId !== shelfId) throw new ArcaShelfAdminApplicationError('ADMIN_SHELF_TARGET_MISMATCH', 'URL中的Shelf与请求体目标必须一致。', { pathShelfId: shelfId, bodyShelfId: body?.shelfId });
+      const { idempotencyKey, ...input } = body;
+      return invoke(() => store.renameShelf({ idempotencyKey, input }));
+    },
     reviseStandard(shelfId, body) {
       if (!body || typeof body !== 'object' || Array.isArray(body) || body.shelfId !== shelfId) throw new ArcaShelfAdminApplicationError('ADMIN_SHELF_TARGET_MISMATCH', 'URL中的Shelf与请求体目标必须一致。', { pathShelfId: shelfId, bodyShelfId: body?.shelfId });
       const { idempotencyKey, ...input } = body;
@@ -34,6 +39,11 @@ function createArcaShelfAdminApplication(options) {
       if (!body || typeof body !== 'object' || Array.isArray(body) || body.shelfId !== shelfId) throw new ArcaShelfAdminApplicationError('ADMIN_SHELF_TARGET_MISMATCH', 'URL中的Shelf与请求体目标必须一致。', { pathShelfId: shelfId, bodyShelfId: body?.shelfId });
       const { idempotencyKey, ...input } = body;
       return invoke(() => store.revisePlacement({ idempotencyKey, input }));
+    },
+    previewPlacement(shelfId, body) {
+      if (!body || typeof body !== 'object' || Array.isArray(body) || body.shelfId !== shelfId) throw new ArcaShelfAdminApplicationError('ADMIN_SHELF_TARGET_MISMATCH', 'URL中的Shelf与请求体目标必须一致。', { pathShelfId: shelfId, bodyShelfId: body?.shelfId });
+      const { idempotencyKey, ...input } = body;
+      return invoke(() => store.previewPlacement({ idempotencyKey, input }));
     },
   });
 }

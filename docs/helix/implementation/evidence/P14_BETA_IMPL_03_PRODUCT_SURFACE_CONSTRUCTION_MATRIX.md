@@ -90,15 +90,23 @@ obtains the Repository/Store.
 
 ### Arca Shelf aggregate
 
-以下 7 条 Shelf route 已经接通真实 Arca Owner-local application：
+以下 9 条 Shelf route 已经接通真实 Arca Owner-local application：
 `GET/POST /v1/admin/shelves`、`GET /v1/admin/shelves/:shelfId`、
+`PATCH /v1/admin/shelves/:shelfId`、
 `GET /v1/admin/shelves/:shelfId/standard`、
 `POST /v1/admin/shelves/:shelfId/actions/bind-template`、
-`GET/PATCH /v1/admin/shelves/:shelfId/placement`。创建 Shelf 时在同一
+`GET/PATCH /v1/admin/shelves/:shelfId/placement`以及
+`POST /v1/admin/shelves/:shelfId/placement/actions/preview`。创建 Shelf 时在同一
 transaction 建立 initial Shelf、Standard、Placement 与 active routing
 projection；Standard/Placement 后续 revision 使用显式 expected revision
 与 head CAS。URL/body target、idempotency replay/conflict、digest、FK、
 restart/history 以及故障后的零部分写均已有 HTTP/Owner-row 证据。
+Shelf rename只修改非Identity名称并用monotonic `updatedAtMs`做CAS，不改变
+Target Folder、Standard、Placement或routing projection。Placement preview
+形成durable Command Receipt；PATCH必须携带并匹配同一Shelf、同一expected
+revision和同一proposed digest的`previewId/previewDigest`。在Placement
+revision insert处注入故障后，revision/head/receipt均保持零部分写；独立
+physical sentinel在rename、preview和publish前后逐字节不变。
 
 ### Libra Field Routing Policy
 
@@ -122,9 +130,9 @@ stale head、idempotency conflict、restart/history，以及在 target insert
 处注入故障后的 revision/head/receipt/outbox 全部回滚均由 public HTTP
 fixture 覆盖。
 
-Current route status: **22 real**, **6 intentional Worker 404**, **86 remaining
+Current route status: **24 real**, **6 intentional Worker 404**, **84 remaining
 product routes fail closed with 503**.  Field observation and failed-preparation
 retry remain fail-closed until their Supporting Work/Capability journey is
-wired；Shelf rename/deregister/placement preview 与 Rule Template routes也尚未
-宣称完成。This is a progress count only; the exact construction batch
+wired；Shelf deregistration与全部Rule Template routes仍未宣称完成。This is
+a progress count only; the exact construction batch
 assignment remains the 4/6/59/7/38 matrix above.
