@@ -37,15 +37,18 @@ only adapts HTTP input/output and never obtains a Store.
 | 2 Formation/Product | remaining `LibraFormationFacade` / 7 | `libra.public.LibraFormationAdminFacade`, Intake/Product Delivery/Workspace ports | Candidate intake, Run, Workspace, Product, Handoff A/B typed transactions | F05–F12; full owner-row journey/crash-replay |
 | 3 Collection/Post-deck | `ArcaCollectionFacade` / 3, `ArcaCareFacade` / 3, `ArcaOffdeckFacade` / 17 | new owner-local Arca collection/care/off-deck public ports | Arca Inventory/Care/Off-deck transactions and projections | F13, F15–F17, F20–F21; accepted custody and recovery |
 | 3 Collection/Post-deck | `PerceptionAdminFacade` / 4, `PeopleAdminFacade` / 11 | Perception/People existing typed public facades | respective Owner transactions/projections; reference-image capability is service-local | F14, F17–F18, F21; reference/recovery/negative |
-| 4 Operations closure | remaining Platform diagnostics/security/automation routes | `platform.public` and owner-local Arca automation public port | Platform/Arca canonical rows and read-only diagnostics | F18–F21; backup/restore/security/restart |
+| 4 Operations closure | no newly assigned route | cross-cutting closure gate over already assigned Platform/Arca routes | backup/restore/security/restart and security evidence | F18–F21; it cannot receive a duplicate route assignment |
 
 ## Mechanical coverage rule
 
 `media-service/scripts/p14-product-surface-matrix-check.js` is the executable
-counterpart of this ledger.  It must prove that each route inventory row is
-assigned to exactly one row above, that the six remote-Worker routes remain
-Beta-404 (never silently wired), and that no route can name a raw Store,
-legacy runtime, Worker or Desktop package as its target.
+counterpart of this ledger.  It assigns each route by exact `routeId`, not only
+by Facade: core=4, Worker Beta-404=6, Setup/Foundation=59, Formation/Product=7
+and Collection/Post-deck=38.  In particular, the four Libra routing rows are
+Batch 1 while the other seven Libra formation rows are Batch 2.  Batch 4 is a
+cross-cutting closure gate and has no route assignment.  The checker also proves
+that no route can name a raw Store, legacy runtime, Worker or Desktop package as
+its target.
 
 ## Construction guardrails
 
