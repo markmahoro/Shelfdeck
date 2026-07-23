@@ -1,6 +1,6 @@
 # P14 BETA-IMPL-02 Clean Service Entrypoint施工证据
 
-Status: `IMPLEMENTED / AWAITING INDEPENDENT P14 RETEST`
+Status: `IMPLEMENTED / DOCKER CORRECTION READY FOR INDEPENDENT RETEST`
 
 ## 1. Baseline
 
@@ -58,9 +58,14 @@ Ollama、Python/FastAPI、19110和旧Face Service均未进入实现、打包或�
 
 - Windows package只复制`src/server.js`、两个clean environment adapter、`src/helix/`、
   两个clean operational scripts、Admin build和Node依赖；不再复制历史`src/`全树。
+- Docker采用同一FFmpeg/Node base的multi-stage build：`service-dependencies`临时安装
+  `python3`、`make`、`g++`编译Node原生模块；`service-runtime`只复制已编译的
+  `node_modules`，不安装toolchain，并移除基础镜像自带的Python runtime。
+- 实际`docker build`已通过（镜像` shelfdeck-helix-beta-impl-02:dockerfix`）；本地一次性
+  Docker复验通过health、Admin UI、API-Key/Session、readiness、restart Session continuity、
+  wrong Secret Root/missing DB fail-closed、legacy/Worker route负例及runtime无Python/旧source检查。
 - Dockerfile只复制上述service-only文件，`CMD ["node", "src/server.js"]`；
-  已删除`media-worker`、Face Service、Python venv、19110、supervisor和Face环境变量。
-- 本实施任务未构建Docker image、未启动Container；真实Windows/Docker qualification仍由独立P14执行。
+  `media-worker`、Face Service、19110、supervisor和Face环境变量均不在运行镜像。
 
 ## 6. Test Evidence
 
@@ -71,6 +76,8 @@ Ollama、Python/FastAPI、19110和旧Face Service均未进入实现、打包或�
 | Restart / wrong Secret Root / missing DB | positive restart与fail-closed反例 `PASS` |
 | Legacy route / Worker route / dependency graph | 不可达反例 `PASS` |
 | Admin Web production build | `PASS`，81 modules |
+| Service-only Docker build | `PASS`；`better-sqlite3`在builder完成node-gyp编译，final runtime无toolchain/Python |
+| Disposable Docker runtime retest | 10项：health/auth/readiness/restart/secret+DB负例/legacy+Worker负例/runtime boundary `PASS` |
 | Full Helix Architecture | `121 fixture files PASS`；dependency/semantic/manifests/contracts全部`ok=true` |
 
 冻结机器计数保持`112 Capability / 97 Result family / 177 table / 43 Canonical Transaction /
@@ -86,4 +93,5 @@ Ollama、Python/FastAPI、19110和旧Face Service均未进入实现、打包或�
 - cross-Owner write：`0`
 - compatibility/dual runtime/legacy fallback：`0`
 - `media-worker`/`media-desktop`修改：`0`
-- E2E、Docker build、Canary、生产、真实媒体副作用：`0`
+- E2E、Canary、生产、真实媒体副作用：`0`
+- Docker：仅一次性本地service-only build/run与clean init；不含真实媒体、Worker或Desktop：`1`

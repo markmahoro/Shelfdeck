@@ -282,7 +282,15 @@ test('Windows and Docker artifacts select the service-only clean entrypoint', ()
   assert.match(docker, /CMD \["node", "src\/server\.js"\]/);
   assert.match(docker, /COPY media-service\/src\/clean-service-host\.js/);
   assert.match(docker, /COPY media-service\/src\/helix \.\/src\/helix/);
-  assert.doesNotMatch(docker, /media-worker|face-service|fastapi|python|19110|ollama|all-in-one/i);
+  assert.match(docker, /FROM service-base AS service-dependencies/);
+  assert.match(docker, /FROM service-base AS service-runtime/);
+  assert.match(docker, /COPY --from=service-dependencies \/app\/node_modules \.\/node_modules/);
+  assert.match(docker, /remove the interpreter\/runtime from the final image/i);
+  assert.doesNotMatch(docker, /media-worker|face-service|fastapi|19110|ollama|all-in-one/i);
+  assert.doesNotMatch(
+    docker.slice(docker.indexOf('FROM service-base AS service-runtime')),
+    /apt-get install[^\n]*(python|make|g\+\+)/i,
+  );
 
   const windows = fs.readFileSync(path.join(serviceRoot, 'scripts', 'package-win.js'), 'utf8');
   assert.match(windows, /CLEAN_RUNTIME_FILES/);
