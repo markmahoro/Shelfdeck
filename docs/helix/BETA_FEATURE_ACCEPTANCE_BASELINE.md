@@ -540,6 +540,54 @@ P14与实现任务不得绕过Architecture / Product直接协商产品语义或�
 | Remote Worker | 对最终用户可选；为了使F18.06/F19.09最终`PASS`，P14必须运行一套真实兼容Worker |
 | 生产NAS/Canary | P14禁止使用；必须等待用户后续明确授权 |
 
+### 5.1.1 已知Beta实施遗留
+
+| 遗留ID | 状态 | 影响Feature / 场景 | 关闭目标 |
+| --- | --- | --- | --- |
+| `BETA-IMPL-01` | `OPEN / P14_BLOCKING` | F10.04、F17.05–F17.09、F17.12；`P14-J07`、`P14-J12` | 把已由SSOT定义的`shared.face.embedding.compute@1`、`shared.face.cluster.compute@1`、`shared.face.reference.match@1`接入clean Helix Runtime，完成Reference Image单人脸校验与Western人脸Evidence两条真实链路 |
+
+`BETA-IMPL-01`不是新的Business Domain、External Provider、Integration或独立部署服务。人脸推理属于
+Helix Execution Foundation内置的Owner-neutral算法能力，并由唯一Composition Root装配；用户不配置
+Face URL、API Key、进程地址或独立服务。它不得恢复Mirex的Python/FastAPI sidecar、`19110`端口、旧People
+Store写入、旧Reference Face公开API或base64/embedding热Payload。
+
+实施采用ShelfDeck现有Node.js技术栈：
+
+1. 使用`onnxruntime-node`在Node.js进程内执行版本化ONNX模型，使用现有`sharp`完成图片解码、缩放、裁剪和
+   5-point alignment；推理可以放入`worker_threads`，但不形成独立服务、独立部署单元或第二套Runtime。
+2. 人脸检测与Embedding模型使用许可可随产品分发的版本化Model Pack；Beta基线优先评估
+   OpenCV Zoo YuNet（Face Detection）+ SFace（Face Recognition），不得继续把Mirex自动下载的
+   InsightFace `buffalo_l`作为可发布Beta默认模型。
+3. Model Pack由Execution Foundation现有Artifact/配置边界下的内部model loader按
+   `modelRef + version + SHA-256 + license manifest`加载，保存在ShelfDeck data root下的模型缓存；不新增
+   Model Registry业务组件或关系表。模型可以由安装包携带或由ShelfDeck首次使用时自动取得，但不是用户配置的
+   Provider。模型缺失、摘要错误或加载失败必须形成明确Capability不可用结果，不得静默换模型。
+4. `shared.face.embedding.compute@1`从正式`ArtifactHandle`读取图片，把向量集合写入受管Artifact并只返回
+   `FaceEmbeddingSetHandle`；`cluster`同样传Handle；`reference.match`只读取冻结的
+   `PersonReferenceProjection`并产生Evidence。不得把向量数组塞回Workflow热Payload。
+5. Reference Image链固定为
+   `reference_asset.import → embedding.compute(single_reference_face) → exactly-one-face verify →
+   reference_fact.commit`；零脸、多脸、模型或Artifact fence错误均不得形成部分Reference Fact。
+6. Western链固定为
+   `frames.extract → embedding.compute → cluster.compute → reference.match → Libra Media-Cast Evidence`；
+   Shared Face Runtime不得注册Person，也不得提交或改写Media-Cast Fact。
+
+允许复用的Mirex资产仅限：SCRFD/ArcFace时期已经验证过的预处理、5-point alignment、NMS、向量归一化、
+cosine similarity、聚类规则、模型缓存及故障反例的算法知识。Python服务、HTTP协议、supervisor、旧端口、
+旧配置和跨Owner写入全部不迁移。若旧算法无法直接适配YuNet/SFace输出，应按clean Capability重新实现，
+而不是保留双技术栈或兼容路径。
+
+关闭`BETA-IMPL-01`必须同时满足：
+
+- Windows与Linux/Docker均不安装或启动Python/FastAPI人脸服务，且不存在可访问的独立Face HTTP端点；
+- 单脸Reference Image成功，零脸和多脸稳定失败；进程在import、推理、Artifact写入和commit各边界崩溃后
+  均无部分Fact且可恢复；
+- Western短切片完成真实抽帧、Embedding、聚类和Reference匹配；伪造Model/Artifact/Handle摘要稳定拒绝；
+- Model Pack固定来源、版本、SHA-256和许可清单，模型缓存重启可复用，摘要损坏时拒绝运行；
+- Architecture dependency audit证明Shared Face Runtime不写People/Libra Store，不建立隐藏Provider、
+  独立服务或旧Runtime fallback；
+- 受影响Feature由P14取得真实`EV-MEDIA/EV-FS/EV-FACT/EV-NEG/EV-REC/EV-AUDIT`后才能标记`PASS`。
+
 ### 5.2 样本层级的使用
 
 - 当断言不涉及时长或绝对字节数时，`functional_slice`适用于所有有界Formation、Metadata、Workspace、
