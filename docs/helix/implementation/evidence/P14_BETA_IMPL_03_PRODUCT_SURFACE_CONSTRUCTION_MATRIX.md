@@ -66,6 +66,8 @@ its target.
 
 ## Batch 1 implementation progress
 
+### Procurement Material Field
+
 `GET /v1/admin/material-fields`, `POST /v1/admin/material-fields`,
 `GET /v1/admin/material-fields/:fieldId`, the current extraction-policy read,
 Access revision, Policy revision, and non-destructive Field deregistration are
@@ -86,8 +88,43 @@ obtains the Repository/Store.
   returns the stored typed result without another write; the Field remains
   readable after clean host restart using the same database and Secret Root.
 
-Current route status: **11 real**, **6 intentional Worker 404**, **97 remaining
+### Arca Shelf aggregate
+
+以下 7 条 Shelf route 已经接通真实 Arca Owner-local application：
+`GET/POST /v1/admin/shelves`、`GET /v1/admin/shelves/:shelfId`、
+`GET /v1/admin/shelves/:shelfId/standard`、
+`POST /v1/admin/shelves/:shelfId/actions/bind-template`、
+`GET/PATCH /v1/admin/shelves/:shelfId/placement`。创建 Shelf 时在同一
+transaction 建立 initial Shelf、Standard、Placement 与 active routing
+projection；Standard/Placement 后续 revision 使用显式 expected revision
+与 head CAS。URL/body target、idempotency replay/conflict、digest、FK、
+restart/history 以及故障后的零部分写均已有 HTTP/Owner-row 证据。
+
+### Libra Field Routing Policy
+
+以下 exact 4 条 Batch 1 Routing route 已经接通真实 Libra Owner-local
+application：
+
+- `GET /v1/admin/routing/material-fields/:fieldId`
+- `POST /v1/admin/routing/material-fields/:fieldId/actions/preview`
+- `PATCH /v1/admin/routing/material-fields/:fieldId`
+- `GET /v1/admin/routing/material-fields/:fieldId/revisions`
+
+Composition Root 只把独立的 Arca public
+`ShelfRoutingTargetProjection` port 接给 Libra；Libra 不 import、不查询
+`arca_*` Store。Preview 保存 durable Command Receipt，稳定重放
+`resolved|unresolved` 结果并拒绝同 key 不同 request。Publish 在 Libra
+transaction 中原子保存 immutable Policy revision、连续 rank targets、
+exact Field head CAS 与 Outbox；current read 只按 `field_id` 读取 head 后按
+`routing_policy_id+revision` 精确解析，不使用 max/latest/current scan。
+closed input、inactive/未知 Shelf、非法 direct policy、target mismatch、
+stale head、idempotency conflict、restart/history，以及在 target insert
+处注入故障后的 revision/head/receipt/outbox 全部回滚均由 public HTTP
+fixture 覆盖。
+
+Current route status: **22 real**, **6 intentional Worker 404**, **86 remaining
 product routes fail closed with 503**.  Field observation and failed-preparation
 retry remain fail-closed until their Supporting Work/Capability journey is
-wired; they are not claimed complete.  This is a progress count only; the exact
-construction batch assignment remains the 4/6/59/7/38 matrix above.
+wired；Shelf rename/deregister/placement preview 与 Rule Template routes也尚未
+宣称完成。This is a progress count only; the exact construction batch
+assignment remains the 4/6/59/7/38 matrix above.

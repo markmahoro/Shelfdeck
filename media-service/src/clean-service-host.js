@@ -11,6 +11,8 @@ const { createHelixApplication } = require('./helix/composition/createHelixAppli
 const { createCleanFacades } = require('./helix/composition/create-clean-facades');
 const { createProcurementAdminApplication } = require('./helix/domains/procurement/public/admin-application');
 const { createArcaShelfAdminApplication } = require('./helix/domains/arca/public/admin-application');
+const { createShelfRoutingTargetProjection } = require('./helix/domains/arca/public/routing-target-projection');
+const { createLibraRoutingAdminApplication } = require('./helix/domains/libra/public/admin-application');
 const { createSessionTokenService } = require('./helix/platform/public/session-token-service');
 const {
   createAdminCredentialRuntime,
@@ -84,6 +86,8 @@ function errorResponse(error, correlationId) {
   else if (error.code === 'ADMIN_SHELF_NOT_FOUND') status = 404;
   else if (error.code === 'ADMIN_SHELF_COMMAND_REJECTED' || error.code === 'ADMIN_SHELF_TARGET_MISMATCH') status = 400;
   else if (error.code === 'ADMIN_SHELF_IDEMPOTENCY_CONFLICT') status = 409;
+  else if (error.code === 'ADMIN_ROUTING_COMMAND_REJECTED' || error.code === 'ADMIN_ROUTING_TARGET_MISMATCH') status = 400;
+  else if (error.code === 'ADMIN_ROUTING_IDEMPOTENCY_CONFLICT') status = 409;
   else if (error.code === 'ADMIN_FIELD_COMMAND_REJECTED' || error.code === 'ADMIN_FIELD_TARGET_MISMATCH') status = 400;
   else if (error.code === 'ADMIN_FIELD_IDEMPOTENCY_CONFLICT') status = 409;
   else if (
@@ -213,12 +217,19 @@ async function createCleanServiceHost(options) {
   const sessionTokens = createSessionTokenService({
     readActiveCredential: runtime.readActiveCredential,
   });
+  const arcaShelfAdmin = createArcaShelfAdminApplication(constructed.applicationDependencies);
+  const arcaRoutingTargets = createShelfRoutingTargetProjection(constructed.applicationDependencies);
+  const libraRoutingAdmin = createLibraRoutingAdminApplication({
+    ...constructed.applicationDependencies,
+    readArcaRoutingTargets: arcaRoutingTargets.list,
+  });
   const facades = createCleanFacades({
     sessionTokens,
     readiness,
     credentialMetadata: runtime.readActiveCredential,
     procurementAdmin: createProcurementAdminApplication(constructed.applicationDependencies),
-    arcaShelfAdmin: createArcaShelfAdminApplication(constructed.applicationDependencies),
+    arcaShelfAdmin,
+    libraRoutingAdmin,
     nonce: crypto.randomUUID,
   });
   const application = createHelixApplication({ facades, sessionTokens });

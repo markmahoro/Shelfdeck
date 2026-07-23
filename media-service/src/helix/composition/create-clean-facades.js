@@ -104,6 +104,12 @@ function createCleanFacades(options) {
     facades.ArcaShelfAdminFacade.get_shelves_shelfid_placement = async (input) => ({ body: options.arcaShelfAdmin.getPlacement(input.params.shelfId) });
     facades.ArcaShelfAdminFacade.patch_shelves_shelfid_placement = async (input) => ({ body: options.arcaShelfAdmin.revisePlacement(input.params.shelfId, input.body) });
   }
+  if (options.libraRoutingAdmin) {
+    facades.LibraFormationFacade.get_routing_material_fields_fieldid = async (input) => ({ body: options.libraRoutingAdmin.get(input.params.fieldId) });
+    facades.LibraFormationFacade.post_routing_material_fields_fieldid_actions_preview = async (input) => ({ body: options.libraRoutingAdmin.preview(input.params.fieldId, input.body) });
+    facades.LibraFormationFacade.patch_routing_material_fields_fieldid = async (input) => ({ body: options.libraRoutingAdmin.publish(input.params.fieldId, input.body) });
+    facades.LibraFormationFacade.get_routing_material_fields_fieldid_revisions = async (input) => ({ body: options.libraRoutingAdmin.history(input.params.fieldId) });
+  }
 
   return Object.freeze(Object.fromEntries(
     Object.entries(facades).map(([name, methods]) => [name, Object.freeze(methods)]),

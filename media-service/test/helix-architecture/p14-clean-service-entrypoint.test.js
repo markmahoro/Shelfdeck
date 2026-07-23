@@ -108,6 +108,24 @@ test('formal server dependency graph reaches only the clean Helix root', () => {
   );
 });
 
+test('Libra Routing reads only its exact head and the formal Arca public projection', () => {
+  const storeSource = fs.readFileSync(
+    path.join(serviceRoot, 'src', 'helix', 'domains', 'libra', 'persistence', 'field-routing-policy-store.js'),
+    'utf8',
+  );
+  const applicationSource = fs.readFileSync(
+    path.join(serviceRoot, 'src', 'helix', 'domains', 'libra', 'application', 'routing-admin-facade.js'),
+    'utf8',
+  );
+  const hostSource = fs.readFileSync(path.join(serviceRoot, 'src', 'clean-service-host.js'), 'utf8');
+  assert.doesNotMatch(storeSource, /\barca_/);
+  assert.doesNotMatch(applicationSource, /persistence\/shelf|arca_shelves|createShelfQueryStore/);
+  assert.match(hostSource, /createShelfRoutingTargetProjection/);
+  assert.match(storeSource, /find_head:[\s\S]*?keyColumns: \['field_id'\]/);
+  assert.match(storeSource, /find_revision:[\s\S]*?keyColumns: \['routing_policy_id', 'revision'\]/);
+  assert.doesNotMatch(storeSource, /SELECT\s+|MAX\s*\(|ORDER\s+BY[\s\S]*?DESC/i);
+});
+
 test('clean host serves public health and Admin UI, then requires API key or HttpOnly session', async () => {
   const value = fixture();
   const host = await createCleanServiceHost({
@@ -436,6 +454,115 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
     const currentPlacement = await host.inject({ method: 'GET', url: '/v1/admin/shelves/shelf-http-1/placement', headers: { cookie } });
     assert.equal(currentPlacement.statusCode, 200);
     assert.equal(currentPlacement.json().placement.revision, 2);
+    const routingPolicy = { routingPolicyId: 'routing-http-1', mode: 'sorting', targets: [
+      { shelfId: 'shelf-http-1', rank: 1, matchExpression: { nodeKind: 'always' } },
+    ] };
+    const unauthenticatedRouting = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/routing/material-fields/field-http-1/actions/preview',
+      payload: { idempotencyKey: 'routing-unauthenticated', fieldId: 'field-http-1', policy: routingPolicy, facts: [] },
+    });
+    assert.equal(unauthenticatedRouting.statusCode, 401);
+    const preview = await host.inject({ method: 'POST', url: '/v1/admin/routing/material-fields/field-http-1/actions/preview', headers: { cookie }, payload: {
+      idempotencyKey: 'routing-preview-1', fieldId: 'field-http-1', policy: routingPolicy, facts: [],
+    } });
+    assert.equal(preview.statusCode, 200);
+    assert.equal(preview.json().result, 'resolved');
+    assert.equal(preview.json().targetShelfId, 'shelf-http-1');
+    assert.equal(preview.json().replayed, false);
+    const previewReplay = await host.inject({ method: 'POST', url: '/v1/admin/routing/material-fields/field-http-1/actions/preview', headers: { cookie }, payload: {
+      idempotencyKey: 'routing-preview-1', fieldId: 'field-http-1', policy: routingPolicy, facts: [],
+    } });
+    assert.equal(previewReplay.statusCode, 200);
+    assert.equal(previewReplay.json().replayed, true);
+    assert.equal(previewReplay.json().previewDigest, preview.json().previewDigest);
+    const previewConflict = await host.inject({ method: 'POST', url: '/v1/admin/routing/material-fields/field-http-1/actions/preview', headers: { cookie }, payload: {
+      idempotencyKey: 'routing-preview-1', fieldId: 'field-http-1', policy: routingPolicy,
+      facts: [{ factKind: 'release_year', year: 2021 }],
+    } });
+    assert.equal(previewConflict.statusCode, 409);
+    const unresolvedPolicy = { routingPolicyId: 'routing-preview-unresolved', mode: 'sorting', targets: [
+      { shelfId: 'shelf-http-1', rank: 1, matchExpression: { nodeKind: 'predicate', factKind: 'release_year', operator: 'eq', expectedValue: 2020 } },
+    ] };
+    const unresolvedPreview = await host.inject({ method: 'POST', url: '/v1/admin/routing/material-fields/field-http-1/actions/preview', headers: { cookie }, payload: {
+      idempotencyKey: 'routing-preview-unresolved', fieldId: 'field-http-1', policy: unresolvedPolicy, facts: [],
+    } });
+    assert.equal(unresolvedPreview.statusCode, 200);
+    assert.equal(unresolvedPreview.json().result, 'unresolved');
+    assert.equal(unresolvedPreview.json().unresolvedReasonCode, 'higher_priority_rule_unknown');
+    const noMatchPreview = await host.inject({ method: 'POST', url: '/v1/admin/routing/material-fields/field-http-1/actions/preview', headers: { cookie }, payload: {
+      idempotencyKey: 'routing-preview-no-match', fieldId: 'field-http-1', policy: unresolvedPolicy,
+      facts: [{ factKind: 'release_year', year: 2021 }],
+    } });
+    assert.equal(noMatchPreview.statusCode, 200);
+    assert.equal(noMatchPreview.json().result, 'unresolved');
+    assert.equal(noMatchPreview.json().unresolvedReasonCode, 'no_matching_shelf');
+    const previewClosedInput = await host.inject({ method: 'POST', url: '/v1/admin/routing/material-fields/field-http-1/actions/preview', headers: { cookie }, payload: {
+      idempotencyKey: 'routing-preview-extra', fieldId: 'field-http-1', policy: routingPolicy, facts: [], unexpected: true,
+    } });
+    assert.equal(previewClosedInput.statusCode, 400);
+    const previewTargetMismatch = await host.inject({ method: 'POST', url: '/v1/admin/routing/material-fields/field-http-1/actions/preview', headers: { cookie }, payload: {
+      idempotencyKey: 'routing-preview-target-mismatch', fieldId: 'other-field', policy: routingPolicy, facts: [],
+    } });
+    assert.equal(previewTargetMismatch.statusCode, 400);
+    const invalidDirectPolicy = await host.inject({ method: 'POST', url: '/v1/admin/routing/material-fields/field-http-1/actions/preview', headers: { cookie }, payload: {
+      idempotencyKey: 'routing-preview-invalid-direct', fieldId: 'field-http-1',
+      policy: { ...unresolvedPolicy, routingPolicyId: 'invalid-direct', mode: 'direct' }, facts: [],
+    } });
+    assert.equal(invalidDirectPolicy.statusCode, 400);
+
+    const faultDatabase = new Database(path.join(value.dataDir, 'shelfdeck.db'));
+    faultDatabase.exec(`
+      CREATE TRIGGER p14_routing_publish_fault
+      BEFORE INSERT ON libra_routing_policy_targets
+      BEGIN
+        SELECT RAISE(ABORT, 'p14-routing-publish-fault');
+      END
+    `);
+    faultDatabase.close();
+    const crashedPublish = await host.inject({ method: 'PATCH', url: '/v1/admin/routing/material-fields/field-http-1', headers: { cookie }, payload: {
+      idempotencyKey: 'routing-publish-crash', fieldId: 'field-http-1', expectedPolicyId: null, expectedRevision: 0,
+      policy: { ...routingPolicy, routingPolicyId: 'routing-crash' },
+    } });
+    assert.equal(crashedPublish.statusCode, 400);
+    const crashEvidence = new Database(path.join(value.dataDir, 'shelfdeck.db'));
+    assert.equal(crashEvidence.prepare("SELECT count(*) AS count FROM libra_routing_policy_revisions WHERE routing_policy_id='routing-crash'").get().count, 0);
+    assert.equal(crashEvidence.prepare("SELECT count(*) AS count FROM libra_routing_policy_targets WHERE routing_policy_id='routing-crash'").get().count, 0);
+    assert.equal(crashEvidence.prepare("SELECT count(*) AS count FROM libra_field_routing_heads WHERE field_id='field-http-1'").get().count, 0);
+    assert.equal(crashEvidence.prepare("SELECT count(*) AS count FROM fx_command_receipts WHERE owner_domain='libra' AND idempotency_key='routing-publish-crash'").get().count, 0);
+    assert.equal(crashEvidence.prepare("SELECT count(*) AS count FROM fx_outbox WHERE aggregate_id='routing-crash'").get().count, 0);
+    crashEvidence.exec('DROP TRIGGER p14_routing_publish_fault');
+    crashEvidence.close();
+
+    const publishCommand = { idempotencyKey: 'routing-publish-1', fieldId: 'field-http-1', expectedPolicyId: null, expectedRevision: 0, policy: routingPolicy };
+    const published = await host.inject({ method: 'PATCH', url: '/v1/admin/routing/material-fields/field-http-1', headers: { cookie }, payload: publishCommand });
+    assert.equal(published.statusCode, 200, JSON.stringify(published.json()));
+    assert.equal(published.json().policy.revision, 1);
+    const publishReplay = await host.inject({ method: 'PATCH', url: '/v1/admin/routing/material-fields/field-http-1', headers: { cookie }, payload: publishCommand });
+    assert.equal(publishReplay.statusCode, 200);
+    const publishConflict = await host.inject({ method: 'PATCH', url: '/v1/admin/routing/material-fields/field-http-1', headers: { cookie }, payload: { ...publishCommand, policy: { ...routingPolicy, mode: 'direct' } } });
+    assert.equal(publishConflict.statusCode, 409);
+    const routingMismatch = await host.inject({ method: 'PATCH', url: '/v1/admin/routing/material-fields/field-http-1', headers: { cookie }, payload: { ...publishCommand, idempotencyKey: 'routing-mismatch', fieldId: 'other-field' } });
+    assert.equal(routingMismatch.statusCode, 400);
+    const stalePublish = await host.inject({ method: 'PATCH', url: '/v1/admin/routing/material-fields/field-http-1', headers: { cookie }, payload: {
+      ...publishCommand, idempotencyKey: 'routing-publish-stale',
+    } });
+    assert.equal(stalePublish.statusCode, 400);
+    const publishRevision2 = await host.inject({ method: 'PATCH', url: '/v1/admin/routing/material-fields/field-http-1', headers: { cookie }, payload: {
+      idempotencyKey: 'routing-publish-2', fieldId: 'field-http-1', expectedPolicyId: 'routing-http-1', expectedRevision: 1,
+      policy: { routingPolicyId: 'routing-http-1', mode: 'direct', targets: [
+        { shelfId: 'shelf-http-1', rank: 1, matchExpression: { nodeKind: 'always' } },
+      ] },
+    } });
+    assert.equal(publishRevision2.statusCode, 200, JSON.stringify(publishRevision2.json()));
+    assert.equal(publishRevision2.json().policy.revision, 2);
+    const currentRouting = await host.inject({ method: 'GET', url: '/v1/admin/routing/material-fields/field-http-1', headers: { cookie } });
+    assert.equal(currentRouting.statusCode, 200);
+    assert.equal(currentRouting.json().policy.revision, 2);
+    const routingHistory = await host.inject({ method: 'GET', url: '/v1/admin/routing/material-fields/field-http-1/revisions', headers: { cookie } });
+    assert.equal(routingHistory.statusCode, 200);
+    assert.deepEqual(routingHistory.json().items.map((item) => item.revision), [1, 2]);
+    assert.equal(routingHistory.json().items[0].policyDigest, published.json().policy.policyDigest);
     const missing = await host.inject({ method: 'GET', url: '/v1/admin/shelves/missing-shelf', headers: { cookie } });
     assert.equal(missing.statusCode, 404);
     assert.equal(missing.json().error.code, 'ADMIN_SHELF_NOT_FOUND');
@@ -448,6 +575,10 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
       current_standard_revision: 2, current_placement_revision: 2, routing_projection_revision: 2,
     });
     assert.equal(ownerEvidence.prepare("SELECT count(*) AS count FROM fx_command_receipts WHERE owner_domain='arca' AND target_id='shelf-http-1'").get().count, 3);
+    assert.equal(ownerEvidence.prepare("SELECT count(*) AS count FROM libra_routing_policy_revisions WHERE field_id='field-http-1'").get().count, 2);
+    assert.equal(ownerEvidence.prepare("SELECT count(*) AS count FROM libra_routing_policy_targets WHERE routing_policy_id='routing-http-1'").get().count, 2);
+    assert.equal(ownerEvidence.prepare("SELECT count(*) AS count FROM fx_outbox WHERE producer_domain='libra' AND aggregate_id='routing-http-1'").get().count, 2);
+    assert.equal(ownerEvidence.prepare("SELECT current_routing_policy_id,current_policy_revision FROM libra_field_routing_heads WHERE field_id='field-http-1'").get().current_policy_revision, 2);
   } finally { ownerEvidence.close(); }
   const restarted = await createCleanServiceHost({ dataDir: value.dataDir, adminDistDir: value.adminDistDir, secretRoot });
   try {
@@ -457,6 +588,19 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
     assert.equal(exact.json().shelf.routingProjection.revision, 2);
     assert.equal(exact.json().shelf.standard.revision, 2);
     assert.equal(exact.json().shelf.placement.revision, 2);
+    const routing = await restarted.inject({ method: 'GET', url: '/v1/admin/routing/material-fields/field-http-1', headers: { cookie: exchange.headers['set-cookie'] } });
+    assert.equal(routing.statusCode, 200);
+    assert.equal(routing.json().policy.routingPolicyId, 'routing-http-1');
+    assert.equal(routing.json().policy.revision, 2);
+    const replayAfterRestart = await restarted.inject({ method: 'PATCH', url: '/v1/admin/routing/material-fields/field-http-1', headers: { cookie: exchange.headers['set-cookie'] }, payload: {
+      idempotencyKey: 'routing-publish-1', fieldId: 'field-http-1', expectedPolicyId: null, expectedRevision: 0,
+      policy: { routingPolicyId: 'routing-http-1', mode: 'sorting', targets: [
+        { shelfId: 'shelf-http-1', rank: 1, matchExpression: { nodeKind: 'always' } },
+      ] },
+    } });
+    assert.equal(replayAfterRestart.statusCode, 200);
+    assert.equal(replayAfterRestart.json().policy.revision, 1);
+    assert.equal(replayAfterRestart.json().replayed, true);
   } finally { await restarted.close(); }
 });
 
