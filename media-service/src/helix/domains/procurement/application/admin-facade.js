@@ -24,6 +24,12 @@ function unavailable(method) {
 
 function rejected(error) {
   if (error instanceof ProcurementAdminApplicationError) throw error;
+  if (error.code === 'P3_COMMAND_IDEMPOTENCY_CONFLICT') {
+    throw new ProcurementAdminApplicationError(
+      'ADMIN_FIELD_IDEMPOTENCY_CONFLICT',
+      '同一幂等键不能用于不同的Material Field请求。',
+    );
+  }
   throw new ProcurementAdminApplicationError(
     'ADMIN_FIELD_COMMAND_REJECTED',
     'Material Field请求未通过Owner-local合同校验。',
@@ -31,10 +37,22 @@ function rejected(error) {
   );
 }
 
-function commandPayload(body) {
-  if (!body || typeof body !== 'object' || Array.isArray(body)) return body;
+function commandEnvelope(body, fieldId) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    throw new ProcurementAdminApplicationError('ADMIN_FIELD_COMMAND_REJECTED', 'Material Field请求体无效。');
+  }
   const { idempotencyKey, ...payload } = body;
-  return payload;
+  if (typeof idempotencyKey !== 'string' || idempotencyKey.length === 0) {
+    throw new ProcurementAdminApplicationError('IDEMPOTENCY_KEY_REQUIRED', 'Material Field写操作必须提供幂等键。');
+  }
+  if (fieldId !== undefined && payload.fieldId !== fieldId) {
+    throw new ProcurementAdminApplicationError(
+      'ADMIN_FIELD_TARGET_MISMATCH',
+      'URL中的Material Field与请求体目标必须一致。',
+      { pathFieldId: fieldId, bodyFieldId: payload.fieldId },
+    );
+  }
+  return Object.freeze({ idempotencyKey, input: payload });
 }
 
 function invokeCommand(operation) {
@@ -51,16 +69,16 @@ function createProcurementAdminApplication(options) {
   }
   const store = createMaterialFieldStore(options);
   const commands = procurementPublic.ProcurementCommandFacade({
-    registerMaterialField: (input) => store.registerMaterialField(input),
-    updateMaterialField: (input) => {
-      if (input?.operation !== 'revise_access') return unavailable('updateMaterialField')();
-      const { operation, ...revision } = input;
-      return store.reviseFieldAccess(revision);
+    registerMaterialField: (envelope) => store.commitAdminCommand({ operation: 'register', ...envelope }),
+    updateMaterialField: (envelope) => {
+      if (envelope?.input?.operation !== 'revise_access') return unavailable('updateMaterialField')();
+      const { operation, ...revision } = envelope.input;
+      return store.commitAdminCommand({ operation: 'revise_access', idempotencyKey: envelope.idempotencyKey, input: revision });
     },
-    publishExtractionPolicy: (input) => store.publishExtractionPolicy(input),
+    publishExtractionPolicy: (envelope) => store.commitAdminCommand({ operation: 'publish_policy', ...envelope }),
     requestFieldObservation: unavailable('requestFieldObservation'),
     retryFailedPreparation: unavailable('retryFailedPreparation'),
-    deregisterMaterialField: (input) => store.deregisterMaterialField(input),
+    deregisterMaterialField: (envelope) => store.commitAdminCommand({ operation: 'deregister', ...envelope }),
   });
   const queries = procurementPublic.ProcurementQueryFacade({
     listMaterialFields: () => store.listMaterialFields(),
@@ -91,16 +109,16 @@ function createProcurementAdminApplication(options) {
       }) });
     },
     registerMaterialField(body) {
-      return Object.freeze({ materialField: invokeCommand(() => commands.registerMaterialField(commandPayload(body))) });
+      return Object.freeze({ materialField: invokeCommand(() => commands.registerMaterialField(commandEnvelope(body))).materialField });
     },
-    reviseMaterialFieldAccess(body) {
-      return Object.freeze({ materialField: invokeCommand(() => commands.updateMaterialField(commandPayload(body))) });
+    reviseMaterialFieldAccess(fieldId, body) {
+      return Object.freeze({ materialField: invokeCommand(() => commands.updateMaterialField(commandEnvelope(body, fieldId))).materialField });
     },
-    publishExtractionPolicy(body) {
-      return Object.freeze({ materialField: invokeCommand(() => commands.publishExtractionPolicy(commandPayload(body))) });
+    publishExtractionPolicy(fieldId, body) {
+      return Object.freeze({ materialField: invokeCommand(() => commands.publishExtractionPolicy(commandEnvelope(body, fieldId))).materialField });
     },
-    deregisterMaterialField(body) {
-      return Object.freeze({ materialField: invokeCommand(() => commands.deregisterMaterialField(commandPayload(body))) });
+    deregisterMaterialField(fieldId, body) {
+      return Object.freeze({ materialField: invokeCommand(() => commands.deregisterMaterialField(commandEnvelope(body, fieldId))).materialField });
     },
   });
 }

@@ -80,7 +80,8 @@ function errorResponse(error, correlationId) {
   let status = 500;
   if (AUTH_ERROR_CODES.has(error.code)) status = 401;
   else if (error.code === 'ADMIN_FIELD_NOT_FOUND') status = 404;
-  else if (error.code === 'ADMIN_FIELD_COMMAND_REJECTED') status = 400;
+  else if (error.code === 'ADMIN_FIELD_COMMAND_REJECTED' || error.code === 'ADMIN_FIELD_TARGET_MISMATCH') status = 400;
+  else if (error.code === 'ADMIN_FIELD_IDEMPOTENCY_CONFLICT') status = 409;
   else if (
     error.code === 'IDEMPOTENCY_KEY_REQUIRED' ||
     error.code === 'GET_SIDE_EFFECT_INPUT_REJECTED' ||

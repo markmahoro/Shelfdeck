@@ -2,6 +2,7 @@
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
+const { createCommandCommitCoordinator } = require('../../../foundation/persistence/commit-foundation');
 const { createExtractionPolicy, createFieldAccess, createMaterialField, validateExtractionPolicyValue } = require('../model/material-field-contracts');
 
 class MaterialFieldStoreError extends Error {
@@ -71,68 +72,65 @@ function createMaterialFieldStore(options) {
   }
   const fields = definition(options.schemaManifest);
   const execute = (body) => options.unitOfWork.execute([{ participantId: 'material_field_store', owner: 'procurement', repositories: [fields], execute: body }]).material_field_store;
+  const commandCommit = createCommandCommitCoordinator({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork });
   const repositoryManifest = Object.freeze({ component: 'MaterialFieldRepository', repositoryId: fields.repositoryId, tableIds: fields.tableIds });
+  const write = Object.freeze({
+    register(input, context) {
+      exact(input, ['fieldId','name','policy','access'], 'P7_MATERIAL_FIELD_REGISTRATION_INPUT'); validatePolicy(input.policy); validateAccess(input.access);
+      if (input.access.fieldId !== input.fieldId || input.policy.revision !== 1 || input.access.revision !== 1) fail('P7_MATERIAL_FIELD_INITIAL_BASIS', 'Material Field registration requires matching Field ID and revision 1 Policy/Access.');
+      const repo = context.repository(fields.repositoryId); if (repo.invoke('find_field', { field_id: input.fieldId })) fail('P7_MATERIAL_FIELD_EXISTS', 'Material Field already exists.');
+      repo.invoke('insert_policy', policyRow(input.policy, canonicalJson(input.policy.policy), context.commitTimeMs));
+      repo.invoke('insert_field', { field_id: input.fieldId, name: input.name, status: 'active', extraction_policy_id: input.policy.extractionPolicyId, extraction_policy_revision: 1, current_access_revision: null, current_observation_revision: null, created_at_ms: context.commitTimeMs, updated_at_ms: context.commitTimeMs });
+      repo.invoke('insert_access', accessRow(input.access, context.commitTimeMs));
+      if (repo.invoke('initialize_access_head', { current_access_revision: 1, updated_at_ms: context.commitTimeMs, field_id: input.fieldId }).changes !== 1) fail('P7_MATERIAL_FIELD_INITIALIZATION_FAILED', 'Material Field Access head initialization failed.');
+      return readField(repo, input.fieldId);
+    },
+    revise_access(input, context) {
+      validateAccess(input.access); exact(input, ['fieldId','expectedAccessRevision','access'], 'P7_FIELD_ACCESS_REVISION_INPUT');
+      if (input.fieldId !== input.access.fieldId || input.access.revision !== input.expectedAccessRevision + 1) fail('P7_FIELD_ACCESS_REVISION_CONFLICT', 'Access revision is stale or skipped.');
+      const repo = context.repository(fields.repositoryId); const current = repo.invoke('find_field', { field_id: input.fieldId }); requireActive(current);
+      if (current.current_access_revision !== input.expectedAccessRevision) fail('P7_FIELD_ACCESS_REVISION_CONFLICT', 'Access head is stale.');
+      repo.invoke('insert_access', accessRow(input.access, context.commitTimeMs));
+      if (repo.invoke('advance_access_head', { current_access_revision: input.access.revision, updated_at_ms: context.commitTimeMs, field_id: input.fieldId, expected_access_revision: input.expectedAccessRevision, expected_status: 'active' }).changes !== 1) fail('P7_FIELD_ACCESS_REVISION_CONFLICT', 'Access head CAS failed.');
+      return readField(repo, input.fieldId);
+    },
+    publish_policy(input, context) {
+      exact(input, ['fieldId','expectedPolicyId','expectedPolicyRevision','policy'], 'P7_EXTRACTION_POLICY_REVISION_INPUT'); validatePolicy(input.policy);
+      if (input.policy.extractionPolicyId !== input.expectedPolicyId || input.policy.revision !== input.expectedPolicyRevision + 1) fail('P7_EXTRACTION_POLICY_REVISION_CONFLICT', 'Policy revision is stale or skipped.');
+      const repo = context.repository(fields.repositoryId); const current = repo.invoke('find_field', { field_id: input.fieldId }); requireActive(current);
+      if (current.extraction_policy_id !== input.expectedPolicyId || current.extraction_policy_revision !== input.expectedPolicyRevision) fail('P7_EXTRACTION_POLICY_REVISION_CONFLICT', 'Policy head is stale.');
+      repo.invoke('insert_policy', policyRow(input.policy, canonicalJson(input.policy.policy), context.commitTimeMs));
+      if (repo.invoke('advance_policy_head', { extraction_policy_id: input.policy.extractionPolicyId, extraction_policy_revision: input.policy.revision, updated_at_ms: context.commitTimeMs, field_id: input.fieldId, expected_policy_id: input.expectedPolicyId, expected_policy_revision: input.expectedPolicyRevision, expected_status: 'active' }).changes !== 1) fail('P7_EXTRACTION_POLICY_REVISION_CONFLICT', 'Policy head CAS failed.');
+      return readField(repo, input.fieldId);
+    },
+    deregister(input, context) {
+      exact(input, ['fieldId','expectedAccessRevision','expectedPolicyRevision'], 'P7_MATERIAL_FIELD_DISABLE_INPUT'); const repo = context.repository(fields.repositoryId); const current = repo.invoke('find_field', { field_id: input.fieldId }); requireActive(current);
+      if (repo.invoke('revise_field', { name: current.name, status: 'deregistered', updated_at_ms: context.commitTimeMs, field_id: input.fieldId, expected_access_revision: input.expectedAccessRevision, expected_policy_revision: input.expectedPolicyRevision, expected_status: 'active' }).changes !== 1) fail('P7_MATERIAL_FIELD_DISABLE_CONFLICT', 'Material Field disable CAS failed.');
+      return readField(repo, input.fieldId);
+    },
+  });
+
+  function commitAdminCommand(request) {
+    if (!request || !write[request.operation] || typeof request.idempotencyKey !== 'string' || request.idempotencyKey.length === 0 || !request.input || typeof request.input.fieldId !== 'string' || request.input.fieldId.length === 0) fail('P14_FIELD_COMMAND_ENVELOPE_INVALID', 'Material Field administrative command envelope is invalid.');
+    const commandContract = 'procurement.admin.material-field.' + request.operation + '@1';
+    const requestDigest = canonicalDigest({ commandContract, input: request.input });
+    const keyDigest = canonicalDigest({ commandContract, idempotencyKey: request.idempotencyKey, targetId: request.input.fieldId });
+    const committed = commandCommit.execute({
+      command: { commandReceiptId: 'proc-field-receipt-' + keyDigest.slice(0, 32), ownerDomain: 'procurement', commandContract, callerScope: 'admin', idempotencyKey: request.idempotencyKey, requestDigest, targetType: 'material_field', targetId: request.input.fieldId },
+      domainParticipant: { participantId: 'procurement_material_field_command', owner: 'procurement', repositories: [fields], execute: (context) => write[request.operation](request.input, context) },
+      commitMarker: { commitMarker: 'proc-field-command-' + keyDigest, effectId: null, scopeType: 'material_field', scopeId: request.input.fieldId, commitDigest: canonicalDigest({ commandContract, requestDigest, targetId: request.input.fieldId }) },
+      auditRecords: [{ auditId: 'proc-field-audit-' + keyDigest.slice(0, 32), actorType: 'admin', actorId: null, action: request.operation, scopeType: 'material_field', scopeId: request.input.fieldId, evidenceDigest: requestDigest }],
+      resultEnvelope: (materialField) => ({ resultSchemaRef: 'helix://contracts/application-results/ProcurementMaterialFieldAdminResult/v1', resultRef: { materialField } }),
+    });
+    return Object.freeze({ ...committed.receipt.resultRef, replayed: committed.replayed, commandReceiptId: committed.receipt.commandReceiptId });
+  }
 
   return Object.freeze({ repositoryManifest,
-    registerMaterialField(input) {
-      exact(input, ['fieldId','name','policy','access'], 'P7_MATERIAL_FIELD_REGISTRATION_INPUT');
-      validatePolicy(input.policy); validateAccess(input.access);
-      if (input.access.fieldId !== input.fieldId || input.policy.revision !== 1 || input.access.revision !== 1) {
-        fail('P7_MATERIAL_FIELD_INITIAL_BASIS', 'Material Field registration requires matching Field ID and revision 1 Policy/Access.');
-      }
-      const policyJson = canonicalJson(input.policy.policy);
-      return execute((context) => { const repo = context.repository(fields.repositoryId);
-        if (repo.invoke('find_field', { field_id: input.fieldId })) fail('P7_MATERIAL_FIELD_EXISTS', 'Material Field already exists.');
-        repo.invoke('insert_policy', policyRow(input.policy, policyJson, context.commitTimeMs));
-        repo.invoke('insert_field', { field_id: input.fieldId, name: input.name, status: 'active',
-          extraction_policy_id: input.policy.extractionPolicyId, extraction_policy_revision: 1, current_access_revision: null,
-          current_observation_revision: null,
-          created_at_ms: context.commitTimeMs, updated_at_ms: context.commitTimeMs });
-        repo.invoke('insert_access', accessRow(input.access, context.commitTimeMs));
-        const changed = repo.invoke('initialize_access_head', { current_access_revision: 1, updated_at_ms: context.commitTimeMs, field_id: input.fieldId });
-        if (changed.changes !== 1) fail('P7_MATERIAL_FIELD_INITIALIZATION_FAILED', 'Material Field Access head initialization failed.');
-        return readField(repo, input.fieldId);
-      });
-    },
-    reviseFieldAccess(input) {
-      validateAccess(input.access);
-      exact(input, ['fieldId','expectedAccessRevision','access'], 'P7_FIELD_ACCESS_REVISION_INPUT');
-      if (input.fieldId !== input.access.fieldId || input.access.revision !== input.expectedAccessRevision + 1) fail('P7_FIELD_ACCESS_REVISION_CONFLICT', 'Access revision is stale or skipped.');
-      return execute((context) => { const repo = context.repository(fields.repositoryId); const current = repo.invoke('find_field', { field_id: input.fieldId });
-        requireActive(current); if (current.current_access_revision !== input.expectedAccessRevision) fail('P7_FIELD_ACCESS_REVISION_CONFLICT', 'Access head is stale.');
-        repo.invoke('insert_access', accessRow(input.access, context.commitTimeMs));
-        const changed = repo.invoke('advance_access_head', { current_access_revision: input.access.revision, updated_at_ms: context.commitTimeMs,
-          field_id: input.fieldId, expected_access_revision: input.expectedAccessRevision, expected_status: 'active' });
-        if (changed.changes !== 1) fail('P7_FIELD_ACCESS_REVISION_CONFLICT', 'Access head CAS failed.');
-        return readField(repo, input.fieldId);
-      });
-    },
-    publishExtractionPolicy(input) {
-      exact(input, ['fieldId','expectedPolicyId','expectedPolicyRevision','policy'], 'P7_EXTRACTION_POLICY_REVISION_INPUT');
-      validatePolicy(input.policy);
-      if (input.policy.extractionPolicyId !== input.expectedPolicyId || input.policy.revision !== input.expectedPolicyRevision + 1) fail('P7_EXTRACTION_POLICY_REVISION_CONFLICT', 'Policy revision is stale or skipped.');
-      const policyJson = canonicalJson(input.policy.policy);
-      return execute((context) => { const repo = context.repository(fields.repositoryId); const current = repo.invoke('find_field', { field_id: input.fieldId });
-        requireActive(current); if (current.extraction_policy_id !== input.expectedPolicyId || current.extraction_policy_revision !== input.expectedPolicyRevision) fail('P7_EXTRACTION_POLICY_REVISION_CONFLICT', 'Policy head is stale.');
-        repo.invoke('insert_policy', policyRow(input.policy, policyJson, context.commitTimeMs));
-        const changed = repo.invoke('advance_policy_head', { extraction_policy_id: input.policy.extractionPolicyId,
-          extraction_policy_revision: input.policy.revision, updated_at_ms: context.commitTimeMs, field_id: input.fieldId,
-          expected_policy_id: input.expectedPolicyId, expected_policy_revision: input.expectedPolicyRevision, expected_status: 'active' });
-        if (changed.changes !== 1) fail('P7_EXTRACTION_POLICY_REVISION_CONFLICT', 'Policy head CAS failed.');
-        return readField(repo, input.fieldId);
-      });
-    },
-    deregisterMaterialField(input) {
-      exact(input, ['fieldId','expectedAccessRevision','expectedPolicyRevision'], 'P7_MATERIAL_FIELD_DISABLE_INPUT');
-      return execute((context) => { const repo = context.repository(fields.repositoryId); const current = repo.invoke('find_field', { field_id: input.fieldId });
-        requireActive(current);
-        const changed = repo.invoke('revise_field', { name: current.name, status: 'deregistered', updated_at_ms: context.commitTimeMs,
-          field_id: input.fieldId, expected_access_revision: input.expectedAccessRevision,
-          expected_policy_revision: input.expectedPolicyRevision, expected_status: 'active' });
-        if (changed.changes !== 1) fail('P7_MATERIAL_FIELD_DISABLE_CONFLICT', 'Material Field disable CAS failed.');
-        return readField(repo, input.fieldId);
-      });
-    },
+    registerMaterialField(input) { return execute((context) => write.register(input, context)); },
+    reviseFieldAccess(input) { return execute((context) => write.revise_access(input, context)); },
+    publishExtractionPolicy(input) { return execute((context) => write.publish_policy(input, context)); },
+    deregisterMaterialField(input) { return execute((context) => write.deregister(input, context)); },
+    commitAdminCommand,
     getMaterialField(fieldId) { return execute((context) => readField(context.repository(fields.repositoryId), fieldId)); },
     listMaterialFields() { return execute((context) => context.repository(fields.repositoryId).invoke('list_fields').map((row) => mapField(row))); },
     getExtractionPolicy(extractionPolicyId, revision) { return execute((context) => mapPolicy(context.repository(fields.repositoryId).invoke('find_policy', { extraction_policy_id: extractionPolicyId, revision }))); }

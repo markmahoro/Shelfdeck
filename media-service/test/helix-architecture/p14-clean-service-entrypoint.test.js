@@ -260,6 +260,12 @@ test('Procurement Material Field registration is a real authenticated Owner-loca
     const created = await host.inject({ method: 'POST', url: '/v1/admin/material-fields', headers: { cookie }, payload: body });
     assert.equal(created.statusCode, 201);
     assert.equal(created.json().materialField.fieldId, 'field-http-1');
+    const registrationReplay = await host.inject({ method: 'POST', url: '/v1/admin/material-fields', headers: { cookie }, payload: body });
+    assert.equal(registrationReplay.statusCode, 201);
+    assert.deepEqual(registrationReplay.json(), created.json());
+    const registrationConflict = await host.inject({ method: 'POST', url: '/v1/admin/material-fields', headers: { cookie }, payload: { ...body, name: 'Incoming HTTP changed' } });
+    assert.equal(registrationConflict.statusCode, 409);
+    assert.equal(registrationConflict.json().error.code, 'ADMIN_FIELD_IDEMPOTENCY_CONFLICT');
     const listed = await host.inject({ method: 'GET', url: '/v1/admin/material-fields', headers: { cookie } });
     assert.equal(listed.statusCode, 200);
     assert.deepEqual(listed.json().items.map((item) => item.fieldId), ['field-http-1']);
@@ -275,6 +281,20 @@ test('Procurement Material Field registration is a real authenticated Owner-loca
     });
     assert.equal(accessRevision.statusCode, 200);
     assert.equal(accessRevision.json().materialField.currentAccessRevision, 2);
+    const accessTargetMismatch = await host.inject({
+      method: 'PATCH', url: '/v1/admin/material-fields/field-http-1', headers: { cookie }, payload: {
+        idempotencyKey: 'field-http-access-mismatch', operation: 'revise_access', fieldId: 'field-other', expectedAccessRevision: 2,
+        access: { ...accessRevisionBasis, revision: 3, accessDigest: canonicalDigest({ ...accessRevisionBasis, revision: 3 }) },
+      },
+    });
+    assert.equal(accessTargetMismatch.statusCode, 400);
+    assert.equal(accessTargetMismatch.json().error.code, 'ADMIN_FIELD_TARGET_MISMATCH');
+    const accessReplay = await host.inject({ method: 'PATCH', url: '/v1/admin/material-fields/field-http-1', headers: { cookie }, payload: {
+      idempotencyKey: 'field-http-access-2', operation: 'revise_access', fieldId: 'field-http-1', expectedAccessRevision: 1,
+      access: { ...accessRevisionBasis, accessDigest: canonicalDigest(accessRevisionBasis) },
+    } });
+    assert.equal(accessReplay.statusCode, 200);
+    assert.equal(accessReplay.json().materialField.currentAccessRevision, 2);
     const policyRevisionValue = { ...policyValue, includedDirectories: ['incoming-revised'] };
     const policyRevisionBasis = { extractionPolicyId: 'policy-http-1', revision: 2, ...policyRevisionValue };
     const policyRevision = await host.inject({
@@ -288,6 +308,14 @@ test('Procurement Material Field registration is a real authenticated Owner-loca
     });
     assert.equal(policyRevision.statusCode, 200);
     assert.equal(policyRevision.json().materialField.extractionPolicyRevision, 2);
+    const policyTargetMismatch = await host.inject({
+      method: 'PATCH', url: '/v1/admin/material-fields/field-http-1/extraction-policy', headers: { cookie }, payload: {
+        idempotencyKey: 'field-http-policy-mismatch', fieldId: 'field-other', expectedPolicyId: 'policy-http-1', expectedPolicyRevision: 2,
+        policy: { ...policyRevision.json().materialField.policy, revision: 3 },
+      },
+    });
+    assert.equal(policyTargetMismatch.statusCode, 400);
+    assert.equal(policyTargetMismatch.json().error.code, 'ADMIN_FIELD_TARGET_MISMATCH');
     const deregistered = await host.inject({
       method: 'POST', url: '/v1/admin/material-fields/field-http-1/actions/deregister', headers: { cookie }, payload: {
         idempotencyKey: 'field-http-deregister-1', fieldId: 'field-http-1', expectedAccessRevision: 2, expectedPolicyRevision: 2,
@@ -295,6 +323,20 @@ test('Procurement Material Field registration is a real authenticated Owner-loca
     });
     assert.equal(deregistered.statusCode, 200);
     assert.equal(deregistered.json().materialField.status, 'deregistered');
+    const deregisterTargetMismatch = await host.inject({
+      method: 'POST', url: '/v1/admin/material-fields/field-http-1/actions/deregister', headers: { cookie }, payload: {
+        idempotencyKey: 'field-http-deregister-mismatch', fieldId: 'field-other', expectedAccessRevision: 2, expectedPolicyRevision: 2,
+      },
+    });
+    assert.equal(deregisterTargetMismatch.statusCode, 400);
+    assert.equal(deregisterTargetMismatch.json().error.code, 'ADMIN_FIELD_TARGET_MISMATCH');
+    const deregisterReplay = await host.inject({
+      method: 'POST', url: '/v1/admin/material-fields/field-http-1/actions/deregister', headers: { cookie }, payload: {
+        idempotencyKey: 'field-http-deregister-1', fieldId: 'field-http-1', expectedAccessRevision: 2, expectedPolicyRevision: 2,
+      },
+    });
+    assert.equal(deregisterReplay.statusCode, 200);
+    assert.equal(deregisterReplay.json().materialField.status, 'deregistered');
     const staleRevision = await host.inject({
       method: 'PATCH', url: '/v1/admin/material-fields/field-http-1', headers: { cookie }, payload: {
         idempotencyKey: 'field-http-access-stale', operation: 'revise_access', fieldId: 'field-http-1', expectedAccessRevision: 2,
@@ -302,9 +344,6 @@ test('Procurement Material Field registration is a real authenticated Owner-loca
       },
     });
     assert.equal(staleRevision.statusCode, 400);
-    const duplicate = await host.inject({ method: 'POST', url: '/v1/admin/material-fields', headers: { cookie }, payload: body });
-    assert.equal(duplicate.statusCode, 400);
-    assert.equal(duplicate.json().error.code, 'ADMIN_FIELD_COMMAND_REJECTED');
   } finally {
     await host.close();
   }
