@@ -358,6 +358,30 @@ test('Procurement Material Field registration is a real authenticated Owner-loca
   }
 });
 
+test('Arca Shelf projection reads use the authenticated public HTTP path and owner-local query repository', async () => {
+  const value = fixture();
+  const host = await createCleanServiceHost({ dataDir: value.dataDir, adminDistDir: value.adminDistDir, secretRoot });
+  try {
+    const unauthenticated = await host.inject({ method: 'GET', url: '/v1/admin/shelves' });
+    assert.equal(unauthenticated.statusCode, 401);
+    const exchange = await host.inject({ method: 'POST', url: '/v1/admin/session', headers: { 'x-api-key': value.initialized.adminApiKey } });
+    const cookie = exchange.headers['set-cookie'];
+    const listed = await host.inject({ method: 'GET', url: '/v1/admin/shelves', headers: { cookie } });
+    assert.equal(listed.statusCode, 200);
+    assert.deepEqual(listed.json().items, []);
+    const missing = await host.inject({ method: 'GET', url: '/v1/admin/shelves/missing-shelf', headers: { cookie } });
+    assert.equal(missing.statusCode, 404);
+    assert.equal(missing.json().error.code, 'ADMIN_SHELF_NOT_FOUND');
+  } finally { await host.close(); }
+  const restarted = await createCleanServiceHost({ dataDir: value.dataDir, adminDistDir: value.adminDistDir, secretRoot });
+  try {
+    const exchange = await restarted.inject({ method: 'POST', url: '/v1/admin/session', headers: { 'x-api-key': value.initialized.adminApiKey } });
+    const listed = await restarted.inject({ method: 'GET', url: '/v1/admin/shelves', headers: { cookie: exchange.headers['set-cookie'] } });
+    assert.equal(listed.statusCode, 200);
+    assert.deepEqual(listed.json().items, []);
+  } finally { await restarted.close(); }
+});
+
 test('formal node entrypoint starts, authenticates and shuts down through public HTTP', async () => {
   const value = fixture();
   const port = await reservePort();

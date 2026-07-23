@@ -95,6 +95,10 @@ function createCleanFacades(options) {
       body: options.procurementAdmin.deregisterMaterialField(input.params.fieldId, input.body),
     });
   }
+  if (options.arcaShelfAdmin) {
+    facades.ArcaShelfAdminFacade.get_shelves = async () => ({ body: options.arcaShelfAdmin.listShelves() });
+    facades.ArcaShelfAdminFacade.get_shelves_shelfid = async (input) => ({ body: options.arcaShelfAdmin.getShelf(input.params.shelfId) });
+  }
 
   return Object.freeze(Object.fromEntries(
     Object.entries(facades).map(([name, methods]) => [name, Object.freeze(methods)]),
