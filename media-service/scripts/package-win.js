@@ -41,9 +41,7 @@ fs.copyFileSync(nodeExe, destExe);
 const INCLUDE = [
   'package.json',
   'package-lock.json',
-  'src',
   'dist',
-  'assets',
   'node_modules',
 ];
 
@@ -63,6 +61,26 @@ for (const name of INCLUDE) {
   }
 }
 
+const CLEAN_RUNTIME_FILES = [
+  'src/server.js',
+  'src/clean-service-host.js',
+  'src/admin-credential-secret-store.js',
+  'scripts/helix-clean-init.js',
+  'scripts/helix-operational-safety.js',
+];
+for (const name of CLEAN_RUNTIME_FILES) {
+  const src = path.join(ROOT, name);
+  const dst = path.join(OUT, name);
+  fs.mkdirSync(path.dirname(dst), { recursive: true });
+  fs.copyFileSync(src, dst);
+}
+const cleanHelixSource = path.join(ROOT, 'src', 'helix');
+const cleanHelixTarget = path.join(OUT, 'src', 'helix');
+execSync(`xcopy "${cleanHelixSource}" "${cleanHelixTarget}" /E /I /H /Q /Y`, {
+  windowsHide: true,
+  stdio: 'ignore',
+});
+
 // ── clean runtime data (fresh start for user) ──────────────────────────────────
 
 const dataDir = path.join(OUT, 'data');
@@ -81,6 +99,10 @@ const bat = [
   'echo ============================================',
   'echo.',
   'cd /d "%~dp0"',
+  'if "%SHELFDECK_SECRET_ROOT%"=="" (',
+  '  echo ERROR: SHELFDECK_SECRET_ROOT must contain at least 32 bytes.',
+  '  exit /b 1',
+  ')',
   'node.exe src/server.js',
   'pause',
 ].join('\r\n');
@@ -94,6 +116,10 @@ const vbs = [
   'ws.CurrentDirectory = fso.GetParentFolderName(WScript.ScriptFullName)',
   '',
   "' Start service (hidden window)",
+  'If Len(ws.ExpandEnvironmentStrings("%SHELFDECK_SECRET_ROOT%")) < 32 Then',
+  '  MsgBox "SHELFDECK_SECRET_ROOT must contain at least 32 bytes.", 16, "ShelfDeck"',
+  '  WScript.Quit 1',
+  'End If',
   'ws.Run "node.exe src\\server.js", 0, False',
   '',
   "' Wait for server to start, then open admin page",

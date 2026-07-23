@@ -15,7 +15,11 @@ function main(argv = process.argv.slice(2)) {
   const backup = valueAfter(argv, '--backup-dir');
 
   if (argv.includes('--readiness')) {
-    return inspectReadiness({ dataDir, adminDistDir: path.join(__dirname, '../dist/admin') });
+    return inspectReadiness({
+      dataDir,
+      adminDistDir: path.join(__dirname, '../dist/admin'),
+      secretRoot: process.env.SHELFDECK_SECRET_ROOT,
+    });
   }
   if (!argv.includes('--apply')) {
     return {
@@ -24,12 +28,14 @@ function main(argv = process.argv.slice(2)) {
       dataDir,
       backupDir: backup ? path.resolve(backup) : null,
       confirmationRequired: 'INITIALIZE_HELIX_CLEAN_V1',
+      secretRootRequired: 'SHELFDECK_SECRET_ROOT (minimum 32 UTF-8 bytes)',
     };
   }
   return initializeCleanData({
     dataDir,
     backupDir: backup ? path.resolve(backup) : undefined,
     confirmation: valueAfter(argv, '--confirm'),
+    secretRoot: process.env.SHELFDECK_SECRET_ROOT,
   });
 }
 

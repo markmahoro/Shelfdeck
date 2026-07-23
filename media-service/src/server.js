@@ -1,51 +1,50 @@
 'use strict';
 
-const { buildApp } = require('./app');
-const { assertRuntimeReady } = require('./helixRuntimePreflight');
-let startTray = null;
-if (process.platform === 'win32') {
-  try {
-    startTray = require('./tray').startTray;
-  } catch (_) {
-    console.log('[media-service] tray module not available');
-  }
-} else {
-  console.log('[media-service] tray disabled on non-Windows runtime');
+const path = require('node:path');
+const { createCleanServiceHost } = require('./clean-service-host');
+
+function runtimeOptions(env = process.env) {
+  return Object.freeze({
+    port: Number(env.MEDIA_SERVICE_PORT || 18080),
+    host: env.MEDIA_SERVICE_HOST || '0.0.0.0',
+    dataDir: path.resolve(env.MEDIA_SERVICE_DATA_DIR || path.join(__dirname, '..', 'data')),
+    adminDistDir: path.resolve(env.MEDIA_SERVICE_ADMIN_DIST_DIR || path.join(__dirname, '..', 'dist', 'admin')),
+    secretRoot: env.SHELFDECK_SECRET_ROOT,
+  });
 }
 
-const PORT = Number(process.env.MEDIA_SERVICE_PORT || process.env.CONTROL_PLANE_PORT || 18080);
-
-async function main() {
-  assertRuntimeReady();
-  const app = await buildApp();
-
-  const shutdown = async (signal) => {
-    console.log(`[media-service] received ${signal}, shutting down...`);
-    // Kill all tracked ffmpeg processes before exit
-    try {
-      const transcodeService = require('./services/transcodeService');
-      transcodeService.abortAllEncodes();
-      console.log('[media-service] killed all encoding processes');
-    } catch (_) {}
-    try {
-      await app.close();
-    } catch (e) {
-      console.error('[media-service] close error:', e);
+async function main(options = runtimeOptions()) {
+  const service = await createCleanServiceHost(options);
+  let closing;
+  const shutdown = (signal) => {
+    if (!closing) {
+      console.log(`[shelfdeck] received ${signal}; stopping clean service`);
+      closing = service.close()
+        .then(() => console.log('[shelfdeck] clean service stopped'))
+        .catch((error) => {
+          console.error('[shelfdeck] clean shutdown failed', error);
+          process.exitCode = 1;
+        });
     }
-    console.log('[media-service] shutdown complete');
-    process.exit(0);
+    return closing;
   };
 
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
-  process.on('SIGINT', () => shutdown('SIGINT'));
-
-  await app.listen({ port: PORT, host: '0.0.0.0' });
-  console.log(`[media-service] listening on http://127.0.0.1:${PORT}`);
-
-  if (startTray) startTray(PORT);
+  process.once('SIGTERM', () => void shutdown('SIGTERM'));
+  process.once('SIGINT', () => void shutdown('SIGINT'));
+  await service.listen({ port: options.port, host: options.host });
+  console.log(`[shelfdeck] clean service listening on ${options.host}:${options.port}`);
+  return Object.freeze({ service, shutdown });
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error('[shelfdeck] clean service startup failed', {
+      code: error.code || 'CLEAN_SERVICE_STARTUP_FAILED',
+      message: error.message,
+      details: error.details || {},
+    });
+    process.exitCode = 1;
+  });
+}
+
+module.exports = Object.freeze({ main, runtimeOptions });

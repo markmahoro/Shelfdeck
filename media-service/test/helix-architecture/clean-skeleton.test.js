@@ -92,7 +92,10 @@ test('composition root import is side-effect free and factory requires exact cle
     facades[route.facade] ||= {};
     facades[route.facade][route.facadeMethod] = async () => ({ body:{ ok:true } });
   }
-  const app = composition.createHelixApplication({ facades, sessionTokens:{ verify:() => ({}) } });
+  const app = composition.createHelixApplication({
+    facades,
+    sessionTokens:{ authenticate:() => ({}), verifyApiKey:() => ({}) },
+  });
   assert.equal(app.routeCount, 114);
   assert.deepEqual(app.start(), { state:'ready', normalSupplyAllowed:true });
   assert.equal(app.readiness().generation, 'helix-clean-v1');
@@ -100,7 +103,8 @@ test('composition root import is side-effect free and factory requires exact cle
   app.stop();
 });
 
-test('legacy product startup remains outside the clean composition package until the P14 environment adapter runs', () => {
+test('formal product startup selects only the P14 clean service host', () => {
   const content = fs.readFileSync(path.resolve(__dirname, '../../src/server.js'), 'utf8');
-  assert.doesNotMatch(content, /createHelixApplication/);
+  assert.match(content, /createCleanServiceHost/);
+  assert.doesNotMatch(content, /require\(['"]\.\/app['"]\)|helixRuntimePreflight|transcodeService|tray/);
 });
