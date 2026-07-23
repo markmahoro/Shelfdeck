@@ -405,6 +405,245 @@ test('Procurement Material Field registration is a real authenticated Owner-loca
   }
 });
 
+test('explicit Field Observation scans disposable files read-only and resumes frozen pages after restart', async () => {
+  const value = fixture();
+  const fieldRoot = path.join(path.dirname(value.dataDir), 'observation-field');
+  const nested = path.join(fieldRoot, 'nested');
+  fs.mkdirSync(nested, { recursive: true });
+  const sourceFiles = [
+    path.join(fieldRoot, 'movie-a.mkv'),
+    path.join(nested, 'movie-b.mkv'),
+    path.join(nested, 'movie-c.mkv'),
+  ];
+  sourceFiles.forEach((file, index) => fs.writeFileSync(file, Buffer.from('immutable-source-' + index)));
+  const before = sourceFiles.map((file) => ({
+    content: fs.readFileSync(file),
+    mtimeMs: fs.statSync(file).mtimeMs,
+  }));
+  const policyValue = {
+    includedDirectories: [],
+    excludedDirectories: [],
+    allowedExtensions: ['.mkv'],
+    minimumSizeBytes: 0,
+    excludedMaterialKeys: [],
+  };
+  const policyBasis = { extractionPolicyId: 'policy-observe-1', revision: 1, ...policyValue };
+  const accessBasis = {
+    fieldId: 'field-observe-1',
+    revision: 1,
+    endpointId: 'endpoint-observe-1',
+    rootLocation: fieldRoot,
+    mountScopeId: 'mount-observe-1',
+    mountScopeRevision: 1,
+    accessSchemaRef: 'helix://fixtures/http-observation-access/v1',
+  };
+  const registration = {
+    idempotencyKey: 'field-observe-registration-1',
+    fieldId: 'field-observe-1',
+    name: 'Observation Source',
+    policy: {
+      extractionPolicyId: 'policy-observe-1',
+      revision: 1,
+      policySchemaRef: 'helix://contracts/domain-types/ExtractionPolicy/v1',
+      policy: policyValue,
+      policyDigest: canonicalDigest(policyBasis),
+    },
+    access: { ...accessBasis, accessDigest: canonicalDigest(accessBasis) },
+  };
+  const observation = {
+    idempotencyKey: 'field-observe-work-1',
+    fieldId: 'field-observe-1',
+    expectedAccessRevision: 1,
+    expectedObservationRevision: 0,
+    pageBudget: 1,
+  };
+
+  let host = await createCleanServiceHost({
+    dataDir: value.dataDir,
+    adminDistDir: value.adminDistDir,
+    secretRoot,
+  });
+  let cookie;
+  try {
+    const exchange = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/session',
+      headers: { 'x-api-key': value.initialized.adminApiKey },
+    });
+    cookie = exchange.headers['set-cookie'];
+    const created = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/material-fields',
+      headers: { cookie },
+      payload: registration,
+    });
+    assert.equal(created.statusCode, 201, created.body);
+    const unauthenticated = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/material-fields/field-observe-1/actions/observe',
+      payload: observation,
+    });
+    assert.equal(unauthenticated.statusCode, 401);
+    const mismatch = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/material-fields/field-observe-1/actions/observe',
+      headers: { cookie },
+      payload: { ...observation, idempotencyKey: 'observe-mismatch', fieldId: 'other-field' },
+    });
+    assert.equal(mismatch.statusCode, 400);
+    assert.equal(mismatch.json().error.code, 'ADMIN_FIELD_TARGET_MISMATCH');
+    const closed = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/material-fields/field-observe-1/actions/observe',
+      headers: { cookie },
+      payload: { ...observation, idempotencyKey: 'observe-closed', unexpected: true },
+    });
+    assert.equal(closed.statusCode, 400);
+
+    const fault = new Database(path.join(value.dataDir, 'shelfdeck.db'));
+    fault.exec(`
+      CREATE TRIGGER p14_observation_page_fault
+      BEFORE INSERT ON proc_field_observations
+      WHEN NEW.page_ordinal = 1
+      BEGIN
+        SELECT RAISE(ABORT, 'p14-observation-page-fault');
+      END
+    `);
+    fault.close();
+    const interrupted = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/material-fields/field-observe-1/actions/observe',
+      headers: { cookie },
+      payload: observation,
+    });
+    assert.equal(interrupted.statusCode, 400, interrupted.body);
+    assert.equal(interrupted.json().error.details.reasonCode, 'SQLITE_CONSTRAINT_TRIGGER');
+  } finally {
+    await host.close();
+  }
+
+  const interruptedEvidence = new Database(path.join(value.dataDir, 'shelfdeck.db'));
+  assert.deepEqual(
+    interruptedEvidence.prepare(
+      'SELECT revision,page_ordinal,completed FROM proc_field_observations ORDER BY revision'
+    ).all(),
+    [{ revision: 1, page_ordinal: 0, completed: 0 }],
+  );
+  assert.equal(
+    interruptedEvidence.prepare(
+      "SELECT current_observation_revision FROM proc_material_fields WHERE field_id='field-observe-1'"
+    ).get().current_observation_revision,
+    1,
+  );
+  assert.equal(
+    interruptedEvidence.prepare(
+      "SELECT state FROM fx_supporting_works WHERE owner_domain='procurement' AND process_id='field-observe-1'"
+    ).get().state,
+    'running',
+  );
+  assert.equal(interruptedEvidence.prepare('SELECT count(*) count FROM proc_field_materials').get().count, 1);
+  assert.equal(interruptedEvidence.prepare(
+    "SELECT count(*) count FROM fx_commit_markers WHERE owner_domain='procurement' AND scope_type='material_field_observation'"
+  ).get().count, 1);
+  interruptedEvidence.exec('DROP TRIGGER p14_observation_page_fault');
+  interruptedEvidence.close();
+
+  host = await createCleanServiceHost({
+    dataDir: value.dataDir,
+    adminDistDir: value.adminDistDir,
+    secretRoot,
+  });
+  try {
+    const exchange = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/session',
+      headers: { 'x-api-key': value.initialized.adminApiKey },
+    });
+    cookie = exchange.headers['set-cookie'];
+    const resumed = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/material-fields/field-observe-1/actions/observe',
+      headers: { cookie },
+      payload: observation,
+    });
+    assert.equal(resumed.statusCode, 200, resumed.body);
+    assert.equal(resumed.json().observation.state, 'succeeded');
+    assert.equal(resumed.json().observation.replayed, true);
+    assert.equal(resumed.json().observation.sourceFileCount, 3);
+    assert.equal(resumed.json().observation.pageCount, 3);
+    assert.equal(resumed.json().observation.terminalObservationRevision, 3);
+    assert.deepEqual(
+      resumed.json().observation.pages.map((page) => [
+        page.pageOrdinal,
+        page.committedObservationRevision,
+        page.acceptedMaterialCount,
+        page.hasMore,
+      ]),
+      [[0, 1, 1, true], [1, 2, 1, true], [2, 3, 1, false]],
+    );
+    const exactReplay = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/material-fields/field-observe-1/actions/observe',
+      headers: { cookie },
+      payload: observation,
+    });
+    assert.equal(exactReplay.statusCode, 200);
+    assert.equal(exactReplay.json().observation.replayed, true);
+    assert.equal(exactReplay.json().observation.terminalObservationRevision, 3);
+    const conflict = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/material-fields/field-observe-1/actions/observe',
+      headers: { cookie },
+      payload: { ...observation, pageBudget: 2 },
+    });
+    assert.equal(conflict.statusCode, 409);
+    assert.equal(conflict.json().error.code, 'ADMIN_FIELD_IDEMPOTENCY_CONFLICT');
+    const staleNewKey = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/material-fields/field-observe-1/actions/observe',
+      headers: { cookie },
+      payload: { ...observation, idempotencyKey: 'field-observe-stale-new-key' },
+    });
+    assert.equal(staleNewKey.statusCode, 409);
+    assert.equal(staleNewKey.json().error.code, 'ADMIN_FIELD_CONFLICT');
+  } finally {
+    await host.close();
+  }
+
+  const committed = new Database(path.join(value.dataDir, 'shelfdeck.db'), { readonly: true });
+  assert.deepEqual(
+    committed.prepare(
+      'SELECT revision,page_ordinal,expected_revision,cursor_in,cursor_out,completed FROM proc_field_observations ORDER BY revision'
+    ).all().map((row) => ({
+      ...row,
+      cursor_in: row.cursor_in === null ? null : 'cursor',
+      cursor_out: row.cursor_out === null ? null : 'cursor',
+    })),
+    [
+      { revision: 1, page_ordinal: 0, expected_revision: 0, cursor_in: null, cursor_out: 'cursor', completed: 0 },
+      { revision: 2, page_ordinal: 1, expected_revision: 1, cursor_in: 'cursor', cursor_out: 'cursor', completed: 0 },
+      { revision: 3, page_ordinal: 2, expected_revision: 2, cursor_in: 'cursor', cursor_out: null, completed: 1 },
+    ],
+  );
+  assert.equal(committed.prepare('SELECT count(*) count FROM proc_field_materials').get().count, 3);
+  assert.equal(committed.prepare('SELECT count(*) count FROM fx_event_result_bindings').get().count, 3);
+  assert.equal(committed.prepare(
+    "SELECT count(*) count FROM fx_commit_markers WHERE owner_domain='procurement' AND scope_type='material_field_observation'"
+  ).get().count, 3);
+  assert.equal(committed.prepare('SELECT count(*) count FROM fx_outbox').get().count, 0);
+  assert.equal(committed.prepare("SELECT state FROM fx_supporting_works WHERE process_id='field-observe-1'").get().state, 'succeeded');
+  assert.equal(committed.prepare("SELECT state FROM fx_work_attempts").get().state, 'succeeded');
+  assert.deepEqual(
+    committed.prepare('SELECT state FROM fx_workflow_events ORDER BY node_id').all(),
+    [{ state: 'succeeded' }, { state: 'succeeded' }, { state: 'succeeded' }],
+  );
+  committed.close();
+  sourceFiles.forEach((file, index) => {
+    assert.deepEqual(fs.readFileSync(file), before[index].content);
+    assert.equal(fs.statSync(file).mtimeMs, before[index].mtimeMs);
+  });
+});
+
 test('Arca Shelf projection reads use the authenticated public HTTP path and owner-local query repository', async () => {
   const value = fixture();
   const standardValue = { profileRuleSets: [{ contentProfile: 'movie', mandatoryMedia: [], quality: {}, space: {} }] };

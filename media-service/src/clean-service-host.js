@@ -27,6 +27,15 @@ const {
   createCleanShelfTargetFolderProbe,
 } = require('./clean-shelf-target-folder-probe');
 const {
+  createCleanFieldObservationEnumerator,
+} = require('./clean-field-observation-enumerator');
+const {
+  createSynchronousDomainWork,
+} = require('./helix/foundation/execution/synchronous-domain-work');
+const {
+  createFieldPageObserver,
+} = require('./helix/domains/procurement/capabilities/field-page-observer');
+const {
   GENERATION,
   SCHEMA_NAME,
   openSqliteKernel,
@@ -109,6 +118,7 @@ function errorResponse(error, correlationId) {
   else if (error.code === 'ADMIN_ROUTING_IDEMPOTENCY_CONFLICT') status = 409;
   else if (error.code === 'ADMIN_FIELD_COMMAND_REJECTED' || error.code === 'ADMIN_FIELD_TARGET_MISMATCH') status = 400;
   else if (error.code === 'ADMIN_FIELD_IDEMPOTENCY_CONFLICT') status = 409;
+  else if (error.code === 'ADMIN_FIELD_CONFLICT') status = 409;
   else if (
     error.code === 'IDEMPOTENCY_KEY_REQUIRED' ||
     error.code === 'GET_SIDE_EFFECT_INPUT_REJECTED' ||
@@ -252,7 +262,12 @@ async function createCleanServiceHost(options) {
     sessionTokens,
     readiness,
     credentialMetadata: runtime.readActiveCredential,
-    procurementAdmin: createProcurementAdminApplication(constructed.applicationDependencies),
+    procurementAdmin: createProcurementAdminApplication({
+      ...constructed.applicationDependencies,
+      enumerator: createCleanFieldObservationEnumerator(),
+      pageObserverFactory: createFieldPageObserver,
+      workRuntime: createSynchronousDomainWork(constructed.applicationDependencies),
+    }),
     arcaShelfAdmin,
     arcaRuleTemplateAdmin,
     libraRoutingAdmin,

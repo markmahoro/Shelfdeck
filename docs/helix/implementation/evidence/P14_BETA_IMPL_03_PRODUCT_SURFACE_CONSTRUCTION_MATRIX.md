@@ -88,6 +88,26 @@ obtains the Repository/Store.
   returns the stored typed result without another write; the Field remains
   readable after clean host restart using the same database and Secret Root.
 
+### Procurement Field Observation
+
+`POST /v1/admin/material-fields/:fieldId/actions/observe`现已接通正式
+Procurement纵切。Admin command先通过Foundation Work Admission建立同一
+Field唯一non-terminal Observation Work；Clean Service技术adapter只执行
+目录枚举、`stat`与SHA-256读取，不创建、移动、重命名或删除来源文件。冻结的
+`FieldAccessHandle + FieldObservationPageRequest`交给现有
+`procurement.field.page.observe@1`形成最多100项/64 KiB的typed Page，
+随后由既有`helix.transaction.field-observation-page-commit`逐页原子提交
+完整Evidence、Observation revision/head、Material current rows、typed
+Result和commit marker，Outbox固定为零。
+
+Foundation Work/Attempt/Plan/Event只保存执行技术事实，完整Page/Handle作为
+immutable Plan input冻结；Procurement业务事实仍只写Owner Store。
+`fieldId/accessRevision/observationRevision`使用显式target与CAS，
+同key异payload稳定409。故障夹具在第二页insert前中断后证明只保留第一页
+完整事实；重启使用已冻结Page、Event Result/marker和上一页cursor恢复，
+不重新解释已提交页面，最终连续提交revision 1..3。三份disposable sample
+文件在首次执行、故障、restart和exact replay前后内容及mtime均不变。
+
 ### Arca Shelf aggregate
 
 以下 10 条 Shelf route 已经接通真实 Arca Owner-local application：
@@ -193,9 +213,9 @@ stale head、idempotency conflict、restart/history，以及在 target insert
 处注入故障后的 revision/head/receipt/outbox 全部回滚均由 public HTTP
 fixture 覆盖。
 
-Current route status: **34 real**, **6 intentional Worker 404**, **74 remaining
-product routes fail closed with 503**.  Field observation and failed-preparation
-retry remain fail-closed until their Supporting Work/Capability journey is
-wired；非空Shelf deregistration仍未宣称完成。
+Current route status: **35 real**, **6 intentional Worker 404**, **73 remaining
+product routes fail closed with 503**.  Failed-preparation retry remains
+fail-closed until its formal Retry Intent journey is wired；非空Shelf
+deregistration仍未宣称完成。
 This is a progress count only; the exact construction batch
 assignment remains the 4/6/59/7/38 matrix above.

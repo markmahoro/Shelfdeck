@@ -2,6 +2,9 @@
 
 const procurementPublic = require('../public');
 const { createMaterialFieldStore } = require('../persistence/material-field-store');
+const {
+  createFieldObservationAdminService,
+} = require('./field-observation-admin-service');
 
 class ProcurementAdminApplicationError extends Error {
   constructor(code, message, details = {}) {
@@ -28,6 +31,22 @@ function rejected(error) {
     throw new ProcurementAdminApplicationError(
       'ADMIN_FIELD_IDEMPOTENCY_CONFLICT',
       '同一幂等键不能用于不同的Material Field请求。',
+    );
+  }
+  if (error.code === 'P4_WORK_ADMISSION_IDEMPOTENCY_CONFLICT') {
+    throw new ProcurementAdminApplicationError(
+      'ADMIN_FIELD_IDEMPOTENCY_CONFLICT',
+      '同一幂等键不能用于不同的Field Observation请求。',
+    );
+  }
+  if (
+    error.code === 'FIELD_OBSERVATION_ADMIN_FENCE_CONFLICT' ||
+    error.code === 'FIELD_OBSERVATION_WORK_DEFERRED'
+  ) {
+    throw new ProcurementAdminApplicationError(
+      'ADMIN_FIELD_CONFLICT',
+      'Material Field当前revision或Observation Work状态已变化。',
+      { reasonCode: error.code },
     );
   }
   throw new ProcurementAdminApplicationError(
@@ -68,6 +87,11 @@ function createProcurementAdminApplication(options) {
     throw new TypeError('Procurement Admin application requires clean persistence dependencies.');
   }
   const store = createMaterialFieldStore(options);
+  const observation = createFieldObservationAdminService({
+    ...options,
+    materialFieldStore: store,
+    now: options.now || Date.now,
+  });
   const commands = procurementPublic.ProcurementCommandFacade({
     registerMaterialField: (envelope) => store.commitAdminCommand({ operation: 'register', ...envelope }),
     updateMaterialField: (envelope) => {
@@ -76,7 +100,10 @@ function createProcurementAdminApplication(options) {
       return store.commitAdminCommand({ operation: 'revise_access', idempotencyKey: envelope.idempotencyKey, input: revision });
     },
     publishExtractionPolicy: (envelope) => store.commitAdminCommand({ operation: 'publish_policy', ...envelope }),
-    requestFieldObservation: unavailable('requestFieldObservation'),
+    requestFieldObservation: (envelope) => observation.observe({
+      ...envelope.input,
+      idempotencyKey: envelope.idempotencyKey,
+    }),
     retryFailedPreparation: unavailable('retryFailedPreparation'),
     deregisterMaterialField: (envelope) => store.commitAdminCommand({ operation: 'deregister', ...envelope }),
   });
@@ -119,6 +146,15 @@ function createProcurementAdminApplication(options) {
     },
     deregisterMaterialField(fieldId, body) {
       return Object.freeze({ materialField: invokeCommand(() => commands.deregisterMaterialField(commandEnvelope(body, fieldId))).materialField });
+    },
+    async requestFieldObservation(fieldId, body) {
+      try {
+        return Object.freeze({
+          observation: await commands.requestFieldObservation(commandEnvelope(body, fieldId)),
+        });
+      } catch (error) {
+        rejected(error);
+      }
     },
   });
 }
