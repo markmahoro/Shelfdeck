@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "manifestVersion": 1,
+  "manifestId": "helix.arca-application-type-registry",
+  "kind": "application-type-registry",
+  "owner": "arca",
+  "status": "active",
+  "targetCount": 1,
+  "entries": [
+    {
+      "id": "ArcaMaterialEpisodeClaims",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ArcaMaterialEpisodeClaims/v1",
+      "relativePath": "application-types/ArcaMaterialEpisodeClaims/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "03f8bee46e87dc7f13aed69759312605cb3d146d697edba7260981e9d8857faf"
+      },
+      "ssotRefs": [
+        "3.3.1",
+        "8.5.13",
+        "8.6.19"
+      ]
+    }
+  ]
+}

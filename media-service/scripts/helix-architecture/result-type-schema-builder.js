@@ -8,6 +8,9 @@ const DRAFT = 'https://json-schema.org/draft/2020-12/schema';
 const typeId = (name) => `helix://contracts/types/${name}/v1`;
 const ref = (name) => ({ $ref: typeId(name) });
 const domainRef = (name) => ({ $ref: `helix://contracts/domain-types/${name}/v1` });
+const applicationRef = (name) => ({
+  $ref: `helix://contracts/application-types/${name}/v1`,
+});
 const text = (options = {}) => ({ type: 'string', minLength: 1, ...options });
 const id = () => text({ maxLength: 256 });
 const digest = () => text({ pattern: '^[a-f0-9]{64}$' });
@@ -301,7 +304,20 @@ const special = {
   'AcquisitionQuery.hardConstraints': boundedRecord('acquisition-hard-constraints'),
   'AcquisitionObservation.phase': enumText('download', 'transfer'),
   'AcceptanceCheck.checkKind': enumText('identity', 'structure', 'metadata', 'mandatory_media', 'space'),
-  'StagedInventoryManifest.stagedMembers': arrayOf(snapshot('staged-inventory-member'), 4096),
+  'StagedInventoryManifest.stagedMembers': arrayOf(object({
+    sourceMaterialKey: id(),
+    materialKey: id(),
+    role: enumText(
+      'primary_payload', 'metadata_sidecar', 'poster', 'fanart',
+      'structural_dependency', 'subtitle', 'external_audio', 'chapter',
+    ),
+    endpointId: id(),
+    location: text({ maxLength: 4096 }),
+    bindingRevision: positiveInteger(),
+    digestHex: digest(),
+    sizeBytes: nonNegativeInteger(),
+    episodeClaims: applicationRef('ArcaMaterialEpisodeClaims'),
+  }), 4096),
   'SettlementDeletionEvidence.postDeleteReality': boundedRecord('post-delete-reality'),
   'DeletionEvidence.postDeleteReality': boundedRecord('post-delete-reality'),
   'CustodyAssessmentEvidence.assessmentState': text(),

@@ -10,6 +10,9 @@ const {
 const {
   createRepositoryDefinition,
 } = require('./helix/foundation/persistence/owner-repository');
+const {
+  fromProductMember,
+} = require('./helix/domains/arca/model/material-episode-claims');
 
 class CleanArcaInventoryPortError extends Error {
   constructor(code, message, details = {}) {
@@ -212,6 +215,10 @@ function createCleanArcaInventoryPort(options) {
     const primaryBase = safeSegment(
       path.basename(sourcePath(primary), path.extname(sourcePath(primary))),
     );
+    const contentProfile =
+      packageValue.productStructureSnapshot?.structureKind === 'season'
+        ? 'series'
+        : 'movie';
     const plans = packageValue.productMaterialManifest.members.map((member) => {
       const source = sourcePath(member);
       const name = safeSegment(targetName(member, primaryBase));
@@ -224,7 +231,15 @@ function createCleanArcaInventoryPort(options) {
         (!fs.existsSync(source) || !fs.statSync(source).isFile())
         ? observe(target, member)
         : observe(source, member);
-      return Object.freeze({ member, source, target, name, ...observed });
+      const episodeClaims = fromProductMember(member, contentProfile);
+      return Object.freeze({
+        member,
+        episodeClaims,
+        source,
+        target,
+        name,
+        ...observed,
+      });
     }).sort((left, right) =>
       Buffer.compare(Buffer.from(left.member.materialKey),
         Buffer.from(right.member.materialKey)));
@@ -250,6 +265,7 @@ function createCleanArcaInventoryPort(options) {
         targetLocation: plan.target,
         digestHex: plan.digestHex,
         sizeBytes: plan.sizeBytes,
+        episodeClaims: plan.episodeClaims,
       };
       return Object.freeze({
         objectId: canonicalDigest({
@@ -316,6 +332,7 @@ function createCleanArcaInventoryPort(options) {
         targetLocation: item.target,
         digestHex: item.digestHex,
         sizeBytes: item.sizeBytes,
+        episodeClaims: item.episodeClaims,
       })),
     });
     const basis = {
@@ -388,6 +405,7 @@ function createCleanArcaInventoryPort(options) {
         targetMountScopeId: shelf.target.mountScopeId,
         targetMountScopeRevision: shelf.target.mountScopeRevision,
         targetLocation: plan.target,
+        episodeClaims: plan.episodeClaims,
       };
       const intentDigest = canonicalDigest(intent);
       const idempotencyKey = canonicalDigest({
@@ -500,6 +518,7 @@ function createCleanArcaInventoryPort(options) {
         sizeBytes: plan.sizeBytes,
         digestHex: plan.digestHex,
         effectId,
+        episodeClaims: plan.episodeClaims,
       };
       const outputDigest = canonicalDigest(output);
       execute('clean_arca_inventory_commit_effect', (context) => {
@@ -542,16 +561,27 @@ function createCleanArcaInventoryPort(options) {
       }));
     }
     const stagedMembers = staged.map((item) => Object.freeze({
-      objectId: canonicalDigest({
-        schema: 'arca.staged-inventory-member-id@1',
-        onDeckRunId: request.onDeckRunId,
-        materialKey: item.materialKey,
-      }),
-      revision: 1,
-      schemaRef: 'helix://contracts/types/StagedInventoryMember/v1',
-      snapshotDigest: item.outputDigest,
-      objectKind: 'staged-inventory-member',
-    }));
+      sourceMaterialKey: item.sourceMaterialKey,
+      materialKey: item.materialKey,
+      role: item.role,
+      endpointId: item.endpointId,
+      location: item.location,
+      bindingRevision: 1,
+      digestHex: item.digestHex,
+      sizeBytes: item.sizeBytes,
+      episodeClaims: item.episodeClaims,
+    })).sort((left, right) =>
+      Buffer.compare(Buffer.from(left.sourceMaterialKey),
+        Buffer.from(right.sourceMaterialKey)) ||
+      Buffer.compare(Buffer.from(left.materialKey),
+        Buffer.from(right.materialKey)));
+    if (new Set(stagedMembers.map((item) => item.sourceMaterialKey)).size !==
+        stagedMembers.length ||
+        new Set(stagedMembers.map((item) => item.materialKey)).size !==
+        stagedMembers.length) {
+      fail('CLEAN_ARCA_STAGED_IDENTITY_DUPLICATE',
+        'Staged Inventory source and target Material identities must be unique.');
+    }
     const membersDigest = canonicalDigest({
       schema: 'arca.staged-inventory-members@1',
       items: stagedMembers,

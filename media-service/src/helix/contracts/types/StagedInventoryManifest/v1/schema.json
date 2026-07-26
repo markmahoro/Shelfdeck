@@ -57,34 +57,66 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "objectId": {
+          "sourceMaterialKey": {
             "type": "string",
             "minLength": 1,
             "maxLength": 256
           },
-          "revision": {
+          "materialKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "primary_payload",
+              "metadata_sidecar",
+              "poster",
+              "fanart",
+              "structural_dependency",
+              "subtitle",
+              "external_audio",
+              "chapter"
+            ]
+          },
+          "endpointId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "location": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "bindingRevision": {
             "type": "integer",
             "minimum": 1
           },
-          "schemaRef": {
-            "type": "string",
-            "minLength": 1
-          },
-          "snapshotDigest": {
+          "digestHex": {
             "type": "string",
             "minLength": 1,
             "pattern": "^[a-f0-9]{64}$"
           },
-          "objectKind": {
-            "const": "staged-inventory-member"
+          "sizeBytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "episodeClaims": {
+            "$ref": "helix://contracts/application-types/ArcaMaterialEpisodeClaims/v1"
           }
         },
         "required": [
-          "objectId",
-          "revision",
-          "schemaRef",
-          "snapshotDigest",
-          "objectKind"
+          "sourceMaterialKey",
+          "materialKey",
+          "role",
+          "endpointId",
+          "location",
+          "bindingRevision",
+          "digestHex",
+          "sizeBytes",
+          "episodeClaims"
         ]
       },
       "maxItems": 4096

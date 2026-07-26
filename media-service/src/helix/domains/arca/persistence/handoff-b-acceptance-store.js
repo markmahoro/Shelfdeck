@@ -11,6 +11,11 @@ const { digest } = require('../../../foundation/persistence/ddl-compiler');
 const {
   createMaterialControlExactTransferParticipant,
 } = require('../../../foundation/persistence/material-control');
+const {
+  SCHEMA_REF: EPISODE_CLAIMS_SCHEMA,
+  buildArcaMaterialEpisodeClaims,
+  parseArcaMaterialEpisodeClaims,
+} = require('../model/material-episode-claims');
 
 const RECEIPT_SCHEMA = 'helix://contracts/types/CustodyAndTransferReceipt/v1';
 const MESSAGE_SCHEMA = 'helix://contracts/types/ArcaProductAcceptedMessage/v1';
@@ -167,7 +172,9 @@ function arcaDefinition(schemaManifest) {
         tableId: 'arca_material_bindings',
         columns: [
           'owner_object_type', 'owner_object_id', 'material_key', 'role',
-          'episode_key', 'endpoint_id', 'location', 'binding_revision',
+          'episode_claims_schema_ref', 'episode_claims_json',
+          'episode_claim_set_digest', 'endpoint_id', 'location',
+          'binding_revision',
           'health_state', 'evidence_digest', 'current',
         ],
         keyColumns: ['owner_object_type', 'owner_object_id'],
@@ -178,7 +185,9 @@ function arcaDefinition(schemaManifest) {
         tableId: 'arca_material_bindings',
         columns: [
           'owner_object_type', 'owner_object_id', 'material_key', 'role',
-          'episode_key', 'endpoint_id', 'location', 'binding_revision',
+          'episode_claims_schema_ref', 'episode_claims_json',
+          'episode_claim_set_digest', 'endpoint_id', 'location',
+          'binding_revision',
           'health_state', 'evidence_digest', 'current',
         ],
       },
@@ -413,6 +422,46 @@ function createHandoffBAcceptanceStore(options) {
   const arca = arcaDefinition(options.schemaManifest);
   const foundation = foundationDefinition(options.schemaManifest);
 
+  function reconstructBindingSetDigest(repo, custodyId) {
+    const items = repo.invoke('list_bindings', {
+      owner_object_type: 'on_deck_custody',
+      owner_object_id: custodyId,
+    }).map((row) => {
+      const episodeClaims = parseArcaMaterialEpisodeClaims(row);
+      const item = {
+        materialKey: row.material_key,
+        role: row.role,
+        episodeClaims,
+        endpointId: row.endpoint_id,
+        location: row.location,
+        bindingRevision: Number(row.binding_revision),
+        evidenceDigest: row.evidence_digest,
+      };
+      const expectedEvidence = canonicalDigest({
+        schema: 'arca.handoff-b-material-binding@1',
+        custodyId,
+        materialKey: item.materialKey,
+        role: item.role,
+        episodeClaims,
+        endpointId: item.endpointId,
+        location: item.location,
+      });
+      if (item.evidenceDigest !== expectedEvidence) {
+        fail('P14_HANDOFF_B_BINDING_HISTORY',
+          'Arca Binding Evidence cannot be reconstructed.');
+      }
+      return Object.freeze(item);
+    }).sort((left, right) =>
+      Buffer.compare(Buffer.from(left.materialKey),
+        Buffer.from(right.materialKey)) ||
+      Buffer.compare(Buffer.from(left.role), Buffer.from(right.role)));
+    return canonicalDigest({
+      schema: 'arca.handoff-b-binding-set@1',
+      custodyId,
+      items,
+    });
+  }
+
   function recordAssessment(input) {
     const assessment = exactAttempt(input);
     return options.unitOfWork.execute([{
@@ -552,19 +601,48 @@ function createHandoffBAcceptanceStore(options) {
       fail('P14_HANDOFF_B_ONDECK_RESPONSIBILITY',
         'Accepted Handoff B requires its exact immutable Final Inventory Decision and On-deck Run identity.');
     }
-    const bindings = request.bindings.map((item) => Object.freeze({
-      ...item,
-      bindingRevision: 1,
-      evidenceDigest: canonicalDigest({
-        schema: 'arca.handoff-b-material-binding@1',
-        custodyId,
-        materialKey: item.materialKey,
-        role: item.role,
-        episodeKey: item.episodeKey,
-        endpointId: item.endpointId,
-        location: item.location,
-      }),
-    })).sort((left, right) =>
+    const productMembers = new Map(
+      (request.package?.productMaterialManifest?.members || [])
+        .map((member) => [member.materialKey, member]),
+    );
+    const series =
+      request.package?.productStructureSnapshot?.structureKind === 'season';
+    const bindings = request.bindings.map((item) => {
+      const episodeClaims = buildArcaMaterialEpisodeClaims(
+        item.episodeClaims,
+        {
+          requireNonEmpty: series && item.role === 'product:primary_payload',
+          requireEmpty: item.role !== 'product:primary_payload' || !series,
+        },
+      );
+      const source = productMembers.get(item.materialKey);
+      if (item.role.startsWith('product:') &&
+          (!source || item.role !== 'product:' + source.role ||
+           canonicalJson(episodeClaims.items) !==
+             canonicalJson(source.episodeClaims || []) ||
+           episodeClaims.episodeClaimSetDigest !==
+             source.episodeClaimSetDigest)) {
+        fail('P14_HANDOFF_B_EPISODE_CLAIMS',
+          'Handoff B Binding Episode Claims do not match the Product member.');
+      }
+      const binding = {
+        ...item,
+        episodeClaims,
+        bindingRevision: 1,
+      };
+      return Object.freeze({
+        ...binding,
+        evidenceDigest: canonicalDigest({
+          schema: 'arca.handoff-b-material-binding@1',
+          custodyId,
+          materialKey: binding.materialKey,
+          role: binding.role,
+          episodeClaims,
+          endpointId: binding.endpointId,
+          location: binding.location,
+        }),
+      });
+    }).sort((left, right) =>
       Buffer.compare(Buffer.from(left.materialKey), Buffer.from(right.materialKey)) ||
       Buffer.compare(Buffer.from(left.role), Buffer.from(right.role)));
     const arcaBindingSetDigest = canonicalDigest({
@@ -695,6 +773,8 @@ function createHandoffBAcceptanceStore(options) {
             storedFinalDecision.decision_digest !==
               finalInventoryDecision.decisionDigest ||
             current.decision_digest !== decision.decisionDigest ||
+            reconstructBindingSetDigest(repo, custodyId) !==
+              storedReceipt.arca_binding_set_digest ||
             storedReceipt.receipt_digest !==
               canonicalDigest(without(mapReceipt(storedReceipt), 'receiptDigest'))) {
           fail('P14_HANDOFF_B_REPLAY_CORRUPT',
@@ -841,7 +921,10 @@ function createHandoffBAcceptanceStore(options) {
             owner_object_id: custodyId,
             material_key: item.materialKey,
             role: item.role,
-            episode_key: item.episodeKey,
+            episode_claims_schema_ref: EPISODE_CLAIMS_SCHEMA,
+            episode_claims_json: canonicalJson(item.episodeClaims),
+            episode_claim_set_digest:
+              item.episodeClaims.episodeClaimSetDigest,
             endpoint_id: item.endpointId,
             location: item.location,
             binding_revision: item.bindingRevision,
@@ -1180,6 +1263,8 @@ function createHandoffBAcceptanceStore(options) {
               request.offerMessage.onDeckPackageId ||
             row.package_digest !== request.offerMessage.packageDigest ||
             row.decision_digest !== decision.decisionDigest ||
+            reconstructBindingSetDigest(repo, custody.custody_id) !==
+              receipt.arcaBindingSetDigest ||
             receipt.receiptDigest !==
               canonicalDigest(without(receipt, 'receiptDigest'))) {
           fail('P14_HANDOFF_B_REPLAY_CORRUPT',

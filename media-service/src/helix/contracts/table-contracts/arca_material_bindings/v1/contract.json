@@ -49,7 +49,7 @@
       },
       {
         "ordinal": 5,
-        "name": "episode_key",
+        "name": "episode_claims_schema_ref",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -59,8 +59,8 @@
       },
       {
         "ordinal": 6,
-        "name": "endpoint_id",
-        "logicalType": "TEXT",
+        "name": "episode_claims_json",
+        "logicalType": "TEXT_JSON",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -69,7 +69,7 @@
       },
       {
         "ordinal": 7,
-        "name": "location",
+        "name": "episode_claim_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -79,6 +79,26 @@
       },
       {
         "ordinal": 8,
+        "name": "endpoint_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "location",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
         "name": "binding_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -88,7 +108,7 @@
         "nullable": false
       },
       {
-        "ordinal": 9,
+        "ordinal": 11,
         "name": "health_state",
         "logicalType": "TEXT",
         "enumValues": [
@@ -102,7 +122,7 @@
         "nullable": false
       },
       {
-        "ordinal": 10,
+        "ordinal": 12,
         "name": "evidence_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -112,7 +132,7 @@
         "nullable": false
       },
       {
-        "ordinal": 11,
+        "ordinal": 13,
         "name": "current",
         "logicalType": "INTEGER_BOOLEAN",
         "enumValues": [],
@@ -151,7 +171,15 @@
       "pointerTargets": [],
       "pointerRules": []
     },
-    "jsonContracts": [],
+    "jsonContracts": [
+      {
+        "column": "episode_claims_json",
+        "schemaRefColumn": "episode_claims_schema_ref",
+        "maxBytes": 16384,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
     "immutability": {
       "immutable": false,
       "rules": []
@@ -162,16 +190,19 @@
     },
     "semanticRules": [
       "`PK(owner_object_type,owner_object_id,material_key,role,binding_revision)`",
-      "每个关系只有一个current row"
+      "每个物理Material/role/revision只有一row且每个关系只有一个current row",
+      "Episode JSON固定`helix://contracts/application-types/ArcaMaterialEpisodeClaims/v1`、canonical JCS≤`16 KiB`，schema/json/digest均非NULL并逐字节满足8.6.19公式",
+      "Product Binding从同一`OnDeckProductPackage@1` member完整复制，Series Primary为`1..32`项，single Primary及非Primary/Off-load Context-only Binding为空Set",
+      "`evidence_digest`与`arcaBindingSetDigest`覆盖完整typed Set，禁止只取第一项、复制member row或旁读Libra补值"
     ],
     "rawContract": {
-      "columns": "`owner_object_type, owner_object_id, material_key, role, episode_key, endpoint_id, location, binding_revision, health_state, evidence_digest, current`",
-      "constraints": "`PK(owner_object_type,owner_object_id,material_key,role,binding_revision)`；每个关系只有一个current row"
+      "columns": "`owner_object_type, owner_object_id, material_key, role, episode_claims_schema_ref, episode_claims_json, episode_claim_set_digest, endpoint_id, location, binding_revision, health_state, evidence_digest, current`",
+      "constraints": "`PK(owner_object_type,owner_object_id,material_key,role,binding_revision)`；每个物理Material/role/revision只有一row且每个关系只有一个current row；Episode JSON固定`helix://contracts/application-types/ArcaMaterialEpisodeClaims/v1`、canonical JCS≤`16 KiB`，schema/json/digest均非NULL并逐字节满足8.6.19公式；Product Binding从同一`OnDeckProductPackage@1` member完整复制，Series Primary为`1..32`项，single Primary及非Primary/Off-load Context-only Binding为空Set；`evidence_digest`与`arcaBindingSetDigest`覆盖完整typed Set，禁止只取第一项、复制member row或旁读Libra补值"
     },
     "source": {
       "section": "8.5.12",
-      "line": 8492,
-      "lineDigest": "24ff36ed66c7d3b2ac2f74f88d2c7541ac985b5c43de231226372cad389fb25e"
+      "line": 8538,
+      "lineDigest": "a2c28d9edc930a5c6a7501242803234adb88d593125dce0b434e4d09ebf35f82"
     },
     "foreignKeys": []
   }

@@ -7,7 +7,7 @@
     "displayName": "On-deck Commit",
     "ownerScope": "arca",
     "commitClass": "responsibility_control_commit",
-    "atomicFactSet": "Shelf Entry create/extend + Canonical Content Identity + Inventory Representation/accepted Product Fact/完整Media-Cast relation snapshot revision + Deck Fact + required Control acquire/release + Off-load Completion Outbox",
+    "atomicFactSet": "Shelf Entry create/extend + Canonical Content Identity + Inventory Representation（每个物理Material一row并完整复制typed Episode Claim Set）/accepted Product Fact/完整Media-Cast relation snapshot revision + Deck Fact + required Control acquire/release + Off-load Completion Outbox",
     "participants": [
       {
         "participantKind": "domain",
@@ -92,8 +92,8 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7850,
-      "lineDigest": "3bc6c0219ad5a70df82a937621dc2889d8774d3b2fafd2caab032c66c0ac2b90"
+      "line": 7860,
+      "lineDigest": "1b0282d9cf7648056e98d3ddf8c03d135d0ab22bfb10a627be3afdc7fda16579"
     }
   }
 }

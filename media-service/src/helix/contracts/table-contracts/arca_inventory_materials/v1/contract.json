@@ -59,7 +59,7 @@
       },
       {
         "ordinal": 6,
-        "name": "episode_key",
+        "name": "episode_claims_schema_ref",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -69,8 +69,8 @@
       },
       {
         "ordinal": 7,
-        "name": "endpoint_id",
-        "logicalType": "TEXT",
+        "name": "episode_claims_json",
+        "logicalType": "TEXT_JSON",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -79,7 +79,7 @@
       },
       {
         "ordinal": 8,
-        "name": "location",
+        "name": "episode_claim_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -89,8 +89,8 @@
       },
       {
         "ordinal": 9,
-        "name": "binding_revision",
-        "logicalType": "INTEGER",
+        "name": "endpoint_id",
+        "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -99,7 +99,7 @@
       },
       {
         "ordinal": 10,
-        "name": "digest_hex",
+        "name": "location",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -109,6 +109,26 @@
       },
       {
         "ordinal": 11,
+        "name": "binding_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "digest_hex",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 13,
         "name": "size_bytes",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -129,7 +149,7 @@
     "uniqueConstraints": [],
     "hotIndexes": [],
     "partialUniqueRules": [
-      "active representation中Primary Material全局exclusive partial unique"
+      "每个物理Material在一版Inventory中只有一row，active representation中Primary Material全局exclusive partial unique"
     ],
     "checkRules": [],
     "revisionContract": {
@@ -141,7 +161,15 @@
       "pointerTargets": [],
       "pointerRules": []
     },
-    "jsonContracts": [],
+    "jsonContracts": [
+      {
+        "column": "episode_claims_json",
+        "schemaRefColumn": "episode_claims_schema_ref",
+        "maxBytes": 16384,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
     "immutability": {
       "immutable": false,
       "rules": []
@@ -152,16 +180,18 @@
     },
     "semanticRules": [
       "`PK(shelf_entry_id,inventory_revision,ordinal)`",
-      "active representation中Primary Material全局exclusive partial unique"
+      "每个物理Material在一版Inventory中只有一row，active representation中Primary Material全局exclusive partial unique",
+      "Episode JSON固定`helix://contracts/application-types/ArcaMaterialEpisodeClaims/v1`、canonical JCS≤`16 KiB`且三列均非NULL，由同一On-deck Run verified `StagedInventoryManifest@1` member逐字节复制",
+      "Inventory Representation与Deck Fact digest覆盖完整typed Set，历史revision从本row独立重建，不得复制多条Material row表达多个Episode"
     ],
     "rawContract": {
-      "columns": "`shelf_entry_id FK, inventory_revision, ordinal, material_key, role, episode_key, endpoint_id, location, binding_revision, digest_hex, size_bytes`",
-      "constraints": "`PK(shelf_entry_id,inventory_revision,ordinal)`；active representation中Primary Material全局exclusive partial unique"
+      "columns": "`shelf_entry_id FK, inventory_revision, ordinal, material_key, role, episode_claims_schema_ref, episode_claims_json, episode_claim_set_digest, endpoint_id, location, binding_revision, digest_hex, size_bytes`",
+      "constraints": "`PK(shelf_entry_id,inventory_revision,ordinal)`；每个物理Material在一版Inventory中只有一row，active representation中Primary Material全局exclusive partial unique；Episode JSON固定`helix://contracts/application-types/ArcaMaterialEpisodeClaims/v1`、canonical JCS≤`16 KiB`且三列均非NULL，由同一On-deck Run verified `StagedInventoryManifest@1` member逐字节复制；Inventory Representation与Deck Fact digest覆盖完整typed Set，历史revision从本row独立重建，不得复制多条Material row表达多个Episode"
     },
     "source": {
       "section": "8.5.12",
-      "line": 8501,
-      "lineDigest": "6029b20f7d263a868741e394746e1cb6b2a4d14181be98fbe70bd3ca403b33ae"
+      "line": 8547,
+      "lineDigest": "4965590f2ef4d42820652677569fab11579d604801cf83c7f8e0f276a5b9cc94"
     },
     "foreignKeys": [
       {

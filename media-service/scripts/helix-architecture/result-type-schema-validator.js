@@ -60,9 +60,17 @@ function validateResultTypeSchemas(options) {
 
   const sharedRegistry = readJson(path.join(contractsRoot, 'shared-type-registry.json'), findings);
   const domainInputRegistry = readJson(path.join(contractsRoot, 'domain-input-type-registry.json'), findings);
+  const applicationRegistries = [
+    'arca-application-type-registry.json',
+    'libra-application-type-registry.json',
+    'platform-application-type-registry.json',
+  ].map((file) => readJson(path.join(contractsRoot, file), findings));
   const knownSchemaIds = new Set([
     ...(sharedRegistry && sharedRegistry.entries || []).map((entry) => entry.schemaId),
     ...(domainInputRegistry && domainInputRegistry.entries || []).map((entry) => entry.schemaId),
+    ...applicationRegistries.flatMap((applicationRegistry) =>
+      (applicationRegistry && applicationRegistry.entries || [])
+        .map((entry) => entry.schemaId)),
     ...(registry.entries || []).map((entry) => entry.schemaId)
   ]);
   const registryNames = new Set();

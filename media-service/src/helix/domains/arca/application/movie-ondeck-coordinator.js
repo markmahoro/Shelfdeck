@@ -19,6 +19,10 @@ const {
 const {
   createOnDeckStore,
 } = require('../persistence/on-deck-store');
+const {
+  emptyArcaMaterialEpisodeClaims,
+  fromProductMember,
+} = require('../model/material-episode-claims');
 
 class MovieOnDeckCoordinatorError extends Error {
   constructor(code, message, details = {}) {
@@ -86,11 +90,11 @@ function acceptanceCheck(input) {
   });
 }
 
-function bindingFromProduct(member) {
+function bindingFromProduct(member, contentProfile) {
   return Object.freeze({
     materialKey: member.materialKey,
     role: 'product:' + member.role,
-    episodeKey: null,
+    episodeClaims: fromProductMember(member, contentProfile),
     endpointId: member.location.endpointId,
     location: member.workspaceMaterialHandle
       ? 'workspace://' + member.workspaceMaterialHandle.workspaceId + '/' +
@@ -103,7 +107,7 @@ function bindingFromContext(member) {
   return Object.freeze({
     materialKey: member.materialKey,
     role: 'offload:' + member.contextRole,
-    episodeKey: null,
+    episodeClaims: emptyArcaMaterialEpisodeClaims(),
     endpointId: member.endpointId,
     location: member.location,
   });
@@ -182,6 +186,7 @@ function createMovieOnDeckCoordinator(options) {
       });
     const committedHistory = onDeck.readCommittedByPackage({
       onDeckPackageId: offer.onDeckPackageId,
+      packageDigest: offer.packageDigest,
       shelfId: shelf.shelfId,
       custodyId: historicalResponsibility.custodyId,
     });
@@ -206,9 +211,13 @@ function createMovieOnDeckCoordinator(options) {
       packageValue.resolvedIdentitySnapshot?.factValue
         ?.resolvedProductIdentity?.identityDigest ||
       packageValue.resolvedIdentitySnapshot?.factValue?.identityDigest;
+    const structureKind =
+      packageValue.productStructureSnapshot?.structureKind;
+    const scopeKind = packageValue.productMaterialManifest.scopeKind;
     const structurePassed =
-      packageValue.productStructureSnapshot?.structureKind === 'single' &&
-      packageValue.productMaterialManifest.scopeKind === 'single';
+      (structureKind === 'single' && scopeKind === 'single') ||
+      (structureKind === 'season' && scopeKind === 'episode_delivery');
+    const contentProfile = structureKind === 'season' ? 'series' : 'movie';
     const metadataPassed = factKinds.has('product_metadata') &&
       packageValue.artifactManifest.items.some((item) =>
         item.artifactKind === 'nfo');
@@ -385,7 +394,8 @@ function createMovieOnDeckCoordinator(options) {
         finalInventoryDecision,
         targetLocation: feasibility.targetLocation,
         bindings: [
-          ...productMembers.map(bindingFromProduct),
+          ...productMembers.map((member) =>
+            bindingFromProduct(member, contentProfile)),
           ...offloadMembers.map(bindingFromContext),
         ].sort((left, right) =>
           Buffer.compare(Buffer.from(left.materialKey),
@@ -452,7 +462,9 @@ function createMovieOnDeckCoordinator(options) {
       stagedInventoryManifestDigest: staged.manifest.manifestDigest,
       finalInventoryDecisionDigest: finalInventoryDecision.decisionDigest,
       members: staged.members.map((item) => ({
+        sourceMaterialKey: item.sourceMaterialKey,
         materialKey: item.materialKey,
+        episodeClaims: item.episodeClaims,
         outputDigest: item.outputDigest,
       })),
     };
@@ -519,6 +531,7 @@ function createMovieOnDeckCoordinator(options) {
       custodyId: accepted.custody.custodyId,
       finalInventoryDecisionDigest: finalInventoryDecision.decisionDigest,
       onDeckPackageId: packageValue.onDeckPackageId,
+      packageDigest: packageValue.packageDigest,
       shelfId: shelf.shelfId,
     });
     if (!committed) {

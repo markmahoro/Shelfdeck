@@ -264,7 +264,9 @@ CREATE TABLE "arca_inventory_materials" (
   "ordinal" INTEGER CHECK ("ordinal" >= 0),
   "material_key" TEXT,
   "role" TEXT,
-  "episode_key" TEXT,
+  "episode_claims_schema_ref" TEXT,
+  "episode_claims_json" TEXT,
+  "episode_claim_set_digest" TEXT CHECK (length("episode_claim_set_digest") = 64 AND "episode_claim_set_digest" NOT GLOB '*[^0-9a-f]*'),
   "endpoint_id" TEXT,
   "location" TEXT,
   "binding_revision" INTEGER CHECK ("binding_revision" >= 1),
@@ -272,6 +274,8 @@ CREATE TABLE "arca_inventory_materials" (
   "size_bytes" INTEGER CHECK ("size_bytes" >= 0),
   "active_guard" INTEGER NOT NULL DEFAULT 0 CHECK ("active_guard" IN (0, 1)),
   PRIMARY KEY ("shelf_entry_id", "inventory_revision", "ordinal"),
+  CHECK (json_valid("episode_claims_json")),
+  CHECK (length(CAST("episode_claims_json" AS BLOB)) <= 16384),
   FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
 );
 CREATE UNIQUE INDEX "uidx_arca_inventory_materials_partial_01" ON "arca_inventory_materials" ("material_key") WHERE "role" = 'primary' AND "active_guard" = 1;
@@ -345,14 +349,18 @@ CREATE TABLE "arca_material_bindings" (
   "owner_object_id" TEXT,
   "material_key" TEXT,
   "role" TEXT,
-  "episode_key" TEXT,
+  "episode_claims_schema_ref" TEXT,
+  "episode_claims_json" TEXT,
+  "episode_claim_set_digest" TEXT CHECK (length("episode_claim_set_digest") = 64 AND "episode_claim_set_digest" NOT GLOB '*[^0-9a-f]*'),
   "endpoint_id" TEXT,
   "location" TEXT,
   "binding_revision" INTEGER CHECK ("binding_revision" >= 1),
   "health_state" TEXT CHECK ("health_state" IN ('active', 'stale', 'released')),
   "evidence_digest" TEXT CHECK (length("evidence_digest") = 64 AND "evidence_digest" NOT GLOB '*[^0-9a-f]*'),
   "current" INTEGER CHECK ("current" IN (0, 1)),
-  PRIMARY KEY ("owner_object_type", "owner_object_id", "material_key", "role", "binding_revision")
+  PRIMARY KEY ("owner_object_type", "owner_object_id", "material_key", "role", "binding_revision"),
+  CHECK (json_valid("episode_claims_json")),
+  CHECK (length(CAST("episode_claims_json" AS BLOB)) <= 16384)
 );
 
 CREATE TABLE "arca_offdeck_authorization_batches" (

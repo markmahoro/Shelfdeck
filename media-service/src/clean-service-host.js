@@ -440,6 +440,20 @@ async function createCleanServiceHost(options) {
       responsibilityClosure: closure,
     });
   };
+  const advanceRunToOnDeck = async (libraRunId) => {
+    const production = await movieProductionCoordinator.advance(libraRunId);
+    if (production.stage !== 'handoff_b_offer_open') return production;
+    const arca = arcaAcceptance.acceptProductOffer(
+      production.offerMessage,
+    );
+    return Object.freeze({
+      ...production,
+      offerStage: production.stage,
+      stage: arca.stage,
+      handoffB: arca.handoffB,
+      onDeck: arca.onDeck,
+    });
+  };
   const advanceProduction = async (formation) => {
     if (formation.stage !== 'libra_run_active') return null;
     const libraRunId = formation.libraRunId || formation.libraRun?.libraRunId;
@@ -454,7 +468,7 @@ async function createCleanServiceHost(options) {
       return null;
     }
     if (formation.contentProfile === 'series') {
-      return movieProductionCoordinator.advance(libraRunId);
+      return advanceRunToOnDeck(libraRunId);
     }
     return advanceRunProduction(libraRunId);
   };

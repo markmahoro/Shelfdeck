@@ -14,7 +14,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.3",
-        "line": 8635,
+        "line": 8681,
         "lineDigest": "3c779f1d39a3f72469291269540ce40cda287c01fbc2489f41de933adfaa67ad"
       }
     },
@@ -27,7 +27,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.3",
-        "line": 8636,
+        "line": 8682,
         "lineDigest": "a49116ffe106a16d2ab00e928642626f5d43442beaa0b312971bac83445319da"
       }
     },
@@ -40,7 +40,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.3",
-        "line": 8637,
+        "line": 8683,
         "lineDigest": "21ce16e95b9e854aa907c3f2ea783e60c7cbdc71cc3b67ab7933301523cbaae4"
       }
     },
@@ -53,7 +53,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.3",
-        "line": 8638,
+        "line": 8684,
         "lineDigest": "2c9ef79a156c8efbaf548d3118dd00d614b415350dc86aa40299b10a0b936f49"
       }
     },
@@ -66,7 +66,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.3",
-        "line": 8639,
+        "line": 8685,
         "lineDigest": "97c21353c211becce2a99b5af0bfe18cd75d0426615554a67e3c477f675cfef7"
       }
     },
@@ -79,7 +79,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.3",
-        "line": 8640,
+        "line": 8686,
         "lineDigest": "1b422c2d69c2b0560e34a8647403dcbf168e7c2ca832839a31df2675c35eca78"
       }
     },
@@ -92,7 +92,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.3",
-        "line": 8641,
+        "line": 8687,
         "lineDigest": "e697b3a09446676cbec3dccce50f5c87b03e001e38e125178bb13914c248d02b"
       }
     },
@@ -105,7 +105,7 @@
       "effectClass": "workspace_write",
       "source": {
         "section": "8.6.3",
-        "line": 8642,
+        "line": 8688,
         "lineDigest": "303382e21b6ebf8ed4758e802fc0e190d1c36a4f73ce51f69707a659a04bbd3e"
       }
     },
@@ -118,7 +118,7 @@
       "effectClass": "workspace_write",
       "source": {
         "section": "8.6.3",
-        "line": 8643,
+        "line": 8689,
         "lineDigest": "ab99299f3dabcdbda44a14805e1f391fb7abe03dd5b066789d7b5d62b01edc8e"
       }
     },
@@ -131,7 +131,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.3",
-        "line": 8644,
+        "line": 8690,
         "lineDigest": "1787818297541762f93641ae752ac862fd31ee0f8c30d4a2e05377942453ee71"
       }
     },
@@ -144,7 +144,7 @@
       "effectClass": "external_request",
       "source": {
         "section": "8.6.3",
-        "line": 8645,
+        "line": 8691,
         "lineDigest": "65c0ce39384f0d7c72667cf36846fef0d0c2b8a6a24578aa5126bd8b21421fe9"
       }
     },
@@ -157,7 +157,7 @@
       "effectClass": "external_request",
       "source": {
         "section": "8.6.3",
-        "line": 8646,
+        "line": 8692,
         "lineDigest": "4e6913ce756b9cb2256e595c73663fecead0de82b66374dfe93f31bd282cd1fb"
       }
     },
@@ -170,7 +170,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.4",
-        "line": 8659,
+        "line": 8705,
         "lineDigest": "9e9a4270eddbcfb6121d5c0940cf066395bc6fd07e3c2634c998db1233e9027d"
       }
     },
@@ -183,7 +183,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.4",
-        "line": 8660,
+        "line": 8706,
         "lineDigest": "21aae7367d16373f21bb34ae02f3366f65eeeba391cb8442f8d8634276318224"
       }
     },
@@ -196,7 +196,7 @@
       "effectClass": "responsibility_control_commit",
       "source": {
         "section": "8.6.4",
-        "line": 8661,
+        "line": 8707,
         "lineDigest": "95a7948fa00711b73ff02bbb1106415b813ef40471c335e0cbd8f3b7844cda19"
       }
     },
@@ -209,7 +209,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.4",
-        "line": 8662,
+        "line": 8708,
         "lineDigest": "e7e6f8bfaba269d86b0603fa79bec84da7f4b3e0d18eac5eda1fcc82a4d450f3"
       }
     },
@@ -222,7 +222,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.4",
-        "line": 8663,
+        "line": 8709,
         "lineDigest": "9b3c4c820a8a270d507c43ccd062542a9c9b03ccdaebf6c12773160954b71ace"
       }
     },
@@ -235,7 +235,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.4",
-        "line": 8664,
+        "line": 8710,
         "lineDigest": "f7916c1f4be923f878a1fcf29bac6943b02dbdc96645db53cc4a888facf7f908"
       }
     },
@@ -248,7 +248,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.4",
-        "line": 8665,
+        "line": 8711,
         "lineDigest": "7769660722413a2c3675524db721b764897ff74878bd5b8e718725ab1783bf0f"
       }
     },
@@ -261,7 +261,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.4",
-        "line": 8666,
+        "line": 8712,
         "lineDigest": "b3027f80fc686599bc8a0e7930f8550091b5b1ea892ca6f222272deb152a11da"
       }
     },
@@ -274,7 +274,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.5",
-        "line": 8855,
+        "line": 8901,
         "lineDigest": "4f8e6af6fee4049f6df4343ce160377bc7b26d496fca0e4a63b20f0ab2d9920f"
       }
     },
@@ -287,7 +287,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.5",
-        "line": 8856,
+        "line": 8902,
         "lineDigest": "577a5c3edda27be775e0cea43186b4c2d883d55d9989dc4f5edff152f811203f"
       }
     },
@@ -300,7 +300,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.5",
-        "line": 8857,
+        "line": 8903,
         "lineDigest": "33d349a4987b4e7f9ccc1be43180c9e3bc7a6c5d1e335d03e68a3d02c5c4825c"
       }
     },
@@ -313,7 +313,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.5",
-        "line": 8858,
+        "line": 8904,
         "lineDigest": "59dd603959abbeeb49d59f267b38c19e70c58ffbf8fc756ddcf7bd4b38b5c97a"
       }
     },
@@ -326,7 +326,7 @@
       "effectClass": "responsibility_control_commit",
       "source": {
         "section": "8.6.5",
-        "line": 8859,
+        "line": 8905,
         "lineDigest": "aae653e3ee9c648a7995c9cbb2d40b3d3024333b6c64aab079dd1d1ca4cd877a"
       }
     },
@@ -339,7 +339,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.5",
-        "line": 8860,
+        "line": 8906,
         "lineDigest": "da53a0601b2e71cced3fcfc8b4226c97a8fdd931bbc8502cd98c75bea6296694"
       }
     },
@@ -352,7 +352,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.5",
-        "line": 8861,
+        "line": 8907,
         "lineDigest": "6dce1265b0101081f5902721342d86b96e19ad4165b69dd8ef7b9cf241da261f"
       }
     },
@@ -365,7 +365,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.5",
-        "line": 8862,
+        "line": 8908,
         "lineDigest": "45197abf5c4765ac1c0a7e817e9d397383f85669e651c7fe1d442550998041da"
       }
     },
@@ -378,7 +378,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.5",
-        "line": 8863,
+        "line": 8909,
         "lineDigest": "c2bee393c7c5ceb06c831e38901c577c13ddb5eb7838e2a8bf622737543c2af9"
       }
     },
@@ -391,7 +391,7 @@
       "effectClass": "workspace_write",
       "source": {
         "section": "8.6.6",
-        "line": 8873,
+        "line": 8919,
         "lineDigest": "ef60c01a679d1da9ffa5ef53961cac2705102f561a826dc413d55bdfe32cece2"
       }
     },
@@ -404,7 +404,7 @@
       "effectClass": "external_request",
       "source": {
         "section": "8.6.6",
-        "line": 8874,
+        "line": 8920,
         "lineDigest": "2b82e44cc0c4d1b0d1016829669c832eedfbd3af8bf8ad11189d4f678e73dca9"
       }
     },
@@ -417,7 +417,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.6",
-        "line": 8875,
+        "line": 8921,
         "lineDigest": "15a3590287fb1b6ecea2d6b438fef6cd583b20d0ad6ff89c20f7d9b46e97ddff"
       }
     },
@@ -430,7 +430,7 @@
       "effectClass": "workspace_write",
       "source": {
         "section": "8.6.6",
-        "line": 8876,
+        "line": 8922,
         "lineDigest": "09b01e07391da03beeefecfb505ca33d3f4aa0e89429ba3a3dc45c0171b89609"
       }
     },
@@ -443,7 +443,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.6",
-        "line": 8877,
+        "line": 8923,
         "lineDigest": "87f1db07bb0699a6d907659194b9cc298b82105b0034e5240f56c8fff879c872"
       }
     },
@@ -456,7 +456,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.6",
-        "line": 8878,
+        "line": 8924,
         "lineDigest": "62ffb44038002f28c2624b51e4fdc7428773fa5a741fbb3ca63611c27877d2af"
       }
     },
@@ -469,7 +469,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.6",
-        "line": 8879,
+        "line": 8925,
         "lineDigest": "5e388e0a500d290644417b8a95a16a9c533014d8cd987b0adc80f5e7a85ebce9"
       }
     },
@@ -482,7 +482,7 @@
       "effectClass": "workspace_write",
       "source": {
         "section": "8.6.6",
-        "line": 8880,
+        "line": 8926,
         "lineDigest": "15a7d89c84badd6020622e0397e8d63040e7a16843bb2c209ba2ffc7b1225ad8"
       }
     },
@@ -495,7 +495,7 @@
       "effectClass": "workspace_write",
       "source": {
         "section": "8.6.6",
-        "line": 8881,
+        "line": 8927,
         "lineDigest": "6f6499bab8bb10e7dcc8e9229beb062e533126492e652453ac2efc3143d84cf9"
       }
     },
@@ -508,7 +508,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.6",
-        "line": 8882,
+        "line": 8928,
         "lineDigest": "2ddcea693a7d4c45c435bc7512662e90575f2ca17e684c8395f89722a5d7f21d"
       }
     },
@@ -521,7 +521,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.7",
-        "line": 8908,
+        "line": 8954,
         "lineDigest": "b0fafb7638df6655784f49673941ba924b78e7abfc70dafca20b5db3f9c04f83"
       }
     },
@@ -534,7 +534,7 @@
       "effectClass": "workspace_write",
       "source": {
         "section": "8.6.7",
-        "line": 8909,
+        "line": 8955,
         "lineDigest": "f993684f4fb9479ef5117ce238ef61ed9f27b5151bbe2773a6d4f595d7b2cfed"
       }
     },
@@ -547,7 +547,7 @@
       "effectClass": "workspace_write",
       "source": {
         "section": "8.6.7",
-        "line": 8910,
+        "line": 8956,
         "lineDigest": "ef71734c274acc77af8ecf650abcd3c0adf58e61d1a59246d364609eccaa55c4"
       }
     },
@@ -560,7 +560,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.7",
-        "line": 8911,
+        "line": 8957,
         "lineDigest": "6ca7365e09bf70b37f854f2497da9caa04165b49516c6216ba4cb00669b0fb4e"
       }
     },
@@ -573,7 +573,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.7",
-        "line": 8912,
+        "line": 8958,
         "lineDigest": "4dad652e481e140443f801995a648e85ad50b322989dab5d11a8e2251b992051"
       }
     },
@@ -586,7 +586,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.7",
-        "line": 8913,
+        "line": 8959,
         "lineDigest": "71182ad2790275909551e3fde64298f0c712cef281413343ecf8ac7be9d3f06e"
       }
     },
@@ -599,7 +599,7 @@
       "effectClass": "responsibility_control_commit",
       "source": {
         "section": "8.6.7",
-        "line": 8914,
+        "line": 8960,
         "lineDigest": "2afbdf078f649b9d09daca7c48fc359f5558659d7aa34487fe42f4f9321026e9"
       }
     },
@@ -612,7 +612,7 @@
       "effectClass": "workspace_write",
       "source": {
         "section": "8.6.7",
-        "line": 8915,
+        "line": 8961,
         "lineDigest": "f09090fc2846906255d8843741377000b02613a1e6710c9dd87c45ac545c5e9a"
       }
     },
@@ -625,7 +625,7 @@
       "effectClass": "responsibility_control_commit",
       "source": {
         "section": "8.6.7",
-        "line": 8916,
+        "line": 8962,
         "lineDigest": "f06b5c46da41e51fc912925ab367dd1395dca2612f9deee9780ece99184480e5"
       }
     },
@@ -638,7 +638,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.8",
-        "line": 8943,
+        "line": 8989,
         "lineDigest": "cc34464295093a27cf0134e1887e5d488ebb6d1488ab2d90fb686892e4fce131"
       }
     },
@@ -651,7 +651,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.8",
-        "line": 8944,
+        "line": 8990,
         "lineDigest": "272ea3787ea7ee72a188edb57852075a8230470e04de7df600f0e01570a7ad72"
       }
     },
@@ -664,7 +664,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.8",
-        "line": 8945,
+        "line": 8991,
         "lineDigest": "1b4eeedfe203459b1b943a25b9eb1c7b287c47c5461795de00299cdafd1f104c"
       }
     },
@@ -677,7 +677,7 @@
       "effectClass": "external_request",
       "source": {
         "section": "8.6.8",
-        "line": 8946,
+        "line": 8992,
         "lineDigest": "c8febb3ce98234bb108e61882ba6bf4d66181180f40481c556d133c9845f70f8"
       }
     },
@@ -690,7 +690,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.8",
-        "line": 8947,
+        "line": 8993,
         "lineDigest": "b03c29fa6a35ba1ebf6a464a81c4807c3be7ace3aab02b78fcefd93be3dd4515"
       }
     },
@@ -703,7 +703,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.8",
-        "line": 8948,
+        "line": 8994,
         "lineDigest": "b568207325c6a7693b7356777dcd72cffce8db202fc8887e864b4cbbcd2c370f"
       }
     },
@@ -716,7 +716,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.8",
-        "line": 8949,
+        "line": 8995,
         "lineDigest": "5383eabcd2a0298df16d1d5050a9dbdc25ae6af69f3573a55c84a82ee97425c8"
       }
     },
@@ -729,7 +729,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.8",
-        "line": 8950,
+        "line": 8996,
         "lineDigest": "680e753368172bd01c9a76add6645eea58e29e66ab6f339e4296b99b78e2ef94"
       }
     }

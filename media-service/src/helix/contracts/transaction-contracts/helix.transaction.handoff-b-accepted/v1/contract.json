@@ -7,7 +7,7 @@
     "displayName": "Handoff B Accepted",
     "ownerScope": "arca",
     "commitClass": "responsibility_control_commit",
-    "atomicFactSet": "current active Acceptance Attempt terminal CAS + Acceptance Decision + immutable Final Inventory Decision + initial On-deck Run + On-deck Material Custody + Arca Binding + precise Control transfer + Handoff Receipt + `ArcaProductAcceptedMessage@1` Outbox；Acceptance Attempt、Run/Decision、Custody/Binding、Control、Receipt/Result/marker/Outbox全有或全无",
+    "atomicFactSet": "current active Acceptance Attempt terminal CAS + Acceptance Decision + immutable Final Inventory Decision + initial On-deck Run + On-deck Material Custody + Arca Binding（含逐Product member无损复制的typed Episode Claim Set）+ precise Control transfer + Handoff Receipt + `ArcaProductAcceptedMessage@1` Outbox；Acceptance Attempt、Run/Decision、Custody/Binding、Control、Receipt/Result/marker/Outbox全有或全无",
     "participants": [
       {
         "participantKind": "domain",
@@ -91,8 +91,8 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7843,
-      "lineDigest": "4e7faf672510547a8d63d030a9eb666083e32a737bad840610b1e458649d46e8"
+      "line": 7853,
+      "lineDigest": "3d25770600252cf636f63804d12f9cdd57b1f876a5e1c15a0c5fdef943c06fc3"
     }
   }
 }

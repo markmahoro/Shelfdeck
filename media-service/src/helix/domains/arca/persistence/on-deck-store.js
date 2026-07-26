@@ -12,6 +12,11 @@ const {
   controlScopeDigest,
   createMaterialControlParticipant,
 } = require('../../../foundation/persistence/material-control');
+const {
+  SCHEMA_REF: EPISODE_CLAIMS_SCHEMA,
+  buildArcaMaterialEpisodeClaims,
+  parseArcaMaterialEpisodeClaims,
+} = require('../model/material-episode-claims');
 
 const RESULT_SCHEMA = 'helix://contracts/types/OnDeckCommitResult/v1';
 const RECEIPT_SCHEMA = 'helix://contracts/types/OnDeckCommitReceipt/v1';
@@ -125,14 +130,37 @@ function arcaDefinition(schemaManifest) {
           'source_package_id', 'committed_at_ms',
         ],
       },
+      find_representation: {
+        kind: 'select-one',
+        tableId: 'arca_inventory_representations',
+        columns: [
+          'shelf_entry_id', 'revision', 'representation_digest',
+          'source_package_id', 'committed_at_ms',
+        ],
+        keyColumns: ['shelf_entry_id', 'revision'],
+        safeIntegers: true,
+      },
       insert_material: {
         kind: 'insert',
         tableId: 'arca_inventory_materials',
         columns: [
           'shelf_entry_id', 'inventory_revision', 'ordinal', 'material_key',
-          'role', 'episode_key', 'endpoint_id', 'location',
+          'role', 'episode_claims_schema_ref', 'episode_claims_json',
+          'episode_claim_set_digest', 'endpoint_id', 'location',
           'binding_revision', 'digest_hex', 'size_bytes', 'active_guard',
         ],
+      },
+      list_materials: {
+        kind: 'select-all',
+        tableId: 'arca_inventory_materials',
+        columns: [
+          'shelf_entry_id', 'inventory_revision', 'ordinal', 'material_key',
+          'role', 'episode_claims_schema_ref', 'episode_claims_json',
+          'episode_claim_set_digest', 'endpoint_id', 'location',
+          'binding_revision', 'digest_hex', 'size_bytes', 'active_guard',
+        ],
+        keyColumns: ['shelf_entry_id', 'inventory_revision'],
+        safeIntegers: true,
       },
       insert_related: {
         kind: 'insert',
@@ -170,6 +198,16 @@ function arcaDefinition(schemaManifest) {
           'shelf_entry_id', 'revision', 'state', 'inventory_revision',
           'standard_revision', 'fact_digest', 'committed_at_ms',
         ],
+      },
+      find_deck: {
+        kind: 'select-one',
+        tableId: 'arca_deck_fact_revisions',
+        columns: [
+          'shelf_entry_id', 'revision', 'state', 'inventory_revision',
+          'standard_revision', 'fact_digest', 'committed_at_ms',
+        ],
+        keyColumns: ['shelf_entry_id', 'revision'],
+        safeIntegers: true,
       },
       find_receipt: {
         kind: 'select-one',
@@ -308,6 +346,74 @@ function createOnDeckStore(options) {
   const arca = arcaDefinition(options.schemaManifest);
   const foundation = foundationDefinition(options.schemaManifest);
 
+  function verifyInventoryHistory(
+    repo,
+    shelfEntryId,
+    inventoryRevision,
+    deckFactRevision,
+    packageDigest,
+  ) {
+    const representation = repo.invoke('find_representation', {
+      shelf_entry_id: shelfEntryId,
+      revision: inventoryRevision,
+    });
+    const rows = repo.invoke('list_materials', {
+      shelf_entry_id: shelfEntryId,
+      inventory_revision: inventoryRevision,
+    }).sort((left, right) => Number(left.ordinal) - Number(right.ordinal));
+    const members = rows.map((row, ordinal) => {
+      if (Number(row.ordinal) !== ordinal) {
+        fail('P14_ONDECK_INVENTORY_HISTORY',
+          'Inventory Material ordinals are not contiguous.');
+      }
+      return Object.freeze({
+        ordinal,
+        materialKey: row.material_key,
+        role: row.role,
+        episodeClaims: parseArcaMaterialEpisodeClaims(row),
+        endpointId: row.endpoint_id,
+        location: row.location,
+        bindingRevision: Number(row.binding_revision),
+        digestHex: row.digest_hex,
+        sizeBytes: Number(row.size_bytes),
+      });
+    });
+    const digestValue = canonicalDigest({
+      schema: 'arca.inventory-representation@1',
+      shelfEntryId,
+      inventoryRevision,
+      sourcePackageId: representation?.source_package_id,
+      members,
+    });
+    if (!representation ||
+        representation.representation_digest !== digestValue) {
+      fail('P14_ONDECK_INVENTORY_HISTORY',
+        'Inventory Representation cannot be reconstructed from Arca rows.');
+    }
+    const deck = repo.invoke('find_deck', {
+      shelf_entry_id: shelfEntryId,
+      revision: deckFactRevision,
+    });
+    const deckFactDigest = deck && canonicalDigest({
+      schema: 'arca.deck-fact@1',
+      shelfEntryId,
+      revision: deckFactRevision,
+      state: deck.state,
+      inventoryRevision,
+      standardRevision: Number(deck.standard_revision),
+      representationDigest: digestValue,
+      packageDigest,
+    });
+    if (!deck ||
+        deck.state !== 'active' ||
+        Number(deck.inventory_revision) !== inventoryRevision ||
+        deck.fact_digest !== deckFactDigest) {
+      fail('P14_ONDECK_DECK_HISTORY',
+        'Deck Fact cannot be reconstructed from exact Inventory history.');
+    }
+    return Object.freeze({ representation, members, deck });
+  }
+
   function verifyAcceptedResponsibility(request) {
     const decision = request.finalInventoryDecision;
     return options.unitOfWork.execute([{
@@ -413,8 +519,87 @@ function createOnDeckStore(options) {
     const inventoryRevision = 1;
     const deckFactRevision = 1;
     const stagedMembers = [...request.staged.members].sort((left, right) =>
+      Buffer.compare(Buffer.from(left.sourceMaterialKey),
+        Buffer.from(right.sourceMaterialKey)) ||
       Buffer.compare(Buffer.from(left.materialKey),
         Buffer.from(right.materialKey)));
+    if (new Set(stagedMembers.map((item) => item.sourceMaterialKey)).size !==
+        stagedMembers.length ||
+        new Set(stagedMembers.map((item) => item.materialKey)).size !==
+        stagedMembers.length) {
+      fail('P14_ONDECK_STAGED_IDENTITY_DUPLICATE',
+        'Staged source and target Material identities must be unique.');
+    }
+    const productMembers = new Map(
+      packageValue.productMaterialManifest.members.map((member) =>
+        [member.materialKey, member]),
+    );
+    const series =
+      packageValue.productStructureSnapshot?.structureKind === 'season';
+    for (const stagedMember of stagedMembers) {
+      const source = productMembers.get(stagedMember.sourceMaterialKey);
+      const episodeClaims = buildArcaMaterialEpisodeClaims(
+        stagedMember.episodeClaims,
+        {
+          requireNonEmpty:
+            series && stagedMember.role === 'primary_payload',
+          requireEmpty:
+            stagedMember.role !== 'primary_payload' || !series,
+        },
+      );
+      if (!source || source.role !== stagedMember.role ||
+          canonicalJson(source.episodeClaims || []) !==
+            canonicalJson(episodeClaims.items) ||
+          source.episodeClaimSetDigest !==
+            episodeClaims.episodeClaimSetDigest) {
+        fail('P14_ONDECK_EPISODE_CLAIMS',
+          'Staged Inventory Episode Claims do not match the Product member.');
+      }
+      const finalMemberId = stable('arca.final-inventory-member-id@1', {
+        onDeckRunId: request.onDeckRunId,
+        sourceMaterialKey: stagedMember.sourceMaterialKey,
+      });
+      if (!request.finalInventoryDecision.members.some((member) =>
+        member.objectId === finalMemberId)) {
+        fail('P14_ONDECK_FINAL_MEMBER_CONTINUITY',
+          'Staged source Material is absent from the Final Inventory Decision.');
+      }
+      if (canonicalJson(stagedMember.episodeClaims) !==
+          canonicalJson(episodeClaims)) {
+        fail('P14_ONDECK_EPISODE_CLAIMS',
+          'Staged Inventory Episode Claims are not canonical.');
+      }
+    }
+    const stagedManifestMembers = [...request.staged.manifest.stagedMembers];
+    const expectedStagedMembers = stagedMembers.map((item) => ({
+      sourceMaterialKey: item.sourceMaterialKey,
+      materialKey: item.materialKey,
+      role: item.role,
+      endpointId: item.endpointId,
+      location: item.location,
+      bindingRevision: 1,
+      digestHex: item.digestHex,
+      sizeBytes: item.sizeBytes,
+      episodeClaims: item.episodeClaims,
+    }));
+    if (canonicalJson(stagedManifestMembers) !==
+        canonicalJson(expectedStagedMembers)) {
+      fail('P14_ONDECK_STAGED_MANIFEST_DRIFT',
+        'Staged Inventory Manifest does not conserve its exact members.');
+    }
+    const inventoryMembers = Object.freeze(stagedMembers.map(
+      (item, ordinal) => Object.freeze({
+        ordinal,
+        materialKey: item.materialKey,
+        role: item.role === 'primary_payload' ? 'primary' : item.role,
+        episodeClaims: item.episodeClaims,
+        endpointId: item.endpointId,
+        location: item.location,
+        bindingRevision: 1,
+        digestHex: item.digestHex,
+        sizeBytes: item.sizeBytes,
+      }),
+    ));
     const oldMaterials = new Map();
     for (const member of [
       ...packageValue.productMaterialManifest.members,
@@ -480,7 +665,7 @@ function createOnDeckStore(options) {
       shelfEntryId,
       inventoryRevision,
       sourcePackageId: packageValue.onDeckPackageId,
-      members: stagedMembers,
+      members: inventoryMembers,
     });
     const deckFactBase = {
       schema: 'arca.deck-fact@1',
@@ -669,20 +854,23 @@ function createOnDeckStore(options) {
           source_package_id: packageValue.onDeckPackageId,
           committed_at_ms: context.commitTimeMs,
         });
-        stagedMembers.forEach((item, ordinal) => {
+        inventoryMembers.forEach((item) => {
           repo.invoke('insert_material', {
             shelf_entry_id: shelfEntryId,
             inventory_revision: inventoryRevision,
-            ordinal,
+            ordinal: item.ordinal,
             material_key: item.materialKey,
-            role: item.role === 'primary_payload' ? 'primary' : item.role,
-            episode_key: null,
+            role: item.role,
+            episode_claims_schema_ref: EPISODE_CLAIMS_SCHEMA,
+            episode_claims_json: canonicalJson(item.episodeClaims),
+            episode_claim_set_digest:
+              item.episodeClaims.episodeClaimSetDigest,
             endpoint_id: item.endpointId,
             location: item.location,
             binding_revision: 1,
             digest_hex: item.digestHex,
             size_bytes: item.sizeBytes,
-            active_guard: item.role === 'primary_payload' ? 1 : 0,
+            active_guard: item.role === 'primary' ? 1 : 0,
           });
         });
         packageValue.productFactManifest.items.forEach((item) => {
@@ -954,13 +1142,23 @@ function createOnDeckStore(options) {
         const entry = repo.invoke('find_entry', {
           shelf_entry_id: receipt.shelf_entry_id,
         });
+        const inventoryHistory = entry &&
+          verifyInventoryHistory(
+            repo,
+            entry.shelf_entry_id,
+            Number(entry.current_inventory_revision),
+            Number(entry.current_deck_fact_revision),
+            request.packageDigest,
+          );
         if (!run || !completion || !entry ||
             run.custody_id !== request.custodyId ||
             run.final_inventory_decision_digest !==
               request.finalInventoryDecisionDigest ||
             completion.package_id !== request.onDeckPackageId ||
             completion.shelf_entry_id !== receipt.shelf_entry_id ||
-            entry.shelf_id !== request.shelfId) {
+            entry.shelf_id !== request.shelfId ||
+            inventoryHistory.representation.source_package_id !==
+              request.onDeckPackageId) {
           fail('P14_ONDECK_REPLAY_CORRUPT',
             'Committed On-deck result cannot be reconstructed from exact Arca rows.');
         }
@@ -997,6 +1195,14 @@ function createOnDeckStore(options) {
         const entry = repo.invoke('find_entry', {
           shelf_entry_id: completion.shelf_entry_id,
         });
+        const inventoryHistory = entry &&
+          verifyInventoryHistory(
+            repo,
+            entry.shelf_entry_id,
+            Number(entry.current_inventory_revision),
+            Number(entry.current_deck_fact_revision),
+            request.packageDigest,
+          );
         let finalInventoryDecision;
         try {
           finalInventoryDecision = decision &&
@@ -1014,7 +1220,9 @@ function createOnDeckStore(options) {
               decision.decision_digest ||
             completion.package_id !== request.onDeckPackageId ||
             completion.shelf_entry_id !== receipt.shelf_entry_id ||
-            entry.shelf_id !== request.shelfId) {
+            entry.shelf_id !== request.shelfId ||
+            inventoryHistory.representation.source_package_id !==
+              request.onDeckPackageId) {
           fail('P14_ONDECK_REPLAY_CORRUPT',
             'Committed On-deck package history failed its exact Arca fences.');
         }

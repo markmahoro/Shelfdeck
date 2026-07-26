@@ -1,6 +1,6 @@
 # P14 Product Journey Implementation
 
-状态：**FROZEN — Series Production / open Handoff B 待主动复验**
+状态：**FROZEN — Series Arca Handoff B / On-deck 待主动复验**
 
 ## 当前基线
 
@@ -11,7 +11,7 @@
   `942fc692`。
 - PBF-19 P14 独立接受证据：`de0dff64`（tested `3d9ebab4`）。
 - 当前实现检查点：本次提交；详细施工证据见
-  `docs/helix/implementation/evidence/P14_SERIES_PRODUCTION_OPEN_HANDOFF_B_CHECKPOINT.md`。
+  `docs/helix/implementation/evidence/P14_SERIES_ARCA_ONDECK_PBF20_CHECKPOINT.md`。
 - 实现线程未额外修改 Architecture SSOT。
 - `F02.17` 仍为 `NOT_RUN`；不得增加测试便利接口或用内部 Store 证据冒充
   用户 Feature。
@@ -27,40 +27,39 @@
 
 ## 当前冻结点
 
-P14 已独立接受 Series Handoff A、formal phased Plan/Event，以及
-Routing/Acceptance Spec/active Run。当前同一 disposable Series Run 已复用
-Movie production/PBF-17/PBF-18-R1公共链路推进到：
+P14 已独立接受 Series Handoff A、formal phased Plan/Event、
+Routing/Acceptance Spec/active Run，以及 Production/open Handoff B。当前同一
+disposable Series Run 已复用 Movie PBF-19 receiving-owner path推进到：
 
-`active Series Run + E001/E002/E003 Manifest
-→ Workspace admission/effects
-→ Product Facts + role-aware Artifact Staging
-→ six-group Conformance
-→ immutable OnDeckProductPackage
-→ exactly one open Handoff B Offer`
+`open libra.product-offer.available@1
+→ ProductDelivery historical reconstruction
+→ Arca Handoff B Accepted
+→ Custody / Binding / Control transfer
+→ Inventory staging / physical effect
+→ On-deck Commit
+→ active Series Shelf Entry / Deck Fact / Own`
 
-两个Primary保留exact N:M Episode continuity：第一个保存E001/E002，第二个保存
-E003。生成NFO与Poster是非Primary Artifact role，`episodeClaims=[]`且使用empty
-claim-set digest；Artifact scope只通过Artifact Requirement/Manifest/verification
-表达。Product Package包含四个member，只冻结三条Primary member/Episode
-relation。Product Delivery历史读取按`episode_delivery`重建相同的三个Primary
-relation且没有Artifact relation，也没有压平N:M。原MKV、Episode NFO、tvshow NFO
-和Season artwork bytes/mtime不变，物理写入仅在disposable Libra Workspace。
+PBF-20与其`sourceMaterialKey`有界修正已原样纳入。一个E001/E002双Episode
+Primary在Arca中仍只有一条Material Binding与一条Inventory Material；E003保存于
+第二条Primary。NFO/Poster的Episode Claim集合保持empty。`ArcaMaterialEpisodeClaims@1`
+以closed、UTF-8有序、唯一、0..32、16 KiB machine contract持久化完整集合，
+Binding evidence、Inventory Representation与Deck Fact历史读取都重算相同集合。
+`StagedInventoryManifest`同时保存source Product materialKey与新的target
+Physical materialKey，按source/target排序且分别唯一；Inventory只写target key。
 
-本段额外闭合合法Series Fact payload超过Plan 16 KiB的ordinary缺陷：
-`LibraProductFactCommitPlanBinding@1`只冻结exact typed refs/digests，完整Fact
-payload仍在execution/commit boundary内存组装；未放宽表上限、截断数据或建立
-旁路。三个高风险故障窗口（Workspace physical effect、Fact/Artifact commit、
-Package/Control/Offer commit）均证明重启只形成一个Package/Offer和一组Fact/
-Workspace effects。
+Handoff B Accepted事务中断证明Attempt保持active且Accepted责任集合全无；
+Inventory物理效果后中断保留可恢复journal且没有Shelf Entry；On-deck Commit后
+中断重启只历史重建同一Entry、四条Inventory Material与一份Receipt。Deck Fact
+读取从exact Inventory rows重算Representation，再用原Package digest、
+Standard/Inventory/Deck revision重算Fact；篡改Fact digest后fail closed。
 
-`ProductionMaterialManifest@1`的domain/application machine schema、Workspace
-Staging与Promotion均已加入“只有Primary可携带Episode Claims”的closed guard。
-完整architecture gate为`129 files / 876 tests PASS`，机器库存保持
+完整architecture gate为`130 files / 879 tests PASS`，机器库存保持
 112/97/177/43；Contract aggregate更新为
-`31c50aca25c02424e214c6ddd2ba52e13452cb926e8e176e02d324958ee0d43d`。
-当前明确冻结在open Handoff B Offer，未调用Arca Acceptance；等待
-Architecture/P14主动复验。typed TMDB response只作为construction fixture，
-不声明真实Provider acceptance。
+`30089e947738bab7933af3b606cd22336746321e05ae4d4d44a4bd5534e2d4e5`。
+当前明确冻结在Arca On-deck Commit之后、Libra消费Accepted/Off-load消息之前；
+等待Architecture/P14主动复验。typed TMDB response只作为construction fixture，
+不声明真实Provider acceptance。原Series/NFO/artwork bytes/mtime不变，Arca
+Target写入只发生在disposable路径。
 
 ## 已接受的 Series Handoff A 基线
 
@@ -142,8 +141,9 @@ terminal reclaimed。
 
 ## 下一步
 
-Architecture/P14 接受后，只推进同一 Series Package/Offer 的Arca Handoff B、
-On-deck与最终责任closure；不得提前进入JAV、Western Adult或横向Feature Matrix。
+Architecture/P14 接受后，只推进同一 Series 的Libra Accepted/Off-load消费、
+Run completion与Workspace cleanup最终责任closure；不得提前进入JAV、
+Western Adult或横向Feature Matrix。
 
 ## 硬边界
 
@@ -152,6 +152,5 @@ On-deck与最终责任closure；不得提前进入JAV、Western Adult或横向Fe
 - 不得修改 SSOT，不得引入兼容/双路径、hidden Store read、外域
   latest/current scan、Foundation Result fallback、legacy fallback 或跨 Owner
   写入。
-- 当前检查点只声明 Series Production / immutable Product Package / open Handoff B
-  construction vertical 已实现，不声明Series Arca On-deck、端到端、Provider、
-  Feature/UI或Beta完成。
+- 当前检查点只声明 Series Arca Handoff B / On-deck construction vertical 已实现，
+  不声明Series最终责任closure、端到端、Provider、Feature/UI或Beta完成。

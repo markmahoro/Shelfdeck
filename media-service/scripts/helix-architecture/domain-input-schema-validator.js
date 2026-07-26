@@ -52,7 +52,11 @@ function validateDomainInputSchemas(options) {
 
   const sharedRegistry = readJson(path.join(contractsRoot, 'shared-type-registry.json'), findings);
   const resultRegistry = readJson(path.join(contractsRoot, 'result-type-registry.json'), findings);
-  const applicationRegistries = ['libra-application-type-registry.json', 'platform-application-type-registry.json']
+  const applicationRegistries = [
+    'arca-application-type-registry.json',
+    'libra-application-type-registry.json',
+    'platform-application-type-registry.json',
+  ]
     .map((file) => readJson(path.join(contractsRoot, file), findings));
   const knownRefs = new Set([
     ...(sharedRegistry && sharedRegistry.entries || []).map((entry) => entry.schemaId),

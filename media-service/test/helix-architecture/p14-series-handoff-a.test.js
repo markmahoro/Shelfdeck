@@ -21,6 +21,9 @@ const {
 const {
   createSqliteUnitOfWork,
 } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
+const {
+  createOnDeckStore,
+} = require('../../src/helix/domains/arca/persistence/on-deck-store');
 const cleanSchemaManifest = require(
   '../../src/helix/foundation/persistence/generated/clean-schema.manifest.json'
 );
@@ -908,6 +911,70 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
   ).get().count, 1);
   productionDb.close();
 
+  await interruptProduction(
+    'afterAcceptedResponsibilityInsert',
+    'P14_SERIES_FAULT_AFTER_HANDOFF_B_RESPONSIBILITY_INSERT',
+  );
+  productionDb = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(productionDb.prepare(
+    `SELECT count(*) count
+       FROM arca_acceptance_attempts
+      WHERE state='active' AND finished_at_ms IS NULL`
+  ).get().count, 1);
+  for (const table of [
+    'arca_acceptance_decisions',
+    'arca_ondeck_custodies',
+    'arca_handoff_b_receipts',
+    'arca_ondeck_runs',
+    'arca_final_inventory_decisions',
+    'arca_material_bindings',
+  ]) {
+    assert.equal(productionDb.prepare(
+      `SELECT count(*) count FROM ${table}`
+    ).get().count, 0, table);
+  }
+  productionDb.close();
+
+  await interruptProduction(
+    'afterArcaInventoryPhysicalEffect',
+    'P14_SERIES_FAULT_AFTER_ARCA_INVENTORY_PHYSICAL_EFFECT',
+  );
+  productionDb = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(productionDb.prepare(
+    'SELECT count(*) count FROM arca_shelf_entries'
+  ).get().count, 0);
+  assert.equal(productionDb.prepare(
+    `SELECT count(*) count
+       FROM fx_effect_journal
+      WHERE effect_class='material_commit' AND state='intended'`
+  ).get().count, 1);
+  productionDb.close();
+
+  await interruptProduction(
+    'afterOnDeckCommit',
+    'P14_SERIES_FAULT_AFTER_ONDECK_COMMIT',
+  );
+  productionDb = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(productionDb.prepare(
+    'SELECT count(*) count FROM arca_shelf_entries'
+  ).get().count, 1);
+  assert.equal(productionDb.prepare(
+    'SELECT count(*) count FROM arca_inventory_materials'
+  ).get().count, 4);
+  assert.equal(productionDb.prepare(
+    'SELECT count(*) count FROM arca_ondeck_commit_receipts'
+  ).get().count, 1);
+  productionDb.close();
+
   host = await createCleanServiceHost({
     dataDir,
     adminDistDir,
@@ -920,7 +987,8 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
     const completed = await requestProduction(host);
     assert.equal(completed.statusCode, 200, completed.body);
     completedProduction = completed.json().movieJourney.handoff.production;
-    assert.equal(completedProduction.stage, 'handoff_b_offer_open');
+    assert.equal(completedProduction.stage, 'movie_on_deck_committed');
+    assert.equal(completedProduction.offerStage, 'handoff_b_offer_open');
     assert.equal(completedProduction.replayed, true);
     assert.equal(completedProduction.productDelivery.resultKind, 'found');
     assert.equal(completedProduction.productDelivery.onDeckProductPackage
@@ -979,7 +1047,59 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
   ).get().count, 1);
   assert.equal(productionDb.prepare(
     'SELECT count(*) count FROM arca_acceptance_decisions'
+  ).get().count, 1);
+  const arcaProductBindings = productionDb.prepare(
+    `SELECT role,episode_claims_schema_ref,episode_claims_json,
+            episode_claim_set_digest
+       FROM arca_material_bindings
+      WHERE role LIKE 'product:%'
+      ORDER BY material_key`
+  ).all();
+  assert.equal(arcaProductBindings.length, 4);
+  assert.deepEqual(
+    arcaProductBindings
+      .filter((row) => row.role === 'product:primary_payload')
+      .map((row) => JSON.parse(row.episode_claims_json).items
+        .map((claim) => claim.episodeKey))
+      .sort((left, right) => left.join('|').localeCompare(right.join('|'))),
+    [['E001', 'E002'], ['E003']],
+  );
+  for (const row of arcaProductBindings) {
+    const value = JSON.parse(row.episode_claims_json);
+    assert.equal(row.episode_claims_schema_ref,
+      'helix://contracts/application-types/ArcaMaterialEpisodeClaims/v1');
+    assert.equal(value.episodeClaimSetDigest, row.episode_claim_set_digest);
+    if (row.role !== 'product:primary_payload') {
+      assert.deepEqual(value.items, []);
+    }
+  }
+  const arcaInventory = productionDb.prepare(
+    `SELECT role,episode_claims_schema_ref,episode_claims_json,
+            episode_claim_set_digest,location
+       FROM arca_inventory_materials
+      ORDER BY ordinal`
+  ).all();
+  assert.equal(arcaInventory.length, 4);
+  assert.deepEqual(
+    arcaInventory
+      .filter((row) => row.role === 'primary')
+      .map((row) => JSON.parse(row.episode_claims_json).items
+        .map((claim) => claim.episodeKey))
+      .sort((left, right) => left.join('|').localeCompare(right.join('|'))),
+    [['E001', 'E002'], ['E003']],
+  );
+  for (const row of arcaInventory) {
+    assert.equal(fs.existsSync(row.location), true);
+    const value = JSON.parse(row.episode_claims_json);
+    assert.equal(value.episodeClaimSetDigest, row.episode_claim_set_digest);
+    if (row.role !== 'primary') assert.deepEqual(value.items, []);
+  }
+  assert.equal(productionDb.prepare(
+    'SELECT count(*) count FROM libra_delivery_receipts'
   ).get().count, 0);
+  assert.equal(productionDb.prepare(
+    `SELECT count(*) count FROM libra_runs WHERE state='active'`
+  ).get().count, 1);
   const productFactPlanRows = productionDb.prepare(
     `SELECT input_binding_schema_ref,input_bindings_json
        FROM fx_plan_nodes
@@ -1045,7 +1165,7 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
     assert.equal(replayed.statusCode, 200, replayed.body);
     const replayedProduction =
       replayed.json().movieJourney.handoff.production;
-    assert.equal(replayedProduction.stage, 'handoff_b_offer_open');
+    assert.equal(replayedProduction.stage, 'movie_on_deck_committed');
     assert.equal(replayedProduction.replayed, true);
     assert.equal(
       replayedProduction.onDeckPackageId,
@@ -1076,6 +1196,44 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
       WHERE message_kind='libra.product-offer.available@1'`
   ).get().count, 1);
   productionDb.close();
+
+  const tamperDb = new Database(path.join(dataDir, 'shelfdeck.db'));
+  assert.equal(tamperDb.prepare(
+    `UPDATE arca_deck_fact_revisions
+        SET fact_digest=?
+      WHERE shelf_entry_id=? AND revision=?`
+  ).run(
+    '0'.repeat(64),
+    completedProduction.onDeck.result.onDeckCommitReceipt.shelfEntryId,
+    completedProduction.onDeck.result.onDeckCommitReceipt.deckFactRevision,
+  ).changes, 1);
+  tamperDb.close();
+  const tamperKernel = openSqliteKernel({
+    Database,
+    databasePath: path.join(dataDir, 'shelfdeck.db'),
+    schemaDdl: cleanSchemaDdl,
+    schemaManifest: cleanSchemaManifest,
+  });
+  try {
+    const onDeckStore = createOnDeckStore({
+      schemaManifest: cleanSchemaManifest,
+      unitOfWork: createSqliteUnitOfWork({ kernel: tamperKernel }),
+    });
+    assert.throws(() => onDeckStore.readCommittedByPackage({
+      onDeckPackageId: completedProduction.onDeckPackageId,
+      packageDigest: completedProduction.packageDigest,
+      shelfId: 'series-handoff-shelf',
+      custodyId: completedProduction.handoffB.custodyId,
+    }), (error) => {
+      assert.equal(
+        error.code,
+      'P14_ONDECK_DECK_HISTORY',
+      );
+      return true;
+    });
+  } finally {
+    tamperKernel.close();
+  }
 
   for (const [file, expected] of before) {
     assert.deepEqual(fs.readFileSync(file), expected.bytes);
