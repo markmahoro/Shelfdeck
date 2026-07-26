@@ -8213,9 +8213,10 @@ Material、只取第一项、拼接scalar key或回读Libra Store：
    `arcaBindingSetDigest=SHA-256(JCS({schema:"arca.handoff-b-binding-set@1",custodyId,
    items:[{materialKey,role,episodeClaims,endpointId,location,bindingRevision,evidenceDigest}]}))`。
    Off-load Context-only Binding固定为空Set；
-2. 标准Off-load事务的`StagedInventoryManifest@1`逐member携带同一typed Set；On-deck Commit只从已验证的
-   Staged member复制到同一物理Material的一条`arca_inventory_materials` row，并把完整Set纳入
-   Inventory Representation与Deck Fact digest；
+2. 标准Off-load事务的`StagedInventoryManifest@1`逐member携带`sourceMaterialKey`和同一typed Set；
+   `sourceMaterialKey`逐字节命中来源Product member，`materialKey`标识Stage后目标Physical Material；On-deck
+   Commit只从已验证的Staged member复制到同一目标Physical Material的一条`arca_inventory_materials` row，
+   并把完整Set纳入Inventory Representation与Deck Fact digest；
 3. `ArcaMaterialEpisodeClaims@1`固定为
    `{items[0..32]{episodeKey,seasonClaimDigest,claimDigest},episodeClaimSetDigest}`；items按`episodeKey`
    UTF-8 bytes升序且key唯一，单项`claimDigest`与Set digest逐字节沿用
@@ -9917,8 +9918,8 @@ Accepted variant的`rejection_schema_ref`及全部rejection列必须为NULL。SQ
 | `InventoryFeasibilityEvidence` | `EvidenceEnvelope + shelfId + placementRevision + targetEndpointId + requiredBytes + availableBytes + finalInventoryDecisionDraftDigest` |
 | `ArcaMaterialEpisodeClaims` | `items[0..32]{episodeKey,seasonClaimDigest,claimDigest},episodeClaimSetDigest`；正式`schemaRef=helix://contracts/application-types/ArcaMaterialEpisodeClaims/v1`，items按`episodeKey` UTF-8 bytes升序且key唯一；单项`claimDigest=SHA-256(JCS({schema:"libra.production-material-episode-claim@1",episodeKey,seasonClaimDigest}))`，`episodeClaimSetDigest=SHA-256(JCS({schema:"libra.production-material-episode-claims@1",items}))`，因此逐字节等于来源`ProductionMaterialManifest@1` member的同名Set digest而不是Arca另造摘要；Series Product Primary要求`1..32`项，single Primary与全部非Primary/Off-load Context-only member固定为空Set；完整value≤`16 KiB` |
 | `CustodyAndTransferReceipt` | `ReceiptEnvelope + acceptanceDecisionId + custodyId + arcaBindingSetDigest + controlRevisionSetDigest + receiptDigest`；`arcaBindingSetDigest`覆盖每个Binding的完整`ArcaMaterialEpisodeClaims@1`而不只覆盖Set digest；`receiptDigest=SHA-256(JCS(完整value excluding receiptDigest))`，完整value≤`16 KiB` |
-| `StagedInventoryManifest` | `ManifestEnvelope + targetCommitSlotId + stagedMembers[{materialKey,role,endpointId,location,bindingRevision,digestHex,sizeBytes,episodeClaims(ArcaMaterialEpisodeClaims)}] + sourceProductManifestDigest`；member按materialKey UTF-8 bytes排序且key唯一，每项Episode Set逐字节等于同一Product member；Manifest digest覆盖完整members，不允许Stage后补Claim |
-| `StagedInventoryVerification` | `VerificationEnvelope + stagedInventoryManifestDigest + finalInventoryDecisionDigest`；passed要求每个Staged member的完整`ArcaMaterialEpisodeClaims@1`与Final Inventory Decision所引用Product member逐字节相等 |
+| `StagedInventoryManifest` | `ManifestEnvelope + targetCommitSlotId + stagedMembers[{sourceMaterialKey,materialKey,role,endpointId,location,bindingRevision,digestHex,sizeBytes,episodeClaims(ArcaMaterialEpisodeClaims)}] + sourceProductManifestDigest`；`sourceMaterialKey`逐字节命中来源Product member，`materialKey`是Stage后目标Physical Material；member按`sourceMaterialKey,materialKey` UTF-8 bytes排序且两个key各自唯一，每项Episode Set逐字节等于`sourceMaterialKey`所指Product member；Manifest digest覆盖完整members，不允许Stage后补Claim |
+| `StagedInventoryVerification` | `VerificationEnvelope + stagedInventoryManifestDigest + finalInventoryDecisionDigest`；passed要求每个Staged member按`sourceMaterialKey`唯一命中Final Inventory Decision所引用Product member，且完整`ArcaMaterialEpisodeClaims@1`逐字节相等 |
 | `PlacementSwitchReceipt` | `ReceiptEnvelope + targetCommitSlotId + finalBindingSetDigest + replacedInputSetDigest + transactionRevision` |
 | `FinalPrimaryVerification` | `VerificationEnvelope + finalBindingSetDigest + productManifestDigest + verifiedMaterialKeys[]` |
 | `SettlementDeletionEvidence` / `DeletionEvidence` | `EvidenceEnvelope + authorizationOrApprovalRef + materialKey + preDeleteIdentityDigest + postDeleteReality + effectReceiptId` |
