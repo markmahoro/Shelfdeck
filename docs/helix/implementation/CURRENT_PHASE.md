@@ -1,6 +1,6 @@
 # P14 Product Journey Implementation
 
-状态：**FROZEN — Series Arca Handoff B / On-deck 待主动复验**
+状态：**FROZEN — Series final responsibility closure 待主动复验**
 
 ## 当前基线
 
@@ -11,7 +11,7 @@
   `942fc692`。
 - PBF-19 P14 独立接受证据：`de0dff64`（tested `3d9ebab4`）。
 - 当前实现检查点：本次提交；详细施工证据见
-  `docs/helix/implementation/evidence/P14_SERIES_ARCA_ONDECK_PBF20_CHECKPOINT.md`。
+  `docs/helix/implementation/evidence/P14_SERIES_RESPONSIBILITY_CLOSURE_CHECKPOINT.md`。
 - 实现线程未额外修改 Architecture SSOT。
 - `F02.17` 仍为 `NOT_RUN`；不得增加测试便利接口或用内部 Store 证据冒充
   用户 Feature。
@@ -26,6 +26,43 @@
   tested `36ae8eb6`，evidence `a927a655`。
 
 ## 当前冻结点
+
+P14 已接受 Series Arca Handoff B / On-deck checkpoint `b0d1163e`
+（evidence `f10a3890`）。当前同一 Series Run 又沿已接受的 Movie closure
+合同完成：
+
+`arca.product.accepted@1
+→ Libra Delivery Receipt / Inbox / terminal Run
+→ durable Off-load Completion Projection
+→ 24h grace
+→ 两次真实、间隔一个cycle的Reference/Control audit
+→ one Cleanup Scope
+→ journaled Workspace reclaim
+→ Reference release / terminal Workspace + Foundation registry`
+
+Signal丢失时仍由durable Projection推进。首次观察不创建Scope，重启会重新开始
+真实两周期计时；第二次观察后Admission UoW再次精确读取References与current
+Controls。Run completion后、delivery ack前故障会从正式Inbox恢复并只补ack，
+不重复Run transition。Cleanup physical effect后及member commit后故障均只恢复
+同一Scope/member/effect。
+
+Libra Workspace回收后，Arca final Inventory与Deck Fact保持不变并可历史重建：
+两个Primary分别保持`[E001,E002]`和`[E003]`，NFO/Poster保持empty claim set。
+cleanup仅按exact Workspace Reference/Control工作，不读取或重解释Episode rows。
+原Series源文件bytes/mtime保持不变。
+
+当前冻结在Series责任闭环完成之后、JAV开始之前，等待Architecture/P14主动复验。
+typed TMDB response仍仅为construction fixture，不声明真实Provider acceptance；
+`F02.17`仍为`NOT_RUN`。
+
+定向责任闭环组合回归`28/28 PASS`；完整architecture gate为
+`130 files / 880 tests PASS`，机器库存保持112/97/177/43，Contract aggregate
+`30089e947738bab7933af3b606cd22336746321e05ae4d4d44a4bd5534e2d4e5`，
+Manifest aggregate
+`351063009c3d50fe07c3fb70503bb4ff71e30b1ebef40beb3700c2e22a414b18`，
+findings与`prohibitedActionsRun`均为空。
+
+## 已接受的 Series Arca On-deck 基线
 
 P14 已独立接受 Series Handoff A、formal phased Plan/Event、
 Routing/Acceptance Spec/active Run，以及 Production/open Handoff B。当前同一
@@ -141,9 +178,8 @@ terminal reclaimed。
 
 ## 下一步
 
-Architecture/P14 接受后，只推进同一 Series 的Libra Accepted/Off-load消费、
-Run completion与Workspace cleanup最终责任closure；不得提前进入JAV、
-Western Adult或横向Feature Matrix。
+Architecture active review与P14独立接受后，才可开始JAV纵向旅程；不得提前进入
+JAV、Western Adult或横向Feature Matrix。
 
 ## 硬边界
 
@@ -152,5 +188,5 @@ Western Adult或横向Feature Matrix。
 - 不得修改 SSOT，不得引入兼容/双路径、hidden Store read、外域
   latest/current scan、Foundation Result fallback、legacy fallback 或跨 Owner
   写入。
-- 当前检查点只声明 Series Arca Handoff B / On-deck construction vertical 已实现，
-  不声明Series最终责任closure、端到端、Provider、Feature/UI或Beta完成。
+- 当前检查点只声明 Series core backend responsibility closure 已实现，不声明
+  Real Provider、Feature/UI或Beta完成。

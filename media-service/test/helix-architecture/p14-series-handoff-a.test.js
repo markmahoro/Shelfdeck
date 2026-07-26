@@ -981,6 +981,30 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
   ).get().count, 1);
   productionDb.close();
 
+  await interruptProduction(
+    'afterRunCompletion',
+    'P14_SERIES_FAULT_AFTER_RUN_COMPLETION',
+  );
+  productionDb = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(productionDb.prepare(
+    `SELECT count(*) count FROM libra_runs WHERE state='completed'`
+  ).get().count, 1);
+  assert.equal(productionDb.prepare(
+    'SELECT count(*) count FROM libra_delivery_receipts'
+  ).get().count, 1);
+  assert.equal(productionDb.prepare(
+    `SELECT count(*) count
+       FROM fx_inbox inbox
+       JOIN fx_outbox outbox ON outbox.message_id=inbox.message_id
+      WHERE outbox.message_kind='arca.product.accepted@1'
+        AND inbox.consumer_domain='libra'
+        AND inbox.consumed_at_ms IS NOT NULL`
+  ).get().count, 1);
+  productionDb.close();
+
   host = await createCleanServiceHost({
     dataDir,
     adminDistDir,
@@ -1001,6 +1025,10 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
       .productMaterialManifest.scopeKind, 'episode_delivery');
     assert.equal(completedProduction.productDelivery.onDeckProductPackage
       .productMaterialManifest.members.length, 4);
+    assert.equal(
+      completedProduction.responsibilityClosure.stage,
+      'workspace_cleanup_grace_active',
+    );
   } finally {
     await host.close();
   }
@@ -1102,9 +1130,9 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
   }
   assert.equal(productionDb.prepare(
     'SELECT count(*) count FROM libra_delivery_receipts'
-  ).get().count, 0);
+  ).get().count, 1);
   assert.equal(productionDb.prepare(
-    `SELECT count(*) count FROM libra_runs WHERE state='active'`
+    `SELECT count(*) count FROM libra_runs WHERE state='completed'`
   ).get().count, 1);
   const productFactPlanRows = productionDb.prepare(
     `SELECT input_binding_schema_ref,input_bindings_json
@@ -1143,13 +1171,13 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
   ).all();
   productionDb.close();
   assert.equal(workspaceRows.length, 2);
-  for (const row of workspaceRows) {
-    const workspaceFile = path.join(
+  const workspaceFiles = workspaceRows.map((row) => path.join(
       dataDir,
       'workspace',
       row.workspace_id,
       ...row.relative_path.split('/'),
-    );
+  ));
+  for (const workspaceFile of workspaceFiles) {
     assert.equal(
       path.resolve(workspaceFile).startsWith(
         `${path.resolve(path.join(dataDir, 'workspace'))}${path.sep}`,
@@ -1173,6 +1201,10 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
       replayed.json().movieJourney.handoff.production;
     assert.equal(replayedProduction.stage, 'movie_on_deck_committed');
     assert.equal(replayedProduction.replayed, true);
+    assert.equal(
+      replayedProduction.responsibilityClosure.stage,
+      'workspace_cleanup_grace_active',
+    );
     assert.equal(
       replayedProduction.onDeckPackageId,
       completedProduction.onDeckPackageId,
@@ -1201,7 +1233,267 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
        FROM fx_outbox
       WHERE message_kind='libra.product-offer.available@1'`
   ).get().count, 1);
+  const cleanupAtMs = Number(productionDb.prepare(
+    'SELECT committed_at_ms FROM arca_offload_completions'
+  ).get().committed_at_ms) + 86_400_000 + 60_000;
   productionDb.close();
+
+  let cleanupClock = cleanupAtMs;
+  let cleanupPhysicalEffects = 0;
+  host = await createCleanServiceHost({
+    dataDir,
+    adminDistDir,
+    secretRoot,
+    mediaProbe,
+    ...productionOptions,
+    cleanupNow: () => cleanupClock,
+    offloadWakeVisible: false,
+  });
+  try {
+    const firstAudit = await requestProduction(host);
+    assert.equal(firstAudit.statusCode, 200, firstAudit.body);
+    assert.equal(
+      firstAudit.json().movieJourney.handoff.production
+        .responsibilityClosure.stage,
+      'workspace_cleanup_audit_pending',
+    );
+  } finally {
+    await host.close();
+  }
+  let cleanupDb = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(cleanupDb.prepare(
+    'SELECT count(*) count FROM libra_workspace_cleanup_scopes'
+  ).get().count, 0);
+  assert.equal(cleanupDb.prepare(
+    `SELECT count(*) count
+       FROM fx_effect_journal
+      WHERE effect_class='libra_workspace_material_reclaim'`
+  ).get().count, 0);
+  cleanupDb.close();
+
+  host = await createCleanServiceHost({
+    dataDir,
+    adminDistDir,
+    secretRoot,
+    mediaProbe,
+    ...productionOptions,
+    cleanupNow: () => cleanupClock,
+    offloadWakeVisible: false,
+    afterCleanupPhysicalEffect() {
+      cleanupPhysicalEffects += 1;
+      throw Object.assign(
+        new Error('Series cleanup physical effect interruption'),
+        { code: 'P14_SERIES_CLEANUP_PHYSICAL_EFFECT_INTERRUPTION' },
+      );
+    },
+  });
+  try {
+    const restartedFirstAudit = await requestProduction(host);
+    assert.equal(
+      restartedFirstAudit.json().movieJourney.handoff.production
+        .responsibilityClosure.stage,
+      'workspace_cleanup_audit_pending',
+    );
+    cleanupClock = cleanupAtMs + 60_000 - 1;
+    const earlySecondAudit = await requestProduction(host);
+    assert.equal(
+      earlySecondAudit.json().movieJourney.handoff.production
+        .responsibilityClosure.stage,
+      'workspace_cleanup_audit_pending',
+    );
+    cleanupClock = cleanupAtMs + 60_000;
+    const interrupted = await requestProduction(host);
+    assert.equal(interrupted.statusCode, 400, interrupted.body);
+    assert.equal(
+      interrupted.json().error.details.reasonCode,
+      'P14_SERIES_CLEANUP_PHYSICAL_EFFECT_INTERRUPTION',
+    );
+  } finally {
+    await host.close();
+  }
+  cleanupDb = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(cleanupDb.prepare(
+    `SELECT count(*) count
+       FROM libra_workspace_cleanup_scopes
+      WHERE state='active'`
+  ).get().count, 1);
+  assert.equal(cleanupDb.prepare(
+    `SELECT count(*) count
+       FROM libra_workspace_cleanup_members
+      WHERE state='completed'`
+  ).get().count, 0);
+  assert.equal(cleanupDb.prepare(
+    `SELECT count(*) count
+       FROM fx_effect_journal
+      WHERE effect_class='libra_workspace_material_reclaim'
+        AND state='intended'`
+  ).get().count, 1);
+  assert.equal(cleanupDb.prepare(
+    `SELECT count(*) count
+       FROM fx_outbox
+      WHERE message_kind='arca.offload.completed@1'
+        AND state='pending'`
+  ).get().count, 1);
+  cleanupDb.close();
+  assert.equal(cleanupPhysicalEffects, 1);
+  assert.equal(
+    workspaceFiles.filter((file) => !fs.existsSync(file)).length,
+    1,
+  );
+
+  host = await createCleanServiceHost({
+    dataDir,
+    adminDistDir,
+    secretRoot,
+    mediaProbe,
+    ...productionOptions,
+    cleanupNow: () => cleanupClock,
+    afterCleanupCommit() {
+      throw Object.assign(
+        new Error('Series cleanup member commit interruption'),
+        { code: 'P14_SERIES_CLEANUP_MEMBER_COMMIT_INTERRUPTION' },
+      );
+    },
+  });
+  try {
+    const interrupted = await requestProduction(host);
+    assert.equal(interrupted.statusCode, 400, interrupted.body);
+    assert.equal(
+      interrupted.json().error.details.reasonCode,
+      'P14_SERIES_CLEANUP_MEMBER_COMMIT_INTERRUPTION',
+    );
+  } finally {
+    await host.close();
+  }
+  cleanupDb = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(cleanupDb.prepare(
+    `SELECT count(*) count
+       FROM libra_workspace_cleanup_members
+      WHERE state='completed'`
+  ).get().count, 1);
+  assert.equal(cleanupDb.prepare(
+    `SELECT count(*) count
+       FROM fx_effect_journal
+      WHERE effect_class='libra_workspace_material_reclaim'
+        AND state='committed'`
+  ).get().count, 1);
+  cleanupDb.close();
+
+  let cleanedProduction;
+  host = await createCleanServiceHost({
+    dataDir,
+    adminDistDir,
+    secretRoot,
+    mediaProbe,
+    ...productionOptions,
+    cleanupNow: () => cleanupClock,
+    afterCleanupPhysicalEffect() {
+      cleanupPhysicalEffects += 1;
+    },
+  });
+  try {
+    const cleaned = await requestProduction(host);
+    assert.equal(cleaned.statusCode, 200, cleaned.body);
+    cleanedProduction = cleaned.json().movieJourney.handoff.production;
+    assert.equal(
+      cleanedProduction.responsibilityClosure.stage,
+      'workspace_cleanup_completed',
+    );
+    assert.equal(
+      cleanedProduction.productDelivery.resultKind,
+      'found',
+    );
+    const reconstructedMembers =
+      cleanedProduction.productDelivery.onDeckProductPackage
+        .productMaterialManifest.members;
+    assert.deepEqual(
+      reconstructedMembers
+        .filter((member) => member.role === 'primary_payload')
+        .map((member) =>
+          member.episodeClaims.map((claim) => claim.episodeKey)
+        )
+        .sort((left, right) =>
+          left.join('|').localeCompare(right.join('|'))),
+      [['E001', 'E002'], ['E003']],
+    );
+    for (const member of reconstructedMembers.filter((item) =>
+      item.role !== 'primary_payload')) {
+      assert.deepEqual(member.episodeClaims, []);
+    }
+  } finally {
+    await host.close();
+  }
+
+  cleanupDb = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(cleanupDb.prepare(
+    `SELECT count(*) count
+       FROM libra_workspace_cleanup_scopes
+      WHERE state='completed'`
+  ).get().count, 1);
+  assert.equal(cleanupDb.prepare(
+    `SELECT count(*) count
+       FROM libra_workspace_cleanup_members
+      WHERE state='completed'`
+  ).get().count, workspaceFiles.length);
+  assert.equal(cleanupDb.prepare(
+    `SELECT count(*) count
+       FROM libra_workspace_material_refs
+      WHERE reference_state='released'`
+  ).get().count, workspaceFiles.length);
+  assert.equal(cleanupDb.prepare(
+    `SELECT count(*) count
+       FROM fx_workspace_materials
+      WHERE state='reclaimed'`
+  ).get().count, workspaceFiles.length);
+  assert.equal(cleanupDb.prepare(
+    `SELECT count(*) count
+       FROM libra_workspaces
+      WHERE state='reclaimed'`
+  ).get().count, 1);
+  assert.equal(cleanupDb.prepare(
+    `SELECT count(*) count
+       FROM fx_workspace_registry
+      WHERE state='reclaimed'`
+  ).get().count, 1);
+  assert.equal(cleanupDb.prepare(
+    `SELECT count(*) count
+       FROM fx_outbox
+      WHERE message_kind IN (
+        'arca.product.accepted@1',
+        'arca.offload.completed@1'
+      ) AND state='fully_acked'`
+  ).get().count, 2);
+  assert.equal(cleanupDb.prepare(
+    'SELECT count(*) count FROM arca_inventory_materials'
+  ).get().count, 4);
+  assert.equal(cleanupDb.prepare(
+    `SELECT count(*) count
+       FROM arca_deck_fact_revisions
+      WHERE state='active'`
+  ).get().count, 1);
+  cleanupDb.close();
+  assert.equal(cleanupPhysicalEffects, workspaceFiles.length);
+  assert.equal(workspaceFiles.every((file) => !fs.existsSync(file)), true);
+  assert.equal(
+    arcaInventory.every((row) => fs.existsSync(row.location)),
+    true,
+  );
+  for (const [file, expected] of before) {
+    assert.deepEqual(fs.readFileSync(file), expected.bytes);
+    assert.equal(fs.statSync(file).mtimeMs, expected.mtimeMs);
+  }
 
   const historyDb = new Database(path.join(dataDir, 'shelfdeck.db'));
   const acceptedAttempt = historyDb.prepare(
@@ -1311,7 +1603,7 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
         finalInventoryDecision:
           completedProduction.onDeck.finalInventoryDecision,
       }), (error) => {
-        assert.equal(error.code, malformed.code);
+        assert.equal(error.code, malformed.code, error.stack);
         return true;
       });
     });
@@ -1357,7 +1649,7 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
         shelfId: 'series-handoff-shelf',
         custodyId: completedProduction.handoffB.custodyId,
       }), (error) => {
-        assert.equal(error.code, malformed.code);
+        assert.equal(error.code, malformed.code, error.stack);
         return true;
       });
     });

@@ -58,6 +58,21 @@ function messageDefinition(schemaManifest) {
         ],
         keyColumns: ['message_id', 'consumer_domain'], safeIntegers: true,
       },
+      find_inbox: {
+        kind: 'select-one', tableId: 'fx_inbox',
+        columns: [
+          'consumer_domain', 'message_id', 'dedup_key',
+          'received_at_ms', 'consumed_at_ms', 'result_digest',
+        ],
+        keyColumns: ['consumer_domain', 'message_id'], safeIntegers: true,
+      },
+      find_result: {
+        kind: 'select-one', tableId: 'fx_event_result_bindings',
+        columns: [
+          'result_id', 'result_schema_ref', 'result_json', 'result_digest',
+        ],
+        keyColumns: ['result_id'], safeIntegers: true,
+      },
     },
   });
 }
@@ -150,13 +165,17 @@ function createMovieResponsibilityClosureCoordinator(options) {
             message_id: row.message_id,
             consumer_domain: 'libra',
           });
+          const inboxRow = repo.invoke('find_inbox', {
+            consumer_domain: 'libra',
+            message_id: row.message_id,
+          });
           if (!delivery || row.producer_domain !== 'arca' ||
               row.message_id !== payload.messageId ||
               canonicalOutboxPayloadDigest(payload) !== row.payload_digest) {
             fail('P14_MOVIE_MESSAGE_CORRUPT',
               'Formal Arca→Libra message continuity is invalid.');
           }
-          return { row, payload, delivery };
+          return { row, payload, delivery, inbox: inboxRow };
         }).filter((item) => predicate(item.payload));
         if (candidates.length > 1 || (required && candidates.length !== 1)) {
           fail('P14_MOVIE_MESSAGE_CARDINALITY',
@@ -184,6 +203,41 @@ function createMovieResponsibilityClosureCoordinator(options) {
     }]).movie_responsibility_run_read;
   }
 
+  function readCommittedLifecycleResult(libraRunId, messageId) {
+    const resultId = canonicalDigest({
+      schema: 'libra.movie-run-complete-result-id@1',
+      libraRunId,
+      messageId,
+    });
+    return options.unitOfWork.execute([{
+      participantId: 'movie_responsibility_result_read',
+      owner: 'execution-foundation',
+      repositories: [messageRepository],
+      execute(context) {
+        const row = context.repository(messageRepository.repositoryId)
+          .invoke('find_result', { result_id: resultId });
+        if (!row ||
+            row.result_schema_ref !==
+              'helix://contracts/application-types/LibraRunLifecycleResult/v1') {
+          fail('P14_MOVIE_RUN_REPLAY_INCOMPLETE',
+            'Completed Run lacks its exact lifecycle Result.');
+        }
+        let result;
+        try {
+          result = JSON.parse(row.result_json);
+        } catch {
+          fail('P14_MOVIE_RUN_REPLAY_INCOMPLETE',
+            'Completed Run lifecycle Result is not valid JSON.');
+        }
+        if (canonicalDigest(result) !== row.result_digest) {
+          fail('P14_MOVIE_RUN_REPLAY_INCOMPLETE',
+            'Completed Run lifecycle Result digest is invalid.');
+        }
+        return Object.freeze({ row, result });
+      },
+    }]).movie_responsibility_result_read;
+  }
+
   function completeRun(libraRunId, packageValue) {
     const accepted = readMessage('arca.product.accepted@1',
       (payload) => payload.libraRunId === libraRunId &&
@@ -192,9 +246,24 @@ function createMovieResponsibilityClosureCoordinator(options) {
     const current = readRun(libraRunId);
     let lifecycleResult;
     if (current.run.state === 'completed') {
-      if (accepted.delivery.state !== 'acked') {
+      const committed = readCommittedLifecycleResult(
+        libraRunId,
+        accepted.payload.messageId,
+      );
+      if (!accepted.inbox ||
+          accepted.inbox.dedup_key !== accepted.payload.dedupKey ||
+          accepted.inbox.consumed_at_ms === null ||
+          accepted.inbox.result_digest !== committed.result.resultDigest ||
+          committed.result.libraRunId !== libraRunId ||
+          committed.result.committedState !== 'completed' ||
+          committed.result.committedStateRevision !==
+            Number(current.run.state_revision) ||
+          committed.result.committedStateDigest !== current.run.state_digest ||
+          !['pending', 'delivered', 'acked'].includes(
+            accepted.delivery.state,
+          )) {
         fail('P14_MOVIE_RUN_REPLAY_INCOMPLETE',
-          'Completed Run lacks its acknowledged Accepted delivery.');
+          'Completed Run lacks its exact consumed Accepted delivery.');
       }
       lifecycleResult = {
         replayed: true,
