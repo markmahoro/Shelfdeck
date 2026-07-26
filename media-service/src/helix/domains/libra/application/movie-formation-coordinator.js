@@ -13,6 +13,9 @@ const {
 } = require('../model/routing-contracts');
 const { buildProductScope } = require('../model/acceptance-spec-contracts');
 const {
+  subjectEpisodeScopeDigest,
+} = require('../model/libra-intake-contracts');
+const {
   buildCanonicalQueryHandle,
   parseDecisionIdentityEvidenceSnapshot,
 } = require('../model/decision-identity-evidence-contracts');
@@ -410,7 +413,31 @@ function basisRequest(inputSet) {
   });
 }
 
-function runManifest(snapshot, controlPort, spec, libraRunId) {
+function episodeDeliveryKeys(snapshot) {
+  const currentBindings = new Map(snapshot.bindings.map((row) => [
+    row.material_key,
+    number(row.binding_revision),
+  ]));
+  const keys = [...new Set(snapshot.claims
+    .filter((claim) =>
+      currentBindings.get(claim.material_key) === number(claim.binding_revision))
+    .map((claim) => claim.episode_key))]
+    .sort(utf8);
+  if (snapshot.subject.structure_kind === 'season') {
+    if (keys.length < 1 || keys.length > 1024 ||
+        subjectEpisodeScopeDigest(snapshot.subject.subject_id, keys) !==
+          snapshot.subject.current_episode_scope_digest) {
+      fail('P14_SERIES_FORMATION_EPISODE_SCOPE_STALE',
+        'Series Formation requires exact current Subject and Binding Episode continuity.');
+    }
+  } else if (keys.length !== 0) {
+    fail('P14_MOVIE_FORMATION_EPISODE_SCOPE_INVALID',
+      'Single Subject cannot carry Episode delivery claims.');
+  }
+  return Object.freeze(keys);
+}
+
+function runManifest(snapshot, controlPort, spec, libraRunId, episodeKeys) {
   if (snapshot.bindings.length < 1 || snapshot.bindings.length > 1024) {
     fail('P14_MOVIE_FORMATION_BINDINGS_UNAVAILABLE',
       'Movie Run requires 1..1024 current Libra Material Bindings.');
@@ -438,7 +465,6 @@ function runManifest(snapshot, controlPort, spec, libraRunId) {
       .map((claim) => Object.freeze({
         episodeKey: claim.episode_key,
         seasonClaimDigest: claim.season_claim_digest,
-        claimDigest: claim.claim_digest,
       }));
     return Object.freeze({
       materialKey: row.material_key,
@@ -472,13 +498,25 @@ function runManifest(snapshot, controlPort, spec, libraRunId) {
       episodeClaims: Object.freeze(episodeClaims),
     });
   });
-  return buildProductionMaterialManifest({
+  const manifest = buildProductionMaterialManifest({
     manifestRole: 'run_input',
     manifestRevision: 1,
     libraRunId,
-    scopeKind: 'single',
+    scopeKind: snapshot.subject.structure_kind === 'season'
+      ? 'episode_delivery'
+      : 'single',
     members,
   }, spec);
+  const manifestEpisodeKeys = [...new Set(manifest.members
+    .flatMap((member) => member.episodeClaims.map((claim) => claim.episodeKey)))]
+    .sort(utf8);
+  if (canonicalDigest(manifestEpisodeKeys) !== canonicalDigest(episodeKeys) ||
+      canonicalDigest(spec.productScope.episodeKeys) !==
+        canonicalDigest(episodeKeys)) {
+    fail('P14_SERIES_FORMATION_EPISODE_MANIFEST_MISMATCH',
+      'Product Scope and Run Manifest must conserve the same Episode delivery set.');
+  }
+  return manifest;
 }
 
 function createMovieFormationCoordinator(options) {
@@ -507,6 +545,8 @@ function createMovieFormationCoordinator(options) {
         stage: 'libra_run_active',
         replayed: true,
         subjectId,
+        structureKind: snapshot.subject.structure_kind,
+        contentProfile: snapshot.subject.content_profile,
         libraRunId: active.libra_run_id,
         acceptanceSpecId: active.acceptance_spec_id,
         executionBasisDigest: active.execution_basis_digest,
@@ -521,6 +561,7 @@ function createMovieFormationCoordinator(options) {
     }
     const subjectBasis = subjectSnapshot(snapshot.subject, snapshot.intake);
     const subject = subjectBasis.subject;
+    const episodeKeys = episodeDeliveryKeys(snapshot);
     const policy = policies.current(subject.routingProvenance.sourceFieldId);
     if (!policy) {
       return Object.freeze({
@@ -598,7 +639,7 @@ function createMovieFormationCoordinator(options) {
         reasonCode: standardResult?.reasonCode || 'shelf_standard_unavailable',
       });
     }
-    const productScope = buildProductScope(subject, []);
+    const productScope = buildProductScope(subject, episodeKeys);
     const decisionEvidence = resolveSpecDecisionEvidence(
       options,
       subjectBasis.decisionIdentityEvidence,
@@ -670,7 +711,13 @@ function createMovieFormationCoordinator(options) {
       subjectId,
       admissionRevision: expectedRunHead.headRevision + 1,
     });
-    const manifest = runManifest(snapshot, controlPort, spec, libraRunId);
+    const manifest = runManifest(
+      snapshot,
+      controlPort,
+      spec,
+      libraRunId,
+      episodeKeys,
+    );
     const runBasis = buildRunExecutionBasis({
       subjectSnapshot: {
         subjectId,
@@ -723,6 +770,8 @@ function createMovieFormationCoordinator(options) {
       stage: 'libra_run_active',
       replayed: admitted.replayed,
       subjectId,
+      structureKind: subject.structureKind,
+      contentProfile: subject.contentProfile,
       routing: Object.freeze({
         routingDecisionId: routingDecision.routingDecisionId,
         targetShelfId: routingDecision.targetShelfId,
@@ -752,6 +801,7 @@ function createMovieFormationCoordinator(options) {
 
 module.exports = Object.freeze({
   MovieFormationCoordinatorError,
+  buildSeriesEpisodeDeliveryKeys: episodeDeliveryKeys,
   createMovieFormationCoordinator,
   resolveSpecDecisionEvidence,
 });

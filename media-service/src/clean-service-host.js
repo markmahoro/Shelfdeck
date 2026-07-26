@@ -442,6 +442,7 @@ async function createCleanServiceHost(options) {
   };
   const advanceProduction = async (formation) => {
     if (formation.stage !== 'libra_run_active') return null;
+    if (formation.contentProfile === 'series') return null;
     const libraRunId = formation.libraRunId || formation.libraRun?.libraRunId;
     if (!libraRunId) {
       throw new CleanServiceHostError(

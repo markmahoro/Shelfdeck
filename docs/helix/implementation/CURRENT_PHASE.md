@@ -1,6 +1,6 @@
 # P14 Product Journey Implementation
 
-状态：**FROZEN — Series Handoff A / FA-04 待主动复验**
+状态：**FROZEN — Series Routing / Acceptance Spec / active Run 待主动复验**
 
 ## 当前基线
 
@@ -20,8 +20,38 @@
   `docs/helix/implementation/evidence/P14_SERIES_DELTA_CONSTRUCTION_CONTRACT.md`。
 - Series Handoff A / FA-04 checkpoint：
   `docs/helix/implementation/evidence/P14_SERIES_HANDOFF_A_FA04_CHECKPOINT.md`。
+- Series Routing / Acceptance Spec / active Run checkpoint：
+  `docs/helix/implementation/evidence/P14_SERIES_ROUTING_SPEC_RUN_CHECKPOINT.md`。
 
 ## 当前冻结点
+
+P14 已独立接受 Series Handoff A / FA-04 与正式 phased Plan/Event checkpoint
+`094c310a`。同一 disposable Season Subject 现已继续通过 Owner-local public
+contracts 推进到：
+
+`Libra Season Subject + current Bindings/Controls
+→ Field Routing Assessment/Decision
+→ versioned Decision Basis
+→ Acceptance Spec with Episode Product Scope
+→ one active Libra Run + immutable Episode Delivery Manifest`
+
+Routing 只消费正式 Field Policy、Arca Shelf Routing Target Projection 与 Shelf
+Standard Projection。Acceptance Spec 的 Product Scope 冻结 `E001/E002`；
+Run Material Manifest 为 `episode_delivery`，两个 Primary member 各自保持 exact
+Episode relation、Candidate Delivery provenance、Binding revision 与 Material
+Control projection。Subject Episode scope、Spec scope 与 Run Manifest Episode set
+不一致时 fail closed；active Run admission 继续由 Owner rows、head CAS 与
+non-overlap gate约束。
+
+Run admission 前故障证明 Spec可存在而 Run/Manifest全无；移除故障并重启后只创建
+一个 active Run和一个 Manifest。相同HTTP重放复用同一 Routing Decision、Spec、
+Run与Manifest。Series检查点明确返回 `production=null`，未进入Workspace、
+Production或Handoff B。
+
+定向回归 `43/43 PASS`；完整 architecture gate `128 files PASS`；机器库存与
+aggregate digests保持不变。等待 Architecture/P14主动复验。
+
+## 已接受的 Series Handoff A 基线
 
 Series disposable journey 已经通过正式 Admin HTTP 与 Handoff A public port 推进到：
 
@@ -42,8 +72,7 @@ parent-local exact Season topology。P14 `ac0ae793` 指出的 oversized inline
 CandidateDraft，以及 Architecture对 `f911023a` 发现的 pre-Plan Probe与未物化
 binding schema，现已一并闭合为正式 phased Work/Plan/Event + generated closed
 binding union。最终 Procurement/Series定向 `54/54`、完整 architecture
-`128 files / 871 tests` 均 PASS。等待再次主动复验，禁止提前进入 Series
-Routing/Spec/Run。
+`128 files / 871 tests` 均 PASS，并已由 P14 独立接受。
 
 ## Movie accepted baseline
 
@@ -102,9 +131,9 @@ terminal reclaimed。
 
 ## 下一步
 
-Architecture/P14 接受后，只推进同一 Series Subject 的 Routing、Acceptance Spec
-与 active Libra Run；不得提前进入 Series Production、JAV、Western Adult 或
-横向 Feature Matrix。
+Architecture/P14 接受后，只推进同一 Series active Run 的
+Workspace/Production/open Handoff B；不得提前进入 JAV、Western Adult 或横向
+Feature Matrix。
 
 ## 硬边界
 
@@ -113,5 +142,6 @@ Architecture/P14 接受后，只推进同一 Series Subject 的 Routing、Accept
 - 不得修改 SSOT，不得引入兼容/双路径、hidden Store read、外域
   latest/current scan、Foundation Result fallback、legacy fallback 或跨 Owner
   写入。
-- 当前检查点只声明 Series Handoff A / FA-04 construction vertical 已实现，不声明
-  Series端到端、Provider、Feature/UI或Beta完成。
+- 当前检查点只声明 Series Routing / Acceptance Spec / active Run construction
+  vertical 已实现，不声明 Series Production、端到端、Provider、Feature/UI或
+  Beta完成。

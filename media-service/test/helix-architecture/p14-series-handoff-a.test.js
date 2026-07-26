@@ -64,6 +64,89 @@ async function session(host, apiKey) {
   })).headers['set-cookie'];
 }
 
+async function establishSeriesShelfAndRouting(
+  host,
+  apiKey,
+  root,
+  fieldId,
+) {
+  const cookie = await session(host, apiKey);
+  const shelfRoot = path.join(root, 'series-shelf');
+  fs.mkdirSync(shelfRoot, { recursive: true });
+  const initialStandard = { profileRuleSets: [] };
+  const placement = { folderTemplate: '{title}', collisionPolicy: 'reject' };
+  const created = await host.inject({
+    method: 'POST',
+    url: '/v1/admin/shelves',
+    headers: { cookie },
+    payload: {
+      idempotencyKey: 'series-handoff-shelf-create',
+      shelfId: 'series-handoff-shelf',
+      name: 'Series Shelf',
+      target: {
+        endpointId: 'series-handoff-shelf-endpoint',
+        rootLocation: shelfRoot,
+        mountScopeId: 'series-handoff-shelf-mount',
+        mountScopeRevision: 1,
+      },
+      standard: {
+        ruleTemplateId: 'series-initial-template',
+        ruleTemplateRevision: 1,
+        schemaRef: 'helix://fixtures/series-initial-standard/v1',
+        value: initialStandard,
+        digest: canonicalDigest(initialStandard),
+      },
+      placement: {
+        schemaRef: 'helix://fixtures/series-placement/v1',
+        value: placement,
+        digest: canonicalDigest(placement),
+      },
+    },
+  });
+  assert.equal(created.statusCode, 201, created.body);
+  const bound = await host.inject({
+    method: 'POST',
+    url: '/v1/admin/shelves/series-handoff-shelf/actions/bind-template',
+    headers: { cookie },
+    payload: {
+      idempotencyKey: 'series-handoff-shelf-bind',
+      shelfId: 'series-handoff-shelf',
+      expectedStandardRevision: 1,
+      expectedRoutingProjectionRevision: 1,
+      ruleTemplateId: 'system-beta-recommended',
+      expectedTemplateRevision: 1,
+    },
+  });
+  assert.equal(bound.statusCode, 200, bound.body);
+  const routed = await host.inject({
+    method: 'PATCH',
+    url: `/v1/admin/routing/material-fields/${fieldId}`,
+    headers: { cookie },
+    payload: {
+      idempotencyKey: 'series-handoff-routing-publish',
+      fieldId,
+      expectedPolicyId: null,
+      expectedRevision: 0,
+      policy: {
+        routingPolicyId: 'series-handoff-routing-policy',
+        mode: 'sorting',
+        targets: [{
+          shelfId: 'series-handoff-shelf',
+          rank: 1,
+          matchExpression: {
+            nodeKind: 'predicate',
+            factKind: 'content_profile',
+            operator: 'eq',
+            expectedValue: 'series',
+          },
+        }],
+      },
+    },
+  });
+  assert.equal(routed.statusCode, 200, routed.body);
+  return Object.freeze({ shelfRoot });
+}
+
 test('Candidate assembly physical Probe is invoked only by a formally begun phase Event', () => {
   const source = fs.readFileSync(path.resolve(
     __dirname,
@@ -200,6 +283,12 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
     });
     assert.equal(unauthorized.statusCode, 401);
     const cookie = await session(host, initialized.adminApiKey);
+    await establishSeriesShelfAndRouting(
+      host,
+      initialized.adminApiKey,
+      root,
+      access.fieldId,
+    );
     const registered = await host.inject({
       method: 'POST',
       url: '/v1/admin/material-fields',
@@ -454,6 +543,45 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
   ).run(originalPublicationBinding, publicationNode.node_id);
   restore.close();
 
+  host = await createCleanServiceHost({
+    dataDir,
+    adminDistDir,
+    secretRoot,
+    mediaProbe,
+  });
+  try {
+    const admissionFault = new Database(path.join(dataDir, 'shelfdeck.db'));
+    admissionFault.exec(`
+      CREATE TRIGGER p14_series_run_admission_fault
+      BEFORE INSERT ON libra_runs
+      BEGIN
+        SELECT RAISE(ABORT, 'p14-series-run-admission-fault');
+      END
+    `);
+    admissionFault.close();
+    const rejected = await host.inject({
+      method: 'POST',
+      url: `/v1/admin/material-fields/${access.fieldId}/actions/observe`,
+      headers: { cookie: await session(host, initialized.adminApiKey) },
+      payload: observe,
+    });
+    assert.equal(rejected.statusCode, 400, rejected.body);
+  } finally {
+    await host.close();
+  }
+  const admissionCrash = new Database(path.join(dataDir, 'shelfdeck.db'));
+  assert.equal(admissionCrash.prepare(
+    'SELECT count(*) count FROM libra_acceptance_specs'
+  ).get().count, 1);
+  assert.equal(admissionCrash.prepare(
+    'SELECT count(*) count FROM libra_runs'
+  ).get().count, 0);
+  assert.equal(admissionCrash.prepare(
+    'SELECT count(*) count FROM libra_run_material_manifests'
+  ).get().count, 0);
+  admissionCrash.exec('DROP TRIGGER p14_series_run_admission_fault');
+  admissionCrash.close();
+
   const callsBeforeRestart = mediaProbeCalls;
   host = await createCleanServiceHost({
     dataDir,
@@ -470,8 +598,12 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
     });
     assert.equal(resumed.statusCode, 200, resumed.body);
     assert.equal(resumed.json().movieJourney.stage, 'handoff_a_accepted');
-    assert.equal(resumed.json().movieJourney.handoff.intake.decision.result, 'new_subject');
-    assert.equal(resumed.json().movieJourney.handoff.formation.stage, 'routing_unresolved');
+    assert.equal(resumed.json().movieJourney.handoff.formation.stage, 'libra_run_active');
+    assert.equal(resumed.json().movieJourney.handoff.production, null);
+    assert.equal(
+      resumed.json().movieJourney.handoff.formation.routing.targetShelfId,
+      'series-handoff-shelf',
+    );
   } finally {
     await host.close();
   }
@@ -519,6 +651,56 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
   assert.equal(decision.accepted_result, 'new_subject');
   assert.equal(decision.match_cardinality, 'none');
   assert.equal(decision.target_subject_id, subject.subject_id);
+  const routingDecision = db.prepare(
+    `SELECT decision,shelf_id,routing_policy_id,routing_policy_revision
+       FROM libra_routing_decisions`
+  ).get();
+  assert.deepEqual(routingDecision, {
+    decision: 'resolved',
+    shelf_id: 'series-handoff-shelf',
+    routing_policy_id: 'series-handoff-routing-policy',
+    routing_policy_revision: 1,
+  });
+  const specRow = db.prepare(
+    `SELECT acceptance_spec_id,shelf_id,spec_json,spec_digest,
+            product_scope_digest
+       FROM libra_acceptance_specs`
+  ).get();
+  const spec = JSON.parse(specRow.spec_json);
+  assert.equal(specRow.shelf_id, 'series-handoff-shelf');
+  assert.equal(spec.contentProfile, 'series');
+  assert.equal(spec.structureKind, 'season');
+  assert.equal(spec.productScope.scopeKind, 'episode_manifest');
+  assert.deepEqual(spec.productScope.episodeKeys, ['E001', 'E002']);
+  assert.equal(spec.productScope.scopeDigest, specRow.product_scope_digest);
+  assert.equal(spec.specDigest, specRow.spec_digest);
+  const run = db.prepare(
+    `SELECT libra_run_id,acceptance_spec_id,state,state_revision,
+            run_material_manifest_id,execution_basis_digest,run_scope_digest
+       FROM libra_runs`
+  ).get();
+  assert.equal(run.acceptance_spec_id, specRow.acceptance_spec_id);
+  assert.equal(run.state, 'active');
+  assert.equal(run.state_revision, 1);
+  const manifest = db.prepare(
+    `SELECT scope_kind,member_count,episode_scope_digest,manifest_digest
+       FROM libra_run_material_manifests
+      WHERE run_material_manifest_id=?`
+  ).get(run.run_material_manifest_id);
+  assert.equal(manifest.scope_kind, 'episode_delivery');
+  assert.equal(manifest.member_count, 2);
+  assert.deepEqual(db.prepare(
+    `SELECT episode_key
+       FROM libra_run_material_episode_claims
+      WHERE run_material_manifest_id=?
+      ORDER BY episode_key`
+  ).all(run.run_material_manifest_id).map((row) => row.episode_key),
+  ['E001', 'E002']);
+  assert.equal(db.prepare(
+    `SELECT count(*) count
+       FROM libra_run_material_members
+      WHERE run_material_manifest_id=?`
+  ).get(run.run_material_manifest_id).count, 2);
   assert.equal(db.prepare(
     "SELECT count(*) count FROM fx_material_controls WHERE owner_domain='libra' AND owner_scope_type='subject' AND owner_scope_id=?"
   ).get(subject.subject_id).count, 2);
@@ -572,6 +754,14 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
     assert.equal(replay.statusCode, 200, replay.body);
     assert.equal(replay.json().movieJourney.stage, 'handoff_a_accepted');
     assert.equal(replay.json().movieJourney.replayed, true);
+    assert.equal(
+      replay.json().movieJourney.handoff.formation.stage,
+      'libra_run_active',
+    );
+    assert.equal(
+      replay.json().movieJourney.handoff.formation.replayed,
+      true,
+    );
   } finally {
     await host.close();
   }
@@ -581,6 +771,10 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
   assert.equal(replayDb.prepare('SELECT count(*) count FROM libra_subjects').get().count, 1);
   assert.equal(replayDb.prepare('SELECT count(*) count FROM libra_intake_decisions').get().count, 1);
   assert.equal(replayDb.prepare('SELECT count(*) count FROM libra_subject_episode_scopes').get().count, 2);
+  assert.equal(replayDb.prepare('SELECT count(*) count FROM libra_routing_decisions').get().count, 1);
+  assert.equal(replayDb.prepare('SELECT count(*) count FROM libra_acceptance_specs').get().count, 1);
+  assert.equal(replayDb.prepare("SELECT count(*) count FROM libra_runs WHERE state='active'").get().count, 1);
+  assert.equal(replayDb.prepare('SELECT count(*) count FROM libra_run_material_manifests').get().count, 1);
   replayDb.close();
 
   for (const [file, expected] of before) {

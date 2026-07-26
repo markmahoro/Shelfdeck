@@ -6,6 +6,12 @@ const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const {
   buildRunMaterialLayout,
 } = require('../../src/helix/domains/procurement/application/movie-run-coordinator');
+const {
+  buildSeriesEpisodeDeliveryKeys,
+} = require('../../src/helix/domains/libra/application/movie-formation-coordinator');
+const {
+  subjectEpisodeScopeDigest,
+} = require('../../src/helix/domains/libra/model/libra-intake-contracts');
 
 function row(ordinal, location, extensionLabel) {
   const contentHash = canonicalDigest({ extensionLabel });
@@ -149,5 +155,38 @@ test('global generic sidecars spanning multiple local Series groups remain unres
       .some((entry) => [globalTv.material_key, globalPoster.material_key]
         .includes(entry.identity.materialKey)),
     false,
+  );
+});
+
+test('Series Formation freezes only current Binding claims and fences Subject Episode freshness', () => {
+  const subjectId = 'series-formation-subject';
+  const episodeKeys = ['E001', 'E002'];
+  const formation = {
+    subject: {
+      subject_id: subjectId,
+      structure_kind: 'season',
+      current_episode_scope_digest: subjectEpisodeScopeDigest(subjectId, episodeKeys),
+    },
+    bindings: [
+      { material_key: 'material-1', binding_revision: 2 },
+      { material_key: 'material-2', binding_revision: 1 },
+    ],
+    claims: [
+      { material_key: 'material-1', binding_revision: 1, episode_key: 'STALE' },
+      { material_key: 'material-1', binding_revision: 2, episode_key: 'E001' },
+      { material_key: 'material-2', binding_revision: 1, episode_key: 'E002' },
+    ],
+  };
+
+  assert.deepEqual(buildSeriesEpisodeDeliveryKeys(formation), episodeKeys);
+  assert.throws(
+    () => buildSeriesEpisodeDeliveryKeys({
+      ...formation,
+      subject: {
+        ...formation.subject,
+        current_episode_scope_digest: canonicalDigest({ stale: true }),
+      },
+    }),
+    (error) => error.code === 'P14_SERIES_FORMATION_EPISODE_SCOPE_STALE',
   );
 });
