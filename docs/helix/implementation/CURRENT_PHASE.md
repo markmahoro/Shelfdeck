@@ -48,8 +48,12 @@ Run admission 前故障证明 Spec可存在而 Run/Manifest全无；移除故障
 Run与Manifest。Series检查点明确返回 `production=null`，未进入Workspace、
 Production或Handoff B。
 
-定向回归 `43/43 PASS`；完整 architecture gate `128 files PASS`；机器库存与
-aggregate digests保持不变。等待 Architecture/P14主动复验。
+初版定向回归 `43/43 PASS`。Architecture对`7029d268`发现的Lifecycle nominal
+Episode claim传播偏差已在替代检查点闭合：Admission与Lifecycle均按UTF-8
+Episode顺序和正式Production claim公式重建Comparable Basis，immutable Handoff A
+relation不变。Lifecycle修正定向 `34/34 PASS`，完整 architecture gate
+`129 files PASS`；机器库存与aggregate digests保持不变。等待
+Architecture/P14主动复验。
 
 ## 已接受的 Series Handoff A 基线
 

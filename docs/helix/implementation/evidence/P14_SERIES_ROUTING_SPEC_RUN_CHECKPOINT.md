@@ -57,10 +57,29 @@ ports完成：
   - Decision/Spec/Run CAS rollback。
 - Sample MKV/NFO/图片bytes与mtime保持不变。
 
+## Lifecycle Comparable Basis correction
+
+Architecture对初版 `7029d268` 的主动复核证明，Run Admission虽已把Handoff A
+Binding relation转换为正式 Production Episode claim digest，Run Lifecycle仍直接
+使用原Binding `claim_digest`。这会让未变化的Series owner rows重建出不同的
+Comparable Basis。替代检查点已闭合：
+
+- immutable Binding relation与Handoff A历史保持不变；
+- Admission和Lifecycle都先按`episodeKey`做UTF-8排序，再统一计算
+  `SHA-256(JCS({schema:"libra.production-material-episode-claim@1",
+  episodeKey,seasonClaimDigest}))`；
+- 一个Primary携带两个Episode的N:M Series Run在Lifecycle owner-row重验中重建
+  byte-identical original/current Comparable Basis，`freshness_confirmed`后仍为
+  active；
+- Episode relation变化或Binding revision变化时fail closed，Run revision、
+  lifecycle Result与marker均为零新增。
+
 ## Evidence
 
-- 定向组合回归：`43/43 PASS`。
-- 完整 `npm run test:helix-architecture`：`128 files PASS`。
+- 初版定向组合回归：`43/43 PASS`。
+- Lifecycle修正定向组合回归：`34/34 PASS`；其中新Series continuity反例
+  `2/2 PASS`。
+- 完整 `npm run test:helix-architecture`：`129 files PASS`。
 - Inventory：112 Capabilities / 97 Result families / 177 tables /
   43 canonical transactions / 114 routes / 18 UI surfaces。
 - Contract aggregate：
