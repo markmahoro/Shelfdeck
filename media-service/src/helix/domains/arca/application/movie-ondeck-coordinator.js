@@ -304,10 +304,22 @@ function createMovieOnDeckCoordinator(options) {
     }
     const keys = [...byKey.keys()].sort((left, right) =>
       Buffer.compare(Buffer.from(left), Buffer.from(right)));
+    const responsibility =
+      acceptance.deriveAcceptedResponsibility(assessment);
+    const onDeckRunId = responsibility.onDeckRunId;
+    const finalInventoryDecision = options.inventoryPort.prepare({
+      onDeckRunId,
+      custodyId: responsibility.custodyId,
+      shelf,
+      onDeckProductPackage: packageValue,
+      observedAtMs: at,
+    });
     let accepted = acceptance.readAccepted({
       acceptanceAttemptId: attemptId,
       offerMessage: offer,
       libraRunId: offer.libraRunId,
+      onDeckRunId,
+      finalInventoryDecision,
     });
     if (!accepted) {
       const projections = controls.getMaterialControlProjections(keys);
@@ -332,6 +344,11 @@ function createMovieOnDeckCoordinator(options) {
         assessment,
         offerMessage: offer,
         libraRunId: offer.libraRunId,
+        shelf,
+        package: packageValue,
+        onDeckRunId,
+        finalInventoryDecision,
+        targetLocation: feasibility.targetLocation,
         bindings: [
           ...productMembers.map(bindingFromProduct),
           ...offloadMembers.map(bindingFromContext),
@@ -376,19 +393,7 @@ function createMovieOnDeckCoordinator(options) {
         custodyId: accepted.custody.custodyId,
       }));
     }
-    const onDeckRunId = stable('arca.on-deck-run-id@1', {
-      custodyId: accepted.custody.custodyId,
-      onDeckPackageId: offer.onDeckPackageId,
-      packageDigest: offer.packageDigest,
-    });
-    const finalInventoryDecision = options.inventoryPort.prepare({
-      onDeckRunId,
-      custodyId: accepted.custody.custodyId,
-      shelf,
-      onDeckProductPackage: packageValue,
-      observedAtMs: at,
-    });
-    const prepared = onDeck.prepare({
+    const prepared = onDeck.verifyAcceptedResponsibility({
       onDeckRunId,
       custodyId: accepted.custody.custodyId,
       shelf,

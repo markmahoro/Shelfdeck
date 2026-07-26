@@ -107,25 +107,28 @@
     "jsonContracts": [],
     "immutability": {
       "immutable": false,
-      "rules": []
+      "rules": [
+        "只允许Handoff B Accepted transaction与immutable Final Inventory Decision同事务首次建立"
+      ]
     },
     "deletion": {
       "foreignKeyPolicy": "ON DELETE RESTRICT",
       "rules": []
     },
     "semanticRules": [
+      "只允许Handoff B Accepted transaction与immutable Final Inventory Decision同事务首次建立",
       "同一Custody一个non-terminal Run",
       "Supporting Work通过Foundation反向关联",
       "`INDEX(state,created_at_ms)`"
     ],
     "rawContract": {
       "columns": "`on_deck_run_id PK, custody_id FK, final_inventory_decision_digest, state, created_at_ms, terminal_at_ms`",
-      "constraints": "同一Custody一个non-terminal Run；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)`"
+      "constraints": "只允许Handoff B Accepted transaction与immutable Final Inventory Decision同事务首次建立；同一Custody一个non-terminal Run；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)`"
     },
     "source": {
       "section": "8.5.12",
-      "line": 8471,
-      "lineDigest": "4c7f239ddb36b56385d04e80213c4bc1e181c7c817758c89830bc8cbe1ade276"
+      "line": 8493,
+      "lineDigest": "852ec18b2788d167ec3ecf9d1acb83680faeec4c069c4b1d6cd07c4d790c27ea"
     },
     "foreignKeys": [
       {

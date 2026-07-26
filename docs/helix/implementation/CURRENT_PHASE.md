@@ -1,14 +1,16 @@
 # P14 Product Journey Implementation
 
-状态：**FROZEN — Movie Arca On-deck Commit 等待独立复验**
+状态：**FROZEN — PBF-19 Movie Handoff B Accepted 原子性修正等待复验**
 
 ## 当前基线
 
 - 分支：`codex/helix-p9`
-- P14 已独立接受的 Product Package / open Handoff B Offer 源检查点：
-  `7531c6ba`；施工证据提交：`ec4f76e7`；P14 复验证据：`06155670`。
-- 当前实现检查点：本次提交（Arca Handoff B Acceptance → On-deck Commit）。
-- Architecture SSOT 没有实现线程额外修改。
+- P14 已接受的 Product Package / open Handoff B Offer 检查点：
+  `7531c6ba`；证据 `06155670`。
+- PBF-19 Architecture 修正：`ff1b833a`；实现分支原样纳入：
+  `942fc692`。
+- 当前实现检查点：本次提交。
+- 实现线程未额外修改 Architecture SSOT。
 - `F02.17` 仍为 `NOT_RUN`；不得增加测试便利接口或用内部 Store 证据冒充
   用户 Feature。
 
@@ -20,38 +22,49 @@
 Custody/Control transfer → Inventory staging → On-deck Commit →
 active Shelf Entry + Deck Fact + Own`
 
-Arca 只消费正式 ProductDeliveryPort 与 Handoff B Offer。Handoff B Accepted
-事务建立 Arca Custody/Binding 并转移完整 Package Material Control，但不提前
-建立 Own；只有 On-deck Commit 原子建立 Shelf Entry、Canonical Identity、
-Inventory Representation/Materials/Product Facts、Deck Fact、最终 Material
-Control 与 Off-load Completion Fact。
+PBF-19 修正后，Assessment 只留下 `active` Acceptance Attempt。唯一
+`helix.transaction.handoff-b-accepted` 在同一 UoW 内完成：
 
-目标 Shelf 已形成三份正式 Inventory material（primary、metadata sidecar、
-poster）。原 Movie/NFO 及无关 NFO 的 bytes 与 mtime 均未改变。Libra
-Workspace 与 Run 尚未 cleanup/complete；`arca.product.accepted@1` 和
-`arca.offload.completed@1` 仍等待 Libra 正式消费。
+- exact Attempt `active → accepted` CAS；
+- Shelf active、Standard revision、Placement revision 重验；
+- Acceptance Decision、immutable Final Inventory Decision、initial On-deck Run；
+- Custody、Bindings、Material Control transfer；
+- Receipt、Result、marker、Accepted Outbox。
 
-本检查点已通过三个新增 crash/restart/replay 窗口：
+事务失败时 Attempt 仍为 active，且上述 Accepted 责任事实全部不存在；事务成功时
+全部同时存在。后续 On-deck Store 只验证该 Process Root，不再通过第二事务创建
+Run/Decision。On-deck Commit 仍是唯一建立 Shelf Entry、Inventory、Deck Fact 与
+Own 的边界。
 
-1. Handoff B Accepted 后：恢复同一 Acceptance Decision/Custody/Receipt；
-2. 首个 Arca Inventory 物理效果后：恢复同一 Effect Journal 与目标文件；
-3. On-deck Commit 后、Run finalize 前：从 Arca Receipt/Completion 重建同一
-   Result，再完成 owner-local state CAS。
+原 Movie/NFO bytes 与 mtime 均未改变。Libra Workspace 与 Run 尚未
+cleanup/complete；本检查点冻结在 Libra 消费 Accepted/Off-load Completion 前。
 
-重启均保持一份 Package、Offer、Acceptance、Custody、Shelf Entry、Deck Fact
-及目标文件，不重复 Control、事实或物理效果。详细证据见
+## 验证
+
+- PBF-19 transaction-internal fault：
+  Attempt CAS、Run/Decision insert、Control、Receipt、Outbox 五个边界；
+- 既有 effect/recovery fault：
+  Handoff B Accepted 后、首个 Inventory 物理效果后、On-deck Commit 后；
+- 每次 pre-commit fault 均证明零部分 Accepted 责任事实；重启/重放只形成一份
+  Attempt terminal state、Run、Decision、Custody、Control、Receipt 与 Outbox；
+- 完整 `npm run test:helix-architecture`：`858/858 PASS`；
+- 机器库存：112 Capabilities / 97 Result families / 177 tables /
+  43 canonical transactions / 114 routes / 18 UI surfaces；
+- Contract aggregate：
+  `45ba7a467e7411c7671587cb5b265b1cedf9a53974d76b7a7209d7d80923574e`；
+- Manifest aggregate：
+  `35d209a3c5141d397b824796995508a453035df2420b032e34fc83b0a4cfe829`；
+- `prohibitedActionsRun=[]`。
+
+详细证据见
 `docs/helix/implementation/evidence/P14_MOVIE_ARCA_ONDECK_CHECKPOINT.md`。
-
-机器库存保持 112 Capabilities / 97 Result families / 177 tables /
-43 canonical transactions / 114 routes / 18 UI surfaces。完整 architecture
-gate 为 857/857 PASS，`prohibitedActionsRun=[]`。
 
 ## 下一步
 
-等待 Architecture / P14 独立复验。通过后下一段只处理 Libra 对正式
+等待 Architecture 主动复核与 P14 独立复验。通过后才处理 Libra 对正式
 `arca.product.accepted@1` 与 `arca.offload.completed@1` 的消费、Run
-completion 和 Workspace cleanup/reclamation，闭合 Movie 旅程。不得在复验前
-推进该段，也不得进入 Series、JAV、Western Adult 或恢复横向 Feature Matrix。
+completion 和 Workspace cleanup/reclamation。不得在复验前推进，也不得进入
+Series、JAV、Western Adult 或横向 Feature Matrix。
 
 ## 硬边界
 
@@ -60,5 +73,4 @@ completion 和 Workspace cleanup/reclamation，闭合 Movie 旅程。不得在�
 - 不得修改 SSOT，不得引入兼容/双路径、hidden Store read、外域
   latest/current scan、Foundation Result fallback、legacy fallback 或跨 Owner
   写入。
-- 当前检查点不声明 Libra Off-load completion 消费、Workspace cleanup、
-  Movie 端到端旅程或 Beta 完成。
+- 当前检查点不声明 Libra cleanup、Movie 端到端旅程或 Beta 完成。

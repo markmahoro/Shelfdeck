@@ -108,21 +108,21 @@
     {
       "id": "Handoff B Accepted",
       "owner": "arca",
-      "atomicFactSet": "Acceptance Decision + On-deck Material Custody + Arca Binding + precise Control transfer + Handoff Receipt + `ArcaProductAcceptedMessage@1` Outbox",
+      "atomicFactSet": "current active Acceptance Attempt terminal CAS + Acceptance Decision + immutable Final Inventory Decision + initial On-deck Run + On-deck Material Custody + Arca Binding + precise Control transfer + Handoff Receipt + `ArcaProductAcceptedMessage@1` Outbox；Acceptance Attempt、Run/Decision、Custody/Binding、Control、Receipt/Result/marker/Outbox全有或全无",
       "source": {
         "section": "8.5.4",
         "line": 7843,
-        "lineDigest": "1d2e6c80675e06506945829a06de626c8f8304cfd9f7014709e2dffc73d0a3c1"
+        "lineDigest": "4e7faf672510547a8d63d030a9eb666083e32a737bad840610b1e458649d46e8"
       }
     },
     {
       "id": "Handoff B Rejected",
       "owner": "arca",
-      "atomicFactSet": "complete `ArcaAcceptanceRejectionDecision@1` + immutable rejected Acceptance Decision + `RejectionReceipt@1` + durable typed Result/commit marker + `ArcaProductRejectedMessage@1` Outbox；不建立On-deck Custody/Run/Binding、不转移Control；Decision/Receipt/Result/marker/Outbox全有或全无",
+      "atomicFactSet": "current active Acceptance Attempt terminal CAS + complete `ArcaAcceptanceRejectionDecision@1` + immutable rejected Acceptance Decision + `RejectionReceipt@1` + durable typed Result/commit marker + `ArcaProductRejectedMessage@1` Outbox；不建立On-deck Custody/Run/Binding、不转移Control；Attempt terminal、Decision/Receipt/Result/marker/Outbox全有或全无",
       "source": {
         "section": "8.5.4",
         "line": 7844,
-        "lineDigest": "9e446db6f093dda648e004ee746464abc3edd7fb74bf38eaeb6543f079ed6d34"
+        "lineDigest": "5bd38eab2cd7a5372e6ff8d3c4ce676d770f75c1313553eb54688be29cf266af"
       }
     },
     {

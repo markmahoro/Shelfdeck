@@ -2472,6 +2472,59 @@ test('Movie production reaches one Arca Shelf Entry through formal Handoff B and
   ).get().count, 1);
   crashDatabase.close();
 
+  for (const [hookName, reasonCode] of [
+    [
+      'afterAttemptAcceptedCas',
+      'P14_FAULT_AFTER_HANDOFF_B_ATTEMPT_CAS',
+    ],
+    [
+      'afterAcceptedResponsibilityInsert',
+      'P14_FAULT_AFTER_HANDOFF_B_RESPONSIBILITY_INSERT',
+    ],
+    [
+      'afterHandoffBControlTransfer',
+      'P14_FAULT_AFTER_HANDOFF_B_CONTROL_TRANSFER',
+    ],
+    [
+      'afterHandoffBReceiptInsert',
+      'P14_FAULT_AFTER_HANDOFF_B_RECEIPT_INSERT',
+    ],
+    [
+      'afterHandoffBOutboxInsert',
+      'P14_FAULT_AFTER_HANDOFF_B_OUTBOX_INSERT',
+    ],
+  ]) {
+    await interruptProduction(hookName, reasonCode);
+    crashDatabase = new Database(
+      path.join(value.dataDir, 'shelfdeck.db'),
+      { readonly: true },
+    );
+    assert.equal(crashDatabase.prepare(
+      "SELECT count(*) count FROM arca_acceptance_attempts WHERE state='active' AND finished_at_ms IS NULL",
+    ).get().count, 1);
+    for (const table of [
+      'arca_acceptance_decisions',
+      'arca_ondeck_custodies',
+      'arca_handoff_b_receipts',
+      'arca_ondeck_runs',
+      'arca_final_inventory_decisions',
+    ]) {
+      assert.equal(crashDatabase.prepare(
+        `SELECT count(*) count FROM ${table}`,
+      ).get().count, 0, `${hookName}: ${table}`);
+    }
+    assert.equal(crashDatabase.prepare(
+      "SELECT count(*) count FROM fx_material_controls WHERE owner_domain='arca' AND owner_scope_type='on_deck_custody'",
+    ).get().count, 0);
+    assert.equal(crashDatabase.prepare(
+      "SELECT count(*) count FROM fx_outbox WHERE message_kind='arca.product.accepted@1'",
+    ).get().count, 0);
+    assert.equal(crashDatabase.prepare(
+      "SELECT count(*) count FROM fx_commit_markers WHERE owner_domain='arca' AND scope_type='acceptance_decision'",
+    ).get().count, 0);
+    crashDatabase.close();
+  }
+
   await interruptProduction(
     'afterHandoffBAccepted',
     'P14_FAULT_AFTER_HANDOFF_B_ACCEPTED',
@@ -2485,6 +2538,15 @@ test('Movie production reaches one Arca Shelf Entry through formal Handoff B and
   ).get().count, 1);
   assert.equal(crashDatabase.prepare(
     'SELECT count(*) count FROM arca_ondeck_custodies',
+  ).get().count, 1);
+  assert.equal(crashDatabase.prepare(
+    "SELECT count(*) count FROM arca_acceptance_attempts WHERE state='accepted' AND finished_at_ms IS NOT NULL",
+  ).get().count, 1);
+  assert.equal(crashDatabase.prepare(
+    "SELECT count(*) count FROM arca_ondeck_runs WHERE state='ready'",
+  ).get().count, 1);
+  assert.equal(crashDatabase.prepare(
+    'SELECT count(*) count FROM arca_final_inventory_decisions',
   ).get().count, 1);
   assert.equal(crashDatabase.prepare(
     'SELECT count(*) count FROM arca_shelf_entries',

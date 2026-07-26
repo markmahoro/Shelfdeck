@@ -827,7 +827,7 @@
       "sourceLocator": {
         "section": "8.5.4",
         "line": 7843,
-        "lineDigest": "1d2e6c80675e06506945829a06de626c8f8304cfd9f7014709e2dffc73d0a3c1"
+        "lineDigest": "4e7faf672510547a8d63d030a9eb666083e32a737bad840610b1e458649d46e8"
       },
       "targetLocator": {
         "path": "transaction-contracts/helix.transaction.handoff-b-accepted/v1/contract.json"
@@ -836,11 +836,11 @@
         "transactionId": "helix.transaction.handoff-b-accepted",
         "ownerScope": "arca",
         "contractRef": "helix://contracts/transactions/helix.transaction.handoff-b-accepted/v1",
-        "contractDigest": "a7f7ae9af9eab1526c1f9721072c319e3637e44409cc223716b87f826f84329b"
+        "contractDigest": "71565e5fc22837743068559eaa58f2d37da6f67957c33e8cfd663a08dadbbcb6"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "362152c0b2b24d2f5e2fe5c44937b5a30ced5ccc3ef826f4ab976027462b4c67"
+        "value": "58755386b0ac65639500ed35f589c8818344cdb878a52e5a8335e522088e7662"
       }
     },
     {
@@ -856,7 +856,7 @@
       "sourceLocator": {
         "section": "8.5.4",
         "line": 7844,
-        "lineDigest": "9e446db6f093dda648e004ee746464abc3edd7fb74bf38eaeb6543f079ed6d34"
+        "lineDigest": "5bd38eab2cd7a5372e6ff8d3c4ce676d770f75c1313553eb54688be29cf266af"
       },
       "targetLocator": {
         "path": "transaction-contracts/helix.transaction.handoff-b-rejected/v1/contract.json"
@@ -865,11 +865,11 @@
         "transactionId": "helix.transaction.handoff-b-rejected",
         "ownerScope": "arca",
         "contractRef": "helix://contracts/transactions/helix.transaction.handoff-b-rejected/v1",
-        "contractDigest": "f2ae79ffab0c1f38dea23327ad8fbda5e9d00f19028ddaceb1249b3398b0c99e"
+        "contractDigest": "4da93e04c31faf28934c431a340554803e04797035f80aa9c3f2008c00e49452"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "09752039084858172ebd5cdde525f905ebcda3059ec5eae715ff152e47ba118d"
+        "value": "64b437f43f7ecf590fd726d6d4403df3a818a04220d3685099e4c256d4f59292"
       }
     },
     {

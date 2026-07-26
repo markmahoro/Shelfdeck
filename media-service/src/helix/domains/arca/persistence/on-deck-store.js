@@ -61,14 +61,6 @@ function arcaDefinition(schemaManifest) {
         keyColumns: ['on_deck_run_id'],
         safeIntegers: true,
       },
-      insert_run: {
-        kind: 'insert',
-        tableId: 'arca_ondeck_runs',
-        columns: [
-          'on_deck_run_id', 'custody_id', 'final_inventory_decision_digest',
-          'state', 'created_at_ms', 'terminal_at_ms',
-        ],
-      },
       advance_run: {
         kind: 'update',
         tableId: 'arca_ondeck_runs',
@@ -94,17 +86,6 @@ function arcaDefinition(schemaManifest) {
         ],
         keyColumns: ['on_deck_run_id'],
         safeIntegers: true,
-      },
-      insert_decision: {
-        kind: 'insert',
-        tableId: 'arca_final_inventory_decisions',
-        columns: [
-          'final_inventory_decision_id', 'on_deck_run_id', 'shelf_id',
-          'placement_revision', 'target_endpoint_id', 'target_location',
-          'product_manifest_digest', 'offload_context_digest',
-          'decision_schema_ref', 'decision_json', 'decision_digest',
-          'decided_at_ms',
-        ],
       },
       find_entry: {
         kind: 'select-one',
@@ -316,10 +297,10 @@ function createOnDeckStore(options) {
   const arca = arcaDefinition(options.schemaManifest);
   const foundation = foundationDefinition(options.schemaManifest);
 
-  function prepare(request) {
+  function verifyAcceptedResponsibility(request) {
     const decision = request.finalInventoryDecision;
     return options.unitOfWork.execute([{
-      participantId: 'arca_ondeck_prepare',
+      participantId: 'arca_ondeck_accepted_responsibility_read',
       owner: 'arca',
       repositories: [arca],
       execute(context) {
@@ -330,50 +311,33 @@ function createOnDeckStore(options) {
         const existingDecision = repo.invoke('find_decision', {
           on_deck_run_id: request.onDeckRunId,
         });
-        if (existingRun || existingDecision) {
-          if (!existingRun || !existingDecision ||
-              existingRun.custody_id !== request.custodyId ||
-              existingRun.final_inventory_decision_digest !==
-                decision.decisionDigest ||
-              !['ready', 'offloading', 'committed'].includes(existingRun.state) ||
-              canonicalJson(parseDecision(existingDecision)) !==
-                canonicalJson(decision)) {
-            fail('P14_ONDECK_PREPARE_CONFLICT',
-              'On-deck Run replay conflicts with its immutable Decision.');
-          }
-          return Object.freeze({
-            replayed: true,
-            state: existingRun.state,
-            decision,
-          });
+        if (!existingRun || !existingDecision ||
+            existingRun.custody_id !== request.custodyId ||
+            existingRun.final_inventory_decision_digest !==
+              decision.decisionDigest ||
+            !['ready', 'offloading', 'committed'].includes(existingRun.state) ||
+            canonicalJson(parseDecision(existingDecision)) !==
+              canonicalJson(decision) ||
+            existingDecision.shelf_id !== request.shelf.shelfId ||
+            Number(existingDecision.placement_revision) !==
+              request.shelf.currentPlacementRevision ||
+            existingDecision.target_endpoint_id !==
+              request.shelf.target.endpointId ||
+            existingDecision.target_location !== request.targetLocation ||
+            existingDecision.product_manifest_digest !==
+              request.package.productMaterialManifest.manifestDigest ||
+            existingDecision.offload_context_digest !==
+              request.package.offloadContextManifest.manifestDigest) {
+          fail('P14_ONDECK_ACCEPTED_RESPONSIBILITY_MISSING',
+            'Handoff B Accepted did not atomically establish its On-deck Run and Final Inventory Decision.');
         }
-        repo.invoke('insert_run', {
-          on_deck_run_id: request.onDeckRunId,
-          custody_id: request.custodyId,
-          final_inventory_decision_digest: decision.decisionDigest,
-          state: 'ready',
-          created_at_ms: context.commitTimeMs,
-          terminal_at_ms: null,
+        return Object.freeze({
+          replayed: true,
+          state: existingRun.state,
+          decision,
         });
-        repo.invoke('insert_decision', {
-          final_inventory_decision_id: decision.objectId,
-          on_deck_run_id: request.onDeckRunId,
-          shelf_id: request.shelf.shelfId,
-          placement_revision: request.shelf.currentPlacementRevision,
-          target_endpoint_id: request.shelf.target.endpointId,
-          target_location: request.targetLocation,
-          product_manifest_digest:
-            request.package.productMaterialManifest.manifestDigest,
-          offload_context_digest:
-            request.package.offloadContextManifest.manifestDigest,
-          decision_schema_ref: decision.schemaRef,
-          decision_json: canonicalJson(decision),
-          decision_digest: decision.decisionDigest,
-          decided_at_ms: context.commitTimeMs,
-        });
-        return Object.freeze({ replayed: false, state: 'ready', decision });
       },
-    }]).arca_ondeck_prepare;
+    }]).arca_ondeck_accepted_responsibility_read;
   }
 
   function setOffloading(onDeckRunId, decisionDigest) {
@@ -1000,7 +964,7 @@ function createOnDeckStore(options) {
   }
 
   return Object.freeze({
-    prepare,
+    verifyAcceptedResponsibility,
     setOffloading,
     commit,
     readCommitted,

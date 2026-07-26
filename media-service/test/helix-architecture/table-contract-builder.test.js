@@ -138,6 +138,13 @@ test('keeps Procurement admission facts frozen without blocking declared lifecyc
   }
 });
 
+test('keeps the Handoff B-created On-deck Run lifecycle mutable after its atomic first insert', () => {
+  const run = contracts.find((contract) => contract.tableId === 'arca_ondeck_runs');
+  assert.equal(run.immutability.immutable, false);
+  assert.deepEqual(run.columns.find((column) => column.name === 'state').enumValues,
+    ['ready', 'offloading', 'blocked', 'committed']);
+});
+
 test('binds every Field Observation revision to its durable Foundation commit marker', () => {
   const observation = contracts.find((contract) => contract.tableId === 'proc_field_observations');
   const marker = observation.foreignKeys.find((entry) => entry.columns.length === 1 && entry.columns[0] === 'commit_marker');

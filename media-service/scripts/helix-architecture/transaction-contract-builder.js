@@ -32,8 +32,8 @@ const crashFixtures = Object.freeze({
   'libra-run-discard': ['Decision前、Run terminal后、原始Input Control release前后、Cleanup Scope/Outbox前', '要么Run仍frozen且全部Control不变，要么discarded/原始Input released/Cleanup Scope完整成立；受Control Workspace Product不成为无Owner文件', 8417],
   'libra-workspace-cleanup': ['删除intent后、文件删除后Evidence前、Cleanup/Control commit前后', '删除效果幂等；只有Deletion Evidence成立的受Control Product释放Control；重启恢复同一Cleanup member', 8418],
   'libra-product-fact-variants': ['Handle variant selector解析前后、Run/fact revision fence前后、Source Basis Result逐项验证与relation写入中间、metadata Artifact fence前后、Fact/typed Result/marker各边界、相同Handle重放、伪造或缺失Outbox', 'selector三元组必须唯一命中或按closed规则拒绝；Product Fact variant绝不fallback到generic；Fact revision、完整Source refs、typed Result与marker全有或全无，metadata variant还必须同时验证全部Artifact fence；任何崩溃/不一致均零写入可见；成功重放返回同一Fact revision/digest且不追加Source refs；始终不存在本Commit的Outbox row', 10771],
-  'handoff-b-accepted': ['Acceptance Decision、Custody/Binding、Control transfer、Receipt/Outbox各边界', 'Arca责任与Control一起成立；Libra Store不被Arca事务写入', 8419],
-  'handoff-b-rejected': ['Acceptance check set形成前后、Attempt terminal CAS、Decision/Receipt/Result/marker/Outbox各边界、并发Accepted竞态', '只允许closed reason；rejected Attempt、Evidence set、Decision、Receipt、Result、marker和Outbox全有或全无；不建立Custody/Binding/On-deck Run、不转移Control；Accepted/Rejected互斥', 9617],
+  'handoff-b-accepted': ['Attempt active/terminal CAS、Shelf/Standard/Placement transfer-point重验、Acceptance Decision、Final Inventory Decision/initial On-deck Run、Custody/Binding、Control transfer、Receipt/Outbox各边界', '要么Attempt仍active且不存在Accepted责任事实，要么Attempt accepted、On-deck Run/Decision、Custody/Binding、Control、Receipt/Result/marker/Outbox整体成立；不得出现terminal Attempt或Custody/Control已成立但On-deck Run缺失；Libra Store不被Arca事务写入', 11114],
+  'handoff-b-rejected': ['Acceptance check set形成前后、Attempt terminal CAS、Decision/Receipt/Result/marker/Outbox各边界、并发Accepted竞态', '只允许closed reason；要么Attempt仍active且无终态事实，要么rejected Attempt、Evidence set、Decision、Receipt、Result、marker和Outbox全有或全无；不建立Custody/Binding/On-deck Run、不转移Control；Accepted/Rejected互斥', 11115],
   'libra-handoff-b-rejection-consume': ['Inbox写入前后、Package digest CAS、Delivery Receipt写入前后、迟到Accepted消息', 'immutable Package与rejected Delivery Receipt/Inbox closure全有或全无；重复消息重放同一closure digest，相反终态或digest冲突稳定拒绝；不写Arca Store', 9618],
   'ondeck-fixed-transaction': ['Slot prepare、Stage、Switch、Final Primary verify、Settlement逐项、On-deck Commit', '已Settlement后只能向前恢复；Shelf Entry/Inventory/Deck/Control/Completion同一commit', 8420],
   'aftercare-basis-inventory': ['Standard/Placement/Decision Fact变化、Case create、Workspace output、Stage/Switch、Settlement、Inventory/Control commit', 'Case冻结完整Care Basis；旧Basis不能提交；原Shelf Entry/Identity/Deck持续；新Inventory revision与Control set一致', 8421],
@@ -334,8 +334,15 @@ const definitions = Object.freeze({
   },
   'Handoff B Accepted': {
     commitClass: 'responsibility_control_commit',
-    writeTables: ['arca_acceptance_decisions', 'arca_ondeck_custodies', 'arca_material_bindings', 'arca_handoff_b_receipts', 'fx_material_controls', 'fx_material_control_revisions', 'fx_commit_markers', 'fx_outbox'],
-    readTables: ['arca_acceptance_attempts', 'arca_acceptance_checks'], fixtureRefs: ['handoff-b-accepted'], hasOutbox: true,
+    writeTables: ['arca_acceptance_attempts', 'arca_acceptance_decisions',
+      'arca_final_inventory_decisions', 'arca_ondeck_runs',
+      'arca_ondeck_custodies', 'arca_material_bindings',
+      'arca_handoff_b_receipts', 'fx_material_controls',
+      'fx_material_control_revisions', 'fx_commit_markers', 'fx_outbox'],
+    readTables: ['arca_acceptance_attempts', 'arca_acceptance_checks',
+      'arca_shelves', 'arca_shelf_standard_revisions',
+      'arca_placement_policy_revisions'],
+    fixtureRefs: ['handoff-b-accepted'], hasOutbox: true,
     forbiddenWritePrefixes: ['libra_']
   },
   'Handoff B Rejected': {

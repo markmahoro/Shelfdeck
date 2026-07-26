@@ -32,7 +32,8 @@ const MUTABLE_LIFECYCLE_TABLES = new Set([
   'libra_runs',
   'libra_workspaces',
   'libra_workspace_cleanup_scopes',
-  'libra_workspace_cleanup_members'
+  'libra_workspace_cleanup_members',
+  'arca_ondeck_runs'
 ]);
 // SSOT 8.5.9 requires every state/status column to be closed. Values named by
 // Level 6/7 lifecycles are preserved verbatim; unnamed technical projections

@@ -7,14 +7,17 @@
     "displayName": "Handoff B Accepted",
     "ownerScope": "arca",
     "commitClass": "responsibility_control_commit",
-    "atomicFactSet": "Acceptance Decision + On-deck Material Custody + Arca Binding + precise Control transfer + Handoff Receipt + `ArcaProductAcceptedMessage@1` Outbox",
+    "atomicFactSet": "current active Acceptance Attempt terminal CAS + Acceptance Decision + immutable Final Inventory Decision + initial On-deck Run + On-deck Material Custody + Arca Binding + precise Control transfer + Handoff Receipt + `ArcaProductAcceptedMessage@1` Outbox；Acceptance Attempt、Run/Decision、Custody/Binding、Control、Receipt/Result/marker/Outbox全有或全无",
     "participants": [
       {
         "participantKind": "domain",
         "owner": "arca",
         "access": "write",
         "tables": [
+          "arca_acceptance_attempts",
           "arca_acceptance_decisions",
+          "arca_final_inventory_decisions",
+          "arca_ondeck_runs",
           "arca_ondeck_custodies",
           "arca_material_bindings",
           "arca_handoff_b_receipts"
@@ -41,7 +44,10 @@
       }
     ],
     "writeTables": [
+      "arca_acceptance_attempts",
       "arca_acceptance_decisions",
+      "arca_final_inventory_decisions",
+      "arca_ondeck_runs",
       "arca_ondeck_custodies",
       "arca_material_bindings",
       "arca_handoff_b_receipts",
@@ -53,7 +59,10 @@
     ],
     "readTables": [
       "arca_acceptance_attempts",
-      "arca_acceptance_checks"
+      "arca_acceptance_checks",
+      "arca_shelves",
+      "arca_shelf_standard_revisions",
+      "arca_placement_policy_revisions"
     ],
     "variants": [],
     "dynamicTableRequirements": [],
@@ -72,18 +81,18 @@
     "crashFixtures": [
       {
         "fixtureId": "handoff-b-accepted",
-        "faultInjectionPoints": "Acceptance Decision、Custody/Binding、Control transfer、Receipt/Outbox各边界",
-        "requiredInvariant": "Arca责任与Control一起成立；Libra Store不被Arca事务写入",
+        "faultInjectionPoints": "Attempt active/terminal CAS、Shelf/Standard/Placement transfer-point重验、Acceptance Decision、Final Inventory Decision/initial On-deck Run、Custody/Binding、Control transfer、Receipt/Outbox各边界",
+        "requiredInvariant": "要么Attempt仍active且不存在Accepted责任事实，要么Attempt accepted、On-deck Run/Decision、Custody/Binding、Control、Receipt/Result/marker/Outbox整体成立；不得出现terminal Attempt或Custody/Control已成立但On-deck Run缺失；Libra Store不被Arca事务写入",
         "source": {
           "section": "8.9.7",
-          "line": 8419
+          "line": 11114
         }
       }
     ],
     "source": {
       "section": "8.5.4",
       "line": 7843,
-      "lineDigest": "1d2e6c80675e06506945829a06de626c8f8304cfd9f7014709e2dffc73d0a3c1"
+      "lineDigest": "4e7faf672510547a8d63d030a9eb666083e32a737bad840610b1e458649d46e8"
     }
   }
 }

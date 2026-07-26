@@ -7,7 +7,7 @@
     "displayName": "Handoff B Rejected",
     "ownerScope": "arca",
     "commitClass": "domain_fact_commit",
-    "atomicFactSet": "complete `ArcaAcceptanceRejectionDecision@1` + immutable rejected Acceptance Decision + `RejectionReceipt@1` + durable typed Result/commit marker + `ArcaProductRejectedMessage@1` Outbox；不建立On-deck Custody/Run/Binding、不转移Control；Decision/Receipt/Result/marker/Outbox全有或全无",
+    "atomicFactSet": "current active Acceptance Attempt terminal CAS + complete `ArcaAcceptanceRejectionDecision@1` + immutable rejected Acceptance Decision + `RejectionReceipt@1` + durable typed Result/commit marker + `ArcaProductRejectedMessage@1` Outbox；不建立On-deck Custody/Run/Binding、不转移Control；Attempt terminal、Decision/Receipt/Result/marker/Outbox全有或全无",
     "participants": [
       {
         "participantKind": "domain",
@@ -65,17 +65,17 @@
       {
         "fixtureId": "handoff-b-rejected",
         "faultInjectionPoints": "Acceptance check set形成前后、Attempt terminal CAS、Decision/Receipt/Result/marker/Outbox各边界、并发Accepted竞态",
-        "requiredInvariant": "只允许closed reason；rejected Attempt、Evidence set、Decision、Receipt、Result、marker和Outbox全有或全无；不建立Custody/Binding/On-deck Run、不转移Control；Accepted/Rejected互斥",
+        "requiredInvariant": "只允许closed reason；要么Attempt仍active且无终态事实，要么rejected Attempt、Evidence set、Decision、Receipt、Result、marker和Outbox全有或全无；不建立Custody/Binding/On-deck Run、不转移Control；Accepted/Rejected互斥",
         "source": {
           "section": "8.9.7",
-          "line": 9617
+          "line": 11115
         }
       }
     ],
     "source": {
       "section": "8.5.4",
       "line": 7844,
-      "lineDigest": "9e446db6f093dda648e004ee746464abc3edd7fb74bf38eaeb6543f079ed6d34"
+      "lineDigest": "5bd38eab2cd7a5372e6ff8d3c4ce676d770f75c1313553eb54688be29cf266af"
     }
   }
 }

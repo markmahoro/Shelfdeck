@@ -377,6 +377,13 @@ async function createCleanServiceHost(options) {
     ...constructed.applicationDependencies,
     productDeliveryPort,
     inventoryPort: arcaInventoryPort,
+    afterAttemptAcceptedCas: options.afterAttemptAcceptedCas,
+    afterAcceptedResponsibilityInsert:
+      options.afterAcceptedResponsibilityInsert,
+    afterHandoffBControlTransfer:
+      options.afterHandoffBControlTransfer,
+    afterHandoffBReceiptInsert: options.afterHandoffBReceiptInsert,
+    afterHandoffBOutboxInsert: options.afterHandoffBOutboxInsert,
     afterHandoffBAccepted: options.afterHandoffBAccepted,
     afterOnDeckCommit: options.afterOnDeckCommit,
   });

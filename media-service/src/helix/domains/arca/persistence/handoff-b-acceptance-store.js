@@ -75,6 +75,33 @@ function arcaDefinition(schemaManifest) {
           'placement_revision', 'state', 'created_at_ms', 'finished_at_ms',
         ],
       },
+      advance_attempt: {
+        kind: 'update',
+        tableId: 'arca_acceptance_attempts',
+        setColumns: ['state', 'finished_at_ms'],
+        keyColumns: ['acceptance_attempt_id'],
+        compareColumns: [
+          { column: 'state', parameter: 'expected_state' },
+          { column: 'offer_id', parameter: 'expected_offer_id' },
+          {
+            column: 'on_deck_package_id',
+            parameter: 'expected_on_deck_package_id',
+          },
+          {
+            column: 'package_digest',
+            parameter: 'expected_package_digest',
+          },
+          { column: 'shelf_id', parameter: 'expected_shelf_id' },
+          {
+            column: 'standard_revision',
+            parameter: 'expected_standard_revision',
+          },
+          {
+            column: 'placement_revision',
+            parameter: 'expected_placement_revision',
+          },
+        ],
+      },
       list_checks: {
         kind: 'select-all',
         tableId: 'arca_acceptance_checks',
@@ -179,6 +206,81 @@ function arcaDefinition(schemaManifest) {
           'rejection_digest', 'receipt_digest', 'committed_at_ms',
         ],
       },
+      find_shelf: {
+        kind: 'select-one',
+        tableId: 'arca_shelves',
+        columns: [
+          'shelf_id', 'target_endpoint_id', 'target_root_location',
+          'target_mount_scope_id', 'target_mount_scope_revision', 'status',
+          'current_standard_revision', 'current_placement_revision',
+        ],
+        keyColumns: ['shelf_id'],
+        safeIntegers: true,
+      },
+      find_standard: {
+        kind: 'select-one',
+        tableId: 'arca_shelf_standard_revisions',
+        columns: [
+          'shelf_id', 'revision', 'standard_schema_ref', 'standard_json',
+          'standard_digest',
+        ],
+        keyColumns: ['shelf_id', 'revision'],
+        safeIntegers: true,
+      },
+      find_placement: {
+        kind: 'select-one',
+        tableId: 'arca_placement_policy_revisions',
+        columns: [
+          'shelf_id', 'revision', 'policy_schema_ref', 'policy_json',
+          'policy_digest',
+        ],
+        keyColumns: ['shelf_id', 'revision'],
+        safeIntegers: true,
+      },
+      find_run: {
+        kind: 'select-one',
+        tableId: 'arca_ondeck_runs',
+        columns: [
+          'on_deck_run_id', 'custody_id',
+          'final_inventory_decision_digest', 'state', 'created_at_ms',
+          'terminal_at_ms',
+        ],
+        keyColumns: ['on_deck_run_id'],
+        safeIntegers: true,
+      },
+      insert_run: {
+        kind: 'insert',
+        tableId: 'arca_ondeck_runs',
+        columns: [
+          'on_deck_run_id', 'custody_id',
+          'final_inventory_decision_digest', 'state', 'created_at_ms',
+          'terminal_at_ms',
+        ],
+      },
+      find_final_inventory_decision: {
+        kind: 'select-one',
+        tableId: 'arca_final_inventory_decisions',
+        columns: [
+          'final_inventory_decision_id', 'on_deck_run_id', 'shelf_id',
+          'placement_revision', 'target_endpoint_id', 'target_location',
+          'product_manifest_digest', 'offload_context_digest',
+          'decision_schema_ref', 'decision_json', 'decision_digest',
+          'decided_at_ms',
+        ],
+        keyColumns: ['on_deck_run_id'],
+        safeIntegers: true,
+      },
+      insert_final_inventory_decision: {
+        kind: 'insert',
+        tableId: 'arca_final_inventory_decisions',
+        columns: [
+          'final_inventory_decision_id', 'on_deck_run_id', 'shelf_id',
+          'placement_revision', 'target_endpoint_id', 'target_location',
+          'product_manifest_digest', 'offload_context_digest',
+          'decision_schema_ref', 'decision_json', 'decision_digest',
+          'decided_at_ms',
+        ],
+      },
     },
   });
 }
@@ -261,6 +363,27 @@ function exactAttempt(input) {
   return Object.freeze(value);
 }
 
+function deriveAcceptedResponsibility(assessment) {
+  const acceptanceDecisionId = stable('arca.acceptance-decision-id@1', {
+    acceptanceAttemptId: assessment.acceptanceAttemptId,
+  });
+  const custodyId = stable('arca.on-deck-material-custody-id@1', {
+    acceptanceDecisionId,
+    onDeckPackageId: assessment.onDeckPackageId,
+    packageDigest: assessment.packageDigest,
+  });
+  const onDeckRunId = stable('arca.on-deck-run-id@1', {
+    custodyId,
+    onDeckPackageId: assessment.onDeckPackageId,
+    packageDigest: assessment.packageDigest,
+  });
+  return Object.freeze({
+    acceptanceDecisionId,
+    custodyId,
+    onDeckRunId,
+  });
+}
+
 function mapReceipt(row) {
   if (!row) return null;
   return Object.freeze({
@@ -317,7 +440,7 @@ function createHandoffBAcceptanceStore(options) {
               existing.shelf_id !== assessment.shelfId ||
               Number(existing.standard_revision) !== assessment.standardRevision ||
               Number(existing.placement_revision) !== assessment.placementRevision ||
-              existing.state !== 'accepted' ||
+              !['active', 'accepted'].includes(existing.state) ||
               canonicalJson(observed) !== canonicalJson(assessment.checks)) {
             fail('P14_HANDOFF_B_ASSESSMENT_CONFLICT',
               'Acceptance Attempt replay conflicts with immutable evidence.');
@@ -332,9 +455,9 @@ function createHandoffBAcceptanceStore(options) {
           shelf_id: assessment.shelfId,
           standard_revision: assessment.standardRevision,
           placement_revision: assessment.placementRevision,
-          state: 'accepted',
+          state: 'active',
           created_at_ms: context.commitTimeMs,
-          finished_at_ms: context.commitTimeMs,
+          finished_at_ms: null,
         });
         for (const check of assessment.checks) {
           repo.invoke('insert_check', {
@@ -382,25 +505,53 @@ function createHandoffBAcceptanceStore(options) {
           placementRevision: Number(row.placement_revision),
           checks,
         });
-        if (row.state !== 'accepted' || row.finished_at_ms === null) {
+        if (!['active', 'accepted'].includes(row.state) ||
+            (row.state === 'active' && row.finished_at_ms !== null) ||
+            (row.state === 'accepted' && row.finished_at_ms === null)) {
           fail('P14_HANDOFF_B_ASSESSMENT_INCOMPLETE',
-            'Existing Acceptance Attempt is not terminal.');
+            'Existing Acceptance Attempt state does not match its completion fence.');
         }
-        return assessment;
+        return Object.freeze({
+          ...assessment,
+          attemptState: row.state,
+        });
       },
     }]).arca_acceptance_assessment_read;
   }
 
   function accept(request) {
     const assessment = exactAttempt(request.assessment);
-    const decisionId = stable('arca.acceptance-decision-id@1', {
-      acceptanceAttemptId: assessment.acceptanceAttemptId,
-    });
-    const custodyId = stable('arca.on-deck-material-custody-id@1', {
-      acceptanceDecisionId: decisionId,
-      onDeckPackageId: assessment.onDeckPackageId,
-      packageDigest: assessment.packageDigest,
-    });
+    const responsibilityIdentity =
+      deriveAcceptedResponsibility(assessment);
+    const decisionId = responsibilityIdentity.acceptanceDecisionId;
+    const custodyId = responsibilityIdentity.custodyId;
+    const onDeckRunId = responsibilityIdentity.onDeckRunId;
+    const finalInventoryDecision = request.finalInventoryDecision;
+    const finalInventoryBasis = {
+      schema: 'arca.final-inventory-decision@1',
+      ...Object.fromEntries(Object.entries(finalInventoryDecision || {})
+        .filter(([name]) =>
+          !['digest', 'decisionDigest'].includes(name))),
+      targetEndpointId: request.shelf?.target?.endpointId,
+      targetLocation: request.targetLocation,
+      productManifestDigest:
+        request.package?.productMaterialManifest?.manifestDigest,
+      offloadContextDigest:
+        request.package?.offloadContextManifest?.manifestDigest,
+    };
+    if (!finalInventoryDecision ||
+        request.onDeckRunId !== onDeckRunId ||
+        finalInventoryDecision.onDeckRunId !== onDeckRunId ||
+        finalInventoryDecision.shelfId !== assessment.shelfId ||
+        finalInventoryDecision.placementRevision !==
+          assessment.placementRevision ||
+        finalInventoryDecision.decisionDigest !==
+          canonicalDigest(finalInventoryBasis) ||
+        finalInventoryDecision.digest !==
+          finalInventoryDecision.decisionDigest) {
+      fail('P14_HANDOFF_B_ONDECK_RESPONSIBILITY',
+        'Accepted Handoff B requires its exact immutable Final Inventory Decision and On-deck Run identity.');
+    }
     const bindings = request.bindings.map((item) => Object.freeze({
       ...item,
       bindingRevision: 1,
@@ -523,7 +674,26 @@ function createHandoffBAcceptanceStore(options) {
           acceptance_decision_id: decisionId,
         });
         const custody = repo.invoke('find_custody', { custody_id: custodyId });
-        if (!storedReceipt || !custody ||
+        const attempt = repo.invoke('find_attempt', {
+          acceptance_attempt_id: assessment.acceptanceAttemptId,
+        });
+        const run = repo.invoke('find_run', {
+          on_deck_run_id: onDeckRunId,
+        });
+        const storedFinalDecision =
+          repo.invoke('find_final_inventory_decision', {
+            on_deck_run_id: onDeckRunId,
+          });
+        if (!storedReceipt || !custody || !attempt || !run ||
+            !storedFinalDecision || attempt.state !== 'accepted' ||
+            attempt.finished_at_ms === null ||
+            run.custody_id !== custodyId ||
+            run.final_inventory_decision_digest !==
+              finalInventoryDecision.decisionDigest ||
+            canonicalJson(JSON.parse(storedFinalDecision.decision_json)) !==
+              canonicalJson(finalInventoryDecision) ||
+            storedFinalDecision.decision_digest !==
+              finalInventoryDecision.decisionDigest ||
             current.decision_digest !== decision.decisionDigest ||
             storedReceipt.receipt_digest !==
               canonicalDigest(without(mapReceipt(storedReceipt), 'receiptDigest'))) {
@@ -542,14 +712,98 @@ function createHandoffBAcceptanceStore(options) {
             controlScopeDigest,
             state: custody.state,
           }),
+          onDeckRunId,
+          finalInventoryDecision,
           receipt: replayReceipt,
           acceptedMessage: acceptedMessage(request.offerMessage, decision,
             replayReceipt, request.libraRunId),
         }));
       },
     };
-    const domain = {
-      participantId: 'arca_handoff_b_domain',
+    const attemptTransition = {
+      participantId: 'arca_handoff_b_attempt_terminal',
+      owner: 'arca',
+      repositories: [arca],
+      execute(context) {
+        const repo = context.repository(arca.repositoryId);
+        const attempt = repo.invoke('find_attempt', {
+          acceptance_attempt_id: assessment.acceptanceAttemptId,
+        });
+        const checks = repo.invoke('list_checks', {
+          acceptance_attempt_id: assessment.acceptanceAttemptId,
+        }).sort((left, right) =>
+          Buffer.compare(Buffer.from(left.check_kind),
+            Buffer.from(right.check_kind)));
+        const observedChecks = checks.map((item) => ({
+          kind: item.check_kind,
+          outcome: item.result,
+          evidenceDigest: item.evidence_digest,
+        }));
+        const shelf = repo.invoke('find_shelf', {
+          shelf_id: assessment.shelfId,
+        });
+        const standard = repo.invoke('find_standard', {
+          shelf_id: assessment.shelfId,
+          revision: assessment.standardRevision,
+        });
+        const placement = repo.invoke('find_placement', {
+          shelf_id: assessment.shelfId,
+          revision: assessment.placementRevision,
+        });
+        if (!attempt || attempt.state !== 'active' ||
+            attempt.finished_at_ms !== null ||
+            attempt.offer_id !== assessment.offerId ||
+            attempt.on_deck_package_id !== assessment.onDeckPackageId ||
+            attempt.package_digest !== assessment.packageDigest ||
+            attempt.shelf_id !== assessment.shelfId ||
+            Number(attempt.standard_revision) !==
+              assessment.standardRevision ||
+            Number(attempt.placement_revision) !==
+              assessment.placementRevision ||
+            canonicalJson(observedChecks) !==
+              canonicalJson(assessment.checks) ||
+            checks.some((item) => item.result !== 'passed') ||
+            !shelf || shelf.status !== 'active' ||
+            Number(shelf.current_standard_revision) !==
+              assessment.standardRevision ||
+            Number(shelf.current_placement_revision) !==
+              assessment.placementRevision ||
+            shelf.target_endpoint_id !== request.shelf.target.endpointId ||
+            shelf.target_root_location !== request.shelf.target.rootLocation ||
+            shelf.target_mount_scope_id !==
+              request.shelf.target.mountScopeId ||
+            Number(shelf.target_mount_scope_revision) !==
+              request.shelf.target.mountScopeRevision ||
+            !standard || !placement) {
+          fail('P14_HANDOFF_B_TRANSFER_POINT_FENCE',
+            'Handoff B responsibility transfer point is stale.');
+        }
+        const changed = repo.invoke('advance_attempt', {
+          state: 'accepted',
+          finished_at_ms: context.commitTimeMs,
+          acceptance_attempt_id: assessment.acceptanceAttemptId,
+          expected_state: 'active',
+          expected_offer_id: assessment.offerId,
+          expected_on_deck_package_id: assessment.onDeckPackageId,
+          expected_package_digest: assessment.packageDigest,
+          expected_shelf_id: assessment.shelfId,
+          expected_standard_revision: assessment.standardRevision,
+          expected_placement_revision: assessment.placementRevision,
+        });
+        if (changed.changes !== 1) {
+          fail('P14_HANDOFF_B_ATTEMPT_CAS',
+            'Acceptance Attempt lost its active terminal CAS.');
+        }
+        if (typeof options.afterAttemptAcceptedCas === 'function') {
+          options.afterAttemptAcceptedCas(Object.freeze({
+            acceptanceAttemptId: assessment.acceptanceAttemptId,
+            onDeckRunId,
+          }));
+        }
+      },
+    };
+    const responsibility = {
+      participantId: 'arca_handoff_b_responsibility',
       owner: 'arca',
       repositories: [arca],
       execute(context) {
@@ -564,7 +818,8 @@ function createHandoffBAcceptanceStore(options) {
           shelf_id: assessment.shelfId,
           standard_revision: assessment.standardRevision,
           placement_revision: assessment.placementRevision,
-          acceptance_evidence_set_digest: assessment.acceptanceEvidenceSetDigest,
+          acceptance_evidence_set_digest:
+            assessment.acceptanceEvidenceSetDigest,
           rejection_schema_ref: null,
           rejection_code: null,
           rejection_digest: null,
@@ -595,6 +850,39 @@ function createHandoffBAcceptanceStore(options) {
             current: 1,
           });
         }
+        repo.invoke('insert_run', {
+          on_deck_run_id: onDeckRunId,
+          custody_id: custodyId,
+          final_inventory_decision_digest:
+            finalInventoryDecision.decisionDigest,
+          state: 'ready',
+          created_at_ms: context.commitTimeMs,
+          terminal_at_ms: null,
+        });
+        repo.invoke('insert_final_inventory_decision', {
+          final_inventory_decision_id: finalInventoryDecision.objectId,
+          on_deck_run_id: onDeckRunId,
+          shelf_id: assessment.shelfId,
+          placement_revision: assessment.placementRevision,
+          target_endpoint_id: request.shelf.target.endpointId,
+          target_location: request.targetLocation,
+          product_manifest_digest:
+            request.package.productMaterialManifest.manifestDigest,
+          offload_context_digest:
+            request.package.offloadContextManifest.manifestDigest,
+          decision_schema_ref: finalInventoryDecision.schemaRef,
+          decision_json: canonicalJson(finalInventoryDecision),
+          decision_digest: finalInventoryDecision.decisionDigest,
+          decided_at_ms: context.commitTimeMs,
+        });
+        if (typeof options.afterAcceptedResponsibilityInsert === 'function') {
+          options.afterAcceptedResponsibilityInsert(Object.freeze({
+            acceptanceAttemptId: assessment.acceptanceAttemptId,
+            acceptanceDecisionId: decisionId,
+            custodyId,
+            onDeckRunId,
+          }));
+        }
       },
     };
     const rawControl = createMaterialControlExactTransferParticipant({
@@ -609,6 +897,14 @@ function createHandoffBAcceptanceStore(options) {
       ...rawControl,
       execute(context) {
         controlOutputs = rawControl.execute(context);
+        if (typeof options.afterHandoffBControlTransfer === 'function') {
+          options.afterHandoffBControlTransfer(Object.freeze({
+            acceptanceAttemptId: assessment.acceptanceAttemptId,
+            acceptanceDecisionId: decisionId,
+            custodyId,
+            onDeckRunId,
+          }));
+        }
         return controlOutputs;
       },
     });
@@ -671,6 +967,14 @@ function createHandoffBAcceptanceStore(options) {
           receipt_digest: receipt.receiptDigest,
           committed_at_ms: context.commitTimeMs,
         });
+        if (typeof options.afterHandoffBReceiptInsert === 'function') {
+          options.afterHandoffBReceiptInsert(Object.freeze({
+            acceptanceAttemptId: assessment.acceptanceAttemptId,
+            acceptanceDecisionId: decisionId,
+            receiptId: receipt.receiptId,
+            onDeckRunId,
+          }));
+        }
         return receipt;
       },
     };
@@ -732,11 +1036,24 @@ function createHandoffBAcceptanceStore(options) {
           next_attempt_at_ms: context.commitTimeMs,
           acked_at_ms: null,
         });
+        if (typeof options.afterHandoffBOutboxInsert === 'function') {
+          options.afterHandoffBOutboxInsert(Object.freeze({
+            acceptanceAttemptId: assessment.acceptanceAttemptId,
+            acceptanceDecisionId: decisionId,
+            messageId: message.messageId,
+            onDeckRunId,
+          }));
+        }
       },
     };
     try {
       options.unitOfWork.execute([
-        replay, domain, control, finishDomain, foundationWrite,
+        replay,
+        attemptTransition,
+        responsibility,
+        control,
+        finishDomain,
+        foundationWrite,
       ]);
       return Object.freeze({
         replayed: false,
@@ -749,6 +1066,8 @@ function createHandoffBAcceptanceStore(options) {
           controlScopeDigest,
           state: 'active',
         }),
+        onDeckRunId,
+        finalInventoryDecision,
         receipt,
         acceptedMessage: message,
       });
@@ -786,9 +1105,12 @@ function createHandoffBAcceptanceStore(options) {
   }
 
   function readAccepted(request) {
-    const decisionId = stable('arca.acceptance-decision-id@1', {
+    const responsibility = deriveAcceptedResponsibility({
       acceptanceAttemptId: request.acceptanceAttemptId,
+      onDeckPackageId: request.offerMessage.onDeckPackageId,
+      packageDigest: request.offerMessage.packageDigest,
     });
+    const decisionId = responsibility.acceptanceDecisionId;
     return options.unitOfWork.execute([{
       participantId: 'arca_handoff_b_accepted_read',
       owner: 'arca',
@@ -809,6 +1131,15 @@ function createHandoffBAcceptanceStore(options) {
         const receipt = mapReceipt(receiptRow);
         const custody = repo.invoke('find_custody', {
           custody_id: receipt.custodyId,
+        });
+        const attempt = repo.invoke('find_attempt', {
+          acceptance_attempt_id: request.acceptanceAttemptId,
+        });
+        const run = repo.invoke('find_run', {
+          on_deck_run_id: responsibility.onDeckRunId,
+        });
+        const finalDecision = repo.invoke('find_final_inventory_decision', {
+          on_deck_run_id: responsibility.onDeckRunId,
         });
         const decisionBase = {
           schemaRef:
@@ -832,7 +1163,18 @@ function createHandoffBAcceptanceStore(options) {
           ...decisionBase,
           decisionDigest: canonicalDigest(decisionBase),
         });
-        if (!custody || row.result !== 'accepted' ||
+        if (!custody || !attempt || !run || !finalDecision ||
+            attempt.state !== 'accepted' ||
+            attempt.finished_at_ms === null ||
+            run.custody_id !== custody.custody_id ||
+            run.final_inventory_decision_digest !==
+              finalDecision.decision_digest ||
+            canonicalJson(JSON.parse(finalDecision.decision_json)) !==
+              canonicalJson(request.finalInventoryDecision) ||
+            finalDecision.decision_digest !==
+              request.finalInventoryDecision.decisionDigest ||
+            responsibility.onDeckRunId !== request.onDeckRunId ||
+            row.result !== 'accepted' ||
             row.offer_id !== request.offerMessage.offerId ||
             row.on_deck_package_id !==
               request.offerMessage.onDeckPackageId ||
@@ -854,6 +1196,8 @@ function createHandoffBAcceptanceStore(options) {
             controlScopeDigest: custody.control_scope_digest,
             state: custody.state,
           }),
+          onDeckRunId: responsibility.onDeckRunId,
+          finalInventoryDecision: request.finalInventoryDecision,
           receipt,
           acceptedMessage: acceptedMessage(
             request.offerMessage,
@@ -867,6 +1211,8 @@ function createHandoffBAcceptanceStore(options) {
   }
 
   return Object.freeze({
+    deriveAcceptedResponsibility: (assessment) =>
+      deriveAcceptedResponsibility(exactAttempt(assessment)),
     recordAssessment,
     readAssessment,
     accept,
