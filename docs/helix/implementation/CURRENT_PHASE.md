@@ -8,6 +8,9 @@
 - 已独立接受的上一检查点：`f0319035`
 - PBF-18 Architecture 修正：`af880315`
 - PBF-18 在实现分支的纳入提交：`8cce8e80`
+- PBF-18-R1 Architecture 修正：上游 `e35b93bd`，原样纳入提交
+  `1cba7b57`
+- PBF-18-R1 Implementation Closure：`7531c6ba`
 - Architecture SSOT 没有实现线程额外修改。
 - `F02.17` 仍为 `NOT_RUN`；不得增加测试便利接口或用内部 Store 证据冒充
   用户 Feature。
@@ -26,6 +29,10 @@ Related NFO 是最高优先级 metadata observation；TMDB 只在 Acceptance Spe
 本检查点已通过三类 crash/restart/replay：Workspace 物理效果后、Product
 Fact/Artifact commit 后、Package/Control/Offer 原子提交后。重启均恢复同一
 effect、Facts、Package、Product Delivery snapshot 与 Offer，不产生重复。
+PBF-18-R1 已将 `packageDigest` 扩展为完整 nominal Package content digest；
+读取端从全部关系重建并重算同一 digest，commit-only `publishedAtMs` 不进入
+内容摘要。不存在 pending/placeholder Control、手选字段摘要或提交后覆盖
+member。
 
 机器库存保持 112 Capabilities / 97 Result families / 177 tables /
 43 canonical transactions / 114 routes / 18 UI surfaces；完整 architecture
