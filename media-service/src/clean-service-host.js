@@ -13,6 +13,7 @@ const { createCleanFacades } = require('./helix/composition/create-clean-facades
 const { createProcurementAdminApplication } = require('./helix/domains/procurement/public/admin-application');
 const { CandidateDeliveryPort } = require('./helix/domains/procurement/public');
 const { LibraIntakeFacade } = require('./helix/domains/libra/public');
+const { PerceptionResolutionFacade } = require('./helix/domains/perception/public');
 const {
   createCandidateDeliveryService,
 } = require('./helix/domains/procurement/application/candidate-delivery-service');
@@ -32,6 +33,9 @@ const {
 const {
   createMovieFormationCoordinator,
 } = require('./helix/domains/libra/application/movie-formation-coordinator');
+const {
+  createPerceptionResolutionApplication,
+} = require('./helix/domains/perception/application/perception-resolution-application');
 const {
   createArcaRuleTemplateAdminApplication,
   createArcaShelfAdminApplication,
@@ -296,10 +300,22 @@ async function createCleanServiceHost(options) {
   const candidateAcceptance = createCandidateAcceptanceConsumer(constructed.applicationDependencies);
   const outboxInbox = createInboxCoordinator(constructed.applicationDependencies);
   const arcaRoutingTargets = createShelfRoutingTargetProjection(constructed.applicationDependencies);
+  const perceptionResolutionApplication =
+    createPerceptionResolutionApplication({
+      ...constructed.applicationDependencies,
+      now: options.now,
+      afterResolutionCommit: options.afterPerceptionResolutionCommit,
+    });
+  const perceptionResolution = PerceptionResolutionFacade({
+    resolveDecisionFact:
+      perceptionResolutionApplication.resolveDecisionFact,
+  });
   const movieFormationCoordinator = createMovieFormationCoordinator({
     ...constructed.applicationDependencies,
     readArcaRoutingTargets: arcaRoutingTargets.list,
     readArcaShelfStandard: arcaRoutingTargets.getStandard,
+    resolvePerceptionDecisionFact:
+      perceptionResolution.resolveDecisionFact,
   });
   const handoffOffer = (offer) => {
     const accepted = libraIntake.offerCandidate(offer);

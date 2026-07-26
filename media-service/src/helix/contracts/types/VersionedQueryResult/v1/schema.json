@@ -42,13 +42,17 @@
       "type": "integer",
       "minimum": 0
     },
+    "providerDomain": {
+      "type": "string",
+      "minLength": 1
+    },
     "queryContract": {
       "type": "string",
       "minLength": 1
     },
     "queryVersion": {
-      "type": "string",
-      "minLength": 1
+      "type": "integer",
+      "minimum": 1
     },
     "inputDigest": {
       "type": "string",
@@ -85,6 +89,7 @@
     "basisDigest",
     "payloadDigest",
     "observedAtMs",
+    "providerDomain",
     "queryContract",
     "queryVersion",
     "inputDigest",

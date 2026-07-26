@@ -44,19 +44,19 @@ test('maps every P2 partial-unique rule and only cross-table predicates use supp
   assert.equal(expected, 21);
   assert.equal(actual, expected);
   assert.deepEqual(Object.keys(SUPPORT_COLUMNS).sort(), [
-    'arca_inventory_materials', 'people_provider_identities'
+    'arca_inventory_materials', 'libra_intake_decisions', 'people_provider_identities'
   ]);
   const compiled = compileSchema(contracts);
   assert.equal(compiled.manifest.tables.flatMap((table) => table.indexes).filter((index) => index.kind === 'partial-unique').length, 21);
-  assert.equal(compiled.manifest.tables.flatMap((table) => table.supportColumns).length, 2);
+  assert.equal(compiled.manifest.tables.flatMap((table) => table.supportColumns).length, 5);
 });
 
 test('emits JSON validity and byte limits, enum checks, RESTRICT foreign keys, and hot indexes', () => {
   const { ddl, manifest } = compileSchema(contracts);
   const jsonCount = contracts.reduce((count, contract) => count + contract.jsonContracts.length, 0);
   const foreignKeyCount = contracts.reduce((count, contract) => count + contract.foreignKeys.length + contract.revisionContract.pointerTargets.length, 0);
-  assert.equal((ddl.match(/json_valid\(/g) || []).length, jsonCount);
-  assert.equal((ddl.match(/length\(CAST\(/g) || []).length, jsonCount);
+  assert.equal((ddl.match(/json_valid\(/g) || []).length, jsonCount + 1);
+  assert.equal((ddl.match(/length\(CAST\(/g) || []).length, jsonCount + 1);
   assert.ok((ddl.match(/ON DELETE RESTRICT/g) || []).length <= foreignKeyCount);
   assert.ok((ddl.match(/ON DELETE RESTRICT/g) || []).length > 0);
   assert.match(ddl, /CHECK \("state" IN \('open', 'accepted', 'dismissed', 'superseded'\)\)/);
@@ -70,7 +70,7 @@ test('emits JSON validity and byte limits, enum checks, RESTRICT foreign keys, a
   assert.equal(manifest.digestAlgorithm, 'sha256');
   const digestColumnCount = contracts.reduce((count, contract) => count + contract.columns
     .filter((column) => column.name.endsWith('_digest') || column.name === 'digest' || column.name.endsWith('digest_hex')).length, 0);
-  assert.equal((ddl.match(/NOT GLOB '\*\[\^0-9a-f\]\*'/g) || []).length, digestColumnCount);
+  assert.equal((ddl.match(/NOT GLOB '\*\[\^0-9a-f\]\*'/g) || []).length, digestColumnCount + 1);
   assert.equal(manifest.tables.flatMap((table) => table.indexes).filter((index) => index.kind === 'hot').length,
     contracts.reduce((count, contract) => count + contract.hotIndexes.length, 0));
 });

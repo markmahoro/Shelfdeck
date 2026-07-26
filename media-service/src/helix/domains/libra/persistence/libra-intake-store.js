@@ -13,6 +13,7 @@ const SUBJECT_COLUMNS = ['subject_id','structure_kind','content_profile','routin
 const DECISION_COLUMNS = ['intake_decision_id','decision_revision','decision_kind','offer_id','candidate_package_id','package_revision','package_digest',
   'acceptance_basis_digest','candidate_delivery_snapshot_digest','expected_continuity_head_revision','expected_continuity_head_digest',
   'source_field_id','source_field_access_revision','source_field_context_digest','candidate_structure_kind','candidate_content_profile','candidate_identity_claim_digest',
+  'decision_identity_evidence_schema_ref','decision_identity_evidence_json','decision_identity_evidence_digest',
   'committed_continuity_head_revision','candidate_continuity_set_digest','candidate_episode_scope_digest','match_cardinality',
   'matched_subject_set_digest','episode_overlap_digest','accepted_result','target_subject_id','expected_target_status','expected_target_intake_revision',
   'expected_target_continuity_set_digest','expected_target_episode_scope_digest','committed_target_intake_revision',

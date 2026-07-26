@@ -78,7 +78,7 @@ function inputSnapshotRows(inputSet){
       routing_fact:'RoutingDecisionFact@1',decision_fact:'PerceptionResolutionRevision@1',query_result:'VersionedQueryResult@1'};
     const inputSchemaRef=text(value.schemaRef||value.factSchemaRef||value.projectionContract||value.snapshotContract||value.queryContract||schemaDefaults[inputKind],inputKind+'.schemaRef');
     const authority=value.authorityKind==='policy'?value.policy:value.manualIntent;
-    const inputObjectId=text(value.objectId||value.factId||value.sourceObjectId||value.subjectId||value.routingDecisionId||value.shelfId||value.scopeDigest||value.queryInputDigest||
+    const inputObjectId=text(value.objectId||value.factId||value.sourceObjectId||value.subjectId||value.routingDecisionId||value.shelfId||value.scopeDigest||value.queryInputDigest||value.inputDigest||
       authority?.routingPolicyId||authority?.requestDigest,inputKind+'.objectId');
     const inputRevision=integer(value.headRevision??value.revision??value.routingProjectionRevision??value.standardRevision??value.subjectIntakeRevision??value.intakeRevision??value.sourceRevision??value.decisionRevision??value.resultRevision??
       authority?.revision??authority?.expectedDecisionHead?.revision,0,inputKind+'.revision');

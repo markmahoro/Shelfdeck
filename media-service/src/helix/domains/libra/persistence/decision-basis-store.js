@@ -18,7 +18,8 @@ const HEAD_COLUMNS=['subject_id','head_revision','head_digest','current_routing_
 function libraDefinitions(schemaManifest){
   const facts=createRepositoryDefinition({repositoryId:'libra_decision_basis_facts',owner:'libra',schemaManifest,statements:{
     find_subject:{kind:'select-one',tableId:'libra_subjects',columns:SUBJECT_COLUMNS,keyColumns:['subject_id']},
-    find_anchor:{kind:'select-one',tableId:'libra_intake_decisions',columns:['intake_decision_id','candidate_package_id','source_field_id','source_field_access_revision','source_field_context_digest','candidate_identity_claim_digest'],keyColumns:['intake_decision_id']},
+    find_anchor:{kind:'select-one',tableId:'libra_intake_decisions',columns:['intake_decision_id','candidate_package_id','source_field_id','source_field_access_revision','source_field_context_digest','candidate_identity_claim_digest',
+      'decision_identity_evidence_schema_ref','decision_identity_evidence_digest'],keyColumns:['intake_decision_id']},
     find_identity:{kind:'select-one',tableId:'libra_product_identity_revisions',columns:['subject_id','revision','identity_digest'],keyColumns:['subject_id','revision']},
     find_episodes:{kind:'select-all',tableId:'libra_subject_episode_scopes',columns:['subject_id','episode_key'],keyColumns:['subject_id']},
     find_head:{kind:'select-one',tableId:'libra_subject_decision_heads',columns:HEAD_COLUMNS,keyColumns:['subject_id']},
@@ -51,9 +52,16 @@ function reconstructSubject(repo,expected){
   const row=repo.invoke('find_subject',{subject_id:expected.subjectId});if(!row||row.status!=='active')fail('P8_DECISION_SUBJECT_NOT_ACTIVE','Decision Basis Subject is absent or inactive.');
   const anchor=repo.invoke('find_anchor',{intake_decision_id:row.routing_anchor_intake_decision_id});if(!anchor)fail('P8_DECISION_SUBJECT_PROVENANCE','Subject routing anchor is absent.');
   const identity=row.current_identity_revision===null?null:repo.invoke('find_identity',{subject_id:row.subject_id,revision:number(row.current_identity_revision)});
+  const decisionIdentitySource=anchor.decision_identity_evidence_digest?{
+    decisionIdentityEvidenceSchemaRef:anchor.decision_identity_evidence_schema_ref,
+    decisionIdentityEvidenceSourceId:anchor.intake_decision_id,
+    decisionIdentityEvidenceRevision:1,
+    decisionIdentityEvidenceDigest:anchor.decision_identity_evidence_digest
+  }:{};
   const value={subjectId:row.subject_id,status:'active',intakeRevision:number(row.intake_revision),structureKind:row.structure_kind,contentProfile:row.content_profile,
     routingAnchorIntakeDecisionId:row.routing_anchor_intake_decision_id,routingProvenance:{candidatePackageId:anchor.candidate_package_id,sourceFieldId:anchor.source_field_id,
-      sourceFieldAccessRevision:number(anchor.source_field_access_revision),sourceFieldContextDigest:anchor.source_field_context_digest,candidateIdentityClaimDigest:anchor.candidate_identity_claim_digest},
+      sourceFieldAccessRevision:number(anchor.source_field_access_revision),sourceFieldContextDigest:anchor.source_field_context_digest,candidateIdentityClaimDigest:anchor.candidate_identity_claim_digest,
+      ...decisionIdentitySource},
     currentIdentityRevision:identity?number(identity.revision):null,currentIdentityDigest:identity?identity.identity_digest:null,continuitySetDigest:row.current_continuity_set_digest,
     episodeScopeDigest:row.current_episode_scope_digest};value.snapshotDigest=canonicalDigest(value);
   if(canonicalJson(value)!==canonicalJson(expected))fail('P8_DECISION_SUBJECT_STALE','Subject Decision Snapshot is stale or incomplete.');return row;

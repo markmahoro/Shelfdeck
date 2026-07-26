@@ -5,6 +5,9 @@ const { createRepositoryDefinition } = require('../../../foundation/persistence/
 const { createMaterialControlExactTransferParticipant } = require('../../../foundation/persistence/material-control');
 const { CONTINUITY_HEAD_ID, candidateProvenance, continuityHeadDigest, subjectContinuitySetDigest, subjectEpisodeScopeDigest, utf8Compare } = require('../model/libra-intake-contracts');
 const { RECEIPT_SCHEMA, MESSAGE_SCHEMA, buildLibraCandidateAcceptedMessage, buildSubjectAndTransferReceipt } = require('../model/intake-acceptance-contracts');
+const {
+  buildDecisionIdentityEvidenceSnapshot,
+} = require('../model/decision-identity-evidence-contracts');
 const { createLibraIntakeRepositoryDefinitions } = require('./libra-intake-store');
 
 const DECISION_SCHEMA='helix://contracts/types/SubjectContinuityResolutionDecision/v1';
@@ -61,6 +64,12 @@ function createIntakeAcceptanceStore(options){
   return Object.freeze({repositoryManifest:Object.freeze({libraTableIds:libra.tableIds,foundationTableIds:[...foundation.tableIds,'fx_material_controls','fx_material_control_revisions'].sort()}),
     accept(request){
       const {snapshot,payload,decision,handle,target}=validate(request),provenance=candidateProvenance(snapshot),markerId=request.commitMarker.commitMarker,binding=request.resultBinding;
+      const decisionIdentityEvidence=buildDecisionIdentityEvidenceSnapshot(snapshot,{
+        intakeDecisionId:decision.decisionId,candidatePackageId:decision.candidatePackageId,
+        packageRevision:decision.packageRevision,packageDigest:decision.packageDigest,
+        candidateDeliverySnapshotDigest:decision.candidateDeliverySnapshotDigest,
+        candidateIdentityClaimDigest:provenance.candidateIdentityClaimDigest
+      });
       let receipt,message,subjectRevision,headRevision,continuityDigest,episodeDigest,controlSetDigest;
       const preflight={participantId:'acceptance_preflight',owner:'execution-foundation',boundBusinessOwner:'libra',repositories:[foundation],execute(context){
         const row=context.repository(foundation.repositoryId).invoke('find_marker',{commit_marker:markerId});if(!row)return;
@@ -100,6 +109,9 @@ function createIntakeAcceptanceStore(options){
           source_field_id:provenance.sourceFieldId,source_field_access_revision:provenance.sourceFieldAccessRevision,
           source_field_context_digest:provenance.sourceFieldContextDigest,candidate_structure_kind:provenance.candidateStructureKind,
           candidate_content_profile:provenance.candidateContentProfile,candidate_identity_claim_digest:provenance.candidateIdentityClaimDigest,
+          decision_identity_evidence_schema_ref:decisionIdentityEvidence.schemaRef,
+          decision_identity_evidence_json:canonicalJson(decisionIdentityEvidence),
+          decision_identity_evidence_digest:decisionIdentityEvidence.snapshotDigest,
           expected_continuity_head_revision:decision.expectedContinuityHead.revision,expected_continuity_head_digest:decision.expectedContinuityHead.digest,
           committed_continuity_head_revision:headRevision,candidate_continuity_set_digest:decision.candidateContinuitySetDigest,
           candidate_episode_scope_digest:decision.candidateEpisodeScope.episodeScopeDigest,match_cardinality:decision.matchCardinality,

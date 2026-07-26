@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 const Database = require('better-sqlite3');
-const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
+const { canonicalDigest, canonicalJson } = require('../../src/helix/contracts/canonical-json');
 const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
 const { createLibraIntakeRepositoryDefinitions, createLibraIntakeStore } = require('../../src/helix/domains/libra/persistence/libra-intake-store');
@@ -48,6 +48,9 @@ test('persists Subject continuity and Material-to-Episode N:M relations without 
     { claimKind:'provider_season_identity',claimNamespace:'tmdb',claimKey:'series:9:season:1',claimDigest:D('claim-2'),provenanceKind:'resolved_identity',provenanceRef:'subject-1:1' }
   ];
   const continuityDigest=subjectContinuitySetDigest(subjectId,claims),episodeDigest=subjectEpisodeScopeDigest(subjectId,['S01E01','S01E02']);
+  const identityEvidence={schemaRef:'helix://implementation/libra/DecisionIdentityEvidenceSnapshot/v1',schemaVersion:1,
+    evidenceRevision:1,intakeDecisionId:decisionId,identityEvidence:[]};
+  identityEvidence.snapshotDigest=canonicalDigest(identityEvidence);
   unitOfWork.execute([{ participantId:'seed',owner:'libra',repositories:[subjects,bindings,intake],execute(context){
     const s=context.repository(subjects.repositoryId),b=context.repository(bindings.repositoryId),i=context.repository(intake.repositoryId),at=context.commitTimeMs;
     s.invoke('insert_subject',{ subject_id:subjectId,structure_kind:'season',content_profile:'series',routing_anchor_intake_decision_id:decisionId,status:'active',intake_revision:1,
@@ -57,6 +60,8 @@ test('persists Subject continuity and Material-to-Episode N:M relations without 
       package_digest:D('package'),acceptance_basis_digest:D('basis'),candidate_delivery_snapshot_digest:D('delivery'),expected_continuity_head_revision:0,
       source_field_id:'field-1',source_field_access_revision:1,source_field_context_digest:D('field-context'),candidate_structure_kind:'season',
       candidate_content_profile:'series',candidate_identity_claim_digest:D('identity-claim'),
+      decision_identity_evidence_schema_ref:identityEvidence.schemaRef,decision_identity_evidence_json:canonicalJson(identityEvidence),
+      decision_identity_evidence_digest:identityEvidence.snapshotDigest,
       expected_continuity_head_digest:continuityHeadDigest(0),committed_continuity_head_revision:1,candidate_continuity_set_digest:continuityDigest,
       candidate_episode_scope_digest:episodeDigest,match_cardinality:'none',matched_subject_set_digest:D('matches'),episode_overlap_digest:D('overlap'),
       accepted_result:'new_subject',target_subject_id:subjectId,expected_target_status:null,expected_target_intake_revision:null,

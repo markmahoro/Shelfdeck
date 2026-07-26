@@ -1535,7 +1535,7 @@
       "relativePath": "types/VersionedQueryResult/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "98d359d67564df67205fd43cd75718fb74289afac6dcbcd666416d0848763e6f"
+        "value": "3ee08cebc9fc67703ce49b14dbad4e83151b479a6698432724847db564263ef0"
       },
       "source": {
         "section": "8.6.19",

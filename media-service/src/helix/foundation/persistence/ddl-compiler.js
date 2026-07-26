@@ -37,6 +37,21 @@ const SUPPORT_COLUMNS = Object.freeze({
   people_provider_identities: [{
     name: 'active_guard', type: 'INTEGER', defaultSql: '0',
     checks: ['"active_guard" IN (0, 1)'], ruleOrdinal: 1
+  }],
+  libra_intake_decisions: [{
+    name: 'decision_identity_evidence_schema_ref', type: 'TEXT',
+    nullable: true, checks: [], ruleOrdinal: 1
+  }, {
+    name: 'decision_identity_evidence_json', type: 'TEXT',
+    nullable: true, checks: [
+      '"decision_identity_evidence_json" IS NULL OR json_valid("decision_identity_evidence_json")',
+      '"decision_identity_evidence_json" IS NULL OR length(CAST("decision_identity_evidence_json" AS BLOB)) <= 16384'
+    ], ruleOrdinal: 2
+  }, {
+    name: 'decision_identity_evidence_digest', type: 'TEXT',
+    nullable: true, checks: [
+      '"decision_identity_evidence_digest" IS NULL OR (length("decision_identity_evidence_digest") = 64 AND "decision_identity_evidence_digest" NOT GLOB \'*[^0-9a-f]*\')'
+    ], ruleOrdinal: 3
   }]
 });
 
@@ -84,6 +99,12 @@ const FOREIGN_KEY_OVERRIDES = Object.freeze({
 });
 
 const TABLE_CHECKS = Object.freeze({
+  libra_intake_decisions: [
+    '("decision_kind" = \'accepted_resolution\' AND "decision_identity_evidence_schema_ref" IS NOT NULL AND ' +
+      '"decision_identity_evidence_json" IS NOT NULL AND "decision_identity_evidence_digest" IS NOT NULL) OR ' +
+      '("decision_kind" = \'rejected_acceptance\' AND "decision_identity_evidence_schema_ref" IS NULL AND ' +
+      '"decision_identity_evidence_json" IS NULL AND "decision_identity_evidence_digest" IS NULL)'
+  ],
   libra_decision_basis_inputs: [
     '("input_kind" = \'decision_head_snapshot\' AND "input_revision" >= 0) OR ' +
       '("input_kind" <> \'decision_head_snapshot\' AND "input_revision" >= 1)'
@@ -268,7 +289,11 @@ function compileTable(contract, allContracts) {
   const definitions = contract.columns.map((column) => compileColumn(column, contract.primaryKey, contract.tableId));
   const supportColumns = SUPPORT_COLUMNS[contract.tableId] || [];
   for (const column of supportColumns) {
-    definitions.push(quoteIdentifier(column.name) + ' ' + column.type + ' NOT NULL DEFAULT ' + column.defaultSql + ' ' + column.checks.map((check) => 'CHECK (' + check + ')').join(' '));
+    const parts = [quoteIdentifier(column.name), column.type];
+    if (!column.nullable) parts.push('NOT NULL');
+    if (Object.hasOwn(column, 'defaultSql')) parts.push('DEFAULT ' + column.defaultSql);
+    parts.push(...column.checks.map((check) => 'CHECK (' + check + ')'));
+    definitions.push(parts.join(' '));
   }
   if (contract.primaryKey.length > 1) definitions.push('PRIMARY KEY (' + contract.primaryKey.map(quoteIdentifier).join(', ') + ')');
   for (const unique of contract.uniqueConstraints) {

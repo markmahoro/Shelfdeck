@@ -13,6 +13,10 @@ const {
 } = require('../model/routing-contracts');
 const { buildProductScope } = require('../model/acceptance-spec-contracts');
 const {
+  buildCanonicalQueryHandle,
+  parseDecisionIdentityEvidenceSnapshot,
+} = require('../model/decision-identity-evidence-contracts');
+const {
   activeRunScopeSetDigest,
   buildProductionMaterialManifest,
   buildRunAdmissionDecision,
@@ -86,9 +90,13 @@ function definition(schemaManifest) {
       find_intake: {
         kind: 'select-one', tableId: 'libra_intake_decisions',
         columns: [
-          'intake_decision_id', 'candidate_package_id', 'source_field_id',
+          'intake_decision_id', 'candidate_package_id', 'package_revision',
+          'package_digest', 'candidate_delivery_snapshot_digest', 'source_field_id',
           'source_field_access_revision', 'source_field_context_digest',
           'candidate_identity_claim_digest', 'accepted_result', 'target_subject_id',
+          'decision_identity_evidence_schema_ref',
+          'decision_identity_evidence_json',
+          'decision_identity_evidence_digest',
         ],
         keyColumns: ['intake_decision_id'],
       },
@@ -220,6 +228,8 @@ function subjectSnapshot(subject, intake) {
     fail('P14_MOVIE_FORMATION_IDENTITY_PROJECTION_UNAVAILABLE',
       'Movie formation cannot invent a Product Identity digest from an Owner pointer.');
   }
+  const decisionIdentityEvidence =
+    parseDecisionIdentityEvidenceSnapshot(intake);
   const value = {
     subjectId: subject.subject_id,
     status: subject.status,
@@ -233,13 +243,24 @@ function subjectSnapshot(subject, intake) {
       sourceFieldAccessRevision: number(intake.source_field_access_revision),
       sourceFieldContextDigest: intake.source_field_context_digest,
       candidateIdentityClaimDigest: intake.candidate_identity_claim_digest,
+      decisionIdentityEvidenceSchemaRef:
+        decisionIdentityEvidence.schemaRef,
+      decisionIdentityEvidenceSourceId:
+        decisionIdentityEvidence.intakeDecisionId,
+      decisionIdentityEvidenceRevision:
+        decisionIdentityEvidence.evidenceRevision,
+      decisionIdentityEvidenceDigest:
+        decisionIdentityEvidence.snapshotDigest,
     },
     currentIdentityRevision: null,
     currentIdentityDigest: null,
     continuitySetDigest: subject.current_continuity_set_digest,
     episodeScopeDigest: subject.current_episode_scope_digest,
   };
-  return Object.freeze({ ...value, snapshotDigest: canonicalDigest(value) });
+  return Object.freeze({
+    subject: Object.freeze({ ...value, snapshotDigest: canonicalDigest(value) }),
+    decisionIdentityEvidence,
+  });
 }
 
 function routingFact(subject, factKind, value) {
@@ -256,6 +277,104 @@ function routingFact(subject, factKind, value) {
 function authority(policy) {
   const value = { authorityKind: 'policy', policy };
   return Object.freeze({ ...value, authorityDigest: canonicalDigest(value) });
+}
+
+function decisionInputKinds(standardProjection, contentProfile) {
+  const profiles = standardProjection?.standard?.profileRuleSets;
+  if (!Array.isArray(profiles)) return null;
+  const profile = profiles.find((item) =>
+    item.contentProfile === contentProfile);
+  if (!profile || !Array.isArray(profile.decisionInputKinds)) return null;
+  return profile.decisionInputKinds;
+}
+
+function resolveSpecDecisionEvidence(options, identityEvidence, standard, subject) {
+  const kinds = decisionInputKinds(standard, subject.contentProfile);
+  if (!kinds) {
+    return Object.freeze({
+      readiness: Object.freeze({
+        result: 'unresolved',
+        reasonCode: 'profile_rule_not_found',
+      }),
+      decisionFacts: Object.freeze([]),
+      queryResults: Object.freeze([]),
+    });
+  }
+  if (!kinds.includes('rating')) {
+    return Object.freeze({
+      readiness: Object.freeze({ result: 'ready' }),
+      decisionFacts: Object.freeze([]),
+      queryResults: Object.freeze([]),
+    });
+  }
+  if (typeof options.resolvePerceptionDecisionFact !== 'function') {
+    return Object.freeze({
+      readiness: Object.freeze({
+        result: 'unresolved',
+        reasonCode: 'required_input_unavailable',
+      }),
+      decisionFacts: Object.freeze([]),
+      queryResults: Object.freeze([]),
+    });
+  }
+  const handle = buildCanonicalQueryHandle(identityEvidence, 'rating');
+  try {
+    const result = options.resolvePerceptionDecisionFact(handle);
+    const resolution = result?.resolution;
+    const queryResult = result?.queryResult;
+    if (result?.freshness?.status !== 'fresh') {
+      return Object.freeze({
+        readiness: Object.freeze({
+          result: 'unresolved',
+          reasonCode: 'required_input_unavailable',
+        }),
+        decisionFacts: Object.freeze([]),
+        queryResults: Object.freeze([]),
+      });
+    }
+    if (!resolution || !queryResult ||
+        result.providerDomain !== 'perception' ||
+        result.inputAnchorsDigest !== handle.inputDigest ||
+        !['found', 'not_found'].includes(result.kind) ||
+        result.kind !== resolution.resultKind ||
+        resolution.schemaRef !==
+          'helix://contracts/types/PerceptionResolutionRevision/v1' ||
+        resolution.ownerDomain !== 'perception' ||
+        resolution.queryContract !== handle.queryContract ||
+        resolution.queryInputDigest !== handle.inputDigest ||
+        queryResult.schemaRef !==
+          'helix://contracts/types/VersionedQueryResult/v1' ||
+        queryResult.queryContract !== handle.queryContract ||
+        queryResult.queryVersion !== handle.queryVersion ||
+        queryResult.inputDigest !== handle.inputDigest ||
+        queryResult.resultKind !== resolution.resultKind ||
+        queryResult.resultRevision !== resolution.revision ||
+        queryResult.resultDigest !== resolution.factDigest) {
+      return Object.freeze({
+        readiness: Object.freeze({
+          result: 'unresolved',
+          reasonCode: 'required_input_conflicting',
+        }),
+        decisionFacts: Object.freeze([]),
+        queryResults: Object.freeze([]),
+      });
+    }
+    return Object.freeze({
+      readiness: Object.freeze({ result: 'ready' }),
+      decisionFacts: Object.freeze([resolution]),
+      queryResults: Object.freeze([queryResult]),
+    });
+  } catch (error) {
+    if (String(error?.code || '').startsWith('P14_FAULT_')) throw error;
+    return Object.freeze({
+      readiness: Object.freeze({
+        result: 'unresolved',
+        reasonCode: 'required_input_unavailable',
+      }),
+      decisionFacts: Object.freeze([]),
+      queryResults: Object.freeze([]),
+    });
+  }
 }
 
 function basisRequest(inputSet) {
@@ -398,7 +517,8 @@ function createMovieFormationCoordinator(options) {
       fail('P14_MOVIE_FORMATION_RUN_SCOPE_OCCUPIED',
         'Movie Subject already has an eligible non-active Libra Run.');
     }
-    const subject = subjectSnapshot(snapshot.subject, snapshot.intake);
+    const subjectBasis = subjectSnapshot(snapshot.subject, snapshot.intake);
+    const subject = subjectBasis.subject;
     const policy = policies.current(subject.routingProvenance.sourceFieldId);
     if (!policy) {
       return Object.freeze({
@@ -477,6 +597,20 @@ function createMovieFormationCoordinator(options) {
       });
     }
     const productScope = buildProductScope(subject, []);
+    const decisionEvidence = resolveSpecDecisionEvidence(
+      options,
+      subjectBasis.decisionIdentityEvidence,
+      standardResult.projection,
+      subject,
+    );
+    if (decisionEvidence.readiness.result !== 'ready') {
+      return Object.freeze({
+        stage: 'decision_preparation_unresolved',
+        subjectId,
+        routingDecisionId: routingDecision.routingDecisionId,
+        reasonCode: decisionEvidence.readiness.reasonCode,
+      });
+    }
     const specSet = buildDecisionInputSet({
       basisKind: 'acceptance_spec',
       subjectSnapshot: subject,
@@ -486,16 +620,14 @@ function createMovieFormationCoordinator(options) {
         routingDecision.routingDecisionId,
         routingBasis.decisionBasisId,
       ),
-      readiness: { result: 'ready' },
+      readiness: decisionEvidence.readiness,
       routingAuthoritySnapshot: null,
       shelfRoutingTargets: [],
       routingDecision,
       shelfStandardProjection: standardResult.projection,
       productScope,
-      // Absence of a Rating Fact selects the Standard's formal no_rating
-      // branch. Formation consults no foreign Owner.
-      decisionFacts: [],
-      queryResults: [],
+      decisionFacts: decisionEvidence.decisionFacts,
+      queryResults: decisionEvidence.queryResults,
     });
     const specBasis = basisStore.commit(basisRequest(specSet)).result;
     const specPublication = specStore.publish({
@@ -619,4 +751,5 @@ function createMovieFormationCoordinator(options) {
 module.exports = Object.freeze({
   MovieFormationCoordinatorError,
   createMovieFormationCoordinator,
+  resolveSpecDecisionEvidence,
 });

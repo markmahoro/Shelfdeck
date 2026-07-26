@@ -201,7 +201,7 @@ test('Movie formation keeps decisions and persistence inside Libra owner-local p
   );
   assert.doesNotMatch(
     source,
-    /domains\/arca|arca_shelves|people|perception|provider|workspace|handoff_b|better-sqlite3/i,
+    /domains\/arca|arca_shelves|people|domains\/perception|perception-store|provider-store|workspace|handoff_b|better-sqlite3/i,
   );
   assert.doesNotMatch(source, /SELECT\s+|MAX\s*\(|latest|current.*scan/i);
   assert.match(source, /owner: 'libra'/);
@@ -210,6 +210,8 @@ test('Movie formation keeps decisions and persistence inside Libra owner-local p
   assert.match(source, /find_spec:[\s\S]*?keyColumns: \['acceptance_spec_id'\]/);
   assert.match(hostSource, /readArcaRoutingTargets: arcaRoutingTargets\.list/);
   assert.match(hostSource, /readArcaShelfStandard: arcaRoutingTargets\.getStandard/);
+  assert.match(hostSource, /PerceptionResolutionFacade/);
+  assert.match(hostSource, /resolvePerceptionDecisionFact:[\s\S]*perceptionResolution\.resolveDecisionFact/);
 });
 
 test('Procurement automation advances only through owner-local formal contracts', () => {
@@ -2285,8 +2287,17 @@ test('Movie Handoff A uses the public HTTP journey, survives restart, and closes
     return { shelfRoot };
   }
 
+  let injectResolutionCrash = true;
   let host = await createCleanServiceHost({
     dataDir: value.dataDir, adminDistDir: value.adminDistDir, secretRoot, mediaProbe,
+    afterPerceptionResolutionCommit() {
+      if (!injectResolutionCrash) return;
+      injectResolutionCrash = false;
+      throw Object.assign(
+        new Error('fault after Perception Resolution commit'),
+        { code: 'P14_FAULT_AFTER_PERCEPTION_RESOLUTION_COMMIT' },
+      );
+    },
   });
   try {
     await establishMovieShelfAndRouting(host);
@@ -2295,20 +2306,55 @@ test('Movie Handoff A uses the public HTTP journey, survives restart, and closes
     });
     assert.equal(created.statusCode, 201, created.body);
     const first = await requestObservation(host);
-    assert.equal(first.statusCode, 200, first.body);
-    assert.equal(first.json().movieJourney.stage, 'handoff_a_accepted');
-    assert.equal(first.json().movieJourney.handoff.procurementClosure.closure.terminalDeliveryState, 'accepted');
-    assert.equal(first.json().movieJourney.handoff.formation.stage, 'libra_run_active');
+    assert.equal(first.statusCode, 400, first.body);
+    assert.deepEqual(probedLocations, [source.replace(/\\/g, '/')]);
+  } finally {
+    await host.close();
+  }
+
+  const interrupted = new Database(
+    path.join(value.dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(interrupted.prepare(
+    "SELECT count(*) count FROM libra_intake_decisions WHERE decision_kind='accepted_resolution'"
+  ).get().count, 1);
+  assert.equal(interrupted.prepare(
+    "SELECT count(*) count FROM perception_resolution_revisions WHERE result_kind='not_found'"
+  ).get().count, 1);
+  assert.equal(interrupted.prepare(
+    "SELECT count(*) count FROM libra_decision_basis_revisions WHERE basis_kind='acceptance_spec'"
+  ).get().count, 0);
+  assert.equal(interrupted.prepare(
+    'SELECT count(*) count FROM libra_acceptance_specs'
+  ).get().count, 0);
+  assert.equal(interrupted.prepare(
+    'SELECT count(*) count FROM libra_runs'
+  ).get().count, 0);
+  interrupted.close();
+
+  host = await createCleanServiceHost({
+    dataDir: value.dataDir, adminDistDir: value.adminDistDir, secretRoot, mediaProbe,
+  });
+  try {
+    const resumed = await requestObservation(host);
+    assert.equal(resumed.statusCode, 200, resumed.body);
+    assert.equal(resumed.json().observation.replayed, true);
+    assert.equal(resumed.json().movieJourney.stage, 'handoff_a_accepted');
+    assert.equal(resumed.json().movieJourney.replayed, true);
+    assert.equal(resumed.json().movieJourney.handoff.formation.stage, 'libra_run_active');
     assert.equal(
-      first.json().movieJourney.handoff.formation.routing.targetShelfId,
+      resumed.json().movieJourney.handoff.formation.routing.targetShelfId,
       'movie-handoff-shelf',
     );
     assert.equal(
-      first.json().movieJourney.handoff.formation.acceptanceSpec.specRevision,
+      resumed.json().movieJourney.handoff.formation.acceptanceSpec.specRevision,
       1,
     );
-    assert.equal(first.json().movieJourney.handoff.formation.libraRun.stateRevision, 1);
-    assert.deepEqual(probedLocations, [source.replace(/\\/g, '/')]);
+    assert.equal(
+      resumed.json().movieJourney.handoff.formation.libraRun.stateRevision,
+      1,
+    );
   } finally {
     await host.close();
   }
@@ -2340,6 +2386,57 @@ test('Movie Handoff A uses the public HTTP journey, survives restart, and closes
   assert.equal(database.prepare('SELECT count(*) count FROM libra_routing_decisions').get().count, 1);
   assert.equal(database.prepare('SELECT count(*) count FROM libra_acceptance_specs').get().count, 1);
   assert.equal(database.prepare("SELECT count(*) count FROM libra_runs WHERE state='active'").get().count, 1);
+  const intakeEvidence = database.prepare(
+    `SELECT intake_decision_id,candidate_package_id,package_revision,package_digest,
+            candidate_delivery_snapshot_digest,candidate_identity_claim_digest,
+            decision_identity_evidence_schema_ref,decision_identity_evidence_json,
+            decision_identity_evidence_digest
+       FROM libra_intake_decisions`
+  ).get();
+  const parsedIntakeEvidence = JSON.parse(
+    intakeEvidence.decision_identity_evidence_json,
+  );
+  assert.equal(
+    parsedIntakeEvidence.snapshotDigest,
+    intakeEvidence.decision_identity_evidence_digest,
+  );
+  assert.equal(
+    parsedIntakeEvidence.identityEvidence[0].anchorValue,
+    'example.movie.mkv',
+  );
+  assert.equal(
+    parsedIntakeEvidence.identityClaimDigest,
+    intakeEvidence.candidate_identity_claim_digest,
+  );
+  const resolutionRows = database.prepare(
+    `SELECT revision,result_kind,reason_code,result_json,result_digest
+       FROM perception_resolution_revisions`
+  ).all();
+  assert.equal(resolutionRows.length, 1);
+  assert.equal(resolutionRows[0].revision, 1);
+  assert.equal(resolutionRows[0].result_kind, 'not_found');
+  assert.equal(resolutionRows[0].reason_code, 'no_matching_record');
+  const perceptionBasisRows = database.prepare(
+    `SELECT input_kind,provider_domain,query_contract,query_version,
+            query_input_digest,result_kind,result_revision,result_digest
+       FROM libra_decision_basis_inputs
+      WHERE input_kind IN ('decision_fact','query_result')
+      ORDER BY input_kind`
+  ).all();
+  assert.equal(perceptionBasisRows.length, 2);
+  assert.deepEqual(
+    perceptionBasisRows.map((row) => row.input_kind),
+    ['decision_fact', 'query_result'],
+  );
+  assert.equal(perceptionBasisRows[1].provider_domain, 'perception');
+  assert.equal(perceptionBasisRows[1].query_contract, 'perception.rating.resolve@1');
+  assert.equal(perceptionBasisRows[1].query_version, 1);
+  assert.equal(perceptionBasisRows[1].result_kind, 'not_found');
+  assert.equal(perceptionBasisRows[1].result_revision, 1);
+  assert.equal(
+    perceptionBasisRows[1].result_digest,
+    JSON.parse(resolutionRows[0].result_json).factDigest,
+  );
   assert.equal(database.prepare('SELECT head_revision FROM libra_subject_decision_heads').get().head_revision, 4);
   assert.equal(database.prepare('SELECT head_revision FROM libra_run_admission_heads').get().head_revision, 1);
   assert.equal(database.prepare(

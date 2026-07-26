@@ -232,6 +232,7 @@ const special = {
     bindingRevision: { const: 1 }, locationEvidenceDigest: digest(),
     episodeClaims: arrayOf(object({ episodeKey: text(), seasonClaimDigest: digest(), claimDigest: digest() }), 32), bindingDigest: digest()
   }), 1024),
+  'VersionedQueryResult.queryVersion': positiveInteger(),
   'VersionedQueryResult.resultKind': enumText('found', 'not_found'),
   'ResolvedProductIdentity.structureKind': enumText('single', 'season'),
   'ResolvedProductIdentity.contentProfile': enumText('movie', 'series', 'jav', 'western_adult'),
@@ -431,7 +432,7 @@ const contracts = {
   IntakeRejectionReceipt: ['ReceiptEnvelope', 'intakeDecisionId,handoffKind,offerId,deliverableId,deliverableRevision,deliverableDigest,rejectionId,primaryRejectionCode,rejectionReasonSetDigest,rejectionDigest,receiptDigest'],
   RejectionReceipt: ['ReceiptEnvelope', 'acceptanceDecisionId,handoffKind,offerId,deliverableId,rejectionCode,acceptanceEvidenceSetDigest,rejectionDigest,receiptDigest'],
   SubjectAndTransferReceipt: ['ReceiptEnvelope', 'intakeDecisionId,offerId,candidatePackageId,packageRevision,packageDigest,candidateDeliverySnapshotDigest,subjectId,subjectIntakeRevision,subjectContinuityHeadRevision,subjectContinuitySetDigest,subjectEpisodeScopeDigest,libraBindingSetDigest,controlRevisionSetDigest,receiptDigest'],
-  VersionedQueryResult: ['EvidenceEnvelope', 'queryContract,queryVersion,inputDigest,resultKind,resultRevision,resultDigest,expiresAtMs'],
+  VersionedQueryResult: ['EvidenceEnvelope', 'providerDomain,queryContract,queryVersion,inputDigest,resultKind,resultRevision,resultDigest,expiresAtMs'],
   ResolvedProductIdentity: ['EvidenceEnvelope', 'subjectId,structureKind,contentProfile,identityKind,providerIdentities,providerIdentitySetDigest,exactSeasonContinuityClaims,exactSeasonContinuitySetDigest,displayIdentity,identityDigest'],
   MetadataObservation: ['EvidenceEnvelope', 'identityDigest,contentProfile,descriptiveFacts,providerIdentitySet,peopleHints,artifactHints'],
   DecisionBasisRevision: ['DomainFactEnvelope', 'subjectId,queryResultSetDigest,routingInputDigest,specInputDigest'],

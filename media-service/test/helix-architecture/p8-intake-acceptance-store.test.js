@@ -38,9 +38,14 @@ function acceptedBasis(unitOfWork,material){const projection=createMaterialContr
     endpointId:'endpoint-1',location:'/field/show.mkv',lastSnapshotDigest:D('snapshot'),realityDigest:D('reality'),provenanceDigest:D('provenance'),manifestMemberDigest:D('manifest-member'),
     episodeClaims:[{episodeKey:'S01E01',seasonClaimDigest:D('season'),claimDigest:D('episode')}],deliveryMemberDigest:D('delivery-member')};
   const claim={claimKind:'provider_season_identity',claimNamespace:'tmdb',claimKey:'series:1:season:1',claimDigest:D('claim'),evidenceDigest:D('claim-evidence')};
+  const identityPayload={claimKind:'series_title',mediaType:'group',contentProfile:'series',claimedTitle:'Example Series',
+    displayIdentity:'Example Series',identityMetadataDigest:D('identity-metadata'),structureUnitDigest:D('structure-unit'),sourceHints:[]};
+  const identityClaim={schemaRef:'helix://contracts/types/IdentityClaim/v1',schemaVersion:1,draftId:'identity-claim-1',
+    draftKind:'procurement_identity_claim',basisDigest:D('identity-basis'),draftDigest:canonicalDigest(identityPayload),producedAtMs:0,
+    ...identityPayload,claimDigest:canonicalDigest(identityPayload)};
   const candidatePackage={candidatePackageId:'candidate-1',packageRevision:1,packageDigest:D('package'),
     materialFieldContextRef:{fieldId:'field-1',accessRevision:1,contextDigest:D('field-context')},contentProfile:'series',
-    identityClaim:{claimDigest:D('identity-claim')},seasonContinuityClaims:[claim],seasonContinuityClaimSetDigest:D('claim-set')};
+    identityClaim,seasonContinuityClaims:[claim],seasonContinuityClaimSetDigest:D('claim-set')};
   const snapshot={snapshotContract:'procurement.candidate-delivery@1',offer:{offerId:'offer-1'},acceptanceBasis:{acceptanceBasisDigest:D('acceptance')},candidatePackage,
     primaryInputManifest:{manifestDigest:D('manifest'),structureKind:'season'},primaryMaterialDeliveries:[member],deliveryMemberSetDigest:D('members'),deliverySnapshotDigest:''};snapshot.deliverySnapshotDigest=canonicalDigest(without(snapshot,'deliverySnapshotDigest'));
   const decision={decisionId:canonicalDigest({schema:'libra.intake-decision-id@1',offerId:'offer-1'}),offerId:'offer-1',candidatePackageId:'candidate-1',packageRevision:1,packageDigest:candidatePackage.packageDigest,
