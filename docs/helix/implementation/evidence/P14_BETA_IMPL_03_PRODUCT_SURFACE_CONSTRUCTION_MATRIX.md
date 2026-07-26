@@ -178,10 +178,11 @@ restart exact replay不重复Package/Offer/Subject，且三份文件的bytes/mti
 Libra Routing或Acceptance Spec，不宣称Arca、final Target或Beta完成，也没有
 因此增加real route数量。
 
-### T-shaped Movie旅程：Handoff A → active Libra Run
+### T-shaped Movie旅程：Handoff A → active Libra Run（已拒绝的首版）
 
-实现checkpoint `c1501957`从已接受的Handoff A继续同一Movie正式链路，并严格停止
-在active Libra Run：
+实现checkpoint `c1501957`曾从已接受的Handoff A继续同一Movie正式链路，并严格
+停止在active Libra Run；该checkpoint随后因缺少正式Perception Resolution而被
+拒绝，不能作为当前施工基线。其原始范围为：
 
 `Libra Subject → Shelf Routing Assessment/Decision → Decision
 Preparation/Basis → Acceptance Spec publication → Libra Run Admission`。
@@ -195,8 +196,9 @@ Field Policy、Decision Input/Basis、Routing Decision、Acceptance Spec与Run�
 Libra Owner-local repository及既有canonical transaction提交。
 
 Routing按照用户配置的Shelf优先级执行第一命中；higher-priority target inactive
-时返回typed unresolved并禁止fall-through。无Rating Fact时使用Shelf Standard
-的正式`no_rating`分支，不查询User Perception、People Management或Provider。
+时返回typed unresolved并禁止fall-through。首版曾错误地用空Libra输入直接选择
+`no_rating`分支；该行为已被拒绝，后续`f0319035`以正式Perception Resolution
+替代。
 Decision head按H0→H1→H2→H4推进，Spec与Run使用exact revision/digest/CAS及
 Material Control projection fence。Fresh restart/replay读取明确Subject、Offer、
 Spec和Run identity，返回原active Run，不建立第二个Decision、Basis、Spec或Run。
@@ -215,8 +217,8 @@ rollback与restart recovery；Movie/NFO的bytes与mtime保持零变化。
   canonical transactions、114 routes、18 UI surfaces，contract aggregate
   `c7e08ddbccb71e864846c5cb0ef923d3e48f37af30d1111acb0e0316544a0288`。
 
-当前Movie到达**active Libra Run**。本checkpoint不进入Workspace、Production、
-Handoff B、Arca On-deck或final Target，也不据此宣称完整Movie/Beta完成。
+本段仅保留被拒绝实现的审计历史；当前有效证据以本文后续
+`Movie Decision Identity / Perception continuity correction`为准。
 
 ### Procurement Failed-preparation Retry
 
@@ -358,3 +360,55 @@ Current route status: **36 real**, **6 intentional Worker 404**, **72 remaining
 product routes fail closed with 503**. 非空Shelf deregistration仍未宣称完成。
 This is a progress count only; the exact construction batch
 assignment remains the 4/6/59/7/38 matrix above.
+
+### Movie Decision Identity / Perception continuity correction
+
+Implementation checkpoint `f0319035` supersedes the rejected
+`c1501957` Movie Libra Run checkpoint without entering Workspace or production.
+At Handoff A, the exact accepted Candidate Package `identityClaim` is mapped by
+the versioned implementation contract
+`libra.candidate-claim-title-anchor@1` to one immutable Libra-owned
+`DecisionIdentityEvidenceSnapshot@1`. The mapping uses the accepted title with
+NFKC, lowercase and whitespace-collapse normalization and freezes a bounded
+weak title anchor; it does not use a claim digest as the anchor value and does
+not infer identity from a path or Provider.
+
+The snapshot is persisted atomically on the existing
+`libra_intake_decisions` row with schema/json/digest support columns and is
+bound to Intake Decision, Candidate Package revision/digest, Candidate Delivery
+Snapshot digest and exact Claim schema/id/digest. This is an owner-local
+Implementation Contract extension; the table inventory remains 177 and Libra
+does not reread Procurement or Foundation Result after Handoff A.
+
+For a Profile declaring `rating`, Libra rebuilds the byte-identical
+`CanonicalQueryHandle` from its own rows and calls only the formal
+`PerceptionResolutionFacade`. Perception uses its owner-local record set,
+resolver and commit participant to publish/reuse one immutable
+`found(rating=1..5)` or typed `not_found(kind=rating)` Resolution. Libra freezes
+that exact Resolution revision/digest and its `VersionedQueryResult` in the
+Decision Basis. A Profile not declaring rating performs no query. Unavailable,
+stale or integrity-failed Resolution yields typed unresolved and creates no
+Basis, Spec or Run.
+
+Recovery fixtures inject a fault after Perception Resolution commit but before
+Decision Basis. Restart reconstructs the same query from Libra rows, reuses the
+same Perception revision/result digest and creates exactly one Basis, Spec and
+active Run. Focused counterexamples cover rating found, no-record not-found,
+watched-only rating not-found, changed record-set revision, non-rating no-query
+and unavailable/corrupt Resolution. Full architecture verification passes
+836/836; package and semantic findings are zero.
+
+Frozen construction values:
+
+- Architecture governance baseline: `1619735c`
+- Implementation closure: `f0319035`
+- Core counts: `112 / 97 / 177 / 43`
+- Contract aggregate:
+  `7ece7977c388f6a4230b236089889917618a45e977f91f2928d17bc95ee00b97`
+- Result-type digest:
+  `00e0f6aefc6fba803111d34652da145f71503d26e91ef31f3d6250ec43f36fec`
+- DDL digest:
+  `4e16f31d07b8bc2f9678979ac1127eb8c6624477fe2ec347f1836a464b7ec13f`
+- Prohibited actions run: `0`
+- Remaining gate: P14 independent retest; Workspace/production/Handoff B were
+  not started.
