@@ -1,6 +1,6 @@
 # P14 Product Journey Implementation
 
-状态：**FROZEN — Movie 最终责任关闭链等待独立复验**
+状态：**ACTIVE — Series delta，当前仅 Handoff A / FA-04**
 
 ## 当前基线
 
@@ -15,6 +15,9 @@
 - 实现线程未额外修改 Architecture SSOT。
 - `F02.17` 仍为 `NOT_RUN`；不得增加测试便利接口或用内部 Store 证据冒充
   用户 Feature。
+- Movie 全链路已由 P14 独立接受：tested `c0b548ed`，evidence `219acac2`。
+- Series delta 施工合同：
+  `docs/helix/implementation/evidence/P14_SERIES_DELTA_CONSTRUCTION_CONTRACT.md`。
 
 ## 当前冻结点
 
@@ -73,9 +76,9 @@ terminal reclaimed。
 
 ## 下一步
 
-保持本检查点冻结，等待 Architecture 主动复核与 P14 独立复验。通过后才按既定
-T-shaped 顺序进入 Series；不得提前进入 JAV、Western Adult 或横向 Feature
-Matrix。
+只推进 Series 第一个检查点：Season/Episode Triage、Candidate/Handoff A 与
+FA-04 new/extension 决定。完成后冻结并等待主动复验；不得提前进入 Series
+Routing/Production、JAV、Western Adult 或横向 Feature Matrix。
 
 ## 硬边界
 
