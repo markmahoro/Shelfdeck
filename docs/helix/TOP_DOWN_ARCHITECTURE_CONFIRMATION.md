@@ -7840,8 +7840,8 @@ Repository注册对这两张表只按各自声明允许列出的CAS，不能按�
 | Handoff A Rejected | complete `IntakeRejectionDecision@1` + immutable rejected Intake Decision + relationized reason/Evidence rows + rejected `IntakeRejectionReceipt@1` + durable typed Result/commit marker + `LibraCandidateRejectedMessage@1` Outbox；不读取或更新Subject Continuity head，不创建/扩充Subject，不建立Binding或转移Control；Decision/Reasons/Receipt/Result/marker/Outbox全有或全无 |
 | Procurement Handoff A Rejection Consume | `LibraCandidateRejectedMessage@1` + current open Candidate Delivery/Reservation CAS + exact Candidate member set + Procurement Inbox dedup；同事务把Delivery置`rejected`、全部对应`proc_run_materials candidate_delivery → released+handoff_rejected`并冻结同一Receipt Evidence；Procurement Material Control保持不变；重复消息返回同一closure result，已accepted或Evidence不一致稳定拒绝 |
 | Libra Subject Abandon Commit | immutable Subject Abandon Decision + no-Run Pre-deck scope terminal + precise Primary Control release + receipt/Outbox |
-| Handoff B Accepted | Acceptance Decision + On-deck Material Custody + Arca Binding + precise Control transfer + Handoff Receipt + `ArcaProductAcceptedMessage@1` Outbox |
-| Handoff B Rejected | complete `ArcaAcceptanceRejectionDecision@1` + immutable rejected Acceptance Decision + `RejectionReceipt@1` + durable typed Result/commit marker + `ArcaProductRejectedMessage@1` Outbox；不建立On-deck Custody/Run/Binding、不转移Control；Decision/Receipt/Result/marker/Outbox全有或全无 |
+| Handoff B Accepted | current active Acceptance Attempt terminal CAS + Acceptance Decision + immutable Final Inventory Decision + initial On-deck Run + On-deck Material Custody + Arca Binding + precise Control transfer + Handoff Receipt + `ArcaProductAcceptedMessage@1` Outbox；Acceptance Attempt、Run/Decision、Custody/Binding、Control、Receipt/Result/marker/Outbox全有或全无 |
+| Handoff B Rejected | current active Acceptance Attempt terminal CAS + complete `ArcaAcceptanceRejectionDecision@1` + immutable rejected Acceptance Decision + `RejectionReceipt@1` + durable typed Result/commit marker + `ArcaProductRejectedMessage@1` Outbox；不建立On-deck Custody/Run/Binding、不转移Control；Attempt terminal、Decision/Receipt/Result/marker/Outbox全有或全无 |
 | Libra Handoff B Rejection Consume | `ArcaProductRejectedMessage@1` + immutable published Package fence + `libra_delivery_receipts.offer_id`唯一终态插入 + Libra Inbox dedup；同事务保存rejected Delivery Receipt并逻辑关闭该Package Offer；不改写Package或Arca Decision，重复消息返回同一closure result |
 | Libra Deliverable Promotion | complete `LibraDeliverablePromotionDecision@1` + active Run/state revision fence + immutable Run Basis/Production Material/Workspace Staging/Product Fact/Artifact/Control fence + 由Run/package revision预派生的稳定`onDeckPackageId` + complete `OnDeckProductPackage@1`及全部relation + direct-original Control assert/new Workspace Product Control acquire及实际post-CAS projection + open Offer + durable bounded `OnDeckProductPackageCommitReceipt@1` Result/commit marker + `LibraProductOfferAvailableMessage@1` Outbox；Package head、全部快照关系、Control、Offer与Result全有或全无，Package publication不改Run state，不允许pending/placeholder Control digest |
 | Libra Run Discard Commit | complete `LibraRunDiscardDecision@1` + frozen Run expected state revision/digest + immutable Discard Decision/Receipt + Run discarded revision + Run admission active-scope head CAS + exact original Primary Input Control release + `run_discarded` Workspace Cleanup Scope/member set + durable typed Result/commit marker + `LibraWorkspaceCleanupRequestedMessage@1` Outbox；不得在同一事务执行物理删除 |
@@ -8164,10 +8164,32 @@ Material Reference Commit与Workspace Cleanup Scope Admission；既有Deliverabl
 Cleanup三项被精确化而不重复计数。Canonical Transaction因此由38增至43；application transaction result与Facade
 Read DTO不属于Catalog Capability output，Capability保持112、Catalog Result family保持97。
 
-既有Handoff B Accepted事务的write participant数量不因PBF-13变化；其Libra participant是只读
-`ProductDeliveryPort acceptance_fence`，不进入writeTables。Arca participant在accepted commit必须把可重建
-`CustodyAndTransferReceipt@1`的receipt digest与`ArcaProductAcceptedMessage@1` Outbox同事务保存；Control transfer
-后Libra只能由Run Lifecycle complete消费该消息，不增加第三次Business Handoff或跨域Store write。
+既有Handoff B Accepted事务的participant类别不因PBF-13变化；其Libra participant是只读
+`ProductDeliveryPort acceptance_fence`，不进入writeTables。`PBF-19`进一步闭合已经由`L4-A5`确认、但此前
+机器事务漏失的On-deck责任原子性：
+
+- Accepted commit的Arca domain write participant固定包含
+  `arca_acceptance_attempts`、`arca_acceptance_decisions`、`arca_ondeck_custodies`、
+  `arca_material_bindings`、`arca_handoff_b_receipts`、`arca_ondeck_runs`与
+  `arca_final_inventory_decisions`；Attempt必须在该事务内从`active`唯一CAS为`accepted`，不得在Decision、
+  Custody、Control或Receipt成立前提前标记terminal；
+- Acceptance已验证Final Inventory Decision唯一且标准Off-load事务ready，因此Accepted commit必须同时冻结
+  该immutable Decision并建立以其为Basis的initial On-deck Run；不得在Accepted后以第二个事务补建Run，
+  也不得留下只有Custody/Control而没有Process Root的中间责任状态；
+- Accepted transaction的Arca exact read set至少包含`arca_acceptance_attempts`、
+  `arca_acceptance_checks`、`arca_shelves`、`arca_shelf_standard_revisions`与
+  `arca_placement_policy_revisions`，在Responsibility Transfer Point内重验Attempt active、Shelf active以及
+  Standard/Placement revision；`arca_acceptance_attempts`同时属于read/write是terminal CAS，不是重复事实；
+- Material Control participant仍只写`fx_material_controls/fx_material_control_revisions`，Foundation participant
+  仍保存Result/marker/Outbox；完整Package只经formal `ProductDeliveryPort`读取，不进入Arca Store或transaction
+  write set；
+- Handoff B Rejected事务同样必须把`arca_acceptance_attempts active → rejected`纳入原子write participant，
+  但不得写`arca_ondeck_runs`或`arca_final_inventory_decisions`。
+
+Arca participant在accepted commit必须把可重建`CustodyAndTransferReceipt@1`的receipt digest与
+`ArcaProductAcceptedMessage@1` Outbox同事务保存；Control transfer后Libra只能由Run Lifecycle complete消费该消息，
+不增加第三次Business Handoff或跨域Store write。该修正不新增Domain、Owner、Store、Handoff、Capability、表或
+Canonical Transaction；inventory保持112/97/177/43。
 
 Foundation不通过通用SQL拼接这些事实。每个Owner注册一个typed `CommitParticipant`，只接受Owner签发的
 Domain Fact Commit Handle或Responsibility Control Commit Handle；`SqliteUnitOfWork`只保证participants在
@@ -8468,7 +8490,7 @@ Plan node input/parameter/Fence/Resource Demand的具体JSON不直接重复存�
 | `arca_ondeck_custodies` | `custody_id PK, acceptance_decision_id FK, on_deck_package_id, package_digest, control_scope_digest, state, accepted_at_ms` | `UNIQUE(on_deck_package_id,package_digest)`；只有Accepted Decision可建立 |
 | `arca_handoff_b_receipts` | `receipt_id PK, acceptance_decision_id FK, outcome(accepted|rejected), offer_id, custody_id NULL, on_deck_package_id, package_digest, arca_binding_set_digest NULL, control_revision_set_digest NULL, rejection_code NULL, acceptance_evidence_set_digest, rejection_digest NULL, receipt_digest, committed_at_ms` | `UNIQUE(acceptance_decision_id)`及`UNIQUE(offer_id)`；Offer/Package pair逐字节等于Decision；accepted要求Custody/Binding/Control列非NULL、全部rejection列为NULL，receipt digest按`CustodyAndTransferReceipt@1`公式重建；rejected要求Custody/Binding/Control列NULL且rejection列非NULL，receipt digest按`RejectionReceipt@1`公式重建；两种终态都必须有receipt digest并作为各自typed Outbox的durable source，相同marker不新增Receipt或相反终态 |
 | `arca_material_bindings` | `owner_object_type, owner_object_id, material_key, role, episode_key, endpoint_id, location, binding_revision, health_state, evidence_digest, current` | `PK(owner_object_type,owner_object_id,material_key,role,binding_revision)`；每个关系只有一个current row |
-| `arca_ondeck_runs` | `on_deck_run_id PK, custody_id FK, final_inventory_decision_digest, state, created_at_ms, terminal_at_ms` | 同一Custody一个non-terminal Run；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)` |
+| `arca_ondeck_runs` | `on_deck_run_id PK, custody_id FK, final_inventory_decision_digest, state, created_at_ms, terminal_at_ms` | 只允许Handoff B Accepted transaction与immutable Final Inventory Decision同事务首次建立；同一Custody一个non-terminal Run；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)` |
 | `arca_final_inventory_decisions` | `final_inventory_decision_id PK, on_deck_run_id FK, shelf_id FK, placement_revision, target_endpoint_id, target_location, product_manifest_digest, offload_context_digest, decision_schema_ref, decision_json, decision_digest, decided_at_ms` | Decision JSON上限`64 KiB`；`UNIQUE(on_deck_run_id)`；immutable；不保存adopt/replace/relocate动作类型 |
 | `arca_input_settlement_authorizations` | `authorization_id, revision, state(enabled|revoked), authorization_scope_kind, actor_id, authorization_digest, effective_at_ms, revoked_at_ms` | `PK(authorization_id,revision)`；immutable；只授权为精确On-deck Scope派生Approval，不授权目录范围 |
 | `arca_input_settlement_authorization_head` | `singleton_key PK, current_authorization_id, current_revision, updated_at_ms` | singleton key固定；current pair显式FK；启用/撤销均发布新revision，不物理删除历史 |
@@ -11089,7 +11111,7 @@ Level 8固定后续实现必须建立的可执行contract fixture，不把“以
 | Libra Run Discard | Decision前、Run/admission head terminal后、原始Input Control release前后、Cleanup Scope/member/Outbox前 | 要么Run仍frozen且全部Control不变，要么discarded/active scope移除/原始Input released/完整Cleanup Scope成立；受Control Workspace Product不成为无Owner文件 |
 | Libra Cleanup Scope Admission/Commit | Off-load Projection/grace/reference audit前后、Scope/member insert中间、删除intent后、文件删除后Evidence前、Cleanup/Control commit前后 | Signal不建资格；Scope/member全有或全无；删除效果幂等；只有Deletion Evidence成立的受Control Product释放Control；重启恢复同一Scope/member，空Workspace不建空Scope |
 | Libra Product Fact Commit variants | Handle variant selector解析前后、Run/fact revision fence前后、Source Basis Result逐项验证与relation写入中间、nullable Media Cast Fact精确ID读取/NULL传播、Artifact Verification领域digest/Foundation完整Result storage digest与64 KiB双界验证、Requirement/Registry五方比对及完整Manifest Owner row写入前后、Fact/typed Result/marker FK各边界、相同Handle重放、伪造或缺失Outbox | selector三元组必须唯一命中或按closed规则拒绝；Product Fact variant绝不fallback到generic；Fact revision、完整Source refs、typed Result与唯一有效marker全有或全无，metadata variant还必须按Payload精确验证同Run Media Cast Fact或保持NULL，并冻结可历史重建的完整Manifest及验证其中全部显式Result refs、两层digest、Requirement和Artifact fence；任何崩溃/不一致均零写入可见；成功重放返回同一Fact revision/digest/Manifest/Media Cast ref且不追加Source refs；不存在latest/current fallback、孤儿/复用marker或本Commit的Outbox row |
-| Handoff B Accepted | Acceptance Decision、Custody/Binding、Control transfer、Receipt/Outbox各边界 | Arca责任与Control一起成立；Libra Store不被Arca事务写入 |
+| Handoff B Accepted | Attempt active/terminal CAS、Shelf/Standard/Placement transfer-point重验、Acceptance Decision、Final Inventory Decision/initial On-deck Run、Custody/Binding、Control transfer、Receipt/Outbox各边界 | 要么Attempt仍active且不存在Accepted责任事实，要么Attempt accepted、On-deck Run/Decision、Custody/Binding、Control、Receipt/Result/marker/Outbox整体成立；不得出现terminal Attempt或Custody/Control已成立但On-deck Run缺失；Libra Store不被Arca事务写入 |
 | Handoff B Rejected | Acceptance check set形成前后、Attempt terminal CAS、Decision/Receipt/Result/marker/Outbox各边界、并发Accepted竞态 | 只允许5.7.3 closed reason；要么Attempt仍active且无终态事实，要么rejected Attempt、可由checks重建的Evidence set、Decision、Receipt、Result/marker及Rejected Outbox全部成立；不建立Custody/Binding/On-deck Run、不转移Control；相同marker重放原Receipt，Accepted/Rejected互斥 |
 | Libra Handoff B rejection consume | Inbox写入前后、Package digest CAS、Delivery Receipt写入前后、迟到Accepted消息 | immutable Package与rejected Delivery Receipt/Inbox closure全有或全无；相同Message重放同一closure digest，已accepted或digest冲突稳定拒绝；不修改Package、不写Arca Store、不把Rejected伪装成反向Handoff |
 | On-deck fixed transaction | Slot prepare、Stage、Switch、Final Primary verify、Settlement逐项、On-deck Commit | 已Settlement后只能向前恢复；Shelf Entry/Inventory/Deck/Control/Completion同一commit |
