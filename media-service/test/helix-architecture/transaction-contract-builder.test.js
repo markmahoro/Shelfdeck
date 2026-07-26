@@ -113,6 +113,12 @@ test('materializes the Workspace Admission Platform read participant without wid
   });
 });
 
+test('materializes the role-aware Workspace Reference Artifact Registry exact-read dependency', () => {
+  const contract = byName.get('Libra Workspace Material Reference Commit');
+  assert.ok(contract.readTables.includes('fx_artifact_registry'));
+  assert.equal(contract.writeTables.includes('fx_artifact_registry'), false);
+});
+
 test('keeps batch authorization before per-Entry Authorization and Case creation', () => {
   const batch = byName.get('Off-deck Batch Authorization Intent');
   assert.equal(batch.writeTables.includes('arca_offdeck_cases'), false);

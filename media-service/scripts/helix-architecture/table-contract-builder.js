@@ -263,6 +263,8 @@ const JSON_LIMIT_OVERRIDES = Object.freeze({
   'libra_runs.execution_basis_record_json': 1024 * 1024,
   'libra_run_revisions.transition_evidence_json': 1024 * 1024,
   'libra_workspaces.space_admission_evidence_json': 16 * 1024,
+  'libra_workspace_material_refs.episode_claims_json': 16 * 1024,
+  'libra_workspace_material_refs.product_verification_json': 128 * 1024,
   'libra_product_fact_revisions.verified_artifact_manifest_json': 256 * 1024
 });
 const CURRENT_POINTER_TARGETS = Object.freeze({

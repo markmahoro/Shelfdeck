@@ -285,7 +285,7 @@ const definitions = Object.freeze({
     commitClass: 'domain_fact_commit',
     writeTables: ['libra_workspaces', 'libra_workspace_revisions', 'libra_workspace_material_refs',
       'fx_event_result_bindings', 'fx_commit_markers'],
-    readTables: ['libra_runs', 'libra_run_revisions', 'fx_workspace_materials', 'libra_workspaces',
+    readTables: ['libra_runs', 'libra_run_revisions', 'fx_workspace_materials', 'fx_artifact_registry', 'libra_workspaces',
       'libra_workspace_revisions', 'libra_workspace_material_refs', 'fx_event_result_bindings', 'fx_commit_markers'],
     fixtureRefs: ['libra-workspace-reference'], hasOutbox: false,
     forbiddenWritePrefixes: ['proc_', 'arca_']

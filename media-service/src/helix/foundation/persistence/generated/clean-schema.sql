@@ -2100,9 +2100,9 @@ CREATE TABLE "libra_workspace_material_refs" (
   CHECK (json_valid("workspace_handle_json")),
   CHECK (length(CAST("workspace_handle_json" AS BLOB)) <= 4096),
   CHECK (json_valid("episode_claims_json")),
-  CHECK (length(CAST("episode_claims_json" AS BLOB)) <= 4096),
+  CHECK (length(CAST("episode_claims_json" AS BLOB)) <= 16384),
   CHECK (json_valid("product_verification_json")),
-  CHECK (length(CAST("product_verification_json" AS BLOB)) <= 4096),
+  CHECK (length(CAST("product_verification_json" AS BLOB)) <= 131072),
   FOREIGN KEY ("workspace_id") REFERENCES "libra_workspaces" ("workspace_id") ON DELETE RESTRICT,
   FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT
 );

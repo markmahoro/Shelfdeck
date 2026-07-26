@@ -21,11 +21,17 @@ function assertPromotionDecision(value){
   if(new Set(refs.map((item)=>item.referenceId)).size!==refs.length||new Set(refs.map((item)=>item.materialKey)).size!==refs.length)
     fail('P9_PROMOTION_DUPLICATE','Promotion material references must be unique.');
   const members=value.productMaterialManifest?.members;
-  if(!Array.isArray(members)||members.length!==refs.length||refs.some((ref,index)=>{
-    const member=members[index];
-    return !member||ref.materialKey!==member.materialKey||
+  if(!Array.isArray(members)||new Set(members.map((item)=>item.materialKey)).size!==members.length)
+    fail('P9_PROMOTION_DUPLICATE','Promotion Product members must have unique material keys.');
+  const workspaceMembers=members.filter((item)=>item.controlOperation==='acquire_workspace_product');
+  const memberByMaterialKey=new Map(workspaceMembers.map((item)=>[item.materialKey,item]));
+  if(workspaceMembers.length!==refs.length||refs.some((ref)=>{
+    const member=memberByMaterialKey.get(ref.materialKey);
+    const memberHandleId=member?.workspaceMaterialHandle?.handleId;
+    return !member||member.workspaceReferenceId!==ref.referenceId||
+      memberHandleId!==ref.materialHandleId||
       ref.productVerificationRef?.materialRole!==member.role||
-      ref.productVerificationRef?.workspaceMaterialHandleId!==ref.materialHandleId;
+      ref.productVerificationRef?.workspaceMaterialHandleId!==memberHandleId;
   }))
     fail('P9_PROMOTION_STAGING_ROLE','Product Staging References must match Product members one-for-one by material and role.');
   if(value.libraRunRef.libraRunId!==value.workspaceRef.libraRunId||refs.some((item)=>item.libraRunId!==value.libraRunRef.libraRunId||item.workspaceId!==value.workspaceRef.workspaceId))

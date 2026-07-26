@@ -662,11 +662,11 @@
         "transactionId": "helix.transaction.libra-workspace-material-reference-commit",
         "ownerScope": "libra",
         "contractRef": "helix://contracts/transactions/helix.transaction.libra-workspace-material-reference-commit/v1",
-        "contractDigest": "891839d67534df6a482506fa1b9a2b6c157f4482621d8e8012d703c0cb968872"
+        "contractDigest": "798754156f2b214c5c60b7cd59fb98e38123cb93fda120e54a8437d41790f696"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "15fbfe82fe90bedbc03078e0215b36f14b5f7de639bc1d6a64aa707723f4ec84"
+        "value": "694bd9bc539f75ed082414811816af0a0661b28852a913654eb0ecc66faf7b0d"
       }
     },
     {

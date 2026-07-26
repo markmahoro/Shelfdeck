@@ -7,6 +7,15 @@ const c=require('../../src/helix/domains/libra/model/delivery-lifecycle-contract
 const {createDeliveryLifecycleLedger}=require('../../src/helix/domains/libra/persistence/delivery-lifecycle-ledger');
 const {CONTRACTS,createDeliveryLifecycleCapabilityRegistrations}=require('../../src/helix/domains/libra/capabilities/delivery-lifecycle-capability-registrations');
 const h=(v)=>d({v}),NOW=1_700_000_000_000;
+const sealPromotion=(x)=>{
+  x.packageDigest=d({schema:'libra.on-deck-product-package@1',libraRunRef:x.libraRunRef,acceptanceSpecRef:x.acceptanceSpecRef,
+    resolvedIdentitySnapshot:x.resolvedIdentitySnapshot,productStructureSnapshot:x.productStructureSnapshot,
+    productFactManifest:x.productFactManifest,artifactManifest:x.artifactManifest,mediaCastSnapshot:x.mediaCastSnapshot,
+    productMaterialManifest:x.productMaterialManifest,offloadContextManifest:x.offloadContextManifest,
+    productionProvenance:x.productionProvenance,productionAttestation:x.productionAttestation});
+  x.decisionDigest=d(Object.fromEntries(Object.entries(x).filter(([key])=>key!=='decisionDigest')));
+  return x;
+};
 
 function promotion(){
   const x={decisionId:'promotion-1',libraRunRef:{libraRunId:'run-1',stateRevision:2,stateDigest:h('run'),executionBasisDigest:h('basis'),runScopeDigest:h('scope'),expectedPackageRevisionHead:0},
@@ -17,13 +26,15 @@ function promotion(){
     productFactManifest:{manifestId:'facts-1',manifestRevision:1,libraRunId:'run-1',items:[],factSetDigest:h('facts'),manifestDigest:h('facts-manifest')},
     artifactManifest:{manifestId:'artifacts-1',manifestRevision:1,libraRunId:'run-1',items:[],artifactSetDigest:h('artifacts'),manifestDigest:h('artifact-manifest')},
     mediaCastSnapshot:{mediaCastFactId:'cast-1',mediaCastFactRevision:1,schemaRef:'MediaCastFact@1',factValue:{schemaRef:'MediaCastFact@1',recordDigest:h('cast-record'),entries:[]},factDigest:h('cast'),evidenceDigest:h('cast-evidence'),relations:[],relationsDigest:h('relations')},
-    productMaterialManifest:{manifestId:'product-materials-1',manifestRole:'product_delivery',scopeKind:'single',members:[{materialKey:h('material'),role:'primary_payload'}],memberSetDigest:h('members'),manifestDigest:h('product-materials')},
+    productMaterialManifest:{manifestId:'product-materials-1',manifestRole:'product_delivery',scopeKind:'single',members:[{
+      materialKey:h('material'),role:'primary_payload',controlOperation:'acquire_workspace_product',
+      workspaceReferenceId:'ref-1',workspaceMaterialHandle:{handleId:'handle-1'}
+    }],memberSetDigest:h('members'),manifestDigest:h('product-materials')},
     offloadContextManifest:{manifestId:'offload-1',manifestRevision:1,libraRunId:'run-1',members:[],memberSetDigest:h('offload-members'),manifestDigest:h('offload')},
     productionProvenance:{libraRunId:'run-1',runExecutionBasisDigest:h('basis'),acceptanceSpecRecordDigest:h('spec'),workflowPlanRefs:[],productVerificationRefs:[],externalRealityObservationRefs:[],provenanceDigest:h('provenance')},
     productionAttestation:{attestationId:'attest-1',libraRunId:'run-1',onDeckPackageId:'package-1',acceptanceSpecId:'spec-1',productConformanceEvidenceId:'conformance-1',productConformanceEvidenceDigest:h('conformance'),unmetRequirementCount:0,attestedAtMs:NOW,attestationDigest:h('attestation')},
     controlCommitScope:{items:[{materialKey:h('material'),expectedRevision:1,expectedProjectionDigest:h('control')}],controlScopeDigest:h('control-scope')},onDeckPackageId:'package-1',packageRevision:1,offerId:'offer-1'};
-  x.packageDigest=d({schema:'libra.on-deck-product-package@1',libraRunRef:x.libraRunRef,acceptanceSpecRef:x.acceptanceSpecRef,resolvedIdentitySnapshot:x.resolvedIdentitySnapshot,productStructureSnapshot:x.productStructureSnapshot,productFactManifest:x.productFactManifest,artifactManifest:x.artifactManifest,mediaCastSnapshot:x.mediaCastSnapshot,productMaterialManifest:x.productMaterialManifest,offloadContextManifest:x.offloadContextManifest,productionProvenance:x.productionProvenance,productionAttestation:x.productionAttestation});
-  x.decisionDigest=d(x);return x;
+  return sealPromotion(x);
 }
 
 test('promotion publishes immutable package, exact Control commits, receipt and one Offer',()=>{
@@ -32,6 +43,33 @@ test('promotion publishes immutable package, exact Control commits, receipt and 
   assert.throws(()=>c.buildPromotionCommit({decision:{...promotion(),productionAttestation:{...promotion().productionAttestation,unmetRequirementCount:1}},committedAtMs:NOW}),/conformant/);
   const wrongRole=promotion();wrongRole.productStagingReferences[0].productVerificationRef.materialRole='metadata_sidecar';
   assert.throws(()=>c.buildPromotionCommit({decision:wrongRole,committedAtMs:NOW}),/one-for-one/);
+});
+
+test('promotion joins Product Staging references to Product members by materialKey rather than array position',()=>{
+  const value=promotion(),secondKey=h('material-2');
+  value.productStagingReferences=[
+    {referenceId:'ref-2',workspaceId:'workspace-1',libraRunId:'run-1',materialHandleId:'handle-2',materialKey:secondKey,
+      workspaceMaterialHandle:{handleId:'handle-2'},workspaceHandleDigest:h('handle-2'),referenceRevision:2,state:'product_staging',
+      episodeClaims:[],episodeScopeDigest:h('episodes-2'),productVerificationRef:{verificationId:'verify-2',materialRole:'metadata_sidecar',
+        workspaceMaterialHandleId:'handle-2'},previousReferenceRevision:1,committedWorkspaceRevision:3,referenceDigest:h('ref-2')},
+    value.productStagingReferences[0]
+  ];
+  value.productMaterialManifest.members=[
+    value.productMaterialManifest.members[0],
+    {materialKey:secondKey,role:'metadata_sidecar',controlOperation:'acquire_workspace_product',
+      workspaceReferenceId:'ref-2',workspaceMaterialHandle:{handleId:'handle-2'}}
+  ];
+  sealPromotion(value);
+  assert.doesNotThrow(()=>c.assertPromotionDecision(value));
+
+  const missing=structuredClone(value);missing.productStagingReferences.pop();
+  assert.throws(()=>c.assertPromotionDecision(missing),/one-for-one/);
+
+  const duplicate=structuredClone(value);duplicate.productMaterialManifest.members[1].materialKey=h('material');
+  assert.throws(()=>c.assertPromotionDecision(duplicate),/unique material keys/);
+
+  const wrongHandle=structuredClone(value);wrongHandle.productMaterialManifest.members[1].workspaceMaterialHandle.handleId='other-handle';
+  assert.throws(()=>c.assertPromotionDecision(wrongHandle),/one-for-one/);
 });
 
 test('Arca rejection leaves package immutable and same-spec rework gets next revision',()=>{

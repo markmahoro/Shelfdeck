@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
+const Database = require('better-sqlite3');
 const { PARTIAL_UNIQUE, SUPPORT_COLUMNS, compileSchema } = require('../../src/helix/foundation/persistence/ddl-compiler');
 const { readFrozenTableContracts } = require('../../scripts/helix-architecture/p3-ddl-materializer');
 
@@ -72,6 +73,8 @@ test('emits JSON validity and byte limits, enum checks, RESTRICT foreign keys, a
   assert.match(ddl, /"package_revision_head" INTEGER NOT NULL DEFAULT 0 CHECK \("package_revision_head" >= 0\)/);
   assert.match(ddl, /"expected_admission_head_revision" INTEGER NOT NULL CHECK \("expected_admission_head_revision" >= 0\)/);
   assert.match(ddl, /CHECK \(length\(CAST\("verified_artifact_manifest_json" AS BLOB\)\) <= 262144\)/);
+  assert.match(ddl, /CHECK \(length\(CAST\("episode_claims_json" AS BLOB\)\) <= 16384\)/);
+  assert.match(ddl, /CHECK \(length\(CAST\("product_verification_json" AS BLOB\)\) <= 131072\)/);
   assert.match(ddl, /FOREIGN KEY \("run_material_manifest_id", "member_ordinal"\) REFERENCES "libra_run_material_members" \("run_material_manifest_id", "ordinal"\) ON DELETE RESTRICT/);
   assert.match(ddl, /FOREIGN KEY \("reference_asset_id"\) REFERENCES "people_reference_assets" \("reference_asset_id"\) ON DELETE RESTRICT/);
   assert.match(ddl, /FOREIGN KEY \("reference_face_id"\) REFERENCES "people_reference_faces" \("reference_face_id"\) ON DELETE RESTRICT/);
@@ -81,6 +84,21 @@ test('emits JSON validity and byte limits, enum checks, RESTRICT foreign keys, a
   assert.equal((ddl.match(/NOT GLOB '\*\[\^0-9a-f\]\*'/g) || []).length, digestColumnCount + 1);
   assert.equal(manifest.tables.flatMap((table) => table.indexes).filter((index) => index.kind === 'hot').length,
     contracts.reduce((count, contract) => count + contract.hotIndexes.length, 0));
+});
+
+test('clean DDL accepts each Workspace Reference JSON limit and rejects one byte beyond it', () => {
+  const db = new Database(':memory:');
+  db.exec(compileSchema(contracts).ddl);
+  const jsonBytes = (bytes) => `{"v":"${'x'.repeat(bytes - 8)}"}`;
+  const insert = db.prepare('INSERT INTO libra_workspace_material_refs ' +
+    '(reference_id,reference_revision,workspace_handle_json,episode_claims_json,product_verification_json) ' +
+    'VALUES (?,?,?,?,?)');
+  insert.run('exact', 1, jsonBytes(4096), jsonBytes(16384), jsonBytes(131072));
+  assert.throws(() => insert.run('handle-over', 1, jsonBytes(4097), '[]', '{}'), /CHECK constraint failed/);
+  assert.throws(() => insert.run('claims-over', 1, '{}', jsonBytes(16385), '{}'), /CHECK constraint failed/);
+  assert.throws(() => insert.run('verification-over', 1, '{}', '[]', jsonBytes(131073)), /CHECK constraint failed/);
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM libra_workspace_material_refs').get().count, 1);
+  db.close();
 });
 
 test('fails closed on an unknown partial-unique rule shape', () => {

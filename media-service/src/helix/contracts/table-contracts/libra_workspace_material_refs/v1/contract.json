@@ -270,15 +270,15 @@
       {
         "column": "episode_claims_json",
         "schemaRefColumn": "episode_claims_schema_ref",
-        "maxBytes": 4096,
-        "source": "table-row",
+        "maxBytes": 16384,
+        "source": "8.6.19-typed-payload",
         "requiresJsonValidCheck": true
       },
       {
         "column": "product_verification_json",
         "schemaRefColumn": "product_verification_schema_ref",
-        "maxBytes": 4096,
-        "source": "table-row",
+        "maxBytes": 131072,
+        "source": "8.6.19-typed-payload",
         "requiresJsonValidCheck": true
       }
     ],

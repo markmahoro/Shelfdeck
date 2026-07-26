@@ -92,7 +92,7 @@ test('closes every PK, declared FK, JSON contract, and current revision pointer'
     }
     for (const json of contract.jsonContracts) {
       assert.ok(json.schemaRefColumn, `${contract.tableId}.${json.column}`);
-      assert.ok([4 * 1024, 16 * 1024, 64 * 1024, 256 * 1024, 1024 * 1024].includes(json.maxBytes));
+      assert.ok([4 * 1024, 16 * 1024, 64 * 1024, 128 * 1024, 256 * 1024, 1024 * 1024].includes(json.maxBytes));
     }
     const covered = new Set(contract.revisionContract.pointerTargets.flatMap((target) => [...target.sourceColumns, ...target.consistencyColumns]));
     for (const pointer of contract.revisionContract.currentPointerColumns) assert.ok(covered.has(pointer), `${contract.tableId}.${pointer}`);
@@ -151,6 +151,14 @@ test('preserves distinct Product Fact and verified Artifact Manifest JSON bounds
   const byColumn = new Map(contract.jsonContracts.map((item) => [item.column, item]));
   assert.equal(byColumn.get('fact_json').maxBytes, 64 * 1024);
   assert.equal(byColumn.get('verified_artifact_manifest_json').maxBytes, 256 * 1024);
+});
+
+test('preserves the exact Workspace Reference JSON bounds for handle, episode claims, and role-aware verification', () => {
+  const contract = contracts.find((item) => item.tableId === 'libra_workspace_material_refs');
+  const byColumn = new Map(contract.jsonContracts.map((item) => [item.column, item]));
+  assert.equal(byColumn.get('workspace_handle_json').maxBytes, 4 * 1024);
+  assert.equal(byColumn.get('episode_claims_json').maxBytes, 16 * 1024);
+  assert.equal(byColumn.get('product_verification_json').maxBytes, 128 * 1024);
 });
 
 test('defers only the Workspace aggregate current-head link needed for revision-one admission', () => {

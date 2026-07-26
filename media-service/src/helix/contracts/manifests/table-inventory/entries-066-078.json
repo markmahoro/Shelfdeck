@@ -247,11 +247,11 @@
         "tableId": "libra_workspace_material_refs",
         "owner": "libra",
         "contractRef": "helix://contracts/tables/libra_workspace_material_refs/v1",
-        "contractDigest": "49712f697b7714ee4ed834120b125946ad2f2bc1249887edff075b37ba58d7fb"
+        "contractDigest": "878dc0ab3cd822cc2caeb3d1cca8c9e637ffe02395edad0ab5ce7b1607ebecd6"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "9440c7a7c0aa645923509a4e7b507ace6cd06c534a2e7c4fb7fb5ad6db1fe3f3"
+        "value": "2152e5367e406eb05ea7562552a0ca00fb6d9729409532d9b7d3cd0155d0c7db"
       }
     },
     {

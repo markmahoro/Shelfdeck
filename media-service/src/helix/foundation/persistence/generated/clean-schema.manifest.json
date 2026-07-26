@@ -3,8 +3,8 @@
   "compilerContract": "helix-p3-deterministic-sqlite-ddl/v1",
   "digestAlgorithm": "sha256",
   "tableCount": 177,
-  "tableContractAggregateDigest": "bb734066d60e071fbdce3b9ac00617ce2899cd991c10e0ab652c3a761c69a42d",
-  "ddlDigest": "6f1de1d1c37cf3e91425f7587c3cde9e85f1b7b0109e16a6deafda95d40faa2d",
+  "tableContractAggregateDigest": "a50c80666e40e9e3be4ae3958553c76c9caa1364e296a358a1474be351bc32b3",
+  "ddlDigest": "7728be6278a78632d321d1f23820a40937a10e7a5823f3d38d91ddd833429f97",
   "tables": [
     {
       "tableId": "arca_acceptance_attempts",
@@ -3102,8 +3102,8 @@
       "tableId": "libra_workspace_material_refs",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_workspace_material_refs/v1",
-      "contractDigest": "49712f697b7714ee4ed834120b125946ad2f2bc1249887edff075b37ba58d7fb",
-      "sqlDigest": "7ff71d2fdea37058635d5c3e9b212ce1a454d711229d7cca04938a18ab1004df",
+      "contractDigest": "878dc0ab3cd822cc2caeb3d1cca8c9e637ffe02395edad0ab5ce7b1607ebecd6",
+      "sqlDigest": "e56eb08ab934d9b9bebfbe3574b96aa566b13251d464738d3149723a1897f47f",
       "columns": [
         "workspace_id",
         "libra_run_id",
