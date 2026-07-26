@@ -77,6 +77,11 @@
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
+    },
+    "receiptDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     }
   },
   "required": [
@@ -92,6 +97,7 @@
     "acceptanceDecisionId",
     "custodyId",
     "arcaBindingSetDigest",
-    "controlRevisionSetDigest"
+    "controlRevisionSetDigest",
+    "receiptDigest"
   ]
 }

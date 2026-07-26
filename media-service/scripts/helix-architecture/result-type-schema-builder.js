@@ -461,7 +461,7 @@ const contracts = {
   VerifiedExternalPackage: ['VerificationEnvelope', 'stableExternalMaterialHandleId,stableManifestDigest,episodeDeliveryManifestDigest,identityVerificationId,identityVerificationDigest,verifiedMemberIds,verifiedMemberSetDigest,packageManifestDigest'],
   AcceptanceCheck: ['VerificationEnvelope', 'acceptanceAttemptId,checkKind,standardRevision,packageDigest'],
   InventoryFeasibilityEvidence: ['EvidenceEnvelope', 'shelfId,placementRevision,targetEndpointId,requiredBytes,availableBytes,finalInventoryDecisionDraftDigest'],
-  CustodyAndTransferReceipt: ['ReceiptEnvelope', 'acceptanceDecisionId,custodyId,arcaBindingSetDigest,controlRevisionSetDigest'],
+  CustodyAndTransferReceipt: ['ReceiptEnvelope', 'acceptanceDecisionId,custodyId,arcaBindingSetDigest,controlRevisionSetDigest,receiptDigest'],
   StagedInventoryManifest: ['ManifestEnvelope', 'targetCommitSlotId,stagedMembers,sourceProductManifestDigest'],
   StagedInventoryVerification: ['VerificationEnvelope', 'stagedInventoryManifestDigest,finalInventoryDecisionDigest'],
   PlacementSwitchReceipt: ['ReceiptEnvelope', 'targetCommitSlotId,finalBindingSetDigest,replacedInputSetDigest,transactionRevision'],

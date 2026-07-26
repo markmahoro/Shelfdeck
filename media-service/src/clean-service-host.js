@@ -12,7 +12,13 @@ const { createHelixApplication } = require('./helix/composition/createHelixAppli
 const { createCleanFacades } = require('./helix/composition/create-clean-facades');
 const { createProcurementAdminApplication } = require('./helix/domains/procurement/public/admin-application');
 const { CandidateDeliveryPort } = require('./helix/domains/procurement/public');
-const { LibraIntakeFacade } = require('./helix/domains/libra/public');
+const {
+  LibraIntakeFacade,
+  ProductDeliveryPort,
+} = require('./helix/domains/libra/public');
+const {
+  createArcaAcceptanceFacade,
+} = require('./helix/domains/arca/public/acceptance');
 const { PerceptionResolutionFacade } = require('./helix/domains/perception/public');
 const {
   createCandidateDeliveryService,
@@ -36,6 +42,12 @@ const {
 const {
   createMovieProductionCoordinator,
 } = require('./helix/domains/libra/application/movie-production-coordinator');
+const {
+  createProductDeliveryReader,
+} = require('./helix/domains/libra/persistence/product-delivery-reader');
+const {
+  createMovieOnDeckCoordinator,
+} = require('./helix/domains/arca/application/movie-ondeck-coordinator');
 const {
   createPerceptionResolutionApplication,
 } = require('./helix/domains/perception/application/perception-resolution-application');
@@ -65,6 +77,9 @@ const {
 const {
   createCleanWorkspaceProductPort,
 } = require('./clean-workspace-product-port');
+const {
+  createCleanArcaInventoryPort,
+} = require('./clean-arca-inventory-port');
 const {
   createSynchronousDomainWork,
 } = require('./helix/foundation/execution/synchronous-domain-work');
@@ -349,6 +364,25 @@ async function createCleanServiceHost(options) {
     afterProductFactsCommit: options.afterProductFactsCommit,
     afterPackageCommit: options.afterPackageCommit,
   });
+  const productDeliveryPort = ProductDeliveryPort(
+    createProductDeliveryReader(constructed.applicationDependencies),
+  );
+  const arcaInventoryPort = createCleanArcaInventoryPort({
+    ...constructed.applicationDependencies,
+    workspaceRoot:
+      options.workspaceRoot || path.join(options.dataDir, 'workspace'),
+    afterPhysicalEffect: options.afterArcaInventoryPhysicalEffect,
+  });
+  const movieOnDeckApplication = createMovieOnDeckCoordinator({
+    ...constructed.applicationDependencies,
+    productDeliveryPort,
+    inventoryPort: arcaInventoryPort,
+    afterHandoffBAccepted: options.afterHandoffBAccepted,
+    afterOnDeckCommit: options.afterOnDeckCommit,
+  });
+  const arcaAcceptance = createArcaAcceptanceFacade({
+    acceptProductOffer: movieOnDeckApplication.acceptProductOffer,
+  });
   const advanceProduction = async (formation) => {
     if (formation.stage !== 'libra_run_active') return null;
     const libraRunId = formation.libraRunId || formation.libraRun?.libraRunId;
@@ -358,7 +392,18 @@ async function createCleanServiceHost(options) {
         'Movie formation did not expose the exact Libra Run identity.',
       );
     }
-    return movieProductionCoordinator.advance(libraRunId);
+    const production = await movieProductionCoordinator.advance(libraRunId);
+    if (production.stage !== 'handoff_b_offer_open') return production;
+    const arca = arcaAcceptance.acceptProductOffer(
+      production.offerMessage,
+    );
+    return Object.freeze({
+      ...production,
+      offerStage: production.stage,
+      stage: arca.stage,
+      handoffB: arca.handoffB,
+      onDeck: arca.onDeck,
+    });
   };
   const handoffOffer = async (offer) => {
     const accepted = libraIntake.offerCandidate(offer);

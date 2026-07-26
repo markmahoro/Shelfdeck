@@ -375,9 +375,16 @@ function createMaterialControlExactTransferParticipant(options) {
     fail('P3_CONTROL_INVALID_HANDLE', 'Exact transfer requires a Responsibility Control transfer Handle and non-empty scope.');
   }
   for (const field of ['handleId','ownerDomain','processType','processId','receivingDomain','transferPoint']) text(handle[field],field);
-  if (!handle.receiptContract || handle.receiptContract.receiptSchemaRef!=='SubjectAndTransferReceipt@1' ||
-      handle.receiptContract.controlRevisionSetSchemaRef!=='libra.handoff-a-transferred-control-set@1' ||
-      Object.keys(handle.receiptContract).length!==2) {
+  const receiptContracts = new Set([
+    'SubjectAndTransferReceipt@1|libra.handoff-a-transferred-control-set@1',
+    'CustodyAndTransferReceipt@1|arca.handoff-b-transferred-control-set@1',
+  ]);
+  const receiptContractKey = handle.receiptContract && [
+    handle.receiptContract.receiptSchemaRef,
+    handle.receiptContract.controlRevisionSetSchemaRef,
+  ].join('|');
+  if (!handle.receiptContract || Object.keys(handle.receiptContract).length!==2 ||
+      !receiptContracts.has(receiptContractKey)) {
     fail('P3_CONTROL_TRANSFER_RECEIPT_CONTRACT_MISMATCH','Exact Handoff transfer requires its closed Receipt reconstruction contract.');
   }
   for (const field of ['basisDigest','canonicalFactSetDigest','bindingSetDigest','controlScopeDigest','eventFenceDigest']) sha(handle[field],field);

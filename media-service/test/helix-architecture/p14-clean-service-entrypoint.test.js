@@ -154,6 +154,7 @@ test('formal server dependency graph reaches only the clean Helix root', () => {
         relative === 'src/clean-media-probe.js' ||
         relative === 'src/clean-product-production-port.js' ||
         relative === 'src/clean-workspace-product-port.js' ||
+        relative === 'src/clean-arca-inventory-port.js' ||
         relative === 'src/admin-credential-secret-store.js' ||
         relative.startsWith('src/helix/'),
       `unexpected runtime dependency: ${relative}`,
@@ -2162,7 +2163,7 @@ test('Windows and Docker artifacts select the service-only clean entrypoint', ()
   assert.doesNotMatch(windows, /media-worker|face-service|19110|ollama/i);
 });
 
-test('Movie production uses public HTTP, survives restart, and opens one immutable Handoff B Offer', async () => {
+test('Movie production reaches one Arca Shelf Entry through formal Handoff B and survives restart', async () => {
   const value = fixture();
   const sourceRoot = path.join(path.dirname(value.dataDir), 'movie-handoff-a-source');
   fs.mkdirSync(sourceRoot, { recursive: true });
@@ -2352,6 +2353,7 @@ test('Movie production uses public HTTP, survives restart, and opens one immutab
   }
 
   let injectResolutionCrash = true;
+  let shelfRoot;
   let host = await createCleanServiceHost({
     dataDir: value.dataDir, adminDistDir: value.adminDistDir, secretRoot, mediaProbe,
     ...productionOptions,
@@ -2365,7 +2367,7 @@ test('Movie production uses public HTTP, survives restart, and opens one immutab
     },
   });
   try {
-    await establishMovieShelfAndRouting(host);
+    ({ shelfRoot } = await establishMovieShelfAndRouting(host));
     const created = await host.inject({
       method: 'POST', url: '/v1/admin/material-fields', headers: { cookie: await session(host) }, payload: register,
     });
@@ -2470,6 +2472,64 @@ test('Movie production uses public HTTP, survives restart, and opens one immutab
   ).get().count, 1);
   crashDatabase.close();
 
+  await interruptProduction(
+    'afterHandoffBAccepted',
+    'P14_FAULT_AFTER_HANDOFF_B_ACCEPTED',
+  );
+  crashDatabase = new Database(
+    path.join(value.dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(crashDatabase.prepare(
+    'SELECT count(*) count FROM arca_acceptance_decisions',
+  ).get().count, 1);
+  assert.equal(crashDatabase.prepare(
+    'SELECT count(*) count FROM arca_ondeck_custodies',
+  ).get().count, 1);
+  assert.equal(crashDatabase.prepare(
+    'SELECT count(*) count FROM arca_shelf_entries',
+  ).get().count, 0);
+  assert.equal(crashDatabase.prepare(
+    "SELECT count(*) count FROM fx_material_controls WHERE owner_domain='arca' AND owner_scope_type='on_deck_custody'",
+  ).get().count, 3);
+  crashDatabase.close();
+
+  await interruptProduction(
+    'afterArcaInventoryPhysicalEffect',
+    'P14_FAULT_AFTER_ARCA_INVENTORY_PHYSICAL_EFFECT',
+  );
+  crashDatabase = new Database(
+    path.join(value.dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(crashDatabase.prepare(
+    'SELECT count(*) count FROM arca_shelf_entries',
+  ).get().count, 0);
+  assert.equal(crashDatabase.prepare(
+    "SELECT count(*) count FROM fx_effect_journal WHERE effect_class='material_commit' AND state='intended'",
+  ).get().count, 1);
+  crashDatabase.close();
+
+  await interruptProduction(
+    'afterOnDeckCommit',
+    'P14_FAULT_AFTER_ONDECK_COMMIT',
+  );
+  crashDatabase = new Database(
+    path.join(value.dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(crashDatabase.prepare(
+    'SELECT count(*) count FROM arca_shelf_entries',
+  ).get().count, 1);
+  assert.equal(crashDatabase.prepare(
+    "SELECT count(*) count FROM arca_ondeck_runs WHERE state='offloading'",
+  ).get().count, 1);
+  assert.equal(crashDatabase.prepare(
+    'SELECT count(*) count FROM arca_ondeck_commit_receipts',
+  ).get().count, 1);
+  crashDatabase.close();
+
+  let committedJourney;
   host = await createCleanServiceHost({
     dataDir: value.dataDir, adminDistDir: value.adminDistDir, secretRoot, mediaProbe,
     ...productionOptions,
@@ -2483,13 +2543,45 @@ test('Movie production uses public HTTP, survives restart, and opens one immutab
     assert.equal(resumed.json().movieJourney.handoff.formation.stage, 'libra_run_active');
     assert.equal(
       resumed.json().movieJourney.handoff.production.stage,
-      'handoff_b_offer_open',
+      'movie_on_deck_committed',
     );
     assert.equal(
       resumed.json().movieJourney.handoff.production.packageRevision,
       1,
     );
     assert.equal(resumed.json().movieJourney.handoff.production.replayed, true);
+    committedJourney =
+      resumed.json().movieJourney.handoff.production;
+    for (const [schemaId, typedValue] of [
+      [
+        'helix://contracts/types/CustodyAndTransferReceipt/v1',
+        committedJourney.handoffB.receipt,
+      ],
+      [
+        'helix://contracts/domain-types/FinalInventoryDecision/v1',
+        committedJourney.onDeck.finalInventoryDecision,
+      ],
+      [
+        'helix://contracts/types/StagedInventoryManifest/v1',
+        committedJourney.onDeck.stagedInventoryManifest,
+      ],
+      [
+        'helix://contracts/types/StagedInventoryVerification/v1',
+        committedJourney.onDeck.stagedVerification,
+      ],
+      [
+        'helix://contracts/types/FulfillmentVerification/v1',
+        committedJourney.onDeck.fulfillmentVerification,
+      ],
+      [
+        'helix://contracts/types/OnDeckCommitResult/v1',
+        committedJourney.onDeck.result,
+      ],
+    ]) {
+      const validate = contractValidator(schemaId);
+      assert.equal(validate(typedValue), true,
+        `${schemaId}: ${JSON.stringify(validate.errors)}`);
+    }
   } finally {
     await host.close();
   }
@@ -2508,9 +2600,17 @@ test('Movie production uses public HTTP, survives restart, and opens one immutab
     assert.equal(replay.json().movieJourney.handoff.formation.replayed, true);
     assert.equal(
       replay.json().movieJourney.handoff.production.stage,
-      'handoff_b_offer_open',
+      'movie_on_deck_committed',
     );
     assert.equal(replay.json().movieJourney.handoff.production.replayed, true);
+    assert.deepEqual(
+      replay.json().movieJourney.handoff.production.handoffB.receipt,
+      committedJourney.handoffB.receipt,
+    );
+    assert.deepEqual(
+      replay.json().movieJourney.handoff.production.onDeck.result,
+      committedJourney.onDeck.result,
+    );
   } finally {
     await host.close();
   }
@@ -2582,11 +2682,14 @@ test('Movie production uses public HTTP, survives restart, and opens one immutab
   assert.equal(database.prepare('SELECT head_revision FROM libra_run_admission_heads').get().head_revision, 1);
   assert.equal(database.prepare(
     "SELECT count(*) count FROM fx_material_controls WHERE owner_domain='libra' AND owner_scope_type='subject'"
-  ).get().count, 1);
+  ).get().count, 0);
   assert.equal(database.prepare('SELECT count(*) count FROM libra_product_packages').get().count, 1);
   assert.equal(database.prepare(
     "SELECT count(*) count FROM fx_material_controls WHERE owner_domain='libra' AND owner_scope_type='on_deck_package'"
-  ).get().count, 2);
+  ).get().count, 0);
+  assert.equal(database.prepare(
+    "SELECT count(*) count FROM fx_material_controls WHERE owner_domain='arca' AND owner_scope_type='shelf_entry' AND state='controlled'"
+  ).get().count, 3);
   assert.equal(database.prepare(
     "SELECT count(*) count FROM libra_workspace_material_refs WHERE reference_state='product_staging'"
   ).get().count, 2);
@@ -2597,13 +2700,43 @@ test('Movie production uses public HTTP, survives restart, and opens one immutab
     "SELECT count(*) count FROM proc_run_materials WHERE location=? AND candidate_package_id IS NULL AND selection_state='run_selection'"
   ).get(relatedNfoLocation).count, 1);
   assert.deepEqual(database.prepare('SELECT message_kind,state FROM fx_outbox ORDER BY message_kind').all(), [
+    { message_kind: 'arca.offload.completed@1', state: 'pending' },
+    { message_kind: 'arca.product.accepted@1', state: 'pending' },
     { message_kind: 'field_routing_policy_published', state: 'pending' },
-    { message_kind: 'libra.product-offer.available@1', state: 'pending' },
+    { message_kind: 'libra.product-offer.available@1', state: 'fully_acked' },
     { message_kind: 'libra_candidate_accepted', state: 'fully_acked' },
     { message_kind: 'procurement_candidate_offer_available', state: 'fully_acked' },
   ]);
-  assert.equal(database.prepare("SELECT count(*) count FROM fx_outbox_deliveries WHERE state='acked'").get().count, 2);
-  assert.equal(database.prepare('SELECT count(*) count FROM fx_inbox').get().count, 2);
+  assert.equal(database.prepare(
+    "SELECT count(*) count FROM fx_outbox_deliveries WHERE state='acked'"
+  ).get().count, 3);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM fx_inbox WHERE consumed_at_ms IS NOT NULL'
+  ).get().count, 3);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM arca_acceptance_decisions'
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM arca_ondeck_custodies'
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM arca_ondeck_runs WHERE state=?'
+  ).get('committed').count, 1);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM arca_shelf_entries WHERE status=?'
+  ).get('active').count, 1);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM arca_inventory_materials'
+  ).get().count, 3);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM arca_deck_fact_revisions WHERE state=?'
+  ).get('active').count, 1);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM arca_ondeck_commit_receipts'
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM arca_offload_completions'
+  ).get().count, 1);
   const delivery = database.prepare(
     `SELECT offer_id,candidate_package_id,package_revision,package_digest,acceptance_basis_digest
        FROM proc_candidate_deliveries`
@@ -2612,6 +2745,24 @@ test('Movie production uses public HTTP, survives restart, and opens one immutab
     `SELECT offer_id,on_deck_package_id,package_revision,package_digest
        FROM libra_product_packages`
   ).get();
+  const finalInventoryRows = database.prepare(
+    `SELECT material_key,role,location
+       FROM arca_inventory_materials
+      ORDER BY material_key`
+  ).all();
+  assert.equal(finalInventoryRows.length, 3);
+  assert.equal(new Set(finalInventoryRows.map((row) => row.location)).size, 3);
+  for (const row of finalInventoryRows) {
+    assert.equal(
+      path.resolve(row.location).startsWith(`${path.resolve(shelfRoot)}${path.sep}`),
+      true,
+    );
+    assert.equal(fs.existsSync(row.location), true);
+  }
+  const primaryInventory = finalInventoryRows.find((row) =>
+    row.role === 'primary');
+  assert.ok(primaryInventory);
+  assert.deepEqual(fs.readFileSync(primaryInventory.location), before.bytes);
   database.close();
 
   const kernel = openSqliteKernel({

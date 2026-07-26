@@ -255,7 +255,7 @@
       "relativePath": "types/CustodyAndTransferReceipt/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "f03129b8b0eaec34a21b919cc0cb2eb2f808f75f6c42ed4c9e570ff387920589"
+        "value": "d1d8e1251a1a7db96e911eb923b952ed646d0908b219145c494afc48eb39dd2c"
       },
       "source": {
         "section": "8.6.19",

@@ -90,6 +90,27 @@ function stable(prefix, value) {
   return prefix + canonicalDigest(value);
 }
 
+function productOfferMessage(value) {
+  const messageId = canonicalDigest({
+    schema: 'libra.product-offer-message-id@1',
+    offerId: value.offerId,
+    packageDigest: value.packageDigest,
+  });
+  return Object.freeze({
+    messageKind: 'libra.product-offer.available@1',
+    messageId,
+    offerId: value.offerId,
+    onDeckPackageId: value.onDeckPackageId,
+    packageRevision: value.packageRevision,
+    packageDigest: value.packageDigest,
+    libraRunId: value.libraRunId,
+    subjectId: value.subjectId,
+    shelfId: value.shelfId,
+    acceptanceSpecId: value.acceptanceSpecId,
+    dedupKey: messageId,
+  });
+}
+
 function episodeClaimSetDigest(claims) {
   return canonicalDigest({
     schema: 'libra.production-material-episode-claims@1',
@@ -871,6 +892,11 @@ function createMovieProductionCoordinator(options) {
         packageRevision: published.packageRevision,
         packageDigest: published.packageDigest,
         offerId: published.offerId,
+        offerMessage: productOfferMessage({
+          ...published,
+          subjectId:
+            delivery.onDeckProductPackage.subjectId,
+        }),
         productDelivery: delivery,
       });
     }
@@ -1757,6 +1783,16 @@ function createMovieProductionCoordinator(options) {
       packageRevision: decision.packageRevision,
       packageDigest: decision.packageDigest,
       offerId: decision.offerId,
+      offerMessage: productOfferMessage({
+        offerId: decision.offerId,
+        onDeckPackageId,
+        packageRevision: decision.packageRevision,
+        packageDigest: decision.packageDigest,
+        libraRunId,
+        subjectId: snapshot.run.subjectId,
+        shelfId: snapshot.spec.targetShelfId || snapshot.spec.shelfId,
+        acceptanceSpecId: snapshot.spec.acceptanceSpecId,
+      }),
       productDelivery: delivery,
       conformance,
     });
