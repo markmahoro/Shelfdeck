@@ -293,8 +293,8 @@ CREATE TABLE "arca_inventory_person_relations" (
   "relation_digest" TEXT CHECK (length("relation_digest") = 64 AND "relation_digest" NOT GLOB '*[^0-9a-f]*'),
   PRIMARY KEY ("shelf_entry_id", "inventory_revision", "relation_id"),
   UNIQUE ("shelf_entry_id", "inventory_revision", "relation_digest"),
-  CHECK (json_valid("provider_identity_json")),
-  CHECK (length(CAST("provider_identity_json" AS BLOB)) <= 4096),
+  CHECK ("provider_identity_json" IS NULL OR json_valid("provider_identity_json")),
+  CHECK ("provider_identity_json" IS NULL OR length(CAST("provider_identity_json" AS BLOB)) <= 4096),
   FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_arca_inventory_person_relations_hot_01" ON "arca_inventory_person_relations" ("person_id", "role", "shelf_entry_id");
@@ -1483,8 +1483,8 @@ CREATE TABLE "libra_product_fact_revisions" (
   UNIQUE ("libra_run_id", "fact_kind", "fact_revision"),
   CHECK (json_valid("fact_json")),
   CHECK (length(CAST("fact_json" AS BLOB)) <= 65536),
-  CHECK (json_valid("verified_artifact_manifest_json")),
-  CHECK (length(CAST("verified_artifact_manifest_json" AS BLOB)) <= 262144),
+  CHECK ("verified_artifact_manifest_json" IS NULL OR json_valid("verified_artifact_manifest_json")),
+  CHECK ("verified_artifact_manifest_json" IS NULL OR length(CAST("verified_artifact_manifest_json" AS BLOB)) <= 262144),
   FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
   FOREIGN KEY ("commit_marker") REFERENCES "fx_commit_markers" ("commit_marker") ON DELETE RESTRICT
 );
@@ -1617,8 +1617,8 @@ CREATE TABLE "libra_product_package_materials" (
   "member_digest" TEXT CHECK (length("member_digest") = 64 AND "member_digest" NOT GLOB '*[^0-9a-f]*'),
   PRIMARY KEY ("on_deck_package_id", "ordinal"),
   UNIQUE ("on_deck_package_id", "material_key"),
-  CHECK (json_valid("workspace_handle_json")),
-  CHECK (length(CAST("workspace_handle_json" AS BLOB)) <= 4096),
+  CHECK ("workspace_handle_json" IS NULL OR json_valid("workspace_handle_json")),
+  CHECK ("workspace_handle_json" IS NULL OR length(CAST("workspace_handle_json" AS BLOB)) <= 4096),
   FOREIGN KEY ("on_deck_package_id") REFERENCES "libra_product_packages" ("on_deck_package_id") ON DELETE RESTRICT,
   FOREIGN KEY ("origin_intake_decision_id") REFERENCES "libra_intake_decisions" ("intake_decision_id") ON DELETE RESTRICT
 );
@@ -2023,7 +2023,7 @@ CREATE TABLE "libra_workspace_cleanup_members" (
   "expected_reference_revision" INTEGER CHECK ("expected_reference_revision" >= 1),
   "expected_reference_digest" TEXT CHECK (length("expected_reference_digest") = 64 AND "expected_reference_digest" NOT GLOB '*[^0-9a-f]*'),
   "control_disposition" TEXT CHECK ("control_disposition" IN ('uncontrolled', 'libra_owned', 'other_owned')),
-  "expected_control_revision" INTEGER CHECK ("expected_control_revision" >= 1),
+  "expected_control_revision" INTEGER CHECK ("expected_control_revision" >= 0),
   "expected_control_projection_digest" TEXT CHECK (length("expected_control_projection_digest") = 64 AND "expected_control_projection_digest" NOT GLOB '*[^0-9a-f]*'),
   "expected_control_owner_domain" TEXT,
   "expected_control_owner_scope_type" TEXT,
@@ -2041,8 +2041,8 @@ CREATE TABLE "libra_workspace_cleanup_members" (
   "cleanup_receipt_id" TEXT,
   "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
   PRIMARY KEY ("cleanup_scope_id", "material_handle_id"),
-  CHECK (json_valid("outcome_evidence_json")),
-  CHECK (length(CAST("outcome_evidence_json" AS BLOB)) <= 16384),
+  CHECK ("outcome_evidence_json" IS NULL OR json_valid("outcome_evidence_json")),
+  CHECK ("outcome_evidence_json" IS NULL OR length(CAST("outcome_evidence_json" AS BLOB)) <= 16384),
   FOREIGN KEY ("cleanup_scope_id") REFERENCES "libra_workspace_cleanup_scopes" ("cleanup_scope_id") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_libra_workspace_cleanup_members_hot_01" ON "libra_workspace_cleanup_members" ("state", "updated_at_ms");
@@ -2101,8 +2101,8 @@ CREATE TABLE "libra_workspace_material_refs" (
   CHECK (length(CAST("workspace_handle_json" AS BLOB)) <= 4096),
   CHECK (json_valid("episode_claims_json")),
   CHECK (length(CAST("episode_claims_json" AS BLOB)) <= 16384),
-  CHECK (json_valid("product_verification_json")),
-  CHECK (length(CAST("product_verification_json" AS BLOB)) <= 131072),
+  CHECK ("product_verification_json" IS NULL OR json_valid("product_verification_json")),
+  CHECK ("product_verification_json" IS NULL OR length(CAST("product_verification_json" AS BLOB)) <= 131072),
   FOREIGN KEY ("workspace_id") REFERENCES "libra_workspaces" ("workspace_id") ON DELETE RESTRICT,
   FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT
 );
@@ -2978,8 +2978,8 @@ CREATE TABLE "proc_procurement_retry_intent_materials" (
   "consumed_at_ms" INTEGER CHECK ("consumed_at_ms" >= 0),
   PRIMARY KEY ("retry_intent_id", "ordinal"),
   UNIQUE ("retry_intent_id", "material_key"),
-  CHECK (json_valid("consume_snapshot_json")),
-  CHECK (length(CAST("consume_snapshot_json" AS BLOB)) <= 4096),
+  CHECK ("consume_snapshot_json" IS NULL OR json_valid("consume_snapshot_json")),
+  CHECK ("consume_snapshot_json" IS NULL OR length(CAST("consume_snapshot_json" AS BLOB)) <= 4096),
   FOREIGN KEY ("retry_intent_id") REFERENCES "proc_procurement_retry_intents" ("retry_intent_id") ON DELETE RESTRICT
 );
 
@@ -3022,8 +3022,8 @@ CREATE TABLE "proc_procurement_retry_intents" (
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
   "consumed_at_ms" INTEGER CHECK ("consumed_at_ms" >= 0),
   UNIQUE ("field_id", "idempotency_key"),
-  CHECK (json_valid("consume_admission_head_json")),
-  CHECK (length(CAST("consume_admission_head_json" AS BLOB)) <= 16384),
+  CHECK ("consume_admission_head_json" IS NULL OR json_valid("consume_admission_head_json")),
+  CHECK ("consume_admission_head_json" IS NULL OR length(CAST("consume_admission_head_json" AS BLOB)) <= 16384),
   FOREIGN KEY ("failed_run_id") REFERENCES "proc_procurement_runs" ("procurement_run_id") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
   FOREIGN KEY ("field_id", "retry_access_revision") REFERENCES "proc_field_access_revisions" ("field_id", "revision") ON DELETE RESTRICT,
   FOREIGN KEY ("field_id", "retry_terminal_observation_revision") REFERENCES "proc_field_observations" ("field_id", "revision") ON DELETE RESTRICT,

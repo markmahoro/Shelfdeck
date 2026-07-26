@@ -1,6 +1,6 @@
 # P14 Product Journey Implementation
 
-状态：**FROZEN — PBF-19 Movie Handoff B Accepted 原子性修正等待复验**
+状态：**FROZEN — Movie 最终责任关闭链等待独立复验**
 
 ## 当前基线
 
@@ -9,7 +9,9 @@
   `7531c6ba`；证据 `06155670`。
 - PBF-19 Architecture 修正：`ff1b833a`；实现分支原样纳入：
   `942fc692`。
-- 当前实现检查点：本次提交。
+- PBF-19 P14 独立接受证据：`de0dff64`（tested `3d9ebab4`）。
+- 当前实现检查点：本次提交；详细施工证据见
+  `docs/helix/implementation/evidence/P14_MOVIE_RESPONSIBILITY_CLOSURE_CHECKPOINT.md`。
 - 实现线程未额外修改 Architecture SSOT。
 - `F02.17` 仍为 `NOT_RUN`；不得增加测试便利接口或用内部 Store 证据冒充
   用户 Feature。
@@ -18,9 +20,11 @@
 
 同一 disposable Movie 已沿正式 T-shaped 产品旅程推进至：
 
-`open libra.product-offer.available@1 → Arca Handoff B Accepted →
-Custody/Control transfer → Inventory staging → On-deck Commit →
-active Shelf Entry + Deck Fact + Own`
+`Arca Handoff B Accepted / On-deck Commit →
+Libra accepted message consumption / Run complete →
+Arca durable Off-load Completion projection →
+24h grace + exact last-reference audit →
+Workspace cleanup / Reference release / terminal reclaim`
 
 PBF-19 修正后，Assessment 只留下 `active` Acceptance Attempt。唯一
 `helix.transaction.handoff-b-accepted` 在同一 UoW 内完成：
@@ -36,8 +40,10 @@ PBF-19 修正后，Assessment 只留下 `active` Acceptance Attempt。唯一
 Run/Decision。On-deck Commit 仍是唯一建立 Shelf Entry、Inventory、Deck Fact 与
 Own 的边界。
 
-原 Movie/NFO bytes 与 mtime 均未改变。Libra Workspace 与 Run 尚未
-cleanup/complete；本检查点冻结在 Libra 消费 Accepted/Off-load Completion 前。
+原 Movie/NFO 与 unrelated NFO bytes/mtime 均未改变，Arca final Shelf
+Inventory 保持存在。Libra Run 已 terminal completed；cleanup Scope、全部
+Workspace members/References、Workspace 与 Foundation Registry 已按正式合同
+terminal reclaimed。
 
 ## 验证
 
@@ -47,7 +53,11 @@ cleanup/complete；本检查点冻结在 Libra 消费 Accepted/Off-load Completi
   Handoff B Accepted 后、首个 Inventory 物理效果后、On-deck Commit 后；
 - 每次 pre-commit fault 均证明零部分 Accepted 责任事实；重启/重放只形成一份
   Attempt terminal state、Run、Decision、Custody、Control、Receipt 与 Outbox；
-- 完整 `npm run test:helix-architecture`：`858/858 PASS`；
+- 最终 cleanup 额外覆盖 physical-effect-before-journal 与
+  member-commit-before-response 两个 crash window；重启只复用同一
+  Scope/Effect/Receipt；
+- 定向组合回归：`51/51 PASS`；
+- 完整 `npm run test:helix-architecture`：`PASS`；
 - 机器库存：112 Capabilities / 97 Result families / 177 tables /
   43 canonical transactions / 114 routes / 18 UI surfaces；
 - Contract aggregate：
@@ -61,10 +71,9 @@ cleanup/complete；本检查点冻结在 Libra 消费 Accepted/Off-load Completi
 
 ## 下一步
 
-等待 Architecture 主动复核与 P14 独立复验。通过后才处理 Libra 对正式
-`arca.product.accepted@1` 与 `arca.offload.completed@1` 的消费、Run
-completion 和 Workspace cleanup/reclamation。不得在复验前推进，也不得进入
-Series、JAV、Western Adult 或横向 Feature Matrix。
+保持本检查点冻结，等待 Architecture 主动复核与 P14 独立复验。通过后才按既定
+T-shaped 顺序进入 Series；不得提前进入 JAV、Western Adult 或横向 Feature
+Matrix。
 
 ## 硬边界
 
@@ -73,4 +82,5 @@ Series、JAV、Western Adult 或横向 Feature Matrix。
 - 不得修改 SSOT，不得引入兼容/双路径、hidden Store read、外域
   latest/current scan、Foundation Result fallback、legacy fallback 或跨 Owner
   写入。
-- 当前检查点不声明 Libra cleanup、Movie 端到端旅程或 Beta 完成。
+- 当前检查点只声明 Movie core backend 最终责任关闭链已实现并待复验，不声明
+  Beta 完成。

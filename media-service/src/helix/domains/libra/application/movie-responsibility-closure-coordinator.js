@@ -1,0 +1,467 @@
+'use strict';
+
+const { canonicalDigest } = require('../../../contracts/canonical-json');
+const { digest } = require('../../../foundation/persistence/ddl-compiler');
+const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
+const { createInboxCoordinator } = require('../../../foundation/persistence/outbox-inbox');
+const {
+  buildRunLifecycleDecision,
+} = require('../model/run-lifecycle-contracts');
+const {
+  CYCLE_MS,
+  buildCommitDecision,
+  buildEffectIntent,
+  buildObservation,
+  buildOffloadAdmission,
+} = require('../model/workspace-cleanup-contracts');
+const {
+  createRunLifecycleStore,
+} = require('../persistence/run-lifecycle-store');
+const {
+  createWorkspaceCleanupStore,
+} = require('../persistence/workspace-cleanup-store');
+
+class MovieResponsibilityClosureError extends Error {
+  constructor(code, message, details = {}) {
+    super(message);
+    this.name = 'MovieResponsibilityClosureError';
+    this.code = code;
+    this.details = details;
+  }
+}
+function fail(code, message, details) {
+  throw new MovieResponsibilityClosureError(code, message, details);
+}
+
+function messageDefinition(schemaManifest) {
+  return createRepositoryDefinition({
+    repositoryId: 'movie_responsibility_messages',
+    owner: 'execution-foundation',
+    readOnly: true,
+    schemaManifest,
+    statements: {
+      list_kind: {
+        kind: 'select-all', tableId: 'fx_outbox',
+        columns: [
+          'message_id', 'producer_domain', 'message_kind', 'aggregate_type',
+          'aggregate_id', 'aggregate_revision', 'dedup_key',
+          'payload_schema_ref', 'payload_json', 'payload_digest', 'state',
+        ],
+        keyColumns: ['message_kind'], safeIntegers: true,
+      },
+      find_delivery: {
+        kind: 'select-one', tableId: 'fx_outbox_deliveries',
+        columns: [
+          'message_id', 'consumer_domain', 'state', 'attempt_count',
+          'next_attempt_at_ms', 'acked_at_ms',
+        ],
+        keyColumns: ['message_id', 'consumer_domain'], safeIntegers: true,
+      },
+    },
+  });
+}
+
+function stateDefinition(schemaManifest) {
+  return createRepositoryDefinition({
+    repositoryId: 'movie_responsibility_libra_state',
+    owner: 'libra',
+    readOnly: true,
+    schemaManifest,
+    statements: {
+      find_run: {
+        kind: 'select-one', tableId: 'libra_runs',
+        columns: [
+          'libra_run_id', 'subject_id', 'state', 'state_revision',
+          'state_digest', 'execution_basis_digest',
+        ],
+        keyColumns: ['libra_run_id'], safeIntegers: true,
+      },
+      find_head: {
+        kind: 'select-one', tableId: 'libra_run_admission_heads',
+        columns: ['subject_id', 'head_revision', 'active_scope_set_digest'],
+        keyColumns: ['subject_id'], safeIntegers: true,
+      },
+      find_scope: {
+        kind: 'select-one', tableId: 'libra_workspace_cleanup_scopes',
+        columns: [
+          'cleanup_scope_id', 'admission_decision_digest', 'state',
+          'state_revision', 'state_digest',
+        ],
+        keyColumns: ['cleanup_scope_id'], safeIntegers: true,
+      },
+      list_subject_runs: {
+        kind: 'select-all', tableId: 'libra_runs',
+        columns: [
+          'libra_run_id', 'subject_id', 'state', 'state_revision',
+          'state_digest', 'package_revision_head',
+        ],
+        keyColumns: ['subject_id'], safeIntegers: true,
+      },
+      list_run_packages: {
+        kind: 'select-all', tableId: 'libra_product_packages',
+        columns: [
+          'on_deck_package_id', 'offer_id', 'package_revision',
+          'libra_run_id', 'package_digest', 'state',
+        ],
+        keyColumns: ['libra_run_id'], safeIntegers: true,
+      },
+    },
+  });
+}
+
+function canonicalOutboxPayloadDigest(value) {
+  return digest(JSON.stringify(value, Object.keys(value).sort()));
+}
+
+function createMovieResponsibilityClosureCoordinator(options) {
+  if (!options?.schemaManifest || !options.unitOfWork ||
+      !options.offloadCompletionPort ||
+      !options.workspaceProductPort ||
+      typeof options.now !== 'function') {
+    fail('P14_MOVIE_CLOSURE_DEPENDENCIES',
+      'Movie responsibility closure requires formal ports, persistence, and a clock.');
+  }
+  const messageRepository = messageDefinition(options.schemaManifest);
+  const stateRepository = stateDefinition(options.schemaManifest);
+  const inbox = createInboxCoordinator(options);
+  const lifecycle = createRunLifecycleStore(options);
+  const cleanup = createWorkspaceCleanupStore(options);
+
+  function readMessage(kind, predicate) {
+    return options.unitOfWork.execute([{
+      participantId: 'movie_responsibility_message_read',
+      owner: 'execution-foundation',
+      repositories: [messageRepository],
+      execute(context) {
+        const repo = context.repository(messageRepository.repositoryId);
+        const candidates = repo.invoke('list_kind', {
+          message_kind: kind,
+        }).map((row) => {
+          let payload;
+          try {
+            payload = JSON.parse(row.payload_json);
+          } catch {
+            fail('P14_MOVIE_MESSAGE_CORRUPT',
+              'Formal Outbox payload is not valid JSON.');
+          }
+          const delivery = repo.invoke('find_delivery', {
+            message_id: row.message_id,
+            consumer_domain: 'libra',
+          });
+          if (!delivery || row.producer_domain !== 'arca' ||
+              row.message_id !== payload.messageId ||
+              canonicalOutboxPayloadDigest(payload) !== row.payload_digest) {
+            fail('P14_MOVIE_MESSAGE_CORRUPT',
+              'Formal Arca→Libra message continuity is invalid.');
+          }
+          return { row, payload, delivery };
+        }).filter((item) => predicate(item.payload));
+        if (candidates.length !== 1) {
+          fail('P14_MOVIE_MESSAGE_CARDINALITY',
+            'Movie closure requires one exact formal message.', {
+              kind, count: candidates.length,
+            });
+        }
+        return Object.freeze(candidates[0]);
+      },
+    }]).movie_responsibility_message_read;
+  }
+
+  function readRun(libraRunId) {
+    return options.unitOfWork.execute([{
+      participantId: 'movie_responsibility_run_read',
+      owner: 'libra',
+      repositories: [stateRepository],
+      execute(context) {
+        const repo = context.repository(stateRepository.repositoryId);
+        const run = repo.invoke('find_run', { libra_run_id: libraRunId });
+        if (!run) fail('P14_MOVIE_RUN_MISSING', 'Movie Libra Run is absent.');
+        const head = repo.invoke('find_head', { subject_id: run.subject_id });
+        return Object.freeze({ run, head });
+      },
+    }]).movie_responsibility_run_read;
+  }
+
+  function completeRun(libraRunId, packageValue) {
+    const accepted = readMessage('arca.product.accepted@1',
+      (payload) => payload.libraRunId === libraRunId &&
+        payload.onDeckPackageId === packageValue.onDeckPackageId &&
+        payload.packageDigest === packageValue.packageDigest);
+    const current = readRun(libraRunId);
+    let lifecycleResult;
+    if (current.run.state === 'completed') {
+      if (accepted.delivery.state !== 'acked') {
+        fail('P14_MOVIE_RUN_REPLAY_INCOMPLETE',
+          'Completed Run lacks its acknowledged Accepted delivery.');
+      }
+      lifecycleResult = {
+        replayed: true,
+        result: Object.freeze({
+          libraRunId,
+          committedState: 'completed',
+          committedStateRevision: Number(current.run.state_revision),
+          committedStateDigest: current.run.state_digest,
+        }),
+      };
+    } else {
+      if (!current.head || !['active', 'suspended'].includes(current.run.state)) {
+        fail('P14_MOVIE_RUN_STATE',
+          'Accepted Product may complete only its active/suspended Run.');
+      }
+      const decision = buildRunLifecycleDecision({
+        libraRunId,
+        expectedStateRevision: Number(current.run.state_revision),
+        expectedStateDigest: current.run.state_digest,
+        transitionKind: 'complete',
+        transitionEvidence: accepted.payload,
+        expectedAdmissionHeadRevision: Number(current.head.head_revision),
+        expectedActiveScopeSetDigest: current.head.active_scope_set_digest,
+      });
+      lifecycleResult = lifecycle.transition({
+        decision,
+        commitMarker: canonicalDigest({
+          schema: 'libra.movie-run-complete-marker@1',
+          libraRunId,
+          messageId: accepted.payload.messageId,
+        }),
+        resultId: canonicalDigest({
+          schema: 'libra.movie-run-complete-result-id@1',
+          libraRunId,
+          messageId: accepted.payload.messageId,
+        }),
+      });
+      if (typeof options.afterRunCompletion === 'function') {
+        options.afterRunCompletion(lifecycleResult.result);
+      }
+    }
+    const acknowledgement = inbox.acknowledge({
+      messageId: accepted.payload.messageId,
+      consumerDomain: 'libra',
+    });
+    return Object.freeze({
+      message: accepted.payload,
+      result: lifecycleResult.result,
+      replayed: lifecycleResult.replayed,
+      acknowledgement,
+    });
+  }
+
+  function consumeOffloadWake(message, admission) {
+    const consumed = inbox.consume({
+      message: {
+        messageId: message.messageId,
+        dedupKey: message.messageId,
+        consumerDomain: 'libra',
+      },
+      resultDigest: admission.result.resultDigest,
+      domainParticipant: {
+        participantId: 'movie_offload_wake_libra',
+        owner: 'libra',
+        repositories: [stateRepository],
+        execute(context) {
+          const scope = context.repository(stateRepository.repositoryId)
+            .invoke('find_scope', {
+              cleanup_scope_id: admission.result.cleanupScopeId,
+            });
+          if (!scope ||
+              scope.cleanup_scope_id !== admission.result.cleanupScopeId) {
+            fail('P14_MOVIE_OFFLOAD_SCOPE_MISSING',
+              'Off-load wake cannot bind its committed cleanup Scope.');
+          }
+          return scope.cleanup_scope_id;
+        },
+      },
+    });
+    const acknowledgement = inbox.acknowledge({
+      messageId: message.messageId,
+      consumerDomain: 'libra',
+    });
+    return Object.freeze({ consumed, acknowledgement });
+  }
+
+  function cleanupWorkspace(libraRunId, packageValue) {
+    const offloadWake = readMessage('arca.offload.completed@1',
+      (payload) => payload.onDeckPackageId === packageValue.onDeckPackageId &&
+        payload.packageDigest === packageValue.packageDigest);
+    const triggerSnapshot = options.offloadCompletionPort.readCompletion({
+      queryContract: 'arca.offload-completion@1',
+      onDeckPackageId: packageValue.onDeckPackageId,
+      expectedPackageDigest: packageValue.packageDigest,
+    });
+    if (triggerSnapshot.resultKind !== 'found') {
+      return Object.freeze({ stage: 'offload_not_found' });
+    }
+    let scope = cleanup.readScopeByTrigger(triggerSnapshot);
+    let wake;
+    if (scope) {
+      wake = consumeOffloadWake(offloadWake.payload, {
+        result: cleanup.readAdmissionResult(scope.cleanupScopeId),
+      });
+    } else {
+      const inspected = cleanup.inspect(libraRunId);
+      if (inspected.references.length === 0) {
+        return Object.freeze({ stage: 'cleanup_no_op' });
+      }
+      const nowMs = options.now();
+      const controls = inspected.controls;
+      const observation1 = buildObservation({
+        workspaceId: inspected.workspace.workspaceId,
+        observedAtMs: nowMs - CYCLE_MS,
+        otherReferences: inspected.otherReferences,
+        controls,
+      });
+      const observation2 = buildObservation({
+        workspaceId: inspected.workspace.workspaceId,
+        observedAtMs: nowMs,
+        otherReferences: inspected.otherReferences,
+        controls,
+      });
+      const decision = buildOffloadAdmission({
+        triggerSnapshot,
+        onDeckPackageId: packageValue.onDeckPackageId,
+        packageDigest: packageValue.packageDigest,
+        nowMs,
+        libraRunRef: inspected.run,
+        workspaceRef: {
+          workspaceId: inspected.workspace.workspaceId,
+          workspaceRevision: inspected.workspace.workspaceRevision,
+          workspaceStateDigest:
+            inspected.workspace.workspaceStateDigest,
+          materialReferenceSetDigest:
+            inspected.workspace.materialReferenceSetDigest,
+        },
+        references: inspected.references,
+        controls,
+        observation1,
+        observation2,
+      });
+      const admission = cleanup.admit({
+        decision,
+        commitMarker: canonicalDigest({
+          schema: 'libra.workspace-cleanup-admission-marker@1',
+          cleanupScopeId: decision.cleanupScopeId,
+          decisionDigest: decision.decisionDigest,
+        }),
+        resultId: canonicalDigest({
+          schema: 'libra.workspace-cleanup-admission-result-id@1',
+          cleanupScopeId: decision.cleanupScopeId,
+        }),
+      });
+      if (typeof options.afterCleanupAdmission === 'function' &&
+          !admission.replayed) {
+        options.afterCleanupAdmission(admission.result);
+      }
+      wake = consumeOffloadWake(offloadWake.payload, admission);
+      scope = cleanup.readScope(decision.cleanupScopeId);
+    }
+    const receipts = [];
+    while (scope.state === 'active') {
+      const member = scope.members.find((item) => item.state === 'pending');
+      if (!member) {
+        fail('P14_MOVIE_CLEANUP_MEMBER_MISSING',
+          'Active cleanup Scope has no pending member.');
+      }
+      const handle = cleanup.readHandle(scope.workspaceId,
+        member.materialHandleId);
+      const intent = buildEffectIntent(scope, member, handle);
+      const effect = options.workspaceProductPort.reclaimMaterial(intent);
+      const workspace = cleanup.currentWorkspace(scope.workspaceId);
+      const freshScope = cleanup.readScope(scope.cleanupScopeId);
+      const freshMember = freshScope.members.find((item) =>
+        item.materialHandleId === member.materialHandleId);
+      const commitDecision = buildCommitDecision({
+        scope: freshScope,
+        member: freshMember,
+        workspace,
+        deletionEvidence: effect.deletionEvidence,
+      });
+      const committed = cleanup.commit({
+        decision: commitDecision,
+        commitMarker: canonicalDigest({
+          schema: 'libra.workspace-cleanup-member-marker@1',
+          cleanupScopeId: scope.cleanupScopeId,
+          materialHandleId: member.materialHandleId,
+          decisionDigest: commitDecision.decisionDigest,
+        }),
+        resultId: canonicalDigest({
+          schema: 'libra.workspace-cleanup-member-result-id@1',
+          cleanupScopeId: scope.cleanupScopeId,
+          materialHandleId: member.materialHandleId,
+        }),
+      });
+      receipts.push(committed.result);
+      if (typeof options.afterCleanupCommit === 'function' &&
+          !committed.replayed) {
+        options.afterCleanupCommit(committed.result);
+      }
+      scope = cleanup.readScope(scope.cleanupScopeId);
+    }
+    return Object.freeze({
+      stage: scope.state === 'completed'
+        ? 'workspace_cleanup_completed' : 'workspace_cleanup_blocked',
+      cleanupScopeId: scope.cleanupScopeId,
+      scope,
+      receipts: Object.freeze(receipts),
+      wake,
+    });
+  }
+
+  function advance(request) {
+    const runClosure = completeRun(request.libraRunId,
+      request.onDeckProductPackage);
+    const cleanupResult = cleanupWorkspace(request.libraRunId,
+      request.onDeckProductPackage);
+    return Object.freeze({
+      stage: cleanupResult.stage,
+      runClosure,
+      cleanup: cleanupResult,
+    });
+  }
+
+  function findCompletedRun(subjectId) {
+    return options.unitOfWork.execute([{
+      participantId: 'movie_completed_run_read',
+      owner: 'libra',
+      repositories: [stateRepository],
+      execute(context) {
+        const repo = context.repository(stateRepository.repositoryId);
+        const matches = repo.invoke('list_subject_runs', {
+          subject_id: subjectId,
+        }).filter((run) => run.state === 'completed' &&
+          Number(run.package_revision_head) > 0 &&
+          repo.invoke('list_run_packages', {
+            libra_run_id: run.libra_run_id,
+          }).some((item) => item.state === 'published'));
+        if (matches.length > 1) {
+          fail('P14_MOVIE_COMPLETED_RUN_AMBIGUOUS',
+            'Subject has more than one completed published Movie Run.');
+        }
+        if (!matches.length) return null;
+        const run = matches[0];
+        const packages = repo.invoke('list_run_packages', {
+          libra_run_id: run.libra_run_id,
+        }).filter((item) => item.state === 'published');
+        if (packages.length !== 1) {
+          fail('P14_MOVIE_COMPLETED_PACKAGE_AMBIGUOUS',
+            'Completed Movie Run requires one published Product Package.');
+        }
+        return Object.freeze({
+          libraRunId: run.libra_run_id,
+          package: Object.freeze({
+            onDeckPackageId: packages[0].on_deck_package_id,
+            offerId: packages[0].offer_id,
+            packageRevision: Number(packages[0].package_revision),
+            packageDigest: packages[0].package_digest,
+          }),
+        });
+      },
+    }]).movie_completed_run_read;
+  }
+
+  return Object.freeze({ advance, findCompletedRun });
+}
+
+module.exports = Object.freeze({
+  MovieResponsibilityClosureError,
+  createMovieResponsibilityClosureCoordinator,
+});

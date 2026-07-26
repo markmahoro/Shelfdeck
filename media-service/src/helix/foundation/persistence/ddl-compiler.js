@@ -12,6 +12,7 @@ const LOGICAL_TYPES = Object.freeze({
 const NON_NEGATIVE_REVISION_COLUMNS = new Set([
   'proc_run_materials.expected_control_revision',
   'proc_procurement_retry_intent_materials.expected_control_revision',
+  'libra_workspace_cleanup_members.expected_control_revision',
   'libra_subject_continuity_heads.current_revision',
   'libra_intake_decisions.expected_continuity_head_revision',
   'libra_decision_basis_revisions.expected_head_revision',
@@ -316,8 +317,11 @@ function compileTable(contract, allContracts) {
     if (!json.requiresJsonValidCheck || ![4096, 16384, 65536, 131072, 262144, 1048576].includes(json.maxBytes)) {
       throw new Error('P3_DDL_UNSUPPORTED_JSON_CONTRACT:' + contract.tableId + '.' + json.column);
     }
-    definitions.push('CHECK (json_valid(' + quoteIdentifier(json.column) + '))');
-    definitions.push('CHECK (length(CAST(' + quoteIdentifier(json.column) + ' AS BLOB)) <= ' + json.maxBytes + ')');
+    const jsonColumn = contract.columns.find((column) => column.name === json.column);
+    const quotedJsonColumn = quoteIdentifier(json.column);
+    const nullablePrefix = jsonColumn.nullable ? quotedJsonColumn + ' IS NULL OR ' : '';
+    definitions.push('CHECK (' + nullablePrefix + 'json_valid(' + quotedJsonColumn + '))');
+    definitions.push('CHECK (' + nullablePrefix + 'length(CAST(' + quotedJsonColumn + ' AS BLOB)) <= ' + json.maxBytes + ')');
     if (json.schemaRefColumn) requireColumns(contract, [json.schemaRefColumn], contract.tableId + ':json-schema-ref');
   }
   for (const check of TABLE_CHECKS[contract.tableId] || []) definitions.push('CHECK (' + check + ')');

@@ -43,11 +43,17 @@ const {
   createMovieProductionCoordinator,
 } = require('./helix/domains/libra/application/movie-production-coordinator');
 const {
+  createMovieResponsibilityClosureCoordinator,
+} = require('./helix/domains/libra/application/movie-responsibility-closure-coordinator');
+const {
   createProductDeliveryReader,
 } = require('./helix/domains/libra/persistence/product-delivery-reader');
 const {
   createMovieOnDeckCoordinator,
 } = require('./helix/domains/arca/application/movie-ondeck-coordinator');
+const {
+  createOffloadCompletionPort,
+} = require('./helix/domains/arca/public/offload-completion-port');
 const {
   createPerceptionResolutionApplication,
 } = require('./helix/domains/perception/application/perception-resolution-application');
@@ -218,6 +224,7 @@ function createRuntime(options) {
       databasePath,
       schemaDdl,
       schemaManifest,
+      now: options.now,
     });
     const unitOfWork = createSqliteUnitOfWork({ kernel });
     const expected = Object.freeze({
@@ -342,6 +349,7 @@ async function createCleanServiceHost(options) {
     ...constructed.applicationDependencies,
     rootPath: options.workspaceRoot || path.join(options.dataDir, 'workspace'),
     afterPhysicalEffect: options.afterWorkspacePhysicalEffect,
+    afterCleanupPhysicalEffect: options.afterCleanupPhysicalEffect,
   });
   const productProductionPort = createCleanProductProductionPort({
     mediaProbe,
@@ -390,6 +398,46 @@ async function createCleanServiceHost(options) {
   const arcaAcceptance = createArcaAcceptanceFacade({
     acceptProductOffer: movieOnDeckApplication.acceptProductOffer,
   });
+  const responsibilityClosure =
+    createMovieResponsibilityClosureCoordinator({
+      ...constructed.applicationDependencies,
+      offloadCompletionPort:
+        createOffloadCompletionPort(constructed.applicationDependencies),
+      workspaceProductPort,
+      now: options.cleanupNow || options.now || Date.now,
+      afterRunCompletion: options.afterRunCompletion,
+      afterCleanupAdmission: options.afterCleanupAdmission,
+      afterCleanupCommit: options.afterCleanupCommit,
+    });
+  const advanceRunProduction = async (libraRunId) => {
+    const production = await movieProductionCoordinator.advance(libraRunId);
+    if (production.stage !== 'handoff_b_offer_open') return production;
+    const arca = arcaAcceptance.acceptProductOffer(
+      production.offerMessage,
+    );
+    let closure;
+    try {
+      closure = responsibilityClosure.advance({
+        libraRunId,
+        onDeckProductPackage:
+          production.productDelivery.onDeckProductPackage,
+      });
+    } catch (error) {
+      if (error.code !== 'P14_CLEANUP_GRACE_ACTIVE') throw error;
+      closure = Object.freeze({
+        stage: 'workspace_cleanup_grace_active',
+        graceDeadlineMs: error.details.graceDeadlineMs,
+      });
+    }
+    return Object.freeze({
+      ...production,
+      offerStage: production.stage,
+      stage: arca.stage,
+      handoffB: arca.handoffB,
+      onDeck: arca.onDeck,
+      responsibilityClosure: closure,
+    });
+  };
   const advanceProduction = async (formation) => {
     if (formation.stage !== 'libra_run_active') return null;
     const libraRunId = formation.libraRunId || formation.libraRun?.libraRunId;
@@ -399,18 +447,7 @@ async function createCleanServiceHost(options) {
         'Movie formation did not expose the exact Libra Run identity.',
       );
     }
-    const production = await movieProductionCoordinator.advance(libraRunId);
-    if (production.stage !== 'handoff_b_offer_open') return production;
-    const arca = arcaAcceptance.acceptProductOffer(
-      production.offerMessage,
-    );
-    return Object.freeze({
-      ...production,
-      offerStage: production.stage,
-      stage: arca.stage,
-      handoffB: arca.handoffB,
-      onDeck: arca.onDeck,
-    });
+    return advanceRunProduction(libraRunId);
   };
   const handoffOffer = async (offer) => {
     const accepted = libraIntake.offerCandidate(offer);
@@ -445,6 +482,78 @@ async function createCleanServiceHost(options) {
   };
   const resumeAcceptedHandoff = async (offer) => {
     const intake = libraIntakeApplication.resumeAcceptedOffer(offer);
+    const completed =
+      responsibilityClosure.findCompletedRun(intake.receipt.subjectId);
+    if (completed) {
+      const delivery = productDeliveryPort.readPackage({
+        queryContract: 'libra.product-delivery@1',
+        readPurpose: 'historical',
+        offerId: completed.package.offerId,
+        onDeckPackageId: completed.package.onDeckPackageId,
+        expectedPackageRevision: completed.package.packageRevision,
+        expectedPackageDigest: completed.package.packageDigest,
+      });
+      if (delivery.resultKind !== 'found') {
+        throw new CleanServiceHostError(
+          'CLEAN_MOVIE_PRODUCT_DELIVERY_MISSING',
+          'Completed Movie Run cannot reconstruct its Product Delivery.',
+        );
+      }
+      const packageValue = delivery.onDeckProductPackage;
+      const messageId = canonicalDigest({
+        schema: 'libra.product-offer-message-id@1',
+        offerId: completed.package.offerId,
+        packageDigest: completed.package.packageDigest,
+      });
+      const offerMessage = Object.freeze({
+        messageKind: 'libra.product-offer.available@1',
+        messageId,
+        offerId: completed.package.offerId,
+        onDeckPackageId: completed.package.onDeckPackageId,
+        packageRevision: completed.package.packageRevision,
+        packageDigest: completed.package.packageDigest,
+        libraRunId: completed.libraRunId,
+        subjectId: packageValue.subjectId,
+        shelfId: packageValue.shelfId,
+        acceptanceSpecId: packageValue.acceptanceSpecRef.id,
+        dedupKey: messageId,
+      });
+      const arca = arcaAcceptance.acceptProductOffer(offerMessage);
+      let closure;
+      try {
+        closure = responsibilityClosure.advance({
+          libraRunId: completed.libraRunId,
+          onDeckProductPackage: packageValue,
+        });
+      } catch (error) {
+        if (error.code !== 'P14_CLEANUP_GRACE_ACTIVE') throw error;
+        closure = Object.freeze({
+          stage: 'workspace_cleanup_grace_active',
+          graceDeadlineMs: error.details.graceDeadlineMs,
+        });
+      }
+      return Object.freeze({
+        intake,
+        formation: Object.freeze({
+          stage: 'libra_run_completed',
+          libraRunId: completed.libraRunId,
+          replayed: true,
+        }),
+        production: Object.freeze({
+          stage: arca.stage,
+          replayed: true,
+          libraRunId: completed.libraRunId,
+          onDeckPackageId: completed.package.onDeckPackageId,
+          packageRevision: completed.package.packageRevision,
+          packageDigest: completed.package.packageDigest,
+          offerId: completed.package.offerId,
+          productDelivery: delivery,
+          handoffB: arca.handoffB,
+          onDeck: arca.onDeck,
+          responsibilityClosure: closure,
+        }),
+      });
+    }
     const formation = movieFormationCoordinator.advance(intake.receipt.subjectId);
     return Object.freeze({
       intake,

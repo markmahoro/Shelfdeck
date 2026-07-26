@@ -96,6 +96,20 @@ function definitions(schemaManifest) {
             { column: 'intent_digest', parameter: 'expected_intent_digest' },
           ],
         },
+        reclaim_material: {
+          kind: 'update',
+          tableId: 'fx_workspace_materials',
+          setColumns: [
+            'state', 'reclaimed_effect_id', 'reclaimed_effect_receipt_digest',
+            'reclaimed_at_ms',
+          ],
+          keyColumns: ['workspace_id', 'material_handle_id'],
+          compareColumns: [
+            { column: 'state', parameter: 'expected_state' },
+            { column: 'handle_digest', parameter: 'expected_handle_digest' },
+            { column: 'fence_digest', parameter: 'expected_fence_digest' },
+          ],
+        },
         find_material: {
           kind: 'select-one',
           tableId: 'fx_workspace_materials',
@@ -594,11 +608,227 @@ function createCleanWorkspaceProductPort(options) {
     return receipt;
   }
 
+  function reclaimMaterial(intent) {
+    const row = execute(
+      'clean_workspace_reclaim_read',
+      'execution-foundation',
+      repositories.foundation,
+      (context) => context.repository(repositories.foundation.repositoryId)
+        .invoke('find_material', {
+          workspace_id: intent?.workspaceId,
+          material_handle_id: intent?.materialHandleId,
+        }),
+    );
+    if (!row) {
+      fail('CLEAN_WORKSPACE_RECLAIM_HANDLE_MISSING',
+        'Workspace cleanup requires its exact durable Handle.');
+    }
+    const handle = mapMaterial(row);
+    if (intent.expectedWorkspaceHandleDigest !== canonicalDigest(handle) ||
+        intent.materialHandleId !== handle.handleId ||
+        intent.workspaceId !== handle.workspaceId ||
+        intent.intentDigest !== canonicalDigest(Object.fromEntries(
+          Object.entries(intent).filter(([name]) => name !== 'intentDigest'),
+        ))) {
+      fail('CLEAN_WORKSPACE_RECLAIM_FENCE',
+        'Workspace cleanup intent does not match the durable Handle.');
+    }
+    const target = path.resolve(
+      absoluteRoot,
+      handle.workspaceId,
+      ...relative(handle.relativePath).split('/'),
+    );
+    const workspaceRoot = path.resolve(absoluteRoot, handle.workspaceId);
+    if (target === workspaceRoot ||
+        !target.startsWith(workspaceRoot + path.sep)) {
+      fail('CLEAN_WORKSPACE_RECLAIM_ESCAPE',
+        'Workspace cleanup target escaped its exact Workspace root.');
+    }
+    const effectId = canonicalDigest({
+      schema: 'foundation.effect-id@1',
+      effectClass: 'libra_workspace_material_reclaim',
+      idempotencyKey: intent.idempotencyKey,
+    });
+    const prior = execute(
+      'clean_workspace_reclaim_intent',
+      'execution-foundation',
+      repositories.foundation,
+      (context) => {
+        const repo = context.repository(repositories.foundation.repositoryId);
+        const existing = repo.invoke('find_effect', {
+          effect_class: 'libra_workspace_material_reclaim',
+          idempotency_key: intent.idempotencyKey,
+        });
+        if (existing) {
+          if (existing.effect_id !== effectId ||
+              existing.intent_digest !== intent.intentDigest) {
+            fail('CLEAN_WORKSPACE_RECLAIM_CONFLICT',
+              'Workspace cleanup effect key binds another intent.');
+          }
+          return existing;
+        }
+        repo.invoke('insert_effect', {
+          effect_id: effectId,
+          event_attempt_id: null,
+          effect_class: 'libra_workspace_material_reclaim',
+          idempotency_key: intent.idempotencyKey,
+          intent_digest: intent.intentDigest,
+          state: 'intended',
+          external_receipt_ref: null,
+          output_digest: null,
+          verified_at_ms: null,
+          updated_at_ms: context.commitTimeMs,
+        });
+        return repo.invoke('find_effect', {
+          effect_class: 'libra_workspace_material_reclaim',
+          idempotency_key: intent.idempotencyKey,
+        });
+      },
+    );
+    const existed = fs.existsSync(target);
+    if (intent.effectMode === 'verify_absent_only' && existed) {
+      fail('CLEAN_WORKSPACE_RECLAIM_CONTROL_CONFLICT',
+        'Other-owned Workspace material may only be verified absent.');
+    }
+    if (prior.state !== 'committed' && existed) {
+      const bytes = fs.readFileSync(target);
+      if (bytes.length !== handle.sizeBytes ||
+          digestBytes(bytes) !== handle.digestHex) {
+        fail('CLEAN_WORKSPACE_RECLAIM_IDENTITY',
+          'Workspace cleanup target bytes differ from the frozen Handle.');
+      }
+      fs.unlinkSync(target);
+      if (typeof options.afterCleanupPhysicalEffect === 'function') {
+        options.afterCleanupPhysicalEffect(Object.freeze({
+          effectId,
+          target,
+          intentDigest: intent.intentDigest,
+        }));
+      }
+    }
+    if (fs.existsSync(target)) {
+      fail('CLEAN_WORKSPACE_RECLAIM_ABSENCE',
+        'Workspace cleanup did not establish physical absence.');
+    }
+    let result = existed ? 'deleted' : 'already_absent';
+    const postDeleteContainmentProbeDigest = canonicalDigest({
+      schema: 'libra.workspace-cleanup-absence-probe@1',
+      workspaceId: handle.workspaceId,
+      materialHandleId: handle.handleId,
+      targetRelativePath: handle.relativePath,
+      containmentFenceDigest: intent.containmentFenceDigest,
+      result: 'absent',
+    });
+    const effectReceiptId = canonicalDigest({
+      schema: 'libra.workspace-cleanup-effect-receipt-id@1',
+      effectId,
+      intentDigest: intent.intentDigest,
+      postDeleteContainmentProbeDigest,
+    });
+    const evidenceFor = (resultKind) => {
+      const evidenceBase = {
+      evidenceId: canonicalDigest({
+        schema: 'libra.workspace-material-deletion-evidence-id@1',
+        effectId,
+        cleanupScopeId: intent.cleanupScopeId,
+        materialHandleId: intent.materialHandleId,
+      }),
+      evidenceKind: 'workspace_material_deletion',
+      effectId,
+      cleanupScopeId: intent.cleanupScopeId,
+      materialHandleId: intent.materialHandleId,
+      preDeleteHandleDigest: intent.expectedWorkspaceHandleDigest,
+      result: resultKind,
+      postDeleteContainmentProbeDigest,
+      effectReceiptId,
+      };
+      return Object.freeze({
+        ...evidenceBase,
+        evidenceDigest: canonicalDigest(evidenceBase),
+      });
+    };
+    let deletionEvidence = evidenceFor(result);
+    if (prior.state === 'committed' &&
+        deletionEvidence.evidenceDigest !== prior.output_digest) {
+      const alternate = result === 'deleted' ? 'already_absent' : 'deleted';
+      const candidate = evidenceFor(alternate);
+      if (candidate.evidenceDigest !== prior.output_digest) {
+        fail('CLEAN_WORKSPACE_RECLAIM_REPLAY_CORRUPT',
+          'Committed Workspace cleanup Evidence digest cannot be reconstructed.');
+      }
+      result = alternate;
+      deletionEvidence = candidate;
+    }
+    execute(
+      'clean_workspace_reclaim_commit',
+      'execution-foundation',
+      repositories.foundation,
+      (context) => {
+        const repo = context.repository(repositories.foundation.repositoryId);
+        const current = repo.invoke('find_effect', {
+          effect_class: 'libra_workspace_material_reclaim',
+          idempotency_key: intent.idempotencyKey,
+        });
+        const material = repo.invoke('find_material', {
+          workspace_id: intent.workspaceId,
+          material_handle_id: intent.materialHandleId,
+        });
+        if (!current || current.effect_id !== effectId ||
+            current.intent_digest !== intent.intentDigest || !material) {
+          fail('CLEAN_WORKSPACE_RECLAIM_JOURNAL',
+            'Workspace cleanup journal or material row is absent.');
+        }
+        if (current.state === 'committed') {
+          if (material.state !== 'reclaimed' ||
+              current.output_digest !== deletionEvidence.evidenceDigest) {
+            fail('CLEAN_WORKSPACE_RECLAIM_REPLAY_CORRUPT',
+              'Committed Workspace cleanup cannot be reconstructed.');
+          }
+          return;
+        }
+        if (material.state !== 'active' ||
+            repo.invoke('reclaim_material', {
+              state: 'reclaimed',
+              reclaimed_effect_id: effectId,
+              reclaimed_effect_receipt_digest: deletionEvidence.evidenceDigest,
+              reclaimed_at_ms: context.commitTimeMs,
+              workspace_id: intent.workspaceId,
+              material_handle_id: intent.materialHandleId,
+              expected_state: 'active',
+              expected_handle_digest: intent.expectedWorkspaceHandleDigest,
+              expected_fence_digest: handle.fenceDigest,
+            }).changes !== 1) {
+          fail('CLEAN_WORKSPACE_RECLAIM_MATERIAL_CAS',
+            'Workspace material reclaim CAS failed.');
+        }
+        if (repo.invoke('commit_effect', {
+          state: 'committed',
+          external_receipt_ref: effectReceiptId,
+          output_digest: deletionEvidence.evidenceDigest,
+          verified_at_ms: context.commitTimeMs,
+          updated_at_ms: context.commitTimeMs,
+          effect_id: effectId,
+          expected_state: 'intended',
+          expected_intent_digest: intent.intentDigest,
+        }).changes !== 1) {
+          fail('CLEAN_WORKSPACE_RECLAIM_EFFECT_CAS',
+            'Workspace cleanup effect journal CAS failed.');
+        }
+      },
+    );
+    return Object.freeze({
+      replayed: prior.state === 'committed',
+      deletionEvidence,
+      workspaceMaterialHandle: handle,
+    });
+  }
+
   return Object.freeze({
     rootPath: absoluteRoot,
     rootSnapshot: ensureRoot,
     materializeArtifact,
     observeSpace,
+    reclaimMaterial,
   });
 }
 

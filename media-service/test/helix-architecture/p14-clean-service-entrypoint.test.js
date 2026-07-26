@@ -236,6 +236,40 @@ test('Movie formation keeps decisions and persistence inside Libra owner-local p
   assert.match(hostSource, /resolvePerceptionDecisionFact:[\s\S]*perceptionResolution\.resolveDecisionFact/);
 });
 
+test('Movie responsibility closure uses only formal Owner-local ports and exact message consumers', () => {
+  const coordinatorSource = fs.readFileSync(
+    path.join(
+      serviceRoot,
+      'src/helix/domains/libra/application/movie-responsibility-closure-coordinator.js',
+    ),
+    'utf8',
+  );
+  const cleanupStoreSource = fs.readFileSync(
+    path.join(
+      serviceRoot,
+      'src/helix/domains/libra/persistence/workspace-cleanup-store.js',
+    ),
+    'utf8',
+  );
+  const offloadPortSource = fs.readFileSync(
+    path.join(
+      serviceRoot,
+      'src/helix/domains/arca/application/offload-completion-projection.js',
+    ),
+    'utf8',
+  );
+  assert.doesNotMatch(
+    coordinatorSource,
+    /domains\/(?:arca|procurement)\/persistence|better-sqlite3|SELECT\s+|MAX\s*\(|ORDER\s+BY[\s\S]*?DESC/i,
+  );
+  assert.doesNotMatch(cleanupStoreSource, /\b(?:arca|proc)_/);
+  assert.match(coordinatorSource, /arca\.product\.accepted@1/);
+  assert.match(coordinatorSource, /arca\.offload\.completed@1/);
+  assert.match(coordinatorSource, /offloadCompletionPort\.readCompletion/);
+  assert.match(offloadPortSource, /owner: 'arca'/);
+  assert.match(offloadPortSource, /readOnly: true/);
+});
+
 test('Procurement automation advances only through owner-local formal contracts', () => {
   const source = fs.readFileSync(
     path.join(
@@ -2612,6 +2646,11 @@ test('Movie production reaches one Arca Shelf Entry through formal Handoff B and
       1,
     );
     assert.equal(resumed.json().movieJourney.handoff.production.replayed, true);
+    assert.equal(
+      resumed.json().movieJourney.handoff.production
+        .responsibilityClosure.stage,
+      'workspace_cleanup_grace_active',
+    );
     committedJourney =
       resumed.json().movieJourney.handoff.production;
     for (const [schemaId, typedValue] of [
@@ -2658,7 +2697,7 @@ test('Movie production reaches one Arca Shelf Entry through formal Handoff B and
     assert.equal(replay.json().observation.replayed, true);
     assert.equal(replay.json().movieJourney.stage, 'handoff_a_accepted');
     assert.equal(replay.json().movieJourney.replayed, true);
-    assert.equal(replay.json().movieJourney.handoff.formation.stage, 'libra_run_active');
+    assert.equal(replay.json().movieJourney.handoff.formation.stage, 'libra_run_completed');
     assert.equal(replay.json().movieJourney.handoff.formation.replayed, true);
     assert.equal(
       replay.json().movieJourney.handoff.production.stage,
@@ -2688,7 +2727,7 @@ test('Movie production reaches one Arca Shelf Entry through formal Handoff B and
   assert.equal(database.prepare('SELECT count(*) count FROM libra_subjects').get().count, 1);
   assert.equal(database.prepare('SELECT count(*) count FROM libra_routing_decisions').get().count, 1);
   assert.equal(database.prepare('SELECT count(*) count FROM libra_acceptance_specs').get().count, 1);
-  assert.equal(database.prepare("SELECT count(*) count FROM libra_runs WHERE state='active'").get().count, 1);
+  assert.equal(database.prepare("SELECT count(*) count FROM libra_runs WHERE state='completed'").get().count, 1);
   const intakeEvidence = database.prepare(
     `SELECT intake_decision_id,candidate_package_id,package_revision,package_digest,
             candidate_delivery_snapshot_digest,candidate_identity_claim_digest,
@@ -2741,7 +2780,7 @@ test('Movie production reaches one Arca Shelf Entry through formal Handoff B and
     JSON.parse(resolutionRows[0].result_json).factDigest,
   );
   assert.equal(database.prepare('SELECT head_revision FROM libra_subject_decision_heads').get().head_revision, 4);
-  assert.equal(database.prepare('SELECT head_revision FROM libra_run_admission_heads').get().head_revision, 1);
+  assert.equal(database.prepare('SELECT head_revision FROM libra_run_admission_heads').get().head_revision, 2);
   assert.equal(database.prepare(
     "SELECT count(*) count FROM fx_material_controls WHERE owner_domain='libra' AND owner_scope_type='subject'"
   ).get().count, 0);
@@ -2763,7 +2802,7 @@ test('Movie production reaches one Arca Shelf Entry through formal Handoff B and
   ).get(relatedNfoLocation).count, 1);
   assert.deepEqual(database.prepare('SELECT message_kind,state FROM fx_outbox ORDER BY message_kind').all(), [
     { message_kind: 'arca.offload.completed@1', state: 'pending' },
-    { message_kind: 'arca.product.accepted@1', state: 'pending' },
+    { message_kind: 'arca.product.accepted@1', state: 'fully_acked' },
     { message_kind: 'field_routing_policy_published', state: 'pending' },
     { message_kind: 'libra.product-offer.available@1', state: 'fully_acked' },
     { message_kind: 'libra_candidate_accepted', state: 'fully_acked' },
@@ -2771,10 +2810,10 @@ test('Movie production reaches one Arca Shelf Entry through formal Handoff B and
   ]);
   assert.equal(database.prepare(
     "SELECT count(*) count FROM fx_outbox_deliveries WHERE state='acked'"
-  ).get().count, 3);
+  ).get().count, 4);
   assert.equal(database.prepare(
     'SELECT count(*) count FROM fx_inbox WHERE consumed_at_ms IS NOT NULL'
-  ).get().count, 3);
+  ).get().count, 4);
   assert.equal(database.prepare(
     'SELECT count(*) count FROM arca_acceptance_decisions'
   ).get().count, 1);
@@ -2825,6 +2864,14 @@ test('Movie production reaches one Arca Shelf Entry through formal Handoff B and
     row.role === 'primary');
   assert.ok(primaryInventory);
   assert.deepEqual(fs.readFileSync(primaryInventory.location), before.bytes);
+  const cleanupAtMs = Number(database.prepare(
+    'SELECT committed_at_ms FROM arca_offload_completions'
+  ).get().committed_at_ms) + 86_400_000 + 60_000;
+  const workspaceFiles = database.prepare(
+    'SELECT workspace_id,relative_path FROM fx_workspace_materials ORDER BY relative_path'
+  ).all().map((row) => path.join(
+    value.dataDir, 'workspace', row.workspace_id, ...row.relative_path.split('/'),
+  ));
   database.close();
 
   const kernel = openSqliteKernel({
@@ -2876,6 +2923,123 @@ test('Movie production reaches one Arca Shelf Entry through formal Handoff B and
   } finally {
     kernel.close();
   }
+  let cleanupPhysicalEffects = 0;
+  host = await createCleanServiceHost({
+    dataDir: value.dataDir,
+    adminDistDir: value.adminDistDir,
+    secretRoot,
+    mediaProbe,
+    ...productionOptions,
+    cleanupNow: () => cleanupAtMs,
+    afterCleanupPhysicalEffect() {
+      cleanupPhysicalEffects += 1;
+      throw Object.assign(new Error('cleanup physical effect interruption'), {
+        code: 'P14_TEST_CLEANUP_PHYSICAL_EFFECT_INTERRUPTION',
+      });
+    },
+  });
+  try {
+    const interrupted = await requestObservation(host);
+    assert.equal(interrupted.statusCode, 400, interrupted.body);
+  } finally {
+    await host.close();
+  }
+  let cleanupCrashDatabase = new Database(
+    path.join(value.dataDir, 'shelfdeck.db'), { readonly: true },
+  );
+  assert.equal(cleanupCrashDatabase.prepare(
+    "SELECT count(*) count FROM libra_workspace_cleanup_scopes WHERE state='active'"
+  ).get().count, 1);
+  assert.equal(cleanupCrashDatabase.prepare(
+    "SELECT count(*) count FROM libra_workspace_cleanup_members WHERE state='completed'"
+  ).get().count, 0);
+  assert.equal(cleanupCrashDatabase.prepare(
+    "SELECT count(*) count FROM fx_effect_journal WHERE effect_class='libra_workspace_material_reclaim' AND state='intended'"
+  ).get().count, 1);
+  cleanupCrashDatabase.close();
+  assert.equal(cleanupPhysicalEffects, 1);
+  assert.equal(workspaceFiles.filter((file) => !fs.existsSync(file)).length, 1);
+
+  host = await createCleanServiceHost({
+    dataDir: value.dataDir,
+    adminDistDir: value.adminDistDir,
+    secretRoot,
+    mediaProbe,
+    ...productionOptions,
+    cleanupNow: () => cleanupAtMs,
+    afterCleanupCommit() {
+      throw Object.assign(new Error('cleanup commit interruption'), {
+        code: 'P14_TEST_CLEANUP_COMMIT_INTERRUPTION',
+      });
+    },
+  });
+  try {
+    const interrupted = await requestObservation(host);
+    assert.equal(interrupted.statusCode, 400, interrupted.body);
+  } finally {
+    await host.close();
+  }
+  cleanupCrashDatabase = new Database(
+    path.join(value.dataDir, 'shelfdeck.db'), { readonly: true },
+  );
+  assert.equal(cleanupCrashDatabase.prepare(
+    "SELECT count(*) count FROM libra_workspace_cleanup_members WHERE state='completed'"
+  ).get().count, 1);
+  assert.equal(cleanupCrashDatabase.prepare(
+    "SELECT count(*) count FROM fx_effect_journal WHERE effect_class='libra_workspace_material_reclaim' AND state='committed'"
+  ).get().count, 1);
+  cleanupCrashDatabase.close();
+
+  host = await createCleanServiceHost({
+    dataDir: value.dataDir,
+    adminDistDir: value.adminDistDir,
+    secretRoot,
+    mediaProbe,
+    ...productionOptions,
+    cleanupNow: () => cleanupAtMs,
+    afterCleanupPhysicalEffect() {
+      cleanupPhysicalEffects += 1;
+    },
+  });
+  try {
+    const cleaned = await requestObservation(host);
+    assert.equal(cleaned.statusCode, 200, cleaned.body);
+    assert.equal(
+      cleaned.json().movieJourney.handoff.production
+        .responsibilityClosure.stage,
+      'workspace_cleanup_completed',
+    );
+  } finally {
+    await host.close();
+  }
+  const cleanedDatabase = new Database(
+    path.join(value.dataDir, 'shelfdeck.db'), { readonly: true },
+  );
+  assert.equal(cleanedDatabase.prepare(
+    "SELECT count(*) count FROM libra_workspace_cleanup_scopes WHERE state='completed'"
+  ).get().count, 1);
+  assert.equal(cleanedDatabase.prepare(
+    "SELECT count(*) count FROM libra_workspace_cleanup_members WHERE state='completed'"
+  ).get().count, workspaceFiles.length);
+  assert.equal(cleanedDatabase.prepare(
+    "SELECT count(*) count FROM libra_workspace_material_refs WHERE reference_state='released'"
+  ).get().count, workspaceFiles.length);
+  assert.equal(cleanedDatabase.prepare(
+    "SELECT count(*) count FROM fx_workspace_materials WHERE state='reclaimed'"
+  ).get().count, workspaceFiles.length);
+  assert.equal(cleanedDatabase.prepare(
+    "SELECT count(*) count FROM libra_workspaces WHERE state='reclaimed'"
+  ).get().count, 1);
+  assert.equal(cleanedDatabase.prepare(
+    "SELECT count(*) count FROM fx_workspace_registry WHERE state='reclaimed'"
+  ).get().count, 1);
+  assert.equal(cleanedDatabase.prepare(
+    "SELECT count(*) count FROM fx_outbox WHERE message_kind IN ('arca.product.accepted@1','arca.offload.completed@1') AND state='fully_acked'"
+  ).get().count, 2);
+  cleanedDatabase.close();
+  assert.equal(cleanupPhysicalEffects, workspaceFiles.length);
+  assert.equal(workspaceFiles.every((file) => !fs.existsSync(file)), true);
+  assert.equal(finalInventoryRows.every((row) => fs.existsSync(row.location)), true);
   assert.deepEqual(fs.readFileSync(source), before.bytes);
   assert.equal(fs.statSync(source).mtimeMs, before.mtimeMs);
   assert.deepEqual(fs.readFileSync(relatedNfo), before.nfoBytes);

@@ -202,6 +202,17 @@ function arcaDefinition(schemaManifest) {
         keyColumns: ['on_deck_run_id'],
         safeIntegers: true,
       },
+      find_completion_by_package: {
+        kind: 'select-one',
+        tableId: 'arca_offload_completions',
+        columns: [
+          'offload_completion_id', 'on_deck_run_id', 'shelf_entry_id',
+          'inventory_revision', 'package_id', 'completion_digest',
+          'committed_at_ms',
+        ],
+        keyColumns: ['package_id'],
+        safeIntegers: true,
+      },
       insert_completion: {
         kind: 'insert',
         tableId: 'arca_offload_completions',
@@ -963,11 +974,69 @@ function createOnDeckStore(options) {
     }]).arca_ondeck_committed_read;
   }
 
+  function readCommittedByPackage(request) {
+    return options.unitOfWork.execute([{
+      participantId: 'arca_ondeck_package_committed_read',
+      owner: 'arca',
+      repositories: [arca],
+      execute(context) {
+        const repo = context.repository(arca.repositoryId);
+        const completion = repo.invoke('find_completion_by_package', {
+          package_id: request.onDeckPackageId,
+        });
+        if (!completion) return null;
+        const run = repo.invoke('find_run', {
+          on_deck_run_id: completion.on_deck_run_id,
+        });
+        const receipt = repo.invoke('find_receipt', {
+          on_deck_run_id: completion.on_deck_run_id,
+        });
+        const decision = repo.invoke('find_decision', {
+          on_deck_run_id: completion.on_deck_run_id,
+        });
+        const entry = repo.invoke('find_entry', {
+          shelf_entry_id: completion.shelf_entry_id,
+        });
+        let finalInventoryDecision;
+        try {
+          finalInventoryDecision = decision &&
+            JSON.parse(decision.decision_json);
+        } catch {
+          fail('P14_ONDECK_REPLAY_CORRUPT',
+            'Committed Final Inventory Decision JSON is corrupt.');
+        }
+        if (!run || !receipt || !decision || !entry ||
+            !['offloading', 'committed'].includes(run.state) ||
+            run.custody_id !== request.custodyId ||
+            run.final_inventory_decision_digest !==
+              decision.decision_digest ||
+            finalInventoryDecision?.decisionDigest !==
+              decision.decision_digest ||
+            completion.package_id !== request.onDeckPackageId ||
+            completion.shelf_entry_id !== receipt.shelf_entry_id ||
+            entry.shelf_id !== request.shelfId) {
+          fail('P14_ONDECK_REPLAY_CORRUPT',
+            'Committed On-deck package history failed its exact Arca fences.');
+        }
+        return Object.freeze({
+          replayed: true,
+          onDeckRunId: run.on_deck_run_id,
+          custodyId: run.custody_id,
+          finalInventoryDecision: Object.freeze(finalInventoryDecision),
+          result: resultFromRows(receipt, completion,
+            receipt.commit_digest),
+          commitDigest: receipt.commit_digest,
+        });
+      },
+    }]).arca_ondeck_package_committed_read;
+  }
+
   return Object.freeze({
     verifyAcceptedResponsibility,
     setOffloading,
     commit,
     readCommitted,
+    readCommittedByPackage,
     finalize,
   });
 }

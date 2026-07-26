@@ -214,13 +214,16 @@ function createCleanArcaInventoryPort(options) {
     );
     const plans = packageValue.productMaterialManifest.members.map((member) => {
       const source = sourcePath(member);
-      const observed = observe(source, member);
       const name = safeSegment(targetName(member, primaryBase));
       const target = path.resolve(targetDirectory, name);
       if (!contained(targetRoot, target)) {
         fail('CLEAN_ARCA_TARGET_ESCAPE',
           'Final Inventory member escaped the Shelf Target.');
       }
+      const observed = request.replayCommitted &&
+        (!fs.existsSync(source) || !fs.statSync(source).isFile())
+        ? observe(target, member)
+        : observe(source, member);
       return Object.freeze({ member, source, target, name, ...observed });
     }).sort((left, right) =>
       Buffer.compare(Buffer.from(left.member.materialKey),
@@ -429,6 +432,10 @@ function createCleanArcaInventoryPort(options) {
           idempotency_key: idempotencyKey,
         });
       });
+      if (request.replayCommitted && prior.state !== 'committed') {
+        fail('CLEAN_ARCA_REPLAY_EFFECT_MISSING',
+          'Committed On-deck replay requires its exact committed Inventory Effect.');
+      }
       const targetExact = fs.existsSync(plan.target) &&
         fs.statSync(plan.target).isFile() &&
         fs.statSync(plan.target).size === plan.sizeBytes &&

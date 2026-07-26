@@ -134,18 +134,16 @@ function createMovieOnDeckCoordinator(options) {
     const offer = exactOffer(inputMessage);
     const delivery = options.productDeliveryPort.readPackage({
       queryContract: 'libra.product-delivery@1',
-      readPurpose: 'acceptance_fence',
+      readPurpose: 'historical',
       offerId: offer.offerId,
       onDeckPackageId: offer.onDeckPackageId,
       expectedPackageRevision: offer.packageRevision,
       expectedPackageDigest: offer.packageDigest,
     });
-    if (!delivery || delivery.resultKind !== 'found' ||
-        delivery.deliveryFence?.eligibility !== 'eligible') {
+    if (!delivery || delivery.resultKind !== 'found') {
       fail('P14_HANDOFF_B_DELIVERY_INELIGIBLE',
-        'Product Delivery is absent or no longer eligible for Handoff B.', {
-          reasonCode: delivery?.deliveryFence?.reasonCode ||
-            delivery?.reasonCode || 'delivery_unavailable',
+        'Product Delivery is absent for Handoff B.', {
+          reasonCode: delivery?.reasonCode || 'delivery_unavailable',
         });
     }
     const packageValue = delivery.onDeckProductPackage;
@@ -171,6 +169,23 @@ function createMovieOnDeckCoordinator(options) {
       standardRevision: shelf.currentStandardRevision,
       placementRevision: shelf.currentPlacementRevision,
     });
+    const historicalResponsibility =
+      acceptance.deriveAcceptedResponsibility({
+        acceptanceAttemptId: attemptId,
+        offerId: offer.offerId,
+        onDeckPackageId: offer.onDeckPackageId,
+        packageDigest: offer.packageDigest,
+        shelfId: shelf.shelfId,
+        standardRevision: shelf.currentStandardRevision,
+        placementRevision: shelf.currentPlacementRevision,
+        checks: [],
+      });
+    const committedHistory = onDeck.readCommittedByPackage({
+      onDeckPackageId: offer.onDeckPackageId,
+      shelfId: shelf.shelfId,
+      custodyId: historicalResponsibility.custodyId,
+    });
+    const replayCommittedInventory = Boolean(committedHistory);
     const at = observedAtMs(packageValue);
     const feasibility = options.inventoryPort.assess({
       onDeckRunId: stable('arca.on-deck-run-preview@1', {
@@ -182,6 +197,7 @@ function createMovieOnDeckCoordinator(options) {
       shelf,
       onDeckProductPackage: packageValue,
       observedAtMs: at,
+      replayCommitted: replayCommittedInventory,
     });
     const factKinds = new Set(
       packageValue.productFactManifest.items.map((item) => item.factKind),
@@ -313,6 +329,7 @@ function createMovieOnDeckCoordinator(options) {
       shelf,
       onDeckProductPackage: packageValue,
       observedAtMs: at,
+      replayCommitted: replayCommittedInventory,
     });
     let accepted = acceptance.readAccepted({
       acceptanceAttemptId: attemptId,
@@ -322,6 +339,24 @@ function createMovieOnDeckCoordinator(options) {
       finalInventoryDecision,
     });
     if (!accepted) {
+      const acceptanceFence = options.productDeliveryPort.readPackage({
+        queryContract: 'libra.product-delivery@1',
+        readPurpose: 'acceptance_fence',
+        offerId: offer.offerId,
+        onDeckPackageId: offer.onDeckPackageId,
+        expectedPackageRevision: offer.packageRevision,
+        expectedPackageDigest: offer.packageDigest,
+      });
+      if (!acceptanceFence ||
+          acceptanceFence.resultKind !== 'found' ||
+          acceptanceFence.deliveryFence?.eligibility !== 'eligible') {
+        fail('P14_HANDOFF_B_DELIVERY_INELIGIBLE',
+          'Product Delivery is no longer eligible for first Handoff B acceptance.', {
+            reasonCode:
+              acceptanceFence?.deliveryFence?.reasonCode ||
+              acceptanceFence?.reasonCode || 'delivery_unavailable',
+          });
+      }
       const projections = controls.getMaterialControlProjections(keys);
       for (const projection of projections) {
         const member = byKey.get(projection.materialKey);
@@ -410,6 +445,7 @@ function createMovieOnDeckCoordinator(options) {
       onDeckProductPackage: packageValue,
       finalInventoryDecision,
       observedAtMs: at,
+      replayCommitted: replayCommittedInventory,
     });
     const stagedBasis = {
       schema: 'arca.staged-inventory-verification-basis@1',
