@@ -36,8 +36,10 @@ anchor，也没有可合法使用的 persisted grouping lineage，因此 Candida
 continuity claim 集为空，FA-04 正确选择 `new_subject`；未按标题、路径或目录猜测
 extension。
 
-本检查点的定向 `22/22` 与完整 architecture `128 files` 均 PASS，机器库存保持
-112/97/177/43。等待主动复验，禁止提前进入 Series Routing/Spec/Run。
+初版检查点的定向 `22/22` 与完整 architecture `128 files` 均 PASS，机器库存保持
+112/97/177/43。P14 `595358b5` 指出的跨 Series sidecar association 随后已收紧为
+parent-local exact Season topology；修正后定向 `24/24` 与完整 architecture
+`128 files` 均 PASS。等待再次主动复验，禁止提前进入 Series Routing/Spec/Run。
 
 ## Movie accepted baseline
 

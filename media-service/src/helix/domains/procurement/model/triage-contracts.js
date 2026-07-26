@@ -135,10 +135,13 @@ function relatedFor(context, layoutEvidence, primaryMaterialKey) {
       if (entry.entryKind !== 'file' || !entry.identity || entry.checksumAlgorithm !== 'sha256' || !entry.checksumHex) continue;
       if (entry.identity.materialKey === primaryMaterialKey) continue;
       const lower = entry.baseName.toLowerCase(); const stem = lower.replace(/\.[^.]+$/, ''); const extension = (entry.extension || '').toLowerCase();
-      const standard = /^(movie|tvshow)\.nfo$/.test(lower) || /^(poster|fanart)\./.test(lower);
+      const image = /\.(jpg|jpeg|png|webp)$/.test(extension);
+      const standard = /^(movie|tvshow)\.nfo$/.test(lower) ||
+        /^(poster|fanart|background|backdrop)\.(jpg|jpeg|png|webp)$/.test(lower) ||
+        /^season0*\d+-(poster|fanart|background|backdrop)\.(jpg|jpeg|png|webp)$/.test(lower);
       if (stem !== primaryStem && !standard) continue;
-      const role = extension === '.nfo' ? 'nfo' : /\.(jpg|jpeg|png|webp)$/.test(extension) && stem === 'poster' ? 'poster'
-        : /\.(jpg|jpeg|png|webp)$/.test(extension) && stem === 'fanart' ? 'fanart'
+      const role = extension === '.nfo' ? 'nfo' : image && /(?:^|[-_. ])poster$/.test(stem) ? 'poster'
+        : image && /(?:^|[-_. ])(?:fanart|background|backdrop)$/.test(stem) ? 'fanart'
         : /\.(srt|ass|ssa|vtt)$/.test(extension) ? 'subtitle' : /\.(aac|ac3|dts|flac|mka)$/.test(extension) ? 'external_audio'
         : /\.(chapters|xml)$/.test(extension) ? 'chapter' : 'sidecar';
       const referenceId = digest({ schema:'procurement.related-material-reference-id@1', primaryMaterialKey, role,

@@ -32,6 +32,27 @@
 - 正式 Admin HTTP 覆盖 auth、Observation、Candidate/Handoff A、Owner rows、
   source zero-change 与跨重启 exact replay。
 
+## P14 sidecar correction
+
+P14 evidence `595358b5` 证明初版 generic/Season sidecar association 会从整个
+Field 的 Primary 中选择稳定最小项，可能把 Show A 的 sidecar 绑定到 Show B。
+修正后：
+
+- Episode same-stem sidecar 仍只在同目录精确关联；
+- generic `tvshow.nfo/movie.nfo` 与 Season poster/fanart 先以 sidecar 所在目录为
+  parent-local scope，再按 Primary 的本地 Season topology 分组；
+- 只有恰好一个本地 Season group 时，才在该已证明唯一的组内选择稳定 relation
+  anchor；
+- 零组或多组保持 unresolved/read-only，不通过 `stableFirst` 解决跨
+  Series/Season 歧义；
+- Show A/Show B 同为 Season 1 时，各自的 sidecar 只进入自己的 Candidate group；
+  放在两者共同 Field root 的 generic sidecar 保持 unresolved；
+- 单一 Series 的 `tvshow.nfo`、`season01-poster`、Episode NFO/artwork 仍可从
+  Candidate Delivery Snapshot完整历史重建。
+
+该修正不把目录或标题升级为 continuity identity，也不改变 Candidate、Owner、
+Handoff、Capability 或 transaction。
+
 ## FA-04 boundary
 
 现有 P14 Series disposable sample 已只读核对。Episode NFO 只提供 Episode-level
@@ -55,7 +76,7 @@ TMDB ID，没有稳定 `series key + season number` Provider anchor；当前 Pro
 
 ## Evidence
 
-- Focused vertical：`22/22 PASS`
+- Focused vertical：`24/24 PASS`
   - Series layout/Season aggregation/overlap；
   - Candidate publication atomicity与Outbox crash rollback；
   - Handoff A stale-head、Outbox crash、Control rollback与replay；
@@ -78,4 +99,3 @@ TMDB ID，没有稳定 `series key + season number` Provider anchor；当前 Pro
 - 未开始 Series Production/Handoff B/Arca extension/cleanup。
 - 未开始 JAV、Western Adult、横向 503、Provider acceptance 或 UI/Feature
   Matrix。
-

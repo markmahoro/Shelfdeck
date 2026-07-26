@@ -9,8 +9,27 @@ const Database = require('better-sqlite3');
 const { initializeCleanData } = require('../../scripts/helix-operational-safety');
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const { createCleanServiceHost } = require('../../src/clean-service-host');
+const {
+  reconstruct,
+} = require('../../src/helix/domains/procurement/application/candidate-delivery-service');
+const {
+  createCandidateDeliveryReader,
+} = require('../../src/helix/domains/procurement/persistence/candidate-delivery-reader');
+const {
+  openSqliteKernel,
+} = require('../../src/helix/foundation/persistence/sqlite-kernel');
+const {
+  createSqliteUnitOfWork,
+} = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
+const cleanSchemaManifest = require(
+  '../../src/helix/foundation/persistence/generated/clean-schema.manifest.json'
+);
 
 const secretRoot = 'p14-series-handoff-a-secret-root-0123456789abcdef';
+const cleanSchemaDdl = fs.readFileSync(path.resolve(
+  __dirname,
+  '../../src/helix/foundation/persistence/generated/clean-schema.sql',
+), 'utf8');
 
 function probe(readHandle) {
   const value = {
@@ -64,8 +83,15 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
     ['Demo.Show.S01E02.nfo', Buffer.from('<episodedetails><season>1</season><episode>2</episode></episodedetails>')],
   ];
   for (const [name, bytes] of sources) fs.writeFileSync(path.join(seasonRoot, name), bytes);
-  const before = new Map(sources.map(([name]) => {
-    const file = path.join(seasonRoot, name);
+  const rootSidecars = [
+    ['tvshow.nfo', Buffer.from('<tvshow><title>Demo Show</title></tvshow>')],
+    ['season01-poster.jpg', Buffer.from('series-season-poster')],
+  ];
+  for (const [name, bytes] of rootSidecars) fs.writeFileSync(path.join(sourceRoot, name), bytes);
+  const before = new Map([
+    ...sources.map(([name]) => path.join(seasonRoot, name)),
+    ...rootSidecars.map(([name]) => path.join(sourceRoot, name)),
+  ].map((file) => {
     return [file, { bytes: fs.readFileSync(file), mtimeMs: fs.statSync(file).mtimeMs }];
   }));
 
@@ -87,7 +113,7 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
   const policyValue = {
     includedDirectories: [],
     excludedDirectories: [],
-    allowedExtensions: ['.mkv', '.nfo'],
+    allowedExtensions: ['.jpg', '.mkv', '.nfo'],
     minimumSizeBytes: 0,
     excludedMaterialKeys: [],
   };
@@ -172,7 +198,10 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
   ).all(candidate.candidate_package_id).map((row) => row.episode_key), ['E001', 'E002']);
   assert.equal(db.prepare(
     'SELECT count(*) count FROM proc_candidate_related_references WHERE candidate_package_id=? AND role=?'
-  ).get(candidate.candidate_package_id, 'nfo').count, 2);
+  ).get(candidate.candidate_package_id, 'nfo').count, 3);
+  assert.equal(db.prepare(
+    'SELECT count(*) count FROM proc_candidate_related_references WHERE candidate_package_id=? AND role=?'
+  ).get(candidate.candidate_package_id, 'poster').count, 1);
   assert.equal(db.prepare(
     'SELECT count(*) count FROM proc_candidate_season_continuity_claims WHERE candidate_package_id=?'
   ).get(candidate.candidate_package_id).count, 0);
@@ -194,7 +223,39 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
   assert.equal(db.prepare(
     "SELECT count(*) count FROM fx_material_controls WHERE owner_domain='libra' AND owner_scope_type='subject' AND owner_scope_id=?"
   ).get(subject.subject_id).count, 2);
+  const delivery = db.prepare(
+    'SELECT offer_id FROM proc_candidate_deliveries WHERE candidate_package_id=?'
+  ).get(candidate.candidate_package_id);
   db.close();
+
+  const kernel = openSqliteKernel({
+    Database,
+    databasePath: path.join(dataDir, 'shelfdeck.db'),
+    schemaDdl: cleanSchemaDdl,
+    schemaManifest: cleanSchemaManifest,
+  });
+  try {
+    const unitOfWork = createSqliteUnitOfWork({ kernel });
+    const reader = createCandidateDeliveryReader({
+      schemaManifest: cleanSchemaManifest,
+      unitOfWork,
+    });
+    const snapshot = reconstruct(reader.readRows({ offerId: delivery.offer_id }));
+    assert.equal(snapshot.candidatePackage.relatedReferences.length, 4);
+    assert.equal(snapshot.candidatePackage.relatedReferences.filter(
+      (item) => item.role === 'nfo'
+    ).length, 3);
+    assert.equal(snapshot.candidatePackage.relatedReferences.filter(
+      (item) => item.role === 'poster'
+    ).length, 1);
+    assert.deepEqual(
+      snapshot.primaryInputManifest.members.flatMap((member) =>
+        member.episodeClaims.map((claim) => claim.episodeKey)).sort(),
+      ['E001', 'E002'],
+    );
+  } finally {
+    kernel.close();
+  }
 
   host = await createCleanServiceHost({
     dataDir,

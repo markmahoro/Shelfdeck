@@ -85,8 +85,35 @@ function seasonNumber(context) {
   return match ? Number(match[1] || match[2]) : null;
 }
 
-function stableFirst(values) {
-  return [...values].sort((left, right) => utf8(left.materialKey, right.materialKey))[0] || null;
+function isSameOrDescendantDirectory(parentSegments, childSegments) {
+  return childSegments.length >= parentSegments.length &&
+    parentSegments.every((part, index) => childSegments[index] === part);
+}
+
+function localSeasonGroupKey(primary) {
+  return canonicalDigest({
+    schema: 'procurement.local-series-season-topology@1',
+    parentSegments: primary.parentSegments,
+    seasonNumber: seasonNumber(primary),
+  });
+}
+
+function uniqueLocalSeasonGroup(related, primaries, requiredSeason = null) {
+  const local = primaries.filter((primary) =>
+    isSameOrDescendantDirectory(related.parentSegments, primary.parentSegments) &&
+    (requiredSeason === null || seasonNumber(primary) === requiredSeason));
+  const groups = new Map();
+  for (const primary of local) {
+    const key = localSeasonGroupKey(primary);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(primary);
+  }
+  if (groups.size !== 1) return [];
+  // The topology has already proved one local Season group. This stable anchor
+  // only attaches a Candidate-level Related Reference; it does not choose
+  // between ambiguous Series/Season groups or create continuity identity.
+  return [[...groups.values()][0]
+    .sort((left, right) => utf8(left.materialKey, right.materialKey))[0]];
 }
 
 function relatedCandidates(related, primaries) {
@@ -97,17 +124,12 @@ function relatedCandidates(related, primaries) {
   const lower = related.baseName.toLowerCase();
   const seasonArtwork = lower.match(/^season0*(\d+)-(?:poster|fanart|background|backdrop)\.(?:jpe?g|png|webp)$/);
   if (seasonArtwork) {
-    const season = Number(seasonArtwork[1]);
-    const seasonPrimaries = primaries.filter((primary) => seasonNumber(primary) === season);
-    const selected = stableFirst(seasonPrimaries);
-    return selected ? [selected] : [];
+    return uniqueLocalSeasonGroup(related, primaries, Number(seasonArtwork[1]));
   }
 
   if (/^(?:movie|tvshow)\.nfo$/.test(lower) ||
       /^(?:poster|fanart|background|backdrop)\.(?:jpe?g|png|webp)$/.test(lower)) {
-    const seasons = new Set(primaries.map(seasonNumber).filter((value) => value !== null));
-    const selected = seasons.size <= 1 ? stableFirst(primaries) : null;
-    return selected ? [selected] : [];
+    return uniqueLocalSeasonGroup(related, primaries);
   }
   return [];
 }

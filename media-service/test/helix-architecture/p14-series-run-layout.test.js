@@ -92,3 +92,62 @@ test('ambiguous unrelated sidecars remain read-only layout evidence and never be
   assert.equal(layout.unresolved[0].materialKey, unrelated.material_key);
   assert.equal(layout.primaryContexts.some((item) => item.materialKey === unrelated.material_key), false);
 });
+
+test('generic and Season artwork sidecars never cross-associate between local Series trees', () => {
+  const showAEpisode = row(0, 'C:/series/Show.A/Season 1/Show.A.S01E01.mkv', 'show-a-episode');
+  const showATv = row(1, 'C:/series/Show.A/tvshow.nfo', 'show-a-tvshow');
+  const showAPoster = row(2, 'C:/series/Show.A/season01-poster.jpg', 'show-a-poster');
+  const showBEpisode = row(3, 'C:/series/Show.B/Season 1/Show.B.S01E01.mkv', 'show-b-episode');
+  const showBTv = row(4, 'C:/series/Show.B/tvshow.nfo', 'show-b-tvshow');
+  const showBPoster = row(5, 'C:/series/Show.B/season01-poster.jpg', 'show-b-poster');
+  const layout = buildRunMaterialLayout(snapshot([
+    showAEpisode,
+    showATv,
+    showAPoster,
+    showBEpisode,
+    showBTv,
+    showBPoster,
+  ]));
+  const evidenceById = new Map(layout.layoutEvidence.map((item) => [item.evidenceId, item]));
+  const entriesFor = (materialKey) => layout.primaryContexts
+    .find((item) => item.materialKey === materialKey)
+    .layoutEvidenceRefs
+    .flatMap((ref) => evidenceById.get(ref.evidenceId).entries)
+    .map((entry) => entry.identity.materialKey)
+    .sort();
+
+  assert.deepEqual(entriesFor(showAEpisode.material_key), [
+    showATv.material_key,
+    showAPoster.material_key,
+  ].sort());
+  assert.deepEqual(entriesFor(showBEpisode.material_key), [
+    showBTv.material_key,
+    showBPoster.material_key,
+  ].sort());
+  assert.equal(entriesFor(showAEpisode.material_key).includes(showBTv.material_key), false);
+  assert.equal(entriesFor(showBEpisode.material_key).includes(showATv.material_key), false);
+  assert.equal(layout.unresolved.length, 0);
+});
+
+test('global generic sidecars spanning multiple local Series groups remain unresolved', () => {
+  const showAEpisode = row(0, 'C:/series/Show.A/Season 1/Show.A.S01E01.mkv', 'show-a-episode');
+  const showBEpisode = row(1, 'C:/series/Show.B/Season 1/Show.B.S01E01.mkv', 'show-b-episode');
+  const globalTv = row(2, 'C:/series/tvshow.nfo', 'global-tvshow');
+  const globalPoster = row(3, 'C:/series/season01-poster.jpg', 'global-poster');
+  const layout = buildRunMaterialLayout(snapshot([
+    showAEpisode,
+    showBEpisode,
+    globalTv,
+    globalPoster,
+  ]));
+  assert.deepEqual(
+    layout.unresolved.map((item) => item.materialKey).sort(),
+    [globalTv.material_key, globalPoster.material_key].sort(),
+  );
+  assert.equal(
+    layout.layoutEvidence.flatMap((item) => item.entries)
+      .some((entry) => [globalTv.material_key, globalPoster.material_key]
+        .includes(entry.identity.materialKey)),
+    false,
+  );
+});
