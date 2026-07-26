@@ -13,6 +13,9 @@ const {
   workspaceStateDigest,
 } = require('../model/workspace-material-reference-contracts');
 const {
+  buildObservation,
+  controlItem,
+  memberFromReference,
   memberState,
   scopeState,
 } = require('../model/workspace-cleanup-contracts');
@@ -421,6 +424,35 @@ function replayResult(repo, marker, digest, schemaRef) {
   return value;
 }
 
+function assertAdmissionAudit(decision, snapshot, controls) {
+  const actualObservation = buildObservation({
+    workspaceId: snapshot.workspace.workspaceId,
+    observedAtMs: decision.referenceAudit.observation2.observedAtMs,
+    otherReferences: snapshot.otherReferences,
+    controls,
+  });
+  if (canonicalJson(actualObservation) !==
+      canonicalJson(decision.referenceAudit.observation2)) {
+    fail('P14_CLEANUP_ADMISSION_AUDIT_STALE',
+      'Second cleanup observation changed before admission.');
+  }
+  const actualMembers = snapshot.references.map((reference) => {
+    const currentControl = controls.find((item) =>
+      item.materialKey === reference.materialKey);
+    if (!currentControl) {
+      fail('P14_CLEANUP_ADMISSION_CONTROL_MISSING',
+        'Admission recheck requires every current Control projection.');
+    }
+    return memberFromReference(reference, currentControl);
+  }).sort((left, right) =>
+    Buffer.compare(Buffer.from(left.materialHandleId),
+      Buffer.from(right.materialHandleId)));
+  if (canonicalJson(actualMembers) !== canonicalJson(decision.members)) {
+    fail('P14_CLEANUP_ADMISSION_MEMBER_STALE',
+      'Cleanup members changed after the second observation.');
+  }
+}
+
 function createWorkspaceCleanupStore(options) {
   if (!options?.schemaManifest || !options.unitOfWork) {
     fail('P14_CLEANUP_STORE_DEPENDENCIES',
@@ -430,6 +462,85 @@ function createWorkspaceCleanupStore(options) {
   const foundation = foundationDefinition(options.schemaManifest);
   const control = controlDefinition(options.schemaManifest);
 
+  function readLibraSnapshot(repo, libraRunId) {
+    const run = repo.invoke('find_run', { libra_run_id: libraRunId });
+    if (!run) fail('P14_CLEANUP_RUN_MISSING', 'Libra Run is absent.');
+    const all = repo.invoke('list_run_workspaces', {
+      libra_run_id: libraRunId,
+    }).filter((item) => ['active', 'reclaiming'].includes(item.state));
+    if (all.length !== 1) {
+      fail('P14_CLEANUP_WORKSPACE_ID_REQUIRED',
+        'Cleanup requires the exact Run Workspace identity.');
+    }
+    const workspace = repo.invoke('find_workspace', {
+      workspace_id: all[0].workspace_id,
+    });
+    if (!workspace || workspace.libra_run_id !== libraRunId) {
+      fail('P14_CLEANUP_WORKSPACE_MISSING',
+        'Exact Libra Run Workspace is absent.');
+    }
+    const revision = repo.invoke('find_workspace_revision', {
+      workspace_id: workspace.workspace_id,
+      workspace_revision: Number(workspace.current_revision),
+    });
+    const rows = currentRows(repo.invoke('list_workspace_references', {
+      workspace_id: workspace.workspace_id,
+    }));
+    const references = rows.filter((row) =>
+      row.reference_state !== 'released').map(referenceSnapshot);
+    if (!revision ||
+        referenceSetDigest(workspace.workspace_id, references) !==
+          revision.material_reference_set_digest) {
+      fail('P14_CLEANUP_REFERENCE_INTEGRITY',
+        'Workspace Reference set cannot be reconstructed.');
+    }
+    const otherReferences = [];
+    for (const reference of references) {
+      const materialRows = currentRows(repo.invoke(
+        'list_material_references',
+        { material_key: reference.materialKey },
+      ));
+      for (const row of materialRows) {
+        if (row.workspace_id !== workspace.workspace_id &&
+            row.reference_state !== 'released') {
+          otherReferences.push({
+            workspaceId: row.workspace_id,
+            referenceId: row.reference_id,
+            referenceRevision: Number(row.reference_revision),
+            referenceDigest: row.reference_digest,
+          });
+        }
+      }
+    }
+    return {
+      run: {
+        libraRunId: run.libra_run_id,
+        stateRevision: Number(run.state_revision),
+        stateDigest: run.state_digest,
+        executionBasisDigest: run.execution_basis_digest,
+      },
+      workspace: {
+        workspaceId: workspace.workspace_id,
+        workspaceRevision: Number(workspace.current_revision),
+        workspaceStateDigest: workspace.state_digest,
+        materialReferenceSetDigest: revision.material_reference_set_digest,
+        state: workspace.state,
+      },
+      references,
+      otherReferences,
+    };
+  }
+
+  function readControls(repo, references) {
+    return references.map((reference) => {
+      const row = repo.invoke('find_current', {
+        material_key: reference.materialKey,
+      });
+      return controlItem(reference.materialKey,
+        projectMaterialControlRow(reference.materialKey, row));
+    });
+  }
+
   function inspect(libraRunId) {
     let snapshot;
     let controls;
@@ -438,74 +549,8 @@ function createWorkspaceCleanupStore(options) {
       owner: 'libra',
       repositories: [libra],
       execute(context) {
-        const repo = context.repository(libra.repositoryId);
-        const run = repo.invoke('find_run', { libra_run_id: libraRunId });
-        if (!run) fail('P14_CLEANUP_RUN_MISSING', 'Libra Run is absent.');
-        const all = repo.invoke('list_run_workspaces', {
-          libra_run_id: libraRunId,
-        }).filter((item) => ['active', 'reclaiming'].includes(item.state));
-        if (all.length !== 1) {
-          fail('P14_CLEANUP_WORKSPACE_ID_REQUIRED',
-            'Cleanup requires the exact Run Workspace identity.');
-        }
-        const workspace = repo.invoke('find_workspace', {
-          workspace_id: all[0].workspace_id,
-        });
-        if (!workspace || workspace.libra_run_id !== libraRunId) {
-          fail('P14_CLEANUP_WORKSPACE_MISSING',
-            'Exact Libra Run Workspace is absent.');
-        }
-        const revision = repo.invoke('find_workspace_revision', {
-          workspace_id: workspace.workspace_id,
-          workspace_revision: Number(workspace.current_revision),
-        });
-        const rows = currentRows(repo.invoke('list_workspace_references', {
-          workspace_id: workspace.workspace_id,
-        }));
-        const references = rows.filter((row) =>
-          row.reference_state !== 'released').map(referenceSnapshot);
-        if (!revision ||
-            referenceSetDigest(workspace.workspace_id, references) !==
-              revision.material_reference_set_digest) {
-          fail('P14_CLEANUP_REFERENCE_INTEGRITY',
-            'Workspace Reference set cannot be reconstructed.');
-        }
-        const otherReferences = [];
-        for (const reference of references) {
-          const materialRows = currentRows(repo.invoke(
-            'list_material_references',
-            { material_key: reference.materialKey },
-          ));
-          for (const row of materialRows) {
-            if (row.workspace_id !== workspace.workspace_id &&
-                row.reference_state !== 'released') {
-              otherReferences.push({
-                workspaceId: row.workspace_id,
-                referenceId: row.reference_id,
-                referenceRevision: Number(row.reference_revision),
-                referenceDigest: row.reference_digest,
-              });
-            }
-          }
-        }
-        snapshot = {
-          run: {
-            libraRunId: run.libra_run_id,
-            stateRevision: Number(run.state_revision),
-            stateDigest: run.state_digest,
-            executionBasisDigest: run.execution_basis_digest,
-          },
-          workspace: {
-            workspaceId: workspace.workspace_id,
-            workspaceRevision: Number(workspace.current_revision),
-            workspaceStateDigest: workspace.state_digest,
-            materialReferenceSetDigest:
-              revision.material_reference_set_digest,
-            state: workspace.state,
-          },
-          references,
-          otherReferences,
-        };
+        snapshot = readLibraSnapshot(
+          context.repository(libra.repositoryId), libraRunId);
       },
     }, {
       participantId: 'cleanup_inspect_control',
@@ -513,27 +558,8 @@ function createWorkspaceCleanupStore(options) {
       boundBusinessOwner: 'libra',
       repositories: [control],
       execute(context) {
-        const repo = context.repository(control.repositoryId);
-        controls = snapshot.references.map((reference) => {
-          const row = repo.invoke('find_current', {
-            material_key: reference.materialKey,
-          });
-          const projection = projectMaterialControlRow(
-            reference.materialKey, row);
-          const disposition = projection.controlState === 'uncontrolled'
-            ? 'uncontrolled'
-            : projection.ownerDomain === 'libra'
-              ? 'libra_owned' : 'other_owned';
-          return {
-            materialKey: reference.materialKey,
-            controlDisposition: disposition,
-            controlRevision: projection.controlRevision,
-            controlProjectionDigest: projection.projectionDigest,
-            ownerDomain: projection.ownerDomain || null,
-            ownerScopeType: projection.ownerScopeType || null,
-            ownerScopeId: projection.ownerScopeId || null,
-          };
-        });
+        controls = readControls(
+          context.repository(control.repositoryId), snapshot.references);
       },
     }]);
     return Object.freeze({ ...snapshot, controls: Object.freeze(controls) });
@@ -576,6 +602,8 @@ function createWorkspaceCleanupStore(options) {
       transitionEvidenceDigest: decision.decisionDigest,
     };
     nextWorkspace.stateDigest = workspaceStateDigest(nextWorkspace);
+    let admissionSnapshot;
+    let admissionControls;
     const participants = [{
       participantId: 'cleanup_admission_preflight',
       owner: 'execution-foundation',
@@ -586,6 +614,40 @@ function createWorkspaceCleanupStore(options) {
           context.repository(foundation.repositoryId),
           marker, decision.decisionDigest, ADMISSION_RESULT);
         if (replay) throw new Replay(replay);
+      },
+    }, {
+      participantId: 'cleanup_admission_reference_audit',
+      owner: 'libra',
+      repositories: [libra],
+      execute(context) {
+        admissionSnapshot = readLibraSnapshot(
+          context.repository(libra.repositoryId),
+          decision.libraRunRef.libraRunId);
+        if (canonicalJson(admissionSnapshot.run) !==
+              canonicalJson(decision.libraRunRef) ||
+            canonicalJson({
+              workspaceId: admissionSnapshot.workspace.workspaceId,
+              workspaceRevision:
+                admissionSnapshot.workspace.workspaceRevision,
+              workspaceStateDigest:
+                admissionSnapshot.workspace.workspaceStateDigest,
+              materialReferenceSetDigest:
+                admissionSnapshot.workspace.materialReferenceSetDigest,
+            }) !== canonicalJson(decision.workspaceRef)) {
+          fail('P14_CLEANUP_ADMISSION_SNAPSHOT_STALE',
+            'Cleanup Run or Workspace snapshot changed before admission.');
+        }
+      },
+    }, {
+      participantId: 'cleanup_admission_control_audit',
+      owner: 'material-control-authority',
+      boundBusinessOwner: 'libra',
+      repositories: [control],
+      execute(context) {
+        admissionControls = readControls(
+          context.repository(control.repositoryId),
+          admissionSnapshot.references);
+        assertAdmissionAudit(decision, admissionSnapshot, admissionControls);
       },
     }, {
       participantId: 'cleanup_admission_libra',
@@ -1312,6 +1374,7 @@ function createWorkspaceCleanupStore(options) {
 }
 
 module.exports = Object.freeze({
+  assertAdmissionAudit,
   WorkspaceCleanupStoreError,
   createWorkspaceCleanupStore,
 });

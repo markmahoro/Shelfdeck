@@ -292,6 +292,7 @@ module.exports = Object.freeze({
   buildOffloadAdmission,
   controlItem,
   digestWithout,
+  memberFromReference,
   memberState,
   scopeState,
 });

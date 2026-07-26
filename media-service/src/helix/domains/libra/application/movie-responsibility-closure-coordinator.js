@@ -9,6 +9,7 @@ const {
 } = require('../model/run-lifecycle-contracts');
 const {
   CYCLE_MS,
+  DAY_MS,
   buildCommitDecision,
   buildEffectIntent,
   buildObservation,
@@ -126,8 +127,9 @@ function createMovieResponsibilityClosureCoordinator(options) {
   const inbox = createInboxCoordinator(options);
   const lifecycle = createRunLifecycleStore(options);
   const cleanup = createWorkspaceCleanupStore(options);
+  const cleanupAudits = new Map();
 
-  function readMessage(kind, predicate) {
+  function readMessage(kind, predicate, required = true) {
     return options.unitOfWork.execute([{
       participantId: 'movie_responsibility_message_read',
       owner: 'execution-foundation',
@@ -156,13 +158,13 @@ function createMovieResponsibilityClosureCoordinator(options) {
           }
           return { row, payload, delivery };
         }).filter((item) => predicate(item.payload));
-        if (candidates.length !== 1) {
+        if (candidates.length > 1 || (required && candidates.length !== 1)) {
           fail('P14_MOVIE_MESSAGE_CARDINALITY',
-            'Movie closure requires one exact formal message.', {
+            'Movie closure message cardinality is invalid.', {
               kind, count: candidates.length,
             });
         }
-        return Object.freeze(candidates[0]);
+        return candidates.length ? Object.freeze(candidates[0]) : null;
       },
     }]).movie_responsibility_message_read;
   }
@@ -279,10 +281,26 @@ function createMovieResponsibilityClosureCoordinator(options) {
     return Object.freeze({ consumed, acknowledgement });
   }
 
-  function cleanupWorkspace(libraRunId, packageValue) {
-    const offloadWake = readMessage('arca.offload.completed@1',
+  function findOffloadWake(packageValue) {
+    if (options.offloadWakeVisible === false) return null;
+    return readMessage('arca.offload.completed@1',
       (payload) => payload.onDeckPackageId === packageValue.onDeckPackageId &&
-        payload.packageDigest === packageValue.packageDigest);
+        payload.packageDigest === packageValue.packageDigest, false);
+  }
+
+  function consumeOptionalOffloadWake(wake, admission) {
+    return wake ? consumeOffloadWake(wake.payload, admission) : null;
+  }
+
+  function pendingAudit(firstObservation) {
+    return Object.freeze({
+      stage: 'workspace_cleanup_audit_pending',
+      firstObservation,
+      nextObservationAtMs: firstObservation.observedAtMs + CYCLE_MS,
+    });
+  }
+
+  function cleanupWorkspace(libraRunId, packageValue) {
     const triggerSnapshot = options.offloadCompletionPort.readCompletion({
       queryContract: 'arca.offload-completion@1',
       onDeckPackageId: packageValue.onDeckPackageId,
@@ -291,30 +309,59 @@ function createMovieResponsibilityClosureCoordinator(options) {
     if (triggerSnapshot.resultKind !== 'found') {
       return Object.freeze({ stage: 'offload_not_found' });
     }
+    const offloadWake = findOffloadWake(packageValue);
     let scope = cleanup.readScopeByTrigger(triggerSnapshot);
     let wake;
     if (scope) {
-      wake = consumeOffloadWake(offloadWake.payload, {
+      wake = consumeOptionalOffloadWake(offloadWake, {
         result: cleanup.readAdmissionResult(scope.cleanupScopeId),
       });
     } else {
+      const nowMs = options.now();
+      const graceDeadlineMs =
+        triggerSnapshot.offloadCompletionFact.committedAtMs + DAY_MS;
+      if (nowMs < graceDeadlineMs) {
+        fail('P14_CLEANUP_GRACE_ACTIVE',
+          'Workspace cleanup grace has not elapsed.', { graceDeadlineMs });
+      }
+      const auditKey = canonicalDigest({
+        schema: 'libra.workspace-cleanup-audit-key@1',
+        onDeckPackageId: packageValue.onDeckPackageId,
+        packageDigest: packageValue.packageDigest,
+        projectionRevision: triggerSnapshot.projectionRevision,
+        projectionDigest: triggerSnapshot.projectionDigest,
+      });
+      const firstAudit = cleanupAudits.get(auditKey);
+      if (firstAudit &&
+          nowMs < firstAudit.observation.observedAtMs + CYCLE_MS) {
+        return pendingAudit(firstAudit.observation);
+      }
       const inspected = cleanup.inspect(libraRunId);
       if (inspected.references.length === 0) {
         return Object.freeze({ stage: 'cleanup_no_op' });
       }
-      const nowMs = options.now();
-      const controls = inspected.controls;
-      const observation1 = buildObservation({
-        workspaceId: inspected.workspace.workspaceId,
-        observedAtMs: nowMs - CYCLE_MS,
-        otherReferences: inspected.otherReferences,
-        controls,
-      });
+      if (!firstAudit) {
+        const firstObservation = buildObservation({
+          workspaceId: inspected.workspace.workspaceId,
+          observedAtMs: nowMs,
+          otherReferences: inspected.otherReferences,
+          controls: inspected.controls,
+        });
+        cleanupAudits.set(auditKey, Object.freeze({
+          observation: firstObservation,
+          workspaceId: inspected.workspace.workspaceId,
+        }));
+        return pendingAudit(firstObservation);
+      }
+      if (firstAudit.workspaceId !== inspected.workspace.workspaceId) {
+        fail('P14_CLEANUP_AUDIT_WORKSPACE_CHANGED',
+          'Cleanup audit Workspace identity changed between observations.');
+      }
       const observation2 = buildObservation({
         workspaceId: inspected.workspace.workspaceId,
         observedAtMs: nowMs,
         otherReferences: inspected.otherReferences,
-        controls,
+        controls: inspected.controls,
       });
       const decision = buildOffloadAdmission({
         triggerSnapshot,
@@ -331,10 +378,13 @@ function createMovieResponsibilityClosureCoordinator(options) {
             inspected.workspace.materialReferenceSetDigest,
         },
         references: inspected.references,
-        controls,
-        observation1,
+        controls: inspected.controls,
+        observation1: firstAudit.observation,
         observation2,
       });
+      if (typeof options.beforeCleanupAdmission === 'function') {
+        options.beforeCleanupAdmission(decision);
+      }
       const admission = cleanup.admit({
         decision,
         commitMarker: canonicalDigest({
@@ -351,7 +401,8 @@ function createMovieResponsibilityClosureCoordinator(options) {
           !admission.replayed) {
         options.afterCleanupAdmission(admission.result);
       }
-      wake = consumeOffloadWake(offloadWake.payload, admission);
+      cleanupAudits.delete(auditKey);
+      wake = consumeOptionalOffloadWake(offloadWake, admission);
       scope = cleanup.readScope(decision.cleanupScopeId);
     }
     const receipts = [];

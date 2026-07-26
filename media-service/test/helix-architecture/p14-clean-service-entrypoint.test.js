@@ -2924,13 +2924,46 @@ test('Movie production reaches one Arca Shelf Entry through formal Handoff B and
     kernel.close();
   }
   let cleanupPhysicalEffects = 0;
+  let cleanupClock = cleanupAtMs;
   host = await createCleanServiceHost({
     dataDir: value.dataDir,
     adminDistDir: value.adminDistDir,
     secretRoot,
     mediaProbe,
     ...productionOptions,
-    cleanupNow: () => cleanupAtMs,
+    cleanupNow: () => cleanupClock,
+    offloadWakeVisible: false,
+  });
+  try {
+    const firstAudit = await requestObservation(host);
+    assert.equal(firstAudit.statusCode, 200, firstAudit.body);
+    assert.equal(
+      firstAudit.json().movieJourney.handoff.production
+        .responsibilityClosure.stage,
+      'workspace_cleanup_audit_pending',
+    );
+  } finally {
+    await host.close();
+  }
+  let cleanupCrashDatabase = new Database(
+    path.join(value.dataDir, 'shelfdeck.db'), { readonly: true },
+  );
+  assert.equal(cleanupCrashDatabase.prepare(
+    'SELECT count(*) count FROM libra_workspace_cleanup_scopes'
+  ).get().count, 0);
+  assert.equal(cleanupCrashDatabase.prepare(
+    "SELECT count(*) count FROM fx_effect_journal WHERE effect_class='libra_workspace_material_reclaim'"
+  ).get().count, 0);
+  cleanupCrashDatabase.close();
+
+  host = await createCleanServiceHost({
+    dataDir: value.dataDir,
+    adminDistDir: value.adminDistDir,
+    secretRoot,
+    mediaProbe,
+    ...productionOptions,
+    cleanupNow: () => cleanupClock,
+    offloadWakeVisible: false,
     afterCleanupPhysicalEffect() {
       cleanupPhysicalEffects += 1;
       throw Object.assign(new Error('cleanup physical effect interruption'), {
@@ -2939,12 +2972,29 @@ test('Movie production reaches one Arca Shelf Entry through formal Handoff B and
     },
   });
   try {
+    const restartedFirstAudit = await requestObservation(host);
+    assert.equal(restartedFirstAudit.statusCode, 200,
+      restartedFirstAudit.body);
+    assert.equal(
+      restartedFirstAudit.json().movieJourney.handoff.production
+        .responsibilityClosure.stage,
+      'workspace_cleanup_audit_pending',
+    );
+    cleanupClock = cleanupAtMs + 60_000 - 1;
+    const earlySecondAudit = await requestObservation(host);
+    assert.equal(earlySecondAudit.statusCode, 200, earlySecondAudit.body);
+    assert.equal(
+      earlySecondAudit.json().movieJourney.handoff.production
+        .responsibilityClosure.stage,
+      'workspace_cleanup_audit_pending',
+    );
+    cleanupClock = cleanupAtMs + 60_000;
     const interrupted = await requestObservation(host);
     assert.equal(interrupted.statusCode, 400, interrupted.body);
   } finally {
     await host.close();
   }
-  let cleanupCrashDatabase = new Database(
+  cleanupCrashDatabase = new Database(
     path.join(value.dataDir, 'shelfdeck.db'), { readonly: true },
   );
   assert.equal(cleanupCrashDatabase.prepare(
@@ -2956,6 +3006,9 @@ test('Movie production reaches one Arca Shelf Entry through formal Handoff B and
   assert.equal(cleanupCrashDatabase.prepare(
     "SELECT count(*) count FROM fx_effect_journal WHERE effect_class='libra_workspace_material_reclaim' AND state='intended'"
   ).get().count, 1);
+  assert.equal(cleanupCrashDatabase.prepare(
+    "SELECT count(*) count FROM fx_outbox WHERE message_kind='arca.offload.completed@1' AND state='pending'"
+  ).get().count, 1);
   cleanupCrashDatabase.close();
   assert.equal(cleanupPhysicalEffects, 1);
   assert.equal(workspaceFiles.filter((file) => !fs.existsSync(file)).length, 1);
@@ -2966,7 +3019,7 @@ test('Movie production reaches one Arca Shelf Entry through formal Handoff B and
     secretRoot,
     mediaProbe,
     ...productionOptions,
-    cleanupNow: () => cleanupAtMs,
+    cleanupNow: () => cleanupClock,
     afterCleanupCommit() {
       throw Object.assign(new Error('cleanup commit interruption'), {
         code: 'P14_TEST_CLEANUP_COMMIT_INTERRUPTION',
@@ -2996,7 +3049,7 @@ test('Movie production reaches one Arca Shelf Entry through formal Handoff B and
     secretRoot,
     mediaProbe,
     ...productionOptions,
-    cleanupNow: () => cleanupAtMs,
+    cleanupNow: () => cleanupClock,
     afterCleanupPhysicalEffect() {
       cleanupPhysicalEffects += 1;
     },

@@ -405,7 +405,9 @@ async function createCleanServiceHost(options) {
         createOffloadCompletionPort(constructed.applicationDependencies),
       workspaceProductPort,
       now: options.cleanupNow || options.now || Date.now,
+      offloadWakeVisible: options.offloadWakeVisible,
       afterRunCompletion: options.afterRunCompletion,
+      beforeCleanupAdmission: options.beforeCleanupAdmission,
       afterCleanupAdmission: options.afterCleanupAdmission,
       afterCleanupCommit: options.afterCleanupCommit,
     });

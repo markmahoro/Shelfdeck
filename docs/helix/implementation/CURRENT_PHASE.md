@@ -22,8 +22,8 @@
 
 `Arca Handoff B Accepted / On-deck Commit →
 Libra accepted message consumption / Run complete →
-Arca durable Off-load Completion projection →
-24h grace + exact last-reference audit →
+Arca durable Off-load Completion projection（Signal可丢失） →
+24h grace + 两次真实、间隔一个cycle的Reference/Control audit →
 Workspace cleanup / Reference release / terminal reclaim`
 
 PBF-19 修正后，Assessment 只留下 `active` Acceptance Attempt。唯一
@@ -56,8 +56,10 @@ terminal reclaimed。
 - 最终 cleanup 额外覆盖 physical-effect-before-journal 与
   member-commit-before-response 两个 crash window；重启只复用同一
   Scope/Effect/Receipt；
-- 定向组合回归：`51/51 PASS`；
-- 完整 `npm run test:helix-architecture`：`PASS`；
+- Cleanup Admission 修正额外覆盖 first/early/second observation、restart
+  重新计时、other-reference/Control stale、Signal lost + durable Projection；
+- 修正定向组合回归：`13/13 PASS`；
+- 完整 `npm run test:helix-architecture`：`126 files PASS`；
 - 机器库存：112 Capabilities / 97 Result families / 177 tables /
   43 canonical transactions / 114 routes / 18 UI surfaces；
 - Contract aggregate：
