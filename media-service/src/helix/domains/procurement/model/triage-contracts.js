@@ -125,6 +125,7 @@ function relatedFor(context, layoutEvidence, primaryMaterialKey) {
     if (!refs.has(evidence.evidenceId + '\0' + evidence.payloadDigest + '\0' + evidence.boundedScopeDigest)) continue;
     for (const entry of evidence.entries || []) {
       if (entry.entryKind !== 'file' || !entry.identity || entry.checksumAlgorithm !== 'sha256' || !entry.checksumHex) continue;
+      if (entry.identity.materialKey === primaryMaterialKey) continue;
       const lower = entry.baseName.toLowerCase(); const stem = lower.replace(/\.[^.]+$/, ''); const extension = (entry.extension || '').toLowerCase();
       const standard = /^(movie|tvshow)\.nfo$/.test(lower) || /^(poster|fanart)\./.test(lower);
       if (stem !== primaryStem && !standard) continue;
@@ -132,7 +133,9 @@ function relatedFor(context, layoutEvidence, primaryMaterialKey) {
         : /\.(jpg|jpeg|png|webp)$/.test(extension) && stem === 'fanart' ? 'fanart'
         : /\.(srt|ass|ssa|vtt)$/.test(extension) ? 'subtitle' : /\.(aac|ac3|dts|flac|mka)$/.test(extension) ? 'external_audio'
         : /\.(chapters|xml)$/.test(extension) ? 'chapter' : 'sidecar';
-      const base = { referenceId:digest({ schema:'procurement.related-reference-id@1', primaryMaterialKey, identity:entry.identity }),
+      const referenceId = digest({ schema:'procurement.related-material-reference-id@1', primaryMaterialKey, role,
+        relatedMaterialKey:entry.identity.materialKey, endpointId:entry.endpointId, location:entry.location });
+      const base = { referenceId,
         primaryMaterialKey, role, identity:entry.identity, endpointId:entry.endpointId, location:entry.location,
         checksumAlgorithm:'sha256', checksumHex:entry.checksumHex,
         associationEvidenceDigest:digest({ contextDigest:context.contextDigest || digest(context), layoutPayloadDigest:evidence.payloadDigest, entryDigest:entry.entryDigest }) };

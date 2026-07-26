@@ -30,6 +30,13 @@ const {
 const {
   createProcurementRunSealStore,
 } = require('../../src/helix/domains/procurement/persistence/procurement-run-seal-store');
+const {
+  buildQuery,
+  createCandidateDeliveryService,
+} = require('../../src/helix/domains/procurement/application/candidate-delivery-service');
+const {
+  createCandidateDeliveryReader,
+} = require('../../src/helix/domains/procurement/persistence/candidate-delivery-reader');
 const cleanSchemaManifest = require(
   '../../src/helix/foundation/persistence/generated/clean-schema.manifest.json'
 );
@@ -2112,13 +2119,22 @@ test('Movie Handoff A uses the public HTTP journey, survives restart, and closes
   const sourceRoot = path.join(path.dirname(value.dataDir), 'movie-handoff-a-source');
   fs.mkdirSync(sourceRoot, { recursive: true });
   const source = path.join(sourceRoot, 'Example.Movie.mkv');
+  const relatedNfo = path.join(sourceRoot, 'Example.Movie.nfo');
+  const relatedNfoLocation = relatedNfo.replace(/\\/g, '/');
+  const unrelatedNfo = path.join(sourceRoot, 'Other.Title.nfo');
   fs.writeFileSync(source, Buffer.from('disposable-movie-source'));
+  fs.writeFileSync(relatedNfo, Buffer.from('<movie><title>Example Movie</title></movie>'));
+  fs.writeFileSync(unrelatedNfo, Buffer.from('<movie><title>Other Title</title></movie>'));
   const before = {
     bytes: fs.readFileSync(source),
     mtimeMs: fs.statSync(source).mtimeMs,
+    nfoBytes: fs.readFileSync(relatedNfo),
+    nfoMtimeMs: fs.statSync(relatedNfo).mtimeMs,
+    unrelatedNfoBytes: fs.readFileSync(unrelatedNfo),
+    unrelatedNfoMtimeMs: fs.statSync(unrelatedNfo).mtimeMs,
   };
   const policy = {
-    includedDirectories: [], excludedDirectories: [], allowedExtensions: ['.mkv'],
+    includedDirectories: [], excludedDirectories: [], allowedExtensions: ['.mkv', '.nfo'],
     minimumSizeBytes: 0, excludedMaterialKeys: [],
   };
   const policyBasis = { extractionPolicyId: 'movie-handoff-policy', revision: 1, ...policy };
@@ -2140,8 +2156,10 @@ test('Movie Handoff A uses the public HTTP journey, survives restart, and closes
     idempotencyKey: 'movie-handoff-observe', fieldId: access.fieldId,
     expectedAccessRevision: 1, expectedObservationRevision: 0, pageBudget: 8,
   };
+  const probedLocations = [];
   const mediaProbe = Object.freeze({
     async probe(readHandle) {
+      probedLocations.push(readHandle.location);
       const result = {
         resultKind: 'probed', sourceHandleDigest: canonicalDigest(readHandle), durationMs: 1000,
         videoStreams: [{ streamIndex: 0, codec: 'hevc', dispositionDefault: true, width: 1920, height: 1080 }],
@@ -2178,6 +2196,7 @@ test('Movie Handoff A uses the public HTTP journey, survives restart, and closes
     assert.equal(first.statusCode, 200, first.body);
     assert.equal(first.json().movieJourney.stage, 'handoff_a_accepted');
     assert.equal(first.json().movieJourney.handoff.procurementClosure.closure.terminalDeliveryState, 'accepted');
+    assert.deepEqual(probedLocations, [source.replace(/\\/g, '/')]);
   } finally {
     await host.close();
   }
@@ -2198,17 +2217,65 @@ test('Movie Handoff A uses the public HTTP journey, survives restart, and closes
   const database = new Database(path.join(value.dataDir, 'shelfdeck.db'), { readonly: true });
   assert.equal(database.prepare('SELECT count(*) count FROM proc_procurement_runs').get().count, 1);
   assert.equal(database.prepare('SELECT count(*) count FROM proc_candidate_packages').get().count, 1);
+  assert.equal(database.prepare('SELECT count(*) count FROM proc_candidate_primary_materials').get().count, 1);
+  assert.deepEqual(database.prepare(
+    'SELECT role,location FROM proc_candidate_related_references'
+  ).all(), [{ role: 'nfo', location: relatedNfoLocation }]);
   assert.equal(database.prepare("SELECT count(*) count FROM proc_candidate_deliveries WHERE state='accepted'").get().count, 1);
   assert.equal(database.prepare('SELECT count(*) count FROM libra_subjects').get().count, 1);
-  assert.deepEqual(database.prepare('SELECT owner_domain,owner_scope_type,count(*) count FROM fx_material_controls GROUP BY owner_domain,owner_scope_type').all(),
-    [{ owner_domain: 'libra', owner_scope_type: 'subject', count: 1 }]);
+  assert.equal(database.prepare(
+    "SELECT count(*) count FROM fx_material_controls WHERE owner_domain='libra' AND owner_scope_type='subject'"
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM proc_run_materials WHERE candidate_package_id IS NOT NULL'
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    "SELECT count(*) count FROM proc_run_materials WHERE location=? AND candidate_package_id IS NULL AND selection_state='run_selection'"
+  ).get(relatedNfoLocation).count, 1);
   assert.deepEqual(database.prepare('SELECT message_kind,state FROM fx_outbox ORDER BY message_kind').all(), [
     { message_kind: 'libra_candidate_accepted', state: 'fully_acked' },
     { message_kind: 'procurement_candidate_offer_available', state: 'fully_acked' },
   ]);
   assert.equal(database.prepare("SELECT count(*) count FROM fx_outbox_deliveries WHERE state='acked'").get().count, 2);
   assert.equal(database.prepare('SELECT count(*) count FROM fx_inbox').get().count, 2);
+  const delivery = database.prepare(
+    `SELECT offer_id,candidate_package_id,package_revision,package_digest,acceptance_basis_digest
+       FROM proc_candidate_deliveries`
+  ).get();
   database.close();
+
+  const kernel = openSqliteKernel({
+    Database,
+    databasePath: path.join(value.dataDir, 'shelfdeck.db'),
+    schemaDdl: cleanSchemaDdl,
+    schemaManifest: cleanSchemaManifest,
+  });
+  try {
+    const candidateDelivery = createCandidateDeliveryService({
+      candidateDeliveryReader: createCandidateDeliveryReader({
+        schemaManifest: cleanSchemaManifest,
+        unitOfWork: createSqliteUnitOfWork({ kernel }),
+      }),
+      contractValidator: { validate() {} },
+    }).readSnapshot(buildQuery({
+      offerId: delivery.offer_id,
+      candidatePackageId: delivery.candidate_package_id,
+      packageRevision: Number(delivery.package_revision),
+      packageDigest: delivery.package_digest,
+      acceptanceBasisDigest: delivery.acceptance_basis_digest,
+    }));
+    assert.equal(candidateDelivery.resultKind, 'found');
+    assert.equal(candidateDelivery.snapshot.primaryInputManifest.memberCount, 1);
+    assert.equal(candidateDelivery.snapshot.candidatePackage.relatedReferences.length, 1);
+    assert.equal(candidateDelivery.snapshot.candidatePackage.relatedReferences[0].role, 'nfo');
+    assert.equal(candidateDelivery.snapshot.candidatePackage.relatedReferences[0].location, relatedNfoLocation);
+  } finally {
+    kernel.close();
+  }
   assert.deepEqual(fs.readFileSync(source), before.bytes);
   assert.equal(fs.statSync(source).mtimeMs, before.mtimeMs);
+  assert.deepEqual(fs.readFileSync(relatedNfo), before.nfoBytes);
+  assert.equal(fs.statSync(relatedNfo).mtimeMs, before.nfoMtimeMs);
+  assert.deepEqual(fs.readFileSync(unrelatedNfo), before.unrelatedNfoBytes);
+  assert.equal(fs.statSync(unrelatedNfo).mtimeMs, before.unrelatedNfoMtimeMs);
 });

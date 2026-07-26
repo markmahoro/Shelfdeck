@@ -48,6 +48,153 @@ function relativeLocation(root, location) {
   return normalizedLocation.slice(prefix.length);
 }
 
+function fileContext(snapshot, row, selectionOrdinal) {
+  const relative = relativeLocation(snapshot.access.root_location, row.location);
+  if (relative === null) fail('P14_MOVIE_TRIAGE_LOCATION_OUTSIDE_FIELD',
+    'Run Material location is outside its exact Field Access root.');
+  const separator = relative.lastIndexOf('/');
+  const baseName = separator < 0 ? relative : relative.slice(separator + 1);
+  const extensionIndex = baseName.lastIndexOf('.');
+  return Object.freeze({
+    row,
+    selectionOrdinal,
+    materialKey: row.material_key,
+    fieldRelativeLocation: relative,
+    baseName,
+    extension: extensionIndex < 0 ? '' : baseName.slice(extensionIndex).toLowerCase(),
+    stem: extensionIndex < 0 ? baseName.toLowerCase() : baseName.slice(0, extensionIndex).toLowerCase(),
+    parentSegments: Object.freeze((separator < 0 ? '' : relative.slice(0, separator))
+      .split('/').filter((part) => part && part !== '.')),
+  });
+}
+
+function sameDirectory(left, right) {
+  return left.parentSegments.length === right.parentSegments.length &&
+    left.parentSegments.every((part, index) => part === right.parentSegments[index]);
+}
+
+function layoutEntry(context, entryOrdinal) {
+  const row = context.row;
+  const value = {
+    entryOrdinal,
+    entryKind: 'file',
+    relativeLocation: context.fieldRelativeLocation,
+    baseName: context.baseName,
+    extension: context.extension,
+    identity: identity(row),
+    endpointId: row.endpoint_id,
+    location: row.location,
+    sizeBytes: Number(row.size_bytes),
+    checksumAlgorithm: 'sha256',
+    checksumHex: row.content_hash,
+  };
+  return Object.freeze({ ...value, entryDigest: canonicalDigest(value) });
+}
+
+function layoutEvidence(snapshot, primary, related) {
+  const entries = Object.freeze([...related]
+    .sort((left, right) => utf8(left.materialKey, right.materialKey))
+    .map(layoutEntry));
+  const sourceHandleDigest = canonicalDigest({
+    schema: 'procurement.movie-layout-source@1',
+    fieldId: snapshot.run.field_id,
+    accessRevision: Number(snapshot.run.access_revision),
+    accessDigest: snapshot.run.access_digest,
+    runBasisDigest: snapshot.run.run_basis_digest,
+  });
+  const boundedScopeDigest = canonicalDigest({
+    schema: 'procurement.movie-related-scope@1',
+    primaryMaterialKey: primary.materialKey,
+    parentSegments: primary.parentSegments,
+  });
+  const entriesDigest = canonicalDigest({
+    schema: 'procurement.movie-layout-entries@1',
+    items: entries,
+  });
+  const basisDigest = canonicalDigest({
+    schema: 'procurement.movie-related-association-basis@1',
+    runBasisDigest: snapshot.run.run_basis_digest,
+    primaryMaterialKey: primary.materialKey,
+    relatedMaterialKeys: entries.map((entry) => entry.identity.materialKey),
+  });
+  const base = {
+    schemaRef: 'helix://contracts/types/LayoutEvidence/v1',
+    schemaVersion: 1,
+    evidenceId: stableId('movie-layout-evidence-', {
+      runId: snapshot.run.procurement_run_id,
+      primaryMaterialKey: primary.materialKey,
+      basisDigest,
+    }),
+    evidenceKind: 'field_layout',
+    producerRef: 'procurement.movie-related-material-association@1',
+    basisDigest,
+    payloadDigest: '',
+    observedAtMs: 0,
+    sourceHandleDigest,
+    boundedScopeDigest,
+    entries,
+    entriesDigest,
+    layoutDigest: canonicalDigest({
+      schema: 'procurement.movie-layout@1',
+      sourceHandleDigest,
+      boundedScopeDigest,
+      entriesDigest,
+    }),
+  };
+  return Object.freeze({ ...base, payloadDigest: canonicalDigest(without(base, 'payloadDigest')) });
+}
+
+function movieLayout(snapshot) {
+  const contexts = snapshot.members.map((row, index) => fileContext(snapshot, row, index));
+  const nfo = contexts.filter((context) => context.extension === '.nfo');
+  const primaries = contexts.filter((context) => context.extension !== '.nfo');
+  const relatedByPrimary = new Map(primaries.map((context) => [context.materialKey, []]));
+  const unresolved = [];
+  for (const related of nfo) {
+    const sameDirectoryPrimaries = primaries.filter((primary) => sameDirectory(primary, related));
+    const stemMatches = sameDirectoryPrimaries.filter((primary) => primary.stem === related.stem);
+    const candidates = stemMatches.length > 0
+      ? stemMatches
+      : related.baseName.toLowerCase() === 'movie.nfo' && sameDirectoryPrimaries.length === 1
+        ? sameDirectoryPrimaries
+        : [];
+    if (candidates.length !== 1) {
+      unresolved.push(Object.freeze({
+        materialKey: related.materialKey,
+        reasonCode: 'structure_ambiguous',
+        candidatePrimaryCount: candidates.length,
+      }));
+      continue;
+    }
+    relatedByPrimary.get(candidates[0].materialKey).push(related);
+  }
+  const evidence = [];
+  const primaryContexts = primaries.map((primary, selectionOrdinal) => {
+    const related = relatedByPrimary.get(primary.materialKey);
+    const item = related.length > 0 ? layoutEvidence(snapshot, primary, related) : null;
+    if (item) evidence.push(item);
+    return Object.freeze({
+      row: primary.row,
+      selectionOrdinal,
+      materialKey: primary.materialKey,
+      fieldRelativeLocation: primary.fieldRelativeLocation,
+      baseName: primary.baseName,
+      extension: primary.extension || '.unknown',
+      parentSegments: primary.parentSegments,
+      layoutEvidenceRefs: Object.freeze(item ? [Object.freeze({
+        evidenceId: item.evidenceId,
+        payloadDigest: item.payloadDigest,
+        boundedScopeDigest: item.boundedScopeDigest,
+      })] : []),
+    });
+  });
+  return Object.freeze({
+    primaryContexts: Object.freeze(primaryContexts),
+    layoutEvidence: Object.freeze(evidence.sort((left, right) => utf8(left.evidenceId, right.evidenceId))),
+    unresolved: Object.freeze(unresolved.sort((left, right) => utf8(left.materialKey, right.materialKey))),
+  });
+}
+
 function definition(schemaManifest) {
   return createRepositoryDefinition({
     repositoryId: 'movie_run_coordinator', owner: 'procurement', schemaManifest,
@@ -112,10 +259,15 @@ function runSnapshot(options, repository, runId) {
 }
 
 function acceptedHandoffReplay(snapshot) {
+  const candidateMembers = snapshot.candidate
+    ? snapshot.members.filter((member) =>
+      member.candidate_package_id === snapshot.candidate.candidate_package_id)
+    : [];
   if (!snapshot.candidate || !snapshot.delivery || snapshot.delivery.state !== 'accepted' ||
-      snapshot.members.length < 1 ||
-      snapshot.members.some((member) => member.candidate_package_id !== snapshot.candidate.candidate_package_id ||
-        member.selection_state !== 'transferred')) return null;
+      candidateMembers.length < 1 ||
+      candidateMembers.some((member) => member.selection_state !== 'transferred') ||
+      snapshot.members.some((member) => member.candidate_package_id !== null &&
+        member.candidate_package_id !== snapshot.candidate.candidate_package_id)) return null;
   if (snapshot.delivery.handoff_decision_id === null || snapshot.delivery.handoff_receipt_id === null ||
       snapshot.delivery.handoff_receipt_digest === null ||
       snapshot.delivery.terminal_evidence_digest !== snapshot.delivery.handoff_receipt_digest) {
@@ -143,10 +295,15 @@ function acceptedHandoffReplay(snapshot) {
 }
 
 function openHandoffResume(snapshot) {
+  const candidateMembers = snapshot.candidate
+    ? snapshot.members.filter((member) =>
+      member.candidate_package_id === snapshot.candidate.candidate_package_id)
+    : [];
   if (!snapshot.candidate || !snapshot.delivery || snapshot.delivery.state !== 'open' ||
-      snapshot.members.length < 1 ||
-      snapshot.members.some((member) => member.candidate_package_id !== snapshot.candidate.candidate_package_id ||
-        member.selection_state !== 'candidate_delivery')) return null;
+      candidateMembers.length < 1 ||
+      candidateMembers.some((member) => member.selection_state !== 'candidate_delivery') ||
+      snapshot.members.some((member) => member.candidate_package_id !== null &&
+        member.candidate_package_id !== snapshot.candidate.candidate_package_id)) return null;
   if (snapshot.delivery.offer_id === null || snapshot.delivery.acceptance_basis_digest === null ||
       snapshot.delivery.package_digest !== snapshot.candidate.package_digest ||
       Number(snapshot.delivery.package_revision) !== Number(snapshot.candidate.package_revision)) {
@@ -169,8 +326,8 @@ function openHandoffResume(snapshot) {
   });
 }
 
-function selection(snapshot) {
-  const members = snapshot.members.map((row, ordinal) => Object.freeze({
+function selection(snapshot, primaryContexts) {
+  const members = primaryContexts.map(({ row }, ordinal) => Object.freeze({
     ordinal,
     materialKey: row.material_key,
     role: 'primary_payload',
@@ -206,23 +363,19 @@ function triageBatch(value, probes) {
   return Object.freeze({ ...valueWithoutDigest, batchDigest: canonicalDigest(valueWithoutDigest) });
 }
 
-function structureInput(selected, batch, playability, snapshot) {
-  const contexts = selected.members.map((member, ordinal) => {
-    const row = snapshot.members[ordinal];
-    const relative = relativeLocation(snapshot.access.root_location, row.location);
-    if (relative === null) fail('P14_MOVIE_TRIAGE_LOCATION_OUTSIDE_FIELD',
-      'Run Material location is outside its exact Field Access root.');
-    const separator = relative.lastIndexOf('/');
-    return Object.freeze({
-      materialKey: member.materialKey, selectionOrdinal: ordinal,
-      baseName: separator < 0 ? relative : relative.slice(separator + 1),
-      parentSegments: Object.freeze((separator < 0 ? '' : relative.slice(0, separator))
-        .split('/').filter((part) => part && part !== '.')),
-      layoutEvidenceRefs: Object.freeze([]),
-    });
-  });
+function structureInput(selected, batch, playability, snapshot, layout) {
+  const contexts = layout.primaryContexts.map((context) => Object.freeze({
+    selectionOrdinal: context.selectionOrdinal,
+    materialKey: context.materialKey,
+    fieldRelativeLocation: context.fieldRelativeLocation,
+    baseName: context.baseName,
+    extension: context.extension,
+    parentSegments: context.parentSegments,
+    layoutEvidenceRefs: context.layoutEvidenceRefs,
+  }));
   const contextValue = {
     fieldId: snapshot.run.field_id, accessRevision: Number(snapshot.run.access_revision),
+    accessDigest: snapshot.run.access_digest,
     contentProfileHint: 'mixed', memberContexts: Object.freeze(contexts),
   };
   const materialFieldContext = Object.freeze({
@@ -235,10 +388,11 @@ function structureInput(selected, batch, playability, snapshot) {
     probeBatchDigests: [batch.batchDigest], playabilityPayloadDigests: [playability.payloadDigest],
     contextDigest: materialFieldContext.contextDigest, layoutPayloadDigests: [], pageRequest,
   };
+  basis.layoutPayloadDigests = layout.layoutEvidence.map((item) => item.payloadDigest);
   return Object.freeze({
     selectedFieldMaterialSet: selected, probeBatches: Object.freeze([batch]),
     playabilityPages: Object.freeze([playability]), materialFieldContext,
-    layoutEvidence: Object.freeze([]), pageRequest, inputDigest: canonicalDigest(basis),
+    layoutEvidence: layout.layoutEvidence, pageRequest, inputDigest: canonicalDigest(basis),
   });
 }
 
@@ -332,12 +486,26 @@ function createMovieRunCoordinator(options) {
       candidatePackage: openResume.candidatePackage,
       handoff: options.offerCandidate(openResume.offer),
     });
-    const selected = selection(snapshot);
+    const layout = movieLayout(snapshot);
+    if (layout.primaryContexts.length < 1) {
+      return Object.freeze({
+        stage: 'triage_not_ready',
+        procurementRunId,
+        reasonCode: 'primary_material_unresolved',
+        unresolvedMaterials: layout.unresolved,
+      });
+    }
+    const selected = selection(snapshot, layout.primaryContexts);
     const probes = [];
-    for (const row of snapshot.members) probes.push(Object.freeze({ row, probe: await options.mediaProbe.probe(readHandle(row)) }));
+    for (const context of layout.primaryContexts) {
+      probes.push(Object.freeze({
+        row: context.row,
+        probe: await options.mediaProbe.probe(readHandle(context.row)),
+      }));
+    }
     const batch = triageBatch(selected, probes);
     const playability = inspectPlayability(batch, rule, { observedAtMs: 0 });
-    const structureRequest = structureInput(selected, batch, playability, snapshot);
+    const structureRequest = structureInput(selected, batch, playability, snapshot, layout);
     const structure = inspectStructure(structureRequest, rule, { observedAtMs: 0 });
     if (structure.resultKind !== 'resolved' || structure.units.length !== 1) {
       return Object.freeze({ stage: 'triage_not_ready', procurementRunId, playability, structure });

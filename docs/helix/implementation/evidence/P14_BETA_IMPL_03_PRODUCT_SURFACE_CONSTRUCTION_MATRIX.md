@@ -161,6 +161,19 @@ transfer；跨restart重放返回同一typed result且没有第二次业务副�
 去除故障后重启，重放同一Observation完成原Offer的一次Handoff A。所有路径均
 验证source size/SHA-256/mtime零变化。
 
+P14发现的Related NFO ordinary defect已在本纵切内有界修复。Procurement
+Coordinator从冻结Run成员生成typed Layout Evidence，按同目录、同stem（或目录内
+唯一主视频对应的`movie.nfo`）建立唯一association；Triage使用既有
+`Related Material Reference`合同冻结NFO identity、role、Endpoint、location、
+checksum与association evidence。NFO不从Observation/Eligibility历史删除，不进入
+Media Probe，不形成第二个Movie Unit、Primary Manifest成员、Candidate reservation
+或Libra Product Material Binding。无唯一association的NFO只保留为未关联Evidence，
+不会被提升为Primary Candidate。
+
+Focused fixture同时包含主视频、精确关联NFO和不相关NFO，证明只探测主视频、Package
+恰好一个Primary与一个Related Reference、Candidate Delivery可按digest历史重建、
+restart exact replay不重复Package/Offer/Subject，且三份文件的bytes/mtime均不变。
+
 当前Movie已到达**Libra Accepted Intake/Subject + Control transfer**。本段不进入
 Libra Routing或Acceptance Spec，不宣称Arca、final Target或Beta完成，也没有
 因此增加real route数量。

@@ -41,14 +41,31 @@ gate have passed. The frozen machine inventory remains 112 Capabilities, 97
 Result families, 177 tables, 43 canonical transactions, 114 routes, and 18 UI
 surfaces; no Architecture SSOT change is included.
 
+The ordinary `BETA-IMPL-03` Related NFO defect found by P14 is closed in the
+current repair checkpoint. Triage now derives immutable Layout Evidence from
+the exact Run basis, associates a same-directory/same-stem NFO (or the
+unambiguous conventional `movie.nfo`) with its unique Movie primary, and emits
+the existing canonical Related Material Reference. NFO files remain visible in
+Field Observation and Run history, but are not probed as video, do not become a
+second Primary Manifest member, and do not receive a Candidate Package binding
+or Libra Product Material binding. Unrelated NFO evidence is ignored rather
+than promoted to a Primary Candidate.
+
+Focused evidence covers canonical association, unrelated/self-reference
+negative cases, one-primary/one-related Candidate reconstruction, exact
+restart replay, and unchanged source/NFO bytes and mtime. The full architecture
+gate passes with the same inventory and contract digests.
+
 Checkpoint files:
 
 - `media-service/src/helix/domains/procurement/application/procurement-automation-service.js`
 - `media-service/src/helix/domains/procurement/application/admin-facade.js`
 - `media-service/src/helix/domains/procurement/application/movie-run-coordinator.js`
+- `media-service/src/helix/domains/procurement/model/triage-contracts.js`
 - `media-service/src/helix/domains/libra/application/intake-acceptance-coordinator.js`
 - `media-service/src/clean-media-probe.js`
 - `media-service/test/helix-architecture/p14-clean-service-entrypoint.test.js`
+- `media-service/test/helix-architecture/p7-triage-pipeline.test.js`
 - `docs/helix/implementation/evidence/P14_BETA_IMPL_03_PRODUCT_SURFACE_CONSTRUCTION_MATRIX.md`
 
 ## Exact next step

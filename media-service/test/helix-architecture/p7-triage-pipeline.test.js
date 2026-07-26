@@ -83,6 +83,164 @@ test('structure preserves Selection mapping and carries series mediaType/content
   assert.equal(manifest.membersDigest, canonicalDigest({ schema:'procurement.primary-input-manifest-members@1', items:expectedMembers }));
 });
 
+test('Movie Triage associates only the exact NFO sidecar and conserves its canonical Related Reference', () => {
+  const member = probeMember(0, 'Example.Movie');
+  const probeBatch = batch([member]);
+  const playability = capabilities.playabilityInspect.execute({
+    triageMaterialProbeBatch: probeBatch,
+    procurementTriageRuleSnapshot: rule,
+  });
+  const selected = {
+    procurementRunId: 'run-1',
+    fieldId: 'field-1',
+    members: [{
+      ordinal: 0,
+      materialKey: member.materialKey,
+      selectionRole: 'triage_input',
+      physicalIdentity: member.readHandle.identity,
+      sizeBytes: 100,
+      bindingRevision: 1,
+      eligibilityRevision: 1,
+      eligibilityBasisDigest: d('eligibility'),
+      lastSnapshotDigest: d('snapshot'),
+      lastObservationId: 'observation-1',
+      endpointId: 'endpoint-1',
+      location: member.readHandle.location,
+      realityDigest: d('reality'),
+      provenanceDigest: d('provenance'),
+      controlSnapshot: {},
+      admissionControlAction: 'acquire',
+      basisMemberDigest: d('basis-member'),
+    }],
+    selectionDigest: probeBatch.selectionDigest,
+  };
+  function relatedIdentity(label, inode) {
+    const value = {
+      schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v1',
+      schemaVersion: 1,
+      mountScopeId: 'mount-1',
+      inode,
+      contentHashAlgorithm: 'sha256',
+      contentHash: d(label),
+    };
+    value.materialKey = canonicalDigest({
+      schema: 'physical-material-identity@1',
+      mountScopeId: value.mountScopeId,
+      inode: value.inode,
+      contentHashAlgorithm: 'sha256',
+      contentHash: value.contentHash,
+    });
+    return value;
+  }
+  const nfoIdentity = relatedIdentity('example-nfo', '10');
+  const unrelatedIdentity = relatedIdentity('unrelated-nfo', '11');
+  const entryValues = [
+    {
+      entryOrdinal: 0, entryKind: 'file', relativeLocation: 'shows/Demo/Example.Movie.nfo',
+      baseName: 'Example.Movie.nfo', extension: '.nfo', identity: nfoIdentity,
+      endpointId: 'endpoint-1', location: 'shows/Demo/Example.Movie.nfo', sizeBytes: 20,
+      checksumAlgorithm: 'sha256', checksumHex: nfoIdentity.contentHash,
+    },
+    {
+      entryOrdinal: 1, entryKind: 'file', relativeLocation: 'shows/Demo/Other.Title.nfo',
+      baseName: 'Other.Title.nfo', extension: '.nfo', identity: unrelatedIdentity,
+      endpointId: 'endpoint-1', location: 'shows/Demo/Other.Title.nfo', sizeBytes: 20,
+      checksumAlgorithm: 'sha256', checksumHex: unrelatedIdentity.contentHash,
+    },
+    {
+      entryOrdinal: 2, entryKind: 'file', relativeLocation: 'shows/Demo/Example.Movie.mkv',
+      baseName: 'Example.Movie.mkv', extension: '.mkv', identity: member.readHandle.identity,
+      endpointId: 'endpoint-1', location: member.readHandle.location, sizeBytes: 100,
+      checksumAlgorithm: 'sha256', checksumHex: member.readHandle.identity.contentHash,
+    },
+  ];
+  const entries = entryValues.map((value) => ({
+    ...value,
+    entryDigest: canonicalDigest(value),
+  }));
+  const layoutBase = {
+    schemaRef: 'helix://contracts/types/LayoutEvidence/v1',
+    schemaVersion: 1,
+    evidenceId: 'layout-example-movie',
+    evidenceKind: 'field_layout',
+    producerRef: 'procurement.movie-related-material-association@1',
+    basisDigest: d('layout-basis'),
+    payloadDigest: '',
+    observedAtMs: 1,
+    sourceHandleDigest: d('layout-source'),
+    boundedScopeDigest: d('layout-scope'),
+    entries,
+    entriesDigest: canonicalDigest({ schema: 'procurement.movie-layout-entries@1', items: entries }),
+    layoutDigest: d('layout'),
+  };
+  const layout = {
+    ...layoutBase,
+    payloadDigest: canonicalDigest(Object.fromEntries(
+      Object.entries(layoutBase).filter(([key]) => key !== 'payloadDigest'),
+    )),
+  };
+  const contextBase = {
+    fieldId: 'field-1',
+    accessRevision: 1,
+    accessDigest: d('access'),
+    contentProfileHint: 'movie',
+    memberContexts: [{
+      selectionOrdinal: 0,
+      materialKey: member.materialKey,
+      fieldRelativeLocation: member.readHandle.location,
+      baseName: 'Example.Movie.mkv',
+      extension: '.mkv',
+      parentSegments: ['shows', 'Demo'],
+      layoutEvidenceRefs: [{
+        evidenceId: layout.evidenceId,
+        payloadDigest: layout.payloadDigest,
+        boundedScopeDigest: layout.boundedScopeDigest,
+      }],
+    }],
+  };
+  const context = { ...contextBase, contextDigest: canonicalDigest(contextBase) };
+  const pageBase = { pageOrdinal: 0, cursorIn: null, maxUnits: 100 };
+  const pageRequest = { ...pageBase, requestDigest: canonicalDigest(pageBase) };
+  const structureBase = {
+    selectedFieldMaterialSet: selected,
+    probeBatches: [probeBatch],
+    playabilityPages: [playability],
+    materialFieldContext: context,
+    layoutEvidence: [layout],
+    pageRequest,
+  };
+  const structureInput = {
+    ...structureBase,
+    inputDigest: canonicalDigest({
+      schema: 'procurement.triage-structure-input@1',
+      selectionDigest: selected.selectionDigest,
+      probeBatchDigests: [probeBatch.batchDigest],
+      playabilityPayloadDigests: [playability.payloadDigest],
+      contextDigest: context.contextDigest,
+      layoutPayloadDigests: [layout.payloadDigest],
+      pageRequest,
+    }),
+  };
+  const structure = capabilities.structureInspect.execute({
+    triageStructureInspectionInput: structureInput,
+    procurementTriageRuleSnapshot: rule,
+  });
+  assert.equal(structure.units.length, 1);
+  assert.equal(structure.units[0].members.length, 1);
+  assert.equal(structure.units[0].relatedReferences.length, 1);
+  const reference = structure.units[0].relatedReferences[0];
+  assert.equal(reference.identity.materialKey, nfoIdentity.materialKey);
+  assert.equal(reference.role, 'nfo');
+  assert.equal(reference.referenceId, canonicalDigest({
+    schema: 'procurement.related-material-reference-id@1',
+    primaryMaterialKey: member.materialKey,
+    role: 'nfo',
+    relatedMaterialKey: nfoIdentity.materialKey,
+    endpointId: 'endpoint-1',
+    location: 'shows/Demo/Example.Movie.nfo',
+  }));
+});
+
 test('Triage module has no Store, Provider, Runtime, or legacy fallback dependency', () => {
   const source = require('node:fs').readFileSync(require('node:path').resolve(__dirname,
     '../../src/helix/domains/procurement/model/triage-contracts.js'), 'utf8');
