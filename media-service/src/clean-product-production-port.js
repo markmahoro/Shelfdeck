@@ -111,14 +111,33 @@ function createCleanProductProductionPort(options = {}) {
       ['year_or_release_date', 'year'],
       ['release_date', 'releasedate'],
       ['plot', 'plot'],
+      ['episode_plot', 'plot'],
+      ['season_number', 'season'],
+      ['episode_number', 'episode'],
       ['genre', 'genre'],
       ['director', 'director'],
       ['actor', 'name'],
-      ['tmdb_movie_id', 'tmdbid'],
     ];
     for (const [key, tag] of fields) {
       const match = xml.match(new RegExp('<' + tag + '(?:\\s[^>]*)?>([^<]+)</' + tag + '>', 'i'));
       if (match && match[1].trim()) entries.push({ key, value: match[1].trim() });
+    }
+    const tagValue = (tag) => xml.match(
+      new RegExp('<' + tag + '(?:\\s[^>]*)?>([^<]+)</' + tag + '>', 'i'),
+    )?.[1]?.trim();
+    if (/<movie(?:\s|>)/i.test(xml) && tagValue('tmdbid')) {
+      entries.push({ key: 'tmdb_movie_id', value: tagValue('tmdbid') });
+    }
+    if (/<tvshow(?:\s|>)/i.test(xml)) {
+      if (tagValue('title')) {
+        entries.push({ key: 'series_title', value: tagValue('title') });
+      }
+      if (tagValue('tmdbid')) {
+        entries.push({ key: 'tmdb_series_id', value: tagValue('tmdbid') });
+      }
+    }
+    if (/<episodedetails(?:\s|>)/i.test(xml) && tagValue('title')) {
+      entries.push({ key: 'episode_title', value: tagValue('title') });
     }
     entries.sort((left, right) => Buffer.compare(Buffer.from(left.key), Buffer.from(right.key)));
     return Object.freeze({ bytes, entries: Object.freeze(entries) });
@@ -155,13 +174,22 @@ function createCleanProductProductionPort(options = {}) {
         'The required typed Provider identity search is unavailable.');
     }
     const response = await options.searchProviderIdentity(Object.freeze({ ...request }));
+    const namespace = request.contentProfile === 'series'
+      ? 'tmdb_series'
+      : 'tmdb_movie';
     if (!response || response.provider !== 'tmdb' ||
-        response.namespace !== 'tmdb_movie' ||
+        response.namespace !== namespace ||
+        (namespace === 'tmdb_series' &&
+          (!Number.isSafeInteger(response.seasonNumber) ||
+            response.seasonNumber < 1)) ||
         typeof response.providerKey !== 'string' || !response.providerKey) {
       fail('CLEAN_PRODUCT_IDENTITY_PROVIDER_RESULT_INVALID',
-        'Typed TMDB identity search did not return one stable Movie identity.');
+        'Typed TMDB identity search did not return the required stable Product identity.');
     }
-    return Object.freeze({ ...response, seasonNumber: null });
+    return Object.freeze({
+      ...response,
+      seasonNumber: namespace === 'tmdb_series' ? response.seasonNumber : null,
+    });
   }
 
   async function probe(readHandle) {

@@ -291,17 +291,34 @@ function reconstruct(repo, row) {
       !cast || cast.factDigest !== row.media_cast_fact_digest) {
     fail('P9_PRODUCT_DELIVERY_REQUIRED_FACT', 'Package required Fact snapshots are absent.');
   }
+  const structure = parse(
+    row.product_structure_json,
+    'P9_PRODUCT_DELIVERY_STRUCTURE',
+  );
+  const episodeClaims = new Map();
+  for (const claim of members.flatMap((item) => item.episodeClaims)) {
+    const prior = episodeClaims.get(claim.episodeKey);
+    if (prior && canonicalJson(prior) !== canonicalJson(claim)) {
+      fail('P9_PRODUCT_DELIVERY_EPISODE_CLAIM_DRIFT',
+        'Product members disagree on one Episode claim tuple.');
+    }
+    episodeClaims.set(claim.episodeKey, claim);
+  }
+  const episodeScope = [...episodeClaims.values()].sort((left, right) =>
+    utf8(left.episodeKey, right.episodeKey));
   const productMaterialManifest = {
     manifestId: row.product_material_manifest_id,
     manifestRole: 'product_delivery',
     manifestRevision: number(row.package_revision),
     libraRunId: row.libra_run_id,
-    scopeKind: parse(row.product_structure_json, 'P9_PRODUCT_DELIVERY_STRUCTURE').structureKind,
+    scopeKind: structure.structureKind === 'season'
+      ? 'episode_delivery'
+      : 'single',
     members,
     memberSetDigest: canonicalDigest({ schema: 'libra.production-material-members@1', items: members }),
     episodeScopeDigest: canonicalDigest({
       schema: 'libra.production-episode-scope@1',
-      items: members.flatMap((item) => item.episodeClaims),
+      items: episodeScope,
     }),
   };
   productMaterialManifest.manifestDigest = canonicalDigest(productMaterialManifest);
@@ -366,7 +383,6 @@ function reconstruct(repo, row) {
     memberSetDigest: canonicalDigest({ schema: 'libra.offload-context-members@1', items: offloadMembers }),
   };
   offloadContextManifest.manifestDigest = canonicalDigest(offloadContextManifest);
-  const structure = parse(row.product_structure_json, 'P9_PRODUCT_DELIVERY_STRUCTURE');
   const resolvedIdentitySnapshot = resolved ? Object.fromEntries(
     Object.entries(resolved).filter(([name]) =>
       !['factKind', 'referenceDigest'].includes(name)),

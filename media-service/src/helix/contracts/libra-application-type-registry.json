@@ -5,8 +5,24 @@
   "kind": "application-type-registry",
   "owner": "libra",
   "status": "active",
-  "targetCount": 28,
+  "targetCount": 29,
   "entries": [
+    {
+      "id": "LibraProductFactCommitPlanBinding",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraProductFactCommitPlanBinding/v1",
+      "relativePath": "application-types/LibraProductFactCommitPlanBinding/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "f9a28dc57b1d5c29de27660eb44c638e636028c965a53bb8ca322efa1fc027dd"
+      },
+      "ssotRefs": [
+        "8.5.11",
+        "8.6.20"
+      ]
+    },
     {
       "id": "LibraRunAdmissionDecision",
       "version": 1,

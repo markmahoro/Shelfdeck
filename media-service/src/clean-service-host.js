@@ -442,13 +442,19 @@ async function createCleanServiceHost(options) {
   };
   const advanceProduction = async (formation) => {
     if (formation.stage !== 'libra_run_active') return null;
-    if (formation.contentProfile === 'series') return null;
     const libraRunId = formation.libraRunId || formation.libraRun?.libraRunId;
     if (!libraRunId) {
       throw new CleanServiceHostError(
         'CLEAN_MOVIE_RUN_ID_MISSING',
         'Movie formation did not expose the exact Libra Run identity.',
       );
+    }
+    if (formation.contentProfile === 'series' &&
+        typeof options.searchProviderIdentity !== 'function') {
+      return null;
+    }
+    if (formation.contentProfile === 'series') {
+      return movieProductionCoordinator.advance(libraRunId);
     }
     return advanceRunProduction(libraRunId);
   };

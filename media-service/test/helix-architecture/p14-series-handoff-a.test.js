@@ -194,6 +194,8 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
     ['Demo.Show.S01E01.nfo', Buffer.from('<episodedetails><season>1</season><episode>1</episode></episodedetails>')],
     ['Demo.Show.S01E02.mkv', Buffer.from('series-episode-2')],
     ['Demo.Show.S01E02.nfo', Buffer.from('<episodedetails><season>1</season><episode>2</episode></episodedetails>')],
+    ['Demo.Show.S01E03.mkv', Buffer.from('series-episode-3')],
+    ['Demo.Show.S01E03.nfo', Buffer.from('<episodedetails><season>1</season><episode>3</episode></episodedetails>')],
   ];
   for (const [name, bytes] of sources) fs.writeFileSync(path.join(seasonRoot, name), bytes);
   const rootSidecars = [
@@ -218,6 +220,50 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
     mediaProbeCalls += 1;
     return probe(readHandle);
   } });
+  const productionOptions = Object.freeze({
+    async searchProviderIdentity() {
+      return Object.freeze({
+        provider: 'tmdb',
+        namespace: 'tmdb_series',
+        providerKey: '1399',
+        seasonNumber: 1,
+        integrationId: 'tmdb-main',
+        configRevision: 1,
+      });
+    },
+    async fetchProviderMetadata(intent) {
+      return Object.freeze({
+        providerKind: 'tmdb',
+        integrationId: intent.integrationId,
+        configRevision: intent.configRevision,
+        sourceRef: 'tmdb:series:1399:season:1',
+        descriptiveEntries: Object.freeze([
+          { key: 'episode_plot', value: 'Disposable Series episode plots.' },
+          { key: 'episode_title', value: 'Disposable Series episodes.' },
+          { key: 'genre', value: 'Drama' },
+          { key: 'plot', value: 'A disposable Series journey fixture.' },
+          { key: 'series_title', value: 'Demo Show' },
+          { key: 'tmdb_series_id', value: '1399' },
+        ]),
+        providerIdentities: Object.freeze([{
+          provider: 'tmdb',
+          namespace: 'tmdb_series',
+          providerKey: '1399',
+          seasonNumber: 1,
+        }]),
+        peopleHints: Object.freeze([{
+          displayName: 'Series Fixture Actor',
+          role: 'actor',
+          providerIdentities: Object.freeze([{
+            provider: 'tmdb',
+            namespace: 'tmdb_person',
+            providerKey: '1001',
+          }]),
+        }]),
+        posterBytes: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+      });
+    },
+  });
   const access = {
     fieldId: 'series-handoff-field',
     revision: 1,
@@ -380,7 +426,7 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
       payload: observe,
     });
     assert.equal(observed.statusCode, 400, observed.body);
-    assert.equal(mediaProbeCalls, 2);
+    assert.equal(mediaProbeCalls, 3);
   } finally {
     await host.close();
   }
@@ -400,7 +446,7 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
         'procurement.triage.identity_claim.resolve@1',
         'procurement.triage.primary_manifest.build@1'
       )`
-  ).get().count, 6);
+  ).get().count, 7);
   const planRows = interrupted.prepare(
     `SELECT node_id,input_binding_schema_ref,input_bindings_json
       FROM fx_plan_nodes
@@ -408,7 +454,7 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
         ?
       ORDER BY node_id`
   ).all(candidateAssemblyBindingSchemaRef);
-  assert.equal(planRows.length, 7);
+  assert.equal(planRows.length, 8);
   for (const row of planRows) {
     assert.equal(
       row.input_binding_schema_ref,
@@ -623,13 +669,13 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
   );
   assert.equal(db.prepare(
     'SELECT count(*) count FROM proc_candidate_primary_materials WHERE candidate_package_id=?'
-  ).get(candidate.candidate_package_id).count, 2);
+  ).get(candidate.candidate_package_id).count, 3);
   assert.deepEqual(db.prepare(
     'SELECT episode_key FROM proc_candidate_primary_material_episode_claims WHERE candidate_package_id=? ORDER BY episode_key'
-  ).all(candidate.candidate_package_id).map((row) => row.episode_key), ['E001', 'E002']);
+  ).all(candidate.candidate_package_id).map((row) => row.episode_key), ['E001', 'E002', 'E003']);
   assert.equal(db.prepare(
     'SELECT count(*) count FROM proc_candidate_related_references WHERE candidate_package_id=? AND role=?'
-  ).get(candidate.candidate_package_id, 'nfo').count, 3);
+  ).get(candidate.candidate_package_id, 'nfo').count, 4);
   assert.equal(db.prepare(
     'SELECT count(*) count FROM proc_candidate_related_references WHERE candidate_package_id=? AND role=?'
   ).get(candidate.candidate_package_id, 'poster').count, 1);
@@ -644,7 +690,7 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
   assert.equal(Number(subject.intake_revision), 1);
   assert.deepEqual(db.prepare(
     'SELECT episode_key FROM libra_subject_episode_scopes WHERE subject_id=? ORDER BY episode_key'
-  ).all(subject.subject_id).map((row) => row.episode_key), ['E001', 'E002']);
+  ).all(subject.subject_id).map((row) => row.episode_key), ['E001', 'E002', 'E003']);
   const decision = db.prepare(
     'SELECT accepted_result,match_cardinality,target_subject_id FROM libra_intake_decisions'
   ).get();
@@ -671,7 +717,7 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
   assert.equal(spec.contentProfile, 'series');
   assert.equal(spec.structureKind, 'season');
   assert.equal(spec.productScope.scopeKind, 'episode_manifest');
-  assert.deepEqual(spec.productScope.episodeKeys, ['E001', 'E002']);
+  assert.deepEqual(spec.productScope.episodeKeys, ['E001', 'E002', 'E003']);
   assert.equal(spec.productScope.scopeDigest, specRow.product_scope_digest);
   assert.equal(spec.specDigest, specRow.spec_digest);
   const run = db.prepare(
@@ -688,22 +734,22 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
       WHERE run_material_manifest_id=?`
   ).get(run.run_material_manifest_id);
   assert.equal(manifest.scope_kind, 'episode_delivery');
-  assert.equal(manifest.member_count, 2);
+  assert.equal(manifest.member_count, 3);
   assert.deepEqual(db.prepare(
     `SELECT episode_key
        FROM libra_run_material_episode_claims
       WHERE run_material_manifest_id=?
       ORDER BY episode_key`
   ).all(run.run_material_manifest_id).map((row) => row.episode_key),
-  ['E001', 'E002']);
+  ['E001', 'E002', 'E003']);
   assert.equal(db.prepare(
     `SELECT count(*) count
        FROM libra_run_material_members
       WHERE run_material_manifest_id=?`
-  ).get(run.run_material_manifest_id).count, 2);
+  ).get(run.run_material_manifest_id).count, 3);
   assert.equal(db.prepare(
     "SELECT count(*) count FROM fx_material_controls WHERE owner_domain='libra' AND owner_scope_type='subject' AND owner_scope_id=?"
-  ).get(subject.subject_id).count, 2);
+  ).get(subject.subject_id).count, 3);
   const delivery = db.prepare(
     'SELECT offer_id FROM proc_candidate_deliveries WHERE candidate_package_id=?'
   ).get(candidate.candidate_package_id);
@@ -722,17 +768,17 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
       unitOfWork,
     });
     const snapshot = reconstruct(reader.readRows({ offerId: delivery.offer_id }));
-    assert.equal(snapshot.candidatePackage.relatedReferences.length, 4);
+    assert.equal(snapshot.candidatePackage.relatedReferences.length, 5);
     assert.equal(snapshot.candidatePackage.relatedReferences.filter(
       (item) => item.role === 'nfo'
-    ).length, 3);
+    ).length, 4);
     assert.equal(snapshot.candidatePackage.relatedReferences.filter(
       (item) => item.role === 'poster'
     ).length, 1);
     assert.deepEqual(
       snapshot.primaryInputManifest.members.flatMap((member) =>
         member.episodeClaims.map((claim) => claim.episodeKey)).sort(),
-      ['E001', 'E002'],
+      ['E001', 'E002', 'E003'],
     );
   } finally {
     kernel.close();
@@ -770,12 +816,266 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
   assert.equal(replayDb.prepare('SELECT count(*) count FROM proc_candidate_packages').get().count, 1);
   assert.equal(replayDb.prepare('SELECT count(*) count FROM libra_subjects').get().count, 1);
   assert.equal(replayDb.prepare('SELECT count(*) count FROM libra_intake_decisions').get().count, 1);
-  assert.equal(replayDb.prepare('SELECT count(*) count FROM libra_subject_episode_scopes').get().count, 2);
+  assert.equal(replayDb.prepare('SELECT count(*) count FROM libra_subject_episode_scopes').get().count, 3);
   assert.equal(replayDb.prepare('SELECT count(*) count FROM libra_routing_decisions').get().count, 1);
   assert.equal(replayDb.prepare('SELECT count(*) count FROM libra_acceptance_specs').get().count, 1);
   assert.equal(replayDb.prepare("SELECT count(*) count FROM libra_runs WHERE state='active'").get().count, 1);
   assert.equal(replayDb.prepare('SELECT count(*) count FROM libra_run_material_manifests').get().count, 1);
   replayDb.close();
+
+  async function requestProduction(observedHost) {
+    return observedHost.inject({
+      method: 'POST',
+      url: `/v1/admin/material-fields/${access.fieldId}/actions/observe`,
+      headers: {
+        cookie: await session(observedHost, initialized.adminApiKey),
+      },
+      payload: observe,
+    });
+  }
+
+  async function interruptProduction(hookName, reasonCode) {
+    let shouldInterrupt = true;
+    const interruptedHost = await createCleanServiceHost({
+      dataDir,
+      adminDistDir,
+      secretRoot,
+      mediaProbe,
+      ...productionOptions,
+      [hookName]() {
+        if (!shouldInterrupt) return;
+        shouldInterrupt = false;
+        throw Object.assign(new Error(`fault at ${hookName}`), {
+          code: reasonCode,
+        });
+      },
+    });
+    try {
+      const response = await requestProduction(interruptedHost);
+      assert.equal(response.statusCode, 400, response.body);
+      assert.equal(
+        response.json().error.details.reasonCode,
+        reasonCode,
+        response.body,
+      );
+    } finally {
+      await interruptedHost.close();
+    }
+  }
+
+  await interruptProduction(
+    'afterWorkspacePhysicalEffect',
+    'P14_FAULT_AFTER_WORKSPACE_PHYSICAL_EFFECT',
+  );
+  let productionDb = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(productionDb.prepare(
+    'SELECT count(*) count FROM libra_product_packages'
+  ).get().count, 0);
+  productionDb.close();
+
+  await interruptProduction(
+    'afterProductFactsCommit',
+    'P14_FAULT_AFTER_PRODUCT_FACTS_COMMIT',
+  );
+  productionDb = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(productionDb.prepare(
+    'SELECT count(*) count FROM libra_product_fact_revisions'
+  ).get().count, 3);
+  assert.equal(productionDb.prepare(
+    'SELECT count(*) count FROM libra_product_packages'
+  ).get().count, 0);
+  productionDb.close();
+
+  await interruptProduction(
+    'afterPackageCommit',
+    'P14_FAULT_AFTER_PACKAGE_COMMIT',
+  );
+  productionDb = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(productionDb.prepare(
+    'SELECT count(*) count FROM libra_product_packages'
+  ).get().count, 1);
+  assert.equal(productionDb.prepare(
+    `SELECT count(*) count
+       FROM fx_outbox
+      WHERE message_kind='libra.product-offer.available@1'`
+  ).get().count, 1);
+  productionDb.close();
+
+  host = await createCleanServiceHost({
+    dataDir,
+    adminDistDir,
+    secretRoot,
+    mediaProbe,
+    ...productionOptions,
+  });
+  let completedProduction;
+  try {
+    const completed = await requestProduction(host);
+    assert.equal(completed.statusCode, 200, completed.body);
+    completedProduction = completed.json().movieJourney.handoff.production;
+    assert.equal(completedProduction.stage, 'handoff_b_offer_open');
+    assert.equal(completedProduction.replayed, true);
+    assert.equal(completedProduction.productDelivery.resultKind, 'found');
+    assert.equal(completedProduction.productDelivery.onDeckProductPackage
+      .productMaterialManifest.scopeKind, 'episode_delivery');
+    assert.equal(completedProduction.productDelivery.onDeckProductPackage
+      .productMaterialManifest.members.length, 5);
+  } finally {
+    await host.close();
+  }
+
+  const packageValue =
+    completedProduction.productDelivery.onDeckProductPackage;
+  const primaryProductMembers =
+    packageValue.productMaterialManifest.members.filter((member) =>
+      member.role === 'primary_payload');
+  const artifactProductMembers =
+    packageValue.productMaterialManifest.members.filter((member) =>
+      ['metadata_sidecar', 'poster'].includes(member.role));
+  assert.equal(primaryProductMembers.length, 3);
+  assert.deepEqual(
+    primaryProductMembers.flatMap((member) =>
+      member.episodeClaims.map((claim) => claim.episodeKey)).sort(),
+    ['E001', 'E002', 'E003'],
+  );
+  assert.equal(artifactProductMembers.length, 2);
+  for (const member of artifactProductMembers) {
+    assert.deepEqual(
+      member.episodeClaims.map((claim) => claim.episodeKey),
+      ['E001', 'E002', 'E003'],
+    );
+  }
+
+  productionDb = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(productionDb.prepare(
+    'SELECT count(*) count FROM libra_product_packages'
+  ).get().count, 1);
+  assert.equal(productionDb.prepare(
+    'SELECT count(*) count FROM libra_product_package_materials'
+  ).get().count, 5);
+  assert.equal(productionDb.prepare(
+    'SELECT count(*) count FROM libra_product_package_material_episode_claims'
+  ).get().count, 9);
+  assert.equal(productionDb.prepare(
+    `SELECT count(*) count
+       FROM fx_outbox
+      WHERE message_kind='libra.product-offer.available@1'`
+  ).get().count, 1);
+  assert.equal(productionDb.prepare(
+    'SELECT count(*) count FROM arca_acceptance_decisions'
+  ).get().count, 0);
+  const productFactPlanRows = productionDb.prepare(
+    `SELECT input_binding_schema_ref,input_bindings_json
+       FROM fx_plan_nodes
+      WHERE input_binding_schema_ref=
+        'helix://contracts/application-types/LibraProductFactCommitPlanBinding/v1'
+      ORDER BY node_id`
+  ).all();
+  assert.equal(productFactPlanRows.length, 3);
+  for (const row of productFactPlanRows) {
+    assert.ok(Buffer.byteLength(row.input_bindings_json, 'utf8') <= 16384);
+    assert.equal(row.input_bindings_json.includes('"sourceBasis"'), false);
+    assert.equal(
+      row.input_bindings_json.includes('"productMetadataDraft"'),
+      false,
+    );
+    assert.equal(
+      row.input_bindings_json.includes('"verifiedArtifactManifest"'),
+      false,
+    );
+  }
+  const stagingRows = productionDb.prepare(
+    `SELECT episode_claims_json
+       FROM libra_workspace_material_refs
+      WHERE reference_state='product_staging'
+      ORDER BY reference_id`
+  ).all();
+  assert.equal(stagingRows.length, 2);
+  for (const row of stagingRows) {
+    assert.deepEqual(
+      JSON.parse(row.episode_claims_json)
+        .map((claim) => claim.episodeKey),
+      ['E001', 'E002', 'E003'],
+    );
+  }
+  const workspaceRows = productionDb.prepare(
+    `SELECT workspace_id,relative_path
+       FROM fx_workspace_materials
+      ORDER BY relative_path`
+  ).all();
+  productionDb.close();
+  assert.equal(workspaceRows.length, 2);
+  for (const row of workspaceRows) {
+    const workspaceFile = path.join(
+      dataDir,
+      'workspace',
+      row.workspace_id,
+      ...row.relative_path.split('/'),
+    );
+    assert.equal(
+      path.resolve(workspaceFile).startsWith(
+        `${path.resolve(path.join(dataDir, 'workspace'))}${path.sep}`,
+      ),
+      true,
+    );
+    assert.equal(fs.existsSync(workspaceFile), true);
+  }
+
+  host = await createCleanServiceHost({
+    dataDir,
+    adminDistDir,
+    secretRoot,
+    mediaProbe,
+    ...productionOptions,
+  });
+  try {
+    const replayed = await requestProduction(host);
+    assert.equal(replayed.statusCode, 200, replayed.body);
+    const replayedProduction =
+      replayed.json().movieJourney.handoff.production;
+    assert.equal(replayedProduction.stage, 'handoff_b_offer_open');
+    assert.equal(replayedProduction.replayed, true);
+    assert.equal(
+      replayedProduction.onDeckPackageId,
+      completedProduction.onDeckPackageId,
+    );
+    assert.equal(
+      replayedProduction.packageDigest,
+      completedProduction.packageDigest,
+    );
+    assert.equal(replayedProduction.offerId, completedProduction.offerId);
+  } finally {
+    await host.close();
+  }
+
+  productionDb = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(productionDb.prepare(
+    'SELECT count(*) count FROM libra_product_fact_revisions'
+  ).get().count, 3);
+  assert.equal(productionDb.prepare(
+    'SELECT count(*) count FROM libra_product_packages'
+  ).get().count, 1);
+  assert.equal(productionDb.prepare(
+    `SELECT count(*) count
+       FROM fx_outbox
+      WHERE message_kind='libra.product-offer.available@1'`
+  ).get().count, 1);
+  productionDb.close();
 
   for (const [file, expected] of before) {
     assert.deepEqual(fs.readFileSync(file), expected.bytes);

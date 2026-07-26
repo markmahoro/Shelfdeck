@@ -92,6 +92,16 @@ function definition(schemaManifest) {
         keyColumns: ['run_material_manifest_id'],
         safeIntegers: true,
       },
+      list_claims: {
+        kind: 'select-all',
+        tableId: 'libra_run_material_episode_claims',
+        columns: [
+          'run_material_manifest_id', 'member_ordinal', 'episode_key',
+          'season_claim_digest', 'claim_digest',
+        ],
+        keyColumns: ['run_material_manifest_id'],
+        safeIntegers: true,
+      },
       find_intake: {
         kind: 'select-one',
         tableId: 'libra_intake_decisions',
@@ -214,6 +224,9 @@ function createMovieProductionReader(options) {
       const members = repo.invoke('list_members', {
         run_material_manifest_id: run.run_material_manifest_id,
       }).sort((left, right) => Number(left.ordinal) - Number(right.ordinal));
+      const claims = repo.invoke('list_claims', {
+        run_material_manifest_id: run.run_material_manifest_id,
+      });
       if (!revision || revision.state !== 'active' ||
           revision.execution_basis_digest !== run.execution_basis_digest ||
           revision.run_scope_digest !== run.run_scope_digest ||
@@ -222,7 +235,10 @@ function createMovieProductionReader(options) {
           !manifest || manifest.libra_run_id !== run.libra_run_id ||
           manifest.manifest_role !== 'run_input' ||
           Number(manifest.member_count) !== members.length ||
-          members.length !== 1 || members[0].role !== 'primary_payload') {
+          members.length < 1 || members.length > 1024 ||
+          members.some((member, ordinal) =>
+            Number(member.ordinal) !== ordinal ||
+            member.role !== 'primary_payload')) {
         fail('P14_MOVIE_PRODUCTION_RUN_DRIFT',
           'Run, Spec, Manifest, or active revision continuity drifted.');
       }
@@ -231,45 +247,148 @@ function createMovieProductionReader(options) {
           spec.acceptanceSpecId !== specRow.acceptance_spec_id ||
           spec.recordDigest !== specRow.record_digest ||
           canonicalJson(spec) !== canonicalJson(parse(specRow.spec_json,
-            'P14_MOVIE_PRODUCTION_SPEC_JSON')) ||
-          spec.contentProfile !== 'movie' || spec.structureKind !== 'single') {
+            'P14_MOVIE_PRODUCTION_SPEC_JSON'))) {
         fail('P14_MOVIE_PRODUCTION_SPEC_DRIFT',
-          'Acceptance Spec is not the exact immutable Movie contract.');
+          'Acceptance Spec is not the exact immutable Product contract.');
       }
-      const member = members[0];
-      const intake = repo.invoke('find_intake', {
-        intake_decision_id: member.origin_intake_decision_id,
+      const isMovie = spec.contentProfile === 'movie' &&
+        spec.structureKind === 'single' &&
+        manifest.scope_kind === 'single' &&
+        members.length === 1;
+      const isSeries = spec.contentProfile === 'series' &&
+        spec.structureKind === 'season' &&
+        manifest.scope_kind === 'episode_delivery';
+      if (!isMovie && !isSeries) {
+        fail('P14_MOVIE_PRODUCTION_SPEC_DRIFT',
+          'Product profile, structure, Run scope, and Primary cardinality conflict.');
+      }
+      const relatedById = new Map();
+      const mappedMembers = members.map((member) => {
+        const memberClaims = claims
+          .filter((claim) =>
+            Number(claim.member_ordinal) === Number(member.ordinal))
+          .sort((left, right) => Buffer.compare(
+            Buffer.from(left.episode_key),
+            Buffer.from(right.episode_key),
+          ))
+          .map((claim) => Object.freeze({
+            episodeKey: claim.episode_key,
+            seasonClaimDigest: claim.season_claim_digest,
+            claimDigest: claim.claim_digest,
+          }));
+        const claimSetDigest = canonicalDigest({
+          schema: 'libra.production-material-episode-claims@1',
+          items: memberClaims,
+        });
+        if (claimSetDigest !== member.episode_claim_set_digest ||
+            (isMovie && memberClaims.length) ||
+            (isSeries && (memberClaims.length < 1 || memberClaims.length > 32))) {
+          fail('P14_MOVIE_PRODUCTION_EPISODE_DRIFT',
+            'Run member Episode claims do not match the immutable Manifest.');
+        }
+        const intake = repo.invoke('find_intake', {
+          intake_decision_id: member.origin_intake_decision_id,
+        });
+        if (!intake || intake.decision_kind !== 'accepted_resolution' ||
+            intake.target_subject_id !== run.subject_id ||
+            intake.offer_id !== member.origin_offer_id ||
+            intake.candidate_package_id !== member.origin_candidate_package_id ||
+            Number(intake.package_revision) !== Number(member.origin_package_revision) ||
+            intake.package_digest !== member.origin_package_digest ||
+            intake.candidate_delivery_snapshot_digest !==
+              member.origin_candidate_delivery_snapshot_digest) {
+          fail('P14_MOVIE_PRODUCTION_HANDOFF_DRIFT',
+            'Run input no longer matches its immutable accepted Handoff A snapshot.');
+        }
+        const delivery = parse(
+          intake.candidate_delivery_snapshot_json,
+          'P14_MOVIE_PRODUCTION_HANDOFF_JSON',
+        );
+        if (delivery.deliverySnapshotDigest !==
+            intake.candidate_delivery_snapshot_digest) {
+          fail('P14_MOVIE_PRODUCTION_HANDOFF_DRIFT',
+            'Accepted Handoff A snapshot digest drifted.');
+        }
+        const primary = delivery.primaryMaterialDeliveries.find((item) =>
+          item.materialKey === member.material_key);
+        const acceptedEpisodeClaims = (primary?.episodeClaims || [])
+          .map((claim) => Object.freeze({
+            episodeKey: claim.episodeKey,
+            seasonClaimDigest: claim.seasonClaimDigest,
+            claimDigest: canonicalDigest({
+              schema: 'libra.production-material-episode-claim@1',
+              episodeKey: claim.episodeKey,
+              seasonClaimDigest: claim.seasonClaimDigest,
+            }),
+          }))
+          .sort((left, right) => Buffer.compare(
+            Buffer.from(left.episodeKey),
+            Buffer.from(right.episodeKey),
+          ));
+        if (!primary || primary.location !== member.location ||
+            primary.endpointId !== member.endpoint_id ||
+            primary.sizeBytes !== Number(member.size_bytes) ||
+            canonicalJson(acceptedEpisodeClaims) !== canonicalJson(memberClaims)) {
+          fail('P14_MOVIE_PRODUCTION_PRIMARY_DRIFT',
+            'Handoff A primary material and Run input disagree.');
+        }
+        for (const item of delivery.candidatePackage.relatedReferences
+          .filter((reference) =>
+            reference.primaryMaterialKey === member.material_key)) {
+          const prior = relatedById.get(item.referenceId);
+          if (prior && canonicalJson(prior) !== canonicalJson(item)) {
+            fail('P14_MOVIE_PRODUCTION_RELATED_DRIFT',
+              'Related Material reference identity conflicts across Run members.');
+          }
+          relatedById.set(item.referenceId, item);
+        }
+        return Object.freeze({
+          ordinal: Number(member.ordinal),
+          materialKey: member.material_key,
+          role: member.role,
+          physicalIdentity: physicalIdentity(member),
+          sizeBytes: Number(member.size_bytes),
+          endpointId: member.endpoint_id,
+          location: member.location,
+          bindingRevision: Number(member.binding_revision),
+          bindingEvidenceDigest: member.binding_evidence_digest,
+          admittedControlRevision: Number(member.admitted_control_revision),
+          admittedControlProjectionDigest:
+            member.admitted_control_projection_digest,
+          outputRequirementDigest: member.output_requirement_digest,
+          episodeClaims: Object.freeze(memberClaims),
+          episodeClaimSetDigest: member.episode_claim_set_digest,
+          originCandidateDeliveryRef: Object.freeze({
+            intakeDecisionId: member.origin_intake_decision_id,
+            offerId: member.origin_offer_id,
+            candidatePackageId: member.origin_candidate_package_id,
+            packageRevision: Number(member.origin_package_revision),
+            packageDigest: member.origin_package_digest,
+            candidateDeliverySnapshotDigest:
+              member.origin_candidate_delivery_snapshot_digest,
+            relatedReferenceSetDigest:
+              member.origin_related_reference_set_digest,
+          }),
+        });
       });
-      if (!intake || intake.decision_kind !== 'accepted_resolution' ||
-          intake.target_subject_id !== run.subject_id ||
-          intake.offer_id !== member.origin_offer_id ||
-          intake.candidate_package_id !== member.origin_candidate_package_id ||
-          Number(intake.package_revision) !== Number(member.origin_package_revision) ||
-          intake.package_digest !== member.origin_package_digest ||
-          intake.candidate_delivery_snapshot_digest !==
-            member.origin_candidate_delivery_snapshot_digest) {
-        fail('P14_MOVIE_PRODUCTION_HANDOFF_DRIFT',
-          'Run input no longer matches its immutable accepted Handoff A snapshot.');
+      const episodeClaims = new Map();
+      for (const claim of mappedMembers.flatMap((member) =>
+        member.episodeClaims)) {
+        const prior = episodeClaims.get(claim.episodeKey);
+        if (prior && canonicalJson(prior) !== canonicalJson(claim)) {
+          fail('P14_MOVIE_PRODUCTION_EPISODE_DRIFT',
+            'Run members disagree on one Episode claim tuple.');
+        }
+        episodeClaims.set(claim.episodeKey, claim);
       }
-      const delivery = parse(
-        intake.candidate_delivery_snapshot_json,
-        'P14_MOVIE_PRODUCTION_HANDOFF_JSON',
-      );
-      if (delivery.deliverySnapshotDigest !==
-          intake.candidate_delivery_snapshot_digest) {
-        fail('P14_MOVIE_PRODUCTION_HANDOFF_DRIFT',
-          'Accepted Handoff A snapshot digest drifted.');
+      const episodeKeys = [...episodeClaims.keys()].sort((left, right) =>
+        Buffer.compare(Buffer.from(left), Buffer.from(right)));
+      if (canonicalJson(episodeKeys) !==
+          canonicalJson(spec.productScope.episodeKeys || [])) {
+        fail('P14_MOVIE_PRODUCTION_EPISODE_DRIFT',
+          'Run Manifest and Acceptance Spec Episode scopes disagree.');
       }
-      const primary = delivery.primaryMaterialDeliveries.find((item) =>
-        item.materialKey === member.material_key);
-      if (!primary || primary.location !== member.location ||
-          primary.endpointId !== member.endpoint_id ||
-          primary.sizeBytes !== Number(member.size_bytes)) {
-        fail('P14_MOVIE_PRODUCTION_PRIMARY_DRIFT',
-          'Handoff A primary material and Run input disagree.');
-      }
-      const related = delivery.candidatePackage.relatedReferences
-        .filter((item) => item.primaryMaterialKey === member.material_key)
+      const related = [...relatedById.values()]
         .sort((left, right) => Buffer.compare(
           Buffer.from(left.referenceId),
           Buffer.from(right.referenceId),
@@ -289,33 +408,13 @@ function createMovieProductionReader(options) {
           runMaterialManifestDigest: manifest.manifest_digest,
         }),
         spec: Object.freeze(spec),
-        member: Object.freeze({
-          ordinal: Number(member.ordinal),
-          materialKey: member.material_key,
-          role: member.role,
-          physicalIdentity: physicalIdentity(member),
-          sizeBytes: Number(member.size_bytes),
-          endpointId: member.endpoint_id,
-          location: member.location,
-          bindingRevision: Number(member.binding_revision),
-          bindingEvidenceDigest: member.binding_evidence_digest,
-          admittedControlRevision: Number(member.admitted_control_revision),
-          admittedControlProjectionDigest:
-            member.admitted_control_projection_digest,
-          outputRequirementDigest: member.output_requirement_digest,
-          episodeClaimSetDigest: member.episode_claim_set_digest,
-          originCandidateDeliveryRef: Object.freeze({
-            intakeDecisionId: member.origin_intake_decision_id,
-            offerId: member.origin_offer_id,
-            candidatePackageId: member.origin_candidate_package_id,
-            packageRevision: Number(member.origin_package_revision),
-            packageDigest: member.origin_package_digest,
-            candidateDeliverySnapshotDigest:
-              member.origin_candidate_delivery_snapshot_digest,
-            relatedReferenceSetDigest:
-              member.origin_related_reference_set_digest,
-          }),
-        }),
+        members: Object.freeze(mappedMembers),
+        episodeClaims: Object.freeze([...episodeClaims.values()].sort(
+          (left, right) => Buffer.compare(
+            Buffer.from(left.episodeKey),
+            Buffer.from(right.episodeKey),
+          ),
+        )),
         relatedReferences: Object.freeze(related),
       });
     });

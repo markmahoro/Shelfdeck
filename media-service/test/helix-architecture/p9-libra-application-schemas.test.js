@@ -13,7 +13,7 @@ const root = path.resolve(__dirname, '../../src/helix/contracts');
 test('materializes the SSOT-exact Libra production application contracts reproducibly', () => {
   const schemas = buildLibraApplicationSchemas();
   const registry = JSON.parse(fs.readFileSync(path.join(root, 'libra-application-type-registry.json'), 'utf8'));
-  assert.equal(registry.targetCount, 28);
+  assert.equal(registry.targetCount, 29);
   for (const [name, schema] of Object.entries(schemas)) {
     const stored = JSON.parse(fs.readFileSync(path.join(root, 'application-types', name, 'v1/schema.json'), 'utf8'));
     assert.deepEqual(stored, schema);
@@ -21,6 +21,19 @@ test('materializes the SSOT-exact Libra production application contracts reprodu
     assert.equal(entry.schemaId, typeId(name));
     assert.equal(entry.digest.value, schemaDigest(schema));
   }
+});
+
+test('Product Fact commit Plan freezes bounded typed refs instead of full Fact payloads', () => {
+  const binding = buildLibraApplicationSchemas()
+    .LibraProductFactCommitPlanBinding;
+  assert.equal(binding['x-helix-maxCanonicalBytes'], 16 * 1024);
+  assert.equal(binding.properties.bindingKind.const, 'product_fact_commit');
+  assert.equal(binding.properties.sourceResultRefs.maxItems, 32);
+  assert.equal(binding.properties.artifactRefs.maxItems, 16);
+  assert.equal(Object.hasOwn(binding.properties, 'sourceBasis'), false);
+  assert.equal(Object.hasOwn(binding.properties, 'resolvedProductIdentity'), false);
+  assert.equal(Object.hasOwn(binding.properties, 'productMetadataDraft'), false);
+  assert.equal(Object.hasOwn(binding.properties, 'verifiedArtifactManifest'), false);
 });
 
 test('Workspace Admission schemas freeze the pathless Platform evidence and initial state', () => {

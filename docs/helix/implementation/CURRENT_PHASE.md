@@ -1,6 +1,6 @@
 # P14 Product Journey Implementation
 
-状态：**FROZEN — Series Routing / Acceptance Spec / active Run 待主动复验**
+状态：**FROZEN — Series Production / open Handoff B 待主动复验**
 
 ## 当前基线
 
@@ -11,7 +11,7 @@
   `942fc692`。
 - PBF-19 P14 独立接受证据：`de0dff64`（tested `3d9ebab4`）。
 - 当前实现检查点：本次提交；详细施工证据见
-  `docs/helix/implementation/evidence/P14_MOVIE_RESPONSIBILITY_CLOSURE_CHECKPOINT.md`。
+  `docs/helix/implementation/evidence/P14_SERIES_PRODUCTION_OPEN_HANDOFF_B_CHECKPOINT.md`。
 - 实现线程未额外修改 Architecture SSOT。
 - `F02.17` 仍为 `NOT_RUN`；不得增加测试便利接口或用内部 Store 证据冒充
   用户 Feature。
@@ -22,38 +22,39 @@
   `docs/helix/implementation/evidence/P14_SERIES_HANDOFF_A_FA04_CHECKPOINT.md`。
 - Series Routing / Acceptance Spec / active Run checkpoint：
   `docs/helix/implementation/evidence/P14_SERIES_ROUTING_SPEC_RUN_CHECKPOINT.md`。
+- P14 已独立接受 Series Routing / Spec / active Run：source `643ced69`，
+  tested `36ae8eb6`，evidence `a927a655`。
 
 ## 当前冻结点
 
-P14 已独立接受 Series Handoff A / FA-04 与正式 phased Plan/Event checkpoint
-`094c310a`。同一 disposable Season Subject 现已继续通过 Owner-local public
-contracts 推进到：
+P14 已独立接受 Series Handoff A、formal phased Plan/Event，以及
+Routing/Acceptance Spec/active Run。当前同一 disposable Series Run 已复用
+Movie production/PBF-17/PBF-18-R1公共链路推进到：
 
-`Libra Season Subject + current Bindings/Controls
-→ Field Routing Assessment/Decision
-→ versioned Decision Basis
-→ Acceptance Spec with Episode Product Scope
-→ one active Libra Run + immutable Episode Delivery Manifest`
+`active Series Run + E001/E002/E003 Manifest
+→ Workspace admission/effects
+→ Product Facts + role-aware Artifact Staging
+→ six-group Conformance
+→ immutable OnDeckProductPackage
+→ exactly one open Handoff B Offer`
 
-Routing 只消费正式 Field Policy、Arca Shelf Routing Target Projection 与 Shelf
-Standard Projection。Acceptance Spec 的 Product Scope 冻结 `E001/E002`；
-Run Material Manifest 为 `episode_delivery`，两个 Primary member 各自保持 exact
-Episode relation、Candidate Delivery provenance、Binding revision 与 Material
-Control projection。Subject Episode scope、Spec scope 与 Run Manifest Episode set
-不一致时 fail closed；active Run admission 继续由 Owner rows、head CAS 与
-non-overlap gate约束。
+三个Primary分别保留E001/E002/E003；生成NFO与Poster也携带完整Episode scope，
+Product Package关系共冻结九条member/Episode relation。Product Delivery历史读取
+按`episode_delivery`重建并验证claim tuple一致，没有压平N:M。原MKV、Episode
+NFO、tvshow NFO和Season artwork bytes/mtime不变，物理写入仅在disposable
+Libra Workspace。
 
-Run admission 前故障证明 Spec可存在而 Run/Manifest全无；移除故障并重启后只创建
-一个 active Run和一个 Manifest。相同HTTP重放复用同一 Routing Decision、Spec、
-Run与Manifest。Series检查点明确返回 `production=null`，未进入Workspace、
-Production或Handoff B。
+本段额外闭合合法Series Fact payload超过Plan 16 KiB的ordinary缺陷：
+`LibraProductFactCommitPlanBinding@1`只冻结exact typed refs/digests，完整Fact
+payload仍在execution/commit boundary内存组装；未放宽表上限、截断数据或建立
+旁路。三个高风险故障窗口（Workspace physical effect、Fact/Artifact commit、
+Package/Control/Offer commit）均证明重启只形成一个Package/Offer和一组Fact/
+Workspace effects。
 
-初版定向回归 `43/43 PASS`。Architecture对`7029d268`发现的Lifecycle nominal
-Episode claim传播偏差已在替代检查点闭合：Admission与Lifecycle均按UTF-8
-Episode顺序和正式Production claim公式重建Comparable Basis，immutable Handoff A
-relation不变。Lifecycle修正定向 `34/34 PASS`，完整 architecture gate
-`129 files PASS`；机器库存与aggregate digests保持不变。等待
-Architecture/P14主动复验。
+完整architecture gate为`129 files PASS`，机器库存与aggregate digests保持
+不变。当前明确冻结在open Handoff B Offer，未调用Arca Acceptance；等待
+Architecture/P14主动复验。typed TMDB response只作为construction fixture，
+不声明真实Provider acceptance。
 
 ## 已接受的 Series Handoff A 基线
 
@@ -135,9 +136,8 @@ terminal reclaimed。
 
 ## 下一步
 
-Architecture/P14 接受后，只推进同一 Series active Run 的
-Workspace/Production/open Handoff B；不得提前进入 JAV、Western Adult 或横向
-Feature Matrix。
+Architecture/P14 接受后，只推进同一 Series Package/Offer 的Arca Handoff B、
+On-deck与最终责任closure；不得提前进入JAV、Western Adult或横向Feature Matrix。
 
 ## 硬边界
 
@@ -146,6 +146,6 @@ Feature Matrix。
 - 不得修改 SSOT，不得引入兼容/双路径、hidden Store read、外域
   latest/current scan、Foundation Result fallback、legacy fallback 或跨 Owner
   写入。
-- 当前检查点只声明 Series Routing / Acceptance Spec / active Run construction
-  vertical 已实现，不声明 Series Production、端到端、Provider、Feature/UI或
-  Beta完成。
+- 当前检查点只声明 Series Production / immutable Product Package / open Handoff B
+  construction vertical 已实现，不声明Series Arca On-deck、端到端、Provider、
+  Feature/UI或Beta完成。

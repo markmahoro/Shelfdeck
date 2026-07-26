@@ -530,6 +530,72 @@ function workspaceMaterialReferenceResult() {
       workspaceMaterialReferenceSetDigest: digest(), resultDigest: digest() }) };
 }
 
+function productFactCommitPlanBinding() {
+  const sourceResultRef = object({
+    workId: id(),
+    attemptId: id(),
+    planId: id(),
+    eventId: id(),
+    resultId: id(),
+    capabilityRef: id(),
+    resultSchemaRef: id(),
+    resultDigest: digest(),
+    evidenceDigest: digest(),
+    inputBindingDigest: digest()
+  });
+  const artifactRef = object({
+    artifactHandleId: id(),
+    artifactRevision: positive(),
+    artifactDigest: digest(),
+    verificationResultId: id(),
+    verificationResultDigest: digest()
+  });
+  const mediaCastFactRef = object({
+    productFactId: id(),
+    factRevision: positive(),
+    factDigest: digest()
+  });
+  return {
+    $schema: DRAFT,
+    $id: typeId('LibraProductFactCommitPlanBinding'),
+    title: 'LibraProductFactCommitPlanBinding@1',
+    'x-helix-ssotRefs': ['8.5.11', '8.6.20'],
+    'x-helix-maxCanonicalBytes': 16 * 1024,
+    ...object({
+      schemaRef: { const: typeId('LibraProductFactCommitPlanBinding') },
+      schemaVersion: { const: 1 },
+      bindingKind: { const: 'product_fact_commit' },
+      libraRunId: id(),
+      runExecutionBasisDigest: digest(),
+      factKind: {
+        type: 'string',
+        enum: ['resolved_identity', 'media_cast', 'product_metadata']
+      },
+      expectedFactRevision: { const: 0 },
+      payloadDigest: digest(),
+      sourceBasisKind: {
+        type: 'string',
+        enum: ['metadata_observation', 'western_analysis', 'western_match']
+      },
+      sourceBasisId: id(),
+      sourceBasisDigest: digest(),
+      sourceResultRefs: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 32,
+        items: sourceResultRef
+      },
+      artifactRefs: {
+        type: 'array',
+        maxItems: 16,
+        items: artifactRef
+      },
+      mediaCastFactRef: nullable(mediaCastFactRef),
+      bindingDigest: digest()
+    })
+  };
+}
+
 function buildLibraApplicationSchemas() {
   return Object.freeze({
     ProductDeliveryQuery: productDeliveryQuery(),
@@ -559,7 +625,8 @@ function buildLibraApplicationSchemas() {
     WorkspaceProductVerificationSnapshot: workspaceProductVerificationSnapshot(),
     WorkspaceMaterialReferenceSnapshot: workspaceMaterialReferenceSnapshot(),
     LibraWorkspaceMaterialReferenceDecision: workspaceMaterialReferenceDecision(),
-    LibraWorkspaceMaterialReferenceResult: workspaceMaterialReferenceResult()
+    LibraWorkspaceMaterialReferenceResult: workspaceMaterialReferenceResult(),
+    LibraProductFactCommitPlanBinding: productFactCommitPlanBinding()
   });
 }
 

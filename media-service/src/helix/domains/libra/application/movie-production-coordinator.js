@@ -9,8 +9,14 @@ const {
 } = require('../../../foundation/persistence/domain-commit-registry');
 const { createSupportingResultStore } =
   require('../../../foundation/persistence/supporting-result-store');
+const {
+  createCapabilityContractValidator,
+} = require('../../../foundation/capability/contract-validator');
 const { projectMaterialControlRow } =
   require('../../../foundation/persistence/material-control');
+const productFactCommitPlanBindingSchema = require(
+  '../../../contracts/application-types/LibraProductFactCommitPlanBinding/v1/schema.json'
+);
 const domainFactTransaction =
   require('../../../contracts/transaction-contracts/helix.transaction.domain-fact-commit/v1/contract.json');
 const {
@@ -72,6 +78,11 @@ const RESULT_SCHEMA = 'helix://contracts/types/OnDeckProductPackageCommitReceipt
 const METADATA_SCHEMA = 'helix://contracts/types/MetadataObservation/v1';
 const ARTIFACT_VERIFICATION_SCHEMA =
   'helix://contracts/types/ArtifactManifestVerification/v1';
+const PRODUCT_FACT_PLAN_BINDING_SCHEMA =
+  'helix://contracts/application-types/LibraProductFactCommitPlanBinding/v1';
+const productFactPlanBindingValidator = createCapabilityContractValidator({
+  schemas: [productFactCommitPlanBindingSchema],
+});
 
 class MovieProductionCoordinatorError extends Error {
   constructor(code, message, details = {}) {
@@ -88,6 +99,73 @@ function fail(code, message, details) {
 
 function stable(prefix, value) {
   return prefix + canonicalDigest(value);
+}
+
+function productFactPlanBinding(run, factKind, payload, payloadDigest,
+  sourceBasis, sourceChains) {
+  const chainsByResultId = new Map(sourceChains.map((chain) =>
+    [chain.resultId, chain]));
+  const sourceResultRefs = (sourceBasis.selection?.items || []).map((item) => {
+    const chain = chainsByResultId.get(item.resultId);
+    if (!chain || chain.workId !== item.workId ||
+        chain.attemptId !== item.attemptId ||
+        chain.planId !== item.planId ||
+        chain.eventId !== item.eventId) {
+      fail('P14_PRODUCT_FACT_PLAN_SOURCE_DRIFT',
+        'Product Fact Plan source does not match the selected durable Result.');
+    }
+    return Object.freeze({
+      workId: chain.workId,
+      attemptId: chain.attemptId,
+      planId: chain.planId,
+      eventId: chain.eventId,
+      resultId: chain.resultId,
+      capabilityRef: chain.capabilityRef,
+      resultSchemaRef: chain.resultSchemaRef,
+      resultDigest: chain.resultDigest,
+      evidenceDigest: chain.evidenceDigest,
+      inputBindingDigest: chain.inputBindingDigest,
+    });
+  });
+  const artifactRefs = (payload.verifiedArtifactManifest?.items || [])
+    .map((item) => Object.freeze({
+      artifactHandleId: item.artifactHandleId,
+      artifactRevision: item.artifactRevision,
+      artifactDigest: item.artifactDigest,
+      verificationResultId: item.verificationResultRef.resultId,
+      verificationResultDigest: item.verificationResultRef.resultDigest,
+    }))
+    .sort((left, right) => Buffer.compare(
+      Buffer.from(left.artifactHandleId),
+      Buffer.from(right.artifactHandleId),
+    ) || left.artifactRevision - right.artifactRevision);
+  const value = {
+    schemaRef: PRODUCT_FACT_PLAN_BINDING_SCHEMA,
+    schemaVersion: 1,
+    bindingKind: 'product_fact_commit',
+    libraRunId: run.libraRunId,
+    runExecutionBasisDigest: run.executionBasisDigest,
+    factKind,
+    expectedFactRevision: 0,
+    payloadDigest,
+    sourceBasisKind: sourceBasis.sourceBasisKind,
+    sourceBasisId:
+      sourceBasis.selection?.selectionId || sourceBasis.westernBasis?.basisId,
+    sourceBasisDigest: sourceBasis.sourceBasisDigest,
+    sourceResultRefs,
+    artifactRefs,
+    mediaCastFactRef: payload.mediaCastFactRef || null,
+  };
+  value.bindingDigest = canonicalDigest(value);
+  productFactPlanBindingValidator.validate(
+    PRODUCT_FACT_PLAN_BINDING_SCHEMA,
+    value,
+  );
+  if (Buffer.byteLength(canonicalJson(value), 'utf8') > 16 * 1024) {
+    fail('P14_PRODUCT_FACT_PLAN_BINDING_TOO_LARGE',
+      'Product Fact Plan binding exceeds the frozen node limit.');
+  }
+  return Object.freeze(value);
 }
 
 function productOfferMessage(value) {
@@ -129,25 +207,31 @@ function xml(value) {
     .replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&apos;');
 }
 
-function renderNfo(entries) {
+function renderNfo(entries, contentProfile = 'movie') {
   const values = new Map(entries.map((item) => [item.key, item.value]));
+  const series = contentProfile === 'series';
   const tags = [
-    ['title', 'title'],
-    ['tmdb_movie_id', 'tmdbid'],
+    [series ? 'series_title' : 'title', 'title'],
+    [series ? 'tmdb_series_id' : 'tmdb_movie_id', 'tmdbid'],
+    ['season_number', 'season'],
+    ['episode_number', 'episode'],
+    ['episode_title', 'episodetitle'],
+    ['episode_plot', 'episodeplot'],
     ['year_or_release_date', 'year'],
     ['release_date', 'releasedate'],
     ['plot', 'plot'],
     ['genre', 'genre'],
     ['director', 'director'],
   ];
-  const lines = ['<movie>'];
+  const root = series ? 'tvshow' : 'movie';
+  const lines = ['<' + root + '>'];
   for (const [key, tag] of tags) {
     if (values.has(key)) lines.push('  <' + tag + '>' + xml(values.get(key)) + '</' + tag + '>');
   }
   if (values.has('actor')) {
     lines.push('  <actor><name>' + xml(values.get('actor')) + '</name></actor>');
   }
-  lines.push('</movie>');
+  lines.push('</' + root + '>');
   return Buffer.from(lines.join('\n') + '\n', 'utf8');
 }
 
@@ -587,11 +671,19 @@ function createMovieProductionCoordinator(options) {
     });
   }
 
-  function commitFact(run, factKind, sourceBasis, payloadValue) {
+  function commitFact(run, factKind, sourceBasis, payloadValue, sourceChains) {
     const existing = reader.readFact(run.libraRunId, factKind, 1);
     if (existing) return existing;
     const payload = Object.freeze({ ...payloadValue, sourceBasis });
     const payloadDigest = canonicalDigest(payload);
+    const planBinding = productFactPlanBinding(
+      run,
+      factKind,
+      payload,
+      payloadDigest,
+      sourceBasis,
+      sourceChains,
+    );
     const basisDigest = canonicalDigest({
       schema: 'libra.movie-product-fact-work@1',
       libraRunId: run.libraRunId,
@@ -635,8 +727,8 @@ function createMovieProductionCoordinator(options) {
       eventId,
       capabilityRef: 'libra.product_fact.commit@1',
       effectClass: 'domain_fact_commit',
-      inputSchemaRef: 'helix://contracts/capabilities/libra.product_fact.commit/v1/inputs',
-      input: payload,
+      inputSchemaRef: PRODUCT_FACT_PLAN_BINDING_SCHEMA,
+      input: planBinding,
       parametersSchemaRef: 'helix://contracts/capabilities/libra.product_fact.commit/v1/parameters',
       fenceSchemaRef: 'helix://contracts/capabilities/libra.product_fact.commit/v1/fence',
       basisDigest,
@@ -715,7 +807,10 @@ function createMovieProductionCoordinator(options) {
     let workspace = reader.readWorkspace(id);
     if (workspace) return workspace;
     const root = options.workspaceProductPort.rootSnapshot();
-    const inputPrimaryTotalBytes = snapshot.member.sizeBytes;
+    const inputPrimaryTotalBytes = snapshot.members.reduce(
+      (total, member) => total + member.sizeBytes,
+      0,
+    );
     const request = buildSpaceAdmissionRequest({
       workspaceId: id,
       libraRunId: snapshot.run.libraRunId,
@@ -759,7 +854,15 @@ function createMovieProductionCoordinator(options) {
     return workspace;
   }
 
-  function stageArtifact(run, workspace, materialized, role, requirement, verification) {
+  function stageArtifact(
+    run,
+    workspace,
+    materialized,
+    role,
+    requirement,
+    verification,
+    episodeClaims,
+  ) {
     let current = reader.readWorkspace(workspace.workspaceId);
     let reference = current.references.find((item) =>
       item.workspaceMaterialHandle.handleId ===
@@ -780,8 +883,8 @@ function createMovieProductionCoordinator(options) {
           ),
         },
         workspaceMaterialHandle: materialized.workspaceMaterialHandle,
-        episodeClaims: [],
-        episodeScopeDigest: episodeScopeDigest([]),
+        episodeClaims,
+        episodeScopeDigest: episodeScopeDigest(episodeClaims),
         productVerificationRef: null,
       });
       referenceStore.commit({
@@ -821,8 +924,8 @@ function createMovieProductionCoordinator(options) {
           digest: reference.referenceDigest,
         },
         workspaceMaterialHandle: materialized.workspaceMaterialHandle,
-        episodeClaims: [],
-        episodeScopeDigest: episodeScopeDigest([]),
+        episodeClaims,
+        episodeScopeDigest: episodeScopeDigest(episodeClaims),
         productVerificationRef: snapshot,
       });
       referenceStore.commit({
@@ -860,6 +963,10 @@ function createMovieProductionCoordinator(options) {
   async function advance(libraRunId) {
     const snapshot = reader.readRun(libraRunId);
     const productionTimeMs = snapshot.run.createdAtMs;
+    const contentProfile = snapshot.spec.contentProfile;
+    const structureKind = snapshot.spec.structureKind;
+    const isSeries = contentProfile === 'series';
+    const productEpisodeClaims = snapshot.episodeClaims;
     if (snapshot.run.packageRevisionHead > 0) {
       const published = reader.readPublishedDeliveryRef(
         libraRunId,
@@ -900,71 +1007,91 @@ function createMovieProductionCoordinator(options) {
         productDelivery: delivery,
       });
     }
-    const nfoReference = snapshot.relatedReferences.find((item) => item.role === 'nfo');
-    if (!nfoReference) {
+    const nfoReferences = snapshot.relatedReferences
+      .filter((item) => item.role === 'nfo');
+    if (!nfoReferences.length) {
       return Object.freeze({
         stage: 'product_metadata_unresolved',
         libraRunId,
         reasonCode: 'related_nfo_unavailable',
       });
     }
-    const readHandle = options.productionPort.issuePhysicalReadHandle({
-      libraRunId,
-      runExecutionBasisDigest: snapshot.run.executionBasisDigest,
-      runCreatedAtMs: snapshot.run.createdAtMs,
-      physicalIdentity: snapshot.member.physicalIdentity,
-      sizeBytes: snapshot.member.sizeBytes,
-      endpointId: snapshot.member.endpointId,
-      location: snapshot.member.location,
-      bindingRevision: snapshot.member.bindingRevision,
-      mountScopeRevision: 1,
-    });
-    const probe = mediaProbeEvidence(
-      await options.productionPort.probe(readHandle),
-      readHandle,
-      productionTimeMs,
-    );
     const mediaRequirement = buildMediaRequirement(snapshot.spec);
-    const mediaInput = buildProductMediaCandidateInput({
-      candidateNodeId: 'direct-original',
-      libraRunId,
-      mediaRequirement,
-      candidateKind: 'direct_input',
-      sourceMaterialHandle: readHandle,
-      sourceProbeEvidence: probe,
-    });
-    const mediaVerification = buildProductMediaVerification({
-      input: mediaInput,
-      verifiedAtMs: productionTimeMs,
-    });
-    const selectionInput = buildProductOutputSelectionInput({
-      libraRunId,
-      acceptanceSpecId: snapshot.spec.acceptanceSpecId,
-      acceptanceSpecRecordDigest: snapshot.spec.recordDigest,
-      mediaRequirementDigest: mediaRequirement.requirementDigest,
-      rankedCandidates: [{
-        rank: 1,
-        candidateId: mediaInput.candidateId,
-        candidateNodeId: mediaInput.candidateNodeId,
-      }],
-      candidates: [mediaVerification],
-    });
-    const selected = selectProductOutput({
-      input: selectionInput,
-      producedAtMs: productionTimeMs,
-    });
-    if (selected.result !== 'selected') {
+    const mediaProducts = [];
+    for (const member of snapshot.members) {
+      const readHandle = options.productionPort.issuePhysicalReadHandle({
+        libraRunId,
+        runExecutionBasisDigest: snapshot.run.executionBasisDigest,
+        runCreatedAtMs: snapshot.run.createdAtMs,
+        physicalIdentity: member.physicalIdentity,
+        sizeBytes: member.sizeBytes,
+        endpointId: member.endpointId,
+        location: member.location,
+        bindingRevision: member.bindingRevision,
+        mountScopeRevision: 1,
+      });
+      const probe = mediaProbeEvidence(
+        await options.productionPort.probe(readHandle),
+        readHandle,
+        productionTimeMs,
+      );
+      const mediaInput = buildProductMediaCandidateInput({
+        candidateNodeId: snapshot.members.length === 1
+          ? 'direct-original'
+          : 'direct-original-' + member.ordinal,
+        libraRunId,
+        mediaRequirement,
+        candidateKind: 'direct_input',
+        sourceMaterialHandle: readHandle,
+        sourceProbeEvidence: probe,
+      });
+      const verification = buildProductMediaVerification({
+        input: mediaInput,
+        verifiedAtMs: productionTimeMs,
+      });
+      const selectionInput = buildProductOutputSelectionInput({
+        libraRunId,
+        acceptanceSpecId: snapshot.spec.acceptanceSpecId,
+        acceptanceSpecRecordDigest: snapshot.spec.recordDigest,
+        mediaRequirementDigest: mediaRequirement.requirementDigest,
+        rankedCandidates: [{
+          rank: 1,
+          candidateId: mediaInput.candidateId,
+          candidateNodeId: mediaInput.candidateNodeId,
+        }],
+        candidates: [verification],
+      });
+      const selected = selectProductOutput({
+        input: selectionInput,
+        producedAtMs: productionTimeMs,
+      });
+      mediaProducts.push(Object.freeze({
+        member,
+        readHandle,
+        probe,
+        verification,
+        selected,
+      }));
+    }
+    const unresolvedMedia = mediaProducts.find((item) =>
+      item.selected.result !== 'selected');
+    if (unresolvedMedia) {
       return Object.freeze({
         stage: 'product_media_unresolved',
         libraRunId,
-        reasonCodes: mediaVerification.reasonCodes,
+        materialKey: unresolvedMedia.member.materialKey,
+        reasonCodes: unresolvedMedia.verification.reasonCodes,
       });
     }
-    const relatedNfo = options.productionPort.readRelatedNfo({
-      primaryMaterialKey: snapshot.member.materialKey,
-      reference: nfoReference,
-    });
-    const title = relatedNfo.entries.find((item) => item.key === 'title')?.value;
+    const relatedNfos = nfoReferences.map((reference) => Object.freeze({
+      reference,
+      value: options.productionPort.readRelatedNfo({
+        primaryMaterialKey: reference.primaryMaterialKey,
+        reference,
+      }),
+    }));
+    const title = relatedNfos.flatMap((item) => item.value.entries)
+      .find((item) => ['series_title', 'title'].includes(item.key))?.value;
     if (!title) {
       return Object.freeze({
         stage: 'product_identity_unresolved',
@@ -974,27 +1101,31 @@ function createMovieProductionCoordinator(options) {
     }
     const providerSearch = await options.productionPort.searchProviderIdentity({
       operationId: 'shared.integration.search@1',
-      contentProfile: 'movie',
+      contentProfile,
       title,
       candidateDeliverySnapshotDigest:
-        snapshot.member.originCandidateDeliveryRef.candidateDeliverySnapshotDigest,
+        snapshot.members[0].originCandidateDeliveryRef
+          .candidateDeliverySnapshotDigest,
     });
     const identity = buildResolvedProductIdentity({
       producerRef: 'shared.integration.search@1',
       basisDigest: canonicalDigest({
-        schema: 'libra.movie-provider-identity-basis@1',
+        schema: 'libra.product-provider-identity-basis@1',
+        contentProfile,
         title,
         candidateDeliverySnapshotDigest:
-          snapshot.member.originCandidateDeliveryRef.candidateDeliverySnapshotDigest,
+          snapshot.members[0].originCandidateDeliveryRef
+            .candidateDeliverySnapshotDigest,
         provider: providerSearch.provider,
         namespace: providerSearch.namespace,
         providerKey: providerSearch.providerKey,
+        seasonNumber: providerSearch.seasonNumber,
       }),
       observedAtMs: productionTimeMs,
       subjectId: snapshot.run.subjectId,
-      structureKind: 'single',
-      contentProfile: 'movie',
-      identityKind: 'tmdb_movie',
+      structureKind,
+      contentProfile,
+      identityKind: isSeries ? 'tmdb_series_season' : 'tmdb_movie',
       providerIdentities: [providerSearch],
       exactSeasonContinuityClaims: [],
       displayEntries: [{ key:'title', value:title }],
@@ -1002,53 +1133,56 @@ function createMovieProductionCoordinator(options) {
     const requestedFields = [...snapshot.spec.requirements.metadata.requiredFieldCodes]
       .filter((item) => item !== 'actor')
       .sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right)));
-    const nfoIntent = buildMetadataFetchIntent({
-      libraRunId,
-      runExecutionBasisDigest: snapshot.run.executionBasisDigest,
-      sourceKind: 'related_nfo',
-      sourcePriority: 0,
-      contentProfile: 'movie',
-      resolvedIdentityDigest: identity.identityDigest,
-      requestedFields,
-      relatedReferenceId: nfoReference.referenceId,
-      relatedReferenceDigest: nfoReference.referenceDigest,
-      expectedChecksum: nfoReference.checksumHex,
-    });
-    const nfoObservation = metadataObservation(nfoIntent, {
-      entries: relatedNfo.entries,
-      providerIdentities: [],
-      peopleHints: [],
-      artifactHints: [{
-        artifactKind: 'nfo',
-        sourceRef: nfoReference.referenceId,
-        evidenceDigest: nfoReference.referenceDigest,
-      }],
-    }, productionTimeMs);
-    const nfoChain = runResultCapability(snapshot.run, {
-      workKind: 'product_metadata_observation',
-      objectiveRef: 'helix://libra/work/ProductMetadataObservation/v1',
-      nodeId: 'related-nfo-metadata-fetch',
-      capabilityRef: 'libra.product_metadata.fetch@1',
-      effectClass: 'pure_observation',
-      inputSchemaRef:
-        'helix://contracts/capabilities/libra.product_metadata.fetch/v1/inputs',
-      input: nfoIntent,
-      parametersSchemaRef:
-        'helix://contracts/capabilities/libra.product_metadata.fetch/v1/parameters',
-      fenceSchemaRef:
-        'helix://contracts/capabilities/libra.product_metadata.fetch/v1/fence',
-      resourceDemandSchemaRef:
-        'helix://contracts/capabilities/libra.product_metadata.fetch/v1/resource-demand',
-      resultSchemaRef: METADATA_SCHEMA,
-      result: nfoObservation,
-      evidenceDigest: nfoObservation.payloadDigest,
+    const nfoSources = relatedNfos.map((item, ordinal) => {
+      const intent = buildMetadataFetchIntent({
+        libraRunId,
+        runExecutionBasisDigest: snapshot.run.executionBasisDigest,
+        sourceKind: 'related_nfo',
+        sourcePriority: ordinal,
+        contentProfile,
+        resolvedIdentityDigest: identity.identityDigest,
+        requestedFields,
+        relatedReferenceId: item.reference.referenceId,
+        relatedReferenceDigest: item.reference.referenceDigest,
+        expectedChecksum: item.reference.checksumHex,
+      });
+      const observation = metadataObservation(intent, {
+        entries: item.value.entries,
+        providerIdentities: [],
+        peopleHints: [],
+        artifactHints: [{
+          artifactKind: 'nfo',
+          sourceRef: item.reference.referenceId,
+          evidenceDigest: item.reference.referenceDigest,
+        }],
+      }, productionTimeMs);
+      const chain = runResultCapability(snapshot.run, {
+        workKind: 'product_metadata_observation',
+        objectiveRef: 'helix://libra/work/ProductMetadataObservation/v1',
+        nodeId: 'related-nfo-metadata-fetch-' + ordinal,
+        capabilityRef: 'libra.product_metadata.fetch@1',
+        effectClass: 'pure_observation',
+        inputSchemaRef:
+          'helix://contracts/capabilities/libra.product_metadata.fetch/v1/inputs',
+        input: intent,
+        parametersSchemaRef:
+          'helix://contracts/capabilities/libra.product_metadata.fetch/v1/parameters',
+        fenceSchemaRef:
+          'helix://contracts/capabilities/libra.product_metadata.fetch/v1/fence',
+        resourceDemandSchemaRef:
+          'helix://contracts/capabilities/libra.product_metadata.fetch/v1/resource-demand',
+        resultSchemaRef: METADATA_SCHEMA,
+        result: observation,
+        evidenceDigest: observation.payloadDigest,
+      });
+      return Object.freeze({ intent, observation, chain });
     });
     const providerIntent = buildMetadataFetchIntent({
       libraRunId,
       runExecutionBasisDigest: snapshot.run.executionBasisDigest,
       sourceKind: 'provider',
-      sourcePriority: 1,
-      contentProfile: 'movie',
+      sourcePriority: nfoSources.length,
+      contentProfile,
       resolvedIdentityDigest: identity.identityDigest,
       requestedFields,
       providerKind: 'tmdb',
@@ -1087,9 +1221,9 @@ function createMovieProductionCoordinator(options) {
       result: providerObservation,
       evidenceDigest: providerObservation.payloadDigest,
     });
-    const results = [nfoChain, providerChain];
+    const results = [...nfoSources.map((item) => item.chain), providerChain];
     const identityBasis = buildMetadataObservationBasis({
-      intents: [nfoIntent, providerIntent],
+      intents: [...nfoSources.map((item) => item.intent), providerIntent],
       results,
       factKind: 'resolved_identity',
       expectedRevision: 0,
@@ -1116,10 +1250,11 @@ function createMovieProductionCoordinator(options) {
           }),
         }),
       },
+      results,
     );
     const workspace = ensureWorkspace(snapshot);
     const metadataBasis = buildMetadataObservationBasis({
-      intents: [nfoIntent, providerIntent],
+      intents: [...nfoSources.map((item) => item.intent), providerIntent],
       results,
       factKind: 'product_metadata',
       expectedRevision: 0,
@@ -1143,13 +1278,17 @@ function createMovieProductionCoordinator(options) {
     const materials = [];
     const artifactChains = [];
     for (const [ordinal, kind] of ['nfo', 'poster'].entries()) {
-      const bytes = kind === 'nfo' ? renderNfo(mergedEntries) : provider.posterBytes;
+      const bytes = kind === 'nfo'
+        ? renderNfo(mergedEntries, contentProfile)
+        : provider.posterBytes;
       const role = kind === 'nfo' ? 'metadata_sidecar' : 'poster';
       const requirement = requirements.find((item) => item.artifactKind === kind);
       const materialized = options.workspaceProductPort.materializeArtifact({
         libraRunId,
         workspaceId: workspace.workspaceId,
-        relativePath: 'product/' + (kind === 'nfo' ? 'movie.nfo' : 'poster.jpg'),
+        relativePath: 'product/' + (kind === 'nfo'
+          ? (isSeries ? 'season.nfo' : 'movie.nfo')
+          : 'poster.jpg'),
         artifactKind: kind,
         mediaType: kind === 'nfo' ? 'application/xml' : 'image/jpeg',
         bytes,
@@ -1197,6 +1336,7 @@ function createMovieProductionCoordinator(options) {
         role,
         requirement,
         verification,
+        productEpisodeClaims,
       );
       materials.push(Object.freeze({
         ordinal,
@@ -1234,7 +1374,7 @@ function createMovieProductionCoordinator(options) {
     verifiedArtifactManifest.manifestDigest =
       canonicalDigest(verifiedArtifactManifest);
     const castBasis = buildMetadataObservationBasis({
-      intents: [nfoIntent, providerIntent],
+      intents: [...nfoSources.map((item) => item.intent), providerIntent],
       results,
       factKind: 'media_cast',
       expectedRevision: 0,
@@ -1266,7 +1406,7 @@ function createMovieProductionCoordinator(options) {
     const castFact = commitFact(snapshot.run, 'media_cast', castBasis, {
       schema: 'libra.media-cast-fact-commit-payload@1',
       mediaCastDraft: castDraft,
-    });
+    }, results);
     const metadataFact = commitFact(snapshot.run, 'product_metadata', metadataBasis, {
       schema: 'libra.product-metadata-fact-commit-payload@1',
       productMetadataDraft: metadataDraftResult.draft,
@@ -1276,7 +1416,7 @@ function createMovieProductionCoordinator(options) {
         factRevision: castFact.factRevision,
         factDigest: castFact.factDigest,
       },
-    });
+    }, results);
     if (typeof options.afterProductFactsCommit === 'function') {
       options.afterProductFactsCommit(Object.freeze({
         libraRunId,
@@ -1294,41 +1434,44 @@ function createMovieProductionCoordinator(options) {
       libraRunId,
       packageRevision,
     });
-    const primaryMember = {
-      ordinal: 0,
-      materialKey: snapshot.member.materialKey,
-      role: 'primary_payload',
-      physicalIdentity: snapshot.member.physicalIdentity,
-      sizeBytes: snapshot.member.sizeBytes,
-      location: {
-        locationKind: 'domain_binding',
-        endpointId: snapshot.member.endpointId,
-        location: snapshot.member.location,
-        rootHandleRef: null,
-        relativePath: null,
-      },
-      bindingKind: 'libra_material_binding',
-      bindingRevision: snapshot.member.bindingRevision,
-      bindingEvidenceDigest: snapshot.member.bindingEvidenceDigest,
-      originCandidateDeliveryRef: snapshot.member.originCandidateDeliveryRef,
-      workspaceReferenceId: null,
-      workspaceMaterialHandle: null,
-      admittedControlRevision: snapshot.member.admittedControlRevision,
-      admittedControlProjectionDigest:
-        snapshot.member.admittedControlProjectionDigest,
-      outputRequirementDigest: mediaRequirement.requirementDigest,
-      episodeClaims: [],
-      episodeClaimSetDigest: episodeClaimSetDigest([]),
-      controlOperation: 'assert_existing_input',
-      expectedControlRevision: snapshot.member.admittedControlRevision,
-      expectedControlProjectionDigest:
-        snapshot.member.admittedControlProjectionDigest,
-      committedControlRevision: snapshot.member.admittedControlRevision,
-      committedControlProjectionDigest:
-        snapshot.member.admittedControlProjectionDigest,
-    };
-    primaryMember.memberDigest = canonicalDigest(primaryMember);
-    const productMembers = [primaryMember, ...materials.map((item) => {
+    const primaryMembers = snapshot.members.map((member) => {
+      const value = {
+        ordinal: 0,
+        materialKey: member.materialKey,
+        role: 'primary_payload',
+        physicalIdentity: member.physicalIdentity,
+        sizeBytes: member.sizeBytes,
+        location: {
+          locationKind: 'domain_binding',
+          endpointId: member.endpointId,
+          location: member.location,
+          rootHandleRef: null,
+          relativePath: null,
+        },
+        bindingKind: 'libra_material_binding',
+        bindingRevision: member.bindingRevision,
+        bindingEvidenceDigest: member.bindingEvidenceDigest,
+        originCandidateDeliveryRef: member.originCandidateDeliveryRef,
+        workspaceReferenceId: null,
+        workspaceMaterialHandle: null,
+        admittedControlRevision: member.admittedControlRevision,
+        admittedControlProjectionDigest:
+          member.admittedControlProjectionDigest,
+        outputRequirementDigest: member.outputRequirementDigest,
+        episodeClaims: member.episodeClaims,
+        episodeClaimSetDigest: member.episodeClaimSetDigest,
+        controlOperation: 'assert_existing_input',
+        expectedControlRevision: member.admittedControlRevision,
+        expectedControlProjectionDigest:
+          member.admittedControlProjectionDigest,
+        committedControlRevision: member.admittedControlRevision,
+        committedControlProjectionDigest:
+          member.admittedControlProjectionDigest,
+      };
+      value.memberDigest = canonicalDigest(value);
+      return value;
+    });
+    const productMembers = [...primaryMembers, ...materials.map((item) => {
       const handle = item.materialized.workspaceMaterialHandle;
       const value = {
         ordinal: 0,
@@ -1357,8 +1500,9 @@ function createMovieProductionCoordinator(options) {
         admittedControlRevision: null,
         admittedControlProjectionDigest: null,
         outputRequirementDigest: item.requirement.requirementDigest,
-        episodeClaims: [],
-        episodeClaimSetDigest: episodeClaimSetDigest([]),
+        episodeClaims: item.reference.episodeClaims,
+        episodeClaimSetDigest:
+          episodeClaimSetDigest(item.reference.episodeClaims),
         controlOperation: 'acquire_workspace_product',
         expectedControlRevision: null,
         expectedControlProjectionDigest: null,
@@ -1392,13 +1536,13 @@ function createMovieProductionCoordinator(options) {
       manifestRole: 'product_delivery',
       manifestRevision: packageRevision,
       libraRunId,
-      scopeKind: 'single',
+      scopeKind: isSeries ? 'episode_delivery' : 'single',
       members: productMembers,
       memberSetDigest: canonicalDigest({
         schema: 'libra.production-material-members@1',
         items: productMembers,
       }),
-      episodeScopeDigest: episodeScopeDigest([]),
+      episodeScopeDigest: episodeScopeDigest(productEpisodeClaims),
     };
     productMaterialManifest.manifestDigest =
       canonicalDigest(productMaterialManifest);
@@ -1435,11 +1579,11 @@ function createMovieProductionCoordinator(options) {
     };
     artifactManifest.manifestDigest = canonicalDigest(artifactManifest);
     const productStructure = complete({
-      structureKind: 'single',
-      contentProfile: 'movie',
+      structureKind,
+      contentProfile,
       productScopeDigest: snapshot.spec.productScope.scopeDigest,
-      episodeScopeDigest: episodeScopeDigest([]),
-      primaryMaterialCount: 1,
+      episodeScopeDigest: episodeScopeDigest(productEpisodeClaims),
+      primaryMaterialCount: snapshot.members.length,
       structuralDependencyCount: 0,
     }, 'productStructureDigest');
     const inventory = {
@@ -1475,11 +1619,18 @@ function createMovieProductionCoordinator(options) {
       verifiedArtifactManifest,
       artifactVerificationSnapshots,
       inventorySnapshot: inventory,
-      selectedProducts: [{
-        selectedProduct: selected,
-        verification: mediaVerification,
+      selectedProducts: mediaProducts.map((item) => ({
+        selectedProduct: item.selected,
+        verification: item.verification,
         workspaceHandleDigest: null,
-      }],
+      })).sort((left, right) =>
+        Buffer.compare(
+          Buffer.from(left.selectedProduct.selectedHandleId),
+          Buffer.from(right.selectedProduct.selectedHandleId),
+        ) || Buffer.compare(
+          Buffer.from(left.selectedProduct.selectedVerificationId),
+          Buffer.from(right.selectedProduct.selectedVerificationId),
+        )),
     });
     const conformance = evaluateProductConformance({
       input: conformanceInput,
@@ -1525,21 +1676,32 @@ function createMovieProductionCoordinator(options) {
     };
     productFactManifest.manifestDigest =
       canonicalDigest(productFactManifest);
-    const offloadMember = {
-      ordinal: 0,
-      materialKey: snapshot.member.materialKey,
-      contextRole: 'original_input',
-      physicalIdentity: snapshot.member.physicalIdentity,
-      endpointId: snapshot.member.endpointId,
-      location: snapshot.member.location,
-      bindingRevision: snapshot.member.bindingRevision,
-      bindingEvidenceDigest: snapshot.member.bindingEvidenceDigest,
-      admittedControlRevision: snapshot.member.admittedControlRevision,
-      admittedControlProjectionDigest:
-        snapshot.member.admittedControlProjectionDigest,
-      settlementExpectation: 'retain',
-    };
-    offloadMember.memberDigest = canonicalDigest(offloadMember);
+    const offloadMembers = snapshot.members.map((member, ordinal) => {
+      const value = {
+        ordinal,
+        materialKey: member.materialKey,
+        contextRole: 'original_input',
+        physicalIdentity: member.physicalIdentity,
+        endpointId: member.endpointId,
+        location: member.location,
+        bindingRevision: member.bindingRevision,
+        bindingEvidenceDigest: member.bindingEvidenceDigest,
+        admittedControlRevision: member.admittedControlRevision,
+        admittedControlProjectionDigest:
+          member.admittedControlProjectionDigest,
+        settlementExpectation: 'retain',
+      };
+      value.memberDigest = canonicalDigest(value);
+      return value;
+    }).sort((left, right) =>
+      Buffer.compare(Buffer.from(left.materialKey), Buffer.from(right.materialKey)))
+      .map((member, ordinal) => {
+        const value = { ...member, ordinal };
+        value.memberDigest = canonicalDigest(Object.fromEntries(
+          Object.entries(value).filter(([key]) => key !== 'memberDigest'),
+        ));
+        return value;
+      });
     const offloadContextManifest = {
       manifestId: canonicalDigest({
         schema: 'libra.product-submanifest-id@1',
@@ -1549,10 +1711,10 @@ function createMovieProductionCoordinator(options) {
       }),
       manifestRevision: packageRevision,
       libraRunId,
-      members: [offloadMember],
+      members: offloadMembers,
       memberSetDigest: canonicalDigest({
         schema: 'libra.offload-context-members@1',
-        items: [offloadMember],
+        items: offloadMembers,
       }),
     };
     offloadContextManifest.manifestDigest =
@@ -1573,14 +1735,16 @@ function createMovieProductionCoordinator(options) {
         planDigest: item.planDigest,
       })).sort((left, right) =>
         Buffer.compare(Buffer.from(left.planId), Buffer.from(right.planId))),
-      productVerificationRefs: [{
-        verificationId: mediaVerification.verificationId,
-        verificationDigest: canonicalDigest(mediaVerification),
-      }],
-      externalRealityObservationRefs: [{
-        evidenceId: probe.evidenceId,
-        evidenceDigest: probe.payloadDigest,
-      }],
+      productVerificationRefs: mediaProducts.map((item) => ({
+        verificationId: item.verification.verificationId,
+        verificationDigest: canonicalDigest(item.verification),
+      })).sort((left, right) =>
+        Buffer.compare(Buffer.from(left.verificationId), Buffer.from(right.verificationId))),
+      externalRealityObservationRefs: mediaProducts.map((item) => ({
+        evidenceId: item.probe.evidenceId,
+        evidenceDigest: item.probe.payloadDigest,
+      })).sort((left, right) =>
+        Buffer.compare(Buffer.from(left.evidenceId), Buffer.from(right.evidenceId))),
     };
     provenance.provenanceDigest = canonicalDigest(provenance);
     const attestation = {
