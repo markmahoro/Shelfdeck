@@ -73,6 +73,45 @@ function sameDirectory(left, right) {
     left.parentSegments.every((part, index) => part === right.parentSegments[index]);
 }
 
+const PRIMARY_MEDIA_EXTENSIONS = new Set([
+  '.3gp', '.asf', '.avi', '.divx', '.flv', '.iso', '.m2ts', '.m4v', '.mkv',
+  '.mov', '.mp4', '.mpeg', '.mpg', '.mts', '.ogm', '.ogv', '.rm', '.rmvb',
+  '.ts', '.vob', '.webm', '.wmv',
+]);
+const SEASON_TOKEN = /(?:^|[ ._-])S(\d{1,2})E\d{1,3}|(?:^|[ ._-])(\d{1,2})x\d{1,3}/i;
+
+function seasonNumber(context) {
+  const match = context.baseName.match(SEASON_TOKEN);
+  return match ? Number(match[1] || match[2]) : null;
+}
+
+function stableFirst(values) {
+  return [...values].sort((left, right) => utf8(left.materialKey, right.materialKey))[0] || null;
+}
+
+function relatedCandidates(related, primaries) {
+  const sameDirectoryPrimaries = primaries.filter((primary) => sameDirectory(primary, related));
+  const stemMatches = sameDirectoryPrimaries.filter((primary) => primary.stem === related.stem);
+  if (stemMatches.length > 0) return stemMatches;
+
+  const lower = related.baseName.toLowerCase();
+  const seasonArtwork = lower.match(/^season0*(\d+)-(?:poster|fanart|background|backdrop)\.(?:jpe?g|png|webp)$/);
+  if (seasonArtwork) {
+    const season = Number(seasonArtwork[1]);
+    const seasonPrimaries = primaries.filter((primary) => seasonNumber(primary) === season);
+    const selected = stableFirst(seasonPrimaries);
+    return selected ? [selected] : [];
+  }
+
+  if (/^(?:movie|tvshow)\.nfo$/.test(lower) ||
+      /^(?:poster|fanart|background|backdrop)\.(?:jpe?g|png|webp)$/.test(lower)) {
+    const seasons = new Set(primaries.map(seasonNumber).filter((value) => value !== null));
+    const selected = seasons.size <= 1 ? stableFirst(primaries) : null;
+    return selected ? [selected] : [];
+  }
+  return [];
+}
+
 function layoutEntry(context, entryOrdinal) {
   const row = context.row;
   const value = {
@@ -146,18 +185,12 @@ function layoutEvidence(snapshot, primary, related) {
 
 function movieLayout(snapshot) {
   const contexts = snapshot.members.map((row, index) => fileContext(snapshot, row, index));
-  const nfo = contexts.filter((context) => context.extension === '.nfo');
-  const primaries = contexts.filter((context) => context.extension !== '.nfo');
+  const primaries = contexts.filter((context) => PRIMARY_MEDIA_EXTENSIONS.has(context.extension));
+  const relatedMaterials = contexts.filter((context) => !PRIMARY_MEDIA_EXTENSIONS.has(context.extension));
   const relatedByPrimary = new Map(primaries.map((context) => [context.materialKey, []]));
   const unresolved = [];
-  for (const related of nfo) {
-    const sameDirectoryPrimaries = primaries.filter((primary) => sameDirectory(primary, related));
-    const stemMatches = sameDirectoryPrimaries.filter((primary) => primary.stem === related.stem);
-    const candidates = stemMatches.length > 0
-      ? stemMatches
-      : related.baseName.toLowerCase() === 'movie.nfo' && sameDirectoryPrimaries.length === 1
-        ? sameDirectoryPrimaries
-        : [];
+  for (const related of relatedMaterials) {
+    const candidates = relatedCandidates(related, primaries);
     if (candidates.length !== 1) {
       unresolved.push(Object.freeze({
         materialKey: related.materialKey,
@@ -573,4 +606,8 @@ function createMovieRunCoordinator(options) {
   return Object.freeze({ advance });
 }
 
-module.exports = Object.freeze({ MovieRunCoordinatorError, createMovieRunCoordinator });
+module.exports = Object.freeze({
+  MovieRunCoordinatorError,
+  buildRunMaterialLayout: movieLayout,
+  createMovieRunCoordinator,
+});

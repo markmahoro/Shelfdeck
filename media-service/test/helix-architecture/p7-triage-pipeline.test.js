@@ -83,6 +83,175 @@ test('structure preserves Selection mapping and carries series mediaType/content
   assert.equal(manifest.membersDigest, canonicalDigest({ schema:'procurement.primary-input-manifest-members@1', items:expectedMembers }));
 });
 
+test('Series Triage aggregates N:M Episode members into one Season unit without inventing a continuity claim', () => {
+  const first = probeMember(0, 'Demo.Show.S01E01-02');
+  const second = probeMember(1, 'Demo.Show.S01E03');
+  const probeBatch = batch([first, second]);
+  const playability = capabilities.playabilityInspect.execute({
+    triageMaterialProbeBatch: probeBatch,
+    procurementTriageRuleSnapshot: rule,
+  });
+  const selectedMembers = [first, second].map((member, ordinal) => ({
+    ordinal,
+    materialKey: member.materialKey,
+    selectionRole: 'triage_input',
+    physicalIdentity: member.readHandle.identity,
+    sizeBytes: 100,
+    bindingRevision: 1,
+    eligibilityRevision: 1,
+    eligibilityBasisDigest: d(`eligibility:${ordinal}`),
+    lastSnapshotDigest: d(`snapshot:${ordinal}`),
+    lastObservationId: 'observation-1',
+    endpointId: 'endpoint-1',
+    location: member.readHandle.location,
+    realityDigest: d(`reality:${ordinal}`),
+    provenanceDigest: d(`provenance:${ordinal}`),
+    controlSnapshot: {},
+    admissionControlAction: 'acquire',
+    basisMemberDigest: d(`basis:${ordinal}`),
+  }));
+  const selected = {
+    procurementRunId: 'run-1',
+    fieldId: 'field-1',
+    members: selectedMembers,
+    selectionDigest: probeBatch.selectionDigest,
+  };
+  const contexts = [first, second].map((member, selectionOrdinal) => ({
+    selectionOrdinal,
+    materialKey: member.materialKey,
+    fieldRelativeLocation: member.readHandle.location,
+    baseName: selectionOrdinal === 0 ? 'Demo.Show.S01E01-02.mkv' : 'Demo.Show.S01E03.mkv',
+    extension: '.mkv',
+    parentSegments: ['shows', 'Demo Show', 'Season 1'],
+    layoutEvidenceRefs: [],
+  }));
+  const contextBase = {
+    fieldId: 'field-1',
+    accessRevision: 1,
+    accessDigest: d('access'),
+    contentProfileHint: 'mixed',
+    memberContexts: contexts,
+  };
+  const context = { ...contextBase, contextDigest: canonicalDigest(contextBase) };
+  const pageBase = { pageOrdinal: 0, cursorIn: null, maxUnits: 100 };
+  const pageRequest = { ...pageBase, requestDigest: canonicalDigest(pageBase) };
+  const input = {
+    selectedFieldMaterialSet: selected,
+    probeBatches: [probeBatch],
+    playabilityPages: [playability],
+    materialFieldContext: context,
+    layoutEvidence: [],
+    pageRequest,
+    inputDigest: canonicalDigest({
+      schema: 'procurement.triage-structure-input@1',
+      selectionDigest: selected.selectionDigest,
+      probeBatchDigests: [probeBatch.batchDigest],
+      playabilityPayloadDigests: [playability.payloadDigest],
+      contextDigest: context.contextDigest,
+      layoutPayloadDigests: [],
+      pageRequest,
+    }),
+  };
+  const structure = capabilities.structureInspect.execute({
+    triageStructureInspectionInput: input,
+    procurementTriageRuleSnapshot: rule,
+  });
+  assert.equal(structure.resultKind, 'resolved');
+  assert.equal(structure.units.length, 1);
+  assert.equal(structure.units[0].contentProfile, 'series');
+  assert.equal(structure.units[0].structureKind, 'season');
+  assert.equal(structure.units[0].members.length, 2);
+  assert.deepEqual(
+    structure.units[0].members.flatMap((member) => member.episodeClaims.map((claim) => claim.episodeKey)).sort(),
+    ['E001', 'E002', 'E003'],
+  );
+  assert.deepEqual(structure.units[0].seasonContinuityClaims, []);
+  assert.equal(
+    structure.units[0].seasonContinuityClaimSetDigest,
+    canonicalDigest({ schema: 'season-continuity-claim-set@1', items: [] }),
+  );
+  assert.equal(structure.units[0].identityMetadata.claimedTitle, 'Demo.Show');
+});
+
+test('Series Triage rejects overlapping Episode claims inside one Candidate unit', () => {
+  const first = probeMember(0, 'Demo.Show.S01E01-02');
+  const second = probeMember(1, 'Demo.Show.S01E02-03');
+  const probeBatch = batch([first, second]);
+  const playability = capabilities.playabilityInspect.execute({
+    triageMaterialProbeBatch: probeBatch,
+    procurementTriageRuleSnapshot: rule,
+  });
+  const selected = {
+    procurementRunId: 'run-1',
+    fieldId: 'field-1',
+    members: [first, second].map((member, ordinal) => ({
+      ordinal,
+      materialKey: member.materialKey,
+      selectionRole: 'triage_input',
+      physicalIdentity: member.readHandle.identity,
+      sizeBytes: 100,
+      bindingRevision: 1,
+      eligibilityRevision: 1,
+      eligibilityBasisDigest: d(`eligibility-overlap:${ordinal}`),
+      lastSnapshotDigest: d(`snapshot-overlap:${ordinal}`),
+      lastObservationId: 'observation-1',
+      endpointId: 'endpoint-1',
+      location: member.readHandle.location,
+      realityDigest: d(`reality-overlap:${ordinal}`),
+      provenanceDigest: d(`provenance-overlap:${ordinal}`),
+      controlSnapshot: {},
+      admissionControlAction: 'acquire',
+      basisMemberDigest: d(`basis-overlap:${ordinal}`),
+    })),
+    selectionDigest: probeBatch.selectionDigest,
+  };
+  const contextBase = {
+    fieldId: 'field-1',
+    accessRevision: 1,
+    accessDigest: d('access-overlap'),
+    contentProfileHint: 'mixed',
+    memberContexts: [first, second].map((member, selectionOrdinal) => ({
+      selectionOrdinal,
+      materialKey: member.materialKey,
+      fieldRelativeLocation: member.readHandle.location,
+      baseName: selectionOrdinal === 0 ? 'Demo.Show.S01E01-02.mkv' : 'Demo.Show.S01E02-03.mkv',
+      extension: '.mkv',
+      parentSegments: ['shows', 'Demo Show', 'Season 1'],
+      layoutEvidenceRefs: [],
+    })),
+  };
+  const context = { ...contextBase, contextDigest: canonicalDigest(contextBase) };
+  const pageBase = { pageOrdinal: 0, cursorIn: null, maxUnits: 100 };
+  const pageRequest = { ...pageBase, requestDigest: canonicalDigest(pageBase) };
+  const structure = capabilities.structureInspect.execute({
+    triageStructureInspectionInput: {
+      selectedFieldMaterialSet: selected,
+      probeBatches: [probeBatch],
+      playabilityPages: [playability],
+      materialFieldContext: context,
+      layoutEvidence: [],
+      pageRequest,
+      inputDigest: canonicalDigest({
+        schema: 'procurement.triage-structure-input@1',
+        selectionDigest: selected.selectionDigest,
+        probeBatchDigests: [probeBatch.batchDigest],
+        playabilityPayloadDigests: [playability.payloadDigest],
+        contextDigest: context.contextDigest,
+        layoutPayloadDigests: [],
+        pageRequest,
+      }),
+    },
+    procurementTriageRuleSnapshot: rule,
+  });
+  assert.equal(structure.resultKind, 'not_ready');
+  assert.equal(structure.units.length, 0);
+  assert.equal(structure.unassignedMaterials.length, 2);
+  assert.deepEqual(
+    [...new Set(structure.unassignedMaterials.map((item) => item.reasonCode))],
+    ['structure_ambiguous'],
+  );
+});
+
 test('Movie Triage associates only the exact NFO sidecar and conserves its canonical Related Reference', () => {
   const member = probeMember(0, 'Example.Movie');
   const probeBatch = batch([member]);

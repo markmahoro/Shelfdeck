@@ -1,6 +1,6 @@
 # P14 Product Journey Implementation
 
-状态：**ACTIVE — Series delta，当前仅 Handoff A / FA-04**
+状态：**FROZEN — Series Handoff A / FA-04 待主动复验**
 
 ## 当前基线
 
@@ -18,8 +18,28 @@
 - Movie 全链路已由 P14 独立接受：tested `c0b548ed`，evidence `219acac2`。
 - Series delta 施工合同：
   `docs/helix/implementation/evidence/P14_SERIES_DELTA_CONSTRUCTION_CONTRACT.md`。
+- Series Handoff A / FA-04 checkpoint：
+  `docs/helix/implementation/evidence/P14_SERIES_HANDOFF_A_FA04_CHECKPOINT.md`。
 
 ## 当前冻结点
+
+Series disposable journey 已经通过正式 Admin HTTP 与 Handoff A public port 推进到：
+
+`Field Observation → one group/series/season Candidate Package
+→ immutable Offer / Candidate Delivery Snapshot
+→ Libra Accepted Intake / new Season Subject
+→ Episode scope + Binding + Material Control transfer`
+
+同一 Season 的多 Episode Primary 被聚合到一个 Candidate；NFO/图片保持 Related
+Reference，不成为第二个 Primary。当前 sample 没有稳定 Series-level Provider
+anchor，也没有可合法使用的 persisted grouping lineage，因此 Candidate 的 exact
+continuity claim 集为空，FA-04 正确选择 `new_subject`；未按标题、路径或目录猜测
+extension。
+
+本检查点的定向 `22/22` 与完整 architecture `128 files` 均 PASS，机器库存保持
+112/97/177/43。等待主动复验，禁止提前进入 Series Routing/Spec/Run。
+
+## Movie accepted baseline
 
 同一 disposable Movie 已沿正式 T-shaped 产品旅程推进至：
 
@@ -76,9 +96,9 @@ terminal reclaimed。
 
 ## 下一步
 
-只推进 Series 第一个检查点：Season/Episode Triage、Candidate/Handoff A 与
-FA-04 new/extension 决定。完成后冻结并等待主动复验；不得提前进入 Series
-Routing/Production、JAV、Western Adult 或横向 Feature Matrix。
+Architecture/P14 接受后，只推进同一 Series Subject 的 Routing、Acceptance Spec
+与 active Libra Run；不得提前进入 Series Production、JAV、Western Adult 或
+横向 Feature Matrix。
 
 ## 硬边界
 
@@ -87,5 +107,5 @@ Routing/Production、JAV、Western Adult 或横向 Feature Matrix。
 - 不得修改 SSOT，不得引入兼容/双路径、hidden Store read、外域
   latest/current scan、Foundation Result fallback、legacy fallback 或跨 Owner
   写入。
-- 当前检查点只声明 Movie core backend 最终责任关闭链已实现并待复验，不声明
-  Beta 完成。
+- 当前检查点只声明 Series Handoff A / FA-04 construction vertical 已实现，不声明
+  Series端到端、Provider、Feature/UI或Beta完成。

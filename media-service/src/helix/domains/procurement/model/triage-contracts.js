@@ -81,6 +81,14 @@ function episodeToken(name) {
 }
 function javCode(name) { const match = name.match(/(?:^|[ ._-])([A-Za-z]{2,10})[-_ ]?(\d{2,6})(?=$|[ ._-])/); return match ? match[1].toUpperCase() + '-' + match[2] : null; }
 function titleFrom(context, temporaryLabel) { return (context.parentSegments.at(-1) || context.baseName || temporaryLabel).trim() || temporaryLabel; }
+function seriesTitleFrom(context, temporaryLabel) {
+  const stem = context.baseName.replace(/\.[^.]+$/, '');
+  const match = stem.match(/(?:^|[ ._-])(?:S\d{1,2}E\d{1,3}(?:E|-)?\d{0,3}|\d{1,2}x\d{1,3}(?:-\d{1,3})?)(?=$|[ ._-])/i);
+  const title = (match ? stem.slice(0, match.index) : stem)
+    .replace(/[ ._-]+$/g, '')
+    .trim();
+  return title || titleFrom(context, temporaryLabel);
+}
 function contextMap(input) { return new Map(input.materialFieldContext.memberContexts.map((item) => [item.materialKey, item])); }
 function probeMap(input) { return new Map(input.probeBatches.flatMap((batch) => batch.members).map((item) => [item.materialKey, item])); }
 function playableMap(input) { return new Map(input.playabilityPages.flatMap((page) => page.materialResults).map((item) => [item.materialKey, item])); }
@@ -152,7 +160,9 @@ function unitFor(member, context, profileName, mediaTypeName, season, episodes, 
     : { claimKind:'explicit_number', seasonNumber:season, claimDigest:'' }) : null;
   if (seasonClaim) seasonClaim.claimDigest = digest(without(seasonClaim, 'claimDigest'));
   const hints = [{ hintKind:'filename_title', hintValue:context.baseName, evidenceDigest:digest({ materialKey:member.materialKey, baseName:context.baseName }) }];
-  const metadata = { claimedTitle:titleFrom(context, member.materialKey.slice(0, 12)), ...(seasonClaim ? { seasonClaim } : {}),
+  const metadata = { claimedTitle:profileName === 'series'
+      ? seriesTitleFrom(context, member.materialKey.slice(0, 12))
+      : titleFrom(context, member.materialKey.slice(0, 12)), ...(seasonClaim ? { seasonClaim } : {}),
     ...(profileName === 'jav' ? { javCode:javCode(context.baseName) } : {}), contentProfileHint:profileName, sourceHints:hints };
   metadata.metadataDigest = digest(metadata);
   const claims = episodes.map((episode) => ({ episodeKey:'E' + String(episode).padStart(3,'0'),
@@ -172,10 +182,72 @@ function unitFor(member, context, profileName, mediaTypeName, season, episodes, 
   return value;
 }
 
+function mergeSeriesUnits(groups, unassigned) {
+  const merged = [];
+  for (const group of groups.values()) {
+    const episodeOwners = new Map();
+    let duplicate = false;
+    for (const unit of group) {
+      for (const member of unit.members) {
+        for (const claim of member.episodeClaims) {
+          if (episodeOwners.has(claim.episodeKey)) duplicate = true;
+          episodeOwners.set(claim.episodeKey, member.materialKey);
+        }
+      }
+    }
+    if (duplicate) {
+      for (const unit of group) {
+        for (const member of unit.members) unassigned.push({
+          materialKey:member.materialKey,
+          reasonCode:'structure_ambiguous',
+          evidenceDigest:digest({ schema:'procurement.series-episode-overlap@1',
+            materialKey:member.materialKey, episodeClaims:member.episodeClaims }),
+        });
+      }
+      continue;
+    }
+    const members = group.flatMap((unit) => unit.members)
+      .sort((a,b) => compareUtf8(a.materialKey,b.materialKey));
+    const relatedReferences = group.flatMap((unit) => unit.relatedReferences)
+      .sort((a,b) => compareUtf8(a.referenceId,b.referenceId));
+    const first = [...group].sort((a,b) => compareUtf8(a.unitId,b.unitId))[0];
+    const sourceHints = group.flatMap((unit) => unit.identityMetadata.sourceHints)
+      .sort((a,b) => compareUtf8(a.evidenceDigest,b.evidenceDigest));
+    const identityMetadata = {
+      claimedTitle:first.identityMetadata.claimedTitle,
+      seasonClaim:first.identityMetadata.seasonClaim,
+      contentProfileHint:'series',
+      sourceHints,
+    };
+    identityMetadata.metadataDigest = digest(identityMetadata);
+    const value = {
+      unitId:'',
+      mediaType:'group',
+      contentProfile:'series',
+      structureKind:'season',
+      displayIdentity:identityMetadata.claimedTitle,
+      identityMetadata,
+      // A filename/path grouping is valid Triage evidence inside this Candidate,
+      // but SSOT forbids upgrading it into an exact cross-Candidate continuity claim.
+      seasonContinuityClaims:[],
+      seasonContinuityClaimSetDigest:digest({ schema:'season-continuity-claim-set@1', items:[] }),
+      members,
+      relatedReferences,
+      unitDigest:'',
+    };
+    value.unitId = digest({ schema:'procurement.triage-unit-id@1', mediaType:value.mediaType,
+      contentProfile:value.contentProfile, structureKind:value.structureKind,
+      members:value.members.map(({ materialKey, role, episodeClaims }) => ({ materialKey, role, episodeClaims })) });
+    value.unitDigest = digest(without(value, 'unitDigest'));
+    merged.push(value);
+  }
+  return merged;
+}
+
 function inspectStructure(input, rule, options = {}) {
   validateTriageRuleSnapshot(rule); validateStructureInput(input);
   const selection = input.selectedFieldMaterialSet; const contexts = contextMap(input); const probes = probeMap(input); const playable = playableMap(input);
-  const units = []; const unassigned = [];
+  const units = []; const unassigned = []; const seriesGroups = new Map();
   for (const selected of selection.members) {
     const context = contexts.get(selected.materialKey); const probe = probes.get(selected.materialKey); const play = playable.get(selected.materialKey);
     if (!context || !probe || !play || probe.bindingRevision !== selected.bindingRevision) fail('P7_TRIAGE_STRUCTURE_MAPPING', 'Structure input does not exactly cover Selection.');
@@ -190,9 +262,21 @@ function inspectStructure(input, rule, options = {}) {
         evidenceDigest:digest({ materialKey:selected.materialKey, contextDigest:input.materialFieldContext.contextDigest }) }); continue;
     }
     const related = relatedFor({ ...context, contextDigest:input.materialFieldContext.contextDigest }, input.layoutEvidence, selected.materialKey);
-    units.push(unitFor(probe, { ...context, fieldId:input.materialFieldContext.fieldId }, profileName,
-      profileName === 'series' ? 'group' : 'single', token && token.season, token ? token.episodes : [], related));
+    const unit = unitFor(probe, { ...context, fieldId:input.materialFieldContext.fieldId }, profileName,
+      profileName === 'series' ? 'group' : 'single', token && token.season, token ? token.episodes : [], related);
+    if (profileName !== 'series') {
+      units.push(unit);
+      continue;
+    }
+    const groupKey = digest({
+      schema:'procurement.series-candidate-group@1',
+      claimedTitle:unit.identityMetadata.claimedTitle,
+      seasonClaimDigest:unit.identityMetadata.seasonClaim.claimDigest,
+    });
+    if (!seriesGroups.has(groupKey)) seriesGroups.set(groupKey, []);
+    seriesGroups.get(groupKey).push(unit);
   }
+  units.push(...mergeSeriesUnits(seriesGroups, unassigned));
   units.sort((a,b) => compareUtf8(a.unitId,b.unitId)); unassigned.sort((a,b) => compareUtf8(a.materialKey,b.materialKey));
   const offset = input.pageRequest.cursorIn ? Number(input.pageRequest.cursorIn.split(':')[1]) : 0;
   if (!Number.isSafeInteger(offset) || offset < 0) fail('P7_TRIAGE_STRUCTURE_CURSOR', 'Structure cursor is invalid.');
