@@ -861,8 +861,8 @@ function createMovieProductionCoordinator(options) {
     role,
     requirement,
     verification,
-    episodeClaims,
   ) {
+    const episodeClaims = Object.freeze([]);
     let current = reader.readWorkspace(workspace.workspaceId);
     let reference = current.references.find((item) =>
       item.workspaceMaterialHandle.handleId ===
@@ -1336,7 +1336,6 @@ function createMovieProductionCoordinator(options) {
         role,
         requirement,
         verification,
-        productEpisodeClaims,
       );
       materials.push(Object.freeze({
         ordinal,

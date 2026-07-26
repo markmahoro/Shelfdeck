@@ -30,12 +30,16 @@
   `movie-production-coordinator`、Workspace、Product Fact、Conformance、
   Promotion 和 Product Delivery 既有实现，只按 frozen
   `contentProfile/structureKind/productScope`处理差异。
-- 三个 Primary member 分别保存 E001、E002、E003 的 exact Production Episode
-  claim；Product Material Manifest 的 Primary、生成 NFO、Poster 均保留对应
-  Episode scope，最终 Package relation 共冻结九条 member/Episode relation。
+- 两个 Primary member 保留 exact N:M Production Episode claim：第一个
+  Primary保存E001/E002，第二个保存E003。生成NFO与Poster是非Primary Artifact
+  role，`episodeClaims=[]`且使用nominal empty claim-set digest；它们的Product
+  scope只由Artifact Requirement、Verified Artifact Manifest和verification
+  continuity表达。
+- 最终Package包含四个Material member（两个Primary、一个NFO、一个Poster），
+  只为Primary冻结三条member/Episode relation；不存在Artifact Episode relation。
 - Product Delivery historical reconstruction 对 Series 使用
-  `scopeKind=episode_delivery`，按 `episodeKey` 去重并验证全体 member 的 claim
-  tuple 一致；没有把 N:M scope 压平为单 Episode。
+  `scopeKind=episode_delivery`，重建同样三个Primary relation并验证claim tuple；
+  非Primary仍为空，没有把N:M scope压平为单Episode。
 - Related NFO 按正式 source priority 先于 typed TMDB Provider observation。
   测试中的 TMDB response 是 construction fixture，仅证明 typed Provider
   continuity，不代表真实 Provider acceptance。
@@ -88,18 +92,21 @@ Fact、Outbox、Workspace staging reference与物理输出均不重复。Series�
   Conformance与Promotion保持Libra owner-local。
 - Architecture inventory保持112 Capabilities / 97 Result families /
   177 tables / 43 canonical transactions；114 routes / 18 UI surfaces。
+- `ProductionMaterialManifest@1`的domain/application machine schema已同步加入
+  closed role guard：只有`primary_payload`可以携带Episode Claims；Workspace
+  Staging与Promotion Runtime也执行相同fail-closed约束。
 
 ## Evidence
 
 - Series public HTTP + Plan/Event + production/replay：`2/2 PASS`。
-- Libra application schema、Product Delivery、Promotion、Series纵切：
-  `21/21 PASS`。
-- Media production、Conformance、Workspace reference、Promotion与Series
-  continuity组合：`41/41 PASS`。
+- 非Primary Workspace Staging与Promotion Episode Claim正反例：PASS。
+- Domain/Application nominal schema物化、registry digest与baseline gate：PASS。
+- Historical Product Delivery验证四个member、三个Primary relation及零Artifact
+  relation：PASS。
 - Movie production non-regression：`1/1 PASS`。
-- 完整 `npm run test:helix-architecture`：`129 files PASS`。
+- 完整 `npm run test:helix-architecture`：`129 files / 876 tests PASS`。
 - Contract aggregate：
-  `45ba7a467e7411c7671587cb5b265b1cedf9a53974d76b7a7209d7d80923574e`。
+  `31c50aca25c02424e214c6ddd2ba52e13452cb926e8e176e02d324958ee0d43d`。
 - Manifest aggregate：
   `35d209a3c5141d397b824796995508a453035df2420b032e34fc83b0a4cfe829`。
 - `prohibitedActionsRun=[]`。

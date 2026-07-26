@@ -1754,7 +1754,7 @@
       "relativePath": "domain-types/ProductionMaterialManifest/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "51e9ae847979dc085cec16696949d7f59ddcbb464306d46a61bffbd0462ac00f"
+        "value": "8e526a9db3d164cc67544221554f471c1b8041b6acd4e42574f8bb3975c284b5"
       },
       "usedBy": [
         {

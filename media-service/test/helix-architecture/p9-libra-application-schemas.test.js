@@ -85,6 +85,11 @@ test('Run Admission schemas close immutable scope, head zero, and Result continu
   assert.equal(schemas.ProductionMaterialManifest.oneOf[0].properties.members.minItems, 1);
   assert.equal(schemas.ProductionMaterialManifest.oneOf[0].properties.members.maxItems, 1024);
   assert.ok(schemas.ProductionMaterialManifest.oneOf[1].properties.members.items.required.includes('committedControlRevision'));
+  for (const branch of schemas.ProductionMaterialManifest.oneOf) {
+    const member = branch.properties.members.items;
+    assert.equal(member.allOf[0].if.properties.role.not.const, 'primary_payload');
+    assert.equal(member.allOf[0].then.properties.episodeClaims.maxItems, 0);
+  }
   assert.equal(schemas.ProductionMaterialOutputRequirement.properties.outputRequirementDigest.pattern, '^[a-f0-9]{64}$');
   assert.equal(schemas.LibraRunAdmissionDecision.properties.expectedRunAdmissionHead.properties.headRevision.minimum, 0);
   assert.equal(schemas.LibraRunAdmissionDecision.properties.runExecutionBasis.$ref, typeId('LibraRunExecutionBasis'));

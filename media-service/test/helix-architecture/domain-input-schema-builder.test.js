@@ -92,6 +92,8 @@ test('legacy bounded inputs stay generic while media intents are exact and typed
       'workspaceMaterialHandle', 'admittedControlRevision', 'admittedControlProjectionDigest']) assert.ok(member.required.includes(field));
     assert.equal(member.properties.location.additionalProperties, false);
     assert.deepEqual(member.properties.location.required, ['locationKind', 'endpointId', 'location', 'rootHandleRef', 'relativePath']);
+    assert.equal(member.allOf[0].if.properties.role.not.const, 'primary_payload');
+    assert.equal(member.allOf[0].then.properties.episodeClaims.maxItems, 0);
   }
   const deliveryMember = productionManifest.oneOf[1].properties.members.items;
   for (const field of ['controlOperation', 'expectedControlRevision', 'expectedControlProjectionDigest',

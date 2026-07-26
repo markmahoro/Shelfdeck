@@ -71,6 +71,17 @@ function assertPromotionDecision(value){
   const members=value.productMaterialManifest?.members;
   if(!Array.isArray(members)||new Set(members.map((item)=>item.materialKey)).size!==members.length)
     fail('P9_PROMOTION_DUPLICATE','Promotion Product members must have unique material keys.');
+  const emptyClaims=Object.freeze([]),
+    emptyClaimSetDigest=canonicalDigest({schema:'libra.production-material-episode-claims@1',items:emptyClaims}),
+    emptyEpisodeScopeDigest=canonicalDigest({schema:'libra.production-episode-scope@1',items:emptyClaims});
+  if(members.some((member)=>!Array.isArray(member.episodeClaims)||
+      (member.role!=='primary_payload'&&(member.episodeClaims.length!==0||
+        member.episodeClaimSetDigest!==emptyClaimSetDigest)))||
+      refs.some((ref)=>ref.productVerificationRef?.materialRole!=='primary_payload'&&
+        (!Array.isArray(ref.episodeClaims)||ref.episodeClaims.length!==0||
+          ref.episodeScopeDigest!==emptyEpisodeScopeDigest)))
+    fail('P9_PROMOTION_EPISODE_ROLE',
+      'Only Primary Product members may carry Episode claims.');
   const workspaceMembers=members.filter((item)=>item.controlOperation==='acquire_workspace_product');
   const memberByMaterialKey=new Map(workspaceMembers.map((item)=>[item.materialKey,item]));
   if(workspaceMembers.length!==refs.length||refs.some((ref)=>{

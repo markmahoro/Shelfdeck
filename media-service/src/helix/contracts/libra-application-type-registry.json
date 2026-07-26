@@ -350,7 +350,7 @@
       "relativePath": "application-types/ProductionMaterialManifest/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "66739305bc578cfe6b72d4b0bfe011af0a705043ff9c01e457962e456c761c56"
+        "value": "70dd1f8cfee8ebc3f42c67a6e210dbb273430661f6c97fa54efc7577e041304c"
       },
       "ssotRefs": [
         "8.6.21"

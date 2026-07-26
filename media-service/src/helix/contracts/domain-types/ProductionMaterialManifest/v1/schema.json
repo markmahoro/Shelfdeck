@@ -311,6 +311,29 @@
               "episodeClaimSetDigest",
               "outputRequirementDigest",
               "memberDigest"
+            ],
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "role": {
+                      "not": {
+                        "const": "primary_payload"
+                      }
+                    }
+                  },
+                  "required": [
+                    "role"
+                  ]
+                },
+                "then": {
+                  "properties": {
+                    "episodeClaims": {
+                      "maxItems": 0
+                    }
+                  }
+                }
+              }
             ]
           },
           "maxItems": 1024,
@@ -691,6 +714,29 @@
               "expectedControlProjectionDigest",
               "committedControlRevision",
               "committedControlProjectionDigest"
+            ],
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "role": {
+                      "not": {
+                        "const": "primary_payload"
+                      }
+                    }
+                  },
+                  "required": [
+                    "role"
+                  ]
+                },
+                "then": {
+                  "properties": {
+                    "episodeClaims": {
+                      "maxItems": 0
+                    }
+                  }
+                }
+              }
             ]
           },
           "maxItems": 1024,

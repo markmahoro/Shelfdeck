@@ -222,6 +222,12 @@ function buildReferenceDecision(value) {
       digest:digest(value.expectedReference?.digest, 'expectedReference.digest') };
   if (handle.workspaceId !== workspaceId || handle.processId !== libraRunId) fail('P9_REFERENCE_HANDLE_SCOPE', 'Handle scope is invalid.');
   if (value.episodeScopeDigest !== scopeDigest) fail('P9_REFERENCE_CLAIMS', 'Episode scope digest is invalid.');
+  if (verification !== null &&
+      verification.materialRole !== 'primary_payload' &&
+      claims.length !== 0) {
+    fail('P9_REFERENCE_CLAIMS',
+      'Only Primary Product references may carry Episode claims.');
+  }
   if (value.operation === 'attach_working') {
     if (expected.state !== 'absent' || expected.revision !== 0 || expected.digest !== absentReferenceDigest(workspaceId, handle.handleId) || verification !== null)
       fail('P9_REFERENCE_EXPECTED', 'Attach requires the exact absent Reference and no Verification.');

@@ -1023,7 +1023,19 @@ function productionMaterialMemberSchema(manifestRole) {
     expectedControlRevision:nullable(nonNegativeInteger()), expectedControlProjectionDigest:nullable(digest()),
     committedControlRevision:positiveInteger(), committedControlProjectionDigest:digest()
   });
-  return object(properties);
+  return object(properties, Object.keys(properties), {
+    allOf: [{
+      if: {
+        properties: { role: { not: { const:'primary_payload' } } },
+        required: ['role']
+      },
+      then: {
+        properties: {
+          episodeClaims: { maxItems:0 }
+        }
+      }
+    }]
+  });
 }
 
 function productionMaterialManifestSchema() {

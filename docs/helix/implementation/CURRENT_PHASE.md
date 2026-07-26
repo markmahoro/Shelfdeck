@@ -38,11 +38,13 @@ Movie production/PBF-17/PBF-18-R1公共链路推进到：
 → immutable OnDeckProductPackage
 → exactly one open Handoff B Offer`
 
-三个Primary分别保留E001/E002/E003；生成NFO与Poster也携带完整Episode scope，
-Product Package关系共冻结九条member/Episode relation。Product Delivery历史读取
-按`episode_delivery`重建并验证claim tuple一致，没有压平N:M。原MKV、Episode
-NFO、tvshow NFO和Season artwork bytes/mtime不变，物理写入仅在disposable
-Libra Workspace。
+两个Primary保留exact N:M Episode continuity：第一个保存E001/E002，第二个保存
+E003。生成NFO与Poster是非Primary Artifact role，`episodeClaims=[]`且使用empty
+claim-set digest；Artifact scope只通过Artifact Requirement/Manifest/verification
+表达。Product Package包含四个member，只冻结三条Primary member/Episode
+relation。Product Delivery历史读取按`episode_delivery`重建相同的三个Primary
+relation且没有Artifact relation，也没有压平N:M。原MKV、Episode NFO、tvshow NFO
+和Season artwork bytes/mtime不变，物理写入仅在disposable Libra Workspace。
 
 本段额外闭合合法Series Fact payload超过Plan 16 KiB的ordinary缺陷：
 `LibraProductFactCommitPlanBinding@1`只冻结exact typed refs/digests，完整Fact
@@ -51,8 +53,12 @@ payload仍在execution/commit boundary内存组装；未放宽表上限、截断
 Package/Control/Offer commit）均证明重启只形成一个Package/Offer和一组Fact/
 Workspace effects。
 
-完整architecture gate为`129 files PASS`，机器库存与aggregate digests保持
-不变。当前明确冻结在open Handoff B Offer，未调用Arca Acceptance；等待
+`ProductionMaterialManifest@1`的domain/application machine schema、Workspace
+Staging与Promotion均已加入“只有Primary可携带Episode Claims”的closed guard。
+完整architecture gate为`129 files / 876 tests PASS`，机器库存保持
+112/97/177/43；Contract aggregate更新为
+`31c50aca25c02424e214c6ddd2ba52e13452cb926e8e176e02d324958ee0d43d`。
+当前明确冻结在open Handoff B Offer，未调用Arca Acceptance；等待
 Architecture/P14主动复验。typed TMDB response只作为construction fixture，
 不声明真实Provider acceptance。
 

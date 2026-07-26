@@ -190,10 +190,8 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
   fs.writeFileSync(path.join(adminDistDir, 'index.html'), '<!doctype html><div id="root"></div>');
 
   const sources = [
-    ['Demo.Show.S01E01.mkv', Buffer.from('series-episode-1')],
-    ['Demo.Show.S01E01.nfo', Buffer.from('<episodedetails><season>1</season><episode>1</episode></episodedetails>')],
-    ['Demo.Show.S01E02.mkv', Buffer.from('series-episode-2')],
-    ['Demo.Show.S01E02.nfo', Buffer.from('<episodedetails><season>1</season><episode>2</episode></episodedetails>')],
+    ['Demo.Show.S01E01-02.mkv', Buffer.from('series-episodes-1-2')],
+    ['Demo.Show.S01E01-02.nfo', Buffer.from('<episodedetails><season>1</season><episode>1</episode></episodedetails>')],
     ['Demo.Show.S01E03.mkv', Buffer.from('series-episode-3')],
     ['Demo.Show.S01E03.nfo', Buffer.from('<episodedetails><season>1</season><episode>3</episode></episodedetails>')],
   ];
@@ -426,7 +424,7 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
       payload: observe,
     });
     assert.equal(observed.statusCode, 400, observed.body);
-    assert.equal(mediaProbeCalls, 3);
+    assert.equal(mediaProbeCalls, 2);
   } finally {
     await host.close();
   }
@@ -446,7 +444,7 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
         'procurement.triage.identity_claim.resolve@1',
         'procurement.triage.primary_manifest.build@1'
       )`
-  ).get().count, 7);
+  ).get().count, 6);
   const planRows = interrupted.prepare(
     `SELECT node_id,input_binding_schema_ref,input_bindings_json
       FROM fx_plan_nodes
@@ -454,7 +452,7 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
         ?
       ORDER BY node_id`
   ).all(candidateAssemblyBindingSchemaRef);
-  assert.equal(planRows.length, 8);
+  assert.equal(planRows.length, 7);
   for (const row of planRows) {
     assert.equal(
       row.input_binding_schema_ref,
@@ -669,13 +667,13 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
   );
   assert.equal(db.prepare(
     'SELECT count(*) count FROM proc_candidate_primary_materials WHERE candidate_package_id=?'
-  ).get(candidate.candidate_package_id).count, 3);
+  ).get(candidate.candidate_package_id).count, 2);
   assert.deepEqual(db.prepare(
     'SELECT episode_key FROM proc_candidate_primary_material_episode_claims WHERE candidate_package_id=? ORDER BY episode_key'
   ).all(candidate.candidate_package_id).map((row) => row.episode_key), ['E001', 'E002', 'E003']);
   assert.equal(db.prepare(
     'SELECT count(*) count FROM proc_candidate_related_references WHERE candidate_package_id=? AND role=?'
-  ).get(candidate.candidate_package_id, 'nfo').count, 4);
+  ).get(candidate.candidate_package_id, 'nfo').count, 3);
   assert.equal(db.prepare(
     'SELECT count(*) count FROM proc_candidate_related_references WHERE candidate_package_id=? AND role=?'
   ).get(candidate.candidate_package_id, 'poster').count, 1);
@@ -734,7 +732,7 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
       WHERE run_material_manifest_id=?`
   ).get(run.run_material_manifest_id);
   assert.equal(manifest.scope_kind, 'episode_delivery');
-  assert.equal(manifest.member_count, 3);
+  assert.equal(manifest.member_count, 2);
   assert.deepEqual(db.prepare(
     `SELECT episode_key
        FROM libra_run_material_episode_claims
@@ -746,10 +744,10 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
     `SELECT count(*) count
        FROM libra_run_material_members
       WHERE run_material_manifest_id=?`
-  ).get(run.run_material_manifest_id).count, 3);
+  ).get(run.run_material_manifest_id).count, 2);
   assert.equal(db.prepare(
     "SELECT count(*) count FROM fx_material_controls WHERE owner_domain='libra' AND owner_scope_type='subject' AND owner_scope_id=?"
-  ).get(subject.subject_id).count, 3);
+  ).get(subject.subject_id).count, 2);
   const delivery = db.prepare(
     'SELECT offer_id FROM proc_candidate_deliveries WHERE candidate_package_id=?'
   ).get(candidate.candidate_package_id);
@@ -768,10 +766,10 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
       unitOfWork,
     });
     const snapshot = reconstruct(reader.readRows({ offerId: delivery.offer_id }));
-    assert.equal(snapshot.candidatePackage.relatedReferences.length, 5);
+    assert.equal(snapshot.candidatePackage.relatedReferences.length, 4);
     assert.equal(snapshot.candidatePackage.relatedReferences.filter(
       (item) => item.role === 'nfo'
-    ).length, 4);
+    ).length, 3);
     assert.equal(snapshot.candidatePackage.relatedReferences.filter(
       (item) => item.role === 'poster'
     ).length, 1);
@@ -928,7 +926,7 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
     assert.equal(completedProduction.productDelivery.onDeckProductPackage
       .productMaterialManifest.scopeKind, 'episode_delivery');
     assert.equal(completedProduction.productDelivery.onDeckProductPackage
-      .productMaterialManifest.members.length, 5);
+      .productMaterialManifest.members.length, 4);
   } finally {
     await host.close();
   }
@@ -941,18 +939,16 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
   const artifactProductMembers =
     packageValue.productMaterialManifest.members.filter((member) =>
       ['metadata_sidecar', 'poster'].includes(member.role));
-  assert.equal(primaryProductMembers.length, 3);
+  assert.equal(primaryProductMembers.length, 2);
   assert.deepEqual(
-    primaryProductMembers.flatMap((member) =>
-      member.episodeClaims.map((claim) => claim.episodeKey)).sort(),
-    ['E001', 'E002', 'E003'],
+    primaryProductMembers.map((member) =>
+      member.episodeClaims.map((claim) => claim.episodeKey)
+    ).sort((left, right) => left.join('|').localeCompare(right.join('|'))),
+    [['E001', 'E002'], ['E003']],
   );
   assert.equal(artifactProductMembers.length, 2);
   for (const member of artifactProductMembers) {
-    assert.deepEqual(
-      member.episodeClaims.map((claim) => claim.episodeKey),
-      ['E001', 'E002', 'E003'],
-    );
+    assert.deepEqual(member.episodeClaims, []);
   }
 
   productionDb = new Database(
@@ -964,10 +960,18 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
   ).get().count, 1);
   assert.equal(productionDb.prepare(
     'SELECT count(*) count FROM libra_product_package_materials'
-  ).get().count, 5);
+  ).get().count, 4);
   assert.equal(productionDb.prepare(
     'SELECT count(*) count FROM libra_product_package_material_episode_claims'
-  ).get().count, 9);
+  ).get().count, 3);
+  assert.deepEqual(productionDb.prepare(
+    `SELECT DISTINCT materials.role
+       FROM libra_product_package_material_episode_claims claims
+       JOIN libra_product_package_materials materials
+         ON materials.on_deck_package_id=claims.on_deck_package_id
+        AND materials.ordinal=claims.member_ordinal
+      ORDER BY materials.role`
+  ).all().map((row) => row.role), ['primary_payload']);
   assert.equal(productionDb.prepare(
     `SELECT count(*) count
        FROM fx_outbox
@@ -1004,11 +1008,7 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
   ).all();
   assert.equal(stagingRows.length, 2);
   for (const row of stagingRows) {
-    assert.deepEqual(
-      JSON.parse(row.episode_claims_json)
-        .map((claim) => claim.episodeKey),
-      ['E001', 'E002', 'E003'],
-    );
+    assert.deepEqual(JSON.parse(row.episode_claims_json), []);
   }
   const workspaceRows = productionDb.prepare(
     `SELECT workspace_id,relative_path

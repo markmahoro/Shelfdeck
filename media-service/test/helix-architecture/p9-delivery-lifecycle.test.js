@@ -7,6 +7,15 @@ const c=require('../../src/helix/domains/libra/model/delivery-lifecycle-contract
 const {createDeliveryLifecycleLedger}=require('../../src/helix/domains/libra/persistence/delivery-lifecycle-ledger');
 const {CONTRACTS,createDeliveryLifecycleCapabilityRegistrations}=require('../../src/helix/domains/libra/capabilities/delivery-lifecycle-capability-registrations');
 const h=(v)=>d({v}),NOW=1_700_000_000_000;
+const EMPTY_EPISODE_CLAIMS=Object.freeze([]);
+const EMPTY_EPISODE_CLAIM_SET_DIGEST=d({
+  schema:'libra.production-material-episode-claims@1',
+  items:EMPTY_EPISODE_CLAIMS
+});
+const EMPTY_EPISODE_SCOPE_DIGEST=d({
+  schema:'libra.production-episode-scope@1',
+  items:EMPTY_EPISODE_CLAIMS
+});
 const sealPromotion=(x)=>{
   x.packageDigest=c.onDeckProductPackageDigest(x,'subject-1','shelf-1');
   x.offerId=d({schema:'libra.product-offer-id@1',onDeckPackageId:x.onDeckPackageId,packageDigest:x.packageDigest});
@@ -28,7 +37,8 @@ function promotion(){
       materialKey:h('material'),role:'primary_payload',controlOperation:'acquire_workspace_product',
       workspaceReferenceId:'ref-1',workspaceMaterialHandle:{handleId:'handle-1'},
       expectedControlRevision:null,expectedControlProjectionDigest:null,
-      committedControlRevision:1,committedControlProjectionDigest:h('committed-control')
+      committedControlRevision:1,committedControlProjectionDigest:h('committed-control'),
+      episodeClaims:EMPTY_EPISODE_CLAIMS,episodeClaimSetDigest:EMPTY_EPISODE_CLAIM_SET_DIGEST
     }],memberSetDigest:h('members'),manifestDigest:h('product-materials')},
     offloadContextManifest:{manifestId:'offload-1',manifestRevision:1,libraRunId:'run-1',members:[],memberSetDigest:h('offload-members'),manifestDigest:h('offload')},
     productionProvenance:{libraRunId:'run-1',runExecutionBasisDigest:h('basis'),acceptanceSpecRecordDigest:h('spec'),workflowPlanRefs:[],productVerificationRefs:[],externalRealityObservationRefs:[],provenanceDigest:h('provenance')},
@@ -59,6 +69,7 @@ test('promotion publishes immutable package, exact Control commits, receipt and 
   assert.equal(committed.package.packageDigest,promotion().packageDigest);assert.equal(committed.controlCommits.length,1);assert.equal(committed.outbox.offerId,promotion().offerId);
   assert.throws(()=>commitPromotion({...promotion(),productionAttestation:{...promotion().productionAttestation,unmetRequirementCount:1}}),/conformant/);
   const wrongRole=promotion();wrongRole.productStagingReferences[0].productVerificationRef.materialRole='metadata_sidecar';
+  wrongRole.productStagingReferences[0].episodeScopeDigest=EMPTY_EPISODE_SCOPE_DIGEST;
   assert.throws(()=>commitPromotion(wrongRole),/one-for-one/);
 });
 
@@ -67,14 +78,16 @@ test('promotion joins Product Staging references to Product members by materialK
   value.productStagingReferences=[
     {referenceId:'ref-2',workspaceId:'workspace-1',libraRunId:'run-1',materialHandleId:'handle-2',materialKey:secondKey,
       workspaceMaterialHandle:{handleId:'handle-2'},workspaceHandleDigest:h('handle-2'),referenceRevision:2,state:'product_staging',
-      episodeClaims:[],episodeScopeDigest:h('episodes-2'),productVerificationRef:{verificationId:'verify-2',materialRole:'metadata_sidecar',
+      episodeClaims:EMPTY_EPISODE_CLAIMS,episodeScopeDigest:EMPTY_EPISODE_SCOPE_DIGEST,
+      productVerificationRef:{verificationId:'verify-2',materialRole:'metadata_sidecar',
         workspaceMaterialHandleId:'handle-2'},previousReferenceRevision:1,committedWorkspaceRevision:3,referenceDigest:h('ref-2')},
     value.productStagingReferences[0]
   ];
   value.productMaterialManifest.members=[
     value.productMaterialManifest.members[0],
     {materialKey:secondKey,role:'metadata_sidecar',controlOperation:'acquire_workspace_product',
-      workspaceReferenceId:'ref-2',workspaceMaterialHandle:{handleId:'handle-2'}}
+      workspaceReferenceId:'ref-2',workspaceMaterialHandle:{handleId:'handle-2'},
+      episodeClaims:EMPTY_EPISODE_CLAIMS,episodeClaimSetDigest:EMPTY_EPISODE_CLAIM_SET_DIGEST}
   ];
   sealPromotion(value);
   assert.doesNotThrow(()=>c.assertPromotionDecision(value));

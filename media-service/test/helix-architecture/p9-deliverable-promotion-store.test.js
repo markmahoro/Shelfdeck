@@ -16,6 +16,7 @@ const {
   createProductDeliveryReader,
 } = require('../../src/helix/domains/libra/persistence/product-delivery-reader');
 const {
+  assertPromotionDecision,
   onDeckProductPackageDigest,
 } = require('../../src/helix/domains/libra/model/delivery-lifecycle-contracts');
 
@@ -417,6 +418,30 @@ function fixtureValue() {
 }
 
 const RESULT_SCHEMA = 'helix://contracts/types/OnDeckProductPackageCommitReceipt/v1';
+
+test('rejects Episode claims on a non-primary Product member', () => {
+  const decision = JSON.parse(JSON.stringify(fixtureValue().decision));
+  const member = decision.productMaterialManifest.members[0];
+  const claim = {
+    episodeKey: 'E001',
+    seasonClaimDigest: D('season-1'),
+    claimDigest: canonicalDigest({
+      schema: 'libra.production-material-episode-claim@1',
+      episodeKey: 'E001',
+      seasonClaimDigest: D('season-1'),
+    }),
+  };
+  member.role = 'metadata_sidecar';
+  member.episodeClaims = [claim];
+  member.episodeClaimSetDigest = canonicalDigest({
+    schema: 'libra.production-material-episode-claims@1',
+    items: [claim],
+  });
+  assert.throws(
+    () => assertPromotionDecision(decision),
+    (error) => error.code === 'P9_PROMOTION_EPISODE_ROLE',
+  );
+});
 
 function withDatabase(run) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-p9-promotion-'));

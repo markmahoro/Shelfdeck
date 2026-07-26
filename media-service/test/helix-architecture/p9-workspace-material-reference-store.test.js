@@ -186,6 +186,12 @@ test('stages an NFO only with exact Artifact verification, Registry bytes, repla
   wrongRole.snapshotDigest=canonicalDigest(Object.fromEntries(Object.entries(wrongRole).filter(([key])=>key!=='snapshotDigest')));
   assert.throws(()=>buildReferenceDecision({...promote,decisionId:undefined,decisionDigest:undefined,productVerificationRef:wrongRole}),
     (error)=>error.code==='P9_REFERENCE_VERIFICATION');
+  const artifactClaim={episodeKey:'E001',seasonClaimDigest:D('season-1'),claimDigest:D('episode-1')},
+    artifactClaims=[artifactClaim];
+  assert.throws(()=>buildReferenceDecision({...promote,decisionId:undefined,decisionDigest:undefined,
+    episodeClaims:artifactClaims,episodeScopeDigest:canonicalDigest({
+      schema:'libra.production-episode-scope@1',items:artifactClaims,
+    })}),(error)=>error.code==='P9_REFERENCE_CLAIMS');
 }));
 
 test('rejects Artifact Registry byte drift before any staging commit',()=>fixture((input)=>{
