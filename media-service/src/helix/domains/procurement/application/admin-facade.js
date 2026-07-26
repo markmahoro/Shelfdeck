@@ -9,6 +9,9 @@ const {
   createFailedPreparationRetryAdminService,
 } = require('./failed-preparation-retry-admin-service');
 const {
+  createProcurementAutomationService,
+} = require('./procurement-automation-service');
+const {
   createDefaultTriageRuleRegistry,
 } = require('../model/procurement-run-contracts');
 
@@ -119,6 +122,10 @@ function createProcurementAdminApplication(options) {
     ...options,
     triageRegistry,
   });
+  const automation = createProcurementAutomationService({
+    ...options,
+    triageRegistry,
+  });
   const commands = procurementPublic.ProcurementCommandFacade({
     registerMaterialField: (envelope) => store.commitAdminCommand({ operation: 'register', ...envelope }),
     updateMaterialField: (envelope) => {
@@ -180,8 +187,13 @@ function createProcurementAdminApplication(options) {
     },
     async requestFieldObservation(fieldId, body) {
       try {
+        const observed = await commands.requestFieldObservation(
+          commandEnvelope(body, fieldId),
+        );
         return Object.freeze({
-          observation: await commands.requestFieldObservation(commandEnvelope(body, fieldId)),
+          observation: observed,
+          procurementAutomation:
+            automation.advanceFromObservation(observed),
         });
       } catch (error) {
         rejected(error);

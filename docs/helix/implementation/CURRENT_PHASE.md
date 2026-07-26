@@ -1,6 +1,6 @@
 # P14 Product Journey Implementation
 
-Status: **PAUSED by user on 2026-07-23**.
+Status: **ACTIVE — Movie Observation to Procurement active Run checkpoint frozen for independent P14 review.**
 
 ## Frozen resume baseline
 
@@ -13,38 +13,36 @@ Status: **PAUSED by user on 2026-07-23**.
   Run admission/seal management routes or use internal Store evidence to claim
   that user Feature.
 
-## Paused WIP
+## Frozen Movie checkpoint
 
-The user changed construction order to T-shaped, journey-first. Uncommitted
-Movie automation WIP currently advances the formal public path from terminal
-Field Observation to an active Procurement Run:
+The user changed construction order to T-shaped, journey-first. The first
+Movie checkpoint advances the formal public path from terminal Field
+Observation to an active Procurement Run:
 
 `Field/Observation → Eligibility → SelectedFieldMaterialSet →
 Material Control acquire → Procurement Run Admission`.
 
-This WIP has local focused evidence for exact replay, crash/restart recovery and
-the disposable `film-complete/movie-slice.mkv` sample, but it is **not a frozen
-or accepted checkpoint**. A source-boundary guard was added after the last
-completed test run and has not yet been rerun.
+The implementation is frozen for independent review. It has local focused
+evidence for exact replay, crash/restart recovery and the disposable
+`film-complete/movie-slice.mkv` sample. The source-boundary guard, focused P14
+entrypoint suite (12/12), Procurement regression verifier, and full
+architecture gate have all passed after the checkpoint implementation.
 
-Uncommitted WIP files to preserve exactly:
+Checkpoint files:
 
 - `media-service/src/helix/domains/procurement/application/procurement-automation-service.js`
 - `media-service/src/helix/domains/procurement/application/admin-facade.js`
 - `media-service/test/helix-architecture/p14-clean-service-entrypoint.test.js`
 - `docs/helix/implementation/evidence/P14_BETA_IMPL_03_PRODUCT_SURFACE_CONSTRUCTION_MATRIX.md`
 
-## Exact next step on resume
+## Exact next step
 
-1. Review the preserved diff; do not reset, stash, clean or reconstruct it.
-2. Run the focused P14 entrypoint test after the newly added source guard, then
-   the allowed Procurement/full architecture regressions.
-3. Correct ordinary implementation failures without changing Architecture
-   SSOT or Owner/Handoff boundaries.
-4. Only after all evidence passes, freeze and submit the
-   Observation-to-Procurement-Run checkpoint.
-5. Continue the Movie journey at the next blocker:
-   Evidence Assessment/Triage → Candidate Package publication → Handoff A.
+Await P14 independent review of this checkpoint before continuing the Movie
+journey. The next bounded construction segment is Evidence Assessment/Triage →
+Candidate Package publication → Handoff A. Do not restore horizontal
+Overview/Platform work. After the full Movie journey is independently accepted,
+the required serial contrast order is Series → JAV → Western Adult; only then
+may the Feature Matrix resume.
 
 ## Hard boundaries
 

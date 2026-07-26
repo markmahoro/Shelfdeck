@@ -108,6 +108,46 @@ immutable Plan input冻结；Procurement业务事实仍只写Owner Store。
 不重新解释已提交页面，最终连续提交revision 1..3。三份disposable sample
 文件在首次执行、故障、restart和exact replay前后内容及mtime均不变。
 
+### T-shaped Movie旅程：Observation → Procurement Run Admission
+
+施工顺序已从横向管理路由补齐切换为journey-first。当前第一段正式Movie纵切为：
+
+`Admin HTTP Field Observe → terminal Field Observation Result →
+Procurement owner-local Automation → Extraction Eligibility Reconcile →
+SelectedFieldMaterialSet → procurement.material.control.acquire@1 →
+Procurement Run Admission transaction`。
+
+Automation没有新增Run admission管理路由，也不把业务判断放入Composition
+Root。它只接受正式terminal Observation Result，按显式
+`fieldId/access revision/terminal observation revision+workId/policy
+revision/active Triage Rule authority`生成稳定Run identity。Eligibility按
+Field current material集合、精确last Observation、既有Selection guard及正式
+Material Control Projection计算；Run Admission冻结1..1024个UTF-8排序成员的
+完整Physical Identity、binding/eligibility/provenance/Control basis，并通过
+既有canonical transaction原子建立Run、Run Material rows、同Field
+Procurement Control、typed Result和commit marker。Supporting Work只保存冻结
+Selection/Control named inputs与执行状态。
+
+真实public HTTP在P14 disposable `film-complete/movie-slice.mkv`上已验证：
+
+- source size `899884162` bytes；执行前后SHA-256均为
+  `0e084d2f15a1d923943b97d1f7be175800dafaa7c7af245cebd76310259cb3c8`，
+  size/mtime/content均不变；
+- 形成唯一active Run
+  `procurement-run-a4585e399dfa8792d4aa76eeefb0fa59c1620dfd`，
+  Run Basis digest
+  `8a5c923ae1ba93ca6f96892aa212d8f69bfdcfc26aeec6032e60fae0cac561af`，
+  恰好一个Run Material和一个Procurement-controlled Material；
+- 同一Observation命令跨Clean Service restart稳定返回同一Run与Basis，
+  Run/Selection/Control均未重复；
+- fault fixture在Run/Control/typed Result已原子提交、Foundation Event尚未从
+  `executing`切换`succeeded`时中断；重启后由durable Result恢复Event和Work，
+  不重新Eligibility、不创建第二Run。
+
+当前Movie已到达**Procurement active Run**。下一个核心旅程阻塞点是
+Evidence Assessment/Triage与Candidate Package publication/Handoff A；本段
+没有宣称Candidate、Libra或Arca已完成，也没有因此增加real route数量。
+
 ### Procurement Failed-preparation Retry
 
 `POST /v1/admin/material-fields/:fieldId/actions/retry-failed-preparation`
@@ -125,13 +165,19 @@ idempotencyKey`稳定重放；消费使用`open@revision/digest` CAS，并与唯
 `ProcurementRunExecutionBasis`、新Run、Selection、Control assertion/acquire、
 typed Result和marker原子提交。旧失败Run及其terminal evidence不修改。
 
-真实HTTP fixture使用正式Field Observation与Eligibility Reconcile，再通过
-正式Run Admission/Seal fault path制造失败事实。Admission insert故障证明
+实现级fixture复用正式Field Observation自动形成的Run，再通过既有正式
+Run Seal fault path制造失败事实。Retry Admission insert故障证明
 Intent可已提交而新Run/consume marker保持全无；重启通过Event Result/marker
 恢复，只产生一个新Run。同key同payload在同进程及跨重启返回原typed result，
 同key异payload为409，第二key不得重复消费同一失败Basis。Windows路径分隔符
 在Owner-local Eligibility Reconcile中统一规范化，真实Observation文件可合法
 进入Eligibility，来源文件内容保持零变化。
+
+上述证明关闭的是Retry implementation contract，不冒充用户Feature验收。
+当前正式产品旅程尚未自然形成`sealed failed|partial_failure` Run，因此
+`F02.17`仍为`NOT_RUN`；不得为测试便利新增Run admission/seal管理路由。待
+Candidate/Preparation现实链路能够自然产生失败Run后，再由P14从该入口闭合
+用户级Retry验收。
 
 ### Arca Shelf aggregate
 
