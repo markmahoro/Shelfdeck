@@ -12,7 +12,7 @@
       "constraintsContract": "`candidate_json`保存Draft中精确Registration `candidatePayload`，其JCS digest必须等于`candidate_payload_digest`，且`proposed_name`以DDL CHECK匹配payload字段；payload在Candidate生命周期内immutable；JSON上限`16 KiB`且大Reference只含handle；`FOREIGN KEY(registration_candidate_id,current_revision,current_state)`显式引用revision表并`DEFERRABLE INITIALLY DEFERRED`；`UNIQUE(evidence_digest) WHERE current_state='open'`；`INDEX(current_state,created_at_ms)`",
       "source": {
         "section": "8.5.13",
-        "line": 8532,
+        "line": 8535,
         "lineDigest": "3d5f894e2f70f04a1a8fc462ca7708bec32f7938b3849e29a5570de47fb8fb35"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "`PK(registration_candidate_id,revision)`加`UNIQUE(registration_candidate_id,revision,state)`供head复合FK；到head的FK同样deferred；revision 1固定为open；只允许`open → accepted|dismissed|superseded`一次terminal CAS；terminal revision保存正式Decision ID/digest；immutable",
       "source": {
         "section": "8.5.13",
-        "line": 8533,
+        "line": 8536,
         "lineDigest": "a969b59ee206686028ad9e30b7c9e1f86fd9fee14e5e76cbec4c4d6fb50899e1"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "`candidate_json`保存Draft中精确Merge `candidatePayload`，JCS digest匹配`candidate_payload_digest`，四个Person热字段以DDL CHECK匹配payload refs；Person pair按ID规范化；两个`(person_id,revision)`复合FK冻结精确Person revision，payload与该snapshot immutable；Candidate current复合FK `DEFERRABLE INITIALLY DEFERRED`；`UNIQUE(left_person_id,right_person_id) WHERE current_state='open'`；`INDEX(current_state,created_at_ms)`",
       "source": {
         "section": "8.5.13",
-        "line": 8534,
+        "line": 8537,
         "lineDigest": "73d1ef0e5baeb5a12fd4429b23e6392a8f6ae2c490808a95111a0f5b283f408a"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "`PK(merge_candidate_id,revision)`加`UNIQUE(merge_candidate_id,revision,state)`供head复合FK；到head的FK同样deferred；revision 1固定为open；只允许`open → accepted|dismissed|superseded`一次terminal CAS；terminal revision保存正式Decision ID/digest；immutable",
       "source": {
         "section": "8.5.13",
-        "line": 8535,
+        "line": 8538,
         "lineDigest": "281a3977f0be22c06852ef188c92aa3f33404c73b511a6a309f2aabdfac3290e"
       }
     },
@@ -56,7 +56,7 @@
       "constraintsContract": "Candidate及source/target的previous/committed revision均有显式复合FK；一个source Person最多一个terminal merge target；Candidate、source/target revision和Preference选择都可从record追溯",
       "source": {
         "section": "8.5.13",
-        "line": 8536,
+        "line": 8539,
         "lineDigest": "7f79630c8d883454f8e6d96375d6cec01673e6b2bbb00d7462f8cca8951e9a8d"
       }
     },
@@ -67,7 +67,7 @@
       "constraintsContract": "clean generation唯一；旧/clean混合时拒绝可写启动",
       "source": {
         "section": "8.5.13",
-        "line": 8537,
+        "line": 8540,
         "lineDigest": "d06a8cd33af03f954c384b2771fd441577baf04a88ab5ae33924af8161ebd711"
       }
     },
@@ -78,7 +78,7 @@
       "constraintsContract": "mount scope是Platform技术identity，不是Business Object；current revision显式FK；`INDEX(status,mount_scope_id)`",
       "source": {
         "section": "8.5.13",
-        "line": 8538,
+        "line": 8541,
         "lineDigest": "6162e30b94f589f833a32257144132c84e1a911f602e2bc460e04c391f5079e5"
       }
     },
@@ -89,7 +89,7 @@
       "constraintsContract": "`PK(mount_scope_id,revision)`；active fingerprint唯一；replacement发布新revision但在显式验证前不继承旧Identity资格",
       "source": {
         "section": "8.5.13",
-        "line": 8539,
+        "line": 8542,
         "lineDigest": "273b56bfaa99425c128ab7407e2cbcd975c26901c46c0fe245e414472a8c35cb"
       }
     },
@@ -100,7 +100,7 @@
       "constraintsContract": "Config JSON上限`16 KiB`；`UNIQUE(integration_type,integration_id)`；secret不入本表",
       "source": {
         "section": "8.5.13",
-        "line": 8540,
+        "line": 8543,
         "lineDigest": "0688c64548eb44c4a44de73420e30f27e153014f9b0d59eeddcb04962666b87f"
       }
     },
@@ -111,7 +111,7 @@
       "constraintsContract": "`UNIQUE(owner_scope_type,owner_scope_id,secret_kind,revision)`；secret value不进入Event/Audit/Projection",
       "source": {
         "section": "8.5.13",
-        "line": 8541,
+        "line": 8544,
         "lineDigest": "927e8c74f5298fef1192786a55a6f9519e19d8d3baa18bdd84ab28b2f6d7f8d4"
       }
     },
@@ -122,7 +122,7 @@
       "constraintsContract": "endpoint/mount scope引用Platform current Registry；root overlap/containment用normalized path unique与保存时probe验证；`root_handle_ref`与`snapshot_digest`按8.6.21唯一公式由不含`resolved_root`的公开字段计算并在每次config/state revision切换时原子更新；`resolved_root`只供Platform内部containment/statvfs使用，typed runtime port不得返回",
       "source": {
         "section": "8.5.13",
-        "line": 8542,
+        "line": 8545,
         "lineDigest": "29d80ab4fe6dfe7073903a8f6cd30d8160d8d2c8a37f5d6881ff82edd813c431"
       }
     },
@@ -133,7 +133,7 @@
       "constraintsContract": "`UNIQUE(profile_key)`；两个system Profile不可删除；current revision显式FK",
       "source": {
         "section": "8.5.13",
-        "line": 8543,
+        "line": 8546,
         "lineDigest": "585280528c1f4fd1872be0c1f875b3c97439a4f27a38fcfb57a6f13e1fd69ebd"
       }
     },
@@ -144,7 +144,7 @@
       "constraintsContract": "Profile JSON上限`16 KiB`；`PK(profile_id,revision)`；immutable",
       "source": {
         "section": "8.5.13",
-        "line": 8544,
+        "line": 8547,
         "lineDigest": "d9a1be68e01ece24c9a8fcb098e44fbf9e61dbb5dda1374d104dd82bce803272"
       }
     }

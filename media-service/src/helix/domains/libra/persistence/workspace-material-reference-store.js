@@ -33,6 +33,7 @@ function libraDefinition(schemaManifest) {
 function foundationDefinition(schemaManifest) {
   return createRepositoryDefinition({ repositoryId:'workspace_material_reference_foundation', owner:'execution-foundation', schemaManifest, statements:{
     find_material:{ kind:'select-one', tableId:'fx_workspace_materials', columns:['workspace_id','material_handle_id','material_key','endpoint_id','mount_scope_id','inode','content_hash_algorithm','content_hash','relative_path','digest_algorithm','digest_hex','size_bytes','reference_revision','owner_domain','process_id','root_handle_ref','access_scope','handle_schema_ref','handle_json','handle_digest','fence_digest','state'], keyColumns:['workspace_id','material_handle_id'], safeIntegers:true },
+    find_artifact:{ kind:'select-one', tableId:'fx_artifact_registry', columns:['artifact_handle_id','artifact_kind','owner_domain','owner_scope_type','owner_scope_id','storage_ref','digest_algorithm','digest_hex','size_bytes','media_type','provenance_ref','reference_revision','state'], keyColumns:['artifact_handle_id'], safeIntegers:true },
     find_marker:{ kind:'select-one', tableId:'fx_commit_markers', columns:['commit_marker','owner_domain','scope_type','scope_id','commit_digest','result_id','result_schema_ref','result_digest'], keyColumns:['commit_marker'] },
     find_result:{ kind:'select-one', tableId:'fx_event_result_bindings', columns:['result_id','result_json','result_digest'], keyColumns:['result_id'] },
     insert_result:{ kind:'insert', tableId:'fx_event_result_bindings', columns:['result_id','event_id','outcome_kind','result_schema_ref','result_json','result_digest','evidence_schema_ref','evidence_json','evidence_digest','effect_receipt_id','committed_at_ms'] },
@@ -55,7 +56,7 @@ function rowSnapshot(row) {
   const verificationColumnsValid = verification === null
     ? row.product_verification_schema_ref === null && row.product_verification_id === null && row.product_verification_digest === null
     : row.product_verification_schema_ref === VERIFICATION_SCHEMA && row.product_verification_id === verification.verificationId &&
-      row.product_verification_digest === verification.verificationDigest;
+      row.product_verification_digest === verification.snapshotDigest;
   if (row.workspace_handle_schema_ref !== HANDLE_SCHEMA || row.episode_claims_schema_ref !== CLAIMS_SCHEMA ||
       row.workspace_handle_digest !== snapshot.workspaceHandleDigest || row.reference_id !== snapshot.referenceId ||
       row.material_handle_id !== snapshot.materialHandleId || row.material_key !== snapshot.materialKey ||
@@ -91,6 +92,28 @@ function verifyFoundationMaterial(row, decision, workspace) {
   if (!exact) fail('P9_REFERENCE_MATERIAL_CORRUPT', 'Foundation Handle and hot columns do not match the Decision.');
 }
 
+function verifyFoundationArtifact(row, decision) {
+  if (decision.productVerificationRef?.verificationKind !== 'artifact') {
+    if (row !== null && row !== undefined) fail('P9_REFERENCE_ARTIFACT_SCOPE', 'Artifact Registry was read for a non-artifact branch.');
+    return;
+  }
+  if (!row) fail('P9_REFERENCE_ARTIFACT_MISSING', 'Artifact Registry Handle is absent.');
+  let provenanceRef;
+  try { provenanceRef=JSON.parse(row.provenance_ref); } catch {
+    fail('P9_REFERENCE_ARTIFACT_CORRUPT', 'Artifact Registry provenance is corrupt.');
+  }
+  const stored={schemaRef:'helix://contracts/types/ArtifactHandle/v1',schemaVersion:1,
+    artifactHandleId:row.artifact_handle_id,artifactKind:row.artifact_kind,ownerDomain:row.owner_domain,
+    ownerScope:{scopeType:row.owner_scope_type,scopeId:row.owner_scope_id},storageRef:row.storage_ref,
+    digestAlgorithm:row.digest_algorithm,digestHex:row.digest_hex,sizeBytes:Number(row.size_bytes),mediaType:row.media_type,
+    provenanceRef,referenceRevision:Number(row.reference_revision)};
+  if (row.state !== 'active' || canonicalJson(stored) !== canonicalJson(decision.productVerificationRef.artifactHandle) ||
+      stored.digestAlgorithm !== decision.workspaceMaterialHandle.digestAlgorithm ||
+      stored.digestHex !== decision.workspaceMaterialHandle.digestHex ||
+      stored.sizeBytes !== decision.workspaceMaterialHandle.sizeBytes)
+    fail('P9_REFERENCE_ARTIFACT_CORRUPT', 'Artifact Registry Handle does not match the immutable Snapshot and Workspace bytes.');
+}
+
 function createWorkspaceMaterialReferenceStore(options) {
   if (!options?.schemaManifest || !options.unitOfWork) fail('P9_REFERENCE_STORE_DEPENDENCIES', 'Schema manifest and Unit of Work are required.');
   const libra = libraDefinition(options.schemaManifest), foundation = foundationDefinition(options.schemaManifest);
@@ -113,8 +136,11 @@ function createWorkspaceMaterialReferenceStore(options) {
       }};
       const foundationRead = { participantId:'workspace_reference_material_read', owner:'execution-foundation', boundBusinessOwner:'libra', repositories:[foundation], execute(context) {
         if (replay) return;
-        const row=context.repository(foundation.repositoryId).invoke('find_material',{workspace_id:decision.workspaceId,material_handle_id:decision.workspaceMaterialHandle.handleId});
+        const repo=context.repository(foundation.repositoryId),
+          row=repo.invoke('find_material',{workspace_id:decision.workspaceId,material_handle_id:decision.workspaceMaterialHandle.handleId});
         foundationRead.row=row;
+        foundationRead.artifactRow=decision.productVerificationRef?.verificationKind==='artifact'
+          ?repo.invoke('find_artifact',{artifact_handle_id:decision.productVerificationRef.artifactHandle.artifactHandleId}):null;
       }};
       const apply = { participantId:'workspace_reference_domain', owner:'libra', repositories:[libra], execute(context) {
         const repo=context.repository(libra.repositoryId);
@@ -136,6 +162,7 @@ function createWorkspaceMaterialReferenceStore(options) {
         if (!runRevision || runRevision.state !== 'active' || !workspaceRevision || workspaceRevision.state !== 'active')
           fail('P9_REFERENCE_OWNER_CORRUPT', 'Run or Workspace revision continuity is broken.');
         verifyFoundationMaterial(foundationRead.row,decision,workspace);
+        verifyFoundationArtifact(foundationRead.artifactRow,decision);
         const snapshots=currentSnapshots(repo.invoke('list_references',{workspace_id:workspace.workspace_id})),
           current=snapshots.find((item)=>item.referenceId===canonicalDigest({schema:'libra.workspace-reference-id@1',workspaceId:workspace.workspace_id,materialHandleId:decision.workspaceMaterialHandle.handleId}));
         if (referenceSetDigest(workspace.workspace_id,snapshots)!==workspaceRevision.material_reference_set_digest ||
@@ -170,7 +197,7 @@ function createWorkspaceMaterialReferenceStore(options) {
           product_verification_schema_ref:snapshot.productVerificationRef?VERIFICATION_SCHEMA:null,
           product_verification_id:snapshot.productVerificationRef?.verificationId||null,
           product_verification_json:snapshot.productVerificationRef?canonicalJson(snapshot.productVerificationRef):null,
-          product_verification_digest:snapshot.productVerificationRef?.verificationDigest||null,
+          product_verification_digest:snapshot.productVerificationRef?.snapshotDigest||null,
           previous_reference_revision:snapshot.previousReferenceRevision,committed_workspace_revision:newWorkspaceRevision,
           reference_digest:snapshot.referenceDigest,committed_at_ms:context.commitTimeMs});
         const revisionDigest=canonicalDigest({...state,previousRevision:Number(workspace.current_revision)});

@@ -20,6 +20,14 @@ function assertPromotionDecision(value){
   const refs=value.productStagingReferences;
   if(new Set(refs.map((item)=>item.referenceId)).size!==refs.length||new Set(refs.map((item)=>item.materialKey)).size!==refs.length)
     fail('P9_PROMOTION_DUPLICATE','Promotion material references must be unique.');
+  const members=value.productMaterialManifest?.members;
+  if(!Array.isArray(members)||members.length!==refs.length||refs.some((ref,index)=>{
+    const member=members[index];
+    return !member||ref.materialKey!==member.materialKey||
+      ref.productVerificationRef?.materialRole!==member.role||
+      ref.productVerificationRef?.workspaceMaterialHandleId!==ref.materialHandleId;
+  }))
+    fail('P9_PROMOTION_STAGING_ROLE','Product Staging References must match Product members one-for-one by material and role.');
   if(value.libraRunRef.libraRunId!==value.workspaceRef.libraRunId||refs.some((item)=>item.libraRunId!==value.libraRunRef.libraRunId||item.workspaceId!==value.workspaceRef.workspaceId))
     fail('P9_PROMOTION_RUN','Promotion inputs cross a Run or Workspace boundary.');
   const packageDigest=canonicalDigest({schema:'libra.on-deck-product-package@1',libraRunRef:value.libraRunRef,

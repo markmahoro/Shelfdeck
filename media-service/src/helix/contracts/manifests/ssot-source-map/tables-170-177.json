@@ -12,7 +12,7 @@
       "constraintsContract": "singleton key固定；current revision显式FK，不把Schedule塞入Profile aggregate",
       "source": {
         "section": "8.5.13",
-        "line": 8545,
+        "line": 8548,
         "lineDigest": "de4cd86e837d3cec416ea326a154c369357b37681dce277031300f2a920664f2"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "`PK(singleton_key,revision)`；Schedule JSON上限`16 KiB`；immutable；时段外必须解析为default且不得产生zero-capacity",
       "source": {
         "section": "8.5.13",
-        "line": 8546,
+        "line": 8549,
         "lineDigest": "6369e1a33c35dad0faf4d8362fcf1800d8fa6b226fc213359ffbd25c09cddf31"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "`UNIQUE(stable_device_key)`；`deviceClass=device_kind`为唯一公开映射；只有current probe验证能力且state=ready才可enabled；`INDEX(enabled,state,device_id)`",
       "source": {
         "section": "8.5.13",
-        "line": 8547,
+        "line": 8550,
         "lineDigest": "7850e6ee687246a509e42f0fe14880e7a296167abbf096259a806dd931572d68"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "`PK(device_id,revision)`；Capability JSON上限`16 KiB`且至少关系化声明`supportedVideoCodecs[]/supportedRateControlModes[]`的closed typed payload；actual probe Evidence immutable，只有passed可成为ready Snapshot",
       "source": {
         "section": "8.5.13",
-        "line": 8548,
+        "line": 8551,
         "lineDigest": "7fea41108abbfafdc75b7e3a09361786efe1fefc8cd2f18d9b97a95992d70a6a"
       }
     },
@@ -56,7 +56,7 @@
       "constraintsContract": "`INDEX(status,worker_id)`；deregister使用terminal state，不物理删除",
       "source": {
         "section": "8.5.13",
-        "line": 8549,
+        "line": 8552,
         "lineDigest": "6bf55b189dbb45cf52eaf48ad372b60ec11d290dd8bd4127fd84ee745604365b"
       }
     },
@@ -67,7 +67,7 @@
       "constraintsContract": "`PK(worker_id,revision)`；Config JSON上限`16 KiB`；current pointer显式FK",
       "source": {
         "section": "8.5.13",
-        "line": 8550,
+        "line": 8553,
         "lineDigest": "ff9849acc3710deb68332088b189dc8e407b71ad9ebc2093d6045b60a50a42fe"
       }
     },
@@ -78,7 +78,7 @@
       "constraintsContract": "`PK(worker_id,worker_revision,device_key)`；只有probe确认的device可enabled",
       "source": {
         "section": "8.5.13",
-        "line": 8551,
+        "line": 8554,
         "lineDigest": "bc0f5d106f86d806a95451a30ad664d4367fd2ef42c0cb6003514196417e2417"
       }
     },
@@ -89,7 +89,7 @@
       "constraintsContract": "`PK(credential_id,revision)`；只有一个active Admin credential revision；Secret明文不入库",
       "source": {
         "section": "8.5.13",
-        "line": 8552,
+        "line": 8555,
         "lineDigest": "c508f77944715e61d0cb76cb13c4bb9a67ecc6e96b21fe744d802ae44636b0b3"
       }
     }

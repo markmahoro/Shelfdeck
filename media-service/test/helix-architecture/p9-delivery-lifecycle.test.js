@@ -11,13 +11,13 @@ const h=(v)=>d({v}),NOW=1_700_000_000_000;
 function promotion(){
   const x={decisionId:'promotion-1',libraRunRef:{libraRunId:'run-1',stateRevision:2,stateDigest:h('run'),executionBasisDigest:h('basis'),runScopeDigest:h('scope'),expectedPackageRevisionHead:0},
     runMaterialManifestRef:{manifestId:'manifest-1',manifestDigest:h('manifest')},workspaceRef:{workspaceId:'workspace-1',libraRunId:'run-1',workspaceRevision:3,workspaceStateDigest:h('workspace')},
-    productStagingReferences:[{referenceId:'ref-1',workspaceId:'workspace-1',libraRunId:'run-1',materialHandleId:'handle-1',materialKey:h('material'),workspaceMaterialHandle:{handleId:'handle-1'},workspaceHandleDigest:h('handle'),referenceRevision:2,state:'product_staging',episodeClaims:[],episodeScopeDigest:h('episodes'),productVerificationRef:{verificationId:'verify-1'},previousReferenceRevision:1,committedWorkspaceRevision:3,referenceDigest:h('ref')}],
+    productStagingReferences:[{referenceId:'ref-1',workspaceId:'workspace-1',libraRunId:'run-1',materialHandleId:'handle-1',materialKey:h('material'),workspaceMaterialHandle:{handleId:'handle-1'},workspaceHandleDigest:h('handle'),referenceRevision:2,state:'product_staging',episodeClaims:[],episodeScopeDigest:h('episodes'),productVerificationRef:{verificationId:'verify-1',materialRole:'primary_payload',workspaceMaterialHandleId:'handle-1'},previousReferenceRevision:1,committedWorkspaceRevision:3,referenceDigest:h('ref')}],
     acceptanceSpecRef:{acceptanceSpecId:'spec-1',recordDigest:h('spec')},resolvedIdentitySnapshot:{productFactId:'identity-1',factRevision:1,schemaRef:'ResolvedProductIdentity@1',factValue:{schemaRef:'ResolvedProductIdentity@1',recordDigest:h('identity-record'),entries:[]},factDigest:h('identity'),evidenceDigest:h('identity-evidence')},
     productStructureSnapshot:{structureKind:'single',contentProfile:'movie',productScopeDigest:h('product-scope'),episodeScopeDigest:h('episodes'),primaryMaterialCount:1,structuralDependencyCount:0,productStructureDigest:h('structure')},
     productFactManifest:{manifestId:'facts-1',manifestRevision:1,libraRunId:'run-1',items:[],factSetDigest:h('facts'),manifestDigest:h('facts-manifest')},
     artifactManifest:{manifestId:'artifacts-1',manifestRevision:1,libraRunId:'run-1',items:[],artifactSetDigest:h('artifacts'),manifestDigest:h('artifact-manifest')},
     mediaCastSnapshot:{mediaCastFactId:'cast-1',mediaCastFactRevision:1,schemaRef:'MediaCastFact@1',factValue:{schemaRef:'MediaCastFact@1',recordDigest:h('cast-record'),entries:[]},factDigest:h('cast'),evidenceDigest:h('cast-evidence'),relations:[],relationsDigest:h('relations')},
-    productMaterialManifest:{manifestId:'product-materials-1',manifestRole:'product_delivery',scopeKind:'single',members:[],memberSetDigest:h('members'),manifestDigest:h('product-materials')},
+    productMaterialManifest:{manifestId:'product-materials-1',manifestRole:'product_delivery',scopeKind:'single',members:[{materialKey:h('material'),role:'primary_payload'}],memberSetDigest:h('members'),manifestDigest:h('product-materials')},
     offloadContextManifest:{manifestId:'offload-1',manifestRevision:1,libraRunId:'run-1',members:[],memberSetDigest:h('offload-members'),manifestDigest:h('offload')},
     productionProvenance:{libraRunId:'run-1',runExecutionBasisDigest:h('basis'),acceptanceSpecRecordDigest:h('spec'),workflowPlanRefs:[],productVerificationRefs:[],externalRealityObservationRefs:[],provenanceDigest:h('provenance')},
     productionAttestation:{attestationId:'attest-1',libraRunId:'run-1',onDeckPackageId:'package-1',acceptanceSpecId:'spec-1',productConformanceEvidenceId:'conformance-1',productConformanceEvidenceDigest:h('conformance'),unmetRequirementCount:0,attestedAtMs:NOW,attestationDigest:h('attestation')},
@@ -30,6 +30,8 @@ test('promotion publishes immutable package, exact Control commits, receipt and 
   const committed=c.buildPromotionCommit({decision:promotion(),committedAtMs:NOW});
   assert.equal(committed.package.packageDigest,promotion().packageDigest);assert.equal(committed.controlCommits.length,1);assert.equal(committed.outbox.offerId,'offer-1');
   assert.throws(()=>c.buildPromotionCommit({decision:{...promotion(),productionAttestation:{...promotion().productionAttestation,unmetRequirementCount:1}},committedAtMs:NOW}),/conformant/);
+  const wrongRole=promotion();wrongRole.productStagingReferences[0].productVerificationRef.materialRole='metadata_sidecar';
+  assert.throws(()=>c.buildPromotionCommit({decision:wrongRole,committedAtMs:NOW}),/one-for-one/);
 });
 
 test('Arca rejection leaves package immutable and same-spec rework gets next revision',()=>{

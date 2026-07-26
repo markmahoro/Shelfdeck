@@ -450,10 +450,37 @@ function workspaceAdmissionResult() {
 }
 
 function workspaceProductVerificationSnapshot() {
+  const common = (verificationKind, materialRole, schemaRef, verificationValue, extra = {}) => object({
+    verificationKind: { const: verificationKind },
+    materialRole: Array.isArray(materialRole) ? { type: 'string', enum: materialRole } : { const: materialRole },
+    libraRunId: id(),
+    workspaceMaterialHandleId: id(),
+    workspaceMaterialHandleDigest: digest(),
+    workspaceMaterialFenceDigest: digest(),
+    schemaRef: { const: schemaRef },
+    verificationId: id(),
+    verificationValue,
+    verificationDigest: digest(),
+    ...extra,
+    snapshotDigest: digest()
+  });
   return { $schema: DRAFT, $id: typeId('WorkspaceProductVerificationSnapshot'), title: 'WorkspaceProductVerificationSnapshot@1',
-    'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 16 * 1024,
-    ...object({ schemaRef: { const: 'ProductMediaVerification@1' }, verificationId: id(),
-      verificationValue: { $ref: 'helix://contracts/types/ProductMediaVerification/v1' }, verificationDigest: digest() }) };
+    'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 128 * 1024,
+    oneOf: [
+      common('media', 'primary_payload', 'ProductMediaVerification@1',
+        { $ref: 'helix://contracts/types/ProductMediaVerification/v1' }),
+      common('artifact', ['metadata_sidecar', 'poster', 'fanart'], 'ArtifactManifestVerification@1',
+        { $ref: 'helix://contracts/types/ArtifactManifestVerification/v1' }, {
+          artifactHandle: { $ref: 'helix://contracts/types/ArtifactHandle/v1' },
+          artifactRequirement: { $ref: 'helix://contracts/domain-types/ArtifactRequirement/v1' }
+        }),
+      common('structural', ['structural_dependency', 'subtitle', 'external_audio', 'chapter'], 'ManifestVerification@1',
+        { $ref: 'helix://contracts/types/ManifestVerification/v1' }, {
+          typedManifest: { $ref: 'helix://contracts/domain-types/TypedManifest/v1' },
+          manifestContract: { $ref: 'helix://contracts/domain-types/ManifestContract/v1' },
+          verifiedMemberDigest: digest()
+        })
+    ] };
 }
 
 function workspaceEpisodeClaims() {

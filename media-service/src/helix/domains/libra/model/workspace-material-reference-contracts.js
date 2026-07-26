@@ -59,16 +59,58 @@ function validateWorkspaceMaterialHandle(value) {
   return Object.freeze(handle);
 }
 
-function validateProductVerification(value, handle, libraRunId) {
-  if (value === null || value === undefined) return null;
+const ARTIFACT_ROLES = Object.freeze({ metadata_sidecar:'nfo', poster:'poster', fanart:'fanart' });
+const STRUCTURAL_ROLES = new Set(['structural_dependency','subtitle','external_audio','chapter']);
+
+function validateArtifactRequirement(value) {
+  if (!value || typeof value.requirementPayload !== 'object' || value.requirementPayload === null ||
+      Array.isArray(value.requirementPayload)) fail('P9_REFERENCE_VERIFICATION', 'Artifact Requirement is invalid.');
+  const requirement = { requirementId:text(value.requirementId, 'requirementId'),
+    revision:positive(value.revision, 'requirement.revision'), schemaRef:text(value.schemaRef, 'requirement.schemaRef'),
+    artifactKind:text(value.artifactKind, 'requirement.artifactKind'), requirementPayload:value.requirementPayload,
+    requirementDigest:digest(value.requirementDigest, 'requirement.requirementDigest') };
+  const expectedDigest = canonicalDigest({ schema:'shared.artifact-requirement@1', revision:requirement.revision,
+    schemaRef:requirement.schemaRef, artifactKind:requirement.artifactKind, requirementPayload:requirement.requirementPayload });
+  const expectedId = canonicalDigest({ schema:'shared.artifact-requirement-id@1', requirementDigest:expectedDigest });
+  if (requirement.requirementDigest !== expectedDigest || requirement.requirementId !== expectedId)
+    fail('P9_REFERENCE_VERIFICATION', 'Artifact Requirement identity is invalid.');
+  return Object.freeze(requirement);
+}
+
+function validateArtifactHandle(value, handle, libraRunId, materialRole) {
+  const ownerScope = value?.ownerScope, provenanceRef = value?.provenanceRef;
+  const artifact = { schemaRef:value?.schemaRef, schemaVersion:value?.schemaVersion,
+    artifactHandleId:text(value?.artifactHandleId, 'artifactHandleId'), artifactKind:text(value?.artifactKind, 'artifactKind'),
+    ownerDomain:text(value?.ownerDomain, 'artifact.ownerDomain'),
+    ownerScope:{ scopeType:text(ownerScope?.scopeType, 'artifact.ownerScope.scopeType'),
+      scopeId:text(ownerScope?.scopeId, 'artifact.ownerScope.scopeId') },
+    storageRef:text(value?.storageRef, 'artifact.storageRef'), digestAlgorithm:value?.digestAlgorithm,
+    digestHex:digest(value?.digestHex, 'artifact.digestHex'), sizeBytes:value?.sizeBytes,
+    mediaType:text(value?.mediaType, 'artifact.mediaType'),
+    provenanceRef:{ objectType:text(provenanceRef?.objectType, 'artifact.provenanceRef.objectType'),
+      objectId:text(provenanceRef?.objectId, 'artifact.provenanceRef.objectId'),
+      revision:positive(provenanceRef?.revision, 'artifact.provenanceRef.revision'),
+      digest:digest(provenanceRef?.digest, 'artifact.provenanceRef.digest') },
+    referenceRevision:positive(value?.referenceRevision, 'artifact.referenceRevision') };
+  const scopeIsRun = artifact.ownerScope.scopeType === 'libra_run' && artifact.ownerScope.scopeId === libraRunId;
+  const scopeIsWorkspace = artifact.ownerScope.scopeType === 'libra_workspace' && artifact.ownerScope.scopeId === handle.workspaceId;
+  if (artifact.schemaRef !== 'helix://contracts/types/ArtifactHandle/v1' || artifact.schemaVersion !== 1 ||
+      artifact.ownerDomain !== 'libra' || (!scopeIsRun && !scopeIsWorkspace) || artifact.digestAlgorithm !== 'sha256' ||
+      artifact.digestHex !== handle.digestHex || artifact.sizeBytes !== handle.sizeBytes ||
+      artifact.artifactKind !== ARTIFACT_ROLES[materialRole])
+    fail('P9_REFERENCE_VERIFICATION', 'Artifact Handle does not bind the same role, Run/Workspace, and bytes.');
+  return Object.freeze(artifact);
+}
+
+function validateMediaVerification(value, handle, libraRunId) {
   const verification = value.verificationValue;
-  if (value.schemaRef !== 'ProductMediaVerification@1' || !verification ||
+  if (value.materialRole !== 'primary_payload' || value.schemaRef !== 'ProductMediaVerification@1' || !verification ||
       verification.schemaRef !== 'helix://contracts/types/ProductMediaVerification/v1' || verification.schemaVersion !== 1 ||
       verification.verificationKind !== 'libra_product_media' || verification.result !== 'passed' ||
       verification.candidateKind !== 'workspace_output' || verification.libraRunId !== libraRunId ||
       verification.productMaterialHandleId !== handle.handleId || verification.productMaterialHandleDigest !== canonicalDigest(handle) ||
       verification.productMaterialFenceDigest !== handle.fenceDigest)
-    fail('P9_REFERENCE_VERIFICATION', 'Product Verification does not bind the same Run and Workspace Handle.');
+    fail('P9_REFERENCE_VERIFICATION', 'Media Verification does not bind the same Run, role, and Workspace Handle.');
   for (const [name, item] of [['basisDigest',verification.basisDigest],['candidateBasisDigest',verification.candidateBasisDigest],
     ['mediaRequirementDigest',verification.mediaRequirementDigest],['sourceProbeEvidenceDigest',verification.sourceProbeEvidenceDigest],
     ['outputProbeEvidenceDigest',verification.outputProbeEvidenceDigest]]) digest(item, name);
@@ -79,12 +121,88 @@ function validateProductVerification(value, handle, libraRunId) {
     candidateKind:verification.candidateKind,libraRunId,productMaterialHandleId:handle.handleId,
     productMaterialFenceDigest:handle.fenceDigest,mediaRequirementDigest:verification.mediaRequirementDigest,
     sourceProbeEvidenceDigest:verification.sourceProbeEvidenceDigest,outputProbeEvidenceDigest:verification.outputProbeEvidenceDigest });
-  const verificationDigest = canonicalDigest(verification);
-  if (verification.verificationId !== verificationId || value.verificationId !== verificationId || value.verificationDigest !== verificationDigest)
+  if (verification.verificationId !== verificationId) fail('P9_REFERENCE_VERIFICATION', 'Media Verification identity is invalid.');
+  return verificationId;
+}
+
+function validateArtifactVerification(value, handle, libraRunId) {
+  const verification = value.verificationValue, role = value.materialRole, expectedKind = ARTIFACT_ROLES[role];
+  if (!expectedKind || value.schemaRef !== 'ArtifactManifestVerification@1' || !verification ||
+      verification.schemaRef !== 'helix://contracts/types/ArtifactManifestVerification/v1' || verification.schemaVersion !== 1 ||
+      verification.verificationKind !== 'artifact_manifest' || verification.result !== 'passed')
+    fail('P9_REFERENCE_VERIFICATION', 'Artifact Verification branch is invalid.');
+  const artifactHandle = validateArtifactHandle(value.artifactHandle, handle, libraRunId, role);
+  const requirement = validateArtifactRequirement(value.artifactRequirement);
+  if (requirement.artifactKind !== expectedKind || canonicalJson(verification.requirement) !== canonicalJson(requirement) ||
+      verification.contractRef !== requirement.schemaRef || verification.verificationId !== value.verificationId ||
+      !Array.isArray(verification.verifiedArtifacts) || !verification.verifiedArtifacts.some((item) =>
+        item.artifactHandleId === artifactHandle.artifactHandleId && item.artifactKind === artifactHandle.artifactKind &&
+        item.artifactRevision === artifactHandle.referenceRevision && item.artifactDigest === artifactHandle.digestHex))
+    fail('P9_REFERENCE_VERIFICATION', 'Artifact Verification does not bind the exact Artifact Handle and Requirement.');
+  return Object.freeze({ verificationId:verification.verificationId, artifactHandle, artifactRequirement:requirement });
+}
+
+function validateStructuralVerification(value, handle, libraRunId) {
+  const verification = value.verificationValue, role = value.materialRole, typedManifest = value.typedManifest,
+    manifestContract = value.manifestContract, memberDigest = digest(value.verifiedMemberDigest, 'verifiedMemberDigest');
+  if (!STRUCTURAL_ROLES.has(role) || value.schemaRef !== 'ManifestVerification@1' || !verification ||
+      verification.schemaRef !== 'helix://contracts/types/ManifestVerification/v1' || verification.schemaVersion !== 1 ||
+      verification.result !== 'passed' || verification.verificationId !== value.verificationId ||
+      typedManifest?.schemaRef !== 'helix://contracts/domain-types/TypedManifest/v1' || typedManifest?.schemaVersion !== 1 ||
+      typedManifest.objectId !== handle.handleId || typedManifest.digest !== memberDigest ||
+      typedManifest.manifest?.objectId !== handle.handleId || typedManifest.manifest?.digest !== memberDigest ||
+      manifestContract?.schemaRef !== 'helix://contracts/domain-types/ManifestContract/v1' || manifestContract?.schemaVersion !== 1 ||
+      verification.manifestDigest !== typedManifest.digest || verification.contractRef !== manifestContract.contractId)
+    fail('P9_REFERENCE_VERIFICATION', 'Structural Verification branch is invalid.');
+  const expectedMemberDigest = canonicalDigest({ schema:'libra.workspace-structural-member@1', libraRunId,
+    materialRole:role, workspaceMaterialHandleId:handle.handleId, workspaceMaterialHandleDigest:canonicalDigest(handle),
+    workspaceMaterialFenceDigest:handle.fenceDigest });
+  const parameters = new Map((manifestContract.typedParameters || []).map((item) => [item.parameter,item]));
+  const expectedParameters = { libraRunId, materialRole:role, workspaceMaterialHandleDigest:canonicalDigest(handle),
+    workspaceMaterialFenceDigest:handle.fenceDigest };
+  if (memberDigest !== expectedMemberDigest || manifestContract.manifestKind !== role ||
+      !Array.isArray(manifestContract.typedParameters) || parameters.size !== manifestContract.typedParameters.length ||
+      Object.entries(expectedParameters).some(([name, expected]) => {
+        const parameter=parameters.get(name);
+        return !parameter || parameter.valueType !== 'string' || parameter.value !== expected ||
+          parameter.valueDigest !== canonicalDigest({ schema:'libra.manifest-contract-parameter@1', parameter:name, valueType:'string', value:expected });
+      }))
+    fail('P9_REFERENCE_VERIFICATION', 'Structural Manifest/Contract does not bind the same Run, role, and Workspace Handle.');
+  return verification.verificationId;
+}
+
+function validateProductVerification(value, handle, libraRunId) {
+  if (value === null || value === undefined) return null;
+  if (!['media','artifact','structural'].includes(value.verificationKind) ||
+      value.libraRunId !== libraRunId || value.workspaceMaterialHandleId !== handle.handleId ||
+      value.workspaceMaterialHandleDigest !== canonicalDigest(handle) || value.workspaceMaterialFenceDigest !== handle.fenceDigest)
+    fail('P9_REFERENCE_VERIFICATION', 'Product Verification Snapshot scope is invalid.');
+  let verificationId, extras = {};
+  if (value.verificationKind === 'media') verificationId = validateMediaVerification(value, handle, libraRunId);
+  else if (value.verificationKind === 'artifact') {
+    const validated = validateArtifactVerification(value, handle, libraRunId);
+    verificationId = validated.verificationId;
+    extras = { artifactHandle:validated.artifactHandle, artifactRequirement:validated.artifactRequirement };
+  } else verificationId = validateStructuralVerification(value, handle, libraRunId);
+  const verificationDigest = canonicalDigest(value.verificationValue);
+  if (value.verificationId !== verificationId || value.verificationValue.verificationId !== verificationId ||
+      value.verificationDigest !== verificationDigest)
     fail('P9_REFERENCE_VERIFICATION', 'Product Verification identity or digest is invalid.');
-  const snapshot = Object.freeze({ schemaRef:value.schemaRef, verificationId, verificationValue:verification, verificationDigest });
-  if (Buffer.byteLength(canonicalJson(snapshot)) > 16 * 1024) fail('P9_REFERENCE_VERIFICATION_SIZE', 'Product Verification exceeds 16 KiB.');
-  return snapshot;
+  const snapshot = { verificationKind:value.verificationKind, materialRole:value.materialRole, libraRunId,
+    workspaceMaterialHandleId:handle.handleId, workspaceMaterialHandleDigest:canonicalDigest(handle),
+    workspaceMaterialFenceDigest:handle.fenceDigest, schemaRef:value.schemaRef, verificationId,
+    verificationValue:value.verificationValue, verificationDigest, ...extras };
+  if (value.verificationKind === 'structural') {
+    snapshot.typedManifest=value.typedManifest;
+    snapshot.manifestContract=value.manifestContract;
+    snapshot.verifiedMemberDigest=value.verifiedMemberDigest;
+  }
+  snapshot.snapshotDigest=canonicalDigest(snapshot);
+  if (value.snapshotDigest !== snapshot.snapshotDigest)
+    fail('P9_REFERENCE_VERIFICATION', 'Product Verification Snapshot digest is invalid.');
+  if (Buffer.byteLength(canonicalJson(snapshot)) > 128 * 1024)
+    fail('P9_REFERENCE_VERIFICATION_SIZE', 'Product Verification exceeds 128 KiB.');
+  return Object.freeze(snapshot);
 }
 
 function referenceId(workspaceId, materialHandleId) {

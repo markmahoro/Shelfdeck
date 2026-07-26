@@ -31,8 +31,16 @@ test('Workspace Admission schemas freeze the pathless Platform evidence and init
     typeId('WorkspaceSpaceAdmissionEvidence'));
   assert.equal(schemas.LibraWorkspaceAdmissionResult.properties.workspaceRevision.const, 1);
   assert.equal(schemas.LibraWorkspaceAdmissionResult.properties.workspaceState.const, 'active');
-  assert.equal(schemas.WorkspaceProductVerificationSnapshot.properties.verificationValue.$ref,
-    'helix://contracts/types/ProductMediaVerification/v1');
+  assert.deepEqual(schemas.WorkspaceProductVerificationSnapshot.oneOf.map((branch) =>
+    [branch.properties.verificationKind.const, branch.properties.verificationValue.$ref]), [
+    ['media', 'helix://contracts/types/ProductMediaVerification/v1'],
+    ['artifact', 'helix://contracts/types/ArtifactManifestVerification/v1'],
+    ['structural', 'helix://contracts/types/ManifestVerification/v1']
+  ]);
+  assert.equal(schemas.WorkspaceProductVerificationSnapshot.oneOf[1].properties.artifactHandle.$ref,
+    'helix://contracts/types/ArtifactHandle/v1');
+  assert.equal(schemas.WorkspaceProductVerificationSnapshot.oneOf[2].properties.manifestContract.$ref,
+    'helix://contracts/domain-types/ManifestContract/v1');
   assert.equal(schemas.LibraWorkspaceMaterialReferenceDecision.properties.workspaceMaterialHandle.$ref,
     'helix://contracts/types/WorkspaceMaterialHandle/v1');
   assert.equal(schemas.LibraWorkspaceMaterialReferenceResult.properties.referenceSnapshot.$ref,
