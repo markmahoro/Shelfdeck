@@ -39,19 +39,28 @@ const SUPPORT_COLUMNS = Object.freeze({
     checks: ['"active_guard" IN (0, 1)'], ruleOrdinal: 1
   }],
   libra_intake_decisions: [{
-    name: 'decision_identity_evidence_schema_ref', type: 'TEXT',
+    name: 'candidate_delivery_snapshot_schema_ref', type: 'TEXT',
     nullable: true, checks: [], ruleOrdinal: 1
+  }, {
+    name: 'candidate_delivery_snapshot_json', type: 'TEXT',
+    nullable: true, checks: [
+      '"candidate_delivery_snapshot_json" IS NULL OR json_valid("candidate_delivery_snapshot_json")',
+      '"candidate_delivery_snapshot_json" IS NULL OR length(CAST("candidate_delivery_snapshot_json" AS BLOB)) <= 8388608'
+    ], ruleOrdinal: 2
+  }, {
+    name: 'decision_identity_evidence_schema_ref', type: 'TEXT',
+    nullable: true, checks: [], ruleOrdinal: 3
   }, {
     name: 'decision_identity_evidence_json', type: 'TEXT',
     nullable: true, checks: [
       '"decision_identity_evidence_json" IS NULL OR json_valid("decision_identity_evidence_json")',
       '"decision_identity_evidence_json" IS NULL OR length(CAST("decision_identity_evidence_json" AS BLOB)) <= 16384'
-    ], ruleOrdinal: 2
+    ], ruleOrdinal: 4
   }, {
     name: 'decision_identity_evidence_digest', type: 'TEXT',
     nullable: true, checks: [
       '"decision_identity_evidence_digest" IS NULL OR (length("decision_identity_evidence_digest") = 64 AND "decision_identity_evidence_digest" NOT GLOB \'*[^0-9a-f]*\')'
-    ], ruleOrdinal: 3
+    ], ruleOrdinal: 5
   }]
 });
 
@@ -100,9 +109,11 @@ const FOREIGN_KEY_OVERRIDES = Object.freeze({
 
 const TABLE_CHECKS = Object.freeze({
   libra_intake_decisions: [
-    '("decision_kind" = \'accepted_resolution\' AND "decision_identity_evidence_schema_ref" IS NOT NULL AND ' +
+    '("decision_kind" = \'accepted_resolution\' AND "candidate_delivery_snapshot_schema_ref" IS NOT NULL AND ' +
+      '"candidate_delivery_snapshot_json" IS NOT NULL AND "decision_identity_evidence_schema_ref" IS NOT NULL AND ' +
       '"decision_identity_evidence_json" IS NOT NULL AND "decision_identity_evidence_digest" IS NOT NULL) OR ' +
-      '("decision_kind" = \'rejected_acceptance\' AND "decision_identity_evidence_schema_ref" IS NULL AND ' +
+      '("decision_kind" = \'rejected_acceptance\' AND "candidate_delivery_snapshot_schema_ref" IS NULL AND ' +
+      '"candidate_delivery_snapshot_json" IS NULL AND "decision_identity_evidence_schema_ref" IS NULL AND ' +
       '"decision_identity_evidence_json" IS NULL AND "decision_identity_evidence_digest" IS NULL)'
   ],
   libra_decision_basis_inputs: [

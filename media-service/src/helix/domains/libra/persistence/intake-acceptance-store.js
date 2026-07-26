@@ -64,6 +64,10 @@ function createIntakeAcceptanceStore(options){
   return Object.freeze({repositoryManifest:Object.freeze({libraTableIds:libra.tableIds,foundationTableIds:[...foundation.tableIds,'fx_material_controls','fx_material_control_revisions'].sort()}),
     accept(request){
       const {snapshot,payload,decision,handle,target}=validate(request),provenance=candidateProvenance(snapshot),markerId=request.commitMarker.commitMarker,binding=request.resultBinding;
+      const candidateDeliverySnapshotSchemaRef=snapshot.schemaRef||snapshot.snapshotContract;
+      if(typeof candidateDeliverySnapshotSchemaRef!=='string'||!candidateDeliverySnapshotSchemaRef) {
+        fail('P8_ACCEPTANCE_SNAPSHOT_SCHEMA_REQUIRED','Accepted Candidate Delivery Snapshot must identify its exact contract.');
+      }
       const decisionIdentityEvidence=buildDecisionIdentityEvidenceSnapshot(snapshot,{
         intakeDecisionId:decision.decisionId,candidatePackageId:decision.candidatePackageId,
         packageRevision:decision.packageRevision,packageDigest:decision.packageDigest,
@@ -80,6 +84,10 @@ function createIntakeAcceptanceStore(options){
         const s=context.repository(libra.subjects.repositoryId),b=context.repository(libra.bindings.repositoryId),i=context.repository(libra.intake.repositoryId),at=context.commitTimeMs;
         const existing=i.invoke('find_offer_decision',{offer_id:decision.offerId});
         if(existing){if(existing.intake_decision_id!==decision.decisionId||existing.decision_kind!=='accepted_resolution'||existing.decision_digest!==decision.decisionDigest||existing.accepted_payload_digest!==payload.payloadDigest)fail('P8_ACCEPTANCE_OFFER_TERMINAL_CONFLICT','Offer already has another immutable Intake Decision.');
+          if(existing.candidate_delivery_snapshot_schema_ref!==candidateDeliverySnapshotSchemaRef||
+              existing.candidate_delivery_snapshot_json!==canonicalJson(snapshot)) {
+            fail('P8_ACCEPTANCE_REPLAY_CORRUPT','Accepted Decision lost its immutable Candidate Delivery Snapshot.');
+          }
           const row=i.invoke('find_receipt',{intake_decision_id:decision.decisionId});if(!row)fail('P8_ACCEPTANCE_REPLAY_CORRUPT','Accepted Decision has no Receipt.');throw new Replay(receiptFromRow(row,payload));}
         const head=s.invoke('find_head',{head_id:CONTINUITY_HEAD_ID});
         if(!head||number(head.current_revision)!==decision.expectedContinuityHead.revision||head.head_digest!==decision.expectedContinuityHead.digest||head.head_digest!==continuityHeadDigest(number(head.current_revision)))fail('P8_ACCEPTANCE_GLOBAL_HEAD_CAS','Subject continuity global head is stale.');
@@ -106,6 +114,8 @@ function createIntakeAcceptanceStore(options){
         i.invoke('insert_decision',{intake_decision_id:decision.decisionId,decision_revision:1,decision_kind:'accepted_resolution',offer_id:decision.offerId,
           candidate_package_id:decision.candidatePackageId,package_revision:decision.packageRevision,package_digest:decision.packageDigest,
           acceptance_basis_digest:payload.delivery.acceptanceBasisDigest,candidate_delivery_snapshot_digest:decision.candidateDeliverySnapshotDigest,
+          candidate_delivery_snapshot_schema_ref:candidateDeliverySnapshotSchemaRef,
+          candidate_delivery_snapshot_json:canonicalJson(snapshot),
           source_field_id:provenance.sourceFieldId,source_field_access_revision:provenance.sourceFieldAccessRevision,
           source_field_context_digest:provenance.sourceFieldContextDigest,candidate_structure_kind:provenance.candidateStructureKind,
           candidate_content_profile:provenance.candidateContentProfile,candidate_identity_claim_digest:provenance.candidateIdentityClaimDigest,

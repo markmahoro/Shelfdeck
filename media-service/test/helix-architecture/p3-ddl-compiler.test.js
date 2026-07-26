@@ -48,15 +48,23 @@ test('maps every P2 partial-unique rule and only cross-table predicates use supp
   ]);
   const compiled = compileSchema(contracts);
   assert.equal(compiled.manifest.tables.flatMap((table) => table.indexes).filter((index) => index.kind === 'partial-unique').length, 21);
-  assert.equal(compiled.manifest.tables.flatMap((table) => table.supportColumns).length, 5);
+  assert.equal(compiled.manifest.tables.flatMap((table) => table.supportColumns).length, 7);
+  assert.deepEqual(compiled.manifest.tables.find((table) => table.tableId === 'libra_intake_decisions').supportColumns
+    .map((column) => column.name), [
+      'candidate_delivery_snapshot_schema_ref',
+      'candidate_delivery_snapshot_json',
+      'decision_identity_evidence_schema_ref',
+      'decision_identity_evidence_json',
+      'decision_identity_evidence_digest'
+    ]);
 });
 
 test('emits JSON validity and byte limits, enum checks, RESTRICT foreign keys, and hot indexes', () => {
   const { ddl, manifest } = compileSchema(contracts);
   const jsonCount = contracts.reduce((count, contract) => count + contract.jsonContracts.length, 0);
   const foreignKeyCount = contracts.reduce((count, contract) => count + contract.foreignKeys.length + contract.revisionContract.pointerTargets.length, 0);
-  assert.equal((ddl.match(/json_valid\(/g) || []).length, jsonCount + 1);
-  assert.equal((ddl.match(/length\(CAST\(/g) || []).length, jsonCount + 1);
+  assert.equal((ddl.match(/json_valid\(/g) || []).length, jsonCount + 2);
+  assert.equal((ddl.match(/length\(CAST\(/g) || []).length, jsonCount + 2);
   assert.ok((ddl.match(/ON DELETE RESTRICT/g) || []).length <= foreignKeyCount);
   assert.ok((ddl.match(/ON DELETE RESTRICT/g) || []).length > 0);
   assert.match(ddl, /CHECK \("state" IN \('open', 'accepted', 'dismissed', 'superseded'\)\)/);

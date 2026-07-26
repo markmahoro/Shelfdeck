@@ -4,7 +4,7 @@
   "digestAlgorithm": "sha256",
   "tableCount": 177,
   "tableContractAggregateDigest": "71c9fc8bd6a09a12b08db08a1773a1b6917946607410753324114db564cc13ef",
-  "ddlDigest": "4e16f31d07b8bc2f9678979ac1127eb8c6624477fe2ec347f1836a464b7ec13f",
+  "ddlDigest": "6f1de1d1c37cf3e91425f7587c3cde9e85f1b7b0109e16a6deafda95d40faa2d",
   "tables": [
     {
       "tableId": "arca_acceptance_attempts",
@@ -2063,7 +2063,7 @@
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_intake_decisions/v1",
       "contractDigest": "aeaa5ac2c7fe4c43a01fed5612c86b62301f69089787fa52a6d3d6ba40b3c763",
-      "sqlDigest": "a81d1aa431232af455c2cfa680032b3792f797ec780de6242f42f06ac598ebef",
+      "sqlDigest": "dee2202e9fb760da0d5cf0dd5c806faf5b8e434862f366bdfc5954f7332469e7",
       "columns": [
         "intake_decision_id",
         "decision_revision",
@@ -2105,6 +2105,8 @@
         "rejection_digest",
         "decision_digest",
         "decided_at_ms",
+        "candidate_delivery_snapshot_schema_ref",
+        "candidate_delivery_snapshot_json",
         "decision_identity_evidence_schema_ref",
         "decision_identity_evidence_json",
         "decision_identity_evidence_digest"
@@ -2112,16 +2114,24 @@
       "immutable": true,
       "supportColumns": [
         {
-          "name": "decision_identity_evidence_schema_ref",
+          "name": "candidate_delivery_snapshot_schema_ref",
           "ruleOrdinal": 1
         },
         {
-          "name": "decision_identity_evidence_json",
+          "name": "candidate_delivery_snapshot_json",
           "ruleOrdinal": 2
         },
         {
-          "name": "decision_identity_evidence_digest",
+          "name": "decision_identity_evidence_schema_ref",
           "ruleOrdinal": 3
+        },
+        {
+          "name": "decision_identity_evidence_json",
+          "ruleOrdinal": 4
+        },
+        {
+          "name": "decision_identity_evidence_digest",
+          "ruleOrdinal": 5
         }
       ],
       "indexes": [

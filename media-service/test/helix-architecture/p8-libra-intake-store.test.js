@@ -51,13 +51,18 @@ test('persists Subject continuity and Material-to-Episode N:M relations without 
   const identityEvidence={schemaRef:'helix://implementation/libra/DecisionIdentityEvidenceSnapshot/v1',schemaVersion:1,
     evidenceRevision:1,intakeDecisionId:decisionId,identityEvidence:[]};
   identityEvidence.snapshotDigest=canonicalDigest(identityEvidence);
+  const candidateDeliverySnapshot={snapshotContract:'procurement.candidate-delivery@1',
+    candidatePackage:{ candidatePackageId:'candidate-1',packageRevision:1,packageDigest:D('package') }};
+  candidateDeliverySnapshot.deliverySnapshotDigest=canonicalDigest(candidateDeliverySnapshot);
   unitOfWork.execute([{ participantId:'seed',owner:'libra',repositories:[subjects,bindings,intake],execute(context){
     const s=context.repository(subjects.repositoryId),b=context.repository(bindings.repositoryId),i=context.repository(intake.repositoryId),at=context.commitTimeMs;
     s.invoke('insert_subject',{ subject_id:subjectId,structure_kind:'season',content_profile:'series',routing_anchor_intake_decision_id:decisionId,status:'active',intake_revision:1,
       current_continuity_set_digest:continuityDigest,current_episode_scope_digest:episodeDigest,current_identity_revision:null,
       created_at_ms:at,updated_at_ms:at,terminal_at_ms:null });
     i.invoke('insert_decision',{ intake_decision_id:decisionId,decision_revision:1,decision_kind:'accepted_resolution',offer_id:'offer-1',candidate_package_id:'candidate-1',package_revision:1,
-      package_digest:D('package'),acceptance_basis_digest:D('basis'),candidate_delivery_snapshot_digest:D('delivery'),expected_continuity_head_revision:0,
+      package_digest:D('package'),acceptance_basis_digest:D('basis'),
+      candidate_delivery_snapshot_digest:candidateDeliverySnapshot.deliverySnapshotDigest,expected_continuity_head_revision:0,
+      candidate_delivery_snapshot_schema_ref:candidateDeliverySnapshot.snapshotContract,candidate_delivery_snapshot_json:canonicalJson(candidateDeliverySnapshot),
       source_field_id:'field-1',source_field_access_revision:1,source_field_context_digest:D('field-context'),candidate_structure_kind:'season',
       candidate_content_profile:'series',candidate_identity_claim_digest:D('identity-claim'),
       decision_identity_evidence_schema_ref:identityEvidence.schemaRef,decision_identity_evidence_json:canonicalJson(identityEvidence),
@@ -80,6 +85,7 @@ test('persists Subject continuity and Material-to-Episode N:M relations without 
       episode_key:episodeKey,season_claim_digest:D('season'),claim_digest:D(episodeKey) });
   }}]);
   assert.equal(store.getSubject(subjectId).current_identity_revision,null);
+  assert.deepEqual(store.getAcceptedDeliverySnapshot(decisionId),candidateDeliverySnapshot);
   assert.deepEqual(store.listSubjectEpisodes(subjectId).map((row)=>row.episode_key),['S01E01','S01E02']);
   assert.deepEqual(store.listBindingEpisodes(subjectId,materialKey,1).map((row)=>row.episode_key),['S01E01','S01E02']);
   assert.equal(store.listSubjectBindings(subjectId).length,1);

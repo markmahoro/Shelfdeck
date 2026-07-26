@@ -1,5 +1,6 @@
 'use strict';
 
+const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 const { CONTINUITY_HEAD_ID, continuityHeadDigest } = require('../model/libra-intake-contracts');
 
@@ -7,11 +8,34 @@ class LibraIntakeStoreError extends Error {
   constructor(code, message, details = {}) { super(message); this.name = 'LibraIntakeStoreError'; this.code = code; this.details = details; }
 }
 function fail(code, message, details) { throw new LibraIntakeStoreError(code, message, details); }
+function without(value, ...fields) {
+  return Object.fromEntries(Object.entries(value).filter(([key]) => !fields.includes(key)));
+}
+function acceptedDeliverySnapshot(row) {
+  if (!row || row.decision_kind !== 'accepted_resolution' ||
+      typeof row.candidate_delivery_snapshot_schema_ref !== 'string' ||
+      typeof row.candidate_delivery_snapshot_json !== 'string') return null;
+  let snapshot;
+  try { snapshot = JSON.parse(row.candidate_delivery_snapshot_json); }
+  catch { fail('P8_INTAKE_SNAPSHOT_CORRUPT', 'Accepted Candidate Delivery Snapshot JSON is invalid.'); }
+  const contractRef = snapshot.schemaRef || snapshot.snapshotContract;
+  if (contractRef !== row.candidate_delivery_snapshot_schema_ref ||
+      snapshot.deliverySnapshotDigest !== row.candidate_delivery_snapshot_digest ||
+      snapshot.deliverySnapshotDigest !== canonicalDigest(without(snapshot, 'deliverySnapshotDigest')) ||
+      snapshot.candidatePackage?.candidatePackageId !== row.candidate_package_id ||
+      snapshot.candidatePackage?.packageRevision !== Number(row.package_revision) ||
+      snapshot.candidatePackage?.packageDigest !== row.package_digest) {
+    fail('P8_INTAKE_SNAPSHOT_CORRUPT',
+      'Accepted Candidate Delivery Snapshot cannot be reconstructed from the Libra Owner row.');
+  }
+  return Object.freeze(snapshot);
+}
 
 const SUBJECT_COLUMNS = ['subject_id','structure_kind','content_profile','routing_anchor_intake_decision_id','status','intake_revision','current_continuity_set_digest',
   'current_episode_scope_digest','current_identity_revision','created_at_ms','updated_at_ms','terminal_at_ms'];
 const DECISION_COLUMNS = ['intake_decision_id','decision_revision','decision_kind','offer_id','candidate_package_id','package_revision','package_digest',
-  'acceptance_basis_digest','candidate_delivery_snapshot_digest','expected_continuity_head_revision','expected_continuity_head_digest',
+  'acceptance_basis_digest','candidate_delivery_snapshot_digest','candidate_delivery_snapshot_schema_ref',
+  'candidate_delivery_snapshot_json','expected_continuity_head_revision','expected_continuity_head_digest',
   'source_field_id','source_field_access_revision','source_field_context_digest','candidate_structure_kind','candidate_content_profile','candidate_identity_claim_digest',
   'decision_identity_evidence_schema_ref','decision_identity_evidence_json','decision_identity_evidence_digest',
   'committed_continuity_head_revision','candidate_continuity_set_digest','candidate_episode_scope_digest','match_cardinality',
@@ -84,6 +108,9 @@ function createLibraIntakeStore(options) {
     getSubject(subjectId) { return execute([repositories.subjects], (context) => context.repository(repositories.subjects.repositoryId).invoke('find_subject',{ subject_id:subjectId }) || null); },
     getOfferDecision(offerId) { return execute([repositories.intake], (context) =>
       context.repository(repositories.intake.repositoryId).invoke('find_offer_decision',{ offer_id:offerId }) || null); },
+    getAcceptedDeliverySnapshot(intakeDecisionId) { return execute([repositories.intake], (context) =>
+      acceptedDeliverySnapshot(context.repository(repositories.intake.repositoryId)
+        .invoke('find_decision',{ intake_decision_id:intakeDecisionId }))); },
     getReceipt(intakeDecisionId) { return execute([repositories.intake], (context) =>
       context.repository(repositories.intake.repositoryId).invoke('find_receipt',{ intake_decision_id:intakeDecisionId }) || null); },
     listSubjectClaims(subjectId) { return execute([repositories.subjects], (context) => context.repository(repositories.subjects.repositoryId).invoke('find_claims',{ subject_id:subjectId })); },
