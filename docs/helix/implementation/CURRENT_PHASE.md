@@ -43,8 +43,9 @@ P14 已接受 Series Arca Handoff B / On-deck checkpoint `b0d1163e`
 Signal丢失时仍由durable Projection推进。首次观察不创建Scope，重启会重新开始
 真实两周期计时；第二次观察后Admission UoW再次精确读取References与current
 Controls。Run completion后、delivery ack前故障会从正式Inbox恢复并只补ack，
-不重复Run transition。Cleanup physical effect后及member commit后故障均只恢复
-同一Scope/member/effect。
+并直接返回持久化完整`LibraRunLifecycleResult@1`；公开Result与首次commit的
+canonical JSON/digest byte-identical，不重复Run revision/Result/marker。
+Cleanup physical effect后及member commit后故障均只恢复同一Scope/member/effect。
 
 Libra Workspace回收后，Arca final Inventory与Deck Fact保持不变并可历史重建：
 两个Primary分别保持`[E001,E002]`和`[E003]`，NFO/Poster保持empty claim set。

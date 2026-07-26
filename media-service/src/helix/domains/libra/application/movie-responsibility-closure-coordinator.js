@@ -233,7 +233,7 @@ function createMovieResponsibilityClosureCoordinator(options) {
           fail('P14_MOVIE_RUN_REPLAY_INCOMPLETE',
             'Completed Run lifecycle Result digest is invalid.');
         }
-        return Object.freeze({ row, result });
+        return Object.freeze({ row, result: Object.freeze(result) });
       },
     }]).movie_responsibility_result_read;
   }
@@ -267,12 +267,7 @@ function createMovieResponsibilityClosureCoordinator(options) {
       }
       lifecycleResult = {
         replayed: true,
-        result: Object.freeze({
-          libraRunId,
-          committedState: 'completed',
-          committedStateRevision: Number(current.run.state_revision),
-          committedStateDigest: current.run.state_digest,
-        }),
+        result: committed.result,
       };
     } else {
       if (!current.head || !['active', 'suspended'].includes(current.run.state)) {
@@ -529,8 +524,17 @@ function createMovieResponsibilityClosureCoordinator(options) {
   function advance(request) {
     const runClosure = completeRun(request.libraRunId,
       request.onDeckProductPackage);
-    const cleanupResult = cleanupWorkspace(request.libraRunId,
-      request.onDeckProductPackage);
+    let cleanupResult;
+    try {
+      cleanupResult = cleanupWorkspace(request.libraRunId,
+        request.onDeckProductPackage);
+    } catch (error) {
+      if (error.code !== 'P14_CLEANUP_GRACE_ACTIVE') throw error;
+      cleanupResult = Object.freeze({
+        stage: 'workspace_cleanup_grace_active',
+        graceDeadlineMs: error.details.graceDeadlineMs,
+      });
+    }
     return Object.freeze({
       stage: cleanupResult.stage,
       runClosure,

@@ -40,7 +40,9 @@ registry推进到terminal reclaimed。
 ## Recovery and counterexamples
 
 - Run completion commit后、Accepted delivery ack前故障：restart验证exact consumed
-  Inbox并只补ack；Run/Receipt/Inbox均保持一份。
+  Inbox与持久化`LibraRunLifecycleResult@1`并只补ack；公开
+  `runClosure.result`直接返回该完整Result，canonical JSON及digest与首次commit
+  byte-identical。Run revision、Result、marker、Receipt与Inbox均不新增。
 - Grace前不得Admission；first pass与early second pass均无Scope/effect。
 - restart between observations重新开始真实计时，不回填或伪造旧观察。
 - other-reference drift与Control drift由既有同一cleanup runtime的focused

@@ -1003,6 +1003,33 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
         AND inbox.consumer_domain='libra'
         AND inbox.consumed_at_ms IS NOT NULL`
   ).get().count, 1);
+  const lifecycleSchemaRef =
+    'helix://contracts/application-types/LibraRunLifecycleResult/v1';
+  const committedLifecycleResult = productionDb.prepare(
+    `SELECT result_json,result_digest
+       FROM fx_event_result_bindings
+      WHERE result_schema_ref=?
+      ORDER BY committed_at_ms DESC
+      LIMIT 1`
+  ).get(lifecycleSchemaRef);
+  assert.ok(committedLifecycleResult);
+  const completionWriteCounts = Object.freeze({
+    revisions: productionDb.prepare(
+      `SELECT count(*) count
+         FROM libra_run_revisions
+        WHERE transition_kind='complete'`
+    ).get().count,
+    results: productionDb.prepare(
+      `SELECT count(*) count
+         FROM fx_event_result_bindings
+        WHERE result_schema_ref=?`
+    ).get(lifecycleSchemaRef).count,
+    markers: productionDb.prepare(
+      `SELECT count(*) count
+         FROM fx_commit_markers
+        WHERE result_schema_ref=?`
+    ).get(lifecycleSchemaRef).count,
+  });
   productionDb.close();
 
   host = await createCleanServiceHost({
@@ -1029,9 +1056,49 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
       completedProduction.responsibilityClosure.stage,
       'workspace_cleanup_grace_active',
     );
+    const replayedLifecycleResult =
+      completedProduction.responsibilityClosure.runClosure.result;
+    assert.equal(
+      canonicalJson(replayedLifecycleResult),
+      committedLifecycleResult.result_json,
+    );
+    assert.equal(
+      canonicalDigest(replayedLifecycleResult),
+      committedLifecycleResult.result_digest,
+    );
+    assert.equal(
+      replayedLifecycleResult.resultDigest,
+      JSON.parse(committedLifecycleResult.result_json).resultDigest,
+    );
   } finally {
     await host.close();
   }
+  productionDb = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(productionDb.prepare(
+    `SELECT count(*) count
+       FROM libra_run_revisions
+      WHERE transition_kind='complete'`
+  ).get().count, completionWriteCounts.revisions);
+  assert.equal(productionDb.prepare(
+    `SELECT count(*) count
+       FROM fx_event_result_bindings
+      WHERE result_schema_ref=?`
+  ).get(lifecycleSchemaRef).count, completionWriteCounts.results);
+  assert.equal(productionDb.prepare(
+    `SELECT count(*) count
+       FROM fx_commit_markers
+      WHERE result_schema_ref=?`
+  ).get(lifecycleSchemaRef).count, completionWriteCounts.markers);
+  assert.equal(productionDb.prepare(
+    `SELECT count(*) count
+       FROM fx_outbox
+      WHERE message_kind='arca.product.accepted@1'
+        AND state='fully_acked'`
+  ).get().count, 1);
+  productionDb.close();
 
   const packageValue =
     completedProduction.productDelivery.onDeckProductPackage;
