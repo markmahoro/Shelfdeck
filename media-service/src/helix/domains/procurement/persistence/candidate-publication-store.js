@@ -19,7 +19,8 @@ function foundationDefinition(schemaManifest) {
     find_result:{ kind:'select-one', tableId:'fx_event_result_bindings', columns:['result_id','result_schema_ref','result_json','result_digest','evidence_schema_ref','evidence_json','evidence_digest'], keyColumns:['result_id'] },
     insert_result:{ kind:'insert', tableId:'fx_event_result_bindings', columns:['result_id','event_id','outcome_kind','result_schema_ref','result_json','result_digest','evidence_schema_ref','evidence_json','evidence_digest','effect_receipt_id','committed_at_ms'] },
     insert_marker:{ kind:'insert', tableId:'fx_commit_markers', columns:['commit_marker','effect_id','owner_domain','scope_type','scope_id','commit_digest','result_id','result_schema_ref','result_digest','committed_at_ms'] },
-    insert_outbox:{ kind:'insert', tableId:'fx_outbox', columns:['message_id','producer_domain','message_kind','aggregate_type','aggregate_id','aggregate_revision','dedup_key','consumer_set_digest','intended_consumer_count','payload_schema_ref','payload_json','payload_digest','state','available_at_ms','created_at_ms','all_acked_at_ms'] }
+    insert_outbox:{ kind:'insert', tableId:'fx_outbox', columns:['message_id','producer_domain','message_kind','aggregate_type','aggregate_id','aggregate_revision','dedup_key','consumer_set_digest','intended_consumer_count','payload_schema_ref','payload_json','payload_digest','state','available_at_ms','created_at_ms','all_acked_at_ms'] },
+    insert_outbox_delivery:{ kind:'insert', tableId:'fx_outbox_deliveries', columns:['message_id','consumer_domain','state','attempt_count','next_attempt_at_ms','acked_at_ms'] }
   }});
 }
 
@@ -204,9 +205,11 @@ function createCandidatePublicationStore(options) {
         context.repository(foundation.repositoryId).invoke('insert_outbox', { message_id:publication.messageId, producer_domain:'procurement',
           message_kind:'procurement_candidate_offer_available', aggregate_type:'candidate_package', aggregate_id:draft.candidatePackageId,
           aggregate_revision:draft.expectedPackageRevision, dedup_key:publication.dedupKey,
-          consumer_set_digest:canonicalDigest({ schema:'foundation.outbox-consumer-set@1', consumers:['libra'] }), intended_consumer_count:1,
+          consumer_set_digest:canonicalDigest(['libra']), intended_consumer_count:1,
           payload_schema_ref:OFFER_MESSAGE_SCHEMA, payload_json:payloadJson, payload_digest:canonicalDigest(publication.offerMessage),
           state:'pending', available_at_ms:context.commitTimeMs, created_at_ms:context.commitTimeMs, all_acked_at_ms:null });
+        context.repository(foundation.repositoryId).invoke('insert_outbox_delivery', { message_id:publication.messageId,
+          consumer_domain:'libra', state:'pending', attempt_count:0, next_attempt_at_ms:context.commitTimeMs, acked_at_ms:null });
         return Object.freeze({ messageId:publication.messageId, offerId:publication.offerId });
       }};
       try {

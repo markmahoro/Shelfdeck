@@ -77,6 +77,8 @@ function createLibraIntakeStore(options) {
         const row={ head_id:CONTINUITY_HEAD_ID,current_revision:0,head_digest:continuityHeadDigest(0),updated_at_ms:context.commitTimeMs };
         repository.invoke('insert_head',row); return Object.freeze(row); });
     },
+    getContinuityHead() { return execute([repositories.subjects], (context) =>
+      context.repository(repositories.subjects.repositoryId).invoke('find_head', { head_id:CONTINUITY_HEAD_ID }) || null); },
     getSubject(subjectId) { return execute([repositories.subjects], (context) => context.repository(repositories.subjects.repositoryId).invoke('find_subject',{ subject_id:subjectId }) || null); },
     listSubjectClaims(subjectId) { return execute([repositories.subjects], (context) => context.repository(repositories.subjects.repositoryId).invoke('find_claims',{ subject_id:subjectId })); },
     listSubjectEpisodes(subjectId) { return execute([repositories.subjects], (context) => context.repository(repositories.subjects.repositoryId).invoke('find_episodes',{ subject_id:subjectId })); },

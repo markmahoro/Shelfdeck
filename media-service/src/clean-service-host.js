@@ -7,9 +7,28 @@ const Database = require('better-sqlite3');
 const Fastify = require('fastify');
 const fastifyStatic = require('@fastify/static');
 const routeRegistry = require('./helix/composition/admin-route-registry');
+const { canonicalDigest } = require('./helix/contracts/canonical-json');
 const { createHelixApplication } = require('./helix/composition/createHelixApplication');
 const { createCleanFacades } = require('./helix/composition/create-clean-facades');
 const { createProcurementAdminApplication } = require('./helix/domains/procurement/public/admin-application');
+const { CandidateDeliveryPort } = require('./helix/domains/procurement/public');
+const { LibraIntakeFacade } = require('./helix/domains/libra/public');
+const {
+  createCandidateDeliveryService,
+} = require('./helix/domains/procurement/application/candidate-delivery-service');
+const {
+  createCandidateDeliveryReader,
+} = require('./helix/domains/procurement/persistence/candidate-delivery-reader');
+const {
+  createCandidateAcceptanceConsumer,
+} = require('./helix/domains/procurement/application/candidate-acceptance-consumer');
+const { createInboxCoordinator } = require('./helix/foundation/persistence/outbox-inbox');
+const {
+  createMovieRunCoordinator,
+} = require('./helix/domains/procurement/application/movie-run-coordinator');
+const {
+  createIntakeAcceptanceCoordinator,
+} = require('./helix/domains/libra/application/intake-acceptance-coordinator');
 const {
   createArcaRuleTemplateAdminApplication,
   createArcaShelfAdminApplication,
@@ -29,6 +48,7 @@ const {
 const {
   createCleanFieldObservationEnumerator,
 } = require('./clean-field-observation-enumerator');
+const { createCleanMediaProbe } = require('./clean-media-probe');
 const {
   createSynchronousDomainWork,
 } = require('./helix/foundation/execution/synchronous-domain-work');
@@ -253,6 +273,56 @@ async function createCleanServiceHost(options) {
   const arcaRuleTemplateAdmin = createArcaRuleTemplateAdminApplication(
     constructed.applicationDependencies,
   );
+  const candidateDeliveryPort = CandidateDeliveryPort(createCandidateDeliveryService({
+    ...constructed.applicationDependencies,
+    candidateDeliveryReader: createCandidateDeliveryReader(constructed.applicationDependencies),
+    contractValidator: Object.freeze({ validate(_schemaRef, value) {
+      if (!value || typeof value !== 'object') {
+        throw new CleanServiceHostError('CANDIDATE_DELIVERY_CONTRACT_INVALID',
+          'Candidate Delivery contract value is absent.');
+      }
+    } }),
+  }));
+  const libraIntake = LibraIntakeFacade(createIntakeAcceptanceCoordinator({
+    ...constructed.applicationDependencies,
+    candidateDeliveryPort,
+  }));
+  const candidateAcceptance = createCandidateAcceptanceConsumer(constructed.applicationDependencies);
+  const outboxInbox = createInboxCoordinator(constructed.applicationDependencies);
+  const handoffOffer = (offer) => {
+    const accepted = libraIntake.offerCandidate(offer);
+    const message = accepted.acceptedMessage;
+    const dedupKey = 'libra_candidate_accepted:' + message.offerId;
+    const procurementClosure = candidateAcceptance.consume(Object.freeze({
+      messageId: canonicalDigest({
+        schema: 'foundation.outbox-message-id@1', producerDomain: 'libra', dedupKey,
+      }),
+      dedupKey,
+      producerDomain: 'libra',
+      consumerDomain: 'procurement',
+      payloadSchemaRef: message.schemaRef,
+      payloadDigest: canonicalDigest(message),
+      payload: message,
+    }));
+    const acknowledgement = outboxInbox.acknowledge({
+      messageId: canonicalDigest({
+        schema: 'foundation.outbox-message-id@1', producerDomain: 'libra', dedupKey,
+      }),
+      consumerDomain: 'procurement',
+    });
+    return Object.freeze({
+      intake: accepted,
+      procurementClosure,
+      acknowledgement,
+    });
+  };
+  const movieRunCoordinator = createMovieRunCoordinator({
+    ...constructed.applicationDependencies,
+    triageRegistry: require('./helix/domains/procurement/model/procurement-run-contracts').createDefaultTriageRuleRegistry(),
+    workRuntime: createSynchronousDomainWork(constructed.applicationDependencies),
+    mediaProbe: options.mediaProbe || createCleanMediaProbe(),
+    offerCandidate: handoffOffer,
+  });
   const arcaRoutingTargets = createShelfRoutingTargetProjection(constructed.applicationDependencies);
   const libraRoutingAdmin = createLibraRoutingAdminApplication({
     ...constructed.applicationDependencies,
@@ -267,6 +337,7 @@ async function createCleanServiceHost(options) {
       enumerator: createCleanFieldObservationEnumerator(),
       pageObserverFactory: createFieldPageObserver,
       workRuntime: createSynchronousDomainWork(constructed.applicationDependencies),
+      movieRunCoordinator,
     }),
     arcaShelfAdmin,
     arcaRuleTemplateAdmin,

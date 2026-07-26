@@ -113,6 +113,7 @@ test('admits complete Run Basis, Selection, Control, receipt, and marker in one 
   const committed=store.admit(request); assert.equal(committed.replayed,false); assert.equal(committed.typedResult.acquiredMaterialCount,1);
   const replay=store.admit(request); assert.equal(replay.replayed,true); assert.deepEqual(replay.typedResult,committed.typedResult);
   const check=new Database(databasePath,{readonly:true}); assert.equal(check.prepare('SELECT COUNT(*) count FROM proc_procurement_runs').get().count,1);
+  assert.equal(Number(check.prepare('SELECT candidate_package_revision_head FROM proc_procurement_runs').get().candidate_package_revision_head),0);
   assert.equal(check.prepare('SELECT COUNT(*) count FROM proc_run_materials').get().count,1);
   assert.equal(check.prepare('SELECT control_revision FROM fx_material_controls').get().control_revision,1);
   assert.equal(check.prepare("SELECT COUNT(*) count FROM fx_outbox").get().count,0); check.close();

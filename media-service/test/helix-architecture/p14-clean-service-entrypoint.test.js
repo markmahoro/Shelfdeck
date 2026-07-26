@@ -125,6 +125,7 @@ test('formal server dependency graph reaches only the clean Helix root', () => {
         relative === 'src/clean-service-host.js' ||
         relative === 'src/clean-shelf-target-folder-probe.js' ||
         relative === 'src/clean-field-observation-enumerator.js' ||
+        relative === 'src/clean-media-probe.js' ||
         relative === 'src/admin-credential-secret-store.js' ||
         relative.startsWith('src/helix/'),
       `unexpected runtime dependency: ${relative}`,
@@ -2104,4 +2105,110 @@ test('Windows and Docker artifacts select the service-only clean entrypoint', ()
   assert.match(windows, /cleanHelixSource/);
   assert.doesNotMatch(windows, /^\s*['"]src['"],?\s*$/m);
   assert.doesNotMatch(windows, /media-worker|face-service|19110|ollama/i);
+});
+
+test('Movie Handoff A uses the public HTTP journey, survives restart, and closes both durable deliveries', async () => {
+  const value = fixture();
+  const sourceRoot = path.join(path.dirname(value.dataDir), 'movie-handoff-a-source');
+  fs.mkdirSync(sourceRoot, { recursive: true });
+  const source = path.join(sourceRoot, 'Example.Movie.mkv');
+  fs.writeFileSync(source, Buffer.from('disposable-movie-source'));
+  const before = {
+    bytes: fs.readFileSync(source),
+    mtimeMs: fs.statSync(source).mtimeMs,
+  };
+  const policy = {
+    includedDirectories: [], excludedDirectories: [], allowedExtensions: ['.mkv'],
+    minimumSizeBytes: 0, excludedMaterialKeys: [],
+  };
+  const policyBasis = { extractionPolicyId: 'movie-handoff-policy', revision: 1, ...policy };
+  const access = {
+    fieldId: 'movie-handoff-field', revision: 1, endpointId: 'movie-handoff-endpoint',
+    rootLocation: sourceRoot, mountScopeId: 'movie-handoff-mount', mountScopeRevision: 1,
+    accessSchemaRef: 'helix://fixtures/movie-handoff-access/v1',
+  };
+  const register = {
+    idempotencyKey: 'movie-handoff-register', fieldId: access.fieldId, name: 'Movie Handoff Source',
+    policy: {
+      extractionPolicyId: policyBasis.extractionPolicyId, revision: 1,
+      policySchemaRef: 'helix://contracts/domain-types/ExtractionPolicy/v1', policy,
+      policyDigest: canonicalDigest(policyBasis),
+    },
+    access: { ...access, accessDigest: canonicalDigest(access) },
+  };
+  const observe = {
+    idempotencyKey: 'movie-handoff-observe', fieldId: access.fieldId,
+    expectedAccessRevision: 1, expectedObservationRevision: 0, pageBudget: 8,
+  };
+  const mediaProbe = Object.freeze({
+    async probe(readHandle) {
+      const result = {
+        resultKind: 'probed', sourceHandleDigest: canonicalDigest(readHandle), durationMs: 1000,
+        videoStreams: [{ streamIndex: 0, codec: 'hevc', dispositionDefault: true, width: 1920, height: 1080 }],
+        audioStreams: [], subtitleStreams: [], discTopology: null, payloadDigest: '',
+      };
+      result.payloadDigest = canonicalDigest(Object.fromEntries(
+        Object.entries(result).filter(([key]) => key !== 'payloadDigest'),
+      ));
+      return Object.freeze(result);
+    },
+  });
+  async function session(host) {
+    return (await host.inject({
+      method: 'POST', url: '/v1/admin/session',
+      headers: { 'x-api-key': value.initialized.adminApiKey },
+    })).headers['set-cookie'];
+  }
+  async function requestObservation(host) {
+    return host.inject({
+      method: 'POST', url: `/v1/admin/material-fields/${access.fieldId}/actions/observe`,
+      headers: { cookie: await session(host) }, payload: observe,
+    });
+  }
+
+  let host = await createCleanServiceHost({
+    dataDir: value.dataDir, adminDistDir: value.adminDistDir, secretRoot, mediaProbe,
+  });
+  try {
+    const created = await host.inject({
+      method: 'POST', url: '/v1/admin/material-fields', headers: { cookie: await session(host) }, payload: register,
+    });
+    assert.equal(created.statusCode, 201, created.body);
+    const first = await requestObservation(host);
+    assert.equal(first.statusCode, 200, first.body);
+    assert.equal(first.json().movieJourney.stage, 'handoff_a_accepted');
+    assert.equal(first.json().movieJourney.handoff.procurementClosure.closure.terminalDeliveryState, 'accepted');
+  } finally {
+    await host.close();
+  }
+
+  host = await createCleanServiceHost({
+    dataDir: value.dataDir, adminDistDir: value.adminDistDir, secretRoot, mediaProbe,
+  });
+  try {
+    const replay = await requestObservation(host);
+    assert.equal(replay.statusCode, 200, replay.body);
+    assert.equal(replay.json().observation.replayed, true);
+    assert.equal(replay.json().movieJourney.stage, 'handoff_a_accepted');
+    assert.equal(replay.json().movieJourney.replayed, true);
+  } finally {
+    await host.close();
+  }
+
+  const database = new Database(path.join(value.dataDir, 'shelfdeck.db'), { readonly: true });
+  assert.equal(database.prepare('SELECT count(*) count FROM proc_procurement_runs').get().count, 1);
+  assert.equal(database.prepare('SELECT count(*) count FROM proc_candidate_packages').get().count, 1);
+  assert.equal(database.prepare("SELECT count(*) count FROM proc_candidate_deliveries WHERE state='accepted'").get().count, 1);
+  assert.equal(database.prepare('SELECT count(*) count FROM libra_subjects').get().count, 1);
+  assert.deepEqual(database.prepare('SELECT owner_domain,owner_scope_type,count(*) count FROM fx_material_controls GROUP BY owner_domain,owner_scope_type').all(),
+    [{ owner_domain: 'libra', owner_scope_type: 'subject', count: 1 }]);
+  assert.deepEqual(database.prepare('SELECT message_kind,state FROM fx_outbox ORDER BY message_kind').all(), [
+    { message_kind: 'libra_candidate_accepted', state: 'fully_acked' },
+    { message_kind: 'procurement_candidate_offer_available', state: 'fully_acked' },
+  ]);
+  assert.equal(database.prepare("SELECT count(*) count FROM fx_outbox_deliveries WHERE state='acked'").get().count, 2);
+  assert.equal(database.prepare('SELECT count(*) count FROM fx_inbox').get().count, 2);
+  database.close();
+  assert.deepEqual(fs.readFileSync(source), before.bytes);
+  assert.equal(fs.statSync(source).mtimeMs, before.mtimeMs);
 });

@@ -190,10 +190,15 @@ function createProcurementAdminApplication(options) {
         const observed = await commands.requestFieldObservation(
           commandEnvelope(body, fieldId),
         );
+        const procurementAutomation = automation.advanceFromObservation(observed);
+        const movieJourney = procurementAutomation.stage === 'procurement_run_active' &&
+          options.movieRunCoordinator
+          ? await options.movieRunCoordinator.advance(procurementAutomation.procurementRunId)
+          : null;
         return Object.freeze({
           observation: observed,
-          procurementAutomation:
-            automation.advanceFromObservation(observed),
+          procurementAutomation,
+          ...(movieJourney ? { movieJourney } : {}),
         });
       } catch (error) {
         rejected(error);

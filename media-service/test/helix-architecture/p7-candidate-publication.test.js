@@ -148,9 +148,10 @@ test('publishes immutable Package, Manifest relations, Run Reservation, stable O
   assert.equal(delivery.offer_id, committed.outboxResult.offerId); assert.equal(delivery.state, 'open');
   const outbox = check.prepare('SELECT message_id,dedup_key,consumer_set_digest,payload_schema_ref,payload_json FROM fx_outbox').get();
   assert.equal(outbox.message_id, canonicalDigest({ schema:'foundation.outbox-message-id@1', producerDomain:'procurement', dedupKey:outbox.dedup_key }));
-  assert.equal(outbox.consumer_set_digest, canonicalDigest({ schema:'foundation.outbox-consumer-set@1', consumers:['libra'] }));
+  assert.equal(outbox.consumer_set_digest, canonicalDigest(['libra']));
   assert.equal(JSON.parse(outbox.payload_json).acceptanceBasisDigest, delivery.acceptance_basis_digest);
-  assert.equal(check.prepare('SELECT COUNT(*) count FROM fx_outbox_deliveries').get().count, 0);
+  assert.equal(check.prepare('SELECT COUNT(*) count FROM fx_outbox_deliveries').get().count, 1);
+  assert.deepEqual(check.prepare('SELECT consumer_domain,state FROM fx_outbox_deliveries').get(), { consumer_domain:'libra', state:'pending' });
   check.close();
   const reader = createCandidateDeliveryReader({ schemaManifest, unitOfWork });
   const deliveryService = createCandidateDeliveryService({ candidateDeliveryReader:reader, contractValidator:{ validate() {} } });

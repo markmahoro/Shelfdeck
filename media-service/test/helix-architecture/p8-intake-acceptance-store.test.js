@@ -63,7 +63,8 @@ test('commits new Subject, Binding, exact Control transfer, Receipt and Outbox a
   const first=store.accept(request),second=store.accept(request);assert.equal(first.replayed,false);assert.equal(second.replayed,true);assert.equal(first.receipt.receiptDigest,second.receipt.receiptDigest);
   const db=new Database(databasePath,{readonly:true});assert.equal(db.prepare('SELECT COUNT(*) count FROM libra_subjects').get().count,1);assert.equal(db.prepare('SELECT COUNT(*) count FROM libra_material_bindings').get().count,1);
   assert.deepEqual(db.prepare('SELECT owner_domain,owner_scope_type,owner_scope_id,control_revision FROM fx_material_controls').get(),{owner_domain:'libra',owner_scope_type:'subject',owner_scope_id:'subject-1',control_revision:2});
-  assert.equal(db.prepare("SELECT COUNT(*) count FROM fx_outbox WHERE message_kind='libra_candidate_accepted'").get().count,1);db.close();
+  assert.equal(db.prepare("SELECT COUNT(*) count FROM fx_outbox WHERE message_kind='libra_candidate_accepted'").get().count,1);
+  assert.deepEqual(db.prepare('SELECT consumer_domain,state FROM fx_outbox_deliveries').get(),{consumer_domain:'procurement',state:'pending'});db.close();
 }));
 
 test('stale global head rolls back every accepted participant before Control transfer',()=>fixture(({databasePath,unitOfWork})=>{

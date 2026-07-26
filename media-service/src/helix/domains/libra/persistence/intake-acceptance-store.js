@@ -22,7 +22,8 @@ function foundationDefinition(schemaManifest){return createRepositoryDefinition(
   find_marker:{kind:'select-one',tableId:'fx_commit_markers',columns:['commit_marker','owner_domain','scope_type','scope_id','commit_digest','result_id','result_schema_ref','result_digest'],keyColumns:['commit_marker']},
   insert_result:{kind:'insert',tableId:'fx_event_result_bindings',columns:['result_id','event_id','outcome_kind','result_schema_ref','result_json','result_digest','evidence_schema_ref','evidence_json','evidence_digest','effect_receipt_id','committed_at_ms']},
   insert_marker:{kind:'insert',tableId:'fx_commit_markers',columns:['commit_marker','effect_id','owner_domain','scope_type','scope_id','commit_digest','result_id','result_schema_ref','result_digest','committed_at_ms']},
-  insert_outbox:{kind:'insert',tableId:'fx_outbox',columns:['message_id','producer_domain','message_kind','aggregate_type','aggregate_id','aggregate_revision','dedup_key','consumer_set_digest','intended_consumer_count','payload_schema_ref','payload_json','payload_digest','state','available_at_ms','created_at_ms','all_acked_at_ms']}
+  insert_outbox:{kind:'insert',tableId:'fx_outbox',columns:['message_id','producer_domain','message_kind','aggregate_type','aggregate_id','aggregate_revision','dedup_key','consumer_set_digest','intended_consumer_count','payload_schema_ref','payload_json','payload_digest','state','available_at_ms','created_at_ms','all_acked_at_ms']},
+  insert_outbox_delivery:{kind:'insert',tableId:'fx_outbox_deliveries',columns:['message_id','consumer_domain','state','attempt_count','next_attempt_at_ms','acked_at_ms']}
 }});}
 
 function validate(request){
@@ -155,8 +156,10 @@ function createIntakeAcceptanceStore(options){
       const outbox={participantId:'acceptance_outbox',owner:'execution-foundation',boundBusinessOwner:'libra',repositories:[foundation],execute(context){const dedupKey='libra_candidate_accepted:'+decision.offerId,
         messageId=canonicalDigest({schema:'foundation.outbox-message-id@1',producerDomain:'libra',dedupKey});context.repository(foundation.repositoryId).invoke('insert_outbox',{
           message_id:messageId,producer_domain:'libra',message_kind:'libra_candidate_accepted',aggregate_type:'intake_decision',aggregate_id:decision.decisionId,aggregate_revision:1,dedup_key:dedupKey,
-          consumer_set_digest:canonicalDigest({schema:'foundation.outbox-consumer-set@1',consumers:['procurement']}),intended_consumer_count:1,payload_schema_ref:MESSAGE_SCHEMA,
-          payload_json:canonicalJson(message),payload_digest:canonicalDigest(message),state:'pending',available_at_ms:context.commitTimeMs,created_at_ms:context.commitTimeMs,all_acked_at_ms:null});return {messageId,dedupKey,message};}};
+          consumer_set_digest:canonicalDigest(['procurement']),intended_consumer_count:1,payload_schema_ref:MESSAGE_SCHEMA,
+          payload_json:canonicalJson(message),payload_digest:canonicalDigest(message),state:'pending',available_at_ms:context.commitTimeMs,created_at_ms:context.commitTimeMs,all_acked_at_ms:null});
+        context.repository(foundation.repositoryId).invoke('insert_outbox_delivery',{message_id:messageId,consumer_domain:'procurement',state:'pending',attempt_count:0,next_attempt_at_ms:context.commitTimeMs,acked_at_ms:null});
+        return {messageId,dedupKey,message};}};
       try{const values=options.unitOfWork.execute([preflight,domain,control,receiptWrite,result,marker,outbox]);return Object.freeze({replayed:false,decision,receipt,outbox:values.acceptance_outbox,commitMarker:markerId});}
       catch(error){if(error instanceof Replay)return Object.freeze({replayed:true,decision,receipt:error.receipt,outbox:undefined,commitMarker:markerId});throw error;}
     }

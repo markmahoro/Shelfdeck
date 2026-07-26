@@ -28,7 +28,7 @@ function procurementRepository(schemaManifest) {
   const runColumns = ['procurement_run_id','field_id','run_basis_schema_ref','access_revision','access_digest','terminal_observation_revision',
     'field_observation_work_id','extraction_policy_id','extraction_policy_revision','extraction_policy_digest','triage_rule_ref','triage_rule_revision',
     'triage_rule_schema_ref','triage_rule_digest','triage_rule_authority_digest','run_basis_digest','retry_intent_id','state','state_revision',
-    'seal_outcome','seal_decision_id','seal_decision_digest','seal_evidence_digest','admission_commit_marker','admission_result_digest',
+    'candidate_package_revision_head','seal_outcome','seal_decision_id','seal_decision_digest','seal_evidence_digest','admission_commit_marker','admission_result_digest',
     'seal_commit_marker','seal_result_digest','priority_class','created_at_ms','finished_at_ms'];
   const runMaterialColumns = ['procurement_run_id','ordinal','material_key','selection_role','mount_scope_id','inode','content_hash_algorithm','content_hash','size_bytes','binding_revision','eligibility_revision',
     'eligibility_basis_digest','last_snapshot_digest','last_observation_id','endpoint_id','location','reality_digest','provenance_digest',
@@ -174,7 +174,8 @@ function createProcurementRunAdmissionStore(options) {
         extraction_policy_revision:basis.extractionPolicy.revision, extraction_policy_digest:basis.extractionPolicy.digest,
         triage_rule_ref:rule.ruleRef, triage_rule_revision:rule.revision, triage_rule_schema_ref:rule.ruleSchemaRef,
         triage_rule_digest:rule.ruleDigest, triage_rule_authority_digest:rule.authorityDigest, run_basis_digest:basis.basisDigest,
-        retry_intent_id:basis.sourceRetryIntentId || null, state:'active', state_revision:1, seal_outcome:null, seal_decision_id:null,
+        retry_intent_id:basis.sourceRetryIntentId || null, state:'active', state_revision:1, candidate_package_revision_head:0,
+        seal_outcome:null, seal_decision_id:null,
         seal_decision_digest:null, seal_evidence_digest:null, admission_commit_marker:commitMarker, admission_result_digest:canonicalDigest(receipt),
         seal_commit_marker:null, seal_result_digest:null, priority_class:priorityClass, created_at_ms:context.commitTimeMs, finished_at_ms:null });
       const resultByKey = new Map(controlResults.map((item) => [item.materialKey, item]));

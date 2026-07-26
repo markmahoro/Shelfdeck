@@ -108,14 +108,16 @@ immutable Plan input冻结；Procurement业务事实仍只写Owner Store。
 不重新解释已提交页面，最终连续提交revision 1..3。三份disposable sample
 文件在首次执行、故障、restart和exact replay前后内容及mtime均不变。
 
-### T-shaped Movie旅程：Observation → Procurement Run Admission
+### T-shaped Movie旅程：Observation → Handoff A
 
-施工顺序已从横向管理路由补齐切换为journey-first。当前第一段正式Movie纵切为：
+施工顺序已从横向管理路由补齐切换为journey-first。当前冻结的Movie纵切为：
 
 `Admin HTTP Field Observe → terminal Field Observation Result →
 Procurement owner-local Automation → Extraction Eligibility Reconcile →
 SelectedFieldMaterialSet → procurement.material.control.acquire@1 →
-Procurement Run Admission transaction`。
+Procurement Run Admission transaction → Evidence Assessment/Triage → immutable
+Candidate Package/Offer → Handoff A → Libra Accepted Intake/Subject + Control
+transfer`。
 
 Automation没有新增Run admission管理路由，也不把业务判断放入Composition
 Root。它只接受正式terminal Observation Result，按显式
@@ -144,9 +146,24 @@ Selection/Control named inputs与执行状态。
   `executing`切换`succeeded`时中断；重启后由durable Result恢复Event和Work，
   不重新Eligibility、不创建第二Run。
 
-当前Movie已到达**Procurement active Run**。下一个核心旅程阻塞点是
-Evidence Assessment/Triage与Candidate Package publication/Handoff A；本段
-没有宣称Candidate、Libra或Arca已完成，也没有因此增加real route数量。
+在同一P14 disposable Movie上，Procurement owner-local Coordinator使用已冻结
+Run/Run Material/Field Access输入完成typed Evidence、Primary Manifest、Triage、
+Candidate Package与Offer发布；Candidate publication canonical transaction同时
+建立Procurement→Libra durable Delivery。Libra只通过既有Candidate Delivery
+public port消费该Offer，在自己的Intake Acceptance transaction中建立Accepted
+Intake、Subject与Libra Material Control Binding，并建立Libra→Procurement durable
+Delivery。两侧Inbox/Outbox receipt均按exact replay和restart恢复，不旁读
+Foundation Result、不跨Owner Store。
+
+真实public HTTP首轮形成一个Package、一个Offer、一个Subject和一次Control
+transfer；跨restart重放返回同一typed result且没有第二次业务副作用。故障注入
+在Libra Handoff A receipt写入前回滚，保留唯一open Offer和Procurement Control；
+去除故障后重启，重放同一Observation完成原Offer的一次Handoff A。所有路径均
+验证source size/SHA-256/mtime零变化。
+
+当前Movie已到达**Libra Accepted Intake/Subject + Control transfer**。本段不进入
+Libra Routing或Acceptance Spec，不宣称Arca、final Target或Beta完成，也没有
+因此增加real route数量。
 
 ### Procurement Failed-preparation Retry
 
