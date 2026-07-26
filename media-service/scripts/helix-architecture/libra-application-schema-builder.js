@@ -311,7 +311,13 @@ function runExecutionBasisRecord() {
   const basis = runExecutionBasis();
   const properties = { ...basis.properties };
   delete properties.productionMaterialManifest;
-  properties.productionMaterialManifestRef = object({ manifestId: digest(), manifestDigest: digest(), memberCount: positive(), episodeScopeDigest: digest() });
+  properties.productionMaterialManifestRef = object({
+    manifestId: digest(),
+    manifestDigest: digest(),
+    memberCount: positive(),
+    memberSetDigest: digest(),
+    episodeScopeDigest: digest(),
+  });
   return { $schema: DRAFT, $id: typeId('LibraRunExecutionBasisRecord'), title: 'LibraRunExecutionBasisRecord@1',
     'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 1024 * 1024,
     ...object(properties) };

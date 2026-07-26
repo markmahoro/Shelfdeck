@@ -66,7 +66,9 @@ function metadataFixture(mediaCastFactRef=null){const source=fixture('product_me
 
 test('registers exact Product Fact variants and writes reconstructable Libra Owner rows after preparation',()=>{
   const registrations=createProductFactRegistrations({schemaManifest});
-  assert.deepEqual(registrations.map((item)=>item.factType),['media_cast','product_metadata']);
+  assert.deepEqual(registrations.map((item)=>item.factType),[
+    'media_cast','product_metadata','resolved_identity',
+  ]);
   const registry=createDomainCommitRegistry({registrations}),value=fixture(),participant=registry.resolve(value.handle,value.payload,{commitMarker:'marker-1'});
   const inserted={facts:[],sources:[]};
   const foundation={invoke(statement,parameters){const rows={find_work:{work_id:'work-source',owner_domain:'libra',process_type:'libra_run',process_id:'run-1',state:'succeeded'},

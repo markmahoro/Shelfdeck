@@ -133,6 +133,8 @@ test('formal server dependency graph reaches only the clean Helix root', () => {
         relative === 'src/clean-shelf-target-folder-probe.js' ||
         relative === 'src/clean-field-observation-enumerator.js' ||
         relative === 'src/clean-media-probe.js' ||
+        relative === 'src/clean-product-production-port.js' ||
+        relative === 'src/clean-workspace-product-port.js' ||
         relative === 'src/admin-credential-secret-store.js' ||
         relative.startsWith('src/helix/'),
       `unexpected runtime dependency: ${relative}`,
@@ -2141,7 +2143,7 @@ test('Windows and Docker artifacts select the service-only clean entrypoint', ()
   assert.doesNotMatch(windows, /media-worker|face-service|19110|ollama/i);
 });
 
-test('Movie Handoff A uses the public HTTP journey, survives restart, and closes both durable deliveries', async () => {
+test('Movie production uses public HTTP, survives restart, and opens one immutable Handoff B Offer', async () => {
   const value = fixture();
   const sourceRoot = path.join(path.dirname(value.dataDir), 'movie-handoff-a-source');
   fs.mkdirSync(sourceRoot, { recursive: true });
@@ -2196,6 +2198,49 @@ test('Movie Handoff A uses the public HTTP journey, survives restart, and closes
         Object.entries(result).filter(([key]) => key !== 'payloadDigest'),
       ));
       return Object.freeze(result);
+    },
+  });
+  const productionOptions = Object.freeze({
+    async searchProviderIdentity() {
+      return Object.freeze({
+        provider: 'tmdb',
+        namespace: 'tmdb_movie',
+        providerKey: '550',
+        integrationId: 'tmdb-main',
+        configRevision: 1,
+      });
+    },
+    async fetchProviderMetadata(intent) {
+      return Object.freeze({
+        providerKind: 'tmdb',
+        integrationId: intent.integrationId,
+        configRevision: intent.configRevision,
+        sourceRef: 'tmdb:movie:550',
+        descriptiveEntries: Object.freeze([
+          { key: 'director', value: 'Example Director' },
+          { key: 'genre', value: 'Drama' },
+          { key: 'plot', value: 'A disposable Movie journey fixture.' },
+          { key: 'title', value: 'Example Movie' },
+          { key: 'tmdb_movie_id', value: '550' },
+          { key: 'year_or_release_date', value: '1999' },
+        ]),
+        providerIdentities: Object.freeze([{
+          provider: 'tmdb',
+          namespace: 'tmdb_movie',
+          providerKey: '550',
+          seasonNumber: null,
+        }]),
+        peopleHints: Object.freeze([{
+          displayName: 'Example Actor',
+          role: 'actor',
+          providerIdentities: Object.freeze([{
+            provider: 'tmdb',
+            namespace: 'tmdb_person',
+            providerKey: '819',
+          }]),
+        }]),
+        posterBytes: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+      });
     },
   });
   async function session(host) {
@@ -2290,6 +2335,7 @@ test('Movie Handoff A uses the public HTTP journey, survives restart, and closes
   let injectResolutionCrash = true;
   let host = await createCleanServiceHost({
     dataDir: value.dataDir, adminDistDir: value.adminDistDir, secretRoot, mediaProbe,
+    ...productionOptions,
     afterPerceptionResolutionCommit() {
       if (!injectResolutionCrash) return;
       injectResolutionCrash = false;
@@ -2333,8 +2379,81 @@ test('Movie Handoff A uses the public HTTP journey, survives restart, and closes
   ).get().count, 0);
   interrupted.close();
 
+  async function interruptProduction(hookName, reasonCode) {
+    let inject = true;
+    host = await createCleanServiceHost({
+      dataDir: value.dataDir,
+      adminDistDir: value.adminDistDir,
+      secretRoot,
+      mediaProbe,
+      ...productionOptions,
+      [hookName]() {
+        if (!inject) return;
+        inject = false;
+        throw Object.assign(new Error(`fault at ${hookName}`), { code: reasonCode });
+      },
+    });
+    try {
+      const interruptedResponse = await requestObservation(host);
+      assert.equal(interruptedResponse.statusCode, 400, interruptedResponse.body);
+      assert.equal(
+        interruptedResponse.json().error.details.reasonCode,
+        reasonCode,
+        interruptedResponse.body,
+      );
+    } finally {
+      await host.close();
+    }
+  }
+
+  await interruptProduction(
+    'afterWorkspacePhysicalEffect',
+    'P14_FAULT_AFTER_WORKSPACE_PHYSICAL_EFFECT',
+  );
+  let crashDatabase = new Database(
+    path.join(value.dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(crashDatabase.prepare(
+    'SELECT count(*) count FROM libra_product_packages',
+  ).get().count, 0);
+  crashDatabase.close();
+
+  await interruptProduction(
+    'afterProductFactsCommit',
+    'P14_FAULT_AFTER_PRODUCT_FACTS_COMMIT',
+  );
+  crashDatabase = new Database(
+    path.join(value.dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(crashDatabase.prepare(
+    'SELECT count(*) count FROM libra_product_packages',
+  ).get().count, 0);
+  assert.equal(crashDatabase.prepare(
+    'SELECT count(*) count FROM libra_product_fact_revisions',
+  ).get().count, 3);
+  crashDatabase.close();
+
+  await interruptProduction(
+    'afterPackageCommit',
+    'P14_FAULT_AFTER_PACKAGE_COMMIT',
+  );
+  crashDatabase = new Database(
+    path.join(value.dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(crashDatabase.prepare(
+    'SELECT count(*) count FROM libra_product_packages',
+  ).get().count, 1);
+  assert.equal(crashDatabase.prepare(
+    "SELECT count(*) count FROM fx_outbox WHERE message_kind='libra.product-offer.available@1'",
+  ).get().count, 1);
+  crashDatabase.close();
+
   host = await createCleanServiceHost({
     dataDir: value.dataDir, adminDistDir: value.adminDistDir, secretRoot, mediaProbe,
+    ...productionOptions,
   });
   try {
     const resumed = await requestObservation(host);
@@ -2344,23 +2463,21 @@ test('Movie Handoff A uses the public HTTP journey, survives restart, and closes
     assert.equal(resumed.json().movieJourney.replayed, true);
     assert.equal(resumed.json().movieJourney.handoff.formation.stage, 'libra_run_active');
     assert.equal(
-      resumed.json().movieJourney.handoff.formation.routing.targetShelfId,
-      'movie-handoff-shelf',
+      resumed.json().movieJourney.handoff.production.stage,
+      'handoff_b_offer_open',
     );
     assert.equal(
-      resumed.json().movieJourney.handoff.formation.acceptanceSpec.specRevision,
+      resumed.json().movieJourney.handoff.production.packageRevision,
       1,
     );
-    assert.equal(
-      resumed.json().movieJourney.handoff.formation.libraRun.stateRevision,
-      1,
-    );
+    assert.equal(resumed.json().movieJourney.handoff.production.replayed, true);
   } finally {
     await host.close();
   }
 
   host = await createCleanServiceHost({
     dataDir: value.dataDir, adminDistDir: value.adminDistDir, secretRoot, mediaProbe,
+    ...productionOptions,
   });
   try {
     const replay = await requestObservation(host);
@@ -2370,6 +2487,11 @@ test('Movie Handoff A uses the public HTTP journey, survives restart, and closes
     assert.equal(replay.json().movieJourney.replayed, true);
     assert.equal(replay.json().movieJourney.handoff.formation.stage, 'libra_run_active');
     assert.equal(replay.json().movieJourney.handoff.formation.replayed, true);
+    assert.equal(
+      replay.json().movieJourney.handoff.production.stage,
+      'handoff_b_offer_open',
+    );
+    assert.equal(replay.json().movieJourney.handoff.production.replayed, true);
   } finally {
     await host.close();
   }
@@ -2442,6 +2564,13 @@ test('Movie Handoff A uses the public HTTP journey, survives restart, and closes
   assert.equal(database.prepare(
     "SELECT count(*) count FROM fx_material_controls WHERE owner_domain='libra' AND owner_scope_type='subject'"
   ).get().count, 1);
+  assert.equal(database.prepare('SELECT count(*) count FROM libra_product_packages').get().count, 1);
+  assert.equal(database.prepare(
+    "SELECT count(*) count FROM fx_material_controls WHERE owner_domain='libra' AND owner_scope_type='on_deck_package'"
+  ).get().count, 2);
+  assert.equal(database.prepare(
+    "SELECT count(*) count FROM libra_workspace_material_refs WHERE reference_state='product_staging'"
+  ).get().count, 2);
   assert.equal(database.prepare(
     'SELECT count(*) count FROM proc_run_materials WHERE candidate_package_id IS NOT NULL'
   ).get().count, 1);
@@ -2450,6 +2579,7 @@ test('Movie Handoff A uses the public HTTP journey, survives restart, and closes
   ).get(relatedNfoLocation).count, 1);
   assert.deepEqual(database.prepare('SELECT message_kind,state FROM fx_outbox ORDER BY message_kind').all(), [
     { message_kind: 'field_routing_policy_published', state: 'pending' },
+    { message_kind: 'libra.product-offer.available@1', state: 'pending' },
     { message_kind: 'libra_candidate_accepted', state: 'fully_acked' },
     { message_kind: 'procurement_candidate_offer_available', state: 'fully_acked' },
   ]);

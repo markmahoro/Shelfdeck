@@ -159,7 +159,9 @@ function buildMetadataObservationBasis(value) {
   const selected = selectMetadataObservations(value), observations = selected.items.map((item) => item.result);
   if (observations.length < 1) fail('P9_METADATA_OBSERVATION_EMPTY', 'At least one durable Observation is required.');
   const factKind = value?.factKind;
-  if (!['media_cast', 'product_metadata'].includes(factKind)) fail('P9_PRODUCT_FACT_KIND', 'Product Fact kind is invalid.');
+  if (!['media_cast', 'product_metadata', 'resolved_identity'].includes(factKind)) {
+    fail('P9_PRODUCT_FACT_KIND', 'Product Fact kind is invalid.');
+  }
   const expectedRevision = integer(value?.expectedRevision, 'expectedRevision');
   const productFactId = canonicalDigest({ schema:'libra.product-fact-id@1', libraRunId:selected.intents[0].libraRunId,
     factKind, factRevision:expectedRevision + 1 });
@@ -548,12 +550,18 @@ function validateVerifiedArtifactManifest(value, context) {
 
 function buildProductFactHandle(value) {
   const factKind = value?.factKind;
-  if (!['media_cast', 'product_metadata'].includes(factKind)) fail('P9_PRODUCT_FACT_KIND', 'Product Fact kind is invalid.');
+  if (!['media_cast', 'product_metadata', 'resolved_identity'].includes(factKind)) {
+    fail('P9_PRODUCT_FACT_KIND', 'Product Fact kind is invalid.');
+  }
   const libraRunId = text(value.libraRunId, 'libraRunId'), expectedRevision = integer(value.expectedRevision, 'expectedRevision');
   const payloadDigest = digest(value.payloadDigest, 'payloadDigest'), eventFenceDigest = digest(value.eventFenceDigest, 'eventFenceDigest');
   const aggregateType = 'libra_product_fact';
   const aggregateId = canonicalDigest({ schema:'libra.product-fact-aggregate-id@1', libraRunId, factKind });
-  const resultType = factKind === 'media_cast' ? 'MediaCastFact' : 'ProductMetadataFact';
+  const resultType = factKind === 'media_cast'
+    ? 'MediaCastFact'
+    : factKind === 'product_metadata'
+      ? 'ProductMetadataFact'
+      : 'ResolvedProductIdentity';
   const resultSchemaRef = 'helix://contracts/types/' + resultType + '/v1';
   const commitIdempotencyKey = canonicalDigest({ schema:'libra.product-fact-commit-key@1', aggregateId,
     expectedRevision, payloadDigest, eventFenceDigest });
@@ -563,6 +571,102 @@ function buildProductFactHandle(value) {
   handle.handleId = canonicalDigest({ schema:'libra.product-fact-commit-handle-id@1', aggregateId, factKind,
     expectedRevision, payloadDigest, resultSchemaRef, eventFenceDigest });
   return Object.freeze(handle);
+}
+
+function buildResolvedProductIdentity(value) {
+  const providerIdentities = [...(value?.providerIdentities || [])].map((item) => {
+    const result = {
+      provider: text(item?.provider, 'provider'),
+      namespace: text(item?.namespace, 'namespace'),
+      providerKey: text(item?.providerKey, 'providerKey'),
+      seasonNumber: item?.seasonNumber ?? null,
+    };
+    result.identityAnchorDigest = canonicalDigest(result);
+    return Object.freeze(result);
+  }).sort((left, right) => compare(left.provider, right.provider) ||
+    compare(left.namespace, right.namespace) ||
+    compare(left.providerKey, right.providerKey));
+  if (providerIdentities.length < 1 || providerIdentities.length > 16 ||
+      new Set(providerIdentities.map((item) =>
+        item.provider + '|' + item.namespace + '|' + item.providerKey + '|' +
+        String(item.seasonNumber))).size !== providerIdentities.length) {
+    fail('P9_RESOLVED_IDENTITY_PROVIDERS',
+      'Resolved provider identities must be unique and canonically sorted.');
+  }
+  const exactSeasonContinuityClaims = Object.freeze([
+    ...(value.exactSeasonContinuityClaims || []),
+  ]);
+  const displayEntries = [...(value?.displayEntries || [])]
+    .map((item) => ({ key:text(item?.key, 'displayIdentity.key'), value:item?.value }))
+    .sort((left, right) => compare(left.key, right.key));
+  const displayIdentity = {
+    schemaRef: 'helix://contracts/records/display-identity/v1',
+    schemaVersion: 1,
+    recordKind: 'display-identity',
+    recordDigest: '',
+    entries: displayEntries,
+  };
+  displayIdentity.recordDigest = canonicalDigest(Object.fromEntries(
+    Object.entries(displayIdentity).filter(([key]) => key !== 'recordDigest'),
+  ));
+  const result = {
+    schemaRef: 'helix://contracts/types/ResolvedProductIdentity/v1',
+    schemaVersion: 1,
+    evidenceId: '',
+    evidenceKind: 'resolved_product_identity',
+    producerRef: text(value?.producerRef, 'producerRef'),
+    basisDigest: digest(value?.basisDigest, 'basisDigest'),
+    payloadDigest: '',
+    observedAtMs: integer(value?.observedAtMs, 'observedAtMs'),
+    subjectId: text(value?.subjectId, 'subjectId'),
+    structureKind: value?.structureKind,
+    contentProfile: value?.contentProfile,
+    identityKind: value?.identityKind,
+    providerIdentities: Object.freeze(providerIdentities),
+    providerIdentitySetDigest: canonicalDigest({
+      schema: 'libra.resolved-provider-identity-set@1',
+      items: providerIdentities,
+    }),
+    exactSeasonContinuityClaims,
+    exactSeasonContinuitySetDigest: canonicalDigest({
+      schema: 'libra.resolved-season-continuity-set@1',
+      items: exactSeasonContinuityClaims,
+    }),
+    displayIdentity: Object.freeze(displayIdentity),
+    identityDigest: '',
+  };
+  if (!['single', 'season'].includes(result.structureKind) ||
+      !['movie', 'series', 'jav', 'western_adult'].includes(result.contentProfile) ||
+      !['tmdb_movie', 'tmdb_series_season', 'jav_code', 'internal_identity']
+        .includes(result.identityKind)) {
+    fail('P9_RESOLVED_IDENTITY_KIND',
+      'Resolved Product Identity kind conflicts with the supported Product profile.');
+  }
+  result.identityDigest = canonicalDigest({
+    schema: 'libra.resolved-product-identity@1',
+    subjectId: result.subjectId,
+    structureKind: result.structureKind,
+    contentProfile: result.contentProfile,
+    identityKind: result.identityKind,
+    providerIdentities: result.providerIdentities,
+    providerIdentitySetDigest: result.providerIdentitySetDigest,
+    exactSeasonContinuityClaims: result.exactSeasonContinuityClaims,
+    exactSeasonContinuitySetDigest: result.exactSeasonContinuitySetDigest,
+    displayIdentity: result.displayIdentity,
+  });
+  result.evidenceId = canonicalDigest({
+    schema: 'libra.resolved-product-identity-evidence-id@1',
+    subjectId: result.subjectId,
+    basisDigest: result.basisDigest,
+    identityDigest: result.identityDigest,
+  });
+  result.payloadDigest = canonicalDigest({
+    schema: 'libra.resolved-product-identity-evidence@1',
+    evidenceId: result.evidenceId,
+    basisDigest: result.basisDigest,
+    identityDigest: result.identityDigest,
+  });
+  return Object.freeze(bytes(result, 64 * 1024, 'P9_RESOLVED_IDENTITY_SIZE'));
 }
 
 function productFactEnvelope(value, factKind, factDigest) {
@@ -632,5 +736,5 @@ function buildProductFactEvidence(value) {
 
 module.exports = Object.freeze({ ProductFactContractError, buildArtifactManifestVerification, buildMediaCastDraft, buildMediaCastFact, buildMetadataFetchIntent,
   buildMetadataObservationBasis, buildProductFactHandle, buildProductFactSourceRefs, buildProductMetadataDraft, metadataObservationWorkIdempotencyKey,
-  buildProductMetadataFact, buildProductFactEvidence, buildWesternProductMetadataDraft, metadataSourceRef, selectMetadataObservations,
+  buildProductMetadataFact, buildProductFactEvidence, buildResolvedProductIdentity, buildWesternProductMetadataDraft, metadataSourceRef, selectMetadataObservations,
   validateArtifactRequirement, validateVerifiedArtifactManifest });

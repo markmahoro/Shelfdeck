@@ -77,6 +77,7 @@ test('Run Admission schemas close immutable scope, head zero, and Result continu
   assert.equal(schemas.LibraRunAdmissionDecision.properties.runExecutionBasis.$ref, typeId('LibraRunExecutionBasis'));
   assert.equal(schemas.LibraRunAdmissionResult.properties.stateRevision.const, 1);
   assert.equal(schemas.LibraRunExecutionBasisRecord.properties.productionMaterialManifestRef.properties.memberCount.minimum, 1);
+  assert.ok(schemas.LibraRunExecutionBasisRecord.properties.productionMaterialManifestRef.required.includes('memberSetDigest'));
 });
 
 test('Workspace Reclamation query closes selector identity and excludes cleanup authority', () => {

@@ -488,13 +488,13 @@ function createMovieRunCoordinator(options) {
       replayed: true,
       procurementRunId: terminalReplay.procurementRunId,
       candidatePackage: terminalReplay.candidatePackage,
-      handoff: options.resumeAcceptedHandoff(terminalReplay.offer),
+      handoff: await options.resumeAcceptedHandoff(terminalReplay.offer),
     });
     const openResume = openHandoffResume(snapshot);
     if (openResume) return Object.freeze({
       stage: 'handoff_a_accepted', replayed: true, procurementRunId,
       candidatePackage: openResume.candidatePackage,
-      handoff: options.offerCandidate(openResume.offer),
+      handoff: await options.offerCandidate(openResume.offer),
     });
     const layout = movieLayout(snapshot);
     if (layout.primaryContexts.length < 1) {
@@ -563,7 +563,7 @@ function createMovieRunCoordinator(options) {
     const committed = candidatePublication.publish(request);
     if (event.state !== 'succeeded') options.workRuntime.completeEvent(step.eventId, request.resultBinding.resultId);
     options.workRuntime.complete(work.workId);
-    const handoff = options.offerCandidate(buildOffer(
+    const handoff = await options.offerCandidate(buildOffer(
       committed.typedResult,
       committed.acceptanceBasis,
     ).message);

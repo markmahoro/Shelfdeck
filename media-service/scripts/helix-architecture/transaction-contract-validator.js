@@ -140,10 +140,10 @@ function validateTransactionContracts(options) {
       if (!contract.participants.some((participant) => participant.dynamicTableSelector)) findings.push(finding(
         'MISSING_POLYMORPHIC_DOMAIN_PARTICIPANT', 'Domain Fact Commit requires a handle-selected Owner participant.', { transactionId: entry.id }
       ));
-      if (variants.filter((variant) => variant.selector).length !== 2 || variants.some((variant) => variant.selector &&
+      if (variants.filter((variant) => variant.selector).length !== 3 || variants.some((variant) => variant.selector &&
           (variant.dynamicTableRequirements.length !== 0 || variant.writeTables.includes('fx_outbox') ||
            variant.fenceContract.outboxRequired !== false))) findings.push(finding(
-        'INVALID_PRODUCT_FACT_VARIANT_OVERRIDE', 'Product Fact variants must be two exact static no-Outbox overrides.', { transactionId: entry.id }
+        'INVALID_PRODUCT_FACT_VARIANT_OVERRIDE', 'Product Fact variants must be three exact static no-Outbox overrides.', { transactionId: entry.id }
       ));
     }
     if (contract.displayName === 'Shelf Deregistration Commit' && contract.forbiddenCapabilities.length !== 2) findings.push(finding(

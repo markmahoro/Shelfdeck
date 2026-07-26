@@ -208,7 +208,7 @@ function buildRunExecutionBasisRecord(basis) {
   const manifest = full.productionMaterialManifest;
   return Object.freeze({ ...without(full, 'productionMaterialManifest'), productionMaterialManifestRef: {
     manifestId: manifest.manifestId, manifestDigest: manifest.manifestDigest, memberCount: manifest.members.length,
-    episodeScopeDigest: manifest.episodeScopeDigest
+    memberSetDigest: manifest.memberSetDigest, episodeScopeDigest: manifest.episodeScopeDigest
   } });
 }
 

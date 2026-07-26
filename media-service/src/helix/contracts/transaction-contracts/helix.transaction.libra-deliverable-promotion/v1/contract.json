@@ -7,7 +7,7 @@
     "displayName": "Libra Deliverable Promotion",
     "ownerScope": "libra",
     "commitClass": "responsibility_control_commit",
-    "atomicFactSet": "complete `LibraDeliverablePromotionDecision@1` + active Run/state revision fence + immutable Run Basis/Production Material/Workspace Staging/Product Fact/Artifact/Control fence + complete `OnDeckProductPackage@1`及全部relation + direct-original Control assert/new Workspace Product Control acquire + open Offer + durable bounded `OnDeckProductPackageCommitReceipt@1` Result/commit marker + `LibraProductOfferAvailableMessage@1` Outbox；Package、全部快照关系、Control、Offer与Result全有或全无，Package publication不改Run state",
+    "atomicFactSet": "complete `LibraDeliverablePromotionDecision@1` + active Run/state revision fence + immutable Run Basis/Production Material/Workspace Staging/Product Fact/Artifact/Control fence + 由Run/package revision预派生的稳定`onDeckPackageId` + complete `OnDeckProductPackage@1`及全部relation + direct-original Control assert/new Workspace Product Control acquire及实际post-CAS projection + open Offer + durable bounded `OnDeckProductPackageCommitReceipt@1` Result/commit marker + `LibraProductOfferAvailableMessage@1` Outbox；Package head、全部快照关系、Control、Offer与Result全有或全无，Package publication不改Run state，不允许pending/placeholder Control digest",
     "participants": [
       {
         "participantKind": "domain",
@@ -39,7 +39,8 @@
         "tables": [
           "fx_event_result_bindings",
           "fx_commit_markers",
-          "fx_outbox"
+          "fx_outbox",
+          "fx_outbox_deliveries"
         ]
       }
     ],
@@ -55,7 +56,8 @@
       "fx_material_control_revisions",
       "fx_event_result_bindings",
       "fx_commit_markers",
-      "fx_outbox"
+      "fx_outbox",
+      "fx_outbox_deliveries"
     ],
     "readTables": [
       "libra_run_revisions",
@@ -82,7 +84,8 @@
       "fx_material_control_revisions",
       "fx_event_result_bindings",
       "fx_commit_markers",
-      "fx_outbox"
+      "fx_outbox",
+      "fx_outbox_deliveries"
     ],
     "variants": [],
     "dynamicTableRequirements": [],
@@ -110,7 +113,7 @@
     "source": {
       "section": "8.5.4",
       "line": 7846,
-      "lineDigest": "8e17c5d12e5dd2e8521f8f8a7d3dd1c8f804a883b4e11d9c7dbc4e65d753b4af"
+      "lineDigest": "a641d4180c1a8965412886ab26266a5d06964185b40e2b0fbc3655265b19a15a"
     }
   }
 }

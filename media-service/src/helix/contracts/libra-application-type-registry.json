@@ -122,7 +122,7 @@
       "relativePath": "application-types/LibraRunExecutionBasisRecord/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "c10d1a9e38e1d600c6c7d031ac7c37c380da3369f8dfbb56601b03c1f22b5bbe"
+        "value": "30709037dcd29a462546a4fc91c8728226b41cc2f74a4947712e8d38c7b3eacb"
       },
       "ssotRefs": [
         "8.6.21"

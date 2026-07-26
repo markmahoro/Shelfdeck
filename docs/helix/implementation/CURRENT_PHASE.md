@@ -1,133 +1,49 @@
 # P14 Product Journey Implementation
 
-Status: **ACTIVE — corrected Movie Libra Run checkpoint frozen for independent P14 review.**
+状态：**FROZEN — Movie Production → Handoff B Offer 等待独立复验**
 
-## Frozen resume baseline
+## 当前基线
 
-- Branch: `codex/helix-p9`
-- Last independently accepted implementation baseline:
-  `dcc2f2fd fix(helix): classify related movie nfo evidence`
-- Rejected implementation checkpoint:
-  `c1501957 feat(helix): admit movie libra run from formal routing`
-- Corrected implementation checkpoint:
-  `f0319035 fix(helix): persist movie decision identity evidence`
-- Architecture SSOT remains unchanged.
-- Retry implementation contract and focused recovery tests are complete, but
-  `F02.17` remains `NOT_RUN`: the current Product journey has not yet naturally
-  produced a formal `sealed failed|partial_failure` Procurement Run. Do not add
-  Run admission/seal management routes or use internal Store evidence to claim
-  that user Feature.
+- 分支：`codex/helix-p9`
+- 已独立接受的上一检查点：`f0319035`
+- PBF-18 Architecture 修正：`af880315`
+- PBF-18 在实现分支的纳入提交：`8cce8e80`
+- Architecture SSOT 没有实现线程额外修改。
+- `F02.17` 仍为 `NOT_RUN`；不得增加测试便利接口或用内部 Store 证据冒充
+  用户 Feature。
 
-## Frozen Movie checkpoint
+## 当前冻结点
 
-The user changed construction order to T-shaped, journey-first. The frozen
-Movie checkpoint now advances the same formal public path through Libra
-formation, stopping at an active Libra Run:
+同一 disposable Movie 已沿正式 T-shaped 产品旅程推进至：
 
-`Field/Observation → Eligibility → SelectedFieldMaterialSet →
-Material Control acquire → Procurement Run Admission → Evidence
-Assessment/Triage → immutable Candidate Package/Offer → Handoff A → Libra
-Accepted Intake/Subject + Control transfer → Shelf Routing
-Assessment/Decision → Decision Preparation/Basis → Acceptance Spec
-publication → Libra Run Admission`.
+`active Libra Run → Workspace / production → Product Facts / Artifact /
+Staging / Conformance → immutable OnDeckProductPackage → open Handoff B Offer`
 
-The corrected implementation is frozen for independent review. The real public-HTTP
-fixture creates and binds one active Movie Shelf, publishes the exact Field
-routing policy, observes the disposable Movie plus its Related NFO, completes
-Handoff A, resolves the first configured eligible Shelf, freezes Decision
-Input/Basis facts, publishes one Acceptance Spec, and admits one active Libra
-Run. Because the bound Beta Movie Profile declares `rating`, the Decision
-Preparation path now always uses the formal User Perception public Facade. An
-actual owner-authored `not_found(kind=rating)` Resolution selects the
-Shelf Standard's `no_rating` branch; an empty Libra array or unavailable,
-stale or integrity-failed query can no longer create Spec or Run.
+Related NFO 是最高优先级 metadata observation；TMDB 只在 Acceptance Spec
+仍未满足时通过 typed Provider path 调用。原 Movie/NFO bytes 与 mtime 未改变。
+生成或变化的 Product 仅存在于 Libra Workspace。
 
-Handoff A atomically conserves a Libra-owned
-`DecisionIdentityEvidenceSnapshot@1` derived from the exact accepted
-Candidate Package `identityClaim`. The frozen mapping
-`libra.candidate-claim-title-anchor@1` applies NFKC, lowercase and whitespace
-collapse to the accepted claim title and produces bounded weak title Evidence;
-it never uses an opaque claim digest, current path or Provider guess. The
-snapshot is bound to Intake Decision, Candidate Package revision/digest,
-Candidate Delivery Snapshot digest and the exact Claim schema/id/digest, then
-persisted on the existing `libra_intake_decisions` Owner row. Restart therefore
-reconstructs the same Canonical Query Handle without rereading Procurement or
-Foundation Result.
+本检查点已通过三类 crash/restart/replay：Workspace 物理效果后、Product
+Fact/Artifact commit 后、Package/Control/Offer 原子提交后。重启均恢复同一
+effect、Facts、Package、Product Delivery snapshot 与 Offer，不产生重复。
 
-Perception reads its own immutable records, resolves `found(rating=1..5)` or
-`not_found(kind=rating)`, and commits/reuses the versioned Resolution through
-the existing owner-local commit participant. Libra records the exact
-Perception Resolution and `VersionedQueryResult` in Decision Basis. A fault
-after Perception commit but before Libra Basis leaves no Spec/Run; restart
-reuses the same Resolution revision/result digest and creates exactly one
-Basis, Spec and active Run.
+机器库存保持 112 Capabilities / 97 Result families / 177 tables /
+43 canonical transactions / 114 routes / 18 UI surfaces；完整 architecture
+gate 通过且 `prohibitedActionsRun=[]`。详细施工证据见
+`docs/helix/implementation/evidence/P14_MOVIE_PRODUCTION_HANDOFF_B_OFFER_CHECKPOINT.md`。
 
-Libra reads Arca only through the formal Shelf Routing Target and exact Shelf
-Standard projections. Subject, policy, Decision head, Basis, Spec and Run
-state remain in Libra Owner-local repositories and canonical transactions.
-Exact replay across Clean Service restart returns the original active Run
-without a second Routing Decision, Basis, Spec or Run. An inactive
-higher-priority target yields the typed unresolved result and cannot fall
-through to a lower-priority Shelf. Existing focused fixtures cover stale
-Policy/Standard/Control fences, Decision/Spec/Run CAS, transaction rollback,
-and restart recovery. Original Movie/NFO bytes and mtime remain unchanged.
+## 下一步
 
-The source-boundary guard, focused P3/P6/P8/P14 tests, and the full architecture
-gate have passed. The frozen machine inventory remains 112 Capabilities, 97
-Result families, 177 tables, 43 canonical transactions, 114 routes, and 18 UI
-surfaces. The implementation contract aggregate is
-`7ece7977c388f6a4230b236089889917618a45e977f91f2928d17bc95ee00b97`;
-the generated DDL digest is
-`4e16f31d07b8bc2f9678979ac1127eb8c6624477fe2ec347f1836a464b7ec13f`.
-No Architecture SSOT change is included.
+等待 Architecture / P14 独立复验。通过后才可进入 Arca Handoff B
+Acceptance、Off-load 与 On-deck Commit，最终验证 Shelf Entry、Deck Fact
+及 disposable Target 文件结果。不得提前进入 Series、JAV、Western Adult
+或恢复横向 Feature Matrix。
 
-The ordinary `BETA-IMPL-03` Related NFO defect found by P14 is closed in the
-accepted `dcc2f2fd` repair baseline. Triage now derives immutable Layout Evidence from
-the exact Run basis, associates a same-directory/same-stem NFO (or the
-unambiguous conventional `movie.nfo`) with its unique Movie primary, and emits
-the existing canonical Related Material Reference. NFO files remain visible in
-Field Observation and Run history, but are not probed as video, do not become a
-second Primary Manifest member, and do not receive a Candidate Package binding
-or Libra Product Material binding. Unrelated NFO evidence is ignored rather
-than promoted to a Primary Candidate.
+## 硬边界
 
-Focused evidence covers canonical association, unrelated/self-reference
-negative cases, one-primary/one-related Candidate reconstruction, exact
-restart replay, and unchanged source/NFO bytes and mtime. The full architecture
-gate passes with the same inventory and contract digests.
-
-Checkpoint files:
-
-- `media-service/src/helix/domains/libra/application/movie-formation-coordinator.js`
-- `media-service/src/helix/domains/arca/application/shelf-routing-target-projection.js`
-- `media-service/src/helix/domains/libra/persistence/intake-acceptance-store.js`
-- `media-service/src/helix/domains/libra/persistence/libra-intake-store.js`
-- `media-service/src/helix/domains/procurement/application/procurement-automation-service.js`
-- `media-service/src/helix/domains/procurement/application/admin-facade.js`
-- `media-service/src/helix/domains/procurement/application/movie-run-coordinator.js`
-- `media-service/src/helix/domains/procurement/model/triage-contracts.js`
-- `media-service/src/helix/domains/libra/application/intake-acceptance-coordinator.js`
-- `media-service/src/clean-media-probe.js`
-- `media-service/test/helix-architecture/p14-clean-service-entrypoint.test.js`
-- `media-service/test/helix-architecture/p7-triage-pipeline.test.js`
-- `docs/helix/implementation/evidence/P14_BETA_IMPL_03_PRODUCT_SURFACE_CONSTRUCTION_MATRIX.md`
-
-## Exact next step
-
-Await P14 independent review of `f0319035`. On acceptance, the next Movie
-blocker begins at formal Libra Workspace admission/production; it must not be
-started from this frozen checkpoint. Do not restore horizontal
-Overview/Platform work. After the full Movie journey is independently
-accepted, the required serial contrast order is Series → JAV → Western Adult;
-only then may the Feature Matrix resume.
-
-## Hard boundaries
-
-- Preserve P14 disposable sample roots; never touch NAS or source samples.
-- Service-only: no `media-worker`, `media-desktop`, Ollama, Python/FastAPI or
-  historical face-service runtime.
-- No SSOT edits, compatibility/dual path, hidden Store reads,
-  latest/current scans, legacy fallback or cross-Owner writes.
-- Do not claim Workspace, production, Handoff B, Arca On-deck, final Target,
-  Series contrast, or Beta completion from the current checkpoint.
-- Do not continue this Movie stage until the independent P14 review returns.
+- 保留 P14 disposable sample roots；不得触碰 NAS 或原始样本。
+- Service-only：不得触碰 Worker、Desktop、Ollama、Python/FastAPI。
+- 不得修改 SSOT，不得引入兼容/双路径、hidden Store read、外域
+  latest/current scan、legacy fallback 或跨 Owner 写入。
+- 当前检查点不声明 Handoff B Accepted、Arca On-deck、Movie 端到端旅程或
+  Beta 完成。

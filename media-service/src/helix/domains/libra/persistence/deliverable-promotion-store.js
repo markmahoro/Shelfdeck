@@ -128,7 +128,7 @@ function libraDefinition(schemaManifest) {
           'product_verification_digest', 'previous_reference_revision',
           'committed_workspace_revision', 'reference_digest',
         ],
-        keyColumns: ['workspace_id', 'reference_id'],
+        keyColumns: ['workspace_id', 'reference_id', 'reference_revision'],
         safeIntegers: true,
       },
       find_fact: {
@@ -287,6 +287,14 @@ function foundationDefinition(schemaManifest) {
           'payload_digest', 'state', 'available_at_ms', 'created_at_ms', 'all_acked_at_ms',
         ],
       },
+      insert_outbox_delivery: {
+        kind: 'insert',
+        tableId: 'fx_outbox_deliveries',
+        columns: [
+          'message_id', 'consumer_domain', 'state', 'attempt_count',
+          'next_attempt_at_ms', 'acked_at_ms',
+        ],
+      },
     },
   });
 }
@@ -368,6 +376,7 @@ function assertLibraSnapshot(repo, decision) {
       const row = repo.invoke('find_workspace_ref', {
         workspace_id: ref.workspaceId,
         reference_id: ref.referenceId,
+        reference_revision: ref.referenceRevision,
       });
       if (!row || row.libra_run_id !== run.libra_run_id ||
           row.material_handle_id !== ref.materialHandleId ||
@@ -718,10 +727,7 @@ function createDeliverablePromotionStore(options) {
           result_digest: receiptDigest,
           committed_at_ms: context.commitTimeMs,
         });
-        const consumerSetDigest = canonicalDigest({
-          schema: 'foundation.outbox-consumer-set@1',
-          consumers: ['ArcaAcceptanceFacade'],
-        });
+        const consumerSetDigest = canonicalDigest(['arca']);
         repo.invoke('insert_outbox', {
           message_id: commit.outbox.messageId,
           producer_domain: 'libra',
@@ -739,6 +745,14 @@ function createDeliverablePromotionStore(options) {
           available_at_ms: context.commitTimeMs,
           created_at_ms: context.commitTimeMs,
           all_acked_at_ms: null,
+        });
+        repo.invoke('insert_outbox_delivery', {
+          message_id: commit.outbox.messageId,
+          consumer_domain: 'arca',
+          state: 'pending',
+          attempt_count: 0,
+          next_attempt_at_ms: context.commitTimeMs,
+          acked_at_ms: null,
         });
         return receiptDigest;
       },

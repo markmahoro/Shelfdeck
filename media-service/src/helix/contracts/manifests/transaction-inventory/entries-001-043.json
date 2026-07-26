@@ -24,11 +24,11 @@
         "transactionId": "helix.transaction.domain-fact-commit",
         "ownerScope": "polymorphic-domain-owner",
         "contractRef": "helix://contracts/transactions/helix.transaction.domain-fact-commit/v1",
-        "contractDigest": "7cbb5905a42010755e643f5ccef7bf10bca278f512207bf7be48d8441504e54c"
+        "contractDigest": "6eaddfeb8f2fbf57bc3c65a779a0324c8448b649c3330dc0da0746160a4a8f79"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "cb4e018b64f9160309ba651676071cf1135d19491b14bbf9a589a22e11b35f4d"
+        "value": "a354e709cac4a0e55666aca8345d5ade93491065c629ba3ed1f2c8616ac388c6"
       }
     },
     {
@@ -914,7 +914,7 @@
       "sourceLocator": {
         "section": "8.5.4",
         "line": 7846,
-        "lineDigest": "8e17c5d12e5dd2e8521f8f8a7d3dd1c8f804a883b4e11d9c7dbc4e65d753b4af"
+        "lineDigest": "a641d4180c1a8965412886ab26266a5d06964185b40e2b0fbc3655265b19a15a"
       },
       "targetLocator": {
         "path": "transaction-contracts/helix.transaction.libra-deliverable-promotion/v1/contract.json"
@@ -923,11 +923,11 @@
         "transactionId": "helix.transaction.libra-deliverable-promotion",
         "ownerScope": "libra",
         "contractRef": "helix://contracts/transactions/helix.transaction.libra-deliverable-promotion/v1",
-        "contractDigest": "d0058d7f3b498e12f690b6831106e1d0f6def325e39a15542b69b53eaf8f155b"
+        "contractDigest": "9fd2f93176cb5d9ba8360a41a9f458d8c2e15a18b90dffd900d72fbcacb62701"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "480f9b259de7458adeb04a09d4381d6e77437b2f3e853760d8eac08ca0c65241"
+        "value": "7d29dc427e3872e60c78fad09013c10ded4a82196396d72f370b12187e421cbc"
       }
     },
     {

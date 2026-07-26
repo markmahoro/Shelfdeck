@@ -71,6 +71,20 @@ const definitions = Object.freeze({
           'fx_work_attempts', 'fx_workflow_plans', 'fx_plan_nodes', 'fx_workflow_events', 'fx_event_result_bindings', 'fx_commit_markers', 'fx_artifact_registry'],
         dynamicTableRequirements: [], hasOutbox: false, fixtureRefs: ['libra-product-fact-variants'],
         rollbackInvariant: 'Fact revision, complete Source refs, Artifact fence, durable typed Result, and commit marker are all present or all absent; selector, Run, revision, source-basis, Artifact, Result, schema, digest, or fence failure leaves zero writes and no Outbox row.'
+      },
+      {
+        variantId: 'libra_resolved_identity_fact@1', exactOverride: true,
+        selector: { selectorKind: 'domain_fact_handle_exact', factType: 'resolved_identity',
+          factSchemaRef: 'helix://contracts/types/ResolvedProductIdentity/v1',
+          resultSchemaRef: 'helix://contracts/types/ResolvedProductIdentity/v1' },
+        writeTables: ['libra_product_fact_revisions', 'libra_product_fact_source_refs',
+          'fx_event_result_bindings', 'fx_commit_markers'],
+        readTables: ['libra_runs', 'libra_product_fact_revisions', 'libra_product_fact_source_refs',
+          'fx_supporting_works', 'fx_work_attempts', 'fx_workflow_plans', 'fx_plan_nodes',
+          'fx_workflow_events', 'fx_event_result_bindings', 'fx_commit_markers'],
+        dynamicTableRequirements: [], hasOutbox: false,
+        fixtureRefs: ['libra-product-fact-variants'],
+        rollbackInvariant: 'Resolved Identity revision, complete Source refs, durable typed Result, and commit marker are all present or all absent; selector, Run, revision, source-basis, Result, schema, digest, or fence failure leaves zero writes and no Outbox row.'
       }
     ]
   },
@@ -345,7 +359,7 @@ const definitions = Object.freeze({
     writeTables: ['libra_runs', 'libra_product_packages', 'libra_product_package_materials',
       'libra_product_package_material_episode_claims', 'libra_product_package_fact_refs',
       'libra_product_package_artifact_refs', 'libra_offload_context_materials', 'fx_material_controls',
-      'fx_material_control_revisions', 'fx_commit_markers', 'fx_outbox'],
+      'fx_material_control_revisions', 'fx_commit_markers', 'fx_outbox', 'fx_outbox_deliveries'],
     readTables: ['libra_run_revisions', 'libra_run_material_manifests', 'libra_run_material_members',
       'libra_run_material_episode_claims', 'libra_workspaces', 'libra_workspace_revisions',
       'libra_workspace_material_refs', 'libra_material_bindings', 'libra_material_binding_episode_claims',
@@ -353,7 +367,8 @@ const definitions = Object.freeze({
       'fx_workspace_materials', 'libra_runs', 'libra_product_packages', 'libra_product_package_materials',
       'libra_product_package_material_episode_claims', 'libra_product_package_fact_refs',
       'libra_product_package_artifact_refs', 'libra_offload_context_materials', 'fx_material_controls',
-      'fx_material_control_revisions', 'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox'],
+      'fx_material_control_revisions', 'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox',
+      'fx_outbox_deliveries'],
     fixtureRefs: ['libra-deliverable-promotion'], hasOutbox: true
   },
   'Libra Run Discard Commit': {

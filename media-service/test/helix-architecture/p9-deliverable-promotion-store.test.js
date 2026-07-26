@@ -312,8 +312,6 @@ function fixtureValue() {
     schema: 'libra.on-deck-package-id@1',
     libraRunId: 'run-1',
     packageRevision: 1,
-    productMaterialManifestDigest: productMaterialManifest.manifestDigest,
-    offloadContextDigest: offloadContextManifest.manifestDigest,
   });
   controlCommitScope.controlScopeDigest = canonicalDigest({
     schema: 'libra.product-control-commit-scope@1',

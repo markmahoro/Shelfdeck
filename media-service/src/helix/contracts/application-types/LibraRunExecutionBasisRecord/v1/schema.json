@@ -157,6 +157,11 @@
           "type": "integer",
           "minimum": 1
         },
+        "memberSetDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
         "episodeScopeDigest": {
           "type": "string",
           "minLength": 1,
@@ -167,6 +172,7 @@
         "manifestId",
         "manifestDigest",
         "memberCount",
+        "memberSetDigest",
         "episodeScopeDigest"
       ]
     }

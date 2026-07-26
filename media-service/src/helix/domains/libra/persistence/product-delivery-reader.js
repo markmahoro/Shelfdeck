@@ -20,6 +20,10 @@ function number(value) {
   return Number(value);
 }
 
+function nullableNumber(value) {
+  return value === null ? null : Number(value);
+}
+
 function parse(value, code) {
   try {
     return JSON.parse(value);
@@ -210,7 +214,7 @@ function material(row, claims) {
     workspaceMaterialHandle: row.workspace_handle_json === null
       ? null
       : parse(row.workspace_handle_json, 'P9_PRODUCT_DELIVERY_WORKSPACE_HANDLE'),
-    admittedControlRevision: number(row.expected_control_revision),
+    admittedControlRevision: nullableNumber(row.expected_control_revision),
     admittedControlProjectionDigest: row.expected_control_projection_digest,
     bindingEvidenceDigest: row.binding_evidence_digest,
     episodeClaims: claims,
@@ -218,7 +222,7 @@ function material(row, claims) {
     outputRequirementDigest: row.output_requirement_digest,
     memberDigest: row.member_digest,
     controlOperation: row.control_operation,
-    expectedControlRevision: number(row.expected_control_revision),
+    expectedControlRevision: nullableNumber(row.expected_control_revision),
     expectedControlProjectionDigest: row.expected_control_projection_digest,
     committedControlRevision: number(row.committed_control_revision),
     committedControlProjectionDigest: row.committed_control_projection_digest,

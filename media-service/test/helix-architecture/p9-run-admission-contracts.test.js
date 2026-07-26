@@ -60,6 +60,7 @@ test('freezes a run-owned manifest and compact Execution Basis record without up
   const record = buildRunExecutionBasisRecord(basis);
   assert.equal(record.productionMaterialManifest, undefined);
   assert.equal(record.productionMaterialManifestRef.manifestDigest, basis.productionMaterialManifest.manifestDigest);
+  assert.equal(record.productionMaterialManifestRef.memberSetDigest, basis.productionMaterialManifest.memberSetDigest);
   assert.equal(record.executionBasisDigest, basis.executionBasisDigest);
   assert.equal(runScopeDigest(basis).length, 64);
 });

@@ -81,7 +81,8 @@ function resolveAcceptanceSpec(value){
   if(!Number.isSafeInteger(specRevision)||specRevision<1||!Number.isSafeInteger(value.publishedAtMs)||value.publishedAtMs<0)fail('P8_SPEC_PUBLICATION_CONTEXT','Spec revision and publication time are required.');
   const recordDigest=canonicalDigest({schema:'libra.acceptance-spec-record@1',specRevision,draft});
   const acceptanceSpecId=canonicalDigest({schema:'libra.acceptance-spec-id@1',subjectId:subject.subjectId,specRevision,decisionBasisId:basis.decisionBasisId,recordDigest});
-  const spec=Object.freeze({...draft,acceptanceSpecId,specRevision,recordDigest,publishedAtMs:value.publishedAtMs});
+  const spec=Object.freeze({...draft,schemaRef:'libra.acceptance-spec@1',
+    acceptanceSpecId,specRevision,recordDigest,publishedAtMs:value.publishedAtMs});
   if(Buffer.byteLength(canonicalJson(spec),'utf8')>65536)fail('P8_SPEC_LIMIT','Acceptance Spec exceeds 64 KiB.');return spec;
 }
 

@@ -47,7 +47,10 @@ function assertPromotionDecision(value){
     productFactManifest:value.productFactManifest,artifactManifest:value.artifactManifest,mediaCastSnapshot:value.mediaCastSnapshot,
     productMaterialManifest:value.productMaterialManifest,offloadContextManifest:value.offloadContextManifest,productionProvenance:value.productionProvenance,
     productionAttestation:value.productionAttestation});
-  if(value.packageDigest!==packageDigest||value.decisionDigest!==canonicalDigest(without(value,'decisionDigest')))
+  const onDeckPackageId=canonicalDigest({schema:'libra.on-deck-package-id@1',
+    libraRunId:value.libraRunRef.libraRunId,packageRevision:value.packageRevision});
+  if(value.onDeckPackageId!==onDeckPackageId||value.packageDigest!==packageDigest||
+      value.decisionDigest!==canonicalDigest(without(value,'decisionDigest')))
     fail('P9_PROMOTION_DIGEST','Promotion Decision digest continuity is invalid.');
   return value;
 }
@@ -60,9 +63,13 @@ function buildPromotionCommit(value){
   if(controlCommits.length!==decision.controlCommitScope.items.length||
       controlCommits.some((item,index)=>{
         const expected=decision.controlCommitScope.items[index];
+        const member=decision.productMaterialManifest.members.find((candidate)=>
+          candidate.materialKey===item.materialKey);
         return item.materialKey!==expected.materialKey||item.controlOperation!==expected.controlOperation||
           item.committedControlRevision!==(expected.controlOperation==='assert_existing_input'
-            ? expected.expectedControlRevision:1)||!DIGEST.test(item.committedControlProjectionDigest||'');
+            ? expected.expectedControlRevision:1)||!DIGEST.test(item.committedControlProjectionDigest||'')||
+          !member||member.committedControlRevision!==item.committedControlRevision||
+          member.committedControlProjectionDigest!==item.committedControlProjectionDigest;
       }))fail('P9_PROMOTION_CONTROL_RESULT','Committed Control set does not match the exact Promotion scope.');
   const controlRevisionSetDigest=canonicalDigest({schema:'libra.product-control-revision-set@1',
     onDeckPackageId:decision.onDeckPackageId,items:controlCommits});

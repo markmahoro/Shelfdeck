@@ -34,6 +34,9 @@ const {
   createMovieFormationCoordinator,
 } = require('./helix/domains/libra/application/movie-formation-coordinator');
 const {
+  createMovieProductionCoordinator,
+} = require('./helix/domains/libra/application/movie-production-coordinator');
+const {
   createPerceptionResolutionApplication,
 } = require('./helix/domains/perception/application/perception-resolution-application');
 const {
@@ -56,6 +59,12 @@ const {
   createCleanFieldObservationEnumerator,
 } = require('./clean-field-observation-enumerator');
 const { createCleanMediaProbe } = require('./clean-media-probe');
+const {
+  createCleanProductProductionPort,
+} = require('./clean-product-production-port');
+const {
+  createCleanWorkspaceProductPort,
+} = require('./clean-workspace-product-port');
 const {
   createSynchronousDomainWork,
 } = require('./helix/foundation/execution/synchronous-domain-work');
@@ -310,6 +319,20 @@ async function createCleanServiceHost(options) {
     resolveDecisionFact:
       perceptionResolutionApplication.resolveDecisionFact,
   });
+  const workRuntime = createSynchronousDomainWork(
+    constructed.applicationDependencies,
+  );
+  const mediaProbe = options.mediaProbe || createCleanMediaProbe();
+  const workspaceProductPort = createCleanWorkspaceProductPort({
+    ...constructed.applicationDependencies,
+    rootPath: options.workspaceRoot || path.join(options.dataDir, 'workspace'),
+    afterPhysicalEffect: options.afterWorkspacePhysicalEffect,
+  });
+  const productProductionPort = createCleanProductProductionPort({
+    mediaProbe,
+    searchProviderIdentity: options.searchProviderIdentity,
+    fetchProviderMetadata: options.fetchProviderMetadata,
+  });
   const movieFormationCoordinator = createMovieFormationCoordinator({
     ...constructed.applicationDependencies,
     readArcaRoutingTargets: arcaRoutingTargets.list,
@@ -317,7 +340,27 @@ async function createCleanServiceHost(options) {
     resolvePerceptionDecisionFact:
       perceptionResolution.resolveDecisionFact,
   });
-  const handoffOffer = (offer) => {
+  const movieProductionCoordinator = createMovieProductionCoordinator({
+    ...constructed.applicationDependencies,
+    workRuntime,
+    productionPort: productProductionPort,
+    workspaceProductPort,
+    now: options.now,
+    afterProductFactsCommit: options.afterProductFactsCommit,
+    afterPackageCommit: options.afterPackageCommit,
+  });
+  const advanceProduction = async (formation) => {
+    if (formation.stage !== 'libra_run_active') return null;
+    const libraRunId = formation.libraRunId || formation.libraRun?.libraRunId;
+    if (!libraRunId) {
+      throw new CleanServiceHostError(
+        'CLEAN_MOVIE_RUN_ID_MISSING',
+        'Movie formation did not expose the exact Libra Run identity.',
+      );
+    }
+    return movieProductionCoordinator.advance(libraRunId);
+  };
+  const handoffOffer = async (offer) => {
     const accepted = libraIntake.offerCandidate(offer);
     const message = accepted.acceptedMessage;
     const dedupKey = 'libra_candidate_accepted:' + message.offerId;
@@ -339,25 +382,29 @@ async function createCleanServiceHost(options) {
       consumerDomain: 'procurement',
     });
     const formation = movieFormationCoordinator.advance(accepted.receipt.subjectId);
+    const production = await advanceProduction(formation);
     return Object.freeze({
       intake: accepted,
       procurementClosure,
       acknowledgement,
       formation,
+      production,
     });
   };
-  const resumeAcceptedHandoff = (offer) => {
+  const resumeAcceptedHandoff = async (offer) => {
     const intake = libraIntakeApplication.resumeAcceptedOffer(offer);
+    const formation = movieFormationCoordinator.advance(intake.receipt.subjectId);
     return Object.freeze({
       intake,
-      formation: movieFormationCoordinator.advance(intake.receipt.subjectId),
+      formation,
+      production: await advanceProduction(formation),
     });
   };
   const movieRunCoordinator = createMovieRunCoordinator({
     ...constructed.applicationDependencies,
     triageRegistry: require('./helix/domains/procurement/model/procurement-run-contracts').createDefaultTriageRuleRegistry(),
-    workRuntime: createSynchronousDomainWork(constructed.applicationDependencies),
-    mediaProbe: options.mediaProbe || createCleanMediaProbe(),
+    workRuntime,
+    mediaProbe,
     offerCandidate: handoffOffer,
     resumeAcceptedHandoff,
   });
@@ -373,7 +420,7 @@ async function createCleanServiceHost(options) {
       ...constructed.applicationDependencies,
       enumerator: createCleanFieldObservationEnumerator(),
       pageObserverFactory: createFieldPageObserver,
-      workRuntime: createSynchronousDomainWork(constructed.applicationDependencies),
+      workRuntime,
       movieRunCoordinator,
     }),
     arcaShelfAdmin,

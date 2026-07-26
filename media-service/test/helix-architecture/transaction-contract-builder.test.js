@@ -136,7 +136,8 @@ test('models polymorphic Domain Fact ownership without generic SQL authority', (
   assert.equal(dynamic.owner, 'execution_owner');
   assert.deepEqual(contract.writeTables, ['fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox']);
   assert.deepEqual(contract.variants.map((variant) => variant.variantId), [
-    'libra_media_cast_fact@1', 'libra_product_metadata_fact@1'
+    'libra_media_cast_fact@1', 'libra_product_metadata_fact@1',
+    'libra_resolved_identity_fact@1',
   ]);
   for (const variant of contract.variants) {
     assert.equal(variant.selector.selectorKind, 'domain_fact_handle_exact');

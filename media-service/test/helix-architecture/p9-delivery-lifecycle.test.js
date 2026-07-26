@@ -18,6 +18,7 @@ const sealPromotion=(x)=>{
 };
 
 function promotion(){
+  const packageId=d({schema:'libra.on-deck-package-id@1',libraRunId:'run-1',packageRevision:1});
   const x={decisionId:'promotion-1',libraRunRef:{libraRunId:'run-1',stateRevision:2,stateDigest:h('run'),executionBasisDigest:h('basis'),runScopeDigest:h('scope'),expectedPackageRevisionHead:0},
     runMaterialManifestRef:{manifestId:'manifest-1',manifestDigest:h('manifest')},workspaceRef:{workspaceId:'workspace-1',libraRunId:'run-1',workspaceRevision:3,workspaceStateDigest:h('workspace')},
     productStagingReferences:[{referenceId:'ref-1',workspaceId:'workspace-1',libraRunId:'run-1',materialHandleId:'handle-1',materialKey:h('material'),workspaceMaterialHandle:{handleId:'handle-1'},workspaceHandleDigest:h('handle'),referenceRevision:2,state:'product_staging',episodeClaims:[],episodeScopeDigest:h('episodes'),productVerificationRef:{verificationId:'verify-1',materialRole:'primary_payload',workspaceMaterialHandleId:'handle-1'},previousReferenceRevision:1,committedWorkspaceRevision:3,referenceDigest:h('ref')}],
@@ -28,14 +29,16 @@ function promotion(){
     mediaCastSnapshot:{mediaCastFactId:'cast-1',mediaCastFactRevision:1,schemaRef:'MediaCastFact@1',factValue:{schemaRef:'MediaCastFact@1',recordDigest:h('cast-record'),entries:[]},factDigest:h('cast'),evidenceDigest:h('cast-evidence'),relations:[],relationsDigest:h('relations')},
     productMaterialManifest:{manifestId:'product-materials-1',manifestRole:'product_delivery',scopeKind:'single',members:[{
       materialKey:h('material'),role:'primary_payload',controlOperation:'acquire_workspace_product',
-      workspaceReferenceId:'ref-1',workspaceMaterialHandle:{handleId:'handle-1'}
+      workspaceReferenceId:'ref-1',workspaceMaterialHandle:{handleId:'handle-1'},
+      expectedControlRevision:null,expectedControlProjectionDigest:null,
+      committedControlRevision:1,committedControlProjectionDigest:h('committed-control')
     }],memberSetDigest:h('members'),manifestDigest:h('product-materials')},
     offloadContextManifest:{manifestId:'offload-1',manifestRevision:1,libraRunId:'run-1',members:[],memberSetDigest:h('offload-members'),manifestDigest:h('offload')},
     productionProvenance:{libraRunId:'run-1',runExecutionBasisDigest:h('basis'),acceptanceSpecRecordDigest:h('spec'),workflowPlanRefs:[],productVerificationRefs:[],externalRealityObservationRefs:[],provenanceDigest:h('provenance')},
-    productionAttestation:{attestationId:'attest-1',libraRunId:'run-1',onDeckPackageId:'package-1',acceptanceSpecId:'spec-1',productConformanceEvidenceId:'conformance-1',productConformanceEvidenceDigest:h('conformance'),unmetRequirementCount:0,attestedAtMs:NOW,attestationDigest:h('attestation')},
+    productionAttestation:{attestationId:'attest-1',libraRunId:'run-1',onDeckPackageId:packageId,acceptanceSpecId:'spec-1',productConformanceEvidenceId:'conformance-1',productConformanceEvidenceDigest:h('conformance'),unmetRequirementCount:0,attestedAtMs:NOW,attestationDigest:h('attestation')},
     controlCommitScope:{items:[{controlOperation:'acquire_workspace_product',materialKey:h('material'),expectedControlState:'absent',
-      toOwnerDomain:'libra',toOwnerScopeType:'on_deck_package',toOwnerScopeId:'package-1'}],
-      controlScopeDigest:h('control-scope')},onDeckPackageId:'package-1',packageRevision:1,offerId:'offer-1'};
+      toOwnerDomain:'libra',toOwnerScopeType:'on_deck_package',toOwnerScopeId:packageId}],
+      controlScopeDigest:h('control-scope')},onDeckPackageId:packageId,packageRevision:1,offerId:'offer-1'};
   return sealPromotion(x);
 }
 function commitPromotion(value=promotion()){

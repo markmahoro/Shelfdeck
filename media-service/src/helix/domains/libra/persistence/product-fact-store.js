@@ -11,6 +11,7 @@ class ProductFactStoreError extends Error {
 const fail=(code,message)=>{throw new ProductFactStoreError(code,message);};
 const MEDIA_SCHEMA='helix://contracts/types/MediaCastFact/v1';
 const METADATA_SCHEMA='helix://contracts/types/ProductMetadataFact/v1';
+const IDENTITY_SCHEMA='helix://contracts/types/ResolvedProductIdentity/v1';
 
 function ownerReadRepository(schemaManifest){return createRepositoryDefinition({repositoryId:'libra_product_fact_reads',owner:'libra',schemaManifest,
   statements:{find_run:{kind:'select-one',tableId:'libra_runs',columns:['libra_run_id','subject_id','state','state_revision','state_digest'],keyColumns:['libra_run_id']},
@@ -82,7 +83,7 @@ function sourceResultRefs(sourceBasis){
 
 function registration(options,factKind,factSchemaRef){const ownerRead=options.ownerRead,ownerWrite=options.ownerWrite,foundation=options.foundation;
   return {ownerDomain:'libra',aggregateType:'libra_product_fact',factType:factKind,factSchemaRef,effectClass:'domain_fact_commit',revisionFence:true,
-    createParticipant({handle,payload,commitMarker}){let sourceChains=[],verificationBindings=[],artifactSnapshots=[],fact,sourceRefs;
+    createParticipant({handle,payload,commitMarker}){let sourceChains=[],verificationBindings=[],artifactSnapshots=[],fact,productFactId,sourceRefs;
       if(factKind==='product_metadata'&&!Object.hasOwn(payload,'mediaCastFactRef'))
         fail('P9_PRODUCT_METADATA_CAST_REF','Product Metadata commit must explicitly carry nullable mediaCastFactRef.');
       const refs=sourceResultRefs(payload.sourceBasis),verificationRefs=factKind==='product_metadata'
@@ -99,29 +100,43 @@ function registration(options,factKind,factSchemaRef){const ownerRead=options.ow
         const prior=handle.expectedRevision===0?null:repo.invoke('find_fact',{libra_run_id:run.libra_run_id,fact_kind:factKind,fact_revision:handle.expectedRevision});
         const next=repo.invoke('find_fact',{libra_run_id:run.libra_run_id,fact_kind:factKind,fact_revision:handle.expectedRevision+1});
         if((handle.expectedRevision===0&&prior)||(handle.expectedRevision>0&&!prior)||next)fail('P9_PRODUCT_FACT_REVISION_FENCE','Product Fact revision fence failed.');
-        const productFactId=canonicalDigest({schema:'libra.product-fact-id@1',libraRunId:run.libra_run_id,
+        productFactId=canonicalDigest({schema:'libra.product-fact-id@1',libraRunId:run.libra_run_id,
           factKind,factRevision:handle.expectedRevision+1});
         sourceRefs=buildProductFactSourceRefs({sourceBasis:payload.sourceBasis,foundationChains:sourceChains,productFactId,
           productMetadataDraft:payload.productMetadataDraft,mediaCastDraft:payload.mediaCastDraft});
         if(factKind==='media_cast')fact=buildMediaCastFact({libraRunId:run.libra_run_id,subjectId:run.subject_id,sourceBasis:payload.sourceBasis,
           mediaCastDraft:payload.mediaCastDraft,expectedRevision:handle.expectedRevision,commitMarker,committedAtMs:context.commitTimeMs});
-        else{const manifest=validateVerifiedArtifactManifest(payload.verifiedArtifactManifest,{artifactSnapshots,
+        else if(factKind==='product_metadata'){const manifest=validateVerifiedArtifactManifest(payload.verifiedArtifactManifest,{artifactSnapshots,
           artifactRequirements:payload.productMetadataDraft.artifactRequirements,verificationBindings});
           const mediaCastFactRef=validateMediaCastFactReference(repo,payload.mediaCastFactRef,run);
           fact=buildProductMetadataFact({libraRunId:run.libra_run_id,subjectId:run.subject_id,sourceBasis:payload.sourceBasis,
             productMetadataDraft:payload.productMetadataDraft,verifiedArtifactManifest:manifest,mediaCastFactRef,
             expectedRevision:handle.expectedRevision,commitMarker,committedAtMs:context.commitTimeMs});}
-        return fact;}};
+        else {
+          if (!payload.resolvedProductIdentity ||
+              payload.resolvedProductIdentity.subjectId !== run.subject_id ||
+              payload.resolvedProductIdentity.basisDigest !== payload.sourceBasis.sourceBasisDigest) {
+            fail('P9_RESOLVED_IDENTITY_INPUT',
+              'Resolved Product Identity must bind the exact same-Run Source Basis.');
+          }
+          fact = payload.resolvedProductIdentity;
+        }
+        return fact;
+      },
+    };
       prepare.readParticipants=[readParticipant];prepare.postMarkerParticipants=[{participantId:'libra_product_fact_owner_write',owner:'libra',boundBusinessOwner:'libra',repositories:[ownerWrite],execute(context){const repo=context.repository(ownerWrite.repositoryId),manifest=factKind==='product_metadata'?payload.verifiedArtifactManifest:null;
-        const libraRunId=basisRunId(payload),evidenceDigest=buildProductFactEvidence({libraRunId,factKind,factRevision:fact.revision,
+        const libraRunId=basisRunId(payload),factRevision=handle.expectedRevision+1,evidenceDigest=buildProductFactEvidence({libraRunId,factKind,factRevision,
           sourceBasisKind:payload.sourceBasis.sourceBasisKind,sourceBasisDigest:payload.sourceBasis.sourceBasisDigest,commitPayloadDigest:handle.payloadDigest,eventFenceDigest:handle.eventFenceDigest});
-        repo.invoke('insert_fact',{product_fact_id:fact.factId,libra_run_id:libraRunId,fact_kind:factKind,
-          fact_revision:fact.revision,aggregate_id:fact.aggregateId,schema_ref:fact.schemaRef,fact_json:canonicalJson(fact),fact_digest:fact.factDigest,evidence_digest:evidenceDigest,
+        repo.invoke('insert_fact',{product_fact_id:productFactId,libra_run_id:libraRunId,fact_kind:factKind,
+          fact_revision:factRevision,aggregate_id:handle.aggregateId,schema_ref:fact.schemaRef,fact_json:canonicalJson(fact),
+          fact_digest:factKind==='resolved_identity'?fact.identityDigest:fact.factDigest,evidence_digest:evidenceDigest,
           source_basis_kind:payload.sourceBasis.sourceBasisKind,source_basis_id:basisId(payload.sourceBasis),source_basis_digest:payload.sourceBasis.sourceBasisDigest,
           source_ref_count:sourceRefs.length,verified_artifact_manifest_schema_ref:manifest?'helix://contracts/domain-types/VerifiedArtifactManifest/v1':null,
           verified_artifact_manifest_json:manifest?canonicalJson(manifest):null,verified_artifact_manifest_digest:manifest?manifest.manifestDigest:null,
           artifact_verification_result_count:manifest?new Set(manifest.items.map((item)=>item.verificationResultRef.resultId)).size:0,
-          commit_payload_schema_ref:factKind==='media_cast'?'libra.media-cast-fact-commit-payload@1':'libra.product-metadata-fact-commit-payload@1',
+          commit_payload_schema_ref:factKind==='media_cast'?'libra.media-cast-fact-commit-payload@1':
+            factKind==='product_metadata'?'libra.product-metadata-fact-commit-payload@1':
+              'libra.resolved-product-identity-commit-payload@1',
           commit_payload_digest:handle.payloadDigest,event_fence_digest:handle.eventFenceDigest,commit_marker:commitMarker,result_digest:canonicalDigest(fact),committed_at_ms:context.commitTimeMs});
         for(const item of sourceRefs)repo.invoke('insert_source',{product_fact_id:item.productFactId,ordinal:item.ordinal,source_basis_kind:item.sourceBasisKind,work_id:item.workId,
           attempt_id:item.attemptId,plan_id:item.planId,event_id:item.eventId,result_id:item.resultId,capability_ref:item.capabilityRef,result_schema_ref:item.resultSchemaRef,
@@ -131,6 +146,7 @@ function registration(options,factKind,factSchemaRef){const ownerRead=options.ow
 function createProductFactRegistrations(options){if(!options?.schemaManifest)fail('P9_PRODUCT_FACT_STORE_DEPENDENCIES','Schema manifest is required.');
   const ownerRead=ownerReadRepository(options.schemaManifest),ownerWrite=ownerWriteRepository(options.schemaManifest);
   return Object.freeze([registration({ownerRead,ownerWrite,foundation:foundationRepository(options.schemaManifest,'media_cast')},'media_cast',MEDIA_SCHEMA),
-    registration({ownerRead,ownerWrite,foundation:foundationRepository(options.schemaManifest,'product_metadata')},'product_metadata',METADATA_SCHEMA)]);}
+    registration({ownerRead,ownerWrite,foundation:foundationRepository(options.schemaManifest,'product_metadata')},'product_metadata',METADATA_SCHEMA),
+    registration({ownerRead,ownerWrite,foundation:foundationRepository(options.schemaManifest,'resolved_identity')},'resolved_identity',IDENTITY_SCHEMA)]);}
 
-module.exports=Object.freeze({MEDIA_SCHEMA,METADATA_SCHEMA,ProductFactStoreError,createProductFactRegistrations});
+module.exports=Object.freeze({IDENTITY_SCHEMA,MEDIA_SCHEMA,METADATA_SCHEMA,ProductFactStoreError,createProductFactRegistrations});

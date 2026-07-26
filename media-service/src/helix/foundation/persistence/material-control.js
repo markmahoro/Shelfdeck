@@ -438,4 +438,5 @@ function createMaterialControlExactTransferParticipant(options) {
 
 module.exports = Object.freeze({ MaterialControlError, controlScopeDigest, createMaterialControlParticipant,
   createMaterialControlAdmissionReadParticipant, createMaterialControlExactTransferParticipant, createMaterialControlProjectionPort,
-  createMaterialControlProjectionReadParticipant, materialKey });
+  createMaterialControlProjectionReadParticipant, materialKey,
+  projectMaterialControlRow: mapControlProjection });

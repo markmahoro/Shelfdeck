@@ -14,7 +14,8 @@ const EXPECTED_MODULES = Object.freeze([
   'outbox-inbox.js',
   'owner-repository.js',
   'sqlite-kernel.js',
-  'sqlite-unit-of-work.js'
+  'sqlite-unit-of-work.js',
+  'supporting-result-store.js'
 ]);
 
 class P3PersistenceVerificationError extends Error {
