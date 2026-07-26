@@ -178,6 +178,46 @@ restart exact replay不重复Package/Offer/Subject，且三份文件的bytes/mti
 Libra Routing或Acceptance Spec，不宣称Arca、final Target或Beta完成，也没有
 因此增加real route数量。
 
+### T-shaped Movie旅程：Handoff A → active Libra Run
+
+实现checkpoint `c1501957`从已接受的Handoff A继续同一Movie正式链路，并严格停止
+在active Libra Run：
+
+`Libra Subject → Shelf Routing Assessment/Decision → Decision
+Preparation/Basis → Acceptance Spec publication → Libra Run Admission`。
+
+P14真实public HTTP fixture先通过正式Shelf API创建active Movie Shelf并绑定
+`system-beta-recommended`，再通过正式Libra Routing API发布Field Policy。Libra
+Formation Coordinator仅消费Arca public `ShelfRoutingTargetProjection`与exact
+`ShelfStandard` projection；Composition Root只装配这两个查询函数，不持有Arca
+Store，也不执行Shelf选择、Requirement生成或Run admission业务判断。Subject、
+Field Policy、Decision Input/Basis、Routing Decision、Acceptance Spec与Run均由
+Libra Owner-local repository及既有canonical transaction提交。
+
+Routing按照用户配置的Shelf优先级执行第一命中；higher-priority target inactive
+时返回typed unresolved并禁止fall-through。无Rating Fact时使用Shelf Standard
+的正式`no_rating`分支，不查询User Perception、People Management或Provider。
+Decision head按H0→H1→H2→H4推进，Spec与Run使用exact revision/digest/CAS及
+Material Control projection fence。Fresh restart/replay读取明确Subject、Offer、
+Spec和Run identity，返回原active Run，不建立第二个Decision、Basis、Spec或Run。
+已有focused fixture覆盖stale Policy/Standard/Control、Spec/Run CAS、事务故障
+rollback与restart recovery；Movie/NFO的bytes与mtime保持零变化。
+
+验证证据：
+
+- P8 Decision front-half negative/first-match fixture：7/7 PASS；
+- P14 clean public HTTP与source-boundary focused fixture：2/2 PASS；
+- `test:helix-procurement`：12 fixtures、15 Procurement tables、8
+  Capabilities，P2–P6 regressions PASS，prohibited actions 0；
+- `test:helix-architecture`：122 fixture files PASS，dependency/semantic/
+  manifest/contracts均无finding；
+- inventory保持112 Capabilities、97 Result families、177 tables、43
+  canonical transactions、114 routes、18 UI surfaces，contract aggregate
+  `c7e08ddbccb71e864846c5cb0ef923d3e48f37af30d1111acb0e0316544a0288`。
+
+当前Movie到达**active Libra Run**。本checkpoint不进入Workspace、Production、
+Handoff B、Arca On-deck或final Target，也不据此宣称完整Movie/Beta完成。
+
 ### Procurement Failed-preparation Retry
 
 `POST /v1/admin/material-fields/:fieldId/actions/retry-failed-preparation`
