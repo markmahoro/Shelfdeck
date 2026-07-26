@@ -9,9 +9,27 @@ const root=path.resolve(__dirname,'../../src/helix/contracts');
 
 test('materializes the non-Catalog Procurement application contracts reproducibly',()=>{
   const schemas=buildProcurementApplicationSchemas(); const registry=JSON.parse(fs.readFileSync(path.join(root,'procurement-application-type-registry.json'),'utf8'));
-  assert.equal(registry.targetCount,11);
+  assert.equal(registry.targetCount,12);
   for(const [name,schema] of Object.entries(schemas)) { const stored=JSON.parse(fs.readFileSync(path.join(root,'application-types',name,'v1','schema.json'),'utf8'));
     assert.deepEqual(stored,schema); const entry=registry.entries.find((item)=>item.id===name); assert.equal(entry.schemaId,typeId(name)); assert.equal(entry.digest.value,schemaDigest(schema)); }
+});
+
+test('Candidate assembly Plan binding is one materialized closed typed union',()=>{
+  const schema=buildProcurementApplicationSchemas().ProcurementCandidateAssemblyPlanBinding;
+  assert.equal(schema.oneOf.length,6);
+  assert.deepEqual(schema.oneOf.map((variant)=>variant.properties.bindingKind.const),[
+    'media_probe','playability','structure','identity_claim','primary_manifest','candidate_publication'
+  ]);
+  for(const variant of schema.oneOf){
+    assert.equal(variant.additionalProperties,false);
+    assert.equal(variant.required.includes('bindingDigest'),true);
+    assert.equal(variant.properties.outputIdentity.additionalProperties,false);
+    assert.equal(
+      Object.hasOwn(variant.properties.outputIdentity.properties,'resultDigest'),
+      false,
+    );
+  }
+  assert.equal(schema['x-helix-maxCanonicalBytes'],16384);
 });
 
 test('Retry application schemas close create, consume evidence, and both terminal result variants',()=>{

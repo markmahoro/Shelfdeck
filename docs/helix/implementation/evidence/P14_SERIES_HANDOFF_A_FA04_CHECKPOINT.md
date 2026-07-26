@@ -57,24 +57,33 @@ Handoff、Capability 或 transaction。
 
 P14 evidence `ac0ae793` 证明初版 Candidate Publication Plan 把完整
 `CandidateDraft` 内联到 `fx_plan_nodes.input_bindings_json`，真实 Series Draft
-为 17,092 bytes，超过固定 16 KiB table contract。修正后：
+为 17,092 bytes，超过固定 16 KiB table contract；Architecture active review
+随后又证明 `f911023a` 仍在 Plan/Event admission 前执行首次 Probe，且当时使用的
+Plan binding URI没有正式机器 schema。最终修正后：
 
-- 同一 Supporting Work 的正式前序 Events 固定为
+- 每一个阶段都有独立、稳定、先持久化的 Supporting Work / one-node Plan /
+  Workflow Event；正式顺序固定为
   `Media Probe → Playability → Structure → Identity Claim → Primary Manifest`；
   每个 Event 的完整 typed Result 保存在 `fx_event_result_bindings`，单项继续受
   64 KiB Result contract 约束；
-- Plan node 只保存 versioned closed binding refs、完整 typed Handle，以及精确
+- `ProcurementCandidateAssemblyPlanBinding@1` 已作为 application type正式注册、
+  物化并在 Plan写入前和重建时校验；它是六个 closed variant的 union，Plan
+  node只保存 versioned closed binding refs、Probe所需完整 typed Handle，以及精确
   Run/Rule/Selection/Layout fence；Candidate Publication node 只引用 Structure、
   Identity、Manifest 的 `eventId/resultId/capabilityRef/resultSchemaRef/resultDigest`，
   不再保存完整 Draft、Related 或 Manifest arrays；
+- Probe Plan冻结稳定 output identity，不伪造尚不存在的 Result digest；只有
+  Work/Plan已持久化且 `beginEvent` 成功后，Executor才可执行物理 Probe；所有后续
+  pure executor也只在自己的正式 Event内从前序 durable Result refs组装输入；
 - Publication Coordinator 从上述 immutable Results 重新装配完整
   `CandidateDraft`，两次执行 canonical digest 与 `validateDraft`，然后才把完整
   Draft + Commit Handle交给既有 CommitParticipant；CommitParticipant未增加
   Foundation/Provider旁读；
-- Probe只在自己的正式前序 Event执行。前序 Results提交后、Publication前崩溃，
-  重启从同一 refs恢复，Probe调用次数不增加；
-- Result JSON篡改、Result ref缺失/变更、binding digest不一致均在零 Candidate
-  publication rows时 fail closed；
+- fault after Event begin / before Probe Result时，首轮没有任何物理 Probe；重启
+  执行并只提交一份 Result。fault after Probe Result / before Event success时，
+  Workflow恢复该 committed Result并且不重新 Probe；
+- Result JSON、binding schemaRef、closed-union variant、Result ref与binding
+  digest任一篡改，均在零 Candidate publication rows时 fail closed；
 - 每个生成的 Candidate assembly Plan binding均实测不超过 16 KiB，且行内容不含
   `candidateDraft`、`relatedReferences` 或 `primaryInputManifestDraft`；
 - 单个 Triage Unit的 canonical JCS bytes继续固定不超过 64 KiB；超限形成
@@ -112,10 +121,11 @@ TMDB ID，没有稳定 `series key + season number` Provider anchor；当前 Pro
   - Handoff A stale-head、Outbox crash、Control rollback与replay；
   - FA-04 exact extension及所有 new-Subject branches；
   - real public HTTP + restart replay。
-- Plan binding correction focused regression：`31/31 PASS`，覆盖 bounded rows、
-  typed Result refs、tamper/missing fail-closed、crash/restart no-reprobe、
-  Candidate/Handoff A replay、sidecar locality与Unit 64 KiB negative。
-- Full `npm run test:helix-architecture`：`128 files PASS`。
+- Procurement/Series focused regression：`54/54 PASS`，覆盖 bounded rows、
+  formal Event-before-Probe、两个Probe crash window、typed Result refs、
+  schema/variant/ref/result tamper fail-closed、Candidate/Handoff A replay、
+  sidecar locality与Unit 64 KiB negative。
+- Full `npm run test:helix-architecture`：`128 files / 871 tests PASS`。
 - Inventory：112 Capabilities / 97 Result families / 177 tables /
   43 canonical transactions / 114 routes / 18 UI surfaces。
 - Contract aggregate：

@@ -852,24 +852,52 @@ test('explicit Field Observation scans disposable files read-only and resumes fr
     ],
   );
   assert.equal(committed.prepare('SELECT count(*) count FROM proc_field_materials').get().count, 3);
-  assert.equal(committed.prepare('SELECT count(*) count FROM fx_event_result_bindings').get().count, 4);
+  assert.equal(committed.prepare(
+    `SELECT count(*) count
+       FROM fx_event_result_bindings result
+       JOIN fx_workflow_events event ON event.event_id=result.event_id
+      WHERE event.capability_ref IN (
+        'shared.material.media.probe@1',
+        'procurement.triage.playability.inspect@1',
+        'procurement.triage.structure.inspect@1',
+        'procurement.triage.identity_claim.resolve@1',
+        'procurement.triage.primary_manifest.build@1'
+      )`
+  ).get().count, 5);
+  assert.equal(committed.prepare(
+    `SELECT count(*) count
+       FROM fx_event_result_bindings result
+       JOIN fx_workflow_events event ON event.event_id=result.event_id
+      WHERE event.capability_ref NOT IN (
+        'shared.material.media.probe@1',
+        'procurement.triage.playability.inspect@1',
+        'procurement.triage.structure.inspect@1',
+        'procurement.triage.identity_claim.resolve@1',
+        'procurement.triage.primary_manifest.build@1'
+      )`
+  ).get().count, 4);
   assert.equal(committed.prepare(
     "SELECT count(*) count FROM fx_commit_markers WHERE owner_domain='procurement' AND scope_type='material_field_observation'"
   ).get().count, 3);
   assert.equal(committed.prepare('SELECT count(*) count FROM fx_outbox').get().count, 0);
   assert.equal(committed.prepare("SELECT state FROM fx_supporting_works WHERE process_id='field-observe-1'").get().state, 'succeeded');
-  assert.deepEqual(
-    committed.prepare("SELECT state FROM fx_work_attempts ORDER BY work_id").all(),
-    [{ state: 'succeeded' }, { state: 'succeeded' }],
+  assert.equal(
+    committed.prepare(
+      "SELECT count(*) count FROM fx_supporting_works WHERE work_kind LIKE 'candidate_assembly_%' AND state='succeeded'"
+    ).get().count,
+    5,
   );
-  assert.deepEqual(
-    committed.prepare('SELECT state FROM fx_workflow_events ORDER BY node_id').all(),
-    [
-      { state: 'succeeded' },
-      { state: 'succeeded' },
-      { state: 'succeeded' },
-      { state: 'succeeded' },
-    ],
+  assert.equal(
+    committed.prepare(
+      "SELECT count(*) count FROM fx_supporting_works WHERE work_kind NOT LIKE 'candidate_assembly_%' AND state='succeeded'"
+    ).get().count,
+    2,
+  );
+  assert.equal(
+    committed.prepare(
+      "SELECT count(*) count FROM fx_workflow_events WHERE state='succeeded'"
+    ).get().count,
+    9,
   );
   assert.equal(
     committed.prepare(

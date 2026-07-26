@@ -5,8 +5,24 @@
   "kind": "application-type-registry",
   "owner": "procurement",
   "status": "active",
-  "targetCount": 11,
+  "targetCount": 12,
   "entries": [
+    {
+      "id": "ProcurementCandidateAssemblyPlanBinding",
+      "version": 1,
+      "owner": "procurement",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ProcurementCandidateAssemblyPlanBinding/v1",
+      "relativePath": "application-types/ProcurementCandidateAssemblyPlanBinding/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "7f9077beb984d393778b29bf61fb99e365467b5755c69f08d4b1ae32d2226888"
+      },
+      "ssotRefs": [
+        "8.5.11",
+        "8.6.20"
+      ]
+    },
     {
       "id": "ProcurementRetryAdmissionHead",
       "version": 1,

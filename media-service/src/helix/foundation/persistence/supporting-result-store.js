@@ -157,7 +157,59 @@ function createSupportingResultStore(options) {
       },
     }]).foundation_supporting_result_read;
   }
-  return Object.freeze({ commit, readEventResult });
+  function recoverCommittedEventResult(request) {
+    if (!request || typeof request.eventId !== 'string' || !request.eventId ||
+        typeof request.resultId !== 'string' || !request.resultId ||
+        typeof request.ownerDomain !== 'string' || !request.ownerDomain ||
+        typeof request.capabilityRef !== 'string' || !request.capabilityRef ||
+        typeof request.resultSchemaRef !== 'string' || !request.resultSchemaRef) {
+      fail('SUPPORTING_RESULT_INPUT',
+        'Supporting Result recovery requires one exact Event and Result identity.');
+    }
+    return options.unitOfWork.execute([{
+      participantId: 'foundation_supporting_result_recover',
+      owner: 'execution-foundation',
+      repositories: [repository],
+      execute(context) {
+        const repo = context.repository(repository.repositoryId);
+        const event = repo.invoke('find_event', { event_id: request.eventId });
+        if (!event || event.owner_domain !== request.ownerDomain ||
+            event.capability_ref !== request.capabilityRef ||
+            !['executing', 'succeeded'].includes(event.state)) {
+          fail('SUPPORTING_RESULT_EVENT_FENCE',
+            'Recoverable Supporting Result is outside its exact Event fence.');
+        }
+        const existing = repo.invoke('find_result', { result_id: request.resultId });
+        if (!existing) return null;
+        if (existing.event_id !== request.eventId ||
+            existing.result_schema_ref !== request.resultSchemaRef ||
+            (event.result_id !== null && event.result_id !== request.resultId)) {
+          fail('SUPPORTING_RESULT_REPLAY_CORRUPT',
+            'Recoverable Supporting Result violates its stable typed identity.');
+        }
+        let result;
+        try {
+          result = JSON.parse(existing.result_json);
+        } catch {
+          fail('SUPPORTING_RESULT_REPLAY_CORRUPT',
+            'Recoverable Supporting Result JSON is corrupt.');
+        }
+        if (canonicalDigest(result) !== existing.result_digest) {
+          fail('SUPPORTING_RESULT_REPLAY_CORRUPT',
+            'Recoverable Supporting Result digest is corrupt.');
+        }
+        return Object.freeze({
+          resultId: existing.result_id,
+          resultSchemaRef: existing.result_schema_ref,
+          result: Object.freeze(result),
+          resultDigest: existing.result_digest,
+          evidenceDigest: existing.evidence_digest,
+          eventState: event.state,
+        });
+      },
+    }]).foundation_supporting_result_recover;
+  }
+  return Object.freeze({ commit, readEventResult, recoverCommittedEventResult });
 }
 
 module.exports = Object.freeze({

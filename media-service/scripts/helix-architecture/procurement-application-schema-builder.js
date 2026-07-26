@@ -62,7 +62,36 @@ function retryIntent(){const member=object({ordinal:nonNegative(),materialKey:di
 function retryIntentReceipt(){return {$schema:DRAFT,$id:typeId('ProcurementRetryIntentReceipt'),title:'ProcurementRetryIntentReceipt@1','x-helix-ssotRefs':['8.6.18'],...object({...receiptEnvelope('ProcurementRetryIntentReceipt'),retryIntentId:id(),fieldId:id(),failedRunId:id(),intentDigest:digest(),retryScopeDigest:digest(),preconditionSetDigest:digest(),intentState:{const:'open'}})};}
 function retryIntentAvailableMessage(){return {$schema:DRAFT,$id:typeId('ProcurementRetryIntentAvailableMessage'),title:'ProcurementRetryIntentAvailableMessage@1','x-helix-ssotRefs':['8.6.18'],'x-helix-maxCanonicalBytes':16*1024,...object({messageKind:{const:'procurement_retry_intent_available'},retryIntentId:id(),fieldId:id(),failedRunId:id(),intentStateRevision:{const:1},intentDigest:digest(),retryScopeDigest:digest()})};}
 function retryAdmissionResult(){const reasons=['field_status_changed','field_access_changed','terminal_observation_changed','extraction_policy_changed','triage_rule_changed','material_not_present','material_binding_changed','material_not_eligible','material_eligibility_changed','material_guard_conflict','material_control_unavailable','material_control_not_acquirable','material_control_changed'];return {$schema:DRAFT,$id:typeId('ProcurementRetryAdmissionResult'),title:'ProcurementRetryAdmissionResult@1','x-helix-ssotRefs':['8.6.18'],'x-helix-maxCanonicalBytes':64*1024,...object({...receiptEnvelope('ProcurementRetryAdmissionResult'),retryIntentId:id(),intentDigest:digest(),terminalIntentState:{type:'string',enum:['consumed','stale']},resultKind:{type:'string',enum:['created','stale']},createdControlReceipt:{$ref:'helix://contracts/types/ProcurementControlReceipt/v1'},staleMaterialCount:positive(),staleMaterialSetDigest:digest(),staleReasonCodes:{type:'array',minItems:1,uniqueItems:true,items:{type:'string',enum:reasons}}},['schemaRef','schemaVersion','receiptId','receiptKind','ownerDomain','scopeType','scopeId','scopeDigest','committedAtMs','retryIntentId','intentDigest','terminalIntentState','resultKind'],{allOf:[{if:{properties:{resultKind:{const:'created'}}},then:{required:['createdControlReceipt'],properties:{terminalIntentState:{const:'consumed'}},not:{anyOf:[{required:['staleMaterialCount']},{required:['staleMaterialSetDigest']},{required:['staleReasonCodes']}]}},else:{required:['staleMaterialCount','staleMaterialSetDigest','staleReasonCodes'],properties:{terminalIntentState:{const:'stale'}},not:{required:['createdControlReceipt']}}}]})};}
+function candidateAssemblyPlanBinding(){
+  const schemaRef={const:typeId('ProcurementCandidateAssemblyPlanBinding')};
+  const version={const:1};
+  const resultIdentity=object({role:id(),eventId:id(),resultId:id(),capabilityRef:id(),resultSchemaRef:id()});
+  const resultReference=object({...resultIdentity.properties,resultDigest:digest()});
+  const refs=(minimum=1,maximum=1024)=>({type:'array',minItems:minimum,maxItems:maximum,items:resultReference});
+  const ruleRef=object({ruleRef:id(),revision:positive(),authorityDigest:digest()});
+  const runRef=object({procurementRunId:id(),runBasisDigest:digest(),selectionDigest:digest()});
+  const physicalIdentity=object({schemaRef:{const:'helix://contracts/types/PhysicalMaterialIdentity/v1'},schemaVersion:{const:1},
+    materialKey:digest(),mountScopeId:id(),inode:id(),contentHashAlgorithm:{const:'sha256'},contentHash:digest()});
+  const readHandle=object({identity:physicalIdentity,bindingRevision:positive(),location:text()});
+  const variant=(kind,properties,required=Object.keys(properties))=>object({
+    schemaRef,schemaVersion:version,bindingKind:{const:kind},assemblyBasisDigest:digest(),...properties,bindingDigest:digest()
+  },['schemaRef','schemaVersion','bindingKind','assemblyBasisDigest',...required,'bindingDigest']);
+  return {$schema:DRAFT,$id:typeId('ProcurementCandidateAssemblyPlanBinding'),
+    title:'ProcurementCandidateAssemblyPlanBinding@1','x-helix-ssotRefs':['8.5.11','8.6.20'],
+    'x-helix-maxCanonicalBytes':16*1024,
+    oneOf:[
+      variant('media_probe',{ordinal:nonNegative(),readHandle,outputIdentity:resultIdentity}),
+      variant('playability',{runRef,ruleRef,sourceResultRefs:refs(),outputIdentity:resultIdentity}),
+      variant('structure',{runRef:object({...runRef.properties,materialFieldContextDigest:digest(),layoutEvidenceSetDigest:digest()}),
+        structureInputDigest:digest(),sourceResultRefs:refs(2),outputIdentity:resultIdentity}),
+      variant('identity_claim',{sourceResultRefs:refs(1,1),outputIdentity:resultIdentity}),
+      variant('primary_manifest',{selectionDigest:digest(),sourceResultRefs:refs(1,1),outputIdentity:resultIdentity}),
+      variant('candidate_publication',{runRef:object({procurementRunId:id(),runBasisDigest:digest(),candidatePackageRevisionHead:nonNegative()}),
+        ruleRef,sourceResultRefs:refs(3,3),candidateDraftDigest:digest(),outputIdentity:resultIdentity})
+    ]};
+}
 function buildProcurementApplicationSchemas() { return Object.freeze({
+  ProcurementCandidateAssemblyPlanBinding:candidateAssemblyPlanBinding(),
   ProcurementRetryAdmissionHead:retryAdmissionHead(), ProcurementRetryAdmissionResult:retryAdmissionResult(), ProcurementRetryConsumeMemberSnapshot:retryConsumeMemberSnapshot(), ProcurementRetryIntent:retryIntent(), ProcurementRetryIntentAvailableMessage:retryIntentAvailableMessage(), ProcurementRetryIntentReceipt:retryIntentReceipt(),
   ProcurementRunExecutionBasis:runExecutionBasis(), ProcurementRunSealDecision:runSealDecision(), ProcurementRunSealReceipt:runSealReceipt(),
   ProcurementTriageRuleRegistry:triageRuleRegistry(), ProcurementTriageRuleSnapshot:triageRuleSnapshot()

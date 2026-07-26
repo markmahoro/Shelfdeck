@@ -24,6 +24,8 @@ const {
 const cleanSchemaManifest = require(
   '../../src/helix/foundation/persistence/generated/clean-schema.manifest.json'
 );
+const candidateAssemblyBindingSchemaRef =
+  'helix://contracts/application-types/ProcurementCandidateAssemblyPlanBinding/v1';
 
 const secretRoot = 'p14-series-handoff-a-secret-root-0123456789abcdef';
 const cleanSchemaDdl = fs.readFileSync(path.resolve(
@@ -61,6 +63,34 @@ async function session(host, apiKey) {
     headers: { 'x-api-key': apiKey },
   })).headers['set-cookie'];
 }
+
+test('Candidate assembly physical Probe is invoked only by a formally begun phase Event', () => {
+  const source = fs.readFileSync(path.resolve(
+    __dirname,
+    '../../src/helix/domains/procurement/application/movie-run-coordinator.js',
+  ), 'utf8');
+  assert.equal(
+    [...source.matchAll(/options\.mediaProbe\.probe\(handle\)/g)].length,
+    1,
+  );
+  const formalRunner = source.indexOf('async function runFormalPhase');
+  const beginEvent = source.indexOf(
+    'options.workRuntime.beginEvent(planned.eventId)',
+    formalRunner,
+  );
+  const physicalProbe = source.indexOf(
+    'execute: () => options.mediaProbe.probe(handle)',
+    beginEvent,
+  );
+  assert.ok(formalRunner >= 0);
+  assert.ok(beginEvent > formalRunner);
+  assert.ok(physicalProbe > beginEvent);
+  assert.equal(
+    source.slice(source.indexOf('async function advance'), physicalProbe)
+      .includes('await options.mediaProbe.probe(handle)'),
+    false,
+  );
+});
 
 test('Series public HTTP publishes one Season Candidate and accepts one new Subject with N:M Episodes', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-p14-series-handoff-a-'));
@@ -153,10 +183,12 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
     adminDistDir,
     secretRoot,
     mediaProbe,
-    movieRunFaultInjector(point) {
-      if (!injected && point === 'after_triage_results_before_publication') {
+    movieRunFaultInjector(point, details) {
+      if (!injected &&
+          point === 'after_formal_probe_event_begin_before_result' &&
+          details.ordinal === 0) {
         injected = true;
-        throw new Error('fixture-crash-after-triage-results');
+        throw new Error('fixture-crash-after-formal-probe-begin');
       }
     },
   });
@@ -182,11 +214,89 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
       payload: observe,
     });
     assert.equal(observed.statusCode, 400, observed.body);
+    assert.equal(mediaProbeCalls, 0);
   } finally {
     await host.close();
   }
 
-  const interrupted = new Database(path.join(dataDir, 'shelfdeck.db'));
+  let interrupted = new Database(path.join(dataDir, 'shelfdeck.db'));
+  const firstProbeEvent = interrupted.prepare(
+    `SELECT event_id,state
+       FROM fx_workflow_events
+      WHERE capability_ref='shared.material.media.probe@1'
+      ORDER BY event_id
+      LIMIT 1`
+  ).get();
+  assert.equal(firstProbeEvent.state, 'executing');
+  assert.equal(interrupted.prepare(
+    'SELECT count(*) count FROM fx_event_result_bindings WHERE event_id=?'
+  ).get(firstProbeEvent.event_id).count, 0);
+  interrupted.close();
+
+  injected = false;
+  host = await createCleanServiceHost({
+    dataDir,
+    adminDistDir,
+    secretRoot,
+    mediaProbe,
+    movieRunFaultInjector(point, details) {
+      if (!injected &&
+          point === 'after_formal_probe_result_before_event_success' &&
+          details.ordinal === 0) {
+        injected = true;
+        throw new Error('fixture-crash-after-formal-probe-result');
+      }
+    },
+  });
+  try {
+    const observed = await host.inject({
+      method: 'POST',
+      url: `/v1/admin/material-fields/${access.fieldId}/actions/observe`,
+      headers: { cookie: await session(host, initialized.adminApiKey) },
+      payload: observe,
+    });
+    assert.equal(observed.statusCode, 400, observed.body);
+    assert.equal(mediaProbeCalls, 1);
+  } finally {
+    await host.close();
+  }
+
+  interrupted = new Database(path.join(dataDir, 'shelfdeck.db'));
+  assert.equal(interrupted.prepare(
+    'SELECT state FROM fx_workflow_events WHERE event_id=?'
+  ).get(firstProbeEvent.event_id).state, 'executing');
+  assert.equal(interrupted.prepare(
+    'SELECT count(*) count FROM fx_event_result_bindings WHERE event_id=?'
+  ).get(firstProbeEvent.event_id).count, 1);
+  interrupted.close();
+
+  injected = false;
+  host = await createCleanServiceHost({
+    dataDir,
+    adminDistDir,
+    secretRoot,
+    mediaProbe,
+    movieRunFaultInjector(point) {
+      if (!injected && point === 'after_triage_results_before_publication') {
+        injected = true;
+        throw new Error('fixture-crash-after-triage-results');
+      }
+    },
+  });
+  try {
+    const observed = await host.inject({
+      method: 'POST',
+      url: `/v1/admin/material-fields/${access.fieldId}/actions/observe`,
+      headers: { cookie: await session(host, initialized.adminApiKey) },
+      payload: observe,
+    });
+    assert.equal(observed.statusCode, 400, observed.body);
+    assert.equal(mediaProbeCalls, 2);
+  } finally {
+    await host.close();
+  }
+
+  interrupted = new Database(path.join(dataDir, 'shelfdeck.db'));
   assert.equal(interrupted.prepare(
     'SELECT count(*) count FROM proc_candidate_packages'
   ).get().count, 0);
@@ -204,16 +314,16 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
   ).get().count, 6);
   const planRows = interrupted.prepare(
     `SELECT node_id,input_binding_schema_ref,input_bindings_json
-       FROM fx_plan_nodes
+      FROM fx_plan_nodes
       WHERE input_binding_schema_ref=
-        'helix://implementation-contracts/plan-bindings/procurement-candidate-assembly/v1'
+        ?
       ORDER BY node_id`
-  ).all();
+  ).all(candidateAssemblyBindingSchemaRef);
   assert.equal(planRows.length, 7);
   for (const row of planRows) {
     assert.equal(
       row.input_binding_schema_ref,
-      'helix://implementation-contracts/plan-bindings/procurement-candidate-assembly/v1',
+      candidateAssemblyBindingSchemaRef,
     );
     assert.ok(Buffer.byteLength(row.input_bindings_json, 'utf8') <= 16384);
     assert.equal(row.input_bindings_json.includes('"candidateDraft"'), false);
@@ -259,15 +369,64 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
   refTamper.prepare(
     'UPDATE fx_event_result_bindings SET result_json=? WHERE result_id=?'
   ).run(structureResult.result_json, structureResult.result_id);
+  refTamper.close();
+
+  async function assertBindingTamperRejected(mutator) {
+    const tamperDb = new Database(path.join(dataDir, 'shelfdeck.db'));
+    const binding = JSON.parse(originalPublicationBinding);
+    mutator(binding);
+    binding.bindingDigest = canonicalDigest(Object.fromEntries(
+      Object.entries(binding).filter(([key]) => key !== 'bindingDigest'),
+    ));
+    tamperDb.prepare(
+      'UPDATE fx_plan_nodes SET input_bindings_json=? WHERE node_id=?'
+    ).run(JSON.stringify(binding), publicationNode.node_id);
+    tamperDb.close();
+    host = await createCleanServiceHost({
+      dataDir,
+      adminDistDir,
+      secretRoot,
+      mediaProbe,
+    });
+    try {
+      const rejected = await host.inject({
+        method: 'POST',
+        url: `/v1/admin/material-fields/${access.fieldId}/actions/observe`,
+        headers: { cookie: await session(host, initialized.adminApiKey) },
+        payload: observe,
+      });
+      assert.equal(rejected.statusCode, 400, rejected.body);
+    } finally {
+      await host.close();
+    }
+    const restoreDb = new Database(path.join(dataDir, 'shelfdeck.db'));
+    assert.equal(restoreDb.prepare(
+      'SELECT count(*) count FROM proc_candidate_packages'
+    ).get().count, 0);
+    restoreDb.prepare(
+      'UPDATE fx_plan_nodes SET input_bindings_json=? WHERE node_id=?'
+    ).run(originalPublicationBinding, publicationNode.node_id);
+    restoreDb.close();
+  }
+
+  await assertBindingTamperRejected((binding) => {
+    binding.schemaRef =
+      'helix://contracts/application-types/ProcurementCandidateAssemblyPlanBinding/v2';
+  });
+  await assertBindingTamperRejected((binding) => {
+    binding.bindingKind = 'unregistered_candidate_variant';
+  });
+
+  const missingRefDb = new Database(path.join(dataDir, 'shelfdeck.db'));
   const missingRefBinding = JSON.parse(originalPublicationBinding);
   missingRefBinding.sourceResultRefs[0].resultId = 'missing-result-ref';
   missingRefBinding.bindingDigest = canonicalDigest(Object.fromEntries(
     Object.entries(missingRefBinding).filter(([key]) => key !== 'bindingDigest'),
   ));
-  refTamper.prepare(
+  missingRefDb.prepare(
     'UPDATE fx_plan_nodes SET input_bindings_json=? WHERE node_id=?'
   ).run(JSON.stringify(missingRefBinding), publicationNode.node_id);
-  refTamper.close();
+  missingRefDb.close();
 
   host = await createCleanServiceHost({
     dataDir,

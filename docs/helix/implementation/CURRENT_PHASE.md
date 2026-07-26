@@ -38,8 +38,12 @@ extension。
 
 初版检查点的定向 `22/22` 与完整 architecture `128 files` 均 PASS，机器库存保持
 112/97/177/43。P14 `595358b5` 指出的跨 Series sidecar association 随后已收紧为
-parent-local exact Season topology；修正后定向 `24/24` 与完整 architecture
-`128 files` 均 PASS。等待再次主动复验，禁止提前进入 Series Routing/Spec/Run。
+parent-local exact Season topology。P14 `ac0ae793` 指出的 oversized inline
+CandidateDraft，以及 Architecture对 `f911023a` 发现的 pre-Plan Probe与未物化
+binding schema，现已一并闭合为正式 phased Work/Plan/Event + generated closed
+binding union。最终 Procurement/Series定向 `54/54`、完整 architecture
+`128 files / 871 tests` 均 PASS。等待再次主动复验，禁止提前进入 Series
+Routing/Spec/Run。
 
 ## Movie accepted baseline
 
