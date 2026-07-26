@@ -34,8 +34,14 @@ function assertPromotionDecision(value){
       ref.productVerificationRef?.workspaceMaterialHandleId!==memberHandleId;
   }))
     fail('P9_PROMOTION_STAGING_ROLE','Product Staging References must match Product members one-for-one by material and role.');
-  if(value.libraRunRef.libraRunId!==value.workspaceRef.libraRunId||refs.some((item)=>item.libraRunId!==value.libraRunRef.libraRunId||item.workspaceId!==value.workspaceRef.workspaceId))
+  if(value.workspaceRef===null){
+    if(refs.length!==0||workspaceMembers.length!==0)
+      fail('P9_PROMOTION_RUN','Direct-original Promotion cannot carry Workspace Product members.');
+  }else if(!value.workspaceRef||
+      value.libraRunRef.libraRunId!==value.workspaceRef.libraRunId||
+      refs.some((item)=>item.libraRunId!==value.libraRunRef.libraRunId||item.workspaceId!==value.workspaceRef.workspaceId)){
     fail('P9_PROMOTION_RUN','Promotion inputs cross a Run or Workspace boundary.');
+  }
   const packageDigest=canonicalDigest({schema:'libra.on-deck-product-package@1',libraRunRef:value.libraRunRef,
     acceptanceSpecRef:value.acceptanceSpecRef,resolvedIdentitySnapshot:value.resolvedIdentitySnapshot,productStructureSnapshot:value.productStructureSnapshot,
     productFactManifest:value.productFactManifest,artifactManifest:value.artifactManifest,mediaCastSnapshot:value.mediaCastSnapshot,
@@ -47,34 +53,67 @@ function assertPromotionDecision(value){
 }
 
 function buildPromotionCommit(value){
-  const decision=assertPromotionDecision(value.decision),committedAtMs=integer(value.committedAtMs,'committedAtMs');
-  const packageValue={schemaRef:'helix://contracts/types/OnDeckProductPackage/v1',schemaVersion:1,packageId:decision.onDeckPackageId,
-    packageRevision:decision.packageRevision,libraRunId:decision.libraRunRef.libraRunId,runExecutionBasisDigest:decision.libraRunRef.executionBasisDigest,
-    acceptanceSpecRef:clone(decision.acceptanceSpecRef),resolvedIdentitySnapshot:clone(decision.resolvedIdentitySnapshot),
-    productStructureSnapshot:clone(decision.productStructureSnapshot),productFactManifest:clone(decision.productFactManifest),
-    artifactManifest:clone(decision.artifactManifest),mediaCastSnapshot:clone(decision.mediaCastSnapshot),productMaterialManifest:clone(decision.productMaterialManifest),
+  const decision=assertPromotionDecision(value.decision),committedAtMs=integer(value.committedAtMs,'committedAtMs'),
+    subjectId=text(value.subjectId,'subjectId'),shelfId=text(value.shelfId,'shelfId');
+  const controlCommits=[...(value.controlCommits||[])].sort((left,right)=>
+    Buffer.compare(Buffer.from(left.materialKey),Buffer.from(right.materialKey)));
+  if(controlCommits.length!==decision.controlCommitScope.items.length||
+      controlCommits.some((item,index)=>{
+        const expected=decision.controlCommitScope.items[index];
+        return item.materialKey!==expected.materialKey||item.controlOperation!==expected.controlOperation||
+          item.committedControlRevision!==(expected.controlOperation==='assert_existing_input'
+            ? expected.expectedControlRevision:1)||!DIGEST.test(item.committedControlProjectionDigest||'');
+      }))fail('P9_PROMOTION_CONTROL_RESULT','Committed Control set does not match the exact Promotion scope.');
+  const controlRevisionSetDigest=canonicalDigest({schema:'libra.product-control-revision-set@1',
+    onDeckPackageId:decision.onDeckPackageId,items:controlCommits});
+  const members=decision.productMaterialManifest.members;
+  const packageValue={schemaRef:'helix://contracts/types/OnDeckProductPackage/v1',schemaVersion:1,
+    manifestId:decision.onDeckPackageId,manifestKind:'on_deck_product_package',ownerDomain:'libra',
+    memberCount:members.length,membersDigest:decision.productMaterialManifest.memberSetDigest,manifestDigest:decision.packageDigest,
+    publishedAtMs:committedAtMs,onDeckPackageId:decision.onDeckPackageId,packageRevision:decision.packageRevision,
+    libraRunId:decision.libraRunRef.libraRunId,runStateRevision:decision.libraRunRef.stateRevision,
+    runStateDigest:decision.libraRunRef.stateDigest,runExecutionBasisDigest:decision.libraRunRef.executionBasisDigest,
+    subjectId,shelfId,acceptanceSpecRef:{id:decision.acceptanceSpecRef.acceptanceSpecId,
+      recordDigest:decision.acceptanceSpecRef.recordDigest},
+    resolvedIdentitySnapshot:clone(decision.resolvedIdentitySnapshot),
+    productStructureSnapshot:clone(decision.productStructureSnapshot),
+    runMaterialManifestRef:{id:decision.runMaterialManifestRef.manifestId,digest:decision.runMaterialManifestRef.manifestDigest},
+    productMaterialManifest:clone(decision.productMaterialManifest),productFactManifest:clone(decision.productFactManifest),
+    artifactManifest:clone(decision.artifactManifest),mediaCastSnapshot:clone(decision.mediaCastSnapshot),
     offloadContextManifest:clone(decision.offloadContextManifest),productionProvenance:clone(decision.productionProvenance),
-    productionAttestation:clone(decision.productionAttestation),packageDigest:decision.packageDigest,publishedAtMs:committedAtMs};
-  const controlCommits=decision.controlCommitScope.items.map((item)=>freeze({...clone(item),committedRevision:item.expectedRevision+1,
-    committedProjectionDigest:canonicalDigest({schema:'libra.product-control-projection@1',materialKey:item.materialKey,ownerDomain:'libra',ownerScopeType:'on_deck_package',ownerScopeId:decision.onDeckPackageId,revision:item.expectedRevision+1})}));
-  const receipt={schemaRef:'helix://contracts/types/OnDeckProductPackageCommitReceipt/v1',schemaVersion:1,receiptId:canonicalDigest({schema:'libra.on-deck-package-receipt-id@1',decisionId:decision.decisionId}),
-    decisionId:decision.decisionId,onDeckPackageId:decision.onDeckPackageId,packageRevision:decision.packageRevision,packageDigest:decision.packageDigest,
-    offerId:decision.offerId,controlCommits,committedAtMs};receipt.receiptDigest=canonicalDigest(receipt);
-  const outbox={messageId:canonicalDigest({schema:'libra.product-offer-message-id@1',offerId:decision.offerId,packageDigest:decision.packageDigest}),
-    schemaRef:'LibraProductOfferAvailableMessage@1',offerId:decision.offerId,onDeckPackageId:decision.onDeckPackageId,
-    packageRevision:decision.packageRevision,packageDigest:decision.packageDigest,receiptId:receipt.receiptId,receiptDigest:receipt.receiptDigest};outbox.messageDigest=canonicalDigest(outbox);
-  return freeze({package:packageValue,receipt,outbox,controlCommits});
+    productionAttestation:clone(decision.productionAttestation),packageDigest:decision.packageDigest};
+  const receipt={schemaRef:'helix://contracts/types/OnDeckProductPackageCommitReceipt/v1',schemaVersion:1,
+    receiptId:canonicalDigest({schema:'libra.on-deck-package-receipt-id@1',decisionId:decision.decisionId}),
+    receiptKind:'libra_product_package_published',ownerDomain:'libra',scopeType:'on_deck_package',
+    scopeId:decision.onDeckPackageId,scopeDigest:decision.packageDigest,effectReceiptRef:null,committedAtMs,
+    promotionDecisionDigest:decision.decisionDigest,onDeckPackageId:decision.onDeckPackageId,
+    packageRevision:decision.packageRevision,packageDigest:decision.packageDigest,offerId:decision.offerId,
+    libraRunId:decision.libraRunRef.libraRunId,verifiedRunStateRevision:decision.libraRunRef.stateRevision,
+    verifiedRunStateDigest:decision.libraRunRef.stateDigest,
+    productMaterialManifestDigest:decision.productMaterialManifest.manifestDigest,
+    productFactSetDigest:decision.productFactManifest.factSetDigest,
+    productFactManifestDigest:decision.productFactManifest.manifestDigest,
+    artifactManifestDigest:decision.artifactManifest.manifestDigest,
+    offloadContextDigest:decision.offloadContextManifest.manifestDigest,controlRevisionSetDigest};
+  receipt.receiptDigest=canonicalDigest(receipt);
+  const messageId=canonicalDigest({schema:'libra.product-offer-message-id@1',offerId:decision.offerId,
+    packageDigest:decision.packageDigest});
+  const outbox={messageKind:'libra.product-offer.available@1',messageId,offerId:decision.offerId,
+    onDeckPackageId:decision.onDeckPackageId,packageRevision:decision.packageRevision,
+    packageDigest:decision.packageDigest,libraRunId:decision.libraRunRef.libraRunId,subjectId,shelfId,
+    acceptanceSpecId:decision.acceptanceSpecRef.acceptanceSpecId,dedupKey:messageId};
+  return freeze({package:packageValue,receipt,outbox,controlCommits,controlRevisionSetDigest});
 }
 
 function planRework(value){
   const rejection=value?.structuredRejection,previous=value?.publishedPackage;
-  if(!rejection||rejection.handoffKind!=='libra_to_arca'||rejection.offerId!==previous?.offerId||rejection.deliverableId!==previous?.packageId||
+  if(!rejection||rejection.handoffKind!=='libra_to_arca'||rejection.offerId!==previous?.offerId||rejection.deliverableId!==previous?.onDeckPackageId||
       rejection.rejectionDigest!==canonicalDigest(without(rejection,'rejectionDigest')))fail('P9_REWORK_REJECTION','Rework requires the exact Arca rejection projection.');
   if(value.acceptanceSpecRecordDigest!==previous.acceptanceSpecRef.recordDigest)fail('P9_REWORK_SPEC_CHANGED','Changed Acceptance Spec requires a replacement Run, not same-Run rework.');
-  return freeze({libraRunId:previous.libraRunId,sourcePackageId:previous.packageId,sourcePackageRevision:previous.packageRevision,
+  return freeze({libraRunId:previous.libraRunId,sourcePackageId:previous.onDeckPackageId,sourcePackageRevision:previous.packageRevision,
     sourcePackageDigest:previous.packageDigest,nextPackageRevision:previous.packageRevision+1,rejectionDigest:rejection.rejectionDigest,
     preservePublishedPackage:true,reworkBasisDigest:canonicalDigest({schema:'libra.rejection-rework-basis@1',libraRunId:previous.libraRunId,
-      sourcePackageId:previous.packageId,sourcePackageRevision:previous.packageRevision,sourcePackageDigest:previous.packageDigest,rejectionDigest:rejection.rejectionDigest})});
+      sourcePackageId:previous.onDeckPackageId,sourcePackageRevision:previous.packageRevision,sourcePackageDigest:previous.packageDigest,rejectionDigest:rejection.rejectionDigest})});
 }
 
 function buildDiscardCommit(value){

@@ -33,16 +33,25 @@ function promotion(){
     offloadContextManifest:{manifestId:'offload-1',manifestRevision:1,libraRunId:'run-1',members:[],memberSetDigest:h('offload-members'),manifestDigest:h('offload')},
     productionProvenance:{libraRunId:'run-1',runExecutionBasisDigest:h('basis'),acceptanceSpecRecordDigest:h('spec'),workflowPlanRefs:[],productVerificationRefs:[],externalRealityObservationRefs:[],provenanceDigest:h('provenance')},
     productionAttestation:{attestationId:'attest-1',libraRunId:'run-1',onDeckPackageId:'package-1',acceptanceSpecId:'spec-1',productConformanceEvidenceId:'conformance-1',productConformanceEvidenceDigest:h('conformance'),unmetRequirementCount:0,attestedAtMs:NOW,attestationDigest:h('attestation')},
-    controlCommitScope:{items:[{materialKey:h('material'),expectedRevision:1,expectedProjectionDigest:h('control')}],controlScopeDigest:h('control-scope')},onDeckPackageId:'package-1',packageRevision:1,offerId:'offer-1'};
+    controlCommitScope:{items:[{controlOperation:'acquire_workspace_product',materialKey:h('material'),expectedControlState:'absent',
+      toOwnerDomain:'libra',toOwnerScopeType:'on_deck_package',toOwnerScopeId:'package-1'}],
+      controlScopeDigest:h('control-scope')},onDeckPackageId:'package-1',packageRevision:1,offerId:'offer-1'};
   return sealPromotion(x);
+}
+function commitPromotion(value=promotion()){
+  return c.buildPromotionCommit({decision:value,committedAtMs:NOW,subjectId:'subject-1',shelfId:'shelf-1',
+    controlCommits:value.controlCommitScope.items.map((item)=>({materialKey:item.materialKey,
+      controlOperation:item.controlOperation||'acquire_workspace_product',
+      committedControlRevision:(item.expectedControlRevision??item.expectedRevision??0)+1,
+      committedControlProjectionDigest:h('committed-control')}))});
 }
 
 test('promotion publishes immutable package, exact Control commits, receipt and one Offer',()=>{
-  const committed=c.buildPromotionCommit({decision:promotion(),committedAtMs:NOW});
+  const committed=commitPromotion();
   assert.equal(committed.package.packageDigest,promotion().packageDigest);assert.equal(committed.controlCommits.length,1);assert.equal(committed.outbox.offerId,'offer-1');
-  assert.throws(()=>c.buildPromotionCommit({decision:{...promotion(),productionAttestation:{...promotion().productionAttestation,unmetRequirementCount:1}},committedAtMs:NOW}),/conformant/);
+  assert.throws(()=>commitPromotion({...promotion(),productionAttestation:{...promotion().productionAttestation,unmetRequirementCount:1}}),/conformant/);
   const wrongRole=promotion();wrongRole.productStagingReferences[0].productVerificationRef.materialRole='metadata_sidecar';
-  assert.throws(()=>c.buildPromotionCommit({decision:wrongRole,committedAtMs:NOW}),/one-for-one/);
+  assert.throws(()=>commitPromotion(wrongRole),/one-for-one/);
 });
 
 test('promotion joins Product Staging references to Product members by materialKey rather than array position',()=>{
@@ -73,7 +82,7 @@ test('promotion joins Product Staging references to Product members by materialK
 });
 
 test('Arca rejection leaves package immutable and same-spec rework gets next revision',()=>{
-  const p={...c.buildPromotionCommit({decision:promotion(),committedAtMs:NOW}).package,offerId:'offer-1'},rejection={handoffKind:'libra_to_arca',offerId:'offer-1',deliverableId:'package-1',rejectionCode:'mandatory_media_unmet',acceptanceEvidenceSetDigest:h('evidence')};rejection.rejectionDigest=d(rejection);
+  const p={...commitPromotion().package,offerId:'offer-1'},rejection={handoffKind:'libra_to_arca',offerId:'offer-1',deliverableId:p.onDeckPackageId,rejectionCode:'mandatory_media_unmet',acceptanceEvidenceSetDigest:h('evidence')};rejection.rejectionDigest=d(rejection);
   const plan=c.planRework({structuredRejection:rejection,publishedPackage:p,acceptanceSpecRecordDigest:p.acceptanceSpecRef.recordDigest});assert.equal(plan.nextPackageRevision,2);assert.equal(plan.preservePublishedPackage,true);
   assert.throws(()=>c.planRework({structuredRejection:rejection,publishedPackage:p,acceptanceSpecRecordDigest:h('changed')}),/replacement Run/);
 });
@@ -99,7 +108,7 @@ test('cleanup releases Reference and Control only after exact deletion evidence'
 });
 
 test('atomic delivery ledger rolls back crashes and replays byte-identical result',()=>{
-  const ledger=createDeliveryLifecycleLedger(),decision=promotion(),commit=c.buildPromotionCommit({decision,committedAtMs:NOW}),apply=(state)=>{state.packages[decision.onDeckPackageId]=commit.package;state.receipts[commit.receipt.receiptId]=commit.receipt;state.outbox[commit.outbox.messageId]=commit.outbox;return commit.receipt;};
+  const ledger=createDeliveryLifecycleLedger(),decision=promotion(),commit=commitPromotion(decision),apply=(state)=>{state.packages[decision.onDeckPackageId]=commit.package;state.receipts[commit.receipt.receiptId]=commit.receipt;state.outbox[commit.outbox.messageId]=commit.outbox;return commit.receipt;};
   assert.throws(()=>ledger.commit({marker:'promotion-1',transactionId:'helix.transaction.libra-deliverable-promotion',commitDigest:decision.decisionDigest,apply,faultAt:'after-domain'}),/fault/);assert.deepEqual(ledger.snapshot().packages,{});
   const first=ledger.commit({marker:'promotion-1',transactionId:'helix.transaction.libra-deliverable-promotion',commitDigest:decision.decisionDigest,apply}),replay=ledger.commit({marker:'promotion-1',transactionId:'helix.transaction.libra-deliverable-promotion',commitDigest:decision.decisionDigest,apply});assert.deepEqual(replay,first);assert.equal(Object.keys(ledger.snapshot().outbox).length,1);
 });
