@@ -44,7 +44,8 @@ function createLibraIntakeRepositoryDefinitions(schemaManifest) {
   }});
   const bindings = createRepositoryDefinition({ repositoryId:'libra_binding_repository', owner:'libra', schemaManifest, statements:{
     insert_binding:{ kind:'insert', tableId:'libra_material_bindings', columns:['subject_id','material_key','role','mount_scope_id','inode','content_hash_algorithm','content_hash','size_bytes','endpoint_id','location','binding_revision','health_state','evidence_digest','current'] },
-    find_bindings:{ kind:'select-all', tableId:'libra_material_bindings', columns:['subject_id','material_key','role','mount_scope_id','inode','content_hash_algorithm','content_hash','size_bytes','endpoint_id','location','binding_revision','health_state','evidence_digest','current'], keyColumns:['subject_id'], safeIntegers:true },
+    insert_binding_with_origin:{ kind:'insert', tableId:'libra_material_bindings', columns:['subject_id','material_key','role','mount_scope_id','inode','content_hash_algorithm','content_hash','size_bytes','endpoint_id','location','binding_revision','health_state','evidence_digest','origin_intake_decision_id','origin_offer_id','origin_candidate_package_id','origin_package_revision','origin_package_digest','origin_candidate_delivery_snapshot_digest','origin_related_reference_set_digest','current'] },
+    find_bindings:{ kind:'select-all', tableId:'libra_material_bindings', columns:['subject_id','material_key','role','mount_scope_id','inode','content_hash_algorithm','content_hash','size_bytes','endpoint_id','location','binding_revision','health_state','evidence_digest','origin_intake_decision_id','origin_offer_id','origin_candidate_package_id','origin_package_revision','origin_package_digest','origin_candidate_delivery_snapshot_digest','origin_related_reference_set_digest','current'], keyColumns:['subject_id'], safeIntegers:true },
     insert_binding_episode:{ kind:'insert', tableId:'libra_material_binding_episode_claims', columns:['subject_id','material_key','binding_revision','episode_key','season_claim_digest','claim_digest'] },
     find_binding_episodes:{ kind:'select-all', tableId:'libra_material_binding_episode_claims', columns:['subject_id','material_key','binding_revision','episode_key','season_claim_digest','claim_digest'], keyColumns:['subject_id','material_key','binding_revision'] }
   }});
@@ -80,6 +81,10 @@ function createLibraIntakeStore(options) {
     getContinuityHead() { return execute([repositories.subjects], (context) =>
       context.repository(repositories.subjects.repositoryId).invoke('find_head', { head_id:CONTINUITY_HEAD_ID }) || null); },
     getSubject(subjectId) { return execute([repositories.subjects], (context) => context.repository(repositories.subjects.repositoryId).invoke('find_subject',{ subject_id:subjectId }) || null); },
+    getOfferDecision(offerId) { return execute([repositories.intake], (context) =>
+      context.repository(repositories.intake.repositoryId).invoke('find_offer_decision',{ offer_id:offerId }) || null); },
+    getReceipt(intakeDecisionId) { return execute([repositories.intake], (context) =>
+      context.repository(repositories.intake.repositoryId).invoke('find_receipt',{ intake_decision_id:intakeDecisionId }) || null); },
     listSubjectClaims(subjectId) { return execute([repositories.subjects], (context) => context.repository(repositories.subjects.repositoryId).invoke('find_claims',{ subject_id:subjectId })); },
     listSubjectEpisodes(subjectId) { return execute([repositories.subjects], (context) => context.repository(repositories.subjects.repositoryId).invoke('find_episodes',{ subject_id:subjectId })); },
     listSubjectBindings(subjectId) { return execute([repositories.bindings], (context) => context.repository(repositories.bindings.repositoryId).invoke('find_bindings',{ subject_id:subjectId })); },

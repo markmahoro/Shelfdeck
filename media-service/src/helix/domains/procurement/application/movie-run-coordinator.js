@@ -282,14 +282,17 @@ function acceptedHandoffReplay(snapshot) {
       packageDigest: snapshot.candidate.package_digest,
       state: snapshot.candidate.state,
     }),
-    handoff: Object.freeze({
-      terminalDelivery: Object.freeze({
-        offerId: snapshot.delivery.offer_id,
-        intakeDecisionId: snapshot.delivery.handoff_decision_id,
-        receiptId: snapshot.delivery.handoff_receipt_id,
-        receiptDigest: snapshot.delivery.handoff_receipt_digest,
-        terminalEvidenceDigest: snapshot.delivery.terminal_evidence_digest,
-      }),
+    offer: Object.freeze({
+      schemaRef: 'helix://contracts/types/ProcurementCandidateOfferAvailableMessage/v1',
+      schemaVersion: 1,
+      messageKind: 'procurement_candidate_offer_available',
+      offerId: snapshot.delivery.offer_id,
+      candidatePackageId: snapshot.candidate.candidate_package_id,
+      packageRevision: Number(snapshot.candidate.package_revision),
+      packageDigest: snapshot.candidate.package_digest,
+      acceptanceBasisDigest: snapshot.delivery.acceptance_basis_digest,
+      acceptanceOwnerDomain: 'libra',
+      targetContext: 'libra_intake',
     }),
   });
 }
@@ -464,7 +467,8 @@ function capabilityStep(draft, workId) {
 function createMovieRunCoordinator(options) {
   if (!options?.schemaManifest || !options.unitOfWork || !options.triageRegistry || !options.workRuntime ||
       !options.mediaProbe || typeof options.mediaProbe.probe !== 'function' ||
-      typeof options.offerCandidate !== 'function') {
+      typeof options.offerCandidate !== 'function' ||
+      typeof options.resumeAcceptedHandoff !== 'function') {
     fail('P14_MOVIE_RUN_COORDINATOR_DEPENDENCIES',
       'Movie journey requires Procurement persistence, Triage, Work, Probe, and formal Handoff ports.');
   }
@@ -479,7 +483,13 @@ function createMovieRunCoordinator(options) {
       fail('P14_MOVIE_RUN_NOT_ACTIVE', 'Movie journey requires one exact active Procurement Run and Field Access.');
     }
     const terminalReplay = acceptedHandoffReplay(snapshot);
-    if (terminalReplay) return terminalReplay;
+    if (terminalReplay) return Object.freeze({
+      stage: terminalReplay.stage,
+      replayed: true,
+      procurementRunId: terminalReplay.procurementRunId,
+      candidatePackage: terminalReplay.candidatePackage,
+      handoff: options.resumeAcceptedHandoff(terminalReplay.offer),
+    });
     const openResume = openHandoffResume(snapshot);
     if (openResume) return Object.freeze({
       stage: 'handoff_a_accepted', replayed: true, procurementRunId,

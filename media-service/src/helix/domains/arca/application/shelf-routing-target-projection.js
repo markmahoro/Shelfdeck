@@ -1,19 +1,55 @@
 'use strict';
 
 const { createShelfQueryStore } = require('../persistence/shelf-query-store');
+const { canonicalDigest } = require('../../../contracts/canonical-json');
 
 function createShelfRoutingTargetProjection(options) {
   const store = createShelfQueryStore(options);
+  function routeProjection(shelf) {
+    return Object.freeze({
+      shelfId: shelf.shelfId,
+      status: shelf.status,
+      currentStandardRevision: shelf.currentStandardRevision,
+      currentStandardDigest: shelf.standard.digest,
+      routingProjectionRevision: shelf.routingProjection.revision,
+      projectionDigest: shelf.routingProjection.digest,
+    });
+  }
   return Object.freeze({
     list() {
-      return Object.freeze(store.listShelves().map((shelf) => Object.freeze({
-        shelfId: shelf.shelfId,
+      return Object.freeze(store.listShelves().map(routeProjection));
+    },
+    getStandard(shelfId) {
+      const shelf = store.getShelf(shelfId);
+      if (!shelf) return null;
+      const route = routeProjection(shelf);
+      const standard = shelf.standard.value;
+      if (!standard || standard.shelfId !== shelf.shelfId ||
+          standard.standardRevision !== shelf.standard.revision ||
+          standard.ruleTemplateId !== shelf.standard.ruleTemplateId ||
+          standard.ruleTemplateRevision !== shelf.standard.ruleTemplateRevision ||
+          standard.standardDigest !== shelf.standard.digest) {
+        return Object.freeze({
+          resultKind: 'unavailable',
+          reasonCode: 'shelf_standard_unavailable',
+          shelfId,
+          routingProjection: route,
+        });
+      }
+      const projection = {
+        shelfId,
         status: shelf.status,
-        currentStandardRevision: shelf.currentStandardRevision,
-        currentStandardDigest: shelf.standard.digest,
-        routingProjectionRevision: shelf.routingProjection.revision,
-        projectionDigest: shelf.routingProjection.digest,
-      })));
+        routingProjectionRevision: route.routingProjectionRevision,
+        projectionDigest: route.projectionDigest,
+        standard,
+      };
+      return Object.freeze({
+        resultKind: 'found',
+        projection: Object.freeze({
+          ...projection,
+          projectionResultDigest: canonicalDigest(projection),
+        }),
+      });
     },
   });
 }

@@ -278,7 +278,66 @@ function createIntakeAcceptanceCoordinator(options) {
     });
   }
 
-  return Object.freeze({ offerCandidate });
+  function resumeAcceptedOffer(offer) {
+    candidateOfferEnvelope(offer);
+    const decision = intake.getOfferDecision(offer.offerId);
+    const receipt = decision && intake.getReceipt(decision.intake_decision_id);
+    if (!decision || !receipt || receipt.outcome !== 'accepted' ||
+        decision.candidate_package_id !== offer.candidatePackageId ||
+        Number(decision.package_revision) !== offer.packageRevision ||
+        decision.package_digest !== offer.packageDigest ||
+        decision.acceptance_basis_digest !== offer.acceptanceBasisDigest ||
+        receipt.candidate_package_id !== offer.candidatePackageId ||
+        Number(receipt.package_revision) !== offer.packageRevision ||
+        receipt.package_digest !== offer.packageDigest ||
+        receipt.intake_decision_id !== decision.intake_decision_id ||
+        receipt.receipt_digest !== canonicalDigest(Object.fromEntries(
+          Object.entries({
+            schemaRef: 'helix://contracts/types/SubjectAndTransferReceipt/v1',
+            schemaVersion: 1,
+            receiptId: receipt.receipt_id,
+            receiptKind: 'handoff_a_accepted',
+            ownerDomain: 'libra',
+            scopeType: 'intake_decision',
+            scopeId: receipt.intake_decision_id,
+            scopeDigest: receipt.accepted_payload_digest,
+            effectReceiptRef: null,
+            committedAtMs: Number(receipt.committed_at_ms),
+            intakeDecisionId: receipt.intake_decision_id,
+            offerId: receipt.offer_id,
+            candidatePackageId: receipt.candidate_package_id,
+            packageRevision: Number(receipt.package_revision),
+            packageDigest: receipt.package_digest,
+            candidateDeliverySnapshotDigest: receipt.candidate_delivery_snapshot_digest,
+            subjectId: receipt.subject_id,
+            subjectIntakeRevision: Number(receipt.subject_intake_revision),
+            subjectContinuityHeadRevision: Number(receipt.subject_continuity_head_revision),
+            subjectContinuitySetDigest: receipt.subject_continuity_set_digest,
+            subjectEpisodeScopeDigest: receipt.subject_episode_scope_digest,
+            libraBindingSetDigest: receipt.libra_binding_set_digest,
+            controlRevisionSetDigest: receipt.control_revision_set_digest,
+          }),
+        ))) {
+      fail('P14_INTAKE_ACCEPTED_REPLAY_UNAVAILABLE',
+        'Accepted Offer does not resolve to one exact Libra Intake Receipt.');
+    }
+    return Object.freeze({
+      replayed: true,
+      receipt: Object.freeze({
+        receiptId: receipt.receipt_id,
+        intakeDecisionId: receipt.intake_decision_id,
+        offerId: receipt.offer_id,
+        candidatePackageId: receipt.candidate_package_id,
+        packageRevision: Number(receipt.package_revision),
+        packageDigest: receipt.package_digest,
+        subjectId: receipt.subject_id,
+        subjectIntakeRevision: Number(receipt.subject_intake_revision),
+        receiptDigest: receipt.receipt_digest,
+      }),
+    });
+  }
+
+  return Object.freeze({ offerCandidate, resumeAcceptedOffer });
 }
 
 module.exports = Object.freeze({

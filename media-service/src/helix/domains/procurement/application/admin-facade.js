@@ -77,7 +77,10 @@ function rejected(error) {
   throw new ProcurementAdminApplicationError(
     'ADMIN_FIELD_COMMAND_REJECTED',
     'Material Field请求未通过Owner-local合同校验。',
-    { reasonCode: error.code || 'MATERIAL_FIELD_CONTRACT_REJECTED' },
+    {
+      reasonCode: error.code || 'MATERIAL_FIELD_CONTRACT_REJECTED',
+      ...(error.details || {}),
+    },
   );
 }
 

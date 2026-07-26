@@ -30,6 +30,9 @@ const {
   createIntakeAcceptanceCoordinator,
 } = require('./helix/domains/libra/application/intake-acceptance-coordinator');
 const {
+  createMovieFormationCoordinator,
+} = require('./helix/domains/libra/application/movie-formation-coordinator');
+const {
   createArcaRuleTemplateAdminApplication,
   createArcaShelfAdminApplication,
 } = require('./helix/domains/arca/public/admin-application');
@@ -283,12 +286,21 @@ async function createCleanServiceHost(options) {
       }
     } }),
   }));
-  const libraIntake = LibraIntakeFacade(createIntakeAcceptanceCoordinator({
+  const libraIntakeApplication = createIntakeAcceptanceCoordinator({
     ...constructed.applicationDependencies,
     candidateDeliveryPort,
-  }));
+  });
+  const libraIntake = LibraIntakeFacade({
+    offerCandidate: libraIntakeApplication.offerCandidate,
+  });
   const candidateAcceptance = createCandidateAcceptanceConsumer(constructed.applicationDependencies);
   const outboxInbox = createInboxCoordinator(constructed.applicationDependencies);
+  const arcaRoutingTargets = createShelfRoutingTargetProjection(constructed.applicationDependencies);
+  const movieFormationCoordinator = createMovieFormationCoordinator({
+    ...constructed.applicationDependencies,
+    readArcaRoutingTargets: arcaRoutingTargets.list,
+    readArcaShelfStandard: arcaRoutingTargets.getStandard,
+  });
   const handoffOffer = (offer) => {
     const accepted = libraIntake.offerCandidate(offer);
     const message = accepted.acceptedMessage;
@@ -310,10 +322,19 @@ async function createCleanServiceHost(options) {
       }),
       consumerDomain: 'procurement',
     });
+    const formation = movieFormationCoordinator.advance(accepted.receipt.subjectId);
     return Object.freeze({
       intake: accepted,
       procurementClosure,
       acknowledgement,
+      formation,
+    });
+  };
+  const resumeAcceptedHandoff = (offer) => {
+    const intake = libraIntakeApplication.resumeAcceptedOffer(offer);
+    return Object.freeze({
+      intake,
+      formation: movieFormationCoordinator.advance(intake.receipt.subjectId),
     });
   };
   const movieRunCoordinator = createMovieRunCoordinator({
@@ -322,8 +343,8 @@ async function createCleanServiceHost(options) {
     workRuntime: createSynchronousDomainWork(constructed.applicationDependencies),
     mediaProbe: options.mediaProbe || createCleanMediaProbe(),
     offerCandidate: handoffOffer,
+    resumeAcceptedHandoff,
   });
-  const arcaRoutingTargets = createShelfRoutingTargetProjection(constructed.applicationDependencies);
   const libraRoutingAdmin = createLibraRoutingAdminApplication({
     ...constructed.applicationDependencies,
     readArcaRoutingTargets: arcaRoutingTargets.list,

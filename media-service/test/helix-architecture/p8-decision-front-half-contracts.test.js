@@ -45,6 +45,21 @@ test('stops at unknown higher-priority policy rule and never falls through',()=>
   assert.equal(assessment.result,'unresolved');assert.equal(assessment.unresolvedReasonCode,'higher_priority_rule_unknown');assert.equal(assessment.evaluatedTargets.length,1);
 });
 
+test('treats an inactive higher-priority Shelf as unresolved and never falls through',()=>{
+  const always={nodeKind:'always'};
+  const set=buildDecisionInputSet(routingInput(
+    policyAuthority([{shelfId:'shelf-1',expression:always},{shelfId:'shelf-2',expression:always}]),
+    [projection('shelf-1','deregistered'),projection('shelf-2')],
+    [routingFact('content_profile','movie')],
+  ));
+  const basis=buildDecisionBasisRevision(set,1,100,'marker-inactive');
+  const assessment=resolveRoutingAssessment({...set,decisionBasisId:basis.decisionBasisId});
+  assert.equal(assessment.result,'unresolved');
+  assert.equal(assessment.unresolvedReasonCode,'higher_priority_rule_unknown');
+  assert.equal(assessment.evaluatedTargets.length,1);
+  assert.equal(assessment.evaluatedTargets[0].shelfId,'shelf-1');
+});
+
 test('resolves the first true target and produces one immutable Routing Decision',()=>{
   const first={nodeKind:'predicate',factKind:'content_profile',operator:'eq',expectedValue:'series'},second={nodeKind:'always'};
   const set=buildDecisionInputSet(routingInput(policyAuthority([{shelfId:'shelf-1',expression:first},{shelfId:'shelf-2',expression:second}]),

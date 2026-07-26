@@ -187,6 +187,31 @@ test('Libra Routing reads only its exact head and the formal Arca public project
   assert.doesNotMatch(storeSource, /SELECT\s+|MAX\s*\(|ORDER\s+BY[\s\S]*?DESC/i);
 });
 
+test('Movie formation keeps decisions and persistence inside Libra owner-local ports', () => {
+  const source = fs.readFileSync(
+    path.join(
+      serviceRoot,
+      'src/helix/domains/libra/application/movie-formation-coordinator.js',
+    ),
+    'utf8',
+  );
+  const hostSource = fs.readFileSync(
+    path.join(serviceRoot, 'src/clean-service-host.js'),
+    'utf8',
+  );
+  assert.doesNotMatch(
+    source,
+    /domains\/arca|arca_shelves|people|perception|provider|workspace|handoff_b|better-sqlite3/i,
+  );
+  assert.doesNotMatch(source, /SELECT\s+|MAX\s*\(|latest|current.*scan/i);
+  assert.match(source, /owner: 'libra'/);
+  assert.match(source, /find_subject:[\s\S]*?keyColumns: \['subject_id'\]/);
+  assert.match(source, /find_intake:[\s\S]*?keyColumns: \['intake_decision_id'\]/);
+  assert.match(source, /find_spec:[\s\S]*?keyColumns: \['acceptance_spec_id'\]/);
+  assert.match(hostSource, /readArcaRoutingTargets: arcaRoutingTargets\.list/);
+  assert.match(hostSource, /readArcaShelfStandard: arcaRoutingTargets\.getStandard/);
+});
+
 test('Procurement automation advances only through owner-local formal contracts', () => {
   const source = fs.readFileSync(
     path.join(
@@ -2183,11 +2208,88 @@ test('Movie Handoff A uses the public HTTP journey, survives restart, and closes
       headers: { cookie: await session(host) }, payload: observe,
     });
   }
+  async function establishMovieShelfAndRouting(host) {
+    const cookie = await session(host);
+    const shelfRoot = path.join(path.dirname(value.dataDir), 'movie-handoff-a-shelf');
+    fs.mkdirSync(shelfRoot, { recursive: true });
+    const initialStandard = { profileRuleSets: [] };
+    const placement = { folderTemplate: '{title}', collisionPolicy: 'reject' };
+    const created = await host.inject({
+      method: 'POST', url: '/v1/admin/shelves', headers: { cookie },
+      payload: {
+        idempotencyKey: 'movie-handoff-shelf-create',
+        shelfId: 'movie-handoff-shelf',
+        name: 'Movie Shelf',
+        target: {
+          endpointId: 'movie-handoff-shelf-endpoint',
+          rootLocation: shelfRoot,
+          mountScopeId: 'movie-handoff-shelf-mount',
+          mountScopeRevision: 1,
+        },
+        standard: {
+          ruleTemplateId: 'movie-initial-template',
+          ruleTemplateRevision: 1,
+          schemaRef: 'helix://fixtures/movie-initial-standard/v1',
+          value: initialStandard,
+          digest: canonicalDigest(initialStandard),
+        },
+        placement: {
+          schemaRef: 'helix://fixtures/movie-placement/v1',
+          value: placement,
+          digest: canonicalDigest(placement),
+        },
+      },
+    });
+    assert.equal(created.statusCode, 201, created.body);
+    const bound = await host.inject({
+      method: 'POST',
+      url: '/v1/admin/shelves/movie-handoff-shelf/actions/bind-template',
+      headers: { cookie },
+      payload: {
+        idempotencyKey: 'movie-handoff-shelf-bind',
+        shelfId: 'movie-handoff-shelf',
+        expectedStandardRevision: 1,
+        expectedRoutingProjectionRevision: 1,
+        ruleTemplateId: 'system-beta-recommended',
+        expectedTemplateRevision: 1,
+      },
+    });
+    assert.equal(bound.statusCode, 200, bound.body);
+    const expression = {
+      nodeKind: 'predicate',
+      factKind: 'content_profile',
+      operator: 'eq',
+      expectedValue: 'movie',
+    };
+    const routed = await host.inject({
+      method: 'PATCH',
+      url: `/v1/admin/routing/material-fields/${access.fieldId}`,
+      headers: { cookie },
+      payload: {
+        idempotencyKey: 'movie-handoff-routing-publish',
+        fieldId: access.fieldId,
+        expectedPolicyId: null,
+        expectedRevision: 0,
+        policy: {
+          routingPolicyId: 'movie-handoff-routing-policy',
+          mode: 'sorting',
+          targets: [{
+            shelfId: 'movie-handoff-shelf',
+            rank: 1,
+            matchExpression: expression,
+          }],
+        },
+      },
+    });
+    assert.equal(routed.statusCode, 200, routed.body);
+    return { shelfRoot };
+  }
 
   let host = await createCleanServiceHost({
     dataDir: value.dataDir, adminDistDir: value.adminDistDir, secretRoot, mediaProbe,
   });
   try {
+    await establishMovieShelfAndRouting(host);
     const created = await host.inject({
       method: 'POST', url: '/v1/admin/material-fields', headers: { cookie: await session(host) }, payload: register,
     });
@@ -2196,6 +2298,16 @@ test('Movie Handoff A uses the public HTTP journey, survives restart, and closes
     assert.equal(first.statusCode, 200, first.body);
     assert.equal(first.json().movieJourney.stage, 'handoff_a_accepted');
     assert.equal(first.json().movieJourney.handoff.procurementClosure.closure.terminalDeliveryState, 'accepted');
+    assert.equal(first.json().movieJourney.handoff.formation.stage, 'libra_run_active');
+    assert.equal(
+      first.json().movieJourney.handoff.formation.routing.targetShelfId,
+      'movie-handoff-shelf',
+    );
+    assert.equal(
+      first.json().movieJourney.handoff.formation.acceptanceSpec.specRevision,
+      1,
+    );
+    assert.equal(first.json().movieJourney.handoff.formation.libraRun.stateRevision, 1);
     assert.deepEqual(probedLocations, [source.replace(/\\/g, '/')]);
   } finally {
     await host.close();
@@ -2210,6 +2322,8 @@ test('Movie Handoff A uses the public HTTP journey, survives restart, and closes
     assert.equal(replay.json().observation.replayed, true);
     assert.equal(replay.json().movieJourney.stage, 'handoff_a_accepted');
     assert.equal(replay.json().movieJourney.replayed, true);
+    assert.equal(replay.json().movieJourney.handoff.formation.stage, 'libra_run_active');
+    assert.equal(replay.json().movieJourney.handoff.formation.replayed, true);
   } finally {
     await host.close();
   }
@@ -2223,6 +2337,11 @@ test('Movie Handoff A uses the public HTTP journey, survives restart, and closes
   ).all(), [{ role: 'nfo', location: relatedNfoLocation }]);
   assert.equal(database.prepare("SELECT count(*) count FROM proc_candidate_deliveries WHERE state='accepted'").get().count, 1);
   assert.equal(database.prepare('SELECT count(*) count FROM libra_subjects').get().count, 1);
+  assert.equal(database.prepare('SELECT count(*) count FROM libra_routing_decisions').get().count, 1);
+  assert.equal(database.prepare('SELECT count(*) count FROM libra_acceptance_specs').get().count, 1);
+  assert.equal(database.prepare("SELECT count(*) count FROM libra_runs WHERE state='active'").get().count, 1);
+  assert.equal(database.prepare('SELECT head_revision FROM libra_subject_decision_heads').get().head_revision, 4);
+  assert.equal(database.prepare('SELECT head_revision FROM libra_run_admission_heads').get().head_revision, 1);
   assert.equal(database.prepare(
     "SELECT count(*) count FROM fx_material_controls WHERE owner_domain='libra' AND owner_scope_type='subject'"
   ).get().count, 1);
@@ -2233,6 +2352,7 @@ test('Movie Handoff A uses the public HTTP journey, survives restart, and closes
     "SELECT count(*) count FROM proc_run_materials WHERE location=? AND candidate_package_id IS NULL AND selection_state='run_selection'"
   ).get(relatedNfoLocation).count, 1);
   assert.deepEqual(database.prepare('SELECT message_kind,state FROM fx_outbox ORDER BY message_kind').all(), [
+    { message_kind: 'field_routing_policy_published', state: 'pending' },
     { message_kind: 'libra_candidate_accepted', state: 'fully_acked' },
     { message_kind: 'procurement_candidate_offer_available', state: 'fully_acked' },
   ]);
