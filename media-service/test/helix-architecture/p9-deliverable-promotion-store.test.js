@@ -15,6 +15,9 @@ const {
 const {
   createProductDeliveryReader,
 } = require('../../src/helix/domains/libra/persistence/product-delivery-reader');
+const {
+  onDeckProductPackageDigest,
+} = require('../../src/helix/domains/libra/model/delivery-lifecycle-contracts');
 
 const serviceRoot = path.resolve(__dirname, '../..');
 const schemaManifest = require('../../src/helix/foundation/persistence/generated/clean-schema.manifest.json');
@@ -285,15 +288,18 @@ function fixtureValue() {
   };
   provenance.provenanceDigest = canonicalDigest(provenance);
   const attestation = {
-    attestationId: 'attestation-1',
+    attestationId: '',
     libraRunId: 'run-1',
     onDeckPackageId: '',
     acceptanceSpecId: 'spec-1',
+    acceptanceSpecRecordDigest: D('spec-record'),
     productConformanceEvidenceId: 'conformance-1',
     productConformanceEvidenceDigest: D('conformance'),
+    evaluatedRequirementSetDigest: D('requirements'),
+    productSnapshotDigest: D('product-snapshot'),
     unmetRequirementCount: 0,
     attestedAtMs: NOW,
-    attestationDigest: D('attestation'),
+    attestationDigest: '',
   };
   const controlItems = [{
     controlOperation: 'assert_existing_input',
@@ -320,6 +326,16 @@ function fixtureValue() {
     items: controlItems,
   });
   attestation.onDeckPackageId = onDeckPackageId;
+  attestation.attestationId = canonicalDigest({
+    schema: 'libra.production-attestation-id@1',
+    libraRunId: 'run-1',
+    onDeckPackageId,
+    productConformanceEvidenceId: attestation.productConformanceEvidenceId,
+    productConformanceEvidenceDigest: attestation.productConformanceEvidenceDigest,
+  });
+  attestation.attestationDigest = canonicalDigest(Object.fromEntries(
+    Object.entries(attestation).filter(([key]) => key !== 'attestationDigest'),
+  ));
   const decision = {
     decisionId: '',
     libraRunRef: {
@@ -359,20 +375,7 @@ function fixtureValue() {
     offerId: '',
     decisionDigest: '',
   };
-  decision.packageDigest = canonicalDigest({
-    schema: 'libra.on-deck-product-package@1',
-    libraRunRef: decision.libraRunRef,
-    acceptanceSpecRef: decision.acceptanceSpecRef,
-    resolvedIdentitySnapshot: decision.resolvedIdentitySnapshot,
-    productStructureSnapshot: decision.productStructureSnapshot,
-    productFactManifest: decision.productFactManifest,
-    artifactManifest: decision.artifactManifest,
-    mediaCastSnapshot: decision.mediaCastSnapshot,
-    productMaterialManifest: decision.productMaterialManifest,
-    offloadContextManifest: decision.offloadContextManifest,
-    productionProvenance: decision.productionProvenance,
-    productionAttestation: decision.productionAttestation,
-  });
+  decision.packageDigest = onDeckProductPackageDigest(decision, 'subject-1', 'shelf-1');
   decision.offerId = canonicalDigest({
     schema: 'libra.product-offer-id@1',
     onDeckPackageId,
@@ -590,6 +593,26 @@ function request(value) {
   };
 }
 
+function dropTableTriggers(database, tableId) {
+  const triggers = database.prepare(
+    "SELECT name FROM sqlite_master WHERE type='trigger' AND tbl_name=?",
+  ).all(tableId);
+  for (const trigger of triggers) {
+    database.exec(`DROP TRIGGER "${trigger.name.replaceAll('"', '""')}"`);
+  }
+}
+
+function readRequest(value) {
+  return {
+    queryContract: 'libra.product-delivery@1',
+    readPurpose: 'historical',
+    offerId: value.decision.offerId,
+    onDeckPackageId: value.decision.onDeckPackageId,
+    expectedPackageRevision: 1,
+    expectedPackageDigest: value.decision.packageDigest,
+  };
+}
+
 test('commits one immutable Package, Offer, Result, marker and exact historical read atomically', () =>
   withDatabase((value) => {
     const store = createDeliverablePromotionStore({
@@ -605,18 +628,17 @@ test('commits one immutable Package, Offer, Result, marker and exact historical 
       schemaManifest,
       unitOfWork: value.unitOfWork,
     });
-    const read = reader.readPackage({
-      queryContract: 'libra.product-delivery@1',
-      readPurpose: 'historical',
-      offerId: value.decision.offerId,
-      onDeckPackageId: value.decision.onDeckPackageId,
-      expectedPackageRevision: 1,
-      expectedPackageDigest: value.decision.packageDigest,
-    });
+    const read = reader.readPackage(readRequest(value));
     assert.equal(read.resultKind, 'found');
     assert.equal(read.deliveryFence, null);
     assert.equal(read.onDeckProductPackage.onDeckPackageId, value.decision.onDeckPackageId);
     assert.equal(read.onDeckProductPackage.productMaterialManifest.members.length, 1);
+    assert.equal(first.receipt.receiptId, canonicalDigest({
+      schema: 'libra.product-package-commit-receipt-id@1',
+      onDeckPackageId: value.decision.onDeckPackageId,
+      packageRevision: 1,
+    }));
+    assert.equal(first.receipt.scopeDigest, value.decision.decisionDigest);
     const db = new Database(value.databasePath, { readonly: true });
     try {
       assert.equal(db.prepare('SELECT package_revision_head FROM libra_runs').get().package_revision_head, 1);
@@ -634,6 +656,139 @@ test('commits one immutable Package, Offer, Result, marker and exact historical 
       db.close();
     }
   }));
+
+test('historical Product Delivery recomputes the complete Package and excludes only commit time', async (t) => {
+  const cases = [
+    {
+      name: 'Shelf identity',
+      tables: ['libra_product_packages'],
+      mutate(database) {
+        database.prepare('UPDATE libra_product_packages SET shelf_id=?').run('tampered-shelf');
+      },
+    },
+    {
+      name: 'Run Material reference',
+      tables: ['libra_product_packages'],
+      mutate(database) {
+        database.prepare(
+          'UPDATE libra_product_packages SET run_material_manifest_digest=?',
+        ).run(D('tampered-run-manifest'));
+      },
+    },
+    {
+      name: 'Product Fact Manifest identity',
+      tables: ['libra_product_packages'],
+      mutate(database) {
+        database.prepare(
+          'UPDATE libra_product_packages SET product_fact_manifest_id=?',
+        ).run('tampered-product-facts');
+      },
+    },
+    {
+      name: 'Production Provenance',
+      tables: ['libra_product_packages'],
+      mutate(database) {
+        const row = database.prepare(
+          'SELECT production_provenance_json FROM libra_product_packages',
+        ).get();
+        const provenance = JSON.parse(row.production_provenance_json);
+        provenance.acceptanceSpecRecordDigest = D('tampered-provenance-spec');
+        delete provenance.provenanceDigest;
+        provenance.provenanceDigest = canonicalDigest(provenance);
+        database.prepare(`UPDATE libra_product_packages
+          SET production_provenance_json=?, production_provenance_digest=?`).run(
+          canonicalJson(provenance), provenance.provenanceDigest,
+        );
+      },
+    },
+    {
+      name: 'Production Attestation',
+      tables: ['libra_product_packages'],
+      mutate(database) {
+        const row = database.prepare(
+          'SELECT attestation_json FROM libra_product_packages',
+        ).get();
+        const attestation = JSON.parse(row.attestation_json);
+        attestation.productSnapshotDigest = D('tampered-product-snapshot');
+        delete attestation.attestationDigest;
+        attestation.attestationDigest = canonicalDigest(attestation);
+        database.prepare(`UPDATE libra_product_packages
+          SET attestation_json=?, attestation_digest=?`).run(
+          canonicalJson(attestation), attestation.attestationDigest,
+        );
+      },
+    },
+    {
+      name: 'Product member committed Control',
+      tables: ['libra_product_package_materials', 'libra_product_packages'],
+      mutate(database, value) {
+        const member = structuredClone(value.decision.productMaterialManifest.members[0]);
+        member.committedControlProjectionDigest = D('tampered-committed-control');
+        delete member.memberDigest;
+        member.memberDigest = canonicalDigest(member);
+        const manifest = structuredClone(value.decision.productMaterialManifest);
+        manifest.members = [member];
+        manifest.memberSetDigest = canonicalDigest({
+          schema: 'libra.production-material-members@1',
+          items: manifest.members,
+        });
+        delete manifest.manifestDigest;
+        manifest.manifestDigest = canonicalDigest(manifest);
+        database.prepare(`UPDATE libra_product_package_materials
+          SET committed_control_projection_digest=?, member_digest=?`).run(
+          member.committedControlProjectionDigest, member.memberDigest,
+        );
+        database.prepare(`UPDATE libra_product_packages
+          SET product_material_manifest_digest=?`).run(manifest.manifestDigest);
+      },
+    },
+  ];
+  for (const item of cases) {
+    await t.test(item.name, () => withDatabase((value) => {
+      const store = createDeliverablePromotionStore({
+        schemaManifest,
+        unitOfWork: value.unitOfWork,
+      });
+      store.publish(request(value));
+      const database = new Database(value.databasePath);
+      try {
+        database.pragma('foreign_keys = OFF');
+        item.tables.forEach((tableId) => dropTableTriggers(database, tableId));
+        item.mutate(database, value);
+      } finally {
+        database.close();
+      }
+      const reader = createProductDeliveryReader({
+        schemaManifest,
+        unitOfWork: value.unitOfWork,
+      });
+      assert.throws(() => reader.readPackage(readRequest(value)),
+        /reconstruct|drift|immutable complete Package/i);
+    }));
+  }
+
+  await t.test('publishedAtMs commit metadata', () => withDatabase((value) => {
+    const store = createDeliverablePromotionStore({
+      schemaManifest,
+      unitOfWork: value.unitOfWork,
+    });
+    store.publish(request(value));
+    const database = new Database(value.databasePath);
+    try {
+      dropTableTriggers(database, 'libra_product_packages');
+      database.prepare('UPDATE libra_product_packages SET published_at_ms=published_at_ms+99').run();
+    } finally {
+      database.close();
+    }
+    const reader = createProductDeliveryReader({
+      schemaManifest,
+      unitOfWork: value.unitOfWork,
+    });
+    const read = reader.readPackage(readRequest(value));
+    assert.equal(read.resultKind, 'found');
+    assert.equal(read.onDeckProductPackage.packageDigest, value.decision.packageDigest);
+  }));
+});
 
 test('rolls every participant back when package write fails after Control assertion', () =>
   withDatabase((value) => {

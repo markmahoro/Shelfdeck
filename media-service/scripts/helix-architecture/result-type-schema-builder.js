@@ -517,6 +517,7 @@ function buildResultTypeSchema(name, [base, fieldList]) {
   if (name === 'PersonReferenceRevision') return personReferenceRevisionSchema();
   if (name === 'IntakeRejectionReceipt') return intakeRejectionReceiptSchema();
   if (name === 'RejectionReceipt') return rejectionReceiptSchema();
+  if (name === 'OnDeckProductPackage') return onDeckProductPackageSchema();
   if (name === 'OnDeckProductPackageCommitReceipt') return onDeckProductPackageCommitReceiptSchema();
   if (name === 'AcquisitionQuery') return acquisitionQuerySchema();
   if (name === 'AcquisitionCandidates') return acquisitionCandidatesSchema();
@@ -661,8 +662,11 @@ function artifactManifestVerificationSchema() {
 }
 
 function mediaCastRelationSchema() {
+  const providerPersonIdentity = object({
+    provider: text(), namespace: text(), providerKey: text(),
+  });
   return object({ relationId: id(), personId: nullable(id()), displayName: text(), displayNameNormalized: text(), role: text(),
-    source: text(), providerIdentities: arrayOf(snapshot('provider-identity'), 128), originEvidenceDigest: digest(),
+    source: text(), providerIdentities: arrayOf(providerPersonIdentity, 128), originEvidenceDigest: digest(),
     confidenceClass: text(), relationDigest: digest() });
 }
 
@@ -700,6 +704,98 @@ function productMetadataFactSchema() {
     providerIdentities: arrayOf(domainRef('ResolvedProviderIdentity'), 16), mediaCastFactRef: nullable(mediaCastFactRef),
     verifiedArtifactManifestDigest: digest(), productMetadataDigest: digest()
   }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
+}
+
+function productFactSnapshotSchema(kind, schemaName, includeReferenceDigest = true) {
+  return object({
+    productFactId: id(), factKind: { const: kind }, factRevision: positiveInteger(),
+    schemaRef: { const: typeId(schemaName) }, factValue: ref(schemaName),
+    factDigest: digest(), evidenceDigest: digest(),
+    ...(includeReferenceDigest ? { referenceDigest: digest() } : {})
+  });
+}
+
+function onDeckProductPackageSchema() {
+  const factItem = {
+    oneOf: [
+      productFactSnapshotSchema('resolved_identity', 'ResolvedProductIdentity'),
+      productFactSnapshotSchema('product_metadata', 'ProductMetadataFact'),
+      productFactSnapshotSchema('media_cast', 'MediaCastFact')
+    ]
+  };
+  const factManifest = object({
+    manifestId: id(), manifestRevision: positiveInteger(), libraRunId: id(),
+    items: { ...arrayOf(factItem, 256), minItems: 1 },
+    factSetDigest: digest(), manifestDigest: digest()
+  });
+  const offloadMember = object({
+    ordinal: nonNegativeInteger(), materialKey: digest(),
+    contextRole: enumText('original_input', 'structural_dependency'),
+    physicalIdentity: ref('PhysicalMaterialIdentity'), endpointId: id(), location: text(),
+    bindingRevision: positiveInteger(), bindingEvidenceDigest: digest(),
+    admittedControlRevision: positiveInteger(), admittedControlProjectionDigest: digest(),
+    settlementExpectation: enumText('retain', 'replace_or_move', 'remove_after_place'),
+    memberDigest: digest()
+  });
+  const offloadManifest = object({
+    manifestId: id(), manifestRevision: positiveInteger(), libraRunId: id(),
+    members: arrayOf(offloadMember, 1024), memberSetDigest: digest(), manifestDigest: digest()
+  });
+  const provenance = object({
+    libraRunId: id(), runExecutionBasisDigest: digest(), acceptanceSpecRecordDigest: digest(),
+    workflowPlanRefs: arrayOf(object({
+      planId: id(), planRevision: positiveInteger(), planDigest: digest()
+    }), 256),
+    productVerificationRefs: arrayOf(object({
+      verificationId: id(), verificationDigest: digest()
+    }), 256),
+    externalRealityObservationRefs: arrayOf(object({
+      evidenceId: id(), evidenceDigest: digest()
+    }), 256),
+    provenanceDigest: digest()
+  });
+  const attestation = object({
+    attestationId: id(), libraRunId: id(), onDeckPackageId: id(),
+    acceptanceSpecId: id(), acceptanceSpecRecordDigest: digest(),
+    productConformanceEvidenceId: id(), productConformanceEvidenceDigest: digest(),
+    evaluatedRequirementSetDigest: digest(), productSnapshotDigest: digest(),
+    unmetRequirementCount: { const: 0 }, attestedAtMs: nonNegativeInteger(),
+    attestationDigest: digest()
+  });
+  const resolvedIdentitySnapshot = object({
+    productFactId: id(), factRevision: positiveInteger(),
+    schemaRef: { const: typeId('ResolvedProductIdentity') },
+    factValue: ref('ResolvedProductIdentity'), factDigest: digest(), evidenceDigest: digest()
+  });
+  const mediaCastSnapshot = object({
+    mediaCastFactId: id(), mediaCastFactRevision: positiveInteger(),
+    schemaRef: { const: typeId('MediaCastFact') }, factValue: ref('MediaCastFact'),
+    factDigest: digest(), evidenceDigest: digest(),
+    relations: arrayOf(mediaCastRelationSchema(), 4096), relationsDigest: digest()
+  });
+  const properties = {
+    schemaRef: { const: typeId('OnDeckProductPackage') }, schemaVersion: { const: 1 },
+    ...envelopeFields.ManifestEnvelope,
+    manifestKind: { const: 'on_deck_product_package' }, ownerDomain: { const: 'libra' },
+    onDeckPackageId: id(), packageRevision: positiveInteger(), libraRunId: id(),
+    runStateRevision: positiveInteger(), runStateDigest: digest(),
+    runExecutionBasisDigest: digest(), subjectId: id(), shelfId: id(),
+    acceptanceSpecRef: object({ id: id(), recordDigest: digest() }),
+    resolvedIdentitySnapshot, productStructureSnapshot: domainRef('ProductStructureSnapshot'),
+    runMaterialManifestRef: object({ id: id(), digest: digest() }),
+    productMaterialManifest: domainRef('ProductionMaterialManifest'),
+    productFactManifest: factManifest, artifactManifest: domainRef('ArtifactManifest'),
+    mediaCastSnapshot, offloadContextManifest: offloadManifest,
+    productionProvenance: provenance, productionAttestation: attestation,
+    packageDigest: digest()
+  };
+  return {
+    $schema: DRAFT, $id: typeId('OnDeckProductPackage'),
+    title: 'OnDeckProductPackage@1', 'x-helix-ssotRefs': ['8.6.19', '8.6.21'],
+    'x-helix-envelopeRef': typeId('ManifestEnvelope'),
+    'x-helix-maxCanonicalBytes': 16 * 1024 * 1024,
+    ...object(properties)
+  };
 }
 
 function onDeckProductPackageCommitReceiptSchema() {

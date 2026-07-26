@@ -64,6 +64,9 @@ const {
 const {
   createWorkspaceMaterialReferenceStore,
 } = require('../persistence/workspace-material-reference-store');
+const {
+  onDeckProductPackageDigest,
+} = require('../model/delivery-lifecycle-contracts');
 
 const RESULT_SCHEMA = 'helix://contracts/types/OnDeckProductPackageCommitReceipt/v1';
 const METADATA_SCHEMA = 'helix://contracts/types/MetadataObservation/v1';
@@ -484,7 +487,7 @@ function createMovieProductionCoordinator(options) {
       resourceDemandSchemaRef: value.resourceDemandSchemaRef,
       resourceKinds: value.resourceKinds,
     });
-    options.workRuntime.activate({
+    const activation = options.workRuntime.activate({
       workId,
       ownerDomain: 'libra',
       basisDigest,
@@ -518,6 +521,8 @@ function createMovieProductionCoordinator(options) {
         workId,
         attemptId: workId + ':attempt:1',
         planId: workId + ':plan:1',
+        planRevision: Number(activation.snapshot.plan.planner_version),
+        planDigest: activation.snapshot.plan.graph_digest,
         eventId,
         replayed: true,
       });
@@ -555,6 +560,8 @@ function createMovieProductionCoordinator(options) {
       workId,
       attemptId: workId + ':attempt:1',
       planId: workId + ':plan:1',
+      planRevision: Number(activation.snapshot.plan.planner_version),
+      planDigest: activation.snapshot.plan.graph_digest,
       eventId,
     });
   }
@@ -1459,16 +1466,22 @@ function createMovieProductionCoordinator(options) {
         conformance,
       });
     }
-    const factItems = facts.map((item) => ({
-      productFactId: item.productFactId,
-      factKind: item.factKind,
-      factRevision: item.factRevision,
-      schemaRef: item.schemaRef,
-      factValue: item.factValue,
-      factDigest: item.factDigest,
-      evidenceDigest: item.evidenceDigest,
-      referenceDigest: item.referenceDigest,
-    }));
+    const factItems = facts.map((item) => {
+      const reference = {
+        productFactId: item.productFactId,
+        factKind: item.factKind,
+        factRevision: item.factRevision,
+        schemaRef: item.schemaRef,
+        factValue: item.factValue,
+        factDigest: item.factDigest,
+        evidenceDigest: item.evidenceDigest,
+      };
+      reference.referenceDigest = canonicalDigest(reference);
+      return reference;
+    }).sort((left, right) =>
+      Buffer.compare(Buffer.from(left.factKind), Buffer.from(right.factKind)) ||
+      Buffer.compare(Buffer.from(left.productFactId), Buffer.from(right.productFactId)) ||
+      left.factRevision - right.factRevision);
     const productFactManifest = {
       manifestId: canonicalDigest({
         schema: 'libra.product-submanifest-id@1',
@@ -1529,9 +1542,11 @@ function createMovieProductionCoordinator(options) {
       runExecutionBasisDigest: snapshot.run.executionBasisDigest,
       acceptanceSpecRecordDigest: snapshot.spec.recordDigest,
       workflowPlanRefs: results.concat(artifactChains).map((item) => ({
-        workId: item.workId,
         planId: item.planId,
-      })),
+        planRevision: item.planRevision,
+        planDigest: item.planDigest,
+      })).sort((left, right) =>
+        Buffer.compare(Buffer.from(left.planId), Buffer.from(right.planId))),
       productVerificationRefs: [{
         verificationId: mediaVerification.verificationId,
         verificationDigest: canonicalDigest(mediaVerification),
@@ -1543,9 +1558,12 @@ function createMovieProductionCoordinator(options) {
     };
     provenance.provenanceDigest = canonicalDigest(provenance);
     const attestation = {
-      attestationId: stable('movie-product-attestation-', {
+      attestationId: canonicalDigest({
+        schema: 'libra.production-attestation-id@1',
         libraRunId,
-        conformanceEvidenceId: conformance.verificationId,
+        onDeckPackageId,
+        productConformanceEvidenceId: conformance.verificationId,
+        productConformanceEvidenceDigest: canonicalDigest(conformance),
       }),
       libraRunId,
       onDeckPackageId,
@@ -1642,20 +1660,11 @@ function createMovieProductionCoordinator(options) {
       offerId: '',
       decisionDigest: '',
     };
-    decision.packageDigest = canonicalDigest({
-      schema: 'libra.on-deck-product-package@1',
-      libraRunRef: decision.libraRunRef,
-      acceptanceSpecRef: decision.acceptanceSpecRef,
-      resolvedIdentitySnapshot: decision.resolvedIdentitySnapshot,
-      productStructureSnapshot: decision.productStructureSnapshot,
-      productFactManifest: decision.productFactManifest,
-      artifactManifest: decision.artifactManifest,
-      mediaCastSnapshot: decision.mediaCastSnapshot,
-      productMaterialManifest: decision.productMaterialManifest,
-      offloadContextManifest: decision.offloadContextManifest,
-      productionProvenance: decision.productionProvenance,
-      productionAttestation: decision.productionAttestation,
-    });
+    decision.packageDigest = onDeckProductPackageDigest(
+      decision,
+      snapshot.run.subjectId,
+      snapshot.spec.targetShelfId || snapshot.spec.shelfId,
+    );
     decision.offerId = canonicalDigest({
       schema: 'libra.product-offer-id@1',
       onDeckPackageId,

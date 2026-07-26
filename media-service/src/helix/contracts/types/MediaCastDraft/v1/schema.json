@@ -121,34 +121,23 @@
               "type": "object",
               "additionalProperties": false,
               "properties": {
-                "objectId": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 256
-                },
-                "revision": {
-                  "type": "integer",
-                  "minimum": 1
-                },
-                "schemaRef": {
+                "provider": {
                   "type": "string",
                   "minLength": 1
                 },
-                "snapshotDigest": {
+                "namespace": {
                   "type": "string",
-                  "minLength": 1,
-                  "pattern": "^[a-f0-9]{64}$"
+                  "minLength": 1
                 },
-                "objectKind": {
-                  "const": "provider-identity"
+                "providerKey": {
+                  "type": "string",
+                  "minLength": 1
                 }
               },
               "required": [
-                "objectId",
-                "revision",
-                "schemaRef",
-                "snapshotDigest",
-                "objectKind"
+                "provider",
+                "namespace",
+                "providerKey"
               ]
             },
             "maxItems": 128

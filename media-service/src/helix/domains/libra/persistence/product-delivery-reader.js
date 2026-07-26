@@ -2,6 +2,9 @@
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
+const {
+  verifyOnDeckProductPackageDigest,
+} = require('../model/delivery-lifecycle-contracts');
 
 class ProductDeliveryReaderError extends Error {
   constructor(code, message, details = {}) {
@@ -34,6 +37,10 @@ function parse(value, code) {
 
 function utf8(left, right) {
   return Buffer.compare(Buffer.from(left), Buffer.from(right));
+}
+
+function without(value, key) {
+  return Object.fromEntries(Object.entries(value).filter(([name]) => name !== key));
 }
 
 function exactQuery(value) {
@@ -253,7 +260,17 @@ function reconstruct(repo, row) {
       fact_revision: number(ref.fact_revision),
     });
     if (!fact || fact.fact_digest !== ref.fact_digest ||
-        fact.evidence_digest !== ref.evidence_digest) {
+        fact.evidence_digest !== ref.evidence_digest ||
+        ref.reference_digest !== canonicalDigest(without({
+          productFactId: ref.product_fact_id,
+          factKind: ref.fact_kind,
+          factRevision: number(ref.fact_revision),
+          schemaRef: ref.schema_ref,
+          factValue: parse(fact.fact_json, 'P9_PRODUCT_DELIVERY_FACT_JSON'),
+          factDigest: ref.fact_digest,
+          evidenceDigest: ref.evidence_digest,
+          referenceDigest: ref.reference_digest,
+        }, 'referenceDigest'))) {
       fail('P9_PRODUCT_DELIVERY_FACT_CORRUPT', 'Package Fact relation is not reconstructable.');
     }
     return {
@@ -289,7 +306,12 @@ function reconstruct(repo, row) {
   };
   productMaterialManifest.manifestDigest = canonicalDigest(productMaterialManifest);
   if (productMaterialManifest.manifestDigest !== row.product_material_manifest_digest) {
-    fail('P9_PRODUCT_DELIVERY_MATERIAL_DIGEST', 'Product Material Manifest reconstruction drifted.');
+    fail('P9_PRODUCT_DELIVERY_MATERIAL_DIGEST', 'Product Material Manifest reconstruction drifted.', {
+      expectedManifestDigest: row.product_material_manifest_digest,
+      reconstructedManifestDigest: productMaterialManifest.manifestDigest,
+      reconstructedMemberDigests: members.map((item) => canonicalDigest(item)),
+      storedMemberDigests: members.map((item) => item.memberDigest),
+    });
   }
   const productFactManifest = {
     manifestId: row.product_fact_manifest_id,
@@ -345,6 +367,12 @@ function reconstruct(repo, row) {
   };
   offloadContextManifest.manifestDigest = canonicalDigest(offloadContextManifest);
   const structure = parse(row.product_structure_json, 'P9_PRODUCT_DELIVERY_STRUCTURE');
+  const resolvedIdentitySnapshot = resolved ? Object.fromEntries(
+    Object.entries(resolved).filter(([name]) =>
+      !['factKind', 'referenceDigest'].includes(name)),
+  ) : null;
+  const productionProvenance = parse(row.production_provenance_json, 'P9_PRODUCT_DELIVERY_PROVENANCE');
+  const productionAttestation = parse(row.attestation_json, 'P9_PRODUCT_DELIVERY_ATTESTATION');
   const packageValue = {
     schemaRef: 'helix://contracts/types/OnDeckProductPackage/v1',
     schemaVersion: 1,
@@ -370,7 +398,7 @@ function reconstruct(repo, row) {
       id: row.acceptance_spec_id,
       recordDigest: row.acceptance_spec_record_digest,
     },
-    resolvedIdentitySnapshot: resolved,
+    resolvedIdentitySnapshot,
     productStructureSnapshot: structure,
     runMaterialManifestRef: {
       id: row.run_material_manifest_id,
@@ -390,15 +418,25 @@ function reconstruct(repo, row) {
       relationsDigest: cast.factValue.relationsDigest,
     },
     offloadContextManifest,
-    productionProvenance: parse(row.production_provenance_json, 'P9_PRODUCT_DELIVERY_PROVENANCE'),
-    productionAttestation: parse(row.attestation_json, 'P9_PRODUCT_DELIVERY_ATTESTATION'),
+    productionProvenance,
+    productionAttestation,
     packageDigest: row.package_digest,
   };
   if (productFactManifest.manifestDigest !== row.product_fact_manifest_digest ||
       artifactManifest.manifestDigest !== row.artifact_manifest_digest ||
       offloadContextManifest.manifestDigest !== row.offload_context_digest ||
-      canonicalJson(packageValue.resolvedIdentitySnapshot) !== canonicalJson(resolved)) {
+      structure.productStructureDigest !== row.product_structure_digest ||
+      productionProvenance.provenanceDigest !== row.production_provenance_digest ||
+      productionAttestation.attestationDigest !== row.attestation_digest) {
     fail('P9_PRODUCT_DELIVERY_MANIFEST_CORRUPT', 'Package relation manifest reconstruction drifted.');
+  }
+  try {
+    verifyOnDeckProductPackageDigest(packageValue);
+  } catch (error) {
+    fail('P9_PRODUCT_DELIVERY_PACKAGE_DIGEST',
+      'Product Delivery does not reconstruct the immutable complete Package.', {
+        cause: error.code,
+      });
   }
   return Object.freeze(packageValue);
 }

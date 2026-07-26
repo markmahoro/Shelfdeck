@@ -653,7 +653,7 @@
       "relativePath": "types/MediaCastDraft/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "e2dca5e98e701b48e87a04270041038cb8afffc0400b985d1732a36a3fa33e50"
+        "value": "f48bc9c5a7d79c9e3b3e692391451a4f5f033371f412343fddbc6bc81b02e290"
       },
       "source": {
         "section": "8.6.19",
@@ -669,7 +669,7 @@
       "relativePath": "types/MediaCastFact/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "4eb6fdcbdc3c3520e457049eb8295511ffb9414a73320f2c9c93d58dd4ef2813"
+        "value": "6466b07a8133216a4167c834245f11ad6c550d66f84afc5c684ebe67c0f131ca"
       },
       "source": {
         "section": "8.6.19",
@@ -811,7 +811,7 @@
       "relativePath": "types/OnDeckProductPackage/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "cfb0565b34b97b4ea2324404a2a0f903a9da9abbc2820c55eb0662f2226be23d"
+        "value": "d133afb0fa148e6803f082aa672b713c7c5bbb62c15a43f471a57530958718f0"
       },
       "source": {
         "section": "8.6.19",

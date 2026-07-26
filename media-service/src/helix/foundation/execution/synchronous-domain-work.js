@@ -74,7 +74,10 @@ function definitions(schemaManifest) {
         find: {
           kind: 'select-one',
           tableId: 'fx_workflow_plans',
-          columns: ['plan_id', 'attempt_id', 'basis_digest', 'graph_digest', 'state'],
+          columns: [
+            'plan_id', 'attempt_id', 'planner_ref', 'planner_version',
+            'catalog_digest', 'basis_digest', 'graph_digest', 'state',
+          ],
           keyColumns: ['attempt_id'],
         },
         insert: {

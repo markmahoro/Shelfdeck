@@ -37,6 +37,9 @@ const {
 const {
   createCandidateDeliveryReader,
 } = require('../../src/helix/domains/procurement/persistence/candidate-delivery-reader');
+const {
+  createProductDeliveryReader,
+} = require('../../src/helix/domains/libra/persistence/product-delivery-reader');
 const cleanSchemaManifest = require(
   '../../src/helix/foundation/persistence/generated/clean-schema.manifest.json'
 );
@@ -54,6 +57,22 @@ const cleanSchemaDdl = fs.readFileSync(
 const validateDeregistrationReceipt = new Ajv2020({ allErrors: true, strict: false }).compile(
   require('../../src/helix/contracts/types/DeregistrationReceipt/v1/schema.json'),
 );
+
+function contractValidator(schemaId) {
+  const ajv = new Ajv2020({ allErrors: true, strict: false });
+  const pending = [path.join(serviceRoot, 'src', 'helix', 'contracts')];
+  while (pending.length > 0) {
+    const current = pending.pop();
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const entryPath = path.join(current, entry.name);
+      if (entry.isDirectory()) pending.push(entryPath);
+      else if (entry.name === 'schema.json') ajv.addSchema(JSON.parse(fs.readFileSync(entryPath, 'utf8')));
+    }
+  }
+  const validate = ajv.getSchema(schemaId);
+  assert.ok(validate, `missing machine schema ${schemaId}`);
+  return validate;
+}
 
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-p14-entry-'));
@@ -2589,6 +2608,10 @@ test('Movie production uses public HTTP, survives restart, and opens one immutab
     `SELECT offer_id,candidate_package_id,package_revision,package_digest,acceptance_basis_digest
        FROM proc_candidate_deliveries`
   ).get();
+  const productPackage = database.prepare(
+    `SELECT offer_id,on_deck_package_id,package_revision,package_digest
+       FROM libra_product_packages`
+  ).get();
   database.close();
 
   const kernel = openSqliteKernel({
@@ -2616,6 +2639,27 @@ test('Movie production uses public HTTP, survives restart, and opens one immutab
     assert.equal(candidateDelivery.snapshot.candidatePackage.relatedReferences.length, 1);
     assert.equal(candidateDelivery.snapshot.candidatePackage.relatedReferences[0].role, 'nfo');
     assert.equal(candidateDelivery.snapshot.candidatePackage.relatedReferences[0].location, relatedNfoLocation);
+
+    const productDelivery = createProductDeliveryReader({
+      schemaManifest: cleanSchemaManifest,
+      unitOfWork: createSqliteUnitOfWork({ kernel }),
+    }).readPackage({
+      queryContract: 'libra.product-delivery@1',
+      readPurpose: 'historical',
+      offerId: productPackage.offer_id,
+      onDeckPackageId: productPackage.on_deck_package_id,
+      expectedPackageRevision: Number(productPackage.package_revision),
+      expectedPackageDigest: productPackage.package_digest,
+    });
+    assert.equal(productDelivery.resultKind, 'found');
+    const validatePackage = contractValidator(
+      'helix://contracts/types/OnDeckProductPackage/v1',
+    );
+    assert.equal(
+      validatePackage(productDelivery.onDeckProductPackage),
+      true,
+      JSON.stringify(validatePackage.errors),
+    );
   } finally {
     kernel.close();
   }

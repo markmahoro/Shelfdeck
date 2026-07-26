@@ -11,7 +11,55 @@ const integer=(value,name,min=0)=>{if(!Number.isSafeInteger(value)||value<min)fa
 const clone=(value)=>JSON.parse(canonicalJson(value));
 const freeze=(value)=>{if(value&&typeof value==='object'&&!Object.isFrozen(value)){Object.values(value).forEach(freeze);Object.freeze(value);}return value;};
 const without=(value,key)=>Object.fromEntries(Object.entries(value).filter(([name])=>name!==key));
+const withoutPackageDigestFields=(value)=>Object.fromEntries(Object.entries(value)
+  .filter(([name])=>!['manifestDigest','publishedAtMs','packageDigest'].includes(name)));
 const relative=(value)=>{text(value,'relativePath');const p=value.split('/');if(value.includes('\\')||value.startsWith('/')||/^[A-Za-z]:/.test(value)||p.some((x)=>!x||x==='.'||x==='..'))fail('P9_DELIVERY_PATH','Path must be canonical root-relative.');return value;};
+
+function packageContentValue(decision,subjectId,shelfId){
+  const members=decision.productMaterialManifest.members;
+  const identity=decision.resolvedIdentitySnapshot;
+  return {
+    schemaRef:'helix://contracts/types/OnDeckProductPackage/v1',schemaVersion:1,
+    manifestId:decision.onDeckPackageId,manifestKind:'on_deck_product_package',ownerDomain:'libra',
+    memberCount:members.length,membersDigest:decision.productMaterialManifest.memberSetDigest,
+    onDeckPackageId:decision.onDeckPackageId,packageRevision:decision.packageRevision,
+    libraRunId:decision.libraRunRef.libraRunId,runStateRevision:decision.libraRunRef.stateRevision,
+    runStateDigest:decision.libraRunRef.stateDigest,runExecutionBasisDigest:decision.libraRunRef.executionBasisDigest,
+    subjectId:text(subjectId,'subjectId'),shelfId:text(shelfId,'shelfId'),
+    acceptanceSpecRef:{id:decision.acceptanceSpecRef.acceptanceSpecId,recordDigest:decision.acceptanceSpecRef.recordDigest},
+    resolvedIdentitySnapshot:{
+      productFactId:identity.productFactId,factRevision:identity.factRevision,
+      schemaRef:identity.schemaRef,factValue:clone(identity.factValue),
+      factDigest:identity.factDigest,evidenceDigest:identity.evidenceDigest
+    },
+    productStructureSnapshot:clone(decision.productStructureSnapshot),
+    runMaterialManifestRef:{id:decision.runMaterialManifestRef.manifestId,digest:decision.runMaterialManifestRef.manifestDigest},
+    productMaterialManifest:clone(decision.productMaterialManifest),productFactManifest:clone(decision.productFactManifest),
+    artifactManifest:clone(decision.artifactManifest),mediaCastSnapshot:clone(decision.mediaCastSnapshot),
+    offloadContextManifest:clone(decision.offloadContextManifest),productionProvenance:clone(decision.productionProvenance),
+    productionAttestation:clone(decision.productionAttestation)
+  };
+}
+
+function onDeckProductPackageDigest(decision,subjectId,shelfId){
+  return canonicalDigest(packageContentValue(decision,subjectId,shelfId));
+}
+
+function buildOnDeckProductPackage(decision,subjectId,shelfId,publishedAtMs){
+  const content=packageContentValue(decision,subjectId,shelfId);
+  const packageDigest=canonicalDigest(content);
+  if(decision.packageDigest!==packageDigest)
+    fail('P9_PROMOTION_PACKAGE_DIGEST','Promotion Package digest does not cover the complete nominal Package.');
+  return freeze({...content,manifestDigest:packageDigest,publishedAtMs:integer(publishedAtMs,'publishedAtMs'),
+    packageDigest});
+}
+
+function verifyOnDeckProductPackageDigest(value){
+  const expected=canonicalDigest(withoutPackageDigestFields(value));
+  if(value.manifestDigest!==expected||value.packageDigest!==expected)
+    fail('P9_PRODUCT_DELIVERY_PACKAGE_DIGEST','Reconstructed Product Package content digest drifted.');
+  return expected;
+}
 
 function assertPromotionDecision(value){
   if(!value||!Array.isArray(value.productStagingReferences)||value.productStagingReferences.some((item)=>item.state!=='product_staging')||
@@ -42,14 +90,18 @@ function assertPromotionDecision(value){
       refs.some((item)=>item.libraRunId!==value.libraRunRef.libraRunId||item.workspaceId!==value.workspaceRef.workspaceId)){
     fail('P9_PROMOTION_RUN','Promotion inputs cross a Run or Workspace boundary.');
   }
-  const packageDigest=canonicalDigest({schema:'libra.on-deck-product-package@1',libraRunRef:value.libraRunRef,
-    acceptanceSpecRef:value.acceptanceSpecRef,resolvedIdentitySnapshot:value.resolvedIdentitySnapshot,productStructureSnapshot:value.productStructureSnapshot,
-    productFactManifest:value.productFactManifest,artifactManifest:value.artifactManifest,mediaCastSnapshot:value.mediaCastSnapshot,
-    productMaterialManifest:value.productMaterialManifest,offloadContextManifest:value.offloadContextManifest,productionProvenance:value.productionProvenance,
-    productionAttestation:value.productionAttestation});
   const onDeckPackageId=canonicalDigest({schema:'libra.on-deck-package-id@1',
     libraRunId:value.libraRunRef.libraRunId,packageRevision:value.packageRevision});
-  if(value.onDeckPackageId!==onDeckPackageId||value.packageDigest!==packageDigest||
+  const attestation=value.productionAttestation;
+  const attestationId=canonicalDigest({schema:'libra.production-attestation-id@1',
+    libraRunId:value.libraRunRef.libraRunId,onDeckPackageId,
+    productConformanceEvidenceId:attestation?.productConformanceEvidenceId,
+    productConformanceEvidenceDigest:attestation?.productConformanceEvidenceDigest});
+  if(value.onDeckPackageId!==onDeckPackageId||!DIGEST.test(value.packageDigest||'')||
+      value.offerId!==canonicalDigest({schema:'libra.product-offer-id@1',onDeckPackageId,
+        packageDigest:value.packageDigest})||
+      attestation?.attestationId!==attestationId||
+      attestation?.attestationDigest!==canonicalDigest(without(attestation||{},'attestationDigest'))||
       value.decisionDigest!==canonicalDigest(without(value,'decisionDigest')))
     fail('P9_PROMOTION_DIGEST','Promotion Decision digest continuity is invalid.');
   return value;
@@ -73,26 +125,12 @@ function buildPromotionCommit(value){
       }))fail('P9_PROMOTION_CONTROL_RESULT','Committed Control set does not match the exact Promotion scope.');
   const controlRevisionSetDigest=canonicalDigest({schema:'libra.product-control-revision-set@1',
     onDeckPackageId:decision.onDeckPackageId,items:controlCommits});
-  const members=decision.productMaterialManifest.members;
-  const packageValue={schemaRef:'helix://contracts/types/OnDeckProductPackage/v1',schemaVersion:1,
-    manifestId:decision.onDeckPackageId,manifestKind:'on_deck_product_package',ownerDomain:'libra',
-    memberCount:members.length,membersDigest:decision.productMaterialManifest.memberSetDigest,manifestDigest:decision.packageDigest,
-    publishedAtMs:committedAtMs,onDeckPackageId:decision.onDeckPackageId,packageRevision:decision.packageRevision,
-    libraRunId:decision.libraRunRef.libraRunId,runStateRevision:decision.libraRunRef.stateRevision,
-    runStateDigest:decision.libraRunRef.stateDigest,runExecutionBasisDigest:decision.libraRunRef.executionBasisDigest,
-    subjectId,shelfId,acceptanceSpecRef:{id:decision.acceptanceSpecRef.acceptanceSpecId,
-      recordDigest:decision.acceptanceSpecRef.recordDigest},
-    resolvedIdentitySnapshot:clone(decision.resolvedIdentitySnapshot),
-    productStructureSnapshot:clone(decision.productStructureSnapshot),
-    runMaterialManifestRef:{id:decision.runMaterialManifestRef.manifestId,digest:decision.runMaterialManifestRef.manifestDigest},
-    productMaterialManifest:clone(decision.productMaterialManifest),productFactManifest:clone(decision.productFactManifest),
-    artifactManifest:clone(decision.artifactManifest),mediaCastSnapshot:clone(decision.mediaCastSnapshot),
-    offloadContextManifest:clone(decision.offloadContextManifest),productionProvenance:clone(decision.productionProvenance),
-    productionAttestation:clone(decision.productionAttestation),packageDigest:decision.packageDigest};
+  const packageValue=buildOnDeckProductPackage(decision,subjectId,shelfId,committedAtMs);
   const receipt={schemaRef:'helix://contracts/types/OnDeckProductPackageCommitReceipt/v1',schemaVersion:1,
-    receiptId:canonicalDigest({schema:'libra.on-deck-package-receipt-id@1',decisionId:decision.decisionId}),
+    receiptId:canonicalDigest({schema:'libra.product-package-commit-receipt-id@1',
+      onDeckPackageId:decision.onDeckPackageId,packageRevision:decision.packageRevision}),
     receiptKind:'libra_product_package_published',ownerDomain:'libra',scopeType:'on_deck_package',
-    scopeId:decision.onDeckPackageId,scopeDigest:decision.packageDigest,effectReceiptRef:null,committedAtMs,
+    scopeId:decision.onDeckPackageId,scopeDigest:decision.decisionDigest,effectReceiptRef:null,committedAtMs,
     promotionDecisionDigest:decision.decisionDigest,onDeckPackageId:decision.onDeckPackageId,
     packageRevision:decision.packageRevision,packageDigest:decision.packageDigest,offerId:decision.offerId,
     libraRunId:decision.libraRunRef.libraRunId,verifiedRunStateRevision:decision.libraRunRef.stateRevision,
@@ -203,5 +241,6 @@ function commitCleanupOutcome(value){
   return freeze({member:nextMember,receipt});
 }
 
-module.exports=Object.freeze({DeliveryLifecycleContractError,assertPromotionDecision,buildPromotionCommit,planRework,buildDiscardCommit,
+module.exports=Object.freeze({DeliveryLifecycleContractError,assertPromotionDecision,buildPromotionCommit,buildOnDeckProductPackage,
+  onDeckProductPackageDigest,verifyOnDeckProductPackageDigest,planRework,buildDiscardCommit,
   buildCleanupScope,admitCleanupScope,buildCleanupEffectIntent,commitCleanupOutcome,relative});

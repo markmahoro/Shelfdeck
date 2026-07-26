@@ -51,6 +51,45 @@ test('keeps On-deck atomic success and business not-available distinct from Runt
   for (const schema of Object.values(schemas)) assert.equal(Object.hasOwn(schema.properties || {}, 'kind'), false);
 });
 
+test('materializes the complete nominal On-deck Product Package rather than generic snapshots', () => {
+  const schema = schemas.OnDeckProductPackage;
+  assert.equal(schema['x-helix-maxCanonicalBytes'], 16 * 1024 * 1024);
+  assert.equal(schema.properties.productStructureSnapshot.$ref,
+    'helix://contracts/domain-types/ProductStructureSnapshot/v1');
+  assert.equal(schema.properties.productMaterialManifest.$ref,
+    'helix://contracts/domain-types/ProductionMaterialManifest/v1');
+  assert.equal(schema.properties.artifactManifest.$ref,
+    'helix://contracts/domain-types/ArtifactManifest/v1');
+
+  const resolved = schema.properties.resolvedIdentitySnapshot;
+  assert.equal(resolved.properties.factValue.$ref,
+    'helix://contracts/types/ResolvedProductIdentity/v1');
+  assert.equal(Object.hasOwn(resolved.properties, 'objectId'), false);
+  assert.equal(Object.hasOwn(resolved.properties, 'snapshotDigest'), false);
+
+  const factItems = schema.properties.productFactManifest.properties.items.items.oneOf;
+  assert.deepEqual(factItems.map((item) => item.properties.factKind.const),
+    ['resolved_identity', 'product_metadata', 'media_cast']);
+  assert.deepEqual(factItems.map((item) => item.properties.factValue.$ref), [
+    'helix://contracts/types/ResolvedProductIdentity/v1',
+    'helix://contracts/types/ProductMetadataFact/v1',
+    'helix://contracts/types/MediaCastFact/v1',
+  ]);
+  const personIdentity =
+    schemas.MediaCastFact.properties.relations.items.properties.providerIdentities.items;
+  assert.deepEqual(personIdentity.required, ['provider', 'namespace', 'providerKey']);
+  assert.equal(personIdentity.additionalProperties, false);
+
+  const planRef = schema.properties.productionProvenance.properties.workflowPlanRefs.items;
+  assert.deepEqual(planRef.required, ['planId', 'planRevision', 'planDigest']);
+  const attestation = schema.properties.productionAttestation;
+  for (const field of ['attestationId', 'libraRunId', 'onDeckPackageId',
+    'productConformanceEvidenceId', 'productConformanceEvidenceDigest',
+    'productSnapshotDigest', 'attestationDigest']) {
+    assert.ok(attestation.required.includes(field), field);
+  }
+});
+
 test('freezes Candidate Publication acceptance basis and offer message helpers', () => {
   const basis = schemas.CandidateIntakeAcceptanceBasis;
   assert.equal(basis.properties.handoffContractRef.const, 'helix://handoffs/procurement-to-libra/v1');

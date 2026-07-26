@@ -8,11 +8,8 @@ const {createDeliveryLifecycleLedger}=require('../../src/helix/domains/libra/per
 const {CONTRACTS,createDeliveryLifecycleCapabilityRegistrations}=require('../../src/helix/domains/libra/capabilities/delivery-lifecycle-capability-registrations');
 const h=(v)=>d({v}),NOW=1_700_000_000_000;
 const sealPromotion=(x)=>{
-  x.packageDigest=d({schema:'libra.on-deck-product-package@1',libraRunRef:x.libraRunRef,acceptanceSpecRef:x.acceptanceSpecRef,
-    resolvedIdentitySnapshot:x.resolvedIdentitySnapshot,productStructureSnapshot:x.productStructureSnapshot,
-    productFactManifest:x.productFactManifest,artifactManifest:x.artifactManifest,mediaCastSnapshot:x.mediaCastSnapshot,
-    productMaterialManifest:x.productMaterialManifest,offloadContextManifest:x.offloadContextManifest,
-    productionProvenance:x.productionProvenance,productionAttestation:x.productionAttestation});
+  x.packageDigest=c.onDeckProductPackageDigest(x,'subject-1','shelf-1');
+  x.offerId=d({schema:'libra.product-offer-id@1',onDeckPackageId:x.onDeckPackageId,packageDigest:x.packageDigest});
   x.decisionDigest=d(Object.fromEntries(Object.entries(x).filter(([key])=>key!=='decisionDigest')));
   return x;
 };
@@ -35,10 +32,18 @@ function promotion(){
     }],memberSetDigest:h('members'),manifestDigest:h('product-materials')},
     offloadContextManifest:{manifestId:'offload-1',manifestRevision:1,libraRunId:'run-1',members:[],memberSetDigest:h('offload-members'),manifestDigest:h('offload')},
     productionProvenance:{libraRunId:'run-1',runExecutionBasisDigest:h('basis'),acceptanceSpecRecordDigest:h('spec'),workflowPlanRefs:[],productVerificationRefs:[],externalRealityObservationRefs:[],provenanceDigest:h('provenance')},
-    productionAttestation:{attestationId:'attest-1',libraRunId:'run-1',onDeckPackageId:packageId,acceptanceSpecId:'spec-1',productConformanceEvidenceId:'conformance-1',productConformanceEvidenceDigest:h('conformance'),unmetRequirementCount:0,attestedAtMs:NOW,attestationDigest:h('attestation')},
+    productionAttestation:{attestationId:'',libraRunId:'run-1',onDeckPackageId:packageId,acceptanceSpecId:'spec-1',
+      acceptanceSpecRecordDigest:h('spec'),productConformanceEvidenceId:'conformance-1',
+      productConformanceEvidenceDigest:h('conformance'),evaluatedRequirementSetDigest:h('requirements'),
+      productSnapshotDigest:h('product-snapshot'),unmetRequirementCount:0,attestedAtMs:NOW,attestationDigest:''},
     controlCommitScope:{items:[{controlOperation:'acquire_workspace_product',materialKey:h('material'),expectedControlState:'absent',
       toOwnerDomain:'libra',toOwnerScopeType:'on_deck_package',toOwnerScopeId:packageId}],
-      controlScopeDigest:h('control-scope')},onDeckPackageId:packageId,packageRevision:1,offerId:'offer-1'};
+      controlScopeDigest:h('control-scope')},onDeckPackageId:packageId,packageRevision:1,offerId:''};
+  x.productionAttestation.attestationId=d({schema:'libra.production-attestation-id@1',libraRunId:'run-1',
+    onDeckPackageId:packageId,productConformanceEvidenceId:x.productionAttestation.productConformanceEvidenceId,
+    productConformanceEvidenceDigest:x.productionAttestation.productConformanceEvidenceDigest});
+  x.productionAttestation.attestationDigest=d(Object.fromEntries(
+    Object.entries(x.productionAttestation).filter(([key])=>key!=='attestationDigest')));
   return sealPromotion(x);
 }
 function commitPromotion(value=promotion()){
@@ -51,7 +56,7 @@ function commitPromotion(value=promotion()){
 
 test('promotion publishes immutable package, exact Control commits, receipt and one Offer',()=>{
   const committed=commitPromotion();
-  assert.equal(committed.package.packageDigest,promotion().packageDigest);assert.equal(committed.controlCommits.length,1);assert.equal(committed.outbox.offerId,'offer-1');
+  assert.equal(committed.package.packageDigest,promotion().packageDigest);assert.equal(committed.controlCommits.length,1);assert.equal(committed.outbox.offerId,promotion().offerId);
   assert.throws(()=>commitPromotion({...promotion(),productionAttestation:{...promotion().productionAttestation,unmetRequirementCount:1}}),/conformant/);
   const wrongRole=promotion();wrongRole.productStagingReferences[0].productVerificationRef.materialRole='metadata_sidecar';
   assert.throws(()=>commitPromotion(wrongRole),/one-for-one/);
