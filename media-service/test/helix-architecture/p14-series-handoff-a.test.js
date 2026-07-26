@@ -7,7 +7,10 @@ const path = require('node:path');
 const test = require('node:test');
 const Database = require('better-sqlite3');
 const { initializeCleanData } = require('../../scripts/helix-operational-safety');
-const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
+const {
+  canonicalDigest,
+  canonicalJson,
+} = require('../../src/helix/contracts/canonical-json');
 const { createCleanServiceHost } = require('../../src/clean-service-host');
 const {
   reconstruct,
@@ -24,6 +27,9 @@ const {
 const {
   createOnDeckStore,
 } = require('../../src/helix/domains/arca/persistence/on-deck-store');
+const {
+  createHandoffBAcceptanceStore,
+} = require('../../src/helix/domains/arca/persistence/handoff-b-acceptance-store');
 const cleanSchemaManifest = require(
   '../../src/helix/foundation/persistence/generated/clean-schema.manifest.json'
 );
@@ -1196,6 +1202,179 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
       WHERE message_kind='libra.product-offer.available@1'`
   ).get().count, 1);
   productionDb.close();
+
+  const historyDb = new Database(path.join(dataDir, 'shelfdeck.db'));
+  const acceptedAttempt = historyDb.prepare(
+    `SELECT acceptance_attempt_id
+       FROM arca_acceptance_attempts
+      WHERE state='accepted'`
+  ).get();
+  const bindingHistory = historyDb.prepare(
+    `SELECT owner_object_type,owner_object_id,material_key,role,
+            episode_claims_json,episode_claim_set_digest
+       FROM arca_material_bindings
+      WHERE role='product:primary_payload'
+      ORDER BY material_key`
+  ).all().find((row) =>
+    JSON.parse(row.episode_claims_json).items.length === 1);
+  const inventoryHistory = historyDb.prepare(
+    `SELECT shelf_entry_id,inventory_revision,ordinal,
+            episode_claims_json,episode_claim_set_digest
+       FROM arca_inventory_materials
+      WHERE role='primary'
+      ORDER BY ordinal`
+  ).all().find((row) =>
+    JSON.parse(row.episode_claims_json).items.length === 1);
+  historyDb.close();
+  assert.ok(acceptedAttempt);
+  assert.ok(bindingHistory);
+  assert.ok(inventoryHistory);
+
+  function malformedHistoryCases(row) {
+    const original = JSON.parse(row.episode_claims_json);
+    const originalItem = original.items[0];
+    const oversizedEpisodeKey = 'E'.repeat(257);
+    const oversizedItem = {
+      episodeKey: oversizedEpisodeKey,
+      seasonClaimDigest: originalItem.seasonClaimDigest,
+      claimDigest: canonicalDigest({
+        schema: 'libra.production-material-episode-claim@1',
+        episodeKey: oversizedEpisodeKey,
+        seasonClaimDigest: originalItem.seasonClaimDigest,
+      }),
+    };
+    return [
+      {
+        value: { ...original, unexpected: true },
+        code: 'ARCA_EPISODE_CLAIMS_SHAPE',
+      },
+      {
+        value: {
+          ...original,
+          items: [{ ...originalItem, unexpected: true }],
+        },
+        code: 'ARCA_EPISODE_CLAIM_SHAPE',
+      },
+      {
+        value: {
+          items: [oversizedItem],
+          episodeClaimSetDigest: canonicalDigest({
+            schema: 'libra.production-material-episode-claims@1',
+            items: [oversizedItem],
+          }),
+        },
+        code: 'ARCA_EPISODE_CLAIM_SHAPE',
+      },
+    ];
+  }
+
+  function withHistoryKernel(assertion) {
+    const kernel = openSqliteKernel({
+      Database,
+      databasePath: path.join(dataDir, 'shelfdeck.db'),
+      schemaDdl: cleanSchemaDdl,
+      schemaManifest: cleanSchemaManifest,
+    });
+    try {
+      assertion(createSqliteUnitOfWork({ kernel }));
+    } finally {
+      kernel.close();
+    }
+  }
+
+  for (const malformed of malformedHistoryCases(bindingHistory)) {
+    const mutationDb = new Database(path.join(dataDir, 'shelfdeck.db'));
+    assert.equal(mutationDb.prepare(
+      `UPDATE arca_material_bindings
+          SET episode_claims_json=?,episode_claim_set_digest=?
+        WHERE owner_object_type=? AND owner_object_id=?
+          AND material_key=? AND role=?`
+    ).run(
+      canonicalJson(malformed.value),
+      malformed.value.episodeClaimSetDigest,
+      bindingHistory.owner_object_type,
+      bindingHistory.owner_object_id,
+      bindingHistory.material_key,
+      bindingHistory.role,
+    ).changes, 1);
+    mutationDb.close();
+    withHistoryKernel((unitOfWork) => {
+      const acceptanceStore = createHandoffBAcceptanceStore({
+        schemaManifest: cleanSchemaManifest,
+        unitOfWork,
+      });
+      assert.throws(() => acceptanceStore.readAccepted({
+        acceptanceAttemptId: acceptedAttempt.acceptance_attempt_id,
+        offerMessage: completedProduction.offerMessage,
+        libraRunId: completedProduction.libraRunId,
+        onDeckRunId: completedProduction.onDeck.onDeckRunId,
+        finalInventoryDecision:
+          completedProduction.onDeck.finalInventoryDecision,
+      }), (error) => {
+        assert.equal(error.code, malformed.code);
+        return true;
+      });
+    });
+    const restoreDb = new Database(path.join(dataDir, 'shelfdeck.db'));
+    restoreDb.prepare(
+      `UPDATE arca_material_bindings
+          SET episode_claims_json=?,episode_claim_set_digest=?
+        WHERE owner_object_type=? AND owner_object_id=?
+          AND material_key=? AND role=?`
+    ).run(
+      bindingHistory.episode_claims_json,
+      bindingHistory.episode_claim_set_digest,
+      bindingHistory.owner_object_type,
+      bindingHistory.owner_object_id,
+      bindingHistory.material_key,
+      bindingHistory.role,
+    );
+    restoreDb.close();
+  }
+
+  for (const malformed of malformedHistoryCases(inventoryHistory)) {
+    const mutationDb = new Database(path.join(dataDir, 'shelfdeck.db'));
+    assert.equal(mutationDb.prepare(
+      `UPDATE arca_inventory_materials
+          SET episode_claims_json=?,episode_claim_set_digest=?
+        WHERE shelf_entry_id=? AND inventory_revision=? AND ordinal=?`
+    ).run(
+      canonicalJson(malformed.value),
+      malformed.value.episodeClaimSetDigest,
+      inventoryHistory.shelf_entry_id,
+      inventoryHistory.inventory_revision,
+      inventoryHistory.ordinal,
+    ).changes, 1);
+    mutationDb.close();
+    withHistoryKernel((unitOfWork) => {
+      const onDeckStore = createOnDeckStore({
+        schemaManifest: cleanSchemaManifest,
+        unitOfWork,
+      });
+      assert.throws(() => onDeckStore.readCommittedByPackage({
+        onDeckPackageId: completedProduction.onDeckPackageId,
+        packageDigest: completedProduction.packageDigest,
+        shelfId: 'series-handoff-shelf',
+        custodyId: completedProduction.handoffB.custodyId,
+      }), (error) => {
+        assert.equal(error.code, malformed.code);
+        return true;
+      });
+    });
+    const restoreDb = new Database(path.join(dataDir, 'shelfdeck.db'));
+    restoreDb.prepare(
+      `UPDATE arca_inventory_materials
+          SET episode_claims_json=?,episode_claim_set_digest=?
+        WHERE shelf_entry_id=? AND inventory_revision=? AND ordinal=?`
+    ).run(
+      inventoryHistory.episode_claims_json,
+      inventoryHistory.episode_claim_set_digest,
+      inventoryHistory.shelf_entry_id,
+      inventoryHistory.inventory_revision,
+      inventoryHistory.ordinal,
+    );
+    restoreDb.close();
+  }
 
   const tamperDb = new Database(path.join(dataDir, 'shelfdeck.db'));
   assert.equal(tamperDb.prepare(

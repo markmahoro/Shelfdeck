@@ -26,7 +26,25 @@ function compareUtf8(left, right) {
   return Buffer.compare(Buffer.from(left), Buffer.from(right));
 }
 
+function hasExactKeys(value, expected) {
+  return value !== null &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    Object.keys(value).length === expected.length &&
+    expected.every((key) =>
+      Object.prototype.hasOwnProperty.call(value, key));
+}
+
+function isDigest(value) {
+  return typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+}
+
 function buildArcaMaterialEpisodeClaims(value, constraints = {}) {
+  if (!hasExactKeys(value, ['items', 'episodeClaimSetDigest']) ||
+      !isDigest(value.episodeClaimSetDigest)) {
+    fail('ARCA_EPISODE_CLAIMS_SHAPE',
+      'Arca Material Episode Claims must match the exact closed schema.');
+  }
   const items = value?.items;
   if (!Array.isArray(items) || items.length > 32) {
     fail('ARCA_EPISODE_CLAIMS_CARDINALITY',
@@ -41,9 +59,16 @@ function buildArcaMaterialEpisodeClaims(value, constraints = {}) {
       'A non-primary or single Product member requires an empty Episode Claim set.');
   }
   const normalized = items.map((item) => {
-    if (!item || typeof item.episodeKey !== 'string' ||
-        item.episodeKey.length < 1 ||
-        !/^[a-f0-9]{64}$/.test(item.seasonClaimDigest || '')) {
+    if (!hasExactKeys(item, [
+      'episodeKey',
+      'seasonClaimDigest',
+      'claimDigest',
+    ]) ||
+        typeof item.episodeKey !== 'string' ||
+        [...item.episodeKey].length < 1 ||
+        [...item.episodeKey].length > 256 ||
+        !isDigest(item.seasonClaimDigest) ||
+        !isDigest(item.claimDigest)) {
       fail('ARCA_EPISODE_CLAIM_SHAPE',
         'Arca Material Episode Claim identity is invalid.');
     }

@@ -45,6 +45,9 @@
 - Movie empty-set regression：PASS。
 - missing/duplicate/unsorted/tampered claim set、非Primary非空claim：
   fail closed。
+- Binding与Inventory历史行分别覆盖closed root extra、closed item extra及
+  257-code-point `episodeKey`篡改；读取按exact machine shape拒绝，不能经
+  normalization洗白。
 - source/target identity、Staged manifest及Product/Decision relation mismatch：
   fail closed。
 - Handoff B Accepted事务中断：Attempt保持active，Accepted责任row全部为零。
@@ -63,7 +66,7 @@
 - Manifest aggregate：
   `351063009c3d50fe07c3fb70503bb4ff71e30b1ebef40beb3700c2e22a414b18`。
 - `npm run test:helix-architecture`：
-  `130 files / 879 tests PASS`。
+  `130 files / 880 tests PASS`。
 - Dependency findings、semantic findings、contract findings与
   `prohibitedActionsRun`均为空。
 

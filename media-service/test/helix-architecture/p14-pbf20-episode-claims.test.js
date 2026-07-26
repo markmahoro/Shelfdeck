@@ -132,3 +132,30 @@ test('rejects missing, duplicate, unsorted, tampered, and non-primary claims', (
     episode_claim_set_digest: '0'.repeat(64),
   }), /persistence digest is invalid/);
 });
+
+test('rejects closed-shape drift and an Episode key longer than 256 code points', () => {
+  const first = claim('E001');
+  const legal = set([first]);
+  assert.throws(() => buildArcaMaterialEpisodeClaims({
+    ...legal,
+    unexpected: true,
+  }), /exact closed schema/);
+  assert.throws(() => buildArcaMaterialEpisodeClaims({
+    ...legal,
+    items: [{ ...first, unexpected: true }],
+  }), /identity is invalid/);
+
+  const episodeKey = 'E'.repeat(257);
+  const seasonClaimDigest = first.seasonClaimDigest;
+  const oversized = {
+    episodeKey,
+    seasonClaimDigest,
+    claimDigest: canonicalDigest({
+      schema: 'libra.production-material-episode-claim@1',
+      episodeKey,
+      seasonClaimDigest,
+    }),
+  };
+  assert.throws(() => buildArcaMaterialEpisodeClaims(set([oversized])),
+    /identity is invalid/);
+});

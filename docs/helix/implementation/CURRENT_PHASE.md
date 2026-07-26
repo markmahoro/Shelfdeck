@@ -53,7 +53,7 @@ Inventory物理效果后中断保留可恢复journal且没有Shelf Entry；On-de
 读取从exact Inventory rows重算Representation，再用原Package digest、
 Standard/Inventory/Deck revision重算Fact；篡改Fact digest后fail closed。
 
-完整architecture gate为`130 files / 879 tests PASS`，机器库存保持
+完整architecture gate为`130 files / 880 tests PASS`，机器库存保持
 112/97/177/43；Contract aggregate更新为
 `30089e947738bab7933af3b606cd22336746321e05ae4d4d44a4bd5534e2d4e5`。
 当前明确冻结在Arca On-deck Commit之后、Libra消费Accepted/Off-load消息之前；
