@@ -185,6 +185,23 @@ function unitFor(member, context, profileName, mediaTypeName, season, episodes, 
   return value;
 }
 
+function conserveUnitBound(unit, unassigned) {
+  if (Buffer.byteLength(canonicalJson(unit), 'utf8') <= 65536) return true;
+  for (const member of unit.members) {
+    unassigned.push({
+      materialKey:member.materialKey,
+      reasonCode:'triage_unit_contract_too_large',
+      evidenceDigest:digest({
+        schema:'procurement.triage-unit-contract-too-large@1',
+        unitId:unit.unitId,
+        unitDigest:unit.unitDigest,
+        materialKey:member.materialKey,
+      }),
+    });
+  }
+  return false;
+}
+
 function mergeSeriesUnits(groups, unassigned) {
   const merged = [];
   for (const group of groups.values()) {
@@ -242,7 +259,7 @@ function mergeSeriesUnits(groups, unassigned) {
       contentProfile:value.contentProfile, structureKind:value.structureKind,
       members:value.members.map(({ materialKey, role, episodeClaims }) => ({ materialKey, role, episodeClaims })) });
     value.unitDigest = digest(without(value, 'unitDigest'));
-    merged.push(value);
+    if (conserveUnitBound(value, unassigned)) merged.push(value);
   }
   return merged;
 }
@@ -268,7 +285,7 @@ function inspectStructure(input, rule, options = {}) {
     const unit = unitFor(probe, { ...context, fieldId:input.materialFieldContext.fieldId }, profileName,
       profileName === 'series' ? 'group' : 'single', token && token.season, token ? token.episodes : [], related);
     if (profileName !== 'series') {
-      units.push(unit);
+      if (conserveUnitBound(unit, unassigned)) units.push(unit);
       continue;
     }
     const groupKey = digest({

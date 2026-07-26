@@ -100,7 +100,11 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
     confirmation: 'INITIALIZE_HELIX_CLEAN_V1',
     secretRoot,
   });
-  const mediaProbe = Object.freeze({ async probe(readHandle) { return probe(readHandle); } });
+  let mediaProbeCalls = 0;
+  const mediaProbe = Object.freeze({ async probe(readHandle) {
+    mediaProbeCalls += 1;
+    return probe(readHandle);
+  } });
   const access = {
     fieldId: 'series-handoff-field',
     revision: 1,
@@ -143,11 +147,18 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
     pageBudget: 8,
   };
 
+  let injected = false;
   let host = await createCleanServiceHost({
     dataDir,
     adminDistDir,
     secretRoot,
     mediaProbe,
+    movieRunFaultInjector(point) {
+      if (!injected && point === 'after_triage_results_before_publication') {
+        injected = true;
+        throw new Error('fixture-crash-after-triage-results');
+      }
+    },
   });
   try {
     const unauthorized = await host.inject({
@@ -170,13 +181,142 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
       headers: { cookie },
       payload: observe,
     });
-    assert.equal(observed.statusCode, 200, observed.body);
-    assert.equal(observed.json().movieJourney.stage, 'handoff_a_accepted');
-    assert.equal(observed.json().movieJourney.handoff.intake.decision.result, 'new_subject');
-    assert.equal(observed.json().movieJourney.handoff.formation.stage, 'routing_unresolved');
+    assert.equal(observed.statusCode, 400, observed.body);
   } finally {
     await host.close();
   }
+
+  const interrupted = new Database(path.join(dataDir, 'shelfdeck.db'));
+  assert.equal(interrupted.prepare(
+    'SELECT count(*) count FROM proc_candidate_packages'
+  ).get().count, 0);
+  assert.equal(interrupted.prepare(
+    `SELECT count(*) count
+       FROM fx_event_result_bindings result
+       JOIN fx_workflow_events event ON event.event_id=result.event_id
+      WHERE event.capability_ref IN (
+        'shared.material.media.probe@1',
+        'procurement.triage.playability.inspect@1',
+        'procurement.triage.structure.inspect@1',
+        'procurement.triage.identity_claim.resolve@1',
+        'procurement.triage.primary_manifest.build@1'
+      )`
+  ).get().count, 6);
+  const planRows = interrupted.prepare(
+    `SELECT node_id,input_binding_schema_ref,input_bindings_json
+       FROM fx_plan_nodes
+      WHERE input_binding_schema_ref=
+        'helix://implementation-contracts/plan-bindings/procurement-candidate-assembly/v1'
+      ORDER BY node_id`
+  ).all();
+  assert.equal(planRows.length, 7);
+  for (const row of planRows) {
+    assert.equal(
+      row.input_binding_schema_ref,
+      'helix://implementation-contracts/plan-bindings/procurement-candidate-assembly/v1',
+    );
+    assert.ok(Buffer.byteLength(row.input_bindings_json, 'utf8') <= 16384);
+    assert.equal(row.input_bindings_json.includes('"candidateDraft"'), false);
+    assert.equal(row.input_bindings_json.includes('"relatedReferences"'), false);
+    assert.equal(row.input_bindings_json.includes('"primaryInputManifestDraft"'), false);
+  }
+  const publicationNode = planRows.find((row) =>
+    JSON.parse(row.input_bindings_json).bindingKind === 'candidate_publication');
+  assert.ok(publicationNode);
+  const originalPublicationBinding = publicationNode.input_bindings_json;
+  const structureResult = interrupted.prepare(
+    `SELECT result.result_id,result.result_json
+       FROM fx_event_result_bindings result
+       JOIN fx_workflow_events event ON event.event_id=result.event_id
+      WHERE event.capability_ref='procurement.triage.structure.inspect@1'`
+  ).get();
+  interrupted.prepare(
+    'UPDATE fx_event_result_bindings SET result_json=? WHERE result_id=?'
+  ).run('{}', structureResult.result_id);
+  interrupted.close();
+
+  host = await createCleanServiceHost({
+    dataDir,
+    adminDistDir,
+    secretRoot,
+    mediaProbe,
+  });
+  try {
+    const tampered = await host.inject({
+      method: 'POST',
+      url: `/v1/admin/material-fields/${access.fieldId}/actions/observe`,
+      headers: { cookie: await session(host, initialized.adminApiKey) },
+      payload: observe,
+    });
+    assert.equal(tampered.statusCode, 400, tampered.body);
+  } finally {
+    await host.close();
+  }
+  const refTamper = new Database(path.join(dataDir, 'shelfdeck.db'));
+  assert.equal(refTamper.prepare(
+    'SELECT count(*) count FROM proc_candidate_packages'
+  ).get().count, 0);
+  refTamper.prepare(
+    'UPDATE fx_event_result_bindings SET result_json=? WHERE result_id=?'
+  ).run(structureResult.result_json, structureResult.result_id);
+  const missingRefBinding = JSON.parse(originalPublicationBinding);
+  missingRefBinding.sourceResultRefs[0].resultId = 'missing-result-ref';
+  missingRefBinding.bindingDigest = canonicalDigest(Object.fromEntries(
+    Object.entries(missingRefBinding).filter(([key]) => key !== 'bindingDigest'),
+  ));
+  refTamper.prepare(
+    'UPDATE fx_plan_nodes SET input_bindings_json=? WHERE node_id=?'
+  ).run(JSON.stringify(missingRefBinding), publicationNode.node_id);
+  refTamper.close();
+
+  host = await createCleanServiceHost({
+    dataDir,
+    adminDistDir,
+    secretRoot,
+    mediaProbe,
+  });
+  try {
+    const failedClosed = await host.inject({
+      method: 'POST',
+      url: `/v1/admin/material-fields/${access.fieldId}/actions/observe`,
+      headers: { cookie: await session(host, initialized.adminApiKey) },
+      payload: observe,
+    });
+    assert.equal(failedClosed.statusCode, 400, failedClosed.body);
+  } finally {
+    await host.close();
+  }
+  const restore = new Database(path.join(dataDir, 'shelfdeck.db'));
+  assert.equal(restore.prepare(
+    'SELECT count(*) count FROM proc_candidate_packages'
+  ).get().count, 0);
+  restore.prepare(
+    'UPDATE fx_plan_nodes SET input_bindings_json=? WHERE node_id=?'
+  ).run(originalPublicationBinding, publicationNode.node_id);
+  restore.close();
+
+  const callsBeforeRestart = mediaProbeCalls;
+  host = await createCleanServiceHost({
+    dataDir,
+    adminDistDir,
+    secretRoot,
+    mediaProbe,
+  });
+  try {
+    const resumed = await host.inject({
+      method: 'POST',
+      url: `/v1/admin/material-fields/${access.fieldId}/actions/observe`,
+      headers: { cookie: await session(host, initialized.adminApiKey) },
+      payload: observe,
+    });
+    assert.equal(resumed.statusCode, 200, resumed.body);
+    assert.equal(resumed.json().movieJourney.stage, 'handoff_a_accepted');
+    assert.equal(resumed.json().movieJourney.handoff.intake.decision.result, 'new_subject');
+    assert.equal(resumed.json().movieJourney.handoff.formation.stage, 'routing_unresolved');
+  } finally {
+    await host.close();
+  }
+  assert.equal(mediaProbeCalls, callsBeforeRestart);
 
   const db = new Database(path.join(dataDir, 'shelfdeck.db'), { readonly: true });
   const candidate = db.prepare(

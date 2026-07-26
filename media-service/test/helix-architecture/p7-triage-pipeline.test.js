@@ -408,6 +408,81 @@ test('Movie Triage associates only the exact NFO sidecar and conserves its canon
     endpointId: 'endpoint-1',
     location: 'shows/Demo/Example.Movie.nfo',
   }));
+
+  const oversizedEntries = Array.from({ length: 256 }, (_, ordinal) => {
+    const identity = relatedIdentity(`oversized-nfo-${ordinal}`, String(1000 + ordinal));
+    const value = {
+      entryOrdinal: ordinal,
+      entryKind: 'file',
+      relativeLocation: `shows/Demo/metadata-${String(ordinal).padStart(3, '0')}/movie.nfo`,
+      baseName: 'movie.nfo',
+      extension: '.nfo',
+      identity,
+      endpointId: 'endpoint-1',
+      location: `shows/Demo/metadata-${String(ordinal).padStart(3, '0')}/movie.nfo`,
+      sizeBytes: 20,
+      checksumAlgorithm: 'sha256',
+      checksumHex: identity.contentHash,
+    };
+    return { ...value, entryDigest: canonicalDigest(value) };
+  });
+  const oversizedLayoutBase = {
+    ...layoutBase,
+    evidenceId: 'layout-oversized-movie',
+    entries: oversizedEntries,
+    entriesDigest: canonicalDigest({
+      schema: 'procurement.movie-layout-entries@1',
+      items: oversizedEntries,
+    }),
+    payloadDigest: '',
+  };
+  const oversizedLayout = {
+    ...oversizedLayoutBase,
+    payloadDigest: canonicalDigest(Object.fromEntries(
+      Object.entries(oversizedLayoutBase).filter(([key]) => key !== 'payloadDigest'),
+    )),
+  };
+  const oversizedContextBase = {
+    ...contextBase,
+    memberContexts: [{
+      ...contextBase.memberContexts[0],
+      layoutEvidenceRefs: [{
+        evidenceId: oversizedLayout.evidenceId,
+        payloadDigest: oversizedLayout.payloadDigest,
+        boundedScopeDigest: oversizedLayout.boundedScopeDigest,
+      }],
+    }],
+  };
+  const oversizedContext = {
+    ...oversizedContextBase,
+    contextDigest: canonicalDigest(oversizedContextBase),
+  };
+  const oversizedResult = capabilities.structureInspect.execute({
+    triageStructureInspectionInput: {
+      selectedFieldMaterialSet: selected,
+      probeBatches: [probeBatch],
+      playabilityPages: [playability],
+      materialFieldContext: oversizedContext,
+      layoutEvidence: [oversizedLayout],
+      pageRequest,
+      inputDigest: canonicalDigest({
+        schema: 'procurement.triage-structure-input@1',
+        selectionDigest: selected.selectionDigest,
+        probeBatchDigests: [probeBatch.batchDigest],
+        playabilityPayloadDigests: [playability.payloadDigest],
+        contextDigest: oversizedContext.contextDigest,
+        layoutPayloadDigests: [oversizedLayout.payloadDigest],
+        pageRequest,
+      }),
+    },
+    procurementTriageRuleSnapshot: rule,
+  });
+  assert.equal(oversizedResult.resultKind, 'not_ready');
+  assert.equal(oversizedResult.units.length, 0);
+  assert.deepEqual(
+    oversizedResult.unassignedMaterials.map((item) => item.reasonCode),
+    ['triage_unit_contract_too_large'],
+  );
 });
 
 test('Triage module has no Store, Provider, Runtime, or legacy fallback dependency', () => {

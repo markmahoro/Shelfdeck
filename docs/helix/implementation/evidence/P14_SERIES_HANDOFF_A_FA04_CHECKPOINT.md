@@ -53,6 +53,36 @@ Field 的 Primary 中选择稳定最小项，可能把 Show A 的 sidecar 绑定
 该修正不把目录或标题升级为 continuity identity，也不改变 Candidate、Owner、
 Handoff、Capability 或 transaction。
 
+## P14 Candidate Publication Plan binding correction
+
+P14 evidence `ac0ae793` 证明初版 Candidate Publication Plan 把完整
+`CandidateDraft` 内联到 `fx_plan_nodes.input_bindings_json`，真实 Series Draft
+为 17,092 bytes，超过固定 16 KiB table contract。修正后：
+
+- 同一 Supporting Work 的正式前序 Events 固定为
+  `Media Probe → Playability → Structure → Identity Claim → Primary Manifest`；
+  每个 Event 的完整 typed Result 保存在 `fx_event_result_bindings`，单项继续受
+  64 KiB Result contract 约束；
+- Plan node 只保存 versioned closed binding refs、完整 typed Handle，以及精确
+  Run/Rule/Selection/Layout fence；Candidate Publication node 只引用 Structure、
+  Identity、Manifest 的 `eventId/resultId/capabilityRef/resultSchemaRef/resultDigest`，
+  不再保存完整 Draft、Related 或 Manifest arrays；
+- Publication Coordinator 从上述 immutable Results 重新装配完整
+  `CandidateDraft`，两次执行 canonical digest 与 `validateDraft`，然后才把完整
+  Draft + Commit Handle交给既有 CommitParticipant；CommitParticipant未增加
+  Foundation/Provider旁读；
+- Probe只在自己的正式前序 Event执行。前序 Results提交后、Publication前崩溃，
+  重启从同一 refs恢复，Probe调用次数不增加；
+- Result JSON篡改、Result ref缺失/变更、binding digest不一致均在零 Candidate
+  publication rows时 fail closed；
+- 每个生成的 Candidate assembly Plan binding均实测不超过 16 KiB，且行内容不含
+  `candidateDraft`、`relatedReferences` 或 `primaryInputManifestDraft`；
+- 单个 Triage Unit的 canonical JCS bytes继续固定不超过 64 KiB；超限形成
+  `triage_unit_contract_too_large`，不会转化为 Plan overflow。
+
+该修正未提高JSON上限、未压缩/截断业务值、未引入Artifact fallback，也未新增
+Capability、Result family、Owner、Store、table或transaction。
+
 ## FA-04 boundary
 
 现有 P14 Series disposable sample 已只读核对。Episode NFO 只提供 Episode-level
@@ -82,6 +112,9 @@ TMDB ID，没有稳定 `series key + season number` Provider anchor；当前 Pro
   - Handoff A stale-head、Outbox crash、Control rollback与replay；
   - FA-04 exact extension及所有 new-Subject branches；
   - real public HTTP + restart replay。
+- Plan binding correction focused regression：`31/31 PASS`，覆盖 bounded rows、
+  typed Result refs、tamper/missing fail-closed、crash/restart no-reprobe、
+  Candidate/Handoff A replay、sidecar locality与Unit 64 KiB negative。
 - Full `npm run test:helix-architecture`：`128 files PASS`。
 - Inventory：112 Capabilities / 97 Result families / 177 tables /
   43 canonical transactions / 114 routes / 18 UI surfaces。

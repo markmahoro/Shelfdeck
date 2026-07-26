@@ -568,6 +568,7 @@ async function createCleanServiceHost(options) {
     triageRegistry: require('./helix/domains/procurement/model/procurement-run-contracts').createDefaultTriageRuleRegistry(),
     workRuntime,
     mediaProbe,
+    faultInjector: options.movieRunFaultInjector,
     offerCandidate: handoffOffer,
     resumeAcceptedHandoff,
   });

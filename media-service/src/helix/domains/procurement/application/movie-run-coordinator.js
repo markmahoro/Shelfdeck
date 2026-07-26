@@ -3,6 +3,9 @@
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 const { createWorkAdmission } = require('../../../foundation/execution/work-admission');
+const {
+  createSupportingResultStore,
+} = require('../../../foundation/persistence/supporting-result-store');
 const { createCandidatePublicationStore } = require('../persistence/candidate-publication-store');
 const { activeTriageRule } = require('../model/procurement-run-contracts');
 const {
@@ -11,9 +14,27 @@ const {
   inspectStructure,
   resolveIdentity,
 } = require('../model/triage-contracts');
-const { buildOffer } = require('../model/candidate-publication-contracts');
+const {
+  buildOffer,
+  validateDraft,
+} = require('../model/candidate-publication-contracts');
 
 const CAPABILITY_REF = 'procurement.candidate.publish@1';
+const PROBE_CAPABILITY_REF = 'shared.material.media.probe@1';
+const PLAYABILITY_CAPABILITY_REF = 'procurement.triage.playability.inspect@1';
+const STRUCTURE_CAPABILITY_REF = 'procurement.triage.structure.inspect@1';
+const IDENTITY_CAPABILITY_REF = 'procurement.triage.identity_claim.resolve@1';
+const MANIFEST_CAPABILITY_REF = 'procurement.triage.primary_manifest.build@1';
+const RESULT_SCHEMAS = Object.freeze({
+  probe: 'helix://contracts/capabilities/shared.material.media.probe/v1/result',
+  playability: 'helix://contracts/capabilities/procurement.triage.playability.inspect/v1/result',
+  structure: 'helix://contracts/capabilities/procurement.triage.structure.inspect/v1/result',
+  identity: 'helix://contracts/capabilities/procurement.triage.identity_claim.resolve/v1/result',
+  manifest: 'helix://contracts/capabilities/procurement.triage.primary_manifest.build/v1/result',
+});
+const PLAN_BINDING_SCHEMA =
+  'helix://implementation-contracts/plan-bindings/procurement-candidate-assembly/v1';
+const PLAN_JSON_LIMIT = 16 * 1024;
 
 class MovieRunCoordinatorError extends Error {
   constructor(code, message, details = {}) {
@@ -487,36 +508,149 @@ function draftFor(unit, structure, selected, snapshot, rule, identityClaim, mani
   return Object.freeze(value);
 }
 
-function workDefinition(draft) {
-  const workId = stableId('movie-candidate-publication-work-', { draftId: draft.draftId, digest: draft.draftDigest });
+function assemblyBasis(snapshot, selected, layout, rule) {
+  const value = {
+    schema: 'procurement.candidate-assembly-basis@1',
+    procurementRunId: snapshot.run.procurement_run_id,
+    runBasisDigest: snapshot.run.run_basis_digest,
+    candidatePackageRevisionHead: Number(snapshot.run.candidate_package_revision_head),
+    fieldId: snapshot.run.field_id,
+    accessRevision: Number(snapshot.run.access_revision),
+    accessDigest: snapshot.run.access_digest,
+    triageRuleRef: rule.ruleRef,
+    triageRuleRevision: rule.revision,
+    triageRuleAuthorityDigest: rule.authorityDigest,
+    selectionDigest: selected.selectionDigest,
+    layoutEvidenceDigests: layout.layoutEvidence.map((item) => item.payloadDigest),
+  };
+  return Object.freeze({ ...value, assemblyBasisDigest: canonicalDigest(value) });
+}
+
+function workDefinition(basis) {
+  const workId = stableId('movie-candidate-publication-work-', {
+    procurementRunId: basis.procurementRunId,
+    assemblyBasisDigest: basis.assemblyBasisDigest,
+  });
   return Object.freeze({
     schemaRef: 'helix://foundation/types/SupportingWorkDefinition/v1', schemaVersion: 1, workId,
-    ownerDomain: 'procurement', processType: 'procurement_run', processId: draft.procurementRunId,
+    ownerDomain: 'procurement', processType: 'procurement_run', processId: basis.procurementRunId,
     workKind: 'candidate_publication', workObjectiveTypeRef: 'helix://procurement/work/CandidatePublication/v1',
-    workObjectiveVersion: 1, executionBasisId: stableId('movie-candidate-publication-basis-', { draftId: draft.draftId }),
-    executionBasisDigest: draft.draftDigest, dependencyRefs: Object.freeze([]), priorityClass: 'normal_foreground',
+    workObjectiveVersion: 1,
+    executionBasisId: stableId('movie-candidate-publication-basis-', {
+      procurementRunId: basis.procurementRunId,
+      assemblyBasisDigest: basis.assemblyBasisDigest,
+    }),
+    executionBasisDigest: basis.assemblyBasisDigest,
+    dependencyRefs: Object.freeze([]), priorityClass: 'normal_foreground',
     priorityRevision: 1, capabilityCatalogScope: 'procurement', workspaceMaterialScope: Object.freeze([]),
-    idempotencyKey: stableId('movie-candidate-publication-idempotency-', { draftId: draft.draftId }),
-    concurrencyScope: draft.procurementRunId + '/candidate-publication',
+    idempotencyKey: stableId('movie-candidate-publication-idempotency-', {
+      procurementRunId: basis.procurementRunId,
+      assemblyBasisDigest: basis.assemblyBasisDigest,
+    }),
+    concurrencyScope: basis.procurementRunId + '/candidate-publication',
     outputContractRef: 'helix://contracts/types/CandidatePackage/v1',
   });
 }
 
-function capabilityStep(draft, workId) {
-  const eventId = stableId('movie-candidate-publication-event-', { workId, digest: draft.draftDigest });
-  const input = Object.freeze({ candidateDraft: draft });
-  const demand = Object.freeze({ resourceKinds: Object.freeze(['disk_io']) });
+function closedBinding(value) {
+  const binding = {
+    schemaRef: PLAN_BINDING_SCHEMA,
+    schemaVersion: 1,
+    ...value,
+    bindingDigest: '',
+  };
+  binding.bindingDigest = canonicalDigest(without(binding, 'bindingDigest'));
+  if (Buffer.byteLength(JSON.stringify(binding), 'utf8') > PLAN_JSON_LIMIT) {
+    fail('P14_CANDIDATE_PLAN_BINDING_TOO_LARGE',
+      'Candidate assembly Plan binding exceeds the fixed 16 KiB construction limit.');
+  }
+  return Object.freeze(binding);
+}
+
+function resultRef(role, eventId, capabilityRef, resultSchemaRef, result) {
   return Object.freeze({
-    nodeId: 'candidate-publication', eventId, capabilityRef: CAPABILITY_REF, effectClass: 'domain_fact_commit',
-    inputSchemaRef: 'helix://contracts/capabilities/procurement.candidate.publish/v1/inputs', input,
-    parametersSchemaRef: 'helix://contracts/capabilities/procurement.candidate.publish/v1/parameters', parameters: Object.freeze({}),
-    fenceSchemaRef: 'helix://contracts/capabilities/procurement.candidate.publish/v1/fence',
-    fenceBasis: Object.freeze({ basisDigest: draft.draftDigest, eventFenceDigest: canonicalDigest({
-      schema: 'procurement.movie-candidate-publication-fence@1', workId, draftDigest: draft.draftDigest,
-    }) }),
-    resourceDemandSchemaRef: 'helix://contracts/capabilities/procurement.candidate.publish/v1/resource-demand',
+    role,
+    eventId,
+    resultId: stableId('candidate-assembly-result-', { eventId }),
+    capabilityRef,
+    resultSchemaRef,
+    resultDigest: canonicalDigest(result),
+  });
+}
+
+function capabilityStep(value) {
+  const demand = Object.freeze({
+    resourceKinds: Object.freeze(value.resourceKinds || ['cpu']),
+  });
+  const eventFenceDigest = canonicalDigest({
+    schema: 'procurement.candidate-assembly-event-fence@1',
+    workId: value.workId,
+    eventId: value.eventId,
+    capabilityRef: value.capabilityRef,
+    bindingDigest: value.input.bindingDigest,
+    expectedResultDigest: value.expectedResultDigest,
+  });
+  return Object.freeze({
+    nodeId: value.nodeId,
+    eventId: value.eventId,
+    capabilityRef: value.capabilityRef,
+    effectClass: value.effectClass,
+    inputSchemaRef: PLAN_BINDING_SCHEMA,
+    input: value.input,
+    parametersSchemaRef: value.contractBase + '/parameters',
+    parameters: Object.freeze({}),
+    fenceSchemaRef: value.contractBase + '/fence',
+    fenceBasis: Object.freeze({
+      basisDigest: value.basisDigest,
+      eventFenceDigest,
+    }),
+    resourceDemandSchemaRef: value.contractBase + '/resource-demand',
     resourceDemand: Object.freeze({ ...demand, demandDigest: canonicalDigest(demand) }),
   });
+}
+
+function exactResultRef(actual, expected) {
+  if (!actual || canonicalDigest(actual) !== expected.resultDigest) {
+    fail('P14_CANDIDATE_ASSEMBLY_RESULT_DIGEST',
+      'Candidate assembly Result does not match its frozen Plan reference.', {
+        role: expected.role,
+        eventId: expected.eventId,
+      });
+  }
+}
+
+function assertBinding(binding, kind, basisDigest) {
+  if (!binding || binding.schemaRef !== PLAN_BINDING_SCHEMA || binding.schemaVersion !== 1 ||
+      binding.bindingKind !== kind || binding.assemblyBasisDigest !== basisDigest ||
+      binding.bindingDigest !== canonicalDigest(without(binding, 'bindingDigest'))) {
+    fail('P14_CANDIDATE_PLAN_BINDING_CORRUPT',
+      'Candidate assembly Plan binding is absent, stale, or corrupt.', { kind });
+  }
+  if (Buffer.byteLength(JSON.stringify(binding), 'utf8') > PLAN_JSON_LIMIT) {
+    fail('P14_CANDIDATE_PLAN_BINDING_TOO_LARGE',
+      'Stored Candidate assembly Plan binding exceeds 16 KiB.', { kind });
+  }
+  return binding;
+}
+
+function assertResultReference(ref, expected) {
+  const required = [
+    'role', 'eventId', 'resultId', 'capabilityRef', 'resultSchemaRef', 'resultDigest',
+  ];
+  if (!ref || typeof ref !== 'object' || Array.isArray(ref) ||
+      Object.keys(ref).length !== required.length ||
+      required.some((key) => !Object.hasOwn(ref, key)) ||
+      ref.role !== expected.role || ref.eventId !== expected.eventId ||
+      ref.resultId !== expected.resultId ||
+      ref.capabilityRef !== expected.capabilityRef ||
+      ref.resultSchemaRef !== expected.resultSchemaRef ||
+      !/^[0-9a-f]{64}$/.test(ref.resultDigest || '')) {
+    fail('P14_CANDIDATE_ASSEMBLY_RESULT_REF_INVALID',
+      'Candidate assembly Result reference violates its closed typed contract.', {
+        role: expected.role,
+      });
+  }
+  return ref;
 }
 
 function createMovieRunCoordinator(options) {
@@ -530,6 +664,94 @@ function createMovieRunCoordinator(options) {
   const repository = definition(options.schemaManifest);
   const rule = activeTriageRule(options.triageRegistry);
   const candidatePublication = createCandidatePublicationStore(options);
+  const resultStore = createSupportingResultStore(options);
+  const injectFault = typeof options.faultInjector === 'function'
+    ? options.faultInjector
+    : () => {};
+
+  function frozenBinding(existing, kind, ordinal = null) {
+    if (!existing?.plan) return null;
+    return existing.pages.find((page) =>
+      page.bindingKind === kind && (ordinal === null || page.ordinal === ordinal)) || null;
+  }
+
+  async function durableResult(binding, compute) {
+    const ref = binding.outputRef;
+    const event = options.workRuntime.beginEvent(ref.eventId);
+    if (event.state === 'succeeded') {
+      const stored = resultStore.readEventResult(ref.eventId);
+      if (!stored || stored.resultId !== ref.resultId ||
+          stored.resultSchemaRef !== ref.resultSchemaRef ||
+          stored.resultDigest !== ref.resultDigest) {
+        fail('P14_CANDIDATE_ASSEMBLY_RESULT_REF_MISMATCH',
+          'Succeeded Candidate assembly Event does not match its frozen Result reference.', {
+            role: ref.role,
+            eventId: ref.eventId,
+          });
+      }
+      exactResultRef(stored.result, ref);
+      return stored.result;
+    }
+    const result = await compute();
+    exactResultRef(result, ref);
+    resultStore.commit({
+      resultId: ref.resultId,
+      eventId: ref.eventId,
+      ownerDomain: 'procurement',
+      capabilityRef: ref.capabilityRef,
+      resultSchemaRef: ref.resultSchemaRef,
+      result,
+      evidenceSchemaRef: ref.resultSchemaRef,
+      evidence: result,
+    });
+    options.workRuntime.completeEvent(ref.eventId, ref.resultId);
+    return result;
+  }
+
+  function persistComputed(binding, result) {
+    const ref = binding.outputRef;
+    const event = options.workRuntime.beginEvent(ref.eventId);
+    if (event.state === 'succeeded') {
+      const stored = resultStore.readEventResult(ref.eventId);
+      if (!stored || stored.resultId !== ref.resultId ||
+          stored.resultSchemaRef !== ref.resultSchemaRef ||
+          stored.resultDigest !== ref.resultDigest) {
+        fail('P14_CANDIDATE_ASSEMBLY_RESULT_REF_MISMATCH',
+          'Succeeded Candidate assembly Event does not match its frozen Result reference.');
+      }
+      exactResultRef(stored.result, ref);
+      return stored.result;
+    }
+    exactResultRef(result, ref);
+    resultStore.commit({
+      resultId: ref.resultId,
+      eventId: ref.eventId,
+      ownerDomain: 'procurement',
+      capabilityRef: ref.capabilityRef,
+      resultSchemaRef: ref.resultSchemaRef,
+      result,
+      evidenceSchemaRef: ref.resultSchemaRef,
+      evidence: result,
+    });
+    options.workRuntime.completeEvent(ref.eventId, ref.resultId);
+    return result;
+  }
+
+  function stepFor(work, basis, nodeId, eventId, capabilityRef, effectClass,
+    contractBase, input, expectedResultDigest, resourceKinds) {
+    return capabilityStep({
+      workId: work.workId,
+      nodeId,
+      eventId,
+      capabilityRef,
+      effectClass,
+      contractBase,
+      input,
+      basisDigest: basis.assemblyBasisDigest,
+      expectedResultDigest,
+      resourceKinds,
+    });
+  }
 
   async function advance(procurementRunId) {
     const snapshot = runSnapshot(options, repository, procurementRunId);
@@ -561,69 +783,453 @@ function createMovieRunCoordinator(options) {
       });
     }
     const selected = selection(snapshot, layout.primaryContexts);
-    const probes = [];
-    for (const context of layout.primaryContexts) {
-      probes.push(Object.freeze({
-        row: context.row,
-        probe: await options.mediaProbe.probe(readHandle(context.row)),
-      }));
+    const basis = assemblyBasis(snapshot, selected, layout, rule);
+    const work = workDefinition(basis);
+    const existing = options.workRuntime.snapshot(work.workId);
+    const probeRecords = [];
+    const bindings = [];
+    const computedResults = [];
+
+    for (const [ordinal, context] of layout.primaryContexts.entries()) {
+      const handle = readHandle(context.row);
+      const eventId = stableId('candidate-assembly-probe-event-', {
+        workId: work.workId,
+        ordinal,
+        materialKey: context.materialKey,
+      });
+      const expectedIdentity = {
+        role: 'media_probe',
+        eventId,
+        resultId: stableId('candidate-assembly-result-', { eventId }),
+        capabilityRef: PROBE_CAPABILITY_REF,
+        resultSchemaRef: RESULT_SCHEMAS.probe,
+      };
+      const frozen = frozenBinding(existing, 'media_probe', ordinal);
+      let probeValue;
+      let reference;
+      if (frozen) {
+        assertBinding(frozen, 'media_probe', basis.assemblyBasisDigest);
+        if (frozen.ordinal !== ordinal ||
+            canonicalDigest(frozen.readHandle) !== canonicalDigest(handle)) {
+          fail('P14_CANDIDATE_PROBE_BINDING_STALE',
+            'Frozen media Probe binding no longer matches the exact Run member.', { ordinal });
+        }
+        reference = assertResultReference(frozen.outputRef, expectedIdentity);
+        probeValue = await durableResult(frozen, () => options.mediaProbe.probe(handle));
+      } else {
+        probeValue = await options.mediaProbe.probe(handle);
+        reference = resultRef('media_probe', eventId, PROBE_CAPABILITY_REF,
+          RESULT_SCHEMAS.probe, probeValue);
+      }
+      const binding = closedBinding({
+        bindingKind: 'media_probe',
+        assemblyBasisDigest: basis.assemblyBasisDigest,
+        ordinal,
+        readHandle: handle,
+        outputRef: reference,
+      });
+      if (frozen && frozen.bindingDigest !== binding.bindingDigest) {
+        fail('P14_CANDIDATE_PROBE_BINDING_CONFLICT',
+          'Reconstructed media Probe binding differs from the frozen Plan.', { ordinal });
+      }
+      bindings.push(binding);
+      computedResults.push(probeValue);
+      probeRecords.push(Object.freeze({ row: context.row, probe: probeValue }));
     }
-    const batch = triageBatch(selected, probes);
-    const playability = inspectPlayability(batch, rule, { observedAtMs: 0 });
-    const structureRequest = structureInput(selected, batch, playability, snapshot, layout);
-    const structure = inspectStructure(structureRequest, rule, { observedAtMs: 0 });
+
+    const batch = triageBatch(selected, probeRecords);
+    const playabilityComputed = inspectPlayability(batch, rule, { observedAtMs: 0 });
+    const playabilityEventId = stableId('candidate-assembly-playability-event-', {
+      workId: work.workId,
+      batchDigest: batch.batchDigest,
+    });
+    const playabilityIdentity = {
+      role: 'playability',
+      eventId: playabilityEventId,
+      resultId: stableId('candidate-assembly-result-', { eventId: playabilityEventId }),
+      capabilityRef: PLAYABILITY_CAPABILITY_REF,
+      resultSchemaRef: RESULT_SCHEMAS.playability,
+    };
+    const frozenPlayability = frozenBinding(existing, 'playability');
+    let playability;
+    let playabilityRef;
+    if (frozenPlayability) {
+      assertBinding(frozenPlayability, 'playability', basis.assemblyBasisDigest);
+      playabilityRef = assertResultReference(
+        frozenPlayability.outputRef, playabilityIdentity);
+      if (canonicalDigest(frozenPlayability.sourceResultRefs) !==
+          canonicalDigest(bindings.map((item) => item.outputRef))) {
+        fail('P14_CANDIDATE_PLAYABILITY_BINDING_STALE',
+          'Playability binding does not reference the exact Probe Results.');
+      }
+      playability = await durableResult(
+        frozenPlayability, async () => playabilityComputed);
+    } else {
+      playability = playabilityComputed;
+      playabilityRef = resultRef('playability', playabilityEventId,
+        PLAYABILITY_CAPABILITY_REF, RESULT_SCHEMAS.playability, playability);
+    }
+    const playabilityBinding = closedBinding({
+      bindingKind: 'playability',
+      assemblyBasisDigest: basis.assemblyBasisDigest,
+      runRef: Object.freeze({
+        procurementRunId,
+        runBasisDigest: snapshot.run.run_basis_digest,
+        selectionDigest: selected.selectionDigest,
+      }),
+      ruleRef: Object.freeze({
+        ruleRef: rule.ruleRef,
+        revision: rule.revision,
+        authorityDigest: rule.authorityDigest,
+      }),
+      sourceResultRefs: Object.freeze(bindings.map((item) => item.outputRef)),
+      outputRef: playabilityRef,
+    });
+    if (frozenPlayability &&
+        frozenPlayability.bindingDigest !== playabilityBinding.bindingDigest) {
+      fail('P14_CANDIDATE_PLAYABILITY_BINDING_CONFLICT',
+        'Reconstructed Playability binding differs from the frozen Plan.');
+    }
+    bindings.push(playabilityBinding);
+    computedResults.push(playability);
+
+    const structureRequest = structureInput(
+      selected, batch, playability, snapshot, layout);
+    const structureComputed = inspectStructure(
+      structureRequest, rule, { observedAtMs: 0 });
+    const structureEventId = stableId('candidate-assembly-structure-event-', {
+      workId: work.workId,
+      inputDigest: structureRequest.inputDigest,
+    });
+    const structureIdentity = {
+      role: 'structure',
+      eventId: structureEventId,
+      resultId: stableId('candidate-assembly-result-', { eventId: structureEventId }),
+      capabilityRef: STRUCTURE_CAPABILITY_REF,
+      resultSchemaRef: RESULT_SCHEMAS.structure,
+    };
+    const frozenStructure = frozenBinding(existing, 'structure');
+    let structure;
+    let structureRef;
+    if (frozenStructure) {
+      assertBinding(frozenStructure, 'structure', basis.assemblyBasisDigest);
+      structureRef = assertResultReference(frozenStructure.outputRef, structureIdentity);
+      if (frozenStructure.structureInputDigest !== structureRequest.inputDigest ||
+          canonicalDigest(frozenStructure.sourceResultRefs) !== canonicalDigest([
+            ...bindings.slice(0, layout.primaryContexts.length).map((item) => item.outputRef),
+            playabilityRef,
+          ])) {
+        fail('P14_CANDIDATE_STRUCTURE_BINDING_STALE',
+          'Structure binding does not conserve the exact Probe and Playability inputs.');
+      }
+      structure = await durableResult(frozenStructure, async () => structureComputed);
+    } else {
+      structure = structureComputed;
+      structureRef = resultRef('structure', structureEventId,
+        STRUCTURE_CAPABILITY_REF, RESULT_SCHEMAS.structure, structure);
+    }
+    const structureBinding = closedBinding({
+      bindingKind: 'structure',
+      assemblyBasisDigest: basis.assemblyBasisDigest,
+      runRef: Object.freeze({
+        procurementRunId,
+        runBasisDigest: snapshot.run.run_basis_digest,
+        selectionDigest: selected.selectionDigest,
+        materialFieldContextDigest: structureRequest.materialFieldContext.contextDigest,
+        layoutEvidenceSetDigest: canonicalDigest(layout.layoutEvidence),
+      }),
+      structureInputDigest: structureRequest.inputDigest,
+      sourceResultRefs: Object.freeze([
+        ...bindings.slice(0, layout.primaryContexts.length).map((item) => item.outputRef),
+        playabilityRef,
+      ]),
+      outputRef: structureRef,
+    });
+    if (frozenStructure && frozenStructure.bindingDigest !== structureBinding.bindingDigest) {
+      fail('P14_CANDIDATE_STRUCTURE_BINDING_CONFLICT',
+        'Reconstructed Structure binding differs from the frozen Plan.');
+    }
+    bindings.push(structureBinding);
+    computedResults.push(structure);
     if (structure.resultKind !== 'resolved' || structure.units.length !== 1) {
       return Object.freeze({ stage: 'triage_not_ready', procurementRunId, playability, structure });
     }
     const unit = structure.units[0];
-    const identityClaim = resolveIdentity(Object.freeze({ unit, inputDigest: structure.payloadDigest,
-      procurementRunId, runBasisDigest: snapshot.run.run_basis_digest }), rule, { producedAtMs: 0 });
-    const manifestDraft = buildPrimaryManifestDraft({
+    const identityInput = Object.freeze({
+      unit,
+      inputDigest: structure.payloadDigest,
+      procurementRunId,
+      runBasisDigest: snapshot.run.run_basis_digest,
+    });
+    const identityComputed = resolveIdentity(
+      identityInput, rule, { producedAtMs: 0 });
+    const identityEventId = stableId('candidate-assembly-identity-event-', {
+      workId: work.workId,
+      structureResultDigest: structureRef.resultDigest,
+    });
+    const identityIdentity = {
+      role: 'identity_claim',
+      eventId: identityEventId,
+      resultId: stableId('candidate-assembly-result-', { eventId: identityEventId }),
+      capabilityRef: IDENTITY_CAPABILITY_REF,
+      resultSchemaRef: RESULT_SCHEMAS.identity,
+    };
+    const frozenIdentity = frozenBinding(existing, 'identity_claim');
+    let identityClaim;
+    let identityRef;
+    if (frozenIdentity) {
+      assertBinding(frozenIdentity, 'identity_claim', basis.assemblyBasisDigest);
+      identityRef = assertResultReference(frozenIdentity.outputRef, identityIdentity);
+      if (canonicalDigest(frozenIdentity.sourceResultRefs) !==
+          canonicalDigest([structureRef])) {
+        fail('P14_CANDIDATE_IDENTITY_BINDING_STALE',
+          'Identity binding does not reference the exact Structure Result.');
+      }
+      identityClaim = await durableResult(
+        frozenIdentity, async () => identityComputed);
+    } else {
+      identityClaim = identityComputed;
+      identityRef = resultRef('identity_claim', identityEventId,
+        IDENTITY_CAPABILITY_REF, RESULT_SCHEMAS.identity, identityClaim);
+    }
+    const identityBinding = closedBinding({
+      bindingKind: 'identity_claim',
+      assemblyBasisDigest: basis.assemblyBasisDigest,
+      sourceResultRefs: Object.freeze([structureRef]),
+      outputRef: identityRef,
+    });
+    if (frozenIdentity && frozenIdentity.bindingDigest !== identityBinding.bindingDigest) {
+      fail('P14_CANDIDATE_IDENTITY_BINDING_CONFLICT',
+        'Reconstructed Identity binding differs from the frozen Plan.');
+    }
+    bindings.push(identityBinding);
+    computedResults.push(identityClaim);
+
+    const manifestInput = {
       preallocatedManifestId: stableId('primary-input-manifest-', { procurementRunId, unitId: unit.unitId }),
       procurementRunId, runBasisDigest: snapshot.run.run_basis_digest,
       structureEvidencePayloadDigest: structure.payloadDigest, unit,
       selectedFieldMaterialSet: selected, inputDigest: structure.payloadDigest,
-    }, rule, { producedAtMs: 0 });
+    };
+    const manifestComputed = buildPrimaryManifestDraft(
+      manifestInput, rule, { producedAtMs: 0 });
+    const manifestEventId = stableId('candidate-assembly-manifest-event-', {
+      workId: work.workId,
+      structureResultDigest: structureRef.resultDigest,
+      selectionDigest: selected.selectionDigest,
+    });
+    const manifestIdentity = {
+      role: 'primary_manifest',
+      eventId: manifestEventId,
+      resultId: stableId('candidate-assembly-result-', { eventId: manifestEventId }),
+      capabilityRef: MANIFEST_CAPABILITY_REF,
+      resultSchemaRef: RESULT_SCHEMAS.manifest,
+    };
+    const frozenManifest = frozenBinding(existing, 'primary_manifest');
+    let manifestDraft;
+    let manifestRef;
+    if (frozenManifest) {
+      assertBinding(frozenManifest, 'primary_manifest', basis.assemblyBasisDigest);
+      manifestRef = assertResultReference(frozenManifest.outputRef, manifestIdentity);
+      if (frozenManifest.selectionDigest !== selected.selectionDigest ||
+          canonicalDigest(frozenManifest.sourceResultRefs) !==
+          canonicalDigest([structureRef])) {
+        fail('P14_CANDIDATE_MANIFEST_BINDING_STALE',
+          'Manifest binding does not conserve Structure and Selection inputs.');
+      }
+      manifestDraft = await durableResult(
+        frozenManifest, async () => manifestComputed);
+    } else {
+      manifestDraft = manifestComputed;
+      manifestRef = resultRef('primary_manifest', manifestEventId,
+        MANIFEST_CAPABILITY_REF, RESULT_SCHEMAS.manifest, manifestDraft);
+    }
+    const manifestBinding = closedBinding({
+      bindingKind: 'primary_manifest',
+      assemblyBasisDigest: basis.assemblyBasisDigest,
+      selectionDigest: selected.selectionDigest,
+      sourceResultRefs: Object.freeze([structureRef]),
+      outputRef: manifestRef,
+    });
+    if (frozenManifest && frozenManifest.bindingDigest !== manifestBinding.bindingDigest) {
+      fail('P14_CANDIDATE_MANIFEST_BINDING_CONFLICT',
+        'Reconstructed Manifest binding differs from the frozen Plan.');
+    }
+    bindings.push(manifestBinding);
+    computedResults.push(manifestDraft);
+
     const draft = draftFor(unit, structure, selected, snapshot, rule, identityClaim, manifestDraft);
-    const work = workDefinition(draft);
+    validateDraft(draft, selected.members);
+    const publicationEventId = stableId('movie-candidate-publication-event-', {
+      workId: work.workId,
+      draftDigest: draft.draftDigest,
+    });
+    const publicationBinding = closedBinding({
+      bindingKind: 'candidate_publication',
+      assemblyBasisDigest: basis.assemblyBasisDigest,
+      runRef: Object.freeze({
+        procurementRunId,
+        runBasisDigest: snapshot.run.run_basis_digest,
+        candidatePackageRevisionHead: Number(snapshot.run.candidate_package_revision_head),
+      }),
+      ruleRef: Object.freeze({
+        ruleRef: rule.ruleRef,
+        revision: rule.revision,
+        authorityDigest: rule.authorityDigest,
+      }),
+      sourceResultRefs: Object.freeze([
+        structureRef,
+        identityRef,
+        manifestRef,
+      ]),
+      candidateDraftDigest: draft.draftDigest,
+    });
+    const frozenPublication = frozenBinding(existing, 'candidate_publication');
+    if (frozenPublication) {
+      assertBinding(frozenPublication, 'candidate_publication', basis.assemblyBasisDigest);
+      if (frozenPublication.bindingDigest !== publicationBinding.bindingDigest) {
+        fail('P14_CANDIDATE_PUBLICATION_BINDING_CONFLICT',
+          'Reconstructed Candidate Publication binding differs from the frozen Plan.');
+      }
+    }
+    bindings.push(publicationBinding);
+
     const admission = createWorkAdmission({
       schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
       eligibilityProvider: { check: (request) => Object.freeze({
         eligible: request.ownerDomain === 'procurement' && request.processId === procurementRunId &&
-          request.executionBasisDigest === draft.draftDigest,
-        basisDigest: draft.draftDigest, reasonCode: 'P14_MOVIE_CANDIDATE_BASIS_STALE',
+          request.executionBasisDigest === basis.assemblyBasisDigest,
+        basisDigest: basis.assemblyBasisDigest,
+        reasonCode: 'P14_MOVIE_CANDIDATE_BASIS_STALE',
       }) },
       limits: Object.freeze({ globalOpenWorks: 1000, ownerOpenWorks: 500, openEvents: 100000 }),
     }).submit(work);
     if (admission.kind !== 'admitted') fail('P14_MOVIE_CANDIDATE_WORK_DEFERRED', 'Candidate publication Work cannot be admitted.');
-    const step = capabilityStep(draft, work.workId);
-    options.workRuntime.activate({ workId: work.workId, ownerDomain: 'procurement', basisDigest: draft.draftDigest,
-      plannerRef: 'procurement.movie-triage-planner@1', catalogDigest: canonicalDigest({ schema: 'procurement.movie-triage-catalog@1', capabilities: [CAPABILITY_REF] }),
-      steps: Object.freeze([step]) });
-    const event = options.workRuntime.beginEvent(step.eventId);
+
+    const steps = [];
+    for (let ordinal = 0; ordinal < layout.primaryContexts.length; ordinal += 1) {
+      const binding = bindings[ordinal];
+      steps.push(stepFor(work, basis, 'media-probe-' + String(ordinal).padStart(4, '0'),
+        binding.outputRef.eventId, PROBE_CAPABILITY_REF, 'pure_observation',
+        'helix://contracts/capabilities/shared.material.media.probe/v1',
+        binding, binding.outputRef.resultDigest, ['disk_io']));
+    }
+    steps.push(stepFor(work, basis, 'playability', playabilityEventId,
+      PLAYABILITY_CAPABILITY_REF, 'pure_observation',
+      'helix://contracts/capabilities/procurement.triage.playability.inspect/v1',
+      playabilityBinding, playabilityRef.resultDigest, ['cpu']));
+    steps.push(stepFor(work, basis, 'structure', structureEventId,
+      STRUCTURE_CAPABILITY_REF, 'pure_observation',
+      'helix://contracts/capabilities/procurement.triage.structure.inspect/v1',
+      structureBinding, structureRef.resultDigest, ['cpu']));
+    steps.push(stepFor(work, basis, 'identity-claim', identityEventId,
+      IDENTITY_CAPABILITY_REF, 'pure_observation',
+      'helix://contracts/capabilities/procurement.triage.identity_claim.resolve/v1',
+      identityBinding, identityRef.resultDigest, ['cpu']));
+    steps.push(stepFor(work, basis, 'primary-manifest', manifestEventId,
+      MANIFEST_CAPABILITY_REF, 'pure_observation',
+      'helix://contracts/capabilities/procurement.triage.primary_manifest.build/v1',
+      manifestBinding, manifestRef.resultDigest, ['cpu']));
+    const publicationStep = stepFor(work, basis, 'candidate-publication',
+      publicationEventId, CAPABILITY_REF, 'domain_fact_commit',
+      'helix://contracts/capabilities/procurement.candidate.publish/v1',
+      publicationBinding, draft.draftDigest, ['disk_io']);
+    steps.push(publicationStep);
+    options.workRuntime.activate({
+      workId: work.workId,
+      ownerDomain: 'procurement',
+      basisDigest: basis.assemblyBasisDigest,
+      plannerRef: 'procurement.movie-triage-planner@1',
+      catalogDigest: canonicalDigest({
+        schema: 'procurement.movie-triage-catalog@1',
+        capabilities: [
+          PROBE_CAPABILITY_REF,
+          PLAYABILITY_CAPABILITY_REF,
+          STRUCTURE_CAPABILITY_REF,
+          IDENTITY_CAPABILITY_REF,
+          MANIFEST_CAPABILITY_REF,
+          CAPABILITY_REF,
+        ],
+      }),
+      steps: Object.freeze(steps),
+    });
+
+    if (!existing?.plan) {
+      for (let index = 0; index < computedResults.length; index += 1) {
+        persistComputed(bindings[index], computedResults[index]);
+      }
+    }
+    injectFault('after_triage_results_before_publication', Object.freeze({
+      workId: work.workId,
+      candidateDraftDigest: draft.draftDigest,
+    }));
+
+    const durableStructure = resultStore.readEventResult(structureRef.eventId);
+    const durableIdentity = resultStore.readEventResult(identityRef.eventId);
+    const durableManifest = resultStore.readEventResult(manifestRef.eventId);
+    if (!durableStructure || !durableIdentity || !durableManifest ||
+        durableStructure.resultDigest !== structureRef.resultDigest ||
+        durableIdentity.resultDigest !== identityRef.resultDigest ||
+        durableManifest.resultDigest !== manifestRef.resultDigest) {
+      fail('P14_CANDIDATE_PUBLICATION_SOURCE_RESULT_MISSING',
+        'Candidate Publication requires every exact durable Triage Result.');
+    }
+    const assembledDraft = draftFor(
+      durableStructure.result.units[0],
+      durableStructure.result,
+      selected,
+      snapshot,
+      rule,
+      durableIdentity.result,
+      durableManifest.result,
+    );
+    if (assembledDraft.draftDigest !== publicationBinding.candidateDraftDigest) {
+      fail('P14_CANDIDATE_PUBLICATION_ASSEMBLY_MISMATCH',
+        'Durable Triage Results do not assemble the frozen Candidate Draft.');
+    }
+    validateDraft(assembledDraft, selected.members);
+    const event = options.workRuntime.beginEvent(publicationStep.eventId);
     const request = Object.freeze({
-      candidateDraft: draft,
+      candidateDraft: assembledDraft,
       domainFactCommitHandle: Object.freeze({ schemaRef: 'helix://contracts/types/DomainFactCommitHandle/v1', schemaVersion: 1,
-        handleId: stableId('movie-candidate-handle-', { draftId: draft.draftId }), ownerDomain: 'procurement',
-        aggregateType: 'candidate_package', aggregateId: draft.candidatePackageId, factType: 'CandidateDraft',
-        factSchemaRef: 'helix://contracts/domain-types/CandidateDraft/v1', expectedRevision: draft.expectedPackageRevision - 1,
-        payloadDigest: canonicalDigest(draft), resultSchemaRef: 'helix://contracts/types/CandidatePackage/v1',
-        commitIdempotencyKey: work.idempotencyKey, eventFenceDigest: step.fenceBasis.eventFenceDigest }),
-      commitMarker: Object.freeze({ commitMarker: stableId('movie-candidate-marker-', { draftId: draft.draftId }),
-        commitDigest: canonicalDigest({ schema: 'procurement.movie-candidate-publication-commit@1', draftDigest: draft.draftDigest }) }),
-      resultBinding: Object.freeze({ resultId: stableId('movie-candidate-result-', { draftId: draft.draftId }), eventId: step.eventId,
-        evidenceSchemaRef: structure.schemaRef, evidence: Object.freeze({ schemaRef: structure.schemaRef, schemaVersion: 1,
-          evidenceId: structure.evidenceId, payloadDigest: structure.payloadDigest }) }),
+        handleId: stableId('movie-candidate-handle-', { draftId: assembledDraft.draftId }), ownerDomain: 'procurement',
+        aggregateType: 'candidate_package', aggregateId: assembledDraft.candidatePackageId, factType: 'CandidateDraft',
+        factSchemaRef: 'helix://contracts/domain-types/CandidateDraft/v1',
+        expectedRevision: assembledDraft.expectedPackageRevision - 1,
+        payloadDigest: canonicalDigest(assembledDraft), resultSchemaRef: 'helix://contracts/types/CandidatePackage/v1',
+        commitIdempotencyKey: work.idempotencyKey,
+        eventFenceDigest: publicationStep.fenceBasis.eventFenceDigest }),
+      commitMarker: Object.freeze({
+        commitMarker: stableId('movie-candidate-marker-', { draftId: assembledDraft.draftId }),
+        commitDigest: canonicalDigest({
+          schema: 'procurement.movie-candidate-publication-commit@1',
+          draftDigest: assembledDraft.draftDigest,
+        }),
+      }),
+      resultBinding: Object.freeze({
+        resultId: stableId('movie-candidate-result-', { draftId: assembledDraft.draftId }),
+        eventId: publicationStep.eventId,
+        evidenceSchemaRef: durableStructure.result.schemaRef,
+        evidence: Object.freeze({
+          schemaRef: durableStructure.result.schemaRef,
+          schemaVersion: 1,
+          evidenceId: durableStructure.result.evidenceId,
+          payloadDigest: durableStructure.result.payloadDigest,
+        }),
+      }),
     });
     const committed = candidatePublication.publish(request);
-    if (event.state !== 'succeeded') options.workRuntime.completeEvent(step.eventId, request.resultBinding.resultId);
+    if (event.state !== 'succeeded') {
+      options.workRuntime.completeEvent(
+        publicationStep.eventId, request.resultBinding.resultId);
+    }
     options.workRuntime.complete(work.workId);
     const handoff = await options.offerCandidate(buildOffer(
       committed.typedResult,
       committed.acceptanceBasis,
     ).message);
     return Object.freeze({ stage: 'handoff_a_accepted', procurementRunId, candidatePackage: committed.typedResult,
-      structure, handoff });
+      structure: durableStructure.result, handoff });
   }
   return Object.freeze({ advance });
 }
