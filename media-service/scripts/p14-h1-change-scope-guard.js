@@ -18,12 +18,22 @@ const H1_PHASES = Object.freeze([
   'H1.5',
 ]);
 
+const FROZEN_VERTICAL_SENTINEL_FILES = Object.freeze([
+  'media-service/test/helix-architecture/p14-clean-service-entrypoint.test.js',
+  'media-service/test/helix-architecture/p14-series-handoff-a.test.js',
+  'media-service/test/helix-architecture/p14-jav-routing-spec-run.test.js',
+  'media-service/test/helix-architecture/p14-western-routing-spec-run.test.js',
+  'media-service/test/helix-architecture/p14-workspace-cleanup-audit.test.js',
+]);
+
 const H1_0_ALLOWED = Object.freeze([
   'docs/helix/implementation/CURRENT_PHASE.md',
   'docs/helix/implementation/evidence/P14_BETA_IMPL_03_PRODUCT_SURFACE_CONSTRUCTION_MATRIX.md',
   'media-service/scripts/p14-h1-change-scope-guard.js',
   'media-service/test/helix-architecture/p14-h1-change-scope-guard.test.js',
 ]);
+
+const GOVERNANCE_REVIEW_FILES = Object.freeze([...H1_0_ALLOWED]);
 
 const IMPLEMENTATION_EVIDENCE_PREFIX =
   'docs/helix/implementation/evidence/';
@@ -136,12 +146,27 @@ function classifyPath(phase, inputPath) {
     throw new TypeError(`Unknown H1 phase: ${phase}`);
   }
   const file = normalizePath(inputPath);
+  if (FROZEN_VERTICAL_SENTINEL_FILES.includes(file)) {
+    return Object.freeze({
+      allowed: false,
+      file,
+      reason: 'immutable_vertical_sentinel',
+    });
+  }
   if (FORBIDDEN_FILES.includes(file) ||
       FORBIDDEN_PREFIXES.some((prefix) => file.startsWith(prefix))) {
     return Object.freeze({
       allowed: false,
       file,
       reason: 'immutable_vertical_or_product_boundary',
+    });
+  }
+  if (GOVERNANCE_REVIEW_FILES.includes(file) &&
+      phaseAllowedFiles(phase).has(file)) {
+    return Object.freeze({
+      allowed: true,
+      file,
+      reason: 'governance_checkpoint_review',
     });
   }
   if (phaseAllowedFiles(phase).has(file) ||
@@ -204,8 +229,12 @@ function routeImplementationStatus() {
   return Object.freeze({ counts, rows: Object.freeze(rows) });
 }
 
-function verify(phase, base = IMMUTABLE_VERTICAL_BASELINE) {
-  const files = changedPaths(base);
+function evaluatePaths(
+  phase,
+  inputFiles,
+  base = IMMUTABLE_VERTICAL_BASELINE,
+) {
+  const files = [...new Set(inputFiles.map(normalizePath))].sort();
   const decisions = files.map((file) => classifyPath(phase, file));
   const violations = decisions.filter((item) => !item.allowed);
   const routeStatus = routeImplementationStatus();
@@ -215,9 +244,16 @@ function verify(phase, base = IMMUTABLE_VERTICAL_BASELINE) {
     base,
     files,
     violations,
+    governanceReviewRequired: decisions
+      .filter((item) => item.reason === 'governance_checkpoint_review')
+      .map((item) => item.file),
     routeStatus: routeStatus.counts,
     sentinelRegressions: SENTINEL_REGRESSIONS[phase],
   });
+}
+
+function verify(phase, base = IMMUTABLE_VERTICAL_BASELINE) {
+  return evaluatePaths(phase, changedPaths(base), base);
 }
 
 function parseArgs(argv) {
@@ -242,11 +278,14 @@ if (require.main === module) {
 }
 
 module.exports = Object.freeze({
+  FROZEN_VERTICAL_SENTINEL_FILES,
+  GOVERNANCE_REVIEW_FILES,
   H1_PHASES,
   IMMUTABLE_VERTICAL_BASELINE,
   SENTINEL_REGRESSIONS,
   changedPaths,
   classifyPath,
+  evaluatePaths,
   routeImplementationStatus,
   verify,
 });

@@ -155,6 +155,21 @@ legacy `app.js`, Worker and Desktop, and allows only the active phase seams.
 An out-of-scope need is evidence for Architecture review, not permission to
 weaken the guard.
 
+The following sentinel source files are immutable exact paths in every H1
+phase. The guard rejects them before the broad independent-test allowlist:
+
+- `media-service/test/helix-architecture/p14-clean-service-entrypoint.test.js`
+- `media-service/test/helix-architecture/p14-series-handoff-a.test.js`
+- `media-service/test/helix-architecture/p14-jav-routing-spec-run.test.js`
+- `media-service/test/helix-architecture/p14-western-routing-spec-run.test.js`
+- `media-service/test/helix-architecture/p14-workspace-cleanup-audit.test.js`
+
+H1 additions must use independent test files. A phase may not replace, delete,
+weaken, or rename a sentinel to evade its frozen baseline. A later change to
+the guard, its own test, `CURRENT_PHASE`, or this matrix is reported as
+`governance_checkpoint_review` and requires an explicit checkpoint review; the
+implementation task cannot silently redefine the guard.
+
 ### Known gaps and bounded Design Return triggers
 
 - H1.1 must choose an implementation-owned encrypted Secret Source and
@@ -175,7 +190,7 @@ weaken the guard.
 
 ### H1.0 verification freeze
 
-- H1 change-scope guard and counterexamples: `6/6 PASS`.
+- H1 change-scope guard and counterexamples: `10/10 PASS`.
 - Accepted Movie/Series/JAV/Western/cleanup sentinels: `27/27 PASS`.
 - Full `npm run test:helix-architecture`: `134 fixture files PASS`.
 - Inventories: `112 Capability / 97 Result / 178 Table / 43 Canonical

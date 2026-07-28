@@ -3,10 +3,13 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const {
+  FROZEN_VERTICAL_SENTINEL_FILES,
+  GOVERNANCE_REVIEW_FILES,
   H1_PHASES,
   IMMUTABLE_VERTICAL_BASELINE,
   SENTINEL_REGRESSIONS,
   classifyPath,
+  evaluatePaths,
   routeImplementationStatus,
 } = require('../../scripts/p14-h1-change-scope-guard');
 
@@ -110,6 +113,75 @@ test('future H1 phases allow only Platform, Integration, Composition, test, and 
     classifyPath('H1.1', 'media-service/src/helix/projections/projection-builder.js').allowed,
     false,
   );
+});
+
+test('all H1 phases reject changes or deletions of every exact frozen vertical sentinel', () => {
+  assert.deepEqual(FROZEN_VERTICAL_SENTINEL_FILES, [
+    'media-service/test/helix-architecture/p14-clean-service-entrypoint.test.js',
+    'media-service/test/helix-architecture/p14-series-handoff-a.test.js',
+    'media-service/test/helix-architecture/p14-jav-routing-spec-run.test.js',
+    'media-service/test/helix-architecture/p14-western-routing-spec-run.test.js',
+    'media-service/test/helix-architecture/p14-workspace-cleanup-audit.test.js',
+  ]);
+  for (const phase of H1_PHASES) {
+    for (const file of FROZEN_VERTICAL_SENTINEL_FILES) {
+      assert.deepEqual(classifyPath(phase, file), {
+        allowed: false,
+        file,
+        reason: 'immutable_vertical_sentinel',
+      }, `${phase}: ${file}`);
+    }
+  }
+});
+
+test('cumulative baseline diff evaluation fails when any frozen sentinel path is modified or deleted', () => {
+  for (const phase of H1_PHASES) {
+    const report = evaluatePaths(phase, FROZEN_VERTICAL_SENTINEL_FILES);
+    assert.equal(report.ok, false, phase);
+    assert.equal(report.base, IMMUTABLE_VERTICAL_BASELINE, phase);
+    assert.deepEqual(
+      report.violations.map((item) => item.file),
+      [...FROZEN_VERTICAL_SENTINEL_FILES].sort(),
+      phase,
+    );
+    assert.ok(
+      report.violations.every(
+        (item) => item.reason === 'immutable_vertical_sentinel',
+      ),
+      phase,
+    );
+  }
+});
+
+test('future phases permit an independent H1 test without permitting a sentinel replacement', () => {
+  const independent =
+    'media-service/test/helix-architecture/h1-tmdb-integration.test.js';
+  assert.equal(classifyPath('H1.0', independent).allowed, false);
+  for (const phase of H1_PHASES.slice(1)) {
+    assert.deepEqual(classifyPath(phase, independent), {
+      allowed: true,
+      file: independent,
+      reason: 'phase_allowlist',
+    });
+  }
+});
+
+test('guard and governance-file changes are surfaced for explicit checkpoint review', () => {
+  assert.deepEqual(GOVERNANCE_REVIEW_FILES, [
+    'docs/helix/implementation/CURRENT_PHASE.md',
+    'docs/helix/implementation/evidence/P14_BETA_IMPL_03_PRODUCT_SURFACE_CONSTRUCTION_MATRIX.md',
+    'media-service/scripts/p14-h1-change-scope-guard.js',
+    'media-service/test/helix-architecture/p14-h1-change-scope-guard.test.js',
+  ]);
+  for (const phase of H1_PHASES) {
+    for (const file of GOVERNANCE_REVIEW_FILES) {
+      assert.deepEqual(classifyPath(phase, file), {
+        allowed: true,
+        file,
+        reason: 'governance_checkpoint_review',
+      }, `${phase}: ${file}`);
+    }
+  }
 });
 
 test('reports exact current product route construction status without crediting backend verticals', () => {

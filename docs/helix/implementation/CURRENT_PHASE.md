@@ -57,6 +57,20 @@ Composition seam 接入真实输入。若完成真实接线必须修改上述 im
 Owner/Handoff/Canonical Transaction 或正式 DTO，立即返回 bounded Design
 Return，不绕开 guard。
 
+五个 immutable vertical sentinel 源文件也按 exact path 冻结，必须先于宽泛
+test allowlist 被拒绝：
+
+- `p14-clean-service-entrypoint.test.js`；
+- `p14-series-handoff-a.test.js`；
+- `p14-jav-routing-spec-run.test.js`；
+- `p14-western-routing-spec-run.test.js`；
+- `p14-workspace-cleanup-audit.test.js`。
+
+H1 新增或修正测试必须使用独立文件，不得替换、删除、弱化上述 sentinel，也不得
+通过调整 sentinel 列表规避。guard 本身、guard 测试与两份治理文档的任何后续
+变化都会在报告中标记为 `governance_checkpoint_review`，必须作为独立
+checkpoint 显式交 Architecture/P14 复审。
+
 当前机器盘点为 `112 Capability / 97 Result / 178 Table / 43 Canonical
 Transaction / 114 routes / 18 UI surfaces`。真实路由状态为 `36 real / 6
 intentional Worker Beta-404 / 72 unavailable-503`；旧 ledger 的 `4/6/104`
@@ -70,7 +84,7 @@ secret value。后续只允许操作员把可复用值通过正式
 
 H1.0 验证：
 
-- scope guard unit/negative：`6/6 PASS`；
+- scope guard unit/negative：`10/10 PASS`；
 - immutable vertical sentinels：`27/27 PASS`；
 - 完整 `test:helix-architecture`：`134 fixture files PASS`；
 - inventories：`112 / 97 / 178 / 43 / 114 routes / 18 UI surfaces`；
