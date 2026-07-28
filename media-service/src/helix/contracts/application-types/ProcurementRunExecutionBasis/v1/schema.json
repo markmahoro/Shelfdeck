@@ -41,6 +41,9 @@
         "digest"
       ]
     },
+    "profileHintSnapshot": {
+      "$ref": "helix://contracts/application-types/MaterialFieldProfileHintSnapshot/v1"
+    },
     "terminalObservation": {
       "type": "object",
       "additionalProperties": false,
@@ -53,11 +56,15 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 256
+        },
+        "profileHintSnapshot": {
+          "$ref": "helix://contracts/application-types/MaterialFieldProfileHintSnapshot/v1"
         }
       },
       "required": [
         "revision",
-        "fieldObservationWorkId"
+        "fieldObservationWorkId",
+        "profileHintSnapshot"
       ]
     },
     "extractionPolicy": {
@@ -107,6 +114,7 @@
     "fieldId",
     "fieldStatus",
     "fieldAccess",
+    "profileHintSnapshot",
     "terminalObservation",
     "extractionPolicy",
     "triageRule",

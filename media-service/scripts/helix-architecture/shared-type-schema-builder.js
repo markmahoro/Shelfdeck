@@ -6,6 +6,7 @@ const DRAFT = 'https://json-schema.org/draft/2020-12/schema';
 const typeId = (name) => `helix://contracts/types/${name}/v1`;
 const ref = (name) => ({ $ref: typeId(name) });
 const domainRef = (name) => ({ $ref: `helix://contracts/domain-types/${name}/v1` });
+const applicationRef = (name) => ({ $ref: `helix://contracts/application-types/${name}/v1` });
 const text = (options = {}) => ({ type: 'string', minLength: 1, ...options });
 const opaqueId = () => text({ maxLength: 256 });
 const nonNegativeInteger = () => ({ type: 'integer', minimum: 0 });
@@ -122,7 +123,8 @@ const definitions = {
   }),
   FieldObservationPageRequest: () => nominal('FieldObservationPageRequest', {
     fieldObservationWorkId: opaqueId(), observationId: opaqueId(), pageOrdinal: nonNegativeInteger(),
-    expectedObservationRevision: nonNegativeInteger(), cursorIn: nullable(text()), pageBudget: boundedPositiveInteger(100), requestDigest: digestHex()
+    expectedObservationRevision: nonNegativeInteger(), cursorIn: nullable(text()), pageBudget: boundedPositiveInteger(100),
+    profileHintSnapshot: applicationRef('MaterialFieldProfileHintSnapshot'), requestDigest: digestHex()
   }),
   IntegrationHandle: () => nominal('IntegrationHandle', {
     handleId: opaqueId(), integrationId: opaqueId(), integrationType: text(), configRevision: positiveInteger(), secretRef: opaqueId(),

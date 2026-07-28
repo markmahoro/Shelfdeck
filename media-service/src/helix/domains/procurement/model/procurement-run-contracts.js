@@ -2,6 +2,10 @@
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { validateControlSnapshot } = require('./extraction-eligibility');
+const {
+  createProfileHintSnapshot,
+  sameProfileHintSnapshot,
+} = require('./field-profile-hint-contracts');
 
 const TRIAGE_RULE_SCHEMA = 'procurement.triage-rule.beta@1';
 const TRIAGE_REGISTRY_SCHEMA = 'procurement.triage-rule-registry@1';
@@ -129,13 +133,18 @@ function createSelectedFieldMaterialSet(value) {
   return deepFreeze(value);
 }
 function createProcurementRunExecutionBasis(value, registry) {
-  const keys = ['procurementRunId','fieldId','fieldStatus','fieldAccess','terminalObservation','extractionPolicy','triageRule',
+  const keys = ['procurementRunId','fieldId','fieldStatus','fieldAccess','profileHintSnapshot','terminalObservation','extractionPolicy','triageRule',
     ...(Object.hasOwn(value || {}, 'sourceRetryIntentId') ? ['sourceRetryIntentId'] : []), 'selectedFieldMaterialSet','basisDigest'];
   exact(value, keys, 'P7_RUN_BASIS_SHAPE');
   if (value.fieldStatus !== 'active') fail('P7_RUN_FIELD_INACTIVE', 'Run Admission requires an active Material Field.');
   text(value.procurementRunId, 'procurementRunId'); text(value.fieldId, 'fieldId');
   exact(value.fieldAccess, ['revision','digest'], 'P7_RUN_ACCESS_SHAPE'); revision(value.fieldAccess.revision, 'fieldAccess.revision'); digest(value.fieldAccess.digest, 'fieldAccess.digest');
-  exact(value.terminalObservation, ['revision','fieldObservationWorkId'], 'P7_RUN_OBSERVATION_SHAPE'); revision(value.terminalObservation.revision, 'terminalObservation.revision'); text(value.terminalObservation.fieldObservationWorkId, 'terminalObservation.fieldObservationWorkId');
+  const profileHintSnapshot = createProfileHintSnapshot(value.profileHintSnapshot);
+  if (profileHintSnapshot.fieldId !== value.fieldId) fail('PBF22_RUN_PROFILE_HINT_FIELD_MISMATCH', 'Run Profile Hint belongs to another Field.');
+  exact(value.terminalObservation, ['revision','fieldObservationWorkId','profileHintSnapshot'], 'P7_RUN_OBSERVATION_SHAPE'); revision(value.terminalObservation.revision, 'terminalObservation.revision'); text(value.terminalObservation.fieldObservationWorkId, 'terminalObservation.fieldObservationWorkId');
+  if (!sameProfileHintSnapshot(value.profileHintSnapshot, value.terminalObservation.profileHintSnapshot)) {
+    fail('PBF22_RUN_PROFILE_HINT_OBSERVATION_MISMATCH', 'Run and terminal Observation Profile Hint snapshots differ.');
+  }
   exact(value.extractionPolicy, ['policyId','revision','digest'], 'P7_RUN_POLICY_SHAPE'); text(value.extractionPolicy.policyId, 'extractionPolicy.policyId'); revision(value.extractionPolicy.revision, 'extractionPolicy.revision'); digest(value.extractionPolicy.digest, 'extractionPolicy.digest');
   validateTriageRuleSnapshot(value.triageRule); const active = activeTriageRule(registry);
   if (canonicalJson(value.triageRule) !== canonicalJson(active)) fail('P7_RUN_TRIAGE_NOT_ACTIVE', 'Run Basis must freeze the Registry current active Triage Rule.');

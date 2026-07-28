@@ -2,6 +2,9 @@
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { validateTriageRuleSnapshot } = require('./procurement-run-contracts');
+const {
+  createProfileHintSnapshot,
+} = require('./field-profile-hint-contracts');
 
 const PLAYABILITY_REASONS = Object.freeze(['probe_not_media', 'no_video_stream', 'non_positive_duration']);
 const STRUCTURE_REASONS = Object.freeze([...PLAYABILITY_REASONS, 'content_profile_unresolved', 'conflicting_season_claim',
@@ -104,6 +107,12 @@ function validateStructureInput(input) {
   const probeMembers = input.probeBatches.flatMap((batch) => batch.members);
   const playResults = input.playabilityPages.flatMap((page) => page.materialResults);
   const contexts = input.materialFieldContext.memberContexts;
+  const profileHintSnapshot = createProfileHintSnapshot(
+    input.materialFieldContext.profileHintSnapshot,
+  );
+  if (profileHintSnapshot.fieldId !== input.materialFieldContext.fieldId) {
+    fail('PBF22_TRIAGE_PROFILE_HINT_FIELD_MISMATCH', 'Triage Profile Hint belongs to another Field.');
+  }
   for (const [index, member] of selection.members.entries()) {
     if (!probeMembers[index] || probeMembers[index].selectionOrdinal !== index || probeMembers[index].materialKey !== member.materialKey ||
         !playResults[index] || playResults[index].selectionOrdinal !== index || playResults[index].materialKey !== member.materialKey ||
@@ -156,7 +165,16 @@ function relatedFor(context, layoutEvidence, primaryMaterialKey) {
   return results.sort((a,b) => compareUtf8(a.referenceId,b.referenceId));
 }
 
-function unitFor(member, context, profileName, mediaTypeName, season, episodes, relatedReferences) {
+function unitFor(
+  member,
+  context,
+  profileName,
+  mediaTypeName,
+  season,
+  episodes,
+  relatedReferences,
+  profileHintSnapshot,
+) {
   const seasonClaim = profileName === 'series' ? (season === null
     ? { claimKind:'provisional_group', provisionalGroupKey:digest({ schema:'procurement.provisional-season-group@1', fieldId:context.fieldId,
       parentSegments:context.parentSegments }), claimDigest:'' }
@@ -165,6 +183,10 @@ function unitFor(member, context, profileName, mediaTypeName, season, episodes, 
   const normalizedJavCode = profileName === 'jav'
     ? javCode(context.baseName) : null;
   const hints = [{
+    hintKind:'field_content_profile_hint',
+    hintValue:profileHintSnapshot.contentProfileHint,
+    evidenceDigest:profileHintSnapshot.hintDigest,
+  }, {
     hintKind:'filename_title',
     hintValue:context.baseName,
     evidenceDigest:digest({
@@ -192,7 +214,7 @@ function unitFor(member, context, profileName, mediaTypeName, season, episodes, 
       ? seriesTitleFrom(context, member.materialKey.slice(0, 12))
       : titleFrom(context, member.materialKey.slice(0, 12)), ...(seasonClaim ? { seasonClaim } : {}),
     ...(normalizedJavCode ? { javCode:normalizedJavCode } : {}),
-    contentProfileHint:profileName, sourceHints:hints };
+    contentProfileHint:profileHintSnapshot.contentProfileHint, sourceHints:hints };
   metadata.metadataDigest = digest(metadata);
   const claims = episodes.map((episode) => ({ episodeKey:'E' + String(episode).padStart(3,'0'),
     seasonClaimDigest:seasonClaim && seasonClaim.claimDigest || digest({ profile:profileName }), claimDigest:'' })).map((claim) =>
@@ -260,11 +282,18 @@ function mergeSeriesUnits(groups, unassigned) {
       .sort((a,b) => compareUtf8(a.referenceId,b.referenceId));
     const first = [...group].sort((a,b) => compareUtf8(a.unitId,b.unitId))[0];
     const sourceHints = group.flatMap((unit) => unit.identityMetadata.sourceHints)
-      .sort((a,b) => compareUtf8(a.evidenceDigest,b.evidenceDigest));
+      .filter((hint, index, all) =>
+        hint.hintKind !== 'field_content_profile_hint' ||
+        index === all.findIndex((candidate) =>
+          candidate.hintKind === 'field_content_profile_hint'))
+      .sort((a,b) =>
+        compareUtf8(a.hintKind,b.hintKind) ||
+        compareUtf8(a.hintValue,b.hintValue) ||
+        compareUtf8(a.evidenceDigest,b.evidenceDigest));
     const identityMetadata = {
       claimedTitle:first.identityMetadata.claimedTitle,
       seasonClaim:first.identityMetadata.seasonClaim,
-      contentProfileHint:'series',
+      contentProfileHint:first.identityMetadata.contentProfileHint,
       sourceHints,
     };
     identityMetadata.metadataDigest = digest(identityMetadata);
@@ -303,7 +332,9 @@ function inspectStructure(input, rule, options = {}) {
     if (probe.mediaProbe.discTopology && probe.mediaProbe.discTopology.titleCount !== 1) {
       unassigned.push({ materialKey:selected.materialKey, reasonCode:'disc_multi_title_unsupported', evidenceDigest:probe.mediaProbe.payloadDigest }); continue;
     }
-    const token = episodeToken(context.baseName); const hint = input.materialFieldContext.contentProfileHint;
+    const token = episodeToken(context.baseName);
+    const profileHintSnapshot = input.materialFieldContext.profileHintSnapshot;
+    const hint = profileHintSnapshot.contentProfileHint;
     const profileName = hint === 'mixed' ? (token ? 'series' : javCode(context.baseName) ? 'jav' : 'movie') : hint;
     if (!CLAIM_KIND[profileName] || profileName === 'series' && !token) {
       unassigned.push({ materialKey:selected.materialKey, reasonCode:profileName === 'series' ? 'episode_claim_unresolved' : 'content_profile_unresolved',
@@ -311,7 +342,8 @@ function inspectStructure(input, rule, options = {}) {
     }
     const related = relatedFor({ ...context, contextDigest:input.materialFieldContext.contextDigest }, input.layoutEvidence, selected.materialKey);
     const unit = unitFor(probe, { ...context, fieldId:input.materialFieldContext.fieldId }, profileName,
-      profileName === 'series' ? 'group' : 'single', token && token.season, token ? token.episodes : [], related);
+      profileName === 'series' ? 'group' : 'single', token && token.season, token ? token.episodes : [], related,
+      profileHintSnapshot);
     if (profileName !== 'series') {
       if (conserveUnitBound(unit, unassigned)) units.push(unit);
       continue;

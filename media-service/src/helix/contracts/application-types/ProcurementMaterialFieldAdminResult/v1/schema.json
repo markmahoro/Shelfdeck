@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/ProcurementMaterialFieldAdminResult/v1",
+  "title": "ProcurementMaterialFieldAdminResult@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "materialField": {
+      "$ref": "helix://contracts/application-types/MaterialFieldAdminProjection/v1"
+    },
+    "commandReceiptId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "resultDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "materialField",
+    "commandReceiptId",
+    "resultDigest"
+  ]
+}

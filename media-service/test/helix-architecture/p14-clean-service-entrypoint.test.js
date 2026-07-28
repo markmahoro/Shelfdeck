@@ -459,6 +459,17 @@ test('Procurement Material Field registration is a real authenticated Owner-loca
     const created = await host.inject({ method: 'POST', url: '/v1/admin/material-fields', headers: { cookie }, payload: body });
     assert.equal(created.statusCode, 201);
     assert.equal(created.json().materialField.fieldId, 'field-http-1');
+    assert.deepEqual(created.json().materialField.currentProfileHintSnapshot, {
+      fieldId:'field-http-1',
+      revision:1,
+      contentProfileHint:'mixed',
+      hintDigest:canonicalDigest({
+        schema:'procurement.material-field-profile-hint@1',
+        fieldId:'field-http-1',
+        revision:1,
+        contentProfileHint:'mixed',
+      }),
+    });
     const registrationReplay = await host.inject({ method: 'POST', url: '/v1/admin/material-fields', headers: { cookie }, payload: body });
     assert.equal(registrationReplay.statusCode, 201);
     assert.deepEqual(registrationReplay.json(), created.json());
@@ -494,6 +505,57 @@ test('Procurement Material Field registration is a real authenticated Owner-loca
     } });
     assert.equal(accessReplay.statusCode, 200);
     assert.equal(accessReplay.json().materialField.currentAccessRevision, 2);
+    const profileRevisionCommand = {
+      idempotencyKey:'field-http-profile-western-2',
+      operation:'revise_profile_hint',
+      fieldId:'field-http-1',
+      expectedProfileHintRevision:1,
+      newContentProfileHint:'western_adult',
+    };
+    const profileRevision = await host.inject({
+      method:'PATCH',
+      url:'/v1/admin/material-fields/field-http-1',
+      headers:{ cookie },
+      payload:profileRevisionCommand,
+    });
+    assert.equal(profileRevision.statusCode, 200);
+    assert.equal(
+      profileRevision.json().materialField.currentProfileHintSnapshot.contentProfileHint,
+      'western_adult',
+    );
+    assert.equal(
+      profileRevision.json().materialField.currentProfileHintSnapshot.revision,
+      2,
+    );
+    const profileReplay = await host.inject({
+      method:'PATCH',
+      url:'/v1/admin/material-fields/field-http-1',
+      headers:{ cookie },
+      payload:profileRevisionCommand,
+    });
+    assert.equal(profileReplay.statusCode, 200);
+    assert.deepEqual(profileReplay.json(), profileRevision.json());
+    const profileConflict = await host.inject({
+      method:'PATCH',
+      url:'/v1/admin/material-fields/field-http-1',
+      headers:{ cookie },
+      payload:{ ...profileRevisionCommand, newContentProfileHint:'jav' },
+    });
+    assert.equal(profileConflict.statusCode, 409);
+    assert.equal(profileConflict.json().error.code, 'ADMIN_FIELD_IDEMPOTENCY_CONFLICT');
+    const profileTargetMismatch = await host.inject({
+      method:'PATCH',
+      url:'/v1/admin/material-fields/field-http-1',
+      headers:{ cookie },
+      payload:{
+        ...profileRevisionCommand,
+        idempotencyKey:'field-http-profile-target-mismatch',
+        fieldId:'field-other',
+        expectedProfileHintRevision:2,
+      },
+    });
+    assert.equal(profileTargetMismatch.statusCode, 400);
+    assert.equal(profileTargetMismatch.json().error.code, 'ADMIN_FIELD_TARGET_MISMATCH');
     const policyRevisionValue = { ...policyValue, includedDirectories: ['incoming-revised'] };
     const policyRevisionBasis = { extractionPolicyId: 'policy-http-1', revision: 2, ...policyRevisionValue };
     const policyRevision = await host.inject({
@@ -552,6 +614,16 @@ test('Procurement Material Field registration is a real authenticated Owner-loca
     const response = await restarted.inject({ method: 'GET', url: '/v1/admin/material-fields/field-http-1', headers: { cookie: exchange.headers['set-cookie'] } });
     assert.equal(response.statusCode, 200);
     assert.equal(response.json().materialField.access.endpointId, 'endpoint-http-1');
+    assert.equal(
+      response.json().materialField.currentProfileHintSnapshot.contentProfileHint,
+      'western_adult',
+    );
+    const inspect = new Database(path.join(value.dataDir, 'shelfdeck.db'), { readonly:true });
+    assert.equal(
+      inspect.prepare('SELECT COUNT(*) count FROM proc_field_profile_hint_revisions WHERE field_id=?').get('field-http-1').count,
+      2,
+    );
+    inspect.close();
   } finally {
     await restarted.close();
   }

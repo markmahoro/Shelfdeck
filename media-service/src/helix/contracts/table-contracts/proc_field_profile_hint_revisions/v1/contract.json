@@ -1,0 +1,169 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/proc_field_profile_hint_revisions/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "proc_field_profile_hint_revisions",
+    "owner": "procurement",
+    "prefix": "proc_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "field_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "content_profile_hint",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "mixed",
+          "movie",
+          "series",
+          "jav",
+          "western_adult"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "hint_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "hint_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "effective_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "actor_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "field_id",
+      "revision"
+    ],
+    "declaredForeignKeyColumns": [
+      "field_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [
+      [
+        "content_profile_hint",
+        "field_id",
+        "revision"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "content_profile_hint",
+        "enumValues": [
+          "mixed",
+          "movie",
+          "series",
+          "jav",
+          "western_adult"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": [
+        "`proc_material_fields.current_profile_hint_revision`显式指向current row，`INDEX(content_profile_hint,field_id,revision)`只服务Field管理Projection，Triage不得按该索引扫描或旁读current值"
+      ]
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "revision从1连续递增且row immutable"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(field_id,revision)`",
+      "`hint_schema_ref=helix://contracts/application-types/MaterialFieldProfileHintSnapshot/v1`",
+      "revision从1连续递增且row immutable",
+      "`hint_digest`逐字节匹配8.6.18唯一公式",
+      "注册未提供Hint时必须保存显式`mixed` revision 1，禁止NULL/空字符串/调用者默认旁路",
+      "同值修订不追加row",
+      "Field注销不删除历史",
+      "`proc_material_fields.current_profile_hint_revision`显式指向current row，`INDEX(content_profile_hint,field_id,revision)`只服务Field管理Projection，Triage不得按该索引扫描或旁读current值"
+    ],
+    "rawContract": {
+      "columns": "`field_id FK, revision, content_profile_hint(mixed|movie|series|jav|western_adult), hint_schema_ref, hint_digest, effective_at_ms, actor_id`",
+      "constraints": "`PK(field_id,revision)`；`hint_schema_ref=helix://contracts/application-types/MaterialFieldProfileHintSnapshot/v1`；revision从1连续递增且row immutable；`hint_digest`逐字节匹配8.6.18唯一公式；注册未提供Hint时必须保存显式`mixed` revision 1，禁止NULL/空字符串/调用者默认旁路；同值修订不追加row；Field注销不删除历史；`proc_material_fields.current_profile_hint_revision`显式指向current row，`INDEX(content_profile_hint,field_id,revision)`只服务Field管理Projection，Triage不得按该索引扫描或旁读current值"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 8521,
+      "lineDigest": "e1c5fb4401e66497c375df3a6abacc77b0711b1fb28712bf712245b98872327f"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "field_id"
+        ],
+        "targetTable": "proc_material_fields",
+        "targetColumns": [
+          "field_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

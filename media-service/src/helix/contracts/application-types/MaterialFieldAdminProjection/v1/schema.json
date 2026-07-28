@@ -1,0 +1,223 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/MaterialFieldAdminProjection/v1",
+  "title": "MaterialFieldAdminProjection@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "fieldId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "deregistered"
+      ]
+    },
+    "extractionPolicyId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "extractionPolicyRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "currentAccessRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "currentProfileHintSnapshot": {
+      "$ref": "helix://contracts/application-types/MaterialFieldProfileHintSnapshot/v1"
+    },
+    "currentObservationRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "createdAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "updatedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "extractionPolicyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "policySchemaRef": {
+          "const": "helix://contracts/domain-types/ExtractionPolicy/v1"
+        },
+        "policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "includedDirectories": {
+              "type": "array",
+              "maxItems": 128,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "excludedDirectories": {
+              "type": "array",
+              "maxItems": 128,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "allowedExtensions": {
+              "type": "array",
+              "maxItems": 64,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^\\.[a-z0-9]+$"
+              }
+            },
+            "minimumSizeBytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "excludedMaterialKeys": {
+              "type": "array",
+              "maxItems": 128,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            }
+          },
+          "required": [
+            "includedDirectories",
+            "excludedDirectories",
+            "allowedExtensions",
+            "minimumSizeBytes",
+            "excludedMaterialKeys"
+          ]
+        },
+        "policyDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "effectiveAtMs": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "extractionPolicyId",
+        "revision",
+        "policySchemaRef",
+        "policy",
+        "policyDigest",
+        "effectiveAtMs"
+      ]
+    },
+    "access": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fieldId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "endpointId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "rootLocation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mountScopeId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "mountScopeRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "accessSchemaRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "accessDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "effectiveAtMs": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "fieldId",
+        "revision",
+        "endpointId",
+        "rootLocation",
+        "mountScopeId",
+        "mountScopeRevision",
+        "accessSchemaRef",
+        "accessDigest",
+        "effectiveAtMs"
+      ]
+    },
+    "projectionDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "fieldId",
+    "name",
+    "status",
+    "extractionPolicyId",
+    "extractionPolicyRevision",
+    "currentAccessRevision",
+    "currentProfileHintSnapshot",
+    "createdAtMs",
+    "updatedAtMs",
+    "policy",
+    "access",
+    "projectionDigest"
+  ]
+}

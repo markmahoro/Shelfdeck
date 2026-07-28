@@ -7,7 +7,7 @@
     "displayName": "Field Observation Page Commit",
     "ownerScope": "procurement",
     "commitClass": "domain_fact_commit",
-    "atomicFactSet": "validated complete `FieldObservationPage`同时作为本Commit Event的immutable durable Evidence写入`fx_event_result_bindings.evidence_json` + current Field Observation head CAS + immutable page revision + Field Material current-row insert/update + durable `ObservationCommitResult` + commit marker；全部同事务成立；新Material只置`unknown/unknown`初值，Observation Commit不计算最终Eligibility/Region，也不发布Outbox",
+    "atomicFactSet": "validated complete `FieldObservationPage`同时作为本Commit Event的immutable durable Evidence写入`fx_event_result_bindings.evidence_json` + current Field Profile Hint pointer/exact revision row验证 + current Field Observation head CAS + immutable page revision（逐列冻结完整Profile Hint Snapshot）+ Field Material current-row insert/update + durable `ObservationCommitResult` + commit marker；全部同事务成立；同一Work全部Page必须使用同一Hint Snapshot，Hint current pointer变化时旧Work后续Page整页rollback；新Material只置`unknown/unknown`初值，Observation Commit不计算最终Eligibility/Region，也不发布Outbox",
     "participants": [
       {
         "participantKind": "domain",
@@ -38,6 +38,7 @@
     ],
     "readTables": [
       "proc_material_fields",
+      "proc_field_profile_hint_revisions",
       "proc_field_access_revisions",
       "proc_field_observations",
       "proc_field_materials",
@@ -68,8 +69,8 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7829,
-      "lineDigest": "58747ee1aa0df557ec960c3b49a4da639783cc35560b32743186e2d25fb96af7"
+      "line": 7848,
+      "lineDigest": "db2ddf125feb5c2a7dc664a8488645db36dc0531bc3999c1c079158b99a113d1"
     }
   }
 }

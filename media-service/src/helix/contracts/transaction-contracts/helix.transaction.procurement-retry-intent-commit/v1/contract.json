@@ -7,7 +7,7 @@
     "displayName": "Procurement Retry Intent Commit",
     "ownerScope": "procurement",
     "commitClass": "domain_unit_of_work",
-    "atomicFactSet": "complete `ProcurementRetryIntent@1` + failed sealed Run/Basis与精确released member scope + current Field/Access/terminal Observation/Policy/active Triage Rule admission head + Eligibility/Binding/Selection/Control precondition + `open` intent + durable `ProcurementRetryIntentReceipt`/commit marker + 唯一`ProcurementRetryIntentAvailableMessage` Outbox；相同`fieldId+idempotencyKey`重放原结果",
+    "atomicFactSet": "complete `ProcurementRetryIntent@1` + failed sealed Run/Basis与精确released member scope + current Field/Profile Hint/Access/terminal Observation/Policy/active Triage Rule admission head + Eligibility/Binding/Selection/Control precondition + `open` intent + durable `ProcurementRetryIntentReceipt`/commit marker + 唯一`ProcurementRetryIntentAvailableMessage` Outbox；Profile Hint必须命中current revision及terminal Observation Snapshot；相同`fieldId+idempotencyKey`重放原结果",
     "participants": [
       {
         "participantKind": "domain",
@@ -40,6 +40,7 @@
       "proc_procurement_runs",
       "proc_run_materials",
       "proc_material_fields",
+      "proc_field_profile_hint_revisions",
       "proc_field_access_revisions",
       "proc_field_observations",
       "proc_extraction_policy_revisions",
@@ -71,8 +72,8 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7840,
-      "lineDigest": "00062a04e7d259159d5088e47b0d9b16c9af8e4798cad3111928b0bdf63cdeb6"
+      "line": 7859,
+      "lineDigest": "6244c2bb8301bc89619d3256d477f3d5629381424579e9139b4f8331c1ee6822"
     }
   }
 }

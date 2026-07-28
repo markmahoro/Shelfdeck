@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/MaterialFieldRegistrationCommand/v1",
+  "title": "MaterialFieldRegistrationCommand@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "fieldId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "extractionPolicyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "policySchemaRef": {
+          "const": "helix://contracts/domain-types/ExtractionPolicy/v1"
+        },
+        "policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "includedDirectories": {
+              "type": "array",
+              "maxItems": 128,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "excludedDirectories": {
+              "type": "array",
+              "maxItems": 128,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "allowedExtensions": {
+              "type": "array",
+              "maxItems": 64,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^\\.[a-z0-9]+$"
+              }
+            },
+            "minimumSizeBytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "excludedMaterialKeys": {
+              "type": "array",
+              "maxItems": 128,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            }
+          },
+          "required": [
+            "includedDirectories",
+            "excludedDirectories",
+            "allowedExtensions",
+            "minimumSizeBytes",
+            "excludedMaterialKeys"
+          ]
+        },
+        "policyDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "effectiveAtMs": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "extractionPolicyId",
+        "revision",
+        "policySchemaRef",
+        "policy",
+        "policyDigest",
+        "effectiveAtMs"
+      ]
+    },
+    "access": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fieldId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "endpointId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "rootLocation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mountScopeId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "mountScopeRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "accessSchemaRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "accessDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "effectiveAtMs": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "fieldId",
+        "revision",
+        "endpointId",
+        "rootLocation",
+        "mountScopeId",
+        "mountScopeRevision",
+        "accessSchemaRef",
+        "accessDigest",
+        "effectiveAtMs"
+      ]
+    },
+    "contentProfileHint": {
+      "type": "string",
+      "enum": [
+        "mixed",
+        "movie",
+        "series",
+        "jav",
+        "western_adult"
+      ]
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    }
+  },
+  "required": [
+    "fieldId",
+    "name",
+    "policy",
+    "access",
+    "contentProfileHint",
+    "idempotencyKey"
+  ]
+}

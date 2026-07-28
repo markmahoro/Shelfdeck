@@ -67,9 +67,23 @@ function repositoryDefinition(schemaManifest) {
           'extraction_policy_id',
           'extraction_policy_revision',
           'current_access_revision',
+          'current_profile_hint_revision',
           'current_observation_revision',
         ],
         keyColumns: ['field_id'],
+        safeIntegers: true,
+      },
+      find_profile_hint: {
+        kind: 'select-one',
+        tableId: 'proc_field_profile_hint_revisions',
+        columns: [
+          'field_id',
+          'revision',
+          'content_profile_hint',
+          'hint_schema_ref',
+          'hint_digest',
+        ],
+        keyColumns: ['field_id', 'revision'],
         safeIntegers: true,
       },
       find_access: {
@@ -105,6 +119,9 @@ function repositoryDefinition(schemaManifest) {
           'observation_id',
           'field_observation_work_id',
           'access_revision',
+          'content_profile_hint',
+          'profile_hint_revision',
+          'profile_hint_digest',
           'completed',
         ],
         keyColumns: ['field_id', 'revision'],
@@ -182,6 +199,9 @@ function repositoryDefinition(schemaManifest) {
           'field_id',
           'access_revision',
           'access_digest',
+          'content_profile_hint',
+          'profile_hint_revision',
+          'profile_hint_digest',
           'terminal_observation_revision',
           'field_observation_work_id',
           'extraction_policy_id',
@@ -289,6 +309,10 @@ function readOwnerSnapshot(options, repository, observation, rule) {
         field_id: observation.fieldId,
         revision: observation.accessRevision,
       });
+      const profileHint = repo.invoke('find_profile_hint', {
+        field_id: observation.fieldId,
+        revision: Number(field.current_profile_hint_revision),
+      });
       const terminalObservation = repo.invoke('find_observation', {
         field_id: observation.fieldId,
         revision: observation.terminalObservationRevision,
@@ -297,10 +321,16 @@ function readOwnerSnapshot(options, repository, observation, rule) {
         extraction_policy_id: field.extraction_policy_id,
         revision: field.extraction_policy_revision,
       });
-      if (!access || !terminalObservation || !terminalObservation.completed ||
+      if (!access || !profileHint ||
+          profileHint.hint_schema_ref !==
+            'helix://contracts/application-types/MaterialFieldProfileHintSnapshot/v1' ||
+          !terminalObservation || !terminalObservation.completed ||
           terminalObservation.field_observation_work_id !==
             observation.observationWorkId ||
           Number(terminalObservation.access_revision) !== observation.accessRevision ||
+          terminalObservation.content_profile_hint !== profileHint.content_profile_hint ||
+          Number(terminalObservation.profile_hint_revision) !== Number(profileHint.revision) ||
+          terminalObservation.profile_hint_digest !== profileHint.hint_digest ||
           !policy) {
         fail(
           'PROCUREMENT_AUTOMATION_HEAD_INCOMPLETE',
@@ -312,6 +342,9 @@ function readOwnerSnapshot(options, repository, observation, rule) {
         fieldId: observation.fieldId,
         accessRevision: observation.accessRevision,
         accessDigest: access.access_digest,
+        contentProfileHint: profileHint.content_profile_hint,
+        profileHintRevision: Number(profileHint.revision),
+        profileHintDigest: profileHint.hint_digest,
         terminalObservationRevision: observation.terminalObservationRevision,
         fieldObservationWorkId: observation.observationWorkId,
         policyId: field.extraction_policy_id,
@@ -345,6 +378,7 @@ function readOwnerSnapshot(options, repository, observation, rule) {
       return Object.freeze({
         field,
         access,
+        profileHint,
         terminalObservation,
         policy,
         runId,
@@ -664,6 +698,9 @@ function createProcurementAutomationService(options) {
     if (run.field_id !== runSnapshot.field.field_id ||
         Number(run.access_revision) !== Number(runSnapshot.access.revision) ||
         run.access_digest !== runSnapshot.access.access_digest ||
+        run.content_profile_hint !== runSnapshot.profileHint.content_profile_hint ||
+        Number(run.profile_hint_revision) !== Number(runSnapshot.profileHint.revision) ||
+        run.profile_hint_digest !== runSnapshot.profileHint.hint_digest ||
         Number(run.terminal_observation_revision) !==
           Number(runSnapshot.terminalObservation.revision) ||
         run.field_observation_work_id !==
@@ -826,10 +863,22 @@ function createProcurementAutomationService(options) {
         revision: Number(current.access.revision),
         digest: current.access.access_digest,
       }),
+      profileHintSnapshot: Object.freeze({
+        fieldId: observation.fieldId,
+        revision: Number(current.profileHint.revision),
+        contentProfileHint: current.profileHint.content_profile_hint,
+        hintDigest: current.profileHint.hint_digest,
+      }),
       terminalObservation: Object.freeze({
         revision: Number(current.terminalObservation.revision),
         fieldObservationWorkId:
           current.terminalObservation.field_observation_work_id,
+        profileHintSnapshot: Object.freeze({
+          fieldId: observation.fieldId,
+          revision: Number(current.profileHint.revision),
+          contentProfileHint: current.profileHint.content_profile_hint,
+          hintDigest: current.profileHint.hint_digest,
+        }),
       }),
       extractionPolicy: Object.freeze({
         policyId: current.policy.extraction_policy_id,

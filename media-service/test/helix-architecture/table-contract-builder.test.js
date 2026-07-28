@@ -10,14 +10,14 @@ const { readTableSourceEntries } = require('../../scripts/helix-architecture/tab
 const contractsRoot = path.resolve(__dirname, '../../src/helix/contracts');
 const contracts = buildTableContracts(readTableSourceEntries(contractsRoot));
 
-test('builds all 177 sole-Owner table contracts with accepted owner counts', () => {
-  assert.equal(contracts.length, 177);
-  assert.equal(new Set(contracts.map((contract) => contract.tableId)).size, 177);
+test('builds all 178 sole-Owner table contracts with accepted owner counts', () => {
+  assert.equal(contracts.length, 178);
+  assert.equal(new Set(contracts.map((contract) => contract.tableId)).size, 178);
   const counts = Object.fromEntries([...new Set(contracts.map((contract) => contract.owner))].map((owner) => [
     owner, contracts.filter((contract) => contract.owner === owner).length
   ]));
   assert.deepEqual(counts, {
-    'execution-foundation': 23, 'material-control-authority': 2, procurement: 15, libra: 45,
+    'execution-foundation': 23, 'material-control-authority': 2, procurement: 16, libra: 45,
     arca: 54, perception: 9, people: 13, 'platform-settings': 16
   });
 });

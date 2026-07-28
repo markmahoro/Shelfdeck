@@ -9,7 +9,7 @@ const root=path.resolve(__dirname,'../../src/helix/contracts');
 
 test('materializes the non-Catalog Procurement application contracts reproducibly',()=>{
   const schemas=buildProcurementApplicationSchemas(); const registry=JSON.parse(fs.readFileSync(path.join(root,'procurement-application-type-registry.json'),'utf8'));
-  assert.equal(registry.targetCount,12);
+  assert.equal(registry.targetCount,17);
   for(const [name,schema] of Object.entries(schemas)) { const stored=JSON.parse(fs.readFileSync(path.join(root,'application-types',name,'v1','schema.json'),'utf8'));
     assert.deepEqual(stored,schema); const entry=registry.entries.find((item)=>item.id===name); assert.equal(entry.schemaId,typeId(name)); assert.equal(entry.digest.value,schemaDigest(schema)); }
 });
@@ -45,6 +45,28 @@ test('Retry application schemas close create, consume evidence, and both termina
 test('Run Basis schema requires complete heads and Selection while only retry correlation is optional',()=>{
   const schema=buildProcurementApplicationSchemas().ProcurementRunExecutionBasis;
   assert.equal(schema.properties.sourceRetryIntentId.type,'string'); assert.equal(schema.required.includes('sourceRetryIntentId'),false);
+  assert.equal(schema.required.includes('profileHintSnapshot'),true);
+  assert.equal(schema.properties.terminalObservation.required.includes('profileHintSnapshot'),true);
   assert.equal(schema.properties.selectedFieldMaterialSet.$ref,'helix://contracts/domain-types/SelectedFieldMaterialSet/v1');
   assert.equal(schema.properties.fieldStatus.const,'active');
+});
+
+test('PBF-22 materializes closed Material Field Hint command, snapshot, projection, and result contracts',()=>{
+  const schemas=buildProcurementApplicationSchemas();
+  assert.deepEqual(
+    schemas.MaterialFieldProfileHintSnapshot.properties.contentProfileHint.enum,
+    ['mixed','movie','series','jav','western_adult'],
+  );
+  assert.equal(
+    schemas.MaterialFieldProfileHintRevisionCommand.properties.operation.const,
+    'revise_profile_hint',
+  );
+  assert.equal(
+    schemas.MaterialFieldAdminProjection.properties.currentProfileHintSnapshot.$ref,
+    typeId('MaterialFieldProfileHintSnapshot'),
+  );
+  assert.equal(
+    schemas.ProcurementMaterialFieldAdminResult.properties.materialField.$ref,
+    typeId('MaterialFieldAdminProjection'),
+  );
 });

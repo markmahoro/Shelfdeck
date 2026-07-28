@@ -8,6 +8,17 @@ const { activeTriageRule, createDefaultTriageRuleRegistry, createProcurementRunE
 const { retryHeadStaleReason, retryMemberStaleReason } = require('../../src/helix/domains/procurement/model/procurement-retry-contracts');
 
 const DIGEST = 'b'.repeat(64);
+const PROFILE_HINT = Object.freeze({
+  fieldId:'field-1',
+  revision:1,
+  contentProfileHint:'mixed',
+  hintDigest:canonicalDigest({
+    schema:'procurement.material-field-profile-hint@1',
+    fieldId:'field-1',
+    revision:1,
+    contentProfileHint:'mixed',
+  }),
+});
 const IDENTITY = {schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v1',schemaVersion:1,mountScopeId:'mount-1',inode:'42',contentHashAlgorithm:'sha256',contentHash:DIGEST};
 IDENTITY.materialKey=canonicalDigest({schema:'physical-material-identity@1',mountScopeId:IDENTITY.mountScopeId,inode:IDENTITY.inode,contentHashAlgorithm:'sha256',contentHash:IDENTITY.contentHash});
 const MATERIAL = IDENTITY.materialKey;
@@ -31,7 +42,7 @@ function selection(overrides = {}) {
 }
 function basis(registry, overrides = {}) {
   const value = { procurementRunId:'run-1', fieldId:'field-1', fieldStatus:'active', fieldAccess:{ revision:1, digest:DIGEST },
-    terminalObservation:{ revision:2, fieldObservationWorkId:'work-1' }, extractionPolicy:{ policyId:'policy-1', revision:3, digest:DIGEST },
+    profileHintSnapshot:PROFILE_HINT, terminalObservation:{ revision:2, fieldObservationWorkId:'work-1', profileHintSnapshot:PROFILE_HINT }, extractionPolicy:{ policyId:'policy-1', revision:3, digest:DIGEST },
     triageRule:activeTriageRule(registry), selectedFieldMaterialSet:selection(), ...overrides };
   return { ...value, basisDigest:canonicalDigest(value) };
 }
@@ -63,8 +74,12 @@ test('Run Execution Basis binds current Field heads, active Rule authority, and 
 });
 
 test('Retry stale classifier applies the closed SSOT precedence before lower-level member drift',()=>{
-  const registry=createDefaultTriageRuleRegistry(),rule=activeTriageRule(registry);const expectedHead={fieldStatus:'active',fieldAccess:{revision:1,digest:DIGEST},terminalObservation:{resultKind:'available',revision:1,fieldObservationWorkId:'work-1'},extractionPolicy:{policyId:'policy-1',revision:1,digest:DIGEST},triageRule:rule};
+  const registry=createDefaultTriageRuleRegistry(),rule=activeTriageRule(registry);const expectedHead={fieldStatus:'active',profileHintSnapshot:PROFILE_HINT,fieldAccess:{revision:1,digest:DIGEST},terminalObservation:{resultKind:'available',revision:1,fieldObservationWorkId:'work-1',profileHintSnapshot:PROFILE_HINT},extractionPolicy:{policyId:'policy-1',revision:1,digest:DIGEST},triageRule:rule};
   assert.equal(retryHeadStaleReason(expectedHead,{...expectedHead,fieldStatus:'deregistered',fieldAccess:{revision:2,digest:'c'.repeat(64)}}),'field_status_changed');
+  const westernHint={fieldId:'field-1',revision:2,contentProfileHint:'western_adult',hintDigest:canonicalDigest({
+    schema:'procurement.material-field-profile-hint@1',fieldId:'field-1',revision:2,contentProfileHint:'western_adult',
+  })};
+  assert.equal(retryHeadStaleReason(expectedHead,{...expectedHead,profileHintSnapshot:westernHint}),'field_profile_hint_changed');
   const expected={expectedBindingRevision:1,expectedEligibilityRevision:2,expectedEligibilityBasisDigest:DIGEST,expectedSelectionBasisDigest:DIGEST,expectedControlSnapshot:controlSnapshot()};
   const actual={materialState:'missing',currentSelection:{hasConflict:true,selectionBasisDigest:'c'.repeat(64)},currentControlSnapshot:{resultKind:'unavailable'}};
   assert.equal(retryMemberStaleReason(expected,actual,'field-1','triage_rule_changed'),'triage_rule_changed');

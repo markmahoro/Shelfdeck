@@ -26,6 +26,7 @@ const MUTABLE_LIFECYCLE_TABLES = new Set([
   'fx_workspace_materials',
   'proc_procurement_runs',
   'proc_run_materials',
+  'proc_procurement_retry_intents',
   'proc_procurement_retry_intent_materials',
   'proc_candidate_deliveries',
   'libra_run_admission_heads',
@@ -53,7 +54,8 @@ const ENUM_OVERRIDES = Object.freeze({
   'fx_workspace_materials.state': ['active', 'reclaimed'],
   'fx_artifact_registry.state': ['active', 'gc_eligible', 'deleted'],
   'fx_artifact_references.state': ['active', 'released'],
-  'proc_material_fields.status': ['active', 'disabled'],
+  'proc_material_fields.status': ['active', 'deregistered'],
+  'proc_field_profile_hint_revisions.content_profile_hint': ['mixed', 'movie', 'series', 'jav', 'western_adult'],
   'proc_field_materials.eligibility_state': ['eligible', 'ineligible', 'unknown'],
   'proc_field_materials.eligibility_field_status': ['active', 'disabled'],
   'proc_field_materials.control_projection': ['unknown', 'uncontrolled', 'procurement', 'production', 'finished_goods'],
@@ -168,7 +170,11 @@ const EXPLICIT_FOREIGN_KEYS = Object.freeze({
     { columns: ['field_id'], targetTable: 'proc_material_fields', targetColumns: ['field_id'] },
     { columns: ['field_observation_work_id'], targetTable: 'fx_supporting_works', targetColumns: ['work_id'] },
     { columns: ['field_id', 'access_revision'], targetTable: 'proc_field_access_revisions', targetColumns: ['field_id', 'revision'] },
+    { columns: ['field_id', 'profile_hint_revision'], targetTable: 'proc_field_profile_hint_revisions', targetColumns: ['field_id', 'revision'] },
     { columns: ['commit_marker'], targetTable: 'fx_commit_markers', targetColumns: ['commit_marker'] }
+  ],
+  proc_field_profile_hint_revisions: [
+    { columns: ['field_id'], targetTable: 'proc_material_fields', targetColumns: ['field_id'] }
   ],
   proc_field_materials: [
     { columns: ['field_id'], targetTable: 'proc_material_fields', targetColumns: ['field_id'] },
@@ -176,6 +182,7 @@ const EXPLICIT_FOREIGN_KEYS = Object.freeze({
   ],
   proc_procurement_runs: [
     { columns: ['field_id', 'access_revision'], targetTable: 'proc_field_access_revisions', targetColumns: ['field_id', 'revision'] },
+    { columns: ['field_id', 'profile_hint_revision'], targetTable: 'proc_field_profile_hint_revisions', targetColumns: ['field_id', 'revision'] },
     { columns: ['field_id', 'terminal_observation_revision'], targetTable: 'proc_field_observations', targetColumns: ['field_id', 'revision'] },
     { columns: ['extraction_policy_id', 'extraction_policy_revision'], targetTable: 'proc_extraction_policy_revisions', targetColumns: ['extraction_policy_id', 'revision'] },
     { columns: ['admission_commit_marker'], targetTable: 'fx_commit_markers', targetColumns: ['commit_marker'] },
@@ -184,6 +191,7 @@ const EXPLICIT_FOREIGN_KEYS = Object.freeze({
   ],
   proc_procurement_retry_intents: [
     { columns: ['field_id', 'retry_access_revision'], targetTable: 'proc_field_access_revisions', targetColumns: ['field_id', 'revision'] },
+    { columns: ['field_id', 'retry_profile_hint_revision'], targetTable: 'proc_field_profile_hint_revisions', targetColumns: ['field_id', 'revision'] },
     { columns: ['field_id', 'retry_terminal_observation_revision'], targetTable: 'proc_field_observations', targetColumns: ['field_id', 'revision'] },
     { columns: ['retry_extraction_policy_id', 'retry_extraction_policy_revision'], targetTable: 'proc_extraction_policy_revisions', targetColumns: ['extraction_policy_id', 'revision'] },
     { columns: ['new_run_id'], targetTable: 'proc_procurement_runs', targetColumns: ['procurement_run_id'] },
@@ -232,6 +240,7 @@ const EXPLICIT_FOREIGN_KEYS = Object.freeze({
 });
 const DEFERRED_FOREIGN_KEY_PAIRS = new Set([
   'proc_material_fields>proc_field_access_revisions',
+  'proc_material_fields>proc_field_profile_hint_revisions',
   'proc_material_fields>proc_field_observations', 'proc_field_observations>proc_material_fields',
   'proc_field_observations>fx_commit_markers',
   'proc_procurement_runs>proc_procurement_retry_intents',
@@ -272,6 +281,7 @@ const CURRENT_POINTER_TARGETS = Object.freeze({
   fx_workflow_events: [[['event_id', 'current_progress_revision'], 'fx_event_progress', ['event_id', 'revision']]],
   proc_material_fields: [
     [['field_id', 'current_access_revision'], 'proc_field_access_revisions', ['field_id', 'revision']],
+    [['field_id', 'current_profile_hint_revision'], 'proc_field_profile_hint_revisions', ['field_id', 'revision']],
     [['field_id', 'current_observation_revision'], 'proc_field_observations', ['field_id', 'revision']]
   ],
   libra_subjects: [[['subject_id', 'current_identity_revision'], 'libra_product_identity_revisions', ['subject_id', 'revision']]],

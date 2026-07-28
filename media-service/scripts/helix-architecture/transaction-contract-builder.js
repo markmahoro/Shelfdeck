@@ -92,7 +92,7 @@ const definitions = Object.freeze({
     commitClass: 'domain_fact_commit',
     writeTables: ['proc_material_fields', 'proc_field_observations', 'proc_field_materials',
       'fx_event_result_bindings', 'fx_commit_markers'],
-    readTables: ['proc_material_fields', 'proc_field_access_revisions', 'proc_field_observations',
+    readTables: ['proc_material_fields', 'proc_field_profile_hint_revisions', 'proc_field_access_revisions', 'proc_field_observations',
       'proc_field_materials', 'fx_supporting_works'],
     fixtureRefs: ['field-observation-page'], hasOutbox: false
   },
@@ -110,7 +110,7 @@ const definitions = Object.freeze({
     commitClass: 'responsibility_control_commit',
     writeTables: ['proc_procurement_runs', 'proc_run_materials', 'fx_material_controls',
       'fx_material_control_revisions', 'fx_event_result_bindings', 'fx_commit_markers'],
-    readTables: ['proc_material_fields', 'proc_field_access_revisions', 'proc_field_observations',
+    readTables: ['proc_material_fields', 'proc_field_profile_hint_revisions', 'proc_field_access_revisions', 'proc_field_observations',
       'proc_extraction_policy_revisions', 'proc_field_materials', 'proc_procurement_runs', 'proc_run_materials',
       'fx_material_controls'],
     fixtureRefs: ['procurement-run-admission'], hasOutbox: false
@@ -182,7 +182,7 @@ const definitions = Object.freeze({
     commitClass: 'domain_unit_of_work',
     writeTables: ['proc_procurement_retry_intents', 'proc_procurement_retry_intent_materials',
       'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox'],
-    readTables: ['proc_procurement_runs', 'proc_run_materials', 'proc_material_fields', 'proc_field_access_revisions',
+    readTables: ['proc_procurement_runs', 'proc_run_materials', 'proc_material_fields', 'proc_field_profile_hint_revisions', 'proc_field_access_revisions',
       'proc_field_observations', 'proc_extraction_policy_revisions', 'proc_field_materials', 'fx_material_controls'],
     fixtureRefs: ['procurement-failed-run-retry'], hasOutbox: true
   },
@@ -192,7 +192,7 @@ const definitions = Object.freeze({
       'proc_procurement_runs', 'proc_run_materials', 'fx_material_controls', 'fx_material_control_revisions',
       'fx_event_result_bindings', 'fx_commit_markers'],
     readTables: ['proc_procurement_retry_intents', 'proc_procurement_retry_intent_materials',
-      'proc_procurement_runs', 'proc_run_materials', 'proc_material_fields', 'proc_field_access_revisions',
+      'proc_procurement_runs', 'proc_run_materials', 'proc_material_fields', 'proc_field_profile_hint_revisions', 'proc_field_access_revisions',
       'proc_field_observations', 'proc_extraction_policy_revisions', 'proc_field_materials', 'fx_material_controls'],
     fixtureRefs: ['procurement-retry-admission'], hasOutbox: false
   },

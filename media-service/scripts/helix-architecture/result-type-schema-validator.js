@@ -64,6 +64,7 @@ function validateResultTypeSchemas(options) {
     'arca-application-type-registry.json',
     'libra-application-type-registry.json',
     'platform-application-type-registry.json',
+    'procurement-application-type-registry.json',
   ].map((file) => readJson(path.join(contractsRoot, file), findings));
   const knownSchemaIds = new Set([
     ...(sharedRegistry && sharedRegistry.entries || []).map((entry) => entry.schemaId),

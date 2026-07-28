@@ -80,13 +80,17 @@ function createCleanFacades(options) {
     });
     facades.ProcurementAdminFacade.post_material_fields = async (input) => ({
       status: 201,
-      body: options.procurementAdmin.registerMaterialField(input.body),
+      body: options.procurementAdmin.registerMaterialField(input.body, input.actor),
     });
     facades.ProcurementAdminFacade.get_material_fields_fieldid_extraction_policy = async (input) => ({
       body: options.procurementAdmin.getExtractionPolicy(input.params.fieldId),
     });
     facades.ProcurementAdminFacade.patch_material_fields_fieldid = async (input) => ({
-      body: options.procurementAdmin.reviseMaterialFieldAccess(input.params.fieldId, input.body),
+      body: options.procurementAdmin.reviseMaterialFieldAccess(
+        input.params.fieldId,
+        input.body,
+        input.actor,
+      ),
     });
     facades.ProcurementAdminFacade.patch_material_fields_fieldid_extraction_policy = async (input) => ({
       body: options.procurementAdmin.publishExtractionPolicy(input.params.fieldId, input.body),

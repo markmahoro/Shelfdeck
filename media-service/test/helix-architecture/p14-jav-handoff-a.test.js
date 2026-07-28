@@ -315,7 +315,7 @@ test('JAV public HTTP preserves code evidence and accepts one exact Handoff A', 
   assert.equal(claim.displayIdentity, 'SDKI-001');
   assert.deepEqual(
     claim.sourceHints.map((item) => item.hintKind),
-    ['filename_title', 'jav_code'],
+    ['field_content_profile_hint', 'filename_title', 'jav_code'],
   );
   assert.equal(claim.sourceHints.find(
     (item) => item.hintKind === 'jav_code'

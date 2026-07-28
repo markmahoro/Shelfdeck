@@ -6,13 +6,24 @@
   "endOrdinal": 104,
   "entries": [
     {
+      "id": "arca_placement_policy_revisions",
+      "owner": "arca",
+      "columnsContract": "`shelf_id FK, revision, policy_schema_ref, policy_json, policy_digest, effective_at_ms`",
+      "constraintsContract": "Policy JSON上限`16 KiB`；`PK(shelf_id,revision)`；Shelf current pointer显式FK",
+      "source": {
+        "section": "8.5.12",
+        "line": 8591,
+        "lineDigest": "f1ff9fbfeb19ff8629a2ca30d5d792300614f66d81e5d042e1baf50cb5bfd75a"
+      }
+    },
+    {
       "id": "arca_acceptance_attempts",
       "owner": "arca",
       "columnsContract": "`acceptance_attempt_id PK, offer_id, on_deck_package_id, package_digest, shelf_id FK, standard_revision, placement_revision, state(active|accepted|rejected), created_at_ms, finished_at_ms NULL`",
       "constraintsContract": "同一Offer至多一个Attempt且相同`package_digest+standard+placement`至多一个active attempt；accepted/rejected只允许从active以Decision事务CAS一次；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 8536,
+        "line": 8592,
         "lineDigest": "af19a674854f3e2d115dd1b65b79ff6a509c7879b1925266b226963165f3bd88"
       }
     },
@@ -23,7 +34,7 @@
       "constraintsContract": "`PK(acceptance_attempt_id,check_kind,check_revision)`",
       "source": {
         "section": "8.5.12",
-        "line": 8537,
+        "line": 8593,
         "lineDigest": "77d3920ed642da9e59d4fd9c91e1474be0429b26f5f775356b97d12915d5b36a"
       }
     },
@@ -34,7 +45,7 @@
       "constraintsContract": "`acceptance_decision_id=SHA-256(JCS({schema:\"arca.acceptance-decision-id@1\",acceptanceAttemptId}))`且`UNIQUE(acceptance_attempt_id)`；Offer/Package pair逐字节等于Attempt；accepted要求rejection列全NULL；rejected固定`rejection_schema_ref=StructuredRejection@1`且code/digest非NULL，并逐项重建`ArcaAcceptanceRejectionDecision@1`；immutable",
       "source": {
         "section": "8.5.12",
-        "line": 8538,
+        "line": 8594,
         "lineDigest": "75c6f85e8098087ae4f0f9aa8b29d96247bc18432b208c8286747c6696731e70"
       }
     },
@@ -45,7 +56,7 @@
       "constraintsContract": "`UNIQUE(on_deck_package_id,package_digest)`；只有Accepted Decision可建立",
       "source": {
         "section": "8.5.12",
-        "line": 8539,
+        "line": 8595,
         "lineDigest": "c676837615735e34b1f5442a9252a84ca4c2faf8ad788419bce55378c635e1bb"
       }
     },
@@ -56,7 +67,7 @@
       "constraintsContract": "`UNIQUE(acceptance_decision_id)`及`UNIQUE(offer_id)`；Offer/Package pair逐字节等于Decision；accepted要求Custody/Binding/Control列非NULL、全部rejection列为NULL，receipt digest按`CustodyAndTransferReceipt@1`公式重建；rejected要求Custody/Binding/Control列NULL且rejection列非NULL，receipt digest按`RejectionReceipt@1`公式重建；两种终态都必须有receipt digest并作为各自typed Outbox的durable source，相同marker不新增Receipt或相反终态",
       "source": {
         "section": "8.5.12",
-        "line": 8540,
+        "line": 8596,
         "lineDigest": "94fa457d6a9a297539cdcab09cd2cb72a795935917f405e5c232b255131e2129"
       }
     },
@@ -67,7 +78,7 @@
       "constraintsContract": "`PK(owner_object_type,owner_object_id,material_key,role,binding_revision)`；每个物理Material/role/revision只有一row且每个关系只有一个current row；Episode JSON固定`helix://contracts/application-types/ArcaMaterialEpisodeClaims/v1`、canonical JCS≤`16 KiB`，schema/json/digest均非NULL并逐字节满足8.6.19公式；Product Binding从同一`OnDeckProductPackage@1` member完整复制，Series Primary为`1..32`项，single Primary及非Primary/Off-load Context-only Binding为空Set；`evidence_digest`与`arcaBindingSetDigest`覆盖完整typed Set，禁止只取第一项、复制member row或旁读Libra补值",
       "source": {
         "section": "8.5.12",
-        "line": 8541,
+        "line": 8597,
         "lineDigest": "a2c28d9edc930a5c6a7501242803234adb88d593125dce0b434e4d09ebf35f82"
       }
     },
@@ -78,7 +89,7 @@
       "constraintsContract": "只允许Handoff B Accepted transaction与immutable Final Inventory Decision同事务首次建立；同一Custody一个non-terminal Run；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 8542,
+        "line": 8598,
         "lineDigest": "852ec18b2788d167ec3ecf9d1acb83680faeec4c069c4b1d6cd07c4d790c27ea"
       }
     },
@@ -89,7 +100,7 @@
       "constraintsContract": "Decision JSON上限`64 KiB`；`UNIQUE(on_deck_run_id)`；immutable；不保存adopt/replace/relocate动作类型",
       "source": {
         "section": "8.5.12",
-        "line": 8543,
+        "line": 8599,
         "lineDigest": "81312748ad150bcb27a432f4e9c00e789cdaa6b7fe762da54df4cfedfa04b55f"
       }
     },
@@ -100,7 +111,7 @@
       "constraintsContract": "`PK(authorization_id,revision)`；immutable；只授权为精确On-deck Scope派生Approval，不授权目录范围",
       "source": {
         "section": "8.5.12",
-        "line": 8544,
+        "line": 8600,
         "lineDigest": "f5152bf12357d5fcfaf6b833ce0d5a6ba8f6ea1775c5463be3fc9c1ae8176d57"
       }
     },
@@ -111,7 +122,7 @@
       "constraintsContract": "singleton key固定；current pair显式FK；启用/撤销均发布新revision，不物理删除历史",
       "source": {
         "section": "8.5.12",
-        "line": 8545,
+        "line": 8601,
         "lineDigest": "52ffab870401a903dde815fbf705331885689f51f7beb840024d9fb4f60f384b"
       }
     },
@@ -122,7 +133,7 @@
       "constraintsContract": "`UNIQUE(on_deck_run_id,settlement_scope_digest)`；自动模式可由当前standing authorization派生，已签发Scope不可扩张",
       "source": {
         "section": "8.5.12",
-        "line": 8546,
+        "line": 8602,
         "lineDigest": "5cbc9ffd7ce5f4c44f861b79ff0c8a6cfa8a090d580f870401be0a08c386ea75"
       }
     },
@@ -133,19 +144,8 @@
       "constraintsContract": "三个current pointer均显式FK；`INDEX(shelf_id,status,shelf_entry_id)`；Movie/JAV/Western可以重复，Season对active `(shelf_id,canonical_identity_key)`建立partial unique，保证后续Episode Run扩充同一Entry",
       "source": {
         "section": "8.5.12",
-        "line": 8547,
+        "line": 8603,
         "lineDigest": "27009726b5c03e4052c17ab37b7c0044faa459ca91d36a211842bb5c4b38eec3"
-      }
-    },
-    {
-      "id": "arca_canonical_identity_revisions",
-      "owner": "arca",
-      "columnsContract": "`shelf_entry_id FK, revision, structure_kind, identity_kind, provider, provider_key, identity_digest, committed_at_ms`",
-      "constraintsContract": "`PK(shelf_entry_id,revision)`；`INDEX(provider,provider_key,structure_kind)`仅供Duplicate Detection，禁止全局unique",
-      "source": {
-        "section": "8.5.12",
-        "line": 8548,
-        "lineDigest": "b6b7fb7e12bac7da8359799330c6882cb1bcca8f7968ecedda59d0d7a1254df6"
       }
     }
   ]

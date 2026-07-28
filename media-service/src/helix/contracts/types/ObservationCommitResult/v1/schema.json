@@ -74,6 +74,9 @@
       "type": "integer",
       "minimum": 0
     },
+    "profileHintSnapshot": {
+      "$ref": "helix://contracts/application-types/MaterialFieldProfileHintSnapshot/v1"
+    },
     "pageOrdinal": {
       "type": "integer",
       "minimum": 0
@@ -167,6 +170,7 @@
     "fieldObservationWorkId",
     "fieldId",
     "accessRevision",
+    "profileHintSnapshot",
     "pageOrdinal",
     "committedObservationRevision",
     "pageDigest",

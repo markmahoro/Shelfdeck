@@ -72,6 +72,16 @@
       },
       {
         "ordinal": 7,
+        "name": "current_profile_hint_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
         "name": "current_observation_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -81,7 +91,7 @@
         "nullable": true
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "created_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -91,7 +101,7 @@
         "nullable": false
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "updated_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -126,10 +136,12 @@
       "revisionColumns": [
         "extraction_policy_revision",
         "current_access_revision",
+        "current_profile_hint_revision",
         "current_observation_revision"
       ],
       "currentPointerColumns": [
         "current_access_revision",
+        "current_profile_hint_revision",
         "current_observation_revision"
       ],
       "pointerTargets": [
@@ -139,6 +151,20 @@
             "current_access_revision"
           ],
           "targetTable": "proc_field_access_revisions",
+          "targetColumns": [
+            "field_id",
+            "revision"
+          ],
+          "consistencyColumns": [],
+          "deletePolicy": "RESTRICT",
+          "deferrable": true
+        },
+        {
+          "sourceColumns": [
+            "field_id",
+            "current_profile_hint_revision"
+          ],
+          "targetTable": "proc_field_profile_hint_revisions",
           "targetColumns": [
             "field_id",
             "revision"
@@ -163,6 +189,8 @@
         }
       ],
       "pointerRules": [
+        "`current_profile_hint_revision`从1开始且永不为NULL，以`(field_id,current_profile_hint_revision)`显式FK指向`proc_field_profile_hint_revisions`",
+        "注册时Field aggregate先插入、Profile revision后插入，因此该current pointer FK固定`DEFERRABLE INITIALLY DEFERRED`",
         "`current_observation_revision IS NULL`表示尚未提交任何Observation page，非NULL时以`(field_id,current_observation_revision)`显式FK指向`proc_field_observations`"
       ]
     },
@@ -178,19 +206,21 @@
     "semanticRules": [
       "active name可重复但`field_id`唯一",
       "注销Field保留历史row并置`deregistered`，不删除Run/Observation事实",
-      "Policy/Access均显式FK",
+      "Policy/Access/Profile Hint均显式FK",
+      "`current_profile_hint_revision`从1开始且永不为NULL，以`(field_id,current_profile_hint_revision)`显式FK指向`proc_field_profile_hint_revisions`",
+      "注册时Field aggregate先插入、Profile revision后插入，因此该current pointer FK固定`DEFERRABLE INITIALLY DEFERRED`",
       "`current_observation_revision IS NULL`表示尚未提交任何Observation page，非NULL时以`(field_id,current_observation_revision)`显式FK指向`proc_field_observations`",
       "该pointer与Observation→Field的循环FK均`DEFERRABLE INITIALLY DEFERRED`",
       "`INDEX(status,field_id)`"
     ],
     "rawContract": {
-      "columns": "`field_id PK, name, status(active|deregistered), extraction_policy_id, extraction_policy_revision, current_access_revision, current_observation_revision NULL, created_at_ms, updated_at_ms`",
-      "constraints": "active name可重复但`field_id`唯一；注销Field保留历史row并置`deregistered`，不删除Run/Observation事实；Policy/Access均显式FK；`current_observation_revision IS NULL`表示尚未提交任何Observation page，非NULL时以`(field_id,current_observation_revision)`显式FK指向`proc_field_observations`；该pointer与Observation→Field的循环FK均`DEFERRABLE INITIALLY DEFERRED`；`INDEX(status,field_id)`"
+      "columns": "`field_id PK, name, status(active|deregistered), extraction_policy_id, extraction_policy_revision, current_access_revision, current_profile_hint_revision, current_observation_revision NULL, created_at_ms, updated_at_ms`",
+      "constraints": "active name可重复但`field_id`唯一；注销Field保留历史row并置`deregistered`，不删除Run/Observation事实；Policy/Access/Profile Hint均显式FK；`current_profile_hint_revision`从1开始且永不为NULL，以`(field_id,current_profile_hint_revision)`显式FK指向`proc_field_profile_hint_revisions`；注册时Field aggregate先插入、Profile revision后插入，因此该current pointer FK固定`DEFERRABLE INITIALLY DEFERRED`；`current_observation_revision IS NULL`表示尚未提交任何Observation page，非NULL时以`(field_id,current_observation_revision)`显式FK指向`proc_field_observations`；该pointer与Observation→Field的循环FK均`DEFERRABLE INITIALLY DEFERRED`；`INDEX(status,field_id)`"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8465,
-      "lineDigest": "41901a1c168fcfa9137b7571d07396113144dfc9b04f16d41ff0de5756f2f73f"
+      "line": 8520,
+      "lineDigest": "61d09bc130b218c2a9d97db1ffd707ae4b2fb69b47220c89ead5fa9cacb3a58c"
     },
     "foreignKeys": []
   }

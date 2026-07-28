@@ -27,16 +27,17 @@ function policy(revision, value = revision) { const body = { includedDirectories
 }; }
 function access(revision, root = `/field/${revision}`) { const basis = { fieldId: 'field-1', revision, endpointId: 'endpoint-1', rootLocation: root,
   mountScopeId: 'mount-1', mountScopeRevision: revision, accessSchemaRef: 'helix://fixtures/field-access/v1' }; return { ...basis, accessDigest: canonicalDigest(basis) }; }
-function registration(overrides = {}) { return { fieldId: 'field-1', name: 'Incoming', policy: policy(1), access: access(1), ...overrides }; }
+function registration(overrides = {}) { return { fieldId: 'field-1', name: 'Incoming', policy: policy(1), access: access(1), contentProfileHint:'mixed', ...overrides }; }
 
-test('binds MaterialFieldRepository to exactly the three P7-02 tables', () => fixture(({ store }) => {
+test('binds MaterialFieldRepository to the four PBF-22 Procurement owner tables', () => fixture(({ store }) => {
   assert.equal(store.repositoryManifest.component, 'MaterialFieldRepository');
-  assert.deepEqual(store.repositoryManifest.tableIds, ['proc_extraction_policy_revisions','proc_field_access_revisions','proc_material_fields']);
+  assert.deepEqual(store.repositoryManifest.tableIds, ['proc_extraction_policy_revisions','proc_field_access_revisions','proc_field_profile_hint_revisions','proc_material_fields']);
 }));
 
 test('registers Policy, Field and Access atomically with resolved non-null heads', () => fixture(({ store }) => {
   const result = store.registerMaterialField(registration());
   assert.equal(result.status, 'active'); assert.equal(result.currentAccessRevision, 1); assert.equal(result.access.rootLocation, '/field/1');
+  assert.equal(result.currentProfileHintSnapshot.contentProfileHint, 'mixed');
   assert.equal(result.extractionPolicyRevision, 1); assert.deepEqual(store.listMaterialFields().map((item) => item.fieldId), ['field-1']);
   assert.equal(Object.isFrozen(result.policy.policy), true); assert.equal(Object.isFrozen(result.policy.policy.includedDirectories), true);
 }));
@@ -49,6 +50,45 @@ test('advances Access and Policy only by exact current revision CAS', () => fixt
   assert.equal(withPolicy.extractionPolicyRevision, 2);
   assert.throws(() => store.reviseFieldAccess({ fieldId: 'field-1', expectedAccessRevision: 1, access: access(2, '/stale') }), (error) => error.code === 'P7_FIELD_ACCESS_REVISION_CONFLICT');
   assert.throws(() => store.publishExtractionPolicy({ fieldId: 'field-1', expectedPolicyId: 'policy-1', expectedPolicyRevision: 1, policy: policy(2, 'stale') }), (error) => error.code === 'P7_EXTRACTION_POLICY_REVISION_CONFLICT');
+}));
+
+test('appends Profile Hint revisions with exact head CAS and keeps prior snapshots immutable', () => fixture(({ store, kernel }) => {
+  store.registerMaterialField(registration({ contentProfileHint:'western_adult' }));
+  const original = store.getMaterialField('field-1').currentProfileHintSnapshot;
+  const revised = store.reviseFieldProfileHint({
+    fieldId:'field-1',
+    expectedProfileHintRevision:1,
+    newContentProfileHint:'mixed',
+    requestDigest:canonicalDigest({
+      schema:'procurement.material-field-profile-hint-revision-command@1',
+      operation:'revise_profile_hint',
+      fieldId:'field-1',
+      expectedProfileHintRevision:1,
+      newContentProfileHint:'mixed',
+    }),
+  });
+  assert.equal(revised.currentProfileHintSnapshot.revision, 2);
+  assert.equal(revised.currentProfileHintSnapshot.contentProfileHint, 'mixed');
+  assert.throws(
+    () => store.reviseFieldProfileHint({
+      fieldId:'field-1',
+      expectedProfileHintRevision:1,
+      newContentProfileHint:'jav',
+      requestDigest:canonicalDigest({
+        schema:'procurement.material-field-profile-hint-revision-command@1',
+        operation:'revise_profile_hint',
+        fieldId:'field-1',
+        expectedProfileHintRevision:1,
+        newContentProfileHint:'jav',
+      }),
+    }),
+    (error) => error.code === 'PBF22_FIELD_PROFILE_HINT_REVISION_CONFLICT',
+  );
+  const rows = kernel.runPrimitive((database) => database.prepare(
+    'SELECT revision,content_profile_hint,hint_digest FROM proc_field_profile_hint_revisions WHERE field_id=? ORDER BY revision',
+  ).all('field-1'));
+  assert.deepEqual(rows.map((row) => row.content_profile_hint), ['western_adult','mixed']);
+  assert.equal(rows[0].hint_digest, original.hintDigest);
 }));
 
 test('rejects digest tamper and rolls back the entire registration', () => fixture(({ store }) => {
@@ -75,6 +115,6 @@ test('duplicate Field and skipped initial revisions fail closed', () => fixture(
   const otherBasis = { fieldId: 'field-2', revision: 2, endpointId: 'endpoint-1', rootLocation: '/field/2',
     mountScopeId: 'mount-1', mountScopeRevision: 2, accessSchemaRef: 'helix://fixtures/field-access/v1' };
   const otherAccess = { ...otherBasis, accessDigest: canonicalDigest(otherBasis) };
-  assert.throws(() => store.registerMaterialField({ fieldId: 'field-2', name: 'Other', policy: { ...policy(1), extractionPolicyId: 'policy-2' }, access: otherAccess }),
+  assert.throws(() => store.registerMaterialField({ fieldId: 'field-2', name: 'Other', policy: { ...policy(1), extractionPolicyId: 'policy-2' }, access: otherAccess, contentProfileHint:'mixed' }),
     (error) => ['P7_EXTRACTION_POLICY_DIGEST_MISMATCH','P7_FIELD_ACCESS_DIGEST_MISMATCH','P7_MATERIAL_FIELD_INITIAL_BASIS'].includes(error.code));
 }));

@@ -59,8 +59,8 @@
       },
       {
         "ordinal": 6,
-        "name": "page_ordinal",
-        "logicalType": "INTEGER",
+        "name": "content_profile_hint",
+        "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -69,7 +69,7 @@
       },
       {
         "ordinal": 7,
-        "name": "expected_revision",
+        "name": "profile_hint_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -79,6 +79,36 @@
       },
       {
         "ordinal": 8,
+        "name": "profile_hint_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "page_ordinal",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "expected_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
         "name": "cursor_in",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -88,7 +118,7 @@
         "nullable": true
       },
       {
-        "ordinal": 9,
+        "ordinal": 12,
         "name": "cursor_out",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -98,7 +128,7 @@
         "nullable": true
       },
       {
-        "ordinal": 10,
+        "ordinal": 13,
         "name": "page_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -108,7 +138,7 @@
         "nullable": false
       },
       {
-        "ordinal": 11,
+        "ordinal": 14,
         "name": "fact_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -118,7 +148,7 @@
         "nullable": false
       },
       {
-        "ordinal": 12,
+        "ordinal": 15,
         "name": "commit_marker",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -128,7 +158,7 @@
         "nullable": false
       },
       {
-        "ordinal": 13,
+        "ordinal": 16,
         "name": "result_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -138,7 +168,7 @@
         "nullable": false
       },
       {
-        "ordinal": 14,
+        "ordinal": 17,
         "name": "observed_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -148,7 +178,7 @@
         "nullable": false
       },
       {
-        "ordinal": 15,
+        "ordinal": 18,
         "name": "completed",
         "logicalType": "INTEGER_BOOLEAN",
         "enumValues": [],
@@ -194,11 +224,14 @@
       "revisionColumns": [
         "revision",
         "access_revision",
+        "profile_hint_revision",
         "expected_revision"
       ],
       "currentPointerColumns": [],
       "pointerTargets": [],
-      "pointerRules": []
+      "pointerRules": [
+        "Page commit时冻结值必须命中Field current Profile pointer和精确revision row，current变化后旧Work不得继续"
+      ]
     },
     "jsonContracts": [],
     "immutability": {
@@ -211,25 +244,26 @@
     },
     "semanticRules": [
       "`PK(field_id,revision)`、`UNIQUE(observation_id)`、`UNIQUE(field_id,observation_id)`供same-Field composite FK、`UNIQUE(field_observation_work_id,page_ordinal)`、`UNIQUE(commit_marker)`",
-      "`field_observation_work_id`显式FK引用`fx_supporting_works.work_id`，`(field_id,access_revision)`显式FK引用`proc_field_access_revisions`，`commit_marker`显式FK引用`fx_commit_markers.commit_marker`",
+      "`field_observation_work_id`显式FK引用`fx_supporting_works.work_id`，`(field_id,access_revision)`显式FK引用`proc_field_access_revisions`，`(field_id,profile_hint_revision)`显式FK引用`proc_field_profile_hint_revisions`，`commit_marker`显式FK引用`fx_commit_markers.commit_marker`",
       "revision从1开始且跨Observation Work持续递增",
-      "同一Work的pageOrdinal从0连续递增，每页使用不同observation_id且该ID只在该页重放时复用",
+      "同一Work的pageOrdinal从0连续递增，每页使用不同observation_id且该ID只在该页重放时复用，且三项Profile Hint列逐字节相同",
       "`expected_revision=revision-1`，首个revision的expected为0",
       "`completed=1`恰好对应terminal page",
+      "Page commit时冻结值必须命中Field current Profile pointer和精确revision row，current变化后旧Work不得继续",
       "`page_digest`必须匹配该marker所指Result Binding中完整`FieldObservationPage`的payloadDigest，`result_digest`必须匹配同一Binding的完整`ObservationCommitResult`",
-      "历史Page通过`commit_marker → fx_commit_markers.result_id → fx_event_result_bindings.evidence_json`唯一恢复，后续Material current-row更新不改变该链",
+      "历史Page通过`commit_marker → fx_commit_markers.result_id → fx_event_result_bindings.evidence_json`唯一恢复，后续Material或Profile current-row更新不改变该链",
       "该Observation revision存在时对应Result Binding/Evidence不得GC或压缩",
       "`observation_id/work/page`冲突重放必须拒绝",
       "`INDEX(field_id,completed,observed_at_ms)`"
     ],
     "rawContract": {
-      "columns": "`field_id FK, revision, observation_id, field_observation_work_id, access_revision, page_ordinal, expected_revision, cursor_in, cursor_out, page_digest, fact_digest, commit_marker, result_digest, observed_at_ms, completed`",
-      "constraints": "`PK(field_id,revision)`、`UNIQUE(observation_id)`、`UNIQUE(field_id,observation_id)`供same-Field composite FK、`UNIQUE(field_observation_work_id,page_ordinal)`、`UNIQUE(commit_marker)`；`field_observation_work_id`显式FK引用`fx_supporting_works.work_id`，`(field_id,access_revision)`显式FK引用`proc_field_access_revisions`，`commit_marker`显式FK引用`fx_commit_markers.commit_marker`；revision从1开始且跨Observation Work持续递增；同一Work的pageOrdinal从0连续递增，每页使用不同observation_id且该ID只在该页重放时复用；`expected_revision=revision-1`，首个revision的expected为0；`completed=1`恰好对应terminal page；`page_digest`必须匹配该marker所指Result Binding中完整`FieldObservationPage`的payloadDigest，`result_digest`必须匹配同一Binding的完整`ObservationCommitResult`；历史Page通过`commit_marker → fx_commit_markers.result_id → fx_event_result_bindings.evidence_json`唯一恢复，后续Material current-row更新不改变该链；该Observation revision存在时对应Result Binding/Evidence不得GC或压缩；`observation_id/work/page`冲突重放必须拒绝；`INDEX(field_id,completed,observed_at_ms)`"
+      "columns": "`field_id FK, revision, observation_id, field_observation_work_id, access_revision, content_profile_hint, profile_hint_revision, profile_hint_digest, page_ordinal, expected_revision, cursor_in, cursor_out, page_digest, fact_digest, commit_marker, result_digest, observed_at_ms, completed`",
+      "constraints": "`PK(field_id,revision)`、`UNIQUE(observation_id)`、`UNIQUE(field_id,observation_id)`供same-Field composite FK、`UNIQUE(field_observation_work_id,page_ordinal)`、`UNIQUE(commit_marker)`；`field_observation_work_id`显式FK引用`fx_supporting_works.work_id`，`(field_id,access_revision)`显式FK引用`proc_field_access_revisions`，`(field_id,profile_hint_revision)`显式FK引用`proc_field_profile_hint_revisions`，`commit_marker`显式FK引用`fx_commit_markers.commit_marker`；revision从1开始且跨Observation Work持续递增；同一Work的pageOrdinal从0连续递增，每页使用不同observation_id且该ID只在该页重放时复用，且三项Profile Hint列逐字节相同；`expected_revision=revision-1`，首个revision的expected为0；`completed=1`恰好对应terminal page；Page commit时冻结值必须命中Field current Profile pointer和精确revision row，current变化后旧Work不得继续；`page_digest`必须匹配该marker所指Result Binding中完整`FieldObservationPage`的payloadDigest，`result_digest`必须匹配同一Binding的完整`ObservationCommitResult`；历史Page通过`commit_marker → fx_commit_markers.result_id → fx_event_result_bindings.evidence_json`唯一恢复，后续Material或Profile current-row更新不改变该链；该Observation revision存在时对应Result Binding/Evidence不得GC或压缩；`observation_id/work/page`冲突重放必须拒绝；`INDEX(field_id,completed,observed_at_ms)`"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8468,
-      "lineDigest": "6af5f1f46b31d02649f12f09f80579e6730867d4ac3c04210d3e2b3dd2784b04"
+      "line": 8524,
+      "lineDigest": "de9b17c657a93a57e1b5c8c69d8a03c78bf1b8c739dc8201cb9c0df803ad2617"
     },
     "foreignKeys": [
       {
@@ -260,6 +294,19 @@
           "access_revision"
         ],
         "targetTable": "proc_field_access_revisions",
+        "targetColumns": [
+          "field_id",
+          "revision"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "field_id",
+          "profile_hint_revision"
+        ],
+        "targetTable": "proc_field_profile_hint_revisions",
         "targetColumns": [
           "field_id",
           "revision"

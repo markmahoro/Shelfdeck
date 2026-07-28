@@ -48,15 +48,8 @@
           "minLength": 1,
           "pattern": "^[a-f0-9]{64}$"
         },
-        "contentProfileHint": {
-          "type": "string",
-          "enum": [
-            "movie",
-            "series",
-            "jav",
-            "western_adult",
-            "mixed"
-          ]
+        "profileHintSnapshot": {
+          "$ref": "helix://contracts/application-types/MaterialFieldProfileHintSnapshot/v1"
         },
         "memberContexts": {
           "type": "array",
@@ -147,7 +140,7 @@
         "fieldId",
         "accessRevision",
         "accessDigest",
-        "contentProfileHint",
+        "profileHintSnapshot",
         "memberContexts",
         "contextDigest"
       ]

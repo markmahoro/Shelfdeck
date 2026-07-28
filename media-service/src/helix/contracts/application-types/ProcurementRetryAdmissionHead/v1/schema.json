@@ -21,6 +21,9 @@
         "deregistered"
       ]
     },
+    "profileHintSnapshot": {
+      "$ref": "helix://contracts/application-types/MaterialFieldProfileHintSnapshot/v1"
+    },
     "fieldAccess": {
       "type": "object",
       "additionalProperties": false,
@@ -57,12 +60,16 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 256
+            },
+            "profileHintSnapshot": {
+              "$ref": "helix://contracts/application-types/MaterialFieldProfileHintSnapshot/v1"
             }
           },
           "required": [
             "resultKind",
             "revision",
-            "fieldObservationWorkId"
+            "fieldObservationWorkId",
+            "profileHintSnapshot"
           ]
         },
         {
@@ -116,6 +123,7 @@
   "required": [
     "fieldId",
     "fieldStatus",
+    "profileHintSnapshot",
     "fieldAccess",
     "terminalObservation",
     "extractionPolicy",

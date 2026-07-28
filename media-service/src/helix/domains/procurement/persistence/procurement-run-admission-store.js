@@ -25,7 +25,7 @@ function procurementRepository(schemaManifest) {
     'current_location','reality_digest','provenance_digest','last_snapshot_digest','last_observation_id','eligibility_revision','eligibility_state',
     'eligibility_basis_digest','eligibility_field_status','eligibility_observation_revision','eligibility_policy_revision','selection_basis_digest',
     'control_projection','control_projection_revision','control_projection_digest'];
-  const runColumns = ['procurement_run_id','field_id','run_basis_schema_ref','access_revision','access_digest','terminal_observation_revision',
+  const runColumns = ['procurement_run_id','field_id','run_basis_schema_ref','access_revision','access_digest','content_profile_hint','profile_hint_revision','profile_hint_digest','terminal_observation_revision',
     'field_observation_work_id','extraction_policy_id','extraction_policy_revision','extraction_policy_digest','triage_rule_ref','triage_rule_revision',
     'triage_rule_schema_ref','triage_rule_digest','triage_rule_authority_digest','run_basis_digest','retry_intent_id','state','state_revision',
     'candidate_package_revision_head','seal_outcome','seal_decision_id','seal_decision_digest','seal_evidence_digest','admission_commit_marker','admission_result_digest',
@@ -38,9 +38,10 @@ function procurementRepository(schemaManifest) {
     'candidate_package_id','terminal_disposition','terminal_evidence_digest','selected_at_ms','reservation_updated_at_ms'];
   return createRepositoryDefinition({ repositoryId:'procurement_run_admission', owner:'procurement', schemaManifest, statements:{
     find_run:{ kind:'select-one', tableId:'proc_procurement_runs', columns:['procurement_run_id','run_basis_digest','admission_commit_marker','admission_result_digest'], keyColumns:['procurement_run_id'] },
-    find_field:{ kind:'select-one', tableId:'proc_material_fields', columns:['field_id','status','extraction_policy_id','extraction_policy_revision','current_access_revision','current_observation_revision'], keyColumns:['field_id'] },
+    find_field:{ kind:'select-one', tableId:'proc_material_fields', columns:['field_id','status','extraction_policy_id','extraction_policy_revision','current_access_revision','current_profile_hint_revision','current_observation_revision'], keyColumns:['field_id'] },
+    find_profile_hint:{ kind:'select-one', tableId:'proc_field_profile_hint_revisions', columns:['field_id','revision','content_profile_hint','hint_schema_ref','hint_digest'], keyColumns:['field_id','revision'] },
     find_access:{ kind:'select-one', tableId:'proc_field_access_revisions', columns:['field_id','revision','access_digest'], keyColumns:['field_id','revision'] },
-    find_observation:{ kind:'select-one', tableId:'proc_field_observations', columns:['field_id','revision','field_observation_work_id','access_revision','completed'], keyColumns:['field_id','revision'] },
+    find_observation:{ kind:'select-one', tableId:'proc_field_observations', columns:['field_id','revision','field_observation_work_id','access_revision','content_profile_hint','profile_hint_revision','profile_hint_digest','completed'], keyColumns:['field_id','revision'] },
     find_policy:{ kind:'select-one', tableId:'proc_extraction_policy_revisions', columns:['extraction_policy_id','revision','policy_digest'], keyColumns:['extraction_policy_id','revision'] },
     find_material:{ kind:'select-one', tableId:'proc_field_materials', columns:materialColumns, keyColumns:['field_id','material_key'], safeIntegers:true },
     insert_run:{ kind:'insert', tableId:'proc_procurement_runs', columns:runColumns },
@@ -99,13 +100,25 @@ function createProcurementRunAdmissionStore(options) {
     const validate = { participantId:'procurement_run_validate', owner:'procurement', repositories:[procurement], execute(context) {
       const repo = context.repository(procurement.repositoryId); const field = repo.invoke('find_field', { field_id:basis.fieldId });
       if (!field || field.status !== 'active' || field.current_access_revision !== basis.fieldAccess.revision ||
+          field.current_profile_hint_revision !== basis.profileHintSnapshot.revision ||
           field.current_observation_revision !== basis.terminalObservation.revision || field.extraction_policy_id !== basis.extractionPolicy.policyId ||
           field.extraction_policy_revision !== basis.extractionPolicy.revision) fail('P7_RUN_ADMISSION_HEAD_STALE', 'Field admission head is stale.');
       const access = repo.invoke('find_access', { field_id:basis.fieldId, revision:basis.fieldAccess.revision });
+      const profileHint = repo.invoke('find_profile_hint', {
+        field_id: basis.fieldId,
+        revision: basis.profileHintSnapshot.revision,
+      });
       const observation = repo.invoke('find_observation', { field_id:basis.fieldId, revision:basis.terminalObservation.revision });
       const policy = repo.invoke('find_policy', { extraction_policy_id:basis.extractionPolicy.policyId, revision:basis.extractionPolicy.revision });
-      if (!access || access.access_digest !== basis.fieldAccess.digest || !observation || !observation.completed ||
+      if (!access || access.access_digest !== basis.fieldAccess.digest ||
+          !profileHint || profileHint.hint_schema_ref !== 'helix://contracts/application-types/MaterialFieldProfileHintSnapshot/v1' ||
+          profileHint.content_profile_hint !== basis.profileHintSnapshot.contentProfileHint ||
+          profileHint.hint_digest !== basis.profileHintSnapshot.hintDigest ||
+          !observation || !observation.completed ||
           observation.field_observation_work_id !== basis.terminalObservation.fieldObservationWorkId || observation.access_revision !== basis.fieldAccess.revision ||
+          observation.content_profile_hint !== basis.profileHintSnapshot.contentProfileHint ||
+          observation.profile_hint_revision !== basis.profileHintSnapshot.revision ||
+          observation.profile_hint_digest !== basis.profileHintSnapshot.hintDigest ||
           !policy || policy.policy_digest !== basis.extractionPolicy.digest) fail('P7_RUN_ADMISSION_HEAD_STALE', 'Referenced Access, terminal Observation, or Policy is stale.');
       if (repo.invoke('find_run', { procurement_run_id:basis.procurementRunId })) fail('P7_RUN_ADMISSION_RUN_ID_CONFLICT', 'Procurement Run ID already exists without this marker replay.');
       const changes = [];
@@ -169,7 +182,11 @@ function createProcurementRunAdmissionStore(options) {
     const write = { participantId:'procurement_run_write', owner:'procurement', repositories:[procurement], execute(context) {
       const repo = context.repository(procurement.repositoryId); const rule = basis.triageRule;
       repo.invoke('insert_run', { procurement_run_id:basis.procurementRunId, field_id:basis.fieldId, run_basis_schema_ref:RUN_BASIS_SCHEMA,
-        access_revision:basis.fieldAccess.revision, access_digest:basis.fieldAccess.digest, terminal_observation_revision:basis.terminalObservation.revision,
+        access_revision:basis.fieldAccess.revision, access_digest:basis.fieldAccess.digest,
+        content_profile_hint:basis.profileHintSnapshot.contentProfileHint,
+        profile_hint_revision:basis.profileHintSnapshot.revision,
+        profile_hint_digest:basis.profileHintSnapshot.hintDigest,
+        terminal_observation_revision:basis.terminalObservation.revision,
         field_observation_work_id:basis.terminalObservation.fieldObservationWorkId, extraction_policy_id:basis.extractionPolicy.policyId,
         extraction_policy_revision:basis.extractionPolicy.revision, extraction_policy_digest:basis.extractionPolicy.digest,
         triage_rule_ref:rule.ruleRef, triage_rule_revision:rule.revision, triage_rule_schema_ref:rule.ruleSchemaRef,

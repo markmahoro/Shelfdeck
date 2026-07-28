@@ -234,6 +234,7 @@
       "type": "string",
       "enum": [
         "field_status_changed",
+        "field_profile_hint_changed",
         "field_access_changed",
         "terminal_observation_changed",
         "extraction_policy_changed",

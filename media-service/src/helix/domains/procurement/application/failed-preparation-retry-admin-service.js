@@ -128,11 +128,25 @@ function repositoryDefinition(schemaManifest) {
           'field_id',
           'status',
           'current_access_revision',
+          'current_profile_hint_revision',
           'current_observation_revision',
           'extraction_policy_id',
           'extraction_policy_revision',
         ],
         keyColumns: ['field_id'],
+        safeIntegers: true,
+      },
+      find_profile_hint: {
+        kind: 'select-one',
+        tableId: 'proc_field_profile_hint_revisions',
+        columns: [
+          'field_id',
+          'revision',
+          'content_profile_hint',
+          'hint_schema_ref',
+          'hint_digest',
+        ],
+        keyColumns: ['field_id', 'revision'],
         safeIntegers: true,
       },
       find_access: {
@@ -149,6 +163,9 @@ function repositoryDefinition(schemaManifest) {
           'field_id',
           'revision',
           'field_observation_work_id',
+          'content_profile_hint',
+          'profile_hint_revision',
+          'profile_hint_digest',
           'completed',
         ],
         keyColumns: ['field_id', 'revision'],
@@ -467,6 +484,10 @@ function createFailedPreparationRetryAdminService(options) {
           field_id: input.fieldId,
           revision: field.current_access_revision,
         });
+        const profileHint = field && repo.invoke('find_profile_hint', {
+          field_id: input.fieldId,
+          revision: field.current_profile_hint_revision,
+        });
         const observation = field?.current_observation_revision === null
           ? null
           : repo.invoke('find_observation', {
@@ -477,8 +498,15 @@ function createFailedPreparationRetryAdminService(options) {
           extraction_policy_id: field.extraction_policy_id,
           revision: field.extraction_policy_revision,
         });
-        if (!field || field.status !== 'active' || !access || !observation ||
-            !observation.completed || !policy) {
+        if (!field || field.status !== 'active' || !access || !profileHint ||
+            profileHint.hint_schema_ref !==
+              'helix://contracts/application-types/MaterialFieldProfileHintSnapshot/v1' ||
+            !observation ||
+            !observation.completed ||
+            observation.content_profile_hint !== profileHint.content_profile_hint ||
+            Number(observation.profile_hint_revision) !== Number(profileHint.revision) ||
+            observation.profile_hint_digest !== profileHint.hint_digest ||
+            !policy) {
           fail(
             'FAILED_PREPARATION_RETRY_HEAD_UNAVAILABLE',
             'Material Field当前没有可用于重试的完整admission head。',
@@ -510,6 +538,7 @@ function createFailedPreparationRetryAdminService(options) {
           failedMembers: Object.freeze(failedMembers),
           field,
           access,
+          profileHint,
           observation,
           policy,
           materials: Object.freeze(materials),
@@ -533,6 +562,12 @@ function createFailedPreparationRetryAdminService(options) {
     const headValue = {
       fieldId: input.fieldId,
       fieldStatus: snapshot.field.status,
+      profileHintSnapshot: {
+        fieldId: input.fieldId,
+        revision: Number(snapshot.profileHint.revision),
+        contentProfileHint: snapshot.profileHint.content_profile_hint,
+        hintDigest: snapshot.profileHint.hint_digest,
+      },
       fieldAccess: {
         revision: Number(snapshot.access.revision),
         digest: snapshot.access.access_digest,
@@ -541,6 +576,12 @@ function createFailedPreparationRetryAdminService(options) {
         resultKind: 'available',
         revision: Number(snapshot.observation.revision),
         fieldObservationWorkId: snapshot.observation.field_observation_work_id,
+        profileHintSnapshot: {
+          fieldId: input.fieldId,
+          revision: Number(snapshot.profileHint.revision),
+          contentProfileHint: snapshot.profileHint.content_profile_hint,
+          hintDigest: snapshot.profileHint.hint_digest,
+        },
       },
       extractionPolicy: {
         policyId: snapshot.policy.extraction_policy_id,
@@ -650,10 +691,13 @@ function createFailedPreparationRetryAdminService(options) {
         fieldId: input.fieldId,
         fieldStatus: 'active',
         fieldAccess: retryAdmissionHead.fieldAccess,
+        profileHintSnapshot: retryAdmissionHead.profileHintSnapshot,
         terminalObservation: {
           revision: retryAdmissionHead.terminalObservation.revision,
           fieldObservationWorkId:
             retryAdmissionHead.terminalObservation.fieldObservationWorkId,
+          profileHintSnapshot:
+            retryAdmissionHead.terminalObservation.profileHintSnapshot,
         },
         extractionPolicy: retryAdmissionHead.extractionPolicy,
         triageRule: rule,

@@ -1,6 +1,9 @@
 'use strict';
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
+const {
+  createProfileHintSnapshot,
+} = require('./field-profile-hint-contracts');
 
 const EXTRACTION_POLICY_SCHEMA = 'helix://contracts/domain-types/ExtractionPolicy/v1';
 const POLICY_KEYS = ['includedDirectories','excludedDirectories','allowedExtensions','minimumSizeBytes','excludedMaterialKeys'];
@@ -73,6 +76,10 @@ function createMaterialField(value) {
     extractionPolicyId: text(value.extractionPolicyId, 'extractionPolicyId'),
     extractionPolicyRevision: revision(value.extractionPolicyRevision, 'extractionPolicyRevision'),
     currentAccessRevision: revision(value.currentAccessRevision, 'currentAccessRevision'),
+    currentProfileHintRevision: revision(
+      value.currentProfileHintRevision,
+      'currentProfileHintRevision',
+    ),
     currentObservationRevision: value.currentObservationRevision,
     createdAtMs: timestamp(value.createdAtMs, 'createdAtMs'), updatedAtMs: timestamp(value.updatedAtMs, 'updatedAtMs')
   });
@@ -80,5 +87,5 @@ function createMaterialField(value) {
 
 module.exports = Object.freeze({
   EXTRACTION_POLICY_SCHEMA, MaterialFieldContractError, createExtractionPolicy, createFieldAccess, createMaterialField,
-  validateExtractionPolicyValue
+  createProfileHintSnapshot, validateExtractionPolicyValue
 });

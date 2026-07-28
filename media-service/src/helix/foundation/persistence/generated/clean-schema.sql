@@ -2922,6 +2922,9 @@ CREATE TABLE "proc_field_observations" (
   "observation_id" TEXT,
   "field_observation_work_id" TEXT,
   "access_revision" INTEGER CHECK ("access_revision" >= 1),
+  "content_profile_hint" TEXT,
+  "profile_hint_revision" INTEGER CHECK ("profile_hint_revision" >= 1),
+  "profile_hint_digest" TEXT CHECK (length("profile_hint_digest") = 64 AND "profile_hint_digest" NOT GLOB '*[^0-9a-f]*'),
   "page_ordinal" INTEGER CHECK ("page_ordinal" >= 0),
   "expected_revision" INTEGER CHECK ("expected_revision" >= 0),
   "cursor_in" TEXT,
@@ -2940,9 +2943,23 @@ CREATE TABLE "proc_field_observations" (
   FOREIGN KEY ("field_id") REFERENCES "proc_material_fields" ("field_id") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
   FOREIGN KEY ("field_observation_work_id") REFERENCES "fx_supporting_works" ("work_id") ON DELETE RESTRICT,
   FOREIGN KEY ("field_id", "access_revision") REFERENCES "proc_field_access_revisions" ("field_id", "revision") ON DELETE RESTRICT,
+  FOREIGN KEY ("field_id", "profile_hint_revision") REFERENCES "proc_field_profile_hint_revisions" ("field_id", "revision") ON DELETE RESTRICT,
   FOREIGN KEY ("commit_marker") REFERENCES "fx_commit_markers" ("commit_marker") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED
 );
 CREATE INDEX "idx_proc_field_observations_hot_01" ON "proc_field_observations" ("field_id", "completed", "observed_at_ms");
+
+CREATE TABLE "proc_field_profile_hint_revisions" (
+  "field_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 1),
+  "content_profile_hint" TEXT CHECK ("content_profile_hint" IN ('mixed', 'movie', 'series', 'jav', 'western_adult')),
+  "hint_schema_ref" TEXT,
+  "hint_digest" TEXT CHECK (length("hint_digest") = 64 AND "hint_digest" NOT GLOB '*[^0-9a-f]*'),
+  "effective_at_ms" INTEGER CHECK ("effective_at_ms" >= 0),
+  "actor_id" TEXT,
+  PRIMARY KEY ("field_id", "revision"),
+  FOREIGN KEY ("field_id") REFERENCES "proc_material_fields" ("field_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_proc_field_profile_hint_revisions_hot_01" ON "proc_field_profile_hint_revisions" ("content_profile_hint", "field_id", "revision");
 
 CREATE TABLE "proc_material_fields" (
   "field_id" TEXT PRIMARY KEY,
@@ -2951,10 +2968,12 @@ CREATE TABLE "proc_material_fields" (
   "extraction_policy_id" TEXT,
   "extraction_policy_revision" INTEGER CHECK ("extraction_policy_revision" >= 1),
   "current_access_revision" INTEGER CHECK ("current_access_revision" >= 1),
+  "current_profile_hint_revision" INTEGER CHECK ("current_profile_hint_revision" >= 1),
   "current_observation_revision" INTEGER CHECK ("current_observation_revision" >= 1),
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
   "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
   FOREIGN KEY ("field_id", "current_access_revision") REFERENCES "proc_field_access_revisions" ("field_id", "revision") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
+  FOREIGN KEY ("field_id", "current_profile_hint_revision") REFERENCES "proc_field_profile_hint_revisions" ("field_id", "revision") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
   FOREIGN KEY ("field_id", "current_observation_revision") REFERENCES "proc_field_observations" ("field_id", "revision") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED
 );
 CREATE INDEX "idx_proc_material_fields_hot_01" ON "proc_material_fields" ("status", "field_id");
@@ -2997,6 +3016,9 @@ CREATE TABLE "proc_procurement_retry_intents" (
   "failed_run_id" TEXT,
   "failed_basis_digest" TEXT CHECK (length("failed_basis_digest") = 64 AND "failed_basis_digest" NOT GLOB '*[^0-9a-f]*'),
   "retry_field_status" TEXT CHECK ("retry_field_status" IN ('active')),
+  "retry_content_profile_hint" TEXT,
+  "retry_profile_hint_revision" INTEGER CHECK ("retry_profile_hint_revision" >= 1),
+  "retry_profile_hint_digest" TEXT CHECK (length("retry_profile_hint_digest") = 64 AND "retry_profile_hint_digest" NOT GLOB '*[^0-9a-f]*'),
   "retry_access_revision" INTEGER CHECK ("retry_access_revision" >= 1),
   "retry_access_digest" TEXT CHECK (length("retry_access_digest") = 64 AND "retry_access_digest" NOT GLOB '*[^0-9a-f]*'),
   "retry_terminal_observation_revision" INTEGER CHECK ("retry_terminal_observation_revision" >= 1),
@@ -3034,6 +3056,7 @@ CREATE TABLE "proc_procurement_retry_intents" (
   CHECK ("consume_admission_head_json" IS NULL OR length(CAST("consume_admission_head_json" AS BLOB)) <= 16384),
   FOREIGN KEY ("failed_run_id") REFERENCES "proc_procurement_runs" ("procurement_run_id") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
   FOREIGN KEY ("field_id", "retry_access_revision") REFERENCES "proc_field_access_revisions" ("field_id", "revision") ON DELETE RESTRICT,
+  FOREIGN KEY ("field_id", "retry_profile_hint_revision") REFERENCES "proc_field_profile_hint_revisions" ("field_id", "revision") ON DELETE RESTRICT,
   FOREIGN KEY ("field_id", "retry_terminal_observation_revision") REFERENCES "proc_field_observations" ("field_id", "revision") ON DELETE RESTRICT,
   FOREIGN KEY ("retry_extraction_policy_id", "retry_extraction_policy_revision") REFERENCES "proc_extraction_policy_revisions" ("extraction_policy_id", "revision") ON DELETE RESTRICT,
   FOREIGN KEY ("new_run_id") REFERENCES "proc_procurement_runs" ("procurement_run_id") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
@@ -3048,6 +3071,9 @@ CREATE TABLE "proc_procurement_runs" (
   "run_basis_schema_ref" TEXT,
   "access_revision" INTEGER CHECK ("access_revision" >= 1),
   "access_digest" TEXT CHECK (length("access_digest") = 64 AND "access_digest" NOT GLOB '*[^0-9a-f]*'),
+  "content_profile_hint" TEXT,
+  "profile_hint_revision" INTEGER CHECK ("profile_hint_revision" >= 1),
+  "profile_hint_digest" TEXT CHECK (length("profile_hint_digest") = 64 AND "profile_hint_digest" NOT GLOB '*[^0-9a-f]*'),
   "terminal_observation_revision" INTEGER CHECK ("terminal_observation_revision" >= 1),
   "field_observation_work_id" TEXT,
   "extraction_policy_id" TEXT,
@@ -3076,6 +3102,7 @@ CREATE TABLE "proc_procurement_runs" (
   "finished_at_ms" INTEGER CHECK ("finished_at_ms" >= 0),
   UNIQUE ("field_id", "run_basis_digest"),
   FOREIGN KEY ("field_id", "access_revision") REFERENCES "proc_field_access_revisions" ("field_id", "revision") ON DELETE RESTRICT,
+  FOREIGN KEY ("field_id", "profile_hint_revision") REFERENCES "proc_field_profile_hint_revisions" ("field_id", "revision") ON DELETE RESTRICT,
   FOREIGN KEY ("field_id", "terminal_observation_revision") REFERENCES "proc_field_observations" ("field_id", "revision") ON DELETE RESTRICT,
   FOREIGN KEY ("extraction_policy_id", "extraction_policy_revision") REFERENCES "proc_extraction_policy_revisions" ("extraction_policy_id", "revision") ON DELETE RESTRICT,
   FOREIGN KEY ("admission_commit_marker") REFERENCES "fx_commit_markers" ("commit_marker") ON DELETE RESTRICT,

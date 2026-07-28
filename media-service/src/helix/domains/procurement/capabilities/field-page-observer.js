@@ -38,7 +38,8 @@ function buildPage(handle, request, producerRef, observedAtMs, materialObservati
   const value = { schemaRef:PAGE_SCHEMA, schemaVersion:1, evidenceId:request.observationId, evidenceKind:'field_observation_page',
     producerRef, basisDigest:canonicalDigest({ schema:'procurement.field-observation-basis@1', fieldAccessHandle:handle, pageRequest:request }),
     payloadDigest:'', observedAtMs, fieldObservationWorkId:request.fieldObservationWorkId, observationId:request.observationId,
-    fieldId:handle.fieldId, accessRevision:handle.accessRevision, pageOrdinal:request.pageOrdinal,
+    fieldId:handle.fieldId, accessRevision:handle.accessRevision, profileHintSnapshot:request.profileHintSnapshot,
+    pageOrdinal:request.pageOrdinal,
     expectedObservationRevision:request.expectedObservationRevision, cursorIn:request.cursorIn, cursorOut,
     materialObservations:Object.freeze([...materialObservations]), pageDigest:'', hasMore };
   value.pageDigest = canonicalDigest(pageDigestBasis(value)); value.payloadDigest = value.pageDigest;

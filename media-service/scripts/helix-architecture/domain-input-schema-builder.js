@@ -482,7 +482,7 @@ function triageMaterialProbeBatchSchema() {
 
 function materialFieldContextSchema() {
   return object({ fieldId: id(), accessRevision: positiveInteger(), accessDigest: digest(),
-    contentProfileHint: enumText('movie', 'series', 'jav', 'western_adult', 'mixed'),
+    profileHintSnapshot: applicationRef('MaterialFieldProfileHintSnapshot'),
     memberContexts: { ...arrayOf(object({ selectionOrdinal: nonNegativeInteger(), materialKey: digest(), fieldRelativeLocation: text(),
       baseName: text(), extension: text(), parentSegments: arrayOf(text(), 32), layoutEvidenceRefs: arrayOf(object({ evidenceId: id(),
       payloadDigest: digest(), boundedScopeDigest: digest() }), 16) }), 1024), minItems: 1 }, contextDigest: digest() });

@@ -1,6 +1,10 @@
 'use strict';
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
+const {
+  createProfileHintSnapshot,
+  sameProfileHintSnapshot,
+} = require('./field-profile-hint-contracts');
 
 const SHA256 = /^[a-f0-9]{64}$/;
 const DECIMAL_INT64 = /^(0|[1-9][0-9]{0,18})$/;
@@ -34,10 +38,11 @@ function validateIdentity(value) {
 }
 function requestBasis(value) { const { requestDigest, ...basis } = value; return basis; }
 function validateRequest(value) {
-  exact(value, ['schemaRef','schemaVersion','fieldObservationWorkId','observationId','pageOrdinal','expectedObservationRevision','cursorIn','pageBudget','requestDigest'], 'P7_FIELD_PAGE_REQUEST_SHAPE');
+  exact(value, ['schemaRef','schemaVersion','fieldObservationWorkId','observationId','pageOrdinal','expectedObservationRevision','cursorIn','pageBudget','profileHintSnapshot','requestDigest'], 'P7_FIELD_PAGE_REQUEST_SHAPE');
   if (value.schemaRef !== 'helix://contracts/types/FieldObservationPageRequest/v1' || value.schemaVersion !== 1) fail('P7_FIELD_PAGE_REQUEST_NOMINAL_INVALID', 'Page Request nominal contract is invalid.');
   safeInteger(value.pageOrdinal, 'pageOrdinal'); safeInteger(value.expectedObservationRevision, 'expectedObservationRevision');
   safeInteger(value.pageBudget, 'pageBudget', 1); if (value.pageBudget > 100) fail('P7_FIELD_PAGE_BUDGET_INVALID', 'Page budget exceeds 100.');
+  createProfileHintSnapshot(value.profileHintSnapshot);
   if (value.cursorIn !== null && (typeof value.cursorIn !== 'string' || value.cursorIn.length === 0)) fail('P7_FIELD_PAGE_CURSOR_INVALID', 'Input cursor is invalid.');
   if (canonicalDigest(requestBasis(value)) !== value.requestDigest) fail('P7_FIELD_PAGE_REQUEST_DIGEST_MISMATCH', 'Page Request digest is invalid.');
 }
@@ -82,17 +87,22 @@ function validateSnapshot(value, context) {
 }
 function pageDigestBasis(value) { return { schema:'procurement.field-observation-page@1', producerRef:value.producerRef,
   basisDigest:value.basisDigest, observedAtMs:value.observedAtMs, fieldObservationWorkId:value.fieldObservationWorkId,
-  observationId:value.observationId, fieldId:value.fieldId, accessRevision:value.accessRevision, pageOrdinal:value.pageOrdinal,
+  observationId:value.observationId, fieldId:value.fieldId, accessRevision:value.accessRevision,
+  profileHintSnapshot:value.profileHintSnapshot, pageOrdinal:value.pageOrdinal,
   expectedObservationRevision:value.expectedObservationRevision, cursorIn:value.cursorIn, cursorOut:value.cursorOut,
   materialObservations:value.materialObservations, hasMore:value.hasMore }; }
 function validatePage(value, handle, request, nowMs = value && value.observedAtMs) {
   validateAccessHandle(handle, nowMs); validateRequest(request);
-  exact(value, ['schemaRef','schemaVersion','evidenceId','evidenceKind','producerRef','basisDigest','payloadDigest','observedAtMs','fieldObservationWorkId','observationId','fieldId','accessRevision','pageOrdinal','expectedObservationRevision','cursorIn','cursorOut','materialObservations','pageDigest','hasMore'], 'P7_FIELD_PAGE_SHAPE');
+  exact(value, ['schemaRef','schemaVersion','evidenceId','evidenceKind','producerRef','basisDigest','payloadDigest','observedAtMs','fieldObservationWorkId','observationId','fieldId','accessRevision','profileHintSnapshot','pageOrdinal','expectedObservationRevision','cursorIn','cursorOut','materialObservations','pageDigest','hasMore'], 'P7_FIELD_PAGE_SHAPE');
   if (value.schemaRef !== PAGE_SCHEMA || value.schemaVersion !== 1 || value.evidenceKind !== 'field_observation_page' || value.evidenceId !== value.observationId) fail('P7_FIELD_PAGE_NOMINAL_INVALID', 'Field Observation Page nominal contract is invalid.');
   const basisDigest = canonicalDigest({ schema:'procurement.field-observation-basis@1', fieldAccessHandle:handle, pageRequest:request });
   if (value.basisDigest !== basisDigest || value.payloadDigest !== value.pageDigest || value.pageDigest !== canonicalDigest(pageDigestBasis(value))) fail('P7_FIELD_PAGE_DIGEST_MISMATCH', 'Field Observation Page digest chain is invalid.');
   if (value.fieldObservationWorkId !== request.fieldObservationWorkId || value.observationId !== request.observationId || value.fieldId !== handle.fieldId ||
       value.accessRevision !== handle.accessRevision || value.pageOrdinal !== request.pageOrdinal || value.expectedObservationRevision !== request.expectedObservationRevision || value.cursorIn !== request.cursorIn) fail('P7_FIELD_PAGE_BASIS_MISMATCH', 'Field Observation Page does not match its exact inputs.');
+  if (value.profileHintSnapshot.fieldId !== value.fieldId ||
+      !sameProfileHintSnapshot(value.profileHintSnapshot, request.profileHintSnapshot)) {
+    fail('PBF22_FIELD_OBSERVATION_PROFILE_HINT_MISMATCH', 'Field Observation Page does not conserve its frozen Profile Hint.');
+  }
   if (!Array.isArray(value.materialObservations) || value.materialObservations.length > request.pageBudget || value.materialObservations.length > 100) fail('P7_FIELD_PAGE_ITEM_COUNT_INVALID', 'Field Observation Page item count is invalid.');
   value.materialObservations.forEach((item) => validateSnapshot(item, { handle, request }));
   const keys = value.materialObservations.map((item) => item.identity.materialKey);
@@ -103,9 +113,11 @@ function validatePage(value, handle, request, nowMs = value && value.observedAtM
 }
 
 function validateCommittedPage(value) {
-  exact(value, ['schemaRef','schemaVersion','evidenceId','evidenceKind','producerRef','basisDigest','payloadDigest','observedAtMs','fieldObservationWorkId','observationId','fieldId','accessRevision','pageOrdinal','expectedObservationRevision','cursorIn','cursorOut','materialObservations','pageDigest','hasMore'], 'P7_FIELD_PAGE_SHAPE');
+  exact(value, ['schemaRef','schemaVersion','evidenceId','evidenceKind','producerRef','basisDigest','payloadDigest','observedAtMs','fieldObservationWorkId','observationId','fieldId','accessRevision','profileHintSnapshot','pageOrdinal','expectedObservationRevision','cursorIn','cursorOut','materialObservations','pageDigest','hasMore'], 'P7_FIELD_PAGE_SHAPE');
   if (value.schemaRef !== PAGE_SCHEMA || value.schemaVersion !== 1 || value.evidenceId !== value.observationId || value.evidenceKind !== 'field_observation_page') fail('P7_FIELD_PAGE_NOMINAL_INVALID', 'Field Observation Page nominal contract is invalid.');
   digest(value.basisDigest, 'basisDigest'); safeInteger(value.observedAtMs, 'observedAtMs'); safeInteger(value.accessRevision, 'accessRevision', 1);
+  const profileHintSnapshot = createProfileHintSnapshot(value.profileHintSnapshot);
+  if (profileHintSnapshot.fieldId !== value.fieldId) fail('PBF22_FIELD_OBSERVATION_PROFILE_HINT_MISMATCH', 'Committed Page Profile Hint belongs to another Field.');
   safeInteger(value.pageOrdinal, 'pageOrdinal'); safeInteger(value.expectedObservationRevision, 'expectedObservationRevision');
   if (value.payloadDigest !== value.pageDigest || value.pageDigest !== canonicalDigest(pageDigestBasis(value))) fail('P7_FIELD_PAGE_DIGEST_MISMATCH', 'Field Observation Page digest chain is invalid.');
   if (!Array.isArray(value.materialObservations) || value.materialObservations.length > 100) fail('P7_FIELD_PAGE_ITEM_COUNT_INVALID', 'Field Observation Page item count is invalid.');

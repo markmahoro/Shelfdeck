@@ -5,8 +5,69 @@
   "kind": "application-type-registry",
   "owner": "procurement",
   "status": "active",
-  "targetCount": 12,
+  "targetCount": 17,
   "entries": [
+    {
+      "id": "MaterialFieldAdminProjection",
+      "version": 1,
+      "owner": "procurement",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/MaterialFieldAdminProjection/v1",
+      "relativePath": "application-types/MaterialFieldAdminProjection/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "62f95a64568639caf5b55dd795d97958b84046e249cd9f1d83b975fe52b4b3e1"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "MaterialFieldProfileHintRevisionCommand",
+      "version": 1,
+      "owner": "procurement",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/MaterialFieldProfileHintRevisionCommand/v1",
+      "relativePath": "application-types/MaterialFieldProfileHintRevisionCommand/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "b60adbc319c00aaf10b3c7f2979cb53eae7b510c74623bf1cc4afdb3071f11cf"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "MaterialFieldProfileHintSnapshot",
+      "version": 1,
+      "owner": "procurement",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/MaterialFieldProfileHintSnapshot/v1",
+      "relativePath": "application-types/MaterialFieldProfileHintSnapshot/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "c1d70ae7b7bb91617ebdb0ab78fc89a2225a20a99a223f5c81b33ac7de56f4be"
+      },
+      "ssotRefs": [
+        "5.3.2",
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "MaterialFieldRegistrationCommand",
+      "version": 1,
+      "owner": "procurement",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/MaterialFieldRegistrationCommand/v1",
+      "relativePath": "application-types/MaterialFieldRegistrationCommand/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "c4cfb9cedd92bde3563d310a1a4ddbb3995d2281c0bb3d7793f336bf88af57af"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
     {
       "id": "ProcurementCandidateAssemblyPlanBinding",
       "version": 1,
@@ -24,6 +85,21 @@
       ]
     },
     {
+      "id": "ProcurementMaterialFieldAdminResult",
+      "version": 1,
+      "owner": "procurement",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ProcurementMaterialFieldAdminResult/v1",
+      "relativePath": "application-types/ProcurementMaterialFieldAdminResult/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "ff2581b9e8ac07b7981b0196472fe265cf5fa7f8870b125443e71eabf7a7fdcb"
+      },
+      "ssotRefs": [
+        "8.6.18"
+      ]
+    },
+    {
       "id": "ProcurementRetryAdmissionHead",
       "version": 1,
       "owner": "procurement",
@@ -32,7 +108,7 @@
       "relativePath": "application-types/ProcurementRetryAdmissionHead/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "ea4f0b9db4cb2eed36393ee62a93fae191737408d100f31e3669892edd7e31ec"
+        "value": "f85ecdbb227bec2ade98dc2ccbd3b9d335c8497a6f7243584589ffe9d14af3a6"
       },
       "ssotRefs": [
         "8.6.18"
@@ -47,7 +123,7 @@
       "relativePath": "application-types/ProcurementRetryAdmissionResult/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "ed121a4f939bf22dfd76d8c6c68627d572c3ee9a0be61a9e7b22fb30d1845f77"
+        "value": "403cbb7bc284e13f834840ba3df4f66a8d26e2813372f3cf80befcaa4782b285"
       },
       "ssotRefs": [
         "8.6.18"
@@ -62,7 +138,7 @@
       "relativePath": "application-types/ProcurementRetryConsumeMemberSnapshot/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "1b1bc2877a2204c55f30547c5cb530552d66029664e321d3d6791185d355617e"
+        "value": "714fa1b4ca79c2cec2ad35e1e0c64d0e2b14d94f16800e310b69f0c94db117ce"
       },
       "ssotRefs": [
         "8.6.18"
@@ -122,7 +198,7 @@
       "relativePath": "application-types/ProcurementRunExecutionBasis/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "b19b3db4e86480893df952b058ab4f29638a1dd3196932ff2eb1682a21169e6f"
+        "value": "5cdd405adacc089f83032f1accdecf68536b949ffdc4cf705c53ec9e7c2786d6"
       },
       "ssotRefs": [
         "6.3.2",

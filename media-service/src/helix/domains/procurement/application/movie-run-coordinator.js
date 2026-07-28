@@ -285,7 +285,8 @@ function definition(schemaManifest) {
     repositoryId: 'movie_run_coordinator', owner: 'procurement', schemaManifest,
     statements: {
       find_run: { kind: 'select-one', tableId: 'proc_procurement_runs', safeIntegers: true,
-        columns: ['procurement_run_id', 'field_id', 'access_revision', 'access_digest', 'run_basis_digest',
+        columns: ['procurement_run_id', 'field_id', 'access_revision', 'access_digest',
+          'content_profile_hint', 'profile_hint_revision', 'profile_hint_digest', 'run_basis_digest',
           'triage_rule_ref', 'triage_rule_revision', 'triage_rule_authority_digest',
           'state', 'state_revision', 'candidate_package_revision_head'], keyColumns: ['procurement_run_id'] },
       find_access: { kind: 'select-one', tableId: 'proc_field_access_revisions', safeIntegers: true,
@@ -464,7 +465,13 @@ function structureInput(selected, batch, playability, snapshot, layout) {
   const contextValue = {
     fieldId: snapshot.run.field_id, accessRevision: Number(snapshot.run.access_revision),
     accessDigest: snapshot.run.access_digest,
-    contentProfileHint: 'mixed', memberContexts: Object.freeze(contexts),
+    profileHintSnapshot: Object.freeze({
+      fieldId: snapshot.run.field_id,
+      revision: Number(snapshot.run.profile_hint_revision),
+      contentProfileHint: snapshot.run.content_profile_hint,
+      hintDigest: snapshot.run.profile_hint_digest,
+    }),
+    memberContexts: Object.freeze(contexts),
   };
   const materialFieldContext = Object.freeze({
     ...contextValue, contextDigest: canonicalDigest(contextValue),

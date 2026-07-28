@@ -14,6 +14,10 @@ const {
 const {
   createDefaultTriageRuleRegistry,
 } = require('../model/procurement-run-contracts');
+const {
+  assertProfileHint,
+} = require('../model/field-profile-hint-contracts');
+const { canonicalDigest } = require('../../../contracts/canonical-json');
 
 class ProcurementAdminApplicationError extends Error {
   constructor(code, message, details = {}) {
@@ -102,6 +106,62 @@ function commandEnvelope(body, fieldId) {
   return Object.freeze({ idempotencyKey, input: payload });
 }
 
+function registrationBody(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    throw new ProcurementAdminApplicationError(
+      'ADMIN_FIELD_COMMAND_REJECTED',
+      'Material Field请求体无效。',
+    );
+  }
+  const contentProfileHint = body.contentProfileHint ?? 'mixed';
+  try {
+    assertProfileHint(contentProfileHint);
+  } catch (error) {
+    rejected(error);
+  }
+  return Object.freeze({ ...body, contentProfileHint });
+}
+
+function profileHintEnvelope(body, fieldId) {
+  const envelope = commandEnvelope(body, fieldId);
+  const input = envelope.input;
+  const keys = [
+    'operation',
+    'fieldId',
+    'expectedProfileHintRevision',
+    'newContentProfileHint',
+  ];
+  if (Object.keys(input).length !== keys.length ||
+      keys.some((key) => !Object.hasOwn(input, key)) ||
+      input.operation !== 'revise_profile_hint' ||
+      !Number.isSafeInteger(input.expectedProfileHintRevision) ||
+      input.expectedProfileHintRevision < 1) {
+    throw new ProcurementAdminApplicationError(
+      'ADMIN_FIELD_COMMAND_REJECTED',
+      'Material Field Profile Hint修订不符合closed command合同。',
+    );
+  }
+  try {
+    assertProfileHint(input.newContentProfileHint, 'newContentProfileHint');
+  } catch (error) {
+    rejected(error);
+  }
+  const commandBasis = {
+    schema: 'procurement.material-field-profile-hint-revision-command@1',
+    ...input,
+  };
+  return Object.freeze({
+    idempotencyKey: envelope.idempotencyKey,
+    input: Object.freeze({
+      operation: 'revise_profile_hint',
+      fieldId: input.fieldId,
+      expectedProfileHintRevision: input.expectedProfileHintRevision,
+      newContentProfileHint: input.newContentProfileHint,
+      requestDigest: canonicalDigest(commandBasis),
+    }),
+  });
+}
+
 function invokeCommand(operation) {
   try {
     return operation();
@@ -132,9 +192,15 @@ function createProcurementAdminApplication(options) {
   const commands = procurementPublic.ProcurementCommandFacade({
     registerMaterialField: (envelope) => store.commitAdminCommand({ operation: 'register', ...envelope }),
     updateMaterialField: (envelope) => {
-      if (envelope?.input?.operation !== 'revise_access') return unavailable('updateMaterialField')();
-      const { operation, ...revision } = envelope.input;
-      return store.commitAdminCommand({ operation: 'revise_access', idempotencyKey: envelope.idempotencyKey, input: revision });
+      if (envelope?.input?.operation === 'revise_access') {
+        const { operation, ...revision } = envelope.input;
+        return store.commitAdminCommand({ operation: 'revise_access', idempotencyKey: envelope.idempotencyKey, input: revision, actorId: envelope.actorId });
+      }
+      if (envelope?.input?.operation === 'revise_profile_hint') {
+        const { operation, ...revision } = envelope.input;
+        return store.commitAdminCommand({ operation: 'revise_profile_hint', idempotencyKey: envelope.idempotencyKey, input: revision, actorId: envelope.actorId });
+      }
+      return unavailable('updateMaterialField')();
     },
     publishExtractionPolicy: (envelope) => store.commitAdminCommand({ operation: 'publish_policy', ...envelope }),
     requestFieldObservation: (envelope) => observation.observe({
@@ -176,11 +242,22 @@ function createProcurementAdminApplication(options) {
         revision: field.extractionPolicyRevision,
       }) });
     },
-    registerMaterialField(body) {
-      return Object.freeze({ materialField: invokeCommand(() => commands.registerMaterialField(commandEnvelope(body))).materialField });
+    registerMaterialField(body, actor) {
+      const envelope = commandEnvelope(registrationBody(body));
+      return Object.freeze({ materialField: invokeCommand(() => commands.registerMaterialField({
+        ...envelope,
+        actorId: 'admin-credential-revision:' + String(actor.credentialRevision),
+      })).materialField });
     },
-    reviseMaterialFieldAccess(fieldId, body) {
-      return Object.freeze({ materialField: invokeCommand(() => commands.updateMaterialField(commandEnvelope(body, fieldId))).materialField });
+    reviseMaterialFieldAccess(fieldId, body, actor) {
+      const actorId = 'admin-credential-revision:' + String(actor.credentialRevision);
+      const envelope = body?.operation === 'revise_profile_hint'
+        ? profileHintEnvelope(body, fieldId)
+        : commandEnvelope(body, fieldId);
+      return Object.freeze({ materialField: invokeCommand(() => commands.updateMaterialField({
+        ...envelope,
+        actorId,
+      })).materialField });
     },
     publishExtractionPolicy(fieldId, body) {
       return Object.freeze({ materialField: invokeCommand(() => commands.publishExtractionPolicy(commandEnvelope(body, fieldId))).materialField });

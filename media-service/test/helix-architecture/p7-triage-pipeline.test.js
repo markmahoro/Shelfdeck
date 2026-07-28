@@ -9,6 +9,19 @@ const { createTriageCapabilities } = require('../../src/helix/domains/procuremen
 const d = (label) => canonicalDigest({ label });
 const rule = createDefaultTriageRuleRegistry().entries[0];
 const capabilities = createTriageCapabilities({ now:() => 1000 });
+function profileHintSnapshot(contentProfileHint) {
+  return {
+    fieldId:'field-1',
+    revision:1,
+    contentProfileHint,
+    hintDigest:canonicalDigest({
+      schema:'procurement.material-field-profile-hint@1',
+      fieldId:'field-1',
+      revision:1,
+      contentProfileHint,
+    }),
+  };
+}
 
 function probeMember(ordinal, label, probe = {}) {
   const identity={schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v1',schemaVersion:1,mountScopeId:'mount-1',inode:String(ordinal+1),contentHashAlgorithm:'sha256',contentHash:d(`material:${label}`)};
@@ -67,7 +80,7 @@ function singleStructureFixture(label, contentProfileHint) {
     fieldId: 'field-1',
     accessRevision: 1,
     accessDigest: d('access'),
-    contentProfileHint,
+    profileHintSnapshot:profileHintSnapshot(contentProfileHint),
     memberContexts: [{
       selectionOrdinal: 0,
       materialKey: member.materialKey,
@@ -134,7 +147,11 @@ test('explicit JAV Hint falls back to title without inventing a code and mixed r
   assert.equal(Object.hasOwn(unit.identityMetadata, 'javCode'), false);
   assert.deepEqual(
     unit.identityMetadata.sourceHints.map((hint) => hint.hintKind),
-    ['filename_title'],
+    ['field_content_profile_hint', 'filename_title'],
+  );
+  assert.equal(
+    unit.identityMetadata.sourceHints[0].evidenceDigest,
+    profileHintSnapshot('jav').hintDigest,
   );
   const identity = capabilities.identityClaimResolve.execute({
     triageIdentityResolutionInput: {
@@ -161,6 +178,23 @@ test('explicit JAV Hint falls back to title without inventing a code and mixed r
   assert.equal(mixed.structure.units[0].contentProfile, 'movie');
   assert.equal(mixed.structure.units[0].displayIdentity,
     'Summer Night Feature.mkv');
+
+  const western = singleStructureFixture('Summer Night Feature', 'western_adult');
+  assert.equal(western.structure.units.length, 1);
+  assert.equal(western.structure.units[0].contentProfile, 'western_adult');
+  assert.equal(western.structure.units[0].mediaType, 'single');
+  assert.equal(western.structure.units[0].structureKind, 'single');
+  assert.equal(western.structure.units[0].identityMetadata.contentProfileHint,
+    'western_adult');
+  assert.deepEqual(
+    western.structure.units[0].identityMetadata.sourceHints
+      .filter((hint) => hint.hintKind === 'field_content_profile_hint'),
+    [{
+      hintKind:'field_content_profile_hint',
+      hintValue:'western_adult',
+      evidenceDigest:profileHintSnapshot('western_adult').hintDigest,
+    }],
+  );
 });
 
 test('structure preserves Selection mapping and carries series mediaType/contentProfile into Identity and Manifest Draft', () => {
@@ -171,7 +205,7 @@ test('structure preserves Selection mapping and carries series mediaType/content
     lastSnapshotDigest:d('snapshot'), lastObservationId:'observation-1', endpointId:'endpoint-1', location:member.readHandle.location,
     realityDigest:d('reality'), provenanceDigest:d('provenance'), controlSnapshot:{}, admissionControlAction:'acquire',
     basisMemberDigest:d('basis-member') }], selectionDigest:probeBatch.selectionDigest };
-  const context = { fieldId:'field-1', accessRevision:1, accessDigest:d('access'), contentProfileHint:'series',
+  const context = { fieldId:'field-1', accessRevision:1, accessDigest:d('access'), profileHintSnapshot:profileHintSnapshot('series'),
     memberContexts:[{ selectionOrdinal:0, materialKey:member.materialKey, fieldRelativeLocation:member.readHandle.location,
       baseName:'Demo.S02E03-04', extension:'.mkv', parentSegments:['shows','Demo'], layoutEvidenceRefs:[] }], contextDigest:'' };
   context.contextDigest = canonicalDigest(Object.fromEntries(Object.entries(context).filter(([key]) => key !== 'contextDigest')));
@@ -250,7 +284,7 @@ test('Series Triage aggregates N:M Episode members into one Season unit without 
     fieldId: 'field-1',
     accessRevision: 1,
     accessDigest: d('access'),
-    contentProfileHint: 'mixed',
+    profileHintSnapshot: profileHintSnapshot('mixed'),
     memberContexts: contexts,
   };
   const context = { ...contextBase, contextDigest: canonicalDigest(contextBase) };
@@ -330,7 +364,7 @@ test('Series Triage rejects overlapping Episode claims inside one Candidate unit
     fieldId: 'field-1',
     accessRevision: 1,
     accessDigest: d('access-overlap'),
-    contentProfileHint: 'mixed',
+    profileHintSnapshot: profileHintSnapshot('mixed'),
     memberContexts: [first, second].map((member, selectionOrdinal) => ({
       selectionOrdinal,
       materialKey: member.materialKey,
@@ -473,7 +507,7 @@ test('Movie Triage associates only the exact NFO sidecar and conserves its canon
     fieldId: 'field-1',
     accessRevision: 1,
     accessDigest: d('access'),
-    contentProfileHint: 'movie',
+    profileHintSnapshot: profileHintSnapshot('movie'),
     memberContexts: [{
       selectionOrdinal: 0,
       materialKey: member.materialKey,

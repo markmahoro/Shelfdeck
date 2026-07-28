@@ -24,12 +24,23 @@ const schemaDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 
 const schemaManifest = JSON.parse(fs.readFileSync(path.join(generatedRoot, 'clean-schema.manifest.json'), 'utf8'));
 const NOW = 1_700_040_000_000;
 const hash = (value) => canonicalDigest({ value });
+const profileHintSnapshot = Object.freeze({
+  fieldId:'field-1',
+  revision:1,
+  contentProfileHint:'mixed',
+  hintDigest:canonicalDigest({
+    schema:'procurement.material-field-profile-hint@1',
+    fieldId:'field-1',
+    revision:1,
+    contentProfileHint:'mixed',
+  }),
+});
 
 function fieldRegistration() {
   const policyValue = { includedDirectories:[], excludedDirectories:[], allowedExtensions:['.mkv'], minimumSizeBytes:0, excludedMaterialKeys:[] };
   const accessBasis = { fieldId:'field-1', revision:1, endpointId:'endpoint-1', rootLocation:'/media/field-1',
     mountScopeId:'mount-1', mountScopeRevision:1, accessSchemaRef:'helix://fixtures/field-access/v1' };
-  return { fieldId:'field-1', name:'Field One', policy:{ extractionPolicyId:'policy-1', revision:1,
+  return { fieldId:'field-1', name:'Field One', contentProfileHint:'mixed', policy:{ extractionPolicyId:'policy-1', revision:1,
     policySchemaRef:'helix://contracts/domain-types/ExtractionPolicy/v1', policy:policyValue,
     policyDigest:canonicalDigest({ extractionPolicyId:'policy-1', revision:1, ...policyValue }) },
     access:{ ...accessBasis, accessDigest:canonicalDigest(accessBasis) } };
@@ -43,7 +54,7 @@ function accessHandle(access) {
 function pageRequest(workId, observationId, expectedRevision, pageOrdinal=0, cursorIn=null, pageBudget=100) {
   const value = { schemaRef:'helix://contracts/types/FieldObservationPageRequest/v1', schemaVersion:1,
     fieldObservationWorkId:workId, observationId, pageOrdinal, expectedObservationRevision:expectedRevision,
-    cursorIn, pageBudget, requestDigest:'' };
+    profileHintSnapshot, cursorIn, pageBudget, requestDigest:'' };
   value.requestDigest = canonicalDigest(requestBasis(value)); return value;
 }
 function raw(name, overrides={}) { return { inode:overrides.inode || String(name.charCodeAt(0)), contentHash:overrides.contentHash || hash('content-'+name),
@@ -127,6 +138,33 @@ test('fails stale fences and paginates by byte/item budget without skipping the 
   seedRuntime(databasePath,'work-1','event-1'); const stale={...page,expectedObservationRevision:1}; stale.pageDigest=canonicalDigest(require('../../src/helix/domains/procurement/model/field-observation-contracts').pageDigestBasis(stale)); stale.payloadDigest=stale.pageDigest;
   assert.throws(()=>coordinator.execute(commitRequest(stale,'event-1')),(error)=>error.code==='P7_FIELD_OBSERVATION_FENCE_CONFLICT');
   const inspect=new Database(databasePath,{readonly:true}); assert.equal(inspect.prepare('SELECT COUNT(*) count FROM proc_field_observations').get().count,0); assert.equal(inspect.prepare('SELECT COUNT(*) count FROM fx_commit_markers').get().count,0); inspect.close();
+}));
+
+test('rejects an Observation page when the Field Profile Hint changes after the physical read', async () => fixture(async ({databasePath,field,fieldStore,coordinator}) => {
+  const page=await observe(field,pageRequest('work-1','observation-1',0),[raw('a')]);
+  seedRuntime(databasePath,'work-1','event-1');
+  const revisionCommand={
+    schema:'procurement.material-field-profile-hint-revision-command@1',
+    operation:'revise_profile_hint',
+    fieldId:'field-1',
+    expectedProfileHintRevision:1,
+    newContentProfileHint:'western_adult',
+  };
+  fieldStore.reviseFieldProfileHint({
+    fieldId:'field-1',
+    expectedProfileHintRevision:1,
+    newContentProfileHint:'western_adult',
+    requestDigest:canonicalDigest(revisionCommand),
+  });
+  assert.throws(
+    ()=>coordinator.execute(commitRequest(page,'event-1')),
+    (error)=>error.code==='P7_FIELD_OBSERVATION_FENCE_CONFLICT',
+  );
+  const inspect=new Database(databasePath,{readonly:true});
+  assert.equal(inspect.prepare('SELECT current_profile_hint_revision value FROM proc_material_fields').get().value,2);
+  assert.equal(inspect.prepare('SELECT COUNT(*) count FROM proc_field_observations').get().count,0);
+  assert.equal(inspect.prepare('SELECT COUNT(*) count FROM fx_commit_markers').get().count,0);
+  inspect.close();
 }));
 
 test('enforces same-work page continuity, exact access head, and the canonical zero-Outbox contract', async () => fixture(async ({databasePath,field,fieldStore,coordinator}) => {

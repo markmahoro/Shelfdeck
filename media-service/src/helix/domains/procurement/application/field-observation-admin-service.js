@@ -103,7 +103,14 @@ function createAccessHandle(field, workId, nowMs) {
   });
 }
 
-function pageRequest(workId, ordinal, expectedRevision, cursorIn, pageBudget) {
+function pageRequest(
+  workId,
+  ordinal,
+  expectedRevision,
+  cursorIn,
+  pageBudget,
+  profileHintSnapshot,
+) {
   const value = {
     schemaRef: 'helix://contracts/types/FieldObservationPageRequest/v1',
     schemaVersion: 1,
@@ -113,6 +120,7 @@ function pageRequest(workId, ordinal, expectedRevision, cursorIn, pageBudget) {
     expectedObservationRevision: expectedRevision,
     cursorIn,
     pageBudget,
+    profileHintSnapshot,
     requestDigest: '',
   };
   value.requestDigest = canonicalDigest(requestBasis(value));
@@ -275,6 +283,7 @@ function createFieldObservationAdminService(options) {
         expectedRevision,
         cursorIn,
         input.pageBudget,
+        field.currentProfileHintSnapshot,
       );
       const page = await observer.observe({
         fieldAccessHandle: handle,
@@ -320,6 +329,7 @@ function createFieldObservationAdminService(options) {
       schema: 'procurement.admin-field-observation-basis@1',
       fieldId: field.fieldId,
       access: field.access,
+      profileHintSnapshot: field.currentProfileHintSnapshot,
       expectedObservationRevision: input.expectedObservationRevision,
       pageBudget: input.pageBudget,
     });
@@ -436,6 +446,7 @@ function createFieldObservationAdminService(options) {
       observationWorkId: workId,
       fieldId: field.fieldId,
       accessRevision: field.access.revision,
+      profileHintSnapshot: field.currentProfileHintSnapshot,
       initialObservationRevision: input.expectedObservationRevision,
       terminalObservationRevision: terminalRevision,
       sourceFileCount: sourceFileCount ?? summaries.reduce(

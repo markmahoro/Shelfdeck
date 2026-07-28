@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/MaterialFieldProfileHintRevisionCommand/v1",
+  "title": "MaterialFieldProfileHintRevisionCommand@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "operation": {
+      "const": "revise_profile_hint"
+    },
+    "fieldId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "expectedProfileHintRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "newContentProfileHint": {
+      "type": "string",
+      "enum": [
+        "mixed",
+        "movie",
+        "series",
+        "jav",
+        "western_adult"
+      ]
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "requestDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "operation",
+    "fieldId",
+    "expectedProfileHintRevision",
+    "newContentProfileHint",
+    "idempotencyKey",
+    "requestDigest"
+  ]
+}

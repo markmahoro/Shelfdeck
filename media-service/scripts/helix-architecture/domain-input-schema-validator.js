@@ -56,6 +56,7 @@ function validateDomainInputSchemas(options) {
     'arca-application-type-registry.json',
     'libra-application-type-registry.json',
     'platform-application-type-registry.json',
+    'procurement-application-type-registry.json',
   ]
     .map((file) => readJson(path.join(contractsRoot, file), findings));
   const knownRefs = new Set([

@@ -21,6 +21,17 @@ const generatedRoot = path.resolve(__dirname, '../../src/helix/foundation/persis
 const schemaDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 'utf8');
 const schemaManifest = JSON.parse(fs.readFileSync(path.join(generatedRoot, 'clean-schema.manifest.json'), 'utf8'));
 const D = (value) => canonicalDigest({ value });
+const PROFILE_HINT = Object.freeze({
+  fieldId:'field-1',
+  revision:1,
+  contentProfileHint:'mixed',
+  hintDigest:canonicalDigest({
+    schema:'procurement.material-field-profile-hint@1',
+    fieldId:'field-1',
+    revision:1,
+    contentProfileHint:'mixed',
+  }),
+});
 function identity() { const value={ schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v1', schemaVersion:1,
   mountScopeId:'mount-1', inode:'42', contentHashAlgorithm:'sha256', contentHash:D('content') }; return { ...value, materialKey:materialKey(value) }; }
 function controlSnapshot(material) { const evidence={schema:'foundation.material-control-evidence@1',materialKey:material.materialKey,
@@ -39,11 +50,11 @@ function member(material, control) { const value={ordinal:0,materialKey:material
 function basis(registry, material, control) { const selected={procurementRunId:'run-1',fieldId:'field-1',members:[member(material,control)]};
   selected.selectionDigest=canonicalDigest({schema:'procurement.selected-field-material-set@1',...selected});
   const value={procurementRunId:'run-1',fieldId:'field-1',fieldStatus:'active',fieldAccess:{revision:1,digest:D('access')},
-    terminalObservation:{revision:1,fieldObservationWorkId:'observation-work-1'},extractionPolicy:{policyId:'policy-1',revision:1,digest:D('policy')},
+    profileHintSnapshot:PROFILE_HINT,terminalObservation:{revision:1,fieldObservationWorkId:'observation-work-1',profileHintSnapshot:PROFILE_HINT},extractionPolicy:{policyId:'policy-1',revision:1,digest:D('policy')},
     triageRule:activeTriageRule(registry),selectedFieldMaterialSet:selected}; return {...value,basisDigest:canonicalDigest(value)}; }
 function retryIntent(registry, runBasis, material, expectedControl) {
-  const headValue={fieldId:'field-1',fieldStatus:'active',fieldAccess:{revision:1,digest:D('access')},
-    terminalObservation:{resultKind:'available',revision:1,fieldObservationWorkId:'observation-work-1'},
+  const headValue={fieldId:'field-1',fieldStatus:'active',profileHintSnapshot:PROFILE_HINT,fieldAccess:{revision:1,digest:D('access')},
+    terminalObservation:{resultKind:'available',revision:1,fieldObservationWorkId:'observation-work-1',profileHintSnapshot:PROFILE_HINT},
     extractionPolicy:{policyId:'policy-1',revision:1,digest:D('policy')},triageRule:activeTriageRule(registry)};
   const retryAdmissionHead={...headValue,headDigest:canonicalDigest(headValue)};
   const item={ordinal:0,materialKey:material.materialKey,failedRunMaterialDigest:failedRunMaterialDigest({failedRunId:'run-1',
@@ -65,7 +76,7 @@ function retryRunBasis(registry, material, control) { const rawMember={ordinal:0
   eligibilityRevision:2,eligibilityBasisDigest:D('eligibility'),lastSnapshotDigest:D('snapshot'),lastObservationId:'observation-1',endpointId:'endpoint-1',
   location:'/field/title.mkv',realityDigest:D('reality'),provenanceDigest:D('provenance'),controlSnapshot:control,admissionControlAction:'assert_same_field'};
   const selected={procurementRunId:'run-2',fieldId:'field-1',members:[{...rawMember,basisMemberDigest:canonicalDigest(rawMember)}]};
-  selected.selectionDigest=canonicalDigest({schema:'procurement.selected-field-material-set@1',...selected});const value={procurementRunId:'run-2',fieldId:'field-1',fieldStatus:'active',fieldAccess:{revision:1,digest:D('access')},terminalObservation:{revision:1,fieldObservationWorkId:'observation-work-1'},extractionPolicy:{policyId:'policy-1',revision:1,digest:D('policy')},triageRule:activeTriageRule(registry),sourceRetryIntentId:'retry-intent-1',selectedFieldMaterialSet:selected};return{...value,basisDigest:canonicalDigest(value)}; }
+  selected.selectionDigest=canonicalDigest({schema:'procurement.selected-field-material-set@1',...selected});const value={procurementRunId:'run-2',fieldId:'field-1',fieldStatus:'active',profileHintSnapshot:PROFILE_HINT,fieldAccess:{revision:1,digest:D('access')},terminalObservation:{revision:1,fieldObservationWorkId:'observation-work-1',profileHintSnapshot:PROFILE_HINT},extractionPolicy:{policyId:'policy-1',revision:1,digest:D('policy')},triageRule:activeTriageRule(registry),sourceRetryIntentId:'retry-intent-1',selectedFieldMaterialSet:selected};return{...value,basisDigest:canonicalDigest(value)}; }
 function handle(runBasis) { const memberValue=runBasis.selectedFieldMaterialSet.members[0]; return {
   schemaRef:'helix://contracts/types/ResponsibilityControlCommitHandle/v1',schemaVersion:1,handleId:'handle-1',operationKind:'acquire',
   ownerDomain:'procurement',processType:'procurement_run',processId:runBasis.procurementRunId,
@@ -76,7 +87,9 @@ function handle(runBasis) { const memberValue=runBasis.selectedFieldMaterialSet.
   receiptContract:'helix://contracts/types/ProcurementControlReceipt/v1',eventFenceDigest:D('fence')}; }
 function seed(database, material, control) {
   const transaction=database.transaction(()=>{
-    database.prepare('INSERT INTO proc_material_fields VALUES(?,?,?,?,?,?,?,?,?)').run('field-1','Field','active','policy-1',1,1,null,1,1);
+    database.prepare('INSERT INTO proc_material_fields(field_id,name,status,extraction_policy_id,extraction_policy_revision,current_access_revision,current_profile_hint_revision,current_observation_revision,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?)').run('field-1','Field','active','policy-1',1,1,1,null,1,1);
+    database.prepare('INSERT INTO proc_field_profile_hint_revisions(field_id,revision,content_profile_hint,hint_schema_ref,hint_digest,effective_at_ms,actor_id) VALUES(?,?,?,?,?,?,?)')
+      .run('field-1',1,'mixed','helix://contracts/application-types/MaterialFieldProfileHintSnapshot/v1',PROFILE_HINT.hintDigest,1,'fixture');
     database.prepare('INSERT INTO proc_extraction_policy_revisions VALUES(?,?,?,?,?,?)').run('policy-1',1,'helix://contracts/domain-types/ExtractionPolicy/v1','{}',D('policy'),1);
     database.prepare('INSERT INTO proc_field_access_revisions VALUES(?,?,?,?,?,?,?,?,?)').run('field-1',1,'endpoint-1','/field','mount-1',1,'field-access@1',D('access'),1);
     database.prepare('INSERT INTO fx_supporting_works VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('observation-work-1','procurement','field_observation','field-1','observe',D('work'),'normal','succeeded','observation-work-1',1,1);
@@ -92,7 +105,8 @@ function seed(database, material, control) {
     database.prepare('INSERT INTO fx_workflow_events VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run('retry-event-1','run-plan-1','retry-intent','run-work-1','run-attempt-1','procurement','procurement.retry.intent.create@1',1,'ready','normal',1,null,null,null);
     database.prepare('INSERT INTO fx_workflow_events VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run('retry-consume-event-1','run-plan-1','retry-consume','run-work-1','run-attempt-1','procurement','procurement.retry.admit@1',1,'ready','normal',1,null,null,null);
     database.prepare('INSERT INTO fx_commit_markers(commit_marker,owner_domain,scope_type,scope_id,commit_digest,committed_at_ms) VALUES(?,?,?,?,?,?)').run('observation-marker','procurement','material_field_observation','field-1',D('observation-marker'),1);
-    database.prepare('INSERT INTO proc_field_observations VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run('field-1',1,'observation-1','observation-work-1',1,0,0,null,null,D('page'),D('fact'),'observation-marker',D('result'),1,1);
+    database.prepare('INSERT INTO proc_field_observations(field_id,revision,observation_id,field_observation_work_id,access_revision,content_profile_hint,profile_hint_revision,profile_hint_digest,page_ordinal,expected_revision,cursor_in,cursor_out,page_digest,fact_digest,commit_marker,result_digest,observed_at_ms,completed) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+      .run('field-1',1,'observation-1','observation-work-1',1,'mixed',1,PROFILE_HINT.hintDigest,0,0,null,null,D('page'),D('fact'),'observation-marker',D('result'),1,1);
     database.prepare('UPDATE proc_material_fields SET current_observation_revision=1 WHERE field_id=?').run('field-1');
     database.prepare(`INSERT INTO proc_field_materials VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
       'field-1',material.materialKey,material.mountScopeId,material.inode,material.contentHashAlgorithm,material.contentHash,'endpoint-1',1,1,100,1,1,1,
@@ -128,6 +142,25 @@ test('stale Field head rolls back Run, Control, Result, and marker together',()=
   const check=new Database(databasePath,{readonly:true}); assert.equal(check.prepare('SELECT COUNT(*) count FROM proc_procurement_runs').get().count,0);
   assert.equal(check.prepare('SELECT COUNT(*) count FROM fx_material_controls').get().count,0);
   assert.equal(check.prepare("SELECT COUNT(*) count FROM fx_commit_markers WHERE commit_marker='run-marker-1'").get().count,0); check.close();
+}));
+
+test('Profile Hint revision change makes the frozen terminal Observation stale for Run admission',()=>fixture(({databasePath,unitOfWork})=>{
+  const registry=createDefaultTriageRuleRegistry(); const material=identity(); const control=controlSnapshot(material); const runBasis=basis(registry,material,control);
+  const database=new Database(databasePath); seed(database,material,control);
+  const westernHint={fieldId:'field-1',revision:2,contentProfileHint:'western_adult'};
+  westernHint.hintDigest=canonicalDigest({schema:'procurement.material-field-profile-hint@1',...westernHint});
+  database.prepare('INSERT INTO proc_field_profile_hint_revisions(field_id,revision,content_profile_hint,hint_schema_ref,hint_digest,effective_at_ms,actor_id) VALUES(?,?,?,?,?,?,?)')
+    .run('field-1',2,'western_adult','helix://contracts/application-types/MaterialFieldProfileHintSnapshot/v1',westernHint.hintDigest,2,'fixture');
+  database.prepare('UPDATE proc_material_fields SET current_profile_hint_revision=2 WHERE field_id=?').run('field-1');
+  database.close();
+  const store=createProcurementRunAdmissionStore({schemaManifest,unitOfWork,triageRegistry:registry});
+  assert.throws(()=>store.admit({basis:runBasis,controlHandle:handle(runBasis),commitMarker:{commitMarker:'run-marker-profile-stale',commitDigest:D('run-profile-stale')},
+    resultBinding:{resultId:'run-receipt-profile-stale',eventId:'run-event-1'}}),(error)=>error.code==='P7_RUN_ADMISSION_HEAD_STALE');
+  const check=new Database(databasePath,{readonly:true});
+  assert.equal(check.prepare('SELECT COUNT(*) count FROM proc_procurement_runs').get().count,0);
+  assert.equal(check.prepare('SELECT COUNT(*) count FROM fx_material_controls').get().count,0);
+  assert.equal(check.prepare("SELECT COUNT(*) count FROM fx_commit_markers WHERE commit_marker='run-marker-profile-stale'").get().count,0);
+  check.close();
 }));
 
 test('same-Field Control is asserted without a fake release/acquire revision',()=>fixture(({databasePath,unitOfWork})=>{
