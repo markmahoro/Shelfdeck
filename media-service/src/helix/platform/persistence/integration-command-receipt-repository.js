@@ -200,6 +200,8 @@ function createIntegrationCommandReceiptRepository(options) {
         }
         const commandReceiptId = canonicalDigest({
           schema: 'platform.integration-command-receipt-id@1',
+          commandContract: value.commandContract,
+          integrationId: value.integrationId,
           commandKind: value.commandKind,
           idempotencyKey: value.idempotencyKey,
           requestDigest: value.requestDigest,
@@ -215,7 +217,7 @@ function createIntegrationCommandReceiptRepository(options) {
           effect_id: null,
           owner_domain: 'platform-settings',
           scope_type: 'platform_integration',
-          scope_id: 'tmdb-main',
+          scope_id: value.integrationId,
           commit_digest: canonicalDigest({
             schema: 'platform.integration-command-commit@1',
             commandReceiptId,
@@ -232,7 +234,7 @@ function createIntegrationCommandReceiptRepository(options) {
           idempotency_key: value.idempotencyKey,
           request_digest: value.requestDigest,
           target_type: 'platform_integration',
-          target_id: 'tmdb-main',
+          target_id: value.integrationId,
           result_schema_ref: RESULT_SCHEMA_REF,
           result_ref_json: resultJson,
           result_digest: resultDigest,
@@ -248,7 +250,7 @@ function createIntegrationCommandReceiptRepository(options) {
           actor_id: null,
           action: 'platform.integration.' + value.commandKind,
           scope_type: 'platform_integration',
-          scope_id: 'tmdb-main',
+          scope_id: value.integrationId,
           work_id: null,
           event_id: null,
           evidence_digest: value.requestDigest,

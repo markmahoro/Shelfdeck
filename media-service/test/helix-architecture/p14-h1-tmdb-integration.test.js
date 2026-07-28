@@ -549,7 +549,7 @@ test('H1.1 routes reject target drift, unsupported providers, and failed tests w
 
   const unsupported = await host.inject({
     method: 'GET',
-    url: '/v1/admin/settings/integrations/douban',
+    url: '/v1/admin/settings/integrations/unknown-provider',
     headers: { cookie },
   });
   assert.equal(unsupported.statusCode, 200, unsupported.body);

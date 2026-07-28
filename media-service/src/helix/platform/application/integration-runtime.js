@@ -1,22 +1,23 @@
 'use strict';
 
-const { canonicalDigest, canonicalJson } =
+const { canonicalDigest } =
   require('../../contracts/canonical-json');
 const { createSecretLeaseBroker } = require('./secret-lease-broker');
+const {
+  SHA256,
+  requireIntegrationProfile,
+  validateSummary,
+} = require('./integration-profile-catalog');
 
-const TMDB_INTEGRATION_ID = 'tmdb-main';
-const TMDB_SECRET_REF = 'integration-secret:tmdb-main';
-const CONFIG_SCHEMA_REF =
-  'helix://implementation-contracts/platform-integrations/tmdb/v1';
-const OFFICIAL_TMDB_ENDPOINT = 'https://api.themoviedb.org/3';
-const SHA256 = /^[0-9a-f]{64}$/;
+const TMDB_PROFILE = requireIntegrationProfile('tmdb');
+const TMDB_INTEGRATION_ID = TMDB_PROFILE.integrationId;
+const TMDB_SECRET_REF = TMDB_PROFILE.secretRef;
+const CONFIG_SCHEMA_REF = TMDB_PROFILE.configSchemaRef;
+const OFFICIAL_TMDB_ENDPOINT =
+  TMDB_PROFILE.normalizeEndpoint('https://api.themoviedb.org/3');
+const HANDLE_OPERATIONS = new Set(TMDB_PROFILE.allowedOperations);
 const SECRET_LOCATOR =
   /^integration-envelope:[0-9a-f-]{36}:([0-9a-f]{64})$/;
-const HANDLE_OPERATIONS = new Set([
-  'shared.integration.search@1',
-  'libra.product_metadata.fetch@1',
-  'libra.product_artifact.acquire@1',
-]);
 
 class IntegrationRuntimeError extends Error {
   constructor(code, message, details = {}) {
@@ -36,38 +37,6 @@ function exact(value, fields, code) {
       JSON.stringify(Object.keys(value).sort()) !==
         JSON.stringify([...fields].sort())) {
     fail(code, 'Integration runtime input must match the exact shape.');
-  }
-}
-
-function validateTestSummary(value) {
-  exact(
-    value,
-    [
-      'result',
-      'checkedAtMs',
-      'endpointDigest',
-      'observationDigest',
-      'identityNamespace',
-      'identityProviderKey',
-    ],
-    'PLATFORM_INTEGRATION_CONFIG_CORRUPT',
-  );
-  if (value.result !== 'passed' ||
-      !Number.isSafeInteger(value.checkedAtMs) ||
-      value.checkedAtMs < 0 ||
-      !SHA256.test(value.endpointDigest || '') ||
-      value.endpointDigest !== canonicalDigest({
-        endpoint: OFFICIAL_TMDB_ENDPOINT,
-      }) ||
-      !SHA256.test(value.observationDigest || '') ||
-      value.identityNamespace !== 'tmdb_movie' ||
-      typeof value.identityProviderKey !== 'string' ||
-      value.identityProviderKey.length > 64 ||
-      !/^[0-9]+$/.test(value.identityProviderKey)) {
-    fail(
-      'PLATFORM_INTEGRATION_CONFIG_CORRUPT',
-      'Integration test summary is invalid.',
-    );
   }
 }
 
@@ -95,7 +64,7 @@ function validateLastCommand(value, revision) {
   }
 }
 
-function validateConfig(snapshot) {
+function validateConfig(snapshot, selectedProfile = TMDB_PROFILE) {
   const integration = snapshot?.integration;
   const secret = snapshot?.secret;
   if (!integration) {
@@ -104,6 +73,7 @@ function validateConfig(snapshot) {
       'Integration is not configured.',
     );
   }
+  const profile = selectedProfile;
   const config = integration.config;
   exact(
     config,
@@ -122,38 +92,44 @@ function validateConfig(snapshot) {
     ],
     'PLATFORM_INTEGRATION_CONFIG_CORRUPT',
   );
+  let endpoint;
+  try {
+    endpoint = profile.normalizeEndpoint(integration.endpoint);
+  } catch (_error) {
+    fail(
+      'PLATFORM_INTEGRATION_CONFIG_CORRUPT',
+      'Persisted Integration endpoint is invalid.',
+    );
+  }
   const locatorMatch = SECRET_LOCATOR.exec(
     secret?.secretLocator || '',
   );
-  if (integration.integrationId !== TMDB_INTEGRATION_ID ||
-      integration.integrationType !== 'tmdb' ||
-      integration.configSchemaRef !== CONFIG_SCHEMA_REF ||
-      integration.endpoint !== OFFICIAL_TMDB_ENDPOINT ||
+  if (integration.integrationId !== profile.integrationId ||
+      integration.integrationType !== profile.integrationType ||
+      integration.configSchemaRef !== profile.configSchemaRef ||
+      integration.endpoint !== endpoint ||
       integration.configDigest !== canonicalDigest(config) ||
       !Number.isSafeInteger(integration.configRevision) ||
       integration.configRevision < 1 ||
       !Number.isSafeInteger(integration.updatedAtMs) ||
       integration.updatedAtMs < 0 ||
       !['active', 'disabled'].includes(integration.state) ||
-      config.schemaRef !== CONFIG_SCHEMA_REF ||
+      config.schemaRef !== profile.configSchemaRef ||
       config.schemaVersion !== 1 ||
-      config.kind !== 'tmdb' ||
-      config.endpoint !== OFFICIAL_TMDB_ENDPOINT ||
+      config.kind !== profile.kind ||
+      config.endpoint !== endpoint ||
       config.configRevision !== integration.configRevision ||
-      config.secretRef !== TMDB_SECRET_REF ||
+      config.secretRef !== profile.secretRef ||
       !SHA256.test(config.secretEnvelopeDigest || '') ||
-      !['api_key', 'access_token'].includes(
-        config.credentialKind,
-      ) ||
+      config.credentialKind !==
+        profile.credentialKindsBySecret[secret?.secretKind] ||
       JSON.stringify(config.capabilityCodes) !==
-        JSON.stringify(['identity', 'metadata']) ||
+        JSON.stringify(profile.capabilityCodes) ||
       !secret ||
-      secret.secretRef !== TMDB_SECRET_REF ||
+      secret.secretRef !== profile.secretRef ||
       secret.ownerScopeType !== 'integration' ||
-      secret.ownerScopeId !== TMDB_INTEGRATION_ID ||
-      !['tmdb_api_key', 'tmdb_access_token'].includes(
-        secret.secretKind,
-      ) ||
+      secret.ownerScopeId !== profile.integrationId ||
+      !profile.acceptedSecretKinds.includes(secret.secretKind) ||
       secret.revision !== integration.configRevision ||
       !locatorMatch ||
       locatorMatch[1] !== config.secretEnvelopeDigest) {
@@ -162,7 +138,14 @@ function validateConfig(snapshot) {
       'Integration configuration identity or digest is invalid.',
     );
   }
-  validateTestSummary(config.lastTestSummary);
+  validateSummary(profile, config.lastTestSummary);
+  if (config.lastTestSummary.endpointDigest !==
+      canonicalDigest({ endpoint })) {
+    fail(
+      'PLATFORM_INTEGRATION_CONFIG_CORRUPT',
+      'Integration test summary endpoint fence is invalid.',
+    );
+  }
   validateLastCommand(
     config.lastCommand,
     integration.configRevision,
@@ -195,6 +178,8 @@ function createIntegrationRuntime(options) {
       'Integration runtime requires Platform Repository and Secret Store.',
     );
   }
+  const profile = options.profile || TMDB_PROFILE;
+  const operationSet = new Set(profile.allowedOperations);
   const now = options.now || Date.now;
   const broker = createSecretLeaseBroker({
     repository: Object.freeze({
@@ -204,17 +189,24 @@ function createIntegrationRuntime(options) {
     purposePolicy: Object.freeze({
       allows(value) {
         return value.ownerScopeType === 'integration' &&
-          value.ownerScopeId === TMDB_INTEGRATION_ID &&
-          ['tmdb_api_key', 'tmdb_access_token'].includes(
-            value.secretKind,
-          ) &&
-          HANDLE_OPERATIONS.has(value.purpose);
+          value.ownerScopeId === profile.integrationId &&
+          profile.acceptedSecretKinds.includes(value.secretKind) &&
+          operationSet.has(value.purpose);
       },
     }),
     now,
     createId: options.createId,
     digest: options.digest,
   });
+
+  function readCurrent() {
+    const raw = options.repository.find(
+      profile.integrationId,
+      profile.secretRef,
+    );
+    if (!raw.integration) return undefined;
+    return validateConfig(raw, profile);
+  }
 
   const integrationQueryPort = Object.freeze({
     query(input) {
@@ -223,7 +215,7 @@ function createIntegrationRuntime(options) {
         ['integrationId', 'expectedConfigRevision'],
         'PLATFORM_INTEGRATION_QUERY_SHAPE',
       );
-      if (input.integrationId !== TMDB_INTEGRATION_ID ||
+      if (input.integrationId !== profile.integrationId ||
           !Number.isSafeInteger(input.expectedConfigRevision) ||
           input.expectedConfigRevision < 1) {
         fail(
@@ -231,10 +223,7 @@ function createIntegrationRuntime(options) {
           'Integration query identity or revision is invalid.',
         );
       }
-      const snapshot = validateConfig(options.repository.find(
-        TMDB_INTEGRATION_ID,
-        TMDB_SECRET_REF,
-      ));
+      const snapshot = readCurrent();
       if (snapshot.integration.configRevision !==
           input.expectedConfigRevision) {
         fail(
@@ -252,9 +241,9 @@ function createIntegrationRuntime(options) {
         configRevision: snapshot.integration.configRevision,
         configDigest: snapshot.integration.configDigest,
         state: snapshot.integration.state,
-        secretRef: snapshot.secret?.secretRef || null,
-        secretKind: snapshot.secret?.secretKind || null,
-        secretRevision: snapshot.secret?.revision || null,
+        secretRef: snapshot.secret.secretRef,
+        secretKind: snapshot.secret.secretKind,
+        secretRevision: snapshot.secret.revision,
       });
     },
   });
@@ -272,24 +261,22 @@ function createIntegrationRuntime(options) {
         ],
         'PLATFORM_INTEGRATION_HANDLE_SHAPE',
       );
-      if (input.integrationId !== TMDB_INTEGRATION_ID ||
-          input.integrationType !== 'tmdb' ||
+      if (input.integrationId !== profile.integrationId ||
+          input.integrationType !== profile.integrationType ||
           !Number.isSafeInteger(input.configRevision) ||
           input.configRevision < 1 ||
-          !HANDLE_OPERATIONS.has(input.allowedOperation) ||
-          (input.allowedOperation ===
-            'libra.product_artifact.acquire@1'
-            ? !['poster', 'fanart'].includes(input.artifactKind)
+          !operationSet.has(input.allowedOperation) ||
+          (input.allowedOperation.endsWith(
+            'artifact.acquire@1',
+          )
+            ? !profile.artifactKinds.includes(input.artifactKind)
             : input.artifactKind !== null)) {
         fail(
           'PLATFORM_INTEGRATION_HANDLE_INVALID',
           'Integration Handle request is invalid.',
         );
       }
-      const snapshot = validateConfig(options.repository.find(
-        input.integrationId,
-        TMDB_SECRET_REF,
-      ));
+      const snapshot = readCurrent();
       if (snapshot.integration.state !== 'active') {
         fail(
           'PLATFORM_INTEGRATION_UNAVAILABLE',
@@ -335,23 +322,21 @@ function createIntegrationRuntime(options) {
     },
   });
 
-  function readCurrent() {
-    const raw = options.repository.find(
-      TMDB_INTEGRATION_ID,
-      TMDB_SECRET_REF,
-    );
-    if (!raw.integration) return undefined;
-    return validateConfig(raw);
+  function isActive() {
+    const snapshot = readCurrent();
+    return snapshot?.integration.state === 'active';
   }
 
   return Object.freeze({
     broker,
     integrationHandleResolverPort,
     integrationQueryPort,
+    isActive,
     isTmdbActive() {
-      const snapshot = readCurrent();
-      return snapshot?.integration.state === 'active';
+      return profile.kind === 'tmdb' &&
+        isActive();
     },
+    profile,
     readCurrent,
     secretLeaseResolverPort,
   });

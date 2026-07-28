@@ -21,6 +21,18 @@ const {
   createTmdbProviderAdapter,
 } = require('./helix/integrations/tmdb-provider-adapter');
 const {
+  createProviderAdapter,
+} = require('./helix/integrations/h1-provider-adapters');
+const {
+  createJavProductProviderAdapter,
+} = require('./helix/integrations/jav-product-provider-adapter');
+const {
+  PROFILES,
+  getIntegrationProfile,
+} = require(
+  './helix/platform/application/integration-profile-catalog'
+);
+const {
   createIntegrationCommandReceiptRepository,
 } = require(
   './helix/platform/persistence/integration-command-receipt-repository'
@@ -451,56 +463,178 @@ function createPlatformIntegrationServices(options) {
       schemaManifest: options.schemaManifest,
       unitOfWork: options.unitOfWork,
     });
-  const runtime = createPlatformIntegrationRuntime({
-    repository,
-    secretStore,
-    now: options.now,
-    createId: crypto.randomUUID,
-    digest: (value) => crypto.createHash('sha256')
-      .update(value, 'utf8')
-      .digest('hex'),
-  });
-  const tmdbAdapter = createTmdbProviderAdapter({
-    integrationQueryPort: runtime.integrationQueryPort,
-    integrationHandleResolverPort:
-      runtime.integrationHandleResolverPort,
-    secretLeaseResolverPort: runtime.secretLeaseResolverPort,
-    secretLeaseConsumer: runtime.broker,
+  const runtimes = new Map();
+  const adapters = new Map();
+  const admins = new Map();
+  for (const profile of PROFILES) {
+    const runtime = createPlatformIntegrationRuntime({
+      profile,
+      repository,
+      secretStore,
+      now: options.now,
+      createId: crypto.randomUUID,
+      digest: (value) => crypto.createHash('sha256')
+        .update(value, 'utf8')
+        .digest('hex'),
+    });
+    const adapter = profile.kind === 'tmdb'
+      ? createTmdbProviderAdapter({
+          integrationQueryPort: runtime.integrationQueryPort,
+          integrationHandleResolverPort:
+            runtime.integrationHandleResolverPort,
+          secretLeaseResolverPort:
+            runtime.secretLeaseResolverPort,
+          secretLeaseConsumer: runtime.broker,
+          fetchImpl: options.fetchImpl,
+          now: options.now,
+        })
+      : createProviderAdapter(profile.kind, {
+          runtime,
+          fetchImpl: options.fetchImpl,
+          now: options.now,
+        });
+    const admin = createIntegrationAdminApplication({
+      profile,
+      repository,
+      secretStore,
+      adapter,
+      receiptRepository,
+      now: options.now,
+      createId: crypto.randomUUID,
+      beforePlatformCommit:
+        options.beforeIntegrationPlatformCommit,
+      afterPlatformCommit:
+        options.afterIntegrationPlatformCommit,
+    });
+    runtimes.set(profile.kind, runtime);
+    adapters.set(profile.kind, adapter);
+    admins.set(profile.kind, admin);
+  }
+  const tmdbRuntime = runtimes.get('tmdb');
+  const tmdbAdapter = adapters.get('tmdb');
+  const javRuntime = runtimes.get('adult-provider');
+  const javProductAdapter = createJavProductProviderAdapter({
+    runtime: javRuntime,
     fetchImpl: options.fetchImpl,
     now: options.now,
   });
-  const admin = createIntegrationAdminApplication({
-    repository,
-    secretStore,
-    tmdbAdapter,
-    receiptRepository,
-    now: options.now,
-    createId: crypto.randomUUID,
-    beforePlatformCommit: options.beforeIntegrationPlatformCommit,
-    afterPlatformCommit: options.afterIntegrationPlatformCommit,
+
+  const admin = Object.freeze({
+    configure(kind, body) {
+      const selected = admins.get(kind);
+      if (!selected) {
+        throw new CleanServiceHostError(
+          'PLATFORM_INTEGRATION_KIND_UNSUPPORTED',
+          'Integration kind is unsupported.',
+        );
+      }
+      return selected.configure(kind, body);
+    },
+    disconnect(kind, body) {
+      const selected = admins.get(kind);
+      if (!selected) {
+        throw new CleanServiceHostError(
+          'PLATFORM_INTEGRATION_KIND_UNSUPPORTED',
+          'Integration kind is unsupported.',
+        );
+      }
+      return selected.disconnect(kind, body);
+    },
+    get(kind) {
+      const selected = admins.get(kind);
+      if (!selected) {
+        return Object.freeze({
+          kind: String(kind || ''),
+          supported: false,
+          configured: false,
+          state: 'unsupported',
+          configRevision: 0,
+          endpoint: null,
+          configDigest: null,
+          capabilityCodes: Object.freeze([]),
+          lastTestSummary: null,
+        });
+      }
+      return selected.get(kind);
+    },
+    test(kind, body) {
+      const selected = admins.get(kind);
+      if (!selected) {
+        throw new CleanServiceHostError(
+          'PLATFORM_INTEGRATION_KIND_UNSUPPORTED',
+          'Integration kind is unsupported.',
+        );
+      }
+      return selected.test(kind, body);
+    },
   });
 
-  function tmdbHandle(operationId, artifactKind = null) {
+  function runtimeFor(kind) {
+    return runtimes.get(kind);
+  }
+
+  function handleFor(kind, operationId, artifactKind = null) {
+    const runtime = runtimeFor(kind);
+    if (!runtime) return undefined;
     const snapshot = runtime.readCurrent();
     if (!snapshot || snapshot.integration.state !== 'active') {
       return undefined;
     }
     return runtime.integrationHandleResolverPort.resolve({
-      integrationId: 'tmdb-main',
-      integrationType: 'tmdb',
+      integrationId: snapshot.integration.integrationId,
+      integrationType: snapshot.integration.integrationType,
       configRevision: snapshot.integration.configRevision,
       allowedOperation: operationId,
       artifactKind,
     });
   }
 
+  function javProductHandle(operationId, artifactKind = null) {
+    const snapshot = javRuntime.readCurrent();
+    if (!snapshot || snapshot.integration.state !== 'active') {
+      return undefined;
+    }
+    const basis = {
+      schemaRef: 'helix://contracts/types/IntegrationHandle/v1',
+      schemaVersion: 1,
+      handleId: canonicalDigest({
+        schema: 'platform.jav-product-integration-handle-id@1',
+        integrationId: snapshot.integration.integrationId,
+        configRevision: snapshot.integration.configRevision,
+        allowedOperation: operationId,
+        artifactKind,
+      }),
+      integrationId: snapshot.integration.integrationId,
+      integrationType: 'jav',
+      configRevision: snapshot.integration.configRevision,
+      secretRef: snapshot.secret.secretRef,
+      allowedOperation: operationId,
+      expiresAtMs: 4_102_444_800_000,
+    };
+    return Object.freeze({
+      ...basis,
+      fenceDigest: canonicalDigest({
+        schema: 'platform.jav-product-integration-handle-fence@1',
+        ...basis,
+      }),
+    });
+  }
+
   return Object.freeze({
     admin,
     integrationHandleResolverPort:
-      runtime.integrationHandleResolverPort,
-    isTmdbActive: runtime.isTmdbActive,
+      tmdbRuntime.integrationHandleResolverPort,
+    isActive(kind) {
+      return runtimeFor(kind)?.isActive() === true;
+    },
+    isTmdbActive: tmdbRuntime.isTmdbActive,
+    providerAdapters: adapters,
+    providerRuntimes: runtimes,
     async searchProviderIdentity(request) {
-      const handle = tmdbHandle('shared.integration.search@1');
+      const handle = handleFor(
+        'tmdb',
+        'shared.integration.search@1',
+      );
       if (!handle) {
         throw new CleanServiceHostError(
           'PLATFORM_INTEGRATION_NOT_CONFIGURED',
@@ -516,6 +650,15 @@ function createPlatformIntegrationServices(options) {
         },
         timeoutMs: 10_000,
       });
+    },
+    async searchJavProviderIdentity(request) {
+      if (!javRuntime.isActive()) {
+        throw new CleanServiceHostError(
+          'PLATFORM_INTEGRATION_NOT_CONFIGURED',
+          'Adult Provider integration is not configured.',
+        );
+      }
+      return javProductAdapter.searchProviderIdentity(request);
     },
     async fetchProviderMetadata(request) {
       return tmdbAdapter.observationPort.execute({
@@ -542,18 +685,84 @@ function createPlatformIntegrationServices(options) {
         timeoutMs: 20_000,
       });
     },
+    async fetchJavProviderMetadata(request) {
+      return javProductAdapter.fetchProviderMetadata(request);
+    },
+    async fetchJavProviderArtifact(request) {
+      return javProductAdapter.fetchProviderArtifact(request);
+    },
     resolveProductHandle(value) {
       const intent = value.intent;
       if (intent?.providerKind !== 'tmdb' ||
-          !runtime.isTmdbActive()) {
+          !tmdbRuntime.isTmdbActive()) {
+        if (intent?.providerKind === 'jav' &&
+            javRuntime.isActive() &&
+            intent.integrationId ===
+              javRuntime.profile.integrationId) {
+          return javProductHandle(
+            value.operationId,
+            value.artifactKind || null,
+          );
+        }
         return undefined;
       }
-      return runtime.integrationHandleResolverPort.resolve({
+      return tmdbRuntime.integrationHandleResolverPort.resolve({
         integrationId: intent.integrationId,
         integrationType: intent.providerKind,
         configRevision: intent.configRevision,
         allowedOperation: value.operationId,
         artifactKind: value.artifactKind || null,
+      });
+    },
+    async executeProvider(kind, request) {
+      const profile = getIntegrationProfile(kind);
+      const runtime = runtimeFor(kind);
+      const adapter = adapters.get(kind);
+      if (!profile || !runtime || !adapter ||
+          !runtime.isActive()) {
+        throw new CleanServiceHostError(
+          'PLATFORM_INTEGRATION_NOT_CONFIGURED',
+          'Integration is not configured.',
+        );
+      }
+      const snapshot = runtime.readCurrent();
+      const handle = handleFor(
+        kind,
+        request.operationId,
+        request.artifactKind || null,
+      );
+      const lease = runtime.secretLeaseResolverPort.resolve({
+        secretRef: snapshot.secret.secretRef,
+        ownerScopeType: 'integration',
+        ownerScopeId: snapshot.integration.integrationId,
+        secretKind: snapshot.secret.secretKind,
+        expectedRevision: snapshot.secret.revision,
+        purpose: request.operationId,
+        ttlMs: Math.min(request.timeoutMs, 60_000),
+      });
+      const input = request.input;
+      const idempotencyKey = request.idempotencyKey;
+      const requestDigest = canonicalDigest({
+        integrationId: handle.integrationId,
+        integrationType: handle.integrationType,
+        configRevision: handle.configRevision,
+        operationId: request.operationId,
+        idempotencyKey,
+        input,
+      });
+      const port = request.effectClass === 'external_request'
+        ? adapter.requestPort
+        : request.effectClass === 'workspace_write'
+          ? adapter.artifactPort
+          : adapter.observationPort;
+      return port.execute({
+        integrationHandle: handle,
+        secretLeaseHandle: lease,
+        operationId: request.operationId,
+        idempotencyKey,
+        requestDigest,
+        timeoutMs: request.timeoutMs,
+        input,
       });
     },
   });
@@ -631,6 +840,15 @@ function errorResponse(error, correlationId) {
       'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID',
       'PLATFORM_INTEGRATION_RESPONSE_BOUND',
       'PLATFORM_INTEGRATION_TIMEOUT',
+    ].includes(error.code) ? 502 : 400;
+  }
+  else if (
+    typeof error.code === 'string' &&
+    error.code.startsWith('P5_PROVIDER_')
+  ) {
+    status = [
+      'P5_PROVIDER_TRANSPORT_FAILED',
+      'P5_PROVIDER_OPERATION_UNAVAILABLE',
     ].includes(error.code) ? 502 : 400;
   }
   else if (
@@ -830,6 +1048,10 @@ async function createCleanServiceHost(options) {
         platformIntegrations.isTmdbActive()) {
       return platformIntegrations.searchProviderIdentity(request);
     }
+    if (request.contentProfile === 'jav' &&
+        platformIntegrations.isActive('adult-provider')) {
+      return platformIntegrations.searchJavProviderIdentity(request);
+    }
     if (typeof options.searchProviderIdentity === 'function') {
       return options.searchProviderIdentity(request);
     }
@@ -844,6 +1066,10 @@ async function createCleanServiceHost(options) {
         platformIntegrations.isTmdbActive()) {
       return platformIntegrations.fetchProviderMetadata(request);
     }
+    if (request.metadataFetchIntent?.providerKind === 'jav' &&
+        platformIntegrations.isActive('adult-provider')) {
+      return platformIntegrations.fetchJavProviderMetadata(request);
+    }
     if (typeof options.fetchProviderMetadata === 'function') {
       return options.fetchProviderMetadata(request);
     }
@@ -856,6 +1082,10 @@ async function createCleanServiceHost(options) {
     if (request.integrationHandle?.integrationType === 'tmdb' &&
         platformIntegrations.isTmdbActive()) {
       return platformIntegrations.fetchProviderArtifact(request);
+    }
+    if (request.integrationHandle?.integrationType === 'jav' &&
+        platformIntegrations.isActive('adult-provider')) {
+      return platformIntegrations.fetchJavProviderArtifact(request);
     }
     if (typeof options.fetchProviderArtifact === 'function') {
       return options.fetchProviderArtifact(request);
@@ -986,7 +1216,9 @@ async function createCleanServiceHost(options) {
       );
     }
     if (['series', 'jav'].includes(formation.contentProfile) &&
-        typeof options.searchProviderIdentity !== 'function') {
+        typeof options.searchProviderIdentity !== 'function' &&
+        (formation.contentProfile !== 'jav' ||
+          !platformIntegrations.isActive('adult-provider'))) {
       return null;
     }
     if (formation.contentProfile === 'movie' &&

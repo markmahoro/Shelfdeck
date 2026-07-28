@@ -3,18 +3,15 @@
 const { canonicalDigest, canonicalJson } =
   require('../../contracts/canonical-json');
 const {
-  CONFIG_SCHEMA_REF,
-  OFFICIAL_TMDB_ENDPOINT,
-  TMDB_INTEGRATION_ID,
-  TMDB_SECRET_REF,
-  validateConfig,
-} = require('./integration-runtime');
+  requireIntegrationProfile,
+  SHA256,
+  validateSummary,
+} = require('./integration-profile-catalog');
+const { validateConfig } = require('./integration-runtime');
 
-const SUPPORTED_KIND = 'tmdb';
 const RECEIPT_KIND_CONFIGURE = 'configure';
 const RECEIPT_KIND_DISCONNECT = 'disconnect';
 const CONNECTION_PROOF_TTL_MS = 120_000;
-const SHA256 = /^[0-9a-f]{64}$/;
 
 class IntegrationAdminError extends Error {
   constructor(code, message, details = {}) {
@@ -73,34 +70,34 @@ function kind(value) {
   return value;
 }
 
-function assertSupported(value) {
-  if (kind(value) !== SUPPORTED_KIND) {
+function assertSupported(profile, value) {
+  if (kind(value) !== profile.kind) {
     fail(
       'PLATFORM_INTEGRATION_KIND_UNSUPPORTED',
-      'This H1.1 runtime supports TMDB only.',
+      'Integration kind is not handled by this Platform application.',
       { kind: value },
     );
   }
 }
 
-function publicSnapshot(snapshot) {
+function publicSnapshot(profile, snapshot) {
   if (!snapshot?.integration) {
     return Object.freeze({
-      kind: SUPPORTED_KIND,
+      kind: profile.kind,
       supported: true,
       configured: false,
       state: 'unconfigured',
       configRevision: 0,
       endpoint: null,
       configDigest: null,
-      capabilityCodes: Object.freeze(['identity', 'metadata']),
+      capabilityCodes: Object.freeze([...profile.capabilityCodes]),
       lastTestSummary: null,
     });
   }
-  const validated = validateConfig(snapshot);
+  const validated = validateConfig(snapshot, profile);
   const value = validated.integration;
   return Object.freeze({
-    kind: SUPPORTED_KIND,
+    kind: profile.kind,
     supported: true,
     configured: value.state === 'active',
     state: value.state,
@@ -116,7 +113,7 @@ function publicSnapshot(snapshot) {
   });
 }
 
-function validateStoredPublicResult(value) {
+function validateStoredPublicResult(profile, value) {
   exact(
     value,
     [
@@ -133,7 +130,18 @@ function validateStoredPublicResult(value) {
     [],
     'PLATFORM_INTEGRATION_COMMAND_RECEIPT_CORRUPT',
   );
-  if (value.kind !== SUPPORTED_KIND ||
+  let endpoint = null;
+  if (value.configRevision > 0) {
+    try {
+      endpoint = profile.normalizeEndpoint(value.endpoint);
+    } catch (_error) {
+      fail(
+        'PLATFORM_INTEGRATION_COMMAND_RECEIPT_CORRUPT',
+        'Stored Integration endpoint is invalid.',
+      );
+    }
+  }
+  if (value.kind !== profile.kind ||
       value.supported !== true ||
       typeof value.configured !== 'boolean' ||
       !['unconfigured', 'active', 'disabled'].includes(value.state) ||
@@ -141,57 +149,33 @@ function validateStoredPublicResult(value) {
       value.configRevision < 0 ||
       (value.configRevision === 0
         ? value.endpoint !== null || value.configDigest !== null
-        : value.endpoint !== OFFICIAL_TMDB_ENDPOINT ||
+        : value.endpoint !== endpoint ||
           !SHA256.test(value.configDigest || '')) ||
       value.configured !== (value.state === 'active') ||
       (value.configRevision === 0
         ? value.lastTestSummary !== null
         : !value.lastTestSummary) ||
       JSON.stringify(value.capabilityCodes) !==
-        JSON.stringify(['identity', 'metadata'])) {
+        JSON.stringify(profile.capabilityCodes)) {
     fail(
       'PLATFORM_INTEGRATION_COMMAND_RECEIPT_CORRUPT',
       'Stored Integration command result is invalid.',
     );
   }
   if (value.lastTestSummary) {
-    exact(
-      value.lastTestSummary,
-      [
-        'result',
-        'checkedAtMs',
-        'endpointDigest',
-        'observationDigest',
-        'identityNamespace',
-        'identityProviderKey',
-      ],
-      [],
-      'PLATFORM_INTEGRATION_COMMAND_RECEIPT_CORRUPT',
-    );
-    if (value.lastTestSummary.result !== 'passed' ||
-        !Number.isSafeInteger(
-          value.lastTestSummary.checkedAtMs,
-        ) ||
-        value.lastTestSummary.checkedAtMs < 0 ||
-        !SHA256.test(
-          value.lastTestSummary.endpointDigest || '',
-        ) ||
-        value.lastTestSummary.endpointDigest !==
-          canonicalDigest({ endpoint: OFFICIAL_TMDB_ENDPOINT }) ||
-        !SHA256.test(
-          value.lastTestSummary.observationDigest || '',
-        ) ||
-        value.lastTestSummary.identityNamespace !==
-          'tmdb_movie' ||
-        typeof value.lastTestSummary.identityProviderKey !==
-          'string' ||
-        value.lastTestSummary.identityProviderKey.length > 64 ||
-        !/^[0-9]+$/.test(
-          value.lastTestSummary.identityProviderKey,
-        )) {
+    try {
+      validateSummary(profile, value.lastTestSummary);
+    } catch (_error) {
       fail(
         'PLATFORM_INTEGRATION_COMMAND_RECEIPT_CORRUPT',
         'Stored Integration test summary is invalid.',
+      );
+    }
+    if (value.lastTestSummary.endpointDigest !==
+        canonicalDigest({ endpoint })) {
+      fail(
+        'PLATFORM_INTEGRATION_COMMAND_RECEIPT_CORRUPT',
+        'Stored Integration test endpoint fence is invalid.',
       );
     }
   }
@@ -205,6 +189,8 @@ function validateStoredPublicResult(value) {
 }
 
 function createIntegrationAdminApplication(options) {
+  const profile = options?.profile || requireIntegrationProfile('tmdb');
+  const adapter = options?.adapter || options?.tmdbAdapter;
   if (!options?.repository ||
       typeof options.repository.find !== 'function' ||
       typeof options.repository.commit !== 'function' ||
@@ -212,15 +198,16 @@ function createIntegrationAdminApplication(options) {
       typeof options.secretStore.write !== 'function' ||
       typeof options.secretStore.read !== 'function' ||
       typeof options.secretStore.requestDigest !== 'function' ||
-      !options?.tmdbAdapter ||
-      typeof options.tmdbAdapter.testCandidate !== 'function' ||
+      !adapter ||
+      typeof adapter.testCandidate !== 'function' ||
+      typeof adapter.normalizedEndpoint !== 'function' ||
       !options?.receiptRepository ||
       typeof options.receiptRepository.read !== 'function' ||
       typeof options.receiptRepository.commit !== 'function' ||
       typeof options.createId !== 'function') {
     throw new TypeError(
       'Integration Admin requires Platform Repository, Secret Store, ' +
-      'TMDB adapter, receipt repository, and ID source.',
+      'provider adapter, receipt repository, and ID source.',
     );
   }
   const now = options.now || Date.now;
@@ -229,10 +216,12 @@ function createIntegrationAdminApplication(options) {
 
   function current() {
     const snapshot = options.repository.find(
-      TMDB_INTEGRATION_ID,
-      TMDB_SECRET_REF,
+      profile.integrationId,
+      profile.secretRef,
     );
-    return snapshot.integration ? validateConfig(snapshot) : snapshot;
+    return snapshot.integration
+      ? validateConfig(snapshot, profile)
+      : snapshot;
   }
 
   function requestDigest(value) {
@@ -278,8 +267,9 @@ function createIntegrationAdminApplication(options) {
         'Connection proof has expired.',
       );
     }
-    if (proof.kind !== SUPPORTED_KIND ||
-        proof.endpoint !== OFFICIAL_TMDB_ENDPOINT ||
+    if (proof.kind !== profile.kind ||
+        proof.endpoint !== profile.normalizeEndpoint(proof.endpoint) ||
+        !profile.acceptedSecretKinds.includes(proof.secretKind) ||
         !SHA256.test(proof.secretEnvelopeDigest) ||
         !SHA256.test(proof.testRequestDigest) ||
         proof.secretRef !==
@@ -293,11 +283,11 @@ function createIntegrationAdminApplication(options) {
   }
 
   async function test(inputKind, body) {
-    assertSupported(inputKind);
+    assertSupported(profile, inputKind);
     exact(
       body,
       ['kind', 'idempotencyKey', 'endpoint', 'credential'],
-      ['timeoutMs'],
+      ['settings', 'timeoutMs'],
       'PLATFORM_INTEGRATION_TEST_SHAPE',
     );
     if (body.kind !== inputKind) {
@@ -307,38 +297,36 @@ function createIntegrationAdminApplication(options) {
       );
     }
     const testKey = idempotencyKey(body.idempotencyKey);
-    exact(
+    const prepared = profile.prepareCredential(
       body.credential,
-      ['kind', 'value'],
-      [],
-      'PLATFORM_INTEGRATION_CREDENTIAL_SHAPE',
+      body.settings,
     );
-    const secretKind = body.credential.kind === 'api_key'
-      ? 'tmdb_api_key'
-      : body.credential.kind === 'access_token'
-        ? 'tmdb_access_token'
-        : null;
-    if (!secretKind || typeof body.credential.value !== 'string' ||
-        body.credential.value.length < 8 ||
-        body.credential.value.length > 4096) {
+    const endpoint = adapter.normalizedEndpoint(body.endpoint);
+    const timeoutMs = body.timeoutMs ?? 10_000;
+    if (!Number.isSafeInteger(timeoutMs) ||
+        timeoutMs < 1 ||
+        timeoutMs > 60_000) {
+      prepared.secretBytes.fill(0);
       fail(
-        'PLATFORM_INTEGRATION_CREDENTIAL_INVALID',
-        'TMDB credential is invalid.',
+        'PLATFORM_INTEGRATION_TEST_TIMEOUT_INVALID',
+        'Integration test timeout is invalid.',
       );
     }
-    const endpoint =
-      options.tmdbAdapter.normalizedEndpoint(body.endpoint);
     const digest = requestDigest({
       command: 'test',
       kind: body.kind,
       idempotencyKey: testKey,
       endpoint,
-      credentialKind: body.credential.kind,
-      credentialValue: body.credential.value,
-      timeoutMs: body.timeoutMs ?? 10_000,
+      credentialKind: prepared.credentialKind,
+      credentialBytesDigest: requestDigest(
+        prepared.secretBytes.toString('base64'),
+      ),
+      settings: prepared.settings,
+      timeoutMs,
     });
     const prior = tests.get(testKey);
     if (prior) {
+      prepared.secretBytes.fill(0);
       if (prior.requestDigest !== digest) {
         fail(
           'PLATFORM_INTEGRATION_IDEMPOTENCY_CONFLICT',
@@ -353,15 +341,47 @@ function createIntegrationAdminApplication(options) {
       tests.delete(testKey);
     }
 
-    const secretBytes = Buffer.from(body.credential.value, 'utf8');
     let secretLocator;
+    let persistedSecretBytes;
     try {
-      const summary = await options.tmdbAdapter.testCandidate({
+      const candidateInput = {
         endpoint,
-        secretKind,
-        secretBytes,
-        timeoutMs: body.timeoutMs ?? 10_000,
+        secretKind: prepared.secretKind,
+        secretBytes: prepared.secretBytes,
+        timeoutMs,
+      };
+      if (profile.kind !== 'tmdb') {
+        candidateInput.settings = prepared.settings;
+      }
+      const tested = await adapter.testCandidate(candidateInput);
+      const summary = tested.summary || tested;
+      validateSummary(profile, {
+        result: 'passed',
+        checkedAtMs: summary.checkedAtMs,
+        endpointDigest: summary.endpointDigest,
+        observationDigest: summary.observationDigest,
+        identityNamespace: summary.identityNamespace,
+        identityProviderKey: summary.identityProviderKey,
       });
+      if (summary.endpointDigest !== canonicalDigest({ endpoint }) ||
+          JSON.stringify(summary.capabilityCodes) !==
+            JSON.stringify(profile.capabilityCodes)) {
+        fail(
+          'PLATFORM_INTEGRATION_TEST_RESULT_INVALID',
+          'Integration test result does not match its profile.',
+        );
+      }
+      persistedSecretBytes = tested.persistedSecretBytes
+        ? Buffer.from(tested.persistedSecretBytes)
+        : Buffer.from(prepared.secretBytes);
+      const secretKind = tested.persistedSecretKind ||
+        prepared.secretKind;
+      if (!profile.acceptedSecretKinds.includes(secretKind)) {
+        fail(
+          'PLATFORM_INTEGRATION_TEST_RESULT_INVALID',
+          'Integration test returned an invalid persisted credential.',
+        );
+      }
       const connectionProofId = options.createId();
       const issuedAtMs = now();
       const expiresAtMs = issuedAtMs + CONNECTION_PROOF_TTL_MS;
@@ -378,21 +398,21 @@ function createIntegrationAdminApplication(options) {
       }
       const secretRef = 'connection-proof:' + connectionProofId;
       const stored = options.secretStore.write({
-        integrationId: TMDB_INTEGRATION_ID,
+        integrationId: profile.integrationId,
         secretRef,
         secretKind,
         revision: 1,
-        secretBytes,
+        secretBytes: persistedSecretBytes,
         createdAtMs: issuedAtMs,
       });
       secretLocator = stored.locator;
       const result = Object.freeze({
-        kind: SUPPORTED_KIND,
+        kind: profile.kind,
         result: 'passed',
         persisted: false,
         connectionProofId,
         expiresAtMs,
-        capabilityCodes: summary.capabilityCodes,
+        capabilityCodes: Object.freeze([...summary.capabilityCodes]),
         endpointDigest: summary.endpointDigest,
         identityNamespace: summary.identityNamespace,
         identityProviderKey: summary.identityProviderKey,
@@ -401,9 +421,11 @@ function createIntegrationAdminApplication(options) {
       });
       const proof = Object.freeze({
         connectionProofId,
-        kind: SUPPORTED_KIND,
+        kind: profile.kind,
         endpoint,
         secretKind,
+        credentialKind: tested.persistedCredentialKind ||
+          prepared.credentialKind,
         secretRef,
         secretLocator: stored.locator,
         secretEnvelopeDigest: stored.envelopeDigest,
@@ -437,12 +459,14 @@ function createIntegrationAdminApplication(options) {
       }
       throw error;
     } finally {
-      secretBytes.fill(0);
+      prepared.secretBytes.fill(0);
+      if (persistedSecretBytes) persistedSecretBytes.fill(0);
     }
   }
 
   function commandContract(commandKind) {
-    return 'platform.integration.' + commandKind + '@1';
+    return 'platform.integration.' + profile.kind + '.' +
+      commandKind + '@1';
   }
 
   function ensureHeadReceipt(snapshot) {
@@ -452,8 +476,9 @@ function createIntegrationAdminApplication(options) {
       commandKind: command.commandKind,
       commandContract: commandContract(command.commandKind),
       idempotencyKey: command.idempotencyKey,
+      integrationId: profile.integrationId,
       requestDigest: command.requestDigest,
-      result: publicSnapshot(snapshot),
+      result: publicSnapshot(profile, snapshot),
     });
   }
 
@@ -472,7 +497,10 @@ function createIntegrationAdminApplication(options) {
       }
       return Object.freeze({
         replayed: true,
-        publicResult: validateStoredPublicResult(existing.result),
+        publicResult: validateStoredPublicResult(
+          profile,
+          existing.result,
+        ),
       });
     }
     const head = current();
@@ -487,22 +515,29 @@ function createIntegrationAdminApplication(options) {
       }
       return Object.freeze({
         replayed: true,
-        publicResult: validateStoredPublicResult(repaired.result),
+        publicResult: validateStoredPublicResult(
+          profile,
+          repaired.result,
+        ),
       });
     }
     const domainResult = value.execute();
     if (typeof options.afterPlatformCommit === 'function') {
       options.afterPlatformCommit({
         commandKind: value.commandKind,
+        integrationId: profile.integrationId,
         idempotencyKey: value.idempotencyKey,
       });
     }
-    const publicResult =
-      validateStoredPublicResult(domainResult.publicResult);
+    const publicResult = validateStoredPublicResult(
+      profile,
+      domainResult.publicResult,
+    );
     options.receiptRepository.commit({
       commandKind: value.commandKind,
       commandContract: receiptKey.commandContract,
       idempotencyKey: value.idempotencyKey,
+      integrationId: profile.integrationId,
       requestDigest: value.requestDigest,
       result: publicResult,
     });
@@ -514,7 +549,7 @@ function createIntegrationAdminApplication(options) {
   }
 
   function configure(inputKind, body) {
-    assertSupported(inputKind);
+    assertSupported(profile, inputKind);
     exact(
       body,
       [
@@ -552,108 +587,103 @@ function createIntegrationAdminApplication(options) {
     let createdEnvelope;
     let platformCommitted = false;
     const execute = () => {
-        const proof = proofAt(body.connectionProofId);
-        const before = current();
-        const actualRevision =
-          before.integration?.configRevision || 0;
-        if (actualRevision !== expected) {
+      const proof = proofAt(body.connectionProofId);
+      const before = current();
+      const actualRevision = before.integration?.configRevision || 0;
+      if (actualRevision !== expected) {
+        fail(
+          'PLATFORM_INTEGRATION_CAS_CONFLICT',
+          'Integration configuration revision changed.',
+          { expectedRevision: expected, actualRevision },
+        );
+      }
+      const secretBytes = options.secretStore.read(
+        proof.secretLocator,
+        {
+          integrationId: profile.integrationId,
+          secretRef: proof.secretRef,
+          secretKind: proof.secretKind,
+          revision: 1,
+          envelopeDigest: proof.secretEnvelopeDigest,
+        },
+      );
+      try {
+        const revision = expected + 1;
+        const committedAtMs = now();
+        createdEnvelope = options.secretStore.write({
+          integrationId: profile.integrationId,
+          secretRef: profile.secretRef,
+          secretKind: proof.secretKind,
+          revision,
+          secretBytes,
+          createdAtMs: committedAtMs,
+        });
+        const config = {
+          schemaRef: profile.configSchemaRef,
+          schemaVersion: 1,
+          kind: profile.kind,
+          endpoint: proof.endpoint,
+          configRevision: revision,
+          secretRef: profile.secretRef,
+          secretEnvelopeDigest: createdEnvelope.envelopeDigest,
+          credentialKind: proof.credentialKind,
+          capabilityCodes: [...profile.capabilityCodes],
+          lastTestSummary: { ...proof.summary },
+          lastCommand: {
+            commandKind: RECEIPT_KIND_CONFIGURE,
+            idempotencyKey: key,
+            requestDigest: digest,
+            committedRevision: revision,
+          },
+        };
+        const configJson = canonicalJson(config);
+        if (Buffer.byteLength(configJson, 'utf8') > 16 * 1024) {
           fail(
-            'PLATFORM_INTEGRATION_CAS_CONFLICT',
-            'Integration configuration revision changed.',
-            { expectedRevision: expected, actualRevision },
+            'PLATFORM_INTEGRATION_CONFIG_TOO_LARGE',
+            'Integration configuration exceeds its table contract.',
           );
         }
-        const secretBytes = options.secretStore.read(
-          proof.secretLocator,
-          {
-            integrationId: TMDB_INTEGRATION_ID,
-            secretRef: proof.secretRef,
-            secretKind: proof.secretKind,
-            revision: 1,
-            envelopeDigest: proof.secretEnvelopeDigest,
-          },
-        );
-        try {
-          const revision = expected + 1;
-          const committedAtMs = now();
-          createdEnvelope = options.secretStore.write({
-            integrationId: TMDB_INTEGRATION_ID,
-            secretRef: TMDB_SECRET_REF,
-            secretKind: proof.secretKind,
-            revision,
-            secretBytes,
-            createdAtMs: committedAtMs,
-          });
-          const config = {
-            schemaRef: CONFIG_SCHEMA_REF,
-            schemaVersion: 1,
-            kind: SUPPORTED_KIND,
-            endpoint: proof.endpoint,
+        if (typeof options.beforePlatformCommit === 'function') {
+          options.beforePlatformCommit({
+            commandKind: RECEIPT_KIND_CONFIGURE,
+            integrationId: profile.integrationId,
             configRevision: revision,
-            secretRef: TMDB_SECRET_REF,
-            secretEnvelopeDigest:
-              createdEnvelope.envelopeDigest,
-            credentialKind: proof.secretKind === 'tmdb_api_key'
-              ? 'api_key'
-              : 'access_token',
-            capabilityCodes: ['identity', 'metadata'],
-            lastTestSummary: { ...proof.summary },
-            lastCommand: {
-              commandKind: RECEIPT_KIND_CONFIGURE,
-              idempotencyKey: key,
-              requestDigest: digest,
-              committedRevision: revision,
-            },
-          };
-          const configJson = canonicalJson(config);
-          if (Buffer.byteLength(configJson, 'utf8') >
-              16 * 1024) {
-            fail(
-              'PLATFORM_INTEGRATION_CONFIG_TOO_LARGE',
-              'Integration configuration exceeds its table contract.',
-            );
-          }
-          if (typeof options.beforePlatformCommit === 'function') {
-            options.beforePlatformCommit({
-              commandKind: RECEIPT_KIND_CONFIGURE,
-              configRevision: revision,
-            });
-          }
-          const committed = options.repository.commit({
-            expectedRevision: expected,
-            integration: {
-              integration_id: TMDB_INTEGRATION_ID,
-              integration_type: SUPPORTED_KIND,
-              endpoint: OFFICIAL_TMDB_ENDPOINT,
-              config_revision: revision,
-              config_schema_ref: CONFIG_SCHEMA_REF,
-              config_json: configJson,
-              config_digest: canonicalDigest(config),
-              state: 'active',
-              updated_at_ms: committedAtMs,
-            },
-            secret: {
-              secret_ref: TMDB_SECRET_REF,
-              owner_scope_type: 'integration',
-              owner_scope_id: TMDB_INTEGRATION_ID,
-              secret_kind: proof.secretKind,
-              encrypted_ref: createdEnvelope.locator,
-              revision,
-              state: 'active',
-              updated_at_ms: committedAtMs,
-            },
           });
-          platformCommitted = true;
-          return Object.freeze({
-            publicResult: publicSnapshot(committed),
-            previousSecretLocator:
-              before.secret?.secretLocator || null,
-            connectionProofId: proof.connectionProofId,
-          });
-        } finally {
-          secretBytes.fill(0);
         }
-      };
+        const committed = options.repository.commit({
+          expectedRevision: expected,
+          integration: {
+            integration_id: profile.integrationId,
+            integration_type: profile.integrationType,
+            endpoint: proof.endpoint,
+            config_revision: revision,
+            config_schema_ref: profile.configSchemaRef,
+            config_json: configJson,
+            config_digest: canonicalDigest(config),
+            state: 'active',
+            updated_at_ms: committedAtMs,
+          },
+          secret: {
+            secret_ref: profile.secretRef,
+            owner_scope_type: 'integration',
+            owner_scope_id: profile.integrationId,
+            secret_kind: proof.secretKind,
+            encrypted_ref: createdEnvelope.locator,
+            revision,
+            state: 'active',
+            updated_at_ms: committedAtMs,
+          },
+        });
+        platformCommitted = true;
+        return Object.freeze({
+          publicResult: publicSnapshot(profile, committed),
+          previousSecretLocator:
+            before.secret?.secretLocator || null,
+        });
+      } finally {
+        secretBytes.fill(0);
+      }
+    };
     let committed;
     try {
       committed = executeDurableCommand({
@@ -675,10 +705,8 @@ function createIntegrationAdminApplication(options) {
     const completedProof = proofs.get(body.connectionProofId);
     if (completedProof) removeProof(completedProof);
     if (!committed.replayed) {
-      const previous =
-        committed.domainResult.previousSecretLocator;
-      if (previous &&
-          previous !== createdEnvelope?.locator) {
+      const previous = committed.domainResult.previousSecretLocator;
+      if (previous && previous !== createdEnvelope?.locator) {
         try {
           options.secretStore.remove(previous);
         } catch (_ignored) {
@@ -690,7 +718,7 @@ function createIntegrationAdminApplication(options) {
   }
 
   function disconnect(inputKind, body) {
-    assertSupported(inputKind);
+    assertSupported(profile, inputKind);
     exact(
       body,
       ['kind', 'idempotencyKey', 'expectedConfigRevision'],
@@ -712,78 +740,77 @@ function createIntegrationAdminApplication(options) {
       expectedConfigRevision: expected,
     });
     const execute = () => {
-        const before = current();
-        if (!before.integration) {
-          if (expected !== 0) {
-            fail(
-              'PLATFORM_INTEGRATION_CAS_CONFLICT',
-              'Integration configuration revision changed.',
-              { expectedRevision: expected, actualRevision: 0 },
-            );
-          }
-          return Object.freeze({
-            publicResult: publicSnapshot(before),
-            previousSecretLocator: null,
-          });
-        }
-        if (before.integration.configRevision !== expected) {
+      const before = current();
+      if (!before.integration) {
+        if (expected !== 0) {
           fail(
             'PLATFORM_INTEGRATION_CAS_CONFLICT',
             'Integration configuration revision changed.',
-            {
-              expectedRevision: expected,
-              actualRevision: before.integration.configRevision,
-            },
+            { expectedRevision: expected, actualRevision: 0 },
           );
         }
-        if (before.integration.state === 'disabled') {
-          return Object.freeze({
-            publicResult: publicSnapshot(before),
-            previousSecretLocator: null,
-          });
-        }
-        const revision = expected + 1;
-        const committedAtMs = now();
-        const config = {
-          ...before.integration.config,
-          configRevision: revision,
-          lastCommand: {
-            commandKind: RECEIPT_KIND_DISCONNECT,
-            idempotencyKey: key,
-            requestDigest: digest,
-            committedRevision: revision,
-          },
-        };
-        const committed = options.repository.commit({
-          expectedRevision: expected,
-          integration: {
-            integration_id: TMDB_INTEGRATION_ID,
-            integration_type: SUPPORTED_KIND,
-            endpoint: OFFICIAL_TMDB_ENDPOINT,
-            config_revision: revision,
-            config_schema_ref: CONFIG_SCHEMA_REF,
-            config_json: canonicalJson(config),
-            config_digest: canonicalDigest(config),
-            state: 'disabled',
-            updated_at_ms: committedAtMs,
-          },
-          secret: {
-            secret_ref: TMDB_SECRET_REF,
-            owner_scope_type: 'integration',
-            owner_scope_id: TMDB_INTEGRATION_ID,
-            secret_kind: before.secret.secretKind,
-            encrypted_ref: before.secret.secretLocator,
-            revision,
-            state: 'revoked',
-            updated_at_ms: committedAtMs,
-          },
-        });
         return Object.freeze({
-          publicResult: publicSnapshot(committed),
-          previousSecretLocator:
-            before.secret.secretLocator,
+          publicResult: publicSnapshot(profile, before),
+          previousSecretLocator: null,
         });
+      }
+      if (before.integration.configRevision !== expected) {
+        fail(
+          'PLATFORM_INTEGRATION_CAS_CONFLICT',
+          'Integration configuration revision changed.',
+          {
+            expectedRevision: expected,
+            actualRevision: before.integration.configRevision,
+          },
+        );
+      }
+      if (before.integration.state === 'disabled') {
+        return Object.freeze({
+          publicResult: publicSnapshot(profile, before),
+          previousSecretLocator: null,
+        });
+      }
+      const revision = expected + 1;
+      const committedAtMs = now();
+      const config = {
+        ...before.integration.config,
+        configRevision: revision,
+        lastCommand: {
+          commandKind: RECEIPT_KIND_DISCONNECT,
+          idempotencyKey: key,
+          requestDigest: digest,
+          committedRevision: revision,
+        },
       };
+      const committed = options.repository.commit({
+        expectedRevision: expected,
+        integration: {
+          integration_id: profile.integrationId,
+          integration_type: profile.integrationType,
+          endpoint: before.integration.endpoint,
+          config_revision: revision,
+          config_schema_ref: profile.configSchemaRef,
+          config_json: canonicalJson(config),
+          config_digest: canonicalDigest(config),
+          state: 'disabled',
+          updated_at_ms: committedAtMs,
+        },
+        secret: {
+          secret_ref: profile.secretRef,
+          owner_scope_type: 'integration',
+          owner_scope_id: profile.integrationId,
+          secret_kind: before.secret.secretKind,
+          encrypted_ref: before.secret.secretLocator,
+          revision,
+          state: 'revoked',
+          updated_at_ms: committedAtMs,
+        },
+      });
+      return Object.freeze({
+        publicResult: publicSnapshot(profile, committed),
+        previousSecretLocator: before.secret.secretLocator,
+      });
+    };
     const committed = executeDurableCommand({
       commandKind: RECEIPT_KIND_DISCONNECT,
       idempotencyKey: key,
@@ -791,8 +818,7 @@ function createIntegrationAdminApplication(options) {
       execute,
     });
     if (!committed.replayed) {
-      const locator =
-        committed.domainResult.previousSecretLocator;
+      const locator = committed.domainResult.previousSecretLocator;
       if (locator) {
         try {
           options.secretStore.remove(locator);
@@ -808,21 +834,10 @@ function createIntegrationAdminApplication(options) {
     configure,
     disconnect,
     get(inputKind) {
-      if (inputKind !== SUPPORTED_KIND) {
-        return Object.freeze({
-          kind: kind(inputKind),
-          supported: false,
-          configured: false,
-          state: 'unsupported',
-          configRevision: 0,
-          endpoint: null,
-          configDigest: null,
-          capabilityCodes: Object.freeze([]),
-          lastTestSummary: null,
-        });
-      }
-      return publicSnapshot(current());
+      assertSupported(profile, inputKind);
+      return publicSnapshot(profile, current());
     },
+    profile,
     test,
   });
 }
