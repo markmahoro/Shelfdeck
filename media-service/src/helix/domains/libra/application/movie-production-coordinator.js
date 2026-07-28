@@ -12,6 +12,9 @@ const { createSupportingResultStore } =
 const {
   createCapabilityContractValidator,
 } = require('../../../foundation/capability/contract-validator');
+const westernAnalysisPlanSchemaGraph = require(
+  './western-analysis-plan-schema-graph'
+);
 const { projectMaterialControlRow } =
   require('../../../foundation/persistence/material-control');
 const productFactCommitPlanBindingSchema = require(
@@ -108,7 +111,7 @@ const productFactPlanBindingValidator = createCapabilityContractValidator({
   schemas: [productFactCommitPlanBindingSchema],
 });
 const westernPhasePlanBindingValidator = createCapabilityContractValidator({
-  schemas: [westernAnalysisPhasePlanBindingSchema],
+  schemas: westernAnalysisPlanSchemaGraph,
 });
 const westernResultValidator = createCapabilityContractValidator({
   schemas: [
@@ -185,6 +188,25 @@ function scalarContract(value, digestField = 'digest') {
 }
 
 function workspaceArtifactTarget(run, workspace, rootSnapshot, value) {
+  const formalRootBasis = {
+    workspaceRootId: rootSnapshot.rootId,
+    rootRevision: rootSnapshot.configRevision,
+    endpointId: rootSnapshot.endpointId,
+    mountScopeId: rootSnapshot.mountScopeId,
+    rootLocation: 'workspace-root://' + rootSnapshot.rootId,
+    containmentDigest: canonicalDigest({
+      schema: 'platform.workspace-root-containment@1',
+      rootId: rootSnapshot.rootId,
+      endpointId: rootSnapshot.endpointId,
+      mountScopeId: rootSnapshot.mountScopeId,
+      rootHandleRef: rootSnapshot.rootHandleRef,
+    }),
+    capacitySnapshotDigest: rootSnapshot.capabilityDigest,
+  };
+  const formalRootSnapshot = Object.freeze({
+    ...formalRootBasis,
+    snapshotDigest: canonicalDigest(formalRootBasis),
+  });
   const targetId = canonicalDigest({
     schema: 'libra.workspace-artifact-output-target-id@1',
     workspaceId: workspace.workspaceId,
@@ -200,7 +222,7 @@ function workspaceArtifactTarget(run, workspace, rootSnapshot, value) {
     workspaceId: workspace.workspaceId,
     expectedWorkspaceRevision: workspace.currentRevision,
     expectedWorkspaceStateDigest: workspace.stateDigest,
-    rootSnapshotDigest: rootSnapshot.snapshotDigest,
+    rootSnapshotDigest: formalRootSnapshot.snapshotDigest,
     workspaceScopeDigest: workspace.workspaceScopeDigest,
     outputKind: value.outputKind,
     sourceInputDigest: value.sourceInputDigest,
@@ -212,7 +234,7 @@ function workspaceArtifactTarget(run, workspace, rootSnapshot, value) {
     workspaceId: workspace.workspaceId,
     expectedWorkspaceRevision: workspace.currentRevision,
     expectedWorkspaceStateDigest: workspace.stateDigest,
-    rootSnapshot,
+    rootSnapshot: formalRootSnapshot,
     workspaceScopeDigest: workspace.workspaceScopeDigest,
     targetRelativePath: value.targetRelativePath,
     outputKind: value.outputKind,
@@ -332,7 +354,13 @@ function westernMetadataBasis(run, identityDigest, analysisChains,
 
 function westernMatchBasis(run, identityDigest, matchChain) {
   const matchRef = Object.freeze({
-    ...resultRef(matchChain),
+    workId: matchChain.workId,
+    attemptId: matchChain.attemptId,
+    planId: matchChain.planId,
+    eventId: matchChain.eventId,
+    resultId: matchChain.resultId,
+    resultDigest: matchChain.resultDigest,
+    inputBindingDigest: matchChain.inputBindingDigest,
     evidenceId: matchChain.result.evidenceId,
     evidenceDigest: matchChain.result.payloadDigest,
     personMatchEvidenceDigest: matchChain.result.payloadDigest,
@@ -1820,7 +1848,7 @@ function createMovieProductionCoordinator(options) {
       ) ||
       Buffer.compare(Buffer.from(left.relationId), Buffer.from(right.relationId)));
     const castResolveInput = Object.freeze({
-      libraMediaCastSourceBasis: castBasis,
+      libraMediaCastSourceBasisMetadataObservationOrWesternMatch: castBasis,
       personReferenceProjectionList: projectionList,
     });
     const castDraftChain = await phase({

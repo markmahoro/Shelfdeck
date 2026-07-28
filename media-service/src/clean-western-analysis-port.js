@@ -1,5 +1,6 @@
 'use strict';
 
+const { createHash } = require('node:crypto');
 const { canonicalDigest, canonicalJson } =
   require('./helix/contracts/canonical-json');
 
@@ -21,6 +22,10 @@ function digestValue(value, field) {
     fail('CLEAN_WESTERN_DIGEST_INVALID', field + ' must be one SHA-256 digest.');
   }
   return value;
+}
+
+function digestBytes(bytes) {
+  return createHash('sha256').update(bytes).digest('hex');
 }
 
 function exactKeys(value, keys, code) {
@@ -53,6 +58,65 @@ function parsedArtifact(port, handle, expectedKind) {
       'Western analysis Artifact payload is not canonical JSON.');
   }
   return Object.freeze({ recovered, payload });
+}
+
+function frameComposite(port, handle) {
+  const parsed = parsedArtifact(port, handle, 'western_frame_set');
+  const payload = exactKeys(parsed.payload, [
+    'frameMemberSetDigest',
+    'memberPayloads',
+    'members',
+    'schema',
+  ], 'CLEAN_WESTERN_FRAME_RESULT_INVALID');
+  if (payload.schema !== 'libra.western-frame-composite@1' ||
+      !Array.isArray(payload.members) ||
+      !Array.isArray(payload.memberPayloads) ||
+      payload.members.length < 1 ||
+      payload.members.length > 1024 ||
+      payload.memberPayloads.length !== payload.members.length) {
+    fail('CLEAN_WESTERN_FRAME_RESULT_INVALID',
+      'Western frame composite has an invalid closed root.');
+  }
+  payload.members.forEach((item, ordinal) => {
+    exactKeys(item, [
+      'contentDigest',
+      'locator',
+      'ordinal',
+      'timestampMs',
+    ], 'CLEAN_WESTERN_FRAME_RESULT_INVALID');
+    const memberPayload = payload.memberPayloads[ordinal];
+    exactKeys(memberPayload, [
+      'bytesBase64',
+      'contentDigest',
+      'encoding',
+      'ordinal',
+    ], 'CLEAN_WESTERN_FRAME_RESULT_INVALID');
+    if (item.ordinal !== ordinal ||
+        memberPayload.ordinal !== ordinal ||
+        !Number.isSafeInteger(item.timestampMs) ||
+        item.timestampMs < 0 ||
+        item.locator !== 'composite-member:' + ordinal ||
+        memberPayload.encoding !== 'base64' ||
+        item.contentDigest !== memberPayload.contentDigest) {
+      fail('CLEAN_WESTERN_FRAME_RESULT_INVALID',
+        'Western frame index and member payload are not a bijection.');
+    }
+    const bytes = Buffer.from(memberPayload.bytesBase64, 'base64');
+    if (!bytes.length ||
+        bytes.toString('base64') !== memberPayload.bytesBase64 ||
+        digestBytes(bytes) !== item.contentDigest) {
+      fail('CLEAN_WESTERN_FRAME_RESULT_INVALID',
+        'Western frame member bytes do not match the index digest.');
+    }
+  });
+  if (payload.frameMemberSetDigest !== canonicalDigest({
+    schema: 'libra.western-frame-member-set@1',
+    items: payload.members,
+  })) {
+    fail('CLEAN_WESTERN_FRAME_RESULT_INVALID',
+      'Western frame member-set digest is invalid.');
+  }
+  return Object.freeze({ ...parsed, payload });
 }
 
 function typedParameters(values = []) {
@@ -165,6 +229,8 @@ function modelConfiguration(value) {
 function createCleanWesternAnalysisPort(options) {
   if (!options?.workspaceProductPort ||
       typeof options.workspaceProductPort.materializeArtifact !== 'function' ||
+      typeof options.workspaceProductPort.openFrameCompositeSink !==
+        'function' ||
       typeof options.workspaceProductPort.recoverMaterializedArtifact !==
         'function' ||
       typeof options.workspaceProductPort.readArtifactBytes !== 'function' ||
@@ -226,57 +292,41 @@ function createCleanWesternAnalysisPort(options) {
     );
     let composite;
     if (materialized) {
-      composite = parsedArtifact(
+      composite = frameComposite(
         workspacePort,
         materialized.artifactHandle,
-        'western_frame_set',
       ).payload;
     } else {
+      const sink = workspacePort.openFrameCompositeSink({
+        ...materializeRequest,
+        maxFrames: plan.maxFrames,
+      });
       const raw = await options.engine.extractFrameSet(Object.freeze({
         sourceHandle: source,
         samplingPlan: plan,
+        outputSink: Object.freeze({
+          contract: sink.contract,
+          writeFrame: sink.writeFrame,
+        }),
       }));
-      if (!raw || !Number.isSafeInteger(raw.frameCount) ||
-          raw.frameCount < 1 || raw.frameCount > plan.maxFrames ||
-          !Array.isArray(raw.members) ||
-          raw.members.length !== raw.frameCount) {
+      exactKeys(raw, ['frameCount'],
+        'CLEAN_WESTERN_FRAME_RESULT_INVALID');
+      if (!Number.isSafeInteger(raw.frameCount) ||
+          raw.frameCount < 1 || raw.frameCount > plan.maxFrames) {
         fail('CLEAN_WESTERN_FRAME_RESULT_INVALID',
           'Frame extraction returned an invalid bounded composite set.');
       }
-      const members = raw.members.map((item, ordinal) => {
-        exactKeys(item, ['contentDigest', 'locator', 'timestampMs'],
-          'CLEAN_WESTERN_FRAME_RESULT_INVALID');
-        if (!Number.isSafeInteger(item.timestampMs) ||
-            item.timestampMs < 0 ||
-            typeof item.locator !== 'string' || !item.locator ||
-            item.locator.length > 512) {
-          fail('CLEAN_WESTERN_FRAME_RESULT_INVALID',
-            'Frame member metadata is invalid.');
-        }
-        digestValue(item.contentDigest, 'frame contentDigest');
-        return Object.freeze({
-          ordinal,
-          timestampMs: item.timestampMs,
-          contentDigest: item.contentDigest,
-          locator: item.locator,
-        });
-      });
-      const frameMemberSetDigest = canonicalDigest({
-        schema: 'libra.western-frame-member-set@1',
-        items: members,
-      });
-      composite = Object.freeze({
-        schema: 'libra.western-frame-composite@1',
-        members: Object.freeze(members),
-        frameMemberSetDigest,
-      });
-      materialized = materialize({
-        ...materializeRequest,
-        bytes: Buffer.from(canonicalJson(composite), 'utf8'),
-      });
+      const committed = sink.commit();
+      materialized = committed.materialized;
+      composite = committed.composite;
+      if (raw.frameCount !== composite.members.length) {
+        fail('CLEAN_WESTERN_FRAME_RESULT_INVALID',
+          'Frame engine count does not match bytes written to the sink.');
+      }
     }
     if (composite?.schema !== 'libra.western-frame-composite@1' ||
         !Array.isArray(composite.members) ||
+        !Array.isArray(composite.memberPayloads) ||
         composite.members.length < 1 ||
         composite.members.length > plan.maxFrames ||
         composite.frameMemberSetDigest !== canonicalDigest({
@@ -332,10 +382,9 @@ function createCleanWesternAnalysisPort(options) {
       fail('CLEAN_WESTERN_EMBEDDING_INPUT_INVALID',
         'Embedding input does not match the frame Result and Model Pack.');
     }
-    const framePayload = parsedArtifact(
+    const framePayload = frameComposite(
       workspacePort,
       frameSet.frameSetArtifactHandle,
-      'western_frame_set',
     ).payload;
     const relativePath = 'analysis/embeddings/' +
       canonicalDigest({
@@ -834,10 +883,9 @@ function createCleanWesternAnalysisPort(options) {
       materializeRequest,
     );
     if (recovered) return recovered.artifactHandle;
-    const framePayload = parsedArtifact(
+    const framePayload = frameComposite(
       workspacePort,
       frameSet.frameSetArtifactHandle,
-      'western_frame_set',
     ).payload;
     const bytes = await options.engine.renderPoster(Object.freeze({
       frameArtifactSet: frameSet,

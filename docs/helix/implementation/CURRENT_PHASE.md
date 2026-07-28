@@ -60,6 +60,13 @@ Frame/Embedding/Cluster/Analysis/People Match链推进到：
 
 `docs/helix/implementation/evidence/P14_WESTERN_PRODUCTION_OPEN_HANDOFF_B_CHECKPOINT.md`
 
+Architecture未接受首版Production实现`2a3764a5`，指出Plan binding深层shape与
+Frame composite真实bytes/Effect identity两项ordinary缺陷。当前replacement已将
+12阶段Plan binding物化为exact closed variants，并由clean Workspace port在
+engine执行前建立stable target-bound Effect/sink；Frame Artifact digest覆盖index
+与实际member bytes，相同Effect identity的output drift直接fail closed。完整
+architecture gate重新通过，当前仍冻结在同一open Handoff B Offer，Arca消费为0。
+
 ## 当前基线
 
 - 分支：`codex/helix-p9`

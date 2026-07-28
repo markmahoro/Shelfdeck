@@ -597,38 +597,157 @@ function productFactCommitPlanBinding() {
 }
 
 function westernAnalysisPhasePlanBinding() {
-  const resultRef = object({
+  const phases = Object.freeze({
+    frames: {
+      capabilityRef: 'libra.media.frames.extract@1',
+      inputSchemaRef:
+        'helix://contracts/capabilities/libra.media.frames.extract/v1/inputs',
+      upstream: []
+    },
+    embedding: {
+      capabilityRef: 'shared.face.embedding.compute@1',
+      inputSchemaRef:
+        'helix://contracts/capabilities/shared.face.embedding.compute/v1/inputs',
+      upstream: [
+        ['libra.media.frames.extract@1',
+          'helix://contracts/types/FrameArtifactSet/v1']
+      ]
+    },
+    cluster: {
+      capabilityRef: 'shared.face.cluster.compute@1',
+      inputSchemaRef:
+        'helix://contracts/capabilities/shared.face.cluster.compute/v1/inputs',
+      upstream: [
+        ['shared.face.embedding.compute@1',
+          'helix://contracts/types/FaceEmbeddingSetHandle/v1']
+      ]
+    },
+    analysis_request: {
+      capabilityRef: 'libra.western.analysis.request@1',
+      inputSchemaRef:
+        'helix://contracts/capabilities/libra.western.analysis.request/v1/inputs',
+      upstream: [
+        ['libra.media.frames.extract@1',
+          'helix://contracts/types/FrameArtifactSet/v1'],
+        ['shared.face.embedding.compute@1',
+          'helix://contracts/types/FaceEmbeddingSetHandle/v1'],
+        ['shared.face.cluster.compute@1',
+          'helix://contracts/types/FaceClusterSetHandle/v1']
+      ]
+    },
+    analysis_observe: {
+      capabilityRef: 'libra.western.analysis.observe@1',
+      inputSchemaRef:
+        'helix://contracts/capabilities/libra.western.analysis.observe/v1/inputs',
+      upstream: [
+        ['libra.media.frames.extract@1',
+          'helix://contracts/types/FrameArtifactSet/v1'],
+        ['shared.face.embedding.compute@1',
+          'helix://contracts/types/FaceEmbeddingSetHandle/v1'],
+        ['shared.face.cluster.compute@1',
+          'helix://contracts/types/FaceClusterSetHandle/v1'],
+        ['libra.western.analysis.request@1',
+          'helix://contracts/types/ArtifactHandle/v1']
+      ]
+    },
+    reference_match: {
+      capabilityRef: 'shared.face.reference.match@1',
+      inputSchemaRef:
+        'helix://contracts/capabilities/shared.face.reference.match/v1/inputs',
+      upstream: [
+        ['shared.face.cluster.compute@1',
+          'helix://contracts/types/FaceClusterSetHandle/v1']
+      ]
+    },
+    metadata_normalize: {
+      capabilityRef: 'libra.western.metadata.normalize@1',
+      inputSchemaRef:
+        'helix://contracts/capabilities/libra.western.metadata.normalize/v1/inputs',
+      upstream: [
+        ['libra.western.analysis.observe@1',
+          'helix://contracts/types/WesternAnalysisResult/v1']
+      ]
+    },
+    media_cast_resolve: {
+      capabilityRef: 'libra.media_cast.resolve@1',
+      inputSchemaRef:
+        'helix://contracts/capabilities/libra.media_cast.resolve/v1/inputs',
+      upstream: [
+        ['shared.face.reference.match@1',
+          'helix://contracts/types/PersonMatchEvidence/v1']
+      ]
+    },
+    sidecar_render: {
+      capabilityRef: 'libra.product_sidecar.render@1',
+      inputSchemaRef:
+        'helix://contracts/capabilities/libra.product_sidecar.render/v1/inputs',
+      upstream: [
+        ['libra.western.metadata.normalize@1',
+          'helix://contracts/types/ProductMetadataDraft/v1']
+      ]
+    },
+    poster_render: {
+      capabilityRef: 'libra.western.poster.render@1',
+      inputSchemaRef:
+        'helix://contracts/capabilities/libra.western.poster.render/v1/inputs',
+      upstream: [
+        ['libra.media.frames.extract@1',
+          'helix://contracts/types/FrameArtifactSet/v1'],
+        ['shared.face.reference.match@1',
+          'helix://contracts/types/PersonMatchEvidence/v1']
+      ]
+    },
+    artifact_verify_nfo: {
+      capabilityRef: 'shared.artifact.manifest.verify@1',
+      inputSchemaRef:
+        'helix://contracts/capabilities/shared.artifact.manifest.verify/v1/inputs',
+      upstream: [
+        ['libra.product_sidecar.render@1',
+          'helix://contracts/types/ArtifactHandle/v1']
+      ]
+    },
+    artifact_verify_poster: {
+      capabilityRef: 'shared.artifact.manifest.verify@1',
+      inputSchemaRef:
+        'helix://contracts/capabilities/shared.artifact.manifest.verify/v1/inputs',
+      upstream: [
+        ['libra.western.poster.render@1',
+          'helix://contracts/types/ArtifactHandle/v1']
+      ]
+    }
+  });
+  const resultRef = (capabilityRef, resultSchemaRef) => object({
     workId: id(),
     attemptId: id(),
     planId: id(),
     eventId: id(),
     resultId: id(),
-    capabilityRef: id(),
-    resultSchemaRef: id(),
+    capabilityRef: { const: capabilityRef },
+    resultSchemaRef: { const: resultSchemaRef },
     resultDigest: digest(),
     inputBindingDigest: digest()
   });
-  const phaseCapabilities = Object.freeze({
-    frames: 'libra.media.frames.extract@1',
-    embedding: 'shared.face.embedding.compute@1',
-    cluster: 'shared.face.cluster.compute@1',
-    analysis_request: 'libra.western.analysis.request@1',
-    analysis_observe: 'libra.western.analysis.observe@1',
-    reference_match: 'shared.face.reference.match@1',
-    metadata_normalize: 'libra.western.metadata.normalize@1',
-    media_cast_resolve: 'libra.media_cast.resolve@1',
-    sidecar_render: 'libra.product_sidecar.render@1',
-    poster_render: 'libra.western.poster.render@1',
-    artifact_verify_nfo: 'shared.artifact.manifest.verify@1',
-    artifact_verify_poster: 'shared.artifact.manifest.verify@1'
-  });
-  return {
-    $schema: DRAFT,
-    $id: typeId('LibraWesternAnalysisPhasePlanBinding'),
-    title: 'LibraWesternAnalysisPhasePlanBinding@1',
-    'x-helix-ssotRefs': ['8.5.11', '8.6.19', '8.6.20'],
-    'x-helix-maxCanonicalBytes': 16 * 1024,
-    ...object({
+  const upstreamSet = (refs) => {
+    if (refs.length === 0) {
+      return { type: 'array', maxItems: 0 };
+    }
+    const variants = refs.map(([capabilityRef, resultSchemaRef]) =>
+      resultRef(capabilityRef, resultSchemaRef));
+    return {
+      type: 'array',
+      minItems: refs.length,
+      maxItems: refs.length,
+      uniqueItems: true,
+      items: { oneOf: variants },
+      allOf: variants.map((variant) => ({
+        contains: variant,
+        minContains: 1,
+        maxContains: 1
+      }))
+    };
+  };
+  const variants = Object.entries(phases).map(([phase, contract]) =>
+    object({
       schemaRef: {
         const: typeId('LibraWesternAnalysisPhasePlanBinding')
       },
@@ -636,36 +755,19 @@ function westernAnalysisPhasePlanBinding() {
       bindingKind: { const: 'western_analysis_phase' },
       libraRunId: id(),
       runExecutionBasisDigest: digest(),
-      phase: {
-        type: 'string',
-        enum: Object.keys(phaseCapabilities)
-      },
-      capabilityRef: {
-        type: 'string',
-        enum: [...new Set(Object.values(phaseCapabilities))]
-      },
-      capabilityInput: {
-        type: 'object',
-        minProperties: 1,
-        maxProperties: 32
-      },
-      upstreamResultRefs: {
-        type: 'array',
-        maxItems: 16,
-        items: resultRef
-      },
+      phase: { const: phase },
+      capabilityRef: { const: contract.capabilityRef },
+      capabilityInput: { $ref: contract.inputSchemaRef },
+      upstreamResultRefs: upstreamSet(contract.upstream),
       bindingDigest: digest()
-    }, undefined, {
-      allOf: Object.entries(phaseCapabilities).map(([phase, capabilityRef]) => ({
-        if: {
-          properties: { phase: { const: phase } },
-          required: ['phase']
-        },
-        then: {
-          properties: { capabilityRef: { const: capabilityRef } }
-        }
-      }))
-    })
+    }));
+  return {
+    $schema: DRAFT,
+    $id: typeId('LibraWesternAnalysisPhasePlanBinding'),
+    title: 'LibraWesternAnalysisPhasePlanBinding@1',
+    'x-helix-ssotRefs': ['8.5.11', '8.6.19', '8.6.20'],
+    'x-helix-maxCanonicalBytes': 16 * 1024,
+    oneOf: variants
   };
 }
 

@@ -28,6 +28,12 @@ const {
 } = require(
   '../../src/helix/foundation/capability/contract-validator'
 );
+const westernAnalysisPlanSchemaGraph = require(
+  '../../src/helix/domains/libra/application/western-analysis-plan-schema-graph'
+);
+const westernPhasePlanBindingSchema = require(
+  '../../src/helix/contracts/application-types/LibraWesternAnalysisPhasePlanBinding/v1/schema.json'
+);
 const artifactHandleSchema = require(
   '../../src/helix/contracts/types/ArtifactHandle/v1/schema.json'
 );
@@ -129,27 +135,21 @@ function westernConstructionRuntime(calls = {}) {
       clusterMinSize: 1,
     }),
     engine: Object.freeze({
-      extractFrameSet: counted('extractFrameSet', ({ samplingPlan }) => ({
-        frameCount: 2,
-        members: [
-          {
-            timestampMs: 0,
-            locator: 'frame:0',
-            contentDigest: canonicalDigest({
-              samplingPlanDigest: samplingPlan.digest,
-              ordinal: 0,
-            }),
-          },
-          {
-            timestampMs: samplingPlan.intervalMs,
-            locator: 'frame:1',
-            contentDigest: canonicalDigest({
-              samplingPlanDigest: samplingPlan.digest,
-              ordinal: 1,
-            }),
-          },
-        ],
-      })),
+      extractFrameSet: counted('extractFrameSet', ({
+        samplingPlan,
+        outputSink,
+      }) => {
+        assert.equal(outputSink.contract.artifactKind, 'western_frame_set');
+        outputSink.writeFrame({
+          timestampMs: 0,
+          bytes: Buffer.from('western-frame-0:' + samplingPlan.digest),
+        });
+        outputSink.writeFrame({
+          timestampMs: samplingPlan.intervalMs,
+          bytes: Buffer.from('western-frame-1:' + samplingPlan.digest),
+        });
+        return { frameCount: 2 };
+      }),
       computeEmbeddings: counted('computeEmbeddings', () => ({
         detectedFaceCount: 2,
         vectorCount: 2,
@@ -208,6 +208,9 @@ test('Western analysis fails closed on model, Handle, and People projection drif
   });
   const workspaceProductPort = Object.freeze({
     materializeArtifact() {
+      throw new Error('not used');
+    },
+    openFrameCompositeSink() {
       throw new Error('not used');
     },
     recoverMaterializedArtifact() {
@@ -1065,6 +1068,7 @@ test('Western public HTTP freezes one exact Routing Spec and active Run', async 
     assert.equal(
       interrupted.json().error.details.reasonCode,
       'P14_WESTERN_FAULT_AFTER_FRAME_EFFECT',
+      interrupted.body,
     );
   } finally {
     await host.close();
@@ -1253,6 +1257,66 @@ test('Western public HTTP freezes one exact Routing Spec and active Run', async 
       WHERE input_binding_schema_ref=
         'helix://contracts/application-types/LibraWesternAnalysisPhasePlanBinding/v1'`
   ).get().count >= 12, true);
+  const westernPlanValidator = createCapabilityContractValidator({
+    schemas: westernAnalysisPlanSchemaGraph,
+  });
+  const planBindings = database.prepare(
+    `SELECT input_bindings_json
+       FROM fx_plan_nodes
+      WHERE input_binding_schema_ref=
+        'helix://contracts/application-types/LibraWesternAnalysisPhasePlanBinding/v1'`
+  ).all().map((row) => JSON.parse(row.input_bindings_json));
+  for (const binding of planBindings) {
+    westernPlanValidator.validate(binding.schemaRef, binding);
+  }
+  const bindingValue = (value) => {
+    const basis = Object.fromEntries(Object.entries(value)
+      .filter(([key]) => key !== 'bindingDigest'));
+    return { ...basis, bindingDigest: canonicalDigest(basis) };
+  };
+  const framesBinding = planBindings.find((item) => item.phase === 'frames');
+  assert.throws(() => westernPlanValidator.validate(
+    framesBinding.schemaRef,
+    bindingValue({
+      ...framesBinding,
+      capabilityInput: {
+        ...framesBinding.capabilityInput,
+        callerResultFixture: true,
+      },
+    }),
+  ), (error) => error.code === 'P4_CAPABILITY_SCHEMA_REJECTED');
+  const requestBinding = planBindings.find((item) =>
+    item.phase === 'analysis_request');
+  const reversedRequest = bindingValue({
+    ...requestBinding,
+    upstreamResultRefs: [...requestBinding.upstreamResultRefs].reverse(),
+  });
+  westernPlanValidator.validate(reversedRequest.schemaRef, reversedRequest);
+  for (const mutatedRefs of [
+    requestBinding.upstreamResultRefs.slice(1),
+    [
+      requestBinding.upstreamResultRefs[0],
+      requestBinding.upstreamResultRefs[0],
+      requestBinding.upstreamResultRefs[2],
+    ],
+    requestBinding.upstreamResultRefs.map((item, index) =>
+      index === 1 ? { ...item, capabilityRef: 'shared.face.cluster.compute@1' } :
+        item),
+    requestBinding.upstreamResultRefs.map((item, index) =>
+      index === 2 ? {
+        ...item,
+        resultSchemaRef:
+          'helix://contracts/types/FaceEmbeddingSetHandle/v1',
+      } : item),
+  ]) {
+    assert.throws(() => westernPlanValidator.validate(
+      requestBinding.schemaRef,
+      bindingValue({
+        ...requestBinding,
+        upstreamResultRefs: mutatedRefs,
+      }),
+    ), (error) => error.code === 'P4_CAPABILITY_SCHEMA_REJECTED');
+  }
   const westernResultValidator = createCapabilityContractValidator({
     schemas: [
       artifactHandleSchema,

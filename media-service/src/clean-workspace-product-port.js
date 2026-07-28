@@ -31,6 +31,16 @@ function digestBytes(bytes) {
   return require('node:crypto').createHash('sha256').update(bytes).digest('hex');
 }
 
+const ARTIFACT_KINDS = Object.freeze([
+  'nfo',
+  'poster',
+  'fanart',
+  'western_frame_set',
+  'face_embedding_set',
+  'face_cluster_set',
+  'western_analysis',
+]);
+
 function definitions(schemaManifest) {
   return Object.freeze({
     platform: createRepositoryDefinition({
@@ -391,26 +401,17 @@ function createCleanWorkspaceProductPort(options) {
     });
   }
 
-  function materializeArtifact(request) {
+  function artifactEffectIdentity(request) {
     const root = ensureRoot();
     const relativePath = relative(request?.relativePath);
-    const bytes = Buffer.isBuffer(request?.bytes)
-      ? request.bytes
-      : Buffer.from(request?.bytes || '');
-    if (!bytes.length || ![
-      'nfo',
-      'poster',
-      'fanart',
-      'western_frame_set',
-      'face_embedding_set',
-      'face_cluster_set',
-      'western_analysis',
-    ].includes(request?.artifactKind) ||
+    if (!ARTIFACT_KINDS.includes(request?.artifactKind) ||
         typeof request.libraRunId !== 'string' || !request.libraRunId ||
-        typeof request.workspaceId !== 'string' || !request.workspaceId) {
-      fail('CLEAN_WORKSPACE_EFFECT_INPUT', 'Workspace Artifact effect input is incomplete.');
+        typeof request.workspaceId !== 'string' || !request.workspaceId ||
+        typeof request.mediaType !== 'string' || !request.mediaType ||
+        !request.provenanceRef || typeof request.provenanceRef !== 'object') {
+      fail('CLEAN_WORKSPACE_EFFECT_INPUT',
+        'Workspace Artifact effect input is incomplete.');
     }
-    const digestHex = digestBytes(bytes);
     const intent = {
       schema: 'libra.workspace-artifact-materialize-intent@1',
       libraRunId: request.libraRunId,
@@ -419,51 +420,105 @@ function createCleanWorkspaceProductPort(options) {
       relativePath,
       artifactKind: request.artifactKind,
       mediaType: request.mediaType,
-      digestAlgorithm: 'sha256',
-      digestHex,
-      sizeBytes: bytes.length,
       provenanceRef: request.provenanceRef,
     };
     const intentDigest = canonicalDigest(intent);
     const idempotencyKey = canonicalDigest({
       schema: 'libra.workspace-artifact-materialize-idempotency@1',
+      libraRunId: request.libraRunId,
       workspaceId: request.workspaceId,
       relativePath,
+      artifactKind: request.artifactKind,
       intentDigest,
     });
+    const effectClass = 'libra_workspace_product_materialize';
     const effectId = canonicalDigest({
       schema: 'foundation.effect-id@1',
-      effectClass: 'libra_workspace_product_materialize',
+      effectClass,
       idempotencyKey,
     });
-    const target = path.resolve(absoluteRoot, request.workspaceId, ...relativePath.split('/'));
+    const target = path.resolve(
+      absoluteRoot,
+      request.workspaceId,
+      ...relativePath.split('/'),
+    );
     const workspaceRoot = path.resolve(absoluteRoot, request.workspaceId);
-    if (target !== workspaceRoot && !target.startsWith(workspaceRoot + path.sep)) {
-      fail('CLEAN_WORKSPACE_PATH_ESCAPE', 'Workspace Artifact escaped its controlled root.');
+    if (target !== workspaceRoot &&
+        !target.startsWith(workspaceRoot + path.sep)) {
+      fail('CLEAN_WORKSPACE_PATH_ESCAPE',
+        'Workspace Artifact escaped its controlled root.');
     }
-    const prior = recordIntent(
-      'libra_workspace_product_materialize',
+    return Object.freeze({
+      effectClass,
       effectId,
       idempotencyKey,
       intentDigest,
+      relativePath,
+      target,
+    });
+  }
+
+  function readArtifactEffect(identity) {
+    return execute(
+      'clean_workspace_effect_recover_read',
+      'execution-foundation',
+      repositories.foundation,
+      (context) => context.repository(
+        repositories.foundation.repositoryId,
+      ).invoke('find_effect', {
+        effect_class: identity.effectClass,
+        idempotency_key: identity.idempotencyKey,
+      }),
+    );
+  }
+
+  function materializeArtifact(request) {
+    const identity = artifactEffectIdentity(request);
+    const bytes = Buffer.isBuffer(request?.bytes)
+      ? request.bytes
+      : Buffer.from(request?.bytes || '');
+    if (!bytes.length) {
+      fail('CLEAN_WORKSPACE_EFFECT_INPUT',
+        'Workspace Artifact output bytes are required.');
+    }
+    const digestHex = digestBytes(bytes);
+    const prior = recordIntent(
+      identity.effectClass,
+      identity.effectId,
+      identity.idempotencyKey,
+      identity.intentDigest,
     );
     if (prior.state === 'committed') {
-      if (prior.outputDigest !== digestHex || !exactReality(target, digestHex, bytes.length)) {
-        fail('CLEAN_WORKSPACE_EFFECT_REALITY_DRIFT', 'Committed Workspace Artifact reality drifted.');
+      if (prior.outputDigest !== digestHex ||
+          !exactReality(identity.target, digestHex, bytes.length)) {
+        fail('CLEAN_WORKSPACE_EFFECT_REALITY_DRIFT',
+          'Committed Workspace Artifact reality drifted.');
       }
     } else {
-      fs.mkdirSync(path.dirname(target), { recursive: true });
-      if (!exactReality(target, digestHex, bytes.length)) {
-        const temporary = target + '.tmp-' + effectId.slice(0, 16);
-        fs.writeFileSync(temporary, bytes, { flag: 'w' });
-        fs.renameSync(temporary, target);
+      fs.mkdirSync(path.dirname(identity.target), { recursive: true });
+      if (fs.existsSync(identity.target) &&
+          !exactReality(identity.target, digestHex, bytes.length)) {
+        fail('CLEAN_WORKSPACE_EFFECT_OUTPUT_DRIFT',
+          'Stable Workspace Artifact effect identity produced different bytes.');
       }
-      if (!request.skipPhysicalHook &&
+      let wrotePhysical = false;
+      if (!fs.existsSync(identity.target)) {
+        const temporary = identity.target + '.tmp-' +
+          identity.effectId.slice(0, 16);
+        fs.writeFileSync(temporary, bytes, { flag: 'w' });
+        fs.renameSync(temporary, identity.target);
+        wrotePhysical = true;
+      }
+      if (wrotePhysical && !request.skipPhysicalHook &&
           typeof options.afterPhysicalEffect === 'function') {
-        options.afterPhysicalEffect(Object.freeze({ effectId, target, intentDigest }));
+        options.afterPhysicalEffect(Object.freeze({
+          effectId: identity.effectId,
+          target: identity.target,
+          intentDigest: identity.intentDigest,
+        }));
       }
     }
-    const stat = fs.statSync(target, { bigint: true });
+    const stat = fs.statSync(identity.target, { bigint: true });
     const inode = stat.ino.toString();
     const physicalIdentity = Object.freeze({
       mountScopeId,
@@ -479,7 +534,7 @@ function createCleanWorkspaceProductPort(options) {
       schema: 'foundation.workspace-material-handle-id@1',
       workspaceId: request.workspaceId,
       materialKey,
-      relativePath,
+      relativePath: identity.relativePath,
       referenceRevision: 1,
     });
     const handleBasis = {
@@ -493,7 +548,7 @@ function createCleanWorkspaceProductPort(options) {
       materialKey,
       physicalIdentity,
       rootHandleRef,
-      relativePath,
+      relativePath: identity.relativePath,
       digestAlgorithm: 'sha256',
       digestHex,
       sizeBytes: bytes.length,
@@ -510,14 +565,17 @@ function createCleanWorkspaceProductPort(options) {
       materialKey,
       physicalIdentity,
       rootHandleRef,
-      relativePath,
+      relativePath: identity.relativePath,
       digestAlgorithm: 'sha256',
       digestHex,
       sizeBytes: bytes.length,
       referenceRevision: 1,
       accessScope: 'workspace_material_read',
     });
-    const workspaceMaterialHandle = Object.freeze({ ...handleBasis, fenceDigest });
+    const workspaceMaterialHandle = Object.freeze({
+      ...handleBasis,
+      fenceDigest,
+    });
     const artifactHandleId = canonicalDigest({
       schema: 'foundation.artifact-handle-id@1',
       artifactKind: request.artifactKind,
@@ -537,7 +595,8 @@ function createCleanWorkspaceProductPort(options) {
         scopeType: 'libra_run',
         scopeId: request.libraRunId,
       }),
-      storageRef: 'workspace://' + request.workspaceId + '/' + relativePath,
+      storageRef: 'workspace://' + request.workspaceId + '/' +
+        identity.relativePath,
       digestAlgorithm: 'sha256',
       digestHex,
       sizeBytes: bytes.length,
@@ -545,183 +604,240 @@ function createCleanWorkspaceProductPort(options) {
       provenanceRef: request.provenanceRef,
       referenceRevision: 1,
     });
-    const receipt = execute('clean_workspace_effect_commit', 'execution-foundation', repositories.foundation, (context) => {
-      const repo = context.repository(repositories.foundation.repositoryId);
-      const effect = repo.invoke('find_effect', {
-        effect_class: 'libra_workspace_product_materialize',
-        idempotency_key: idempotencyKey,
-      });
-      if (!effect || effect.effect_id !== effectId || effect.intent_digest !== intentDigest) {
-        fail('CLEAN_WORKSPACE_EFFECT_MISSING', 'Workspace Artifact intent is absent.');
-      }
-      const existingMaterial = repo.invoke('find_material', {
-        workspace_id: request.workspaceId,
-        material_handle_id: handleId,
-      });
-      const existingArtifact = repo.invoke('find_artifact', {
-        artifact_handle_id: artifactHandleId,
-      });
-      if (effect.state === 'committed') {
-        const storedMaterial = mapMaterial(existingMaterial);
-        const storedArtifact = mapArtifact(existingArtifact);
-        if (canonicalJson(storedMaterial) !== canonicalJson(workspaceMaterialHandle) ||
-            canonicalJson(storedArtifact) !== canonicalJson(artifactHandle)) {
-          fail('CLEAN_WORKSPACE_EFFECT_REPLAY_CORRUPT',
-            'Committed Workspace Artifact rows cannot reconstruct the same handles.');
+    return execute(
+      'clean_workspace_effect_commit',
+      'execution-foundation',
+      repositories.foundation,
+      (context) => {
+        const repo = context.repository(repositories.foundation.repositoryId);
+        const effect = repo.invoke('find_effect', {
+          effect_class: identity.effectClass,
+          idempotency_key: identity.idempotencyKey,
+        });
+        if (!effect || effect.effect_id !== identity.effectId ||
+            effect.intent_digest !== identity.intentDigest) {
+          fail('CLEAN_WORKSPACE_EFFECT_MISSING',
+            'Workspace Artifact intent is absent.');
+        }
+        const existingMaterial = repo.invoke('find_material', {
+          workspace_id: request.workspaceId,
+          material_handle_id: handleId,
+        });
+        const existingArtifact = repo.invoke('find_artifact', {
+          artifact_handle_id: artifactHandleId,
+        });
+        if (effect.state === 'committed') {
+          const storedMaterial = mapMaterial(existingMaterial);
+          const storedArtifact = mapArtifact(existingArtifact);
+          if (canonicalJson(storedMaterial) !==
+                canonicalJson(workspaceMaterialHandle) ||
+              canonicalJson(storedArtifact) !== canonicalJson(artifactHandle)) {
+            fail('CLEAN_WORKSPACE_EFFECT_REPLAY_CORRUPT',
+              'Committed Workspace Artifact rows cannot reconstruct the same handles.');
+          }
+          return Object.freeze({
+            replayed: true,
+            effectId: identity.effectId,
+            intentDigest: identity.intentDigest,
+            workspaceMaterialHandle: storedMaterial,
+            artifactHandle: storedArtifact,
+          });
+        }
+        if (effect.state !== 'intended' ||
+            existingMaterial || existingArtifact) {
+          fail('CLEAN_WORKSPACE_EFFECT_STATE_CONFLICT',
+            'Workspace Artifact effect state is inconsistent.');
+        }
+        repo.invoke('insert_material', {
+          workspace_id: request.workspaceId,
+          material_handle_id: handleId,
+          material_key: materialKey,
+          endpoint_id: endpointId,
+          mount_scope_id: mountScopeId,
+          inode,
+          content_hash_algorithm: 'sha256',
+          content_hash: digestHex,
+          relative_path: identity.relativePath,
+          digest_algorithm: 'sha256',
+          digest_hex: digestHex,
+          size_bytes: bytes.length,
+          reference_revision: 1,
+          owner_domain: 'libra',
+          process_id: request.libraRunId,
+          root_handle_ref: rootHandleRef,
+          access_scope: 'workspace_material_read',
+          handle_schema_ref: workspaceMaterialHandle.schemaRef,
+          handle_json: canonicalJson(workspaceMaterialHandle),
+          handle_digest: canonicalDigest(workspaceMaterialHandle),
+          fence_digest: workspaceMaterialHandle.fenceDigest,
+          state: 'active',
+        });
+        repo.invoke('insert_artifact', {
+          artifact_handle_id: artifactHandleId,
+          artifact_kind: request.artifactKind,
+          owner_domain: 'libra',
+          owner_scope_type: 'libra_run',
+          owner_scope_id: request.libraRunId,
+          storage_ref: artifactHandle.storageRef,
+          digest_algorithm: 'sha256',
+          digest_hex: digestHex,
+          size_bytes: bytes.length,
+          media_type: request.mediaType,
+          provenance_ref: canonicalJson(request.provenanceRef),
+          reference_revision: 1,
+          state: 'active',
+          created_at_ms: context.commitTimeMs,
+        });
+        if (repo.invoke('commit_effect', {
+          state: 'committed',
+          external_receipt_ref: artifactHandle.storageRef,
+          output_digest: digestHex,
+          verified_at_ms: context.commitTimeMs,
+          updated_at_ms: context.commitTimeMs,
+          effect_id: identity.effectId,
+          expected_state: 'intended',
+          expected_intent_digest: identity.intentDigest,
+        }).changes !== 1) {
+          fail('CLEAN_WORKSPACE_EFFECT_CAS',
+            'Workspace Artifact journal CAS failed.');
         }
         return Object.freeze({
-          replayed: true,
-          effectId,
-          intentDigest,
-          workspaceMaterialHandle: storedMaterial,
-          artifactHandle: storedArtifact,
+          replayed: false,
+          effectId: identity.effectId,
+          intentDigest: identity.intentDigest,
+          workspaceMaterialHandle,
+          artifactHandle,
         });
-      }
-      if (effect.state !== 'intended' || existingMaterial || existingArtifact) {
-        fail('CLEAN_WORKSPACE_EFFECT_STATE_CONFLICT', 'Workspace Artifact effect state is inconsistent.');
-      }
-      repo.invoke('insert_material', {
-        workspace_id: request.workspaceId,
-        material_handle_id: handleId,
-        material_key: materialKey,
-        endpoint_id: endpointId,
-        mount_scope_id: mountScopeId,
-        inode,
-        content_hash_algorithm: 'sha256',
-        content_hash: digestHex,
-        relative_path: relativePath,
-        digest_algorithm: 'sha256',
-        digest_hex: digestHex,
-        size_bytes: bytes.length,
-        reference_revision: 1,
-        owner_domain: 'libra',
-        process_id: request.libraRunId,
-        root_handle_ref: rootHandleRef,
-        access_scope: 'workspace_material_read',
-        handle_schema_ref: workspaceMaterialHandle.schemaRef,
-        handle_json: canonicalJson(workspaceMaterialHandle),
-        handle_digest: canonicalDigest(workspaceMaterialHandle),
-        fence_digest: workspaceMaterialHandle.fenceDigest,
-        state: 'active',
-      });
-      repo.invoke('insert_artifact', {
-        artifact_handle_id: artifactHandleId,
-        artifact_kind: request.artifactKind,
-        owner_domain: 'libra',
-        owner_scope_type: 'libra_run',
-        owner_scope_id: request.libraRunId,
-        storage_ref: artifactHandle.storageRef,
-        digest_algorithm: 'sha256',
-        digest_hex: digestHex,
-        size_bytes: bytes.length,
-        media_type: request.mediaType,
-        provenance_ref: canonicalJson(request.provenanceRef),
-        reference_revision: 1,
-        state: 'active',
-        created_at_ms: context.commitTimeMs,
-      });
-      if (repo.invoke('commit_effect', {
-        state: 'committed',
-        external_receipt_ref: artifactHandle.storageRef,
-        output_digest: digestHex,
-        verified_at_ms: context.commitTimeMs,
-        updated_at_ms: context.commitTimeMs,
-        effect_id: effectId,
-        expected_state: 'intended',
-        expected_intent_digest: intentDigest,
-      }).changes !== 1) {
-        fail('CLEAN_WORKSPACE_EFFECT_CAS', 'Workspace Artifact journal CAS failed.');
-      }
-      return Object.freeze({
-        replayed: false,
-        effectId,
-        intentDigest,
-        workspaceMaterialHandle,
-        artifactHandle,
-      });
-    });
-    return receipt;
+      },
+    );
   }
 
   function recoverMaterializedArtifact(request) {
-    const root = ensureRoot();
-    const relativePath = relative(request?.relativePath);
-    if (![
-      'nfo',
-      'poster',
-      'fanart',
-      'western_frame_set',
-      'face_embedding_set',
-      'face_cluster_set',
-      'western_analysis',
-    ].includes(request?.artifactKind) ||
-        typeof request.libraRunId !== 'string' || !request.libraRunId ||
-        typeof request.workspaceId !== 'string' || !request.workspaceId) {
-      fail('CLEAN_WORKSPACE_EFFECT_INPUT',
-        'Workspace Artifact recovery input is incomplete.');
-    }
-    const target = path.resolve(
-      absoluteRoot,
-      request.workspaceId,
-      ...relativePath.split('/'),
-    );
-    const workspaceRoot = path.resolve(absoluteRoot, request.workspaceId);
-    if (target !== workspaceRoot &&
-        !target.startsWith(workspaceRoot + path.sep)) {
-      fail('CLEAN_WORKSPACE_PATH_ESCAPE',
-        'Workspace Artifact recovery escaped its controlled root.');
-    }
-    if (!fs.existsSync(target) || !fs.statSync(target).isFile()) return null;
-    const bytes = fs.readFileSync(target);
-    const digestHex = digestBytes(bytes);
-    const intent = {
-      schema: 'libra.workspace-artifact-materialize-intent@1',
-      libraRunId: request.libraRunId,
-      workspaceId: request.workspaceId,
-      rootSnapshotDigest: root.snapshotDigest,
-      relativePath,
-      artifactKind: request.artifactKind,
-      mediaType: request.mediaType,
-      digestAlgorithm: 'sha256',
-      digestHex,
-      sizeBytes: bytes.length,
-      provenanceRef: request.provenanceRef,
-    };
-    const intentDigest = canonicalDigest(intent);
-    const idempotencyKey = canonicalDigest({
-      schema: 'libra.workspace-artifact-materialize-idempotency@1',
-      workspaceId: request.workspaceId,
-      relativePath,
-      intentDigest,
-    });
-    const expectedEffectId = canonicalDigest({
-      schema: 'foundation.effect-id@1',
-      effectClass: 'libra_workspace_product_materialize',
-      idempotencyKey,
-    });
-    const existing = execute(
-      'clean_workspace_effect_recover_read',
-      'execution-foundation',
-      repositories.foundation,
-      (context) => context.repository(
-        repositories.foundation.repositoryId,
-      ).invoke('find_effect', {
-        effect_class: 'libra_workspace_product_materialize',
-        idempotency_key: idempotencyKey,
-      }),
-    );
+    const identity = artifactEffectIdentity(request);
+    const existing = readArtifactEffect(identity);
     if (!existing) return null;
-    if (existing.effect_id !== expectedEffectId ||
-        existing.intent_digest !== intentDigest) {
+    if (existing.effect_id !== identity.effectId ||
+        existing.intent_digest !== identity.intentDigest) {
       fail('CLEAN_WORKSPACE_EFFECT_CONFLICT',
         'Workspace Artifact recovery journal intent drifted.');
     }
+    if (!fs.existsSync(identity.target)) {
+      if (existing.state === 'committed') {
+        fail('CLEAN_WORKSPACE_EFFECT_REALITY_DRIFT',
+          'Committed Workspace Artifact physical reality is absent.');
+      }
+      if (existing.state !== 'intended') {
+        fail('CLEAN_WORKSPACE_EFFECT_STATE_CONFLICT',
+          'Workspace Artifact recovery state is invalid.');
+      }
+      return null;
+    }
+    if (!fs.statSync(identity.target).isFile()) {
+      fail('CLEAN_WORKSPACE_EFFECT_REALITY_DRIFT',
+        'Workspace Artifact target is not one immutable file.');
+    }
     return materializeArtifact({
       ...request,
-      relativePath,
-      bytes,
+      relativePath: identity.relativePath,
+      bytes: fs.readFileSync(identity.target),
       skipPhysicalHook: true,
     });
+  }
+
+  function openFrameCompositeSink(request) {
+    const identity = artifactEffectIdentity(request);
+    if (request.artifactKind !== 'western_frame_set' ||
+        !Number.isSafeInteger(request.maxFrames) ||
+        request.maxFrames < 1 || request.maxFrames > 1024) {
+      fail('CLEAN_WORKSPACE_FRAME_SINK_INPUT',
+        'Frame composite sink requires one bounded Western frame target.');
+    }
+    const prior = recordIntent(
+      identity.effectClass,
+      identity.effectId,
+      identity.idempotencyKey,
+      identity.intentDigest,
+    );
+    if (prior.state === 'committed' || fs.existsSync(identity.target)) {
+      fail('CLEAN_WORKSPACE_FRAME_SINK_RECOVERY_REQUIRED',
+        'Frame composite sink must recover existing reality before execution.');
+    }
+    const members = [];
+    let totalBytes = 0;
+    const maxMemberBytes = 16 * 1024 * 1024;
+    const maxTotalBytes = 256 * 1024 * 1024;
+    const contract = Object.freeze({
+      schemaRef:
+        'helix://implementation-contracts/workspace-frame-composite-sink/v1',
+      effectId: identity.effectId,
+      intentDigest: identity.intentDigest,
+      workspaceId: request.workspaceId,
+      artifactKind: request.artifactKind,
+      targetRefDigest: canonicalDigest({
+        workspaceId: request.workspaceId,
+        relativePath: identity.relativePath,
+        provenanceRef: request.provenanceRef,
+      }),
+      maxFrames: request.maxFrames,
+      maxMemberBytes,
+      maxTotalBytes,
+    });
+    const writeFrame = (value) => {
+      if (!value || !Number.isSafeInteger(value.timestampMs) ||
+          value.timestampMs < 0 || !Buffer.isBuffer(value.bytes) ||
+          value.bytes.length < 1 || value.bytes.length > maxMemberBytes ||
+          members.length >= request.maxFrames ||
+          totalBytes + value.bytes.length > maxTotalBytes) {
+        fail('CLEAN_WORKSPACE_FRAME_SINK_MEMBER',
+          'Frame sink member violates its closed byte/count bounds.');
+      }
+      const ordinal = members.length;
+      const bytes = Buffer.from(value.bytes);
+      totalBytes += bytes.length;
+      const contentDigest = digestBytes(bytes);
+      members.push(Object.freeze({
+        ordinal,
+        timestampMs: value.timestampMs,
+        locator: 'composite-member:' + ordinal,
+        contentDigest,
+        bytes,
+      }));
+      return Object.freeze({ ordinal, contentDigest });
+    };
+    const commit = () => {
+      if (members.length < 1) {
+        fail('CLEAN_WORKSPACE_FRAME_SINK_EMPTY',
+          'Frame composite sink cannot commit an empty Artifact.');
+      }
+      const index = members.map((item) => Object.freeze({
+        ordinal: item.ordinal,
+        timestampMs: item.timestampMs,
+        contentDigest: item.contentDigest,
+        locator: item.locator,
+      }));
+      const memberPayloads = members.map((item) => Object.freeze({
+        ordinal: item.ordinal,
+        encoding: 'base64',
+        contentDigest: item.contentDigest,
+        bytesBase64: item.bytes.toString('base64'),
+      }));
+      const frameMemberSetDigest = canonicalDigest({
+        schema: 'libra.western-frame-member-set@1',
+        items: index,
+      });
+      const composite = Object.freeze({
+        schema: 'libra.western-frame-composite@1',
+        members: Object.freeze(index),
+        memberPayloads: Object.freeze(memberPayloads),
+        frameMemberSetDigest,
+      });
+      const materialized = materializeArtifact({
+        ...request,
+        bytes: Buffer.from(canonicalJson(composite), 'utf8'),
+      });
+      return Object.freeze({ composite, materialized });
+    };
+    return Object.freeze({ contract, writeFrame, commit });
   }
 
   async function acquireArtifact(request) {
@@ -1207,6 +1323,7 @@ function createCleanWorkspaceProductPort(options) {
     rootPath: absoluteRoot,
     rootSnapshot: ensureRoot,
     materializeArtifact,
+    openFrameCompositeSink,
     recoverMaterializedArtifact,
     readArtifactBytes,
     readMaterializedArtifact,

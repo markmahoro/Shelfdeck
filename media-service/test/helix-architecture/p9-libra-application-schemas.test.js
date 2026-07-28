@@ -27,19 +27,26 @@ test('Western Analysis phase Plan binding is closed, bounded, and phase-capabili
   const binding = buildLibraApplicationSchemas()
     .LibraWesternAnalysisPhasePlanBinding;
   assert.equal(binding['x-helix-maxCanonicalBytes'], 16 * 1024);
-  assert.equal(binding.properties.bindingKind.const,
-    'western_analysis_phase');
-  assert.equal(binding.properties.upstreamResultRefs.maxItems, 16);
-  assert.equal(binding.properties.capabilityInput.maxProperties, 32);
-  assert.equal(binding.additionalProperties, false);
-  assert.equal(binding.allOf.length, 12);
-  const frames = binding.allOf.find((branch) =>
-    branch.if.properties.phase.const === 'frames');
-  assert.equal(frames.then.properties.capabilityRef.const,
+  assert.equal(binding.oneOf.length, 12);
+  assert.ok(binding.oneOf.every((variant) =>
+    variant.additionalProperties === false &&
+    variant.properties.bindingKind.const === 'western_analysis_phase'));
+  const frames = binding.oneOf.find((variant) =>
+    variant.properties.phase.const === 'frames');
+  assert.equal(frames.properties.capabilityRef.const,
     'libra.media.frames.extract@1');
-  const match = binding.allOf.find((branch) =>
-    branch.if.properties.phase.const === 'reference_match');
-  assert.equal(match.then.properties.capabilityRef.const,
+  assert.equal(frames.properties.capabilityInput.$ref,
+    'helix://contracts/capabilities/libra.media.frames.extract/v1/inputs');
+  assert.equal(frames.properties.upstreamResultRefs.maxItems, 0);
+  const request = binding.oneOf.find((variant) =>
+    variant.properties.phase.const === 'analysis_request');
+  assert.equal(request.properties.upstreamResultRefs.minItems, 3);
+  assert.equal(request.properties.upstreamResultRefs.maxItems, 3);
+  assert.equal(request.properties.upstreamResultRefs.uniqueItems, true);
+  assert.equal(request.properties.upstreamResultRefs.allOf.length, 3);
+  const match = binding.oneOf.find((variant) =>
+    variant.properties.phase.const === 'reference_match');
+  assert.equal(match.properties.capabilityRef.const,
     'shared.face.reference.match@1');
 });
 

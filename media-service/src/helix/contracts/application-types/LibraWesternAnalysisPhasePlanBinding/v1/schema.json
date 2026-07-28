@@ -8,378 +8,2794 @@
     "8.6.20"
   ],
   "x-helix-maxCanonicalBytes": 16384,
-  "type": "object",
-  "additionalProperties": false,
-  "properties": {
-    "schemaRef": {
-      "const": "helix://contracts/application-types/LibraWesternAnalysisPhasePlanBinding/v1"
-    },
-    "schemaVersion": {
-      "const": 1
-    },
-    "bindingKind": {
-      "const": "western_analysis_phase"
-    },
-    "libraRunId": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 256
-    },
-    "runExecutionBasisDigest": {
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^[a-f0-9]{64}$"
-    },
-    "phase": {
-      "type": "string",
-      "enum": [
-        "frames",
-        "embedding",
-        "cluster",
-        "analysis_request",
-        "analysis_observe",
-        "reference_match",
-        "metadata_normalize",
-        "media_cast_resolve",
-        "sidecar_render",
-        "poster_render",
-        "artifact_verify_nfo",
-        "artifact_verify_poster"
-      ]
-    },
-    "capabilityRef": {
-      "type": "string",
-      "enum": [
-        "libra.media.frames.extract@1",
-        "shared.face.embedding.compute@1",
-        "shared.face.cluster.compute@1",
-        "libra.western.analysis.request@1",
-        "libra.western.analysis.observe@1",
-        "shared.face.reference.match@1",
-        "libra.western.metadata.normalize@1",
-        "libra.media_cast.resolve@1",
-        "libra.product_sidecar.render@1",
-        "libra.western.poster.render@1",
-        "shared.artifact.manifest.verify@1"
-      ]
-    },
-    "capabilityInput": {
+  "oneOf": [
+    {
       "type": "object",
-      "minProperties": 1,
-      "maxProperties": 32
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "const": "helix://contracts/application-types/LibraWesternAnalysisPhasePlanBinding/v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "bindingKind": {
+          "const": "western_analysis_phase"
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "runExecutionBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "phase": {
+          "const": "frames"
+        },
+        "capabilityRef": {
+          "const": "libra.media.frames.extract@1"
+        },
+        "capabilityInput": {
+          "$ref": "helix://contracts/capabilities/libra.media.frames.extract/v1/inputs"
+        },
+        "upstreamResultRefs": {
+          "type": "array",
+          "maxItems": 0
+        },
+        "bindingDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "bindingKind",
+        "libraRunId",
+        "runExecutionBasisDigest",
+        "phase",
+        "capabilityRef",
+        "capabilityInput",
+        "upstreamResultRefs",
+        "bindingDigest"
+      ]
     },
-    "upstreamResultRefs": {
-      "type": "array",
-      "maxItems": 16,
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "workId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "const": "helix://contracts/application-types/LibraWesternAnalysisPhasePlanBinding/v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "bindingKind": {
+          "const": "western_analysis_phase"
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "runExecutionBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "phase": {
+          "const": "embedding"
+        },
+        "capabilityRef": {
+          "const": "shared.face.embedding.compute@1"
+        },
+        "capabilityInput": {
+          "$ref": "helix://contracts/capabilities/shared.face.embedding.compute/v1/inputs"
+        },
+        "upstreamResultRefs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "libra.media.frames.extract@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/FrameArtifactSet/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              }
+            ]
           },
-          "attemptId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256
+          "allOf": [
+            {
+              "contains": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "libra.media.frames.extract@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/FrameArtifactSet/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            }
+          ]
+        },
+        "bindingDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "bindingKind",
+        "libraRunId",
+        "runExecutionBasisDigest",
+        "phase",
+        "capabilityRef",
+        "capabilityInput",
+        "upstreamResultRefs",
+        "bindingDigest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "const": "helix://contracts/application-types/LibraWesternAnalysisPhasePlanBinding/v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "bindingKind": {
+          "const": "western_analysis_phase"
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "runExecutionBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "phase": {
+          "const": "cluster"
+        },
+        "capabilityRef": {
+          "const": "shared.face.cluster.compute@1"
+        },
+        "capabilityInput": {
+          "$ref": "helix://contracts/capabilities/shared.face.cluster.compute/v1/inputs"
+        },
+        "upstreamResultRefs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "shared.face.embedding.compute@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/FaceEmbeddingSetHandle/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              }
+            ]
           },
-          "planId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256
+          "allOf": [
+            {
+              "contains": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "shared.face.embedding.compute@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/FaceEmbeddingSetHandle/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            }
+          ]
+        },
+        "bindingDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "bindingKind",
+        "libraRunId",
+        "runExecutionBasisDigest",
+        "phase",
+        "capabilityRef",
+        "capabilityInput",
+        "upstreamResultRefs",
+        "bindingDigest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "const": "helix://contracts/application-types/LibraWesternAnalysisPhasePlanBinding/v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "bindingKind": {
+          "const": "western_analysis_phase"
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "runExecutionBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "phase": {
+          "const": "analysis_request"
+        },
+        "capabilityRef": {
+          "const": "libra.western.analysis.request@1"
+        },
+        "capabilityInput": {
+          "$ref": "helix://contracts/capabilities/libra.western.analysis.request/v1/inputs"
+        },
+        "upstreamResultRefs": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "libra.media.frames.extract@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/FrameArtifactSet/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "shared.face.embedding.compute@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/FaceEmbeddingSetHandle/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "shared.face.cluster.compute@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/FaceClusterSetHandle/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              }
+            ]
           },
-          "eventId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256
+          "allOf": [
+            {
+              "contains": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "libra.media.frames.extract@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/FrameArtifactSet/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "shared.face.embedding.compute@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/FaceEmbeddingSetHandle/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "shared.face.cluster.compute@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/FaceClusterSetHandle/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            }
+          ]
+        },
+        "bindingDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "bindingKind",
+        "libraRunId",
+        "runExecutionBasisDigest",
+        "phase",
+        "capabilityRef",
+        "capabilityInput",
+        "upstreamResultRefs",
+        "bindingDigest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "const": "helix://contracts/application-types/LibraWesternAnalysisPhasePlanBinding/v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "bindingKind": {
+          "const": "western_analysis_phase"
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "runExecutionBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "phase": {
+          "const": "analysis_observe"
+        },
+        "capabilityRef": {
+          "const": "libra.western.analysis.observe@1"
+        },
+        "capabilityInput": {
+          "$ref": "helix://contracts/capabilities/libra.western.analysis.observe/v1/inputs"
+        },
+        "upstreamResultRefs": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "libra.media.frames.extract@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/FrameArtifactSet/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "shared.face.embedding.compute@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/FaceEmbeddingSetHandle/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "shared.face.cluster.compute@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/FaceClusterSetHandle/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "libra.western.analysis.request@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/ArtifactHandle/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              }
+            ]
           },
-          "resultId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256
+          "allOf": [
+            {
+              "contains": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "libra.media.frames.extract@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/FrameArtifactSet/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "shared.face.embedding.compute@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/FaceEmbeddingSetHandle/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "shared.face.cluster.compute@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/FaceClusterSetHandle/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "libra.western.analysis.request@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/ArtifactHandle/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            }
+          ]
+        },
+        "bindingDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "bindingKind",
+        "libraRunId",
+        "runExecutionBasisDigest",
+        "phase",
+        "capabilityRef",
+        "capabilityInput",
+        "upstreamResultRefs",
+        "bindingDigest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "const": "helix://contracts/application-types/LibraWesternAnalysisPhasePlanBinding/v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "bindingKind": {
+          "const": "western_analysis_phase"
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "runExecutionBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "phase": {
+          "const": "reference_match"
+        },
+        "capabilityRef": {
+          "const": "shared.face.reference.match@1"
+        },
+        "capabilityInput": {
+          "$ref": "helix://contracts/capabilities/shared.face.reference.match/v1/inputs"
+        },
+        "upstreamResultRefs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "shared.face.cluster.compute@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/FaceClusterSetHandle/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              }
+            ]
           },
-          "capabilityRef": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256
+          "allOf": [
+            {
+              "contains": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "shared.face.cluster.compute@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/FaceClusterSetHandle/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            }
+          ]
+        },
+        "bindingDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "bindingKind",
+        "libraRunId",
+        "runExecutionBasisDigest",
+        "phase",
+        "capabilityRef",
+        "capabilityInput",
+        "upstreamResultRefs",
+        "bindingDigest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "const": "helix://contracts/application-types/LibraWesternAnalysisPhasePlanBinding/v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "bindingKind": {
+          "const": "western_analysis_phase"
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "runExecutionBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "phase": {
+          "const": "metadata_normalize"
+        },
+        "capabilityRef": {
+          "const": "libra.western.metadata.normalize@1"
+        },
+        "capabilityInput": {
+          "$ref": "helix://contracts/capabilities/libra.western.metadata.normalize/v1/inputs"
+        },
+        "upstreamResultRefs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "libra.western.analysis.observe@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/WesternAnalysisResult/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              }
+            ]
           },
-          "resultSchemaRef": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256
+          "allOf": [
+            {
+              "contains": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "libra.western.analysis.observe@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/WesternAnalysisResult/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            }
+          ]
+        },
+        "bindingDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "bindingKind",
+        "libraRunId",
+        "runExecutionBasisDigest",
+        "phase",
+        "capabilityRef",
+        "capabilityInput",
+        "upstreamResultRefs",
+        "bindingDigest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "const": "helix://contracts/application-types/LibraWesternAnalysisPhasePlanBinding/v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "bindingKind": {
+          "const": "western_analysis_phase"
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "runExecutionBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "phase": {
+          "const": "media_cast_resolve"
+        },
+        "capabilityRef": {
+          "const": "libra.media_cast.resolve@1"
+        },
+        "capabilityInput": {
+          "$ref": "helix://contracts/capabilities/libra.media_cast.resolve/v1/inputs"
+        },
+        "upstreamResultRefs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "shared.face.reference.match@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/PersonMatchEvidence/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              }
+            ]
           },
-          "resultDigest": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
+          "allOf": [
+            {
+              "contains": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "shared.face.reference.match@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/PersonMatchEvidence/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            }
+          ]
+        },
+        "bindingDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "bindingKind",
+        "libraRunId",
+        "runExecutionBasisDigest",
+        "phase",
+        "capabilityRef",
+        "capabilityInput",
+        "upstreamResultRefs",
+        "bindingDigest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "const": "helix://contracts/application-types/LibraWesternAnalysisPhasePlanBinding/v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "bindingKind": {
+          "const": "western_analysis_phase"
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "runExecutionBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "phase": {
+          "const": "sidecar_render"
+        },
+        "capabilityRef": {
+          "const": "libra.product_sidecar.render@1"
+        },
+        "capabilityInput": {
+          "$ref": "helix://contracts/capabilities/libra.product_sidecar.render/v1/inputs"
+        },
+        "upstreamResultRefs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "libra.western.metadata.normalize@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/ProductMetadataDraft/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              }
+            ]
           },
-          "inputBindingDigest": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
-          }
+          "allOf": [
+            {
+              "contains": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "libra.western.metadata.normalize@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/ProductMetadataDraft/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            }
+          ]
         },
-        "required": [
-          "workId",
-          "attemptId",
-          "planId",
-          "eventId",
-          "resultId",
-          "capabilityRef",
-          "resultSchemaRef",
-          "resultDigest",
-          "inputBindingDigest"
-        ]
-      }
-    },
-    "bindingDigest": {
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^[a-f0-9]{64}$"
-    }
-  },
-  "required": [
-    "schemaRef",
-    "schemaVersion",
-    "bindingKind",
-    "libraRunId",
-    "runExecutionBasisDigest",
-    "phase",
-    "capabilityRef",
-    "capabilityInput",
-    "upstreamResultRefs",
-    "bindingDigest"
-  ],
-  "allOf": [
-    {
-      "if": {
-        "properties": {
-          "phase": {
-            "const": "frames"
-          }
-        },
-        "required": [
-          "phase"
-        ]
-      },
-      "then": {
-        "properties": {
-          "capabilityRef": {
-            "const": "libra.media.frames.extract@1"
-          }
+        "bindingDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
         }
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "phase": {
-            "const": "embedding"
-          }
-        },
-        "required": [
-          "phase"
-        ]
       },
-      "then": {
-        "properties": {
-          "capabilityRef": {
-            "const": "shared.face.embedding.compute@1"
-          }
-        }
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "phase": {
-            "const": "cluster"
-          }
-        },
-        "required": [
-          "phase"
-        ]
-      },
-      "then": {
-        "properties": {
-          "capabilityRef": {
-            "const": "shared.face.cluster.compute@1"
-          }
-        }
-      }
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "bindingKind",
+        "libraRunId",
+        "runExecutionBasisDigest",
+        "phase",
+        "capabilityRef",
+        "capabilityInput",
+        "upstreamResultRefs",
+        "bindingDigest"
+      ]
     },
     {
-      "if": {
-        "properties": {
-          "phase": {
-            "const": "analysis_request"
-          }
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "const": "helix://contracts/application-types/LibraWesternAnalysisPhasePlanBinding/v1"
         },
-        "required": [
-          "phase"
-        ]
-      },
-      "then": {
-        "properties": {
-          "capabilityRef": {
-            "const": "libra.western.analysis.request@1"
-          }
+        "schemaVersion": {
+          "const": 1
+        },
+        "bindingKind": {
+          "const": "western_analysis_phase"
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "runExecutionBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "phase": {
+          "const": "poster_render"
+        },
+        "capabilityRef": {
+          "const": "libra.western.poster.render@1"
+        },
+        "capabilityInput": {
+          "$ref": "helix://contracts/capabilities/libra.western.poster.render/v1/inputs"
+        },
+        "upstreamResultRefs": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "libra.media.frames.extract@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/FrameArtifactSet/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "shared.face.reference.match@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/PersonMatchEvidence/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              }
+            ]
+          },
+          "allOf": [
+            {
+              "contains": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "libra.media.frames.extract@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/FrameArtifactSet/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "shared.face.reference.match@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/PersonMatchEvidence/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            }
+          ]
+        },
+        "bindingDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
         }
-      }
+      },
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "bindingKind",
+        "libraRunId",
+        "runExecutionBasisDigest",
+        "phase",
+        "capabilityRef",
+        "capabilityInput",
+        "upstreamResultRefs",
+        "bindingDigest"
+      ]
     },
     {
-      "if": {
-        "properties": {
-          "phase": {
-            "const": "analysis_observe"
-          }
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "const": "helix://contracts/application-types/LibraWesternAnalysisPhasePlanBinding/v1"
         },
-        "required": [
-          "phase"
-        ]
-      },
-      "then": {
-        "properties": {
-          "capabilityRef": {
-            "const": "libra.western.analysis.observe@1"
-          }
+        "schemaVersion": {
+          "const": 1
+        },
+        "bindingKind": {
+          "const": "western_analysis_phase"
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "runExecutionBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "phase": {
+          "const": "artifact_verify_nfo"
+        },
+        "capabilityRef": {
+          "const": "shared.artifact.manifest.verify@1"
+        },
+        "capabilityInput": {
+          "$ref": "helix://contracts/capabilities/shared.artifact.manifest.verify/v1/inputs"
+        },
+        "upstreamResultRefs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "libra.product_sidecar.render@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/ArtifactHandle/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              }
+            ]
+          },
+          "allOf": [
+            {
+              "contains": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "libra.product_sidecar.render@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/ArtifactHandle/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            }
+          ]
+        },
+        "bindingDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
         }
-      }
+      },
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "bindingKind",
+        "libraRunId",
+        "runExecutionBasisDigest",
+        "phase",
+        "capabilityRef",
+        "capabilityInput",
+        "upstreamResultRefs",
+        "bindingDigest"
+      ]
     },
     {
-      "if": {
-        "properties": {
-          "phase": {
-            "const": "reference_match"
-          }
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "const": "helix://contracts/application-types/LibraWesternAnalysisPhasePlanBinding/v1"
         },
-        "required": [
-          "phase"
-        ]
-      },
-      "then": {
-        "properties": {
-          "capabilityRef": {
-            "const": "shared.face.reference.match@1"
-          }
-        }
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "phase": {
-            "const": "metadata_normalize"
-          }
+        "schemaVersion": {
+          "const": 1
         },
-        "required": [
-          "phase"
-        ]
-      },
-      "then": {
-        "properties": {
-          "capabilityRef": {
-            "const": "libra.western.metadata.normalize@1"
-          }
-        }
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "phase": {
-            "const": "media_cast_resolve"
-          }
+        "bindingKind": {
+          "const": "western_analysis_phase"
         },
-        "required": [
-          "phase"
-        ]
-      },
-      "then": {
-        "properties": {
-          "capabilityRef": {
-            "const": "libra.media_cast.resolve@1"
-          }
-        }
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "phase": {
-            "const": "sidecar_render"
-          }
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
         },
-        "required": [
-          "phase"
-        ]
-      },
-      "then": {
-        "properties": {
-          "capabilityRef": {
-            "const": "libra.product_sidecar.render@1"
-          }
-        }
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "phase": {
-            "const": "poster_render"
-          }
+        "runExecutionBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
         },
-        "required": [
-          "phase"
-        ]
-      },
-      "then": {
-        "properties": {
-          "capabilityRef": {
-            "const": "libra.western.poster.render@1"
-          }
-        }
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "phase": {
-            "const": "artifact_verify_nfo"
-          }
+        "phase": {
+          "const": "artifact_verify_poster"
         },
-        "required": [
-          "phase"
-        ]
-      },
-      "then": {
-        "properties": {
-          "capabilityRef": {
-            "const": "shared.artifact.manifest.verify@1"
-          }
-        }
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "phase": {
-            "const": "artifact_verify_poster"
-          }
+        "capabilityRef": {
+          "const": "shared.artifact.manifest.verify@1"
         },
-        "required": [
-          "phase"
-        ]
-      },
-      "then": {
-        "properties": {
-          "capabilityRef": {
-            "const": "shared.artifact.manifest.verify@1"
-          }
+        "capabilityInput": {
+          "$ref": "helix://contracts/capabilities/shared.artifact.manifest.verify/v1/inputs"
+        },
+        "upstreamResultRefs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "libra.western.poster.render@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/ArtifactHandle/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              }
+            ]
+          },
+          "allOf": [
+            {
+              "contains": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "eventId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "const": "libra.western.poster.render@1"
+                  },
+                  "resultSchemaRef": {
+                    "const": "helix://contracts/types/ArtifactHandle/v1"
+                  },
+                  "resultDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "inputBindingDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "workId",
+                  "attemptId",
+                  "planId",
+                  "eventId",
+                  "resultId",
+                  "capabilityRef",
+                  "resultSchemaRef",
+                  "resultDigest",
+                  "inputBindingDigest"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            }
+          ]
+        },
+        "bindingDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
         }
-      }
+      },
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "bindingKind",
+        "libraRunId",
+        "runExecutionBasisDigest",
+        "phase",
+        "capabilityRef",
+        "capabilityInput",
+        "upstreamResultRefs",
+        "bindingDigest"
+      ]
     }
   ]
 }

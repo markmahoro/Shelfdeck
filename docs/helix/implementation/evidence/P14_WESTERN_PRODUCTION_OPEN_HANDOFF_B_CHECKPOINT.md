@@ -2,6 +2,10 @@
 
 状态：**FROZEN — 待 Architecture active review / P14 独立复验**
 
+Architecture对首版实现`2a3764a5`的active review发现两项ordinary
+implementation defect。本文件现记录replacement：逐阶段Plan binding机器闭包，
+以及真实Frame bytes/稳定Effect identity。`2a3764a5`不得作为已接受检查点。
+
 ## Baseline 与停止点
 
 - P14 已接受的 Western Routing / Spec / active Run source：`5b7990ee`。
@@ -28,10 +32,18 @@
 → face.reference.match`
 
 - 每阶段均是独立 Supporting Work、immutable one-node Plan、Event 与 typed
-  Result；`LibraWesternAnalysisPhasePlanBinding@1`冻结完整Capability input和
-  exact upstream Result refs。
+  Result；`LibraWesternAnalysisPhasePlanBinding@1`现在物化为12个
+  discriminated closed variants。每个variant通过正式Capability input schema
+  验证完整named input，并以order-independent exact set验证对应的upstream
+  Capability/Result schema refs；多余input字段、缺失/重复/foreign ref均被机器
+  schema拒绝。Application contract digest为
+  `dd0c09df69ed1a854bd33d111ea52137fa39b6cd391ce2a48b30b34e1388430f`。
 - `FrameArtifactSet@1`只携带一个`western_frame_set` composite Artifact
-  Handle、frameCount和member-set digest；不内联逐帧Handle。
+  Handle、frameCount和member-set digest；不内联逐帧Handle。clean Workspace
+  port在调用extractor前先以Plan input/target/provenance建立stable intended
+  Effect，并提供target-bound bounded sink。Extractor只能向该sink写入实际
+  Frame bytes；immutable composite Artifact同时保存closed index与对应member
+  bytes，Handle content digest覆盖两者，不接受locator-only输出。
 - Embedding只消费该composite Handle，Cluster只消费Embedding Result；
   Analysis request是`workspace_write`并输出
   `ArtifactHandle(kind=western_analysis)`，observe是pure observation并输出
@@ -83,6 +95,10 @@ Western analysis不再映射到Worker external request。
 
 - Frame物理文件已经产生、journal/Result尚未完成时崩溃，重启从同一effect
   reality恢复，不重复frame extraction。
+- 所有generic Workspace Artifact materialization的Effect identity只由稳定
+  phase/Plan input/Target/provenance形成，不含output digest。相同identity重算出
+  不同bytes时fail closed且不建立第二Effect；output digest仅作为physical
+  receipt/reality验证。该规则同样覆盖Embedding、Cluster、Analysis、Poster。
 - Western Analysis Result已经提交、Event尚未success时崩溃，重启复用exact
   persisted Result，不重复analysis写Artifact。
 - Package/Control/Offer已经原子提交、HTTP响应前崩溃，重启返回同一Package与
@@ -94,6 +110,12 @@ Western analysis不再映射到Worker external request。
 - 持久`fx_event_result_bindings.result_json`按其正式Result schema、JCS bytes与
   result digest重新验证；额外字段、Model Pack shape/SHA、Artifact kind/Handle、
   People projection contract漂移均fail closed。
+- 持久Plan binding逐项按完整机器schema复验；反例覆盖extra input key、
+  missing/duplicate/wrong Capability/wrong Result schema ref，并证明合法ref集合
+  顺序变化仍按exact set通过。
+- Frame sink反例证明Effect intent先于engine bytes、Artifact内确实保存实际member
+  bytes且index/content digest逐项匹配；intended或committed阶段的同identity
+  output drift均零新增Effect并fail closed。
 - no Analysis adapter时仍停在accepted active Run，不创建Workspace/Product；
   Movie/Series/JAV共享Formation和Production回归保持通过。
 
@@ -120,11 +142,13 @@ Western analysis不再映射到Worker external request。
     `c2b1dd21b92b30b9ab5aa4a09e378e2cc3136f40cf75e1f7dbbd07dc05a636ba`；
   - transactions：
     `4d37eb40a1851fae068780e184ce4bc152be5428d662447576d0f166ea9a82ab`。
-- Western定向：`3/3 PASS`。
+- Western定向：`3/3 PASS`；clean Workspace/Plan replacement定向：
+  `18/18 PASS`。
+- PBF-23及Product Fact周边replacement回归：`60/60 PASS`。
 - PBF-23 machine、People public port及共享Product Fact回归：`85/85 PASS`。
 - Series N:M / Movie Perception / JAV Handoff A回归：`15/15 PASS`。
 - Table/DDL/Worker/baseline定向：`22/22 PASS`。
-- 完整`npm run test:helix-architecture`：`133 files / 898 tests PASS`；
+- 完整`npm run test:helix-architecture`：`133 files / 899 tests PASS`；
   dependency、semantic、manifests、contracts均PASS，findings与
   `prohibitedActionsRun`为空。
 

@@ -72,6 +72,24 @@ function request(bytes = Buffer.from('<movie><title>Example Movie</title></movie
   });
 }
 
+function frameRequest() {
+  const base = request();
+  return Object.freeze({
+    libraRunId: base.libraRunId,
+    workspaceId: base.workspaceId,
+    relativePath: 'analysis/frames/frame-set.json',
+    artifactKind: 'western_frame_set',
+    mediaType: 'application/vnd.shelfdeck.western-frame-set+json',
+    provenanceRef: Object.freeze({
+      objectType: 'western_frame_extract',
+      objectId: 'frame-target-1',
+      revision: 1,
+      digest: canonicalDigest('frame-target-1'),
+    }),
+    maxFrames: 4,
+  });
+}
+
 test('materializes one service-owned Workspace Artifact and replays exact handles', () =>
   fixture(({ databasePath, workspaceRoot, dependencies }) => {
     const port = createCleanWorkspaceProductPort({ ...dependencies, rootPath: workspaceRoot });
@@ -144,13 +162,105 @@ test('recovers the same physical bytes after crash before journal/handle commit'
     }
   }));
 
-test('same path with different bytes is a separate fenced intent and fails on occupied reality', () =>
-  fixture(({ workspaceRoot, dependencies }) => {
+test('same stable target identity with different bytes fails without a second effect', () =>
+  fixture(({ databasePath, workspaceRoot, dependencies }) => {
     const port = createCleanWorkspaceProductPort({ ...dependencies, rootPath: workspaceRoot });
     port.materializeArtifact(request());
     assert.throws(
       () => port.materializeArtifact(request(Buffer.from('<movie><title>Changed</title></movie>'))),
-      (error) => error.code === 'SQLITE_CONSTRAINT_UNIQUE' ||
-        error.code === 'CLEAN_WORKSPACE_EFFECT_STATE_CONFLICT',
+      (error) => error.code === 'CLEAN_WORKSPACE_EFFECT_REALITY_DRIFT',
+    );
+    const database = new Database(databasePath, { readonly: true });
+    try {
+      assert.equal(database.prepare(
+        'SELECT count(*) count FROM fx_effect_journal'
+      ).get().count, 1);
+    } finally {
+      database.close();
+    }
+  }));
+
+test('intended physical reality rejects recomputed bytes under the same stable effect', () =>
+  fixture(({ databasePath, workspaceRoot, dependencies }) => {
+    const original = request();
+    const crashing = createCleanWorkspaceProductPort({
+      ...dependencies,
+      rootPath: workspaceRoot,
+      afterPhysicalEffect() {
+        throw new Error('fault-after-stable-effect-bytes');
+      },
+    });
+    assert.throws(
+      () => crashing.materializeArtifact(original),
+      /fault-after-stable-effect-bytes/,
+    );
+    const restarted = createCleanWorkspaceProductPort({
+      ...dependencies,
+      rootPath: workspaceRoot,
+    });
+    assert.throws(
+      () => restarted.materializeArtifact(request(
+        Buffer.from('<movie><title>Different recomputation</title></movie>'),
+      )),
+      (error) => error.code === 'CLEAN_WORKSPACE_EFFECT_OUTPUT_DRIFT',
+    );
+    const target = path.join(
+      workspaceRoot,
+      original.workspaceId,
+      'artifacts',
+      'movie.nfo',
+    );
+    assert.deepEqual(fs.readFileSync(target), original.bytes);
+    const database = new Database(databasePath, { readonly: true });
+    try {
+      assert.deepEqual(database.prepare(
+        'SELECT count(*) count,min(state) state FROM fx_effect_journal'
+      ).get(), { count: 1, state: 'intended' });
+    } finally {
+      database.close();
+    }
+  }));
+
+test('frame sink journals stable target identity before accepting real member bytes', () =>
+  fixture(({ databasePath, workspaceRoot, dependencies }) => {
+    const port = createCleanWorkspaceProductPort({
+      ...dependencies,
+      rootPath: workspaceRoot,
+    });
+    const sink = port.openFrameCompositeSink(frameRequest());
+    const before = new Database(databasePath, { readonly: true });
+    try {
+      assert.deepEqual(before.prepare(
+        'SELECT state,output_digest FROM fx_effect_journal'
+      ).get(), { state: 'intended', output_digest: null });
+    } finally {
+      before.close();
+    }
+    const frame0 = Buffer.from('actual-frame-zero');
+    const frame1 = Buffer.from('actual-frame-one');
+    sink.writeFrame({ timestampMs: 0, bytes: frame0 });
+    sink.writeFrame({ timestampMs: 10_000, bytes: frame1 });
+    const committed = sink.commit();
+    const recovered = port.readArtifactBytes(
+      committed.materialized.artifactHandle,
+    );
+    const composite = JSON.parse(recovered.bytes.toString('utf8'));
+    assert.equal(composite.members.length, 2);
+    assert.deepEqual(
+      composite.memberPayloads.map((item) =>
+        Buffer.from(item.bytesBase64, 'base64')),
+      [frame0, frame1],
+    );
+    assert.equal(
+      committed.materialized.artifactHandle.digestHex,
+      require('node:crypto').createHash('sha256')
+        .update(recovered.bytes).digest('hex'),
+    );
+    assert.equal(
+      composite.frameMemberSetDigest,
+      canonicalDigest({
+        schema: 'libra.western-frame-member-set@1',
+        items: composite.members,
+      }),
     );
   }));
