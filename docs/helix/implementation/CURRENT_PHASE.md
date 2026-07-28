@@ -1,6 +1,6 @@
 # P14 Product Journey Implementation
 
-状态：**FROZEN — Western Arca On-deck 待复验**
+状态：**FROZEN — Western backend responsibility endpoint 待复验**
 
 ## 当前最新检查点
 
@@ -83,6 +83,25 @@ Libra Run保持active，Delivery Receipt与Workspace Cleanup Scope均为0。详�
 
 `docs/helix/implementation/evidence/P14_WESTERN_ARCA_ONDECK_CHECKPOINT.md`
 
+P14已独立接受该Arca Handoff B / On-deck检查点（source `62dfe460`，
+tested local `8e0e3d3b`，evidence `20e873e1`）。同一Western journey现已继续
+复用Movie/Series/JAV已接受的共享responsibility closure推进到：
+
+`Accepted message consumption / terminal Libra Run
+→ durable Off-load Projection（wake可丢失）
+→ 24h grace + 两次真实cycle-separated Reference/Control audit
+→ one Cleanup Scope
+→ journaled Workspace reclaim
+→ released References / terminal Scope + Workspace + Foundation registry`
+
+Run completion后、delivery ack前故障从持久完整
+`LibraRunLifecycleResult@1` byte-identical重放，只补ack且不增加revision/result/
+marker。首个cleanup physical effect与首个member commit后的故障均恢复同一
+Scope/Effect；Reference或Control drift反例保持零Scope。Arca三成员Inventory、
+Deck Fact、源文件与Target文件保持不变。详细证据：
+
+`docs/helix/implementation/evidence/P14_WESTERN_RESPONSIBILITY_CLOSURE_CHECKPOINT.md`
+
 ## 当前基线
 
 - 分支：`codex/helix-p9`
@@ -91,9 +110,9 @@ Libra Run保持active，Delivery Receipt与Workspace Cleanup Scope均为0。详�
 - PBF-19 Architecture 修正：`ff1b833a`；实现分支原样纳入：
   `942fc692`。
 - PBF-19 P14 独立接受证据：`de0dff64`（tested `3d9ebab4`）。
-- 当前实现检查点：Western Arca Handoff B / Inventory / On-deck Commit；
+- 当前实现检查点：Western backend final responsibility closure；
   详细施工证据见
-  `docs/helix/implementation/evidence/P14_WESTERN_ARCA_ONDECK_CHECKPOINT.md`。
+  `docs/helix/implementation/evidence/P14_WESTERN_RESPONSIBILITY_CLOSURE_CHECKPOINT.md`。
 - 实现线程未额外修改 Architecture SSOT。
 - `F02.17` 仍为 `NOT_RUN`；不得增加测试便利接口或用内部 Store 证据冒充
   用户 Feature。
@@ -330,9 +349,9 @@ terminal reclaimed。
 
 ## 下一步
 
-等待Architecture active review与P14独立复验Western Arca On-deck检查点。
-接受前不得让Libra消费Accepted/Off-load消息、不得进入responsibility closure，
-也不得恢复横向Feature Matrix。
+等待Architecture active review与P14独立复验Western backend responsibility
+closure检查点。接受前不得恢复横向Feature Matrix，也不得扩大到UI/Provider/
+Worker/Desktop/Ollama/NAS。
 
 ## 硬边界
 
@@ -341,5 +360,5 @@ terminal reclaimed。
 - 不得修改 SSOT，不得引入兼容/双路径、hidden Store read、外域
   latest/current scan、Foundation Result fallback、legacy fallback 或跨 Owner
   写入。
-- 当前检查点只声明 Series core backend responsibility closure 已实现，不声明
+- 当前检查点只声明 Western core backend responsibility closure 已实现，不声明
   Real Provider、Feature/UI或Beta完成。

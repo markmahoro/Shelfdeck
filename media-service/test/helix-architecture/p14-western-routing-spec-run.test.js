@@ -400,7 +400,7 @@ test('Western active Run stays before Production without service-local Analysis'
     /WorkerAssetReceipt|WorkerUploadReceipt|ExternalJobReceipt|Mirex|FastAPI|Ollama/);
 });
 
-test('Western public HTTP reaches Arca On-deck and stops before Libra closure', async (t) => {
+test('Western public HTTP closes responsibility without changing Arca inventory', async (t) => {
   const retainedPrimary = String(
     process.env.P14_WESTERN_SAMPLE_FILE || ''
   ).trim();
@@ -1303,23 +1303,142 @@ test('Western public HTTP reaches Arca On-deck and stops before Libra closure', 
        FROM arca_inventory_materials
       ORDER BY ordinal`,
   ).all().map((row) => row.location);
+  const workspaceRows = database.prepare(
+    `SELECT workspace_id,relative_path
+       FROM fx_workspace_materials
+      WHERE state='active'
+      ORDER BY relative_path`,
+  ).all();
   database.close();
   const targetsBeforeReplay = await snapshotFiles(targetLocations);
+  const workspaceFiles = workspaceRows.map((row) => path.join(
+    dataDir,
+    'workspace',
+    row.workspace_id,
+    ...row.relative_path.split('/'),
+  ));
+  assert.ok(workspaceFiles.length > 0);
+  assert.equal(workspaceFiles.every((file) => fs.existsSync(file)), true);
 
   host = await createCleanServiceHost({
     ...onDeckOptions,
+    afterRunCompletion() {
+      throw Object.assign(
+        new Error('Western fault after Run completion'),
+        { code: 'P14_WESTERN_FAULT_AFTER_RUN_COMPLETION' },
+      );
+    },
   });
-  let committedProduction;
   try {
     const replay = await requestOnDeck(host);
-    assert.equal(replay.statusCode, 200, replay.body);
-    const production = replay.json().movieJourney.handoff.production;
+    assert.equal(replay.statusCode, 400, replay.body);
+    assert.equal(
+      replay.json().error.details.reasonCode,
+      'P14_WESTERN_FAULT_AFTER_RUN_COMPLETION',
+      replay.body,
+    );
+  } finally {
+    await host.close();
+  }
+
+  database = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM libra_runs
+      WHERE state='completed'`,
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM libra_delivery_receipts',
+  ).get().count, 1);
+  const lifecycleSchemaRef =
+    'helix://contracts/application-types/LibraRunLifecycleResult/v1';
+  const committedLifecycleResult = database.prepare(
+    `SELECT result_json,result_digest
+       FROM fx_event_result_bindings
+      WHERE result_schema_ref=?
+      ORDER BY committed_at_ms DESC
+      LIMIT 1`,
+  ).get(lifecycleSchemaRef);
+  assert.ok(committedLifecycleResult);
+  const completionWriteCounts = Object.freeze({
+    revisions: database.prepare(
+      `SELECT count(*) count
+         FROM libra_run_revisions
+        WHERE transition_kind='complete'`,
+    ).get().count,
+    results: database.prepare(
+      `SELECT count(*) count
+         FROM fx_event_result_bindings
+        WHERE result_schema_ref=?`,
+    ).get(lifecycleSchemaRef).count,
+    markers: database.prepare(
+      `SELECT count(*) count
+         FROM fx_commit_markers
+        WHERE result_schema_ref=?`,
+    ).get(lifecycleSchemaRef).count,
+  });
+  const offloadCommittedAtMs = Number(database.prepare(
+    'SELECT committed_at_ms FROM arca_offload_completions',
+  ).get().committed_at_ms);
+  const cleanupAtMs = offloadCommittedAtMs + 86_400_000 + 60_000;
+  database.close();
+
+  host = await createCleanServiceHost({
+    ...onDeckOptions,
+    cleanupNow: () => offloadCommittedAtMs + 86_400_000 - 1,
+    offloadWakeVisible: false,
+  });
+  try {
+    const grace = await requestOnDeck(host);
+    assert.equal(grace.statusCode, 200, grace.body);
+    const production = grace.json().movieJourney.handoff.production;
+    assert.equal(
+      production.responsibilityClosure.stage,
+      'workspace_cleanup_grace_active',
+    );
+    assert.equal(
+      canonicalJson(production.responsibilityClosure.runClosure.result),
+      committedLifecycleResult.result_json,
+    );
+    assert.equal(
+      canonicalDigest(production.responsibilityClosure.runClosure.result),
+      committedLifecycleResult.result_digest,
+    );
+  } finally {
+    await host.close();
+  }
+
+  let cleanupClock = cleanupAtMs;
+  let committedProduction;
+  host = await createCleanServiceHost({
+    ...onDeckOptions,
+    cleanupNow: () => cleanupClock,
+    offloadWakeVisible: false,
+  });
+  try {
+    const firstAudit = await requestOnDeck(host);
+    assert.equal(firstAudit.statusCode, 200, firstAudit.body);
+    const production = firstAudit.json().movieJourney.handoff.production;
     committedProduction = production;
-    assert.equal(production.stage, 'movie_on_deck_committed');
-    assert.equal(production.offerStage, 'handoff_b_offer_open');
-    assert.equal(production.replayed, true);
-    assert.equal(production.responsibilityClosure, null);
-    assert.equal(production.contentProfile, 'western_adult');
+    assert.equal(
+      production.responsibilityClosure.stage,
+      'workspace_cleanup_audit_pending',
+    );
+    assert.equal(
+      canonicalJson(production.responsibilityClosure.runClosure.result),
+      committedLifecycleResult.result_json,
+    );
+    assert.equal(
+      canonicalDigest(production.responsibilityClosure.runClosure.result),
+      committedLifecycleResult.result_digest,
+    );
+    assert.equal(
+      production.responsibilityClosure.runClosure.result.resultDigest,
+      JSON.parse(committedLifecycleResult.result_json).resultDigest,
+    );
     assert.equal(production.productDelivery.resultKind, 'found');
     assert.equal(
       production.productDelivery.onDeckProductPackage
@@ -1342,25 +1461,9 @@ test('Western public HTTP reaches Arca On-deck and stops before Libra closure', 
           item.episodeClaims.length === 0),
       true,
     );
-    assert.equal(
-      production.handoffB.acceptedMessage.messageKind,
-      'arca.product.accepted@1',
-    );
-    assert.equal(
-      production.onDeck.result.offloadCompletionFact.factSchemaRef,
-      'arca.offload-completion@1',
-    );
-    assert.equal(
-      production.onDeck.stagedInventoryManifest.stagedMembers.length,
-      3,
-    );
   } finally {
     await host.close();
   }
-  assert.deepEqual(
-    await snapshotFiles(targetLocations),
-    targetsBeforeReplay,
-  );
   assert.deepEqual(westernCalls, {
     extractFrameSet: 1,
     computeEmbeddings: 1,
@@ -1369,6 +1472,191 @@ test('Western public HTTP reaches Arca On-deck and stops before Libra closure', 
     matchReferences: 1,
     renderPoster: 1,
   });
+
+  database = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM libra_workspace_cleanup_scopes',
+  ).get().count, 0);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM fx_effect_journal
+      WHERE effect_class='libra_workspace_material_reclaim'`,
+  ).get().count, 0);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM fx_outbox
+      WHERE message_kind='arca.product.accepted@1'
+        AND state='fully_acked'`,
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM fx_outbox
+      WHERE message_kind='arca.offload.completed@1'
+        AND state='pending'`,
+  ).get().count, 1);
+  database.close();
+
+  let cleanupPhysicalEffects = 0;
+  host = await createCleanServiceHost({
+    ...onDeckOptions,
+    cleanupNow: () => cleanupClock,
+    offloadWakeVisible: false,
+    afterCleanupPhysicalEffect() {
+      cleanupPhysicalEffects += 1;
+      throw Object.assign(
+        new Error('Western cleanup physical effect interruption'),
+        { code: 'P14_WESTERN_CLEANUP_PHYSICAL_EFFECT_INTERRUPTION' },
+      );
+    },
+  });
+  try {
+    const restartedFirstAudit = await requestOnDeck(host);
+    assert.equal(restartedFirstAudit.statusCode, 200,
+      restartedFirstAudit.body);
+    assert.equal(
+      restartedFirstAudit.json().movieJourney.handoff.production
+        .responsibilityClosure.stage,
+      'workspace_cleanup_audit_pending',
+    );
+    cleanupClock = cleanupAtMs + 60_000 - 1;
+    const earlySecondAudit = await requestOnDeck(host);
+    assert.equal(earlySecondAudit.statusCode, 200,
+      earlySecondAudit.body);
+    assert.equal(
+      earlySecondAudit.json().movieJourney.handoff.production
+        .responsibilityClosure.stage,
+      'workspace_cleanup_audit_pending',
+    );
+    cleanupClock = cleanupAtMs + 60_000;
+    const interrupted = await requestOnDeck(host);
+    assert.equal(interrupted.statusCode, 400, interrupted.body);
+    assert.equal(
+      interrupted.json().error.details.reasonCode,
+      'P14_WESTERN_CLEANUP_PHYSICAL_EFFECT_INTERRUPTION',
+      interrupted.body,
+    );
+  } finally {
+    await host.close();
+  }
+
+  database = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM libra_workspace_cleanup_scopes
+      WHERE state='active'`,
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM libra_workspace_cleanup_members
+      WHERE state='completed'`,
+  ).get().count, 0);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM fx_effect_journal
+      WHERE effect_class='libra_workspace_material_reclaim'
+        AND state='intended'`,
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM fx_outbox
+      WHERE message_kind='arca.offload.completed@1'
+        AND state='pending'`,
+  ).get().count, 1);
+  database.close();
+  assert.equal(cleanupPhysicalEffects, 1);
+  assert.equal(
+    workspaceFiles.filter((file) => !fs.existsSync(file)).length,
+    1,
+  );
+
+  host = await createCleanServiceHost({
+    ...onDeckOptions,
+    cleanupNow: () => cleanupClock,
+    afterCleanupCommit() {
+      throw Object.assign(
+        new Error('Western cleanup member commit interruption'),
+        { code: 'P14_WESTERN_CLEANUP_MEMBER_COMMIT_INTERRUPTION' },
+      );
+    },
+  });
+  try {
+    const interrupted = await requestOnDeck(host);
+    assert.equal(interrupted.statusCode, 400, interrupted.body);
+    assert.equal(
+      interrupted.json().error.details.reasonCode,
+      'P14_WESTERN_CLEANUP_MEMBER_COMMIT_INTERRUPTION',
+      interrupted.body,
+    );
+  } finally {
+    await host.close();
+  }
+
+  database = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM libra_workspace_cleanup_members
+      WHERE state='completed'`,
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM fx_effect_journal
+      WHERE effect_class='libra_workspace_material_reclaim'
+        AND state='committed'`,
+  ).get().count, 1);
+  database.close();
+
+  host = await createCleanServiceHost({
+    ...onDeckOptions,
+    cleanupNow: () => cleanupClock,
+    afterCleanupPhysicalEffect() {
+      cleanupPhysicalEffects += 1;
+    },
+  });
+  let cleanedProduction;
+  try {
+    const cleaned = await requestOnDeck(host);
+    assert.equal(cleaned.statusCode, 200, cleaned.body);
+    cleanedProduction = cleaned.json().movieJourney.handoff.production;
+    assert.equal(
+      cleanedProduction.responsibilityClosure.stage,
+      'workspace_cleanup_completed',
+    );
+    assert.equal(cleanedProduction.productDelivery.resultKind, 'found');
+    assert.equal(
+      cleanedProduction.productDelivery.onDeckProductPackage
+        .productMaterialManifest.members.length,
+      3,
+    );
+    assert.equal(
+      cleanedProduction.productDelivery.onDeckProductPackage
+        .productMaterialManifest.members.every((member) =>
+          member.episodeClaims.length === 0),
+      true,
+    );
+    assert.equal(
+      canonicalJson(
+        cleanedProduction.responsibilityClosure.runClosure.result,
+      ),
+      committedLifecycleResult.result_json,
+    );
+  } finally {
+    await host.close();
+  }
+  assert.equal(cleanupPhysicalEffects, workspaceFiles.length);
+  assert.equal(workspaceFiles.every((file) => !fs.existsSync(file)), true);
+  assert.deepEqual(
+    await snapshotFiles(targetLocations),
+    targetsBeforeReplay,
+  );
 
   database = new Database(
     path.join(dataDir, 'shelfdeck.db'),
@@ -1467,27 +1755,91 @@ test('Western public HTTP reaches Arca On-deck and stops before Libra closure', 
     assert.equal(database.prepare(
       `SELECT count(*) count
          FROM fx_outbox
-        WHERE message_kind=?`,
+        WHERE message_kind=? AND state='fully_acked'`,
     ).get(messageKind).count, 1);
     assert.equal(database.prepare(
       `SELECT count(*) count
          FROM fx_inbox inbox
          JOIN fx_outbox outbox ON outbox.message_id=inbox.message_id
         WHERE outbox.message_kind=?
-          AND inbox.consumer_domain='libra'`,
+          AND inbox.consumer_domain='libra'
+          AND inbox.consumed_at_ms IS NOT NULL`,
+    ).get(messageKind).count, 1);
+    assert.equal(database.prepare(
+      `SELECT count(*) count
+         FROM fx_outbox_deliveries delivery
+         JOIN fx_outbox outbox ON outbox.message_id=delivery.message_id
+        WHERE outbox.message_kind=?
+          AND delivery.consumer_domain='libra'
+          AND delivery.state='acked'`,
+    ).get(messageKind).count, 1);
+    assert.equal(database.prepare(
+      `SELECT count(*) count
+         FROM fx_inbox inbox
+         JOIN fx_outbox outbox ON outbox.message_id=inbox.message_id
+        WHERE outbox.message_kind=?
+          AND inbox.consumer_domain<>'libra'`,
     ).get(messageKind).count, 0);
   }
   assert.equal(database.prepare(
     `SELECT count(*) count
        FROM libra_runs
-      WHERE state='active'`,
+      WHERE state='completed'`,
   ).get().count, 1);
   assert.equal(database.prepare(
     'SELECT count(*) count FROM libra_delivery_receipts',
-  ).get().count, 0);
+  ).get().count, 1);
   assert.equal(database.prepare(
-    'SELECT count(*) count FROM libra_workspace_cleanup_scopes',
-  ).get().count, 0);
+    `SELECT count(*) count
+       FROM libra_workspace_cleanup_scopes
+      WHERE state='completed'`,
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM libra_workspace_cleanup_members
+      WHERE state='completed'`,
+  ).get().count, workspaceFiles.length);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM libra_workspace_material_refs
+      WHERE reference_state='released'`,
+  ).get().count, workspaceFiles.length);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM fx_workspace_materials
+      WHERE state='reclaimed'`,
+  ).get().count, workspaceFiles.length);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM libra_workspaces
+      WHERE state='reclaimed'`,
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM fx_workspace_registry
+      WHERE state='reclaimed'`,
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM fx_effect_journal
+      WHERE effect_class='libra_workspace_material_reclaim'
+        AND state='committed'`,
+  ).get().count, workspaceFiles.length);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM libra_run_revisions
+      WHERE transition_kind='complete'`,
+  ).get().count, completionWriteCounts.revisions);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM fx_event_result_bindings
+      WHERE result_schema_ref=?`,
+  ).get(lifecycleSchemaRef).count, completionWriteCounts.results);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM fx_commit_markers
+      WHERE result_schema_ref=?`,
+  ).get(lifecycleSchemaRef).count, completionWriteCounts.markers);
   assert.equal(database.prepare(
     `SELECT count(*) count FROM fx_plan_nodes
       WHERE input_binding_schema_ref=
