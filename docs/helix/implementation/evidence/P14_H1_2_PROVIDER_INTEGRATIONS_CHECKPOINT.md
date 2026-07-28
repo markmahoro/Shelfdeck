@@ -1,12 +1,12 @@
 # P14 H1.2 Provider Integrations Implementation Checkpoint
 
-状态：**IMPLEMENTATION FROZEN — 等待 Architecture 主动复审与 P14 独立验收**
+状态：**REPLACEMENT IMPLEMENTATION FROZEN — 等待 Architecture 主动复审；H1.3 未授权**
 
 ## 基线与范围
 
 - immutable vertical baseline：`ddc3e51909ca4e9f5729c4326b05daee4792326f`
 - H1.1 accepted source：`8bf8feb5873419ed49deece15cc856cee6046fa9`
-- H1.2 implementation closure：`a6b18030`
+- H1.2 replacement implementation closure：`f5a9e250`
 - Architecture SSOT未修改；H1.3–H1.5与H2未开始。
 - 变更只位于H1允许的Platform、Integration、Composition/Clean Host seam及
   独立H1.2测试和既有implementation治理文档。
@@ -19,9 +19,12 @@ revision-fenced Integration Handle/Secret Lease及durable command replay：
 
 - `douban`：官方HTTPS endpoint，Cookie/user identity只经加密Secret流程；
   Perception读取投影为closed bounded source refs。
-- `adult-provider`：官方GraphQL endpoint；只有正式typed exact match才建立
-  `jav/jav_code` Resolved Identity，并提供metadata、people与poster/fanart
-  typed seam。
+- `adult-provider`：只实现当前官方ThePornDB Bearer REST最小子集：
+  `GET /auth/user`、`GET /jav?q=<jav_code>&per_page=2`与
+  `GET /jav/{identifier}`。GraphQL endpoint/query/fixture已从Clean Helix路径
+  完全移除；只有逐字节匹配的`sku`才建立`jav/jav_code` Resolved Identity。
+  SceneResource仅投影当前Product所需metadata、people hints及poster/fanart；
+  未授权的performer detail与其他resource明确typed fail closed。
 - `moviepilot`：显式HTTPS或private/loopback HTTP endpoint；availability、
   candidate search和external acquire request/receipt使用既有P5 typed ports。
 - optional `emby`：username/password只用于一次认证，保存的是Server签发token；
@@ -38,7 +41,15 @@ revision-fenced Integration Handle/Secret Lease及durable command replay：
 - cross-provider合法envelope swap、endpoint drift及revision drift在Secret/
   network前拒绝；
 - Provider response执行Content-Length与streamed byte cap，随后进行closed、
-  bounded、unique projection；
+  bounded、unique projection；JSON/Emby token response原始Buffer及Emby
+  adapter返回的原始`persistedSecretBytes`均在`finally`中清零；
+- JAV Product Handle以唯一builder/validator重算完整`handleId`与
+  `fenceDigest`，foreign type/secret/revision/operation/artifact kind在transport
+  前拒绝；
+- Douban Observation的request source与返回页面都必须精确属于已配置userId；
+- ThePornDB artifact只允许`cdn.theporndb.net`或`thumb.theporndb.net`，
+  HTTPS default port、无userinfo，redirect禁用；IPv4/IPv6/private/mapped及
+  redirect反例均不会访问foreign transport；
 - test proof一次使用；configure/disconnect历史command receipt在head推进及
   restart后仍稳定重放，不倒退active state；
 - Emby登录明文使用后清零；proof/transient envelope与active Secret生命周期
@@ -52,10 +63,12 @@ ignored private operator input仅作为一次formal public command输入，未�
 
 `publicTest=PASS / save=PASS / typedAvailability=PASS / responseBytes=187`
 
-Douban、Adult Provider和optional Emby当前没有可用private credential，因此其
+Douban、ThePornDB和optional Emby当前没有可用private credential，因此其
 网络transport使用deterministic test implementation验证正式Port与投影；这不是
-real Provider acceptance。MoviePilot search/request的实现与typed contract已由
-隔离测试覆盖；未向真实MoviePilot提交具有下载副作用的construction请求。
+real Provider acceptance。ThePornDB official protocol形状依据当前公开OpenAPI
+进行有界construction验证，尚未形成真实外网credential acceptance。MoviePilot
+search/request的实现与typed contract已由隔离测试覆盖；未向真实MoviePilot提交
+具有下载副作用的construction请求，外部协议的exactly-once也未被宣称。
 
 ## Material-cost decision
 
@@ -74,12 +87,10 @@ cost packet，用户已批准最低成本合规方案：
 
 ## 机器与回归证据
 
-- focused H1.1/H1.2/P5：
-  `31 tests / 31 PASS`
+- focused H1.1/H1.2/P5 replacement：
+  `29 tests / 29 PASS`
 - immutable vertical sentinels：
-  `27 tests / 27 PASS`
-- package-boundary与H1 focused replacement：
-  `27 tests / 27 PASS`
+  `41 tests / 41 PASS`
 - H1.2 cumulative scope guard：
   `PASS / violations=[]`
 - route state：
@@ -87,7 +98,7 @@ cost packet，用户已批准最低成本合规方案：
 - full `npm run test:helix-architecture`：
   `136 fixture files / PASS`
 - dependency：
-  `47 packages / 193 files / 467 dependencies / findings=0`
+  `47 packages / 193 files / 469 dependencies / findings=0`
 - semantic：
   `1733 files / findings=0`
 - inventories：
@@ -114,5 +125,5 @@ Frozen digests：
 
 - Feature Matrix未提升任何Feature为PASS。
 - Worker/Desktop/Ollama/Python/NAS/Docker/production均未触碰。
-- H1.3未授权；本checkpoint后实现线程停止，等待Architecture主动复审与P14
-  独立验收。
+- H1.3未授权；本replacement checkpoint后实现线程停止，先等待Architecture
+  主动复审。只有Architecture接受后才能交P14，双门前不得继续。

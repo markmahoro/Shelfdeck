@@ -1,6 +1,6 @@
 # P14 Product Journey Implementation
 
-状态：**H1.2 IMPLEMENTATION CHECKPOINT FROZEN — 等待 Architecture/P14；H1.3 未授权**
+状态：**H1.2 REPLACEMENT CHECKPOINT FROZEN — 等待 Architecture；H1.3 未授权**
 
 ## H1-only 授权与阶段门
 
@@ -164,44 +164,51 @@ operation Handle和同revision Secret Lease：
 
 - Douban使用官方HTTPS endpoint、user identity和Cookie，只形成bounded
   Perception source observation refs；
-- Adult Provider使用官方GraphQL endpoint，JAV code只有在正式typed
-  Provider返回exact match后才形成`jav/jav_code` Resolved Identity；Metadata、
-  People与poster/fanart读取均保留identity/config fence；
+- Adult Provider只使用当前官方ThePornDB Bearer REST最小子集：
+  `/auth/user`、`/jav?q=...&per_page=2`与`/jav/{identifier}`；旧GraphQL
+  endpoint/query/fixture已从Clean Helix路径移除。JAV code只有在正式typed
+  SceneResource的`sku` exact match后才形成`jav/jav_code` Resolved Identity；
+  当前Product所需Metadata、People hints与poster/fanart均保留identity/config
+  fence，未授权的performer detail/resource typed fail closed；
 - MoviePilot使用用户显式配置的HTTPS或private/loopback HTTP endpoint，search与
   external request分别走既有P5 observation/request port并返回closed
   Candidate/ExternalJobReceipt；不导入历史config或路径映射；
 - optional Emby只用username/password进行一次认证，持久化Server签发的access
   token；密码不进入proof后的Secret、SQLite、HTTP响应、日志或Evidence。
 
-所有Provider response先执行declared+streamed byte cap，再投影为closed bounded
-值；persisted endpoint、config、Secret locator/envelope scope与revision在
-Secret消费和网络调用前重新验证。跨Provider合法envelope交换、endpoint drift、
-response extra field、旧configure receipt跨新head重放、target/credential
-mismatch均已有fail-closed反例。production Composition没有跨Provider fallback、
-ambient credential、历史runtime config、legacy adapter或deterministic fixture
-fallback。
+所有Provider response先执行declared+streamed byte cap，再投影为bounded
+official DTO所需字段；Emby标准额外字段可忽略，但所需字段/类型/byte bounds必须
+成立。JSON/token原始Buffer与Emby返回的原始persisted secret Buffer使用后清零。
+persisted endpoint、config、Secret locator/envelope scope与revision在Secret消费
+和网络调用前重新验证。JAV Product Handle完整重算identity/fence；Douban request
+与response都精确绑定配置userId；ThePornDB artifact仅允许approved HTTPS host且
+禁用redirect。跨Provider envelope交换、endpoint drift、forged Handle、
+IPv4/IPv6/private/mapped URL、redirect、旧receipt重放与target/credential mismatch
+均已有fail-closed反例。production Composition没有跨Provider fallback、ambient
+credential、历史runtime config、legacy adapter或deterministic fixture fallback。
 
 ignored private operator input只用于一次formal public command。当前环境已实际
 完成MoviePilot `test → proof → save`及typed availability调用；输出仅保留
-PASS/非敏感response byte count。Douban、Adult Provider与optional Emby缺少可用
+PASS/非敏感response byte count。Douban、ThePornDB与optional Emby缺少可用
 private credential，本checkpoint不得把deterministic transport称为real Provider
-acceptance。MoviePilot的external material ready/stability仍必须等待后续正式
+acceptance；ThePornDB当前只完成official REST construction验证。MoviePilot的
+external request未声明协议级exactly-once，external material ready/stability仍必须等待后续正式
 root/probe continuity；当前不得用裸路径或历史savePath绕过，相关用户Feature保持
 未验收。用户已批准这一最低成本合规顺序：H1.2冻结secure config/test与正式
 typed availability/search/acquire-request/receipt实现，`acquire.observe`
 ready materialization和stability显式fail closed，待H1.3一次性提供受控root/path
 mapping与safe probe。它是intentional phase sequencing，不是未决架构缺陷。
 
-H1.2实现closure commit为`a6b18030`。focused H1.1/H1.2/P5回归
-`31/31 PASS`，五个immutable vertical sentinel `27/27 PASS`，
+H1.2 replacement实现closure commit为`f5a9e250`。focused H1.1/H1.2/P5回归
+`29/29 PASS`，冻结vertical/P5 sentinel组合`41/41 PASS`，
 完整architecture gate为`136 fixture files PASS`。累计H1.2 scope guard
 violations为`0`；路由保持`40 / 6 / 68`；库存保持`112 / 97 / 178 / 43`；
 unresolved、findings和prohibited actions均为`0`。aggregate与完整证据冻结于：
 
 `docs/helix/implementation/evidence/P14_H1_2_PROVIDER_INTEGRATIONS_CHECKPOINT.md`
 
-本checkpoint等待Architecture主动复审与P14独立验收；实现线程保持停止，不得
-进入H1.3。
+本replacement checkpoint先等待Architecture主动复审；未接受前不得交P14。
+实现线程保持停止，不得进入H1.3。
 
 ## 当前最新检查点
 

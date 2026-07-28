@@ -1,6 +1,6 @@
 # P14 BETA-IMPL-03 Product Surface Construction Matrix
 
-Status: `H1.2 IMPLEMENTATION CHECKPOINT FROZEN / ARCHITECTURE+P14 PENDING / H1.3 FROZEN`
+Status: `H1.2 REPLACEMENT FROZEN / ARCHITECTURE PENDING / H1.3 FROZEN`
 
 ## Purpose and authority
 
@@ -255,9 +255,12 @@ before every Secret/network use. Cross-provider envelope swaps and endpoint
 drift fail before Secret consumption.
 
 Douban emits only bounded Perception source refs from the official endpoint.
-Adult Provider preserves exact JAV code identity and supplies real
-identity/metadata/people/artifact seams without upgrading weak input before a
-typed exact provider match. MoviePilot implements availability, candidate
+Adult Provider uses only the current official ThePornDB Bearer REST subset
+(`/auth/user`, `/jav` exact search, `/jav/{identifier}` exact metadata);
+GraphQL has no Clean Helix runtime or fixture path. It preserves exact JAV code
+identity and supplies bounded identity/metadata/people-hint/artifact seams
+without upgrading weak input before a typed exact provider match. Unapproved
+performer/resource operations fail closed. MoviePilot implements availability, candidate
 search, and external acquire request/receipt on the existing P5 observation and
 request ports. Optional Emby performs one-time username/password authentication
 and persists only the issued access token. All production adapters reject
@@ -265,24 +268,27 @@ unconfigured/unsupported kinds and never cross-fallback.
 
 Ignored private operator input produced a real MoviePilot public
 `test → proof → save` plus typed availability PASS without exposing credentials.
-No usable private Douban, Adult, or Emby credential was present, so their
+No usable private Douban, ThePornDB, or Emby credential was present, so their
 deterministic transport evidence is construction-only and is not called real
-Provider acceptance. Exact MoviePilot ready/stability needs a controlled
+Provider acceptance. ThePornDB official REST shape is bounded against its
+current public OpenAPI but is not external credential acceptance. Exact
+MoviePilot ready/stability needs a controlled
 transfer root and byte-level member probe. Pulling that authority into H1.2
 would duplicate H1.3 and materially expand maintenance, so a bounded cost
 packet was sent and the user approved keeping it fail closed until H1.3; no
 naked path/history config workaround is allowed. This is intentional phase
 sequencing, not an unresolved Architecture defect, and it does not establish
-download-completion/import Feature PASS.
+download-completion/import Feature PASS or an external-request exactly-once
+guarantee.
 
 H1.2 keeps route status `40 / 6 / 68` and Feature status unchanged.
-Implementation closure `a6b18030` passed focused H1.1/H1.2/P5 `31/31`, frozen
-vertical sentinels `27/27`, the cumulative H1.2 scope guard with zero
+Replacement implementation closure `f5a9e250` passed focused H1.1/H1.2/P5
+`29/29`, frozen vertical/P5 sentinels `41/41`, the cumulative H1.2 scope guard with zero
 violations, and the full `136`-fixture architecture gate. Counts remain
 `112/97/178/43`; unresolved refs, dependency/semantic findings and prohibited
 actions are zero. Full evidence is frozen in
-`P14_H1_2_PROVIDER_INTEGRATIONS_CHECKPOINT.md`. H1.3 remains unauthorized until
-Architecture and P14 both accept this checkpoint.
+`P14_H1_2_PROVIDER_INTEGRATIONS_CHECKPOINT.md`. H1.3 remains unauthorized;
+this replacement must first pass Architecture review and then P14.
 
 ## Route-to-owner construction rules
 
