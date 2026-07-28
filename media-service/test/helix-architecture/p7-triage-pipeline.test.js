@@ -32,6 +32,87 @@ function batch(members) {
   return value;
 }
 
+function singleStructureFixture(label, contentProfileHint) {
+  const member = probeMember(0, label);
+  const probeBatch = batch([member]);
+  const playability = capabilities.playabilityInspect.execute({
+    triageMaterialProbeBatch: probeBatch,
+    procurementTriageRuleSnapshot: rule,
+  });
+  const selected = {
+    procurementRunId: 'run-1',
+    fieldId: 'field-1',
+    members: [{
+      ordinal: 0,
+      materialKey: member.materialKey,
+      selectionRole: 'triage_input',
+      physicalIdentity: member.readHandle.identity,
+      sizeBytes: 100,
+      bindingRevision: 1,
+      eligibilityRevision: 1,
+      eligibilityBasisDigest: d(`eligibility:${label}`),
+      lastSnapshotDigest: d(`snapshot:${label}`),
+      lastObservationId: 'observation-1',
+      endpointId: 'endpoint-1',
+      location: member.readHandle.location,
+      realityDigest: d(`reality:${label}`),
+      provenanceDigest: d(`provenance:${label}`),
+      controlSnapshot: {},
+      admissionControlAction: 'acquire',
+      basisMemberDigest: d(`basis:${label}`),
+    }],
+    selectionDigest: probeBatch.selectionDigest,
+  };
+  const contextValue = {
+    fieldId: 'field-1',
+    accessRevision: 1,
+    accessDigest: d('access'),
+    contentProfileHint,
+    memberContexts: [{
+      selectionOrdinal: 0,
+      materialKey: member.materialKey,
+      fieldRelativeLocation: member.readHandle.location,
+      baseName: `${label}.mkv`,
+      extension: '.mkv',
+      parentSegments: [],
+      layoutEvidenceRefs: [],
+    }],
+  };
+  const materialFieldContext = {
+    ...contextValue,
+    contextDigest: canonicalDigest(contextValue),
+  };
+  const requestValue = { pageOrdinal: 0, cursorIn: null, maxUnits: 100 };
+  const pageRequest = {
+    ...requestValue,
+    requestDigest: canonicalDigest(requestValue),
+  };
+  const input = {
+    selectedFieldMaterialSet: selected,
+    probeBatches: [probeBatch],
+    playabilityPages: [playability],
+    materialFieldContext,
+    layoutEvidence: [],
+    pageRequest,
+    inputDigest: canonicalDigest({
+      schema: 'procurement.triage-structure-input@1',
+      selectionDigest: selected.selectionDigest,
+      probeBatchDigests: [probeBatch.batchDigest],
+      playabilityPayloadDigests: [playability.payloadDigest],
+      contextDigest: materialFieldContext.contextDigest,
+      layoutPayloadDigests: [],
+      pageRequest,
+    }),
+  };
+  return {
+    structure: capabilities.structureInspect.execute({
+      triageStructureInspectionInput: input,
+      procurementTriageRuleSnapshot: rule,
+    }),
+    probeBatch,
+  };
+}
+
 test('playability consumes typed probe evidence and emits the closed ordered reason set', () => {
   const good = probeMember(0, 'good');
   const bad = probeMember(1, 'bad', { durationMs:0, videoStreams:[] });
@@ -40,6 +121,46 @@ test('playability consumes typed probe evidence and emits the closed ordered rea
   assert.deepEqual(result.materialResults[1].reasonCodes, ['no_video_stream','non_positive_duration']);
   assert.equal(result.materialResults[1].materialKey, bad.materialKey);
   assert.match(result.materialResults[1].resultDigest, /^[a-f0-9]{64}$/);
+});
+
+test('explicit JAV Hint falls back to title without inventing a code and mixed remains movie fallback', () => {
+  const explicit = singleStructureFixture('Summer Night Feature', 'jav');
+  assert.equal(explicit.structure.units.length, 1);
+  const unit = explicit.structure.units[0];
+  assert.equal(unit.mediaType, 'single');
+  assert.equal(unit.contentProfile, 'jav');
+  assert.equal(unit.structureKind, 'single');
+  assert.equal(unit.displayIdentity, 'Summer Night Feature.mkv');
+  assert.equal(Object.hasOwn(unit.identityMetadata, 'javCode'), false);
+  assert.deepEqual(
+    unit.identityMetadata.sourceHints.map((hint) => hint.hintKind),
+    ['filename_title'],
+  );
+  const identity = capabilities.identityClaimResolve.execute({
+    triageIdentityResolutionInput: {
+      procurementRunId: 'run-1',
+      runBasisDigest: explicit.probeBatch.runBasisDigest,
+      triageRuleAuthorityDigest: rule.authorityDigest,
+      structureEvidenceId: explicit.structure.evidenceId,
+      structureEvidencePayloadDigest: explicit.structure.payloadDigest,
+      unit,
+      inputDigest: d('explicit-jav-no-code-identity'),
+    },
+    procurementTriageRuleSnapshot: rule,
+  });
+  assert.equal(identity.claimKind, 'jav_code');
+  assert.equal(identity.contentProfile, 'jav');
+  assert.equal(identity.displayIdentity, 'Summer Night Feature.mkv');
+  assert.equal(Object.hasOwn(identity, 'javCode'), false);
+  assert.equal(identity.sourceHints.some(
+    (hint) => hint.hintKind === 'jav_code'
+  ), false);
+
+  const mixed = singleStructureFixture('Summer Night Feature', 'mixed');
+  assert.equal(mixed.structure.units.length, 1);
+  assert.equal(mixed.structure.units[0].contentProfile, 'movie');
+  assert.equal(mixed.structure.units[0].displayIdentity,
+    'Summer Night Feature.mkv');
 });
 
 test('structure preserves Selection mapping and carries series mediaType/contentProfile into Identity and Manifest Draft', () => {

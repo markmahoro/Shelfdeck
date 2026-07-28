@@ -37,7 +37,8 @@ JAV disposable journey 已通过正式 Admin HTTP 推进到：
 → CandidateDeliveryPort
 → Libra Accepted Intake / Subject / Binding / Material Control transfer`
 
-`SDKI-001` 仅作为弱、可纠正的typed `jav_code` evidence；未伪造Provider或
+当前public链路只声明`mixed → jav_code`的code-positive分支。`SDKI-001`仅作为
+弱、可纠正的typed `jav_code` evidence；未伪造Provider或
 Canonical Identity。唯一视频为Primary；same-stem NFO、generic movie NFO与
 poster仅作为local Related references，unrelated NFO不关联。formal
 Plan/Event后的故障重启复用相同Probe/Triage Results，Candidate/Handoff A与
@@ -52,6 +53,12 @@ Contract aggregate
 Manifest aggregate
 `351063009c3d50fe07c3fb70503bb4ff71e30b1ebef40beb3700c2e22a414b18`，
 findings与`prohibitedActionsRun`均为空。
+
+纯Triage contract同时锁定：显式`jav` Hint下，无合法番号时
+`displayIdentity`使用既有title回退，不生成`javCode`或`jav_code` hint；
+相同文件在`mixed`下仍进入movie fallback。Material Field contentProfile Hint的
+Owner-row/API连续性当前尚未实施，本检查点未新增Field列/API或临时注入；该缺口
+须在Western纵切前单独Architecture closure。
 
 ## 已接受的 Series responsibility closure
 

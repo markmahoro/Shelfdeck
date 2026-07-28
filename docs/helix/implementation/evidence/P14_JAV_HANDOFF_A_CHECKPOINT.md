@@ -15,7 +15,8 @@
 
 ## JAV typed continuity
 
-- `SDKI-001` 仅作为 Triage 产生的弱、可纠正 `jav_code` Identity Evidence；
+- 当前正式 public HTTP 路径仍是 `mixed → jav_code` 的 code-positive 分支；
+  `SDKI-001` 仅作为 Triage 产生的弱、可纠正 `jav_code` Identity Evidence；
   没有提升为 Provider 或 Canonical Identity，也没有从目录或标题猜测强 Identity。
 - Candidate 为 `single/jav/single`，恰有一个 `primary_payload`。
 - 与唯一 Primary 同目录的 same-stem NFO、generic `movie.nfo` 与 poster 作为
@@ -48,7 +49,10 @@
   Primary Manifest 与 Related Reference set。
 - synthetic construction：`1/1 PASS`。
 - retained P14 JAV sample + built-in FFprobe：`1/1 PASS`。
-- Procurement/Candidate/Handoff/Series regression：`19/19 PASS`。
+- direct Triage contract证明：显式`jav` Hint下，无合法番号时
+  `displayIdentity`回退到既有title，`javCode`与`jav_code` source hint均不存在；
+  相同文件在`mixed` Hint下仍按固定precedence进入`movie` fallback。
+- Procurement/Candidate/Handoff/Series regression：`20/20 PASS`。
 - 完整 `npm run test:helix-architecture`：`131 files PASS`，
   findings 与 `prohibitedActionsRun` 均为空。
 - Contract aggregate：
@@ -62,6 +66,9 @@
 
 - 本检查点不声明 real JAV Provider、Routing/Spec/Production 或 Feature/UI
   acceptance。
+- Material Field `contentProfile Hint`的Owner-row与正式HTTP配置连续性尚未实施；
+  本检查点没有增加Field列/API，也没有caller/Composition临时注入。该能力须在
+  Western纵切前通过单独Architecture closure正式闭合。
 - Architecture/P14 ACCEPTED 后才可推进 JAV Routing/Spec/active Run；在结论前
   保持冻结。
 - `F02.17` 继续为 `NOT_RUN`。

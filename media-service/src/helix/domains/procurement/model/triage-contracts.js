@@ -202,7 +202,9 @@ function unitFor(member, context, profileName, mediaTypeName, season, episodes, 
     role:'primary_payload', episodeClaims:claims };
   unitMember.memberClaimDigest = digest(unitMember);
   const value = { unitId:'', mediaType:mediaTypeName, contentProfile:profileName, structureKind:profileName === 'series' ? 'season' : 'single',
-    displayIdentity:profileName === 'jav' ? metadata.javCode : metadata.claimedTitle, identityMetadata:metadata,
+    displayIdentity:profileName === 'jav'
+      ? normalizedJavCode || metadata.claimedTitle
+      : metadata.claimedTitle, identityMetadata:metadata,
     seasonContinuityClaims:[], seasonContinuityClaimSetDigest:digest({ schema:'season-continuity-claim-set@1', items:[] }),
     members:[unitMember], relatedReferences, unitDigest:'' };
   value.unitId = digest({ schema:'procurement.triage-unit-id@1', mediaType:value.mediaType, contentProfile:value.contentProfile,
