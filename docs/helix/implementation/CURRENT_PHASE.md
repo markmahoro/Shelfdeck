@@ -1,8 +1,87 @@
-# P14 Product Journey Implementation
+# ShelfDeck Helix Implementation
 
-状态：**H1.2 REPLACEMENT CHECKPOINT FROZEN — 等待 Architecture；H1.3 未授权**
+状态：**SAFE PAUSE — 大纵向重定基准备完成；全部实现与验收均未授权启动**
 
-## H1-only 授权与阶段门
+日期：`2026-07-29`
+
+## 当前唯一恢复点
+
+用户已确认后续采用“大纵向”施工，但本轮只授权完成基础准备后暂停。Architecture
+SSOT 与 `BETA_FEATURE_ACCEPTANCE_BASELINE.md` 均保持不变；后者仍是 Beta 的
+完整 Definition of Done，不因施工顺序改变而缩减。
+
+恢复时不得从 H1.2/H1.3 横向接线继续施工。下一次唯一允许的动作顺序是：
+
+1. Architecture 主任务仅依据 SSOT、Feature Matrix 与现存正式边界，产出
+   **Movie 大纵向 clean-room implementation blueprint**；
+2. 显式核对 Movie 的完整 Beta 用户结果和真实样本矩阵；
+3. 用户确认 blueprint 后，才创建一个新的 Libra 实现任务；
+4. 实现 checkpoint 经 Architecture 主动复审后，才唤醒 P14 独立验收；
+5. Movie 完整接受后再按 `Series → JAV → Western Adult` 串行推进；
+6. 四类媒体完成后仍须回到完整 Feature Matrix 收口；不得把“单类打通”等同于
+   Beta 完成。
+
+Movie blueprint 至少要把以下结果作为同一大纵向的显式 DoD，而不是留给隐含的
+横向补丁：
+
+- 已合规输入的真实 no-op；
+- 编码合规但容器不合规的真实 Remux；
+- 编码或大小不合规的真实 FFmpeg Transcode；
+- 正式 Provider/Artifact 输入、unavailable/fail-closed 反例；
+- 从 Field 到 Handoff A、Routing、Acceptance、Production Planner、Workspace、
+  Conformance、Handoff B、Arca On-deck、责任关闭与 cleanup 的完整连续性；
+- 对应 Admin API/UI 与 Feature Matrix 证据。
+
+## 重建与复用边界
+
+本次不是全量重建 Helix。Procurement、Arca、Foundation 与已确认的大 Domain
+边界默认保留，但每次大纵向都必须重新证明它们与新 Libra 的接缝。重建目标默认
+覆盖 Libra `application/` 与 `planning/`：现有跨媒体 coordinator 及其内部
+Planner 没有复用权利。
+
+复用采用 pull-based selective salvage：新 blueprint 先定义正确的职责、阶段、
+接口与状态机，随后只从旧实现中抽取能够独立证明符合新结构的公共合同、算法或
+adapter。不得以旧测试通过、旧 checkpoint 已接受或节省代码为理由整块继承；也
+不得为了“验证旧代码能否复用”先做一次高成本全面审计。
+
+旧实现任务从此只作为历史证据来源。未来 Libra 大纵向使用全新任务与干净上下文；
+Production Planner 属于该新 Libra 实现任务的核心工作包，不再建立一个与实现
+线程并行改写同一代码的独立实现线程。
+
+## 冻结现场
+
+- immutable historical vertical baseline：`ddc3e51909ca4e9f5729c4326b05daee4792326f`；
+- 当前 committed H1.2/evidence head：`03253fdc`；
+- P14 最近接受的 H1.1 evidence：`b1cbd306`；
+- H1.0/H1.1 证据保留；H1.2 未接受，H1.3 未开始；
+- 当前七个未提交 H1.2/JAV Provider WIP 文件必须原样保留，不得清理、补写、
+  暂存或提交：
+  - `media-service/src/helix/integrations/h1-provider-adapters.js`
+  - `media-service/src/helix/integrations/jav-product-provider-adapter.js`
+  - `media-service/src/helix/integrations/theporndb-rest-client.js`
+  - `media-service/src/helix/integrations/jav-public-provider-client.js`
+  - `media-service/src/helix/platform/application/integration-admin-application.js`
+  - `media-service/src/helix/platform/application/integration-profile-catalog.js`
+  - `media-service/src/helix/platform/application/integration-runtime.js`
+
+H1 的 source-file sentinel guard 是历史施工保护，不是未来 clean-room
+Architecture authority。恢复后若 blueprint 获批，需要用显式治理 checkpoint
+有界 supersede；不得静默绕过、弱化或删除。
+
+## 后续协作模型（尚未启动）
+
+- Architecture/主任务：`gpt-5.6-sol xhigh`；blueprint 定稿与最终 cutover 可升
+  `max`；
+- 新 Libra 实现任务：`gpt-5.6-sol xhigh`，一次只做一个冻结工作包；
+- P14：现有任务继续使用 `gpt-5.6-terra high`，只在 Architecture 主动复审通过
+  后被唤醒；
+- Luna Runner：仅在确定性大批量回归阶段由 Architecture 临时创建、派单、收取
+  与终止；不得分析异常、改代码或宣布验收。
+
+截至本记录写入，所有任务均应保持暂停：不得设计、实现、测试、更新 Evidence /
+Matrix、创建新任务或进入 H1.3。
+
+## 历史 H1-only 授权与阶段门（冻结，不再作为当前施工入口）
 
 P14 已独立接受 Western final responsibility closure：source `ddc3e519`，
 tested local `210b2262`，evidence `6866b68e`。Movie、Series、JAV 与
