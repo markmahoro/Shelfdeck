@@ -295,7 +295,9 @@ function validateWesternAnalysisVariant(variant,basis,chains){
       capabilityRef:'libra.western.analysis.observe@1',resultSchemaRef:'helix://contracts/types/WesternAnalysisResult/v1'});
     if(item.eventId!==ref.eventId||item.resultId!==ref.resultId||item.resultDigest!==ref.resultDigest||
         canonicalJson(item.result)!==canonicalJson(result)||
-        result.externalJobReceiptId!==ref.externalJobReceiptId||result.evidenceId!==ref.evidenceId||
+        result.resultArtifactHandle?.artifactHandleId!==ref.analysisArtifactHandleId||
+        result.resultArtifactHandle?.digestHex!==ref.analysisArtifactDigest||
+        result.evidenceId!==ref.evidenceId||
         result.payloadDigest!==ref.evidenceDigest||chain.evidenceDigest!==ref.evidenceDigest)
       fail('P9_WESTERN_ANALYSIS_RESULT','Western Analysis Result continuity is invalid.');
   });
@@ -341,11 +343,13 @@ function buildProductFactSourceRefs(value) {
     if(!western||western.basisKind!=='western_analysis'||basis.sourceBasisDigest!==western.basisDigest||
         !Array.isArray(western.analysisRefs)||western.analysisRefs.length<1||western.analysisRefs.length>16||!western.normalizeRef)
       fail('P9_PRODUCT_FACT_SOURCE_BASIS','Western Product Metadata basis is invalid.');
-    const normalizeChain=chains.get(western.normalizeRef.resultId),variant=normalizeChain?.inputBindings?.westernAnalysisVariant;
+    const normalizeChain=chains.get(western.normalizeRef.resultId),
+      variant=normalizeChain?.inputBindings?.westernAnalysisVariant ||
+        normalizeChain?.inputBindings?.capabilityInput?.westernAnalysisVariant;
     validateWesternAnalysisVariant(variant,western,chains);
     const refs=western.analysisRefs.map((ref,ordinal)=>{
       const chain=chains.get(ref.resultId);
-      return sourceReference(productFactId,ordinal,'western_analysis',chain,ref.externalJobReceiptId,ref.evidenceId,ref.evidenceDigest);
+      return sourceReference(productFactId,ordinal,'western_analysis',chain,ref.analysisArtifactHandleId,ref.evidenceId,ref.evidenceDigest);
     });
     const normalize=western.normalizeRef,{result}=exactResultChain(normalizeChain,normalize,{libraRunId:western.libraRunId,
       capabilityRef:'libra.western.metadata.normalize@1',resultSchemaRef:'helix://contracts/types/ProductMetadataDraft/v1'});
@@ -375,11 +379,14 @@ function buildProductFactSourceRefs(value) {
     const allMatchesExplained=(result.matches||[]).every((match)=>relations.some((relation)=>relation.personId===match.personId&&
       relation.confidenceClass===match.confidenceClass&&relation.originEvidenceDigest===match.evidenceDigest));
     if(result.evidenceId!==ref.evidenceId||result.payloadDigest!==ref.evidenceDigest||chain.evidenceDigest!==ref.evidenceDigest||
-        result.payloadDigest!==ref.personMatchEvidenceDigest||western.matchState!==matchState||
+        result.payloadDigest!==ref.personMatchEvidenceDigest||
+        result.referenceProjectionSetDigest!==western.referenceProjectionSetDigest||
+        western.matchState!==matchState||
         (matchState==='no_matches'&&relations.length!==0)||(matchState==='matches_found'&&(!relations.length||!allMatchesExplained)))
       fail('P9_WESTERN_MATCH_RESULT','Western match Evidence does not explain the Media Cast Draft.');
     const basisId=canonicalDigest({schema:'libra.western-media-cast-basis-id@1',libraRunId:western.libraRunId,
-      runExecutionBasisDigest:western.runExecutionBasisDigest,matchResultId:ref.resultId,matchResultDigest:ref.resultDigest});
+      runExecutionBasisDigest:western.runExecutionBasisDigest,matchResultId:ref.resultId,matchResultDigest:ref.resultDigest,
+      referenceProjectionSetDigest:western.referenceProjectionSetDigest});
     const basisDigest=canonicalDigest(Object.fromEntries(Object.entries(western).filter(([key])=>key!=='basisDigest')));
     if(western.basisId!==basisId||western.basisDigest!==basisDigest)
       fail('P9_WESTERN_MATCH_BASIS_DIGEST','Western Media Cast basis identity is invalid.');
@@ -440,7 +447,8 @@ function buildWesternProductMetadataDraft(value) {
     fail('P9_WESTERN_METADATA_FIELDS','Western metadata fields are invalid.');
   const missingFields=required.filter((field)=>!entries.some((item)=>item.key===field&&item.value!==null&&item.value!==''));
   if(missingFields.length)return Object.freeze({ready:false,missingFields:Object.freeze(missingFields.sort(compare))});
-  const sourceEvidence=new Set(variant.analysisResults.map((item)=>item.result.externalJobReceiptId+'|'+item.result.payloadDigest));
+  const sourceEvidence=new Set(variant.analysisResults.map((item)=>
+    item.result.resultArtifactHandle.artifactHandleId+'|'+item.result.payloadDigest));
   const fieldProvenance=[...(value?.fieldProvenance||[])].map((item)=>({fieldPath:text(item?.fieldPath,'fieldPath'),
     sourceKind:item?.sourceKind,sourceRef:text(item?.sourceRef,'sourceRef'),evidenceDigest:digest(item?.evidenceDigest,'evidenceDigest')}));
   const sortedProvenance=[...fieldProvenance].sort((left,right)=>compare(left.fieldPath,right.fieldPath)||compare(left.sourceRef,right.sourceRef));
@@ -530,6 +538,8 @@ function validateVerifiedArtifactManifest(value, context) {
     if (!requirement || requirement.artifactKind !== item.artifactKind)
       fail('P9_ARTIFACT_REQUIREMENT_MISMATCH', 'Artifact item does not match a Draft Requirement.');
     const ref = item.verificationResultRef, binding = bindings.get(ref?.resultId), result = binding?.result;
+    const capabilityInput = binding?.inputBindings?.capabilityInput ||
+      binding?.inputBindings;
     if (!binding || !result || ref.workId !== binding.workId || ref.attemptId !== binding.attemptId ||
         ref.planId !== binding.planId || ref.eventId !== binding.eventId ||
         binding.ownerDomain !== 'libra' || binding.processType !== 'libra_run' || binding.processId !== value.libraRunId ||
@@ -544,7 +554,7 @@ function validateVerifiedArtifactManifest(value, context) {
         ref.resultSchemaRef !== binding.resultSchemaRef || ref.resultDigest !== binding.resultDigest ||
         ref.inputBindingDigest !== binding.inputBindingDigest || canonicalDigest(result) !== ref.resultDigest ||
         canonicalDigest(binding.inputBindings) !== ref.inputBindingDigest ||
-        canonicalJson(binding.inputBindings?.artifactRequirement) !== canonicalJson(requirement) ||
+        canonicalJson(capabilityInput?.artifactRequirement) !== canonicalJson(requirement) ||
         result.result !== 'passed' || result.verificationId !== item.verificationEvidenceId ||
         result.verificationDigest !== item.verificationEvidenceDigest ||
         result.requirement?.requirementDigest !== requirement.requirementDigest ||
@@ -553,7 +563,7 @@ function validateVerifiedArtifactManifest(value, context) {
       fail('P9_ARTIFACT_VERIFICATION_CHAIN', 'Artifact item does not match its explicit verification Result chain.');
     const verified = (result.verifiedArtifacts || []).find((candidate) => candidate.artifactHandleId === item.artifactHandleId &&
       candidate.artifactRevision === item.artifactRevision);
-    const inputHandle = (binding.inputBindings.artifactHandleList || []).find((candidate) =>
+    const inputHandle = (capabilityInput?.artifactHandleList || []).find((candidate) =>
       candidate.artifactHandleId === item.artifactHandleId && candidate.referenceRevision === item.artifactRevision);
     if (!verified || !inputHandle || verified.artifactKind !== item.artifactKind || verified.artifactDigest !== item.artifactDigest ||
         verified.referenceDigest !== canonicalDigest(Object.fromEntries(

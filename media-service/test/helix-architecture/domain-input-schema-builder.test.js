@@ -6,10 +6,43 @@ const { buildDomainInputSchemas } = require('../../scripts/helix-architecture/do
 
 const schemas = buildDomainInputSchemas();
 
-test('builds exactly the 108 formal domain input contracts', () => {
-  assert.equal(Object.keys(schemas).length, 108);
+test('builds exactly the 109 formal domain input contracts', () => {
+  assert.equal(Object.keys(schemas).length, 109);
   assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'bounded-contract').length, 24);
-  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'accepted-business-dto').length, 84);
+  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'accepted-business-dto').length, 85);
+});
+
+test('materializes the exact service-local Western analysis construction inputs', () => {
+  const target = schemas.WorkspaceArtifactOutputTarget;
+  assert.deepEqual(target.properties.outputKind.enum, ['frame_set', 'western_analysis']);
+  assert.equal(target.properties.rootSnapshot.additionalProperties, false);
+  assert.equal(target['x-helix-maxCanonicalBytes'], 16 * 1024);
+
+  const sampling = schemas.SamplingPlan;
+  assert.equal(sampling.properties.intervalMs.minimum, 1);
+  assert.equal(sampling.properties.intervalMs.maximum, 86400000);
+  assert.equal(sampling.properties.maxFrames.minimum, 1);
+  assert.equal(sampling.properties.maxFrames.maximum, 1024);
+  assert.equal(sampling.properties.typedParameters.maxItems, 64);
+  assert.equal(sampling.properties.typedParameters.items.oneOf.length, 4);
+
+  const model = schemas.FaceModelRef;
+  assert.deepEqual(model.properties.mode.enum, ['western_frame_set', 'single_reference_face']);
+  assert.equal(model.properties.runtimeKind.const, 'onnx');
+  assert.ok(model.required.includes('licenseDigest'));
+
+  const cluster = schemas.ClusterParameters;
+  assert.equal(cluster.properties.distanceMetric.const, 'cosine');
+  assert.equal(cluster.properties.distanceThreshold.minimum, 0);
+  assert.equal(cluster.properties.distanceThreshold.maximum, 1);
+  assert.ok(cluster.required.includes('modelRefDigest'));
+
+  const analysis = schemas.AnalysisSpec;
+  assert.equal(analysis.properties.contentProfile.const, 'western_adult');
+  assert.equal(analysis.properties.outputContractRef.const,
+    'helix://contracts/types/WesternAnalysisResult/v1');
+  assert.ok(analysis.required.includes('frameArtifactSetDigest'));
+  assert.ok(analysis.required.includes('clusterParameterDigest'));
 });
 
 test('freezes product fact source basis variants and exact artifact manifest inputs', () => {
@@ -22,6 +55,11 @@ test('freezes product fact source basis variants and exact artifact manifest inp
   assert.equal(metadataBasis.oneOf[0].properties.selection.properties.items.minItems, 1);
   assert.equal(metadataBasis.oneOf[0].properties.observationSet.properties.sourcePrecedence.items.additionalProperties, false);
   assert.equal(metadataBasis.oneOf[1].properties.westernBasis.properties.analysisRefs.minItems, 1);
+  const westernAnalysisRef = metadataBasis.oneOf[1].properties.westernBasis.properties.analysisRefs.items;
+  assert.ok(westernAnalysisRef.required.includes('analysisArtifactHandleId'));
+  assert.ok(westernAnalysisRef.required.includes('analysisArtifactDigest'));
+  assert.equal(westernAnalysisRef.properties.externalJobReceiptId, undefined);
+  assert.ok(mediaCastBasis.oneOf[1].properties.westernBasis.required.includes('referenceProjectionSetDigest'));
   assert.equal(schemas.VerifiedArtifactManifest.properties.items.maxItems, 256);
   const requirement = schemas.ArtifactRequirement;
   for (const field of ['requirementId', 'revision', 'schemaRef', 'artifactKind', 'requirementPayload', 'requirementDigest']) {

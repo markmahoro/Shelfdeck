@@ -19,9 +19,28 @@
       "minLength": 1,
       "maxLength": 256
     },
-    "modelRef": {
+    "artifactHandle": {
+      "$ref": "helix://contracts/types/ArtifactHandle/v1"
+    },
+    "libraRunId": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "workspaceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "faceModelRefDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "clusterParameterDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     },
     "sourceEmbeddingDigest": {
       "type": "string",
@@ -32,7 +51,12 @@
       "type": "integer",
       "minimum": 0
     },
-    "digestHex": {
+    "clusterDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "handleDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
@@ -42,9 +66,14 @@
     "schemaRef",
     "schemaVersion",
     "artifactHandleId",
-    "modelRef",
+    "artifactHandle",
+    "libraRunId",
+    "workspaceId",
+    "faceModelRefDigest",
+    "clusterParameterDigest",
     "sourceEmbeddingDigest",
     "clusterCount",
-    "digestHex"
+    "clusterDigest",
+    "handleDigest"
   ]
 }

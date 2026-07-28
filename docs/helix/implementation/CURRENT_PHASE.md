@@ -1,6 +1,6 @@
 # P14 Product Journey Implementation
 
-状态：**FROZEN — Western Routing / Spec / active Run 待复验**
+状态：**FROZEN — Western Production / open Handoff B 待复验**
 
 ## 当前最新检查点
 
@@ -47,8 +47,18 @@ Handoff B/Arca表保持零。详细证据见：
 
 `docs/helix/implementation/evidence/P14_WESTERN_ROUTING_SPEC_RUN_CHECKPOINT.md`
 
-必须等待Architecture active review与P14独立复验后，才可进入Western
-Provider/Workspace/Production；不得恢复横向503工作。
+P14已独立接受Western Routing / Spec / active Run（source `5b7990ee`，
+evidence `43c86f4c`）。PBF-23 Architecture correction `9dc37de7`已原样纳入
+实现分支为`5186469a`，同一Western Run现已通过clean service-local
+Frame/Embedding/Cluster/Analysis/People Match链推进到：
+
+`Workspace / Product Facts / role-aware Staging / six-group Conformance
+→ immutable OnDeckProductPackage
+→ exactly one open libra.product-offer.available@1`
+
+当前冻结在Arca消费前；详细证据见：
+
+`docs/helix/implementation/evidence/P14_WESTERN_PRODUCTION_OPEN_HANDOFF_B_CHECKPOINT.md`
 
 ## 当前基线
 
@@ -58,8 +68,9 @@ Provider/Workspace/Production；不得恢复横向503工作。
 - PBF-19 Architecture 修正：`ff1b833a`；实现分支原样纳入：
   `942fc692`。
 - PBF-19 P14 独立接受证据：`de0dff64`（tested `3d9ebab4`）。
-- 当前实现检查点：Western Routing / Spec / active Run；详细施工证据见
-  `docs/helix/implementation/evidence/P14_WESTERN_ROUTING_SPEC_RUN_CHECKPOINT.md`。
+- 当前实现检查点：Western Production / immutable Package / open Handoff B；
+  详细施工证据见
+  `docs/helix/implementation/evidence/P14_WESTERN_PRODUCTION_OPEN_HANDOFF_B_CHECKPOINT.md`。
 - 实现线程未额外修改 Architecture SSOT。
 - `F02.17` 仍为 `NOT_RUN`；不得增加测试便利接口或用内部 Store 证据冒充
   用户 Feature。
@@ -296,9 +307,9 @@ terminal reclaimed。
 
 ## 下一步
 
-Architecture active review与P14独立接受PBF-22 Western Field Profile Hint
-preclosure后，才可开始Western Handoff A；不得提前进入Western Routing/
-Production，也不得恢复横向 Feature Matrix。
+等待Architecture active review与P14独立复验Western Production/open Handoff B
+检查点。接受前不得让Arca消费Offer、不得进入responsibility closure，也不得恢复
+横向Feature Matrix。
 
 ## 硬边界
 

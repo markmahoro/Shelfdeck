@@ -22,8 +22,9 @@
       "items": {
         "$ref": "helix://contracts/types/ArtifactHandle/v1"
       },
-      "maxItems": 1024,
-      "x-helix-typeExpression": "ArtifactHandle[]"
+      "maxItems": 16,
+      "minItems": 1,
+      "x-helix-typeExpression": "ArtifactHandle[1..16]"
     },
     "faceModelRef": {
       "$ref": "helix://contracts/domain-types/FaceModelRef/v1",

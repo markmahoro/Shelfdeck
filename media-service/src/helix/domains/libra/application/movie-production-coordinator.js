@@ -17,6 +17,27 @@ const { projectMaterialControlRow } =
 const productFactCommitPlanBindingSchema = require(
   '../../../contracts/application-types/LibraProductFactCommitPlanBinding/v1/schema.json'
 );
+const westernAnalysisPhasePlanBindingSchema = require(
+  '../../../contracts/application-types/LibraWesternAnalysisPhasePlanBinding/v1/schema.json'
+);
+const artifactHandleSchema = require(
+  '../../../contracts/types/ArtifactHandle/v1/schema.json'
+);
+const faceClusterSetHandleSchema = require(
+  '../../../contracts/types/FaceClusterSetHandle/v1/schema.json'
+);
+const faceEmbeddingSetHandleSchema = require(
+  '../../../contracts/types/FaceEmbeddingSetHandle/v1/schema.json'
+);
+const frameArtifactSetSchema = require(
+  '../../../contracts/types/FrameArtifactSet/v1/schema.json'
+);
+const personMatchEvidenceSchema = require(
+  '../../../contracts/types/PersonMatchEvidence/v1/schema.json'
+);
+const westernAnalysisResultSchema = require(
+  '../../../contracts/types/WesternAnalysisResult/v1/schema.json'
+);
 const domainFactTransaction =
   require('../../../contracts/transaction-contracts/helix.transaction.domain-fact-commit/v1/contract.json');
 const {
@@ -34,6 +55,7 @@ const {
   buildProductFactHandle,
   buildProductMetadataDraft,
   buildResolvedProductIdentity,
+  buildWesternProductMetadataDraft,
   metadataSourceRef,
 } = require('../model/product-fact-contracts');
 const {
@@ -80,8 +102,23 @@ const ARTIFACT_VERIFICATION_SCHEMA =
   'helix://contracts/types/ArtifactManifestVerification/v1';
 const PRODUCT_FACT_PLAN_BINDING_SCHEMA =
   'helix://contracts/application-types/LibraProductFactCommitPlanBinding/v1';
+const WESTERN_PHASE_PLAN_BINDING_SCHEMA =
+  'helix://contracts/application-types/LibraWesternAnalysisPhasePlanBinding/v1';
 const productFactPlanBindingValidator = createCapabilityContractValidator({
   schemas: [productFactCommitPlanBindingSchema],
+});
+const westernPhasePlanBindingValidator = createCapabilityContractValidator({
+  schemas: [westernAnalysisPhasePlanBindingSchema],
+});
+const westernResultValidator = createCapabilityContractValidator({
+  schemas: [
+    artifactHandleSchema,
+    faceClusterSetHandleSchema,
+    faceEmbeddingSetHandleSchema,
+    frameArtifactSetSchema,
+    personMatchEvidenceSchema,
+    westernAnalysisResultSchema,
+  ],
 });
 
 class MovieProductionCoordinatorError extends Error {
@@ -101,11 +138,249 @@ function stable(prefix, value) {
   return prefix + canonicalDigest(value);
 }
 
+function resultRef(chain) {
+  return Object.freeze({
+    workId: chain.workId,
+    attemptId: chain.attemptId,
+    planId: chain.planId,
+    eventId: chain.eventId,
+    resultId: chain.resultId,
+    capabilityRef: chain.capabilityRef,
+    resultSchemaRef: chain.resultSchemaRef,
+    resultDigest: chain.resultDigest,
+    inputBindingDigest: chain.inputBindingDigest,
+  });
+}
+
+function westernPhasePlanBinding(run, phase, capabilityRef, capabilityInput,
+  upstreamChains = []) {
+  const value = {
+    schemaRef: WESTERN_PHASE_PLAN_BINDING_SCHEMA,
+    schemaVersion: 1,
+    bindingKind: 'western_analysis_phase',
+    libraRunId: run.libraRunId,
+    runExecutionBasisDigest: run.executionBasisDigest,
+    phase,
+    capabilityRef,
+    capabilityInput,
+    upstreamResultRefs: Object.freeze(upstreamChains.map(resultRef)),
+  };
+  value.bindingDigest = canonicalDigest(value);
+  westernPhasePlanBindingValidator.validate(
+    WESTERN_PHASE_PLAN_BINDING_SCHEMA,
+    value,
+  );
+  if (Buffer.byteLength(canonicalJson(value), 'utf8') > 16 * 1024) {
+    fail('P14_WESTERN_PLAN_BINDING_TOO_LARGE',
+      'Western phase Plan binding exceeds the frozen 16 KiB limit.');
+  }
+  return Object.freeze(value);
+}
+
+function scalarContract(value, digestField = 'digest') {
+  return Object.freeze({
+    ...value,
+    [digestField]: canonicalDigest(value),
+  });
+}
+
+function workspaceArtifactTarget(run, workspace, rootSnapshot, value) {
+  const targetId = canonicalDigest({
+    schema: 'libra.workspace-artifact-output-target-id@1',
+    workspaceId: workspace.workspaceId,
+    targetRelativePath: value.targetRelativePath,
+    outputKind: value.outputKind,
+    sourceInputDigest: value.sourceInputDigest,
+  });
+  const effectScopeDigest = canonicalDigest({
+    schema: 'libra.workspace-artifact-output-effect-scope@1',
+    targetId,
+    libraRunId: run.libraRunId,
+    executionBasisDigest: run.executionBasisDigest,
+    workspaceId: workspace.workspaceId,
+    expectedWorkspaceRevision: workspace.currentRevision,
+    expectedWorkspaceStateDigest: workspace.stateDigest,
+    rootSnapshotDigest: rootSnapshot.snapshotDigest,
+    workspaceScopeDigest: workspace.workspaceScopeDigest,
+    outputKind: value.outputKind,
+    sourceInputDigest: value.sourceInputDigest,
+  });
+  const basis = {
+    targetId,
+    libraRunId: run.libraRunId,
+    executionBasisDigest: run.executionBasisDigest,
+    workspaceId: workspace.workspaceId,
+    expectedWorkspaceRevision: workspace.currentRevision,
+    expectedWorkspaceStateDigest: workspace.stateDigest,
+    rootSnapshot,
+    workspaceScopeDigest: workspace.workspaceScopeDigest,
+    targetRelativePath: value.targetRelativePath,
+    outputKind: value.outputKind,
+    sourceInputDigest: value.sourceInputDigest,
+    effectScopeDigest,
+  };
+  return Object.freeze({ ...basis, targetDigest: canonicalDigest(basis) });
+}
+
+function westernAnalysisVariant(run, identityDigest, analysisChains) {
+  const analysisResults = analysisChains.map((chain) => Object.freeze({
+    eventId: chain.eventId,
+    resultId: chain.resultId,
+    resultDigest: chain.resultDigest,
+    result: chain.result,
+  })).sort((left, right) =>
+    Buffer.compare(Buffer.from(left.eventId), Buffer.from(right.eventId)) ||
+    Buffer.compare(Buffer.from(left.resultId), Buffer.from(right.resultId)));
+  const variantDigest = canonicalDigest({
+    libraRunId: run.libraRunId,
+    runExecutionBasisDigest: run.executionBasisDigest,
+    resolvedIdentityDigest: identityDigest,
+    analysisResults,
+  });
+  return Object.freeze({
+    variantId: canonicalDigest({
+      schema: 'libra.western-analysis-variant-id@1',
+      libraRunId: run.libraRunId,
+      runExecutionBasisDigest: run.executionBasisDigest,
+      resolvedIdentityDigest: identityDigest,
+      variantDigest,
+    }),
+    libraRunId: run.libraRunId,
+    runExecutionBasisDigest: run.executionBasisDigest,
+    resolvedIdentityDigest: identityDigest,
+    analysisResults: Object.freeze(analysisResults),
+    variantDigest,
+  });
+}
+
+function westernMetadataBasis(run, identityDigest, analysisChains,
+  normalizeChain, variant) {
+  const analysisRefs = analysisChains.map((chain) => Object.freeze({
+    ...resultRef(chain),
+    analysisArtifactHandleId:
+      chain.result.resultArtifactHandle.artifactHandleId,
+    analysisArtifactDigest: chain.result.resultArtifactHandle.digestHex,
+    evidenceId: chain.result.evidenceId,
+    evidenceDigest: chain.result.payloadDigest,
+  }));
+  const normalizeRef = Object.freeze({
+    ...resultRef(normalizeChain),
+    analysisVariantId: variant.variantId,
+    productMetadataDraftDigest: normalizeChain.result.draftDigest,
+  });
+  const sourceItems = [
+    ...analysisRefs.map((ref, ordinal) => ({
+      ordinal,
+      capabilityRef: ref.capabilityRef,
+      resultSchemaRef: ref.resultSchemaRef,
+      workId: ref.workId,
+      attemptId: ref.attemptId,
+      planId: ref.planId,
+      eventId: ref.eventId,
+      resultId: ref.resultId,
+      resultDigest: ref.resultDigest,
+      sourceRef: ref.analysisArtifactHandleId,
+      sourceOrder: ordinal,
+      evidenceId: ref.evidenceId,
+      evidenceDigest: ref.evidenceDigest,
+      inputBindingDigest: ref.inputBindingDigest,
+    })),
+    {
+      ordinal: analysisRefs.length,
+      capabilityRef: normalizeRef.capabilityRef,
+      resultSchemaRef: normalizeRef.resultSchemaRef,
+      workId: normalizeRef.workId,
+      attemptId: normalizeRef.attemptId,
+      planId: normalizeRef.planId,
+      eventId: normalizeRef.eventId,
+      resultId: normalizeRef.resultId,
+      resultDigest: normalizeRef.resultDigest,
+      sourceRef: variant.variantId,
+      sourceOrder: analysisRefs.length,
+      evidenceId: null,
+      evidenceDigest: null,
+      inputBindingDigest: normalizeRef.inputBindingDigest,
+    },
+  ];
+  const sourceRefsDigest = canonicalDigest({
+    schema: 'libra.western-product-metadata-source-refs@1',
+    items: sourceItems,
+  });
+  const basis = {
+    basisId: canonicalDigest({
+      schema: 'libra.western-product-metadata-basis-id@1',
+      libraRunId: run.libraRunId,
+      runExecutionBasisDigest: run.executionBasisDigest,
+      sourceRefsDigest,
+    }),
+    basisKind: 'western_analysis',
+    libraRunId: run.libraRunId,
+    runExecutionBasisDigest: run.executionBasisDigest,
+    resolvedIdentityDigest: identityDigest,
+    analysisVariantDigest: variant.variantDigest,
+    analysisRefs: Object.freeze(analysisRefs),
+    normalizeRef,
+    sourceRefsDigest,
+  };
+  basis.basisDigest = canonicalDigest(basis);
+  return Object.freeze({
+    sourceBasisKind: 'western_analysis',
+    westernBasis: Object.freeze(basis),
+    sourceBasisDigest: basis.basisDigest,
+  });
+}
+
+function westernMatchBasis(run, identityDigest, matchChain) {
+  const matchRef = Object.freeze({
+    ...resultRef(matchChain),
+    evidenceId: matchChain.result.evidenceId,
+    evidenceDigest: matchChain.result.payloadDigest,
+    personMatchEvidenceDigest: matchChain.result.payloadDigest,
+  });
+  const basis = {
+    basisId: canonicalDigest({
+      schema: 'libra.western-media-cast-basis-id@1',
+      libraRunId: run.libraRunId,
+      runExecutionBasisDigest: run.executionBasisDigest,
+      matchResultId: matchRef.resultId,
+      matchResultDigest: matchRef.resultDigest,
+      referenceProjectionSetDigest:
+        matchChain.result.referenceProjectionSetDigest,
+    }),
+    basisKind: 'western_match',
+    libraRunId: run.libraRunId,
+    runExecutionBasisDigest: run.executionBasisDigest,
+    resolvedIdentityDigest: identityDigest,
+    matchRef,
+    referenceProjectionSetDigest:
+      matchChain.result.referenceProjectionSetDigest,
+    matchState: matchChain.result.matches.length
+      ? 'matches_found'
+      : 'no_matches',
+  };
+  basis.basisDigest = canonicalDigest(basis);
+  return Object.freeze({
+    sourceBasisKind: 'western_match',
+    westernBasis: Object.freeze(basis),
+    sourceBasisDigest: basis.basisDigest,
+  });
+}
+
 function productFactPlanBinding(run, factKind, payload, payloadDigest,
   sourceBasis, sourceChains) {
   const chainsByResultId = new Map(sourceChains.map((chain) =>
     [chain.resultId, chain]));
-  const sourceResultRefs = (sourceBasis.selection?.items || []).map((item) => {
+  const sourceItems = sourceBasis.sourceBasisKind === 'metadata_observation'
+    ? sourceBasis.selection?.items || []
+    : sourceBasis.sourceBasisKind === 'western_analysis'
+      ? [
+        ...(sourceBasis.westernBasis?.analysisRefs || []),
+        sourceBasis.westernBasis?.normalizeRef,
+      ].filter(Boolean)
+      : sourceBasis.westernBasis?.matchRef
+        ? [sourceBasis.westernBasis.matchRef]
+        : [];
+  const sourceResultRefs = sourceItems.map((item) => {
     const chain = chainsByResultId.get(item.resultId);
     if (!chain || chain.workId !== item.workId ||
         chain.attemptId !== item.attemptId ||
@@ -549,11 +824,18 @@ function createMovieProductionCoordinator(options) {
   }
 
   async function runResultCapability(run, value) {
+    const validateResult = (result) => {
+      if (westernResultValidator.has(value.resultSchemaRef)) {
+        westernResultValidator.validate(value.resultSchemaRef, result);
+      }
+      return result;
+    };
+    const planInput = value.planInput || value.input;
     const basisDigest = canonicalDigest({
       schema: 'libra.movie-production-capability-basis@1',
       runExecutionBasisDigest: run.executionBasisDigest,
       capabilityRef: value.capabilityRef,
-      input: value.input,
+      input: planInput,
     });
     const workId = stable('movie-production-work-', {
       libraRunId: run.libraRunId,
@@ -581,7 +863,7 @@ function createMovieProductionCoordinator(options) {
       capabilityRef: value.capabilityRef,
       effectClass: value.effectClass,
       inputSchemaRef: value.inputSchemaRef,
-      input: value.input,
+      input: planInput,
       parametersSchemaRef: value.parametersSchemaRef,
       fenceSchemaRef: value.fenceSchemaRef,
       basisDigest,
@@ -601,6 +883,10 @@ function createMovieProductionCoordinator(options) {
       steps: Object.freeze([step]),
     });
     const event = options.workRuntime.beginEvent(eventId);
+    const resultId = stable('movie-production-result-', {
+      eventId,
+      resultSchemaRef: value.resultSchemaRef,
+    });
     if (event.state === 'succeeded') {
       const stored = resultStore.readEventResult(eventId);
       if (!stored || stored.resultSchemaRef !== value.resultSchemaRef) {
@@ -610,6 +896,7 @@ function createMovieProductionCoordinator(options) {
       if (stored.resultSchemaRef === METADATA_SCHEMA) {
         validateMetadataObservationResult(stored.result);
       }
+      validateResult(stored.result);
       options.workRuntime.complete(workId);
       return Object.freeze({
         ownerDomain: 'libra',
@@ -623,8 +910,8 @@ function createMovieProductionCoordinator(options) {
         resultId: stored.resultId,
         resultDigest: stored.resultDigest,
         evidenceDigest: stored.evidenceDigest,
-        inputBindings: value.input,
-        inputBindingDigest: canonicalDigest(value.input),
+        inputBindings: planInput,
+        inputBindingDigest: canonicalDigest(planInput),
         workId,
         attemptId: workId + ':attempt:1',
         planId: workId + ':plan:1',
@@ -632,6 +919,41 @@ function createMovieProductionCoordinator(options) {
         planDigest: activation.snapshot.plan.graph_digest,
         eventId,
         replayed: true,
+      });
+    }
+    const committed = resultStore.recoverCommittedEventResult({
+      eventId,
+      resultId,
+      ownerDomain: 'libra',
+      capabilityRef: value.capabilityRef,
+      resultSchemaRef: value.resultSchemaRef,
+    });
+    if (committed) {
+      validateResult(committed.result);
+      options.workRuntime.completeEvent(eventId, resultId);
+      options.workRuntime.complete(workId);
+      return Object.freeze({
+        ownerDomain: 'libra',
+        processType: 'libra_run',
+        processId: run.libraRunId,
+        workKind: value.workKind,
+        workState: 'succeeded',
+        capabilityRef: value.capabilityRef,
+        resultSchemaRef: committed.resultSchemaRef,
+        result: committed.result,
+        resultId,
+        resultDigest: committed.resultDigest,
+        evidenceDigest: committed.evidenceDigest,
+        inputBindings: planInput,
+        inputBindingDigest: canonicalDigest(planInput),
+        workId,
+        attemptId: workId + ':attempt:1',
+        planId: workId + ':plan:1',
+        planRevision: Number(activation.snapshot.plan.planner_version),
+        planDigest: activation.snapshot.plan.graph_digest,
+        eventId,
+        replayed: true,
+        recoveredCommittedResult: true,
       });
     }
     const result = typeof value.execute === 'function'
@@ -644,13 +966,10 @@ function createMovieProductionCoordinator(options) {
     if (value.resultSchemaRef === METADATA_SCHEMA) {
       validateMetadataObservationResult(result);
     }
+    validateResult(result);
     const evidenceDigest = typeof value.evidenceDigest === 'function'
       ? value.evidenceDigest(result)
       : value.evidenceDigest || canonicalDigest(result);
-    const resultId = stable('movie-production-result-', {
-      eventId,
-      resultDigest: canonicalDigest(result),
-    });
     resultStore.commit({
       resultId,
       eventId,
@@ -684,8 +1003,8 @@ function createMovieProductionCoordinator(options) {
       resultId,
       resultDigest: canonicalDigest(result),
       evidenceDigest,
-      inputBindings: value.input,
-      inputBindingDigest: canonicalDigest(value.input),
+      inputBindings: planInput,
+      inputBindingDigest: canonicalDigest(planInput),
       workId,
       attemptId: workId + ':attempt:1',
       planId: workId + ':plan:1',
@@ -984,6 +1303,724 @@ function createMovieProductionCoordinator(options) {
     return Object.freeze({ workspace:current, reference });
   }
 
+  function ensureWorkingArtifact(run, workspace, artifactHandle) {
+    const materialized =
+      options.workspaceProductPort.readMaterializedArtifact(artifactHandle);
+    let current = reader.readWorkspace(workspace.workspaceId);
+    let reference = current.references.find((item) =>
+      item.workspaceMaterialHandle.handleId ===
+        materialized.workspaceMaterialHandle.handleId);
+    if (!reference) {
+      const episodeClaims = Object.freeze([]);
+      const attach = buildReferenceDecision({
+        operation: 'attach_working',
+        libraRunId: run.libraRunId,
+        workspaceId: current.workspaceId,
+        expectedWorkspaceRevision: current.currentRevision,
+        expectedWorkspaceStateDigest: current.stateDigest,
+        expectedReference: {
+          state: 'absent',
+          revision: 0,
+          digest: absentReferenceDigest(
+            current.workspaceId,
+            materialized.workspaceMaterialHandle.handleId,
+          ),
+        },
+        workspaceMaterialHandle: materialized.workspaceMaterialHandle,
+        episodeClaims,
+        episodeScopeDigest: episodeScopeDigest(episodeClaims),
+        productVerificationRef: null,
+      });
+      referenceStore.commit({
+        decision: attach,
+        commitMarker: stable('western-workspace-reference-marker-', {
+          operation: attach.operation,
+          decisionDigest: attach.decisionDigest,
+        }),
+        resultId: stable('western-workspace-reference-result-', {
+          operation: attach.operation,
+          decisionDigest: attach.decisionDigest,
+        }),
+      });
+      current = reader.readWorkspace(workspace.workspaceId);
+      reference = current.references.find((item) =>
+        item.workspaceMaterialHandle.handleId ===
+          materialized.workspaceMaterialHandle.handleId);
+    }
+    if (!reference || !['working', 'product_staging'].includes(reference.state)) {
+      fail('P14_WESTERN_WORKSPACE_REFERENCE_INVALID',
+        'Western Artifact does not have one exact Workspace reference.');
+    }
+    return Object.freeze({ workspace:current, reference, materialized });
+  }
+
+  async function prepareWesternProduct(snapshot, mediaProducts,
+    productionTimeMs) {
+    if (!options.westernAnalysisPort ||
+        typeof options.westernAnalysisPort.configuration !== 'function' ||
+        !options.personReferenceProjectionFacade ||
+        typeof options.personReferenceProjectionFacade
+          .listPersonReferenceProjections !== 'function') {
+      return Object.freeze({
+        ready: false,
+        stage: 'western_analysis_unavailable',
+        reasonCode: 'service_local_analysis_not_configured',
+      });
+    }
+    const run = snapshot.run;
+    const libraRunId = run.libraRunId;
+    const workspace = ensureWorkspace(snapshot);
+    const workspacePhaseRevision = (revision, phase) => {
+      const historical = reader.readWorkspaceRevision(
+        workspace.workspaceId,
+        revision,
+      );
+      if (!historical ||
+          historical.libraRunId !== libraRunId ||
+          historical.state !== 'active' ||
+          historical.workspaceScopeDigest !==
+            workspace.workspaceScopeDigest ||
+          historical.rootSnapshotDigest !== workspace.rootSnapshotDigest) {
+        fail('P14_WESTERN_WORKSPACE_PHASE_REVISION',
+          'Western phase cannot reconstruct its exact Workspace fence.', {
+            phase,
+            workspaceId: workspace.workspaceId,
+            expectedRevision: revision,
+          });
+      }
+      return historical;
+    };
+    const source = mediaProducts[0].readHandle;
+    const configuration = options.westernAnalysisPort.configuration();
+    const durationMs = mediaProducts[0].probe.durationMs;
+    const maxFrames = Math.max(1, Math.min(
+      1024,
+      Math.ceil(durationMs / 10_000),
+    ));
+    const intervalMs = Math.max(
+      1,
+      Math.min(86_400_000, Math.ceil(durationMs / maxFrames)),
+    );
+    const samplingBasis = {
+      contractId: canonicalDigest({
+        schema: 'libra.western-sampling-plan-id@1',
+        libraRunId,
+        runExecutionBasisDigest: run.executionBasisDigest,
+        sourceMaterialDigest: canonicalDigest(source),
+        intervalMs,
+        maxFrames,
+      }),
+      revision: 1,
+      schemaRef: 'helix://contracts/domain-types/SamplingPlan/v1',
+      intervalMs,
+      maxFrames,
+      frameProfileDigest: canonicalDigest({
+        schema: 'libra.western-frame-profile@1',
+        pixelFormat: 'rgb24',
+        maxLongEdge: 1280,
+        outputKind: 'western_frame_set',
+      }),
+      typedParameters: Object.freeze([]),
+    };
+    const samplingPlan = scalarContract(samplingBasis);
+    const phase = async (value) => {
+      const planInput = westernPhasePlanBinding(
+        run,
+        value.phase,
+        value.capabilityRef,
+        value.capabilityInput,
+        value.upstreamChains,
+      );
+      return runResultCapability(run, {
+        workKind: 'western_' + value.phase,
+        objectiveRef: 'helix://libra/work/WesternAnalysis/' +
+          value.phase + '/v1',
+        nodeId: 'western-' + value.phase.replaceAll('_', '-'),
+        capabilityRef: value.capabilityRef,
+        effectClass: value.effectClass,
+        inputSchemaRef: WESTERN_PHASE_PLAN_BINDING_SCHEMA,
+        input: value.capabilityInput,
+        planInput,
+        parametersSchemaRef:
+          'helix://contracts/capabilities/' +
+          value.capabilityRef.replaceAll('.', '/').replace('@1', '/v1') +
+          '/parameters',
+        fenceSchemaRef:
+          'helix://contracts/capabilities/' +
+          value.capabilityRef.replaceAll('.', '/').replace('@1', '/v1') +
+          '/fence',
+        resourceDemandSchemaRef:
+          'helix://contracts/capabilities/' +
+          value.capabilityRef.replaceAll('.', '/').replace('@1', '/v1') +
+          '/resource-demand',
+        resourceKinds: value.resourceKinds,
+        resultSchemaRef: value.resultSchemaRef,
+        execute: value.execute,
+        evidenceDigest: value.evidenceDigest,
+      });
+    };
+
+    let currentWorkspace = reader.readWorkspace(workspace.workspaceId);
+    const rootSnapshot = options.workspaceProductPort.rootSnapshot();
+    const frameSourceDigest = canonicalDigest({
+      sourceHandle: source,
+      samplingPlan,
+    });
+    const frameTarget = workspaceArtifactTarget(
+      run,
+      workspacePhaseRevision(1, 'frames'),
+      rootSnapshot,
+      {
+        targetRelativePath: 'analysis/frames/' +
+          frameSourceDigest + '.json',
+        outputKind: 'frame_set',
+        sourceInputDigest: frameSourceDigest,
+      },
+    );
+    const frameInput = Object.freeze({
+      physicalMaterialReadHandleOrWorkspaceMaterialHandle: source,
+      samplingPlan,
+      workspaceArtifactOutputTarget: frameTarget,
+    });
+    const frameChain = await phase({
+      phase: 'frames',
+      capabilityRef: 'libra.media.frames.extract@1',
+      effectClass: 'workspace_write',
+      capabilityInput: frameInput,
+      upstreamChains: [],
+      resourceKinds: ['disk_io', 'compute'],
+      resultSchemaRef: 'helix://contracts/types/FrameArtifactSet/v1',
+      execute: () => options.westernAnalysisPort.extractFrames({
+        sourceHandle: source,
+        samplingPlan,
+        outputTarget: frameTarget,
+      }),
+    });
+    currentWorkspace = ensureWorkingArtifact(
+      run,
+      currentWorkspace,
+      frameChain.result.frameSetArtifactHandle,
+    ).workspace;
+
+    const embeddingInput = Object.freeze({
+      artifactHandleList: Object.freeze([
+        frameChain.result.frameSetArtifactHandle,
+      ]),
+      faceModelRef: configuration.faceModelRef,
+    });
+    const embeddingChain = await phase({
+      phase: 'embedding',
+      capabilityRef: 'shared.face.embedding.compute@1',
+      effectClass: 'workspace_write',
+      capabilityInput: embeddingInput,
+      upstreamChains: [frameChain],
+      resourceKinds: ['compute', 'disk_io'],
+      resultSchemaRef:
+        'helix://contracts/types/FaceEmbeddingSetHandle/v1',
+      execute: () => options.westernAnalysisPort.computeEmbeddings({
+        frameArtifactSet: frameChain.result,
+        faceModelRef: configuration.faceModelRef,
+      }),
+    });
+    currentWorkspace = ensureWorkingArtifact(
+      run,
+      currentWorkspace,
+      embeddingChain.result.artifactHandle,
+    ).workspace;
+
+    const clusterInput = Object.freeze({
+      faceEmbeddingSetHandle: embeddingChain.result,
+      clusterParameters: configuration.clusterParameters,
+    });
+    const clusterChain = await phase({
+      phase: 'cluster',
+      capabilityRef: 'shared.face.cluster.compute@1',
+      effectClass: 'workspace_write',
+      capabilityInput: clusterInput,
+      upstreamChains: [embeddingChain],
+      resourceKinds: ['compute', 'disk_io'],
+      resultSchemaRef:
+        'helix://contracts/types/FaceClusterSetHandle/v1',
+      execute: () => options.westernAnalysisPort.computeClusters(
+        clusterInput,
+      ),
+    });
+    currentWorkspace = ensureWorkingArtifact(
+      run,
+      currentWorkspace,
+      clusterChain.result.artifactHandle,
+    ).workspace;
+
+    const outputContractDigest = canonicalDigest({
+      schemaRef: 'helix://contracts/types/WesternAnalysisResult/v1',
+      schemaVersion: 1,
+    });
+    const analysisSpecBasis = {
+      specId: canonicalDigest({
+        schema: 'libra.western-analysis-spec-id@1',
+        libraRunId,
+        runExecutionBasisDigest: run.executionBasisDigest,
+        sourceMaterialDigest: canonicalDigest(source),
+        frameArtifactSetDigest: frameChain.result.manifestDigest,
+        faceModelRefDigest: configuration.faceModelRef.digest,
+        clusterParameterDigest: configuration.clusterParameters.digest,
+        analysisVariantRef: 'shelfdeck.western-analysis@1',
+        outputContractDigest,
+      }),
+      revision: 1,
+      schemaRef: 'helix://contracts/domain-types/AnalysisSpec/v1',
+      libraRunId,
+      runExecutionBasisDigest: run.executionBasisDigest,
+      contentProfile: 'western_adult',
+      sourceMaterialDigest: canonicalDigest(source),
+      frameArtifactSetDigest: frameChain.result.manifestDigest,
+      faceModelRefDigest: configuration.faceModelRef.digest,
+      clusterParameterDigest: configuration.clusterParameters.digest,
+      analysisVariantRef: 'shelfdeck.western-analysis@1',
+      outputContractRef:
+        'helix://contracts/types/WesternAnalysisResult/v1',
+      outputContractDigest,
+      typedParameters: Object.freeze([]),
+    };
+    const analysisSpec = scalarContract(analysisSpecBasis, 'specDigest');
+    const analysisSourceDigest = canonicalDigest({
+      frameArtifactSet: frameChain.result,
+      faceEmbeddingSetHandle: embeddingChain.result,
+      faceClusterSetHandle: clusterChain.result,
+      analysisSpec,
+    });
+    const analysisTarget = workspaceArtifactTarget(
+      run,
+      workspacePhaseRevision(4, 'analysis_request'),
+      rootSnapshot,
+      {
+        targetRelativePath: 'analysis/results/' +
+          analysisSourceDigest + '.json',
+        outputKind: 'western_analysis',
+        sourceInputDigest: analysisSourceDigest,
+      },
+    );
+    const requestInput = Object.freeze({
+      frameArtifactSet: frameChain.result,
+      faceEmbeddingSetHandle: embeddingChain.result,
+      faceClusterSetHandle: clusterChain.result,
+      analysisSpec,
+      workspaceArtifactOutputTarget: analysisTarget,
+    });
+    const analysisRequestChain = await phase({
+      phase: 'analysis_request',
+      capabilityRef: 'libra.western.analysis.request@1',
+      effectClass: 'workspace_write',
+      capabilityInput: requestInput,
+      upstreamChains: [frameChain, embeddingChain, clusterChain],
+      resourceKinds: ['compute', 'disk_io'],
+      resultSchemaRef: 'helix://contracts/types/ArtifactHandle/v1',
+      execute: () => options.westernAnalysisPort.requestAnalysis({
+        frameArtifactSet: frameChain.result,
+        faceEmbeddingSetHandle: embeddingChain.result,
+        faceClusterSetHandle: clusterChain.result,
+        analysisSpec,
+        outputTarget: analysisTarget,
+      }),
+    });
+    currentWorkspace = ensureWorkingArtifact(
+      run,
+      currentWorkspace,
+      analysisRequestChain.result,
+    ).workspace;
+
+    const observeInput = Object.freeze({
+      frameArtifactSet: frameChain.result,
+      faceEmbeddingSetHandle: embeddingChain.result,
+      faceClusterSetHandle: clusterChain.result,
+      analysisSpec,
+      artifactHandle: analysisRequestChain.result,
+    });
+    const analysisChain = await phase({
+      phase: 'analysis_observe',
+      capabilityRef: 'libra.western.analysis.observe@1',
+      effectClass: 'pure_observation',
+      capabilityInput: observeInput,
+      upstreamChains: [
+        frameChain,
+        embeddingChain,
+        clusterChain,
+        analysisRequestChain,
+      ],
+      resourceKinds: ['disk_io'],
+      resultSchemaRef:
+        'helix://contracts/types/WesternAnalysisResult/v1',
+      execute: () => options.westernAnalysisPort.observeAnalysis(
+        observeInput,
+      ),
+      evidenceDigest: (result) => result.payloadDigest,
+    });
+
+    const projections = await options.personReferenceProjectionFacade
+      .listPersonReferenceProjections(Object.freeze({ limit:256 }));
+    const projectionList = Object.freeze([...(projections || [])].sort(
+      (left, right) =>
+        Buffer.compare(Buffer.from(left.personId), Buffer.from(right.personId)),
+    ));
+    const matchInput = Object.freeze({
+      faceClusterSetHandle: clusterChain.result,
+      personReferenceProjectionList: projectionList,
+    });
+    const matchChain = await phase({
+      phase: 'reference_match',
+      capabilityRef: 'shared.face.reference.match@1',
+      effectClass: 'pure_observation',
+      capabilityInput: matchInput,
+      upstreamChains: [clusterChain],
+      resourceKinds: ['compute'],
+      resultSchemaRef:
+        'helix://contracts/types/PersonMatchEvidence/v1',
+      execute: () => options.westernAnalysisPort.matchReferences(matchInput),
+      evidenceDigest: (result) => result.payloadDigest,
+    });
+
+    const analysisPayload =
+      options.westernAnalysisPort.readAnalysisPayload(
+        analysisChain.result,
+      );
+    const internalIdentity = providerIdentity({
+      provider: 'internal',
+      namespace: 'internal_identity',
+      providerKey: analysisPayload.identityAnchor,
+      seasonNumber: null,
+    });
+    const preliminaryIdentity = buildResolvedProductIdentity({
+      producerRef: 'libra.western.analysis.observe@1',
+      basisDigest: analysisChain.result.payloadDigest,
+      observedAtMs: productionTimeMs,
+      subjectId: run.subjectId,
+      structureKind: snapshot.spec.structureKind,
+      contentProfile: 'western_adult',
+      identityKind: 'internal_identity',
+      providerIdentities: [internalIdentity],
+      exactSeasonContinuityClaims: [],
+      displayEntries: [{
+        key: 'internal_identity',
+        value: analysisPayload.identityAnchor,
+      }],
+    });
+    const variant = westernAnalysisVariant(
+      run,
+      preliminaryIdentity.identityDigest,
+      [analysisChain],
+    );
+    const requirements = snapshot.spec.requirements.metadata
+      .requiredArtifactKinds.map(artifactRequirement);
+    const requestedFields = [...snapshot.spec.requirements.metadata
+      .requiredFieldCodes].sort((left, right) =>
+      Buffer.compare(Buffer.from(left), Buffer.from(right)));
+    const fieldProvenance = analysisPayload.descriptiveFacts.map((item) => ({
+      fieldPath: item.key,
+      sourceKind: 'western_analysis',
+      sourceRef:
+        analysisChain.result.resultArtifactHandle.artifactHandleId,
+      evidenceDigest: analysisChain.result.payloadDigest,
+    })).sort((left, right) =>
+      Buffer.compare(Buffer.from(left.fieldPath), Buffer.from(right.fieldPath)));
+    const normalizeInput = Object.freeze({
+      westernAnalysisVariant: variant,
+    });
+    const normalizeChain = await phase({
+      phase: 'metadata_normalize',
+      capabilityRef: 'libra.western.metadata.normalize@1',
+      effectClass: 'pure_observation',
+      capabilityInput: normalizeInput,
+      upstreamChains: [analysisChain],
+      resourceKinds: ['compute'],
+      resultSchemaRef:
+        'helix://contracts/types/ProductMetadataDraft/v1',
+      execute() {
+        const result = buildWesternProductMetadataDraft({
+          analysisVariant: variant,
+          requiredFields: requestedFields,
+          producedAtMs: productionTimeMs,
+          descriptiveFacts: analysisPayload.descriptiveFacts,
+          fieldProvenance,
+          providerIdentities: [],
+          artifactRequirements: requirements,
+        });
+        if (!result.ready) {
+          fail('P14_WESTERN_METADATA_UNRESOLVED',
+            'Western Analysis did not satisfy Product Metadata requirements.',
+            { missingFields:result.missingFields });
+        }
+        return result.draft;
+      },
+    });
+    const metadataBasis = westernMetadataBasis(
+      run,
+      preliminaryIdentity.identityDigest,
+      [analysisChain],
+      normalizeChain,
+      variant,
+    );
+    const resolvedIdentity = buildResolvedProductIdentity({
+      producerRef: 'libra.western.analysis.observe@1',
+      basisDigest: metadataBasis.sourceBasisDigest,
+      observedAtMs: productionTimeMs,
+      subjectId: run.subjectId,
+      structureKind: snapshot.spec.structureKind,
+      contentProfile: 'western_adult',
+      identityKind: 'internal_identity',
+      providerIdentities: [internalIdentity],
+      exactSeasonContinuityClaims: [],
+      displayEntries: [{
+        key: 'internal_identity',
+        value: analysisPayload.identityAnchor,
+      }],
+    });
+    const sourceChains = [analysisChain, normalizeChain];
+    const identityFact = commitFact(
+      run,
+      'resolved_identity',
+      metadataBasis,
+      {
+        schema: 'libra.resolved-product-identity-commit-payload@1',
+        resolvedProductIdentity: resolvedIdentity,
+        productMetadataDraft: normalizeChain.result,
+      },
+      sourceChains,
+    );
+
+    const castBasis = westernMatchBasis(
+      run,
+      resolvedIdentity.identityDigest,
+      matchChain,
+    );
+    const relations = matchChain.result.matches.map((item) => ({
+      relationId: stable('western-cast-relation-', {
+        subjectId: run.subjectId,
+        clusterId: item.clusterId,
+        personId: item.personId,
+      }),
+      personId: item.personId,
+      displayName: item.personId,
+      displayNameNormalized: item.personId.normalize('NFKC').toLowerCase(),
+      role: 'actor',
+      source: 'face_reference_match',
+      providerIdentities: [],
+      originEvidenceDigest: item.evidenceDigest,
+      confidenceClass: item.confidenceClass,
+      relationDigest: '',
+    })).map((item) => Object.freeze({
+      ...item,
+      relationDigest: canonicalDigest(Object.fromEntries(
+        Object.entries(item).filter(([key]) => key !== 'relationDigest'),
+      )),
+    })).sort((left, right) =>
+      Buffer.compare(Buffer.from(left.role), Buffer.from(right.role)) ||
+      Buffer.compare(
+        Buffer.from(left.displayNameNormalized),
+        Buffer.from(right.displayNameNormalized),
+      ) ||
+      Buffer.compare(Buffer.from(left.relationId), Buffer.from(right.relationId)));
+    const castResolveInput = Object.freeze({
+      libraMediaCastSourceBasis: castBasis,
+      personReferenceProjectionList: projectionList,
+    });
+    const castDraftChain = await phase({
+      phase: 'media_cast_resolve',
+      capabilityRef: 'libra.media_cast.resolve@1',
+      effectClass: 'pure_observation',
+      capabilityInput: castResolveInput,
+      upstreamChains: [matchChain],
+      resourceKinds: ['compute'],
+      resultSchemaRef:
+        'helix://contracts/types/MediaCastDraft/v1',
+      execute: () => buildMediaCastDraft({
+        subjectId: run.subjectId,
+        sourceBasis: castBasis,
+        relations,
+        personProjection: Object.freeze({
+          items: projectionList,
+        }),
+        producedAtMs: productionTimeMs,
+      }),
+    });
+    const castFact = commitFact(run, 'media_cast', castBasis, {
+      schema: 'libra.media-cast-fact-commit-payload@1',
+      mediaCastDraft: castDraftChain.result,
+    }, [matchChain]);
+
+    const materials = [];
+    const artifactChains = [];
+    for (const [ordinal, kind] of snapshot.spec.requirements.metadata
+      .requiredArtifactKinds.entries()) {
+      const requirement = requirements.find((item) =>
+        item.artifactKind === kind);
+      const role = kind === 'nfo' ? 'metadata_sidecar' : kind;
+      let artifactChain;
+      if (kind === 'nfo') {
+        const relativePath = 'product/movie.nfo';
+        const sidecarBasis = {
+          schemaRef:
+            'helix://contracts/domain-types/SidecarProfile/v1',
+          schemaVersion: 1,
+          profileId: 'helix-sidecar-western-adult-nfo',
+          revision: 1,
+          format: 'nfo_xml',
+          fileNamePolicyDigest: canonicalDigest({
+            schema: 'libra.product-sidecar-filename-policy@1',
+            contentProfile: 'western_adult',
+            relativePath,
+          }),
+          contentSchemaRef:
+            'helix://contracts/records/descriptive-facts/v1',
+          typedParameters: Object.freeze([]),
+        };
+        const sidecarProfile = Object.freeze({
+          ...sidecarBasis,
+          digest: canonicalDigest(sidecarBasis),
+        });
+        const capabilityInput = Object.freeze({
+          productMetadataDraft: normalizeChain.result,
+          sidecarProfile,
+        });
+        artifactChain = await phase({
+          phase: 'sidecar_render',
+          capabilityRef: 'libra.product_sidecar.render@1',
+          effectClass: 'workspace_write',
+          capabilityInput,
+          upstreamChains: [normalizeChain],
+          resourceKinds: ['disk_io'],
+          resultSchemaRef: 'helix://contracts/types/ArtifactHandle/v1',
+          execute: () => options.productionPort.renderProductSidecar({
+            ...capabilityInput,
+            libraRunId,
+            workspaceId: workspace.workspaceId,
+            relativePath,
+            contentProfile: 'western_adult',
+          }),
+        });
+      } else if (kind === 'poster') {
+        const capabilityInput = Object.freeze({
+          personMatchEvidence: matchChain.result,
+          frameArtifactSet: frameChain.result,
+        });
+        artifactChain = await phase({
+          phase: 'poster_render',
+          capabilityRef: 'libra.western.poster.render@1',
+          effectClass: 'workspace_write',
+          capabilityInput,
+          upstreamChains: [frameChain, matchChain],
+          resourceKinds: ['compute', 'disk_io'],
+          resultSchemaRef: 'helix://contracts/types/ArtifactHandle/v1',
+          execute: () => options.westernAnalysisPort.renderPoster({
+            ...capabilityInput,
+            relativePath: 'product/poster.jpg',
+          }),
+        });
+      } else {
+        fail('P14_WESTERN_ARTIFACT_KIND_UNSUPPORTED',
+          'Western Product requested an unsupported Artifact kind.', {
+            artifactKind: kind,
+          });
+      }
+      const materialized =
+        options.workspaceProductPort.readMaterializedArtifact(
+          artifactChain.result,
+        );
+      const verification = buildArtifactManifestVerification({
+        requirement,
+        artifactHandles: [materialized.artifactHandle],
+        verifiedAtMs: productionTimeMs,
+      });
+      const verificationInput = Object.freeze({
+        artifactHandleList: Object.freeze([materialized.artifactHandle]),
+        artifactRequirement: requirement,
+      });
+      const verificationChain = await phase({
+        phase: 'artifact_verify_' + kind,
+        capabilityRef: 'shared.artifact.manifest.verify@1',
+        effectClass: 'pure_observation',
+        capabilityInput: verificationInput,
+        upstreamChains: [artifactChain],
+        resourceKinds: ['disk_io'],
+        resultSchemaRef: ARTIFACT_VERIFICATION_SCHEMA,
+        execute: () => verification,
+        evidenceDigest: verification.verificationDigest,
+      });
+      const staged = stageArtifact(
+        run,
+        workspace,
+        materialized,
+        role,
+        requirement,
+        verification,
+      );
+      materials.push(Object.freeze({
+        ordinal,
+        kind,
+        role,
+        requirement,
+        materialized,
+        verification,
+        reference: staged.reference,
+      }));
+      artifactChains.push(verificationChain);
+    }
+    const verifiedItems = materials.map((item, ordinal) =>
+      verifiedArtifactItem(
+        ordinal,
+        item.materialized.artifactHandle,
+        item.requirement,
+        item.verification,
+        artifactChains[ordinal],
+      ));
+    const artifactSetDigest = canonicalDigest({
+      schema: 'libra.verified-artifact-set@1',
+      items: verifiedItems,
+    });
+    const verifiedArtifactManifest = {
+      manifestId: canonicalDigest({
+        schema: 'libra.verified-artifact-manifest-id@1',
+        libraRunId,
+        artifactSetDigest,
+      }),
+      libraRunId,
+      items: verifiedItems,
+      artifactSetDigest,
+    };
+    verifiedArtifactManifest.manifestDigest =
+      canonicalDigest(verifiedArtifactManifest);
+    const metadataFact = commitFact(run, 'product_metadata', metadataBasis, {
+      schema: 'libra.product-metadata-fact-commit-payload@1',
+      productMetadataDraft: normalizeChain.result,
+      verifiedArtifactManifest,
+      mediaCastFactRef: {
+        productFactId: castFact.productFactId,
+        factRevision: castFact.factRevision,
+        factDigest: castFact.factDigest,
+      },
+    }, sourceChains);
+    return Object.freeze({
+      ready: true,
+      identityFact,
+      workspace,
+      materials: Object.freeze(materials),
+      artifactChains: Object.freeze(artifactChains),
+      verifiedItems: Object.freeze(verifiedItems),
+      verifiedArtifactManifest: Object.freeze(verifiedArtifactManifest),
+      castFact,
+      metadataFact,
+      results: Object.freeze([
+        frameChain,
+        embeddingChain,
+        clusterChain,
+        analysisRequestChain,
+        analysisChain,
+        matchChain,
+        normalizeChain,
+        castDraftChain,
+      ]),
+    });
+  }
+
   async function advance(libraRunId) {
     const snapshot = reader.readRun(libraRunId);
     const productionTimeMs = snapshot.run.createdAtMs;
@@ -991,6 +2028,7 @@ function createMovieProductionCoordinator(options) {
     const structureKind = snapshot.spec.structureKind;
     const isSeries = contentProfile === 'series';
     const isJav = contentProfile === 'jav';
+    const isWestern = contentProfile === 'western_adult';
     const productEpisodeClaims = snapshot.episodeClaims;
     if (snapshot.run.packageRevisionHead > 0) {
       const published = reader.readPublishedDeliveryRef(
@@ -1036,7 +2074,7 @@ function createMovieProductionCoordinator(options) {
     }
     const nfoReferences = snapshot.relatedReferences
       .filter((item) => item.role === 'nfo');
-    if (!isJav && !nfoReferences.length) {
+    if (!isJav && !isWestern && !nfoReferences.length) {
       return Object.freeze({
         stage: 'product_metadata_unresolved',
         libraRunId,
@@ -1110,6 +2148,39 @@ function createMovieProductionCoordinator(options) {
         reasonCodes: unresolvedMedia.verification.reasonCodes,
       });
     }
+    let identityFact;
+    let workspace;
+    let materials;
+    let artifactChains;
+    let verifiedItems;
+    let verifiedArtifactManifest;
+    let castFact;
+    let metadataFact;
+    let results;
+    if (isWestern) {
+      const western = await prepareWesternProduct(
+        snapshot,
+        mediaProducts,
+        productionTimeMs,
+      );
+      if (!western.ready) {
+        return Object.freeze({
+          ...western,
+          libraRunId,
+        });
+      }
+      ({
+        identityFact,
+        workspace,
+        materials,
+        artifactChains,
+        verifiedItems,
+        verifiedArtifactManifest,
+        castFact,
+        metadataFact,
+        results,
+      } = western);
+    } else {
     const relatedNfos = isJav
       ? []
       : nfoReferences.map((reference) => Object.freeze({
@@ -1274,14 +2345,14 @@ function createMovieProductionCoordinator(options) {
       evidenceDigest: (result) => result.payloadDigest,
     });
     const providerObservation = providerChain.result;
-    const results = [...nfoSources.map((item) => item.chain), providerChain];
+    results = [...nfoSources.map((item) => item.chain), providerChain];
     const identityBasis = buildMetadataObservationBasis({
       intents: [...nfoSources.map((item) => item.intent), providerIntent],
       results,
       factKind: 'resolved_identity',
       expectedRevision: 0,
     });
-    const identityFact = commitFact(
+    identityFact = commitFact(
       snapshot.run,
       'resolved_identity',
       identityBasis,
@@ -1305,7 +2376,7 @@ function createMovieProductionCoordinator(options) {
       },
       results,
     );
-    const workspace = ensureWorkspace(snapshot);
+    workspace = ensureWorkspace(snapshot);
     const metadataBasis = buildMetadataObservationBasis({
       intents: [...nfoSources.map((item) => item.intent), providerIntent],
       results,
@@ -1328,8 +2399,8 @@ function createMovieProductionCoordinator(options) {
         missingFields: metadataDraftResult.missingFields,
       });
     }
-    const materials = [];
-    const artifactChains = [];
+    materials = [];
+    artifactChains = [];
     for (const [ordinal, kind] of snapshot.spec.requirements.metadata
       .requiredArtifactKinds.entries()) {
       const role = kind === 'nfo' ? 'metadata_sidecar' : kind;
@@ -1497,7 +2568,7 @@ function createMovieProductionCoordinator(options) {
       }));
       artifactChains.push(chain);
     }
-    const verifiedItems = materials.map((item, ordinal) =>
+    verifiedItems = materials.map((item, ordinal) =>
       verifiedArtifactItem(
         ordinal,
         item.materialized.artifactHandle,
@@ -1509,7 +2580,7 @@ function createMovieProductionCoordinator(options) {
       schema: 'libra.verified-artifact-set@1',
       items: verifiedItems,
     });
-    const verifiedArtifactManifest = {
+    verifiedArtifactManifest = {
       manifestId: canonicalDigest({
         schema: 'libra.verified-artifact-manifest-id@1',
         libraRunId,
@@ -1551,11 +2622,11 @@ function createMovieProductionCoordinator(options) {
       relations,
       producedAtMs: productionTimeMs,
     });
-    const castFact = commitFact(snapshot.run, 'media_cast', castBasis, {
+    castFact = commitFact(snapshot.run, 'media_cast', castBasis, {
       schema: 'libra.media-cast-fact-commit-payload@1',
       mediaCastDraft: castDraft,
     }, results);
-    const metadataFact = commitFact(snapshot.run, 'product_metadata', metadataBasis, {
+    metadataFact = commitFact(snapshot.run, 'product_metadata', metadataBasis, {
       schema: 'libra.product-metadata-fact-commit-payload@1',
       productMetadataDraft: metadataDraftResult.draft,
       verifiedArtifactManifest,
@@ -1565,6 +2636,7 @@ function createMovieProductionCoordinator(options) {
         factDigest: castFact.factDigest,
       },
     }, results);
+    }
     if (typeof options.afterProductFactsCommit === 'function') {
       options.afterProductFactsCommit(Object.freeze({
         libraRunId,

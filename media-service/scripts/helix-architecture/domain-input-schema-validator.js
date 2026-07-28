@@ -117,6 +117,13 @@ function validateDomainInputSchemas(options) {
       EncodeIntent: ['intentId', 'revision', 'schemaRef', 'libraRunId', 'sourceHandleDigest', 'mediaRequirementDigest', 'intentDigest'],
       RemuxIntent: ['intentId', 'revision', 'schemaRef', 'libraRunId', 'sourceHandleDigest', 'mediaRequirementDigest', 'intentDigest'],
       MediaRequirement: ['requirementId', 'revision', 'schemaRef', 'acceptanceSpecId', 'acceptanceSpecRecordDigest', 'requirementDigest'],
+      SamplingPlan: ['contractId', 'revision', 'schemaRef', 'intervalMs', 'maxFrames', 'frameProfileDigest', 'typedParameters', 'digest'],
+      FaceModelRef: ['contractId', 'revision', 'schemaRef', 'mode', 'modelId', 'modelRevision', 'modelDigest', 'runtimeKind',
+        'inputContractDigest', 'outputContractDigest', 'licenseDigest', 'typedParameters', 'digest'],
+      ClusterParameters: ['parameterSetId', 'revision', 'schemaRef', 'modelRefDigest', 'distanceMetric',
+        'distanceThreshold', 'minClusterSize', 'typedParameters', 'digest'],
+      AnalysisSpec: ['specId', 'revision', 'schemaRef', 'libraRunId', 'runExecutionBasisDigest', 'frameArtifactSetDigest',
+        'faceModelRefDigest', 'clusterParameterDigest', 'outputContractRef', 'outputContractDigest', 'typedParameters', 'specDigest'],
       ResolvedProviderIdentity: ['provider', 'namespace', 'providerKey', 'identityAnchorDigest'],
       ProductStructureSnapshot: ['structureKind', 'contentProfile', 'productScopeDigest', 'episodeScopeDigest', 'productStructureDigest'],
       ProductConformanceFactSnapshot: ['schemaRef', 'productFactId', 'factKind', 'factRevision', 'factDigest', 'referenceDigest'],
@@ -125,6 +132,7 @@ function validateDomainInputSchemas(options) {
       ArtifactConformanceVerificationSnapshot: ['ordinal', 'verificationResultRef', 'verificationValue', 'snapshotDigest'],
       ProductInventoryConformanceSnapshot: ['productStructureSnapshot', 'productMaterialManifest', 'artifactManifest', 'inventoryDigest'],
       WorkspaceMediaOutputTarget: ['targetId', 'libraRunId', 'workspaceId', 'targetDigest'],
+      WorkspaceArtifactOutputTarget: ['targetId', 'libraRunId', 'workspaceId', 'outputKind', 'sourceInputDigest', 'targetDigest'],
       ProductMediaCandidateInput: ['schemaRef', 'schemaVersion', 'candidateId', 'candidateNodeId', 'candidateBasisDigest', 'inputDigest'],
       ProductOutputSelectionInput: ['criteria', 'candidateSetDigest', 'inputDigest'],
       ProductConformanceInputSnapshot: ['snapshotId', 'libraRunId', 'runExecutionBasisDigest', 'productSnapshotDigest', 'snapshotDigest']
@@ -148,8 +156,9 @@ function validateDomainInputSchemas(options) {
         }));
       }
     }
-    const exactBoundedContracts = new Set(['ArtifactRequirement', 'EncodeIntent', 'RemuxIntent', 'MediaRequirement',
-      'IdentityRequirement', 'SelectionCriteria', 'WorkspaceDeliveryContract']);
+    const exactBoundedContracts = new Set(['AnalysisSpec', 'ArtifactRequirement', 'ClusterParameters', 'EncodeIntent',
+      'FaceModelRef', 'MediaRequirement', 'RemuxIntent', 'SamplingPlan', 'IdentityRequirement', 'SelectionCriteria',
+      'WorkspaceDeliveryContract']);
     if (schema['x-helix-role'] === 'bounded-contract' && !exactBoundedContracts.has(entry.id) && !(schema.required || []).includes('typedParameters')) findings.push(finding(
       'UNBOUNDED_INTENT_PARAMETERS', 'Bounded intent/requirement contracts require typedParameters.', { entryId: entry.id }
     ));
@@ -162,7 +171,8 @@ function validateDomainInputSchemas(options) {
   }
   const facadeOnlyTypes = new Set(['DirectPersonRegistrationDecision', 'CandidateDeliveryQuery', 'CandidateDeliveryReadResult',
     'ResolvedProviderIdentity', 'ProductStructureSnapshot', 'ProductConformanceFactSnapshot', 'ProductionMaterialManifest',
-    'ArtifactManifest', 'ArtifactConformanceVerificationSnapshot', 'ProductInventoryConformanceSnapshot']);
+    'ArtifactManifest', 'ArtifactConformanceVerificationSnapshot', 'ProductInventoryConformanceSnapshot',
+    'WorkspaceArtifactOutputTarget']);
   for (const name of ids) {
     if (!usages.has(name) && !facadeOnlyTypes.has(name)) findings.push(finding('UNUSED_DOMAIN_INPUT_TYPE', 'Domain input schema is not referenced by the Catalog.', { entryId: name }));
   }

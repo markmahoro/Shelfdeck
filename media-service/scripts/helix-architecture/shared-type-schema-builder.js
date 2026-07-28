@@ -198,11 +198,16 @@ const definitions = {
     sizeBytes: nonNegativeInteger(), completedAtMs: nonNegativeInteger()
   }),
   FaceEmbeddingSetHandle: () => nominal('FaceEmbeddingSetHandle', {
-    artifactHandleId: opaqueId(), modelRef: text(), sourceArtifactSetDigest: digestHex(), detectedFaceCount: nonNegativeInteger(), vectorCount: nonNegativeInteger(),
-    dimension: positiveInteger(), digestHex: digestHex()
+    artifactHandleId: opaqueId(), artifactHandle: ref('ArtifactHandle'),
+    computationMode: enumText('western_frame_set', 'single_reference_face'),
+    libraRunId: nullable(opaqueId()), workspaceId: nullable(opaqueId()), faceModelRefDigest: digestHex(),
+    sourceArtifactSetDigest: digestHex(), detectedFaceCount: nonNegativeInteger(), vectorCount: nonNegativeInteger(),
+    dimension: positiveInteger(), embeddingDigest: digestHex(), handleDigest: digestHex()
   }),
   FaceClusterSetHandle: () => nominal('FaceClusterSetHandle', {
-    artifactHandleId: opaqueId(), modelRef: text(), sourceEmbeddingDigest: digestHex(), clusterCount: nonNegativeInteger(), digestHex: digestHex()
+    artifactHandleId: opaqueId(), artifactHandle: ref('ArtifactHandle'), libraRunId: opaqueId(), workspaceId: opaqueId(),
+    faceModelRefDigest: digestHex(), clusterParameterDigest: digestHex(), sourceEmbeddingDigest: digestHex(),
+    clusterCount: nonNegativeInteger(), clusterDigest: digestHex(), handleDigest: digestHex()
   }),
   EvidenceEnvelope: () => plainSchema('EvidenceEnvelope', {
     evidenceId: opaqueId(), evidenceKind: text(), producerRef: text(), basisDigest: digestHex(), payloadDigest: digestHex(), observedAtMs: nonNegativeInteger()

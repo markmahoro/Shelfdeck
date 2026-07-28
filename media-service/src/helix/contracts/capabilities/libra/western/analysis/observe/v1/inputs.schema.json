@@ -5,17 +5,49 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "externalJobReceipt": {
-      "$ref": "#/$defs/externalJobReceipt"
+    "frameArtifactSet": {
+      "$ref": "#/$defs/frameArtifactSet"
+    },
+    "faceEmbeddingSetHandle": {
+      "$ref": "#/$defs/faceEmbeddingSetHandle"
+    },
+    "faceClusterSetHandle": {
+      "$ref": "#/$defs/faceClusterSetHandle"
+    },
+    "analysisSpec": {
+      "$ref": "#/$defs/analysisSpec"
+    },
+    "artifactHandle": {
+      "$ref": "#/$defs/artifactHandle"
     }
   },
   "required": [
-    "externalJobReceipt"
+    "frameArtifactSet",
+    "faceEmbeddingSetHandle",
+    "faceClusterSetHandle",
+    "analysisSpec",
+    "artifactHandle"
   ],
   "$defs": {
-    "externalJobReceipt": {
-      "$ref": "helix://contracts/types/ExternalJobReceipt/v1",
-      "x-helix-typeExpression": "ExternalJobReceipt"
+    "frameArtifactSet": {
+      "$ref": "helix://contracts/types/FrameArtifactSet/v1",
+      "x-helix-typeExpression": "FrameArtifactSet"
+    },
+    "faceEmbeddingSetHandle": {
+      "$ref": "helix://contracts/types/FaceEmbeddingSetHandle/v1",
+      "x-helix-typeExpression": "FaceEmbeddingSetHandle"
+    },
+    "faceClusterSetHandle": {
+      "$ref": "helix://contracts/types/FaceClusterSetHandle/v1",
+      "x-helix-typeExpression": "FaceClusterSetHandle"
+    },
+    "analysisSpec": {
+      "$ref": "helix://contracts/domain-types/AnalysisSpec/v1",
+      "x-helix-typeExpression": "AnalysisSpec"
+    },
+    "artifactHandle": {
+      "$ref": "helix://contracts/types/ArtifactHandle/v1",
+      "x-helix-typeExpression": "ArtifactHandle"
     }
   }
 }

@@ -3,15 +3,30 @@
   "capabilityRef": "libra.western.analysis.request@1",
   "contractVersion": 1,
   "ownerScope": "libra",
-  "effectClass": "external_request",
+  "effectClass": "workspace_write",
   "inputPorts": {
-    "workerUploadReceipt": {
-      "schemaRef": "helix://contracts/capabilities/libra.western.analysis.request/v1/inputs#/$defs/workerUploadReceipt",
+    "frameArtifactSet": {
+      "schemaRef": "helix://contracts/capabilities/libra.western.analysis.request/v1/inputs#/$defs/frameArtifactSet",
+      "required": true,
+      "cardinality": "one"
+    },
+    "faceEmbeddingSetHandle": {
+      "schemaRef": "helix://contracts/capabilities/libra.western.analysis.request/v1/inputs#/$defs/faceEmbeddingSetHandle",
+      "required": true,
+      "cardinality": "one"
+    },
+    "faceClusterSetHandle": {
+      "schemaRef": "helix://contracts/capabilities/libra.western.analysis.request/v1/inputs#/$defs/faceClusterSetHandle",
       "required": true,
       "cardinality": "one"
     },
     "analysisSpec": {
       "schemaRef": "helix://contracts/capabilities/libra.western.analysis.request/v1/inputs#/$defs/analysisSpec",
+      "required": true,
+      "cardinality": "one"
+    },
+    "workspaceArtifactOutputTarget": {
+      "schemaRef": "helix://contracts/capabilities/libra.western.analysis.request/v1/inputs#/$defs/workspaceArtifactOutputTarget",
       "required": true,
       "cardinality": "one"
     }
@@ -29,7 +44,7 @@
   },
   "sourceLocator": {
     "section": "8.6.6",
-    "line": 8986,
-    "lineDigest": "2b82e44cc0c4d1b0d1016829669c832eedfbd3af8bf8ad11189d4f678e73dca9"
+    "line": 8991,
+    "lineDigest": "21af102f9fb2c8b8dc2d334403a70360dda63c540f0ad35dafe3ddd9520e7836"
   }
 }

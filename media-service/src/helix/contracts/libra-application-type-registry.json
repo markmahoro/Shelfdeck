@@ -5,7 +5,7 @@
   "kind": "application-type-registry",
   "owner": "libra",
   "status": "active",
-  "targetCount": 29,
+  "targetCount": 30,
   "entries": [
     {
       "id": "LibraProductFactCommitPlanBinding",
@@ -232,6 +232,23 @@
       },
       "ssotRefs": [
         "8.6.21"
+      ]
+    },
+    {
+      "id": "LibraWesternAnalysisPhasePlanBinding",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraWesternAnalysisPhasePlanBinding/v1",
+      "relativePath": "application-types/LibraWesternAnalysisPhasePlanBinding/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "471d198155af0a9f23f68666263b8f37c3dff1e298ad072be2c294856ac8edb5"
+      },
+      "ssotRefs": [
+        "8.5.11",
+        "8.6.19",
+        "8.6.20"
       ]
     },
     {

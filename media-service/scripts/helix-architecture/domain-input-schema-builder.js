@@ -25,11 +25,11 @@ function snapshot(kind) {
   return object({ objectId: id(), revision: positiveInteger(), schemaRef: text(), digest: digest(), objectKind: { const: kind } });
 }
 
-function typedParameters(kind) {
+function typedParameters(kind, maxItems = 256) {
   return arrayOf(object({
     parameter: text({ pattern: '^[a-z][a-zA-Z0-9_.-]{0,127}$' }), valueType: enumText('string', 'integer', 'number', 'boolean'),
     value: { type: ['string', 'integer', 'number', 'boolean'] }, valueDigest: digest()
-  }), 256);
+  }), maxItems);
 }
 
 const special = {
@@ -97,14 +97,14 @@ function inferredField(typeName, fieldName) {
 }
 
 const boundedContracts = {
-  AnalysisSpec: 'analysisVariantRef,outputContractDigest',
+  AnalysisSpec: '',
   ArtifactProfile: 'artifactKinds,qualityPolicyDigest',
   ArtifactRequirement: 'artifactKind,requirementPayload,requirementDigest',
   BoundedLayoutScope: 'rootHandleDigest,maxDepth,maxMembers',
   CareRequirement: 'careBasisDigest,requiredEffects,acceptanceDigest',
-  ClusterParameters: 'modelRef,distanceThreshold,minClusterSize',
+  ClusterParameters: '',
   EncodeIntent: '',
-  FaceModelRef: 'modelId,modelRevision,modelDigest',
+  FaceModelRef: '',
   HashProfile: 'algorithm,chunkSizeBytes,fullContentRequired',
   IdentityRequirement: '',
   MandatoryRequirement: 'requirementCodes',
@@ -114,7 +114,7 @@ const boundedContracts = {
   PreferenceIntent: 'personId,preferenceLevel,reason',
   RemuxIntent: '',
   MediaRequirement: '',
-  SamplingPlan: 'intervalMs,maxFrames,frameProfileDigest',
+  SamplingPlan: '',
   SelectionCriteria: '',
   ShelfStandard: 'shelfId,contentProfile,ruleSetRevision,acceptanceRuleDigest',
   SidecarProfile: 'format,fileNamePolicyDigest,contentSchemaRef',
@@ -174,6 +174,7 @@ const dtoContracts = {
   ArtifactConformanceVerificationSnapshot: '',
   ProductInventoryConformanceSnapshot: '',
   WorkspaceMediaOutputTarget: '',
+  WorkspaceArtifactOutputTarget: '',
   ProductMediaCandidateInput: '',
   ProductOutputSelectionInput: '',
   ProductConformanceInputSnapshot: '',
@@ -225,6 +226,10 @@ function idField(name) {
 }
 
 function buildSchema(name, role, fields) {
+  if (name === 'SamplingPlan') return samplingPlanSchema();
+  if (name === 'FaceModelRef') return faceModelRefSchema();
+  if (name === 'ClusterParameters') return clusterParametersSchema();
+  if (name === 'AnalysisSpec') return analysisSpecSchema();
   if (name === 'EncodeIntent') return encodeIntentSchema();
   if (name === 'RemuxIntent') return remuxIntentSchema();
   if (name === 'MediaRequirement') return mediaRequirementSchema();
@@ -269,6 +274,7 @@ function buildSchema(name, role, fields) {
   if (name === 'ArtifactConformanceVerificationSnapshot') return artifactConformanceVerificationSnapshotSchema();
   if (name === 'ProductInventoryConformanceSnapshot') return productInventoryConformanceSnapshotSchema();
   if (name === 'WorkspaceMediaOutputTarget') return workspaceMediaOutputTargetSchema();
+  if (name === 'WorkspaceArtifactOutputTarget') return workspaceArtifactOutputTargetSchema();
   if (name === 'ProductMediaCandidateInput') return productMediaCandidateInputSchema();
   if (name === 'ProductOutputSelectionInput') return productOutputSelectionInputSchema();
   if (name === 'ProductConformanceInputSnapshot') return productConformanceInputSnapshotSchema();
@@ -710,7 +716,8 @@ function metadataObservationSelectionValue() {
 
 function westernProductMetadataBasisValue() {
   const analysisRef = object({ workId: id(), attemptId: id(), planId: id(), eventId: id(), resultId: id(), resultDigest: digest(),
-    inputBindingDigest: digest(), externalJobReceiptId: id(), evidenceId: id(), evidenceDigest: digest() });
+    inputBindingDigest: digest(), analysisArtifactHandleId: id(), analysisArtifactDigest: digest(),
+    evidenceId: id(), evidenceDigest: digest() });
   const normalizeRef = object({ workId: id(), attemptId: id(), planId: id(), eventId: id(), resultId: id(), resultDigest: digest(),
     inputBindingDigest: digest(), analysisVariantId: id(), productMetadataDraftDigest: digest() });
   return object({ basisId: id(), basisKind: { const: 'western_analysis' }, libraRunId: id(), runExecutionBasisDigest: digest(),
@@ -722,7 +729,8 @@ function westernMediaCastBasisValue() {
   const matchRef = object({ workId: id(), attemptId: id(), planId: id(), eventId: id(), resultId: id(), resultDigest: digest(),
     inputBindingDigest: digest(), evidenceId: id(), evidenceDigest: digest(), personMatchEvidenceDigest: digest() });
   return object({ basisId: id(), basisKind: { const: 'western_match' }, libraRunId: id(), runExecutionBasisDigest: digest(),
-    resolvedIdentityDigest: digest(), matchRef, matchState: enumText('matches_found', 'no_matches'), basisDigest: digest() });
+    resolvedIdentityDigest: digest(), matchRef, referenceProjectionSetDigest: digest(),
+    matchState: enumText('matches_found', 'no_matches'), basisDigest: digest() });
 }
 
 function sourceBasisEnvelope(name, variants, maxCanonicalBytes) {
@@ -1107,6 +1115,91 @@ function workspaceMediaOutputTargetSchema() {
     rootSnapshot, workspaceScopeDigest: digest(), targetRelativePath: text(),
     outputRole: { const: 'product_media' }, productionIntentDigest: digest(), effectScopeDigest: digest(), targetDigest: digest() }),
     'x-helix-maxCanonicalBytes': 16 * 1024 };
+}
+
+function scalarTypedParameterSchema() {
+  const common = { parameter: text({ pattern: '^[a-z][a-zA-Z0-9_.-]{0,127}$' }), valueDigest: digest() };
+  return {
+    oneOf: [
+      object({ ...common, valueType: { const: 'string' }, value: { type: 'string' } }),
+      object({ ...common, valueType: { const: 'integer' }, value: { type: 'integer' } }),
+      object({ ...common, valueType: { const: 'number' }, value: { type: 'number' } }),
+      object({ ...common, valueType: { const: 'boolean' }, value: { type: 'boolean' } })
+    ]
+  };
+}
+
+function scalarTypedParameters() {
+  return {
+    ...arrayOf(scalarTypedParameterSchema(), 64),
+    uniqueItems: true,
+    'x-helix-canonicalOrder': 'parameter UTF-8 bytes',
+    'x-helix-uniqueBy': 'parameter'
+  };
+}
+
+function samplingPlanSchema() {
+  return {
+    ...exactDomainSchema('SamplingPlan', {
+      contractId: id(), revision: positiveInteger(), schemaRef: { const: domainTypeId('SamplingPlan') },
+      intervalMs: { type: 'integer', minimum: 1, maximum: 86400000 },
+      maxFrames: { type: 'integer', minimum: 1, maximum: 1024 }, frameProfileDigest: digest(),
+      typedParameters: scalarTypedParameters(), digest: digest()
+    }),
+    'x-helix-role': 'bounded-contract', 'x-helix-maxCanonicalBytes': 16 * 1024
+  };
+}
+
+function faceModelRefSchema() {
+  return {
+    ...exactDomainSchema('FaceModelRef', {
+      contractId: id(), revision: positiveInteger(), schemaRef: { const: domainTypeId('FaceModelRef') },
+      mode: enumText('western_frame_set', 'single_reference_face'), modelId: id(), modelRevision: positiveInteger(),
+      modelDigest: digest(), runtimeKind: { const: 'onnx' }, inputContractDigest: digest(),
+      outputContractDigest: digest(), licenseDigest: digest(), typedParameters: scalarTypedParameters(), digest: digest()
+    }),
+    'x-helix-role': 'bounded-contract', 'x-helix-maxCanonicalBytes': 16 * 1024
+  };
+}
+
+function clusterParametersSchema() {
+  return {
+    ...exactDomainSchema('ClusterParameters', {
+      parameterSetId: id(), revision: positiveInteger(), schemaRef: { const: domainTypeId('ClusterParameters') },
+      modelRefDigest: digest(), distanceMetric: { const: 'cosine' },
+      distanceThreshold: { type: 'number', minimum: 0, maximum: 1 }, minClusterSize: positiveInteger(),
+      typedParameters: scalarTypedParameters(), digest: digest()
+    }),
+    'x-helix-role': 'bounded-contract', 'x-helix-maxCanonicalBytes': 16 * 1024
+  };
+}
+
+function analysisSpecSchema() {
+  return {
+    ...exactDomainSchema('AnalysisSpec', {
+      specId: id(), revision: positiveInteger(), schemaRef: { const: domainTypeId('AnalysisSpec') },
+      libraRunId: id(), runExecutionBasisDigest: digest(), contentProfile: { const: 'western_adult' },
+      sourceMaterialDigest: digest(), frameArtifactSetDigest: digest(), faceModelRefDigest: digest(),
+      clusterParameterDigest: digest(), analysisVariantRef: text({ maxLength: 512 }),
+      outputContractRef: { const: 'helix://contracts/types/WesternAnalysisResult/v1' },
+      outputContractDigest: digest(), typedParameters: scalarTypedParameters(), specDigest: digest()
+    }),
+    'x-helix-role': 'bounded-contract', 'x-helix-maxCanonicalBytes': 16 * 1024
+  };
+}
+
+function workspaceArtifactOutputTargetSchema() {
+  const rootSnapshot = object({ workspaceRootId: id(), rootRevision: positiveInteger(), endpointId: id(), mountScopeId: id(),
+    rootLocation: text(), containmentDigest: digest(), capacitySnapshotDigest: digest(), snapshotDigest: digest() });
+  return {
+    ...exactDomainSchema('WorkspaceArtifactOutputTarget', {
+      targetId: id(), libraRunId: id(), executionBasisDigest: digest(), workspaceId: id(),
+      expectedWorkspaceRevision: positiveInteger(), expectedWorkspaceStateDigest: digest(), rootSnapshot,
+      workspaceScopeDigest: digest(), targetRelativePath: text(), outputKind: enumText('frame_set', 'western_analysis'),
+      sourceInputDigest: digest(), effectScopeDigest: digest(), targetDigest: digest()
+    }),
+    'x-helix-maxCanonicalBytes': 16 * 1024
+  };
 }
 
 function productMediaCandidateInputSchema() {

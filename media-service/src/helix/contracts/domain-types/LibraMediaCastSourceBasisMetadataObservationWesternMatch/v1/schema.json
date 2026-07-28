@@ -336,6 +336,11 @@
                 "personMatchEvidenceDigest"
               ]
             },
+            "referenceProjectionSetDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
             "matchState": {
               "type": "string",
               "enum": [
@@ -356,6 +361,7 @@
             "runExecutionBasisDigest",
             "resolvedIdentityDigest",
             "matchRef",
+            "referenceProjectionSetDigest",
             "matchState",
             "basisDigest"
           ]

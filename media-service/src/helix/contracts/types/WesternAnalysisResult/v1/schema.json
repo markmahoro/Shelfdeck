@@ -3,9 +3,11 @@
   "$id": "helix://contracts/types/WesternAnalysisResult/v1",
   "title": "WesternAnalysisResult@1",
   "x-helix-ssotRefs": [
+    "6.4.7.1",
     "8.6.19"
   ],
   "x-helix-envelopeRef": "helix://contracts/types/EvidenceEnvelope/v1",
+  "x-helix-maxCanonicalBytes": 16384,
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -42,15 +44,40 @@
       "type": "integer",
       "minimum": 0
     },
-    "externalJobReceiptId": {
+    "libraRunId": {
       "type": "string",
       "minLength": 1,
       "maxLength": 256
     },
+    "runExecutionBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "frameArtifactSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "embeddingSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "clusterSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "analysisSpecDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
     "analysisVariantRef": {
       "type": "string",
       "minLength": 1,
-      "maxLength": 256
+      "maxLength": 512
     },
     "resultArtifactHandle": {
       "$ref": "helix://contracts/types/ArtifactHandle/v1"
@@ -70,7 +97,12 @@
     "basisDigest",
     "payloadDigest",
     "observedAtMs",
-    "externalJobReceiptId",
+    "libraRunId",
+    "runExecutionBasisDigest",
+    "frameArtifactSetDigest",
+    "embeddingSetDigest",
+    "clusterSetDigest",
+    "analysisSpecDigest",
     "analysisVariantRef",
     "resultArtifactHandle",
     "resultDigest"

@@ -287,7 +287,7 @@
       "relativePath": "types/FaceEmbeddingSetHandle/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "a36a71ecaa8aaddb9a4ce804a470faf71767f5dde4622274d58f1211da0c9f83"
+        "value": "32c6d079904e789c91ce29a66749f76a10578d313f0fe22ce952ddc3ef159cd6"
       },
       "ssotRefs": [
         "8.6.18"
@@ -301,7 +301,7 @@
       "relativePath": "types/FaceClusterSetHandle/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "c6327752019354aee4e25c120a24be6a07d97203c04f0dd43d2e13a96cc152ad"
+        "value": "3117b5bd70cd441ae032de51f0666d091c83ff31db5f69f78407a87b2dfeabd7"
       },
       "ssotRefs": [
         "8.6.18"

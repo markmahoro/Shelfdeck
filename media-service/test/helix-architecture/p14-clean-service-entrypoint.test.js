@@ -154,6 +154,7 @@ test('formal server dependency graph reaches only the clean Helix root', () => {
         relative === 'src/clean-media-probe.js' ||
         relative === 'src/clean-product-production-port.js' ||
         relative === 'src/clean-workspace-product-port.js' ||
+        relative === 'src/clean-western-analysis-port.js' ||
         relative === 'src/clean-arca-inventory-port.js' ||
         relative === 'src/admin-credential-secret-store.js' ||
         relative.startsWith('src/helix/'),

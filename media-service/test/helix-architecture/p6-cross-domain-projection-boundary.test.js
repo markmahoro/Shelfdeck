@@ -26,7 +26,10 @@ test('synthetic Arca consumer sees one People-owned Reference Image projection a
   const projection = Object.freeze({ schemaRef: 'helix://contracts/domain-types/PersonReferenceProjection/v1', schemaVersion: 1,
     ownerDomain: 'people', personId: 'person-1', revision: 7, projectionDigest: 'b'.repeat(64),
     referenceImages: Object.freeze([{ referenceAssetId: 'asset-1', artifactHandleId: 'artifact-1', artifactDigest: 'c'.repeat(64) }]) });
-  const facade = people.PersonReferenceQueryFacade({ getPersonReferenceProjection: () => projection });
+  const facade = people.PersonReferenceQueryFacade({
+    getPersonReferenceProjection: () => projection,
+    listPersonReferenceProjections: () => [projection]
+  });
   const received = facade.getPersonReferenceProjection({ personId: 'person-1' });
   assert.equal(received.referenceImages.length, 1);
   assert.equal(received.referenceFaces, undefined);
@@ -39,7 +42,10 @@ test('synthetic Arca consumer sees one People-owned Reference Image projection a
 test('duplicate, missing, or reordered wake signals cannot mutate canonical projection results', () => {
   const canonical = Object.freeze({ schemaRef: 'helix://contracts/domain-types/PersonReferenceProjection/v1', schemaVersion: 1,
     ownerDomain: 'people', revision: 2, projectionDigest: 'd'.repeat(64) });
-  const facade = people.PersonReferenceQueryFacade({ getPersonReferenceProjection: () => canonical });
+  const facade = people.PersonReferenceQueryFacade({
+    getPersonReferenceProjection: () => canonical,
+    listPersonReferenceProjections: () => [canonical]
+  });
   const wakeSignals = [{ sequence: 2 }, { sequence: 1 }, { sequence: 2 }];
   for (const signal of wakeSignals) assert.ok(signal.sequence > 0);
   assert.equal(facade.getPersonReferenceProjection({ personId: 'person-1' }), canonical);

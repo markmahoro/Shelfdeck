@@ -8,22 +8,27 @@
     "faceClusterSetHandle": {
       "$ref": "#/$defs/faceClusterSetHandle"
     },
-    "personReferenceProjection": {
-      "$ref": "#/$defs/personReferenceProjection"
+    "personReferenceProjectionList": {
+      "$ref": "#/$defs/personReferenceProjectionList"
     }
   },
   "required": [
     "faceClusterSetHandle",
-    "personReferenceProjection"
+    "personReferenceProjectionList"
   ],
   "$defs": {
     "faceClusterSetHandle": {
       "$ref": "helix://contracts/types/FaceClusterSetHandle/v1",
       "x-helix-typeExpression": "FaceClusterSetHandle"
     },
-    "personReferenceProjection": {
-      "$ref": "helix://contracts/domain-types/PersonReferenceProjection/v1",
-      "x-helix-typeExpression": "PersonReferenceProjection"
+    "personReferenceProjectionList": {
+      "type": "array",
+      "items": {
+        "$ref": "helix://contracts/domain-types/PersonReferenceProjection/v1"
+      },
+      "maxItems": 256,
+      "minItems": 0,
+      "x-helix-typeExpression": "PersonReferenceProjection[0..256]"
     }
   }
 }

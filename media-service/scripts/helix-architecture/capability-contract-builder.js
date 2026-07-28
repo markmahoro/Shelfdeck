@@ -246,6 +246,7 @@ function resourceKinds(capability) {
   if (/material|filesystem|workspace|artifact|media|frame|hash|layout|inventory|delete|remux|transcode/.test(value)) kinds.add('disk_io');
   if (/transcode|remux|probe|hash|face|frame|analysis|render|normalize|resolve|verify/.test(value)) kinds.add('cpu');
   if (/transcode|remux|face|analysis/.test(value)) kinds.add('compute_device');
+  if (capability.id === 'libra.western.analysis.request@1') kinds.delete('network');
   if (kinds.size === 0) kinds.add('cpu');
   return [...kinds].sort();
 }

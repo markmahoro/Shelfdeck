@@ -314,10 +314,15 @@
                     "minLength": 1,
                     "pattern": "^[a-f0-9]{64}$"
                   },
-                  "externalJobReceiptId": {
+                  "analysisArtifactHandleId": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 256
+                  },
+                  "analysisArtifactDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
                   },
                   "evidenceId": {
                     "type": "string",
@@ -338,7 +343,8 @@
                   "resultId",
                   "resultDigest",
                   "inputBindingDigest",
-                  "externalJobReceiptId",
+                  "analysisArtifactHandleId",
+                  "analysisArtifactDigest",
                   "evidenceId",
                   "evidenceDigest"
                 ]

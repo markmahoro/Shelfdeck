@@ -19,9 +19,44 @@
       "minLength": 1,
       "maxLength": 256
     },
-    "modelRef": {
+    "artifactHandle": {
+      "$ref": "helix://contracts/types/ArtifactHandle/v1"
+    },
+    "computationMode": {
       "type": "string",
-      "minLength": 1
+      "enum": [
+        "western_frame_set",
+        "single_reference_face"
+      ]
+    },
+    "libraRunId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "workspaceId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "faceModelRefDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     },
     "sourceArtifactSetDigest": {
       "type": "string",
@@ -40,7 +75,12 @@
       "type": "integer",
       "minimum": 1
     },
-    "digestHex": {
+    "embeddingDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "handleDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
@@ -50,11 +90,16 @@
     "schemaRef",
     "schemaVersion",
     "artifactHandleId",
-    "modelRef",
+    "artifactHandle",
+    "computationMode",
+    "libraRunId",
+    "workspaceId",
+    "faceModelRefDigest",
     "sourceArtifactSetDigest",
     "detectedFaceCount",
     "vectorCount",
     "dimension",
-    "digestHex"
+    "embeddingDigest",
+    "handleDigest"
   ]
 }

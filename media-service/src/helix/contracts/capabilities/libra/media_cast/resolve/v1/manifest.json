@@ -10,10 +10,10 @@
       "required": true,
       "cardinality": "one"
     },
-    "personReferenceProjection": {
-      "schemaRef": "helix://contracts/capabilities/libra.media_cast.resolve/v1/inputs#/$defs/personReferenceProjection",
+    "personReferenceProjectionList": {
+      "schemaRef": "helix://contracts/capabilities/libra.media_cast.resolve/v1/inputs#/$defs/personReferenceProjectionList",
       "required": true,
-      "cardinality": "one"
+      "cardinality": "many"
     }
   },
   "parametersSchemaRef": "helix://contracts/capabilities/libra.media_cast.resolve/v1/parameters",
@@ -29,7 +29,7 @@
   },
   "sourceLocator": {
     "section": "8.6.6",
-    "line": 8990,
-    "lineDigest": "62ffb44038002f28c2624b51e4fdc7428773fa5a741fbb3ca63611c27877d2af"
+    "line": 8995,
+    "lineDigest": "cca3168fb397a15474e0a2c572676b1f51682a40d5e7c422a48e0fa580560346"
   }
 }

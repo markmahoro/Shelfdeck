@@ -50,6 +50,11 @@ test('People Facades reject Media-Cast and generic Store authority', () => {
     (error) => error.code === 'P6_PEOPLE_FACADE_SHAPE_MISMATCH');
   assert.throws(() => people.PersonReferenceQueryFacade({ query() {} }),
     (error) => error.code === 'P6_PEOPLE_FACADE_SHAPE_MISMATCH');
-  const query = people.PersonReferenceQueryFacade({ getPersonReferenceProjection: (input) => ({ owner: 'people', input }) });
+  const query = people.PersonReferenceQueryFacade({
+    getPersonReferenceProjection: (input) => ({ owner: 'people', input }),
+    listPersonReferenceProjections: (input) => [{ owner: 'people', input }]
+  });
   assert.deepEqual(query.getPersonReferenceProjection({ personId: 'p-1' }), { owner: 'people', input: { personId: 'p-1' } });
+  assert.deepEqual(query.listPersonReferenceProjections({ limit: 256 }),
+    [{ owner: 'people', input: { limit: 256 } }]);
 });

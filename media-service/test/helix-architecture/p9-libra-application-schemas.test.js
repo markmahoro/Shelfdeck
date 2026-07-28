@@ -13,7 +13,7 @@ const root = path.resolve(__dirname, '../../src/helix/contracts');
 test('materializes the SSOT-exact Libra production application contracts reproducibly', () => {
   const schemas = buildLibraApplicationSchemas();
   const registry = JSON.parse(fs.readFileSync(path.join(root, 'libra-application-type-registry.json'), 'utf8'));
-  assert.equal(registry.targetCount, 29);
+  assert.equal(registry.targetCount, 30);
   for (const [name, schema] of Object.entries(schemas)) {
     const stored = JSON.parse(fs.readFileSync(path.join(root, 'application-types', name, 'v1/schema.json'), 'utf8'));
     assert.deepEqual(stored, schema);
@@ -21,6 +21,26 @@ test('materializes the SSOT-exact Libra production application contracts reprodu
     assert.equal(entry.schemaId, typeId(name));
     assert.equal(entry.digest.value, schemaDigest(schema));
   }
+});
+
+test('Western Analysis phase Plan binding is closed, bounded, and phase-capability exact', () => {
+  const binding = buildLibraApplicationSchemas()
+    .LibraWesternAnalysisPhasePlanBinding;
+  assert.equal(binding['x-helix-maxCanonicalBytes'], 16 * 1024);
+  assert.equal(binding.properties.bindingKind.const,
+    'western_analysis_phase');
+  assert.equal(binding.properties.upstreamResultRefs.maxItems, 16);
+  assert.equal(binding.properties.capabilityInput.maxProperties, 32);
+  assert.equal(binding.additionalProperties, false);
+  assert.equal(binding.allOf.length, 12);
+  const frames = binding.allOf.find((branch) =>
+    branch.if.properties.phase.const === 'frames');
+  assert.equal(frames.then.properties.capabilityRef.const,
+    'libra.media.frames.extract@1');
+  const match = binding.allOf.find((branch) =>
+    branch.if.properties.phase.const === 'reference_match');
+  assert.equal(match.then.properties.capabilityRef.const,
+    'shared.face.reference.match@1');
 });
 
 test('Product Fact commit Plan freezes bounded typed refs instead of full Fact payloads', () => {

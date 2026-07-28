@@ -15,7 +15,7 @@
           "const": "cpu"
         },
         {
-          "const": "network"
+          "const": "disk_io"
         }
       ],
       "minItems": 3,

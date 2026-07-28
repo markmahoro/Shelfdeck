@@ -55,6 +55,10 @@ function personRegistryDefinition(schemaManifest) {
         'person_id', 'status', 'current_revision', 'current_preference_revision', 'current_reference_revision',
         'current_reference_projection_revision', 'current_reference_projection_digest', 'created_at_ms', 'terminal_at_ms'
       ], keyColumns: ['person_id'] },
+      list_people: { kind: 'select-all', tableId: 'people_persons', columns: [
+        'person_id', 'status', 'current_revision', 'current_preference_revision', 'current_reference_revision',
+        'current_reference_projection_revision', 'current_reference_projection_digest', 'created_at_ms', 'terminal_at_ms'
+      ], keyColumns: [] },
       advance_person_head: { kind: 'update', tableId: 'people_persons', setColumns: ['status', 'current_revision', 'terminal_at_ms'],
         keyColumns: ['person_id'], compareColumns: [
           { column: 'current_revision', parameter: 'expected_current_revision' }, { column: 'status', parameter: 'expected_status' }
@@ -504,6 +508,41 @@ function createPeopleStore(options) {
           fail('PEOPLE_REFERENCE_PROJECTION_INVARIANT_VIOLATION', 'Projection payload does not match its persisted checkpoint.');
         }
         return Object.freeze(projection);
+      });
+    },
+    listPersonReferenceProjections(limit = 256) {
+      if (!Number.isSafeInteger(limit) || limit < 1 || limit > 256) {
+        fail('P6_PEOPLE_REFERENCE_QUERY_LIMIT',
+          'Reference projection query limit must be 1..256.');
+      }
+      return execute([registry], (context) => {
+        const repository = context.repository(registry.repositoryId);
+        const people = repository.invoke('list_people', {})
+          .filter((row) => row.status === 'active')
+          .sort((left, right) => utf8Compare(
+            left.person_id,
+            right.person_id,
+          ));
+        if (people.length > limit) {
+          fail('P6_PEOPLE_REFERENCE_PROJECTION_SET_TOO_LARGE',
+            'Active Person Reference Projection set exceeds the formal bound.',
+            { count:people.length, limit });
+        }
+        return Object.freeze(people.map((person) => {
+          const projection = buildReferenceProjection(
+            repository,
+            person.person_id,
+          );
+          if (!projection ||
+              projection.projectionDigest !==
+                person.current_reference_projection_digest ||
+              projection.projectionRevision !==
+                person.current_reference_projection_revision) {
+            fail('PEOPLE_REFERENCE_PROJECTION_INVARIANT_VIOLATION',
+              'Projection payload does not match its persisted checkpoint.');
+          }
+          return Object.freeze(projection);
+        }));
       });
     },
     openCandidate(input) {

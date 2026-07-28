@@ -1,0 +1,385 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/LibraWesternAnalysisPhasePlanBinding/v1",
+  "title": "LibraWesternAnalysisPhasePlanBinding@1",
+  "x-helix-ssotRefs": [
+    "8.5.11",
+    "8.6.19",
+    "8.6.20"
+  ],
+  "x-helix-maxCanonicalBytes": 16384,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/application-types/LibraWesternAnalysisPhasePlanBinding/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "bindingKind": {
+      "const": "western_analysis_phase"
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "runExecutionBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "phase": {
+      "type": "string",
+      "enum": [
+        "frames",
+        "embedding",
+        "cluster",
+        "analysis_request",
+        "analysis_observe",
+        "reference_match",
+        "metadata_normalize",
+        "media_cast_resolve",
+        "sidecar_render",
+        "poster_render",
+        "artifact_verify_nfo",
+        "artifact_verify_poster"
+      ]
+    },
+    "capabilityRef": {
+      "type": "string",
+      "enum": [
+        "libra.media.frames.extract@1",
+        "shared.face.embedding.compute@1",
+        "shared.face.cluster.compute@1",
+        "libra.western.analysis.request@1",
+        "libra.western.analysis.observe@1",
+        "shared.face.reference.match@1",
+        "libra.western.metadata.normalize@1",
+        "libra.media_cast.resolve@1",
+        "libra.product_sidecar.render@1",
+        "libra.western.poster.render@1",
+        "shared.artifact.manifest.verify@1"
+      ]
+    },
+    "capabilityInput": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 32
+    },
+    "upstreamResultRefs": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "workId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "attemptId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "planId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "eventId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "resultId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "capabilityRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "resultSchemaRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "resultDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "inputBindingDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "workId",
+          "attemptId",
+          "planId",
+          "eventId",
+          "resultId",
+          "capabilityRef",
+          "resultSchemaRef",
+          "resultDigest",
+          "inputBindingDigest"
+        ]
+      }
+    },
+    "bindingDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "bindingKind",
+    "libraRunId",
+    "runExecutionBasisDigest",
+    "phase",
+    "capabilityRef",
+    "capabilityInput",
+    "upstreamResultRefs",
+    "bindingDigest"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "phase": {
+            "const": "frames"
+          }
+        },
+        "required": [
+          "phase"
+        ]
+      },
+      "then": {
+        "properties": {
+          "capabilityRef": {
+            "const": "libra.media.frames.extract@1"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "phase": {
+            "const": "embedding"
+          }
+        },
+        "required": [
+          "phase"
+        ]
+      },
+      "then": {
+        "properties": {
+          "capabilityRef": {
+            "const": "shared.face.embedding.compute@1"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "phase": {
+            "const": "cluster"
+          }
+        },
+        "required": [
+          "phase"
+        ]
+      },
+      "then": {
+        "properties": {
+          "capabilityRef": {
+            "const": "shared.face.cluster.compute@1"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "phase": {
+            "const": "analysis_request"
+          }
+        },
+        "required": [
+          "phase"
+        ]
+      },
+      "then": {
+        "properties": {
+          "capabilityRef": {
+            "const": "libra.western.analysis.request@1"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "phase": {
+            "const": "analysis_observe"
+          }
+        },
+        "required": [
+          "phase"
+        ]
+      },
+      "then": {
+        "properties": {
+          "capabilityRef": {
+            "const": "libra.western.analysis.observe@1"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "phase": {
+            "const": "reference_match"
+          }
+        },
+        "required": [
+          "phase"
+        ]
+      },
+      "then": {
+        "properties": {
+          "capabilityRef": {
+            "const": "shared.face.reference.match@1"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "phase": {
+            "const": "metadata_normalize"
+          }
+        },
+        "required": [
+          "phase"
+        ]
+      },
+      "then": {
+        "properties": {
+          "capabilityRef": {
+            "const": "libra.western.metadata.normalize@1"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "phase": {
+            "const": "media_cast_resolve"
+          }
+        },
+        "required": [
+          "phase"
+        ]
+      },
+      "then": {
+        "properties": {
+          "capabilityRef": {
+            "const": "libra.media_cast.resolve@1"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "phase": {
+            "const": "sidecar_render"
+          }
+        },
+        "required": [
+          "phase"
+        ]
+      },
+      "then": {
+        "properties": {
+          "capabilityRef": {
+            "const": "libra.product_sidecar.render@1"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "phase": {
+            "const": "poster_render"
+          }
+        },
+        "required": [
+          "phase"
+        ]
+      },
+      "then": {
+        "properties": {
+          "capabilityRef": {
+            "const": "libra.western.poster.render@1"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "phase": {
+            "const": "artifact_verify_nfo"
+          }
+        },
+        "required": [
+          "phase"
+        ]
+      },
+      "then": {
+        "properties": {
+          "capabilityRef": {
+            "const": "shared.artifact.manifest.verify@1"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "phase": {
+            "const": "artifact_verify_poster"
+          }
+        },
+        "required": [
+          "phase"
+        ]
+      },
+      "then": {
+        "properties": {
+          "capabilityRef": {
+            "const": "shared.artifact.manifest.verify@1"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -3,7 +3,7 @@
   "compilerContract": "helix-p3-deterministic-sqlite-ddl/v1",
   "digestAlgorithm": "sha256",
   "tableCount": 178,
-  "tableContractAggregateDigest": "9e9a73607538675d4177b28edc9906386a646d5aa216249ec70a6bd31b7160a0",
+  "tableContractAggregateDigest": "4f3f756266e4260435d2d28c058f7e6dc57c0da04cb2292aab38b2ec66eaee7f",
   "ddlDigest": "d7c8991f98fe3a7f1bbd5bf491f6c08080153fe6db30284f4c2141f80063e889",
   "tables": [
     {
@@ -2339,7 +2339,7 @@
       "tableId": "libra_product_fact_source_refs",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_product_fact_source_refs/v1",
-      "contractDigest": "95b8d733fde7bf2cc885d88778c77c48a5ccf4e0d2b7348e5bf95a8c99ff4740",
+      "contractDigest": "b18301ded8622d732b3139104cedb6a58a2561a33d7b4bce414f761966bb8117",
       "sqlDigest": "795f1379f85d18694d5865f65ec65713bd296f86614eae6f59442689150651f0",
       "columns": [
         "product_fact_id",

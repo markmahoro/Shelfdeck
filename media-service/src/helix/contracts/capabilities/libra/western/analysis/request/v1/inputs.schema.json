@@ -5,25 +5,49 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "workerUploadReceipt": {
-      "$ref": "#/$defs/workerUploadReceipt"
+    "frameArtifactSet": {
+      "$ref": "#/$defs/frameArtifactSet"
+    },
+    "faceEmbeddingSetHandle": {
+      "$ref": "#/$defs/faceEmbeddingSetHandle"
+    },
+    "faceClusterSetHandle": {
+      "$ref": "#/$defs/faceClusterSetHandle"
     },
     "analysisSpec": {
       "$ref": "#/$defs/analysisSpec"
+    },
+    "workspaceArtifactOutputTarget": {
+      "$ref": "#/$defs/workspaceArtifactOutputTarget"
     }
   },
   "required": [
-    "workerUploadReceipt",
-    "analysisSpec"
+    "frameArtifactSet",
+    "faceEmbeddingSetHandle",
+    "faceClusterSetHandle",
+    "analysisSpec",
+    "workspaceArtifactOutputTarget"
   ],
   "$defs": {
-    "workerUploadReceipt": {
-      "$ref": "helix://contracts/types/WorkerUploadReceipt/v1",
-      "x-helix-typeExpression": "WorkerUploadReceipt"
+    "frameArtifactSet": {
+      "$ref": "helix://contracts/types/FrameArtifactSet/v1",
+      "x-helix-typeExpression": "FrameArtifactSet"
+    },
+    "faceEmbeddingSetHandle": {
+      "$ref": "helix://contracts/types/FaceEmbeddingSetHandle/v1",
+      "x-helix-typeExpression": "FaceEmbeddingSetHandle"
+    },
+    "faceClusterSetHandle": {
+      "$ref": "helix://contracts/types/FaceClusterSetHandle/v1",
+      "x-helix-typeExpression": "FaceClusterSetHandle"
     },
     "analysisSpec": {
       "$ref": "helix://contracts/domain-types/AnalysisSpec/v1",
       "x-helix-typeExpression": "AnalysisSpec"
+    },
+    "workspaceArtifactOutputTarget": {
+      "$ref": "helix://contracts/domain-types/WorkspaceArtifactOutputTarget/v1",
+      "x-helix-typeExpression": "WorkspaceArtifactOutputTarget"
     }
   }
 }

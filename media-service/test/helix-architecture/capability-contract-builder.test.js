@@ -47,6 +47,32 @@ test('preserves explicit bounded Artifact Handle list cardinality', () => {
   assert.equal(bounded.maxItems, 64);
 });
 
+test('materializes the service-local Western analysis chain without Worker or network inputs', () => {
+  const packages = buildCapabilityPackages(extracted.capabilities);
+  const frames = packages.find((item) => item.capabilityRef === 'libra.media.frames.extract@1').files;
+  assert.equal(frames['inputs.schema.json'].$defs.workspaceArtifactOutputTarget.$ref,
+    'helix://contracts/domain-types/WorkspaceArtifactOutputTarget/v1');
+  assert.equal(frames['result.schema.json'].$ref, 'helix://contracts/types/FrameArtifactSet/v1');
+
+  const embedding = packages.find((item) => item.capabilityRef === 'shared.face.embedding.compute@1').files;
+  assert.equal(embedding['inputs.schema.json'].$defs.artifactHandleList.minItems, 1);
+  assert.equal(embedding['inputs.schema.json'].$defs.artifactHandleList.maxItems, 16);
+
+  const request = packages.find((item) => item.capabilityRef === 'libra.western.analysis.request@1').files;
+  assert.equal(request['manifest.json'].effectClass, 'workspace_write');
+  assert.equal(request['resource-demand.schema.json'].properties.resourceKinds.prefixItems
+    .some((item) => item.const === 'network'), false);
+  const serialized = JSON.stringify(request);
+  for (const forbidden of ['WorkerAssetReceipt', 'WorkerUploadReceipt', 'ExternalJobReceipt']) {
+    assert.equal(serialized.includes(forbidden), false, forbidden);
+  }
+
+  const match = packages.find((item) => item.capabilityRef === 'shared.face.reference.match@1').files;
+  const projections = match['inputs.schema.json'].$defs.personReferenceProjectionList;
+  assert.equal(projections.minItems, 0);
+  assert.equal(projections.maxItems, 256);
+});
+
 test('moves only SSOT-declared parameter tokens out of named inputs', () => {
   const packages = buildCapabilityPackages(extracted.capabilities);
   const observe = packages.find((item) => item.capabilityRef === 'procurement.field.page.observe@1').files;

@@ -44,7 +44,9 @@ function fixture(records = {}) {
 }
 
 test('Worker catalog reverse-traces exact external_request Capability manifests', () => {
-  assert.equal(catalog.operations.length, 3);
+  assert.equal(catalog.operations.length, 2);
+  assert.equal(catalog.operations.some((operation) =>
+    operation.capabilityRef === 'libra.western.analysis.request@1'), false);
   for (const operation of catalog.operations) {
     const manifestPath = path.resolve(__dirname, '../../src/helix/contracts/capabilities', ...operation.capabilityRef.replace(/@1$/, '').split('.'), 'v1', 'manifest.json');
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));

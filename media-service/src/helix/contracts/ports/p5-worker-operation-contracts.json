@@ -2,7 +2,6 @@
   "schemaVersion": 1,
   "operations": [
     {"operationId":"worker.asset.register@1","capabilityRef":"shared.worker.asset.register@1","protocolAtomId":"worker.asset.register@1","inputKind":"asset-registration","resultKind":"WorkerAssetReceipt","timeoutMs":30000,"maxInputBytes":8192,"maxOutputBytes":8192},
-    {"operationId":"worker.asset.upload@1","capabilityRef":"shared.worker.asset.upload@1","protocolAtomId":"worker.asset.upload@1","inputKind":"asset-upload","resultKind":"WorkerUploadReceipt","timeoutMs":86400000,"maxInputBytes":8192,"maxOutputBytes":8192},
-    {"operationId":"worker.analysis.request@1","capabilityRef":"libra.western.analysis.request@1","protocolAtomId":"worker.analysis.request@1","inputKind":"analysis-request","resultKind":"ExternalJobReceipt","timeoutMs":30000,"maxInputBytes":8192,"maxOutputBytes":8192}
+    {"operationId":"worker.asset.upload@1","capabilityRef":"shared.worker.asset.upload@1","protocolAtomId":"worker.asset.upload@1","inputKind":"asset-upload","resultKind":"WorkerUploadReceipt","timeoutMs":86400000,"maxInputBytes":8192,"maxOutputBytes":8192}
   ]
 }

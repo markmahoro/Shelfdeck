@@ -5,13 +5,18 @@
   "ownerScope": "libra",
   "effectClass": "workspace_write",
   "inputPorts": {
-    "materialHandle": {
-      "schemaRef": "helix://contracts/capabilities/libra.media.frames.extract/v1/inputs#/$defs/materialHandle",
+    "physicalMaterialReadHandleOrWorkspaceMaterialHandle": {
+      "schemaRef": "helix://contracts/capabilities/libra.media.frames.extract/v1/inputs#/$defs/physicalMaterialReadHandleOrWorkspaceMaterialHandle",
       "required": true,
       "cardinality": "one"
     },
     "samplingPlan": {
       "schemaRef": "helix://contracts/capabilities/libra.media.frames.extract/v1/inputs#/$defs/samplingPlan",
+      "required": true,
+      "cardinality": "one"
+    },
+    "workspaceArtifactOutputTarget": {
+      "schemaRef": "helix://contracts/capabilities/libra.media.frames.extract/v1/inputs#/$defs/workspaceArtifactOutputTarget",
       "required": true,
       "cardinality": "one"
     }
@@ -29,7 +34,7 @@
   },
   "sourceLocator": {
     "section": "8.6.6",
-    "line": 8985,
-    "lineDigest": "ef60c01a679d1da9ffa5ef53961cac2705102f561a826dc413d55bdfe32cece2"
+    "line": 8990,
+    "lineDigest": "e67d345e81845bf54ae97a0190792ff7805cd9e1a4d6923c32d6db3f389c3271"
   }
 }

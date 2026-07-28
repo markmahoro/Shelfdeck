@@ -2,6 +2,9 @@
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
+const {
+  workspaceStateDigest,
+} = require('../model/workspace-admission-contracts');
 
 class MovieProductionReaderError extends Error {
   constructor(code, message, details = {}) {
@@ -137,6 +140,18 @@ function definition(schemaManifest) {
         keyColumns: ['workspace_id'],
         safeIntegers: true,
       },
+      find_workspace_revision: {
+        kind: 'select-one',
+        tableId: 'libra_workspace_revisions',
+        columns: [
+          'workspace_id', 'workspace_revision', 'state',
+          'material_reference_set_digest', 'transition_kind',
+          'transition_evidence_digest', 'previous_revision',
+          'revision_digest', 'committed_at_ms',
+        ],
+        keyColumns: ['workspace_id', 'workspace_revision'],
+        safeIntegers: true,
+      },
       find_package: {
         kind: 'select-one',
         tableId: 'libra_product_packages',
@@ -259,10 +274,14 @@ function createMovieProductionReader(options) {
         spec.structureKind === 'single' &&
         manifest.scope_kind === 'single' &&
         members.length === 1;
+      const isWestern = spec.contentProfile === 'western_adult' &&
+        spec.structureKind === 'single' &&
+        manifest.scope_kind === 'single' &&
+        members.length === 1;
       const isSeries = spec.contentProfile === 'series' &&
         spec.structureKind === 'season' &&
         manifest.scope_kind === 'episode_delivery';
-      if (!isMovie && !isJav && !isSeries) {
+      if (!isMovie && !isJav && !isWestern && !isSeries) {
         fail('P14_MOVIE_PRODUCTION_SPEC_DRIFT',
           'Product profile, structure, Run scope, and Primary cardinality conflict.');
       }
@@ -521,6 +540,63 @@ function createMovieProductionReader(options) {
     });
   }
 
+  function readWorkspaceRevision(workspaceId, workspaceRevision) {
+    if (typeof workspaceId !== 'string' || !workspaceId ||
+        !Number.isSafeInteger(workspaceRevision) ||
+        workspaceRevision < 1) {
+      fail('P14_MOVIE_WORKSPACE_REVISION_INPUT',
+        'Workspace historical read requires an exact positive revision.');
+    }
+    return exact((context) => {
+      const repo = context.repository(repository.repositoryId);
+      const workspace = repo.invoke('find_workspace', {
+        workspace_id: workspaceId,
+      });
+      const row = repo.invoke('find_workspace_revision', {
+        workspace_id: workspaceId,
+        workspace_revision: workspaceRevision,
+      });
+      if (!workspace || !row ||
+          row.workspace_id !== workspace.workspace_id ||
+          !/^[a-f0-9]{64}$/.test(row.revision_digest || '')) {
+        return null;
+      }
+      const state = {
+        workspaceId,
+        workspaceRevision: Number(row.workspace_revision),
+        state: row.state,
+        workspaceMaterialReferenceSetDigest:
+          row.material_reference_set_digest,
+        transitionKind: row.transition_kind,
+        transitionEvidenceDigest: row.transition_evidence_digest,
+      };
+      const stateDigest = workspaceStateDigest(state);
+      const revisionDigest = canonicalDigest({
+        ...state,
+        stateDigest,
+        previousRevision: row.previous_revision === null
+          ? null
+          : Number(row.previous_revision),
+      });
+      if (revisionDigest !== row.revision_digest ||
+          (Number(workspace.current_revision) === workspaceRevision &&
+           workspace.state_digest !== stateDigest)) {
+        fail('P14_MOVIE_WORKSPACE_REVISION_CORRUPT',
+          'Workspace historical revision cannot reconstruct its exact state.');
+      }
+      return Object.freeze({
+        workspaceId,
+        libraRunId: workspace.libra_run_id,
+        currentRevision: Number(row.workspace_revision),
+        state: row.state,
+        stateDigest,
+        workspaceScopeDigest: workspace.workspace_scope_digest,
+        rootSnapshotDigest:
+          workspace.platform_workspace_snapshot_digest,
+      });
+    });
+  }
+
   function readPublishedDeliveryRef(libraRunId, packageRevision) {
     if (!Number.isSafeInteger(packageRevision) || packageRevision < 1) {
       fail('P14_MOVIE_PRODUCT_DELIVERY_REVISION',
@@ -561,6 +637,7 @@ function createMovieProductionReader(options) {
     readPublishedDeliveryRef,
     readRun,
     readWorkspace,
+    readWorkspaceRevision,
   });
 }
 

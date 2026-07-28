@@ -180,10 +180,14 @@ test('builds a closed observation basis and NFO-first complete metadata draft', 
 });
 
 test('freezes Western Analysis and Match source refs without confusing internal and storage digests', () => {
+  const analysisArtifact={...artifactHandle('analysis-artifact'),artifactKind:'western_analysis',
+    storageRef:'workspace://workspace-1/analysis/result.json',mediaType:'application/json'};
   const analysis={schemaRef:'helix://contracts/types/WesternAnalysisResult/v1',schemaVersion:1,evidenceId:'analysis-evidence',
     evidenceKind:'western_analysis',producerRef:'libra.western.analysis.observe@1',basisDigest:d('analysis-basis'),
-    payloadDigest:d('analysis-payload'),observedAtMs:10,externalJobReceiptId:'job-1',analysisVariantRef:'variant-spec-1',
-    resultArtifactHandle:artifactHandle('analysis-artifact'),resultDigest:''};
+    payloadDigest:d('analysis-payload'),observedAtMs:10,libraRunId:'run-1',runExecutionBasisDigest:d('run-basis'),
+    frameArtifactSetDigest:d('frames'),embeddingSetDigest:d('embedding'),clusterSetDigest:d('clusters'),
+    analysisSpecDigest:d('analysis-spec'),analysisVariantRef:'variant-spec-1',
+    resultArtifactHandle:analysisArtifact,resultDigest:''};
   analysis.resultDigest=canonicalDigest(Object.fromEntries(Object.entries(analysis).filter(([key])=>key!=='resultDigest')));
   const analysisInput={libraRunId:'run-1',runExecutionBasisDigest:d('run-basis'),analysisSpec:{specId:'spec-1'}},
     analysisChain=exactChain({suffix:'analysis',capabilityRef:'libra.western.analysis.observe@1',result:analysis,inputBindings:analysisInput});
@@ -198,19 +202,23 @@ test('freezes Western Analysis and Match source refs without confusing internal 
     variantDigest:variant.variantDigest});
   const draft=buildWesternProductMetadataDraft({analysisVariant:variant,requiredFields:['title'],producedAtMs:20,
     descriptiveFacts:[{key:'title',value:'Western title'}],fieldProvenance:[{fieldPath:'title',sourceKind:'western_analysis',
-      sourceRef:analysis.externalJobReceiptId,evidenceDigest:analysis.payloadDigest}],providerIdentities:[],artifactRequirements:[]}).draft;
+      sourceRef:analysis.resultArtifactHandle.artifactHandleId,evidenceDigest:analysis.payloadDigest}],
+    providerIdentities:[],artifactRequirements:[]}).draft;
   const normalizeChain=exactChain({suffix:'normalize',capabilityRef:'libra.western.metadata.normalize@1',result:draft,
     inputBindings:{westernAnalysisVariant:variant}});
   const analysisRef={workId:analysisChain.workId,attemptId:analysisChain.attemptId,planId:analysisChain.planId,
     eventId:analysisChain.eventId,resultId:analysisChain.resultId,resultDigest:analysisChain.resultDigest,
-    inputBindingDigest:analysisChain.inputBindingDigest,externalJobReceiptId:analysis.externalJobReceiptId,
+    inputBindingDigest:analysisChain.inputBindingDigest,
+    analysisArtifactHandleId:analysis.resultArtifactHandle.artifactHandleId,
+    analysisArtifactDigest:analysis.resultArtifactHandle.digestHex,
     evidenceId:analysis.evidenceId,evidenceDigest:analysis.payloadDigest};
   const normalizeRef={workId:normalizeChain.workId,attemptId:normalizeChain.attemptId,planId:normalizeChain.planId,
     eventId:normalizeChain.eventId,resultId:normalizeChain.resultId,resultDigest:normalizeChain.resultDigest,
     inputBindingDigest:normalizeChain.inputBindingDigest,analysisVariantId:variant.variantId,productMetadataDraftDigest:draft.draftDigest};
   const canonicalItems=[{ordinal:0,capabilityRef:analysisChain.capabilityRef,resultSchemaRef:analysisChain.resultSchemaRef,
     workId:analysisChain.workId,attemptId:analysisChain.attemptId,planId:analysisChain.planId,eventId:analysisChain.eventId,
-    resultId:analysisChain.resultId,resultDigest:analysisChain.resultDigest,sourceRef:analysis.externalJobReceiptId,sourceOrder:0,
+    resultId:analysisChain.resultId,resultDigest:analysisChain.resultDigest,
+    sourceRef:analysis.resultArtifactHandle.artifactHandleId,sourceOrder:0,
     evidenceId:analysis.evidenceId,evidenceDigest:analysis.payloadDigest,inputBindingDigest:analysisChain.inputBindingDigest},
   {ordinal:1,capabilityRef:normalizeChain.capabilityRef,resultSchemaRef:normalizeChain.resultSchemaRef,
     workId:normalizeChain.workId,attemptId:normalizeChain.attemptId,planId:normalizeChain.planId,eventId:normalizeChain.eventId,
@@ -234,7 +242,8 @@ test('freezes Western Analysis and Match source refs without confusing internal 
 
   const match={schemaRef:'helix://contracts/types/PersonMatchEvidence/v1',schemaVersion:1,evidenceId:'match-evidence',
     evidenceKind:'person_match',producerRef:'shared.face.reference.match@1',basisDigest:d('match-input'),
-    payloadDigest:d('match-payload'),observedAtMs:30,clusterSetDigest:d('clusters'),referenceProjectionRevision:1,
+    payloadDigest:d('match-payload'),observedAtMs:30,clusterSetDigest:d('clusters'),
+    referenceProjectionSetDigest:d('reference-projections'),
     matches:[],unmatchedClusterIds:['cluster-1']};
   const matchChain=exactChain({suffix:'match',capabilityRef:'shared.face.reference.match@1',result:match,
     inputBindings:{faceClusterSetHandle:{handleId:'clusters'},personReferenceProjection:{projectionRevision:1}}});
@@ -242,9 +251,10 @@ test('freezes Western Analysis and Match source refs without confusing internal 
     resultId:matchChain.resultId,resultDigest:matchChain.resultDigest,inputBindingDigest:matchChain.inputBindingDigest,
     evidenceId:match.evidenceId,evidenceDigest:match.payloadDigest,personMatchEvidenceDigest:match.payloadDigest};
   const matchBasis={basisId:canonicalDigest({schema:'libra.western-media-cast-basis-id@1',libraRunId:'run-1',
-    runExecutionBasisDigest:d('run-basis'),matchResultId:matchRef.resultId,matchResultDigest:matchRef.resultDigest}),
+    runExecutionBasisDigest:d('run-basis'),matchResultId:matchRef.resultId,matchResultDigest:matchRef.resultDigest,
+    referenceProjectionSetDigest:match.referenceProjectionSetDigest}),
     basisKind:'western_match',libraRunId:'run-1',runExecutionBasisDigest:d('run-basis'),resolvedIdentityDigest:d('identity'),
-    matchRef,matchState:'no_matches',basisDigest:''};
+    matchRef,referenceProjectionSetDigest:match.referenceProjectionSetDigest,matchState:'no_matches',basisDigest:''};
   matchBasis.basisDigest=canonicalDigest(Object.fromEntries(Object.entries(matchBasis).filter(([key])=>key!=='basisDigest')));
   const matchSourceBasis={sourceBasisKind:'western_match',westernBasis:matchBasis,sourceBasisDigest:matchBasis.basisDigest},
     mediaDraft=buildMediaCastDraft({subjectId:'subject-1',sourceBasis:matchSourceBasis,relations:[],producedAtMs:31});

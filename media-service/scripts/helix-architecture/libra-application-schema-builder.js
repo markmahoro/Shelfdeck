@@ -596,6 +596,79 @@ function productFactCommitPlanBinding() {
   };
 }
 
+function westernAnalysisPhasePlanBinding() {
+  const resultRef = object({
+    workId: id(),
+    attemptId: id(),
+    planId: id(),
+    eventId: id(),
+    resultId: id(),
+    capabilityRef: id(),
+    resultSchemaRef: id(),
+    resultDigest: digest(),
+    inputBindingDigest: digest()
+  });
+  const phaseCapabilities = Object.freeze({
+    frames: 'libra.media.frames.extract@1',
+    embedding: 'shared.face.embedding.compute@1',
+    cluster: 'shared.face.cluster.compute@1',
+    analysis_request: 'libra.western.analysis.request@1',
+    analysis_observe: 'libra.western.analysis.observe@1',
+    reference_match: 'shared.face.reference.match@1',
+    metadata_normalize: 'libra.western.metadata.normalize@1',
+    media_cast_resolve: 'libra.media_cast.resolve@1',
+    sidecar_render: 'libra.product_sidecar.render@1',
+    poster_render: 'libra.western.poster.render@1',
+    artifact_verify_nfo: 'shared.artifact.manifest.verify@1',
+    artifact_verify_poster: 'shared.artifact.manifest.verify@1'
+  });
+  return {
+    $schema: DRAFT,
+    $id: typeId('LibraWesternAnalysisPhasePlanBinding'),
+    title: 'LibraWesternAnalysisPhasePlanBinding@1',
+    'x-helix-ssotRefs': ['8.5.11', '8.6.19', '8.6.20'],
+    'x-helix-maxCanonicalBytes': 16 * 1024,
+    ...object({
+      schemaRef: {
+        const: typeId('LibraWesternAnalysisPhasePlanBinding')
+      },
+      schemaVersion: { const: 1 },
+      bindingKind: { const: 'western_analysis_phase' },
+      libraRunId: id(),
+      runExecutionBasisDigest: digest(),
+      phase: {
+        type: 'string',
+        enum: Object.keys(phaseCapabilities)
+      },
+      capabilityRef: {
+        type: 'string',
+        enum: [...new Set(Object.values(phaseCapabilities))]
+      },
+      capabilityInput: {
+        type: 'object',
+        minProperties: 1,
+        maxProperties: 32
+      },
+      upstreamResultRefs: {
+        type: 'array',
+        maxItems: 16,
+        items: resultRef
+      },
+      bindingDigest: digest()
+    }, undefined, {
+      allOf: Object.entries(phaseCapabilities).map(([phase, capabilityRef]) => ({
+        if: {
+          properties: { phase: { const: phase } },
+          required: ['phase']
+        },
+        then: {
+          properties: { capabilityRef: { const: capabilityRef } }
+        }
+      }))
+    })
+  };
+}
+
 function buildLibraApplicationSchemas() {
   return Object.freeze({
     ProductDeliveryQuery: productDeliveryQuery(),
@@ -626,7 +699,9 @@ function buildLibraApplicationSchemas() {
     WorkspaceMaterialReferenceSnapshot: workspaceMaterialReferenceSnapshot(),
     LibraWorkspaceMaterialReferenceDecision: workspaceMaterialReferenceDecision(),
     LibraWorkspaceMaterialReferenceResult: workspaceMaterialReferenceResult(),
-    LibraProductFactCommitPlanBinding: productFactCommitPlanBinding()
+    LibraProductFactCommitPlanBinding: productFactCommitPlanBinding(),
+    LibraWesternAnalysisPhasePlanBinding:
+      westernAnalysisPhasePlanBinding()
   });
 }
 

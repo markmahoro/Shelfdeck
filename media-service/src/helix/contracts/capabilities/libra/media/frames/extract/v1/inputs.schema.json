@@ -5,35 +5,40 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "materialHandle": {
-      "$ref": "#/$defs/materialHandle"
+    "physicalMaterialReadHandleOrWorkspaceMaterialHandle": {
+      "$ref": "#/$defs/physicalMaterialReadHandleOrWorkspaceMaterialHandle"
     },
     "samplingPlan": {
       "$ref": "#/$defs/samplingPlan"
+    },
+    "workspaceArtifactOutputTarget": {
+      "$ref": "#/$defs/workspaceArtifactOutputTarget"
     }
   },
   "required": [
-    "materialHandle",
-    "samplingPlan"
+    "physicalMaterialReadHandleOrWorkspaceMaterialHandle",
+    "samplingPlan",
+    "workspaceArtifactOutputTarget"
   ],
   "$defs": {
-    "materialHandle": {
+    "physicalMaterialReadHandleOrWorkspaceMaterialHandle": {
       "oneOf": [
         {
           "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1"
         },
         {
           "$ref": "helix://contracts/types/WorkspaceMaterialHandle/v1"
-        },
-        {
-          "$ref": "helix://contracts/types/ArtifactHandle/v1"
         }
       ],
-      "x-helix-typeExpression": "Material handle"
+      "x-helix-typeExpression": "PhysicalMaterialReadHandle\\|WorkspaceMaterialHandle"
     },
     "samplingPlan": {
       "$ref": "helix://contracts/domain-types/SamplingPlan/v1",
       "x-helix-typeExpression": "SamplingPlan"
+    },
+    "workspaceArtifactOutputTarget": {
+      "$ref": "helix://contracts/domain-types/WorkspaceArtifactOutputTarget/v1",
+      "x-helix-typeExpression": "WorkspaceArtifactOutputTarget"
     }
   }
 }

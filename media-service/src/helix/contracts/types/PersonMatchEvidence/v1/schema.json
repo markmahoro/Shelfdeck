@@ -47,9 +47,10 @@
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
-    "referenceProjectionRevision": {
-      "type": "integer",
-      "minimum": 0
+    "referenceProjectionSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     },
     "matches": {
       "type": "array",
@@ -67,6 +68,19 @@
             "minLength": 1,
             "maxLength": 256
           },
+          "personRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "projectionRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "projectionDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
           "confidenceClass": {
             "type": "string",
             "minLength": 1
@@ -80,6 +94,9 @@
         "required": [
           "clusterId",
           "personId",
+          "personRevision",
+          "projectionRevision",
+          "projectionDigest",
           "confidenceClass",
           "evidenceDigest"
         ]
@@ -106,7 +123,7 @@
     "payloadDigest",
     "observedAtMs",
     "clusterSetDigest",
-    "referenceProjectionRevision",
+    "referenceProjectionSetDigest",
     "matches",
     "unmatchedClusterIds"
   ]

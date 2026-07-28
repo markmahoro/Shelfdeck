@@ -3,18 +3,14 @@
   "$id": "helix://contracts/domain-types/FaceModelRef/v1",
   "title": "FaceModelRef@1",
   "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
     "8.6.20"
   ],
   "x-helix-role": "bounded-contract",
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "schemaRef": {
-      "const": "helix://contracts/domain-types/FaceModelRef/v1"
-    },
-    "schemaVersion": {
-      "const": 1
-    },
     "contractId": {
       "type": "string",
       "minLength": 1,
@@ -24,10 +20,15 @@
       "type": "integer",
       "minimum": 1
     },
-    "digest": {
+    "schemaRef": {
+      "const": "helix://contracts/domain-types/FaceModelRef/v1"
+    },
+    "mode": {
       "type": "string",
-      "minLength": 1,
-      "pattern": "^[a-f0-9]{64}$"
+      "enum": [
+        "western_frame_set",
+        "single_reference_face"
+      ]
     },
     "modelId": {
       "type": "string",
@@ -36,9 +37,27 @@
     },
     "modelRevision": {
       "type": "integer",
-      "minimum": 0
+      "minimum": 1
     },
     "modelDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "runtimeKind": {
+      "const": "onnx"
+    },
+    "inputContractDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "outputContractDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "licenseDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
@@ -46,56 +65,146 @@
     "typedParameters": {
       "type": "array",
       "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "parameter": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-z][a-zA-Z0-9_.-]{0,127}$"
-          },
-          "valueType": {
-            "type": "string",
-            "enum": [
-              "string",
-              "integer",
-              "number",
-              "boolean"
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "parameter": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z][a-zA-Z0-9_.-]{0,127}$"
+              },
+              "valueDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "valueType": {
+                "const": "string"
+              },
+              "value": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "parameter",
+              "valueDigest",
+              "valueType",
+              "value"
             ]
           },
-          "value": {
-            "type": [
-              "string",
-              "integer",
-              "number",
-              "boolean"
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "parameter": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z][a-zA-Z0-9_.-]{0,127}$"
+              },
+              "valueDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "valueType": {
+                "const": "integer"
+              },
+              "value": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "parameter",
+              "valueDigest",
+              "valueType",
+              "value"
             ]
           },
-          "valueDigest": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "parameter": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z][a-zA-Z0-9_.-]{0,127}$"
+              },
+              "valueDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "valueType": {
+                "const": "number"
+              },
+              "value": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "parameter",
+              "valueDigest",
+              "valueType",
+              "value"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "parameter": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z][a-zA-Z0-9_.-]{0,127}$"
+              },
+              "valueDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "valueType": {
+                "const": "boolean"
+              },
+              "value": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "parameter",
+              "valueDigest",
+              "valueType",
+              "value"
+            ]
           }
-        },
-        "required": [
-          "parameter",
-          "valueType",
-          "value",
-          "valueDigest"
         ]
       },
-      "maxItems": 256
+      "maxItems": 64,
+      "uniqueItems": true,
+      "x-helix-canonicalOrder": "parameter UTF-8 bytes",
+      "x-helix-uniqueBy": "parameter"
+    },
+    "digest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     }
   },
   "required": [
-    "schemaRef",
-    "schemaVersion",
     "contractId",
     "revision",
-    "digest",
+    "schemaRef",
+    "mode",
     "modelId",
     "modelRevision",
     "modelDigest",
-    "typedParameters"
-  ]
+    "runtimeKind",
+    "inputContractDigest",
+    "outputContractDigest",
+    "licenseDigest",
+    "typedParameters",
+    "digest"
+  ],
+  "x-helix-maxCanonicalBytes": 16384
 }

@@ -27,12 +27,25 @@ function createPeopleReferenceCommitRegistration(store) {
 
 function createPersonReferenceQuery(store) {
   requireMethod(store, 'getPersonReferenceProjection', 'P6_PEOPLE_REFERENCE_QUERY_STORE_REQUIRED');
+  requireMethod(store, 'listPersonReferenceProjections',
+    'P6_PEOPLE_REFERENCE_QUERY_STORE_REQUIRED');
   return Object.freeze({
     getPersonReferenceProjection(input) {
       if (!input || Object.keys(input).length !== 1 || typeof input.personId !== 'string' || input.personId.length < 1) {
         throw new PeopleReferenceLifecycleError('P6_PEOPLE_REFERENCE_QUERY_INPUT', 'Reference query requires exactly one personId.');
       }
       return store.getPersonReferenceProjection(input.personId);
+    },
+    listPersonReferenceProjections(input) {
+      if (!input || Object.keys(input).length !== 1 ||
+          !Number.isSafeInteger(input.limit) ||
+          input.limit < 1 || input.limit > 256) {
+        throw new PeopleReferenceLifecycleError(
+          'P6_PEOPLE_REFERENCE_QUERY_INPUT',
+          'Reference projection list requires exactly one limit in 1..256.',
+        );
+      }
+      return store.listPersonReferenceProjections(input.limit);
     }
   });
 }

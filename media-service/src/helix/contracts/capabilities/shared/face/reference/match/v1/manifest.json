@@ -10,10 +10,10 @@
       "required": true,
       "cardinality": "one"
     },
-    "personReferenceProjection": {
-      "schemaRef": "helix://contracts/capabilities/shared.face.reference.match/v1/inputs#/$defs/personReferenceProjection",
+    "personReferenceProjectionList": {
+      "schemaRef": "helix://contracts/capabilities/shared.face.reference.match/v1/inputs#/$defs/personReferenceProjectionList",
       "required": true,
-      "cardinality": "one"
+      "cardinality": "many"
     }
   },
   "parametersSchemaRef": "helix://contracts/capabilities/shared.face.reference.match/v1/parameters",
@@ -30,6 +30,6 @@
   "sourceLocator": {
     "section": "8.6.3",
     "line": 8749,
-    "lineDigest": "1787818297541762f93641ae752ac862fd31ee0f8c30d4a2e05377942453ee71"
+    "lineDigest": "bbae771561cff5de756e87fbc677c7e47327ad1921a9a1dd77013b314f4c06ec"
   }
 }

@@ -168,7 +168,10 @@ const special = {
   'MediaProbeEvidence.videoStreams': arrayOf(stream, 64),
   'MediaProbeEvidence.audioStreams': arrayOf(audioStream, 128),
   'MediaProbeEvidence.subtitleStreams': arrayOf(simpleStream, 256),
-  'PersonMatchEvidence.matches': arrayOf(object({ clusterId: id(), personId: id(), confidenceClass: text(), evidenceDigest: digest() })),
+  'PersonMatchEvidence.matches': arrayOf(object({ clusterId: id(), personId: id(), personRevision: positiveInteger(),
+    projectionRevision: positiveInteger(), projectionDigest: digest(), confidenceClass: text(), evidenceDigest: digest() }), 1024),
+  'PersonMatchEvidence.referenceProjectionSetDigest': digest(),
+  'PersonMatchEvidence.unmatchedClusterIds': arrayOf(id(), 1024),
   'FieldObservationPage.materialObservations': arrayOf(fieldMaterialObservation, 100),
   'FieldObservationPage.profileHintSnapshot': applicationRef('MaterialFieldProfileHintSnapshot'),
   'FieldObservationPage.cursorIn': nullable(text()),
@@ -448,7 +451,7 @@ const contracts = {
   ManifestVerification: ['VerificationEnvelope', 'manifestDigest,contractRef'],
   ArtifactManifestVerification: ['VerificationEnvelope', 'manifestDigest,contractRef,requirement,verifiedArtifacts,artifactDigests,verificationDigest'],
   IntegrationAvailabilityEvidence: ['EvidenceEnvelope', 'integrationId,configRevision,availabilityState,latencyMs?'],
-  PersonMatchEvidence: ['EvidenceEnvelope', 'clusterSetDigest,referenceProjectionRevision,matches,unmatchedClusterIds'],
+  PersonMatchEvidence: ['EvidenceEnvelope', 'clusterSetDigest,referenceProjectionSetDigest,matches,unmatchedClusterIds'],
   FieldObservationPage: ['EvidenceEnvelope', 'fieldObservationWorkId,observationId,fieldId,accessRevision,profileHintSnapshot,pageOrdinal,expectedObservationRevision,cursorIn,cursorOut,materialObservations,pageDigest,hasMore'],
   ObservationCommitResult: ['DomainFactEnvelope', 'observationId,fieldObservationWorkId,fieldId,accessRevision,profileHintSnapshot,pageOrdinal,committedObservationRevision,pageDigest,acceptedMaterials,acceptedMaterialSetDigest,nextCursor,hasMore'],
   ProcurementControlReceipt: ['ReceiptEnvelope', 'procurementRunId,fieldId,runBasisDigest,selectedMaterialCount,selectedMaterialSetDigest,acquiredMaterialCount,assertedMaterialCount,controlRevisionSetDigest'],
@@ -476,8 +479,8 @@ const contracts = {
   ResolvedProductIdentity: ['EvidenceEnvelope', 'subjectId,structureKind,contentProfile,identityKind,providerIdentities,providerIdentitySetDigest,exactSeasonContinuityClaims,exactSeasonContinuitySetDigest,displayIdentity,identityDigest'],
   MetadataObservation: ['EvidenceEnvelope', 'identityDigest,contentProfile,descriptiveFacts,providerIdentitySet,peopleHints,artifactHints'],
   DecisionBasisRevision: ['DomainFactEnvelope', 'subjectId,queryResultSetDigest,routingInputDigest,specInputDigest'],
-  FrameArtifactSet: ['ManifestEnvelope', 'sourceMaterialDigest,samplingPlanDigest,frameArtifactHandles'],
-  WesternAnalysisResult: ['EvidenceEnvelope', 'externalJobReceiptId,analysisVariantRef,resultArtifactHandle,resultDigest'],
+  FrameArtifactSet: ['ManifestEnvelope', 'libraRunId,workspaceId,sourceMaterialDigest,samplingPlanDigest,outputTargetDigest,frameCount,frameMemberSetDigest,frameSetArtifactHandle'],
+  WesternAnalysisResult: ['EvidenceEnvelope', 'libraRunId,runExecutionBasisDigest,frameArtifactSetDigest,embeddingSetDigest,clusterSetDigest,analysisSpecDigest,analysisVariantRef,resultArtifactHandle,resultDigest'],
   ArtifactAcquisitionResult: [null, 'resultKind,artifactHandle?,reasonCode?,evidence'],
   ProductMetadataDraft: ['DraftEnvelope', 'resolvedIdentityDigest,descriptiveFacts,providerIdentities,artifactRequirements'],
   MediaCastDraft: ['DraftEnvelope', 'subjectId,metadataObservationDigest,relations'],
@@ -549,6 +552,8 @@ special['OnDeckCommitResult.offloadCompletionFact'] = ref('OffloadCompletionFact
 function buildResultTypeSchema(name, [base, fieldList]) {
   if (name === 'ArtifactManifestVerification') return artifactManifestVerificationSchema();
   if (name === 'MetadataObservation') return metadataObservationSchema();
+  if (name === 'FrameArtifactSet') return frameArtifactSetSchema();
+  if (name === 'WesternAnalysisResult') return westernAnalysisResultSchema();
   if (name === 'ProductMetadataDraft') return productMetadataDraftSchema();
   if (name === 'MediaCastDraft') return mediaCastDraftSchema();
   if (name === 'MediaCastFact') return mediaCastFactSchema();
@@ -684,6 +689,30 @@ function metadataObservationSchema() {
     descriptiveFacts: boundedRecord('descriptive-facts'), providerIdentitySet: providerIdentitySetRecord(),
     peopleHints: arrayOf(snapshot('people-hint'), 1024), artifactHints: emptyArtifactHints()
   }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
+}
+
+function frameArtifactSetSchema() {
+  const properties = {
+    schemaRef: { const: typeId('FrameArtifactSet') }, schemaVersion: { const: 1 },
+    ...envelopeFields.ManifestEnvelope, manifestKind: { const: 'western_frame_artifact_set' },
+    ownerDomain: { const: 'libra' }, memberCount: { const: 1 }, libraRunId: id(), workspaceId: id(),
+    sourceMaterialDigest: digest(), samplingPlanDigest: digest(), outputTargetDigest: digest(),
+    frameCount: { type: 'integer', minimum: 1, maximum: 1024 }, frameMemberSetDigest: digest(),
+    frameSetArtifactHandle: ref('ArtifactHandle')
+  };
+  return {
+    $schema: DRAFT, $id: typeId('FrameArtifactSet'), title: 'FrameArtifactSet@1',
+    'x-helix-ssotRefs': ['8.6.19'], 'x-helix-envelopeRef': typeId('ManifestEnvelope'),
+    'x-helix-maxCanonicalBytes': 16 * 1024, ...object(properties)
+  };
+}
+
+function westernAnalysisResultSchema() {
+  return resultSchema('WesternAnalysisResult', 'EvidenceEnvelope', {
+    libraRunId: id(), runExecutionBasisDigest: digest(), frameArtifactSetDigest: digest(),
+    embeddingSetDigest: digest(), clusterSetDigest: digest(), analysisSpecDigest: digest(),
+    analysisVariantRef: text({ maxLength: 512 }), resultArtifactHandle: ref('ArtifactHandle'), resultDigest: digest()
+  }, { 'x-helix-maxCanonicalBytes': 16 * 1024 });
 }
 
 function fieldProvenanceSchema() {

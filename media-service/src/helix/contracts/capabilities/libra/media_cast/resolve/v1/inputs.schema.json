@@ -8,22 +8,27 @@
     "libraMediaCastSourceBasisMetadataObservationOrWesternMatch": {
       "$ref": "#/$defs/libraMediaCastSourceBasisMetadataObservationOrWesternMatch"
     },
-    "personReferenceProjection": {
-      "$ref": "#/$defs/personReferenceProjection"
+    "personReferenceProjectionList": {
+      "$ref": "#/$defs/personReferenceProjectionList"
     }
   },
   "required": [
     "libraMediaCastSourceBasisMetadataObservationOrWesternMatch",
-    "personReferenceProjection"
+    "personReferenceProjectionList"
   ],
   "$defs": {
     "libraMediaCastSourceBasisMetadataObservationOrWesternMatch": {
       "$ref": "helix://contracts/domain-types/LibraMediaCastSourceBasisMetadataObservationWesternMatch/v1",
       "x-helix-typeExpression": "LibraMediaCastSourceBasis(metadata_observation|western_match)"
     },
-    "personReferenceProjection": {
-      "$ref": "helix://contracts/domain-types/PersonReferenceProjection/v1",
-      "x-helix-typeExpression": "PersonReferenceProjection"
+    "personReferenceProjectionList": {
+      "type": "array",
+      "items": {
+        "$ref": "helix://contracts/domain-types/PersonReferenceProjection/v1"
+      },
+      "maxItems": 256,
+      "minItems": 0,
+      "x-helix-typeExpression": "PersonReferenceProjection[0..256]"
     }
   }
 }

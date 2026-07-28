@@ -6,6 +6,7 @@
     "8.6.19"
   ],
   "x-helix-envelopeRef": "helix://contracts/types/ManifestEnvelope/v1",
+  "x-helix-maxCanonicalBytes": 16384,
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -21,16 +22,13 @@
       "maxLength": 256
     },
     "manifestKind": {
-      "type": "string",
-      "minLength": 1
+      "const": "western_frame_artifact_set"
     },
     "ownerDomain": {
-      "type": "string",
-      "minLength": 1
+      "const": "libra"
     },
     "memberCount": {
-      "type": "integer",
-      "minimum": 0
+      "const": 1
     },
     "membersDigest": {
       "type": "string",
@@ -46,6 +44,16 @@
       "type": "integer",
       "minimum": 0
     },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "workspaceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
     "sourceMaterialDigest": {
       "type": "string",
       "minLength": 1,
@@ -56,13 +64,23 @@
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
-    "frameArtifactHandles": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "minLength": 1
-      },
-      "maxItems": 1024
+    "outputTargetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "frameCount": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1024
+    },
+    "frameMemberSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "frameSetArtifactHandle": {
+      "$ref": "helix://contracts/types/ArtifactHandle/v1"
     }
   },
   "required": [
@@ -75,8 +93,13 @@
     "membersDigest",
     "manifestDigest",
     "publishedAtMs",
+    "libraRunId",
+    "workspaceId",
     "sourceMaterialDigest",
     "samplingPlanDigest",
-    "frameArtifactHandles"
+    "outputTargetDigest",
+    "frameCount",
+    "frameMemberSetDigest",
+    "frameSetArtifactHandle"
   ]
 }

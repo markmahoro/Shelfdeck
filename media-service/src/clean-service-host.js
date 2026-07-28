@@ -21,6 +21,9 @@ const {
 } = require('./helix/domains/arca/public/acceptance');
 const { PerceptionResolutionFacade } = require('./helix/domains/perception/public');
 const {
+  PersonReferenceQueryFacade,
+} = require('./helix/domains/people/public');
+const {
   createCandidateDeliveryService,
 } = require('./helix/domains/procurement/application/candidate-delivery-service');
 const {
@@ -58,6 +61,12 @@ const {
   createPerceptionResolutionApplication,
 } = require('./helix/domains/perception/application/perception-resolution-application');
 const {
+  createPersonReferenceQuery,
+} = require('./helix/domains/people/capabilities/people-reference-lifecycle');
+const {
+  createPeopleStore,
+} = require('./helix/domains/people/persistence/people-store');
+const {
   createArcaRuleTemplateAdminApplication,
   createArcaShelfAdminApplication,
 } = require('./helix/domains/arca/public/admin-application');
@@ -83,6 +92,9 @@ const {
 const {
   createCleanWorkspaceProductPort,
 } = require('./clean-workspace-product-port');
+const {
+  createCleanWesternAnalysisPort,
+} = require('./clean-western-analysis-port');
 const {
   createCleanArcaInventoryPort,
 } = require('./clean-arca-inventory-port');
@@ -341,6 +353,12 @@ async function createCleanServiceHost(options) {
     resolveDecisionFact:
       perceptionResolutionApplication.resolveDecisionFact,
   });
+  const peopleStore = createPeopleStore(
+    constructed.applicationDependencies,
+  );
+  const personReferenceProjectionFacade = PersonReferenceQueryFacade(
+    createPersonReferenceQuery(peopleStore),
+  );
   const workRuntime = createSynchronousDomainWork(
     constructed.applicationDependencies,
   );
@@ -359,6 +377,15 @@ async function createCleanServiceHost(options) {
     fetchProviderMetadata: options.fetchProviderMetadata,
     fetchProviderArtifact: options.fetchProviderArtifact,
   });
+  const westernAnalysisPort =
+    options.westernAnalysisEngine || options.westernModelPack
+      ? createCleanWesternAnalysisPort({
+        workspaceProductPort,
+        engine: options.westernAnalysisEngine,
+        modelPack: options.westernModelPack,
+        now: options.now,
+      })
+      : null;
   const movieFormationCoordinator = createMovieFormationCoordinator({
     ...constructed.applicationDependencies,
     readArcaRoutingTargets: arcaRoutingTargets.list,
@@ -371,6 +398,8 @@ async function createCleanServiceHost(options) {
     workRuntime,
     productionPort: productProductionPort,
     workspaceProductPort,
+    westernAnalysisPort,
+    personReferenceProjectionFacade,
     now: options.now,
     afterCapabilityResultCommit: options.afterCapabilityResultCommit,
     afterProductFactsCommit: options.afterProductFactsCommit,
@@ -418,6 +447,12 @@ async function createCleanServiceHost(options) {
   const advanceRunProduction = async (libraRunId) => {
     const production = await movieProductionCoordinator.advance(libraRunId);
     if (production.stage !== 'handoff_b_offer_open') return production;
+    if (production.contentProfile === 'western_adult') {
+      return Object.freeze({
+        ...production,
+        responsibilityClosure: null,
+      });
+    }
     const arca = arcaAcceptance.acceptProductOffer(
       production.offerMessage,
     );
@@ -453,8 +488,12 @@ async function createCleanServiceHost(options) {
         'Movie formation did not expose the exact Libra Run identity.',
       );
     }
-    if (['series', 'jav', 'western_adult'].includes(formation.contentProfile) &&
+    if (['series', 'jav'].includes(formation.contentProfile) &&
         typeof options.searchProviderIdentity !== 'function') {
+      return null;
+    }
+    if (formation.contentProfile === 'western_adult' &&
+        !westernAnalysisPort) {
       return null;
     }
     return advanceRunProduction(libraRunId);

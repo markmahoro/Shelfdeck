@@ -51,6 +51,35 @@ test('keeps On-deck atomic success and business not-available distinct from Runt
   for (const schema of Object.values(schemas)) assert.equal(Object.hasOwn(schema.properties || {}, 'kind'), false);
 });
 
+test('materializes compact Western frame and analysis results without Worker receipts', () => {
+  const frames = schemas.FrameArtifactSet;
+  assert.equal(frames.properties.manifestKind.const, 'western_frame_artifact_set');
+  assert.equal(frames.properties.ownerDomain.const, 'libra');
+  assert.equal(frames.properties.memberCount.const, 1);
+  assert.equal(frames.properties.frameCount.minimum, 1);
+  assert.equal(frames.properties.frameCount.maximum, 1024);
+  assert.equal(frames.properties.frameSetArtifactHandle.$ref,
+    'helix://contracts/types/ArtifactHandle/v1');
+  assert.equal(frames.properties.frameArtifactHandles, undefined);
+
+  const analysis = schemas.WesternAnalysisResult;
+  for (const field of ['libraRunId', 'runExecutionBasisDigest', 'frameArtifactSetDigest',
+    'embeddingSetDigest', 'clusterSetDigest', 'analysisSpecDigest', 'analysisVariantRef',
+    'resultArtifactHandle', 'resultDigest']) {
+    assert.ok(analysis.required.includes(field), field);
+  }
+  assert.equal(analysis.properties.externalJobReceiptId, undefined);
+  assert.equal(analysis.properties.resultArtifactHandle.$ref,
+    'helix://contracts/types/ArtifactHandle/v1');
+
+  const match = schemas.PersonMatchEvidence;
+  assert.ok(match.required.includes('referenceProjectionSetDigest'));
+  assert.equal(match.properties.matches.maxItems, 1024);
+  for (const field of ['personRevision', 'projectionRevision', 'projectionDigest']) {
+    assert.ok(match.properties.matches.items.required.includes(field), field);
+  }
+});
+
 test('materializes the complete nominal On-deck Product Package rather than generic snapshots', () => {
   const schema = schemas.OnDeckProductPackage;
   assert.equal(schema['x-helix-maxCanonicalBytes'], 16 * 1024 * 1024);

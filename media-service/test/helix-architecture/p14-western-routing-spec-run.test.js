@@ -18,8 +18,34 @@ const {
   createCleanServiceHost,
 } = require('../../src/clean-service-host');
 const {
+  createCleanWesternAnalysisPort,
+} = require('../../src/clean-western-analysis-port');
+const {
   createCleanMediaProbe,
 } = require('../../src/clean-media-probe');
+const {
+  createCapabilityContractValidator,
+} = require(
+  '../../src/helix/foundation/capability/contract-validator'
+);
+const artifactHandleSchema = require(
+  '../../src/helix/contracts/types/ArtifactHandle/v1/schema.json'
+);
+const faceClusterSetHandleSchema = require(
+  '../../src/helix/contracts/types/FaceClusterSetHandle/v1/schema.json'
+);
+const faceEmbeddingSetHandleSchema = require(
+  '../../src/helix/contracts/types/FaceEmbeddingSetHandle/v1/schema.json'
+);
+const frameArtifactSetSchema = require(
+  '../../src/helix/contracts/types/FrameArtifactSet/v1/schema.json'
+);
+const personMatchEvidenceSchema = require(
+  '../../src/helix/contracts/types/PersonMatchEvidence/v1/schema.json'
+);
+const westernAnalysisResultSchema = require(
+  '../../src/helix/contracts/types/WesternAnalysisResult/v1/schema.json'
+);
 const {
   reconstruct,
 } = require(
@@ -77,6 +103,172 @@ function deterministicProbe(readHandle) {
   ));
   return Object.freeze(value);
 }
+
+function westernConstructionRuntime(calls = {}) {
+  for (const method of [
+    'extractFrameSet',
+    'computeEmbeddings',
+    'computeClusters',
+    'analyzeWestern',
+    'matchReferences',
+    'renderPoster',
+  ]) calls[method] = calls[method] || 0;
+  const counted = (method, implementation) => async (input) => {
+    calls[method] += 1;
+    return implementation(input);
+  };
+  return Object.freeze({
+    modelPack: Object.freeze({
+      modelId: 'shelfdeck-western-construction-face',
+      modelRevision: 1,
+      modelDigest: canonicalDigest('western-model-bytes'),
+      inputContractDigest: canonicalDigest('western-model-input-v1'),
+      outputContractDigest: canonicalDigest('western-model-output-v1'),
+      licenseDigest: canonicalDigest('western-model-license'),
+      clusterDistanceThreshold: 0.42,
+      clusterMinSize: 1,
+    }),
+    engine: Object.freeze({
+      extractFrameSet: counted('extractFrameSet', ({ samplingPlan }) => ({
+        frameCount: 2,
+        members: [
+          {
+            timestampMs: 0,
+            locator: 'frame:0',
+            contentDigest: canonicalDigest({
+              samplingPlanDigest: samplingPlan.digest,
+              ordinal: 0,
+            }),
+          },
+          {
+            timestampMs: samplingPlan.intervalMs,
+            locator: 'frame:1',
+            contentDigest: canonicalDigest({
+              samplingPlanDigest: samplingPlan.digest,
+              ordinal: 1,
+            }),
+          },
+        ],
+      })),
+      computeEmbeddings: counted('computeEmbeddings', () => ({
+        detectedFaceCount: 2,
+        vectorCount: 2,
+        dimension: 4,
+        vectors: [[0.1, 0.2, 0.3, 0.4], [0.2, 0.3, 0.4, 0.5]],
+      })),
+      computeClusters: counted('computeClusters', () => ({
+        clusters: [{
+          clusterId: 'western-cluster-1',
+          vectorOrdinals: [0, 1],
+        }],
+      })),
+      analyzeWestern: counted('analyzeWestern', () => ({
+        identityAnchor: 'western-internal-identity-1',
+        descriptiveFacts: [{
+          key: 'title',
+          value: 'Western Sample Feature',
+        }],
+      })),
+      matchReferences: counted('matchReferences', ({
+        personReferenceProjections,
+      }) => {
+        assert.deepEqual(personReferenceProjections, []);
+        return { matches: [] };
+      }),
+      renderPoster: counted('renderPoster', () =>
+        Buffer.from('western-construction-poster')),
+    }),
+  });
+}
+
+test('Western analysis fails closed on model, Handle, and People projection drift', async () => {
+  const runtime = westernConstructionRuntime();
+  const clusterHandle = Object.freeze({
+    schemaRef: 'helix://contracts/types/FaceClusterSetHandle/v1',
+    schemaVersion: 1,
+    artifactHandleId: 'cluster-artifact',
+    artifactHandle: Object.freeze({
+      schemaRef: 'helix://contracts/types/ArtifactHandle/v1',
+      schemaVersion: 1,
+      artifactHandleId: 'cluster-artifact',
+      artifactKind: 'face_cluster_set',
+      ownerDomain: 'libra',
+      ownerScope: Object.freeze({
+        scopeType: 'libra_run',
+        scopeId: 'western-run',
+      }),
+    }),
+    computationMode: 'western_frame_set',
+    libraRunId: 'western-run',
+    workspaceId: 'western-workspace',
+    embeddingSetDigest: canonicalDigest('embedding-set'),
+    clusterParameterDigest: canonicalDigest('cluster-parameters'),
+    clusterCount: 1,
+    handleDigest: canonicalDigest('cluster-handle'),
+  });
+  const workspaceProductPort = Object.freeze({
+    materializeArtifact() {
+      throw new Error('not used');
+    },
+    recoverMaterializedArtifact() {
+      return null;
+    },
+    readArtifactBytes(handle) {
+      assert.equal(handle.artifactKind, 'face_cluster_set');
+      return Object.freeze({
+        bytes: Buffer.from(canonicalJson({
+          clusters: [{
+            clusterId: 'western-cluster-1',
+            vectorOrdinals: [0, 1],
+          }],
+        })),
+      });
+    },
+  });
+  assert.throws(() => createCleanWesternAnalysisPort({
+    workspaceProductPort,
+    engine: runtime.engine,
+    modelPack: { ...runtime.modelPack, untrustedPath: 'legacy.onnx' },
+  }), (error) => error.code === 'CLEAN_WESTERN_MODEL_PACK_INVALID');
+  assert.throws(() => createCleanWesternAnalysisPort({
+    workspaceProductPort,
+    engine: runtime.engine,
+    modelPack: {
+      ...runtime.modelPack,
+      modelDigest: 'not-a-digest',
+    },
+  }), (error) => error.code === 'CLEAN_WESTERN_DIGEST_INVALID');
+
+  const port = createCleanWesternAnalysisPort({
+    workspaceProductPort,
+    engine: runtime.engine,
+    modelPack: runtime.modelPack,
+    now: () => 100,
+  });
+  await assert.rejects(port.matchReferences({
+    faceClusterSetHandle: {
+      ...clusterHandle,
+      artifactHandle: {
+        ...clusterHandle.artifactHandle,
+        artifactKind: 'poster',
+      },
+    },
+    personReferenceProjectionList: [],
+  }), (error) => error.code === 'CLEAN_WESTERN_ARTIFACT_HANDLE_INVALID');
+  await assert.rejects(port.matchReferences({
+    faceClusterSetHandle: clusterHandle,
+    personReferenceProjectionList: [{
+      projectionContract: 'people.person-reference-projection@0',
+      personId: 'person-1',
+    }],
+  }), (error) => error.code === 'CLEAN_WESTERN_MATCH_INPUT_INVALID');
+  const empty = await port.matchReferences({
+    faceClusterSetHandle: clusterHandle,
+    personReferenceProjectionList: [],
+  });
+  assert.deepEqual(empty.matches, []);
+  assert.deepEqual(empty.unmatchedClusterIds, ['western-cluster-1']);
+});
 
 async function session(host, apiKey) {
   return (await host.inject({
@@ -188,19 +380,21 @@ async function snapshotFiles(locations) {
   })));
 }
 
-test('Western active Run stays before Production without a formal Provider adapter', () => {
+test('Western active Run stays before Production without service-local Analysis', () => {
   const source = fs.readFileSync(path.resolve(
     __dirname,
     '../../src/clean-service-host.js',
   ), 'utf8');
   assert.match(
     source,
-    /\['series', 'jav', 'western_adult'\]\.includes\(formation\.contentProfile\)[\s\S]*?typeof options\.searchProviderIdentity !== 'function'/,
+    /formation\.contentProfile === 'western_adult'[\s\S]*?!westernAnalysisPort/,
   );
   assert.doesNotMatch(
     source,
-    /formation\.contentProfile === 'western_adult'[\s\S]{0,240}(fallback|legacy|workspace)/i,
+    /formation\.contentProfile === 'western_adult'[\s\S]{0,240}(fallback|legacy)/i,
   );
+  assert.doesNotMatch(source,
+    /WorkerAssetReceipt|WorkerUploadReceipt|ExternalJobReceipt|Mirex|FastAPI|Ollama/);
 });
 
 test('Western public HTTP freezes one exact Routing Spec and active Run', async (t) => {
@@ -835,6 +1029,267 @@ test('Western public HTTP freezes one exact Routing Spec and active Run', async 
       table,
     );
   }
+  database.close();
+
+  const westernCalls = {};
+  const westernRuntime = westernConstructionRuntime(westernCalls);
+  let physicalFault = false;
+  host = await createCleanServiceHost({
+    dataDir,
+    adminDistDir,
+    secretRoot,
+    mediaProbe,
+    westernAnalysisEngine: westernRuntime.engine,
+    westernModelPack: westernRuntime.modelPack,
+    afterWorkspacePhysicalEffect({ target }) {
+      if (!physicalFault &&
+          target.includes(`${path.sep}analysis${path.sep}frames${path.sep}`)) {
+        physicalFault = true;
+        throw Object.assign(
+          new Error('Western fault after Frame physical effect'),
+          { code: 'P14_WESTERN_FAULT_AFTER_FRAME_EFFECT' },
+        );
+      }
+    },
+  });
+  try {
+    const interrupted = await host.inject({
+      method: 'POST',
+      url: `/v1/admin/material-fields/${access.fieldId}/actions/observe`,
+      headers: {
+        cookie: await session(host, initialized.adminApiKey),
+      },
+      payload: observe,
+    });
+    assert.equal(interrupted.statusCode, 400, interrupted.body);
+    assert.equal(
+      interrupted.json().error.details.reasonCode,
+      'P14_WESTERN_FAULT_AFTER_FRAME_EFFECT',
+    );
+  } finally {
+    await host.close();
+  }
+  assert.deepEqual(westernCalls, {
+    extractFrameSet: 1,
+    computeEmbeddings: 0,
+    computeClusters: 0,
+    analyzeWestern: 0,
+    matchReferences: 0,
+    renderPoster: 0,
+  });
+
+  let resultFault = false;
+  host = await createCleanServiceHost({
+    dataDir,
+    adminDistDir,
+    secretRoot,
+    mediaProbe,
+    westernAnalysisEngine: westernRuntime.engine,
+    westernModelPack: westernRuntime.modelPack,
+    afterCapabilityResultCommit({ capabilityRef }) {
+      if (!resultFault &&
+          capabilityRef === 'libra.western.analysis.request@1') {
+        resultFault = true;
+        throw Object.assign(
+          new Error('Western fault after Analysis Result commit'),
+          { code: 'P14_WESTERN_FAULT_AFTER_ANALYSIS_RESULT' },
+        );
+      }
+    },
+  });
+  try {
+    const interrupted = await host.inject({
+      method: 'POST',
+      url: `/v1/admin/material-fields/${access.fieldId}/actions/observe`,
+      headers: {
+        cookie: await session(host, initialized.adminApiKey),
+      },
+      payload: observe,
+    });
+    assert.equal(interrupted.statusCode, 400, interrupted.body);
+    assert.equal(
+      interrupted.json().error.details.reasonCode,
+      'P14_WESTERN_FAULT_AFTER_ANALYSIS_RESULT',
+    );
+  } finally {
+    await host.close();
+  }
+  assert.deepEqual(westernCalls, {
+    extractFrameSet: 1,
+    computeEmbeddings: 1,
+    computeClusters: 1,
+    analyzeWestern: 1,
+    matchReferences: 0,
+    renderPoster: 0,
+  });
+
+  let packageFault = false;
+  host = await createCleanServiceHost({
+    dataDir,
+    adminDistDir,
+    secretRoot,
+    mediaProbe,
+    westernAnalysisEngine: westernRuntime.engine,
+    westernModelPack: westernRuntime.modelPack,
+    afterPackageCommit() {
+      if (!packageFault) {
+        packageFault = true;
+        throw Object.assign(
+          new Error('Western fault after Package commit'),
+          { code: 'P14_WESTERN_FAULT_AFTER_PACKAGE_COMMIT' },
+        );
+      }
+    },
+  });
+  try {
+    const interrupted = await host.inject({
+      method: 'POST',
+      url: `/v1/admin/material-fields/${access.fieldId}/actions/observe`,
+      headers: {
+        cookie: await session(host, initialized.adminApiKey),
+      },
+      payload: observe,
+    });
+    assert.equal(interrupted.statusCode, 400, interrupted.body);
+    assert.equal(
+      interrupted.json().error.details.reasonCode,
+      'P14_WESTERN_FAULT_AFTER_PACKAGE_COMMIT',
+      interrupted.body,
+    );
+  } finally {
+    await host.close();
+  }
+  assert.deepEqual(westernCalls, {
+    extractFrameSet: 1,
+    computeEmbeddings: 1,
+    computeClusters: 1,
+    analyzeWestern: 1,
+    matchReferences: 1,
+    renderPoster: 1,
+  });
+
+  host = await createCleanServiceHost({
+    dataDir,
+    adminDistDir,
+    secretRoot,
+    mediaProbe,
+    westernAnalysisEngine: westernRuntime.engine,
+    westernModelPack: westernRuntime.modelPack,
+  });
+  try {
+    const replay = await host.inject({
+      method: 'POST',
+      url: `/v1/admin/material-fields/${access.fieldId}/actions/observe`,
+      headers: {
+        cookie: await session(host, initialized.adminApiKey),
+      },
+      payload: observe,
+    });
+    assert.equal(replay.statusCode, 200, replay.body);
+    const production = replay.json().movieJourney.handoff.production;
+    assert.equal(production.stage, 'handoff_b_offer_open');
+    assert.equal(production.replayed, true);
+    assert.equal(production.responsibilityClosure, null);
+    assert.equal(production.contentProfile, 'western_adult');
+    assert.equal(production.productDelivery.resultKind, 'found');
+    assert.equal(
+      production.productDelivery.onDeckProductPackage
+        .productStructureSnapshot.contentProfile,
+      'western_adult',
+    );
+    assert.equal(
+      production.productDelivery.onDeckProductPackage
+        .productMaterialManifest.members.length,
+      3,
+    );
+  } finally {
+    await host.close();
+  }
+  assert.deepEqual(westernCalls, {
+    extractFrameSet: 1,
+    computeEmbeddings: 1,
+    computeClusters: 1,
+    analyzeWestern: 1,
+    matchReferences: 1,
+    renderPoster: 1,
+  });
+
+  database = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM libra_product_packages'
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    `SELECT count(*) count FROM libra_product_fact_revisions
+      WHERE fact_kind IN ('resolved_identity','product_metadata','media_cast')`
+  ).get().count, 3);
+  assert.equal(database.prepare(
+    `SELECT count(*) count FROM fx_artifact_registry
+      WHERE owner_scope_type='libra_run'`
+  ).get().count >= 6, true);
+  assert.equal(database.prepare(
+    `SELECT count(*) count FROM fx_outbox
+      WHERE message_kind='libra.product-offer.available@1'`
+  ).get().count, 1);
+  for (const table of [
+    'arca_acceptance_attempts',
+    'arca_acceptance_decisions',
+    'arca_ondeck_custodies',
+    'arca_material_bindings',
+    'arca_inventory_materials',
+    'arca_shelf_entries',
+    'arca_deck_fact_revisions',
+  ]) {
+    assert.equal(
+      database.prepare(`SELECT count(*) count FROM ${table}`).get().count,
+      0,
+      table,
+    );
+  }
+  assert.equal(database.prepare(
+    `SELECT count(*) count FROM fx_plan_nodes
+      WHERE input_binding_schema_ref=
+        'helix://contracts/application-types/LibraWesternAnalysisPhasePlanBinding/v1'`
+  ).get().count >= 12, true);
+  const westernResultValidator = createCapabilityContractValidator({
+    schemas: [
+      artifactHandleSchema,
+      faceClusterSetHandleSchema,
+      faceEmbeddingSetHandleSchema,
+      frameArtifactSetSchema,
+      personMatchEvidenceSchema,
+      westernAnalysisResultSchema,
+    ],
+  });
+  const persistedWesternResults = database.prepare(
+    `SELECT result_schema_ref,result_json,result_digest
+       FROM fx_event_result_bindings
+      WHERE result_schema_ref IN (
+        'helix://contracts/types/ArtifactHandle/v1',
+        'helix://contracts/types/FaceClusterSetHandle/v1',
+        'helix://contracts/types/FaceEmbeddingSetHandle/v1',
+        'helix://contracts/types/FrameArtifactSet/v1',
+        'helix://contracts/types/PersonMatchEvidence/v1',
+        'helix://contracts/types/WesternAnalysisResult/v1'
+      )`
+  ).all();
+  assert.equal(persistedWesternResults.length >= 6, true);
+  for (const row of persistedWesternResults) {
+    const value = JSON.parse(row.result_json);
+    assert.equal(canonicalJson(value), row.result_json);
+    assert.equal(canonicalDigest(value), row.result_digest);
+    westernResultValidator.validate(row.result_schema_ref, value);
+  }
+  const tamperedResult = {
+    ...JSON.parse(persistedWesternResults[0].result_json),
+    callerResultFixture: true,
+  };
+  assert.throws(() => westernResultValidator.validate(
+    persistedWesternResults[0].result_schema_ref,
+    tamperedResult,
+  ), (error) => error.code === 'P4_CAPABILITY_SCHEMA_REJECTED');
   database.close();
 
   const sourceAfter = await snapshotFiles(sourceLocations);

@@ -397,7 +397,15 @@ function createCleanWorkspaceProductPort(options) {
     const bytes = Buffer.isBuffer(request?.bytes)
       ? request.bytes
       : Buffer.from(request?.bytes || '');
-    if (!bytes.length || !['nfo', 'poster', 'fanart'].includes(request?.artifactKind) ||
+    if (!bytes.length || ![
+      'nfo',
+      'poster',
+      'fanart',
+      'western_frame_set',
+      'face_embedding_set',
+      'face_cluster_set',
+      'western_analysis',
+    ].includes(request?.artifactKind) ||
         typeof request.libraRunId !== 'string' || !request.libraRunId ||
         typeof request.workspaceId !== 'string' || !request.workspaceId) {
       fail('CLEAN_WORKSPACE_EFFECT_INPUT', 'Workspace Artifact effect input is incomplete.');
@@ -635,6 +643,87 @@ function createCleanWorkspaceProductPort(options) {
     return receipt;
   }
 
+  function recoverMaterializedArtifact(request) {
+    const root = ensureRoot();
+    const relativePath = relative(request?.relativePath);
+    if (![
+      'nfo',
+      'poster',
+      'fanart',
+      'western_frame_set',
+      'face_embedding_set',
+      'face_cluster_set',
+      'western_analysis',
+    ].includes(request?.artifactKind) ||
+        typeof request.libraRunId !== 'string' || !request.libraRunId ||
+        typeof request.workspaceId !== 'string' || !request.workspaceId) {
+      fail('CLEAN_WORKSPACE_EFFECT_INPUT',
+        'Workspace Artifact recovery input is incomplete.');
+    }
+    const target = path.resolve(
+      absoluteRoot,
+      request.workspaceId,
+      ...relativePath.split('/'),
+    );
+    const workspaceRoot = path.resolve(absoluteRoot, request.workspaceId);
+    if (target !== workspaceRoot &&
+        !target.startsWith(workspaceRoot + path.sep)) {
+      fail('CLEAN_WORKSPACE_PATH_ESCAPE',
+        'Workspace Artifact recovery escaped its controlled root.');
+    }
+    if (!fs.existsSync(target) || !fs.statSync(target).isFile()) return null;
+    const bytes = fs.readFileSync(target);
+    const digestHex = digestBytes(bytes);
+    const intent = {
+      schema: 'libra.workspace-artifact-materialize-intent@1',
+      libraRunId: request.libraRunId,
+      workspaceId: request.workspaceId,
+      rootSnapshotDigest: root.snapshotDigest,
+      relativePath,
+      artifactKind: request.artifactKind,
+      mediaType: request.mediaType,
+      digestAlgorithm: 'sha256',
+      digestHex,
+      sizeBytes: bytes.length,
+      provenanceRef: request.provenanceRef,
+    };
+    const intentDigest = canonicalDigest(intent);
+    const idempotencyKey = canonicalDigest({
+      schema: 'libra.workspace-artifact-materialize-idempotency@1',
+      workspaceId: request.workspaceId,
+      relativePath,
+      intentDigest,
+    });
+    const expectedEffectId = canonicalDigest({
+      schema: 'foundation.effect-id@1',
+      effectClass: 'libra_workspace_product_materialize',
+      idempotencyKey,
+    });
+    const existing = execute(
+      'clean_workspace_effect_recover_read',
+      'execution-foundation',
+      repositories.foundation,
+      (context) => context.repository(
+        repositories.foundation.repositoryId,
+      ).invoke('find_effect', {
+        effect_class: 'libra_workspace_product_materialize',
+        idempotency_key: idempotencyKey,
+      }),
+    );
+    if (!existing) return null;
+    if (existing.effect_id !== expectedEffectId ||
+        existing.intent_digest !== intentDigest) {
+      fail('CLEAN_WORKSPACE_EFFECT_CONFLICT',
+        'Workspace Artifact recovery journal intent drifted.');
+    }
+    return materializeArtifact({
+      ...request,
+      relativePath,
+      bytes,
+      skipPhysicalHook: true,
+    });
+  }
+
   async function acquireArtifact(request) {
     const root = ensureRoot();
     const relativePath = relative(request?.relativePath);
@@ -869,6 +958,35 @@ function createCleanWorkspaceProductPort(options) {
     );
   }
 
+  function readArtifactBytes(artifactHandle) {
+    const materialized = readMaterializedArtifact(artifactHandle);
+    const location = artifactHandle.storageRef.slice('workspace://'.length);
+    const separator = location.indexOf('/');
+    const workspaceId = location.slice(0, separator);
+    const relativePath = relative(location.slice(separator + 1));
+    const target = path.resolve(
+      absoluteRoot,
+      workspaceId,
+      ...relativePath.split('/'),
+    );
+    const workspaceRoot = path.resolve(absoluteRoot, workspaceId);
+    if (target !== workspaceRoot &&
+        !target.startsWith(workspaceRoot + path.sep)) {
+      fail('CLEAN_WORKSPACE_PATH_ESCAPE',
+        'Workspace Artifact read escaped its controlled root.');
+    }
+    const bytes = fs.readFileSync(target);
+    if (bytes.length !== artifactHandle.sizeBytes ||
+        digestBytes(bytes) !== artifactHandle.digestHex) {
+      fail('CLEAN_WORKSPACE_ARTIFACT_REALITY_DRIFT',
+        'Artifact bytes no longer match the immutable Artifact Handle.');
+    }
+    return Object.freeze({
+      ...materialized,
+      bytes,
+    });
+  }
+
   function reclaimMaterial(intent) {
     const row = execute(
       'clean_workspace_reclaim_read',
@@ -1089,6 +1207,8 @@ function createCleanWorkspaceProductPort(options) {
     rootPath: absoluteRoot,
     rootSnapshot: ensureRoot,
     materializeArtifact,
+    recoverMaterializedArtifact,
+    readArtifactBytes,
     readMaterializedArtifact,
     observeSpace,
     reclaimMaterial,
