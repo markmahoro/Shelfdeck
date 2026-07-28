@@ -1,8 +1,8 @@
 # Helix Clean Top-down Architecture
 
-Status: ShelfDeck / Helix architecture SSOT; Levels 0–10 accepted; final full-document audit and post-baseline `PBF-01`–`PBF-20`（含各自已记录的bounded revisions）closed; implementation not authorized by this document.
+Status: ShelfDeck / Helix architecture SSOT; Levels 0–10 accepted; final full-document audit and post-baseline `PBF-01`–`PBF-21`（含各自已记录的bounded revisions）closed; implementation not authorized by this document.
 
-Last updated: 2026-07-26
+Last updated: 2026-07-28
 
 ## Document purpose
 
@@ -4997,7 +4997,10 @@ work_kind=product_metadata_observation`的Supporting Work；其`basis_digest`固
 `SHA-256(JCS({schema:"libra.metadata-observation-work@1",libraRunId,runExecutionBasisDigest,
 fetchIntentDigest}))`。Planner只接纳该Work链上`succeeded`的
 `libra.product_metadata.fetch@1 → MetadataObservation@1` Result，且Result的`fetchIntentDigest`、
-`resolvedIdentityDigest`、`contentProfile`必须与Plan immutable input逐字节一致。相同`fetchIntentDigest`出现多条
+`resolvedIdentityDigest`、`contentProfile`必须与Plan immutable input逐字节一致；Provider分支还必须把Intent中的
+完整`resolvedProviderIdentity`作为唯一查询Anchor传给对应Adapter，返回Observation的Provider Identity集合必须
+包含该逐字节相同tuple，不得只传不可逆`resolvedIdentityDigest`、依赖前次Search的caller cache或让Adapter猜Key。
+相同`fetchIntentDigest`出现多条
 Result时，payload digest相同则只保留UTF-8 bytes最小的`resultId`作为同一语义重放；digest不同是integrity fault，
 不得挑一条继续。不同Intent按`sourcePriority,evidenceId`排序并全部进入有界集合，字段选择仍由冻结的
 `sourcePrecedence`决定。
@@ -8932,9 +8935,16 @@ Movie、Season、JAV与Western Adult使用同一Product Metadata/Artifact contra
 
 `libra.product_metadata.fetch@1`的一次调用只允许`sourceKind=related_nfo|provider`之一。Related NFO分支只能
 使用由当前Subject/Run基于正式Related Material Reference签发的只读`PhysicalMaterialReadHandle`；Provider
-分支只能使用`MetadataFetchIntent.providerKind`精确对应的`IntegrationHandle`。Executor不得尝试另一个来源、
+分支只能使用`MetadataFetchIntent.providerKind`精确对应的`IntegrationHandle`，并以Intent中完整
+`resolvedProviderIdentity`作为唯一产品查询Anchor。Executor不得尝试另一个来源、
 决定字段覆盖优先级或形成Product Fact。`MediaCastDraft`允许未注册人物，但必须把显示名、角色、Provider
 Identity hint与origin Evidence完整带入，不能只返回relation digest。
+
+Provider Metadata观察不得顺带把poster/fanart二进制写入Workspace或伪装成Metadata Result字段。NFO必须走既有
+`libra.product_sidecar.render@1`，Provider图片必须按kind逐项走既有
+`libra.product_artifact.acquire@1 → ArtifactAcquisitionResult@1`；后续Artifact Verification与Product Staging只
+消费这些正式Capability产生并可由Owner rows恢复的`ArtifactHandle`。Metadata callback的临时bytes、caller cache或
+再次读取当前Provider均不能补偿已提交Result之后的crash。
 
 两个Product Fact Commit Executor都不分配revision、ID、marker或Outbox，也不旁读Store；它们只把上述完整named
 inputs交给Libra Product Fact CommitParticipant。Observation variant要求Draft的`metadataObservationSetDigest`
@@ -9544,7 +9554,7 @@ Executor只能返回以下discriminated union，且每个variant都`additionalPr
 | `FaceEmbeddingSetHandle` | `artifactHandleId, modelRef, sourceArtifactSetDigest, detectedFaceCount, vectorCount, dimension, digestHex`；向后续节点传handle而非向量数组；single-reference模式要求两个count都恰为1 |
 | `FaceClusterSetHandle` | `artifactHandleId, modelRef, sourceEmbeddingDigest, clusterCount, digestHex` |
 | `ArtifactRequirement` | `requirementId,revision,schemaRef,artifactKind,requirementPayload,requirementDigest`；revision为正整数，schemaRef必须是Catalog注册的bounded requirement schema，payload canonical JCS≤`16 KiB`且只能描述一个Artifact效果；`requirementDigest=SHA-256(JCS({schema:"shared.artifact-requirement@1",revision,schemaRef,artifactKind,requirementPayload}))`，`requirementId=SHA-256(JCS({schema:"shared.artifact-requirement-id@1",requirementDigest}))`；同一Draft内按`artifactKind,requirementId,revision` UTF-8 bytes排序且三元组唯一 |
-| `MetadataFetchIntent` | `intentId,libraRunId,runExecutionBasisDigest,sourceKind(related_nfo|provider),sourcePriority,contentProfile,resolvedIdentityDigest,requestedFields[],intentDigest`；`sourcePriority`为同Run/Basis从0连续且唯一的整数；`related_nfo`分支追加`relatedReferenceId,relatedReferenceDigest,expectedChecksum`且只接受对应`PhysicalMaterialReadHandle`；`provider`分支追加`providerKind(tmdb|jav),integrationId,configRevision`且只接受对应`IntegrationHandle`；`sourceRef`分别规范化为`relatedReferenceId`或`providerKind+":"+integrationId+"@"+configRevision`；`intentDigest=SHA-256(JCS(完整value excluding intentId,intentDigest))`，`intentId=SHA-256(JCS({schema:"libra.metadata-fetch-intent-id@1",libraRunId,runExecutionBasisDigest,sourcePriority,intentDigest}))`；完整value≤`16 KiB`，不得同时声明两分支或fallback |
+| `MetadataFetchIntent` | `intentId,libraRunId,runExecutionBasisDigest,sourceKind(related_nfo|provider),sourcePriority,contentProfile,resolvedIdentityDigest,requestedFields[],intentDigest`；`sourcePriority`为同Run/Basis从0连续且唯一的整数；`related_nfo`分支追加`relatedReferenceId,relatedReferenceDigest,expectedChecksum`且只接受对应`PhysicalMaterialReadHandle`；`provider`分支追加`providerKind(tmdb|jav),integrationId,configRevision,resolvedProviderIdentity(ResolvedProviderIdentity@1)`且只接受对应`IntegrationHandle`，Planner必须先从同一`ResolvedProductIdentity@1`选出该完整成员，`providerKind=resolvedProviderIdentity.provider`，并按contentProfile唯一要求`movie→tmdb/tmdb_movie`、`series→tmdb/tmdb_series`、`jav→jav/jav_code`，Adapter只能以其`providerKey/seasonNumber`查询，禁止反解`resolvedIdentityDigest`或依赖前次Search cache；`sourceRef`分别规范化为`relatedReferenceId`或`providerKind+":"+integrationId+"@"+configRevision`；`intentDigest=SHA-256(JCS(完整value excluding intentId,intentDigest))`，`intentId=SHA-256(JCS({schema:"libra.metadata-fetch-intent-id@1",libraRunId,runExecutionBasisDigest,sourcePriority,intentDigest}))`；完整value≤`16 KiB`，不得同时声明两分支或fallback |
 | `MetadataObservationSet` | `setId,contentProfile,resolvedIdentityDigest,observations[]完整typed MetadataObservation,sourcePrecedence[{fetchIntentDigest,sourcePriority}],setDigest`；Observation与precedence一一对应，最多16项，按`sourcePriority,evidenceId`的UTF-8 bytes稳定排序，priority唯一。先从排序后observations逐项投影`identityItems[{fetchIntentDigest,evidenceId,observationDigest}]`，其中`observationDigest=EvidenceEnvelope.payloadDigest`；`setId=SHA-256(JCS({schema:"libra.metadata-observation-set-id@1",contentProfile,resolvedIdentityDigest,identityItems}))`；`setDigest=SHA-256(JCS(完整value excluding setDigest))`，完整value≤`512 KiB`；同一字段的来源选择只按冻结priority，不能按Result时间、数组偶然顺序或Provider返回顺序 |
 | `MetadataObservationSelectionSnapshot` | `selectionId,libraRunId,runExecutionBasisDigest,setId,setDigest,items[1..16]{ordinal,workId,attemptId,planId,eventId,resultId,fetchIntentDigest,sourceKind,sourceRef,sourcePriority,evidenceId,observationDigest,sourceReferenceDigest},selectionDigest`；items由`libra_product_fact_source_refs(source_basis_kind=metadata_observation)`与其明确Result逐项重建并按同一顺序；`sourceReferenceDigest`等于relation row的`reference_digest`；`selectionId=SHA-256(JCS({schema:"libra.metadata-observation-selection-id@1",libraRunId,runExecutionBasisDigest,setId,setDigest}))`；`selectionDigest=SHA-256(JCS(完整value excluding selectionDigest))`；从每项Result完整展开Observation后必须逐字节重建同次`MetadataObservationSet`，否则不是可提交输入 |
 | `WesternAnalysisVariant` | `variantId,libraRunId,runExecutionBasisDigest,resolvedIdentityDigest,analysisResults[1..16]{eventId,resultId,resultDigest,result(WesternAnalysisResult@1)},variantDigest`；items按`eventId,resultId`的UTF-8 bytes排序且唯一，全部固定为同Run/Basis的`libra.western.analysis.observe@1 → WesternAnalysisResult@1`。嵌入`result`必须逐字节等于对应durable typed Result并单独验证其内部`result.resultDigest=SHA-256(JCS(完整result excluding resultDigest))`；外层`resultDigest`固定为`SHA-256(JCS(包含内部resultDigest的完整result))`并逐字节等于对应`fx_event_result_bindings.result_digest`，不要求也不得等于内部领域摘要；`variantDigest=SHA-256(JCS(完整value excluding variantId,variantDigest))`，`variantId=SHA-256(JCS({schema:"libra.western-analysis-variant-id@1",libraRunId,runExecutionBasisDigest,resolvedIdentityDigest,variantDigest}))`；完整value≤`256 KiB`。Normalize只能消费该typed value及其中正式Artifact Handle，不能扫描Result、调用Provider或自行补来源 |
@@ -9885,7 +9895,7 @@ Accepted variant的`rejection_schema_ref`及全部rejection列必须为NULL。SQ
 | `SubjectAndTransferReceipt` | `ReceiptEnvelope + intakeDecisionId + offerId + candidatePackageId + packageRevision + packageDigest + candidateDeliverySnapshotDigest + subjectId + subjectIntakeRevision + subjectContinuityHeadRevision + subjectContinuitySetDigest + subjectEpisodeScopeDigest + libraBindingSetDigest + controlRevisionSetDigest + receiptDigest`；固定`receiptKind=handoff_a_accepted,ownerDomain=libra,scopeType=intake_decision,scopeId=intakeDecisionId,scopeDigest=AcceptedIntakePayload.payloadDigest`。Control set成员必须与`AcceptedIntakePayload.controlTransferScope.items`及`ResponsibilityControlCommitHandle.expectedControlRevisions`精确相等，为`1..1024`项、materialKey唯一并按materialKey UTF-8 bytes升序；每项固定为`{materialKey,expectedControlRevision,expectedControlProjectionDigest,committedControlRevision,committedControlProjectionDigest,fromOwnerDomain:"procurement",fromOwnerScopeType:"material_field",fromOwnerScopeId,toOwnerDomain:"libra",toOwnerScopeType:"subject",toOwnerScopeId:subjectId}`，`committedControlRevision=expectedControlRevision+1`。expected projection由`fx_material_control_revisions(materialKey,expectedControlRevision)`的historical post-state按8.6.18重建且digest逐字节等于Payload；committed projection在提交时必须由post-CAS `fx_material_controls` terminal row重算，并与同一Handoff marker的新transfer revision按相同规则重建的historical post-state逐字节相等；revision row的from/to scope必须逐项等于该item且`basis_digest=AcceptedIntakePayload.payloadDigest`。从items抽取`fieldId=fromOwnerScopeId`及原Payload的expected/from/to字段，必须按`AcceptedIntakePayload`公式重算出同一`controlScopeDigest`。`controlRevisionSetDigest=SHA-256(JCS({schema:"libra.handoff-a-transferred-control-set@1",intakeDecisionId,subjectId,controlScopeDigest,items}))`；`receiptDigest=SHA-256(JCS(完整value excluding receiptDigest))`，完整value≤`64 KiB`。历史重建先以`fx_commit_markers(owner_domain=libra,scope_type=intake_decision,scope_id=intakeDecisionId,result_schema_ref=SubjectAndTransferReceipt@1,result_digest=receiptDigest)`唯一定位marker，再由其全部transfer revision、各自previous revision和Libra Receipt/Binding rows重算Control scope/set；不得依赖后来current Control owner、Foundation Event Result JSON或调用方缓存 |
 | `VersionedQueryResult` | `EvidenceEnvelope + queryContract + queryVersion + inputDigest + resultKind(found|not_found) + resultRevision + resultDigest + expiresAtMs` |
 | `ResolvedProductIdentity` | `EvidenceEnvelope + subjectId + structureKind(single|season) + contentProfile(movie|series|jav|western_adult) + identityKind(tmdb_movie|tmdb_series_season|jav_code|internal_identity) + providerIdentities[1..16 ResolvedProviderIdentity@1] + providerIdentitySetDigest + exactSeasonContinuityClaims[SeasonContinuityClaim] + exactSeasonContinuitySetDigest + displayIdentity + identityDigest`。`tmdb_movie`恰有一项`tmdb/tmdb_movie`主Anchor；`tmdb_series_season`恰有一项`tmdb/tmdb_series`且含positive seasonNumber，并有逐字节相同tuple的`provider_season_identity` Claim；`jav_code`恰有一项`jav/jav_code`；`internal_identity`恰有一项`internal/internal_identity`，均不得由title/path冒充Provider Key。`providerIdentitySetDigest=SHA-256(JCS({schema:"libra.resolved-provider-identity-set@1",items:providerIdentities}))`，`identityDigest=SHA-256(JCS({schema:"libra.resolved-product-identity@1",subjectId,structureKind,contentProfile,identityKind,providerIdentities,providerIdentitySetDigest,exactSeasonContinuityClaims,exactSeasonContinuitySetDigest,displayIdentity}))`；非Series的exact Claim数组固定为空。发布identity revision时Claim relation及Subject Continuity head同事务成立；Intake只查询relation，不反解digest；它仍不是Arca Canonical Identity，也不得把providerIdentities物化为generic snapshot |
-| `MetadataObservation` | `EvidenceEnvelope + fetchIntentDigest + sourceKind(related_nfo|provider) + sourceRef + sourcePriority + identityDigest + contentProfile + descriptiveFacts + providerIdentitySet + peopleHints[] + artifactHints[]`；所有字段由一次Intent对应来源规范化，`sourceKind/sourceRef/sourcePriority/identityDigest/contentProfile`必须逐字节复制Intent；`EvidenceEnvelope.payloadDigest=SHA-256(JCS({schema:"libra.metadata-observation@1",producerRef,basisDigest,observedAtMs,fetchIntentDigest,sourceKind,sourceRef,sourcePriority,identityDigest,contentProfile,descriptiveFacts,providerIdentitySet,peopleHints,artifactHints}))`；完整typed value≤`65,536` UTF-8 JCS bytes，只含本次单一来源观察到的值，不声明跨来源winner或Product Metadata完成，也不允许Executor内部fallback或顺手提交Fact |
+| `MetadataObservation` | `EvidenceEnvelope + fetchIntentDigest + sourceKind(related_nfo|provider) + sourceRef + sourcePriority + identityDigest + contentProfile + descriptiveFacts + providerIdentitySet + peopleHints[] + artifactHints[]`；所有字段由一次Intent对应来源规范化，`sourceKind/sourceRef/sourcePriority/identityDigest/contentProfile`必须逐字节复制Intent；Provider分支的`providerIdentitySet`必须包含与Intent `resolvedProviderIdentity`逐字节相同的tuple，否则是typed integrity failure；`EvidenceEnvelope.payloadDigest=SHA-256(JCS({schema:"libra.metadata-observation@1",producerRef,basisDigest,observedAtMs,fetchIntentDigest,sourceKind,sourceRef,sourcePriority,identityDigest,contentProfile,descriptiveFacts,providerIdentitySet,peopleHints,artifactHints}))`；完整typed value≤`65,536` UTF-8 JCS bytes，只含本次单一来源观察到的值，不声明跨来源winner或Product Metadata完成，也不允许Executor内部fallback或顺手提交Fact |
 | `DecisionBasisRevision` | `DomainFactEnvelope + decisionBasisId + subjectId + basisKind(routing|acceptance_spec) + basisRevision + expectedHeadRevision + expectedHeadSnapshotDigest + readiness(ready|unresolved) + unresolvedReasonCode? + routingDecisionId? + queryResultSetDigest + routingInputDigest? + specInputDigest? + productScopeDigest? + inputSetDigest + basisDigest`；variant/nullability与`DecisionInputSet@1`逐项相同；expected pair必须逐字节等于唯一`SubjectDecisionHeadSnapshot@1` input的revision/snapshotDigest；`decisionBasisId=SHA-256(JCS({schema:"libra.decision-basis-id@1",subjectId,basisKind,basisRevision,inputSetDigest}))`；`basisDigest=SHA-256(JCS({schema:"libra.decision-basis@1",decisionBasisId,subjectId,basisKind,basisRevision,expectedHeadRevision,expectedHeadSnapshotDigest,readiness,unresolvedReasonCode,routingDecisionId,queryResultSetDigest,routingInputDigest,specInputDigest,productScopeDigest,inputSetDigest}))`且等于`DomainFactEnvelope.factDigest`；完整Result≤`16 KiB`，全部typed inputs由Owner relation rows恢复 |
 | `FrameArtifactSet` | `ManifestEnvelope + sourceMaterialDigest + samplingPlanDigest + frameArtifactHandles[]` |
 | `WesternAnalysisResult` | `EvidenceEnvelope + externalJobReceiptId + analysisVariantRef + resultArtifactHandle + resultDigest`；`resultDigest=SHA-256(JCS(完整typed value excluding resultDigest))`是领域内摘要；Foundation Event binding的storage digest固定为`SHA-256(JCS(包含resultDigest的完整typed Result))`，不得与内部`resultDigest`混用；完整value≤`16 KiB`，分析大结果只能经immutable Artifact Handle引用 |
@@ -11295,7 +11305,7 @@ Status: `ACCEPTED / JOURNEY-AMENDED`（2026-07-16）。下列术语已经通过L
 
 当前确认状态：
 
-- `8.0`–`8.10`：`ACCEPTED / JOURNEY-AMENDED / POST-BASELINE-DOC-CORRECTED`（2026-07-26；用户确认的基线保持，Level 9反向审计与`PBF-01`–`PBF-20`各项bounded修正已回写）；
+- `8.0`–`8.10`：`ACCEPTED / JOURNEY-AMENDED / POST-BASELINE-DOC-CORRECTED`（2026-07-28；用户确认的基线保持，Level 9反向审计与`PBF-01`–`PBF-21`各项bounded修正已回写）；
 - 当前没有开放的Level 8 Business Decision；
 - clean Catalog为`112 refs / 112 unique`，97个Catalog Result family均有typed contract；`PBF-11-R2-R1`把Handoff A专用富拒绝Receipt与Handoff B通用拒绝Receipt拆成不同nominal Result，故Capability数量不变而Result family增加1；
 - 177张关系表的PK、revision、关键列、unique/partial unique、热路径索引和JSON上限已经固化；PBF-10新增
@@ -11303,8 +11313,9 @@ Status: `ACCEPTED / JOURNEY-AMENDED`（2026-07-16）。下列术语已经通过L
   head/N:M关系表，PBF-11-R2新增一张Libra-owned Handoff A Rejection Reason/Evidence关系表，PBF-13新增七张
   Libra-owned Run/Workspace/Package关系表，PBF-14新增一张Libra-owned Product Fact Source Basis引用关系表，均不
   新增Store；PBF-20不新增表，只把两张既有Arca Material表的scalar Episode列替换为bounded typed JSON；
+  PBF-21只扩充既有Metadata Intent并重申两个既有Artifact Capability的唯一生产路径，不新增表或Capability；
 - 当前62项Capability registration、named helper和直接依赖已经完成function-level conservation；
-- Level 8 post-amendment closure audit及`PBF-02`–`PBF-20`纵向传播结果为`PASS / NO BLOCKING GAP / NO OPEN BUSINESS DECISION`；各项输入、事务、持久化、Provider port与机器合同的bounded细节以本文对应合同为准；
+- Level 8 post-amendment closure audit及`PBF-02`–`PBF-21`纵向传播结果为`PASS / NO BLOCKING GAP / NO OPEN BUSINESS DECISION`；各项输入、事务、持久化、Provider port与机器合同的bounded细节以本文对应合同为准；
 - JSON Schema/DDL文件与contract fixture是未来Implementation交付物，其合同已经确定；
 - Level 9可以开始Public Interface and Product Surface结构化设计；
 - Implementation、E2E、Docker与生产部署继续暂停。
@@ -12827,7 +12838,7 @@ Profile、设备和平台只允许改变Baseline映射，不能改变Invariant�
   Perception Resolution输入闭包/Person Schema修正、`PBF-06` Reference/Person/Metadata/Media-Cast闭合与
   `PBF-07`（含`PBF-07-R1`）Field Observation输入/revision/payload persistence continuity及`PBF-08`
   Extraction Eligibility确定性/Control freshness闭合、`PBF-09`（含`PBF-09-R1`）Procurement Run Admission/Seal/Retry连续性
-  与`PBF-10`（含`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`）Triage typed pipeline、Candidate Publication机器事务表集及Offer/continuity闭合，`PBF-11`（含`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`）Libra Intake、Related Reference历史重建、两次Handoff Rejected终态、Candidate Delivery CAS lifecycle与Accepted Control Receipt闭合，`PBF-12`（含`PBF-12-R1`）Routing/Decision Basis/Acceptance Spec typed continuity、历史Head Snapshot恢复与三项Canonical Transaction，以及`PBF-13` Libra Run/Workspace/Product Package/Discard/Reclamation历史连续性与五项Canonical Transaction，把关系表合同修正为176张并保持112项Capability；`PBF-14`追加一张Libra Product Fact↔Source Basis Result引用关系表，`PBF-14-R1`使其同时覆盖Metadata Observation与Western Analysis/Normalize/Match，把当前合同修正为177张且不增加Capability或Canonical Transaction；`PBF-15`闭合Media Production/Conformance，`PBF-16`闭合External Material Acquisition，`PBF-17`把Workspace Product Staging从单一媒体验证修正为按Material role选择的`media|artifact|structural` closed verification union，`PBF-18`（含`PBF-18-R1`）把On-deck Package身份改为由Run/package revision预派生、固定Control→Manifest→Package的非循环构造顺序并把commit time从完整Package content digest排除，`PBF-19`把Handoff B Accepted的Attempt/Final Inventory Decision/initial On-deck Run责任事实并入同一原子commit，`PBF-20`用两张既有Arca Material row中的bounded typed Episode Claim JSON无损保存Series N:M而不增加关系表，全部保持既有Domain、Owner、Handoff、Capability、table与Canonical Transaction计数；
+  与`PBF-10`（含`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`）Triage typed pipeline、Candidate Publication机器事务表集及Offer/continuity闭合，`PBF-11`（含`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`）Libra Intake、Related Reference历史重建、两次Handoff Rejected终态、Candidate Delivery CAS lifecycle与Accepted Control Receipt闭合，`PBF-12`（含`PBF-12-R1`）Routing/Decision Basis/Acceptance Spec typed continuity、历史Head Snapshot恢复与三项Canonical Transaction，以及`PBF-13` Libra Run/Workspace/Product Package/Discard/Reclamation历史连续性与五项Canonical Transaction，把关系表合同修正为176张并保持112项Capability；`PBF-14`追加一张Libra Product Fact↔Source Basis Result引用关系表，`PBF-14-R1`使其同时覆盖Metadata Observation与Western Analysis/Normalize/Match，把当前合同修正为177张且不增加Capability或Canonical Transaction；`PBF-15`闭合Media Production/Conformance，`PBF-16`闭合External Material Acquisition，`PBF-17`把Workspace Product Staging从单一媒体验证修正为按Material role选择的`media|artifact|structural` closed verification union，`PBF-18`（含`PBF-18-R1`）把On-deck Package身份改为由Run/package revision预派生、固定Control→Manifest→Package的非循环构造顺序并把commit time从完整Package content digest排除，`PBF-19`把Handoff B Accepted的Attempt/Final Inventory Decision/initial On-deck Run责任事实并入同一原子commit，`PBF-20`用两张既有Arca Material row中的bounded typed Episode Claim JSON无损保存Series N:M而不增加关系表，`PBF-21`给Provider Metadata Intent补入完整Resolved Provider Identity查询Anchor，并固定NFO/Provider图片必须分别走既有Sidecar Render/Product Artifact Acquire Capability形成可恢复Artifact Handle，全部保持既有Domain、Owner、Handoff、Capability、table与Canonical Transaction计数；
 - 不修改Level 9的九页信息架构、Intent或Authorization语义；最终全文审计只补齐遗漏Command并把接口合同
   修正为113个Admin method+path加1个public health route；
 - 不把运行故障修复成跨Domain Store写入、静默Fallback、自动降级Outcome或媒体目录旁路写入；
@@ -13678,7 +13689,7 @@ Beta Release Candidate不等于授权部署生产。生产部署、真实媒体�
 | 10.7 | Level 6业务健康、Level 9普通/Advanced边界 | preserved |
 | 10.8 | Level 5/6 Authorization、Level 8 typed Secret与Material safety | preserved |
 | 10.9 | 模块化单体、Physical File Source与Emby External Provider边界 | preserved |
-| 10.10 | 九条旅程、112 Capability、177 tables、43 Canonical Transactions、113 Admin routes、1 public health route及clean-cut门禁 | preserved after bounded final-audit closure and `PBF-02`–`PBF-20`（含各节记录的bounded revisions） |
+| 10.10 | 九条旅程、112 Capability、177 tables、43 Canonical Transactions、113 Admin routes、1 public health route及clean-cut门禁 | preserved after bounded final-audit closure and `PBF-02`–`PBF-21`（含各节记录的bounded revisions） |
 
 #### 10.11.2 前序Level 10 reservation覆盖审计
 
@@ -13803,7 +13814,7 @@ Automation、Priority、Approval、Workspace与资源配置。它们在被新合
 关闭为历史Evidence。任何新Review Item在完成全局Evidence审计、证明真实缺陷、
 取得必要Owner Decision并形成新的有界Change Set之前，都不能改变本文语义。Level 7、Level 8与Level 9
 均已经Accepted并完成各自必要的Journey amendment；
-post-baseline `PBF-01`–`PBF-20`（含各节记录的bounded revisions）已经按同一纪律完成bounded合同闭合；实现、测试或
+post-baseline `PBF-01`–`PBF-21`（含各节记录的bounded revisions）已经按同一纪律完成bounded合同闭合；实现、测试或
 部署仍未由本文件授权。
 
 Post-baseline实现阶段不再把每项formal-realizability detail自动升级为Architecture Review Item。实现线程按照
@@ -13821,13 +13832,13 @@ Post-baseline实现阶段不再把每项formal-realizability detail自动升级�
 - Level 5（`5.1`–`5.11`）：`ACCEPTED / JOURNEY-AMENDED`（2026-07-16）
 - Level 6（`6.0`–`6.12`）：`ACCEPTED / JOURNEY-AMENDED`（2026-07-16）
 - Level 7（`7.0`–`7.12`）：`ACCEPTED / JOURNEY-AMENDED`（2026-07-16；durable progress bounded amendment）
-- Level 8（`8.0`–`8.10`）：`ACCEPTED / JOURNEY-AMENDED / POST-BASELINE-DOC-CORRECTED`（2026-07-26；用户确认基线保持，`PBF-01`–`PBF-20`已闭合）
+- Level 8（`8.0`–`8.10`）：`ACCEPTED / JOURNEY-AMENDED / POST-BASELINE-DOC-CORRECTED`（2026-07-28；用户确认基线保持，`PBF-01`–`PBF-21`已闭合）
 - Level 9（`9.0`–`9.11`）：`ACCEPTED / JOURNEY-AMENDED`
   （2026-07-16；8项Journey bounded gap已关闭，post-amendment audit通过并由用户确认）
 - Level 10（`10.0`–`10.12`）：`ACCEPTED`
   （2026-07-16；结构化正文与运行维度反向审计通过并由用户确认）
 - Final Level 0–10 Audit：`CLOSED / APPLIED_AND_AUDITED`（27项bounded修正、1项false positive关闭、`FA-04`已确认并传播）
-- Post-baseline realizability audit：`PBF-01`–`PBF-20 CLOSED / APPLIED_AND_AUDITED`；PBF-09–PBF-14的持久化与事务细节继续按既有条目生效，PBF-15闭合Media Production/Conformance，PBF-16闭合External Material Acquisition/P5 observe/import连续性，PBF-17闭合role-aware Workspace Product Staging verification，PBF-18（含`PBF-18-R1`）解除On-deck Package ID与post-CAS Control projection之间的hash依赖环、固定非循环原子构造顺序并排除Package commit time对预提交content digest的反向依赖，PBF-19闭合Handoff B Accepted responsibility原子性，PBF-20在既有Arca Binding/Inventory Material row中以bounded typed JSON保存Series N:M Episode Claim Set；关系表总数为177，Catalog Result family为97，Canonical Transaction为43。
+- Post-baseline realizability audit：`PBF-01`–`PBF-21 CLOSED / APPLIED_AND_AUDITED`；PBF-09–PBF-14的持久化与事务细节继续按既有条目生效，PBF-15闭合Media Production/Conformance，PBF-16闭合External Material Acquisition/P5 observe/import连续性，PBF-17闭合role-aware Workspace Product Staging verification，PBF-18（含`PBF-18-R1`）解除On-deck Package ID与post-CAS Control projection之间的hash依赖环、固定非循环原子构造顺序并排除Package commit time对预提交content digest的反向依赖，PBF-19闭合Handoff B Accepted responsibility原子性，PBF-20在既有Arca Binding/Inventory Material row中以bounded typed JSON保存Series N:M Episode Claim Set，PBF-21使Provider Metadata Fetch携带可直接执行的Resolved Provider Identity并固定Artifact生产必须走既有正式Capability；关系表总数为177，Catalog Result family为97，Canonical Transaction为43。
 - `PBF-13-R4-R1` bounded propagation：Lifecycle canonical machine `readTables`已与Freshness/Package custody
   强制Owner-row验证对齐；只扩只读白名单，全部计数不变。
 - `PBF-13-R4-R2` bounded formula：Arca Accepted Message ID basis已固定为四个显式顶层JCS property；
@@ -13845,4 +13856,8 @@ Post-baseline实现阶段不再把每项formal-realizability detail自动升级�
   Source relation统一保存Foundation完整Result storage digest；嵌入Result的领域摘要独立验证；全部inventory计数不变。
 - `PBF-14-R7` bounded Media Cast Fact reference：Product Metadata Draft移除不可解析的Draft ref，Commit Payload改为
   nullable完整Media Cast Fact三元组并按ID验证同Run Owner row；禁止latest/current扫描；全部inventory计数不变。
+- `PBF-21` bounded Provider Metadata/Artifact continuity：Provider `MetadataFetchIntent@1`携带完整
+  `ResolvedProviderIdentity@1`查询Anchor；NFO与Provider图片分别只由既有Sidecar Render与Product Artifact
+  Acquire Capability产生可恢复Handle，禁止Metadata callback bytes、caller cache或Provider重读补crash窗口；
+  全部Domain、Owner、Handoff、Capability、Result、table与Canonical Transaction计数不变。
 - 旧`SD-*`条款：全部撤销，不具有clean Helix合同效力
