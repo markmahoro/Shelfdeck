@@ -43,7 +43,9 @@ persistence。冻结的 Platform head 同时保存非敏感 HMAC request digest 
 response-loss 窗口由下一次命令首先 exact-read current head 并补齐同一 frozen
 public Result；在补齐前不会覆盖 head。由此旧命令在后续 revision 与 restart 后
 仍能稳定重放，same key/different payload 为 `409`，且不重复 network、Secret
-写入或 Platform revision。
+写入或 Platform revision。configure的fresh、receipt replay或head-repair
+success都会终结仍存活的同一proof并删除transient envelope；response-loss同进程
+恢复后，proof不能被新idempotency key再次消费。
 
 Secret envelope 使用 `SHELFDECK_SECRET_ROOT` 派生的 AES-256-GCM key，
 并绑定 opaque locator identity、integration identity、Secret Reference、kind

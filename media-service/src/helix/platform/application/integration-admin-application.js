@@ -672,9 +672,9 @@ function createIntegrationAdminApplication(options) {
       }
       throw error;
     }
+    const completedProof = proofs.get(body.connectionProofId);
+    if (completedProof) removeProof(completedProof);
     if (!committed.replayed) {
-      const proof = proofs.get(body.connectionProofId);
-      if (proof) removeProof(proof);
       const previous =
         committed.domainResult.previousSecretLocator;
       if (previous &&

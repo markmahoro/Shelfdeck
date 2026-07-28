@@ -213,6 +213,26 @@ function inspect(dataDir) {
       secret: database.prepare(
         'SELECT * FROM platform_secret_refs WHERE secret_ref=?',
       ).get('integration-secret:tmdb-main'),
+      counts: {
+        integrations: database.prepare(
+          'SELECT COUNT(*) AS count FROM platform_integrations',
+        ).get().count,
+        secrets: database.prepare(
+          'SELECT COUNT(*) AS count FROM platform_secret_refs',
+        ).get().count,
+        receipts: database.prepare(
+          'SELECT COUNT(*) AS count FROM fx_command_receipts ' +
+          'WHERE owner_domain=?',
+        ).get('platform-settings').count,
+        markers: database.prepare(
+          'SELECT COUNT(*) AS count FROM fx_commit_markers ' +
+          'WHERE owner_domain=?',
+        ).get('platform-settings').count,
+        audits: database.prepare(
+          'SELECT COUNT(*) AS count FROM fx_audit_records ' +
+          'WHERE owner_domain=?',
+        ).get('platform-settings').count,
+      },
     };
   } finally {
     database.close();
@@ -945,15 +965,11 @@ test('H1.1 candidate envelope rollback and committed-head receipt repair converg
   );
   assert.equal(lost.statusCode, 500, lost.body);
   assert.equal(inspect(responseLoss.dataDir).integration.state, 'active');
-  await host.close();
-
-  host = await createCleanServiceHost({
-    dataDir: responseLoss.dataDir,
-    adminDistDir: responseLoss.adminDistDir,
-    secretRoot,
-    integrationFetch: tmdbFetch(state),
-  });
-  cookie = await session(host, responseLoss.initialized.adminApiKey);
+  const envelopesBeforeRecovery = scanFiles(path.join(
+    responseLoss.dataDir,
+    'secrets',
+    'integrations',
+  )).length;
   const recovered = await saveProof(
     host,
     cookie,
@@ -963,6 +979,58 @@ test('H1.1 candidate envelope rollback and committed-head receipt repair converg
   assert.equal(recovered.statusCode, 200, recovered.body);
   assert.equal(recovered.json().state, 'active');
   assert.equal(recovered.json().configRevision, 1);
+  assert.equal(state.calls.length, callsBeforeCommit);
+  assert.equal(inspect(responseLoss.dataDir).integration.config_revision, 1);
+  assert.equal(
+    scanFiles(path.join(
+      responseLoss.dataDir,
+      'secrets',
+      'integrations',
+    )).length,
+    envelopesBeforeRecovery - 1,
+  );
+  const afterRecovery = inspect(responseLoss.dataDir);
+  const reuse = await saveProof(
+    host,
+    cookie,
+    committedProof,
+    'response-loss-proof-reuse',
+    1,
+  );
+  assert.equal(reuse.statusCode, 400, reuse.body);
+  assert.equal(
+    reuse.json().error.code,
+    'PLATFORM_INTEGRATION_CONNECTION_PROOF_UNKNOWN',
+  );
+  const afterRejectedReuse = inspect(responseLoss.dataDir);
+  assert.equal(afterRejectedReuse.integration.config_revision, 1);
+  assert.deepEqual(afterRejectedReuse.counts, afterRecovery.counts);
+  assert.equal(state.calls.length, callsBeforeCommit);
+  assert.equal(
+    scanFiles(path.join(
+      responseLoss.dataDir,
+      'secrets',
+      'integrations',
+    )).length,
+    envelopesBeforeRecovery - 1,
+  );
+  await host.close();
+
+  host = await createCleanServiceHost({
+    dataDir: responseLoss.dataDir,
+    adminDistDir: responseLoss.adminDistDir,
+    secretRoot,
+    integrationFetch: tmdbFetch(state),
+  });
+  cookie = await session(host, responseLoss.initialized.adminApiKey);
+  const restartedReplay = await saveProof(
+    host,
+    cookie,
+    committedProof,
+    'response-loss-save',
+  );
+  assert.equal(restartedReplay.statusCode, 200, restartedReplay.body);
+  assert.deepEqual(restartedReplay.json(), recovered.json());
   assert.equal(state.calls.length, callsBeforeCommit);
   assert.equal(inspect(responseLoss.dataDir).integration.config_revision, 1);
   await host.close();
