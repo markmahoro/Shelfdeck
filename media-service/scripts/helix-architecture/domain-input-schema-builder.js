@@ -678,8 +678,9 @@ function metadataFetchIntentSchema() {
     'x-helix-maxCanonicalBytes': 16 * 1024, oneOf: [
       object({ ...common, sourceKind: { const: 'related_nfo' }, relatedReferenceId: id(), relatedReferenceDigest: digest(), expectedChecksum: digest() },
         [...Object.keys(common), 'relatedReferenceId', 'relatedReferenceDigest', 'expectedChecksum']),
-      object({ ...common, sourceKind: { const: 'provider' }, providerKind: enumText('tmdb', 'jav'), integrationId: id(), configRevision: positiveInteger() },
-        [...Object.keys(common), 'providerKind', 'integrationId', 'configRevision'])
+      object({ ...common, sourceKind: { const: 'provider' }, providerKind: enumText('tmdb', 'jav'),
+        resolvedProviderIdentity: domainRef('ResolvedProviderIdentity'), integrationId: id(), configRevision: positiveInteger() },
+        [...Object.keys(common), 'providerKind', 'resolvedProviderIdentity', 'integrationId', 'configRevision'])
     ] };
 }
 

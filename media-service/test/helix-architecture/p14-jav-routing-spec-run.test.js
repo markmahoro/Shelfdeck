@@ -253,6 +253,17 @@ test('JAV public route publishes an input-free Spec and one active single Run', 
   });
   let identityProviderCalls = 0;
   let metadataProviderCalls = 0;
+  let artifactProviderCalls = 0;
+  const javProviderIdentityBasis = {
+    provider: 'jav',
+    namespace: 'jav_code',
+    providerKey: 'SDKI-001',
+    seasonNumber: null,
+  };
+  const javProviderIdentity = Object.freeze({
+    ...javProviderIdentityBasis,
+    identityAnchorDigest: canonicalDigest(javProviderIdentityBasis),
+  });
   const productionOptions = Object.freeze({
     async searchProviderIdentity(request) {
       identityProviderCalls += 1;
@@ -268,13 +279,19 @@ test('JAV public route publishes an input-free Spec and one active single Run', 
         configRevision: 1,
       });
     },
-    async fetchProviderMetadata(intent) {
+    async fetchProviderMetadata(request) {
       metadataProviderCalls += 1;
+      const { metadataFetchIntent:intent, integrationHandle } = request;
       assert.equal(intent.sourceKind, 'provider');
       assert.equal(intent.providerKind, 'jav');
       assert.equal(intent.contentProfile, 'jav');
       assert.equal(intent.integrationId, 'jav-construction');
       assert.equal(intent.configRevision, 1);
+      assert.deepEqual(intent.resolvedProviderIdentity, javProviderIdentity);
+      assert.equal(
+        integrationHandle.allowedOperation,
+        'libra.product_metadata.fetch@1',
+      );
       assert.deepEqual(intent.requestedFields, [
         'genre',
         'jav_code',
@@ -294,15 +311,30 @@ test('JAV public route publishes an input-free Spec and one active single Run', 
           { key: 'studio', value: 'Construction Studio' },
           { key: 'title', value: 'Skin Diamond' },
         ]),
-        providerIdentities: Object.freeze([{
-          provider: 'jav',
-          namespace: 'jav_code',
-          providerKey: 'SDKI-001',
-          seasonNumber: null,
-        }]),
+        providerIdentities: Object.freeze([javProviderIdentity]),
         peopleHints: Object.freeze([]),
-        posterBytes: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
-        fanartBytes: Buffer.from([0xff, 0xd8, 0x01, 0xff, 0xd9]),
+      });
+    },
+    async fetchProviderArtifact(request) {
+      artifactProviderCalls += 1;
+      assert.deepEqual(
+        request.resolvedProviderIdentity,
+        javProviderIdentity,
+      );
+      assert.equal(
+        request.integrationHandle.allowedOperation,
+        'libra.product_artifact.acquire@1',
+      );
+      return Object.freeze({
+        resultKind: 'acquired',
+        artifactKind: request.artifactKind,
+        integrationId: request.integrationHandle.integrationId,
+        configRevision: request.integrationHandle.configRevision,
+        resolvedProviderIdentity: javProviderIdentity,
+        mediaType: 'image/jpeg',
+        bytes: request.artifactKind === 'poster'
+          ? Buffer.from([0xff, 0xd8, 0xff, 0xd9])
+          : Buffer.from([0xff, 0xd8, 0x01, 0xff, 0xd9]),
       });
     },
   });
@@ -575,10 +607,55 @@ test('JAV public route publishes an input-free Spec and one active single Run', 
     }
   }
 
+  async function interruptCapability(capabilityRef, reasonCode) {
+    let shouldInterrupt = true;
+    const interruptedHost = await createCleanServiceHost({
+      dataDir,
+      adminDistDir,
+      secretRoot,
+      mediaProbe,
+      ...productionOptions,
+      afterCapabilityResultCommit(result) {
+        if (!shouldInterrupt ||
+            result.capabilityRef !== capabilityRef) return;
+        shouldInterrupt = false;
+        throw Object.assign(
+          new Error(`fault after ${capabilityRef} Result commit`),
+          { code:reasonCode },
+        );
+      },
+    });
+    try {
+      const response = await requestProduction(interruptedHost);
+      assert.equal(response.statusCode, 400, response.body);
+      assert.equal(
+        response.json().error.details.reasonCode,
+        reasonCode,
+        response.body,
+      );
+    } finally {
+      await interruptedHost.close();
+    }
+  }
+
+  await interruptCapability(
+    'libra.product_metadata.fetch@1',
+    'P14_JAV_FAULT_AFTER_METADATA_RESULT_COMMIT',
+  );
+  assert.equal(metadataProviderCalls, 1);
+
   await interruptProduction(
     'afterWorkspacePhysicalEffect',
     'P14_JAV_FAULT_AFTER_WORKSPACE_PHYSICAL_EFFECT',
   );
+  assert.equal(artifactProviderCalls, 1);
+
+  await interruptCapability(
+    'libra.product_artifact.acquire@1',
+    'P14_JAV_FAULT_AFTER_ARTIFACT_RESULT_COMMIT',
+  );
+  assert.equal(artifactProviderCalls, 1);
+
   database = new Database(
     path.join(dataDir, 'shelfdeck.db'),
     { readonly: true },
@@ -662,7 +739,8 @@ test('JAV public route publishes an input-free Spec and one active single Run', 
     await host.close();
   }
   assert.ok(identityProviderCalls >= 1);
-  assert.equal(identityProviderCalls, metadataProviderCalls);
+  assert.equal(metadataProviderCalls, 1);
+  assert.equal(artifactProviderCalls, 2);
 
   database = new Database(
     path.join(dataDir, 'shelfdeck.db'),
@@ -797,8 +875,22 @@ test('clean host keeps JAV before Production without a formal Provider adapter',
 });
 
 test('JAV Provider adapter rejects foreign identity and incomplete Artifact bytes', async () => {
+  const identityBasis = {
+    provider: 'jav',
+    namespace: 'jav_code',
+    providerKey: 'SDKI-001',
+    seasonNumber: null,
+  };
+  const resolvedProviderIdentity = {
+    ...identityBasis,
+    identityAnchorDigest: canonicalDigest(identityBasis),
+  };
   const port = createCleanProductProductionPort({
     mediaProbe: { probe: async () => ({}) },
+    workspaceProductPort: {
+      acquireArtifact() {},
+      materializeArtifact() {},
+    },
     async searchProviderIdentity() {
       return {
         provider: 'jav',
@@ -806,16 +898,14 @@ test('JAV Provider adapter rejects foreign identity and incomplete Artifact byte
         providerKey: 'FOREIGN-999',
       };
     },
-    async fetchProviderMetadata(intent) {
+    async fetchProviderMetadata({ metadataFetchIntent:intent }) {
       return {
         providerKind: 'jav',
         integrationId: intent.integrationId,
         configRevision: intent.configRevision,
         descriptiveEntries: [],
         providerIdentities: [{
-          provider: 'jav',
-          namespace: 'jav_code',
-          providerKey: 'SDKI-001',
+          ...resolvedProviderIdentity,
         }],
         peopleHints: [],
         posterBytes: Buffer.from([1]),
@@ -830,14 +920,149 @@ test('JAV Provider adapter rejects foreign identity and incomplete Artifact byte
     (error) =>
       error.code === 'CLEAN_PRODUCT_IDENTITY_PROVIDER_RESULT_INVALID',
   );
+  const intent = {
+    sourceKind: 'provider',
+    contentProfile: 'jav',
+    providerKind: 'jav',
+    integrationId: 'jav-construction',
+    configRevision: 1,
+    resolvedProviderIdentity,
+  };
+  const integrationHandle = port.resolveIntegrationHandle({
+    intent,
+    operationId: 'libra.product_metadata.fetch@1',
+  });
   await assert.rejects(
-    port.fetchProvider({
-      sourceKind: 'provider',
-      contentProfile: 'jav',
-      providerKind: 'jav',
-      integrationId: 'jav-construction',
-      configRevision: 1,
-    }),
+    port.fetchProvider(intent, integrationHandle),
     (error) => error.code === 'CLEAN_PRODUCT_PROVIDER_RESULT_INVALID',
+  );
+});
+
+test('JAV Artifact acquisition fences kind, identity, handle, and unavailable outcome', async () => {
+  const identityBasis = {
+    provider: 'jav',
+    namespace: 'jav_code',
+    providerKey: 'SDKI-001',
+    seasonNumber: null,
+  };
+  const identity = Object.freeze({
+    ...identityBasis,
+    identityAnchorDigest: canonicalDigest(identityBasis),
+  });
+  const requirement = Object.freeze({
+    artifactKind: 'poster',
+    requirementDigest: canonicalDigest({ kind:'poster' }),
+  });
+  const draft = Object.freeze({
+    providerIdentities: Object.freeze([identity]),
+    artifactRequirements: Object.freeze([requirement]),
+  });
+  const artifactHandle = Object.freeze({
+    schemaRef: 'helix://contracts/types/ArtifactHandle/v1',
+    schemaVersion: 1,
+    artifactHandleId: 'artifact-poster',
+    artifactKind: 'poster',
+    ownerDomain: 'libra',
+    ownerScope: Object.freeze({
+      scopeType: 'libra_run',
+      scopeId: 'run-1',
+    }),
+    storageRef: 'workspace://workspace-1/product/poster.jpg',
+    digestAlgorithm: 'sha256',
+    digestHex: canonicalDigest({ bytes:'poster' }),
+    sizeBytes: 4,
+    mediaType: 'image/jpeg',
+    provenanceRef: Object.freeze({
+      objectType: 'metadata_observation',
+      objectId: 'observation-1',
+      revision: 1,
+      digest: canonicalDigest({ observation:1 }),
+    }),
+    referenceRevision: 1,
+  });
+  let providerOutcome;
+  const workspaceProductPort = {
+    async acquireArtifact(request) {
+      const outcome = await request.acquireBytes();
+      if (outcome.resultKind === 'not_available') return outcome;
+      return Object.freeze({
+        resultKind: 'acquired',
+        materialized: Object.freeze({ artifactHandle }),
+      });
+    },
+    materializeArtifact() {},
+  };
+  const port = createCleanProductProductionPort({
+    mediaProbe: { probe:async () => ({}) },
+    workspaceProductPort,
+    async fetchProviderArtifact() {
+      return providerOutcome;
+    },
+  });
+  const intent = {
+    sourceKind: 'provider',
+    providerKind: 'jav',
+    integrationId: 'jav-construction',
+    configRevision: 1,
+  };
+  const integrationHandle = port.resolveIntegrationHandle({
+    intent,
+    operationId: 'libra.product_artifact.acquire@1',
+    artifactKind: 'poster',
+  });
+  const request = {
+    productMetadataDraft: draft,
+    artifactKind: 'poster',
+    integrationHandle,
+    libraRunId: 'run-1',
+    workspaceId: 'workspace-1',
+    relativePath: 'product/poster.jpg',
+    integrationId: 'jav-construction',
+    configRevision: 1,
+    metadataObservationId: 'observation-1',
+    metadataObservationDigest: canonicalDigest({ observation:1 }),
+  };
+  providerOutcome = Object.freeze({
+    resultKind: 'not_available',
+    reasonCode: 'provider_asset_absent',
+  });
+  const unavailable = await port.acquireProviderArtifact(request);
+  assert.equal(unavailable.resultKind, 'not_available');
+  assert.equal(unavailable.artifactHandle, null);
+
+  providerOutcome = Object.freeze({
+    resultKind: 'acquired',
+    artifactKind: 'fanart',
+    integrationId: 'jav-construction',
+    configRevision: 1,
+    resolvedProviderIdentity: identity,
+    mediaType: 'image/jpeg',
+    bytes: Buffer.from([1]),
+  });
+  await assert.rejects(
+    port.acquireProviderArtifact(request),
+    (error) => error.code === 'CLEAN_PRODUCT_ARTIFACT_RESULT_INVALID',
+  );
+  providerOutcome = Object.freeze({
+    ...providerOutcome,
+    artifactKind: 'poster',
+    resolvedProviderIdentity: Object.freeze({
+      ...identity,
+      providerKey: 'FOREIGN-999',
+    }),
+  });
+  await assert.rejects(
+    port.acquireProviderArtifact(request),
+    (error) => error.code === 'CLEAN_PRODUCT_PROVIDER_IDENTITY_MISMATCH',
+  );
+  await assert.rejects(
+    port.acquireProviderArtifact({
+      ...request,
+      integrationHandle: {
+        ...integrationHandle,
+        fenceDigest: canonicalDigest({ foreign:true }),
+      },
+    }),
+    (error) => error.code === 'CLEAN_PRODUCT_ARTIFACT_INPUT_INVALID',
   );
 });

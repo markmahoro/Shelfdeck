@@ -50,11 +50,11 @@ function planMetadataGap(value) {
   } else if (['movie', 'series'].includes(profile) && !seenKinds.has('provider:tmdb')) {
     if (!value.provider || value.provider.providerKind !== 'tmdb') fail('P9_METADATA_PLAN_SOURCE_UNAVAILABLE', 'TMDB source is unavailable.');
     source = { sourceKind:'provider', providerKind:'tmdb', integrationId:value.provider.integrationId,
-      configRevision:value.provider.configRevision };
+      configRevision:value.provider.configRevision, resolvedProviderIdentity:value.resolvedProviderIdentity };
   } else if (profile === 'jav' && !seenKinds.has('provider:jav')) {
     if (!value.provider || value.provider.providerKind !== 'jav') fail('P9_METADATA_PLAN_SOURCE_UNAVAILABLE', 'JAV source is unavailable.');
     source = { sourceKind:'provider', providerKind:'jav', integrationId:value.provider.integrationId,
-      configRevision:value.provider.configRevision };
+      configRevision:value.provider.configRevision, resolvedProviderIdentity:value.resolvedProviderIdentity };
   } else {
     return Object.freeze({ planKind:'gap_unresolved', missingFields:Object.freeze(missingFields), nextIntent:null,
       planDigest:canonicalDigest({ schema:'libra.metadata-gap-plan@1', contentProfile:profile, missingFields, planKind:'gap_unresolved' }) });

@@ -202,39 +202,6 @@ function complete(value, field) {
   return Object.freeze(result);
 }
 
-function xml(value) {
-  return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&apos;');
-}
-
-function renderNfo(entries, contentProfile = 'movie') {
-  const values = new Map(entries.map((item) => [item.key, item.value]));
-  const series = contentProfile === 'series';
-  const tags = [
-    [series ? 'series_title' : 'title', 'title'],
-    [series ? 'tmdb_series_id' : 'tmdb_movie_id', 'tmdbid'],
-    ['season_number', 'season'],
-    ['episode_number', 'episode'],
-    ['episode_title', 'episodetitle'],
-    ['episode_plot', 'episodeplot'],
-    ['year_or_release_date', 'year'],
-    ['release_date', 'releasedate'],
-    ['plot', 'plot'],
-    ['genre', 'genre'],
-    ['director', 'director'],
-  ];
-  const root = series ? 'tvshow' : 'movie';
-  const lines = ['<' + root + '>'];
-  for (const [key, tag] of tags) {
-    if (values.has(key)) lines.push('  <' + tag + '>' + xml(values.get(key)) + '</' + tag + '>');
-  }
-  if (values.has('actor')) {
-    lines.push('  <actor><name>' + xml(values.get('actor')) + '</name></actor>');
-  }
-  lines.push('</' + root + '>');
-  return Buffer.from(lines.join('\n') + '\n', 'utf8');
-}
-
 function mediaProbeEvidence(raw, handle, observedAtMs) {
   const videoStreams = [...(raw.videoStreams || [])].map((item) => {
     const codedWidth = item.codedWidth || item.width || 0;
@@ -408,7 +375,7 @@ function capabilityStep(value) {
     inputSchemaRef: value.inputSchemaRef,
     input: value.input,
     parametersSchemaRef: value.parametersSchemaRef,
-    parameters: Object.freeze({}),
+    parameters: Object.freeze({ ...(value.parameters || {}) }),
     fenceSchemaRef: value.fenceSchemaRef,
     fenceBasis: Object.freeze({
       basisDigest: value.basisDigest,
@@ -551,7 +518,7 @@ function createMovieProductionCoordinator(options) {
     }
   }
 
-  function runResultCapability(run, value) {
+  async function runResultCapability(run, value) {
     const basisDigest = canonicalDigest({
       schema: 'libra.movie-production-capability-basis@1',
       runExecutionBasisDigest: run.executionBasisDigest,
@@ -610,6 +577,7 @@ function createMovieProductionCoordinator(options) {
         fail('P14_MOVIE_PRODUCTION_RESULT_REPLAY',
           'Succeeded Supporting Work lacks its exact typed Result.');
       }
+      options.workRuntime.complete(workId);
       return Object.freeze({
         ownerDomain: 'libra',
         processType: 'libra_run',
@@ -622,6 +590,7 @@ function createMovieProductionCoordinator(options) {
         resultId: stored.resultId,
         resultDigest: stored.resultDigest,
         evidenceDigest: stored.evidenceDigest,
+        inputBindings: value.input,
         inputBindingDigest: canonicalDigest(value.input),
         workId,
         attemptId: workId + ':attempt:1',
@@ -632,9 +601,19 @@ function createMovieProductionCoordinator(options) {
         replayed: true,
       });
     }
+    const result = typeof value.execute === 'function'
+      ? await value.execute()
+      : value.result;
+    if (!result || typeof result !== 'object') {
+      fail('P14_MOVIE_PRODUCTION_RESULT_INVALID',
+        'Capability execution did not produce its typed Result.');
+    }
+    const evidenceDigest = typeof value.evidenceDigest === 'function'
+      ? value.evidenceDigest(result)
+      : value.evidenceDigest || canonicalDigest(result);
     const resultId = stable('movie-production-result-', {
       eventId,
-      resultDigest: canonicalDigest(value.result),
+      resultDigest: canonicalDigest(result),
     });
     resultStore.commit({
       resultId,
@@ -642,11 +621,19 @@ function createMovieProductionCoordinator(options) {
       ownerDomain: 'libra',
       capabilityRef: value.capabilityRef,
       resultSchemaRef: value.resultSchemaRef,
-      result: value.result,
+      result,
       evidenceSchemaRef: value.resultSchemaRef,
-      evidence: value.result,
-      evidenceDigest: value.evidenceDigest,
+      evidence: result,
+      evidenceDigest,
     });
+    if (typeof options.afterCapabilityResultCommit === 'function') {
+      options.afterCapabilityResultCommit(Object.freeze({
+        capabilityRef: value.capabilityRef,
+        eventId,
+        resultId,
+        resultDigest: canonicalDigest(result),
+      }));
+    }
     if (event.state !== 'succeeded') options.workRuntime.completeEvent(eventId, resultId);
     options.workRuntime.complete(workId);
     return Object.freeze({
@@ -657,10 +644,11 @@ function createMovieProductionCoordinator(options) {
       workState: 'succeeded',
       capabilityRef: value.capabilityRef,
       resultSchemaRef: value.resultSchemaRef,
-      result: value.result,
+      result,
       resultId,
-      resultDigest: canonicalDigest(value.result),
-      evidenceDigest: value.evidenceDigest,
+      resultDigest: canonicalDigest(result),
+      evidenceDigest,
+      inputBindings: value.input,
       inputBindingDigest: canonicalDigest(value.input),
       workId,
       attemptId: workId + ':attempt:1',
@@ -1154,7 +1142,7 @@ function createMovieProductionCoordinator(options) {
     const requestedFields = [...snapshot.spec.requirements.metadata.requiredFieldCodes]
       .filter((item) => item !== 'actor')
       .sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right)));
-    const nfoSources = relatedNfos.map((item, ordinal) => {
+    const nfoSources = await Promise.all(relatedNfos.map(async (item, ordinal) => {
       const intent = buildMetadataFetchIntent({
         libraRunId,
         runExecutionBasisDigest: snapshot.run.executionBasisDigest,
@@ -1177,7 +1165,7 @@ function createMovieProductionCoordinator(options) {
           evidenceDigest: item.reference.referenceDigest,
         }],
       }, productionTimeMs);
-      const chain = runResultCapability(snapshot.run, {
+      const chain = await runResultCapability(snapshot.run, {
         workKind: 'product_metadata_observation',
         objectiveRef: 'helix://libra/work/ProductMetadataObservation/v1',
         nodeId: 'related-nfo-metadata-fetch-' + ordinal,
@@ -1197,7 +1185,8 @@ function createMovieProductionCoordinator(options) {
         evidenceDigest: observation.payloadDigest,
       });
       return Object.freeze({ intent, observation, chain });
-    });
+    }));
+    const resolvedProviderIdentity = providerIdentity(providerSearch);
     const providerIntent = buildMetadataFetchIntent({
       libraRunId,
       runExecutionBasisDigest: snapshot.run.executionBasisDigest,
@@ -1205,35 +1194,24 @@ function createMovieProductionCoordinator(options) {
       sourcePriority: nfoSources.length,
       contentProfile,
       resolvedIdentityDigest: identity.identityDigest,
+      resolvedProviderIdentity,
       requestedFields,
       providerKind: isJav ? 'jav' : 'tmdb',
       integrationId: providerSearch.integrationId ||
         (isJav ? 'jav-main' : 'tmdb-main'),
       configRevision: providerSearch.configRevision || 1,
     });
-    const provider = await options.productionPort.fetchProvider(providerIntent);
-    const resolvedProviderIdentity = providerIdentity(providerSearch);
-    const providerArtifactHints = [
-      {
-        artifactKind: 'poster',
-        sourceRef: provider.sourceRef || metadataSourceRef(providerIntent),
-        evidenceDigest: provider.payloadDigest ||
-          canonicalDigest(provider.descriptiveEntries),
-      },
-      ...(isJav ? [{
-        artifactKind: 'fanart',
-        sourceRef: provider.sourceRef || metadataSourceRef(providerIntent),
-        evidenceDigest: provider.payloadDigest ||
-          canonicalDigest(provider.descriptiveEntries),
-      }] : []),
-    ];
-    const providerObservation = metadataObservation(providerIntent, {
-      entries: provider.descriptiveEntries,
-      providerIdentities: [resolvedProviderIdentity],
-      peopleHints: provider.peopleHints,
-      artifactHints: providerArtifactHints,
-    }, productionTimeMs);
-    const providerChain = runResultCapability(snapshot.run, {
+    const metadataIntegrationHandle =
+      options.productionPort.resolveIntegrationHandle({
+        intent: providerIntent,
+        operationId: 'libra.product_metadata.fetch@1',
+      });
+    const metadataCapabilityInput = Object.freeze({
+      metadataFetchIntent: providerIntent,
+      physicalMaterialReadHandleOrIntegrationHandle:
+        metadataIntegrationHandle,
+    });
+    const providerChain = await runResultCapability(snapshot.run, {
       workKind: 'product_metadata_observation',
       objectiveRef: 'helix://libra/work/ProductMetadataObservation/v1',
       nodeId: 'provider-metadata-fetch',
@@ -1241,7 +1219,7 @@ function createMovieProductionCoordinator(options) {
       effectClass: 'pure_observation',
       inputSchemaRef:
         'helix://contracts/capabilities/libra.product_metadata.fetch/v1/inputs',
-      input: providerIntent,
+      input: metadataCapabilityInput,
       parametersSchemaRef:
         'helix://contracts/capabilities/libra.product_metadata.fetch/v1/parameters',
       fenceSchemaRef:
@@ -1249,9 +1227,33 @@ function createMovieProductionCoordinator(options) {
       resourceDemandSchemaRef:
         'helix://contracts/capabilities/libra.product_metadata.fetch/v1/resource-demand',
       resultSchemaRef: METADATA_SCHEMA,
-      result: providerObservation,
-      evidenceDigest: providerObservation.payloadDigest,
+      async execute() {
+        const provider = await options.productionPort.fetchProvider(
+          providerIntent,
+          metadataIntegrationHandle,
+        );
+        const artifactKinds = snapshot.spec.requirements.metadata
+          .requiredArtifactKinds.filter((kind) => kind !== 'nfo');
+        return metadataObservation(providerIntent, {
+          entries: provider.descriptiveEntries,
+          providerIdentities: provider.providerIdentities,
+          peopleHints: provider.peopleHints,
+          artifactHints: artifactKinds.map((artifactKind) => ({
+            artifactKind,
+            sourceRef: metadataSourceRef(providerIntent) + ':' +
+              artifactKind,
+            evidenceDigest: canonicalDigest({
+              schema: 'libra.provider-artifact-hint@1',
+              fetchIntentDigest: providerIntent.intentDigest,
+              artifactKind,
+              resolvedProviderIdentity,
+            }),
+          })),
+        }, productionTimeMs);
+      },
+      evidenceDigest: (result) => result.payloadDigest,
     });
+    const providerObservation = providerChain.result;
     const results = [...nfoSources.map((item) => item.chain), providerChain];
     const identityBasis = buildMetadataObservationBasis({
       intents: [...nfoSources.map((item) => item.intent), providerIntent],
@@ -1306,36 +1308,128 @@ function createMovieProductionCoordinator(options) {
         missingFields: metadataDraftResult.missingFields,
       });
     }
-    const mergedEntries = metadataDraftResult.draft.descriptiveFacts.entries;
     const materials = [];
     const artifactChains = [];
     for (const [ordinal, kind] of snapshot.spec.requirements.metadata
       .requiredArtifactKinds.entries()) {
-      const bytes = kind === 'nfo'
-        ? renderNfo(mergedEntries, contentProfile)
-        : kind === 'poster'
-          ? provider.posterBytes
-          : provider.fanartBytes;
       const role = kind === 'nfo' ? 'metadata_sidecar' : kind;
       const requirement = requirements.find((item) => item.artifactKind === kind);
-      const materialized = options.workspaceProductPort.materializeArtifact({
-        libraRunId,
-        workspaceId: workspace.workspaceId,
-        relativePath: 'product/' + (kind === 'nfo'
-          ? (isSeries ? 'season.nfo' : 'movie.nfo')
-          : kind + '.jpg'),
-        artifactKind: kind,
-        mediaType: kind === 'nfo' ? 'application/xml' : 'image/jpeg',
-        bytes,
-        provenanceRef: {
-          objectType: 'libra_run',
-          objectId: libraRunId,
+      const relativePath = 'product/' + (kind === 'nfo'
+        ? (isSeries ? 'season.nfo' : 'movie.nfo')
+        : kind + '.jpg');
+      let artifactChain;
+      if (kind === 'nfo') {
+        const sidecarBasis = {
+          schemaRef:
+            'helix://contracts/domain-types/SidecarProfile/v1',
+          schemaVersion: 1,
+          profileId: 'helix-sidecar-' +
+            (isSeries ? 'series-nfo' : contentProfile + '-nfo'),
           revision: 1,
-          digest: kind === 'nfo'
-            ? metadataDraftResult.draft.draftDigest
-            : providerObservation.payloadDigest,
-        },
-      });
+          format: 'nfo_xml',
+          fileNamePolicyDigest: canonicalDigest({
+            schema: 'libra.product-sidecar-filename-policy@1',
+            contentProfile,
+            relativePath,
+          }),
+          contentSchemaRef:
+            'helix://contracts/records/descriptive-facts/v1',
+          typedParameters: Object.freeze([]),
+        };
+        const sidecarProfile = Object.freeze({
+          ...sidecarBasis,
+          digest: canonicalDigest(sidecarBasis),
+        });
+        const inputBindings = Object.freeze({
+          productMetadataDraft: metadataDraftResult.draft,
+          sidecarProfile,
+        });
+        artifactChain = await runResultCapability(snapshot.run, {
+          workKind: 'product_sidecar_render',
+          objectiveRef: 'helix://libra/work/ProductSidecarRender/v1',
+          nodeId: 'render-' + kind,
+          capabilityRef: 'libra.product_sidecar.render@1',
+          effectClass: 'workspace_write',
+          inputSchemaRef:
+            'helix://contracts/capabilities/libra.product_sidecar.render/v1/inputs',
+          input: inputBindings,
+          parametersSchemaRef:
+            'helix://contracts/capabilities/libra.product_sidecar.render/v1/parameters',
+          fenceSchemaRef:
+            'helix://contracts/capabilities/libra.product_sidecar.render/v1/fence',
+          resourceDemandSchemaRef:
+            'helix://contracts/capabilities/libra.product_sidecar.render/v1/resource-demand',
+          resultSchemaRef:
+            'helix://contracts/types/ArtifactHandle/v1',
+          execute: () => options.productionPort.renderProductSidecar({
+            ...inputBindings,
+            libraRunId,
+            workspaceId: workspace.workspaceId,
+            relativePath,
+            contentProfile,
+          }),
+        });
+      } else {
+        const artifactIntegrationHandle =
+          options.productionPort.resolveIntegrationHandle({
+            intent: providerIntent,
+            operationId: 'libra.product_artifact.acquire@1',
+            artifactKind: kind,
+          });
+        const inputBindings = Object.freeze({
+          productMetadataDraft: metadataDraftResult.draft,
+          integrationHandle: artifactIntegrationHandle,
+        });
+        artifactChain = await runResultCapability(snapshot.run, {
+          workKind: 'product_artifact_acquisition',
+          objectiveRef:
+            'helix://libra/work/ProductArtifactAcquisition/v1',
+          nodeId: 'acquire-' + kind,
+          capabilityRef: 'libra.product_artifact.acquire@1',
+          effectClass: 'workspace_write',
+          inputSchemaRef:
+            'helix://contracts/capabilities/libra.product_artifact.acquire/v1/inputs',
+          input: inputBindings,
+          parameters: Object.freeze({ artifactKind:kind }),
+          parametersSchemaRef:
+            'helix://contracts/capabilities/libra.product_artifact.acquire/v1/parameters',
+          fenceSchemaRef:
+            'helix://contracts/capabilities/libra.product_artifact.acquire/v1/fence',
+          resourceDemandSchemaRef:
+            'helix://contracts/capabilities/libra.product_artifact.acquire/v1/resource-demand',
+          resourceKinds: ['disk_io', 'network'],
+          resultSchemaRef:
+            'helix://contracts/types/ArtifactAcquisitionResult/v1',
+          execute: () => options.productionPort.acquireProviderArtifact({
+            ...inputBindings,
+            artifactKind: kind,
+            libraRunId,
+            workspaceId: workspace.workspaceId,
+            relativePath,
+            integrationId: providerIntent.integrationId,
+            configRevision: providerIntent.configRevision,
+            metadataObservationId: providerObservation.evidenceId,
+            metadataObservationDigest:
+              providerObservation.payloadDigest,
+          }),
+          evidenceDigest: (result) => result.evidence.payloadDigest,
+        });
+        if (artifactChain.result.resultKind !== 'acquired') {
+          return Object.freeze({
+            stage: 'product_artifact_unresolved',
+            libraRunId,
+            artifactKind: kind,
+            reasonCode: artifactChain.result.reasonCode,
+          });
+        }
+      }
+      const artifactHandle = kind === 'nfo'
+        ? artifactChain.result
+        : artifactChain.result.artifactHandle;
+      const materialized =
+        options.workspaceProductPort.readMaterializedArtifact(
+          artifactHandle,
+        );
       const verification = buildArtifactManifestVerification({
         requirement,
         artifactHandles: [materialized.artifactHandle],
@@ -1345,7 +1439,7 @@ function createMovieProductionCoordinator(options) {
         artifactHandleList: Object.freeze([materialized.artifactHandle]),
         artifactRequirement: requirement,
       });
-      const chain = runResultCapability(snapshot.run, {
+      const chain = await runResultCapability(snapshot.run, {
         workKind: 'artifact_verification',
         objectiveRef: 'helix://libra/work/ArtifactVerification/v1',
         nodeId: 'verify-' + kind,
@@ -1413,7 +1507,7 @@ function createMovieProductionCoordinator(options) {
       factKind: 'media_cast',
       expectedRevision: 0,
     });
-    const relations = provider.peopleHints.map((item) => ({
+    const relations = providerObservation.peopleHints.map((item) => ({
       relationId: stable('movie-cast-relation-', {
         subjectId: snapshot.run.subjectId,
         role: item.role,

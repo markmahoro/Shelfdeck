@@ -36,6 +36,12 @@ test('freezes product fact source basis variants and exact artifact manifest inp
     'shared.artifact.manifest.verify@1');
   assert.equal(schemas.MetadataFetchIntent.oneOf[0].properties.sourcePriority.minimum, 0);
   assert.deepEqual(schemas.MetadataFetchIntent.oneOf[0].properties.contentProfile.enum, ['movie', 'series', 'jav']);
+  const providerIntent = schemas.MetadataFetchIntent.oneOf[1];
+  assert.ok(providerIntent.required.includes('resolvedProviderIdentity'));
+  assert.equal(
+    providerIntent.properties.resolvedProviderIdentity.$ref,
+    'helix://contracts/domain-types/ResolvedProviderIdentity/v1',
+  );
 });
 
 test('freezes executable Perception resolution inputs and removes digest-only placeholders', () => {

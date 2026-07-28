@@ -10,6 +10,14 @@ const { buildArtifactManifestVerification, buildMediaCastDraft, buildMediaCastFa
   require('../../src/helix/domains/libra/model/product-fact-contracts');
 
 const d = (value) => canonicalDigest({ value });
+function providerIdentity(provider = 'tmdb', namespace = 'tmdb_movie',
+  providerKey = '101', seasonNumber = null) {
+  const value = { provider, namespace, providerKey, seasonNumber };
+  return Object.freeze({
+    ...value,
+    identityAnchorDigest: canonicalDigest(value),
+  });
+}
 
 function artifactRequirement(kind = 'poster') {
   const value = { requirementId:'', revision:1, schemaRef:'helix://contracts/requirements/poster/v1', artifactKind:kind,
@@ -34,7 +42,8 @@ function intents() {
       relatedReferenceId:'ref-nfo', relatedReferenceDigest:d('ref'), expectedChecksum:d('checksum') }),
     buildMetadataFetchIntent({ libraRunId:'run-1', runExecutionBasisDigest:d('run-basis'), sourceKind:'provider',
       sourcePriority:1, contentProfile:'movie', resolvedIdentityDigest:d('identity'), requestedFields:['plot','title'],
-      providerKind:'tmdb', integrationId:'tmdb-main', configRevision:3 })
+      providerKind:'tmdb', resolvedProviderIdentity:providerIdentity(),
+      integrationId:'tmdb-main', configRevision:3 })
   ];
 }
 
@@ -48,7 +57,8 @@ function observation(intent, options = {}) {
     descriptiveFacts:{ schemaRef:'helix://contracts/records/descriptive-facts/v1', schemaVersion:1,
       recordKind:'descriptive-facts', recordDigest:d(`facts-${intent.sourcePriority}`), entries:options.entries || [] },
     providerIdentitySet:{ schemaRef:'helix://contracts/records/provider-identity-set/v1', schemaVersion:1,
-      recordKind:'provider-identity-set', recordDigest:d(`providers-${intent.sourcePriority}`), entries:[] },
+      recordKind:'provider-identity-set', recordDigest:d(`providers-${intent.sourcePriority}`),
+      entries:intent.sourceKind === 'provider' ? [intent.resolvedProviderIdentity] : [] },
     peopleHints:[], artifactHints:[] };
   result.payloadDigest = d(`payload-${intent.sourcePriority}`);
   const resultId = options.resultId || `result-${intent.sourcePriority}`;
@@ -75,12 +85,20 @@ test('freezes fixed metadata source identity and rejects cross-profile fallback'
   const [nfo, tmdb] = intents();
   assert.equal(nfo.sourcePriority, 0);
   assert.equal(tmdb.sourcePriority, 1);
+  assert.deepEqual(tmdb.resolvedProviderIdentity, providerIdentity());
   assert.equal(metadataObservationWorkIdempotencyKey(nfo), canonicalDigest({ schema:'libra.metadata-observation-work@1',
     libraRunId:'run-1', runExecutionBasisDigest:d('run-basis'), fetchIntentDigest:nfo.intentDigest }));
   assert.throws(() => buildMetadataFetchIntent({ ...tmdb, contentProfile:'jav', providerKind:'tmdb' }),
-    (error) => error.code === 'P9_METADATA_SOURCE_ORDER');
+    (error) => error.code === 'P9_METADATA_PROVIDER_IDENTITY');
   assert.throws(() => buildMetadataFetchIntent({ ...nfo, contentProfile:'western_adult' }),
     (error) => error.code === 'P9_METADATA_INTENT_FIELDS');
+  const { resolvedProviderIdentity, ...missingIdentity } = tmdb;
+  assert.throws(() => buildMetadataFetchIntent(missingIdentity),
+    (error) => error.code === 'P9_METADATA_PROVIDER_IDENTITY');
+  assert.throws(() => buildMetadataFetchIntent({
+    ...tmdb,
+    resolvedProviderIdentity:providerIdentity('jav', 'jav_code', 'SDKI-001'),
+  }), (error) => error.code === 'P9_METADATA_PROVIDER_IDENTITY');
 });
 
 test('selects only exact durable observation chains and collapses semantic replay deterministically', () => {
@@ -97,6 +115,20 @@ test('selects only exact durable observation chains and collapses semantic repla
       evidenceDigest:divergentResult.payloadDigest }] }), (error) => error.code === 'P9_METADATA_OBSERVATION_CONFLICT');
   assert.throws(() => selectMetadataObservations({ intents:sourceIntents, results:[{ ...later, ownerDomain:'people' }] }),
     (error) => error.code === 'P9_METADATA_OBSERVATION_CHAIN');
+  const foreignProvider = observation(sourceIntents[1]);
+  foreignProvider.result = {
+    ...foreignProvider.result,
+    providerIdentitySet: {
+      ...foreignProvider.result.providerIdentitySet,
+      entries: [providerIdentity('jav', 'jav_code', 'SDKI-001')],
+    },
+  };
+  foreignProvider.resultDigest = canonicalDigest(foreignProvider.result);
+  assert.throws(() => selectMetadataObservations({
+    intents:sourceIntents,
+    results:[foreignProvider],
+  }), (error) =>
+    error.code === 'P9_METADATA_OBSERVATION_PROVIDER_IDENTITY');
 });
 
 test('builds a closed observation basis and NFO-first complete metadata draft', () => {

@@ -227,6 +227,16 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
     mediaProbeCalls += 1;
     return probe(readHandle);
   } });
+  const tmdbSeriesIdentityBasis = {
+    provider: 'tmdb',
+    namespace: 'tmdb_series',
+    providerKey: '1399',
+    seasonNumber: 1,
+  };
+  const tmdbSeriesIdentity = Object.freeze({
+    ...tmdbSeriesIdentityBasis,
+    identityAnchorDigest: canonicalDigest(tmdbSeriesIdentityBasis),
+  });
   const productionOptions = Object.freeze({
     async searchProviderIdentity() {
       return Object.freeze({
@@ -238,7 +248,7 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
         configRevision: 1,
       });
     },
-    async fetchProviderMetadata(intent) {
+    async fetchProviderMetadata({ metadataFetchIntent:intent }) {
       return Object.freeze({
         providerKind: 'tmdb',
         integrationId: intent.integrationId,
@@ -252,12 +262,7 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
           { key: 'series_title', value: 'Demo Show' },
           { key: 'tmdb_series_id', value: '1399' },
         ]),
-        providerIdentities: Object.freeze([{
-          provider: 'tmdb',
-          namespace: 'tmdb_series',
-          providerKey: '1399',
-          seasonNumber: 1,
-        }]),
+        providerIdentities: Object.freeze([tmdbSeriesIdentity]),
         peopleHints: Object.freeze([{
           displayName: 'Series Fixture Actor',
           role: 'actor',
@@ -267,7 +272,17 @@ test('Series public HTTP publishes one Season Candidate and accepts one new Subj
             providerKey: '1001',
           }]),
         }]),
-        posterBytes: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+      });
+    },
+    async fetchProviderArtifact(request) {
+      return Object.freeze({
+        resultKind: 'acquired',
+        artifactKind: request.artifactKind,
+        integrationId: request.integrationHandle.integrationId,
+        configRevision: request.integrationHandle.configRevision,
+        resolvedProviderIdentity: tmdbSeriesIdentity,
+        mediaType: 'image/jpeg',
+        bytes: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
       });
     },
   });

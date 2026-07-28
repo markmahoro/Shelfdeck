@@ -98,6 +98,35 @@ function buildMetadataFetchIntent(value) {
     if (common.contentProfile === 'jav') fail('P9_METADATA_SOURCE_ORDER', 'JAV cannot use Related NFO in Beta.');
   } else if (common.sourceKind === 'provider') {
     common.providerKind = value.providerKind;
+    const identity = value.resolvedProviderIdentity;
+    const expectedProvider = common.contentProfile === 'jav' ? 'jav' : 'tmdb';
+    const expectedNamespace = common.contentProfile === 'series'
+      ? 'tmdb_series'
+      : common.contentProfile === 'jav'
+        ? 'jav_code'
+        : 'tmdb_movie';
+    if (!identity || typeof identity !== 'object' || Array.isArray(identity) ||
+        canonicalJson(Object.keys(identity).sort()) !== canonicalJson([
+          'identityAnchorDigest', 'namespace', 'provider', 'providerKey',
+          'seasonNumber',
+        ].sort()) ||
+        identity.provider !== expectedProvider ||
+        identity.namespace !== expectedNamespace ||
+        typeof identity.providerKey !== 'string' || !identity.providerKey ||
+        (expectedNamespace === 'tmdb_series'
+          ? !Number.isSafeInteger(identity.seasonNumber) ||
+            identity.seasonNumber < 1
+          : identity.seasonNumber !== null) ||
+        identity.identityAnchorDigest !== canonicalDigest({
+          provider: identity.provider,
+          namespace: identity.namespace,
+          providerKey: identity.providerKey,
+          seasonNumber: identity.seasonNumber,
+        })) {
+      fail('P9_METADATA_PROVIDER_IDENTITY',
+        'Provider Metadata Intent requires the exact resolved Provider identity tuple.');
+    }
+    common.resolvedProviderIdentity = Object.freeze({ ...identity });
     common.integrationId = text(value.integrationId, 'integrationId');
     common.configRevision = integer(value.configRevision, 'configRevision', 1);
     if (!['tmdb', 'jav'].includes(common.providerKind) ||
@@ -143,8 +172,18 @@ function selectMetadataObservations(value) {
         candidate.result.identityDigest !== intent.resolvedIdentityDigest || candidate.result.contentProfile !== intent.contentProfile ||
         candidate.result.sourceKind !== intent.sourceKind || candidate.result.sourceRef !== metadataSourceRef(intent) ||
         candidate.result.sourcePriority !== intent.sourcePriority || candidate.result.payloadDigest !== candidate.evidenceDigest ||
-        canonicalDigest(candidate.result) !== candidate.resultDigest || candidate.inputBindingDigest !== canonicalDigest(intent)) {
+        canonicalDigest(candidate.result) !== candidate.resultDigest ||
+        candidate.inputBindingDigest !== canonicalDigest(candidate.inputBindings || intent) ||
+        (candidate.inputBindings &&
+          canonicalJson(candidate.inputBindings.metadataFetchIntent || candidate.inputBindings) !==
+            canonicalJson(intent))) {
       fail('P9_METADATA_OBSERVATION_CHAIN', 'Observation is outside the exact Supporting Work chain.');
+    }
+    if (intent.sourceKind === 'provider' &&
+        !(candidate.result.providerIdentitySet?.entries || []).some((item) =>
+          canonicalJson(item) === canonicalJson(intent.resolvedProviderIdentity))) {
+      fail('P9_METADATA_OBSERVATION_PROVIDER_IDENTITY',
+        'Provider Metadata Observation does not conserve its exact Intent identity tuple.');
     }
     const prior = selected.get(intent.intentDigest);
     if (prior && prior.evidenceDigest !== candidate.evidenceDigest) fail('P9_METADATA_OBSERVATION_CONFLICT', 'Semantic replay changed payload digest.');

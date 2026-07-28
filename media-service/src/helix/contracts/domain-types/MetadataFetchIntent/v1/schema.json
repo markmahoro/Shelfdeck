@@ -154,6 +154,9 @@
             "jav"
           ]
         },
+        "resolvedProviderIdentity": {
+          "$ref": "helix://contracts/domain-types/ResolvedProviderIdentity/v1"
+        },
         "integrationId": {
           "type": "string",
           "minLength": 1,
@@ -175,6 +178,7 @@
         "requestedFields",
         "intentDigest",
         "providerKind",
+        "resolvedProviderIdentity",
         "integrationId",
         "configRevision"
       ]

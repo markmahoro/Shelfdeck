@@ -6,8 +6,17 @@ const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const { planMetadataGap } = require('../../src/helix/domains/libra/planning/product-metadata-planner');
 
 const d = (value) => canonicalDigest({ value });
+function providerIdentity(provider = 'tmdb', namespace = 'tmdb_movie',
+  providerKey = '101', seasonNumber = null) {
+  const value = { provider, namespace, providerKey, seasonNumber };
+  return Object.freeze({
+    ...value,
+    identityAnchorDigest: canonicalDigest(value),
+  });
+}
 const base = { libraRunId:'run-1',runExecutionBasisDigest:d('basis'),resolvedIdentityDigest:d('identity'),
   requiredFields:['plot','title'],contentProfile:'movie',observations:[],relatedNfo:{referenceId:'nfo-1',referenceDigest:d('nfo'),expectedChecksum:d('checksum')},
+  resolvedProviderIdentity:providerIdentity(),
   provider:{providerKind:'tmdb',integrationId:'tmdb-main',configRevision:2} };
 
 function observed(sourceKind,sourceRef,priority,entries){return {sourceKind,sourceRef,sourcePriority:priority,contentProfile:'movie',identityDigest:d('identity'),
@@ -28,7 +37,9 @@ test('plans Related NFO then TMDB and never performs executor fallback',()=>{
 });
 
 test('keeps JAV and Western on their own closed source paths',()=>{
-  const jav=planMetadataGap({...base,contentProfile:'jav',relatedNfo:null,provider:{providerKind:'jav',integrationId:'jav-main',configRevision:1}});
+  const jav=planMetadataGap({...base,contentProfile:'jav',relatedNfo:null,
+    resolvedProviderIdentity:providerIdentity('jav','jav_code','SDKI-001'),
+    provider:{providerKind:'jav',integrationId:'jav-main',configRevision:1}});
   assert.equal(jav.nextIntent.providerKind,'jav');
   assert.equal(jav.nextIntent.sourcePriority,0);
   const western=planMetadataGap({...base,contentProfile:'western_adult',relatedNfo:null,provider:null});

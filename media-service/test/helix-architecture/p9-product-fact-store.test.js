@@ -19,14 +19,18 @@ const {createProductFactRegistrations}=require('../../src/helix/domains/libra/pe
 const schemaManifest=JSON.parse(fs.readFileSync(path.resolve(__dirname,'../../src/helix/foundation/persistence/generated/clean-schema.manifest.json'),'utf8'));
 const schemaDdl=fs.readFileSync(path.resolve(__dirname,'../../src/helix/foundation/persistence/generated/clean-schema.sql'),'utf8');
 const d=(value)=>canonicalDigest({value});
+const providerIdentity=(()=>{const value={provider:'tmdb',namespace:'tmdb_movie',providerKey:'101',seasonNumber:null};
+  return Object.freeze({...value,identityAnchorDigest:canonicalDigest(value)});})();
 
 function fixture(factKind='media_cast'){const intent=buildMetadataFetchIntent({libraRunId:'run-1',runExecutionBasisDigest:d('run-basis'),sourceKind:'provider',
-  sourcePriority:0,contentProfile:'movie',resolvedIdentityDigest:d('identity'),requestedFields:['title'],providerKind:'tmdb',integrationId:'tmdb',configRevision:1});
+  sourcePriority:0,contentProfile:'movie',resolvedIdentityDigest:d('identity'),requestedFields:['title'],providerKind:'tmdb',
+  resolvedProviderIdentity:providerIdentity,integrationId:'tmdb',configRevision:1});
   const result={schemaRef:'helix://contracts/types/MetadataObservation/v1',schemaVersion:1,evidenceId:'evidence-1',evidenceKind:'metadata_observation',
     producerRef:'libra.product_metadata.fetch@1',basisDigest:d('basis'),payloadDigest:d('payload'),observedAtMs:1,fetchIntentDigest:intent.intentDigest,
     sourceKind:'provider',sourceRef:'tmdb:tmdb@1',sourcePriority:0,identityDigest:intent.resolvedIdentityDigest,contentProfile:'movie',
     descriptiveFacts:{schemaRef:'helix://contracts/records/descriptive-facts/v1',schemaVersion:1,recordKind:'descriptive-facts',recordDigest:d('facts'),entries:[{key:'title',value:'A'}]},
-    providerIdentitySet:{schemaRef:'helix://contracts/records/provider-identity-set/v1',schemaVersion:1,recordKind:'provider-identity-set',recordDigest:d('providers'),entries:[]},peopleHints:[],artifactHints:[]};
+    providerIdentitySet:{schemaRef:'helix://contracts/records/provider-identity-set/v1',schemaVersion:1,recordKind:'provider-identity-set',
+      recordDigest:d('providers'),entries:[providerIdentity]},peopleHints:[],artifactHints:[]};
   const selected={ownerDomain:'libra',processType:'libra_run',processId:'run-1',workKind:'product_metadata_observation',workState:'succeeded',
     capabilityRef:'libra.product_metadata.fetch@1',resultSchemaRef:result.schemaRef,result,resultId:'result-source',resultDigest:canonicalDigest(result),
     evidenceDigest:result.payloadDigest,inputBindingDigest:canonicalDigest(intent),workId:'work-source',attemptId:'attempt-source',planId:'plan-source',eventId:'event-source'};

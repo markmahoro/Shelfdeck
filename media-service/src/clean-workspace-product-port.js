@@ -124,6 +124,20 @@ function definitions(schemaManifest) {
           keyColumns: ['workspace_id', 'material_handle_id'],
           safeIntegers: true,
         },
+        find_material_by_path: {
+          kind: 'select-one',
+          tableId: 'fx_workspace_materials',
+          columns: [
+            'workspace_id', 'material_handle_id', 'material_key', 'endpoint_id',
+            'mount_scope_id', 'inode', 'content_hash_algorithm', 'content_hash',
+            'relative_path', 'digest_algorithm', 'digest_hex', 'size_bytes',
+            'reference_revision', 'owner_domain', 'process_id', 'root_handle_ref',
+            'access_scope', 'handle_schema_ref', 'handle_json', 'handle_digest',
+            'fence_digest', 'state',
+          ],
+          keyColumns: ['workspace_id', 'relative_path'],
+          safeIntegers: true,
+        },
         insert_material: {
           kind: 'insert',
           tableId: 'fx_workspace_materials',
@@ -338,11 +352,11 @@ function createCleanWorkspaceProductPort(options) {
     return bytes.length === expectedSize && digestBytes(bytes) === expectedDigest;
   }
 
-  function recordIntent(effectId, idempotencyKey, intentDigest) {
+  function recordIntent(effectClass, effectId, idempotencyKey, intentDigest) {
     return execute('clean_workspace_effect_intent', 'execution-foundation', repositories.foundation, (context) => {
       const repo = context.repository(repositories.foundation.repositoryId);
-      const existing = repo.invoke('find_effect', {
-        effect_class: 'libra_workspace_product_materialize',
+        const existing = repo.invoke('find_effect', {
+        effect_class: effectClass,
         idempotency_key: idempotencyKey,
       });
       if (existing) {
@@ -350,14 +364,16 @@ function createCleanWorkspaceProductPort(options) {
           fail('CLEAN_WORKSPACE_EFFECT_CONFLICT', 'Effect idempotency key binds another intent.');
         }
         return Object.freeze({
+          replayed: true,
           state: existing.state,
           outputDigest: existing.output_digest,
+          externalReceiptRef: existing.external_receipt_ref,
         });
       }
       repo.invoke('insert_effect', {
         effect_id: effectId,
         event_attempt_id: null,
-        effect_class: 'libra_workspace_product_materialize',
+        effect_class: effectClass,
         idempotency_key: idempotencyKey,
         intent_digest: intentDigest,
         state: 'intended',
@@ -366,7 +382,12 @@ function createCleanWorkspaceProductPort(options) {
         verified_at_ms: null,
         updated_at_ms: context.commitTimeMs,
       });
-      return Object.freeze({ state: 'intended', outputDigest: null });
+      return Object.freeze({
+        replayed: false,
+        state: 'intended',
+        outputDigest: null,
+        externalReceiptRef: null,
+      });
     });
   }
 
@@ -412,7 +433,12 @@ function createCleanWorkspaceProductPort(options) {
     if (target !== workspaceRoot && !target.startsWith(workspaceRoot + path.sep)) {
       fail('CLEAN_WORKSPACE_PATH_ESCAPE', 'Workspace Artifact escaped its controlled root.');
     }
-    const prior = recordIntent(effectId, idempotencyKey, intentDigest);
+    const prior = recordIntent(
+      'libra_workspace_product_materialize',
+      effectId,
+      idempotencyKey,
+      intentDigest,
+    );
     if (prior.state === 'committed') {
       if (prior.outputDigest !== digestHex || !exactReality(target, digestHex, bytes.length)) {
         fail('CLEAN_WORKSPACE_EFFECT_REALITY_DRIFT', 'Committed Workspace Artifact reality drifted.');
@@ -424,7 +450,8 @@ function createCleanWorkspaceProductPort(options) {
         fs.writeFileSync(temporary, bytes, { flag: 'w' });
         fs.renameSync(temporary, target);
       }
-      if (typeof options.afterPhysicalEffect === 'function') {
+      if (!request.skipPhysicalHook &&
+          typeof options.afterPhysicalEffect === 'function') {
         options.afterPhysicalEffect(Object.freeze({ effectId, target, intentDigest }));
       }
     }
@@ -606,6 +633,240 @@ function createCleanWorkspaceProductPort(options) {
       });
     });
     return receipt;
+  }
+
+  async function acquireArtifact(request) {
+    const root = ensureRoot();
+    const relativePath = relative(request?.relativePath);
+    if (!request || typeof request.acquireBytes !== 'function' ||
+        !['poster', 'fanart'].includes(request.artifactKind) ||
+        typeof request.libraRunId !== 'string' || !request.libraRunId ||
+        typeof request.workspaceId !== 'string' || !request.workspaceId ||
+        !request.acquisitionBasis ||
+        typeof request.acquisitionBasis !== 'object') {
+      fail('CLEAN_WORKSPACE_ACQUIRE_INPUT',
+        'Provider Artifact acquisition input is incomplete.');
+    }
+    const intent = {
+      schema: 'libra.provider-artifact-acquire-effect@1',
+      libraRunId: request.libraRunId,
+      workspaceId: request.workspaceId,
+      rootSnapshotDigest: root.snapshotDigest,
+      relativePath,
+      artifactKind: request.artifactKind,
+      mediaType: request.mediaType,
+      acquisitionBasis: request.acquisitionBasis,
+    };
+    const intentDigest = canonicalDigest(intent);
+    const idempotencyKey = canonicalDigest({
+      schema: 'libra.provider-artifact-acquire-idempotency@1',
+      workspaceId: request.workspaceId,
+      relativePath,
+      intentDigest,
+    });
+    const effectClass = 'libra_provider_artifact_acquire';
+    const effectId = canonicalDigest({
+      schema: 'foundation.effect-id@1',
+      effectClass,
+      idempotencyKey,
+    });
+    const target = path.resolve(
+      absoluteRoot,
+      request.workspaceId,
+      ...relativePath.split('/'),
+    );
+    const workspaceRoot = path.resolve(absoluteRoot, request.workspaceId);
+    if (target !== workspaceRoot &&
+        !target.startsWith(workspaceRoot + path.sep)) {
+      fail('CLEAN_WORKSPACE_PATH_ESCAPE',
+        'Provider Artifact escaped its controlled Workspace root.');
+    }
+    const prior = recordIntent(
+      effectClass,
+      effectId,
+      idempotencyKey,
+      intentDigest,
+    );
+    if (prior.state === 'committed' &&
+        prior.externalReceiptRef?.startsWith('not_available:')) {
+      return Object.freeze({
+        resultKind: 'not_available',
+        reasonCode: decodeURIComponent(
+          prior.externalReceiptRef.slice('not_available:'.length),
+        ),
+      });
+    }
+    if (prior.state === 'committed' && !fs.existsSync(target)) {
+      fail('CLEAN_WORKSPACE_ACQUIRE_EFFECT_REALITY_DRIFT',
+        'Committed Provider Artifact reality is missing.');
+    }
+    let bytes;
+    if (prior.replayed && fs.existsSync(target)) {
+      bytes = fs.readFileSync(target);
+    } else {
+      const outcome = await request.acquireBytes();
+      if (outcome?.resultKind === 'not_available') {
+        if (typeof outcome.reasonCode !== 'string' ||
+            !outcome.reasonCode) {
+          fail('CLEAN_WORKSPACE_ACQUIRE_BYTES',
+            'Unavailable Provider Artifact lacks a reason code.');
+        }
+        const outputDigest = canonicalDigest({
+          resultKind: 'not_available',
+          reasonCode: outcome.reasonCode,
+        });
+        execute(
+          'clean_workspace_artifact_acquire_unavailable',
+          'execution-foundation',
+          repositories.foundation,
+          (context) => {
+            const repo = context.repository(
+              repositories.foundation.repositoryId,
+            );
+            if (repo.invoke('commit_effect', {
+              state: 'committed',
+              external_receipt_ref:
+                'not_available:' + encodeURIComponent(outcome.reasonCode),
+              output_digest: outputDigest,
+              verified_at_ms: context.commitTimeMs,
+              updated_at_ms: context.commitTimeMs,
+              effect_id: effectId,
+              expected_state: 'intended',
+              expected_intent_digest: intentDigest,
+            }).changes !== 1) {
+              fail('CLEAN_WORKSPACE_ACQUIRE_EFFECT_CAS',
+                'Unavailable Provider Artifact effect commit failed.');
+            }
+          },
+        );
+        return Object.freeze({
+          resultKind: 'not_available',
+          reasonCode: outcome.reasonCode,
+        });
+      }
+      bytes = outcome?.bytes;
+      if (outcome?.resultKind !== 'acquired' ||
+          !Buffer.isBuffer(bytes) || !bytes.length) {
+        fail('CLEAN_WORKSPACE_ACQUIRE_BYTES',
+          'Provider Artifact acquisition returned no bytes.');
+      }
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      const temporary = target + '.tmp-' + effectId.slice(0, 16);
+      fs.writeFileSync(temporary, bytes, { flag: 'w' });
+      fs.renameSync(temporary, target);
+      if (typeof options.afterPhysicalEffect === 'function') {
+        options.afterPhysicalEffect(Object.freeze({
+          effectId,
+          target,
+          intentDigest,
+        }));
+      }
+    }
+    const digestHex = digestBytes(bytes);
+    execute(
+      'clean_workspace_artifact_acquire_commit',
+      'execution-foundation',
+      repositories.foundation,
+      (context) => {
+        const repo = context.repository(repositories.foundation.repositoryId);
+        const effect = repo.invoke('find_effect', {
+          effect_class: effectClass,
+          idempotency_key: idempotencyKey,
+        });
+        if (!effect || effect.effect_id !== effectId ||
+            effect.intent_digest !== intentDigest) {
+          fail('CLEAN_WORKSPACE_ACQUIRE_EFFECT_MISSING',
+            'Provider Artifact acquisition effect intent is absent.');
+        }
+        if (effect.state === 'committed') {
+          if (effect.output_digest !== digestHex) {
+            fail('CLEAN_WORKSPACE_ACQUIRE_EFFECT_DRIFT',
+              'Provider Artifact acquisition output digest drifted.');
+          }
+          return;
+        }
+        if (effect.state !== 'intended' ||
+            repo.invoke('commit_effect', {
+              state: 'committed',
+              external_receipt_ref:
+                'workspace://' + request.workspaceId + '/' + relativePath,
+              output_digest: digestHex,
+              verified_at_ms: context.commitTimeMs,
+              updated_at_ms: context.commitTimeMs,
+              effect_id: effectId,
+              expected_state: 'intended',
+              expected_intent_digest: intentDigest,
+            }).changes !== 1) {
+          fail('CLEAN_WORKSPACE_ACQUIRE_EFFECT_CAS',
+            'Provider Artifact acquisition effect commit failed.');
+        }
+      },
+    );
+    return Object.freeze({
+      resultKind: 'acquired',
+      materialized: materializeArtifact({
+        ...request,
+        relativePath,
+        bytes,
+        skipPhysicalHook: true,
+        provenanceRef: request.provenanceRef,
+      }),
+    });
+  }
+
+  function readMaterializedArtifact(artifactHandle) {
+    if (!artifactHandle ||
+        artifactHandle.schemaRef !==
+          'helix://contracts/types/ArtifactHandle/v1' ||
+        artifactHandle.ownerDomain !== 'libra' ||
+        artifactHandle.ownerScope?.scopeType !== 'libra_run' ||
+        typeof artifactHandle.storageRef !== 'string' ||
+        !artifactHandle.storageRef.startsWith('workspace://')) {
+      fail('CLEAN_WORKSPACE_ARTIFACT_HANDLE_INVALID',
+        'Artifact recovery requires one exact Libra Workspace Artifact Handle.');
+    }
+    const location = artifactHandle.storageRef.slice('workspace://'.length);
+    const separator = location.indexOf('/');
+    if (separator < 1) {
+      fail('CLEAN_WORKSPACE_ARTIFACT_HANDLE_INVALID',
+        'Artifact storage reference does not identify a Workspace material.');
+    }
+    const workspaceId = location.slice(0, separator);
+    const relativePath = relative(location.slice(separator + 1));
+    return execute(
+      'clean_workspace_artifact_recover',
+      'execution-foundation',
+      repositories.foundation,
+      (context) => {
+        const repo = context.repository(repositories.foundation.repositoryId);
+        const artifactRow = repo.invoke('find_artifact', {
+          artifact_handle_id: artifactHandle.artifactHandleId,
+        });
+        const materialRow = repo.invoke('find_material_by_path', {
+          workspace_id: workspaceId,
+          relative_path: relativePath,
+        });
+        const storedArtifact = mapArtifact(artifactRow);
+        const workspaceMaterialHandle = mapMaterial(materialRow);
+        if (!storedArtifact || !workspaceMaterialHandle ||
+            canonicalJson(storedArtifact) !== canonicalJson(artifactHandle) ||
+            workspaceMaterialHandle.workspaceId !== workspaceId ||
+            workspaceMaterialHandle.relativePath !== relativePath ||
+            workspaceMaterialHandle.digestHex !== artifactHandle.digestHex ||
+            workspaceMaterialHandle.sizeBytes !== artifactHandle.sizeBytes ||
+            workspaceMaterialHandle.ownerDomain !== artifactHandle.ownerDomain ||
+            workspaceMaterialHandle.processId !==
+              artifactHandle.ownerScope.scopeId) {
+          fail('CLEAN_WORKSPACE_ARTIFACT_RECOVERY_DRIFT',
+            'Artifact Handle cannot reconstruct its exact Workspace material.');
+        }
+        return Object.freeze({
+          replayed: true,
+          workspaceMaterialHandle,
+          artifactHandle: storedArtifact,
+        });
+      },
+    );
   }
 
   function reclaimMaterial(intent) {
@@ -824,9 +1085,11 @@ function createCleanWorkspaceProductPort(options) {
   }
 
   return Object.freeze({
+    acquireArtifact,
     rootPath: absoluteRoot,
     rootSnapshot: ensureRoot,
     materializeArtifact,
+    readMaterializedArtifact,
     observeSpace,
     reclaimMaterial,
   });

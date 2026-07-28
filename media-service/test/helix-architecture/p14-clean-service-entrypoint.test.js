@@ -2282,6 +2282,16 @@ test('Movie production reaches one Arca Shelf Entry through formal Handoff B and
       return Object.freeze(result);
     },
   });
+  const tmdbMovieIdentityBasis = {
+    provider: 'tmdb',
+    namespace: 'tmdb_movie',
+    providerKey: '550',
+    seasonNumber: null,
+  };
+  const tmdbMovieIdentity = Object.freeze({
+    ...tmdbMovieIdentityBasis,
+    identityAnchorDigest: canonicalDigest(tmdbMovieIdentityBasis),
+  });
   const productionOptions = Object.freeze({
     async searchProviderIdentity() {
       return Object.freeze({
@@ -2292,7 +2302,7 @@ test('Movie production reaches one Arca Shelf Entry through formal Handoff B and
         configRevision: 1,
       });
     },
-    async fetchProviderMetadata(intent) {
+    async fetchProviderMetadata({ metadataFetchIntent:intent }) {
       return Object.freeze({
         providerKind: 'tmdb',
         integrationId: intent.integrationId,
@@ -2306,12 +2316,7 @@ test('Movie production reaches one Arca Shelf Entry through formal Handoff B and
           { key: 'tmdb_movie_id', value: '550' },
           { key: 'year_or_release_date', value: '1999' },
         ]),
-        providerIdentities: Object.freeze([{
-          provider: 'tmdb',
-          namespace: 'tmdb_movie',
-          providerKey: '550',
-          seasonNumber: null,
-        }]),
+        providerIdentities: Object.freeze([tmdbMovieIdentity]),
         peopleHints: Object.freeze([{
           displayName: 'Example Actor',
           role: 'actor',
@@ -2321,7 +2326,17 @@ test('Movie production reaches one Arca Shelf Entry through formal Handoff B and
             providerKey: '819',
           }]),
         }]),
-        posterBytes: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+      });
+    },
+    async fetchProviderArtifact(request) {
+      return Object.freeze({
+        resultKind: 'acquired',
+        artifactKind: request.artifactKind,
+        integrationId: request.integrationHandle.integrationId,
+        configRevision: request.integrationHandle.configRevision,
+        resolvedProviderIdentity: tmdbMovieIdentity,
+        mediaType: 'image/jpeg',
+        bytes: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
       });
     },
   });

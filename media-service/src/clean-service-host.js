@@ -353,8 +353,11 @@ async function createCleanServiceHost(options) {
   });
   const productProductionPort = createCleanProductProductionPort({
     mediaProbe,
+    workspaceProductPort,
+    now: options.now,
     searchProviderIdentity: options.searchProviderIdentity,
     fetchProviderMetadata: options.fetchProviderMetadata,
+    fetchProviderArtifact: options.fetchProviderArtifact,
   });
   const movieFormationCoordinator = createMovieFormationCoordinator({
     ...constructed.applicationDependencies,
@@ -369,6 +372,7 @@ async function createCleanServiceHost(options) {
     productionPort: productProductionPort,
     workspaceProductPort,
     now: options.now,
+    afterCapabilityResultCommit: options.afterCapabilityResultCommit,
     afterProductFactsCommit: options.afterProductFactsCommit,
     afterPackageCommit: options.afterPackageCommit,
   });
