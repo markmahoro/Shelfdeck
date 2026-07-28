@@ -149,16 +149,26 @@ function createCleanProductProductionPort(options = {}) {
         'The required typed Product Metadata provider is unavailable.');
     }
     const response = await options.fetchProviderMetadata(Object.freeze({ ...intent }));
-    if (!response || response.providerKind !== 'tmdb' ||
+    const isJav = intent.contentProfile === 'jav' &&
+      intent.providerKind === 'jav';
+    const expectedProviderKind = isJav ? 'jav' : 'tmdb';
+    if (!response || response.providerKind !== expectedProviderKind ||
         response.integrationId !== intent.integrationId ||
         response.configRevision !== intent.configRevision ||
         !Array.isArray(response.descriptiveEntries) ||
         !Array.isArray(response.providerIdentities) ||
         !Array.isArray(response.peopleHints) ||
         !Buffer.isBuffer(response.posterBytes) ||
-        !response.posterBytes.length) {
+        !response.posterBytes.length ||
+        (isJav && (!Buffer.isBuffer(response.fanartBytes) ||
+          !response.fanartBytes.length)) ||
+        (isJav && !response.providerIdentities.some((item) =>
+          item?.provider === 'jav' &&
+          item?.namespace === 'jav_code' &&
+          typeof item?.providerKey === 'string' &&
+          item.providerKey.length > 0))) {
       fail('CLEAN_PRODUCT_PROVIDER_RESULT_INVALID',
-        'Typed TMDB Product Metadata result is incomplete.');
+        'Typed Product Metadata provider result is incomplete.');
     }
     return Object.freeze({
       ...response,
@@ -174,17 +184,25 @@ function createCleanProductProductionPort(options = {}) {
         'The required typed Provider identity search is unavailable.');
     }
     const response = await options.searchProviderIdentity(Object.freeze({ ...request }));
-    const namespace = request.contentProfile === 'series'
+    const profile = request.contentProfile;
+    const namespace = profile === 'series'
       ? 'tmdb_series'
-      : 'tmdb_movie';
-    if (!response || response.provider !== 'tmdb' ||
+      : profile === 'jav'
+        ? 'jav_code'
+        : 'tmdb_movie';
+    const provider = profile === 'jav' ? 'jav' : 'tmdb';
+    if (!response || response.provider !== provider ||
         response.namespace !== namespace ||
         (namespace === 'tmdb_series' &&
           (!Number.isSafeInteger(response.seasonNumber) ||
             response.seasonNumber < 1)) ||
+        (namespace === 'jav_code' &&
+          (typeof request.javCode !== 'string' ||
+            !request.javCode ||
+            response.providerKey !== request.javCode)) ||
         typeof response.providerKey !== 'string' || !response.providerKey) {
       fail('CLEAN_PRODUCT_IDENTITY_PROVIDER_RESULT_INVALID',
-        'Typed TMDB identity search did not return the required stable Product identity.');
+        'Typed identity search did not return the required stable Product identity.');
     }
     return Object.freeze({
       ...response,

@@ -19,6 +19,9 @@ const {
 const {
   createCleanMediaProbe,
 } = require('../../src/clean-media-probe');
+const {
+  createCleanProductProductionPort,
+} = require('../../src/clean-product-production-port');
 
 const secretRoot = 'p14-jav-routing-spec-run-secret-root-0123456789abcdef';
 
@@ -246,6 +249,61 @@ test('JAV public route publishes an input-free Spec and one active single Run', 
       return realMediaProbe
         ? realMediaProbe.probe(readHandle)
         : syntheticProbe(readHandle);
+    },
+  });
+  let identityProviderCalls = 0;
+  let metadataProviderCalls = 0;
+  const productionOptions = Object.freeze({
+    async searchProviderIdentity(request) {
+      identityProviderCalls += 1;
+      assert.equal(request.operationId, 'shared.integration.search@1');
+      assert.equal(request.contentProfile, 'jav');
+      assert.equal(request.javCode, 'SDKI-001');
+      assert.equal(Object.hasOwn(request, 'title'), false);
+      return Object.freeze({
+        provider: 'jav',
+        namespace: 'jav_code',
+        providerKey: 'SDKI-001',
+        integrationId: 'jav-construction',
+        configRevision: 1,
+      });
+    },
+    async fetchProviderMetadata(intent) {
+      metadataProviderCalls += 1;
+      assert.equal(intent.sourceKind, 'provider');
+      assert.equal(intent.providerKind, 'jav');
+      assert.equal(intent.contentProfile, 'jav');
+      assert.equal(intent.integrationId, 'jav-construction');
+      assert.equal(intent.configRevision, 1);
+      assert.deepEqual(intent.requestedFields, [
+        'genre',
+        'jav_code',
+        'release_date',
+        'studio',
+        'title',
+      ]);
+      return Object.freeze({
+        providerKind: 'jav',
+        integrationId: intent.integrationId,
+        configRevision: intent.configRevision,
+        sourceRef: 'jav:SDKI-001',
+        descriptiveEntries: Object.freeze([
+          { key: 'genre', value: 'Drama' },
+          { key: 'jav_code', value: 'SDKI-001' },
+          { key: 'release_date', value: '2020-01-02' },
+          { key: 'studio', value: 'Construction Studio' },
+          { key: 'title', value: 'Skin Diamond' },
+        ]),
+        providerIdentities: Object.freeze([{
+          provider: 'jav',
+          namespace: 'jav_code',
+          providerKey: 'SDKI-001',
+          seasonNumber: null,
+        }]),
+        peopleHints: Object.freeze([]),
+        posterBytes: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+        fanartBytes: Buffer.from([0xff, 0xd8, 0x01, 0xff, 0xd9]),
+      });
     },
   });
   let host = await createCleanServiceHost({
@@ -477,6 +535,244 @@ test('JAV public route publishes an input-free Spec and one active single Run', 
   ).get().count, 0);
   database.close();
 
+  async function requestProduction(activeHost) {
+    return activeHost.inject({
+      method: 'POST',
+      url: `/v1/admin/material-fields/${fieldId}/actions/observe`,
+      headers: {
+        cookie: await session(activeHost, initialized.adminApiKey),
+      },
+      payload: observe,
+    });
+  }
+
+  async function interruptProduction(hookName, reasonCode) {
+    let shouldInterrupt = true;
+    const interruptedHost = await createCleanServiceHost({
+      dataDir,
+      adminDistDir,
+      secretRoot,
+      mediaProbe,
+      ...productionOptions,
+      [hookName]() {
+        if (!shouldInterrupt) return;
+        shouldInterrupt = false;
+        throw Object.assign(new Error(`fault at ${hookName}`), {
+          code: reasonCode,
+        });
+      },
+    });
+    try {
+      const response = await requestProduction(interruptedHost);
+      assert.equal(response.statusCode, 400, response.body);
+      assert.equal(
+        response.json().error.details.reasonCode,
+        reasonCode,
+        response.body,
+      );
+    } finally {
+      await interruptedHost.close();
+    }
+  }
+
+  await interruptProduction(
+    'afterWorkspacePhysicalEffect',
+    'P14_JAV_FAULT_AFTER_WORKSPACE_PHYSICAL_EFFECT',
+  );
+  database = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM libra_product_packages',
+  ).get().count, 0);
+  database.close();
+
+  await interruptProduction(
+    'afterProductFactsCommit',
+    'P14_JAV_FAULT_AFTER_PRODUCT_FACTS_COMMIT',
+  );
+  database = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM libra_product_fact_revisions',
+  ).get().count, 3);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM libra_product_packages',
+  ).get().count, 0);
+  database.close();
+
+  await interruptProduction(
+    'afterPackageCommit',
+    'P14_JAV_FAULT_AFTER_PACKAGE_COMMIT',
+  );
+  database = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM libra_product_packages',
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM fx_outbox
+      WHERE message_kind='libra.product-offer.available@1'`,
+  ).get().count, 1);
+  for (const table of [
+    'arca_acceptance_attempts',
+    'arca_acceptance_decisions',
+    'arca_ondeck_custodies',
+    'arca_material_bindings',
+    'arca_inventory_materials',
+    'arca_shelf_entries',
+    'arca_deck_fact_revisions',
+  ]) {
+    assert.equal(
+      database.prepare(`SELECT count(*) count FROM ${table}`).get().count,
+      0,
+      table,
+    );
+  }
+  database.close();
+
+  host = await createCleanServiceHost({
+    dataDir,
+    adminDistDir,
+    secretRoot,
+    mediaProbe,
+    ...productionOptions,
+  });
+  let production;
+  try {
+    const response = await requestProduction(host);
+    assert.equal(response.statusCode, 200, response.body);
+    production = response.json().movieJourney.handoff.production;
+    assert.equal(production.stage, 'handoff_b_offer_open');
+    assert.equal(production.contentProfile, 'jav');
+    assert.equal(production.replayed, true);
+    assert.equal(production.productDelivery.resultKind, 'found');
+    assert.equal(
+      production.productDelivery.onDeckProductPackage
+        .productStructureSnapshot.contentProfile,
+      'jav',
+    );
+  } finally {
+    await host.close();
+  }
+  assert.ok(identityProviderCalls >= 1);
+  assert.equal(identityProviderCalls, metadataProviderCalls);
+
+  database = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  const identityFact = JSON.parse(database.prepare(
+    `SELECT fact_json
+       FROM libra_product_fact_revisions
+      WHERE fact_kind='resolved_identity'`,
+  ).get().fact_json);
+  assert.equal(identityFact.contentProfile, 'jav');
+  assert.equal(identityFact.identityKind, 'jav_code');
+  assert.deepEqual(identityFact.providerIdentities, [{
+    provider: 'jav',
+    namespace: 'jav_code',
+    providerKey: 'SDKI-001',
+    seasonNumber: null,
+    identityAnchorDigest:
+      identityFact.providerIdentities[0].identityAnchorDigest,
+  }]);
+  const metadataFact = JSON.parse(database.prepare(
+    `SELECT fact_json
+       FROM libra_product_fact_revisions
+      WHERE fact_kind='product_metadata'`,
+  ).get().fact_json);
+  assert.deepEqual(
+    metadataFact.fieldProvenance.map((item) => item.sourceKind),
+    ['provider', 'provider', 'provider', 'provider', 'provider'],
+  );
+  assert.equal(
+    metadataFact.fieldProvenance.some((item) =>
+      item.sourceKind === 'related_nfo'),
+    false,
+  );
+  const castFact = JSON.parse(database.prepare(
+    `SELECT fact_json
+       FROM libra_product_fact_revisions
+      WHERE fact_kind='media_cast'`,
+  ).get().fact_json);
+  assert.deepEqual(castFact.relations, []);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM libra_product_fact_source_refs source
+       JOIN libra_product_fact_revisions fact
+         ON fact.product_fact_id=source.product_fact_id
+      WHERE fact.fact_kind='media_cast'
+        AND source.source_basis_kind='metadata_observation'
+        AND source.source_ref='jav:jav-construction@1'`,
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM libra_product_packages',
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM libra_product_package_artifact_refs',
+  ).get().count, 3);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM libra_product_package_materials',
+  ).get().count, 4);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM libra_product_package_material_episode_claims',
+  ).get().count, 0);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM fx_artifact_registry
+      WHERE owner_domain='libra' AND state='active'`,
+  ).get().count, 3);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM libra_workspace_material_refs
+      WHERE reference_state='product_staging'`,
+  ).get().count, 3);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM libra_product_package_materials
+      WHERE role='primary_payload'`,
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM libra_product_package_materials
+      WHERE role IN ('metadata_sidecar','poster','fanart')`,
+  ).get().count, 3);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM fx_outbox
+      WHERE message_kind='libra.product-offer.available@1'`,
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM fx_inbox inbox
+       JOIN fx_outbox outbox ON outbox.message_id=inbox.message_id
+      WHERE outbox.message_kind='libra.product-offer.available@1'
+        AND inbox.consumer_domain='arca'`,
+  ).get().count, 0);
+  for (const table of [
+    'arca_acceptance_attempts',
+    'arca_acceptance_decisions',
+    'arca_ondeck_custodies',
+    'arca_material_bindings',
+    'arca_inventory_materials',
+    'arca_shelf_entries',
+    'arca_deck_fact_revisions',
+  ]) {
+    assert.equal(
+      database.prepare(`SELECT count(*) count FROM ${table}`).get().count,
+      0,
+      table,
+    );
+  }
+  database.close();
+
   for (const [location, before] of sourceBefore) {
     assert.deepEqual(fs.readFileSync(location), before.bytes);
     const stat = fs.statSync(location);
@@ -497,5 +793,51 @@ test('clean host keeps JAV before Production without a formal Provider adapter',
   assert.doesNotMatch(
     source,
     /formation\.contentProfile === 'jav'[\s\S]{0,240}(fallback|legacy|workspace)/i,
+  );
+});
+
+test('JAV Provider adapter rejects foreign identity and incomplete Artifact bytes', async () => {
+  const port = createCleanProductProductionPort({
+    mediaProbe: { probe: async () => ({}) },
+    async searchProviderIdentity() {
+      return {
+        provider: 'jav',
+        namespace: 'jav_code',
+        providerKey: 'FOREIGN-999',
+      };
+    },
+    async fetchProviderMetadata(intent) {
+      return {
+        providerKind: 'jav',
+        integrationId: intent.integrationId,
+        configRevision: intent.configRevision,
+        descriptiveEntries: [],
+        providerIdentities: [{
+          provider: 'jav',
+          namespace: 'jav_code',
+          providerKey: 'SDKI-001',
+        }],
+        peopleHints: [],
+        posterBytes: Buffer.from([1]),
+      };
+    },
+  });
+  await assert.rejects(
+    port.searchProviderIdentity({
+      contentProfile: 'jav',
+      javCode: 'SDKI-001',
+    }),
+    (error) =>
+      error.code === 'CLEAN_PRODUCT_IDENTITY_PROVIDER_RESULT_INVALID',
+  );
+  await assert.rejects(
+    port.fetchProvider({
+      sourceKind: 'provider',
+      contentProfile: 'jav',
+      providerKind: 'jav',
+      integrationId: 'jav-construction',
+      configRevision: 1,
+    }),
+    (error) => error.code === 'CLEAN_PRODUCT_PROVIDER_RESULT_INVALID',
   );
 });

@@ -1,6 +1,6 @@
 # P14 Product Journey Implementation
 
-状态：**FROZEN — JAV Routing / Acceptance Spec / active Run 待复验**
+状态：**FROZEN — JAV Production / open Handoff B Offer 待复验**
 
 ## 当前基线
 
@@ -11,7 +11,7 @@
   `942fc692`。
 - PBF-19 P14 独立接受证据：`de0dff64`（tested `3d9ebab4`）。
 - 当前实现检查点：本次提交；详细施工证据见
-  `docs/helix/implementation/evidence/P14_JAV_ROUTING_SPEC_RUN_CHECKPOINT.md`。
+  `docs/helix/implementation/evidence/P14_JAV_PRODUCTION_OPEN_HANDOFF_B_CHECKPOINT.md`。
 - 实现线程未额外修改 Architecture SSOT。
 - `F02.17` 仍为 `NOT_RUN`；不得增加测试便利接口或用内部 Store 证据冒充
   用户 Feature。
@@ -60,9 +60,27 @@ rating Decision Input，因此未调用或伪造 Perception Resolution。Run Man
 恰有一个 Primary，Episode claims 为空。正式 JAV Provider adapter 尚未装配，
 clean host 在 active Run 停止，Workspace/Product/Production 表保持零写入。
 
-当前冻结在JAV active Libra Run之后、Workspace/Provider/Production之前。详细
-证据见
-`docs/helix/implementation/evidence/P14_JAV_ROUTING_SPEC_RUN_CHECKPOINT.md`。
+P14 已接受 JAV Routing/Spec/active Run（source `75425f5f`，evidence
+`32e94146`）。当前同一 active Run 已继续推进到：
+
+`Workspace admission/effects
+→ exact typed JAV Provider identity/metadata
+→ Product Identity/Metadata/empty Media Cast Facts
+→ NFO/poster/fanart verification + Product Staging
+→ six-group Conformance
+→ immutable OnDeckProductPackage
+→ exactly one open libra.product-offer.available@1`
+
+Resolved Identity 精确为 `provider=jav, namespace=jav_code,
+providerKey=SDKI-001`，Candidate weak code只作为query evidence。Metadata五个
+必需字段全部来自JAV Provider Observation；Related NFO没有成为metadata source。
+Provider无人物数据时提交closed empty Media Cast关系。Primary满足既有HEVC/
+Matroska/MKV与2 GiB要求，三项Artifact在disposable Workspace生成并经过
+role-aware Staging；全部Product members的Episode claims为空。
+
+当前冻结在JAV open Handoff B Offer，Arca Acceptance/Inventory/Entry/Deck Fact
+均为零。详细证据见
+`docs/helix/implementation/evidence/P14_JAV_PRODUCTION_OPEN_HANDOFF_B_CHECKPOINT.md`。
 完整architecture gate为`132 files PASS`，机器库存保持112/97/177/43，
 Contract aggregate
 `30089e947738bab7933af3b606cd22336746321e05ae4d4d44a4bd5534e2d4e5`，
@@ -230,9 +248,9 @@ terminal reclaimed。
 
 ## 下一步
 
-Architecture active review与P14独立接受当前JAV Routing/Acceptance
-Spec/active Run后，才可继续JAV Workspace/Provider/Product
-Facts/Production；不得提前进入Western Adult或横向 Feature Matrix。
+Architecture active review与P14独立接受当前JAV Production/open Handoff B
+Offer后，才可让Arca消费Offer或开始responsibility closure；不得提前进入
+Western Adult或横向 Feature Matrix。
 
 ## 硬边界
 

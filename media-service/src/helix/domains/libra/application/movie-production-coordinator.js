@@ -966,6 +966,7 @@ function createMovieProductionCoordinator(options) {
     const contentProfile = snapshot.spec.contentProfile;
     const structureKind = snapshot.spec.structureKind;
     const isSeries = contentProfile === 'series';
+    const isJav = contentProfile === 'jav';
     const productEpisodeClaims = snapshot.episodeClaims;
     if (snapshot.run.packageRevisionHead > 0) {
       const published = reader.readPublishedDeliveryRef(
@@ -991,6 +992,8 @@ function createMovieProductionCoordinator(options) {
       return Object.freeze({
         stage: 'handoff_b_offer_open',
         replayed: true,
+        contentProfile:
+          delivery.onDeckProductPackage.productStructureSnapshot.contentProfile,
         libraRunId,
         workspaceId: null,
         targetShelfId: published.shelfId,
@@ -1009,7 +1012,7 @@ function createMovieProductionCoordinator(options) {
     }
     const nfoReferences = snapshot.relatedReferences
       .filter((item) => item.role === 'nfo');
-    if (!nfoReferences.length) {
+    if (!isJav && !nfoReferences.length) {
       return Object.freeze({
         stage: 'product_metadata_unresolved',
         libraRunId,
@@ -1083,16 +1086,28 @@ function createMovieProductionCoordinator(options) {
         reasonCodes: unresolvedMedia.verification.reasonCodes,
       });
     }
-    const relatedNfos = nfoReferences.map((reference) => Object.freeze({
-      reference,
-      value: options.productionPort.readRelatedNfo({
-        primaryMaterialKey: reference.primaryMaterialKey,
+    const relatedNfos = isJav
+      ? []
+      : nfoReferences.map((reference) => Object.freeze({
         reference,
-      }),
-    }));
+        value: options.productionPort.readRelatedNfo({
+          primaryMaterialKey: reference.primaryMaterialKey,
+          reference,
+        }),
+      }));
     const title = relatedNfos.flatMap((item) => item.value.entries)
       .find((item) => ['series_title', 'title'].includes(item.key))?.value;
-    if (!title) {
+    const javCode = isJav ? snapshot.candidateIdentityClaim?.javCode : null;
+    if (isJav &&
+        (snapshot.candidateIdentityClaim?.claimKind !== 'jav_code' ||
+          typeof javCode !== 'string' || !javCode)) {
+      return Object.freeze({
+        stage: 'product_identity_unresolved',
+        libraRunId,
+        reasonCode: 'jav_provider_query_evidence_unavailable',
+      });
+    }
+    if (!isJav && !title) {
       return Object.freeze({
         stage: 'product_identity_unresolved',
         libraRunId,
@@ -1102,7 +1117,7 @@ function createMovieProductionCoordinator(options) {
     const providerSearch = await options.productionPort.searchProviderIdentity({
       operationId: 'shared.integration.search@1',
       contentProfile,
-      title,
+      ...(isJav ? { javCode } : { title }),
       candidateDeliverySnapshotDigest:
         snapshot.members[0].originCandidateDeliveryRef
           .candidateDeliverySnapshotDigest,
@@ -1112,7 +1127,7 @@ function createMovieProductionCoordinator(options) {
       basisDigest: canonicalDigest({
         schema: 'libra.product-provider-identity-basis@1',
         contentProfile,
-        title,
+        ...(isJav ? { javCode } : { title }),
         candidateDeliverySnapshotDigest:
           snapshot.members[0].originCandidateDeliveryRef
             .candidateDeliverySnapshotDigest,
@@ -1125,10 +1140,16 @@ function createMovieProductionCoordinator(options) {
       subjectId: snapshot.run.subjectId,
       structureKind,
       contentProfile,
-      identityKind: isSeries ? 'tmdb_series_season' : 'tmdb_movie',
+      identityKind: isSeries
+        ? 'tmdb_series_season'
+        : isJav
+          ? 'jav_code'
+          : 'tmdb_movie',
       providerIdentities: [providerSearch],
       exactSeasonContinuityClaims: [],
-      displayEntries: [{ key:'title', value:title }],
+      displayEntries: [isJav
+        ? { key:'jav_code', value:providerSearch.providerKey }
+        : { key:'title', value:title }],
     });
     const requestedFields = [...snapshot.spec.requirements.metadata.requiredFieldCodes]
       .filter((item) => item !== 'actor')
@@ -1185,22 +1206,32 @@ function createMovieProductionCoordinator(options) {
       contentProfile,
       resolvedIdentityDigest: identity.identityDigest,
       requestedFields,
-      providerKind: 'tmdb',
-      integrationId: providerSearch.integrationId || 'tmdb-main',
+      providerKind: isJav ? 'jav' : 'tmdb',
+      integrationId: providerSearch.integrationId ||
+        (isJav ? 'jav-main' : 'tmdb-main'),
       configRevision: providerSearch.configRevision || 1,
     });
     const provider = await options.productionPort.fetchProvider(providerIntent);
-    const tmdbIdentity = providerIdentity(providerSearch);
-    const providerObservation = metadataObservation(providerIntent, {
-      entries: provider.descriptiveEntries,
-      providerIdentities: [tmdbIdentity],
-      peopleHints: provider.peopleHints,
-      artifactHints: [{
+    const resolvedProviderIdentity = providerIdentity(providerSearch);
+    const providerArtifactHints = [
+      {
         artifactKind: 'poster',
         sourceRef: provider.sourceRef || metadataSourceRef(providerIntent),
         evidenceDigest: provider.payloadDigest ||
           canonicalDigest(provider.descriptiveEntries),
-      }],
+      },
+      ...(isJav ? [{
+        artifactKind: 'fanart',
+        sourceRef: provider.sourceRef || metadataSourceRef(providerIntent),
+        evidenceDigest: provider.payloadDigest ||
+          canonicalDigest(provider.descriptiveEntries),
+      }] : []),
+    ];
+    const providerObservation = metadataObservation(providerIntent, {
+      entries: provider.descriptiveEntries,
+      providerIdentities: [resolvedProviderIdentity],
+      peopleHints: provider.peopleHints,
+      artifactHints: providerArtifactHints,
     }, productionTimeMs);
     const providerChain = runResultCapability(snapshot.run, {
       workKind: 'product_metadata_observation',
@@ -1259,12 +1290,13 @@ function createMovieProductionCoordinator(options) {
       factKind: 'product_metadata',
       expectedRevision: 0,
     });
-    const requirements = ['nfo', 'poster'].map(artifactRequirement);
+    const requirements = snapshot.spec.requirements.metadata
+      .requiredArtifactKinds.map(artifactRequirement);
     const metadataDraftResult = buildProductMetadataDraft({
       sourceBasis: metadataBasis,
       requiredFields: requestedFields,
       producedAtMs: productionTimeMs,
-      providerIdentities: [tmdbIdentity],
+      providerIdentities: [resolvedProviderIdentity],
       artifactRequirements: requirements,
     });
     if (!metadataDraftResult.ready) {
@@ -1277,18 +1309,21 @@ function createMovieProductionCoordinator(options) {
     const mergedEntries = metadataDraftResult.draft.descriptiveFacts.entries;
     const materials = [];
     const artifactChains = [];
-    for (const [ordinal, kind] of ['nfo', 'poster'].entries()) {
+    for (const [ordinal, kind] of snapshot.spec.requirements.metadata
+      .requiredArtifactKinds.entries()) {
       const bytes = kind === 'nfo'
         ? renderNfo(mergedEntries, contentProfile)
-        : provider.posterBytes;
-      const role = kind === 'nfo' ? 'metadata_sidecar' : 'poster';
+        : kind === 'poster'
+          ? provider.posterBytes
+          : provider.fanartBytes;
+      const role = kind === 'nfo' ? 'metadata_sidecar' : kind;
       const requirement = requirements.find((item) => item.artifactKind === kind);
       const materialized = options.workspaceProductPort.materializeArtifact({
         libraRunId,
         workspaceId: workspace.workspaceId,
         relativePath: 'product/' + (kind === 'nfo'
           ? (isSeries ? 'season.nfo' : 'movie.nfo')
-          : 'poster.jpg'),
+          : kind + '.jpg'),
         artifactKind: kind,
         mediaType: kind === 'nfo' ? 'application/xml' : 'image/jpeg',
         bytes,
@@ -1389,7 +1424,7 @@ function createMovieProductionCoordinator(options) {
       displayName: item.displayName,
       displayNameNormalized: item.displayName.normalize('NFKC').toLowerCase(),
       role: item.role,
-      source: 'tmdb',
+      source: providerSearch.provider,
       providerIdentities: item.providerIdentities || [],
       originEvidenceDigest: providerObservation.payloadDigest,
       confidenceClass: 'provider_asserted',
@@ -1938,6 +1973,7 @@ function createMovieProductionCoordinator(options) {
     return Object.freeze({
       stage: 'handoff_b_offer_open',
       replayed: published.replayed,
+      contentProfile,
       libraRunId,
       workspaceId: workspace.workspaceId,
       targetShelfId: snapshot.spec.targetShelfId || snapshot.spec.shelfId,

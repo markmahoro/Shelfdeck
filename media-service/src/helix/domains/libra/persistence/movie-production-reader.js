@@ -255,14 +255,19 @@ function createMovieProductionReader(options) {
         spec.structureKind === 'single' &&
         manifest.scope_kind === 'single' &&
         members.length === 1;
+      const isJav = spec.contentProfile === 'jav' &&
+        spec.structureKind === 'single' &&
+        manifest.scope_kind === 'single' &&
+        members.length === 1;
       const isSeries = spec.contentProfile === 'series' &&
         spec.structureKind === 'season' &&
         manifest.scope_kind === 'episode_delivery';
-      if (!isMovie && !isSeries) {
+      if (!isMovie && !isJav && !isSeries) {
         fail('P14_MOVIE_PRODUCTION_SPEC_DRIFT',
           'Product profile, structure, Run scope, and Primary cardinality conflict.');
       }
       const relatedById = new Map();
+      let candidateIdentityClaim = null;
       const mappedMembers = members.map((member) => {
         const memberClaims = claims
           .filter((claim) =>
@@ -281,7 +286,7 @@ function createMovieProductionReader(options) {
           items: memberClaims,
         });
         if (claimSetDigest !== member.episode_claim_set_digest ||
-            (isMovie && memberClaims.length) ||
+            (!isSeries && memberClaims.length) ||
             (isSeries && (memberClaims.length < 1 || memberClaims.length > 32))) {
           fail('P14_MOVIE_PRODUCTION_EPISODE_DRIFT',
             'Run member Episode claims do not match the immutable Manifest.');
@@ -309,6 +314,19 @@ function createMovieProductionReader(options) {
           fail('P14_MOVIE_PRODUCTION_HANDOFF_DRIFT',
             'Accepted Handoff A snapshot digest drifted.');
         }
+        const identityClaim = delivery.candidatePackage?.identityClaim;
+        if (!identityClaim ||
+            delivery.candidatePackage.contentProfile !== spec.contentProfile ||
+            identityClaim.contentProfile !== spec.contentProfile) {
+          fail('P14_MOVIE_PRODUCTION_HANDOFF_DRIFT',
+            'Accepted Candidate identity is unavailable for Product preparation.');
+        }
+        if (candidateIdentityClaim &&
+            canonicalJson(candidateIdentityClaim) !== canonicalJson(identityClaim)) {
+          fail('P14_MOVIE_PRODUCTION_HANDOFF_DRIFT',
+            'Run members disagree on the accepted Candidate identity.');
+        }
+        candidateIdentityClaim = identityClaim;
         const primary = delivery.primaryMaterialDeliveries.find((item) =>
           item.materialKey === member.material_key);
         const acceptedEpisodeClaims = (primary?.episodeClaims || [])
@@ -409,6 +427,7 @@ function createMovieProductionReader(options) {
         }),
         spec: Object.freeze(spec),
         members: Object.freeze(mappedMembers),
+        candidateIdentityClaim: Object.freeze(candidateIdentityClaim),
         episodeClaims: Object.freeze([...episodeClaims.values()].sort(
           (left, right) => Buffer.compare(
             Buffer.from(left.episodeKey),
