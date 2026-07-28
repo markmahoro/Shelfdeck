@@ -6,7 +6,7 @@
 
 - immutable vertical baseline：`ddc3e51909ca4e9f5729c4326b05daee4792326f`
 - H1.1 accepted source：`8bf8feb5873419ed49deece15cc856cee6046fa9`
-- H1.2 replacement implementation closure：`f5a9e250`
+- H1.2 replacement implementation closure：`a9b1f993`
 - Architecture SSOT未修改；H1.3–H1.5与H2未开始。
 - 变更只位于H1允许的Platform、Integration、Composition/Clean Host seam及
   独立H1.2测试和既有implementation治理文档。
@@ -23,6 +23,9 @@ revision-fenced Integration Handle/Secret Lease及durable command replay：
   `GET /auth/user`、`GET /jav?q=<jav_code>&per_page=2`与
   `GET /jav/{identifier}`。GraphQL endpoint/query/fixture已从Clean Helix路径
   完全移除；只有逐字节匹配的`sku`才建立`jav/jav_code` Resolved Identity。
+  唯一共享REST client先以`jav_code`搜索唯一SceneResource，再使用返回的
+  bounded official `scene.id`读取`/jav/{identifier}`；exact response同时重验
+  `id`与`sku`。generic metadata与JAV Product metadata/artifact不再各自解释协议。
   SceneResource仅投影当前Product所需metadata、people hints及poster/fanart；
   未授权的performer detail与其他resource明确typed fail closed。
 - `moviepilot`：显式HTTPS或private/loopback HTTP endpoint；availability、
@@ -88,7 +91,7 @@ cost packet，用户已批准最低成本合规方案：
 ## 机器与回归证据
 
 - focused H1.1/H1.2/P5 replacement：
-  `29 tests / 29 PASS`
+  `33 tests / 33 PASS`
 - immutable vertical sentinels：
   `41 tests / 41 PASS`
 - H1.2 cumulative scope guard：
@@ -98,9 +101,9 @@ cost packet，用户已批准最低成本合规方案：
 - full `npm run test:helix-architecture`：
   `136 fixture files / PASS`
 - dependency：
-  `47 packages / 193 files / 469 dependencies / findings=0`
+  `47 packages / 194 files / 471 dependencies / findings=0`
 - semantic：
-  `1733 files / findings=0`
+  `1734 files / findings=0`
 - inventories：
   `112 Capability / 97 Result / 178 Table / 43 Canonical Transaction`
 - unresolved type refs：

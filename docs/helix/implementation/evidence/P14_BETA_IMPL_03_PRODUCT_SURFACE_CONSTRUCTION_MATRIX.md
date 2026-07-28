@@ -260,7 +260,10 @@ Adult Provider uses only the current official ThePornDB Bearer REST subset
 GraphQL has no Clean Helix runtime or fixture path. It preserves exact JAV code
 identity and supplies bounded identity/metadata/people-hint/artifact seams
 without upgrading weak input before a typed exact provider match. Unapproved
-performer/resource operations fail closed. MoviePilot implements availability, candidate
+performer/resource operations fail closed. One shared REST client converts the
+unique `sku` search result to its bounded official `scene.id`, uses only that
+id for `/jav/{identifier}`, and exact-fences returned id+sku for both generic
+and Product paths. MoviePilot implements availability, candidate
 search, and external acquire request/receipt on the existing P5 observation and
 request ports. Optional Emby performs one-time username/password authentication
 and persists only the issued access token. All production adapters reject
@@ -282,8 +285,8 @@ download-completion/import Feature PASS or an external-request exactly-once
 guarantee.
 
 H1.2 keeps route status `40 / 6 / 68` and Feature status unchanged.
-Replacement implementation closure `f5a9e250` passed focused H1.1/H1.2/P5
-`29/29`, frozen vertical/P5 sentinels `41/41`, the cumulative H1.2 scope guard with zero
+Replacement implementation closure `a9b1f993` passed focused H1.1/H1.2/P5
+`33/33`, frozen vertical/P5 sentinels `41/41`, the cumulative H1.2 scope guard with zero
 violations, and the full `136`-fixture architecture gate. Counts remain
 `112/97/178/43`; unresolved refs, dependency/semantic findings and prohibited
 actions are zero. Full evidence is frozen in

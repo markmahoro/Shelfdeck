@@ -168,6 +168,9 @@ operation Handle和同revision Secret Lease：
   `/auth/user`、`/jav?q=...&per_page=2`与`/jav/{identifier}`；旧GraphQL
   endpoint/query/fixture已从Clean Helix路径移除。JAV code只有在正式typed
   SceneResource的`sku` exact match后才形成`jav/jav_code` Resolved Identity；
+  后续exact metadata/artifact只使用search返回的official `scene.id`作为
+  `/jav/{identifier}`，并同时重验returned id与sku。generic metadata与Product
+  路径共享同一REST client，禁止把sku猜作path identifier；
   当前Product所需Metadata、People hints与poster/fanart均保留identity/config
   fence，未授权的performer detail/resource typed fail closed；
 - MoviePilot使用用户显式配置的HTTPS或private/loopback HTTP endpoint，search与
@@ -199,8 +202,8 @@ typed availability/search/acquire-request/receipt实现，`acquire.observe`
 ready materialization和stability显式fail closed，待H1.3一次性提供受控root/path
 mapping与safe probe。它是intentional phase sequencing，不是未决架构缺陷。
 
-H1.2 replacement实现closure commit为`f5a9e250`。focused H1.1/H1.2/P5回归
-`29/29 PASS`，冻结vertical/P5 sentinel组合`41/41 PASS`，
+H1.2 replacement实现closure commit为`a9b1f993`。focused H1.1/H1.2/P5回归
+`33/33 PASS`，冻结vertical/P5 sentinel组合`41/41 PASS`，
 完整architecture gate为`136 fixture files PASS`。累计H1.2 scope guard
 violations为`0`；路由保持`40 / 6 / 68`；库存保持`112 / 97 / 178 / 43`；
 unresolved、findings和prohibited actions均为`0`。aggregate与完整证据冻结于：
