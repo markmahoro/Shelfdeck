@@ -1,6 +1,6 @@
 # P14 BETA-IMPL-03 Product Surface Construction Matrix
 
-Status: `H1.0 FROZEN CONSTRUCTION DRAWING / AWAITING REVIEW`
+Status: `H1.1 IMPLEMENTATION CHECKPOINT FROZEN / AWAITING ARCHITECTURE REVIEW`
 
 ## Purpose and authority
 
@@ -17,13 +17,14 @@ the sole byte-level list, avoiding a second hand-maintained 110-row copy.
 | Architecture governance | `1619735c` |
 | BETA feature baseline | `fcfc38f0` |
 | Accepted vertical regression baseline | `ddc3e51909ca4e9f5729c4326b05daee4792326f` |
-| Route inventory | 114 total; 36 real; 6 Worker routes intentionally Beta-404; 72 unavailable-503 |
+| Route inventory | 114 total; 40 real; 6 Worker routes intentionally Beta-404; 68 unavailable-503 |
 | Core contract counts | 112 Capability / 97 Result family / 178 Table / 43 Canonical Transaction |
 | Scope | `shelfdeck service` only; no Worker, Desktop, Ollama, legacy runtime, or generic Store facade |
 
 The earlier `4 real / 6 Worker / 104 remaining` row described the clean
-entrypoint before accepted Setup/Foundation route construction. It is stale and
-is superseded by the mechanically reproduced `36 / 6 / 72` count above.
+entrypoint before accepted Setup/Foundation route construction. It is stale.
+H1.0 froze `36 / 6 / 72`; H1.1 makes the four existing Integration routes
+real, producing the mechanically reproduced `40 / 6 / 68` count above.
 Accepted Movie/Series/JAV/Western backend verticals do not add route methods and
 are not counted as real routes or Feature PASS.
 
@@ -67,22 +68,23 @@ method assignments in `create-clean-facades.js`, not from journey evidence:
 
 | State | Count | Meaning |
 | --- | ---: | --- |
-| Real public method | 36 | Public Facade method has an explicit clean implementation |
+| Real public method | 40 | Public Facade method has an explicit clean implementation |
 | Worker Beta exclusion | 6 | Deliberate `404 REMOTE_WORKER_NOT_AVAILABLE_IN_BETA` |
-| Unavailable product method | 72 | Deliberate `503 CLEAN_FACADE_NOT_IMPLEMENTED` |
+| Unavailable product method | 68 | Deliberate `503 CLEAN_FACADE_NOT_IMPLEMENTED` |
 | Total | 114 | Exact machine route inventory |
 
 Of 30 Platform routes, session create/delete and security read are real; six
-Worker routes remain Beta 404. The 21 unavailable non-Worker Platform methods
-are the H1 route construction surface: Integration 4, Workspace 3, Resource 3,
-Formation/Setup 1, security rotate 1, and diagnostics 9.
+Worker routes remain Beta 404. H1.1 makes the four Integration routes real.
+The 17 remaining unavailable non-Worker Platform methods are the later H1
+construction surface: Workspace 3, Resource 3, Formation/Setup 1, security
+rotate 1, and diagnostics 9.
 
 ### Existing Owner rows and formal seams
 
 | Area | Existing owner rows / formal ports | Existing implementation | Exact H1 gap |
 | --- | --- | --- | --- |
-| Integration config | `platform_integrations`, `platform_secret_refs`; `IntegrationQueryPort`, `IntegrationHandleResolverPort`, `SecretLeaseResolverPort` | Secret Reference repository, bounded Secret Lease broker, provider protocol contracts | No `platform_integrations` repository/application/Admin wiring; no encrypted production Secret Source; Provider calls in Clean Host remain injected functions |
-| Provider adapters | `ExternalProviderObservationPort`, `ExternalProviderArtifactPort`, `ExternalProviderRequestPort` | Closed P5 provider protocol plus PBF-21 typed identity/artifact contracts | No production TMDB/Douban/JAV-Adult/MoviePilot/Emby HTTP adapters on the clean Composition Root |
+| Integration config | `platform_integrations`, `platform_secret_refs`; `IntegrationQueryPort`, `IntegrationHandleResolverPort`, `SecretLeaseResolverPort` | H1.1 adds Platform owner-local repository/application/Admin wiring, encrypted opaque Secret Source and revision-fenced Handle/Lease reads | TMDB complete for H1.1; Douban/JAV-Adult/MoviePilot/optional Emby remain H1.2 |
+| Provider adapters | `ExternalProviderObservationPort`, `ExternalProviderArtifactPort`, `ExternalProviderRequestPort` | H1.1 real TMDB adapter on existing P5 typed ports; test adapters remain explicit test-only implementations | Douban/JAV-Adult/MoviePilot/optional Emby production adapters remain H1.2 |
 | Workspace roots | `platform_mount_scopes`, revisions, `platform_workspace_roots`; `MountScopeResolverPort`, `PlatformWorkspaceRuntimePort` | Location registry repository/service with owner, containment and overlap rules | Product host still defaults Libra Workspace from `dataDir`; Workspace Admin routes and safe real probe are unavailable |
 | Resource/device | Resource Profile/Policy revisions and Compute Device/Probe rows; `ResourceProfileQueryPort`, `ComputeDeviceQueryPort` | Resource/Worker registry service and repository | No local device/resource probe or public Admin wiring; Worker registry code must not make Worker routes available |
 | Face runtime | Existing PBF-23 frames/embedding/cluster/analysis/reference-match Plan/Event/Result chain and People public projection | Test-injected Western analysis engine/model pack seam | No service-local ONNX runtime/model pack asset loader, license/SHA/config fence, or clean production Composition binding |
@@ -136,7 +138,7 @@ families; no secret value was read, printed, copied, or committed.
 
 | Phase | Deliverable and allowed implementation modules | Forbidden scope | Minimum sentinel regression |
 | --- | --- | --- | --- |
-| H1.0 | Existing `CURRENT_PHASE`, this matrix, mechanical guard script/test only | All business implementation; SSOT; Feature baseline | H1 guard + exact `36/6/72` route status |
+| H1.0 | Existing `CURRENT_PHASE`, this matrix, mechanical guard script/test only | All business implementation; SSOT; Feature baseline | H1 guard; accepted historical `36/6/72` route status |
 | H1.1 | `helix/platform`, `helix/integrations`, Composition, Clean Host; secure Integration config + real TMDB | Domain core, formal DTO/contracts, Provider fixture fallback | P5 secret/provider/public-port/integration tests + four vertical/cleanup sentinels |
 | H1.2 | Same seams; real Douban/JAV-Adult/MoviePilot/optional Emby | Cross-provider fallback, cache authority, legacy config import | Provider/integration tests + four vertical/cleanup sentinels |
 | H1.3 | Platform location/resource seams, Composition, Clean Host | Domain Store reads, accepted Workspace/Product adapter changes, Worker availability | P5 location/resource + operational cutover + four vertical/cleanup sentinels |
@@ -201,8 +203,26 @@ implementation task cannot silently redefine the guard.
   `c5a62e222ce4063f7ad05073f343e525d417f625cc937ee5f1284a2cf2090995`.
 - `unresolvedTypeRefs=0`, findings empty, `prohibitedActionsRun=[]`.
 
-This is an implementation checkpoint only. It remains frozen until Architecture
-active review and P14 independent acceptance; H1.1 has not started.
+H1.0 replacement `9d396bb4265a628f08a2dcf069dad020f119a3a4`
+is Architecture and P14 accepted (P14 evidence `181c57ac`).
+
+### H1.1 TMDB implementation freeze
+
+The four existing Integration Admin routes now resolve to Platform owner-local
+application methods. TMDB is the only supported H1.1 kind; all other kinds
+remain explicitly unsupported. Configuration uses the existing
+`platform_integrations` and `platform_secret_refs` rows, revision CAS, encrypted
+opaque Secret locators and bounded Secret Leases. A real TMDB credential and
+typed identity/metadata read were verified from ignored private operator input
+without copying or reporting the value. The runtime does not import historical
+`config.json`, ambient provider credentials, or a deterministic production
+fallback.
+
+H1.1 route status is `40 real / 6 Worker Beta-404 / 68 unavailable-503`.
+This is construction progress only and does not change Feature status.
+Evidence is frozen in
+`P14_H1_1_TMDB_INTEGRATION_CHECKPOINT.md`. H1.2 is not authorized until this
+checkpoint passes Architecture active review and P14 independent acceptance.
 
 ## Route-to-owner construction rules
 
@@ -540,7 +560,7 @@ stale head、idempotency conflict、restart/history，以及在 target insert
 处注入故障后的 revision/head/receipt/outbox 全部回滚均由 public HTTP
 fixture 覆盖。
 
-Current route status: **36 real**, **6 intentional Worker 404**, **72 remaining
+Current route status: **40 real**, **6 intentional Worker 404**, **68 remaining
 product routes fail closed with 503**. 非空Shelf deregistration仍未宣称完成。
 This is a progress count only; the exact construction batch
 assignment remains the 4/6/59/7/38 matrix above.

@@ -10,6 +10,16 @@ const routeRegistry = require('./helix/composition/admin-route-registry');
 const { canonicalDigest } = require('./helix/contracts/canonical-json');
 const { createHelixApplication } = require('./helix/composition/createHelixApplication');
 const { createCleanFacades } = require('./helix/composition/create-clean-facades');
+const {
+  createIntegrationAdminApplication,
+  createPlatformIntegrationRuntime,
+} = require('./helix/platform/public/integration-runtime');
+const {
+  createIntegrationRepository,
+} = require('./helix/platform/persistence/integration-repository');
+const {
+  createTmdbProviderAdapter,
+} = require('./helix/integrations/tmdb-provider-adapter');
 const { createProcurementAdminApplication } = require('./helix/domains/procurement/public/admin-application');
 const { CandidateDeliveryPort } = require('./helix/domains/procurement/public');
 const {
@@ -129,6 +139,11 @@ const AUTH_ERROR_CODES = new Set([
   'ADMIN_SESSION_INVALID',
   'ADMIN_SESSION_EXPIRED',
 ]);
+const INTEGRATION_SECRET_SCHEMA =
+  'helix-platform-integration-secret@1';
+const INTEGRATION_LOCATOR_PREFIX = 'integration-envelope:';
+const INTEGRATION_LOCATOR =
+  /^integration-envelope:([0-9a-f-]{36})$/;
 
 class CleanServiceHostError extends Error {
   constructor(code, message, details = {}) {
@@ -137,6 +152,341 @@ class CleanServiceHostError extends Error {
     this.code = code;
     this.details = details;
   }
+}
+
+function integrationSecretKey(secretRoot) {
+  if (typeof secretRoot !== 'string' ||
+      Buffer.byteLength(secretRoot, 'utf8') < 32) {
+    throw new CleanServiceHostError(
+      'PLATFORM_INTEGRATION_SECRET_ROOT_REQUIRED',
+      'SHELFDECK_SECRET_ROOT must provide at least 32 UTF-8 bytes.',
+    );
+  }
+  return crypto.createHash('sha256')
+    .update('shelfdeck:integration-secret:v1\0', 'utf8')
+    .update(secretRoot, 'utf8')
+    .digest();
+}
+
+function integrationSecretPath(root, locator) {
+  const match = INTEGRATION_LOCATOR.exec(locator || '');
+  if (!match) {
+    throw new CleanServiceHostError(
+      'PLATFORM_INTEGRATION_SECRET_LOCATOR_INVALID',
+      'Integration Secret locator is invalid.',
+    );
+  }
+  const resolvedRoot = path.resolve(root);
+  const target = path.resolve(resolvedRoot, match[1] + '.json');
+  const relative = path.relative(resolvedRoot, target);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new CleanServiceHostError(
+      'PLATFORM_INTEGRATION_SECRET_LOCATOR_ESCAPE',
+      'Integration Secret locator escapes its configured root.',
+    );
+  }
+  return target;
+}
+
+function integrationSecretAad(value) {
+  return Buffer.from([
+    INTEGRATION_SECRET_SCHEMA,
+    value.locator,
+    value.integrationId,
+    value.secretRef,
+    value.secretKind,
+    value.revision,
+  ].join('\0'), 'utf8');
+}
+
+function createIntegrationSecretStore(options) {
+  const root = path.join(
+    options.dataDir,
+    'secrets',
+    'integrations',
+  );
+  const key = integrationSecretKey(options.secretRoot);
+
+  return Object.freeze({
+    write(value) {
+      if (!Buffer.isBuffer(value?.secretBytes) ||
+          value.secretBytes.length < 1 ||
+          value.secretBytes.length > 4096 ||
+          !Number.isSafeInteger(value.revision) ||
+          value.revision < 1) {
+        throw new CleanServiceHostError(
+          'PLATFORM_INTEGRATION_SECRET_WRITE_INVALID',
+          'Integration Secret write input is invalid.',
+        );
+      }
+      const locator =
+        INTEGRATION_LOCATOR_PREFIX + crypto.randomUUID();
+      const nonce = crypto.randomBytes(12);
+      const basis = {
+        locator,
+        integrationId: value.integrationId,
+        secretRef: value.secretRef,
+        secretKind: value.secretKind,
+        revision: value.revision,
+      };
+      const cipher = crypto.createCipheriv(
+        'aes-256-gcm',
+        key,
+        nonce,
+      );
+      cipher.setAAD(integrationSecretAad(basis));
+      const ciphertext = Buffer.concat([
+        cipher.update(value.secretBytes),
+        cipher.final(),
+      ]);
+      const envelope = {
+        schema: INTEGRATION_SECRET_SCHEMA,
+        ...basis,
+        nonce: nonce.toString('base64url'),
+        ciphertext: ciphertext.toString('base64url'),
+        authenticationTag:
+          cipher.getAuthTag().toString('base64url'),
+        createdAtMs: value.createdAtMs,
+      };
+      fs.mkdirSync(root, { recursive: true, mode: 0o700 });
+      const target = integrationSecretPath(root, locator);
+      const temporary = target + '.' + process.pid + '.' +
+        crypto.randomUUID() + '.tmp';
+      try {
+        fs.writeFileSync(
+          temporary,
+          JSON.stringify(envelope) + '\n',
+          { encoding: 'utf8', mode: 0o600, flag: 'wx' },
+        );
+        fs.renameSync(temporary, target);
+        fs.chmodSync(target, 0o600);
+      } catch (_error) {
+        try {
+          fs.rmSync(temporary, { force: true });
+        } catch (_ignored) {
+          // The original bounded write error is authoritative.
+        }
+        throw new CleanServiceHostError(
+          'PLATFORM_INTEGRATION_SECRET_WRITE_FAILED',
+          'Integration Secret envelope could not be committed.',
+        );
+      } finally {
+        nonce.fill(0);
+        ciphertext.fill(0);
+      }
+      return locator;
+    },
+    read(locator) {
+      let envelope;
+      try {
+        envelope = JSON.parse(fs.readFileSync(
+          integrationSecretPath(root, locator),
+          'utf8',
+        ));
+      } catch (error) {
+        if (error instanceof CleanServiceHostError) throw error;
+        throw new CleanServiceHostError(
+          'PLATFORM_INTEGRATION_SECRET_ENVELOPE_UNAVAILABLE',
+          'Integration Secret envelope is unavailable.',
+        );
+      }
+      const expectedKeys = [
+        'schema',
+        'locator',
+        'integrationId',
+        'secretRef',
+        'secretKind',
+        'revision',
+        'nonce',
+        'ciphertext',
+        'authenticationTag',
+        'createdAtMs',
+      ].sort();
+      if (!envelope || typeof envelope !== 'object' ||
+          Array.isArray(envelope) ||
+          JSON.stringify(Object.keys(envelope).sort()) !==
+            JSON.stringify(expectedKeys) ||
+          envelope.schema !== INTEGRATION_SECRET_SCHEMA ||
+          envelope.locator !== locator ||
+          !Number.isSafeInteger(envelope.revision) ||
+          envelope.revision < 1) {
+        throw new CleanServiceHostError(
+          'PLATFORM_INTEGRATION_SECRET_ENVELOPE_INVALID',
+          'Integration Secret envelope is invalid.',
+        );
+      }
+      let nonce;
+      let ciphertext;
+      let tag;
+      try {
+        nonce = Buffer.from(envelope.nonce, 'base64url');
+        ciphertext = Buffer.from(
+          envelope.ciphertext,
+          'base64url',
+        );
+        tag = Buffer.from(
+          envelope.authenticationTag,
+          'base64url',
+        );
+        if (nonce.length !== 12 || tag.length !== 16 ||
+            ciphertext.length < 1 ||
+            ciphertext.length > 4096) {
+          throw new Error('invalid envelope');
+        }
+        const decipher = crypto.createDecipheriv(
+          'aes-256-gcm',
+          key,
+          nonce,
+        );
+        decipher.setAAD(integrationSecretAad(envelope));
+        decipher.setAuthTag(tag);
+        const plaintext = Buffer.concat([
+          decipher.update(ciphertext),
+          decipher.final(),
+        ]);
+        if (plaintext.length < 1 || plaintext.length > 4096) {
+          plaintext.fill(0);
+          throw new Error('invalid plaintext');
+        }
+        return plaintext;
+      } catch (_error) {
+        throw new CleanServiceHostError(
+          'PLATFORM_INTEGRATION_SECRET_DECRYPTION_FAILED',
+          'Integration Secret envelope cannot be authenticated.',
+        );
+      } finally {
+        nonce?.fill(0);
+        ciphertext?.fill(0);
+        tag?.fill(0);
+      }
+    },
+    remove(locator) {
+      try {
+        fs.rmSync(integrationSecretPath(root, locator), {
+          force: true,
+        });
+      } catch (error) {
+        if (error instanceof CleanServiceHostError) throw error;
+        throw new CleanServiceHostError(
+          'PLATFORM_INTEGRATION_SECRET_REMOVE_FAILED',
+          'Integration Secret envelope could not be removed.',
+        );
+      }
+    },
+    requestDigest(value) {
+      return crypto.createHmac('sha256', key)
+        .update('shelfdeck:integration-command:v1\0', 'utf8')
+        .update(value, 'utf8')
+        .digest('hex');
+    },
+  });
+}
+
+function createPlatformIntegrationServices(options) {
+  const repository = createIntegrationRepository(options);
+  const secretStore = createIntegrationSecretStore(options);
+  const runtime = createPlatformIntegrationRuntime({
+    repository,
+    secretStore,
+    now: options.now,
+    createId: crypto.randomUUID,
+    digest: (value) => crypto.createHash('sha256')
+      .update(value, 'utf8')
+      .digest('hex'),
+  });
+  const tmdbAdapter = createTmdbProviderAdapter({
+    integrationQueryPort: runtime.integrationQueryPort,
+    integrationHandleResolverPort:
+      runtime.integrationHandleResolverPort,
+    secretLeaseResolverPort: runtime.secretLeaseResolverPort,
+    secretLeaseConsumer: runtime.broker,
+    fetchImpl: options.fetchImpl,
+    now: options.now,
+  });
+  const admin = createIntegrationAdminApplication({
+    repository,
+    secretStore,
+    tmdbAdapter,
+    now: options.now,
+  });
+
+  function tmdbHandle(operationId, artifactKind = null) {
+    const snapshot = runtime.readCurrent();
+    if (!snapshot || snapshot.integration.state !== 'active') {
+      return undefined;
+    }
+    return runtime.integrationHandleResolverPort.resolve({
+      integrationId: 'tmdb-main',
+      integrationType: 'tmdb',
+      configRevision: snapshot.integration.configRevision,
+      allowedOperation: operationId,
+      artifactKind,
+    });
+  }
+
+  return Object.freeze({
+    admin,
+    integrationHandleResolverPort:
+      runtime.integrationHandleResolverPort,
+    isTmdbActive: runtime.isTmdbActive,
+    async searchProviderIdentity(request) {
+      const handle = tmdbHandle('shared.integration.search@1');
+      if (!handle) {
+        throw new CleanServiceHostError(
+          'PLATFORM_INTEGRATION_NOT_CONFIGURED',
+          'TMDB integration is not configured.',
+        );
+      }
+      return tmdbAdapter.observationPort.execute({
+        operationId: 'shared.integration.search@1',
+        integrationHandle: handle,
+        input: {
+          contentProfile: request.contentProfile,
+          title: request.title,
+        },
+        timeoutMs: 10_000,
+      });
+    },
+    async fetchProviderMetadata(request) {
+      return tmdbAdapter.observationPort.execute({
+        operationId: 'libra.product_metadata.fetch@1',
+        integrationHandle: request.integrationHandle,
+        input: {
+          resolvedProviderIdentity:
+            request.metadataFetchIntent.resolvedProviderIdentity,
+          requestedFields:
+            request.metadataFetchIntent.requestedFields,
+        },
+        timeoutMs: 10_000,
+      });
+    },
+    async fetchProviderArtifact(request) {
+      return tmdbAdapter.artifactPort.execute({
+        operationId: 'libra.product_artifact.acquire@1',
+        integrationHandle: request.integrationHandle,
+        input: {
+          artifactKind: request.artifactKind,
+          resolvedProviderIdentity:
+            request.resolvedProviderIdentity,
+        },
+        timeoutMs: 20_000,
+      });
+    },
+    resolveProductHandle(value) {
+      const intent = value.intent;
+      if (intent?.providerKind !== 'tmdb' ||
+          !runtime.isTmdbActive()) {
+        return undefined;
+      }
+      return runtime.integrationHandleResolverPort.resolve({
+        integrationId: intent.integrationId,
+        integrationType: intent.providerKind,
+        configRevision: intent.configRevision,
+        allowedOperation: value.operationId,
+        artifactKind: value.artifactKind || null,
+      });
+    },
+  });
 }
 
 function cookieValue(header, name) {
@@ -188,6 +538,31 @@ function errorResponse(error, correlationId) {
   else if (error.code === 'ADMIN_FIELD_COMMAND_REJECTED' || error.code === 'ADMIN_FIELD_TARGET_MISMATCH') status = 400;
   else if (error.code === 'ADMIN_FIELD_IDEMPOTENCY_CONFLICT') status = 409;
   else if (error.code === 'ADMIN_FIELD_CONFLICT') status = 409;
+  else if (
+    error.code === 'PLATFORM_INTEGRATION_KIND_UNSUPPORTED' ||
+    error.code === 'PLATFORM_INTEGRATION_NOT_CONFIGURED'
+  ) status = 404;
+  else if (
+    error.code === 'PLATFORM_INTEGRATION_IDEMPOTENCY_CONFLICT' ||
+    error.code === 'PLATFORM_INTEGRATION_CAS_CONFLICT' ||
+    error.code === 'PLATFORM_INTEGRATION_REVISION_MISMATCH'
+  ) status = 409;
+  else if (
+    typeof error.code === 'string' &&
+    (
+      error.code.startsWith('PLATFORM_INTEGRATION_') ||
+      error.code.startsWith('PLATFORM_TMDB_')
+    )
+  ) {
+    status = [
+      'PLATFORM_INTEGRATION_NETWORK_FAILED',
+      'PLATFORM_INTEGRATION_HTTP_FAILED',
+      'PLATFORM_INTEGRATION_RESPONSE_INVALID',
+      'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID',
+      'PLATFORM_INTEGRATION_RESPONSE_BOUND',
+      'PLATFORM_INTEGRATION_TIMEOUT',
+    ].includes(error.code) ? 502 : 400;
+  }
   else if (
     error.code === 'IDEMPOTENCY_KEY_REQUIRED' ||
     error.code === 'GET_SIDE_EFFECT_INPUT_REJECTED' ||
@@ -316,6 +691,13 @@ async function createCleanServiceHost(options) {
   const sessionTokens = createSessionTokenService({
     readActiveCredential: runtime.readActiveCredential,
   });
+  const platformIntegrations = createPlatformIntegrationServices({
+    ...constructed.applicationDependencies,
+    dataDir: options.dataDir,
+    secretRoot: options.secretRoot,
+    now: options.now || Date.now,
+    fetchImpl: options.integrationFetch,
+  });
   const arcaShelfAdmin = createArcaShelfAdminApplication({
     ...constructed.applicationDependencies,
     targetFolderProbe: createCleanShelfTargetFolderProbe(),
@@ -369,13 +751,60 @@ async function createCleanServiceHost(options) {
     afterPhysicalEffect: options.afterWorkspacePhysicalEffect,
     afterCleanupPhysicalEffect: options.afterCleanupPhysicalEffect,
   });
-  const productProductionPort = createCleanProductProductionPort({
+  const configuredSearchProviderIdentity = async (request) => {
+    if (request.contentProfile === 'movie' &&
+        platformIntegrations.isTmdbActive()) {
+      return platformIntegrations.searchProviderIdentity(request);
+    }
+    if (typeof options.searchProviderIdentity === 'function') {
+      return options.searchProviderIdentity(request);
+    }
+    const error = new CleanServiceHostError(
+      'CLEAN_PRODUCT_IDENTITY_PROVIDER_UNAVAILABLE',
+      'The required typed Provider identity search is unavailable.',
+    );
+    throw error;
+  };
+  const configuredFetchProviderMetadata = async (request) => {
+    if (request.metadataFetchIntent?.providerKind === 'tmdb' &&
+        platformIntegrations.isTmdbActive()) {
+      return platformIntegrations.fetchProviderMetadata(request);
+    }
+    if (typeof options.fetchProviderMetadata === 'function') {
+      return options.fetchProviderMetadata(request);
+    }
+    throw new CleanServiceHostError(
+      'CLEAN_PRODUCT_PROVIDER_UNAVAILABLE',
+      'The required typed Product Metadata provider is unavailable.',
+    );
+  };
+  const configuredFetchProviderArtifact = async (request) => {
+    if (request.integrationHandle?.integrationType === 'tmdb' &&
+        platformIntegrations.isTmdbActive()) {
+      return platformIntegrations.fetchProviderArtifact(request);
+    }
+    if (typeof options.fetchProviderArtifact === 'function') {
+      return options.fetchProviderArtifact(request);
+    }
+    throw new CleanServiceHostError(
+      'CLEAN_PRODUCT_ARTIFACT_PROVIDER_UNAVAILABLE',
+      'The required typed Product Artifact provider is unavailable.',
+    );
+  };
+  const rawProductProductionPort = createCleanProductProductionPort({
     mediaProbe,
     workspaceProductPort,
     now: options.now,
-    searchProviderIdentity: options.searchProviderIdentity,
-    fetchProviderMetadata: options.fetchProviderMetadata,
-    fetchProviderArtifact: options.fetchProviderArtifact,
+    searchProviderIdentity: configuredSearchProviderIdentity,
+    fetchProviderMetadata: configuredFetchProviderMetadata,
+    fetchProviderArtifact: configuredFetchProviderArtifact,
+  });
+  const productProductionPort = Object.freeze({
+    ...rawProductProductionPort,
+    resolveIntegrationHandle(value) {
+      return platformIntegrations.resolveProductHandle(value) ||
+        rawProductProductionPort.resolveIntegrationHandle(value);
+    },
   });
   const westernAnalysisPort =
     options.westernAnalysisEngine || options.westernModelPack
@@ -483,6 +912,11 @@ async function createCleanServiceHost(options) {
       );
     }
     if (['series', 'jav'].includes(formation.contentProfile) &&
+        typeof options.searchProviderIdentity !== 'function') {
+      return null;
+    }
+    if (formation.contentProfile === 'movie' &&
+        !platformIntegrations.isTmdbActive() &&
         typeof options.searchProviderIdentity !== 'function') {
       return null;
     }
@@ -635,6 +1069,7 @@ async function createCleanServiceHost(options) {
     arcaShelfAdmin,
     arcaRuleTemplateAdmin,
     libraRoutingAdmin,
+    platformIntegrationAdmin: platformIntegrations.admin,
     nonce: crypto.randomUUID,
   });
   const application = createHelixApplication({ facades, sessionTokens });
@@ -709,5 +1144,7 @@ module.exports = Object.freeze({
   CleanServiceHostError,
   SESSION_COOKIE,
   createCleanServiceHost,
+  createIntegrationSecretStore,
+  createPlatformIntegrationServices,
   inspectCleanRuntimeReadiness,
 });

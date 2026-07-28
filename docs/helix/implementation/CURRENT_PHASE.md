@@ -1,6 +1,6 @@
 # P14 Product Journey Implementation
 
-状态：**H1.0 CHECKPOINT FROZEN — 等待 Architecture 主动复审与 P14 独立验收**
+状态：**H1.1 IMPLEMENTATION CHECKPOINT FROZEN — 等待 Architecture 主动复审**
 
 ## H1-only 授权与阶段门
 
@@ -36,7 +36,7 @@ H1 是施工批次，Feature Matrix 是用户结果验收表。一项 H1 基础�
 Feature，但不会自动把任何 Feature 标为 PASS。四条已接受 backend vertical
 同样不能折算为真实 Admin route 或 Feature PASS。
 
-## H1.0 冻结施工图
+## H1.0 已接受施工图
 
 本 checkpoint 只修改 implementation docs，并增加一个机械 scope/regression
 guard；没有修改业务实现、Architecture SSOT 或 Feature baseline。只读盘点结果
@@ -71,8 +71,8 @@ H1 新增或修正测试必须使用独立文件，不得替换、删除、弱�
 变化都会在报告中标记为 `governance_checkpoint_review`，必须作为独立
 checkpoint 显式交 Architecture/P14 复审。
 
-当前机器盘点为 `112 Capability / 97 Result / 178 Table / 43 Canonical
-Transaction / 114 routes / 18 UI surfaces`。真实路由状态为 `36 real / 6
+H1.0 机器盘点为 `112 Capability / 97 Result / 178 Table / 43 Canonical
+Transaction / 114 routes / 18 UI surfaces`。当时真实路由状态为 `36 real / 6
 intentional Worker Beta-404 / 72 unavailable-503`；旧 ledger 的 `4/6/104`
 表达已纠正。四条 backend vertical 没有增加 route 实现数。
 
@@ -94,7 +94,42 @@ H1.0 验证：
   `c5a62e222ce4063f7ad05073f343e525d417f625cc937ee5f1284a2cf2090995`；
 - unresolved type refs、findings 与 `prohibitedActionsRun` 均为 `0`。
 
-本 checkpoint 完成后保持冻结，等待 Architecture 主动复审；不得开始 H1.1。
+H1.0 replacement `9d396bb4265a628f08a2dcf069dad020f119a3a4` 已通过
+Architecture 主动复审与 P14 独立验收（evidence `181c57ac`）。
+
+## H1.1 当前冻结检查点
+
+H1.1 只在 Platform、Integration、Composition 与 Clean Host 既定 seam
+完成 secure Integration configuration 与 real TMDB 最小纵切。四条既有
+Admin route 已接通：
+
+- `GET /v1/admin/settings/integrations/:kind`；
+- `PATCH /v1/admin/settings/integrations/:kind`；
+- `POST /v1/admin/settings/integrations/:kind/actions/test`；
+- `POST /v1/admin/settings/integrations/:kind/actions/disconnect`。
+
+本阶段只有 `tmdb` 是 supported kind；其他 kind 明确返回 unsupported
+状态，不会假成功或跨 Provider fallback。Platform owner-local repository
+复用 `platform_integrations` 与 `platform_secret_refs`，并在同一 Platform UoW
+内以 config/Secret Reference revision CAS 原子提交。secret envelope 使用
+`SHELFDECK_SECRET_ROOT` 派生的 AES-256-GCM key、integration-scoped AAD 与
+opaque locator；明文不进入 SQLite、HTTP、日志、Evidence 或 Git。
+
+保存流程严格执行 real TMDB `test-before-save`，随后才提交配置与 Secret
+Reference。正式 TMDB adapter 只消费 revision-fenced Integration Handle 与
+bounded Secret Lease，并实现既有 typed identity、metadata 与 artifact
+操作。未配置时 production Composition fail closed；测试 deterministic
+adapter 仍只是显式 test seam，不是 production fallback。H1.2 的 Douban、
+JAV/Adult、MoviePilot 与 optional Emby 均未开始。
+
+当前 route 状态为 `40 real / 6 intentional Worker Beta-404 / 68
+unavailable-503`。Feature Matrix 没有因此提升任何 Feature 为 PASS。
+详细证据见：
+
+`docs/helix/implementation/evidence/P14_H1_1_TMDB_INTEGRATION_CHECKPOINT.md`
+
+本检查点完成后保持冻结，等待 Architecture 主动复审与 P14 独立验收；
+不得开始 H1.2。
 
 ## 当前最新检查点
 

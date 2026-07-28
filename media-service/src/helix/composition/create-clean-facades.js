@@ -71,6 +71,33 @@ function createCleanFacades(options) {
       },
     };
   };
+  if (options.platformIntegrationAdmin) {
+    facades.PlatformAdminFacade.get_settings_integrations_kind =
+      async (input) => ({
+        body: options.platformIntegrationAdmin.get(input.params.kind),
+      });
+    facades.PlatformAdminFacade.patch_settings_integrations_kind =
+      async (input) => ({
+        body: await options.platformIntegrationAdmin.configure(
+          input.params.kind,
+          input.body,
+        ),
+      });
+    facades.PlatformAdminFacade.post_settings_integrations_kind_actions_test =
+      async (input) => ({
+        body: await options.platformIntegrationAdmin.test(
+          input.params.kind,
+          input.body,
+        ),
+      });
+    facades.PlatformAdminFacade.post_settings_integrations_kind_actions_disconnect =
+      async (input) => ({
+        body: options.platformIntegrationAdmin.disconnect(
+          input.params.kind,
+          input.body,
+        ),
+      });
+  }
   if (options.procurementAdmin) {
     facades.ProcurementAdminFacade.get_material_fields = async () => ({
       body: options.procurementAdmin.listMaterialFields(),
