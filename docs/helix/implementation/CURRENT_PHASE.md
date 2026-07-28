@@ -1,6 +1,86 @@
 # P14 Product Journey Implementation
 
-状态：**FROZEN — Western backend responsibility endpoint 待复验**
+状态：**H1.0 CHECKPOINT FROZEN — 等待 Architecture 主动复审与 P14 独立验收**
+
+## H1-only 授权与阶段门
+
+P14 已独立接受 Western final responsibility closure：source `ddc3e519`，
+tested local `210b2262`，evidence `6866b68e`。Movie、Series、JAV 与
+Western Adult 四条 backend vertical 均已到达 terminal responsibility
+closure。`ddc3e51909ca4e9f5729c4326b05daee4792326f` 从现在起是 H1 的
+immutable regression baseline。
+
+用户当前只授权 H1，且要求逐 phase 推进：
+
+1. `H1.0` Governance + read-only preflight/change-scope guard；
+2. `H1.1` Platform secure Integration config foundation + real TMDB 最小纵切；
+3. `H1.2` real Douban、JAV/Adult、MoviePilot、optional Emby integrations；
+4. `H1.3` Libra Workspace、Arca Aftercare、Artifact Roots、安全 probe 与本机
+   device/resource readiness；六条 Worker route 继续 Beta `404`；
+5. `H1.4` service-local Node/ONNX face runtime，复用 PBF-23 formal chain，
+   不得引入 Python 或独立服务；
+6. `H1.5` Setup/Readiness projections、H1 全量回归与 Feature 证据归档；
+7. H1 完成后 **HARD STOP**；未经用户明确授权不得进入 H2。
+
+每个 phase 都必须经过：
+
+`implementation checkpoint → Architecture 主动复审 → P14 独立验收
+→ 下一 phase`
+
+实现线程不得自行 accept，也不得在前一 phase 未被双重接受时开始后一 phase。
+Luna Runner 只可由 Architecture 线程创建、调度、接收、终止与归档；P14 只提交
+已冻结的重复测试清单，不直接触发 Luna。Luna 只跑确定性大批量回归，不分析
+异常、不修复、不宣布 PASS。
+
+H1 是施工批次，Feature Matrix 是用户结果验收表。一项 H1 基础能力可以支撑多个
+Feature，但不会自动把任何 Feature 标为 PASS。四条已接受 backend vertical
+同样不能折算为真实 Admin route 或 Feature PASS。
+
+## H1.0 冻结施工图
+
+本 checkpoint 只修改 implementation docs，并增加一个机械 scope/regression
+guard；没有修改业务实现、Architecture SSOT 或 Feature baseline。只读盘点结果
+与后续 phase 的 allowed modules、forbidden vertical core、sentinel regressions、
+历史 ignored 配置边界及潜在 Design Return 已冻结在：
+
+`docs/helix/implementation/evidence/P14_BETA_IMPL_03_PRODUCT_SURFACE_CONSTRUCTION_MATRIX.md`
+
+机械 guard：
+
+`media-service/scripts/p14-h1-change-scope-guard.js`
+
+它以 `ddc3e519` 为 baseline，按 phase allowlist 检查完整 diff，并对以下路径
+始终 fail closed：Architecture SSOT、Feature baseline、Procurement/Libra/Arca
+Domain core、全部 formal contracts/DTO、Foundation runtime、legacy `app.js`、
+Worker 与 Desktop。H1 只允许在正式 Port、Adapter、Platform config、
+Composition seam 接入真实输入。若完成真实接线必须修改上述 immutable scope、
+Owner/Handoff/Canonical Transaction 或正式 DTO，立即返回 bounded Design
+Return，不绕开 guard。
+
+当前机器盘点为 `112 Capability / 97 Result / 178 Table / 43 Canonical
+Transaction / 114 routes / 18 UI surfaces`。真实路由状态为 `36 real / 6
+intentional Worker Beta-404 / 72 unavailable-503`；旧 ledger 的 `4/6/104`
+表达已纠正。四条 backend vertical 没有增加 route 实现数。
+
+历史 ignored 配置只做了文件存在性与 key-family 盘点，未读取、输出或写入任何
+secret value。后续只允许操作员把可复用值通过正式
+`test-before-save → encrypted Secret Store/Secret Handle` 流程重新提交；
+不得直接导入历史 runtime config。Western 的 Worker/Python/Mirex/Ollama 字段
+明确不可复用。
+
+H1.0 验证：
+
+- scope guard unit/negative：`6/6 PASS`；
+- immutable vertical sentinels：`27/27 PASS`；
+- 完整 `test:helix-architecture`：`134 fixture files PASS`；
+- inventories：`112 / 97 / 178 / 43 / 114 routes / 18 UI surfaces`；
+- machine manifest aggregate：
+  `345a974464886d213ca36ba21678bd7ad88ece5b2a081f34f4ddbc94accdc3d9`；
+- contract aggregate：
+  `c5a62e222ce4063f7ad05073f343e525d417f625cc937ee5f1284a2cf2090995`；
+- unresolved type refs、findings 与 `prohibitedActionsRun` 均为 `0`。
+
+本 checkpoint 完成后保持冻结，等待 Architecture 主动复审；不得开始 H1.1。
 
 ## 当前最新检查点
 

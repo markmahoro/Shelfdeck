@@ -1,6 +1,6 @@
 # P14 BETA-IMPL-03 Product Surface Construction Matrix
 
-Status: `FROZEN CONSTRUCTION BASELINE / SETUP-FOUNDATION IN PROGRESS`
+Status: `H1.0 FROZEN CONSTRUCTION DRAWING / AWAITING REVIEW`
 
 ## Purpose and authority
 
@@ -16,9 +16,178 @@ the sole byte-level list, avoiding a second hand-maintained 110-row copy.
 | --- | --- |
 | Architecture governance | `1619735c` |
 | BETA feature baseline | `fcfc38f0` |
-| Route inventory | 114 total; 4 currently real; 6 Worker routes intentionally Beta-404; 104 remaining product routes |
-| Core contract counts | 112 Capability / 97 Result family / 177 Table / 43 Canonical Transaction |
+| Accepted vertical regression baseline | `ddc3e51909ca4e9f5729c4326b05daee4792326f` |
+| Route inventory | 114 total; 36 real; 6 Worker routes intentionally Beta-404; 72 unavailable-503 |
+| Core contract counts | 112 Capability / 97 Result family / 178 Table / 43 Canonical Transaction |
 | Scope | `shelfdeck service` only; no Worker, Desktop, Ollama, legacy runtime, or generic Store facade |
+
+The earlier `4 real / 6 Worker / 104 remaining` row described the clean
+entrypoint before accepted Setup/Foundation route construction. It is stale and
+is superseded by the mechanically reproduced `36 / 6 / 72` count above.
+Accepted Movie/Series/JAV/Western backend verticals do not add route methods and
+are not counted as real routes or Feature PASS.
+
+## H1 governance
+
+H1 is a construction batch. The Feature Matrix is the user-outcome acceptance
+ledger. One H1 foundation capability may support several Features, but neither
+an H1 checkpoint nor an accepted backend vertical may automatically mark a
+Feature PASS.
+
+The four accepted verticals are protected by immutable regression baseline
+`ddc3e519`. H1 may connect real input only at an existing formal Port, Adapter,
+Platform configuration, or Composition seam. It must not change a Procurement,
+Libra, or Arca core Coordinator, Owner/Handoff, Canonical Transaction, or formal
+DTO. If real input cannot be connected without such a change, the phase stops
+with a bounded Design Return.
+
+Production fixture fallback, compatibility/dual path, caller fixture injection,
+and legacy fallback are prohibited. A deterministic adapter may implement the
+same formal Port in a test, but it must never become a production fallback.
+
+Every H1 phase uses this fixed gate:
+
+`implementation checkpoint → Architecture active review → P14 independent
+acceptance → next phase`
+
+The implementation task cannot self-accept. Luna Runner is created, scheduled,
+received, terminated, and archived only by the Architecture task. P14 supplies
+only a frozen repeat-test list and does not trigger Luna. Luna runs deterministic
+bulk regression only; it does not diagnose, repair, or declare PASS.
+
+H1 is the only authorized horizontal batch. After H1.5 acceptance the task
+hard-stops. H2 is not authorized.
+
+## H1.0 executable construction drawing
+
+### Current route surface
+
+The count below is derived from the exact route inventory and the explicit
+method assignments in `create-clean-facades.js`, not from journey evidence:
+
+| State | Count | Meaning |
+| --- | ---: | --- |
+| Real public method | 36 | Public Facade method has an explicit clean implementation |
+| Worker Beta exclusion | 6 | Deliberate `404 REMOTE_WORKER_NOT_AVAILABLE_IN_BETA` |
+| Unavailable product method | 72 | Deliberate `503 CLEAN_FACADE_NOT_IMPLEMENTED` |
+| Total | 114 | Exact machine route inventory |
+
+Of 30 Platform routes, session create/delete and security read are real; six
+Worker routes remain Beta 404. The 21 unavailable non-Worker Platform methods
+are the H1 route construction surface: Integration 4, Workspace 3, Resource 3,
+Formation/Setup 1, security rotate 1, and diagnostics 9.
+
+### Existing Owner rows and formal seams
+
+| Area | Existing owner rows / formal ports | Existing implementation | Exact H1 gap |
+| --- | --- | --- | --- |
+| Integration config | `platform_integrations`, `platform_secret_refs`; `IntegrationQueryPort`, `IntegrationHandleResolverPort`, `SecretLeaseResolverPort` | Secret Reference repository, bounded Secret Lease broker, provider protocol contracts | No `platform_integrations` repository/application/Admin wiring; no encrypted production Secret Source; Provider calls in Clean Host remain injected functions |
+| Provider adapters | `ExternalProviderObservationPort`, `ExternalProviderArtifactPort`, `ExternalProviderRequestPort` | Closed P5 provider protocol plus PBF-21 typed identity/artifact contracts | No production TMDB/Douban/JAV-Adult/MoviePilot/Emby HTTP adapters on the clean Composition Root |
+| Workspace roots | `platform_mount_scopes`, revisions, `platform_workspace_roots`; `MountScopeResolverPort`, `PlatformWorkspaceRuntimePort` | Location registry repository/service with owner, containment and overlap rules | Product host still defaults Libra Workspace from `dataDir`; Workspace Admin routes and safe real probe are unavailable |
+| Resource/device | Resource Profile/Policy revisions and Compute Device/Probe rows; `ResourceProfileQueryPort`, `ComputeDeviceQueryPort` | Resource/Worker registry service and repository | No local device/resource probe or public Admin wiring; Worker registry code must not make Worker routes available |
+| Face runtime | Existing PBF-23 frames/embedding/cluster/analysis/reference-match Plan/Event/Result chain and People public projection | Test-injected Western analysis engine/model pack seam | No service-local ONNX runtime/model pack asset loader, license/SHA/config fence, or clean production Composition binding |
+| Setup/readiness | Existing Owner public facts, route inventory, operational cutover/readiness tests | Public health and clean startup/readiness base | Formation/diagnostic/readiness aggregation routes are unavailable and must remain read-only projections, not a global state machine |
+
+Platform owns 16 existing tables:
+`platform_schema_marker`, `platform_mount_scopes`,
+`platform_mount_scope_revisions`, `platform_integrations`,
+`platform_secret_refs`, `platform_workspace_roots`,
+`platform_resource_profiles`, `platform_resource_profile_revisions`,
+`platform_resource_operating_policy`,
+`platform_resource_operating_revisions`, `platform_compute_devices`,
+`platform_compute_device_probes`, `platform_workers`,
+`platform_worker_revisions`, `platform_worker_devices`, and
+`platform_admin_credentials`.
+
+The formal Platform public ports are:
+`IntegrationQueryPort`, `IntegrationHandleResolverPort`,
+`SecretLeaseResolverPort`, `MountScopeResolverPort`,
+`PlatformWorkspaceRuntimePort`, `ResourceProfileQueryPort`,
+`ComputeDeviceQueryPort`, `WorkerHandleResolverPort`, and
+`AdminCredentialRevisionQueryPort`.
+
+The formal Integration ports are:
+`FilesystemObservationPort`, `ContentHashPort`, `MediaProbePort`,
+`WorkspaceFileEffectPort`, `MediaTransformPort`,
+`FilesystemMaterialCommitPort`, `FilesystemDestructiveCommitPort`,
+`ExternalProviderObservationPort`, `ExternalProviderArtifactPort`,
+`ExternalProviderRequestPort`, and `WorkerComputePort`. H1 must not bind or
+expose `WorkerComputePort`.
+
+### Historical ignored configuration boundary
+
+The preflight checked only ignored-file existence and configuration key
+families; no secret value was read, printed, copied, or committed.
+
+- The main historical checkout contains ignored
+  `tests/TEST_ENV_CHECKLIST.md` and `media-service/data/config.json`.
+- Potentially reusable operator input families exist for TMDB/Douban,
+  MoviePilot, JAV/Adult, and optional Emby.
+- Values may be re-entered later only through the formal H1 public
+  test-before-save flow and encrypted Secret Store/Secret Handle continuity.
+  The historical JSON is not an import source or runtime fallback.
+- Historical Western Worker/Python/FastAPI/Mirex/Ollama endpoints and credentials
+  are not reusable.
+- Historical Emby password/API-key configuration is not copied. H1.2 must use
+  the accepted one-time authentication flow and persist only the returned token
+  handle.
+
+### Fixed H1 phases, change scope, and sentinels
+
+| Phase | Deliverable and allowed implementation modules | Forbidden scope | Minimum sentinel regression |
+| --- | --- | --- | --- |
+| H1.0 | Existing `CURRENT_PHASE`, this matrix, mechanical guard script/test only | All business implementation; SSOT; Feature baseline | H1 guard + exact `36/6/72` route status |
+| H1.1 | `helix/platform`, `helix/integrations`, Composition, Clean Host; secure Integration config + real TMDB | Domain core, formal DTO/contracts, Provider fixture fallback | P5 secret/provider/public-port/integration tests + four vertical/cleanup sentinels |
+| H1.2 | Same seams; real Douban/JAV-Adult/MoviePilot/optional Emby | Cross-provider fallback, cache authority, legacy config import | Provider/integration tests + four vertical/cleanup sentinels |
+| H1.3 | Platform location/resource seams, Composition, Clean Host | Domain Store reads, accepted Workspace/Product adapter changes, Worker availability | P5 location/resource + operational cutover + four vertical/cleanup sentinels |
+| H1.4 | Service-local integration adapter/model loader, Composition, package manifests only if ONNX dependency is required | PBF-23 Coordinator/DTO/Capability changes, Worker/Desktop/Python service | Artifact + People + Western analysis + four vertical/cleanup sentinels |
+| H1.5 | Platform/public projection and existing `helix/projections` seams, Composition, Clean Host | Admin UI/H2 work, global state machine, Domain core | Product surface + operational cutover + four vertical/cleanup sentinels + full architecture |
+
+For every delivery phase, the immutable vertical sentinels include
+`p14-clean-service-entrypoint`, `p14-series-handoff-a`,
+`p14-jav-routing-spec-run`, `p14-western-routing-spec-run`, and
+`p14-workspace-cleanup-audit`. Phase-specific P5/P6/P12/P13 tests are additive.
+
+`media-service/scripts/p14-h1-change-scope-guard.js` is the executable guard.
+It checks the complete diff from `ddc3e519`, rejects SSOT/Feature baseline,
+all Procurement/Libra/Arca Domain code, all formal contracts/DTO, Foundation,
+legacy `app.js`, Worker and Desktop, and allows only the active phase seams.
+An out-of-scope need is evidence for Architecture review, not permission to
+weaken the guard.
+
+### Known gaps and bounded Design Return triggers
+
+- H1.1 must choose an implementation-owned encrypted Secret Source and
+  Integration aggregate repository/application around existing Platform rows.
+  This is ordinary closure while the accepted Port/Owner meaning remains
+  unchanged.
+- H1.3 must not turn `resolved_root` into a public value and must preserve root
+  ownership: `production-workspace → libra`, `aftercare-workspace → arca`,
+  `internal-artifact → platform-settings`.
+- H1.4 currently has no ONNX/model-pack asset in the repository and no
+  `onnxruntime-node` dependency. Missing licensed model bytes/checksum is an
+  asset-acquisition gap; it must be reported precisely and must not trigger a
+  Worker/Python/Ollama fallback.
+- Any need to change a vertical core Coordinator, Owner/Handoff, Canonical
+  Transaction, formal DTO, or user-visible Integration semantics is a bounded
+  Design Return. Ordinary repository, encryption, HTTP adapter, package,
+  retry/recovery, and test choices remain implementation-owned.
+
+### H1.0 verification freeze
+
+- H1 change-scope guard and counterexamples: `6/6 PASS`.
+- Accepted Movie/Series/JAV/Western/cleanup sentinels: `27/27 PASS`.
+- Full `npm run test:helix-architecture`: `134 fixture files PASS`.
+- Inventories: `112 Capability / 97 Result / 178 Table / 43 Canonical
+  Transaction / 114 Route / 18 UI Surface`.
+- Machine manifest aggregate:
+  `345a974464886d213ca36ba21678bd7ad88ece5b2a081f34f4ddbc94accdc3d9`.
+- Contract aggregate:
+  `c5a62e222ce4063f7ad05073f343e525d417f625cc937ee5f1284a2cf2090995`.
+- `unresolvedTypeRefs=0`, findings empty, `prohibitedActionsRun=[]`.
+
+This is an implementation checkpoint only. It remains frozen until Architecture
+active review and P14 independent acceptance; H1.1 has not started.
 
 ## Route-to-owner construction rules
 
