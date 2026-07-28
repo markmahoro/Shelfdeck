@@ -77,7 +77,7 @@ function createThePornDbRestClient(options) {
 
   function projectScene(value) {
     const scene = object(value, 'ThePornDB SceneResource is invalid.');
-    const id = boundedString(String(scene.id || ''), 256);
+    const id = boundedString(scene.id, 256);
     const sku = normalizedCode(scene.sku);
     const title = boundedString(scene.title, 2048);
     const date = boundedString(scene.date, 64, true);
@@ -97,8 +97,12 @@ function createThePornDbRestClient(options) {
       'performer collection',
     ).map((item) => {
       object(item, 'ThePornDB performer is invalid.');
+      const performerId = item.id === undefined ||
+        item.id === null
+        ? item.uuid
+        : item.id;
       return Object.freeze({
-        id: boundedString(String(item.id || item.uuid || ''), 256),
+        id: boundedString(performerId, 256),
         name: boundedString(item.name, 512),
       });
     });

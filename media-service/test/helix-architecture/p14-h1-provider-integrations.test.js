@@ -156,7 +156,9 @@ function providerFetch(state) {
         });
       }
       const scene = {
-        id: state.adultSearchId || 'scene-1',
+        id: Object.hasOwn(state, 'adultSearchId')
+          ? state.adultSearchId
+          : 'scene-1',
         sku: state.adultSearchCode || 'SDKI-001',
         title: state.adultLongTitle || 'JAV title',
         date: '2020-01-02',
@@ -164,7 +166,9 @@ function providerFetch(state) {
         site: { id: 7, name: 'Studio', url: 'ignored' },
         tags: [{ id: 1, name: 'Drama', ignored: true }],
         performers: [{
-          id: 'performer-1',
+          id: Object.hasOwn(state, 'adultPerformerId')
+            ? state.adultPerformerId
+            : 'performer-1',
           name: 'Actor',
           gender: 'female',
         }],
@@ -201,7 +205,9 @@ function providerFetch(state) {
         return response(200, {
           data: {
             ...scene,
-            id: state.adultExactId || scene.id,
+            id: Object.hasOwn(state, 'adultExactId')
+              ? state.adultExactId
+              : scene.id,
             sku: state.adultExactCode || scene.sku,
           },
         });
@@ -909,6 +915,62 @@ test('H1.2 JAV Product handles and artifact URLs fail closed before foreign tran
       (error) => error.code === 'P5_PROVIDER_HANDLE_DENIED',
     );
 
+    for (const invalidId of [
+      { unexpected: 'object' },
+      42,
+      null,
+      '',
+      'x'.repeat(257),
+    ]) {
+      state.adultSearchId = invalidId;
+      const before = state.calls.length;
+      await assert.rejects(
+        () => opened.services.searchJavProviderIdentity({
+          operationId: 'shared.integration.search@1',
+          contentProfile: 'jav',
+          javCode: 'SDKI-001',
+        }),
+        (error) => error.code === 'P5_SECRET_LEASE_INVOCATION_FAILED',
+      );
+      assert.equal(state.calls.length, before + 1);
+      assert.equal(state.calls.at(-1).path, '/jav');
+    }
+    delete state.adultSearchId;
+
+    for (const invalidId of [
+      { unexpected: 'object' },
+      42,
+      null,
+      '',
+      'x'.repeat(257),
+    ]) {
+      state.adultExactId = invalidId;
+      const before = state.calls.length;
+      await assert.rejects(
+        () => opened.services.fetchJavProviderMetadata({
+          metadataFetchIntent: intent,
+          integrationHandle: metadataHandle,
+        }),
+        (error) => error.code === 'P5_SECRET_LEASE_INVOCATION_FAILED',
+      );
+      assert.equal(state.calls.length, before + 2);
+      assert.deepEqual(
+        state.calls.slice(before).map((call) => call.path),
+        ['/jav', '/jav/scene-1'],
+      );
+    }
+    delete state.adultExactId;
+
+    state.adultPerformerId = { unexpected: 'object' };
+    await assert.rejects(
+      () => opened.services.fetchJavProviderMetadata({
+        metadataFetchIntent: intent,
+        integrationHandle: metadataHandle,
+      }),
+      (error) => error.code === 'P5_SECRET_LEASE_INVOCATION_FAILED',
+    );
+    delete state.adultPerformerId;
+
     state.adultDuplicate = true;
     await assert.rejects(
       () => opened.services.searchJavProviderIdentity({
@@ -946,7 +1008,7 @@ test('H1.2 JAV Product handles and artifact URLs fail closed before foreign tran
       }),
       (error) => error.code === 'P5_SECRET_LEASE_INVOCATION_FAILED',
     );
-    state.adultExactId = null;
+    delete state.adultExactId;
     state.adultLongTitle = 'x'.repeat(2049);
     await assert.rejects(
       () => opened.services.fetchJavProviderMetadata({
