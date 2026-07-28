@@ -33,10 +33,11 @@ Candidate Publication、Offer、CandidateDeliveryPort历史重建、Libra Intake
 new Subject、Material Binding与Procurement→Libra Material Control transfer均复用
 既有canonical transactions与Owner-local Store。Composition Root只接线。
 
-共享Formation guard补齐现有closed profile`western_adult`后，在没有正式Routing
-Policy时只返回`routing_policy_unavailable`，未写Routing Decision/Basis/Spec/Run；
-这防止已成功的Handoff A被后续未开始阶段反向报错，不新增Western专用Store、
-Capability或Transaction。
+共享Formation application先exact-read并验证已接受的Subject/Intake，再对
+`western_adult`返回显式non-error `formation_not_started`。该阶段边界严格位于
+任何Routing Policy读取、Decision/Basis写入之前；fresh offer与
+`resumeAcceptedHandoff`走同一边界。它不删除已有Policy、不伪造
+`routing_unresolved`，也不新增Western专用Store、Capability或Transaction。
 
 ## Recovery与反例
 
@@ -47,6 +48,12 @@ Capability或Transaction。
 - Candidate、Offer、Subject、Intake、Binding以及两类Outbox均保持exactly one。
 - CandidateDelivery历史读取重建相同`western_temporary` Claim、Primary与Related
   set。
+- 正式HTTP先创建active Western Shelf、绑定`system-beta-recommended` Standard
+  并发布可命中的Field Routing Policy；fresh/restart/replay仍返回
+  `formation_not_started`。Routing Assessment/Decision/Basis、Acceptance Spec、
+  Libra Run、Workspace与Product表全部保持零。
+- source guard证明Western阶段边界位于`policies.current(...)`之前，因此无Policy
+  与已有Policy两种输入均不会越过本检查点。
 - `p7-triage-pipeline`继续证明同一无code输入在`mixed`下固定落
   `movie_fallback`，不会被Western规则重解释。
 - PBF-22既有CAS/stale反例继续证明Hint revision变化不重解释旧
@@ -57,9 +64,11 @@ Capability或Transaction。
 
 ## 测试与机器基线
 
-- Western synthetic public vertical：`1/1 PASS`。
-- Western retained real-MKV + FFprobe vertical：`1/1 PASS`。
-- P7 + P8 + JAV/Western Handoff A focused regression：`36/36 PASS`。
+- Western synthetic public vertical + stage-order guard：`2/2 PASS`。
+- Western retained real-MKV + FFprobe vertical + stage-order guard：
+  `2/2 PASS`。
+- Movie/Series/JAV/Western Formation + P7/P8 focused regression：
+  `28/28 PASS`。
 - `npm run test:helix-architecture`：`133 files PASS`。
 - Machine inventory：`112 Capability / 97 Result / 178 Table /
   43 canonical Transaction`。
@@ -82,8 +91,11 @@ Capability或Transaction。
 ## 冻结点与剩余风险
 
 当前媒体已在Libra成为一个active `single/western_adult` Subject，并完成Handoff A
-责任转移；`libra_acceptance_specs=0`、`libra_runs=0`。在Architecture/P14接受前
-不得进入Routing/Spec/Run。
+责任转移。即使正式active Shelf与可命中Field Routing Policy都存在，
+`libra_routing_assessments`、`libra_routing_decisions`、
+`libra_decision_basis_revisions`、`libra_acceptance_specs`、`libra_runs`、
+Workspace与Product表仍全部为零。在Architecture/P14接受前不得进入
+Routing/Spec/Run。
 
 本检查点不声明真实Western Provider、face、Feature/UI或Beta验收；
 `F02.17`继续为`NOT_RUN`。后续仍禁止Worker/Desktop/Ollama/Python/NAS/Docker/

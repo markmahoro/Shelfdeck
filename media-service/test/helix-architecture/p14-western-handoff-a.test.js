@@ -85,6 +85,86 @@ async function session(host, apiKey) {
   })).headers['set-cookie'];
 }
 
+async function createWesternShelfAndRouting(host, apiKey, root, fieldId) {
+  const cookie = await session(host, apiKey);
+  const shelfRoot = path.join(root, 'western-shelf-target');
+  fs.mkdirSync(shelfRoot, { recursive: true });
+  const initialStandard = { profileRuleSets: [] };
+  const placement = { folderTemplate: '{title}', collisionPolicy: 'reject' };
+  const created = await host.inject({
+    method: 'POST',
+    url: '/v1/admin/shelves',
+    headers: { cookie },
+    payload: {
+      idempotencyKey: 'western-routing-shelf-create',
+      shelfId: 'western-routing-shelf',
+      name: 'Western Adult Shelf',
+      target: {
+        endpointId: 'western-routing-shelf-endpoint',
+        rootLocation: shelfRoot,
+        mountScopeId: 'western-routing-shelf-mount',
+        mountScopeRevision: 1,
+      },
+      standard: {
+        ruleTemplateId: 'western-routing-initial-template',
+        ruleTemplateRevision: 1,
+        schemaRef:
+          'helix://fixtures/western-routing-initial-standard/v1',
+        value: initialStandard,
+        digest: canonicalDigest(initialStandard),
+      },
+      placement: {
+        schemaRef: 'helix://fixtures/western-routing-placement/v1',
+        value: placement,
+        digest: canonicalDigest(placement),
+      },
+    },
+  });
+  assert.equal(created.statusCode, 201, created.body);
+  const bound = await host.inject({
+    method: 'POST',
+    url: '/v1/admin/shelves/western-routing-shelf/actions/bind-template',
+    headers: { cookie },
+    payload: {
+      idempotencyKey: 'western-routing-shelf-bind',
+      shelfId: 'western-routing-shelf',
+      expectedStandardRevision: 1,
+      expectedRoutingProjectionRevision: 1,
+      ruleTemplateId: 'system-beta-recommended',
+      expectedTemplateRevision: 1,
+    },
+  });
+  assert.equal(bound.statusCode, 200, bound.body);
+  const expression = {
+    nodeKind: 'predicate',
+    factKind: 'content_profile',
+    operator: 'eq',
+    expectedValue: 'western_adult',
+  };
+  const routed = await host.inject({
+    method: 'PATCH',
+    url: `/v1/admin/routing/material-fields/${fieldId}`,
+    headers: { cookie },
+    payload: {
+      idempotencyKey: 'western-routing-policy-publish',
+      fieldId,
+      expectedPolicyId: null,
+      expectedRevision: 0,
+      policy: {
+        routingPolicyId: 'western-routing-policy',
+        mode: 'sorting',
+        targets: [{
+          shelfId: 'western-routing-shelf',
+          rank: 1,
+          matchExpression: expression,
+        }],
+      },
+    },
+  });
+  assert.equal(routed.statusCode, 200, routed.body);
+  return Object.freeze({ shelfRoot });
+}
+
 async function sha256(location) {
   const hash = crypto.createHash('sha256');
   await new Promise((resolve, reject) => {
@@ -106,6 +186,25 @@ async function snapshotFiles(locations) {
     }];
   })));
 }
+
+test('Western stage boundary precedes every Routing Policy read', () => {
+  const source = fs.readFileSync(path.resolve(
+    __dirname,
+    '../../src/helix/domains/libra/application/movie-formation-coordinator.js',
+  ), 'utf8');
+  const boundary = source.indexOf(
+    "if (subject.contentProfile === 'western_adult')",
+  );
+  const policyRead = source.indexOf(
+    'const policy = policies.current(subject.routingProvenance.sourceFieldId);',
+  );
+  assert.ok(boundary > 0);
+  assert.ok(policyRead > boundary);
+  assert.match(
+    source.slice(boundary, policyRead),
+    /stage: 'formation_not_started'/,
+  );
+});
 
 test('Western public HTTP freezes profile Hint and accepts one exact Handoff A', async (t) => {
   const retainedPrimary = String(
@@ -251,6 +350,12 @@ test('Western public HTTP freezes profile Hint and accepts one exact Handoff A',
       payload: register,
     });
     assert.equal(registered.statusCode, 201, registered.body);
+    await createWesternShelfAndRouting(
+      host,
+      initialized.adminApiKey,
+      root,
+      access.fieldId,
+    );
     const interrupted = await host.inject({
       method: 'POST',
       url: `/v1/admin/material-fields/${access.fieldId}/actions/observe`,
@@ -305,11 +410,11 @@ test('Western public HTTP freezes profile Hint and accepts one exact Handoff A',
     assert.equal(accepted.json().movieJourney.stage, 'handoff_a_accepted');
     assert.equal(
       accepted.json().movieJourney.handoff.formation.stage,
-      'routing_unresolved',
+      'formation_not_started',
     );
     assert.equal(
       accepted.json().movieJourney.handoff.formation.reasonCode,
-      'routing_policy_unavailable',
+      'western_routing_checkpoint_not_started',
     );
     assert.equal(accepted.json().movieJourney.handoff.production, null);
   } finally {
@@ -441,11 +546,29 @@ test('Western public HTTP freezes profile Hint and accepts one exact Handoff A',
   ).get(candidate.candidate_package_id);
   assert.ok(delivery);
   assert.equal(database.prepare(
-    'SELECT count(*) count FROM libra_acceptance_specs'
-  ).get().count, 0);
-  assert.equal(database.prepare(
-    'SELECT count(*) count FROM libra_runs'
-  ).get().count, 0);
+    `SELECT count(*) count
+       FROM libra_field_routing_heads
+      WHERE field_id=?`
+  ).get(access.fieldId).count, 1);
+  for (const table of [
+    'libra_routing_assessments',
+    'libra_routing_decisions',
+    'libra_decision_basis_revisions',
+    'libra_acceptance_specs',
+    'libra_runs',
+    'libra_workspaces',
+    'libra_workspace_revisions',
+    'libra_workspace_material_refs',
+    'libra_product_fact_revisions',
+    'libra_product_identity_revisions',
+    'libra_product_packages',
+  ]) {
+    assert.equal(
+      database.prepare(`SELECT count(*) count FROM ${table}`).get().count,
+      0,
+      table,
+    );
+  }
   const frozenCounts = Object.freeze({
     candidates: database.prepare(
       'SELECT count(*) count FROM proc_candidate_packages'
@@ -507,6 +630,10 @@ test('Western public HTTP freezes profile Hint and accepts one exact Handoff A',
     assert.equal(replay.statusCode, 200, replay.body);
     assert.equal(replay.json().observation.replayed, true);
     assert.equal(replay.json().movieJourney.replayed, true);
+    assert.equal(
+      replay.json().movieJourney.handoff.formation.stage,
+      'formation_not_started',
+    );
     const conflict = await host.inject({
       method: 'POST',
       url: `/v1/admin/material-fields/${access.fieldId}/actions/observe`,
@@ -547,6 +674,25 @@ test('Western public HTTP freezes profile Hint and accepts one exact Handoff A',
        FROM fx_outbox
       WHERE message_kind='libra_candidate_accepted'`
   ).get().count, 1);
+  for (const table of [
+    'libra_routing_assessments',
+    'libra_routing_decisions',
+    'libra_decision_basis_revisions',
+    'libra_acceptance_specs',
+    'libra_runs',
+    'libra_workspaces',
+    'libra_workspace_revisions',
+    'libra_workspace_material_refs',
+    'libra_product_fact_revisions',
+    'libra_product_identity_revisions',
+    'libra_product_packages',
+  ]) {
+    assert.equal(
+      database.prepare(`SELECT count(*) count FROM ${table}`).get().count,
+      0,
+      table,
+    );
+  }
   database.close();
 
   const sourceAfter = await snapshotFiles(sourceLocations);

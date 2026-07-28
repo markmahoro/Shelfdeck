@@ -30,7 +30,11 @@ Publication前故障可跨重启恢复且不重复Probe；Candidate/Handoff A全
 exactly-once。真实保留P14 MKV已通过内置FFprobe走同一HTTP链路，全部源文件
 SHA-256/size/mtime零变化。
 
-当前`libra_acceptance_specs=0`、`libra_runs=0`，冻结在Handoff A。详细证据见：
+正式HTTP反例已预先建立active Western Shelf、绑定Beta Standard并发布可命中的
+Field Routing Policy。Libra在exact-read并验证accepted Subject/Intake后返回
+显式`formation_not_started`，且该边界位于任何Policy读取/Decision写入之前。
+fresh/restart/replay下Routing Assessment/Decision/Basis、Acceptance Spec、
+Libra Run、Workspace与Product表均保持零，冻结在Handoff A。详细证据见：
 
 `docs/helix/implementation/evidence/P14_WESTERN_HANDOFF_A_CHECKPOINT.md`
 
