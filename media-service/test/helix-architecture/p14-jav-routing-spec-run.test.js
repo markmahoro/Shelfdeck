@@ -154,7 +154,7 @@ async function createJavShelfAndRouting(host, apiKey, root, fieldId) {
   return Object.freeze({ shelfRoot });
 }
 
-test('JAV public route publishes an input-free Spec and one active single Run', async (t) => {
+test('JAV public route commits one Arca Shelf Entry without consuming responsibility messages', async (t) => {
   const retainedSampleRoot = String(
     process.env.P14_JAV_SAMPLE_ROOT || '',
   ).trim();
@@ -162,6 +162,7 @@ test('JAV public route publishes an input-free Spec and one active single Run', 
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const dataDir = path.join(root, 'data');
   const adminDistDir = path.join(root, 'admin');
+  const shelfTargetRoot = path.join(root, 'jav-shelf-target');
   const sourceRoot = retainedSampleRoot || path.join(root, 'jav-source');
   fs.mkdirSync(adminDistDir, { recursive: true });
   if (!retainedSampleRoot) fs.mkdirSync(sourceRoot, { recursive: true });
@@ -726,6 +727,100 @@ test('JAV public route publishes an input-free Spec and one active single Run', 
   }
   database.close();
 
+  await interruptProduction(
+    'afterAcceptedResponsibilityInsert',
+    'P14_JAV_FAULT_AFTER_HANDOFF_B_RESPONSIBILITY_INSERT',
+  );
+  database = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM arca_acceptance_attempts
+      WHERE state='active' AND finished_at_ms IS NULL`,
+  ).get().count, 1);
+  for (const table of [
+    'arca_acceptance_decisions',
+    'arca_ondeck_custodies',
+    'arca_handoff_b_receipts',
+    'arca_ondeck_runs',
+    'arca_final_inventory_decisions',
+    'arca_material_bindings',
+  ]) {
+    assert.equal(
+      database.prepare(`SELECT count(*) count FROM ${table}`).get().count,
+      0,
+      table,
+    );
+  }
+  database.close();
+
+  await interruptProduction(
+    'afterArcaInventoryPhysicalEffect',
+    'P14_JAV_FAULT_AFTER_ARCA_INVENTORY_PHYSICAL_EFFECT',
+  );
+  database = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM arca_acceptance_attempts
+      WHERE state='accepted' AND finished_at_ms IS NOT NULL`,
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM arca_acceptance_decisions',
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM arca_ondeck_custodies',
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM arca_ondeck_runs',
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM arca_final_inventory_decisions',
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM arca_material_bindings',
+  ).get().count, 5);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM arca_material_bindings
+      WHERE role LIKE 'product:%'`,
+  ).get().count, 4);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM arca_shelf_entries',
+  ).get().count, 0);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM fx_effect_journal
+      WHERE effect_class='material_commit' AND state='intended'`,
+  ).get().count, 1);
+  database.close();
+
+  await interruptProduction(
+    'afterOnDeckCommit',
+    'P14_JAV_FAULT_AFTER_ONDECK_COMMIT',
+  );
+  database = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM arca_shelf_entries',
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM arca_inventory_materials',
+  ).get().count, 4);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM arca_deck_fact_revisions',
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM arca_ondeck_commit_receipts',
+  ).get().count, 1);
+  database.close();
+
   host = await createCleanServiceHost({
     dataDir,
     adminDistDir,
@@ -738,15 +833,37 @@ test('JAV public route publishes an input-free Spec and one active single Run', 
     const response = await requestProduction(host);
     assert.equal(response.statusCode, 200, response.body);
     production = response.json().movieJourney.handoff.production;
-    assert.equal(production.stage, 'handoff_b_offer_open');
+    assert.equal(production.stage, 'movie_on_deck_committed');
+    assert.equal(production.offerStage, 'handoff_b_offer_open');
     assert.equal(production.contentProfile, 'jav');
     assert.equal(production.replayed, true);
+    assert.equal(production.responsibilityClosure, null);
     assert.equal(production.productDelivery.resultKind, 'found');
     assert.equal(
       production.productDelivery.onDeckProductPackage
         .productStructureSnapshot.contentProfile,
       'jav',
     );
+    assert.equal(
+      production.productDelivery.onDeckProductPackage
+        .productMaterialManifest.members.length,
+      4,
+    );
+    assert.deepEqual(
+      production.productDelivery.onDeckProductPackage
+        .productMaterialManifest.members.map((item) => item.role).sort(),
+      ['fanart', 'metadata_sidecar', 'poster', 'primary_payload'],
+    );
+    assert.equal(
+      production.productDelivery.onDeckProductPackage
+        .productMaterialManifest.members.every((item) =>
+          item.episodeClaims.length === 0),
+      true,
+    );
+    assert.equal(production.handoffB.acceptedMessage.messageKind,
+      'arca.product.accepted@1');
+    assert.equal(production.onDeck.result.offloadCompletionFact.factSchemaRef,
+      'arca.offload-completion@1');
   } finally {
     await host.close();
   }
@@ -928,23 +1045,111 @@ test('JAV public route publishes an input-free Spec and one active single Run', 
        FROM fx_inbox inbox
        JOIN fx_outbox outbox ON outbox.message_id=inbox.message_id
       WHERE outbox.message_kind='libra.product-offer.available@1'
-        AND inbox.consumer_domain='arca'`,
-  ).get().count, 0);
+        AND inbox.consumer_domain='arca'
+        AND inbox.consumed_at_ms IS NOT NULL`,
+  ).get().count, 1);
+  const emptyClaims = canonicalJson({
+    items: [],
+    episodeClaimSetDigest: canonicalDigest({
+      schema: 'libra.production-material-episode-claims@1',
+      items: [],
+    }),
+  });
+  const bindingRows = database.prepare(
+    `SELECT role,episode_claims_json
+       FROM arca_material_bindings
+      ORDER BY role`,
+  ).all();
+  assert.equal(bindingRows.length, 5);
+  assert.equal(bindingRows.filter((item) =>
+    item.role.startsWith('product:')).length, 4);
+  assert.equal(bindingRows.every((item) =>
+    item.episode_claims_json === emptyClaims), true);
+  const inventoryRows = database.prepare(
+    `SELECT role,episode_claims_json,location
+       FROM arca_inventory_materials
+      ORDER BY ordinal`,
+  ).all();
+  assert.equal(inventoryRows.length, 4);
+  assert.deepEqual(
+    inventoryRows.map((item) => item.role).sort(),
+    ['fanart', 'metadata_sidecar', 'poster', 'primary'],
+  );
+  assert.equal(inventoryRows.every((item) =>
+    item.episode_claims_json === emptyClaims), true);
+  assert.equal(inventoryRows.every((item) =>
+    item.location.startsWith(shelfTargetRoot) &&
+    fs.existsSync(item.location)), true);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM arca_shelf_entries
+      WHERE status='active'`,
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM arca_deck_fact_revisions
+      WHERE state='active'`,
+  ).get().count, 1);
   for (const table of [
     'arca_acceptance_attempts',
     'arca_acceptance_decisions',
     'arca_ondeck_custodies',
-    'arca_material_bindings',
-    'arca_inventory_materials',
-    'arca_shelf_entries',
-    'arca_deck_fact_revisions',
+    'arca_handoff_b_receipts',
+    'arca_final_inventory_decisions',
+    'arca_ondeck_commit_receipts',
+    'arca_offload_completions',
   ]) {
     assert.equal(
       database.prepare(`SELECT count(*) count FROM ${table}`).get().count,
-      0,
+      1,
       table,
     );
   }
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM arca_ondeck_runs
+      WHERE state='committed'`,
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+      FROM fx_effect_journal
+      WHERE effect_class='material_commit' AND state='committed'`,
+  ).get().count, 4);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM fx_material_controls
+      WHERE owner_domain='arca'
+        AND owner_scope_type='shelf_entry'
+        AND state='controlled'`,
+  ).get().count, 4);
+  for (const messageKind of [
+    'arca.product.accepted@1',
+    'arca.offload.completed@1',
+  ]) {
+    assert.equal(database.prepare(
+      `SELECT count(*) count
+         FROM fx_outbox
+        WHERE message_kind=?`,
+    ).get(messageKind).count, 1);
+    assert.equal(database.prepare(
+      `SELECT count(*) count
+         FROM fx_inbox inbox
+         JOIN fx_outbox outbox ON outbox.message_id=inbox.message_id
+        WHERE outbox.message_kind=?
+          AND inbox.consumer_domain='libra'`,
+    ).get(messageKind).count, 0);
+  }
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM libra_runs
+      WHERE state='active'`,
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM libra_delivery_receipts',
+  ).get().count, 0);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM libra_workspace_cleanup_scopes',
+  ).get().count, 0);
   database.close();
 
   for (const [location, before] of sourceBefore) {
