@@ -121,9 +121,11 @@ function providerFetch(state) {
       host: url.host,
       path: url.pathname,
       method: init.method || 'GET',
+      redirect: init.redirect || null,
       hasSecret: Boolean(
         headers.cookie ||
         headers.apikey ||
+        headers.authorization ||
         headers['x-emby-token'] ||
         url.searchParams.has('token'),
       ),
@@ -134,73 +136,76 @@ function providerFetch(state) {
       }
       return response(
         200,
-        '<a href="/people/test-user">User</a>' +
+        '<a href="/people/' +
+        (state.doubanResponseUser || 'test-user') +
+        '">User</a>' +
         '<a href="/subject/1292052/">Movie</a>',
         'text/html',
       );
     }
     if (url.host === 'api.theporndb.net') {
-      if (headers.apikey !== secrets['adult-provider']) {
-        return response(401, { errors: [{ message: 'denied' }] });
+      if (headers.authorization !==
+          'Bearer ' + secrets['adult-provider']) {
+        return response(401, { message: 'denied' });
       }
-      const payload = JSON.parse(init.body);
-      if (payload.query.includes('__typename')) {
-        return response(200, { data: { __typename: 'Query' } });
-      }
-      if (payload.query.includes('findScenes')) {
+      if (url.pathname === '/auth/user') {
         return response(200, {
-          data: {
-            findScenes: {
-              scenes: [{
-                id: 'scene-1',
-                code: payload.variables.code,
-                title: 'JAV title',
-                date: '2020-01-02',
-                studio: { name: 'Studio' },
-                tags: [{ name: 'Drama' }],
-                performers: [{ id: 'performer-1', name: 'Actor' }],
-                images: [
-                  {
-                    url: 'https://images.theporndb.test/poster.jpg',
-                    width: 600,
-                    height: 900,
-                  },
-                  {
-                    url: 'https://images.theporndb.test/fanart.jpg',
-                    width: 1280,
-                    height: 720,
-                  },
-                ],
-              }],
-            },
-          },
+          id: 42,
+          name: 'ShelfDeck test account',
+          email: 'ignored@example.invalid',
         });
       }
-      if (payload.query.includes('findScene(')) {
-        return response(200, {
-          data: {
-            findScene: {
-              id: payload.variables.id,
-              title: 'JAV title',
-              date: '2020-01-02',
-              studio: { name: 'Studio' },
-              ...(state.adultMetadataExtra
-                ? { arbitrary: 'not-closed' }
-                : {}),
-            },
-          },
-        });
-      }
-      return response(200, {
-        data: {
-          searchPerformer: [{
-            id: 'person-1',
-            name: payload.variables.term,
-          }],
+      const scene = {
+        id: 'scene-1',
+        sku: state.adultForeignCode || 'SDKI-001',
+        title: state.adultLongTitle || 'JAV title',
+        date: '2020-01-02',
+        description: 'Description',
+        site: { id: 7, name: 'Studio', url: 'ignored' },
+        tags: [{ id: 1, name: 'Drama', ignored: true }],
+        performers: [{
+          id: 'performer-1',
+          name: 'Actor',
+          gender: 'female',
+        }],
+        posters: {
+          full: state.artifactUrl ||
+            'https://cdn.theporndb.net/poster.jpg',
+          large: 'ignored',
         },
-      });
+        background: {
+          full: 'https://cdn.theporndb.net/fanart.jpg',
+          large: 'ignored',
+        },
+        duration: 7200,
+      };
+      if (url.pathname === '/jav') {
+        if (url.searchParams.get('q') !== 'SDKI-001' ||
+            url.searchParams.get('per_page') !== '2') {
+          return response(400, { message: 'invalid search' });
+        }
+        const rows = state.adultDuplicate
+          ? [scene, { ...scene }]
+          : state.adultSearchOverflow
+            ? [scene, { ...scene, id: 'scene-2' }, {
+                ...scene,
+                id: 'scene-3',
+              }]
+            : [scene];
+        return response(200, {
+          data: rows,
+          meta: { current_page: 1, per_page: 2, total: 1 },
+        });
+      }
+      if (url.pathname === '/jav/SDKI-001') {
+        return response(200, { data: scene });
+      }
+      return response(404, { message: 'not found' });
     }
-    if (url.host === 'images.theporndb.test') {
+    if (url.host === 'cdn.theporndb.net') {
+      if (state.artifactRedirect) {
+        return response(302, 'redirect', 'text/plain');
+      }
       return response(
         200,
         Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
@@ -233,8 +238,18 @@ function providerFetch(state) {
         }
         return response(200, {
           AccessToken: secrets.embyToken,
-          User: { Id: 'emby-user-1' },
+          User: {
+            Id: 'emby-user-1',
+            Name: 'Operator',
+            HasPassword: true,
+            Policy: { IsAdministrator: true },
+          },
           ServerId: 'emby-server-1',
+          SessionInfo: {
+            Id: 'session-1',
+            ServerId: 'emby-server-1',
+            UserId: 'emby-user-1',
+          },
         });
       }
       if (headers['x-emby-token'] !== secrets.embyToken) {
@@ -244,18 +259,25 @@ function providerFetch(state) {
         return response(200, {
           Id: 'emby-server-1',
           Version: '4.9.0',
+          ServerName: 'ShelfDeck Test Emby',
+          OperatingSystem: 'Linux',
         });
       }
       if (url.pathname.startsWith('/Persons/')) {
         return response(200, {
           Id: 'emby-person-1',
           Name: 'Person',
+          Type: 'Person',
+          ImageTags: {},
         });
       }
       if (url.pathname.startsWith('/Items/')) {
         return response(200, {
           Id: 'emby-item-1',
           Name: 'Movie',
+          Type: 'Movie',
+          ProductionYear: 2020,
+          ImageTags: {},
         });
       }
     }
@@ -283,7 +305,7 @@ const commands = Object.freeze({
     settings: { userId: 'test-user' },
   }),
   'adult-provider': Object.freeze({
-    endpoint: 'https://api.theporndb.net/graphql',
+    endpoint: 'https://api.theporndb.net',
     credential: {
       kind: 'api_key',
       value: secrets['adult-provider'],
@@ -597,6 +619,42 @@ test('H1.2 provider operations execute through exact P5 ports and revision-fence
       },
     });
     assert.equal(emby.result.resultRefs.length, 1);
+    const embyMetadata = await opened.services.executeProvider(
+      'emby',
+      {
+        operationId: 'libra.product_metadata.fetch@1',
+        effectClass: 'pure_observation',
+        idempotencyKey: 'emby-metadata',
+        timeoutMs: 5_000,
+        input: {
+          productIdentityRef: ref(
+            'product-identity',
+            'emby-item-1',
+          ),
+          locale: 'en-US',
+        },
+      },
+    );
+    assert.equal(
+      embyMetadata.result.resultRef.objectId,
+      'emby-item-1',
+    );
+    await assert.rejects(
+      () => opened.services.executeProvider(
+        'adult-provider',
+        {
+          operationId: 'people.registration_evidence.observe@1',
+          effectClass: 'pure_observation',
+          idempotencyKey: 'adult-unsupported-people',
+          timeoutMs: 5_000,
+          input: {
+            personHintRef: ref('person-hint', 'Actor'),
+            limit: 10,
+          },
+        },
+      ),
+      (error) => error.code === 'P5_PROVIDER_TRANSPORT_FAILED',
+    );
 
     const moviepilot = await opened.services.executeProvider(
       'moviepilot',
@@ -709,7 +767,256 @@ test('H1.2 Adult Provider supplies the real JAV Product identity, metadata, and 
     assert.equal(artifact.mediaType, 'image/jpeg');
     assert.ok(Buffer.isBuffer(artifact.bytes));
     assert.ok(state.calls.some((call) =>
-      call.host === 'images.theporndb.test'));
+      call.host === 'cdn.theporndb.net'));
+  } finally {
+    opened.kernel.close();
+  }
+});
+
+test('H1.2 JAV Product handles and artifact URLs fail closed before foreign transport', async () => {
+  const value = fixture();
+  const state = { calls: [] };
+  const fetchImpl = providerFetch(state);
+  const host = await createCleanServiceHost({
+    dataDir: value.dataDir,
+    adminDistDir: value.adminDistDir,
+    secretRoot,
+    integrationFetch: fetchImpl,
+    now: () => 1_900_000_000_000,
+  });
+  const cookie = await session(host, value.initialized.adminApiKey);
+  await configure(host, cookie, 'adult-provider', '-fences');
+  await host.close();
+
+  const opened = openServices(value, fetchImpl);
+  try {
+    const identityBasis = {
+      provider: 'jav',
+      namespace: 'jav_code',
+      providerKey: 'SDKI-001',
+      seasonNumber: null,
+    };
+    const identity = {
+      ...identityBasis,
+      identityAnchorDigest: canonicalDigest(identityBasis),
+    };
+    const intent = {
+      sourceKind: 'provider',
+      contentProfile: 'jav',
+      providerKind: 'jav',
+      integrationId: 'adult-provider-main',
+      configRevision: 1,
+      requestedFields: [
+        'genre',
+        'jav_code',
+        'release_date',
+        'studio',
+        'title',
+      ],
+      resolvedProviderIdentity: identity,
+    };
+    const metadataHandle = opened.services.resolveProductHandle({
+      intent,
+      operationId: 'libra.product_metadata.fetch@1',
+    });
+    const metadataMutations = [
+      { handleId: '0'.repeat(64) },
+      { fenceDigest: '0'.repeat(64) },
+      { integrationType: 'adult-provider' },
+      { secretRef: 'integration-secret:foreign' },
+      { configRevision: 9 },
+      { allowedOperation: 'libra.product_artifact.acquire@1' },
+    ];
+    for (const mutation of metadataMutations) {
+      const before = state.calls.length;
+      await assert.rejects(
+        () => opened.services.fetchJavProviderMetadata({
+          metadataFetchIntent: intent,
+          integrationHandle: {
+            ...metadataHandle,
+            ...mutation,
+          },
+        }),
+        (error) => error.code === 'P5_PROVIDER_HANDLE_DENIED',
+      );
+      assert.equal(state.calls.length, before);
+    }
+
+    const artifactHandle = opened.services.resolveProductHandle({
+      intent,
+      operationId: 'libra.product_artifact.acquire@1',
+      artifactKind: 'poster',
+    });
+    for (const mutation of [
+      { handleId: 'f'.repeat(64) },
+      { fenceDigest: 'f'.repeat(64) },
+      { secretRef: 'integration-secret:foreign' },
+      { allowedOperation: 'libra.product_metadata.fetch@1' },
+    ]) {
+      const before = state.calls.length;
+      await assert.rejects(
+        () => opened.services.fetchJavProviderArtifact({
+          integrationHandle: {
+            ...artifactHandle,
+            ...mutation,
+          },
+          artifactKind: 'poster',
+          resolvedProviderIdentity: identity,
+        }),
+        (error) => error.code === 'P5_PROVIDER_HANDLE_DENIED',
+      );
+      assert.equal(state.calls.length, before);
+    }
+    await assert.rejects(
+      () => opened.services.fetchJavProviderArtifact({
+        integrationHandle: artifactHandle,
+        artifactKind: 'fanart',
+        resolvedProviderIdentity: identity,
+      }),
+      (error) => error.code === 'P5_PROVIDER_HANDLE_DENIED',
+    );
+    await assert.rejects(
+      () => opened.services.fetchJavProviderArtifact({
+        integrationHandle: artifactHandle,
+        artifactKind: 'subtitle',
+        resolvedProviderIdentity: identity,
+      }),
+      (error) => error.code === 'P5_PROVIDER_HANDLE_DENIED',
+    );
+
+    state.adultDuplicate = true;
+    await assert.rejects(
+      () => opened.services.searchJavProviderIdentity({
+        operationId: 'shared.integration.search@1',
+        contentProfile: 'jav',
+        javCode: 'SDKI-001',
+      }),
+      (error) => error.code === 'P5_SECRET_LEASE_INVOCATION_FAILED',
+    );
+    state.adultDuplicate = false;
+    state.adultSearchOverflow = true;
+    await assert.rejects(
+      () => opened.services.searchJavProviderIdentity({
+        operationId: 'shared.integration.search@1',
+        contentProfile: 'jav',
+        javCode: 'SDKI-001',
+      }),
+      (error) => error.code === 'P5_SECRET_LEASE_INVOCATION_FAILED',
+    );
+    state.adultSearchOverflow = false;
+    state.adultForeignCode = 'ABCD-999';
+    await assert.rejects(
+      () => opened.services.fetchJavProviderMetadata({
+        metadataFetchIntent: intent,
+        integrationHandle: metadataHandle,
+      }),
+      (error) => error.code === 'P5_SECRET_LEASE_INVOCATION_FAILED',
+    );
+    state.adultForeignCode = null;
+    state.adultLongTitle = 'x'.repeat(2049);
+    await assert.rejects(
+      () => opened.services.fetchJavProviderMetadata({
+        metadataFetchIntent: intent,
+        integrationHandle: metadataHandle,
+      }),
+      (error) => error.code === 'P5_SECRET_LEASE_INVOCATION_FAILED',
+    );
+    state.adultLongTitle = null;
+
+    for (const artifactUrl of [
+      'https://[::1]/poster.jpg',
+      'https://[fc00::1]/poster.jpg',
+      'https://[fe80::1]/poster.jpg',
+      'https://[::ffff:127.0.0.1]/poster.jpg',
+      'https://user@cdn.theporndb.net/poster.jpg',
+      'https://attacker.example/poster.jpg',
+    ]) {
+      state.artifactUrl = artifactUrl;
+      const before = state.calls.length;
+      await assert.rejects(
+        () => opened.services.fetchJavProviderArtifact({
+          integrationHandle: artifactHandle,
+          artifactKind: 'poster',
+          resolvedProviderIdentity: identity,
+        }),
+        (error) => error.code === 'P5_PROVIDER_RESPONSE_INVALID',
+      );
+      assert.equal(state.calls.length, before + 1);
+      assert.equal(
+        state.calls.slice(before).some((call) =>
+          call.host !== 'api.theporndb.net'),
+        false,
+      );
+    }
+
+    state.artifactUrl = 'https://cdn.theporndb.net/poster.jpg';
+    state.artifactRedirect = true;
+    const beforeRedirect = state.calls.length;
+    await assert.rejects(
+      () => opened.services.fetchJavProviderArtifact({
+        integrationHandle: artifactHandle,
+        artifactKind: 'poster',
+        resolvedProviderIdentity: identity,
+      }),
+      (error) => error.code === 'P5_PROVIDER_TRANSPORT_FAILED',
+    );
+    const redirectCalls = state.calls.slice(beforeRedirect);
+    assert.equal(redirectCalls.length, 2);
+    assert.equal(redirectCalls[1].host, 'cdn.theporndb.net');
+    assert.equal(redirectCalls[1].redirect, 'error');
+  } finally {
+    opened.kernel.close();
+  }
+});
+
+test('H1.2 Douban observations are fenced to the configured user before transport and after response', async () => {
+  const value = fixture();
+  const state = { calls: [] };
+  const fetchImpl = providerFetch(state);
+  const host = await createCleanServiceHost({
+    dataDir: value.dataDir,
+    adminDistDir: value.adminDistDir,
+    secretRoot,
+    integrationFetch: fetchImpl,
+    now: () => 1_900_000_000_000,
+  });
+  const cookie = await session(host, value.initialized.adminApiKey);
+  await configure(host, cookie, 'douban', '-identity');
+  await host.close();
+  const opened = openServices(value, fetchImpl);
+  try {
+    const before = state.calls.length;
+    await assert.rejects(
+      () => opened.services.executeProvider('douban', {
+        operationId: 'perception.source.acquire@1',
+        effectClass: 'pure_observation',
+        idempotencyKey: 'foreign-douban-user',
+        timeoutMs: 5_000,
+        input: {
+          sourceRef: ref('perception-source', 'other-user'),
+          cursor: null,
+          limit: 20,
+        },
+      }),
+      (error) => error.code === 'P5_PROVIDER_TRANSPORT_FAILED',
+    );
+    assert.equal(state.calls.length, before);
+
+    state.doubanResponseUser = 'other-user';
+    await assert.rejects(
+      () => opened.services.executeProvider('douban', {
+        operationId: 'perception.source.acquire@1',
+        effectClass: 'pure_observation',
+        idempotencyKey: 'foreign-douban-page',
+        timeoutMs: 5_000,
+        input: {
+          sourceRef: ref('perception-source', 'test-user'),
+          cursor: null,
+          limit: 20,
+        },
+      }),
+      (error) => error.code === 'P5_PROVIDER_TRANSPORT_FAILED',
+    );
   } finally {
     opened.kernel.close();
   }
@@ -895,7 +1202,7 @@ test('H1.2 persisted endpoint and cross-provider envelope drift fail before Secr
   }
 });
 
-test('H1.2 real provider response projections are closed and source files contain no ambient or legacy authority', async () => {
+test('H1.2 official response projections accept bounded documented extras and source contains no legacy protocol', async () => {
   const value = fixture();
   const state = { calls: [] };
   const fetchImpl = providerFetch(state);
@@ -909,14 +1216,14 @@ test('H1.2 real provider response projections are closed and source files contai
   const cookie = await session(host, value.initialized.adminApiKey);
   await configure(host, cookie, 'adult-provider', '-closed');
   await host.close();
-  state.adultMetadataExtra = true;
   const opened = openServices(value, fetchImpl);
   try {
-    await assert.rejects(
-      () => opened.services.executeProvider('adult-provider', {
+    const projected = await opened.services.executeProvider(
+      'adult-provider',
+      {
         operationId: 'libra.product_metadata.fetch@1',
         effectClass: 'pure_observation',
-        idempotencyKey: 'adult-open-response',
+        idempotencyKey: 'adult-official-response',
         timeoutMs: 5_000,
         input: {
           productIdentityRef: ref(
@@ -925,9 +1232,9 @@ test('H1.2 real provider response projections are closed and source files contai
           ),
           locale: 'en-US',
         },
-      }),
-      (error) => error.code === 'P5_PROVIDER_TRANSPORT_FAILED',
+      },
     );
+    assert.equal(projected.result.resultRef.objectId, 'SDKI-001');
   } finally {
     opened.kernel.close();
   }
@@ -950,8 +1257,32 @@ test('H1.2 real provider response projections are closed and source files contai
       'emby' + 'service',
       'douban' + 'service',
       'fallback',
+      '/graph' + 'ql',
+      'find' + 'scenes',
+      'find' + 'scene(',
+      'search' + 'performer',
     ]) {
       assert.equal(source.includes(forbidden), false, relative + ':' + forbidden);
     }
   }
+  const adminSource = fs.readFileSync(
+    path.resolve(
+      __dirname,
+      '../../src/helix/platform/application/' +
+        'integration-admin-application.js',
+    ),
+    'utf8',
+  );
+  assert.match(
+    adminSource,
+    /returnedPersistedSecretBytes\.fill\(0\)/,
+  );
+  const providerSource = fs.readFileSync(
+    path.resolve(
+      __dirname,
+      '../../src/helix/integrations/h1-provider-adapters.js',
+    ),
+    'utf8',
+  );
+  assert.match(providerSource, /response\.bytes\.fill\(0\)/);
 });

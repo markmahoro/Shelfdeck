@@ -343,6 +343,7 @@ function createIntegrationAdminApplication(options) {
 
     let secretLocator;
     let persistedSecretBytes;
+    let returnedPersistedSecretBytes;
     try {
       const candidateInput = {
         endpoint,
@@ -371,8 +372,12 @@ function createIntegrationAdminApplication(options) {
           'Integration test result does not match its profile.',
         );
       }
-      persistedSecretBytes = tested.persistedSecretBytes
-        ? Buffer.from(tested.persistedSecretBytes)
+      returnedPersistedSecretBytes =
+        Buffer.isBuffer(tested.persistedSecretBytes)
+          ? tested.persistedSecretBytes
+          : null;
+      persistedSecretBytes = returnedPersistedSecretBytes
+        ? Buffer.from(returnedPersistedSecretBytes)
         : Buffer.from(prepared.secretBytes);
       const secretKind = tested.persistedSecretKind ||
         prepared.secretKind;
@@ -461,6 +466,9 @@ function createIntegrationAdminApplication(options) {
     } finally {
       prepared.secretBytes.fill(0);
       if (persistedSecretBytes) persistedSecretBytes.fill(0);
+      if (returnedPersistedSecretBytes) {
+        returnedPersistedSecretBytes.fill(0);
+      }
     }
   }
 

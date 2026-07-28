@@ -5,13 +5,20 @@ const {
   canonicalJson,
 } = require('../contracts/canonical-json');
 const {
+  validateProductIntegrationHandle,
+} = require('../platform/public/integration-adapter-support');
+const {
   fetchBytes,
   fetchJson,
 } = require('./h1-provider-adapters');
 
 const JAV_CODE = /^[A-Z0-9]{2,16}-[0-9]{2,8}$/;
-const GRAPHQL_LIMIT = 64 * 1024;
+const JSON_LIMIT = 128 * 1024;
 const IMAGE_LIMIT = 16 * 1024 * 1024;
+const APPROVED_ARTIFACT_HOSTS = new Set([
+  'cdn.theporndb.net',
+  'thumb.theporndb.net',
+]);
 
 class JavProductProviderError extends Error {
   constructor(code, message, details = {}) {
@@ -26,34 +33,24 @@ function fail(code, message, details) {
   throw new JavProductProviderError(code, message, details);
 }
 
-function exact(value, required, optional = []) {
+function object(value, message) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    fail(
-      'P5_PROVIDER_RESPONSE_INVALID',
-      'JAV Provider response is not one closed object.',
-    );
+    fail('P5_PROVIDER_RESPONSE_INVALID', message);
   }
-  const allowed = new Set([...required, ...optional]);
-  const keys = Object.keys(value);
-  if (required.some((key) => !Object.hasOwn(value, key)) ||
-      keys.some((key) => !allowed.has(key))) {
-    fail(
-      'P5_PROVIDER_RESPONSE_INVALID',
-      'JAV Provider response contains an unknown or missing field.',
-    );
-  }
+  return value;
 }
 
 function boundedString(value, maximum, optional = false) {
-  if (optional && (value === undefined || value === null)) return;
+  if (optional && (value === undefined || value === null)) return null;
   if (typeof value !== 'string' ||
       (!optional && value.length < 1) ||
       Buffer.byteLength(value, 'utf8') > maximum) {
     fail(
       'P5_PROVIDER_RESPONSE_INVALID',
-      'JAV Provider response string exceeds its closed bound.',
+      'JAV Provider response string exceeds its bound.',
     );
   }
+  return value;
 }
 
 function normalizedCode(value) {
@@ -62,10 +59,7 @@ function normalizedCode(value) {
     .trim()
     .toUpperCase();
   if (!JAV_CODE.test(code)) {
-    fail(
-      'P5_PROVIDER_INPUT_INVALID',
-      'JAV Provider code is invalid.',
-    );
+    fail('P5_PROVIDER_INPUT_INVALID', 'JAV Provider code is invalid.');
   }
   return code;
 }
@@ -92,123 +86,102 @@ function exactIdentity(actual, expected) {
   }
 }
 
-function sceneQuery(code) {
+function boundedArray(value, maximum, name) {
+  if (!Array.isArray(value) || value.length > maximum) {
+    fail(
+      'P5_PROVIDER_RESPONSE_INVALID',
+      'JAV Provider ' + name + ' exceeds its bound.',
+    );
+  }
+  return value;
+}
+
+function optionalNestedUrl(value, key) {
+  if (typeof value?.[key] === 'string' && value[key]) return value[key];
+  return null;
+}
+
+function projectScene(value) {
+  const scene = object(value, 'JAV Provider SceneResource is invalid.');
+  const id = boundedString(String(scene.id || ''), 256);
+  const sku = normalizedCode(scene.sku);
+  const title = boundedString(scene.title, 2048);
+  const date = boundedString(scene.date, 64, true);
+  const description = boundedString(scene.description, 32 * 1024, true);
+  const tags = boundedArray(scene.tags || [], 64, 'tag collection')
+    .map((item) => {
+      object(item, 'JAV Provider tag is invalid.');
+      return boundedString(item.name, 512);
+    });
+  const performers = boundedArray(
+    scene.performers || [],
+    256,
+    'performer collection',
+  ).map((item) => {
+    object(item, 'JAV Provider performer is invalid.');
+    return Object.freeze({
+      id: boundedString(String(item.id || item.uuid || ''), 256),
+      name: boundedString(item.name, 512),
+    });
+  });
+  let studio = null;
+  if (scene.site !== undefined && scene.site !== null) {
+    object(scene.site, 'JAV Provider site is invalid.');
+    studio = boundedString(scene.site.name, 512);
+  }
+  const posters = scene.posters === undefined || scene.posters === null
+    ? null
+    : object(scene.posters, 'JAV Provider poster projection is invalid.');
+  const background =
+    scene.background === undefined || scene.background === null
+      ? null
+      : object(
+          scene.background,
+          'JAV Provider background projection is invalid.',
+        );
+  const posterUrl = optionalNestedUrl(posters, 'full') ||
+    boundedString(scene.poster || scene.poster_image, 4096, true);
+  const fanartUrl = optionalNestedUrl(background, 'full') ||
+    boundedString(
+      scene.back_image || scene.image,
+      4096,
+      true,
+    );
   return Object.freeze({
-    query:
-      'query ShelfDeckJavScene($code: String!) {' +
-      ' findScenes(' +
-      'scene_filter: { code: { value: $code, modifier: EQUALS } },' +
-      'filter: { per_page: 2 }) {' +
-      ' scenes { id code title date details studio { name }' +
-      ' tags { name } performers { id name }' +
-      ' images { url width height } } } }',
-    variables: Object.freeze({ code }),
+    id,
+    sku,
+    title,
+    date,
+    description,
+    studio,
+    tags: Object.freeze(tags),
+    performers: Object.freeze(performers),
+    posterUrl,
+    fanartUrl,
   });
 }
 
-function validateSceneResponse(value) {
-  exact(value, ['data'], []);
-  exact(value.data, ['findScenes'], []);
-  exact(value.data.findScenes, ['scenes'], []);
-  const scenes = value.data.findScenes.scenes;
-  if (!Array.isArray(scenes) || scenes.length > 2) {
-    fail(
-      'P5_PROVIDER_RESPONSE_INVALID',
-      'JAV Provider scene result exceeds its closed bound.',
-    );
-  }
-  const sceneIds = new Set();
-  for (const scene of scenes) {
-    exact(
-      scene,
-      [
-        'id',
-        'code',
-        'title',
-        'date',
-        'studio',
-        'tags',
-        'performers',
-        'images',
-      ],
-      ['details'],
-    );
-    boundedString(scene.id, 256);
-    boundedString(scene.code, 64);
-    boundedString(scene.title, 2048);
-    boundedString(scene.date, 64, true);
-    boundedString(scene.details, 32 * 1024, true);
-    if (sceneIds.has(scene.id)) {
-      fail(
-        'P5_PROVIDER_RESPONSE_INVALID',
-        'JAV Provider scene identities are duplicated.',
-      );
-    }
-    sceneIds.add(scene.id);
-    if (scene.studio !== null) {
-      exact(scene.studio, ['name']);
-      boundedString(scene.studio.name, 512);
-    }
-    for (const [items, maximum, fields] of [
-      [scene.tags, 64, ['name']],
-      [scene.performers, 256, ['id', 'name']],
-      [scene.images, 64, ['url', 'width', 'height']],
-    ]) {
-      if (!Array.isArray(items) || items.length > maximum) {
-        fail(
-          'P5_PROVIDER_RESPONSE_INVALID',
-          'JAV Provider nested result exceeds its closed bound.',
-        );
-      }
-      const identities = new Set();
-      for (const item of items) {
-        exact(item, fields);
-        const identity = fields.includes('id')
-          ? String(item.id)
-          : fields.includes('url')
-            ? String(item.url)
-            : String(item.name);
-        boundedString(identity, fields.includes('url') ? 4096 : 512);
-        if (fields.includes('name')) boundedString(item.name, 512);
-        if (fields.includes('url') &&
-            (!Number.isSafeInteger(item.width) ||
-             !Number.isSafeInteger(item.height) ||
-             item.width < 1 || item.height < 1)) {
-          fail(
-            'P5_PROVIDER_RESPONSE_INVALID',
-            'JAV Provider image dimensions are invalid.',
-          );
-        }
-        if (identities.has(identity)) {
-          fail(
-            'P5_PROVIDER_RESPONSE_INVALID',
-            'JAV Provider nested identities are duplicated.',
-          );
-        }
-        identities.add(identity);
-      }
-    }
-  }
-  return scenes;
-}
-
-function normalizeScene(value, expectedCode) {
-  const matches = validateSceneResponse(value).filter((item) =>
-    normalizedCode(item.code) === expectedCode);
-  if (matches.length !== 1) {
+function searchResult(value, code) {
+  const root = object(value, 'JAV Provider search response is invalid.');
+  const rows = boundedArray(root.data, 2, 'search result')
+    .map(projectScene)
+    .filter((scene) => scene.sku === code);
+  if (rows.length !== 1) {
     fail(
       'P5_PROVIDER_IDENTITY_UNRESOLVED',
       'JAV Provider did not return one exact code match.',
     );
   }
-  const scene = matches[0];
-  if (typeof scene.id !== 'string' ||
-      !scene.id ||
-      typeof scene.title !== 'string' ||
-      !scene.title.trim()) {
+  return rows[0];
+}
+
+function exactResult(value, code) {
+  const root = object(value, 'JAV Provider metadata response is invalid.');
+  const scene = projectScene(root.data);
+  if (scene.sku !== code) {
     fail(
-      'P5_PROVIDER_RESPONSE_INVALID',
-      'JAV Provider scene result is incomplete.',
+      'P5_PROVIDER_IDENTITY_MISMATCH',
+      'JAV Provider metadata returned a foreign identity.',
     );
   }
   return scene;
@@ -224,19 +197,18 @@ function safeArtifactUrl(value) {
       'JAV Provider artifact URL is invalid.',
     );
   }
-  const host = target.hostname.toLowerCase();
+  const hostname = target.hostname
+    .replace(/^\[/, '')
+    .replace(/\]$/, '')
+    .toLowerCase();
   if (target.protocol !== 'https:' ||
-      target.username || target.password ||
-      host === 'localhost' ||
-      host === '127.0.0.1' ||
-      host === '::1' ||
-      /^10\./.test(host) ||
-      /^192\.168\./.test(host) ||
-      /^172\.(1[6-9]|2[0-9]|3[01])\./.test(host) ||
-      /^169\.254\./.test(host)) {
+      target.username ||
+      target.password ||
+      (target.port && target.port !== '443') ||
+      !APPROVED_ARTIFACT_HOSTS.has(hostname)) {
     fail(
       'P5_PROVIDER_RESPONSE_INVALID',
-      'JAV Provider artifact URL is outside the public HTTPS boundary.',
+      'JAV Provider artifact URL is outside the approved host boundary.',
     );
   }
   return target.toString();
@@ -259,7 +231,9 @@ function createJavProductProviderAdapter(options) {
 
   function current() {
     const snapshot = runtime.readCurrent();
-    if (!snapshot || snapshot.integration.state !== 'active') {
+    if (!snapshot ||
+        snapshot.integration.state !== 'active' ||
+        snapshot.integration.integrationType !== 'adult-provider') {
       fail(
         'PLATFORM_INTEGRATION_NOT_CONFIGURED',
         'Adult Provider integration is not active.',
@@ -283,38 +257,60 @@ function createJavProductProviderAdapter(options) {
       ttlMs: Math.min(timeoutMs, 60_000),
     });
     return runtime.broker.consumeAsync(lease, (secretBytes) =>
-      consumer({
-        endpoint,
-        secretBytes,
-        snapshot,
-      }));
+      consumer({ endpoint, secretBytes, snapshot }));
   }
 
-  async function findScene(code, operationId, timeoutMs) {
+  function providerUrl(endpoint, relative) {
+    return new URL(
+      String(relative).replace(/^\//, ''),
+      endpoint.replace(/\/+$/, '') + '/',
+    );
+  }
+
+  function authorization(secretBytes) {
+    return 'Bearer ' + secretBytes.toString('utf8');
+  }
+
+  async function searchScene(code, operationId, timeoutMs) {
+    return withSecret(operationId, timeoutMs, async (value) => {
+      const url = providerUrl(value.endpoint, 'jav');
+      url.searchParams.set('q', code);
+      url.searchParams.set('per_page', '2');
+      const response = await fetchJson(fetchImpl, url, {
+        headers: {
+          accept: 'application/json',
+          authorization: authorization(value.secretBytes),
+        },
+        redirect: 'error',
+        signal: AbortSignal.timeout(timeoutMs),
+      }, JSON_LIMIT);
+      return Object.freeze({
+        scene: searchResult(response, code),
+        snapshot: value.snapshot,
+      });
+    });
+  }
+
+  async function readScene(code, operationId, timeoutMs) {
     return withSecret(operationId, timeoutMs, async (value) => {
       const response = await fetchJson(
         fetchImpl,
-        value.endpoint,
+        providerUrl(
+          value.endpoint,
+          'jav/' + encodeURIComponent(code),
+        ),
         {
-          method: 'POST',
           headers: {
             accept: 'application/json',
-            'content-type': 'application/json',
-            apikey: value.secretBytes.toString('utf8'),
+            authorization: authorization(value.secretBytes),
           },
-          body: canonicalJson(sceneQuery(code)),
+          redirect: 'error',
           signal: AbortSignal.timeout(timeoutMs),
         },
-        GRAPHQL_LIMIT,
+        JSON_LIMIT,
       );
-      if (response.errors) {
-        fail(
-          'P5_PROVIDER_RESPONSE_INVALID',
-          'JAV Provider returned a GraphQL error.',
-        );
-      }
       return Object.freeze({
-        scene: normalizeScene(response, code),
+        scene: exactResult(response, code),
         snapshot: value.snapshot,
       });
     });
@@ -322,17 +318,21 @@ function createJavProductProviderAdapter(options) {
 
   function validateProductHandle(handle, operationId, artifactKind) {
     const snapshot = current();
-    if (!handle ||
-        handle.integrationId !== snapshot.integration.integrationId ||
-        handle.integrationType !== 'jav' ||
-        handle.configRevision !==
-          snapshot.integration.configRevision ||
-        handle.secretRef !== snapshot.secret.secretRef ||
-        handle.allowedOperation !== operationId ||
-        handle.expiresAtMs < now() ||
-        (artifactKind
-          ? !['poster', 'fanart'].includes(artifactKind)
-          : false)) {
+    const valid = validateProductIntegrationHandle(
+      handle,
+      {
+        integrationId: snapshot.integration.integrationId,
+        integrationType: 'jav',
+        configRevision: snapshot.integration.configRevision,
+        secretRef: snapshot.secret.secretRef,
+        allowedOperation: operationId,
+        artifactKind,
+      },
+      now(),
+    );
+    if (!valid ||
+        (artifactKind !== null &&
+          !['poster', 'fanart'].includes(artifactKind))) {
       fail(
         'P5_PROVIDER_HANDLE_DENIED',
         'JAV Product Integration Handle is stale or invalid.',
@@ -352,7 +352,7 @@ function createJavProductProviderAdapter(options) {
         );
       }
       const code = normalizedCode(request.javCode);
-      const found = await findScene(
+      const found = await searchScene(
         code,
         'shared.integration.search@1',
         10_000,
@@ -360,10 +360,9 @@ function createJavProductProviderAdapter(options) {
       return Object.freeze({
         provider: 'jav',
         namespace: 'jav_code',
-        providerKey: code,
+        providerKey: found.scene.sku,
         integrationId: found.snapshot.integration.integrationId,
-        configRevision:
-          found.snapshot.integration.configRevision,
+        configRevision: found.snapshot.integration.configRevision,
       });
     },
 
@@ -379,19 +378,19 @@ function createJavProductProviderAdapter(options) {
           intent.providerKind !== 'jav' ||
           intent.integrationId !== handle.integrationId ||
           intent.configRevision !== handle.configRevision ||
-          intent.contentProfile !== 'jav') {
+          intent.contentProfile !== 'jav' ||
+          !Array.isArray(intent.requestedFields) ||
+          intent.requestedFields.length > 32) {
         fail(
           'P5_PROVIDER_INPUT_INVALID',
           'JAV Metadata input is invalid.',
         );
       }
       const identity = resolvedIdentity(
-        normalizedCode(
-          intent.resolvedProviderIdentity?.providerKey,
-        ),
+        normalizedCode(intent.resolvedProviderIdentity?.providerKey),
       );
       exactIdentity(intent.resolvedProviderIdentity, identity);
-      const found = await findScene(
+      const found = await readScene(
         identity.providerKey,
         'libra.product_metadata.fetch@1',
         30_000,
@@ -400,35 +399,30 @@ function createJavProductProviderAdapter(options) {
       const entries = [
         {
           key: 'genre',
-          value: (scene.tags || [])
-            .map((item) => String(item.name || '').trim())
-            .filter(Boolean)
-            .sort()
-            .join(', ') || 'Adult',
+          value: scene.tags.slice().sort().join(', ') || 'Adult',
         },
         { key: 'jav_code', value: identity.providerKey },
         { key: 'release_date', value: String(scene.date || '') },
-        { key: 'studio', value: String(scene.studio?.name || '') },
+        { key: 'studio', value: String(scene.studio || '') },
         { key: 'title', value: scene.title.trim() },
       ].filter((item) => item.value)
         .sort((left, right) =>
           Buffer.compare(Buffer.from(left.key), Buffer.from(right.key)));
       const requested = new Set(intent.requestedFields);
-      if ([...requested].some((field) =>
-        !entries.some((entry) => entry.key === field))) {
+      if (requested.size !== intent.requestedFields.length ||
+          [...requested].some((field) =>
+            !entries.some((entry) => entry.key === field))) {
         fail(
           'P5_PROVIDER_RESPONSE_INVALID',
           'JAV Provider metadata does not satisfy requested fields.',
         );
       }
-      const peopleHints = (scene.performers || [])
-        .slice(0, 256)
-        .map((person) => Object.freeze({
-          displayName: String(person.name || '').trim(),
+      const peopleHints = scene.performers.map((person) =>
+        Object.freeze({
+          displayName: person.name,
           role: 'actor',
           providerIdentities: Object.freeze([]),
-        }))
-        .filter((item) => item.displayName);
+        }));
       return Object.freeze({
         providerKind: 'jav',
         integrationId: handle.integrationId,
@@ -449,23 +443,17 @@ function createJavProductProviderAdapter(options) {
         kind,
       );
       const identity = resolvedIdentity(
-        normalizedCode(
-          request?.resolvedProviderIdentity?.providerKey,
-        ),
+        normalizedCode(request?.resolvedProviderIdentity?.providerKey),
       );
       exactIdentity(request.resolvedProviderIdentity, identity);
-      const found = await findScene(
+      const found = await readScene(
         identity.providerKey,
         'libra.product_artifact.acquire@1',
         30_000,
       );
-      const images = (found.scene.images || [])
-        .filter((item) => typeof item?.url === 'string' && item.url);
       const selected = kind === 'poster'
-        ? images.find((item) =>
-            Number(item.height) >= Number(item.width)) || images[0]
-        : images.find((item) =>
-            Number(item.width) > Number(item.height)) || images[1];
+        ? found.scene.posterUrl
+        : found.scene.fanartUrl;
       if (!selected) {
         return Object.freeze({
           resultKind: 'not_available',
@@ -474,15 +462,17 @@ function createJavProductProviderAdapter(options) {
       }
       const image = await fetchBytes(
         fetchImpl,
-        safeArtifactUrl(selected.url),
+        safeArtifactUrl(selected),
         {
           headers: { accept: 'image/jpeg,image/*' },
+          redirect: 'error',
           signal: AbortSignal.timeout(30_000),
         },
         IMAGE_LIMIT,
       );
       if (!image.bytes.length ||
           !image.contentType.toLowerCase().startsWith('image/')) {
+        image.bytes.fill(0);
         fail(
           'P5_PROVIDER_RESPONSE_INVALID',
           'JAV Provider artifact response is invalid.',

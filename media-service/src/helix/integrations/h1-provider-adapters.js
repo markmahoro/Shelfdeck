@@ -80,8 +80,11 @@ async function readBounded(response, maximum) {
     fail(PROVIDER_ERROR, 'Provider response exceeds its byte bound.');
   }
   if (!response.body || typeof response.body.getReader !== 'function') {
-    const bytes = Buffer.from(await response.arrayBuffer());
+    const raw = new Uint8Array(await response.arrayBuffer());
+    const bytes = Buffer.from(raw);
+    raw.fill(0);
     if (bytes.length > maximum) {
+      bytes.fill(0);
       fail(PROVIDER_ERROR, 'Provider response exceeds its byte bound.');
     }
     return bytes;
@@ -98,8 +101,11 @@ async function readBounded(response, maximum) {
       fail(PROVIDER_ERROR, 'Provider response exceeds its byte bound.');
     }
     chunks.push(Buffer.from(value));
+    if (value && typeof value.fill === 'function') value.fill(0);
   }
-  return Buffer.concat(chunks, total);
+  const combined = Buffer.concat(chunks, total);
+  for (const chunk of chunks) chunk.fill(0);
+  return combined;
 }
 
 async function fetchBytes(fetchImpl, url, init, maximum) {
@@ -111,6 +117,7 @@ async function fetchBytes(fetchImpl, url, init, maximum) {
   }
   const bytes = await readBounded(response, maximum);
   if (!response.ok) {
+    bytes.fill(0);
     fail(PROVIDER_ERROR, 'Provider returned a non-success response.', {
       statusCode: response.status,
     });
@@ -124,13 +131,13 @@ async function fetchBytes(fetchImpl, url, init, maximum) {
 
 async function fetchJson(fetchImpl, url, init, maximum = JSON_LIMIT) {
   const response = await fetchBytes(fetchImpl, url, init, maximum);
-  let value;
   try {
-    value = JSON.parse(response.bytes.toString('utf8'));
+    return JSON.parse(response.bytes.toString('utf8'));
   } catch (_error) {
     fail(PROVIDER_ERROR, 'Provider response is not valid JSON.');
+  } finally {
+    response.bytes.fill(0);
   }
-  return value;
 }
 
 function summary(profile, endpoint, identityNamespace, identityProviderKey,
@@ -247,28 +254,29 @@ function createTestAdapter(profile, options) {
   }
 
   async function adult(value) {
-    const body = canonicalJson({
-      query: 'query ShelfDeckCapability { __typename }',
-    });
-    const found = await fetchJson(fetchImpl, value.endpoint, {
-      method: 'POST',
+    const found = await fetchJson(
+      fetchImpl,
+      endpointUrl(value.endpoint, 'auth/user'),
+      {
       headers: {
         accept: 'application/json',
-        'content-type': 'application/json',
-        apikey: value.secretBytes.toString('utf8'),
+          authorization: bearer(value.secretBytes.toString('utf8')),
       },
-      body,
       signal: AbortSignal.timeout(value.timeoutMs),
-    });
-    if (!found?.data?.__typename || found.errors) {
+      },
+    );
+    if (!found || typeof found !== 'object' || Array.isArray(found) ||
+        !Number.isSafeInteger(found.id) ||
+        typeof found.name !== 'string' ||
+        !found.name.trim()) {
       fail(PROVIDER_ERROR, 'Adult Provider test response is invalid.');
     }
     return summary(
       profile,
       value.endpoint,
-      'jav_code',
-      'capability-probe',
-      { rootType: found.data.__typename },
+      'adult_provider_account',
+      String(found.id),
+      { accountId: found.id, accountName: found.name.trim() },
       now,
     );
   }
@@ -319,31 +327,23 @@ function createTestAdapter(profile, options) {
       }),
       signal: AbortSignal.timeout(value.timeoutMs),
     });
-    exactObject(
-      authenticated,
-      ['AccessToken', 'User'],
-      ['ServerId'],
-      'Emby authentication response is invalid.',
-    );
-    exactObject(
-      authenticated.User,
-      ['Id'],
-      [],
-      'Emby authentication response is invalid.',
-    );
-    const token = String(
+    if (!authenticated || typeof authenticated !== 'object' ||
+        Array.isArray(authenticated) ||
+        !authenticated.User ||
+        typeof authenticated.User !== 'object' ||
+        Array.isArray(authenticated.User)) {
+      fail(PROVIDER_ERROR, 'Emby authentication response is invalid.');
+    }
+    const token = boundedText(String(
       authenticated.AccessToken ||
       authenticated.accessToken ||
       '',
-    ).trim();
-    const userId = String(
+    ).trim(), 4096, 'Emby authentication response is invalid.');
+    const userId = boundedText(String(
       authenticated.User?.Id ||
       authenticated.User?.id ||
       '',
-    ).trim();
-    if (!token || !userId) {
-      fail(PROVIDER_ERROR, 'Emby authentication response is invalid.');
-    }
+    ).trim(), 256, 'Emby authentication response is invalid.');
     const info = await fetchJson(
       fetchImpl,
       endpointUrl(value.endpoint, 'System/Info'),
@@ -355,18 +355,17 @@ function createTestAdapter(profile, options) {
         signal: AbortSignal.timeout(value.timeoutMs),
       },
     );
-    exactObject(
-      info,
-      ['Id', 'Version'],
-      [],
+    if (!info || typeof info !== 'object' || Array.isArray(info)) {
+      fail(PROVIDER_ERROR, 'Emby system response is invalid.');
+    }
+    const serverId = boundedText(String(
+      info.Id || info.ServerId || authenticated.ServerId || '',
+    ).trim(), 256, 'Emby server identity is missing.');
+    boundedText(
+      String(info.Version || ''),
+      128,
       'Emby system response is invalid.',
     );
-    const serverId = String(
-      info.Id || info.ServerId || authenticated.ServerId || '',
-    ).trim();
-    if (!serverId) {
-      fail(PROVIDER_ERROR, 'Emby server identity is missing.');
-    }
     return Object.freeze({
       summary: summary(
         profile,
@@ -444,10 +443,16 @@ function createProtocolTransport(profile, options) {
           signal: AbortSignal.timeout(request.timeoutMs),
         },
       );
-      const serverId = String(info.Id || info.ServerId || '').trim();
-      if (!serverId) {
-        fail(PROVIDER_ERROR, 'Emby server identity is missing.');
-      }
+      const serverId = boundedText(
+        String(info.Id || info.ServerId || '').trim(),
+        256,
+        'Emby server identity is missing.',
+      );
+      boundedText(
+        String(info.Version || ''),
+        128,
+        'Emby system response is invalid.',
+      );
       value = summary(
         profile,
         state.endpoint,
@@ -487,6 +492,16 @@ function createProtocolTransport(profile, options) {
 
   async function doubanObservation(request, state) {
     const sourceId = request.input.sourceRef.objectId;
+    const configuredUserId =
+      state.snapshot.integration.config.lastTestSummary
+        .identityProviderKey;
+    if (request.input.sourceRef.objectType !== 'perception-source' ||
+        sourceId !== configuredUserId) {
+      fail(
+        PROVIDER_ERROR,
+        'Douban source identity does not match the configured user.',
+      );
+    }
     const cursor = request.input.cursor === null
       ? 0
       : Number(request.input.cursor);
@@ -507,17 +522,28 @@ function createProtocolTransport(profile, options) {
       signal: AbortSignal.timeout(request.timeoutMs),
     }, TEXT_LIMIT);
     const text = page.bytes.toString('utf8');
+    if (!text.includes(
+      '/people/' + encodeURIComponent(configuredUserId),
+    )) {
+      page.bytes.fill(0);
+      fail(
+        PROVIDER_ERROR,
+        'Douban response belongs to a foreign source identity.',
+      );
+    }
     const ids = [...text.matchAll(/\/subject\/([0-9]+)\//g)]
       .map((match) => match[1])
       .filter((value, index, values) =>
         values.indexOf(value) === index)
       .slice(0, request.input.limit)
       .sort();
+    const pageDigest = digest(page.bytes);
+    page.bytes.fill(0);
     const refs = ids.map((id) => frozenRef(
       'douban_interest',
       id,
       1,
-      { id, pageDigest: digest(page.bytes) },
+      { id, pageDigest },
     ));
     return protocolResponse({
       resultRefs: refs,
@@ -542,13 +568,16 @@ function createProtocolTransport(profile, options) {
           signal: AbortSignal.timeout(request.timeoutMs),
         },
       );
-      exactObject(
-        observed,
-        ['Id', 'Name'],
-        [],
-        'Emby metadata response is invalid.',
+      if (!observed || typeof observed !== 'object' ||
+          Array.isArray(observed)) {
+        fail(PROVIDER_ERROR, 'Emby metadata response is invalid.');
+      }
+      const observedId = boundedText(
+        String(observed.Id || ''),
+        256,
+        'Emby metadata identity is invalid.',
       );
-      if (String(observed.Id) !== objectId) {
+      if (observedId !== objectId) {
         fail(PROVIDER_ERROR, 'Emby metadata identity is foreign.');
       }
       boundedText(
@@ -557,65 +586,55 @@ function createProtocolTransport(profile, options) {
         'Emby metadata response is invalid.',
       );
     } else {
-      observed = await fetchJson(fetchImpl, state.endpoint, {
-        method: 'POST',
-        headers: {
-          accept: 'application/json',
-          'content-type': 'application/json',
-          apikey: request.secretBytes.toString('utf8'),
+      const code = boundedText(
+        objectId,
+        64,
+        'Adult Provider metadata identity is invalid.',
+      );
+      observed = await fetchJson(
+        fetchImpl,
+        endpointUrl(
+          state.endpoint,
+          'jav/' + encodeURIComponent(code),
+        ),
+        {
+          headers: {
+            accept: 'application/json',
+            authorization: bearer(request.secretBytes.toString('utf8')),
+          },
+          redirect: 'error',
+          signal: AbortSignal.timeout(request.timeoutMs),
         },
-        body: canonicalJson({
-          query:
-            'query ShelfDeckScene($id: ID!) {' +
-            ' findScene(id: $id) { id title date studio { name } } }',
-          variables: { id: objectId },
-        }),
-        signal: AbortSignal.timeout(request.timeoutMs),
-      });
-      if (observed.errors) {
-        fail(PROVIDER_ERROR, 'Adult Provider metadata query failed.');
-      }
-      exactObject(
-        observed,
-        ['data'],
-        [],
-        'Adult Provider metadata response is invalid.',
+        JSON_LIMIT,
       );
-      exactObject(
-        observed.data,
-        ['findScene'],
-        [],
-        'Adult Provider metadata response is invalid.',
-      );
-      exactObject(
-        observed.data.findScene,
-        ['id', 'title', 'date', 'studio'],
-        [],
-        'Adult Provider metadata response is invalid.',
-      );
-      if (String(observed.data.findScene.id) !== objectId) {
+      if (!observed || typeof observed !== 'object' ||
+          Array.isArray(observed) ||
+          !observed.data ||
+          typeof observed.data !== 'object' ||
+          Array.isArray(observed.data) ||
+          String(observed.data.sku || '').toUpperCase() !==
+            code.toUpperCase()) {
         fail(PROVIDER_ERROR, 'Adult Provider metadata identity is foreign.');
       }
       boundedText(
-        observed.data.findScene.title,
+        observed.data.title,
         1024,
         'Adult Provider metadata response is invalid.',
       );
       boundedText(
-        observed.data.findScene.date,
+        observed.data.date,
         64,
         'Adult Provider metadata response is invalid.',
         { optional: true, allowEmpty: true },
       );
-      if (observed.data.findScene.studio !== null) {
-        exactObject(
-          observed.data.findScene.studio,
-          ['name'],
-          [],
-          'Adult Provider metadata response is invalid.',
-        );
+      if (observed.data.site !== null &&
+          observed.data.site !== undefined) {
+        if (typeof observed.data.site !== 'object' ||
+            Array.isArray(observed.data.site)) {
+          fail(PROVIDER_ERROR, 'Adult Provider site is invalid.');
+        }
         boundedText(
-          observed.data.findScene.studio.name,
+          observed.data.site.name,
           512,
           'Adult Provider metadata response is invalid.',
         );
@@ -646,58 +665,22 @@ function createProtocolTransport(profile, options) {
           signal: AbortSignal.timeout(request.timeoutMs),
         },
       );
-      exactObject(
-        found,
-        ['Id', 'Name'],
-        [],
-        'Emby person response is invalid.',
-      );
+      if (!found || typeof found !== 'object' || Array.isArray(found)) {
+        fail(PROVIDER_ERROR, 'Emby person response is invalid.');
+      }
       rows = [found];
     } else {
-      const found = await fetchJson(fetchImpl, state.endpoint, {
-        method: 'POST',
-        headers: {
-          accept: 'application/json',
-          'content-type': 'application/json',
-          apikey: request.secretBytes.toString('utf8'),
-        },
-        body: canonicalJson({
-          query:
-            'query ShelfDeckPerformer($term: String!) {' +
-            ' searchPerformer(term: $term) { id name } }',
-          variables: { term: query },
-        }),
-        signal: AbortSignal.timeout(request.timeoutMs),
-      });
-      exactObject(
-        found,
-        ['data'],
-        [],
-        'Adult Provider person response is invalid.',
-      );
-      exactObject(
-        found.data,
-        ['searchPerformer'],
-        [],
-        'Adult Provider person response is invalid.',
-      );
-      rows = boundedRows(
-        found.data.searchPerformer,
-        50,
-        'Adult Provider person response is invalid.',
+      fail(
+        'P5_PROVIDER_OPERATION_UNAVAILABLE',
+        'Adult Provider performer detail search is outside H1.2.',
       );
     }
     const seen = new Set();
     const refs = rows.slice(0, request.input.limit)
       .map((row) => {
-        exactObject(
-          row,
-          profile.kind === 'emby'
-            ? ['Id', 'Name']
-            : ['id', 'name'],
-          [],
-          'Provider person response is invalid.',
-        );
+        if (!row || typeof row !== 'object' || Array.isArray(row)) {
+          fail(PROVIDER_ERROR, 'Provider person response is invalid.');
+        }
         const personId = boundedText(
           String(row.Id || row.id || ''),
           256,
@@ -848,7 +831,7 @@ function createProtocolTransport(profile, options) {
             'libra.external_material.acquire.request@1') {
         return moviepilotRequest(request, state);
       }
-      if (['emby', 'adult-provider'].includes(profile.kind) &&
+      if (profile.kind === 'emby' &&
           request.operationId ===
             'people.registration_evidence.observe@1') {
         return peopleReferences(request, state);

@@ -257,7 +257,7 @@ const PROFILES = Object.freeze([
       'artifact',
     ]),
     normalizeEndpoint:
-      exactEndpoint('https://api.theporndb.net/graphql'),
+      exactEndpoint('https://api.theporndb.net'),
     prepareCredential: (value, settings) =>
       tokenCredential(value, settings, {
         credentialKind: 'api_key',
@@ -269,7 +269,10 @@ const PROFILES = Object.freeze([
     credentialKindsBySecret: Object.freeze({
       adult_provider_api_key: 'api_key',
     }),
-    identityNamespaces: Object.freeze(['jav_code']),
+    identityNamespaces: Object.freeze([
+      'adult_provider_account',
+      'jav_code',
+    ]),
     artifactKinds: Object.freeze(['poster', 'fanart']),
     extraOperations: Object.freeze(['shared.integration.search@1']),
   }),

@@ -33,6 +33,11 @@ const {
   './helix/platform/application/integration-profile-catalog'
 );
 const {
+  buildProductIntegrationHandle,
+} = require(
+  './helix/platform/public/integration-adapter-support'
+);
+const {
   createIntegrationCommandReceiptRepository,
 } = require(
   './helix/platform/persistence/integration-command-receipt-repository'
@@ -594,29 +599,14 @@ function createPlatformIntegrationServices(options) {
     if (!snapshot || snapshot.integration.state !== 'active') {
       return undefined;
     }
-    const basis = {
-      schemaRef: 'helix://contracts/types/IntegrationHandle/v1',
-      schemaVersion: 1,
-      handleId: canonicalDigest({
-        schema: 'platform.jav-product-integration-handle-id@1',
-        integrationId: snapshot.integration.integrationId,
-        configRevision: snapshot.integration.configRevision,
-        allowedOperation: operationId,
-        artifactKind,
-      }),
+    return buildProductIntegrationHandle({
       integrationId: snapshot.integration.integrationId,
       integrationType: 'jav',
       configRevision: snapshot.integration.configRevision,
       secretRef: snapshot.secret.secretRef,
       allowedOperation: operationId,
+      artifactKind,
       expiresAtMs: 4_102_444_800_000,
-    };
-    return Object.freeze({
-      ...basis,
-      fenceDigest: canonicalDigest({
-        schema: 'platform.jav-product-integration-handle-fence@1',
-        ...basis,
-      }),
     });
   }
 
