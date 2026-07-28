@@ -156,8 +156,8 @@ function providerFetch(state) {
         });
       }
       const scene = {
-        id: 'scene-1',
-        sku: state.adultForeignCode || 'SDKI-001',
+        id: state.adultSearchId || 'scene-1',
+        sku: state.adultSearchCode || 'SDKI-001',
         title: state.adultLongTitle || 'JAV title',
         date: '2020-01-02',
         description: 'Description',
@@ -197,8 +197,19 @@ function providerFetch(state) {
           meta: { current_page: 1, per_page: 2, total: 1 },
         });
       }
+      if (url.pathname === '/jav/scene-1') {
+        return response(200, {
+          data: {
+            ...scene,
+            id: state.adultExactId || scene.id,
+            sku: state.adultExactCode || scene.sku,
+          },
+        });
+      }
       if (url.pathname === '/jav/SDKI-001') {
-        return response(200, { data: scene });
+        return response(400, {
+          message: 'sku is not an official path identifier',
+        });
       }
       return response(404, { message: 'not found' });
     }
@@ -590,6 +601,7 @@ test('H1.2 provider operations execute through exact P5 ports and revision-fence
     assert.equal(douban.result.resultRefs.length, 1);
     assert.equal(douban.result.resultRefs[0].objectId, '1292052');
 
+    const adultBefore = state.calls.length;
     const adult = await opened.services.executeProvider(
       'adult-provider',
       {
@@ -607,6 +619,10 @@ test('H1.2 provider operations execute through exact P5 ports and revision-fence
       },
     );
     assert.equal(adult.result.resultRef.objectId, 'SDKI-001');
+    assert.deepEqual(
+      state.calls.slice(adultBefore).map((call) => call.path),
+      ['/jav', '/jav/scene-1'],
+    );
 
     const emby = await opened.services.executeProvider('emby', {
       operationId: 'people.registration_evidence.observe@1',
@@ -739,6 +755,7 @@ test('H1.2 Adult Provider supplies the real JAV Product identity, metadata, and 
       operationId: 'libra.product_metadata.fetch@1',
     });
     assert.equal(metadataHandle.integrationType, 'jav');
+    const metadataBefore = state.calls.length;
     const metadata =
       await opened.services.fetchJavProviderMetadata({
         metadataFetchIntent: intent,
@@ -751,6 +768,10 @@ test('H1.2 Adult Provider supplies the real JAV Product identity, metadata, and 
     );
     assert.equal(metadata.peopleHints.length, 1);
     assert.equal(metadata.peopleHints[0].displayName, 'Actor');
+    assert.deepEqual(
+      state.calls.slice(metadataBefore).map((call) => call.path),
+      ['/jav', '/jav/scene-1'],
+    );
 
     const artifactHandle = opened.services.resolveProductHandle({
       intent,
@@ -768,6 +789,10 @@ test('H1.2 Adult Provider supplies the real JAV Product identity, metadata, and 
     assert.ok(Buffer.isBuffer(artifact.bytes));
     assert.ok(state.calls.some((call) =>
       call.host === 'cdn.theporndb.net'));
+    assert.equal(
+      state.calls.some((call) => call.path === '/jav/SDKI-001'),
+      false,
+    );
   } finally {
     opened.kernel.close();
   }
@@ -904,7 +929,7 @@ test('H1.2 JAV Product handles and artifact URLs fail closed before foreign tran
       (error) => error.code === 'P5_SECRET_LEASE_INVOCATION_FAILED',
     );
     state.adultSearchOverflow = false;
-    state.adultForeignCode = 'ABCD-999';
+    state.adultExactCode = 'ABCD-999';
     await assert.rejects(
       () => opened.services.fetchJavProviderMetadata({
         metadataFetchIntent: intent,
@@ -912,7 +937,16 @@ test('H1.2 JAV Product handles and artifact URLs fail closed before foreign tran
       }),
       (error) => error.code === 'P5_SECRET_LEASE_INVOCATION_FAILED',
     );
-    state.adultForeignCode = null;
+    state.adultExactCode = null;
+    state.adultExactId = 'foreign-scene';
+    await assert.rejects(
+      () => opened.services.fetchJavProviderMetadata({
+        metadataFetchIntent: intent,
+        integrationHandle: metadataHandle,
+      }),
+      (error) => error.code === 'P5_SECRET_LEASE_INVOCATION_FAILED',
+    );
+    state.adultExactId = null;
     state.adultLongTitle = 'x'.repeat(2049);
     await assert.rejects(
       () => opened.services.fetchJavProviderMetadata({
@@ -941,7 +975,7 @@ test('H1.2 JAV Product handles and artifact URLs fail closed before foreign tran
         }),
         (error) => error.code === 'P5_PROVIDER_RESPONSE_INVALID',
       );
-      assert.equal(state.calls.length, before + 1);
+      assert.equal(state.calls.length, before + 2);
       assert.equal(
         state.calls.slice(before).some((call) =>
           call.host !== 'api.theporndb.net'),
@@ -961,9 +995,9 @@ test('H1.2 JAV Product handles and artifact URLs fail closed before foreign tran
       (error) => error.code === 'P5_PROVIDER_TRANSPORT_FAILED',
     );
     const redirectCalls = state.calls.slice(beforeRedirect);
-    assert.equal(redirectCalls.length, 2);
-    assert.equal(redirectCalls[1].host, 'cdn.theporndb.net');
-    assert.equal(redirectCalls[1].redirect, 'error');
+    assert.equal(redirectCalls.length, 3);
+    assert.equal(redirectCalls[2].host, 'cdn.theporndb.net');
+    assert.equal(redirectCalls[2].redirect, 'error');
   } finally {
     opened.kernel.close();
   }
@@ -1242,6 +1276,7 @@ test('H1.2 official response projections accept bounded documented extras and so
   for (const relative of [
     '../../src/helix/integrations/h1-provider-adapters.js',
     '../../src/helix/integrations/jav-product-provider-adapter.js',
+    '../../src/helix/integrations/theporndb-rest-client.js',
     '../../src/helix/platform/application/integration-profile-catalog.js',
   ]) {
     const source = fs.readFileSync(

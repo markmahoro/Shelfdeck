@@ -11,9 +11,11 @@ const {
   fetchBytes,
   fetchJson,
 } = require('./h1-provider-adapters');
+const {
+  createThePornDbRestClient,
+  normalizeThePornDbJavCode,
+} = require('./theporndb-rest-client');
 
-const JAV_CODE = /^[A-Z0-9]{2,16}-[0-9]{2,8}$/;
-const JSON_LIMIT = 128 * 1024;
 const IMAGE_LIMIT = 16 * 1024 * 1024;
 const APPROVED_ARTIFACT_HOSTS = new Set([
   'cdn.theporndb.net',
@@ -31,37 +33,6 @@ class JavProductProviderError extends Error {
 
 function fail(code, message, details) {
   throw new JavProductProviderError(code, message, details);
-}
-
-function object(value, message) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    fail('P5_PROVIDER_RESPONSE_INVALID', message);
-  }
-  return value;
-}
-
-function boundedString(value, maximum, optional = false) {
-  if (optional && (value === undefined || value === null)) return null;
-  if (typeof value !== 'string' ||
-      (!optional && value.length < 1) ||
-      Buffer.byteLength(value, 'utf8') > maximum) {
-    fail(
-      'P5_PROVIDER_RESPONSE_INVALID',
-      'JAV Provider response string exceeds its bound.',
-    );
-  }
-  return value;
-}
-
-function normalizedCode(value) {
-  const code = String(value || '')
-    .normalize('NFKC')
-    .trim()
-    .toUpperCase();
-  if (!JAV_CODE.test(code)) {
-    fail('P5_PROVIDER_INPUT_INVALID', 'JAV Provider code is invalid.');
-  }
-  return code;
 }
 
 function resolvedIdentity(code) {
@@ -84,107 +55,6 @@ function exactIdentity(actual, expected) {
       'JAV Provider identity does not match the exact request.',
     );
   }
-}
-
-function boundedArray(value, maximum, name) {
-  if (!Array.isArray(value) || value.length > maximum) {
-    fail(
-      'P5_PROVIDER_RESPONSE_INVALID',
-      'JAV Provider ' + name + ' exceeds its bound.',
-    );
-  }
-  return value;
-}
-
-function optionalNestedUrl(value, key) {
-  if (typeof value?.[key] === 'string' && value[key]) return value[key];
-  return null;
-}
-
-function projectScene(value) {
-  const scene = object(value, 'JAV Provider SceneResource is invalid.');
-  const id = boundedString(String(scene.id || ''), 256);
-  const sku = normalizedCode(scene.sku);
-  const title = boundedString(scene.title, 2048);
-  const date = boundedString(scene.date, 64, true);
-  const description = boundedString(scene.description, 32 * 1024, true);
-  const tags = boundedArray(scene.tags || [], 64, 'tag collection')
-    .map((item) => {
-      object(item, 'JAV Provider tag is invalid.');
-      return boundedString(item.name, 512);
-    });
-  const performers = boundedArray(
-    scene.performers || [],
-    256,
-    'performer collection',
-  ).map((item) => {
-    object(item, 'JAV Provider performer is invalid.');
-    return Object.freeze({
-      id: boundedString(String(item.id || item.uuid || ''), 256),
-      name: boundedString(item.name, 512),
-    });
-  });
-  let studio = null;
-  if (scene.site !== undefined && scene.site !== null) {
-    object(scene.site, 'JAV Provider site is invalid.');
-    studio = boundedString(scene.site.name, 512);
-  }
-  const posters = scene.posters === undefined || scene.posters === null
-    ? null
-    : object(scene.posters, 'JAV Provider poster projection is invalid.');
-  const background =
-    scene.background === undefined || scene.background === null
-      ? null
-      : object(
-          scene.background,
-          'JAV Provider background projection is invalid.',
-        );
-  const posterUrl = optionalNestedUrl(posters, 'full') ||
-    boundedString(scene.poster || scene.poster_image, 4096, true);
-  const fanartUrl = optionalNestedUrl(background, 'full') ||
-    boundedString(
-      scene.back_image || scene.image,
-      4096,
-      true,
-    );
-  return Object.freeze({
-    id,
-    sku,
-    title,
-    date,
-    description,
-    studio,
-    tags: Object.freeze(tags),
-    performers: Object.freeze(performers),
-    posterUrl,
-    fanartUrl,
-  });
-}
-
-function searchResult(value, code) {
-  const root = object(value, 'JAV Provider search response is invalid.');
-  const rows = boundedArray(root.data, 2, 'search result')
-    .map(projectScene)
-    .filter((scene) => scene.sku === code);
-  if (rows.length !== 1) {
-    fail(
-      'P5_PROVIDER_IDENTITY_UNRESOLVED',
-      'JAV Provider did not return one exact code match.',
-    );
-  }
-  return rows[0];
-}
-
-function exactResult(value, code) {
-  const root = object(value, 'JAV Provider metadata response is invalid.');
-  const scene = projectScene(root.data);
-  if (scene.sku !== code) {
-    fail(
-      'P5_PROVIDER_IDENTITY_MISMATCH',
-      'JAV Provider metadata returned a foreign identity.',
-    );
-  }
-  return scene;
 }
 
 function safeArtifactUrl(value) {
@@ -260,32 +130,22 @@ function createJavProductProviderAdapter(options) {
       consumer({ endpoint, secretBytes, snapshot }));
   }
 
-  function providerUrl(endpoint, relative) {
-    return new URL(
-      String(relative).replace(/^\//, ''),
-      endpoint.replace(/\/+$/, '') + '/',
-    );
-  }
-
-  function authorization(secretBytes) {
-    return 'Bearer ' + secretBytes.toString('utf8');
+  function restClient(value, timeoutMs) {
+    return createThePornDbRestClient({
+      fetchImpl,
+      fetchJson,
+      endpoint: value.endpoint,
+      authorization: 'Bearer ' + value.secretBytes.toString('utf8'),
+      timeoutMs,
+      fail,
+    });
   }
 
   async function searchScene(code, operationId, timeoutMs) {
     return withSecret(operationId, timeoutMs, async (value) => {
-      const url = providerUrl(value.endpoint, 'jav');
-      url.searchParams.set('q', code);
-      url.searchParams.set('per_page', '2');
-      const response = await fetchJson(fetchImpl, url, {
-        headers: {
-          accept: 'application/json',
-          authorization: authorization(value.secretBytes),
-        },
-        redirect: 'error',
-        signal: AbortSignal.timeout(timeoutMs),
-      }, JSON_LIMIT);
       return Object.freeze({
-        scene: searchResult(response, code),
+        scene: await restClient(value, timeoutMs)
+          .searchExactJav(code),
         snapshot: value.snapshot,
       });
     });
@@ -293,24 +153,9 @@ function createJavProductProviderAdapter(options) {
 
   async function readScene(code, operationId, timeoutMs) {
     return withSecret(operationId, timeoutMs, async (value) => {
-      const response = await fetchJson(
-        fetchImpl,
-        providerUrl(
-          value.endpoint,
-          'jav/' + encodeURIComponent(code),
-        ),
-        {
-          headers: {
-            accept: 'application/json',
-            authorization: authorization(value.secretBytes),
-          },
-          redirect: 'error',
-          signal: AbortSignal.timeout(timeoutMs),
-        },
-        JSON_LIMIT,
-      );
       return Object.freeze({
-        scene: exactResult(response, code),
+        scene: await restClient(value, timeoutMs)
+          .readExactJav(code),
         snapshot: value.snapshot,
       });
     });
@@ -351,7 +196,7 @@ function createJavProductProviderAdapter(options) {
           'JAV identity search input is invalid.',
         );
       }
-      const code = normalizedCode(request.javCode);
+      const code = normalizeThePornDbJavCode(request.javCode, fail);
       const found = await searchScene(
         code,
         'shared.integration.search@1',
@@ -387,7 +232,10 @@ function createJavProductProviderAdapter(options) {
         );
       }
       const identity = resolvedIdentity(
-        normalizedCode(intent.resolvedProviderIdentity?.providerKey),
+        normalizeThePornDbJavCode(
+          intent.resolvedProviderIdentity?.providerKey,
+          fail,
+        ),
       );
       exactIdentity(intent.resolvedProviderIdentity, identity);
       const found = await readScene(
@@ -443,7 +291,10 @@ function createJavProductProviderAdapter(options) {
         kind,
       );
       const identity = resolvedIdentity(
-        normalizedCode(request?.resolvedProviderIdentity?.providerKey),
+        normalizeThePornDbJavCode(
+          request?.resolvedProviderIdentity?.providerKey,
+          fail,
+        ),
       );
       exactIdentity(request.resolvedProviderIdentity, identity);
       const found = await readScene(

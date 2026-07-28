@@ -11,6 +11,9 @@ const {
   requireIntegrationProfile,
   sha256,
 } = require('../platform/public/integration-adapter-support');
+const {
+  createThePornDbRestClient,
+} = require('./theporndb-rest-client');
 
 const JSON_LIMIT = 64 * 1024;
 const TEXT_LIMIT = 128 * 1024;
@@ -591,54 +594,16 @@ function createProtocolTransport(profile, options) {
         64,
         'Adult Provider metadata identity is invalid.',
       );
-      observed = await fetchJson(
+      observed = await createThePornDbRestClient({
         fetchImpl,
-        endpointUrl(
-          state.endpoint,
-          'jav/' + encodeURIComponent(code),
-        ),
-        {
-          headers: {
-            accept: 'application/json',
-            authorization: bearer(request.secretBytes.toString('utf8')),
-          },
-          redirect: 'error',
-          signal: AbortSignal.timeout(request.timeoutMs),
+        fetchJson,
+        endpoint: state.endpoint,
+        authorization: bearer(request.secretBytes.toString('utf8')),
+        timeoutMs: request.timeoutMs,
+        fail(_code, message) {
+          fail(PROVIDER_ERROR, message);
         },
-        JSON_LIMIT,
-      );
-      if (!observed || typeof observed !== 'object' ||
-          Array.isArray(observed) ||
-          !observed.data ||
-          typeof observed.data !== 'object' ||
-          Array.isArray(observed.data) ||
-          String(observed.data.sku || '').toUpperCase() !==
-            code.toUpperCase()) {
-        fail(PROVIDER_ERROR, 'Adult Provider metadata identity is foreign.');
-      }
-      boundedText(
-        observed.data.title,
-        1024,
-        'Adult Provider metadata response is invalid.',
-      );
-      boundedText(
-        observed.data.date,
-        64,
-        'Adult Provider metadata response is invalid.',
-        { optional: true, allowEmpty: true },
-      );
-      if (observed.data.site !== null &&
-          observed.data.site !== undefined) {
-        if (typeof observed.data.site !== 'object' ||
-            Array.isArray(observed.data.site)) {
-          fail(PROVIDER_ERROR, 'Adult Provider site is invalid.');
-        }
-        boundedText(
-          observed.data.site.name,
-          512,
-          'Adult Provider metadata response is invalid.',
-        );
-      }
+      }).readExactJav(code);
     }
     return protocolResponse({
       resultRef: frozenRef(
