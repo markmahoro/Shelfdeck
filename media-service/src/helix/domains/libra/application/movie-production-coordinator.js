@@ -281,6 +281,26 @@ function providerIdentity(value) {
   return Object.freeze(identity);
 }
 
+function validateMetadataObservationResult(result) {
+  const identitySet = result.providerIdentitySet;
+  const expectedRecordDigest = canonicalDigest(Object.fromEntries(
+    Object.entries(identitySet).filter(([key]) => key !== 'recordDigest'),
+  ));
+  if (identitySet.recordDigest !== expectedRecordDigest) {
+    fail('P14_MOVIE_METADATA_IDENTITY_SET_DIGEST',
+      'Metadata Observation Provider identity set digest is invalid.');
+  }
+  const identityKeys = identitySet.entries.map(canonicalJson);
+  const sortedIdentityKeys = [...identityKeys].sort((left, right) =>
+    Buffer.compare(Buffer.from(left), Buffer.from(right)));
+  if (canonicalJson(identityKeys) !== canonicalJson(sortedIdentityKeys) ||
+      new Set(identityKeys).size !== identityKeys.length) {
+    fail('P14_MOVIE_METADATA_IDENTITY_SET_ORDER',
+      'Metadata Observation Provider identities are not canonical and unique.');
+  }
+  return result;
+}
+
 function metadataObservation(intent, values, observedAtMs) {
   const entries = [...values.entries]
     .sort((left, right) => Buffer.compare(Buffer.from(left.key), Buffer.from(right.key)));
@@ -295,7 +315,16 @@ function metadataObservation(intent, values, observedAtMs) {
     Object.entries(descriptiveFacts).filter(([key]) => key !== 'recordDigest'),
   ));
   const identities = [...(values.providerIdentities || [])].sort((left, right) =>
-    Buffer.compare(Buffer.from(left.identityAnchorDigest), Buffer.from(right.identityAnchorDigest)));
+    Buffer.compare(Buffer.from(canonicalJson(left)), Buffer.from(canonicalJson(right))));
+  const identityKeys = identities.map(canonicalJson);
+  if (new Set(identityKeys).size !== identityKeys.length) {
+    fail('P14_MOVIE_METADATA_IDENTITY_DUPLICATE',
+      'Metadata Observation Provider identities must be tuple-unique.');
+  }
+  if ((values.artifactHints || []).length !== 0) {
+    fail('P14_MOVIE_METADATA_ARTIFACT_HINT_UNSUPPORTED',
+      'Metadata Observation cannot synthesize Artifact availability hints.');
+  }
   const providerIdentitySet = {
     schemaRef: 'helix://contracts/records/provider-identity-set/v1',
     schemaVersion: 1,
@@ -328,11 +357,12 @@ function metadataObservation(intent, values, observedAtMs) {
     descriptiveFacts: Object.freeze(descriptiveFacts),
     providerIdentitySet: Object.freeze(providerIdentitySet),
     peopleHints: Object.freeze([...(values.peopleHints || [])]),
-    artifactHints: Object.freeze([...(values.artifactHints || [])]),
+    artifactHints: Object.freeze([]),
   };
   result.payloadDigest = canonicalDigest(Object.fromEntries(
     Object.entries(result).filter(([key]) => key !== 'payloadDigest'),
   ));
+  validateMetadataObservationResult(result);
   return Object.freeze(result);
 }
 
@@ -577,6 +607,9 @@ function createMovieProductionCoordinator(options) {
         fail('P14_MOVIE_PRODUCTION_RESULT_REPLAY',
           'Succeeded Supporting Work lacks its exact typed Result.');
       }
+      if (stored.resultSchemaRef === METADATA_SCHEMA) {
+        validateMetadataObservationResult(stored.result);
+      }
       options.workRuntime.complete(workId);
       return Object.freeze({
         ownerDomain: 'libra',
@@ -607,6 +640,9 @@ function createMovieProductionCoordinator(options) {
     if (!result || typeof result !== 'object') {
       fail('P14_MOVIE_PRODUCTION_RESULT_INVALID',
         'Capability execution did not produce its typed Result.');
+    }
+    if (value.resultSchemaRef === METADATA_SCHEMA) {
+      validateMetadataObservationResult(result);
     }
     const evidenceDigest = typeof value.evidenceDigest === 'function'
       ? value.evidenceDigest(result)
@@ -1159,11 +1195,7 @@ function createMovieProductionCoordinator(options) {
         entries: item.value.entries,
         providerIdentities: [],
         peopleHints: [],
-        artifactHints: [{
-          artifactKind: 'nfo',
-          sourceRef: item.reference.referenceId,
-          evidenceDigest: item.reference.referenceDigest,
-        }],
+        artifactHints: [],
       }, productionTimeMs);
       const chain = await runResultCapability(snapshot.run, {
         workKind: 'product_metadata_observation',
@@ -1232,23 +1264,11 @@ function createMovieProductionCoordinator(options) {
           providerIntent,
           metadataIntegrationHandle,
         );
-        const artifactKinds = snapshot.spec.requirements.metadata
-          .requiredArtifactKinds.filter((kind) => kind !== 'nfo');
         return metadataObservation(providerIntent, {
           entries: provider.descriptiveEntries,
           providerIdentities: provider.providerIdentities,
           peopleHints: provider.peopleHints,
-          artifactHints: artifactKinds.map((artifactKind) => ({
-            artifactKind,
-            sourceRef: metadataSourceRef(providerIntent) + ':' +
-              artifactKind,
-            evidenceDigest: canonicalDigest({
-              schema: 'libra.provider-artifact-hint@1',
-              fetchIntentDigest: providerIntent.intentDigest,
-              artifactKind,
-              resolvedProviderIdentity,
-            }),
-          })),
+          artifactHints: [],
         }, productionTimeMs);
       },
       evidenceDigest: (result) => result.payloadDigest,

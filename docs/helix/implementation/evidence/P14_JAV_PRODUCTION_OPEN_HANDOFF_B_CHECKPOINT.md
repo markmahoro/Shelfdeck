@@ -31,6 +31,12 @@
 - Provider adapter 只以 intent tuple 的 providerKey 查询；
   `MetadataObservation.providerIdentitySet` 必须包含逐字节相同的 tuple。
   missing/foreign identity 均 fail closed。
+- `MetadataObservation@1` 的 machine contract 已物化为 closed
+  Provider Identity Set：0..16 个
+  `ResolvedProviderIdentity@1`、JCS UTF-8 排序、tuple unique，且
+  `recordDigest`覆盖排除自身后的完整record。真实持久化的JAV
+  `fx_event_result_bindings.result_json`经其声明schema及digest复验通过；
+  旧`{key,value}` identity、missing/foreign exact tuple均fail closed。
 - Product Metadata Source Order 为 JAV Provider only。Handoff A Related NFO
   保留在历史快照，但不作为 metadata Observation/source。
 - deterministic construction fixture 返回
@@ -38,6 +44,9 @@
   JAV Provider acceptance。
 - Provider `peopleHints=[]` 时提交 closed、合法、关系集为空的 Media Cast
   Fact，其 Source Basis 仍是 exact Provider Metadata Observation Result。
+- 当前JAV `MetadataObservation.artifactHints=[]`；Acceptance Spec中的
+  Artifact Requirement不再被合成为Provider Observation hint。旧三字段
+  `artifactKind/sourceRef/evidenceDigest`值按machine schema fail closed。
 
 ## Media / Artifact / Conformance / Package
 
@@ -79,8 +88,10 @@
   - Package + Control + Offer commit 后、response 前。
 - Metadata Result 后重启不会再次 fetch metadata；Artifact physical effect
   后从 effect reality 恢复，不依赖 caller bytes；Artifact Result 后复用正式
-  Result。每个 Artifact kind 最终恰好一个 Handle/effect/ref。
-- 重放收敛为 3 个 active Artifact Handles、3 个 Product Staging
+  Result。效果日志按各正式物理步骤独立记账，不再声称“每kind一个effect”。
+- 重放收敛为3个实际Workspace Artifact输出、3个active Artifact
+  Handles、1个`product_sidecar.render` Result、2个
+  `product_artifact.acquire` Results、3个Product Staging
   references、3 个 Product Facts、1 个 immutable Package 与 1 个 pending
   Offer。
 - Arca Acceptance/Inventory/Shelf Entry/Deck Fact 表保持为零，Offer 没有
@@ -90,17 +101,18 @@
 
 ## 验证与机器基线
 
-- Provider identity、Artifact capability、JAV production/recovery 与 machine
-  materialization focused gate：`49/49 PASS`。
-- Movie/Series shared production regression：`22/22 PASS`。
-- P2 aggregate / DDL / Metadata Planner reconciliation：`15/15 PASS`。
+- Result machine、Product Fact、JAV persisted Result/recovery focused gate：
+  `33/33 PASS`。
+- Movie/Series shared production regression：`5/5 PASS`。
 - 完整 `npm run test:helix-architecture`：
-  `132 files PASS`，findings 与 `prohibitedActionsRun` 均为空。
+  `132 files / 887 tests PASS`，findings 与 `prohibitedActionsRun` 均为空。
 - 机器库存：
   112 Capabilities / 97 Result families / 177 tables /
   43 canonical transactions / 114 routes / 18 UI surfaces。
 - Contract aggregate：
-  `305eede4949f184b94ddef7fad09e7ff18f60748adaf20a56065f23b51ea4f4f`。
+  `c1cd53125ffc6055e57cd00b2c8a388b42405b49194ec0aa1292ff5cb350447a`。
+- Result type registry：
+  `96623a26fd6bed204710bd1a5b1c1580cc7832e60ddd25b0f5f08b977cabee53`。
 - SSOT source-map aggregate：
   `a54b0b3934b8a5a574cf7e1d17370501564e136cdbe9c470082efe9d1f7ce209`。
 - Manifest aggregate：

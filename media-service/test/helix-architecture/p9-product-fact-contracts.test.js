@@ -129,6 +129,20 @@ test('selects only exact durable observation chains and collapses semantic repla
     results:[foreignProvider],
   }), (error) =>
     error.code === 'P9_METADATA_OBSERVATION_PROVIDER_IDENTITY');
+  const missingProvider = observation(sourceIntents[1]);
+  missingProvider.result = {
+    ...missingProvider.result,
+    providerIdentitySet: {
+      ...missingProvider.result.providerIdentitySet,
+      entries: [],
+    },
+  };
+  missingProvider.resultDigest = canonicalDigest(missingProvider.result);
+  assert.throws(() => selectMetadataObservations({
+    intents:sourceIntents,
+    results:[missingProvider],
+  }), (error) =>
+    error.code === 'P9_METADATA_OBSERVATION_PROVIDER_IDENTITY');
 });
 
 test('builds a closed observation basis and NFO-first complete metadata draft', () => {

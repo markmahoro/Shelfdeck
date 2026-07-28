@@ -57,6 +57,28 @@ function boundedRecord(kind) {
   });
 }
 
+function providerIdentitySetRecord() {
+  return object({
+    schemaRef: { const: 'helix://contracts/records/provider-identity-set/v1' },
+    schemaVersion: { const: 1 },
+    recordKind: { const: 'provider-identity-set' },
+    recordDigest: {
+      ...digest(),
+      'x-helix-digestBasis': 'JCS(record excluding recordDigest)',
+    },
+    entries: {
+      ...arrayOf(domainRef('ResolvedProviderIdentity'), 16),
+      uniqueItems: true,
+      'x-helix-canonicalOrder':
+        'UTF-8(JCS(ResolvedProviderIdentity))',
+    },
+  });
+}
+
+function emptyArtifactHints() {
+  return arrayOf(snapshot('artifact-hint'), 0);
+}
+
 function snapshot(kind) {
   return object({ objectId: id(), revision: positiveInteger(), schemaRef: text(), snapshotDigest: digest(), objectKind: { const: kind } });
 }
@@ -246,9 +268,9 @@ const special = {
   'ResolvedProductIdentity.displayIdentity': boundedRecord('display-identity'),
   'MetadataObservation.contentProfile': enumText('movie', 'series', 'jav', 'western_adult'),
   'MetadataObservation.descriptiveFacts': boundedRecord('descriptive-facts'),
-  'MetadataObservation.providerIdentitySet': boundedRecord('provider-identity-set'),
+  'MetadataObservation.providerIdentitySet': providerIdentitySetRecord(),
   'MetadataObservation.peopleHints': arrayOf(snapshot('people-hint'), 1024),
-  'MetadataObservation.artifactHints': arrayOf(snapshot('artifact-hint'), 1024),
+  'MetadataObservation.artifactHints': emptyArtifactHints(),
   'WesternAnalysisResult.resultArtifactHandle': ref('ArtifactHandle'),
   'ArtifactAcquisitionResult.resultKind': enumText('acquired', 'not_available'),
   'ArtifactAcquisitionResult.artifactHandle': nullable(ref('ArtifactHandle')),
@@ -657,8 +679,8 @@ function metadataObservationSchema() {
   return resultSchema('MetadataObservation', 'EvidenceEnvelope', {
     fetchIntentDigest: digest(), sourceKind: enumText('related_nfo', 'provider'), sourceRef: text(),
     sourcePriority: nonNegativeInteger(), identityDigest: digest(), contentProfile: enumText('movie', 'series', 'jav'),
-    descriptiveFacts: boundedRecord('descriptive-facts'), providerIdentitySet: boundedRecord('provider-identity-set'),
-    peopleHints: arrayOf(snapshot('people-hint'), 1024), artifactHints: arrayOf(snapshot('artifact-hint'), 1024)
+    descriptiveFacts: boundedRecord('descriptive-facts'), providerIdentitySet: providerIdentitySetRecord(),
+    peopleHints: arrayOf(snapshot('people-hint'), 1024), artifactHints: emptyArtifactHints()
   }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
 }
 

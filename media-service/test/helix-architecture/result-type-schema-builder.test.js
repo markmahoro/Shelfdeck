@@ -140,6 +140,28 @@ test('materializes Artifact Requirement and bounded verification Result continui
     'helix://contracts/domain-types/ArtifactRequirement/v1');
 });
 
+test('materializes Metadata Observation with exact Provider identity tuples and no synthetic Artifact hints', () => {
+  const schema = schemas.MetadataObservation;
+  const identitySet = schema.properties.providerIdentitySet;
+  assert.equal(identitySet.additionalProperties, false);
+  assert.equal(
+    identitySet.properties.schemaRef.const,
+    'helix://contracts/records/provider-identity-set/v1',
+  );
+  assert.equal(identitySet.properties.schemaVersion.const, 1);
+  assert.equal(identitySet.properties.entries.maxItems, 16);
+  assert.equal(identitySet.properties.entries.uniqueItems, true);
+  assert.equal(
+    identitySet.properties.entries.items.$ref,
+    'helix://contracts/domain-types/ResolvedProviderIdentity/v1',
+  );
+  assert.equal(
+    identitySet.properties.recordDigest['x-helix-digestBasis'],
+    'JCS(record excluding recordDigest)',
+  );
+  assert.equal(schema.properties.artifactHints.maxItems, 0);
+});
+
 test('binds Product Media Verification to the exact candidate, Run, Handle, Requirement, and probes', () => {
   const schema = schemas.ProductMediaVerification;
   for (const field of ['candidateId', 'candidateNodeId', 'candidateBasisDigest', 'candidateKind', 'libraRunId',

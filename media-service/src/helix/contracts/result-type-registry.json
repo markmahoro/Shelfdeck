@@ -717,7 +717,7 @@
       "relativePath": "types/MetadataObservation/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "3f675fddcc66c7b4a14f2eeaf947732c44d2a6d5f5af7ee631beb118fff4b99e"
+        "value": "469efcbabbed79872701994bf318ef66293d24d37f7feb4059e108cb3415888f"
       },
       "source": {
         "section": "8.6.19",

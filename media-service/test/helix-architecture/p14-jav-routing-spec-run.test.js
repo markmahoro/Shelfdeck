@@ -22,8 +22,20 @@ const {
 const {
   createCleanProductProductionPort,
 } = require('../../src/clean-product-production-port');
+const {
+  createCapabilityContractValidator,
+} = require('../../src/helix/foundation/capability/contract-validator');
+const metadataObservationSchema = require(
+  '../../src/helix/contracts/types/MetadataObservation/v1/schema.json'
+);
+const resolvedProviderIdentitySchema = require(
+  '../../src/helix/contracts/domain-types/ResolvedProviderIdentity/v1/schema.json'
+);
 
 const secretRoot = 'p14-jav-routing-spec-run-secret-root-0123456789abcdef';
+const metadataObservationValidator = createCapabilityContractValidator({
+  schemas: [resolvedProviderIdentitySchema, metadataObservationSchema],
+});
 
 function syntheticProbe(readHandle) {
   const value = {
@@ -781,6 +793,56 @@ test('JAV public route publishes an input-free Spec and one active single Run', 
       WHERE fact_kind='media_cast'`,
   ).get().fact_json);
   assert.deepEqual(castFact.relations, []);
+  const metadataResults = database.prepare(
+    `SELECT result_schema_ref,result_json,result_digest
+       FROM fx_event_result_bindings
+      WHERE result_schema_ref=?
+      ORDER BY result_id`,
+  ).all(metadataObservationSchema.$id);
+  assert.equal(metadataResults.length, 1);
+  const persistedMetadataObservation = JSON.parse(
+    metadataResults[0].result_json,
+  );
+  assert.doesNotThrow(() => metadataObservationValidator.validate(
+    metadataResults[0].result_schema_ref,
+    persistedMetadataObservation,
+  ));
+  assert.equal(
+    canonicalDigest(persistedMetadataObservation),
+    metadataResults[0].result_digest,
+  );
+  assert.deepEqual(
+    persistedMetadataObservation.providerIdentitySet.entries,
+    identityFact.providerIdentities,
+  );
+  assert.deepEqual(persistedMetadataObservation.peopleHints, []);
+  assert.deepEqual(persistedMetadataObservation.artifactHints, []);
+
+  const oldKeyValueIdentity = structuredClone(persistedMetadataObservation);
+  oldKeyValueIdentity.providerIdentitySet.entries = [{
+    key: 'providerKey',
+    value: 'SDKI-001',
+  }];
+  assert.throws(
+    () => metadataObservationValidator.validate(
+      metadataObservationSchema.$id,
+      oldKeyValueIdentity,
+    ),
+    (error) => error.code === 'P4_CAPABILITY_SCHEMA_REJECTED',
+  );
+  const syntheticArtifactHint = structuredClone(persistedMetadataObservation);
+  syntheticArtifactHint.artifactHints = [{
+    artifactKind: 'poster',
+    sourceRef: 'jav:jav-construction@1:poster',
+    evidenceDigest: canonicalDigest({ synthetic: true }),
+  }];
+  assert.throws(
+    () => metadataObservationValidator.validate(
+      metadataObservationSchema.$id,
+      syntheticArtifactHint,
+    ),
+    (error) => error.code === 'P4_CAPABILITY_SCHEMA_REJECTED',
+  );
   assert.equal(database.prepare(
     `SELECT count(*) count
        FROM libra_product_fact_source_refs source
@@ -802,11 +864,45 @@ test('JAV public route publishes an input-free Spec and one active single Run', 
   assert.equal(database.prepare(
     'SELECT count(*) count FROM libra_product_package_material_episode_claims',
   ).get().count, 0);
+  const activeArtifactHandles = database.prepare(
+    `SELECT artifact_kind,storage_ref
+       FROM fx_artifact_registry
+      WHERE owner_domain='libra' AND state='active'
+      ORDER BY artifact_kind`,
+  ).all();
+  assert.equal(activeArtifactHandles.length, 3);
+  assert.deepEqual(
+    activeArtifactHandles.map((item) => item.artifact_kind),
+    ['fanart', 'nfo', 'poster'],
+  );
+  assert.equal(
+    activeArtifactHandles.filter((item) => {
+      const relativeStorage = item.storage_ref.slice('workspace://'.length);
+      return item.storage_ref.startsWith('workspace://') &&
+        fs.existsSync(path.join(
+          dataDir,
+          'workspace',
+          ...relativeStorage.split('/'),
+        ));
+    }).length,
+    3,
+  );
   assert.equal(database.prepare(
     `SELECT count(*) count
-       FROM fx_artifact_registry
-      WHERE owner_domain='libra' AND state='active'`,
-  ).get().count, 3);
+       FROM fx_event_result_bindings result
+       JOIN fx_workflow_events event ON event.result_id=result.result_id
+      WHERE event.capability_ref='libra.product_sidecar.render@1'
+        AND result.result_schema_ref=
+          'helix://contracts/types/ArtifactHandle/v1'`,
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM fx_event_result_bindings result
+       JOIN fx_workflow_events event ON event.result_id=result.result_id
+      WHERE event.capability_ref='libra.product_artifact.acquire@1'
+        AND result.result_schema_ref=
+          'helix://contracts/types/ArtifactAcquisitionResult/v1'`,
+  ).get().count, 2);
   assert.equal(database.prepare(
     `SELECT count(*) count
        FROM libra_workspace_material_refs
