@@ -1,6 +1,6 @@
 # P14 Product Journey Implementation
 
-状态：**H1.1 REPLACEMENT CHECKPOINT FROZEN — 等待 Architecture 主动复审**
+状态：**H1.2 IMPLEMENTATION CHECKPOINT FROZEN — 等待 Architecture/P14；H1.3 未授权**
 
 ## H1-only 授权与阶段门
 
@@ -31,6 +31,12 @@ immutable regression baseline。
 Luna Runner 只可由 Architecture 线程创建、调度、接收、终止与归档；P14 只提交
 已冻结的重复测试清单，不直接触发 Luna。Luna 只跑确定性大批量回归，不分析
 异常、不修复、不宣布 PASS。
+
+普通工程细节继续由实现线程自主闭合；但若某项解释会实质延长当前phase、引入
+付费/许可/硬件/运维依赖、造成不成比例的长期维护、广泛返工已接受路径，或为
+低概率边界消耗大量施工成本，必须在大规模编码前向Architecture发送bounded
+cost packet，列明用户结果、最低成本合规方案、完整方案、一次性/持续成本、
+风险与建议。不得以“技术可行”为由静默实施昂贵解释。
 
 H1 是施工批次，Feature Matrix 是用户结果验收表。一项 H1 基础能力可以支撑多个
 Feature，但不会自动把任何 Feature 标为 PASS。四条已接受 backend vertical
@@ -97,7 +103,7 @@ H1.0 验证：
 H1.0 replacement `9d396bb4265a628f08a2dcf069dad020f119a3a4` 已通过
 Architecture 主动复审与 P14 独立验收（evidence `181c57ac`）。
 
-## H1.1 当前冻结检查点
+## H1.1 已接受基线
 
 H1.1 只在 Platform、Integration、Composition 与 Clean Host 既定 seam
 完成 secure Integration configuration 与 real TMDB 最小纵切。四条既有
@@ -108,7 +114,7 @@ Admin route 已接通：
 - `POST /v1/admin/settings/integrations/:kind/actions/test`；
 - `POST /v1/admin/settings/integrations/:kind/actions/disconnect`。
 
-本阶段只有 `tmdb` 是 supported kind；其他 kind 明确返回 unsupported
+H1.1阶段只有 `tmdb` 是 supported kind；其他 kind 当时明确返回 unsupported
 状态，不会假成功或跨 Provider fallback。Platform owner-local repository
 复用 `platform_integrations` 与 `platform_secret_refs`，并在同一 Platform UoW
 内以 config/Secret Reference revision CAS 原子提交。secret envelope 使用
@@ -128,8 +134,7 @@ streamed byte cap。configure/disconnect通过既有Foundation
 receipt/marker/audit technical persistence稳定跨revision/restart重放，并以冻结
 Platform head `lastCommand`修复Platform-commit/receipt间的response-loss窗口。
 未配置时 production Composition fail closed；测试 deterministic adapter 仍只是
-显式 test seam，不是 production fallback。H1.2 的 Douban、JAV/Adult、
-MoviePilot 与 optional Emby 均未开始。
+显式 test seam，不是 production fallback。
 
 当前 route 状态为 `40 real / 6 intentional Worker Beta-404 / 68
 unavailable-503`。Feature Matrix 没有因此提升任何 Feature 为 PASS。
@@ -139,9 +144,64 @@ unavailable-503`。Feature Matrix 没有因此提升任何 Feature 为 PASS。
 
 replacement回归为H1.1 focused `10/10`、H1.1/P5/guard combined `50/50`、
 五个vertical sentinels `27/27`、full architecture `135 fixture files PASS`，
-H1.1累计scope guard violations `0`。本检查点完成后保持冻结，等待
-Architecture 主动复审与 P14 独立验收；
-不得开始 H1.2。
+H1.1累计scope guard violations `0`。Architecture已接受source
+`8bf8feb5`，P14也已独立接受（tested local `6c063801`，evidence
+`b1cbd306`）。
+
+## H1.2 已冻结实现检查点
+
+H1.2只复用H1.1已经接受的Platform test-before-save、短期one-use
+connection proof、AES-256-GCM Secret envelope、revision-fenced
+Integration Handle/Secret Lease和durable command replay。没有新增route、
+table、Capability、Result family或Canonical Transaction。现有四条dynamic
+Integration Admin route按closed kind分派到`douban`、`adult-provider`、
+`moviepilot`与optional `emby`；TMDB行为保持H1.1不变，未知或未配置kind仍
+fail closed。route状态因此仍为`40 real / 6 Worker Beta-404 / 68
+unavailable-503`，不提升Feature Matrix。
+
+各Provider的production adapter只消费其正式Platform snapshot、exact
+operation Handle和同revision Secret Lease：
+
+- Douban使用官方HTTPS endpoint、user identity和Cookie，只形成bounded
+  Perception source observation refs；
+- Adult Provider使用官方GraphQL endpoint，JAV code只有在正式typed
+  Provider返回exact match后才形成`jav/jav_code` Resolved Identity；Metadata、
+  People与poster/fanart读取均保留identity/config fence；
+- MoviePilot使用用户显式配置的HTTPS或private/loopback HTTP endpoint，search与
+  external request分别走既有P5 observation/request port并返回closed
+  Candidate/ExternalJobReceipt；不导入历史config或路径映射；
+- optional Emby只用username/password进行一次认证，持久化Server签发的access
+  token；密码不进入proof后的Secret、SQLite、HTTP响应、日志或Evidence。
+
+所有Provider response先执行declared+streamed byte cap，再投影为closed bounded
+值；persisted endpoint、config、Secret locator/envelope scope与revision在
+Secret消费和网络调用前重新验证。跨Provider合法envelope交换、endpoint drift、
+response extra field、旧configure receipt跨新head重放、target/credential
+mismatch均已有fail-closed反例。production Composition没有跨Provider fallback、
+ambient credential、历史runtime config、legacy adapter或deterministic fixture
+fallback。
+
+ignored private operator input只用于一次formal public command。当前环境已实际
+完成MoviePilot `test → proof → save`及typed availability调用；输出仅保留
+PASS/非敏感response byte count。Douban、Adult Provider与optional Emby缺少可用
+private credential，本checkpoint不得把deterministic transport称为real Provider
+acceptance。MoviePilot的external material ready/stability仍必须等待后续正式
+root/probe continuity；当前不得用裸路径或历史savePath绕过，相关用户Feature保持
+未验收。用户已批准这一最低成本合规顺序：H1.2冻结secure config/test与正式
+typed availability/search/acquire-request/receipt实现，`acquire.observe`
+ready materialization和stability显式fail closed，待H1.3一次性提供受控root/path
+mapping与safe probe。它是intentional phase sequencing，不是未决架构缺陷。
+
+H1.2实现closure commit为`a6b18030`。focused H1.1/H1.2/P5回归
+`31/31 PASS`，五个immutable vertical sentinel `27/27 PASS`，
+完整architecture gate为`136 fixture files PASS`。累计H1.2 scope guard
+violations为`0`；路由保持`40 / 6 / 68`；库存保持`112 / 97 / 178 / 43`；
+unresolved、findings和prohibited actions均为`0`。aggregate与完整证据冻结于：
+
+`docs/helix/implementation/evidence/P14_H1_2_PROVIDER_INTEGRATIONS_CHECKPOINT.md`
+
+本checkpoint等待Architecture主动复审与P14独立验收；实现线程保持停止，不得
+进入H1.3。
 
 ## 当前最新检查点
 

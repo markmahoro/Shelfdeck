@@ -1,6 +1,6 @@
 # P14 BETA-IMPL-03 Product Surface Construction Matrix
 
-Status: `H1.1 IMPLEMENTATION CHECKPOINT FROZEN / AWAITING ARCHITECTURE REVIEW`
+Status: `H1.2 IMPLEMENTATION CHECKPOINT FROZEN / ARCHITECTURE+P14 PENDING / H1.3 FROZEN`
 
 ## Purpose and authority
 
@@ -56,6 +56,15 @@ received, terminated, and archived only by the Architecture task. P14 supplies
 only a frozen repeat-test list and does not trigger Luna. Luna runs deterministic
 bulk regression only; it does not diagnose, repair, or declare PASS.
 
+Ordinary engineering closure remains implementation-owned. Before substantial
+work, a bounded cost packet is mandatory when an interpretation materially
+extends the phase, adds paid/licensed/hardware/operational dependencies,
+creates disproportionate maintenance, broadly reworks accepted paths, or spends
+large effort on a low-probability edge. The packet records user outcome,
+cheapest compliant option, fuller option, one-time/recurring cost, risks, and a
+recommendation; technical possibility alone is not authority for an expensive
+interpretation.
+
 H1 is the only authorized horizontal batch. After H1.5 acceptance the task
 hard-stops. H2 is not authorized.
 
@@ -83,8 +92,8 @@ rotate 1, and diagnostics 9.
 
 | Area | Existing owner rows / formal ports | Existing implementation | Exact H1 gap |
 | --- | --- | --- | --- |
-| Integration config | `platform_integrations`, `platform_secret_refs`; `IntegrationQueryPort`, `IntegrationHandleResolverPort`, `SecretLeaseResolverPort` | H1.1 adds Platform owner-local repository/application/Admin wiring, encrypted opaque Secret Source and revision-fenced Handle/Lease reads | TMDB complete for H1.1; Douban/JAV-Adult/MoviePilot/optional Emby remain H1.2 |
-| Provider adapters | `ExternalProviderObservationPort`, `ExternalProviderArtifactPort`, `ExternalProviderRequestPort` | H1.1 real TMDB adapter on existing P5 typed ports; test adapters remain explicit test-only implementations | Douban/JAV-Adult/MoviePilot/optional Emby production adapters remain H1.2 |
+| Integration config | `platform_integrations`, `platform_secret_refs`; `IntegrationQueryPort`, `IntegrationHandleResolverPort`, `SecretLeaseResolverPort` | H1.1 adds Platform owner-local repository/application/Admin wiring, encrypted opaque Secret Source and revision-fenced Handle/Lease reads; H1.2 reuses it for four additional closed kinds | H1.2 implementation complete for Douban/JAV-Adult/MoviePilot/optional Emby; independent acceptance pending |
+| Provider adapters | `ExternalProviderObservationPort`, `ExternalProviderArtifactPort`, `ExternalProviderRequestPort` | real TMDB plus H1.2 Douban/JAV-Adult/MoviePilot/optional Emby adapters on existing typed ports; test adapters remain explicit test-only implementations | MoviePilot ready/stability file reality remains fail closed until formal root/probe authority is supplied; no hidden savePath mapping |
 | Workspace roots | `platform_mount_scopes`, revisions, `platform_workspace_roots`; `MountScopeResolverPort`, `PlatformWorkspaceRuntimePort` | Location registry repository/service with owner, containment and overlap rules | Product host still defaults Libra Workspace from `dataDir`; Workspace Admin routes and safe real probe are unavailable |
 | Resource/device | Resource Profile/Policy revisions and Compute Device/Probe rows; `ResourceProfileQueryPort`, `ComputeDeviceQueryPort` | Resource/Worker registry service and repository | No local device/resource probe or public Admin wiring; Worker registry code must not make Worker routes available |
 | Face runtime | Existing PBF-23 frames/embedding/cluster/analysis/reference-match Plan/Event/Result chain and People public projection | Test-injected Western analysis engine/model pack seam | No service-local ONNX runtime/model pack asset loader, license/SHA/config fence, or clean production Composition binding |
@@ -232,8 +241,48 @@ zero violations.
 H1.1 route status is `40 real / 6 Worker Beta-404 / 68 unavailable-503`.
 This is construction progress only and does not change Feature status.
 Evidence is frozen in
-`P14_H1_1_TMDB_INTEGRATION_CHECKPOINT.md`. H1.2 is not authorized until this
-checkpoint passes Architecture active review and P14 independent acceptance.
+`P14_H1_1_TMDB_INTEGRATION_CHECKPOINT.md`. Architecture accepted source
+`8bf8feb5`; P14 independently accepted tested local `6c063801`, evidence
+`b1cbd306`.
+
+### H1.2 Provider integration implementation
+
+The same four dynamic Admin routes now dispatch five exact kinds: H1.1 TMDB
+plus Douban, Adult Provider, MoviePilot, and optional Emby. No provider-specific
+route, table, command model, or secret persistence path was added. Endpoint,
+config, Secret locator/envelope, operation, and revision fences are rechecked
+before every Secret/network use. Cross-provider envelope swaps and endpoint
+drift fail before Secret consumption.
+
+Douban emits only bounded Perception source refs from the official endpoint.
+Adult Provider preserves exact JAV code identity and supplies real
+identity/metadata/people/artifact seams without upgrading weak input before a
+typed exact provider match. MoviePilot implements availability, candidate
+search, and external acquire request/receipt on the existing P5 observation and
+request ports. Optional Emby performs one-time username/password authentication
+and persists only the issued access token. All production adapters reject
+unconfigured/unsupported kinds and never cross-fallback.
+
+Ignored private operator input produced a real MoviePilot public
+`test → proof → save` plus typed availability PASS without exposing credentials.
+No usable private Douban, Adult, or Emby credential was present, so their
+deterministic transport evidence is construction-only and is not called real
+Provider acceptance. Exact MoviePilot ready/stability needs a controlled
+transfer root and byte-level member probe. Pulling that authority into H1.2
+would duplicate H1.3 and materially expand maintenance, so a bounded cost
+packet was sent and the user approved keeping it fail closed until H1.3; no
+naked path/history config workaround is allowed. This is intentional phase
+sequencing, not an unresolved Architecture defect, and it does not establish
+download-completion/import Feature PASS.
+
+H1.2 keeps route status `40 / 6 / 68` and Feature status unchanged.
+Implementation closure `a6b18030` passed focused H1.1/H1.2/P5 `31/31`, frozen
+vertical sentinels `27/27`, the cumulative H1.2 scope guard with zero
+violations, and the full `136`-fixture architecture gate. Counts remain
+`112/97/178/43`; unresolved refs, dependency/semantic findings and prohibited
+actions are zero. Full evidence is frozen in
+`P14_H1_2_PROVIDER_INTEGRATIONS_CHECKPOINT.md`. H1.3 remains unauthorized until
+Architecture and P14 both accept this checkpoint.
 
 ## Route-to-owner construction rules
 
