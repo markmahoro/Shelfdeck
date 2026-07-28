@@ -421,16 +421,6 @@ async function createCleanServiceHost(options) {
     const arca = arcaAcceptance.acceptProductOffer(
       production.offerMessage,
     );
-    if (production.contentProfile === 'jav') {
-      return Object.freeze({
-        ...production,
-        offerStage: production.stage,
-        stage: arca.stage,
-        handoffB: arca.handoffB,
-        onDeck: arca.onDeck,
-        responsibilityClosure: null,
-      });
-    }
     let closure;
     try {
       closure = responsibilityClosure.advance({
@@ -564,6 +554,8 @@ async function createCleanServiceHost(options) {
           offerStage: 'handoff_b_offer_open',
           replayed: true,
           libraRunId: completed.libraRunId,
+          contentProfile:
+            packageValue.productStructureSnapshot.contentProfile,
           onDeckPackageId: completed.package.onDeckPackageId,
           packageRevision: completed.package.packageRevision,
           packageDigest: completed.package.packageDigest,

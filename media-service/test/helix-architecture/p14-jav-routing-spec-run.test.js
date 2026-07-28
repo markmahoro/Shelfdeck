@@ -154,7 +154,7 @@ async function createJavShelfAndRouting(host, apiKey, root, fieldId) {
   return Object.freeze({ shelfRoot });
 }
 
-test('JAV public route commits one Arca Shelf Entry without consuming responsibility messages', async (t) => {
+test('JAV public route closes Run and reclaims only its Libra Workspace exactly once', async (t) => {
   const retainedSampleRoot = String(
     process.env.P14_JAV_SAMPLE_ROOT || '',
   ).trim();
@@ -821,6 +821,49 @@ test('JAV public route commits one Arca Shelf Entry without consuming responsibi
   ).get().count, 1);
   database.close();
 
+  await interruptProduction(
+    'afterRunCompletion',
+    'P14_JAV_FAULT_AFTER_RUN_COMPLETION',
+  );
+  database = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(database.prepare(
+    `SELECT count(*) count FROM libra_runs WHERE state='completed'`,
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM libra_delivery_receipts',
+  ).get().count, 1);
+  const lifecycleSchemaRef =
+    'helix://contracts/application-types/LibraRunLifecycleResult/v1';
+  const committedLifecycleResult = database.prepare(
+    `SELECT result_json,result_digest
+       FROM fx_event_result_bindings
+      WHERE result_schema_ref=?
+      ORDER BY committed_at_ms DESC
+      LIMIT 1`,
+  ).get(lifecycleSchemaRef);
+  assert.ok(committedLifecycleResult);
+  const completionWriteCounts = Object.freeze({
+    revisions: database.prepare(
+      `SELECT count(*) count
+         FROM libra_run_revisions
+        WHERE transition_kind='complete'`,
+    ).get().count,
+    results: database.prepare(
+      `SELECT count(*) count
+         FROM fx_event_result_bindings
+        WHERE result_schema_ref=?`,
+    ).get(lifecycleSchemaRef).count,
+    markers: database.prepare(
+      `SELECT count(*) count
+         FROM fx_commit_markers
+        WHERE result_schema_ref=?`,
+    ).get(lifecycleSchemaRef).count,
+  });
+  database.close();
+
   host = await createCleanServiceHost({
     dataDir,
     adminDistDir,
@@ -837,7 +880,24 @@ test('JAV public route commits one Arca Shelf Entry without consuming responsibi
     assert.equal(production.offerStage, 'handoff_b_offer_open');
     assert.equal(production.contentProfile, 'jav');
     assert.equal(production.replayed, true);
-    assert.equal(production.responsibilityClosure, null);
+    assert.equal(
+      production.responsibilityClosure.stage,
+      'workspace_cleanup_grace_active',
+    );
+    const replayedLifecycleResult =
+      production.responsibilityClosure.runClosure.result;
+    assert.equal(
+      canonicalJson(replayedLifecycleResult),
+      committedLifecycleResult.result_json,
+    );
+    assert.equal(
+      canonicalDigest(replayedLifecycleResult),
+      committedLifecycleResult.result_digest,
+    );
+    assert.equal(
+      replayedLifecycleResult.resultDigest,
+      JSON.parse(committedLifecycleResult.result_json).resultDigest,
+    );
     assert.equal(production.productDelivery.resultKind, 'found');
     assert.equal(
       production.productDelivery.onDeckProductPackage
@@ -1122,35 +1182,335 @@ test('JAV public route commits one Arca Shelf Entry without consuming responsibi
         AND owner_scope_type='shelf_entry'
         AND state='controlled'`,
   ).get().count, 4);
-  for (const messageKind of [
-    'arca.product.accepted@1',
-    'arca.offload.completed@1',
-  ]) {
+  for (const messageKind of ['arca.product.accepted@1',
+    'arca.offload.completed@1']) {
     assert.equal(database.prepare(
       `SELECT count(*) count
          FROM fx_outbox
         WHERE message_kind=?`,
     ).get(messageKind).count, 1);
+    const expectedInboxCount =
+      messageKind === 'arca.product.accepted@1' ? 1 : 0;
     assert.equal(database.prepare(
       `SELECT count(*) count
          FROM fx_inbox inbox
          JOIN fx_outbox outbox ON outbox.message_id=inbox.message_id
         WHERE outbox.message_kind=?
           AND inbox.consumer_domain='libra'`,
-    ).get(messageKind).count, 0);
+    ).get(messageKind).count, expectedInboxCount);
   }
   assert.equal(database.prepare(
     `SELECT count(*) count
        FROM libra_runs
-      WHERE state='active'`,
+      WHERE state='completed'`,
   ).get().count, 1);
   assert.equal(database.prepare(
     'SELECT count(*) count FROM libra_delivery_receipts',
-  ).get().count, 0);
+  ).get().count, 1);
   assert.equal(database.prepare(
     'SELECT count(*) count FROM libra_workspace_cleanup_scopes',
   ).get().count, 0);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM libra_run_revisions
+      WHERE transition_kind='complete'`,
+  ).get().count, completionWriteCounts.revisions);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM fx_event_result_bindings
+      WHERE result_schema_ref=?`,
+  ).get(lifecycleSchemaRef).count, completionWriteCounts.results);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM fx_commit_markers
+      WHERE result_schema_ref=?`,
+  ).get(lifecycleSchemaRef).count, completionWriteCounts.markers);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM fx_outbox
+      WHERE message_kind='arca.product.accepted@1'
+        AND state='fully_acked'`,
+  ).get().count, 1);
+  const workspaceRows = database.prepare(
+    `SELECT workspace_id,relative_path
+       FROM fx_workspace_materials
+      WHERE state='active'
+      ORDER BY relative_path`,
+  ).all();
+  const cleanupAtMs = Number(database.prepare(
+    'SELECT committed_at_ms FROM arca_offload_completions',
+  ).get().committed_at_ms) + 86_400_000 + 60_000;
   database.close();
+
+  const inventoryBefore = new Map(inventoryRows.map((row) => [
+    row.location,
+    {
+      bytes: fs.readFileSync(row.location),
+      mtimeMs: fs.statSync(row.location).mtimeMs,
+    },
+  ]));
+  assert.ok(workspaceRows.length > 0);
+  const workspaceFiles = workspaceRows.map((row) => path.join(
+    dataDir,
+    'workspace',
+    row.workspace_id,
+    ...row.relative_path.split('/'),
+  ));
+  assert.equal(workspaceFiles.every((file) => fs.existsSync(file)), true);
+
+  let cleanupClock = cleanupAtMs;
+  let cleanupPhysicalEffects = 0;
+  host = await createCleanServiceHost({
+    dataDir,
+    adminDistDir,
+    secretRoot,
+    mediaProbe,
+    ...productionOptions,
+    cleanupNow: () => cleanupClock,
+    offloadWakeVisible: false,
+  });
+  try {
+    const firstAudit = await requestProduction(host);
+    assert.equal(firstAudit.statusCode, 200, firstAudit.body);
+    assert.equal(
+      firstAudit.json().movieJourney.handoff.production
+        .responsibilityClosure.stage,
+      'workspace_cleanup_audit_pending',
+    );
+  } finally {
+    await host.close();
+  }
+  database = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM libra_workspace_cleanup_scopes',
+  ).get().count, 0);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM fx_effect_journal
+      WHERE effect_class='libra_workspace_material_reclaim'`,
+  ).get().count, 0);
+  database.close();
+
+  host = await createCleanServiceHost({
+    dataDir,
+    adminDistDir,
+    secretRoot,
+    mediaProbe,
+    ...productionOptions,
+    cleanupNow: () => cleanupClock,
+    offloadWakeVisible: false,
+    afterCleanupPhysicalEffect() {
+      cleanupPhysicalEffects += 1;
+      throw Object.assign(
+        new Error('JAV cleanup physical effect interruption'),
+        { code: 'P14_JAV_CLEANUP_PHYSICAL_EFFECT_INTERRUPTION' },
+      );
+    },
+  });
+  try {
+    const restartedFirstAudit = await requestProduction(host);
+    assert.equal(
+      restartedFirstAudit.json().movieJourney.handoff.production
+        .responsibilityClosure.stage,
+      'workspace_cleanup_audit_pending',
+    );
+    cleanupClock = cleanupAtMs + 60_000 - 1;
+    const earlySecondAudit = await requestProduction(host);
+    assert.equal(
+      earlySecondAudit.json().movieJourney.handoff.production
+        .responsibilityClosure.stage,
+      'workspace_cleanup_audit_pending',
+    );
+    cleanupClock = cleanupAtMs + 60_000;
+    const interrupted = await requestProduction(host);
+    assert.equal(interrupted.statusCode, 400, interrupted.body);
+    assert.equal(
+      interrupted.json().error.details.reasonCode,
+      'P14_JAV_CLEANUP_PHYSICAL_EFFECT_INTERRUPTION',
+    );
+  } finally {
+    await host.close();
+  }
+  database = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM libra_workspace_cleanup_scopes
+      WHERE state='active'`,
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM libra_workspace_cleanup_members
+      WHERE state='completed'`,
+  ).get().count, 0);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM fx_effect_journal
+      WHERE effect_class='libra_workspace_material_reclaim'
+        AND state='intended'`,
+  ).get().count, 1);
+  database.close();
+  assert.equal(cleanupPhysicalEffects, 1);
+  assert.equal(
+    workspaceFiles.filter((file) => !fs.existsSync(file)).length,
+    1,
+  );
+
+  host = await createCleanServiceHost({
+    dataDir,
+    adminDistDir,
+    secretRoot,
+    mediaProbe,
+    ...productionOptions,
+    cleanupNow: () => cleanupClock,
+    afterCleanupCommit() {
+      throw Object.assign(
+        new Error('JAV cleanup member commit interruption'),
+        { code: 'P14_JAV_CLEANUP_MEMBER_COMMIT_INTERRUPTION' },
+      );
+    },
+  });
+  try {
+    const interrupted = await requestProduction(host);
+    assert.equal(interrupted.statusCode, 400, interrupted.body);
+    assert.equal(
+      interrupted.json().error.details.reasonCode,
+      'P14_JAV_CLEANUP_MEMBER_COMMIT_INTERRUPTION',
+    );
+  } finally {
+    await host.close();
+  }
+  database = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM libra_workspace_cleanup_members
+      WHERE state='completed'`,
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM fx_effect_journal
+      WHERE effect_class='libra_workspace_material_reclaim'
+        AND state='committed'`,
+  ).get().count, 1);
+  database.close();
+
+  host = await createCleanServiceHost({
+    dataDir,
+    adminDistDir,
+    secretRoot,
+    mediaProbe,
+    ...productionOptions,
+    cleanupNow: () => cleanupClock,
+    afterCleanupPhysicalEffect() {
+      cleanupPhysicalEffects += 1;
+    },
+  });
+  let cleanedProduction;
+  try {
+    const cleaned = await requestProduction(host);
+    assert.equal(cleaned.statusCode, 200, cleaned.body);
+    cleanedProduction = cleaned.json().movieJourney.handoff.production;
+    assert.equal(
+      cleanedProduction.responsibilityClosure.stage,
+      'workspace_cleanup_completed',
+    );
+    assert.equal(cleanedProduction.productDelivery.resultKind, 'found');
+    assert.equal(
+      cleanedProduction.productDelivery.onDeckProductPackage
+        .productMaterialManifest.members.length,
+      4,
+    );
+    assert.equal(
+      cleanedProduction.productDelivery.onDeckProductPackage
+        .productMaterialManifest.members.every((member) =>
+          member.episodeClaims.length === 0),
+      true,
+    );
+  } finally {
+    await host.close();
+  }
+
+  database = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM libra_workspace_cleanup_scopes
+      WHERE state='completed'`,
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM libra_workspace_cleanup_members
+      WHERE state='completed'`,
+  ).get().count, workspaceFiles.length);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM libra_workspace_material_refs
+      WHERE reference_state='released'`,
+  ).get().count, workspaceFiles.length);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM fx_workspace_materials
+      WHERE state='reclaimed'`,
+  ).get().count, workspaceFiles.length);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM libra_workspaces
+      WHERE state='reclaimed'`,
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM fx_workspace_registry
+      WHERE state='reclaimed'`,
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM fx_outbox
+      WHERE message_kind IN (
+        'arca.product.accepted@1',
+        'arca.offload.completed@1'
+      ) AND state='fully_acked'`,
+  ).get().count, 2);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM arca_inventory_materials',
+  ).get().count, 4);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM arca_deck_fact_revisions
+      WHERE state='active'`,
+  ).get().count, 1);
+  assert.deepEqual(database.prepare(
+    `SELECT role,episode_claims_json,location
+       FROM arca_inventory_materials
+      ORDER BY ordinal`,
+  ).all(), inventoryRows);
+  assert.deepEqual(database.prepare(
+    `SELECT inbox.consumer_domain,count(*) count
+       FROM fx_inbox inbox
+       JOIN fx_outbox outbox ON outbox.message_id=inbox.message_id
+      WHERE outbox.message_kind IN (
+        'arca.product.accepted@1',
+        'arca.offload.completed@1'
+      )
+      GROUP BY inbox.consumer_domain`,
+  ).all(), [{ consumer_domain: 'libra', count: 2 }]);
+  database.close();
+  assert.equal(cleanupPhysicalEffects, workspaceFiles.length);
+  assert.equal(workspaceFiles.every((file) => !fs.existsSync(file)), true);
+  assert.equal(inventoryRows.every((row) => fs.existsSync(row.location)), true);
+  for (const [location, before] of inventoryBefore) {
+    assert.deepEqual(fs.readFileSync(location), before.bytes);
+    assert.equal(fs.statSync(location).mtimeMs, before.mtimeMs);
+  }
 
   for (const [location, before] of sourceBefore) {
     assert.deepEqual(fs.readFileSync(location), before.bytes);
