@@ -221,13 +221,14 @@ function readSpec(options, repository, acceptanceSpecId) {
 
 function subjectSnapshot(subject, intake) {
   const supportedProfile =
-    subject?.structure_kind === 'single' && subject?.content_profile === 'movie' ||
+    subject?.structure_kind === 'single' &&
+      ['movie', 'jav'].includes(subject?.content_profile) ||
     subject?.structure_kind === 'season' && subject?.content_profile === 'series';
   if (!subject || subject.status !== 'active' || !supportedProfile || !intake ||
       !['new_subject', 'season_extension'].includes(intake.accepted_result) ||
       intake.target_subject_id !== subject.subject_id) {
     fail('P14_MOVIE_FORMATION_SUBJECT_UNAVAILABLE',
-      'Formation requires one exact active accepted Movie or Series Subject.');
+      'Formation requires one exact active accepted Product Subject.');
   }
   if (subject.current_identity_revision !== null) {
     fail('P14_MOVIE_FORMATION_IDENTITY_PROJECTION_UNAVAILABLE',

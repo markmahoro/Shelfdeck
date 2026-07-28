@@ -1,6 +1,6 @@
 # P14 Product Journey Implementation
 
-状态：**FROZEN — Series final responsibility closure 待主动复验**
+状态：**FROZEN — JAV Handoff A 待 Architecture / P14 复验**
 
 ## 当前基线
 
@@ -27,6 +27,34 @@
 
 ## 当前冻结点
 
+P14 已独立接受 Series final responsibility closure：source `77c21785`，
+tested integration `d79ab17b`，evidence `5f6a6327`。在该冻结基线上，当前
+JAV disposable journey 已通过正式 Admin HTTP 推进到：
+
+`Field Observation
+→ Procurement Eligibility / active Run / phased Triage
+→ immutable single/jav Candidate Package + Offer
+→ CandidateDeliveryPort
+→ Libra Accepted Intake / Subject / Binding / Material Control transfer`
+
+`SDKI-001` 仅作为弱、可纠正的typed `jav_code` evidence；未伪造Provider或
+Canonical Identity。唯一视频为Primary；same-stem NFO、generic movie NFO与
+poster仅作为local Related references，unrelated NFO不关联。formal
+Plan/Event后的故障重启复用相同Probe/Triage Results，Candidate/Handoff A与
+Owner rows exactly-once。真实保留P14样本已使用内置FFprobe通过同一public HTTP
+journey，源文件bytes/mtime零变化。
+
+当前冻结在JAV Handoff A Accepted之后、Routing/Acceptance Spec之前。详细证据见
+`docs/helix/implementation/evidence/P14_JAV_HANDOFF_A_CHECKPOINT.md`。
+完整architecture gate为`131 files PASS`，机器库存保持112/97/177/43，
+Contract aggregate
+`30089e947738bab7933af3b606cd22336746321e05ae4d4d44a4bd5534e2d4e5`，
+Manifest aggregate
+`351063009c3d50fe07c3fb70503bb4ff71e30b1ebef40beb3700c2e22a414b18`，
+findings与`prohibitedActionsRun`均为空。
+
+## 已接受的 Series responsibility closure
+
 P14 已接受 Series Arca Handoff B / On-deck checkpoint `b0d1163e`
 （evidence `f10a3890`）。当前同一 Series Run 又沿已接受的 Movie closure
 合同完成：
@@ -52,7 +80,7 @@ Libra Workspace回收后，Arca final Inventory与Deck Fact保持不变并可历
 cleanup仅按exact Workspace Reference/Control工作，不读取或重解释Episode rows。
 原Series源文件bytes/mtime保持不变。
 
-当前冻结在Series责任闭环完成之后、JAV开始之前，等待Architecture/P14主动复验。
+Series责任闭环已经由Architecture/P14接受，作为当前JAV纵切的冻结基线。
 typed TMDB response仍仅为construction fixture，不声明真实Provider acceptance；
 `F02.17`仍为`NOT_RUN`。
 
@@ -179,8 +207,9 @@ terminal reclaimed。
 
 ## 下一步
 
-Architecture active review与P14独立接受后，才可开始JAV纵向旅程；不得提前进入
-JAV、Western Adult或横向Feature Matrix。
+Architecture active review与P14独立接受当前JAV Handoff A后，才可继续JAV
+Routing/Acceptance Spec；不得提前进入Production、Western Adult或横向
+Feature Matrix。
 
 ## 硬边界
 

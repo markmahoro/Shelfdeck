@@ -162,11 +162,37 @@ function unitFor(member, context, profileName, mediaTypeName, season, episodes, 
       parentSegments:context.parentSegments }), claimDigest:'' }
     : { claimKind:'explicit_number', seasonNumber:season, claimDigest:'' }) : null;
   if (seasonClaim) seasonClaim.claimDigest = digest(without(seasonClaim, 'claimDigest'));
-  const hints = [{ hintKind:'filename_title', hintValue:context.baseName, evidenceDigest:digest({ materialKey:member.materialKey, baseName:context.baseName }) }];
+  const normalizedJavCode = profileName === 'jav'
+    ? javCode(context.baseName) : null;
+  const hints = [{
+    hintKind:'filename_title',
+    hintValue:context.baseName,
+    evidenceDigest:digest({
+      materialKey:member.materialKey,
+      baseName:context.baseName,
+    }),
+  }];
+  if (normalizedJavCode) {
+    hints.push({
+      hintKind:'jav_code',
+      hintValue:normalizedJavCode,
+      evidenceDigest:digest({
+        schema:'procurement.jav-code-hint@1',
+        materialKey:member.materialKey,
+        baseName:context.baseName,
+        javCode:normalizedJavCode,
+      }),
+    });
+  }
+  hints.sort((left, right) =>
+    compareUtf8(left.hintKind, right.hintKind) ||
+    compareUtf8(left.hintValue, right.hintValue) ||
+    compareUtf8(left.evidenceDigest, right.evidenceDigest));
   const metadata = { claimedTitle:profileName === 'series'
       ? seriesTitleFrom(context, member.materialKey.slice(0, 12))
       : titleFrom(context, member.materialKey.slice(0, 12)), ...(seasonClaim ? { seasonClaim } : {}),
-    ...(profileName === 'jav' ? { javCode:javCode(context.baseName) } : {}), contentProfileHint:profileName, sourceHints:hints };
+    ...(normalizedJavCode ? { javCode:normalizedJavCode } : {}),
+    contentProfileHint:profileName, sourceHints:hints };
   metadata.metadataDigest = digest(metadata);
   const claims = episodes.map((episode) => ({ episodeKey:'E' + String(episode).padStart(3,'0'),
     seasonClaimDigest:seasonClaim && seasonClaim.claimDigest || digest({ profile:profileName }), claimDigest:'' })).map((claim) =>
