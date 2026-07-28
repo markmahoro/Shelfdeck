@@ -449,7 +449,7 @@ async function createCleanServiceHost(options) {
         'Movie formation did not expose the exact Libra Run identity.',
       );
     }
-    if (formation.contentProfile === 'series' &&
+    if (['series', 'jav'].includes(formation.contentProfile) &&
         typeof options.searchProviderIdentity !== 'function') {
       return null;
     }
