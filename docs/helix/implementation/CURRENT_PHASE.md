@@ -1,6 +1,6 @@
 # P14 Product Journey Implementation
 
-状态：**FROZEN — Western Production / open Handoff B 待复验**
+状态：**FROZEN — Western Arca On-deck 待复验**
 
 ## 当前最新检查点
 
@@ -61,11 +61,27 @@ Frame/Embedding/Cluster/Analysis/People Match链推进到：
 `docs/helix/implementation/evidence/P14_WESTERN_PRODUCTION_OPEN_HANDOFF_B_CHECKPOINT.md`
 
 Architecture未接受首版Production实现`2a3764a5`，指出Plan binding深层shape与
-Frame composite真实bytes/Effect identity两项ordinary缺陷。当前replacement已将
+Frame composite真实bytes/Effect identity两项ordinary缺陷。该replacement已将
 12阶段Plan binding物化为exact closed variants，并由clean Workspace port在
 engine执行前建立stable target-bound Effect/sink；Frame Artifact digest覆盖index
 与实际member bytes，相同Effect identity的output drift直接fail closed。完整
-architecture gate重新通过，当前仍冻结在同一open Handoff B Offer，Arca消费为0。
+architecture gate重新通过；当时冻结在同一open Handoff B Offer，Arca消费为0。
+
+P14已独立接受该replacement（source `713aa834`，tested local `e5a0d7c6`，
+evidence `eb7448e1`）。同一Western Package现已继续复用PBF-19正式receiving
+path推进到：
+
+`ProductDeliveryPort historical reconstruction
+→ Arca Handoff B Accepted
+→ Custody / Control / Final Inventory Decision / initial On-deck Run
+→ Inventory staging
+→ On-deck Commit
+→ active Shelf Entry / Deck Fact / Own`
+
+当前冻结在Arca On-deck Commit之后。Libra尚未消费Accepted或Off-load消息，
+Libra Run保持active，Delivery Receipt与Workspace Cleanup Scope均为0。详细证据：
+
+`docs/helix/implementation/evidence/P14_WESTERN_ARCA_ONDECK_CHECKPOINT.md`
 
 ## 当前基线
 
@@ -75,9 +91,9 @@ architecture gate重新通过，当前仍冻结在同一open Handoff B Offer，A
 - PBF-19 Architecture 修正：`ff1b833a`；实现分支原样纳入：
   `942fc692`。
 - PBF-19 P14 独立接受证据：`de0dff64`（tested `3d9ebab4`）。
-- 当前实现检查点：Western Production / immutable Package / open Handoff B；
+- 当前实现检查点：Western Arca Handoff B / Inventory / On-deck Commit；
   详细施工证据见
-  `docs/helix/implementation/evidence/P14_WESTERN_PRODUCTION_OPEN_HANDOFF_B_CHECKPOINT.md`。
+  `docs/helix/implementation/evidence/P14_WESTERN_ARCA_ONDECK_CHECKPOINT.md`。
 - 实现线程未额外修改 Architecture SSOT。
 - `F02.17` 仍为 `NOT_RUN`；不得增加测试便利接口或用内部 Store 证据冒充
   用户 Feature。
@@ -314,9 +330,9 @@ terminal reclaimed。
 
 ## 下一步
 
-等待Architecture active review与P14独立复验Western Production/open Handoff B
-检查点。接受前不得让Arca消费Offer、不得进入responsibility closure，也不得恢复
-横向Feature Matrix。
+等待Architecture active review与P14独立复验Western Arca On-deck检查点。
+接受前不得让Libra消费Accepted/Off-load消息、不得进入responsibility closure，
+也不得恢复横向Feature Matrix。
 
 ## 硬边界
 

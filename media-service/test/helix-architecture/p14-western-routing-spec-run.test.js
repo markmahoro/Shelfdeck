@@ -400,7 +400,7 @@ test('Western active Run stays before Production without service-local Analysis'
     /WorkerAssetReceipt|WorkerUploadReceipt|ExternalJobReceipt|Mirex|FastAPI|Ollama/);
 });
 
-test('Western public HTTP freezes one exact Routing Spec and active Run', async (t) => {
+test('Western public HTTP reaches Arca On-deck and stops before Libra closure', async (t) => {
   const retainedPrimary = String(
     process.env.P14_WESTERN_SAMPLE_FILE || ''
   ).trim();
@@ -1172,7 +1172,7 @@ test('Western public HTTP freezes one exact Routing Spec and active Run', async 
     renderPoster: 1,
   });
 
-  host = await createCleanServiceHost({
+  const onDeckOptions = Object.freeze({
     dataDir,
     adminDistDir,
     secretRoot,
@@ -1180,18 +1180,143 @@ test('Western public HTTP freezes one exact Routing Spec and active Run', async 
     westernAnalysisEngine: westernRuntime.engine,
     westernModelPack: westernRuntime.modelPack,
   });
-  try {
-    const replay = await host.inject({
-      method: 'POST',
-      url: `/v1/admin/material-fields/${access.fieldId}/actions/observe`,
-      headers: {
-        cookie: await session(host, initialized.adminApiKey),
+  const requestOnDeck = async (activeHost) => activeHost.inject({
+    method: 'POST',
+    url: `/v1/admin/material-fields/${access.fieldId}/actions/observe`,
+    headers: {
+      cookie: await session(activeHost, initialized.adminApiKey),
+    },
+    payload: observe,
+  });
+  const interruptOnDeck = async (hookName, reasonCode) => {
+    let shouldInterrupt = true;
+    const interruptedHost = await createCleanServiceHost({
+      ...onDeckOptions,
+      [hookName]() {
+        if (!shouldInterrupt) return;
+        shouldInterrupt = false;
+        throw Object.assign(new Error(`Western fault at ${hookName}`), {
+          code: reasonCode,
+        });
       },
-      payload: observe,
     });
+    try {
+      const response = await requestOnDeck(interruptedHost);
+      assert.equal(response.statusCode, 400, response.body);
+      assert.equal(
+        response.json().error.details.reasonCode,
+        reasonCode,
+        response.body,
+      );
+    } finally {
+      await interruptedHost.close();
+    }
+  };
+
+  await interruptOnDeck(
+    'afterAcceptedResponsibilityInsert',
+    'P14_WESTERN_FAULT_AFTER_HANDOFF_B_RESPONSIBILITY_INSERT',
+  );
+  database = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM arca_acceptance_attempts
+      WHERE state='active' AND finished_at_ms IS NULL`,
+  ).get().count, 1);
+  for (const table of [
+    'arca_acceptance_decisions',
+    'arca_ondeck_custodies',
+    'arca_handoff_b_receipts',
+    'arca_ondeck_runs',
+    'arca_final_inventory_decisions',
+    'arca_material_bindings',
+  ]) {
+    assert.equal(
+      database.prepare(`SELECT count(*) count FROM ${table}`).get().count,
+      0,
+      table,
+    );
+  }
+  database.close();
+
+  await interruptOnDeck(
+    'afterArcaInventoryPhysicalEffect',
+    'P14_WESTERN_FAULT_AFTER_ARCA_INVENTORY_PHYSICAL_EFFECT',
+  );
+  database = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM arca_acceptance_attempts
+      WHERE state='accepted' AND finished_at_ms IS NOT NULL`,
+  ).get().count, 1);
+  for (const table of [
+    'arca_acceptance_decisions',
+    'arca_ondeck_custodies',
+    'arca_handoff_b_receipts',
+    'arca_ondeck_runs',
+    'arca_final_inventory_decisions',
+  ]) {
+    assert.equal(
+      database.prepare(`SELECT count(*) count FROM ${table}`).get().count,
+      1,
+      table,
+    );
+  }
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM arca_shelf_entries',
+  ).get().count, 0);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM fx_effect_journal
+      WHERE effect_class='material_commit' AND state='intended'`,
+  ).get().count, 1);
+  database.close();
+
+  await interruptOnDeck(
+    'afterOnDeckCommit',
+    'P14_WESTERN_FAULT_AFTER_ONDECK_COMMIT',
+  );
+  database = new Database(
+    path.join(dataDir, 'shelfdeck.db'),
+    { readonly: true },
+  );
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM arca_shelf_entries',
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM arca_inventory_materials',
+  ).get().count, 3);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM arca_deck_fact_revisions',
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM arca_ondeck_commit_receipts',
+  ).get().count, 1);
+  const targetLocations = database.prepare(
+    `SELECT location
+       FROM arca_inventory_materials
+      ORDER BY ordinal`,
+  ).all().map((row) => row.location);
+  database.close();
+  const targetsBeforeReplay = await snapshotFiles(targetLocations);
+
+  host = await createCleanServiceHost({
+    ...onDeckOptions,
+  });
+  let committedProduction;
+  try {
+    const replay = await requestOnDeck(host);
     assert.equal(replay.statusCode, 200, replay.body);
     const production = replay.json().movieJourney.handoff.production;
-    assert.equal(production.stage, 'handoff_b_offer_open');
+    committedProduction = production;
+    assert.equal(production.stage, 'movie_on_deck_committed');
+    assert.equal(production.offerStage, 'handoff_b_offer_open');
     assert.equal(production.replayed, true);
     assert.equal(production.responsibilityClosure, null);
     assert.equal(production.contentProfile, 'western_adult');
@@ -1206,9 +1331,36 @@ test('Western public HTTP freezes one exact Routing Spec and active Run', async 
         .productMaterialManifest.members.length,
       3,
     );
+    assert.deepEqual(
+      production.productDelivery.onDeckProductPackage
+        .productMaterialManifest.members.map((item) => item.role).sort(),
+      ['metadata_sidecar', 'poster', 'primary_payload'],
+    );
+    assert.equal(
+      production.productDelivery.onDeckProductPackage
+        .productMaterialManifest.members.every((item) =>
+          item.episodeClaims.length === 0),
+      true,
+    );
+    assert.equal(
+      production.handoffB.acceptedMessage.messageKind,
+      'arca.product.accepted@1',
+    );
+    assert.equal(
+      production.onDeck.result.offloadCompletionFact.factSchemaRef,
+      'arca.offload-completion@1',
+    );
+    assert.equal(
+      production.onDeck.stagedInventoryManifest.stagedMembers.length,
+      3,
+    );
   } finally {
     await host.close();
   }
+  assert.deepEqual(
+    await snapshotFiles(targetLocations),
+    targetsBeforeReplay,
+  );
   assert.deepEqual(westernCalls, {
     extractFrameSet: 1,
     computeEmbeddings: 1,
@@ -1241,17 +1393,101 @@ test('Western public HTTP freezes one exact Routing Spec and active Run', async 
     'arca_acceptance_attempts',
     'arca_acceptance_decisions',
     'arca_ondeck_custodies',
-    'arca_material_bindings',
-    'arca_inventory_materials',
+    'arca_handoff_b_receipts',
+    'arca_final_inventory_decisions',
+    'arca_ondeck_commit_receipts',
+    'arca_offload_completions',
     'arca_shelf_entries',
     'arca_deck_fact_revisions',
   ]) {
     assert.equal(
       database.prepare(`SELECT count(*) count FROM ${table}`).get().count,
-      0,
+      1,
       table,
     );
   }
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM arca_ondeck_runs
+      WHERE state='committed'`,
+  ).get().count, 1);
+  const packageMembers = committedProduction.productDelivery
+    .onDeckProductPackage.productMaterialManifest.members;
+  const productBindings = database.prepare(
+    `SELECT material_key,role,episode_claims_json
+       FROM arca_material_bindings
+      WHERE role LIKE 'product:%'
+      ORDER BY material_key`,
+  ).all();
+  assert.deepEqual(
+    productBindings.map((item) => [item.material_key, item.role]),
+    packageMembers.map((item) => [
+      item.materialKey,
+      'product:' + item.role,
+    ]).sort((left, right) =>
+      Buffer.compare(Buffer.from(left[0]), Buffer.from(right[0]))),
+  );
+  assert.equal(
+    productBindings.every((item) =>
+      JSON.parse(item.episode_claims_json).items.length === 0),
+    true,
+  );
+  const inventoryRows = database.prepare(
+    `SELECT role,episode_claims_json,location
+       FROM arca_inventory_materials
+      ORDER BY ordinal`,
+  ).all();
+  assert.equal(inventoryRows.length, 3);
+  assert.deepEqual(
+    inventoryRows.map((item) => item.role).sort(),
+    ['metadata_sidecar', 'poster', 'primary'],
+  );
+  assert.equal(
+    inventoryRows.every((item) =>
+      JSON.parse(item.episode_claims_json).items.length === 0 &&
+      targetLocations.includes(item.location)),
+    true,
+  );
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM fx_effect_journal
+      WHERE effect_class='material_commit' AND state='committed'`,
+  ).get().count, 3);
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM fx_material_controls
+      WHERE owner_domain='arca'
+        AND owner_scope_type='shelf_entry'
+        AND state='controlled'`,
+  ).get().count, 3);
+  for (const messageKind of [
+    'arca.product.accepted@1',
+    'arca.offload.completed@1',
+  ]) {
+    assert.equal(database.prepare(
+      `SELECT count(*) count
+         FROM fx_outbox
+        WHERE message_kind=?`,
+    ).get(messageKind).count, 1);
+    assert.equal(database.prepare(
+      `SELECT count(*) count
+         FROM fx_inbox inbox
+         JOIN fx_outbox outbox ON outbox.message_id=inbox.message_id
+        WHERE outbox.message_kind=?
+          AND inbox.consumer_domain='libra'`,
+    ).get(messageKind).count, 0);
+  }
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM libra_runs
+      WHERE state='active'`,
+  ).get().count, 1);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM libra_delivery_receipts',
+  ).get().count, 0);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM libra_workspace_cleanup_scopes',
+  ).get().count, 0);
   assert.equal(database.prepare(
     `SELECT count(*) count FROM fx_plan_nodes
       WHERE input_binding_schema_ref=
