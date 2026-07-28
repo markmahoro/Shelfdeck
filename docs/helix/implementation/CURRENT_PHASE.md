@@ -1,6 +1,6 @@
 # P14 Product Journey Implementation
 
-状态：**FROZEN — Western Adult Handoff A 待复验**
+状态：**FROZEN — Western Routing / Spec / active Run 待复验**
 
 ## 当前最新检查点
 
@@ -30,16 +30,25 @@ Publication前故障可跨重启恢复且不重复Probe；Candidate/Handoff A全
 exactly-once。真实保留P14 MKV已通过内置FFprobe走同一HTTP链路，全部源文件
 SHA-256/size/mtime零变化。
 
-正式HTTP反例已预先建立active Western Shelf、绑定Beta Standard并发布可命中的
-Field Routing Policy。Libra在exact-read并验证accepted Subject/Intake后返回
-显式`formation_not_started`，且该边界位于任何Policy读取/Decision写入之前。
-fresh/restart/replay下Routing Assessment/Decision/Basis、Acceptance Spec、
-Libra Run、Workspace与Product表均保持零，冻结在Handoff A。详细证据见：
+P14已独立接受Western Handoff A（source `da96d036`，tested `c360b5f6`，
+evidence `6590ffad`）。在该基线上，正式HTTP已使用active Western Shelf、
+Beta Standard及Field Routing Policy继续推进到：
 
-`docs/helix/implementation/evidence/P14_WESTERN_HANDOFF_A_CHECKPOINT.md`
+`resolved Routing Decision
+→ ready Routing/Spec Decision Bases
+→ immutable Western Acceptance Spec
+→ exactly one active Libra Run + one-member run_input Manifest`
+
+Spec精确要求`internal_identity + title`、NFO/poster、HEVC/Matroska/MKV与
+1 GiB；Western Profile不声明rating，因此没有Perception query。Handoff A的
+`western_temporary`仍为弱、可纠正证据，没有升级Provider/Canonical Identity。
+Clean Host在缺少正式Provider adapter时停于active Run，Workspace/Product/
+Handoff B/Arca表保持零。详细证据见：
+
+`docs/helix/implementation/evidence/P14_WESTERN_ROUTING_SPEC_RUN_CHECKPOINT.md`
 
 必须等待Architecture active review与P14独立复验后，才可进入Western
-Routing/Spec/Run；不得恢复横向503工作。
+Provider/Workspace/Production；不得恢复横向503工作。
 
 ## 当前基线
 
@@ -49,8 +58,8 @@ Routing/Spec/Run；不得恢复横向503工作。
 - PBF-19 Architecture 修正：`ff1b833a`；实现分支原样纳入：
   `942fc692`。
 - PBF-19 P14 独立接受证据：`de0dff64`（tested `3d9ebab4`）。
-- 当前实现检查点：Western Adult Handoff A；详细施工证据见
-  `docs/helix/implementation/evidence/P14_WESTERN_HANDOFF_A_CHECKPOINT.md`。
+- 当前实现检查点：Western Routing / Spec / active Run；详细施工证据见
+  `docs/helix/implementation/evidence/P14_WESTERN_ROUTING_SPEC_RUN_CHECKPOINT.md`。
 - 实现线程未额外修改 Architecture SSOT。
 - `F02.17` 仍为 `NOT_RUN`；不得增加测试便利接口或用内部 Store 证据冒充
   用户 Feature。

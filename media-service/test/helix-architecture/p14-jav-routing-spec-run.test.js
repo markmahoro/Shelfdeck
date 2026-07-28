@@ -1527,7 +1527,7 @@ test('clean host keeps JAV before Production without a formal Provider adapter',
   );
   assert.match(
     source,
-    /\['series', 'jav'\]\.includes\(formation\.contentProfile\)[\s\S]*?typeof options\.searchProviderIdentity !== 'function'/,
+    /\['series', 'jav', 'western_adult'\]\.includes\(formation\.contentProfile\)[\s\S]*?typeof options\.searchProviderIdentity !== 'function'/,
   );
   assert.doesNotMatch(
     source,

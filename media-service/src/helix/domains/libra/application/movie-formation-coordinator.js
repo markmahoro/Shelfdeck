@@ -562,16 +562,6 @@ function createMovieFormationCoordinator(options) {
     }
     const subjectBasis = subjectSnapshot(snapshot.subject, snapshot.intake);
     const subject = subjectBasis.subject;
-    if (subject.contentProfile === 'western_adult') {
-      return Object.freeze({
-        stage: 'formation_not_started',
-        replayed: false,
-        subjectId,
-        structureKind: subject.structureKind,
-        contentProfile: subject.contentProfile,
-        reasonCode: 'western_routing_checkpoint_not_started',
-      });
-    }
     const episodeKeys = episodeDeliveryKeys(snapshot);
     const policy = policies.current(subject.routingProvenance.sourceFieldId);
     if (!policy) {

@@ -12,6 +12,7 @@ const {
 } = require('../../scripts/helix-operational-safety');
 const {
   canonicalDigest,
+  canonicalJson,
 } = require('../../src/helix/contracts/canonical-json');
 const {
   createCleanServiceHost,
@@ -41,7 +42,7 @@ const cleanSchemaManifest = require(
   '../../src/helix/foundation/persistence/generated/clean-schema.manifest.json'
 );
 
-const secretRoot = 'p14-western-handoff-a-secret-root-0123456789abcdef';
+const secretRoot = 'p14-western-routing-spec-run-secret-root-0123456789abcdef';
 const schemaDdl = fs.readFileSync(path.resolve(
   __dirname,
   '../../src/helix/foundation/persistence/generated/clean-schema.sql',
@@ -187,26 +188,22 @@ async function snapshotFiles(locations) {
   })));
 }
 
-test('Western stage boundary precedes every Routing Policy read', () => {
+test('Western active Run stays before Production without a formal Provider adapter', () => {
   const source = fs.readFileSync(path.resolve(
     __dirname,
-    '../../src/helix/domains/libra/application/movie-formation-coordinator.js',
+    '../../src/clean-service-host.js',
   ), 'utf8');
-  const boundary = source.indexOf(
-    "if (subject.contentProfile === 'western_adult')",
-  );
-  const policyRead = source.indexOf(
-    'const policy = policies.current(subject.routingProvenance.sourceFieldId);',
-  );
-  assert.ok(boundary > 0);
-  assert.ok(policyRead > boundary);
   assert.match(
-    source.slice(boundary, policyRead),
-    /stage: 'formation_not_started'/,
+    source,
+    /\['series', 'jav', 'western_adult'\]\.includes\(formation\.contentProfile\)[\s\S]*?typeof options\.searchProviderIdentity !== 'function'/,
+  );
+  assert.doesNotMatch(
+    source,
+    /formation\.contentProfile === 'western_adult'[\s\S]{0,240}(fallback|legacy|workspace)/i,
   );
 });
 
-test('Western public HTTP freezes profile Hint and accepts one exact Handoff A', async (t) => {
+test('Western public HTTP freezes one exact Routing Spec and active Run', async (t) => {
   const retainedPrimary = String(
     process.env.P14_WESTERN_SAMPLE_FILE || ''
   ).trim();
@@ -410,11 +407,15 @@ test('Western public HTTP freezes profile Hint and accepts one exact Handoff A',
     assert.equal(accepted.json().movieJourney.stage, 'handoff_a_accepted');
     assert.equal(
       accepted.json().movieJourney.handoff.formation.stage,
-      'formation_not_started',
+      'libra_run_active',
     );
     assert.equal(
-      accepted.json().movieJourney.handoff.formation.reasonCode,
-      'western_routing_checkpoint_not_started',
+      accepted.json().movieJourney.handoff.formation.contentProfile,
+      'western_adult',
+    );
+    assert.equal(
+      accepted.json().movieJourney.handoff.formation.structureKind,
+      'single',
     );
     assert.equal(accepted.json().movieJourney.handoff.production, null);
   } finally {
@@ -550,18 +551,111 @@ test('Western public HTTP freezes profile Hint and accepts one exact Handoff A',
        FROM libra_field_routing_heads
       WHERE field_id=?`
   ).get(access.fieldId).count, 1);
+  const routing = database.prepare(
+    `SELECT routing_decision_id,decision,shelf_id,routing_policy_id,
+            routing_policy_revision,decision_digest
+       FROM libra_routing_decisions`
+  ).get();
+  assert.equal(routing.decision, 'resolved');
+  assert.equal(routing.shelf_id, 'western-routing-shelf');
+  assert.equal(routing.routing_policy_id, 'western-routing-policy');
+  assert.equal(Number(routing.routing_policy_revision), 1);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM libra_routing_assessments'
+  ).get().count, 1);
+  const basisRows = database.prepare(
+    `SELECT basis_kind,status,query_result_set_digest,basis_digest
+       FROM libra_decision_basis_revisions
+      ORDER BY basis_revision`
+  ).all();
+  assert.deepEqual(
+    basisRows.map((row) => [row.basis_kind, row.status]),
+    [['routing', 'ready'], ['acceptance_spec', 'ready']],
+  );
+  assert.equal(database.prepare(
+    `SELECT count(*) count
+       FROM libra_decision_basis_inputs
+      WHERE input_kind IN ('decision_fact','query_result')`
+  ).get().count, 0);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM perception_resolution_revisions'
+  ).get().count, 0);
+  const specRow = database.prepare(
+    `SELECT acceptance_spec_id,shelf_id,spec_revision,spec_json,
+            spec_digest,record_digest,structure_kind,content_profile
+       FROM libra_acceptance_specs`
+  ).get();
+  const spec = JSON.parse(specRow.spec_json);
+  assert.equal(specRow.shelf_id, 'western-routing-shelf');
+  assert.equal(specRow.structure_kind, 'single');
+  assert.equal(specRow.content_profile, 'western_adult');
+  assert.equal(spec.contentProfile, 'western_adult');
+  assert.equal(spec.structureKind, 'single');
+  assert.equal(spec.productScope.scopeKind, 'single');
+  assert.deepEqual(spec.productScope.episodeKeys, []);
+  assert.deepEqual(spec.requirements.identity, {
+    identityKind: 'internal_identity',
+    requireSeasonNumber: false,
+  });
+  assert.equal(spec.requirements.structure.structureKind, 'single');
+  assert.equal(spec.requirements.mandatoryMedia.videoCodec, 'hevc');
+  assert.equal(spec.requirements.mandatoryMedia.container, 'matroska');
+  assert.equal(spec.requirements.mandatoryMedia.fileExtension, 'mkv');
+  assert.equal(spec.requirements.space.maxSizeGiB, 1);
+  assert.equal(spec.requirements.space.maxSizeBytes, 1073741824);
+  assert.deepEqual(
+    spec.requirements.metadata.requiredFieldCodes,
+    ['internal_identity', 'title'],
+  );
+  assert.deepEqual(
+    spec.requirements.metadata.requiredArtifactKinds,
+    ['nfo', 'poster'],
+  );
+  const runRow = database.prepare(
+    `SELECT libra_run_id,subject_id,acceptance_spec_id,state,
+            state_revision,execution_basis_digest,run_scope_digest
+       FROM libra_runs`
+  ).get();
+  assert.equal(runRow.subject_id, subject.subject_id);
+  assert.equal(runRow.acceptance_spec_id, specRow.acceptance_spec_id);
+  assert.equal(runRow.state, 'active');
+  assert.equal(Number(runRow.state_revision), 1);
+  const manifest = database.prepare(
+    `SELECT run_material_manifest_id,libra_run_id,manifest_role,scope_kind,
+            member_count,episode_scope_digest,manifest_digest
+       FROM libra_run_material_manifests`
+  ).get();
+  assert.equal(manifest.libra_run_id, runRow.libra_run_id);
+  assert.equal(manifest.manifest_role, 'run_input');
+  assert.equal(manifest.scope_kind, 'single');
+  assert.equal(Number(manifest.member_count), 1);
+  const runMember = database.prepare(
+    `SELECT role,origin_candidate_package_id,origin_package_revision,
+            admitted_control_revision,admitted_control_projection_digest
+       FROM libra_run_material_members`
+  ).get();
+  assert.equal(runMember.role, 'primary_payload');
+  assert.equal(runMember.origin_candidate_package_id,
+    candidate.candidate_package_id);
+  assert.equal(Number(runMember.origin_package_revision), 1);
+  assert.equal(database.prepare(
+    'SELECT count(*) count FROM libra_run_material_episode_claims'
+  ).get().count, 0);
   for (const table of [
-    'libra_routing_assessments',
-    'libra_routing_decisions',
-    'libra_decision_basis_revisions',
-    'libra_acceptance_specs',
-    'libra_runs',
+    'fx_workspace_registry',
     'libra_workspaces',
     'libra_workspace_revisions',
     'libra_workspace_material_refs',
     'libra_product_fact_revisions',
     'libra_product_identity_revisions',
     'libra_product_packages',
+    'arca_acceptance_attempts',
+    'arca_acceptance_decisions',
+    'arca_ondeck_custodies',
+    'arca_material_bindings',
+    'arca_inventory_materials',
+    'arca_shelf_entries',
+    'arca_deck_fact_revisions',
   ]) {
     assert.equal(
       database.prepare(`SELECT count(*) count FROM ${table}`).get().count,
@@ -569,6 +663,19 @@ test('Western public HTTP freezes profile Hint and accepts one exact Handoff A',
       table,
     );
   }
+  const formationFrozen = Object.freeze({
+    routingDecisionId: routing.routing_decision_id,
+    routingDecisionDigest: routing.decision_digest,
+    basisDigests: basisRows.map((row) => row.basis_digest),
+    acceptanceSpecId: specRow.acceptance_spec_id,
+    specDigest: specRow.spec_digest,
+    specRecordDigest: specRow.record_digest,
+    canonicalSpec: canonicalJson(spec),
+    libraRunId: runRow.libra_run_id,
+    executionBasisDigest: runRow.execution_basis_digest,
+    runScopeDigest: runRow.run_scope_digest,
+    manifestDigest: manifest.manifest_digest,
+  });
   const frozenCounts = Object.freeze({
     candidates: database.prepare(
       'SELECT count(*) count FROM proc_candidate_packages'
@@ -632,8 +739,9 @@ test('Western public HTTP freezes profile Hint and accepts one exact Handoff A',
     assert.equal(replay.json().movieJourney.replayed, true);
     assert.equal(
       replay.json().movieJourney.handoff.formation.stage,
-      'formation_not_started',
+      'libra_run_active',
     );
+    assert.equal(replay.json().movieJourney.handoff.production, null);
     const conflict = await host.inject({
       method: 'POST',
       url: `/v1/admin/material-fields/${access.fieldId}/actions/observe`,
@@ -674,18 +782,52 @@ test('Western public HTTP freezes profile Hint and accepts one exact Handoff A',
        FROM fx_outbox
       WHERE message_kind='libra_candidate_accepted'`
   ).get().count, 1);
+  assert.deepEqual(database.prepare(
+    'SELECT routing_decision_id,decision_digest FROM libra_routing_decisions'
+  ).all(), [{
+    routing_decision_id: formationFrozen.routingDecisionId,
+    decision_digest: formationFrozen.routingDecisionDigest,
+  }]);
+  assert.deepEqual(database.prepare(
+    `SELECT basis_digest
+       FROM libra_decision_basis_revisions
+      ORDER BY basis_revision`
+  ).all().map((row) => row.basis_digest), formationFrozen.basisDigests);
+  assert.deepEqual(database.prepare(
+    `SELECT acceptance_spec_id,spec_json,spec_digest,record_digest
+       FROM libra_acceptance_specs`
+  ).all(), [{
+    acceptance_spec_id: formationFrozen.acceptanceSpecId,
+    spec_json: formationFrozen.canonicalSpec,
+    spec_digest: formationFrozen.specDigest,
+    record_digest: formationFrozen.specRecordDigest,
+  }]);
+  assert.deepEqual(database.prepare(
+    `SELECT libra_run_id,execution_basis_digest,run_scope_digest
+       FROM libra_runs`
+  ).all(), [{
+    libra_run_id: formationFrozen.libraRunId,
+    execution_basis_digest: formationFrozen.executionBasisDigest,
+    run_scope_digest: formationFrozen.runScopeDigest,
+  }]);
+  assert.deepEqual(database.prepare(
+    'SELECT manifest_digest FROM libra_run_material_manifests'
+  ).all(), [{ manifest_digest: formationFrozen.manifestDigest }]);
   for (const table of [
-    'libra_routing_assessments',
-    'libra_routing_decisions',
-    'libra_decision_basis_revisions',
-    'libra_acceptance_specs',
-    'libra_runs',
+    'fx_workspace_registry',
     'libra_workspaces',
     'libra_workspace_revisions',
     'libra_workspace_material_refs',
     'libra_product_fact_revisions',
     'libra_product_identity_revisions',
     'libra_product_packages',
+    'arca_acceptance_attempts',
+    'arca_acceptance_decisions',
+    'arca_ondeck_custodies',
+    'arca_material_bindings',
+    'arca_inventory_materials',
+    'arca_shelf_entries',
+    'arca_deck_fact_revisions',
   ]) {
     assert.equal(
       database.prepare(`SELECT count(*) count FROM ${table}`).get().count,
