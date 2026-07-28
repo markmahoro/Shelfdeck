@@ -4,13 +4,17 @@ const { canonicalDigest, canonicalJson } =
   require('../../contracts/canonical-json');
 const {
   CONFIG_SCHEMA_REF,
+  OFFICIAL_TMDB_ENDPOINT,
   TMDB_INTEGRATION_ID,
   TMDB_SECRET_REF,
+  validateConfig,
 } = require('./integration-runtime');
 
 const SUPPORTED_KIND = 'tmdb';
 const RECEIPT_KIND_CONFIGURE = 'configure';
 const RECEIPT_KIND_DISCONNECT = 'disconnect';
+const CONNECTION_PROOF_TTL_MS = 120_000;
+const SHA256 = /^[0-9a-f]{64}$/;
 
 class IntegrationAdminError extends Error {
   constructor(code, message, details = {}) {
@@ -60,8 +64,7 @@ function expectedRevision(value) {
 }
 
 function kind(value) {
-  if (typeof value !== 'string' || !value ||
-      value.length > 64) {
+  if (typeof value !== 'string' || !value || value.length > 64) {
     fail(
       'PLATFORM_INTEGRATION_KIND_INVALID',
       'Integration kind is invalid.',
@@ -94,7 +97,8 @@ function publicSnapshot(snapshot) {
       lastTestSummary: null,
     });
   }
-  const value = snapshot.integration;
+  const validated = validateConfig(snapshot);
+  const value = validated.integration;
   return Object.freeze({
     kind: SUPPORTED_KIND,
     supported: true,
@@ -106,8 +110,96 @@ function publicSnapshot(snapshot) {
     capabilityCodes: Object.freeze([
       ...value.config.capabilityCodes,
     ]),
-    lastTestSummary: value.config.lastTestSummary
-      ? Object.freeze({ ...value.config.lastTestSummary })
+    lastTestSummary: Object.freeze({
+      ...value.config.lastTestSummary,
+    }),
+  });
+}
+
+function validateStoredPublicResult(value) {
+  exact(
+    value,
+    [
+      'kind',
+      'supported',
+      'configured',
+      'state',
+      'configRevision',
+      'endpoint',
+      'configDigest',
+      'capabilityCodes',
+      'lastTestSummary',
+    ],
+    [],
+    'PLATFORM_INTEGRATION_COMMAND_RECEIPT_CORRUPT',
+  );
+  if (value.kind !== SUPPORTED_KIND ||
+      value.supported !== true ||
+      typeof value.configured !== 'boolean' ||
+      !['unconfigured', 'active', 'disabled'].includes(value.state) ||
+      !Number.isSafeInteger(value.configRevision) ||
+      value.configRevision < 0 ||
+      (value.configRevision === 0
+        ? value.endpoint !== null || value.configDigest !== null
+        : value.endpoint !== OFFICIAL_TMDB_ENDPOINT ||
+          !SHA256.test(value.configDigest || '')) ||
+      value.configured !== (value.state === 'active') ||
+      (value.configRevision === 0
+        ? value.lastTestSummary !== null
+        : !value.lastTestSummary) ||
+      JSON.stringify(value.capabilityCodes) !==
+        JSON.stringify(['identity', 'metadata'])) {
+    fail(
+      'PLATFORM_INTEGRATION_COMMAND_RECEIPT_CORRUPT',
+      'Stored Integration command result is invalid.',
+    );
+  }
+  if (value.lastTestSummary) {
+    exact(
+      value.lastTestSummary,
+      [
+        'result',
+        'checkedAtMs',
+        'endpointDigest',
+        'observationDigest',
+        'identityNamespace',
+        'identityProviderKey',
+      ],
+      [],
+      'PLATFORM_INTEGRATION_COMMAND_RECEIPT_CORRUPT',
+    );
+    if (value.lastTestSummary.result !== 'passed' ||
+        !Number.isSafeInteger(
+          value.lastTestSummary.checkedAtMs,
+        ) ||
+        value.lastTestSummary.checkedAtMs < 0 ||
+        !SHA256.test(
+          value.lastTestSummary.endpointDigest || '',
+        ) ||
+        value.lastTestSummary.endpointDigest !==
+          canonicalDigest({ endpoint: OFFICIAL_TMDB_ENDPOINT }) ||
+        !SHA256.test(
+          value.lastTestSummary.observationDigest || '',
+        ) ||
+        value.lastTestSummary.identityNamespace !==
+          'tmdb_movie' ||
+        typeof value.lastTestSummary.identityProviderKey !==
+          'string' ||
+        value.lastTestSummary.identityProviderKey.length > 64 ||
+        !/^[0-9]+$/.test(
+          value.lastTestSummary.identityProviderKey,
+        )) {
+      fail(
+        'PLATFORM_INTEGRATION_COMMAND_RECEIPT_CORRUPT',
+        'Stored Integration test summary is invalid.',
+      );
+    }
+  }
+  return Object.freeze({
+    ...value,
+    capabilityCodes: Object.freeze([...value.capabilityCodes]),
+    lastTestSummary: value.lastTestSummary
+      ? Object.freeze({ ...value.lastTestSummary })
       : null,
   });
 }
@@ -118,40 +210,86 @@ function createIntegrationAdminApplication(options) {
       typeof options.repository.commit !== 'function' ||
       !options?.secretStore ||
       typeof options.secretStore.write !== 'function' ||
+      typeof options.secretStore.read !== 'function' ||
       typeof options.secretStore.requestDigest !== 'function' ||
       !options?.tmdbAdapter ||
-      typeof options.tmdbAdapter.testCandidate !== 'function') {
+      typeof options.tmdbAdapter.testCandidate !== 'function' ||
+      !options?.receiptRepository ||
+      typeof options.receiptRepository.read !== 'function' ||
+      typeof options.receiptRepository.commit !== 'function' ||
+      typeof options.createId !== 'function') {
     throw new TypeError(
-      'Integration Admin requires Platform Repository, Secret Store, and TMDB adapter.',
+      'Integration Admin requires Platform Repository, Secret Store, ' +
+      'TMDB adapter, receipt repository, and ID source.',
     );
   }
   const now = options.now || Date.now;
   const tests = new Map();
+  const proofs = new Map();
 
   function current() {
-    return options.repository.find(
+    const snapshot = options.repository.find(
       TMDB_INTEGRATION_ID,
       TMDB_SECRET_REF,
     );
+    return snapshot.integration ? validateConfig(snapshot) : snapshot;
   }
 
   function requestDigest(value) {
     return options.secretStore.requestDigest(canonicalJson(value));
   }
 
-  function replay(snapshot, key, digest) {
-    const receipt = snapshot?.integration?.config?.lastCommand;
-    if (!receipt || receipt.idempotencyKey !== key) return undefined;
-    if (receipt.requestDigest !== digest) {
+  function removeProof(proof) {
+    proofs.delete(proof.connectionProofId);
+    if (tests.get(proof.testIdempotencyKey)?.connectionProofId ===
+        proof.connectionProofId) {
+      tests.delete(proof.testIdempotencyKey);
+    }
+    try {
+      options.secretStore.remove(proof.secretLocator);
+    } catch (_ignored) {
+      // A transient proof locator is not referenced by any runtime row.
+    }
+  }
+
+  function proofAt(connectionProofId) {
+    if (typeof connectionProofId !== 'string' ||
+        connectionProofId.length < 1 ||
+        connectionProofId.length > 256) {
       fail(
-        'PLATFORM_INTEGRATION_IDEMPOTENCY_CONFLICT',
-        'Integration idempotency key was used for another request.',
+        'PLATFORM_INTEGRATION_CONNECTION_PROOF_INVALID',
+        'Connection proof identity is invalid.',
       );
     }
-    return Object.freeze({
-      ...publicSnapshot(snapshot),
-      replayed: true,
-    });
+    const proof = proofs.get(connectionProofId);
+    if (!proof) {
+      fail(
+        'PLATFORM_INTEGRATION_CONNECTION_PROOF_UNKNOWN',
+        'Connection proof is unknown or was already consumed.',
+      );
+    }
+    const readAtMs = now();
+    if (!Number.isSafeInteger(readAtMs) ||
+        readAtMs < 0 ||
+        readAtMs > proof.expiresAtMs) {
+      removeProof(proof);
+      fail(
+        'PLATFORM_INTEGRATION_CONNECTION_PROOF_EXPIRED',
+        'Connection proof has expired.',
+      );
+    }
+    if (proof.kind !== SUPPORTED_KIND ||
+        proof.endpoint !== OFFICIAL_TMDB_ENDPOINT ||
+        !SHA256.test(proof.secretEnvelopeDigest) ||
+        !SHA256.test(proof.testRequestDigest) ||
+        proof.secretRef !==
+          'connection-proof:' + connectionProofId) {
+      fail(
+        'PLATFORM_INTEGRATION_CONNECTION_PROOF_INVALID',
+        'Connection proof continuity is invalid.',
+      );
+    }
+    return proof;
   }
 
   async function test(inputKind, body) {
@@ -168,7 +306,7 @@ function createIntegrationAdminApplication(options) {
         'URL and body Integration kinds differ.',
       );
     }
-    idempotencyKey(body.idempotencyKey);
+    const testKey = idempotencyKey(body.idempotencyKey);
     exact(
       body.credential,
       ['kind', 'value'],
@@ -188,15 +326,18 @@ function createIntegrationAdminApplication(options) {
         'TMDB credential is invalid.',
       );
     }
+    const endpoint =
+      options.tmdbAdapter.normalizedEndpoint(body.endpoint);
     const digest = requestDigest({
+      command: 'test',
       kind: body.kind,
-      idempotencyKey: body.idempotencyKey,
-      endpoint: body.endpoint,
+      idempotencyKey: testKey,
+      endpoint,
       credentialKind: body.credential.kind,
       credentialValue: body.credential.value,
       timeoutMs: body.timeoutMs ?? 10_000,
     });
-    const prior = tests.get(body.idempotencyKey);
+    const prior = tests.get(testKey);
     if (prior) {
       if (prior.requestDigest !== digest) {
         fail(
@@ -204,39 +345,175 @@ function createIntegrationAdminApplication(options) {
           'Integration test idempotency key was reused.',
         );
       }
-      return Object.freeze({ ...prior.result, replayed: true });
+      const proof = proofs.get(prior.connectionProofId);
+      if (proof && now() <= proof.expiresAtMs) {
+        return prior.result;
+      }
+      if (proof) removeProof(proof);
+      tests.delete(testKey);
     }
+
     const secretBytes = Buffer.from(body.credential.value, 'utf8');
+    let secretLocator;
     try {
       const summary = await options.tmdbAdapter.testCandidate({
-        endpoint: body.endpoint,
+        endpoint,
         secretKind,
         secretBytes,
         timeoutMs: body.timeoutMs ?? 10_000,
       });
+      const connectionProofId = options.createId();
+      const issuedAtMs = now();
+      const expiresAtMs = issuedAtMs + CONNECTION_PROOF_TTL_MS;
+      if (typeof connectionProofId !== 'string' ||
+          connectionProofId.length < 1 ||
+          connectionProofId.length > 256 ||
+          !Number.isSafeInteger(issuedAtMs) ||
+          issuedAtMs < 0 ||
+          !Number.isSafeInteger(expiresAtMs)) {
+        fail(
+          'PLATFORM_INTEGRATION_CONNECTION_PROOF_INVALID',
+          'Connection proof identity or clock is invalid.',
+        );
+      }
+      const secretRef = 'connection-proof:' + connectionProofId;
+      const stored = options.secretStore.write({
+        integrationId: TMDB_INTEGRATION_ID,
+        secretRef,
+        secretKind,
+        revision: 1,
+        secretBytes,
+        createdAtMs: issuedAtMs,
+      });
+      secretLocator = stored.locator;
       const result = Object.freeze({
         kind: SUPPORTED_KIND,
         result: 'passed',
         persisted: false,
+        connectionProofId,
+        expiresAtMs,
         capabilityCodes: summary.capabilityCodes,
         endpointDigest: summary.endpointDigest,
         identityNamespace: summary.identityNamespace,
         identityProviderKey: summary.identityProviderKey,
         observationDigest: summary.observationDigest,
         checkedAtMs: summary.checkedAtMs,
-        replayed: false,
       });
-      tests.set(
-        body.idempotencyKey,
-        Object.freeze({ requestDigest: digest, result }),
-      );
+      const proof = Object.freeze({
+        connectionProofId,
+        kind: SUPPORTED_KIND,
+        endpoint,
+        secretKind,
+        secretRef,
+        secretLocator: stored.locator,
+        secretEnvelopeDigest: stored.envelopeDigest,
+        testIdempotencyKey: testKey,
+        testRequestDigest: digest,
+        summary: Object.freeze({
+          result: 'passed',
+          checkedAtMs: summary.checkedAtMs,
+          endpointDigest: summary.endpointDigest,
+          observationDigest: summary.observationDigest,
+          identityNamespace: summary.identityNamespace,
+          identityProviderKey: summary.identityProviderKey,
+        }),
+        issuedAtMs,
+        expiresAtMs,
+      });
+      proofs.set(connectionProofId, proof);
+      tests.set(testKey, Object.freeze({
+        requestDigest: digest,
+        connectionProofId,
+        result,
+      }));
       return result;
+    } catch (error) {
+      if (secretLocator) {
+        try {
+          options.secretStore.remove(secretLocator);
+        } catch (_ignored) {
+          // The authoritative test error remains unchanged.
+        }
+      }
+      throw error;
     } finally {
       secretBytes.fill(0);
     }
   }
 
-  async function configure(inputKind, body) {
+  function commandContract(commandKind) {
+    return 'platform.integration.' + commandKind + '@1';
+  }
+
+  function ensureHeadReceipt(snapshot) {
+    if (!snapshot?.integration) return;
+    const command = snapshot.integration.config.lastCommand;
+    options.receiptRepository.commit({
+      commandKind: command.commandKind,
+      commandContract: commandContract(command.commandKind),
+      idempotencyKey: command.idempotencyKey,
+      requestDigest: command.requestDigest,
+      result: publicSnapshot(snapshot),
+    });
+  }
+
+  function executeDurableCommand(value) {
+    const receiptKey = {
+      commandContract: commandContract(value.commandKind),
+      idempotencyKey: value.idempotencyKey,
+    };
+    const existing = options.receiptRepository.read(receiptKey);
+    if (existing) {
+      if (existing.requestDigest !== value.requestDigest) {
+        fail(
+          'PLATFORM_INTEGRATION_IDEMPOTENCY_CONFLICT',
+          'Integration idempotency key was used for another request.',
+        );
+      }
+      return Object.freeze({
+        replayed: true,
+        publicResult: validateStoredPublicResult(existing.result),
+      });
+    }
+    const head = current();
+    ensureHeadReceipt(head);
+    const repaired = options.receiptRepository.read(receiptKey);
+    if (repaired) {
+      if (repaired.requestDigest !== value.requestDigest) {
+        fail(
+          'PLATFORM_INTEGRATION_IDEMPOTENCY_CONFLICT',
+          'Integration idempotency key was used for another request.',
+        );
+      }
+      return Object.freeze({
+        replayed: true,
+        publicResult: validateStoredPublicResult(repaired.result),
+      });
+    }
+    const domainResult = value.execute();
+    if (typeof options.afterPlatformCommit === 'function') {
+      options.afterPlatformCommit({
+        commandKind: value.commandKind,
+        idempotencyKey: value.idempotencyKey,
+      });
+    }
+    const publicResult =
+      validateStoredPublicResult(domainResult.publicResult);
+    options.receiptRepository.commit({
+      commandKind: value.commandKind,
+      commandContract: receiptKey.commandContract,
+      idempotencyKey: value.idempotencyKey,
+      requestDigest: value.requestDigest,
+      result: publicResult,
+    });
+    return Object.freeze({
+      replayed: false,
+      publicResult,
+      domainResult,
+    });
+  }
+
+  function configure(inputKind, body) {
     assertSupported(inputKind);
     exact(
       body,
@@ -244,10 +521,9 @@ function createIntegrationAdminApplication(options) {
         'kind',
         'idempotencyKey',
         'expectedConfigRevision',
-        'endpoint',
-        'credential',
+        'connectionProofId',
       ],
-      ['timeoutMs'],
+      [],
       'PLATFORM_INTEGRATION_CONFIGURE_SHAPE',
     );
     if (body.kind !== inputKind) {
@@ -258,146 +534,159 @@ function createIntegrationAdminApplication(options) {
     }
     const key = idempotencyKey(body.idempotencyKey);
     const expected = expectedRevision(body.expectedConfigRevision);
-    exact(
-      body.credential,
-      ['kind', 'value'],
-      [],
-      'PLATFORM_INTEGRATION_CREDENTIAL_SHAPE',
-    );
-    const secretKind = body.credential.kind === 'api_key'
-      ? 'tmdb_api_key'
-      : body.credential.kind === 'access_token'
-        ? 'tmdb_access_token'
-        : null;
-    if (!secretKind || typeof body.credential.value !== 'string' ||
-        body.credential.value.length < 8 ||
-        body.credential.value.length > 4096) {
+    if (typeof body.connectionProofId !== 'string' ||
+        body.connectionProofId.length < 1 ||
+        body.connectionProofId.length > 256) {
       fail(
-        'PLATFORM_INTEGRATION_CREDENTIAL_INVALID',
-        'TMDB credential is invalid.',
+        'PLATFORM_INTEGRATION_CONNECTION_PROOF_INVALID',
+        'Connection proof identity is invalid.',
       );
     }
-    const normalizedEndpoint =
-      options.tmdbAdapter.normalizedEndpoint(body.endpoint);
     const digest = requestDigest({
       command: RECEIPT_KIND_CONFIGURE,
       kind: body.kind,
       idempotencyKey: key,
       expectedConfigRevision: expected,
-      endpoint: normalizedEndpoint,
-      credentialKind: body.credential.kind,
-      credentialValue: body.credential.value,
-      timeoutMs: body.timeoutMs ?? 10_000,
+      connectionProofId: body.connectionProofId,
     });
-    const before = current();
-    const prior = replay(before, key, digest);
-    if (prior) return prior;
-    const actualRevision = before.integration?.configRevision || 0;
-    if (actualRevision !== expected) {
-      fail(
-        'PLATFORM_INTEGRATION_CAS_CONFLICT',
-        'Integration configuration revision changed.',
-        { expectedRevision: expected, actualRevision },
-      );
-    }
-
-    const secretBytes = Buffer.from(body.credential.value, 'utf8');
-    let locator;
-    try {
-      const summary = await options.tmdbAdapter.testCandidate({
-        endpoint: normalizedEndpoint,
-        secretKind,
-        secretBytes,
-        timeoutMs: body.timeoutMs ?? 10_000,
-      });
-      const revision = expected + 1;
-      const committedAtMs = now();
-      locator = options.secretStore.write({
-        integrationId: TMDB_INTEGRATION_ID,
-        secretRef: TMDB_SECRET_REF,
-        secretKind,
-        revision,
-        secretBytes,
-        createdAtMs: committedAtMs,
-      });
-      const lastTestSummary = {
-        result: 'passed',
-        checkedAtMs: summary.checkedAtMs,
-        endpointDigest: summary.endpointDigest,
-        observationDigest: summary.observationDigest,
-        identityNamespace: summary.identityNamespace,
-        identityProviderKey: summary.identityProviderKey,
-      };
-      const config = {
-        schemaRef: CONFIG_SCHEMA_REF,
-        schemaVersion: 1,
-        kind: SUPPORTED_KIND,
-        credentialKind: body.credential.kind,
-        capabilityCodes: ['identity', 'metadata'],
-        lastTestSummary,
-        lastCommand: {
-          commandKind: RECEIPT_KIND_CONFIGURE,
-          idempotencyKey: key,
-          requestDigest: digest,
-          committedRevision: revision,
-        },
-      };
-      const configJson = canonicalJson(config);
-      if (Buffer.byteLength(configJson, 'utf8') > 16 * 1024) {
-        fail(
-          'PLATFORM_INTEGRATION_CONFIG_TOO_LARGE',
-          'Integration configuration exceeds its table contract.',
-        );
-      }
-      const committed = options.repository.commit({
-        expectedRevision: expected,
-        integration: {
-          integration_id: TMDB_INTEGRATION_ID,
-          integration_type: SUPPORTED_KIND,
-          endpoint: normalizedEndpoint,
-          config_revision: revision,
-          config_schema_ref: CONFIG_SCHEMA_REF,
-          config_json: configJson,
-          config_digest: canonicalDigest(config),
-          state: 'active',
-          updated_at_ms: committedAtMs,
-        },
-        secret: {
-          secret_ref: TMDB_SECRET_REF,
-          owner_scope_type: 'integration',
-          owner_scope_id: TMDB_INTEGRATION_ID,
-          secret_kind: secretKind,
-          encrypted_ref: locator,
-          revision,
-          state: 'active',
-          updated_at_ms: committedAtMs,
-        },
-      });
-      const oldLocator = before.secret?.secretLocator;
-      if (oldLocator && oldLocator !== locator) {
-        try {
-          options.secretStore.remove(oldLocator);
-        } catch (_ignored) {
-          // The superseded locator is no longer reachable from an active
-          // Secret Reference. Physical cleanup is best-effort post-commit.
+    let createdEnvelope;
+    let platformCommitted = false;
+    const execute = () => {
+        const proof = proofAt(body.connectionProofId);
+        const before = current();
+        const actualRevision =
+          before.integration?.configRevision || 0;
+        if (actualRevision !== expected) {
+          fail(
+            'PLATFORM_INTEGRATION_CAS_CONFLICT',
+            'Integration configuration revision changed.',
+            { expectedRevision: expected, actualRevision },
+          );
         }
-      }
-      return Object.freeze({
-        ...publicSnapshot(committed),
-        replayed: false,
+        const secretBytes = options.secretStore.read(
+          proof.secretLocator,
+          {
+            integrationId: TMDB_INTEGRATION_ID,
+            secretRef: proof.secretRef,
+            secretKind: proof.secretKind,
+            revision: 1,
+            envelopeDigest: proof.secretEnvelopeDigest,
+          },
+        );
+        try {
+          const revision = expected + 1;
+          const committedAtMs = now();
+          createdEnvelope = options.secretStore.write({
+            integrationId: TMDB_INTEGRATION_ID,
+            secretRef: TMDB_SECRET_REF,
+            secretKind: proof.secretKind,
+            revision,
+            secretBytes,
+            createdAtMs: committedAtMs,
+          });
+          const config = {
+            schemaRef: CONFIG_SCHEMA_REF,
+            schemaVersion: 1,
+            kind: SUPPORTED_KIND,
+            endpoint: proof.endpoint,
+            configRevision: revision,
+            secretRef: TMDB_SECRET_REF,
+            secretEnvelopeDigest:
+              createdEnvelope.envelopeDigest,
+            credentialKind: proof.secretKind === 'tmdb_api_key'
+              ? 'api_key'
+              : 'access_token',
+            capabilityCodes: ['identity', 'metadata'],
+            lastTestSummary: { ...proof.summary },
+            lastCommand: {
+              commandKind: RECEIPT_KIND_CONFIGURE,
+              idempotencyKey: key,
+              requestDigest: digest,
+              committedRevision: revision,
+            },
+          };
+          const configJson = canonicalJson(config);
+          if (Buffer.byteLength(configJson, 'utf8') >
+              16 * 1024) {
+            fail(
+              'PLATFORM_INTEGRATION_CONFIG_TOO_LARGE',
+              'Integration configuration exceeds its table contract.',
+            );
+          }
+          if (typeof options.beforePlatformCommit === 'function') {
+            options.beforePlatformCommit({
+              commandKind: RECEIPT_KIND_CONFIGURE,
+              configRevision: revision,
+            });
+          }
+          const committed = options.repository.commit({
+            expectedRevision: expected,
+            integration: {
+              integration_id: TMDB_INTEGRATION_ID,
+              integration_type: SUPPORTED_KIND,
+              endpoint: OFFICIAL_TMDB_ENDPOINT,
+              config_revision: revision,
+              config_schema_ref: CONFIG_SCHEMA_REF,
+              config_json: configJson,
+              config_digest: canonicalDigest(config),
+              state: 'active',
+              updated_at_ms: committedAtMs,
+            },
+            secret: {
+              secret_ref: TMDB_SECRET_REF,
+              owner_scope_type: 'integration',
+              owner_scope_id: TMDB_INTEGRATION_ID,
+              secret_kind: proof.secretKind,
+              encrypted_ref: createdEnvelope.locator,
+              revision,
+              state: 'active',
+              updated_at_ms: committedAtMs,
+            },
+          });
+          platformCommitted = true;
+          return Object.freeze({
+            publicResult: publicSnapshot(committed),
+            previousSecretLocator:
+              before.secret?.secretLocator || null,
+            connectionProofId: proof.connectionProofId,
+          });
+        } finally {
+          secretBytes.fill(0);
+        }
+      };
+    let committed;
+    try {
+      committed = executeDurableCommand({
+        commandKind: RECEIPT_KIND_CONFIGURE,
+        idempotencyKey: key,
+        requestDigest: digest,
+        execute,
       });
     } catch (error) {
-      if (locator) {
+      if (createdEnvelope && !platformCommitted) {
         try {
-          options.secretStore.remove(locator);
+          options.secretStore.remove(createdEnvelope.locator);
         } catch (_ignored) {
-          // The authoritative configuration error remains unchanged.
+          // Failed UoW leaves the candidate envelope unreachable.
         }
       }
       throw error;
-    } finally {
-      secretBytes.fill(0);
     }
+    if (!committed.replayed) {
+      const proof = proofs.get(body.connectionProofId);
+      if (proof) removeProof(proof);
+      const previous =
+        committed.domainResult.previousSecretLocator;
+      if (previous &&
+          previous !== createdEnvelope?.locator) {
+        try {
+          options.secretStore.remove(previous);
+        } catch (_ignored) {
+          // The old locator is unreachable after the committed CAS.
+        }
+      }
+    }
+    return committed.publicResult;
   }
 
   function disconnect(inputKind, body) {
@@ -422,83 +711,97 @@ function createIntegrationAdminApplication(options) {
       idempotencyKey: key,
       expectedConfigRevision: expected,
     });
-    const before = current();
-    const prior = replay(before, key, digest);
-    if (prior) return prior;
-    if (!before.integration) {
-      if (expected !== 0) {
-        fail(
-          'PLATFORM_INTEGRATION_CAS_CONFLICT',
-          'Integration configuration revision changed.',
-          { expectedRevision: expected, actualRevision: 0 },
-        );
-      }
-      return Object.freeze({
-        ...publicSnapshot(before),
-        replayed: true,
-      });
-    }
-    if (before.integration.configRevision !== expected) {
-      fail(
-        'PLATFORM_INTEGRATION_CAS_CONFLICT',
-        'Integration configuration revision changed.',
-        {
+    const execute = () => {
+        const before = current();
+        if (!before.integration) {
+          if (expected !== 0) {
+            fail(
+              'PLATFORM_INTEGRATION_CAS_CONFLICT',
+              'Integration configuration revision changed.',
+              { expectedRevision: expected, actualRevision: 0 },
+            );
+          }
+          return Object.freeze({
+            publicResult: publicSnapshot(before),
+            previousSecretLocator: null,
+          });
+        }
+        if (before.integration.configRevision !== expected) {
+          fail(
+            'PLATFORM_INTEGRATION_CAS_CONFLICT',
+            'Integration configuration revision changed.',
+            {
+              expectedRevision: expected,
+              actualRevision: before.integration.configRevision,
+            },
+          );
+        }
+        if (before.integration.state === 'disabled') {
+          return Object.freeze({
+            publicResult: publicSnapshot(before),
+            previousSecretLocator: null,
+          });
+        }
+        const revision = expected + 1;
+        const committedAtMs = now();
+        const config = {
+          ...before.integration.config,
+          configRevision: revision,
+          lastCommand: {
+            commandKind: RECEIPT_KIND_DISCONNECT,
+            idempotencyKey: key,
+            requestDigest: digest,
+            committedRevision: revision,
+          },
+        };
+        const committed = options.repository.commit({
           expectedRevision: expected,
-          actualRevision: before.integration.configRevision,
-        },
-      );
-    }
-    if (before.integration.state === 'disabled') {
-      return Object.freeze({
-        ...publicSnapshot(before),
-        replayed: true,
-      });
-    }
-    const revision = expected + 1;
-    const committedAtMs = now();
-    const config = {
-      ...before.integration.config,
-      lastCommand: {
-        commandKind: RECEIPT_KIND_DISCONNECT,
-        idempotencyKey: key,
-        requestDigest: digest,
-        committedRevision: revision,
-      },
-    };
-    const committed = options.repository.commit({
-      expectedRevision: expected,
-      integration: {
-        integration_id: TMDB_INTEGRATION_ID,
-        integration_type: SUPPORTED_KIND,
-        endpoint: before.integration.endpoint,
-        config_revision: revision,
-        config_schema_ref: CONFIG_SCHEMA_REF,
-        config_json: canonicalJson(config),
-        config_digest: canonicalDigest(config),
-        state: 'disabled',
-        updated_at_ms: committedAtMs,
-      },
-      secret: {
-        secret_ref: TMDB_SECRET_REF,
-        owner_scope_type: 'integration',
-        owner_scope_id: TMDB_INTEGRATION_ID,
-        secret_kind: before.secret.secretKind,
-        encrypted_ref: before.secret.secretLocator,
-        revision,
-        state: 'revoked',
-        updated_at_ms: committedAtMs,
-      },
+          integration: {
+            integration_id: TMDB_INTEGRATION_ID,
+            integration_type: SUPPORTED_KIND,
+            endpoint: OFFICIAL_TMDB_ENDPOINT,
+            config_revision: revision,
+            config_schema_ref: CONFIG_SCHEMA_REF,
+            config_json: canonicalJson(config),
+            config_digest: canonicalDigest(config),
+            state: 'disabled',
+            updated_at_ms: committedAtMs,
+          },
+          secret: {
+            secret_ref: TMDB_SECRET_REF,
+            owner_scope_type: 'integration',
+            owner_scope_id: TMDB_INTEGRATION_ID,
+            secret_kind: before.secret.secretKind,
+            encrypted_ref: before.secret.secretLocator,
+            revision,
+            state: 'revoked',
+            updated_at_ms: committedAtMs,
+          },
+        });
+        return Object.freeze({
+          publicResult: publicSnapshot(committed),
+          previousSecretLocator:
+            before.secret.secretLocator,
+        });
+      };
+    const committed = executeDurableCommand({
+      commandKind: RECEIPT_KIND_DISCONNECT,
+      idempotencyKey: key,
+      requestDigest: digest,
+      execute,
     });
-    try {
-      options.secretStore.remove(before.secret.secretLocator);
-    } catch (_ignored) {
-      // Revocation is authoritative in the Owner transaction. The opaque
-      // envelope is unreachable even if post-commit deletion is interrupted.
+    if (!committed.replayed) {
+      const locator =
+        committed.domainResult.previousSecretLocator;
+      if (locator) {
+        try {
+          options.secretStore.remove(locator);
+        } catch (_ignored) {
+          // Revocation is authoritative in the atomic Owner command.
+        }
+      }
     }
-    return Object.freeze({
-      ...publicSnapshot(committed),
-      replayed: false,
-    });
+    return committed.publicResult;
   }
 
   return Object.freeze({
@@ -525,6 +828,7 @@ function createIntegrationAdminApplication(options) {
 }
 
 module.exports = Object.freeze({
+  CONNECTION_PROOF_TTL_MS,
   IntegrationAdminError,
   createIntegrationAdminApplication,
 });

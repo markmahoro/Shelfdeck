@@ -151,78 +151,99 @@ function createIntegrationRepository(options) {
     },
   });
 
+  function repositoryView(repository) {
+    return Object.freeze({
+      read(integrationId, secretRef) {
+        return Object.freeze({
+          integration: configValue(repository.invoke('find_integration', {
+            integration_id: integrationId,
+          })),
+          secret: secretValue(repository.invoke('find_secret', {
+            secret_ref: secretRef,
+          })),
+        });
+      },
+      findSecret(secretRef) {
+        return secretValue(repository.invoke('find_secret', {
+          secret_ref: secretRef,
+        }));
+      },
+      commit(value) {
+        return commitWith(repository, value);
+      },
+    });
+  }
+
   function execute(callback) {
     return options.unitOfWork.execute([{
       participantId: 'platform_integration_runtime',
       owner: 'platform-settings',
       repositories: [definition],
       execute(context) {
-        return callback(context.repository(definition.repositoryId));
+        return callback(repositoryView(
+          context.repository(definition.repositoryId),
+        ));
       },
     }]).platform_integration_runtime;
   }
 
   function read(integrationId, secretRef) {
-    return execute((repository) => Object.freeze({
-      integration: configValue(repository.invoke('find_integration', {
-        integration_id: integrationId,
-      })),
-      secret: secretValue(repository.invoke('find_secret', {
-        secret_ref: secretRef,
-      })),
-    }));
+    return execute((repository) =>
+      repository.read(integrationId, secretRef));
+  }
+
+  function commitWith(repository, value) {
+    const currentIntegration = repository.invoke('find_integration', {
+      integration_id: value.integration.integration_id,
+    });
+    const currentSecret = repository.invoke('find_secret', {
+      secret_ref: value.secret.secret_ref,
+    });
+    if (value.expectedRevision === 0) {
+      if (currentIntegration || currentSecret) {
+        fail(
+          'PLATFORM_INTEGRATION_CAS_CONFLICT',
+          'Integration initial revision already exists.',
+        );
+      }
+      repository.invoke('insert_integration', value.integration);
+      repository.invoke('insert_secret', value.secret);
+    } else {
+      if (!currentIntegration ||
+          currentIntegration.config_revision !== value.expectedRevision ||
+          !currentSecret ||
+          currentSecret.revision !== value.expectedRevision) {
+        fail(
+          'PLATFORM_INTEGRATION_CAS_CONFLICT',
+          'Integration or Secret Reference revision changed.',
+        );
+      }
+      const integrationResult = repository.invoke(
+        'update_integration',
+        {
+          ...value.integration,
+          expected_config_revision: value.expectedRevision,
+        },
+      );
+      const secretResult = repository.invoke('update_secret', {
+        ...value.secret,
+        expected_secret_revision: value.expectedRevision,
+      });
+      if (integrationResult.changes !== 1 || secretResult.changes !== 1) {
+        fail(
+          'PLATFORM_INTEGRATION_CAS_CONFLICT',
+          'Integration commit lost its exact revision fence.',
+        );
+      }
+    }
+    return Object.freeze({
+      integration: configValue(value.integration),
+      secret: secretValue(value.secret),
+    });
   }
 
   function commit(value) {
-    return execute((repository) => {
-      const currentIntegration = repository.invoke('find_integration', {
-        integration_id: value.integration.integration_id,
-      });
-      const currentSecret = repository.invoke('find_secret', {
-        secret_ref: value.secret.secret_ref,
-      });
-      if (value.expectedRevision === 0) {
-        if (currentIntegration || currentSecret) {
-          fail(
-            'PLATFORM_INTEGRATION_CAS_CONFLICT',
-            'Integration initial revision already exists.',
-          );
-        }
-        repository.invoke('insert_integration', value.integration);
-        repository.invoke('insert_secret', value.secret);
-      } else {
-        if (!currentIntegration ||
-            currentIntegration.config_revision !== value.expectedRevision ||
-            !currentSecret ||
-            currentSecret.revision !== value.expectedRevision) {
-          fail(
-            'PLATFORM_INTEGRATION_CAS_CONFLICT',
-            'Integration or Secret Reference revision changed.',
-          );
-        }
-        const integrationResult = repository.invoke(
-          'update_integration',
-          {
-            ...value.integration,
-            expected_config_revision: value.expectedRevision,
-          },
-        );
-        const secretResult = repository.invoke('update_secret', {
-          ...value.secret,
-          expected_secret_revision: value.expectedRevision,
-        });
-        if (integrationResult.changes !== 1 || secretResult.changes !== 1) {
-          fail(
-            'PLATFORM_INTEGRATION_CAS_CONFLICT',
-            'Integration commit lost its exact revision fence.',
-          );
-        }
-      }
-      return Object.freeze({
-        integration: configValue(value.integration),
-        secret: secretValue(value.secret),
-      });
-    });
+    return execute((repository) => repository.commit(value));
   }
 
   return Object.freeze({
@@ -231,9 +252,7 @@ function createIntegrationRepository(options) {
       return read(integrationId, secretRef);
     },
     findSecret(secretRef) {
-      return execute((repository) => secretValue(
-        repository.invoke('find_secret', { secret_ref: secretRef }),
-      ));
+      return execute((repository) => repository.findSecret(secretRef));
     },
   });
 }

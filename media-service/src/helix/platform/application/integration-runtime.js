@@ -8,6 +8,10 @@ const TMDB_INTEGRATION_ID = 'tmdb-main';
 const TMDB_SECRET_REF = 'integration-secret:tmdb-main';
 const CONFIG_SCHEMA_REF =
   'helix://implementation-contracts/platform-integrations/tmdb/v1';
+const OFFICIAL_TMDB_ENDPOINT = 'https://api.themoviedb.org/3';
+const SHA256 = /^[0-9a-f]{64}$/;
+const SECRET_LOCATOR =
+  /^integration-envelope:[0-9a-f-]{36}:([0-9a-f]{64})$/;
 const HANDLE_OPERATIONS = new Set([
   'shared.integration.search@1',
   'libra.product_metadata.fetch@1',
@@ -35,6 +39,62 @@ function exact(value, fields, code) {
   }
 }
 
+function validateTestSummary(value) {
+  exact(
+    value,
+    [
+      'result',
+      'checkedAtMs',
+      'endpointDigest',
+      'observationDigest',
+      'identityNamespace',
+      'identityProviderKey',
+    ],
+    'PLATFORM_INTEGRATION_CONFIG_CORRUPT',
+  );
+  if (value.result !== 'passed' ||
+      !Number.isSafeInteger(value.checkedAtMs) ||
+      value.checkedAtMs < 0 ||
+      !SHA256.test(value.endpointDigest || '') ||
+      value.endpointDigest !== canonicalDigest({
+        endpoint: OFFICIAL_TMDB_ENDPOINT,
+      }) ||
+      !SHA256.test(value.observationDigest || '') ||
+      value.identityNamespace !== 'tmdb_movie' ||
+      typeof value.identityProviderKey !== 'string' ||
+      value.identityProviderKey.length > 64 ||
+      !/^[0-9]+$/.test(value.identityProviderKey)) {
+    fail(
+      'PLATFORM_INTEGRATION_CONFIG_CORRUPT',
+      'Integration test summary is invalid.',
+    );
+  }
+}
+
+function validateLastCommand(value, revision) {
+  exact(
+    value,
+    [
+      'commandKind',
+      'idempotencyKey',
+      'requestDigest',
+      'committedRevision',
+    ],
+    'PLATFORM_INTEGRATION_CONFIG_CORRUPT',
+  );
+  if (!['configure', 'disconnect'].includes(value.commandKind) ||
+      typeof value.idempotencyKey !== 'string' ||
+      value.idempotencyKey.length < 1 ||
+      value.idempotencyKey.length > 256 ||
+      !SHA256.test(value.requestDigest || '') ||
+      value.committedRevision !== revision) {
+    fail(
+      'PLATFORM_INTEGRATION_CONFIG_CORRUPT',
+      'Integration command continuity is invalid.',
+    );
+  }
+}
+
 function validateConfig(snapshot) {
   const integration = snapshot?.integration;
   const secret = snapshot?.secret;
@@ -44,32 +104,81 @@ function validateConfig(snapshot) {
       'Integration is not configured.',
     );
   }
+  const config = integration.config;
+  exact(
+    config,
+    [
+      'schemaRef',
+      'schemaVersion',
+      'kind',
+      'endpoint',
+      'configRevision',
+      'secretRef',
+      'secretEnvelopeDigest',
+      'credentialKind',
+      'capabilityCodes',
+      'lastTestSummary',
+      'lastCommand',
+    ],
+    'PLATFORM_INTEGRATION_CONFIG_CORRUPT',
+  );
+  const locatorMatch = SECRET_LOCATOR.exec(
+    secret?.secretLocator || '',
+  );
   if (integration.integrationId !== TMDB_INTEGRATION_ID ||
       integration.integrationType !== 'tmdb' ||
       integration.configSchemaRef !== CONFIG_SCHEMA_REF ||
-      integration.configDigest !== canonicalDigest(integration.config) ||
+      integration.endpoint !== OFFICIAL_TMDB_ENDPOINT ||
+      integration.configDigest !== canonicalDigest(config) ||
       !Number.isSafeInteger(integration.configRevision) ||
-      integration.configRevision < 1) {
+      integration.configRevision < 1 ||
+      !Number.isSafeInteger(integration.updatedAtMs) ||
+      integration.updatedAtMs < 0 ||
+      !['active', 'disabled'].includes(integration.state) ||
+      config.schemaRef !== CONFIG_SCHEMA_REF ||
+      config.schemaVersion !== 1 ||
+      config.kind !== 'tmdb' ||
+      config.endpoint !== OFFICIAL_TMDB_ENDPOINT ||
+      config.configRevision !== integration.configRevision ||
+      config.secretRef !== TMDB_SECRET_REF ||
+      !SHA256.test(config.secretEnvelopeDigest || '') ||
+      !['api_key', 'access_token'].includes(
+        config.credentialKind,
+      ) ||
+      JSON.stringify(config.capabilityCodes) !==
+        JSON.stringify(['identity', 'metadata']) ||
+      !secret ||
+      secret.secretRef !== TMDB_SECRET_REF ||
+      secret.ownerScopeType !== 'integration' ||
+      secret.ownerScopeId !== TMDB_INTEGRATION_ID ||
+      !['tmdb_api_key', 'tmdb_access_token'].includes(
+        secret.secretKind,
+      ) ||
+      secret.revision !== integration.configRevision ||
+      !locatorMatch ||
+      locatorMatch[1] !== config.secretEnvelopeDigest) {
     fail(
       'PLATFORM_INTEGRATION_CONFIG_CORRUPT',
       'Integration configuration identity or digest is invalid.',
     );
   }
+  validateTestSummary(config.lastTestSummary);
+  validateLastCommand(
+    config.lastCommand,
+    integration.configRevision,
+  );
   if (integration.state === 'active') {
-    if (!secret ||
-        secret.secretRef !== TMDB_SECRET_REF ||
-        secret.ownerScopeType !== 'integration' ||
-        secret.ownerScopeId !== TMDB_INTEGRATION_ID ||
-        !['tmdb_api_key', 'tmdb_access_token'].includes(
-          secret.secretKind,
-        ) ||
-        secret.revision !== integration.configRevision ||
-        secret.state !== 'active') {
+    if (secret.state !== 'active') {
       fail(
         'PLATFORM_INTEGRATION_SECRET_FENCE_MISMATCH',
         'Integration and Secret Reference are inconsistent.',
       );
     }
+  } else if (secret.state !== 'revoked') {
+    fail(
+      'PLATFORM_INTEGRATION_SECRET_FENCE_MISMATCH',
+      'Disabled Integration must have one revoked Secret Reference.',
+    );
   }
   return Object.freeze({ integration, secret });
 }
@@ -252,7 +361,9 @@ module.exports = Object.freeze({
   CONFIG_SCHEMA_REF,
   HANDLE_OPERATIONS,
   IntegrationRuntimeError,
+  OFFICIAL_TMDB_ENDPOINT,
   TMDB_INTEGRATION_ID,
   TMDB_SECRET_REF,
   createIntegrationRuntime,
+  validateConfig,
 });

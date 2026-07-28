@@ -77,7 +77,15 @@ function createSecretLeaseBroker(options) {
     if (consumedAtMs > handle.expiresAtMs) fail('P5_SECRET_LEASE_EXPIRED', 'Secret lease has expired.');
     let bytes;
     try {
-      bytes = options.secretSource.read(lease.secretLocator);
+      bytes = options.secretSource.read(
+        lease.secretLocator,
+        Object.freeze({
+          integrationId: handle.ownerScopeId,
+          secretRef: handle.secretRef,
+          secretKind: handle.secretKind,
+          revision: handle.revision,
+        }),
+      );
     } catch (error) {
       fail('P5_SECRET_SOURCE_READ_FAILED', 'Secret source could not satisfy the bounded invocation.');
     }
@@ -104,7 +112,15 @@ function createSecretLeaseBroker(options) {
     if (consumedAtMs > handle.expiresAtMs) fail('P5_SECRET_LEASE_EXPIRED', 'Secret lease has expired.');
     let bytes;
     try {
-      bytes = options.secretSource.read(lease.secretLocator);
+      bytes = options.secretSource.read(
+        lease.secretLocator,
+        Object.freeze({
+          integrationId: handle.ownerScopeId,
+          secretRef: handle.secretRef,
+          secretKind: handle.secretKind,
+          revision: handle.revision,
+        }),
+      );
     } catch (error) {
       fail('P5_SECRET_SOURCE_READ_FAILED', 'Secret source could not satisfy the bounded invocation.');
     }

@@ -16,6 +16,7 @@ const {
 } = require('../../src/clean-service-host');
 const {
   canonicalDigest,
+  canonicalJson,
 } = require('../../src/helix/contracts/canonical-json');
 const {
   openSqliteKernel,
@@ -23,6 +24,12 @@ const {
 const {
   createSqliteUnitOfWork,
 } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
+const {
+  createIntegrationRepository,
+} = require('../../src/helix/platform/persistence/integration-repository');
+const {
+  createPlatformIntegrationRuntime,
+} = require('../../src/helix/platform/public/integration-runtime');
 const schemaManifest = require(
   '../../src/helix/foundation/persistence/generated/clean-schema.manifest.json'
 );
@@ -57,9 +64,36 @@ function fixture() {
   return { root, dataDir, adminDistDir, initialized };
 }
 
-function response(status, body, bytes) {
+function response(status, body, bytes, extraHeaders = {}) {
+  const payload = bytes
+    ? Buffer.from(bytes)
+    : Buffer.from(JSON.stringify(body), 'utf8');
+  let delivered = false;
   return Object.freeze({
     status,
+    headers: Object.freeze({
+      get(name) {
+        if (String(name).toLowerCase() === 'content-length') {
+          return extraHeaders['content-length'] ??
+            String(payload.length);
+        }
+        return extraHeaders[String(name).toLowerCase()] ?? null;
+      },
+    }),
+    body: Object.freeze({
+      getReader() {
+        return Object.freeze({
+          async read() {
+            if (delivered) return { done: true };
+            delivered = true;
+            return { done: false, value: Uint8Array.from(payload) };
+          },
+          async cancel() {
+            delivered = true;
+          },
+        });
+      },
+    }),
     async json() {
       if (body instanceof Error) throw body;
       return body;
@@ -128,14 +162,27 @@ async function session(host, apiKey) {
   return result.headers['set-cookie'];
 }
 
-function command(kind, key, expectedConfigRevision = 0) {
+function testCommand(kind, key) {
+  return {
+    kind,
+    idempotencyKey: key,
+    endpoint: 'https://api.themoviedb.org/3',
+    credential: { kind: 'api_key', value: credential },
+    timeoutMs: 5_000,
+  };
+}
+
+function configureCommand(
+  kind,
+  key,
+  connectionProofId,
+  expectedConfigRevision = 0,
+) {
   return {
     kind,
     idempotencyKey: key,
     expectedConfigRevision,
-    endpoint: 'https://api.themoviedb.org/3',
-    credential: { kind: 'api_key', value: credential },
-    timeoutMs: 5_000,
+    connectionProofId,
   };
 }
 
@@ -170,6 +217,61 @@ function inspect(dataDir) {
   } finally {
     database.close();
   }
+}
+
+async function createProof(host, cookie, key = 'tmdb-proof') {
+  const result = await host.inject({
+    method: 'POST',
+    url: '/v1/admin/settings/integrations/tmdb/actions/test',
+    headers: { cookie },
+    payload: testCommand('tmdb', key),
+  });
+  assert.equal(result.statusCode, 200, result.body);
+  return result.json();
+}
+
+async function saveProof(
+  host,
+  cookie,
+  proof,
+  key = 'tmdb-save',
+  expectedConfigRevision = 0,
+) {
+  return host.inject({
+    method: 'PATCH',
+    url: '/v1/admin/settings/integrations/tmdb',
+    headers: { cookie },
+    payload: configureCommand(
+      'tmdb',
+      key,
+      proof.connectionProofId,
+      expectedConfigRevision,
+    ),
+  });
+}
+
+function openIntegrationRuntime(dataDir, secretStore) {
+  const kernel = openSqliteKernel({
+    Database,
+    databasePath: path.join(dataDir, 'shelfdeck.db'),
+    schemaDdl,
+    schemaManifest,
+    now: () => 1_900_000_000_000,
+  });
+  const repository = createIntegrationRepository({
+    schemaManifest,
+    unitOfWork: createSqliteUnitOfWork({ kernel }),
+  });
+  return {
+    kernel,
+    runtime: createPlatformIntegrationRuntime({
+      repository,
+      secretStore,
+      now: () => 1_900_000_000_000,
+      createId: () => 'bounded-test-lease',
+      digest: (value) => canonicalDigest({ value }),
+    }),
+  };
 }
 
 test.after(() => {
@@ -214,8 +316,7 @@ test('H1.1 Admin TMDB routes test before save, redact secrets, CAS, and replay',
     lastTestSummary: null,
   });
 
-  const testPayload = command('tmdb', 'tmdb-test-before-save');
-  delete testPayload.expectedConfigRevision;
+  const testPayload = testCommand('tmdb', 'tmdb-test-before-save');
   const tested = await host.inject({
     method: 'POST',
     url: '/v1/admin/settings/integrations/tmdb/actions/test',
@@ -225,17 +326,39 @@ test('H1.1 Admin TMDB routes test before save, redact secrets, CAS, and replay',
   assert.equal(tested.statusCode, 200, tested.body);
   assert.equal(tested.json().result, 'passed');
   assert.equal(tested.json().persisted, false);
+  assert.equal(
+    typeof tested.json().connectionProofId,
+    'string',
+  );
+  const callsAfterTest = state.calls.length;
+  const testReplay = await host.inject({
+    method: 'POST',
+    url: '/v1/admin/settings/integrations/tmdb/actions/test',
+    headers: { cookie },
+    payload: testPayload,
+  });
+  assert.equal(testReplay.statusCode, 200, testReplay.body);
+  assert.deepEqual(testReplay.json(), tested.json());
+  assert.equal(state.calls.length, callsAfterTest);
   assert.equal(inspect(value.dataDir).integration, undefined);
   assert.equal(
-    fs.existsSync(path.join(value.dataDir, 'secrets', 'integrations')),
-    false,
+    scanFiles(path.join(
+      value.dataDir,
+      'secrets',
+      'integrations',
+    )).length,
+    1,
   );
 
   const saved = await host.inject({
     method: 'PATCH',
     url: '/v1/admin/settings/integrations/tmdb',
     headers: { cookie },
-    payload: command('tmdb', 'tmdb-save'),
+    payload: configureCommand(
+      'tmdb',
+      'tmdb-save',
+      tested.json().connectionProofId,
+    ),
   });
   assert.equal(saved.statusCode, 200, saved.body);
   assert.equal(saved.json().configRevision, 1);
@@ -262,15 +385,22 @@ test('H1.1 Admin TMDB routes test before save, redact secrets, CAS, and replay',
     method: 'PATCH',
     url: '/v1/admin/settings/integrations/tmdb',
     headers: { cookie },
-    payload: command('tmdb', 'tmdb-save'),
+    payload: configureCommand(
+      'tmdb',
+      'tmdb-save',
+      tested.json().connectionProofId,
+    ),
   });
   assert.equal(replayed.statusCode, 200, replayed.body);
-  assert.equal(replayed.json().replayed, true);
+  assert.deepEqual(replayed.json(), saved.json());
   assert.equal(state.calls.length, callsAfterSave);
   assert.equal(inspect(value.dataDir).integration.config_revision, 1);
 
-  const conflicting = command('tmdb', 'tmdb-save');
-  conflicting.credential.value = 'different-tmdb-credential-value';
+  const conflicting = configureCommand(
+    'tmdb',
+    'tmdb-save',
+    'different-connection-proof',
+  );
   const conflict = await host.inject({
     method: 'PATCH',
     url: '/v1/admin/settings/integrations/tmdb',
@@ -296,10 +426,14 @@ test('H1.1 Admin TMDB routes test before save, redact secrets, CAS, and replay',
     method: 'PATCH',
     url: '/v1/admin/settings/integrations/tmdb',
     headers: { cookie: restartedCookie },
-    payload: command('tmdb', 'tmdb-save'),
+    payload: configureCommand(
+      'tmdb',
+      'tmdb-save',
+      tested.json().connectionProofId,
+    ),
   });
   assert.equal(restartedReplay.statusCode, 200, restartedReplay.body);
-  assert.equal(restartedReplay.json().replayed, true);
+  assert.deepEqual(restartedReplay.json(), saved.json());
 
   const disconnected = await host.inject({
     method: 'POST',
@@ -323,11 +457,63 @@ test('H1.1 Admin TMDB routes test before save, redact secrets, CAS, and replay',
         value.dataDir,
         'secrets',
         'integrations',
-        `${rows.secret.encrypted_ref.slice('integration-envelope:'.length)}.json`,
+        `${rows.secret.encrypted_ref.split(':')[1]}.json`,
       ),
     ),
     false,
   );
+  const oldConfigureReplay = await host.inject({
+    method: 'PATCH',
+    url: '/v1/admin/settings/integrations/tmdb',
+    headers: { cookie: restartedCookie },
+    payload: configureCommand(
+      'tmdb',
+      'tmdb-save',
+      tested.json().connectionProofId,
+    ),
+  });
+  assert.equal(
+    oldConfigureReplay.statusCode,
+    200,
+    oldConfigureReplay.body,
+  );
+  assert.deepEqual(oldConfigureReplay.json(), saved.json());
+  assert.equal(inspect(value.dataDir).integration.state, 'disabled');
+  assert.equal(inspect(value.dataDir).integration.config_revision, 2);
+
+  const reconfigureProof = await createProof(
+    host,
+    restartedCookie,
+    'tmdb-reconfigure-proof',
+  );
+  const reconfigured = await saveProof(
+    host,
+    restartedCookie,
+    reconfigureProof,
+    'tmdb-reconfigure',
+    2,
+  );
+  assert.equal(reconfigured.statusCode, 200, reconfigured.body);
+  assert.equal(reconfigured.json().state, 'active');
+  assert.equal(reconfigured.json().configRevision, 3);
+  const oldDisconnectReplay = await host.inject({
+    method: 'POST',
+    url: '/v1/admin/settings/integrations/tmdb/actions/disconnect',
+    headers: { cookie: restartedCookie },
+    payload: {
+      kind: 'tmdb',
+      idempotencyKey: 'tmdb-disconnect',
+      expectedConfigRevision: 1,
+    },
+  });
+  assert.equal(
+    oldDisconnectReplay.statusCode,
+    200,
+    oldDisconnectReplay.body,
+  );
+  assert.deepEqual(oldDisconnectReplay.json(), disconnected.json());
+  assert.equal(inspect(value.dataDir).integration.state, 'active');
+  assert.equal(inspect(value.dataDir).integration.config_revision, 3);
   await host.close();
 });
 
@@ -353,7 +539,11 @@ test('H1.1 routes reject target drift, unsupported providers, and failed tests w
     method: 'PATCH',
     url: '/v1/admin/settings/integrations/tmdb',
     headers: { cookie },
-    payload: command('douban', 'wrong-target'),
+    payload: configureCommand(
+      'douban',
+      'wrong-target',
+      'unused-connection-proof',
+    ),
   });
   assert.equal(mismatch.statusCode, 400, mismatch.body);
   assert.equal(
@@ -362,10 +552,10 @@ test('H1.1 routes reject target drift, unsupported providers, and failed tests w
   );
 
   const failed = await host.inject({
-    method: 'PATCH',
-    url: '/v1/admin/settings/integrations/tmdb',
+    method: 'POST',
+    url: '/v1/admin/settings/integrations/tmdb/actions/test',
     headers: { cookie },
-    payload: command('tmdb', 'bad-credential'),
+    payload: testCommand('tmdb', 'bad-credential'),
   });
   assert.equal(failed.statusCode, 400, failed.body);
   assert.equal(
@@ -410,20 +600,20 @@ test('H1.1 invalid endpoint, credential, network, HTTP, schema, and timeout leav
   });
   const cookie = await session(host, value.initialized.adminApiKey);
 
-  const invalidEndpoint = command('tmdb', 'invalid-endpoint');
+  const invalidEndpoint = testCommand('tmdb', 'invalid-endpoint');
   invalidEndpoint.endpoint = 'http://api.themoviedb.org/3';
-  const invalidCredential = command('tmdb', 'invalid-credential');
+  const invalidCredential = testCommand('tmdb', 'invalid-credential');
   invalidCredential.credential.value = 'short';
   const cases = [
     [invalidEndpoint, 'PLATFORM_INTEGRATION_ENDPOINT_INVALID', 400],
     [invalidCredential, 'PLATFORM_INTEGRATION_CREDENTIAL_INVALID', 400],
-    [command('tmdb', 'network-failure'),
+    [testCommand('tmdb', 'network-failure'),
       'PLATFORM_INTEGRATION_NETWORK_FAILED', 502],
   ];
   for (const [payload, code, statusCode] of cases) {
     const result = await host.inject({
-      method: 'PATCH',
-      url: '/v1/admin/settings/integrations/tmdb',
+      method: 'POST',
+      url: '/v1/admin/settings/integrations/tmdb/actions/test',
       headers: { cookie },
       payload,
     });
@@ -433,10 +623,10 @@ test('H1.1 invalid endpoint, credential, network, HTTP, schema, and timeout leav
   }
   state.mode = 'http';
   const http = await host.inject({
-    method: 'PATCH',
-    url: '/v1/admin/settings/integrations/tmdb',
+    method: 'POST',
+    url: '/v1/admin/settings/integrations/tmdb/actions/test',
     headers: { cookie },
-    payload: command('tmdb', 'http-failure'),
+    payload: testCommand('tmdb', 'http-failure'),
   });
   assert.equal(http.statusCode, 502, http.body);
   assert.equal(http.json().error.code, 'PLATFORM_INTEGRATION_HTTP_FAILED');
@@ -444,10 +634,10 @@ test('H1.1 invalid endpoint, credential, network, HTTP, schema, and timeout leav
 
   state.mode = 'schema';
   const schema = await host.inject({
-    method: 'PATCH',
-    url: '/v1/admin/settings/integrations/tmdb',
+    method: 'POST',
+    url: '/v1/admin/settings/integrations/tmdb/actions/test',
     headers: { cookie },
-    payload: command('tmdb', 'schema-failure'),
+    payload: testCommand('tmdb', 'schema-failure'),
   });
   assert.equal(schema.statusCode, 502, schema.body);
   assert.equal(
@@ -457,11 +647,11 @@ test('H1.1 invalid endpoint, credential, network, HTTP, schema, and timeout leav
   assert.equal(inspect(value.dataDir).integration, undefined);
 
   state.mode = 'timeout';
-  const timeoutPayload = command('tmdb', 'timeout-failure');
+  const timeoutPayload = testCommand('tmdb', 'timeout-failure');
   timeoutPayload.timeoutMs = 500;
   const timedOut = await host.inject({
-    method: 'PATCH',
-    url: '/v1/admin/settings/integrations/tmdb',
+    method: 'POST',
+    url: '/v1/admin/settings/integrations/tmdb/actions/test',
     headers: { cookie },
     payload: timeoutPayload,
   });
@@ -490,11 +680,22 @@ test('H1.1 Platform ports fence real TMDB identity and metadata reads across res
     now: () => 1_900_000_000_000,
   });
   const cookie = await session(host, value.initialized.adminApiKey);
+  const tested = await host.inject({
+    method: 'POST',
+    url: '/v1/admin/settings/integrations/tmdb/actions/test',
+    headers: { cookie },
+    payload: testCommand('tmdb', 'typed-test'),
+  });
+  assert.equal(tested.statusCode, 200, tested.body);
   const saved = await host.inject({
     method: 'PATCH',
     url: '/v1/admin/settings/integrations/tmdb',
     headers: { cookie },
-    payload: command('tmdb', 'typed-save'),
+    payload: configureCommand(
+      'tmdb',
+      'typed-save',
+      tested.json().connectionProofId,
+    ),
   });
   assert.equal(saved.statusCode, 200, saved.body);
   await host.close();
@@ -585,6 +786,436 @@ test('H1.1 Platform ports fence real TMDB identity and metadata reads across res
   }
 });
 
+test('H1.1 connection proofs are short-lived, one-use, and restart-invalid', async () => {
+  const value = fixture();
+  let now = 1_900_000_000_000;
+  let host = await createCleanServiceHost({
+    dataDir: value.dataDir,
+    adminDistDir: value.adminDistDir,
+    secretRoot,
+    integrationFetch: tmdbFetch({}),
+    now: () => now,
+  });
+  let cookie = await session(host, value.initialized.adminApiKey);
+  const expired = await createProof(host, cookie, 'expiring-proof');
+  now = expired.expiresAtMs + 1;
+  const expiredSave = await saveProof(
+    host,
+    cookie,
+    expired,
+    'expired-save',
+  );
+  assert.equal(expiredSave.statusCode, 400, expiredSave.body);
+  assert.equal(
+    expiredSave.json().error.code,
+    'PLATFORM_INTEGRATION_CONNECTION_PROOF_EXPIRED',
+  );
+  assert.equal(inspect(value.dataDir).integration, undefined);
+
+  now += 1;
+  const restartProof = await createProof(
+    host,
+    cookie,
+    'restart-proof',
+  );
+  await host.close();
+  host = await createCleanServiceHost({
+    dataDir: value.dataDir,
+    adminDistDir: value.adminDistDir,
+    secretRoot,
+    integrationFetch: tmdbFetch({}),
+    now: () => now,
+  });
+  cookie = await session(host, value.initialized.adminApiKey);
+  const restartedSave = await saveProof(
+    host,
+    cookie,
+    restartProof,
+    'restart-save',
+  );
+  assert.equal(restartedSave.statusCode, 400, restartedSave.body);
+  assert.equal(
+    restartedSave.json().error.code,
+    'PLATFORM_INTEGRATION_CONNECTION_PROOF_UNKNOWN',
+  );
+  assert.equal(inspect(value.dataDir).integration, undefined);
+
+  const consumedProof = await createProof(
+    host,
+    cookie,
+    'consumed-proof',
+  );
+  const consumedSave = await saveProof(
+    host,
+    cookie,
+    consumedProof,
+    'consumed-save',
+  );
+  assert.equal(consumedSave.statusCode, 200, consumedSave.body);
+  const consumedAgain = await saveProof(
+    host,
+    cookie,
+    consumedProof,
+    'consumed-save-second-command',
+    1,
+  );
+  assert.equal(consumedAgain.statusCode, 400, consumedAgain.body);
+  assert.equal(
+    consumedAgain.json().error.code,
+    'PLATFORM_INTEGRATION_CONNECTION_PROOF_UNKNOWN',
+  );
+  assert.equal(inspect(value.dataDir).integration.config_revision, 1);
+  await host.close();
+});
+
+test('H1.1 candidate envelope rollback and committed-head receipt repair converge safely', async () => {
+  const rollback = fixture();
+  let failBefore = true;
+  let host = await createCleanServiceHost({
+    dataDir: rollback.dataDir,
+    adminDistDir: rollback.adminDistDir,
+    secretRoot,
+    integrationFetch: tmdbFetch({}),
+    beforeIntegrationPlatformCommit() {
+      if (failBefore) {
+        failBefore = false;
+        throw new Error('fault before Platform UoW');
+      }
+    },
+  });
+  let cookie = await session(host, rollback.initialized.adminApiKey);
+  const rollbackProof = await createProof(
+    host,
+    cookie,
+    'rollback-proof',
+  );
+  const failed = await saveProof(
+    host,
+    cookie,
+    rollbackProof,
+    'rollback-save',
+  );
+  assert.equal(failed.statusCode, 500, failed.body);
+  assert.equal(inspect(rollback.dataDir).integration, undefined);
+  assert.equal(
+    scanFiles(path.join(
+      rollback.dataDir,
+      'secrets',
+      'integrations',
+    )).length,
+    1,
+  );
+  const retried = await saveProof(
+    host,
+    cookie,
+    rollbackProof,
+    'rollback-save',
+  );
+  assert.equal(retried.statusCode, 200, retried.body);
+  assert.equal(inspect(rollback.dataDir).integration.config_revision, 1);
+  await host.close();
+
+  const responseLoss = fixture();
+  let failAfter = true;
+  const state = {};
+  host = await createCleanServiceHost({
+    dataDir: responseLoss.dataDir,
+    adminDistDir: responseLoss.adminDistDir,
+    secretRoot,
+    integrationFetch: tmdbFetch(state),
+    afterIntegrationPlatformCommit() {
+      if (failAfter) {
+        failAfter = false;
+        throw new Error('fault after Platform UoW');
+      }
+    },
+  });
+  cookie = await session(host, responseLoss.initialized.adminApiKey);
+  const committedProof = await createProof(
+    host,
+    cookie,
+    'response-loss-proof',
+  );
+  const callsBeforeCommit = state.calls.length;
+  const lost = await saveProof(
+    host,
+    cookie,
+    committedProof,
+    'response-loss-save',
+  );
+  assert.equal(lost.statusCode, 500, lost.body);
+  assert.equal(inspect(responseLoss.dataDir).integration.state, 'active');
+  await host.close();
+
+  host = await createCleanServiceHost({
+    dataDir: responseLoss.dataDir,
+    adminDistDir: responseLoss.adminDistDir,
+    secretRoot,
+    integrationFetch: tmdbFetch(state),
+  });
+  cookie = await session(host, responseLoss.initialized.adminApiKey);
+  const recovered = await saveProof(
+    host,
+    cookie,
+    committedProof,
+    'response-loss-save',
+  );
+  assert.equal(recovered.statusCode, 200, recovered.body);
+  assert.equal(recovered.json().state, 'active');
+  assert.equal(recovered.json().configRevision, 1);
+  assert.equal(state.calls.length, callsBeforeCommit);
+  assert.equal(inspect(responseLoss.dataDir).integration.config_revision, 1);
+  await host.close();
+});
+
+test('H1.1 runtime rejects persisted endpoint, config, and swapped-envelope drift before Secret read', async () => {
+  async function configuredFixture(key) {
+    const value = fixture();
+    const host = await createCleanServiceHost({
+      dataDir: value.dataDir,
+      adminDistDir: value.adminDistDir,
+      secretRoot,
+      integrationFetch: tmdbFetch({}),
+    });
+    const cookie = await session(host, value.initialized.adminApiKey);
+    const proof = await createProof(host, cookie, key + '-proof');
+    const saved = await saveProof(host, cookie, proof, key + '-save');
+    assert.equal(saved.statusCode, 200, saved.body);
+    await host.close();
+    return value;
+  }
+
+  const endpoint = await configuredFixture('endpoint-drift');
+  let database = new Database(path.join(endpoint.dataDir, 'shelfdeck.db'));
+  database.prepare(
+    'UPDATE platform_integrations SET endpoint=? WHERE integration_id=?',
+  ).run('https://attacker.example/3', 'tmdb-main');
+  database.close();
+  let secretReads = 0;
+  let opened = openIntegrationRuntime(endpoint.dataDir, {
+    read() {
+      secretReads += 1;
+      return Buffer.from('must-not-be-read');
+    },
+  });
+  assert.throws(
+    () => opened.runtime.readCurrent(),
+    (error) => error.code === 'PLATFORM_INTEGRATION_CONFIG_CORRUPT',
+  );
+  assert.equal(secretReads, 0);
+  opened.kernel.close();
+
+  const config = await configuredFixture('config-drift');
+  database = new Database(path.join(config.dataDir, 'shelfdeck.db'));
+  const row = database.prepare(
+    'SELECT config_json FROM platform_integrations WHERE integration_id=?',
+  ).get('tmdb-main');
+  const changed = JSON.parse(row.config_json);
+  changed.unknownAuthority = true;
+  database.prepare(
+    'UPDATE platform_integrations SET config_json=?,config_digest=? ' +
+    'WHERE integration_id=?',
+  ).run(
+    canonicalJson(changed),
+    canonicalDigest(changed),
+    'tmdb-main',
+  );
+  database.close();
+  secretReads = 0;
+  opened = openIntegrationRuntime(config.dataDir, {
+    read() {
+      secretReads += 1;
+      return Buffer.from('must-not-be-read');
+    },
+  });
+  assert.throws(
+    () => opened.runtime.readCurrent(),
+    (error) => error.code === 'PLATFORM_INTEGRATION_CONFIG_CORRUPT',
+  );
+  assert.equal(secretReads, 0);
+  opened.kernel.close();
+
+  const swapped = await configuredFixture('locator-drift');
+  const store = createIntegrationSecretStore({
+    dataDir: swapped.dataDir,
+    secretRoot,
+  });
+  const foreignBytes = Buffer.from('foreign-secret-value', 'utf8');
+  const foreign = store.write({
+    integrationId: 'other-main',
+    secretRef: 'integration-secret:other-main',
+    secretKind: 'tmdb_api_key',
+    revision: 9,
+    secretBytes: foreignBytes,
+    createdAtMs: 1,
+  });
+  foreignBytes.fill(0);
+  database = new Database(path.join(swapped.dataDir, 'shelfdeck.db'));
+  database.prepare(
+    'UPDATE platform_secret_refs SET encrypted_ref=? WHERE secret_ref=?',
+  ).run(foreign.locator, 'integration-secret:tmdb-main');
+  database.close();
+  secretReads = 0;
+  opened = openIntegrationRuntime(swapped.dataDir, {
+    read() {
+      secretReads += 1;
+      return Buffer.from('must-not-be-read');
+    },
+  });
+  assert.throws(
+    () => opened.runtime.readCurrent(),
+    (error) => error.code === 'PLATFORM_INTEGRATION_CONFIG_CORRUPT',
+  );
+  assert.equal(secretReads, 0);
+  opened.kernel.close();
+  assert.throws(
+    () => store.read(foreign.locator, {
+      integrationId: 'tmdb-main',
+      secretRef: 'integration-secret:tmdb-main',
+      secretKind: 'tmdb_api_key',
+      revision: 1,
+      envelopeDigest: foreign.envelopeDigest,
+    }),
+    (error) => error.code ===
+      'PLATFORM_INTEGRATION_SECRET_SCOPE_MISMATCH',
+  );
+
+  const sameScope = await configuredFixture('same-scope-locator-drift');
+  const sameScopeStore = createIntegrationSecretStore({
+    dataDir: sameScope.dataDir,
+    secretRoot,
+  });
+  const alternateBytes = Buffer.from('alternate-secret-value', 'utf8');
+  const alternate = sameScopeStore.write({
+    integrationId: 'tmdb-main',
+    secretRef: 'integration-secret:tmdb-main',
+    secretKind: 'tmdb_api_key',
+    revision: 1,
+    secretBytes: alternateBytes,
+    createdAtMs: 1,
+  });
+  alternateBytes.fill(0);
+  database = new Database(path.join(sameScope.dataDir, 'shelfdeck.db'));
+  database.prepare(
+    'UPDATE platform_secret_refs SET encrypted_ref=? WHERE secret_ref=?',
+  ).run(alternate.locator, 'integration-secret:tmdb-main');
+  database.close();
+  secretReads = 0;
+  opened = openIntegrationRuntime(sameScope.dataDir, {
+    read() {
+      secretReads += 1;
+      return Buffer.from('must-not-be-read');
+    },
+  });
+  assert.throws(
+    () => opened.runtime.readCurrent(),
+    (error) => error.code === 'PLATFORM_INTEGRATION_CONFIG_CORRUPT',
+  );
+  assert.equal(secretReads, 0);
+  opened.kernel.close();
+});
+
+test('H1.1 external JSON byte and closed-shape bounds fail before persistence', async () => {
+  const unknown = fixture();
+  let host = await createCleanServiceHost({
+    dataDir: unknown.dataDir,
+    adminDistDir: unknown.adminDistDir,
+    secretRoot,
+    integrationFetch: async () => response(200, {
+      images: {
+        secure_base_url: 'https://image.tmdb.org/t/p/',
+      },
+      unknownAuthority: true,
+    }),
+  });
+  let cookie = await session(host, unknown.initialized.adminApiKey);
+  let result = await host.inject({
+    method: 'POST',
+    url: '/v1/admin/settings/integrations/tmdb/actions/test',
+    headers: { cookie },
+    payload: testCommand('tmdb', 'unknown-response'),
+  });
+  assert.equal(result.statusCode, 502, result.body);
+  assert.equal(
+    result.json().error.code,
+    'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID',
+  );
+  assert.equal(inspect(unknown.dataDir).integration, undefined);
+  await host.close();
+
+  const declared = fixture();
+  host = await createCleanServiceHost({
+    dataDir: declared.dataDir,
+    adminDistDir: declared.adminDistDir,
+    secretRoot,
+    integrationFetch: async () => response(
+      200,
+      { images: { secure_base_url: 'https://image.tmdb.org/t/p/' } },
+      undefined,
+      { 'content-length': String(1024 * 1024 + 1) },
+    ),
+  });
+  cookie = await session(host, declared.initialized.adminApiKey);
+  result = await host.inject({
+    method: 'POST',
+    url: '/v1/admin/settings/integrations/tmdb/actions/test',
+    headers: { cookie },
+    payload: testCommand('tmdb', 'declared-overflow'),
+  });
+  assert.equal(result.statusCode, 502, result.body);
+  assert.equal(
+    result.json().error.code,
+    'PLATFORM_INTEGRATION_RESPONSE_BOUND',
+  );
+  assert.equal(inspect(declared.dataDir).integration, undefined);
+  await host.close();
+
+  const streamed = fixture();
+  host = await createCleanServiceHost({
+    dataDir: streamed.dataDir,
+    adminDistDir: streamed.adminDistDir,
+    secretRoot,
+    integrationFetch: async () => {
+      let ordinal = 0;
+      return {
+        status: 200,
+        headers: { get: () => null },
+        body: {
+          getReader() {
+            return {
+              async read() {
+                ordinal += 1;
+                if (ordinal <= 2) {
+                  return {
+                    done: false,
+                    value: new Uint8Array(600 * 1024),
+                  };
+                }
+                return { done: true };
+              },
+              async cancel() {},
+            };
+          },
+        },
+      };
+    },
+  });
+  cookie = await session(host, streamed.initialized.adminApiKey);
+  result = await host.inject({
+    method: 'POST',
+    url: '/v1/admin/settings/integrations/tmdb/actions/test',
+    headers: { cookie },
+    payload: testCommand('tmdb', 'streamed-overflow'),
+  });
+  assert.equal(result.statusCode, 502, result.body);
+  assert.equal(
+    result.json().error.code,
+    'PLATFORM_INTEGRATION_RESPONSE_BOUND',
+  );
+  assert.equal(inspect(streamed.dataDir).integration, undefined);
+  await host.close();
+});
+
 test('H1.1 encrypted envelope fails closed for wrong root, tamper, and missing locator', () => {
   const value = fixture();
   const store = createIntegrationSecretStore({
@@ -592,7 +1223,7 @@ test('H1.1 encrypted envelope fails closed for wrong root, tamper, and missing l
     secretRoot,
   });
   const bytes = Buffer.from(credential, 'utf8');
-  const locator = store.write({
+  const stored = store.write({
     integrationId: 'tmdb-main',
     secretRef: 'integration-secret:tmdb-main',
     secretKind: 'tmdb_api_key',
@@ -601,7 +1232,14 @@ test('H1.1 encrypted envelope fails closed for wrong root, tamper, and missing l
     createdAtMs: 1,
   });
   bytes.fill(0);
-  const read = store.read(locator);
+  const expectedScope = {
+    integrationId: 'tmdb-main',
+    secretRef: 'integration-secret:tmdb-main',
+    secretKind: 'tmdb_api_key',
+    revision: 1,
+    envelopeDigest: stored.envelopeDigest,
+  };
+  const read = store.read(stored.locator, expectedScope);
   assert.equal(read.toString('utf8'), credential);
   read.fill(0);
 
@@ -610,27 +1248,31 @@ test('H1.1 encrypted envelope fails closed for wrong root, tamper, and missing l
     secretRoot: 'different-integration-secret-root-0123456789abcdef',
   });
   assert.throws(
-    () => wrong.read(locator),
-    (error) => error.code ===
+    () => wrong.read(stored.locator, expectedScope),
+    (error) => [
+      'PLATFORM_INTEGRATION_SECRET_SCOPE_MISMATCH',
       'PLATFORM_INTEGRATION_SECRET_DECRYPTION_FAILED',
+    ].includes(error.code),
   );
   const file = path.join(
     value.dataDir,
     'secrets',
     'integrations',
-    `${locator.slice('integration-envelope:'.length)}.json`,
+    `${stored.locator.split(':')[1]}.json`,
   );
   const envelope = JSON.parse(fs.readFileSync(file, 'utf8'));
   envelope.ciphertext = `${envelope.ciphertext.slice(0, -1)}A`;
   fs.writeFileSync(file, JSON.stringify(envelope));
   assert.throws(
-    () => store.read(locator),
-    (error) => error.code ===
+    () => store.read(stored.locator, expectedScope),
+    (error) => [
+      'PLATFORM_INTEGRATION_SECRET_SCOPE_MISMATCH',
       'PLATFORM_INTEGRATION_SECRET_DECRYPTION_FAILED',
+    ].includes(error.code),
   );
-  store.remove(locator);
+  store.remove(stored.locator);
   assert.throws(
-    () => store.read(locator),
+    () => store.read(stored.locator, expectedScope),
     (error) => error.code ===
       'PLATFORM_INTEGRATION_SECRET_ENVELOPE_UNAVAILABLE',
   );

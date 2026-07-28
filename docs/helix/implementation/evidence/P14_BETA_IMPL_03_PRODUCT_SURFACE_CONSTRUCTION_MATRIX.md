@@ -212,11 +212,22 @@ The four existing Integration Admin routes now resolve to Platform owner-local
 application methods. TMDB is the only supported H1.1 kind; all other kinds
 remain explicitly unsupported. Configuration uses the existing
 `platform_integrations` and `platform_secret_refs` rows, revision CAS, encrypted
-opaque Secret locators and bounded Secret Leases. A real TMDB credential and
-typed identity/metadata read were verified from ignored private operator input
-without copying or reporting the value. The runtime does not import historical
-`config.json`, ambient provider credentials, or a deterministic production
-fallback.
+opaque Secret locators and bounded Secret Leases. Test-before-save now returns a
+short-TTL opaque connection proof; PATCH consumes the proof and never accepts
+the credential. Persisted endpoint/config and exact Secret envelope
+scope/revision are revalidated before Secret consumption/network access.
+Configure/disconnect replay is durable through existing Foundation
+receipt/marker/audit technical persistence plus an exact frozen-head recovery
+anchor. External responses are byte-capped before parsing and validated as
+closed bounded values.
+
+A real TMDB credential and typed identity/metadata read were verified from
+ignored private operator input without copying or reporting the value. The
+runtime does not import historical `config.json`, ambient provider credentials,
+or a deterministic production fallback. H1.1 replacement regression is
+`10/10` focused, `50/50` focused+P5+guard, `27/27` frozen vertical, and
+`135` full architecture fixture files; the cumulative H1.1 scope guard reports
+zero violations.
 
 H1.1 route status is `40 real / 6 Worker Beta-404 / 68 unavailable-503`.
 This is construction progress only and does not change Feature status.

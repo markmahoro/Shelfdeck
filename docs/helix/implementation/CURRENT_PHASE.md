@@ -1,6 +1,6 @@
 # P14 Product Journey Implementation
 
-状态：**H1.1 IMPLEMENTATION CHECKPOINT FROZEN — 等待 Architecture 主动复审**
+状态：**H1.1 REPLACEMENT CHECKPOINT FROZEN — 等待 Architecture 主动复审**
 
 ## H1-only 授权与阶段门
 
@@ -115,12 +115,21 @@ Admin route 已接通：
 `SHELFDECK_SECRET_ROOT` 派生的 AES-256-GCM key、integration-scoped AAD 与
 opaque locator；明文不进入 SQLite、HTTP、日志、Evidence 或 Git。
 
-保存流程严格执行 real TMDB `test-before-save`，随后才提交配置与 Secret
-Reference。正式 TMDB adapter 只消费 revision-fenced Integration Handle 与
-bounded Secret Lease，并实现既有 typed identity、metadata 与 artifact
-操作。未配置时 production Composition fail closed；测试 deterministic
-adapter 仍只是显式 test seam，不是 production fallback。H1.2 的 Douban、
-JAV/Adult、MoviePilot 与 optional Emby 均未开始。
+保存流程严格执行 real TMDB `test-before-save`：测试成功签发短 TTL opaque
+`connectionProofId`，`PATCH` 只消费proof而不再接收/重测credential。proof
+secret只在authenticated encrypted transient envelope中存在；过期、已消费或
+restart后proof fail closed。正式 TMDB adapter 只消费 revision-fenced
+Integration Handle 与 bounded Secret Lease，并实现既有 typed identity、
+metadata 与 artifact 操作。
+
+persisted endpoint、closed config、Secret locator/envelope scope与revision会在
+Handle/Lease/每次请求前重新验证；外部JSON/artifact response在解析前执行
+streamed byte cap。configure/disconnect通过既有Foundation
+receipt/marker/audit technical persistence稳定跨revision/restart重放，并以冻结
+Platform head `lastCommand`修复Platform-commit/receipt间的response-loss窗口。
+未配置时 production Composition fail closed；测试 deterministic adapter 仍只是
+显式 test seam，不是 production fallback。H1.2 的 Douban、JAV/Adult、
+MoviePilot 与 optional Emby 均未开始。
 
 当前 route 状态为 `40 real / 6 intentional Worker Beta-404 / 68
 unavailable-503`。Feature Matrix 没有因此提升任何 Feature 为 PASS。
@@ -128,7 +137,10 @@ unavailable-503`。Feature Matrix 没有因此提升任何 Feature 为 PASS。
 
 `docs/helix/implementation/evidence/P14_H1_1_TMDB_INTEGRATION_CHECKPOINT.md`
 
-本检查点完成后保持冻结，等待 Architecture 主动复审与 P14 独立验收；
+replacement回归为H1.1 focused `10/10`、H1.1/P5/guard combined `50/50`、
+五个vertical sentinels `27/27`、full architecture `135 fixture files PASS`，
+H1.1累计scope guard violations `0`。本检查点完成后保持冻结，等待
+Architecture 主动复审与 P14 独立验收；
 不得开始 H1.2。
 
 ## 当前最新检查点

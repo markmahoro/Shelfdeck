@@ -20,6 +20,11 @@ const {
 const {
   createTmdbProviderAdapter,
 } = require('./helix/integrations/tmdb-provider-adapter');
+const {
+  createIntegrationCommandReceiptRepository,
+} = require(
+  './helix/platform/persistence/integration-command-receipt-repository'
+);
 const { createProcurementAdminApplication } = require('./helix/domains/procurement/public/admin-application');
 const { CandidateDeliveryPort } = require('./helix/domains/procurement/public');
 const {
@@ -143,7 +148,7 @@ const INTEGRATION_SECRET_SCHEMA =
   'helix-platform-integration-secret@1';
 const INTEGRATION_LOCATOR_PREFIX = 'integration-envelope:';
 const INTEGRATION_LOCATOR =
-  /^integration-envelope:([0-9a-f-]{36})$/;
+  /^integration-envelope:([0-9a-f-]{36}):([0-9a-f]{64})$/;
 
 class CleanServiceHostError extends Error {
   constructor(code, message, details = {}) {
@@ -191,12 +196,22 @@ function integrationSecretPath(root, locator) {
 function integrationSecretAad(value) {
   return Buffer.from([
     INTEGRATION_SECRET_SCHEMA,
-    value.locator,
+    value.locatorId,
     value.integrationId,
     value.secretRef,
     value.secretKind,
     value.revision,
   ].join('\0'), 'utf8');
+}
+
+function integrationEnvelopeDigest(key, envelope) {
+  return crypto.createHmac('sha256', key)
+    .update(
+      'shelfdeck:integration-secret-envelope:v1\0',
+      'utf8',
+    )
+    .update(JSON.stringify(envelope), 'utf8')
+    .digest('hex');
 }
 
 function createIntegrationSecretStore(options) {
@@ -219,11 +234,10 @@ function createIntegrationSecretStore(options) {
           'Integration Secret write input is invalid.',
         );
       }
-      const locator =
-        INTEGRATION_LOCATOR_PREFIX + crypto.randomUUID();
+      const locatorId = crypto.randomUUID();
       const nonce = crypto.randomBytes(12);
       const basis = {
-        locator,
+        locatorId,
         integrationId: value.integrationId,
         secretRef: value.secretRef,
         secretKind: value.secretKind,
@@ -248,6 +262,10 @@ function createIntegrationSecretStore(options) {
           cipher.getAuthTag().toString('base64url'),
         createdAtMs: value.createdAtMs,
       };
+      const envelopeDigest =
+        integrationEnvelopeDigest(key, envelope);
+      const locator = INTEGRATION_LOCATOR_PREFIX +
+        locatorId + ':' + envelopeDigest;
       fs.mkdirSync(root, { recursive: true, mode: 0o700 });
       const target = integrationSecretPath(root, locator);
       const temporary = target + '.' + process.pid + '.' +
@@ -274,9 +292,38 @@ function createIntegrationSecretStore(options) {
         nonce.fill(0);
         ciphertext.fill(0);
       }
-      return locator;
+      return Object.freeze({ locator, envelopeDigest });
     },
-    read(locator) {
+    read(locator, expected) {
+      const locatorMatch = INTEGRATION_LOCATOR.exec(locator || '');
+      const expectedKeys = expected &&
+        Object.keys(expected).sort();
+      if (!locatorMatch ||
+          !expected ||
+          typeof expected !== 'object' ||
+          Array.isArray(expected) ||
+          ![
+            JSON.stringify([
+              'integrationId',
+              'revision',
+              'secretKind',
+              'secretRef',
+            ]),
+            JSON.stringify([
+              'envelopeDigest',
+              'integrationId',
+              'revision',
+              'secretKind',
+              'secretRef',
+            ]),
+          ].includes(JSON.stringify(expectedKeys)) ||
+          !Number.isSafeInteger(expected.revision) ||
+          expected.revision < 1) {
+        throw new CleanServiceHostError(
+          'PLATFORM_INTEGRATION_SECRET_SCOPE_REQUIRED',
+          'Integration Secret read requires one exact expected scope.',
+        );
+      }
       let envelope;
       try {
         envelope = JSON.parse(fs.readFileSync(
@@ -290,9 +337,9 @@ function createIntegrationSecretStore(options) {
           'Integration Secret envelope is unavailable.',
         );
       }
-      const expectedKeys = [
+      const envelopeKeys = [
         'schema',
-        'locator',
+        'locatorId',
         'integrationId',
         'secretRef',
         'secretKind',
@@ -305,14 +352,28 @@ function createIntegrationSecretStore(options) {
       if (!envelope || typeof envelope !== 'object' ||
           Array.isArray(envelope) ||
           JSON.stringify(Object.keys(envelope).sort()) !==
-            JSON.stringify(expectedKeys) ||
+            JSON.stringify(envelopeKeys) ||
           envelope.schema !== INTEGRATION_SECRET_SCHEMA ||
-          envelope.locator !== locator ||
+          envelope.locatorId !== locatorMatch[1] ||
           !Number.isSafeInteger(envelope.revision) ||
           envelope.revision < 1) {
         throw new CleanServiceHostError(
           'PLATFORM_INTEGRATION_SECRET_ENVELOPE_INVALID',
           'Integration Secret envelope is invalid.',
+        );
+      }
+      const actualEnvelopeDigest =
+        integrationEnvelopeDigest(key, envelope);
+      if (actualEnvelopeDigest !== locatorMatch[2] ||
+          (expected.envelopeDigest !== undefined &&
+            expected.envelopeDigest !== actualEnvelopeDigest) ||
+          envelope.integrationId !== expected.integrationId ||
+          envelope.secretRef !== expected.secretRef ||
+          envelope.secretKind !== expected.secretKind ||
+          envelope.revision !== expected.revision) {
+        throw new CleanServiceHostError(
+          'PLATFORM_INTEGRATION_SECRET_SCOPE_MISMATCH',
+          'Integration Secret envelope does not match its exact reference.',
         );
       }
       let nonce;
@@ -385,6 +446,11 @@ function createIntegrationSecretStore(options) {
 function createPlatformIntegrationServices(options) {
   const repository = createIntegrationRepository(options);
   const secretStore = createIntegrationSecretStore(options);
+  const receiptRepository =
+    createIntegrationCommandReceiptRepository({
+      schemaManifest: options.schemaManifest,
+      unitOfWork: options.unitOfWork,
+    });
   const runtime = createPlatformIntegrationRuntime({
     repository,
     secretStore,
@@ -407,7 +473,11 @@ function createPlatformIntegrationServices(options) {
     repository,
     secretStore,
     tmdbAdapter,
+    receiptRepository,
     now: options.now,
+    createId: crypto.randomUUID,
+    beforePlatformCommit: options.beforeIntegrationPlatformCommit,
+    afterPlatformCommit: options.afterIntegrationPlatformCommit,
   });
 
   function tmdbHandle(operationId, artifactKind = null) {
@@ -697,6 +767,10 @@ async function createCleanServiceHost(options) {
     secretRoot: options.secretRoot,
     now: options.now || Date.now,
     fetchImpl: options.integrationFetch,
+    beforeIntegrationPlatformCommit:
+      options.beforeIntegrationPlatformCommit,
+    afterIntegrationPlatformCommit:
+      options.afterIntegrationPlatformCommit,
   });
   const arcaShelfAdmin = createArcaShelfAdminApplication({
     ...constructed.applicationDependencies,
