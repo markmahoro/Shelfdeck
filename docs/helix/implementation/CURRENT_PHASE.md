@@ -1,6 +1,6 @@
 # P14 Product Journey Implementation
 
-状态：**FROZEN — PBF-22 Western Field Profile Hint Preclosure 待复验**
+状态：**FROZEN — Western Adult Handoff A 待复验**
 
 ## 当前最新检查点
 
@@ -14,8 +14,28 @@ Observation/Run/Retry/Triage immutable continuity 已完成并冻结，详细证
 `57/57 PASS`，完整architecture gate为`132 files / 891 tests PASS`，
 findings与`prohibitedActionsRun`为空。
 
-当前仍未开始Western Handoff A。必须等待Architecture active review与P14独立
-复验后，才可推进Western纵向；不得恢复横向503工作。
+P14已独立接受PBF-22（source `0df6dfe8`，evidence
+`597e253b99ee788351ca32fa5b30a5f29eaeef2f`）。随后同一Western disposable
+journey已通过正式Admin HTTP推进到：
+
+`explicit western_adult Field Hint
+→ Observation / active Procurement Run / phased Triage
+→ immutable single/western_adult Candidate + Offer
+→ CandidateDeliveryPort
+→ Libra Accepted Intake / new Subject / Binding / Material Control`
+
+Identity Claim为弱、可纠正的`western_temporary`；没有Provider/Canonical/JAV
+身份升级。MKV是唯一Primary，NFO/poster只作Related Reference。Triage Result后、
+Publication前故障可跨重启恢复且不重复Probe；Candidate/Handoff A全链路
+exactly-once。真实保留P14 MKV已通过内置FFprobe走同一HTTP链路，全部源文件
+SHA-256/size/mtime零变化。
+
+当前`libra_acceptance_specs=0`、`libra_runs=0`，冻结在Handoff A。详细证据见：
+
+`docs/helix/implementation/evidence/P14_WESTERN_HANDOFF_A_CHECKPOINT.md`
+
+必须等待Architecture active review与P14独立复验后，才可进入Western
+Routing/Spec/Run；不得恢复横向503工作。
 
 ## 当前基线
 
@@ -25,8 +45,8 @@ findings与`prohibitedActionsRun`为空。
 - PBF-19 Architecture 修正：`ff1b833a`；实现分支原样纳入：
   `942fc692`。
 - PBF-19 P14 独立接受证据：`de0dff64`（tested `3d9ebab4`）。
-- 当前实现检查点：本次提交；详细施工证据见
-  `docs/helix/implementation/evidence/P14_JAV_PRODUCTION_OPEN_HANDOFF_B_CHECKPOINT.md`。
+- 当前实现检查点：Western Adult Handoff A；详细施工证据见
+  `docs/helix/implementation/evidence/P14_WESTERN_HANDOFF_A_CHECKPOINT.md`。
 - 实现线程未额外修改 Architecture SSOT。
 - `F02.17` 仍为 `NOT_RUN`；不得增加测试便利接口或用内部 Store 证据冒充
   用户 Feature。

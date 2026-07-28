@@ -222,7 +222,7 @@ function readSpec(options, repository, acceptanceSpecId) {
 function subjectSnapshot(subject, intake) {
   const supportedProfile =
     subject?.structure_kind === 'single' &&
-      ['movie', 'jav'].includes(subject?.content_profile) ||
+      ['movie', 'jav', 'western_adult'].includes(subject?.content_profile) ||
     subject?.structure_kind === 'season' && subject?.content_profile === 'series';
   if (!subject || subject.status !== 'active' || !supportedProfile || !intake ||
       !['new_subject', 'season_extension'].includes(intake.accepted_result) ||
