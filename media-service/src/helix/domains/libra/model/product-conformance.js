@@ -299,7 +299,7 @@ function evaluateProductConformance(value) {
   const inventory = requirements.inventory, members = material.members;
   if (inventory.requireDomainBinding && members.some((item) => !['libra_material_binding','workspace_material_reference'].includes(item.bindingKind)))
     unmet.add('domain_binding_unmet');
-  if (inventory.requireChecksum && members.some((item) => item.physicalIdentity?.contentHashAlgorithm !== 'sha256')) unmet.add('checksum_unmet');
+  if (inventory.requireChecksum && members.some((item) => item.physicalIdentity?.fingerprintAlgorithm !== 'middle-256k-sha256')) unmet.add('checksum_unmet');
   const artifactManifest = input.inventorySnapshot.artifactManifest;
   if ((inventory.requiredMaterializedArtifactKinds || []).some((kind) => !artifactManifest.items.some((item) =>
     item.artifactKind === kind && item.materializationState === 'included_product') || !members.some((item) => item.role ===

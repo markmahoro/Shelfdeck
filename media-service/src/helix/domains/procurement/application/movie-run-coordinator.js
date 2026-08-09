@@ -26,12 +26,14 @@ const {
 } = require('../model/candidate-publication-contracts');
 
 const CAPABILITY_REF = 'procurement.candidate.publish@1';
+const LAYOUT_CAPABILITY_REF = 'shared.material.layout.observe@1';
 const PROBE_CAPABILITY_REF = 'shared.material.media.probe@1';
 const PLAYABILITY_CAPABILITY_REF = 'procurement.triage.playability.inspect@1';
 const STRUCTURE_CAPABILITY_REF = 'procurement.triage.structure.inspect@1';
 const IDENTITY_CAPABILITY_REF = 'procurement.triage.identity_claim.resolve@1';
 const MANIFEST_CAPABILITY_REF = 'procurement.triage.primary_manifest.build@1';
 const RESULT_SCHEMAS = Object.freeze({
+  layout: 'helix://contracts/capabilities/shared.material.layout.observe/v1/result',
   probe: 'helix://contracts/capabilities/shared.material.media.probe/v1/result',
   playability: 'helix://contracts/capabilities/procurement.triage.playability.inspect/v1/result',
   structure: 'helix://contracts/capabilities/procurement.triage.structure.inspect/v1/result',
@@ -98,166 +100,15 @@ function fileContext(snapshot, row, selectionOrdinal) {
   });
 }
 
-function sameDirectory(left, right) {
-  return left.parentSegments.length === right.parentSegments.length &&
-    left.parentSegments.every((part, index) => part === right.parentSegments[index]);
-}
-
 const PRIMARY_MEDIA_EXTENSIONS = new Set([
   '.3gp', '.asf', '.avi', '.divx', '.flv', '.iso', '.m2ts', '.m4v', '.mkv',
   '.mov', '.mp4', '.mpeg', '.mpg', '.mts', '.ogm', '.ogv', '.rm', '.rmvb',
   '.ts', '.vob', '.webm', '.wmv',
 ]);
-const SEASON_TOKEN = /(?:^|[ ._-])S(\d{1,2})E\d{1,3}|(?:^|[ ._-])(\d{1,2})x\d{1,3}/i;
-
-function seasonNumber(context) {
-  const match = context.baseName.match(SEASON_TOKEN);
-  return match ? Number(match[1] || match[2]) : null;
-}
-
-function isSameOrDescendantDirectory(parentSegments, childSegments) {
-  return childSegments.length >= parentSegments.length &&
-    parentSegments.every((part, index) => childSegments[index] === part);
-}
-
-function localSeasonGroupKey(primary) {
-  return canonicalDigest({
-    schema: 'procurement.local-series-season-topology@1',
-    parentSegments: primary.parentSegments,
-    seasonNumber: seasonNumber(primary),
-  });
-}
-
-function uniqueLocalSeasonGroup(related, primaries, requiredSeason = null) {
-  const local = primaries.filter((primary) =>
-    isSameOrDescendantDirectory(related.parentSegments, primary.parentSegments) &&
-    (requiredSeason === null || seasonNumber(primary) === requiredSeason));
-  const groups = new Map();
-  for (const primary of local) {
-    const key = localSeasonGroupKey(primary);
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(primary);
-  }
-  if (groups.size !== 1) return [];
-  // The topology has already proved one local Season group. This stable anchor
-  // only attaches a Candidate-level Related Reference; it does not choose
-  // between ambiguous Series/Season groups or create continuity identity.
-  return [[...groups.values()][0]
-    .sort((left, right) => utf8(left.materialKey, right.materialKey))[0]];
-}
-
-function relatedCandidates(related, primaries) {
-  const sameDirectoryPrimaries = primaries.filter((primary) => sameDirectory(primary, related));
-  const stemMatches = sameDirectoryPrimaries.filter((primary) => primary.stem === related.stem);
-  if (stemMatches.length > 0) return stemMatches;
-
-  const lower = related.baseName.toLowerCase();
-  const seasonArtwork = lower.match(/^season0*(\d+)-(?:poster|fanart|background|backdrop)\.(?:jpe?g|png|webp)$/);
-  if (seasonArtwork) {
-    return uniqueLocalSeasonGroup(related, primaries, Number(seasonArtwork[1]));
-  }
-
-  if (/^(?:movie|tvshow)\.nfo$/.test(lower) ||
-      /^(?:poster|fanart|background|backdrop)\.(?:jpe?g|png|webp)$/.test(lower)) {
-    return uniqueLocalSeasonGroup(related, primaries);
-  }
-  return [];
-}
-
-function layoutEntry(context, entryOrdinal) {
-  const row = context.row;
-  const value = {
-    entryOrdinal,
-    entryKind: 'file',
-    relativeLocation: context.fieldRelativeLocation,
-    baseName: context.baseName,
-    extension: context.extension,
-    identity: identity(row),
-    endpointId: row.endpoint_id,
-    location: row.location,
-    sizeBytes: Number(row.size_bytes),
-    checksumAlgorithm: 'sha256',
-    checksumHex: row.content_hash,
-  };
-  return Object.freeze({ ...value, entryDigest: canonicalDigest(value) });
-}
-
-function layoutEvidence(snapshot, primary, related) {
-  const entries = Object.freeze([...related]
-    .sort((left, right) => utf8(left.materialKey, right.materialKey))
-    .map(layoutEntry));
-  const sourceHandleDigest = canonicalDigest({
-    schema: 'procurement.movie-layout-source@1',
-    fieldId: snapshot.run.field_id,
-    accessRevision: Number(snapshot.run.access_revision),
-    accessDigest: snapshot.run.access_digest,
-    runBasisDigest: snapshot.run.run_basis_digest,
-  });
-  const boundedScopeDigest = canonicalDigest({
-    schema: 'procurement.movie-related-scope@1',
-    primaryMaterialKey: primary.materialKey,
-    parentSegments: primary.parentSegments,
-  });
-  const entriesDigest = canonicalDigest({
-    schema: 'procurement.movie-layout-entries@1',
-    items: entries,
-  });
-  const basisDigest = canonicalDigest({
-    schema: 'procurement.movie-related-association-basis@1',
-    runBasisDigest: snapshot.run.run_basis_digest,
-    primaryMaterialKey: primary.materialKey,
-    relatedMaterialKeys: entries.map((entry) => entry.identity.materialKey),
-  });
-  const base = {
-    schemaRef: 'helix://contracts/types/LayoutEvidence/v1',
-    schemaVersion: 1,
-    evidenceId: stableId('movie-layout-evidence-', {
-      runId: snapshot.run.procurement_run_id,
-      primaryMaterialKey: primary.materialKey,
-      basisDigest,
-    }),
-    evidenceKind: 'field_layout',
-    producerRef: 'procurement.movie-related-material-association@1',
-    basisDigest,
-    payloadDigest: '',
-    observedAtMs: 0,
-    sourceHandleDigest,
-    boundedScopeDigest,
-    entries,
-    entriesDigest,
-    layoutDigest: canonicalDigest({
-      schema: 'procurement.movie-layout@1',
-      sourceHandleDigest,
-      boundedScopeDigest,
-      entriesDigest,
-    }),
-  };
-  return Object.freeze({ ...base, payloadDigest: canonicalDigest(without(base, 'payloadDigest')) });
-}
-
 function movieLayout(snapshot) {
   const contexts = snapshot.members.map((row, index) => fileContext(snapshot, row, index));
   const primaries = contexts.filter((context) => PRIMARY_MEDIA_EXTENSIONS.has(context.extension));
-  const relatedMaterials = contexts.filter((context) => !PRIMARY_MEDIA_EXTENSIONS.has(context.extension));
-  const relatedByPrimary = new Map(primaries.map((context) => [context.materialKey, []]));
-  const unresolved = [];
-  for (const related of relatedMaterials) {
-    const candidates = relatedCandidates(related, primaries);
-    if (candidates.length !== 1) {
-      unresolved.push(Object.freeze({
-        materialKey: related.materialKey,
-        reasonCode: 'structure_ambiguous',
-        candidatePrimaryCount: candidates.length,
-      }));
-      continue;
-    }
-    relatedByPrimary.get(candidates[0].materialKey).push(related);
-  }
-  const evidence = [];
   const primaryContexts = primaries.map((primary, selectionOrdinal) => {
-    const related = relatedByPrimary.get(primary.materialKey);
-    const item = related.length > 0 ? layoutEvidence(snapshot, primary, related) : null;
-    if (item) evidence.push(item);
     return Object.freeze({
       row: primary.row,
       selectionOrdinal,
@@ -266,17 +117,50 @@ function movieLayout(snapshot) {
       baseName: primary.baseName,
       extension: primary.extension || '.unknown',
       parentSegments: primary.parentSegments,
-      layoutEvidenceRefs: Object.freeze(item ? [Object.freeze({
-        evidenceId: item.evidenceId,
-        payloadDigest: item.payloadDigest,
-        boundedScopeDigest: item.boundedScopeDigest,
-      })] : []),
+      layoutEvidenceRefs: Object.freeze([]),
     });
   });
   return Object.freeze({
     primaryContexts: Object.freeze(primaryContexts),
-    layoutEvidence: Object.freeze(evidence.sort((left, right) => utf8(left.evidenceId, right.evidenceId))),
-    unresolved: Object.freeze(unresolved.sort((left, right) => utf8(left.materialKey, right.materialKey))),
+    layoutEvidence: Object.freeze([]),
+    unresolved: Object.freeze(contexts.filter((context) => !PRIMARY_MEDIA_EXTENSIONS.has(context.extension)).map((context) =>
+      Object.freeze({ materialKey: context.materialKey, reasonCode: 'non_primary_run_member' }))),
+  });
+}
+
+function boundedLayoutScope(handle, procurementRunId, ordinal) {
+  const parameter = {
+    parameter: 'scopeKind', valueType: 'string', value: 'parent_directory', valueDigest: '',
+  };
+  parameter.valueDigest = canonicalDigest({ parameter: parameter.parameter, valueType: parameter.valueType, value: parameter.value });
+  const value = {
+    schemaRef: 'helix://contracts/domain-types/BoundedLayoutScope/v1', schemaVersion: 1,
+    scopeId: stableId('movie-layout-scope-', { procurementRunId, ordinal, handleDigest: canonicalDigest(handle) }),
+    revision: 1, digest: '', rootHandleDigest: canonicalDigest(handle), maxDepth: 1, maxMembers: 256,
+    typedParameters: Object.freeze([Object.freeze(parameter)]),
+  };
+  value.digest = canonicalDigest(without(value, 'digest'));
+  return Object.freeze(value);
+}
+
+function withLayoutEvidence(layout, evidence) {
+  const byOrdinal = new Map(evidence.map((item) => [item.ordinal, item.value]));
+  const primaryContexts = layout.primaryContexts.map((context) => {
+    const item = byOrdinal.get(context.selectionOrdinal);
+    return Object.freeze({
+      ...context,
+      layoutEvidenceRefs: Object.freeze([Object.freeze({
+        evidenceId: item.evidenceId,
+        payloadDigest: item.payloadDigest,
+        boundedScopeDigest: item.boundedScopeDigest,
+      })]),
+    });
+  });
+  return Object.freeze({
+    ...layout,
+    primaryContexts: Object.freeze(primaryContexts),
+    layoutEvidence: Object.freeze(evidence.map((item) => item.value)
+      .sort((left, right) => utf8(left.evidenceId, right.evidenceId))),
   });
 }
 
@@ -292,8 +176,8 @@ function definition(schemaManifest) {
       find_access: { kind: 'select-one', tableId: 'proc_field_access_revisions', safeIntegers: true,
         columns: ['field_id', 'revision', 'root_location', 'access_digest'], keyColumns: ['field_id', 'revision'] },
       list_members: { kind: 'select-all', tableId: 'proc_run_materials', safeIntegers: true,
-        columns: ['procurement_run_id', 'ordinal', 'material_key', 'mount_scope_id', 'inode',
-          'content_hash_algorithm', 'content_hash', 'size_bytes', 'binding_revision',
+        columns: ['procurement_run_id', 'ordinal', 'material_key', 'mount_scope_id', 'inode', 'size_bytes',
+          'fingerprint_algorithm', 'fingerprint_version', 'content_fingerprint', 'binding_revision',
           'admitted_control_revision', 'admitted_control_projection_digest', 'selection_state',
           'candidate_package_id', 'endpoint_id', 'location', 'reality_digest', 'provenance_digest',
           'last_snapshot_digest', 'last_observation_id'], keyColumns: ['procurement_run_id'] },
@@ -310,9 +194,10 @@ function definition(schemaManifest) {
 
 function identity(row) {
   return Object.freeze({
-    schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v1', schemaVersion: 1,
-    materialKey: row.material_key, mountScopeId: row.mount_scope_id, inode: String(row.inode),
-    contentHashAlgorithm: row.content_hash_algorithm, contentHash: row.content_hash,
+    schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v2', schemaVersion: 2,
+    materialKey: row.material_key, mountScopeId: row.mount_scope_id, inode: String(row.inode), sizeBytes: Number(row.size_bytes),
+    fingerprintAlgorithm: row.fingerprint_algorithm, fingerprintVersion: Number(row.fingerprint_version),
+    contentFingerprint: row.content_fingerprint,
   });
 }
 
@@ -320,6 +205,10 @@ function readHandle(row) {
   return Object.freeze({
     identity: identity(row), bindingRevision: Number(row.binding_revision), location: row.location,
   });
+}
+
+function layoutReadHandle(row) {
+  return Object.freeze({ ...readHandle(row), endpointId: row.endpoint_id });
 }
 
 function runSnapshot(options, repository, runId) {
@@ -537,7 +426,7 @@ function assemblyBasis(snapshot, selected, layout, rule) {
     triageRuleRevision: rule.revision,
     triageRuleAuthorityDigest: rule.authorityDigest,
     selectionDigest: selected.selectionDigest,
-    layoutEvidenceDigests: layout.layoutEvidence.map((item) => item.payloadDigest),
+    layoutObservationScope: 'bounded_parent_directory',
   };
   return Object.freeze({ ...value, assemblyBasisDigest: canonicalDigest(value) });
 }
@@ -691,6 +580,7 @@ function assertResultReference(ref, expected) {
 function createMovieRunCoordinator(options) {
   if (!options?.schemaManifest || !options.unitOfWork || !options.triageRegistry || !options.workRuntime ||
       !options.mediaProbe || typeof options.mediaProbe.probe !== 'function' ||
+      !options.layoutObserver || typeof options.layoutObserver.observe !== 'function' ||
       typeof options.offerCandidate !== 'function' ||
       typeof options.resumeAcceptedHandoff !== 'function') {
     fail('P14_MOVIE_RUN_COORDINATOR_DEPENDENCIES',
@@ -858,27 +748,24 @@ function createMovieRunCoordinator(options) {
     return Object.freeze({ result, ref, replayed: false });
   }
 
-  async function advance(procurementRunId) {
+  async function advanceToHandoffAReady(procurementRunId) {
     const snapshot = runSnapshot(options, repository, procurementRunId);
     if (!snapshot || !['active', 'waiting'].includes(snapshot.run.state) || !snapshot.access ||
-        snapshot.members.length < 1 || snapshot.members.length > 1024) {
+        snapshot.members.length < 1 || snapshot.members.length > 256) {
       fail('P14_MOVIE_RUN_NOT_ACTIVE', 'Movie journey requires one exact active Procurement Run and Field Access.');
     }
     const terminalReplay = acceptedHandoffReplay(snapshot);
     if (terminalReplay) return Object.freeze({
+      ...terminalReplay,
       stage: terminalReplay.stage,
-      replayed: true,
-      procurementRunId: terminalReplay.procurementRunId,
-      candidatePackage: terminalReplay.candidatePackage,
-      handoff: await options.resumeAcceptedHandoff(terminalReplay.offer),
     });
     const openResume = openHandoffResume(snapshot);
     if (openResume) return Object.freeze({
-      stage: 'handoff_a_accepted', replayed: true, procurementRunId,
+      stage: 'handoff_a_ready', replayed: true, procurementRunId,
       candidatePackage: openResume.candidatePackage,
-      handoff: await options.offerCandidate(openResume.offer),
+      offer: openResume.offer,
     });
-    const layout = movieLayout(snapshot);
+    let layout = movieLayout(snapshot);
     if (layout.primaryContexts.length < 1) {
       return Object.freeze({
         stage: 'triage_not_ready',
@@ -889,6 +776,41 @@ function createMovieRunCoordinator(options) {
     }
     const selected = selection(snapshot, layout.primaryContexts);
     const basis = assemblyBasis(snapshot, selected, layout, rule);
+    const layoutRecords = [];
+    const layoutRefs = [];
+    for (const [ordinal, context] of layout.primaryContexts.entries()) {
+      const handle = layoutReadHandle(context.row);
+      const scope = boundedLayoutScope(handle, procurementRunId, ordinal);
+      const phaseBasisDigest = canonicalDigest({
+        schema: 'procurement.candidate-layout-phase-basis@1',
+        assemblyBasisDigest: basis.assemblyBasisDigest,
+        ordinal,
+        readHandleDigest: canonicalDigest(handle),
+        boundedScopeDigest: scope.digest,
+      });
+      const phase = await runFormalPhase({
+        basis,
+        phase: 'layout-' + String(ordinal).padStart(4, '0'),
+        role: 'layout',
+        bindingKind: 'layout',
+        phaseBasisDigest,
+        capabilityRef: LAYOUT_CAPABILITY_REF,
+        resultSchemaRef: RESULT_SCHEMAS.layout,
+        contractBase: 'helix://contracts/capabilities/shared.material.layout.observe/v1',
+        effectClass: 'pure_observation',
+        resourceKinds: ['disk_io'],
+        binding(outputIdentity) {
+          return closedBinding({
+            bindingKind: 'layout', assemblyBasisDigest: basis.assemblyBasisDigest,
+            ordinal, readHandle: handle, boundedLayoutScope: scope, outputIdentity,
+          });
+        },
+        execute: () => options.layoutObserver.observe(handle, scope),
+      });
+      layoutRefs.push(phase.ref);
+      layoutRecords.push(Object.freeze({ ordinal, value: phase.result }));
+    }
+    layout = withLayoutEvidence(layout, layoutRecords);
     const probeRecords = [];
     const probeRefs = [];
 
@@ -971,7 +893,7 @@ function createMovieRunCoordinator(options) {
 
     const structureRequest = structureInput(
       selected, batch, playability, snapshot, layout);
-    const structureSourceRefs = Object.freeze([...probeRefs, playabilityRef]);
+    const structureSourceRefs = Object.freeze([...layoutRefs, ...probeRefs, playabilityRef]);
     const structurePhaseBasisDigest = canonicalDigest({
       schema: 'procurement.candidate-structure-phase-basis@1',
       assemblyBasisDigest: basis.assemblyBasisDigest,
@@ -1193,14 +1115,42 @@ function createMovieRunCoordinator(options) {
         publicationPlanned.eventId, request.resultBinding.resultId);
     }
     options.workRuntime.complete(publicationPlanned.work.workId);
-    const handoff = await options.offerCandidate(buildOffer(
+    const offer = buildOffer(
       committed.typedResult,
       committed.acceptanceBasis,
-    ).message);
-    return Object.freeze({ stage: 'handoff_a_accepted', procurementRunId, candidatePackage: committed.typedResult,
-      structure: durableStructure.result, handoff });
+    ).message;
+    return Object.freeze({
+      stage: 'handoff_a_ready',
+      replayed: false,
+      procurementRunId,
+      candidatePackage: committed.typedResult,
+      structure: durableStructure.result,
+      offer,
+    });
   }
-  return Object.freeze({ advance });
+
+  async function advance(procurementRunId) {
+    const prepared = await advanceToHandoffAReady(procurementRunId);
+    if (prepared.stage === 'handoff_a_accepted') {
+      return Object.freeze({
+        stage: prepared.stage,
+        replayed: true,
+        procurementRunId: prepared.procurementRunId,
+        candidatePackage: prepared.candidatePackage,
+        handoff: await options.resumeAcceptedHandoff(prepared.offer),
+      });
+    }
+    if (prepared.stage !== 'handoff_a_ready') return prepared;
+    return Object.freeze({
+      stage: 'handoff_a_accepted',
+      replayed: prepared.replayed,
+      procurementRunId: prepared.procurementRunId,
+      candidatePackage: prepared.candidatePackage,
+      ...(prepared.structure ? { structure: prepared.structure } : {}),
+      handoff: await options.offerCandidate(prepared.offer),
+    });
+  }
+  return Object.freeze({ advance, advanceToHandoffAReady });
 }
 
 module.exports = Object.freeze({

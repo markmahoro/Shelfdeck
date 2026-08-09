@@ -43,17 +43,20 @@ function text(value, field) {
 }
 
 function materialKey(identity) {
-  if (!identity || identity.schemaRef !== 'helix://contracts/types/PhysicalMaterialIdentity/v1' || identity.schemaVersion !== 1 ||
-      identity.contentHashAlgorithm !== 'sha256') fail('P3_CONTROL_INVALID_IDENTITY', 'Physical Material Identity contract is invalid.');
+  if (!identity || identity.schemaRef !== 'helix://contracts/types/PhysicalMaterialIdentity/v2' || identity.schemaVersion !== 2 ||
+      identity.fingerprintAlgorithm !== 'middle-256k-sha256' || identity.fingerprintVersion !== 1 ||
+      !Number.isSafeInteger(identity.sizeBytes) || identity.sizeBytes < 0) fail('P3_CONTROL_INVALID_IDENTITY', 'Physical Material Identity contract is invalid.');
   text(identity.mountScopeId, 'mountScopeId');
   if (!/^(0|[1-9][0-9]*)$/.test(text(identity.inode, 'inode'))) fail('P3_CONTROL_INVALID_IDENTITY', 'Physical Material inode must be an unsigned decimal string.');
-  sha(identity.contentHash, 'contentHash');
+  sha(identity.contentFingerprint, 'contentFingerprint');
   return digest(canonicalJson({
-    schema: 'physical-material-identity@1',
+    schema: 'physical-material-identity@2',
     mountScopeId: identity.mountScopeId,
     inode: identity.inode,
-    contentHashAlgorithm: identity.contentHashAlgorithm,
-    contentHash: identity.contentHash
+    sizeBytes: identity.sizeBytes,
+    fingerprintAlgorithm: identity.fingerprintAlgorithm,
+    fingerprintVersion: identity.fingerprintVersion,
+    contentFingerprint: identity.contentFingerprint
   }));
 }
 
@@ -176,13 +179,13 @@ function repository(schemaManifest) {
     statements: {
       find_current: {
         kind: 'select-one', tableId: 'fx_material_controls',
-        columns: ['material_key', 'mount_scope_id', 'inode', 'content_hash_algorithm', 'content_hash', 'owner_domain',
+        columns: ['material_key', 'mount_scope_id', 'inode', 'size_bytes', 'fingerprint_algorithm', 'fingerprint_version', 'content_fingerprint', 'owner_domain',
           'owner_scope_type', 'owner_scope_id', 'control_revision', 'state', 'updated_at_ms'],
         keyColumns: ['material_key']
       },
       insert_current: {
         kind: 'insert', tableId: 'fx_material_controls',
-        columns: ['material_key', 'mount_scope_id', 'inode', 'content_hash_algorithm', 'content_hash', 'owner_domain',
+        columns: ['material_key', 'mount_scope_id', 'inode', 'size_bytes', 'fingerprint_algorithm', 'fingerprint_version', 'content_fingerprint', 'owner_domain',
           'owner_scope_type', 'owner_scope_id', 'control_revision', 'state', 'updated_at_ms']
       },
       cas_current: {
@@ -314,8 +317,10 @@ function createMaterialControlParticipant(options) {
             material_key: change.identity.materialKey,
             mount_scope_id: change.identity.mountScopeId,
             inode: change.identity.inode,
-            content_hash_algorithm: change.identity.contentHashAlgorithm,
-            content_hash: change.identity.contentHash,
+            size_bytes: change.identity.sizeBytes,
+            fingerprint_algorithm: change.identity.fingerprintAlgorithm,
+            fingerprint_version: change.identity.fingerprintVersion,
+            content_fingerprint: change.identity.contentFingerprint,
             owner_domain: to.ownerDomain,
             owner_scope_type: to.scopeType,
             owner_scope_id: to.scopeId,
@@ -417,8 +422,9 @@ function createMaterialControlExactTransferParticipant(options) {
       for (const change of [...changes].sort((a,b)=>a.materialKey.localeCompare(b.materialKey))) {
         const current=repo.invoke('find_current',{material_key:change.materialKey});
         if (!current||Number(current.control_revision)!==change.expectedRevision) fail('P3_CONTROL_CAS_CONFLICT','Material Control expected revision is stale.',{materialKey:change.materialKey});
-        const identity={schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v1',schemaVersion:1,materialKey:current.material_key,
-          mountScopeId:current.mount_scope_id,inode:String(current.inode),contentHashAlgorithm:current.content_hash_algorithm,contentHash:current.content_hash};
+        const identity={schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,materialKey:current.material_key,
+          mountScopeId:current.mount_scope_id,inode:String(current.inode),sizeBytes:Number(current.size_bytes),
+          fingerprintAlgorithm:current.fingerprint_algorithm,fingerprintVersion:Number(current.fingerprint_version),contentFingerprint:current.content_fingerprint};
         if (materialKey(identity)!==change.materialKey) fail('P3_CONTROL_MATERIAL_KEY_MISMATCH','Stored Physical Material Identity does not match its Material key.');
         if (mapControlProjection(change.materialKey,current).projectionDigest!==change.expectedProjectionDigest) {
           fail('P3_CONTROL_PROJECTION_CONFLICT','Material Control expected projection digest is stale.',{materialKey:change.materialKey});

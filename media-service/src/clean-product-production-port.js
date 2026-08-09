@@ -3,6 +3,7 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const { computeBoundedMaterialFingerprintSync } = require('./helix/integrations/bounded-material-fingerprint');
 const {
   canonicalDigest,
   canonicalJson,
@@ -101,10 +102,14 @@ function createCleanProductProductionPort(options = {}) {
 
   function exactPhysicalReality(value) {
     const location = normalizedLocation(value.location);
+    const bounded = computeBoundedMaterialFingerprintSync(location);
     const bytes = fs.readFileSync(location);
-    const stat = fs.statSync(location, { bigint: true });
+    const stat = bounded.stat;
     const digestHex = bytesDigest(bytes);
-    if (digestHex !== value.physicalIdentity.contentHash ||
+    if (bounded.contentFingerprint !== value.physicalIdentity.contentFingerprint ||
+        bounded.fingerprintAlgorithm !== value.physicalIdentity.fingerprintAlgorithm ||
+        bounded.fingerprintVersion !== value.physicalIdentity.fingerprintVersion ||
+        Number(stat.size) !== value.physicalIdentity.sizeBytes ||
         bytes.length !== value.sizeBytes ||
         String(stat.ino) !== value.physicalIdentity.inode) {
       fail('CLEAN_PRODUCT_REALITY_MISMATCH',
@@ -118,8 +123,8 @@ function createCleanProductProductionPort(options = {}) {
   function issuePhysicalReadHandle(value) {
     const reality = exactPhysicalReality(value);
     const identity = Object.freeze({
-      schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v1',
-      schemaVersion: 1,
+      schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v2',
+      schemaVersion: 2,
       ...value.physicalIdentity,
     });
     const basis = {
@@ -136,7 +141,7 @@ function createCleanProductProductionPort(options = {}) {
       expectedSizeBytes: value.sizeBytes,
       expectedMtimeNs: Number(reality.stat.mtimeNs / 1_000_000n),
       expectedCtimeNs: Number(reality.stat.ctimeNs / 1_000_000n),
-      hashVerifiedAtMs: value.runCreatedAtMs,
+      fingerprintVerifiedAtMs: value.runCreatedAtMs,
       readScope: 'material_read',
       expiresAtMs: 4_102_444_800_000,
       fenceDigest: '',

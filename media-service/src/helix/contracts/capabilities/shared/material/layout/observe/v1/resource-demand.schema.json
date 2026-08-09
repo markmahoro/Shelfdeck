@@ -9,7 +9,7 @@
       "type": "array",
       "prefixItems": [
         {
-          "const": "disk_io"
+          "const": "cpu"
         }
       ],
       "minItems": 1,

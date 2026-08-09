@@ -55,10 +55,11 @@ function freeze(value) {
 function same(left, right) { return canonical(left) === canonical(right); }
 
 function assertIdentity(value) {
-  exact(value, ['contentHash', 'contentHashAlgorithm', 'inode', 'materialKey', 'mountScopeId', 'schemaRef', 'schemaVersion'], 'P5_MATERIAL_ACCESS_IDENTITY_SHAPE');
-  if (value.schemaRef !== 'helix://contracts/types/PhysicalMaterialIdentity/v1' || value.schemaVersion !== 1 ||
-      value.contentHashAlgorithm !== 'sha256') fail('P5_MATERIAL_ACCESS_IDENTITY', 'Physical Material Identity is invalid.');
-  digest(value.materialKey, 'identity.materialKey'); digest(value.contentHash, 'identity.contentHash');
+  exact(value, ['contentFingerprint', 'fingerprintAlgorithm', 'fingerprintVersion', 'inode', 'materialKey', 'mountScopeId', 'schemaRef', 'schemaVersion', 'sizeBytes'], 'P5_MATERIAL_ACCESS_IDENTITY_SHAPE');
+  if (value.schemaRef !== 'helix://contracts/types/PhysicalMaterialIdentity/v2' || value.schemaVersion !== 2 ||
+      value.fingerprintAlgorithm !== 'middle-256k-sha256' || value.fingerprintVersion !== 1 ||
+      !Number.isSafeInteger(value.sizeBytes) || value.sizeBytes < 0) fail('P5_MATERIAL_ACCESS_IDENTITY', 'Physical Material Identity is invalid.');
+  digest(value.materialKey, 'identity.materialKey'); digest(value.contentFingerprint, 'identity.contentFingerprint');
   text(value.mountScopeId, 'identity.mountScopeId'); text(value.inode, 'identity.inode');
 }
 
@@ -75,12 +76,12 @@ function assertBasis(value) {
 
 function assertBindingSnapshot(snapshot) {
   exact(snapshot, ['basisDigest', 'basisRevision', 'bindingId', 'bindingKind', 'bindingRevision', 'containmentRoot',
-    'endpointId', 'expectedCtimeNs', 'expectedMtimeNs', 'expectedSizeBytes', 'hashVerifiedAtMs', 'identity', 'location',
+    'endpointId', 'expectedCtimeNs', 'expectedMtimeNs', 'expectedSizeBytes', 'fingerprintVerifiedAtMs', 'identity', 'location',
     'mountScopeRevision', 'ownerDomain', 'ownerScope'], 'P5_MATERIAL_ACCESS_BINDING_SNAPSHOT_SHAPE');
   if (!['primary', 'related'].includes(snapshot.bindingKind)) fail('P5_MATERIAL_ACCESS_BINDING_KIND', 'Binding kind is invalid.');
   assertIdentity(snapshot.identity); assertScope(snapshot.ownerScope, 'ownerScope');
   for (const field of ['bindingRevision', 'mountScopeRevision', 'basisRevision']) revision(snapshot[field], field);
-  for (const field of ['expectedSizeBytes', 'expectedMtimeNs', 'expectedCtimeNs', 'hashVerifiedAtMs']) count(snapshot[field], field);
+  for (const field of ['expectedSizeBytes', 'expectedMtimeNs', 'expectedCtimeNs', 'fingerprintVerifiedAtMs']) count(snapshot[field], field);
   for (const field of ['bindingId', 'endpointId', 'ownerDomain']) text(snapshot[field], field);
   for (const field of ['location', 'containmentRoot']) {
     if (typeof snapshot[field] !== 'string' || snapshot[field].length < 1) fail('P5_MATERIAL_ACCESS_PATH', 'Binding path is invalid.', { field });
@@ -243,7 +244,7 @@ function createMaterialAccessAuthority(options) {
       bindingRevision: snapshot.bindingRevision, endpointId: snapshot.endpointId, location: snapshot.location,
       mountScopeRevision: snapshot.mountScopeRevision, expectedSizeBytes: snapshot.expectedSizeBytes,
       expectedMtimeNs: snapshot.expectedMtimeNs, expectedCtimeNs: snapshot.expectedCtimeNs,
-      hashVerifiedAtMs: snapshot.hashVerifiedAtMs, readScope: request.readScope, expiresAtMs: request.expiresAtMs, fenceDigest });
+      fingerprintVerifiedAtMs: snapshot.fingerprintVerifiedAtMs, readScope: request.readScope, expiresAtMs: request.expiresAtMs, fenceDigest });
     handles.set(handleId, freeze({ kind: 'physical', handle, snapshot, bindingQuery, controlClaim, controlSnapshot,
       eventId: request.eventId, eventFenceDigest: request.eventFenceDigest, expiresAtMs: request.expiresAtMs }));
     return handle;

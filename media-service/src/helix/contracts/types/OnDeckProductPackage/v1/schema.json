@@ -549,7 +549,7 @@
                 ]
               },
               "physicalIdentity": {
-                "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v1"
+                "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
               },
               "endpointId": {
                 "type": "string",

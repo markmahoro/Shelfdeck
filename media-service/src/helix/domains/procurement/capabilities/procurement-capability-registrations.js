@@ -29,7 +29,11 @@ function exactKeys(value, expected) {
 }
 
 function createProcurementCapabilityRegistrations(options) {
-  const refs = Object.keys(CONTRACTS);
+  const refs = options?.enabledCapabilityRefs || Object.keys(CONTRACTS);
+  if (!Array.isArray(refs) || refs.length < 1 || new Set(refs).size !== refs.length ||
+      refs.some((ref) => !Object.hasOwn(CONTRACTS, ref))) {
+    fail('P7_PROCUREMENT_CAPABILITY_SET_MISMATCH', 'Enabled Procurement Capability set is invalid.');
+  }
   if (!options || !exactKeys(options.manifests, refs) || !exactKeys(options.ports, refs)) {
     fail('P7_PROCUREMENT_CAPABILITY_SET_MISMATCH',
       'Procurement requires exactly its eight frozen Capability manifests and typed ports.');

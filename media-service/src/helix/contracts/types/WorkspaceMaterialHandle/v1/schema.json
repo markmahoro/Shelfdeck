@@ -57,10 +57,17 @@
           "minLength": 1,
           "pattern": "^(0|[1-9][0-9]*)$"
         },
-        "contentHashAlgorithm": {
-          "const": "sha256"
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 0
         },
-        "contentHash": {
+        "fingerprintAlgorithm": {
+          "const": "middle-256k-sha256"
+        },
+        "fingerprintVersion": {
+          "const": 1
+        },
+        "contentFingerprint": {
           "type": "string",
           "minLength": 1,
           "pattern": "^[a-f0-9]{64}$"
@@ -69,8 +76,10 @@
       "required": [
         "mountScopeId",
         "inode",
-        "contentHashAlgorithm",
-        "contentHash"
+        "sizeBytes",
+        "fingerprintAlgorithm",
+        "fingerprintVersion",
+        "contentFingerprint"
       ]
     },
     "rootHandleRef": {

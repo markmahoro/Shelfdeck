@@ -59,7 +59,7 @@
           "read",
           "list",
           "stat",
-          "hash"
+          "fingerprint"
         ]
       },
       "maxItems": 4

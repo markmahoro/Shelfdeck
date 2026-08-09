@@ -72,7 +72,7 @@
       },
       {
         "ordinal": 7,
-        "name": "content_hash_algorithm",
+        "name": "fingerprint_algorithm",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -82,7 +82,7 @@
       },
       {
         "ordinal": 8,
-        "name": "content_hash",
+        "name": "fingerprint_version",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -92,6 +92,16 @@
       },
       {
         "ordinal": 9,
+        "name": "content_fingerprint",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
         "name": "size_bytes",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -101,7 +111,7 @@
         "nullable": false
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "location_kind",
         "logicalType": "TEXT",
         "enumValues": [
@@ -113,7 +123,7 @@
         "nullable": false
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "endpoint_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -123,7 +133,7 @@
         "nullable": false
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "location",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -133,7 +143,7 @@
         "nullable": false
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "binding_kind",
         "logicalType": "TEXT",
         "enumValues": [
@@ -145,7 +155,7 @@
         "nullable": false
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "binding_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -155,7 +165,7 @@
         "nullable": false
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "binding_evidence_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -165,7 +175,7 @@
         "nullable": false
       },
       {
-        "ordinal": 16,
+        "ordinal": 17,
         "name": "origin_intake_decision_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -175,7 +185,7 @@
         "nullable": false
       },
       {
-        "ordinal": 17,
+        "ordinal": 18,
         "name": "origin_offer_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -185,7 +195,7 @@
         "nullable": false
       },
       {
-        "ordinal": 18,
+        "ordinal": 19,
         "name": "origin_candidate_package_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -195,7 +205,7 @@
         "nullable": false
       },
       {
-        "ordinal": 19,
+        "ordinal": 20,
         "name": "origin_package_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -205,7 +215,7 @@
         "nullable": false
       },
       {
-        "ordinal": 20,
+        "ordinal": 21,
         "name": "origin_package_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -215,7 +225,7 @@
         "nullable": false
       },
       {
-        "ordinal": 21,
+        "ordinal": 22,
         "name": "origin_candidate_delivery_snapshot_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -225,7 +235,7 @@
         "nullable": false
       },
       {
-        "ordinal": 22,
+        "ordinal": 23,
         "name": "origin_related_reference_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -235,7 +245,7 @@
         "nullable": false
       },
       {
-        "ordinal": 23,
+        "ordinal": 24,
         "name": "admitted_control_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -245,7 +255,7 @@
         "nullable": false
       },
       {
-        "ordinal": 24,
+        "ordinal": 25,
         "name": "admitted_control_projection_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -255,7 +265,7 @@
         "nullable": false
       },
       {
-        "ordinal": 25,
+        "ordinal": 26,
         "name": "output_requirement_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -265,7 +275,7 @@
         "nullable": false
       },
       {
-        "ordinal": 26,
+        "ordinal": 27,
         "name": "episode_claim_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -275,7 +285,7 @@
         "nullable": false
       },
       {
-        "ordinal": 27,
+        "ordinal": 28,
         "name": "member_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -353,13 +363,13 @@
       "immutable"
     ],
     "rawContract": {
-      "columns": "`run_material_manifest_id FK, ordinal, material_key, role(primary_payload|structural_dependency), mount_scope_id, inode, content_hash_algorithm, content_hash, size_bytes, location_kind(domain_binding), endpoint_id, location, binding_kind(libra_material_binding), binding_revision, binding_evidence_digest, origin_intake_decision_id FK, origin_offer_id, origin_candidate_package_id, origin_package_revision, origin_package_digest, origin_candidate_delivery_snapshot_digest, origin_related_reference_set_digest, admitted_control_revision, admitted_control_projection_digest, output_requirement_digest, episode_claim_set_digest, member_digest`",
+      "columns": "`run_material_manifest_id FK, ordinal, material_key, role(primary_payload|structural_dependency), mount_scope_id, inode, fingerprint_algorithm, fingerprint_version, content_fingerprint, size_bytes, location_kind(domain_binding), endpoint_id, location, binding_kind(libra_material_binding), binding_revision, binding_evidence_digest, origin_intake_decision_id FK, origin_offer_id, origin_candidate_package_id, origin_package_revision, origin_package_digest, origin_candidate_delivery_snapshot_digest, origin_related_reference_set_digest, admitted_control_revision, admitted_control_projection_digest, output_requirement_digest, episode_claim_set_digest, member_digest`",
       "constraints": "`PK(run_material_manifest_id,ordinal)`及`UNIQUE(run_material_manifest_id,material_key)`；ordinal从0连续，按materialKey UTF-8 bytes排序；Run Input只允许Libra Material Binding与domain location，完整Physical Identity/size/Location/Binding/Candidate Delivery provenance/Control snapshot可独立重建；Related值只可从该exact historical Delivery读取并校验set digest；`output_requirement_digest`必须按8.6.21从本Run immutable Acceptance Spec、manifest role、materialKey/role及本member Episode relation重算，禁止caller传入opaque digest；immutable"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8565,
-      "lineDigest": "923b871876bb6eacd575e1433979452e56a80be77712b91a4fb06113f6fb9e4b"
+      "line": 8688,
+      "lineDigest": "e04e1ecb865303f6225d924d48ffc1b38b5ce0f15ecea8109a2b2f12150b5bc7"
     },
     "foreignKeys": [
       {

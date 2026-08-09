@@ -78,8 +78,22 @@ function fixture(run, settings = {}) {
     assert.equal(schedulerReleased, 1, 'technical scheduler lease must end before Executor call');
     if (settings.effectClass && settings.effectClass !== 'pure_observation') assert.equal(journalCalls[0], 'intend');
     if (settings.dispatchError) throw settings.dispatchError;
-    return settings.outcome || { kind: 'succeeded', resultSchemaRef: 'helix://test/result', result: { value: 1 },
+    const outcome = settings.outcome || { kind: 'succeeded', resultSchemaRef: 'helix://test/result', result: { value: 1 },
       evidenceSchemaRef: 'helix://test/evidence', evidence: { proof: true } };
+    if (settings.prebindResult) {
+      const database = new Database(databasePath);
+      try {
+        const resultJson = JSON.stringify(outcome.result); const evidenceJson = JSON.stringify(outcome.evidence);
+        const crypto = require('node:crypto');
+        const hash = (value) => crypto.createHash('sha256').update(value).digest('hex');
+        database.prepare(`INSERT INTO fx_event_result_bindings
+          (result_id,event_id,outcome_kind,result_schema_ref,result_json,result_digest,evidence_schema_ref,evidence_json,evidence_digest,effect_receipt_id,committed_at_ms)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run('atomic-result', 'event', 'succeeded', outcome.resultSchemaRef,
+          resultJson, hash(resultJson), outcome.evidenceSchemaRef, evidenceJson, hash(evidenceJson),
+          outcome.effectReceipt?.effectReceiptId || null, 1000);
+      } finally { database.close(); }
+    }
+    return outcome;
   } };
   const runtime = createEventRuntime({ schemaManifest, unitOfWork, scheduler, governor,
     registry: { resolve: () => ({ manifest: { capabilityRef: 'libra.test.observe@1', resultSchemaRef: 'helix://test/result',
@@ -150,6 +164,14 @@ test('succeeded Outcome binds one immutable Result and least-authority Context',
         [{ resource_key: 'cpu_heavy', queue_class: 'normal_foreground', outcome: 'succeeded' }]);
     } finally { database.close(); }
   });
+});
+
+test('atomic Domain commit may pre-bind the exact typed Result before Event terminal transition', async () => {
+  await fixture(async ({ runtime, lease, databasePath }) => {
+    const completed = await runtime.run({ schedulerLease: lease });
+    assert.equal(completed.resultId, 'atomic-result');
+    assert.equal(databaseFacts(databasePath).results, 1);
+  }, { prebindResult: true });
 });
 
 test('deferred Outcome completes Attempt without Result and persists external retry wait', async () => {

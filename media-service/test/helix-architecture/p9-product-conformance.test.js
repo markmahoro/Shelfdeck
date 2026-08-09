@@ -14,8 +14,10 @@ const { createProductConformanceCoordinator } = require('../../src/helix/domains
 const D = (value) => canonicalDigest({ value });
 const complete = (value, field) => ({ ...value, [field]:canonicalDigest(value) });
 const contractRoot=path.resolve(__dirname,'../../src/helix/contracts');
-const schemas=['types','domain-types','application-types'].flatMap((group)=>fs.readdirSync(path.join(contractRoot,group)).map((name)=>
-  JSON.parse(fs.readFileSync(path.join(contractRoot,group,name,'v1/schema.json'),'utf8'))));
+const schemas=['types','domain-types','application-types'].flatMap((group)=>fs.readdirSync(path.join(contractRoot,group)).map((name)=>{
+  const version=fs.readdirSync(path.join(contractRoot,group,name)).find((entry)=>/^v[0-9]+$/.test(entry));
+  return JSON.parse(fs.readFileSync(path.join(contractRoot,group,name,version,'schema.json'),'utf8'));
+}));
 const schemaValidator=createCapabilityContractValidator({schemas});
 const valid=(ref,value)=>schemaValidator.validate(ref,value);
 
@@ -68,8 +70,8 @@ function facts() {
 
 function productMaterialManifest() {
   const member = complete({ordinal:0,materialKey:D('material'),role:'primary_payload',
-    physicalIdentity:{schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v1',schemaVersion:1,materialKey:D('material'),mountScopeId:'mount-1',
-      inode:'1',contentHashAlgorithm:'sha256',contentHash:D('bytes')},sizeBytes:100,
+    physicalIdentity:{schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,materialKey:D('material'),mountScopeId:'mount-1',
+      inode:'1',sizeBytes:100,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint:D('bytes')},sizeBytes:100,
     location:{locationKind:'domain_binding',endpointId:'endpoint-1',location:'movie.mkv',rootHandleRef:null,relativePath:null},
     bindingKind:'libra_material_binding',bindingRevision:1,bindingEvidenceDigest:D('binding'),originCandidateDeliveryRef:{intakeDecisionId:'intake-1',
       offerId:'offer-1',candidatePackageId:'candidate-1',packageRevision:1,packageDigest:D('candidate'),candidateDeliverySnapshotDigest:D('delivery'),
@@ -84,10 +86,10 @@ function productMaterialManifest() {
 }
 
 function directMaterial(){return {schemaRef:'helix://contracts/types/PhysicalMaterialReadHandle/v1',schemaVersion:1,handleId:'handle-1',
-  identity:{schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v1',schemaVersion:1,materialKey:D('material'),mountScopeId:'mount-1',inode:'1',
-    contentHashAlgorithm:'sha256',contentHash:D('bytes')},ownerDomain:'libra',ownerScope:{scopeType:'libra_run',scopeId:'run-1'},bindingRevision:1,
+  identity:{schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,materialKey:D('material'),mountScopeId:'mount-1',inode:'1',
+    sizeBytes:100,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint:D('bytes')},ownerDomain:'libra',ownerScope:{scopeType:'libra_run',scopeId:'run-1'},bindingRevision:1,
   endpointId:'endpoint-1',location:'movie.mkv',mountScopeRevision:1,expectedSizeBytes:100,expectedMtimeNs:1,expectedCtimeNs:1,
-  hashVerifiedAtMs:1,readScope:'material_read',expiresAtMs:9999999999999,fenceDigest:D('fence')};}
+  fingerprintVerifiedAtMs:1,readScope:'material_read',expiresAtMs:9999999999999,fenceDigest:D('fence')};}
 
 function artifactRequirement(label){
   const requirement={revision:1,schemaRef:'artifact.nfo.renderability@1',artifactKind:'nfo',requirementPayload:{profile:label}};

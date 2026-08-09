@@ -1,8 +1,72 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Levels 0–10 accepted; P0–P13 complete; P14 independent qualification not started; Docker/Canary, production, real-media side effects and `media-desktop` changes paused.
+Status: Execution Foundation已封口（CLOSED FOR DOMAIN ONBOARDING）；Procurement Triage Unit/Candidate Assembly性能修正及本地全库Canary已完成。
 
-Last updated: 2026-07-23
+Last updated: 2026-08-09
+
+## 0. Retake status
+
+- 当前分支以第一次实施关闭点及其细化后的SSOT为基线，不合入第二、第三次实施代码。
+- 当前目标不是重新搭建完整骨架，而是接通已有Foundation、重写Procurement Coordinator执行方式、恢复`Run → Work → Event`三层架构，再完成有效的Handoff A Ready E2E；到此停止，不进入Libra。
+- 用户已撤回“全局只能有一个Procurement Run / 每次只能创建一个Run”的早期设想。多个`active|waiting` Run可以共存；Run创建不申请计算资源，实际资源约束由Execution Foundation在Event执行前处理。
+- SSOT的Procurement专属Selection上限调整为256，并固定Run Creator规则：terminal Observation按Field-relative直接父目录分组；同组不可跨Run；组和成员均按canonical UTF-8排序并顺序装箱；单组超过256返回稳定closed reason；一次reconcile创建当前全部可创建分片。
+- 一个Procurement Run可发布`0..N` Candidate Package；每个Package独立形成Handoff A Offer，无需等待Run Seal；Run Seal只表示Selection全部收口，不等待Offer Accepted/Rejected。
+- Admin Web“文件来源”已接入clean Admin session、Material Field查询与登记API；“上架进度”明确从Procurement之后开始。
+- `observe`产品动作已切为Procurement-only：Candidate Publication之后返回`handoff_a_ready`，不调用Libra `offerCandidate`；Coordinator保留显式`advance`方法，供未来单独验证Libra以后链路。
+- 隔离fixture曾证明同步Coordinator路径可建立immutable Candidate Package及open Candidate Delivery，重启重放保持同一Package，Libra/Arca事实为0，源文件字节不变；该结果仅保留为低层Capability与Owner事实诊断证据。
+- 真实`Z:\Film`预检得到18,406个文件、约14.3 TB，其中2,287个视频；第一次真实观察稳定返回`FIELD_OBSERVATION_SCAN_BUDGET_EXCEEDED(maximumFiles=10000)`，提交前事实仍为Observation 0、Material 0、Candidate 0、Libra 0、Arca 0。
+- 该历史结果确认第一次实施的Enumerator先全量收集、后全量SHA-256且automatic Run尝试一次纳入全部eligible Material，未实现后台分页吞吐与新的直接父目录分组、每Run `1..256`稳定分片；该Physical Identity合同现已被v2正式替代。
+- 单Movie真实Canary Field `Z:\Film\银翼杀手：2022黑暗浩劫 (2017)`已完成：7项Observation、1项eligible Primary、真实SHA-256及FFprobe、resolved single/movie Triage、一个immutable Candidate Package和open Delivery；产品状态持久投影为`handoff_a_ready`，Libra/Arca事实为0。
+- Canary主视频为HEVC 1080p、AC3 stereo、内嵌SubRip，时长906,976 ms；提交后SHA-256仍与Observation `d2b7d2db...1ee77`一致，媒体未改变。
+- 上述两个Canary质量Finding已在Procurement边界内闭合：Candidate Assembly新增正式`shared.material.layout.observe@1`纯观察阶段，从每个Primary的有界父目录生成immutable Layout Evidence；Triage按`directory_title → filename_title → temporary_label`选择标题，并只从Evidence生成Related Reference。Related不进入Run、不取得Material Control。
+- 第二个真实Canary Field `Z:\Film\香火 (2003)`已完成：4项Observation、1项eligible Primary、正式Layout/Media Probe/Triage/Publication执行链，Candidate display identity为`香火 (2003)`，Related精确包含NFO、poster、fanart共3项；Run member和受控Material均只有主视频1项，Libra Intake/Run与Arca Entry均为0。
+- Admin Web现提供SSOT精确的“注销文件来源”动作及两步后果确认；它保留tombstone/审计并保证物理文件不变。Material Field查询现持久投影Candidate/Handoff A状态，避免刷新后重复观察。
+- 验证只使用本机Node.js与临时数据库；不使用本地Docker，不部署NAS，不修改生产数据。
+- Execution Foundation封口修订已进入唯一SSOT：Event允许有界并发，Host技术上限为16；资源只使用typed Resource Key；
+  terminal Work发出精确Process reconcile，丢失signal由启动时及每30秒一次的持久cursor fallback sweep恢复；Domain只允许注册
+  Planner、Capability、Resource Demand、Effect Recovery、Reconciler及Execution Projection，不得改变Foundation状态机。
+- clean schema新增`fx_reconcile_cursors`，当前机器合同计数为112 Capability、97 Result family、179 table、43 canonical
+  transaction、113 Admin route及1条public health；active contract aggregate digest为
+  `e70fc7248ee9463c2e91cdaaba7d1a3a873d407845ffda37b7ecb04f4319feb2`。
+- Foundation conformance已通过：P4 runtime gate覆盖7类Effect与31个crash-window场景；205个Active Process三页sweep、durable
+  cursor重启、lost wake、最多16个in-flight、同/异Resource Key Permit、soft-cap completion、retry/defer/timeout均通过。
+- Procurement产品压力fixture已通过：260个Candidate需求、2个并存Run、260个Candidate Assembly Work、260个Package、260个
+  open Offer、全部Run Seal、零failed Work/Event；开放Work始终不超过256，且首份Offer在全部Run Seal之前出现。
+- Canary脚本本地4文件smoke已通过：1,048,576 logical bytes精确等于`4 × 256 KiB`，2 Work/2 Plan/12 Event全部成功，
+  source Reality前后一致，Offer消费及Libra/Arca事实均为0。该smoke不替代最终真实全库Canary。
+- 2026-08-02最终全库Canary由Luna执行并按用户要求手动终止：Observation 1,151、Material 18,406、8个active Run、
+  1,157 Plan、4,357 succeeded Event/Result，零failed Work/Event及零Resource defer；读取1,776,596,696 bytes且每文件只读一次，
+  RSS约1.05 GiB。只读复核确认3个Structure Page已持久化62个resolved Unit；Candidate Work因open Event处于约506–508、
+  高于256 admission high-water mark而等待下一批接纳，不是数据丢失或永久死锁。PID 37892已退出；因手动终止，尚未证明水位
+  下降后的Coordinator retry/Handoff A liveness，也未执行sourceAfter，不能作为封口证据。等待状态的用户显性化暂不属于当前范围。
+- 既有同步Canary绕过了产品形态的Work Scheduler、Event Runtime与Resource Governor，且使用已废止的全文件SHA-256 Physical Identity；自本轮起不再是有效Foundation E2E、Handoff A Ready或当前Identity合同的验收证据。
+- Checkpoint 1已完成：SSOT、Procurement runtime validator、schema builder、生成合同及deterministic DDL已同步；当前计数为112 Capability、97 Result family、179 table、43 canonical transaction及113 Admin route（另有1条public health）。
+- Checkpoint 1本地Node证据：合同/Source Map/DDL聚焦门禁111/111 PASS，P7 Procurement fixtures 58/58 PASS，dependency/semantic/manifest/contract聚合均PASS。完整历史Architecture聚合仍只有既知8个P14失败（同一8项在输出摘要重复列示），不把它们误报为本Checkpoint引入或修复。
+- Checkpoint 2已完成：唯一Composition Root装配Work Scheduler、Planner Registry、Event Runtime、Resource Governor、Capability Registry/Dispatcher、Result Binding、Startup Recovery及Node进程内Runtime Host；HTTP只签发Work并`wake`。
+- Checkpoint 3已完成：Observation成为可分页、可重放的后台Supporting Work；terminal Observation后按直接父目录确定性分组并创建全部可成立的并存Run；Run Admission不申请Permit。
+- Checkpoint 4已完成：产品路径挂载薄`ProcurementRunCoordinator`，只读取Owner/terminal Work事实、幂等签发Evidence/Candidate Work并执行短Run Seal事务；Planner和Event Runtime独占Plan与Capability执行职责。旧同步Coordinator不再由产品Composition Root引用。
+- Checkpoint 4分页证据：同一Run的65个Movie Primary形成2个Observation revision、1个Evidence Work的3个immutable Attempt、65个Candidate Assembly Work、70个Plan、333个Event/Attempt/Permit timing、65个Candidate Package及65个open Handoff A Offer；最终Run为`sealed/completed`，Libra/Arca事实为0，所有源文件字节不变，服务重启后同一Observation命令精确replay。
+- 该证据同时暴露并修复两项Foundation死锁：Work Supply backlog soft cap现在只阻止新Work Attempt而不阻止既有Event排空；Resource Governor不再以第二套隐藏队首覆盖Scheduler lease，仅对已选Event执行per-Capability完整Permit bundle仲裁。
+- 2026-08-02 Checkpoint 4聚焦回归：Foundation、Coordinator静态边界、合同/事务、Admin Web及65-item产品E2E共53/53 PASS；合同基线保持112 Capability、97 Result family、178 table、43 canonical transaction，aggregate digest为`a2ac8d37e73c18e24c97be4e21e338df6ebe2fd7349f35972d7e20ea8ac8c63a`。
+- 2026-08-02 Checkpoint 5 Design Return：SSOT已将唯一Physical Material合同替换为`PhysicalMaterialIdentity@2`；Capability以
+  `shared.material.bounded_fingerprint.compute@1`一对一替代旧content-hash，Result family以
+  `BoundedContentFingerprintEvidence`一对一替代；该Design Return当时的合同计数为112/97/178/43/113，aggregate digest为
+  `4e8979a6ea3fb877bdc8166fccb877f6c766f8459ecef098c0321a526f33bf14`。
+- 运行时已实现精确中段最多262,144-byte读取、零长度、短读/消失/权限/symlink失败及inode/size/mtime/ctime前后stat fence；
+  Procurement、Material Control、Libra Binding/Workspace、Candidate/Manifest及Arca引用均传播同一Identity v2。Artifact与系统Evidence
+  digest仍可使用完整SHA-256，但不得冒充Physical Material Identity。
+- Observation适配器恢复合同上限100项，并采用保守的16项物理批次避免64 KiB typed page截断后游标跳过文件；异常大批次明确失败，
+  不提交跳跃游标。当前bounded fingerprint与Observation专项20/20 PASS，尚未读取真实Movie Field。
+- 2026-08-02验证：`npm run build:web` PASS；`node --test test/admin-web-contract.test.js` 9/9 PASS。
+- 2026-08-02 root-title/Related修复验证：通用`npm test` 232/232 PASS；P7 Procurement fixtures 57/57 PASS；新增/相关Layout、Triage与generated application contract fixtures PASS；真实`香火 (2003)` Canary到`handoff_a_ready` PASS。完整历史Architecture聚合仍有8个P14失败：7个旧Series/JAV/Western/全链HTTP fixture与当前Movie-only fail-closed产品入口冲突，1个旧H1分支scope guard拒绝retake工作区；不把它们误报为本修复PASS。
+
+- 2026-08-09 Layout性能修订已进入实现：SSOT新增Field Observation Layout Snapshot；Triage Layout改为按唯一父目录的本地Snapshot Event，取消每个Material一次物理Layout读取；Media Probe仍为独立的选中Material Event。全量Canary需重新验证首个Candidate延迟、Layout Event数量及源读取预算。
+- 2026-08-09 Triage Unit/Candidate Assembly性能修正已完成：新增运行时可重建`TriageEvidenceIndex`，按`runId + unitId`共享不可变Candidate Context；Identity、Manifest、Publication三Event不再重复读取完整Run、完整Structure Result或整Field Material。未新增业务对象、Capability、Result family、Admin route或表。
+- 2026-08-09 BDMV边界结论已写入唯一SSOT：BDMV是pre-triage拓扑container group，不是Movie类别。最近`BDMV`祖先目录下的全部terminal Observation成员必须作为不可拆分组进入同一Run；多个完整group可按稳定顺序装入同一Run，单组超过256项时整体不建Run。Structure消费完整group，解析Playlist、Clip与结构依赖后形成单标题Triage Unit；内部M2TS不得各自产生Candidate，多标题/歧义/不完整保持`not_ready`。Run Admission前必须完成所需结构成员的Observation、Eligibility和Control，Triage不得事后静默扩张。本结论目前是Design合同记录，尚未宣称新增实现或多片段BDMV Remux已完成。
+- 同日隔离只读MVP `media-service/scripts/helix-bdmv-mvp.js` 已在两个真实样本上验证 `PLAYLIST → STREAM/CLIPINF` 关系：单Playlist样本形成单标题证据；第二个样本包含14个Playlist、18个Stream，按去重后的物理Stream大小选出`00021.mpls`主标题，未读取任何视频payload。该MVP证明结构解析可落地，但不等于正式Structure接线，也不证明当前Libra Remux已支持多片段BDMV。
+- 性能修正后的全量只读Canary使用临时clean数据库`C:\Users\markm\AppData\Local\Temp\helix-full-movie-canary-a1wcjf\data\shelfdeck.db`完成（恢复启动后继续 durable Work/Event事实）：18,407文件、8/8 Run Seal、1,751 Candidate Package、1,751 open Handoff A Offer、1,751 Candidate Assembly Work、8 Evidence Assessment Work、10,440 succeeded Event/Attempt/Result/ResourceTiming、2,960 Plan；`failedWorks=0`、`failedEvents=0`、Libra/Arca事实为0。
+- Canary源Reality前后均为18,407文件，digest均为`a630ecf5b86c0da2541b5e53fae2bc6e5aa8d28fd181b7d6ce6c770042eb316d`；Physical Material累计读取为`1,776,608,472` bytes、18,407次文件读取，Observation后恢复阶段逻辑读取为0，未发生源写入/移动/删除。最大观测RSS约1.26 GB，低于2 GiB；最终`integrity_check=ok`。
+- 恢复验证：原Canary进程中断后保留原数据库，恢复Runtime从durable事实继续；恢复前3/8 Run已Seal、1,403 Candidate，恢复后继续至8/8 Seal和1,751 Candidate，没有重复Unit、重复Primary Material或重复Offer。原管理凭据保留为`admin-credential-secret.resume-backup-*.json`，未删除临时资产。
 
 ## 1. Current position
 
@@ -12,13 +76,13 @@ Last updated: 2026-07-23
 | Open business decisions | none |
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains；P7 — Procurement；P8 — Handoff A and Libra front half；P9 — Libra production and delivery；P10 — Handoff B and On-deck；P11 — Arca post-deck；P12 — Product surface；P13 — Operational cutover and E2E-ready package |
-| Current phase | P13 — complete；P14 independent qualification not started |
-| Current phase status | P13 Exit Audit and final Implementation Contract Baseline frozen |
+| Current phase | Procurement Foundation合规接线与Handoff A Ready E2E |
+| Current phase status | Foundation与Procurement全链已通过本地conformance、压力fixture、完整回归及真实只读Canary；已`CLOSED FOR DOMAIN ONBOARDING` |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
-| Current allowed work | 本线程停止；P14、E2E与部署须由独立任务另行授权 |
+| Current allowed work | 本线程本机Node.js实施与临时clean数据库验证；Libra、Docker、NAS部署不在当前计划 |
 | Integration baseline | P13 implementation closure `bd75e7e4`；P12 closure `23e3b930` |
-| Phase worktree | `E:\my_project\emby_third_party-helix-p9` on `codex/helix-p9` |
-| Next action | 独立P14资格验收任务消费`implementation/evidence/P13_E2E_READY_PACKAGE.json`；本线程不得继续 |
+| Phase worktree | `E:\my_project\emby_third_party-helix-retake` on `codex/helix-first-implementation-retake` |
+| Next action | 保持Foundation状态机、Permit、Result Binding、Reconcile与backpressure合同不变；后续Libra/Arca接入如需改变这些语义，必须返回Design |
 
 P9-01已完成：反向实现审计证明的六段连续性缺口已由Architecture Agent在`PBF-13/PBF-13-R1`中闭合，并经实现侧
 只读复审后原样纳入。Run、Material/Episode scope、Workspace、完整Package、Discard/Cleanup及Off-load Reclaimer均具备
@@ -556,9 +620,9 @@ P5-03已完成：Mount Scope current-headed immutable revisions、active fingerp
 full capability probe、Windows/POSIX canonical path、root互斥及Field/Shelf reserved-root反例全部PASS，证据见
 `implementation/evidence/P5_03_LOCATION_REGISTRIES.md`。下一步P5-04 Physical Material Identity and
 binding-health primitives。没有需要用户决定的业务问题。
-P5-04已完成：唯一canonical Physical Material Identity算法与P3 Control交叉验证、full SHA-256/stat-fence复用、
+P5-04历史实现证据已被2026-08-02 Identity v2 Design Return取代：原唯一canonical Physical Material Identity算法与P3 Control交叉验证、full SHA-256/stat-fence复用、
 rename/content/inode/mount及Binding Health反例全部PASS，证据见
-`implementation/evidence/P5_04_PHYSICAL_IDENTITY_AND_BINDING_HEALTH.md`。下一步P5-05 Artifact Registry and
+`implementation/evidence/P5_04_PHYSICAL_IDENTITY_AND_BINDING_HEALTH.md`；其中full SHA-256部分不再是active合同或当前验收证据。下一步P5-05 Artifact Registry and
 controlled payload handles。没有需要用户决定的业务问题。
 P5-05已完成：Artifact Registry及Reference lifecycle由`execution-foundation`单独拥有，P5-01误放在Platform的
 Artifact Query port已按SSOT纠正到`foundation.public`；controlled root containment、typed provenance、完整SHA-256/

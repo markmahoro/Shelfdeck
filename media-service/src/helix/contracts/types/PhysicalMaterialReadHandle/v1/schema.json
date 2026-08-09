@@ -20,7 +20,7 @@
       "maxLength": 256
     },
     "identity": {
-      "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v1"
+      "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
     },
     "ownerDomain": {
       "type": "string",
@@ -74,7 +74,7 @@
       "type": "integer",
       "minimum": 0
     },
-    "hashVerifiedAtMs": {
+    "fingerprintVerifiedAtMs": {
       "type": "integer",
       "minimum": 0
     },
@@ -106,7 +106,7 @@
     "expectedSizeBytes",
     "expectedMtimeNs",
     "expectedCtimeNs",
-    "hashVerifiedAtMs",
+    "fingerprintVerifiedAtMs",
     "readScope",
     "expiresAtMs",
     "fenceDigest"

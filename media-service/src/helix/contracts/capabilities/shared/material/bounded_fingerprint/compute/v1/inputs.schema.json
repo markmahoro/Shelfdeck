@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/shared.material.bounded_fingerprint.compute/v1/inputs",
+  "title": "shared.material.bounded_fingerprint.compute@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "physicalMaterialReadHandle": {
+      "$ref": "#/$defs/physicalMaterialReadHandle"
+    },
+    "boundedFingerprintProfile": {
+      "$ref": "#/$defs/boundedFingerprintProfile"
+    }
+  },
+  "required": [
+    "physicalMaterialReadHandle",
+    "boundedFingerprintProfile"
+  ],
+  "$defs": {
+    "physicalMaterialReadHandle": {
+      "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1",
+      "x-helix-typeExpression": "PhysicalMaterialReadHandle"
+    },
+    "boundedFingerprintProfile": {
+      "$ref": "helix://contracts/domain-types/BoundedFingerprintProfile/v1",
+      "x-helix-typeExpression": "BoundedFingerprintProfile"
+    }
+  }
+}

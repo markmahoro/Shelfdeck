@@ -9,8 +9,7 @@ const {
 } = require('../model/field-profile-hint-contracts');
 
 const PAGE_SCHEMA = 'helix://contracts/types/FieldObservationPage/v1';
-const FACT_SCHEMA = 'helix://domains/procurement/facts/FieldObservationRevision/v1';
-const RESULT_SCHEMA = 'helix://contracts/types/ObservationCommitResult/v1';
+const { FACT_SCHEMA, RESULT_SCHEMA } = require('../model/field-observation-contracts');
 
 class FieldObservationStoreError extends Error {
   constructor(code, message, details = {}) { super(message); this.name = 'FieldObservationStoreError'; this.code = code; this.details = details; }
@@ -33,8 +32,8 @@ function definition(schemaManifest) {
       { column:'status', parameter:'expected_status' }
     ] },
     find_material:{ kind:'select-one', tableId:'proc_field_materials', columns:['field_id','material_key','endpoint_id','access_revision','mount_scope_revision','current_location','binding_revision','reality_digest','last_snapshot_digest','eligibility_revision','eligibility_state','eligibility_reason_code','eligibility_basis_digest','eligibility_field_status','eligibility_observation_revision','eligibility_policy_revision','selection_basis_digest','control_projection','control_projection_revision','control_projection_digest','eligibility_reconciled_at_ms'], keyColumns:['field_id','material_key'], safeIntegers:true },
-    insert_material:{ kind:'insert', tableId:'proc_field_materials', columns:['field_id','material_key','mount_scope_id','inode','content_hash_algorithm','content_hash','endpoint_id','access_revision','mount_scope_revision','size_bytes','mtime_ns','ctime_ns','hash_verified_at_ms','current_location','binding_revision','reality_digest','provenance_digest','last_snapshot_digest','last_observation_id','eligibility_revision','eligibility_state','eligibility_reason_code','eligibility_basis_digest','eligibility_field_status','eligibility_observation_revision','eligibility_policy_revision','selection_basis_digest','control_projection','control_projection_revision','control_projection_digest','eligibility_reconciled_at_ms'] },
-    update_material:{ kind:'update', tableId:'proc_field_materials', setColumns:['mount_scope_id','inode','content_hash_algorithm','content_hash','endpoint_id','access_revision','mount_scope_revision','size_bytes','mtime_ns','ctime_ns','hash_verified_at_ms','current_location','binding_revision','reality_digest','provenance_digest','last_snapshot_digest','last_observation_id','eligibility_revision','eligibility_state','eligibility_reason_code','eligibility_basis_digest','eligibility_field_status','eligibility_observation_revision','eligibility_policy_revision','selection_basis_digest','control_projection','control_projection_revision','control_projection_digest','eligibility_reconciled_at_ms'], keyColumns:['field_id','material_key'] }
+    insert_material:{ kind:'insert', tableId:'proc_field_materials', columns:['field_id','material_key','mount_scope_id','inode','size_bytes','fingerprint_algorithm','fingerprint_version','content_fingerprint','endpoint_id','access_revision','mount_scope_revision','mtime_ns','ctime_ns','fingerprint_verified_at_ms','current_location','binding_revision','reality_digest','provenance_digest','last_snapshot_digest','last_observation_id','eligibility_revision','eligibility_state','eligibility_reason_code','eligibility_basis_digest','eligibility_field_status','eligibility_observation_revision','eligibility_policy_revision','selection_basis_digest','control_projection','control_projection_revision','control_projection_digest','eligibility_reconciled_at_ms'] },
+    update_material:{ kind:'update', tableId:'proc_field_materials', setColumns:['mount_scope_id','inode','size_bytes','fingerprint_algorithm','fingerprint_version','content_fingerprint','endpoint_id','access_revision','mount_scope_revision','mtime_ns','ctime_ns','fingerprint_verified_at_ms','current_location','binding_revision','reality_digest','provenance_digest','last_snapshot_digest','last_observation_id','eligibility_revision','eligibility_state','eligibility_reason_code','eligibility_basis_digest','eligibility_field_status','eligibility_observation_revision','eligibility_policy_revision','selection_basis_digest','control_projection','control_projection_revision','control_projection_digest','eligibility_reconciled_at_ms'], keyColumns:['field_id','material_key'] }
   }});
 }
 
@@ -48,9 +47,11 @@ function validateHandle(handle, page) {
 }
 function materialRow(snapshot, bindingRevision, eligibility) {
   return { field_id:snapshot.fieldId, material_key:snapshot.identity.materialKey, mount_scope_id:snapshot.identity.mountScopeId,
-    inode:BigInt(snapshot.identity.inode), content_hash_algorithm:snapshot.identity.contentHashAlgorithm, content_hash:snapshot.identity.contentHash,
+    inode:BigInt(snapshot.identity.inode), size_bytes:snapshot.identity.sizeBytes,
+    fingerprint_algorithm:snapshot.identity.fingerprintAlgorithm, fingerprint_version:snapshot.identity.fingerprintVersion,
+    content_fingerprint:snapshot.identity.contentFingerprint,
     endpoint_id:snapshot.endpointId, access_revision:snapshot.accessRevision, mount_scope_revision:snapshot.mountScopeRevision,
-    size_bytes:snapshot.sizeBytes, mtime_ns:BigInt(snapshot.mtimeNs), ctime_ns:BigInt(snapshot.ctimeNs), hash_verified_at_ms:snapshot.hashVerifiedAtMs,
+    mtime_ns:BigInt(snapshot.mtimeNs), ctime_ns:BigInt(snapshot.ctimeNs), fingerprint_verified_at_ms:snapshot.fingerprintVerifiedAtMs,
     current_location:snapshot.location, binding_revision:bindingRevision, reality_digest:snapshot.realityDigest,
     provenance_digest:snapshot.provenanceDigest, last_snapshot_digest:snapshot.snapshotDigest, last_observation_id:snapshot.observationId,
     eligibility_revision:eligibility.revision, eligibility_state:eligibility.state, eligibility_reason_code:eligibility.reasonCode,

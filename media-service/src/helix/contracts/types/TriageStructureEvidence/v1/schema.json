@@ -341,7 +341,7 @@
                 "memberClaimDigest"
               ]
             },
-            "maxItems": 1024,
+            "maxItems": 256,
             "minItems": 1
           },
           "relatedReferences": {
@@ -411,7 +411,7 @@
           "evidenceDigest"
         ]
       },
-      "maxItems": 1024
+      "maxItems": 256
     },
     "unitSetDigest": {
       "type": "string",

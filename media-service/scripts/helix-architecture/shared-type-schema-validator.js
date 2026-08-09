@@ -100,8 +100,9 @@ function validateSharedTypeSchemas(options) {
   }
   const paths = new Set();
   for (const entry of registry.entries || []) {
+    const expectedVersion = entry?.id === 'PhysicalMaterialIdentity' ? 2 : 1;
     const valid = entry && typeof entry.id === 'string' && !entryIds.has(entry.id) &&
-      entry.version === 1 && ['shared-nominal-handle', 'common-envelope', 'execution-context', 'outcome-envelope'].includes(entry.role) &&
+      entry.version === expectedVersion && ['shared-nominal-handle', 'common-envelope', 'execution-context', 'outcome-envelope'].includes(entry.role) &&
       typeof entry.schemaId === 'string' && !schemaIds.has(entry.schemaId) && boundedRelative(entry.relativePath) && !paths.has(entry.relativePath) &&
       entry.digest && entry.digest.algorithm === 'sha256' && /^[a-f0-9]{64}$/.test(entry.digest.value || '') &&
       Array.isArray(entry.ssotRefs) && entry.ssotRefs.length > 0;
@@ -121,7 +122,7 @@ function validateSharedTypeSchemas(options) {
     const schemaPath = path.resolve(contractsRoot, entry.relativePath);
     const schema = readJson(schemaPath, findings);
     if (!schema) continue;
-    if (schema.$schema !== 'https://json-schema.org/draft/2020-12/schema' || schema.$id !== entry.schemaId || schema.$id !== `helix://contracts/types/${entry.id}/v1`) {
+    if (schema.$schema !== 'https://json-schema.org/draft/2020-12/schema' || schema.$id !== entry.schemaId || schema.$id !== `helix://contracts/types/${entry.id}/v${entry.version}`) {
       findings.push(finding('INVALID_SHARED_SCHEMA_IDENTITY', 'Shared schema draft, $id, and registry identity must agree.', {
         file: normalizePath(schemaPath), entryId: entry.id
       }));

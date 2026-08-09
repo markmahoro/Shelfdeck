@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/fx_reconcile_cursors/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "fx_reconcile_cursors",
+    "owner": "execution-foundation",
+    "prefix": "fx_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "owner_domain",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "reconciler_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "opaque_cursor",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 5,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "owner_domain",
+      "reconciler_key"
+    ],
+    "declaredForeignKeyColumns": [],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(owner_domain,reconciler_key)`",
+      "revision从1递增",
+      "opaque cursor为不超过`4 KiB`的bounded string或NULL",
+      "只保存Foundation调度位置，不保存或解释Domain Fact",
+      "每页Scope全部完成幂等reconcile后才CAS推进，崩溃前未推进时允许整页重放"
+    ],
+    "rawContract": {
+      "columns": "`owner_domain, reconciler_key, revision, opaque_cursor NULL, updated_at_ms`",
+      "constraints": "`PK(owner_domain,reconciler_key)`；revision从1递增；opaque cursor为不超过`4 KiB`的bounded string或NULL；只保存Foundation调度位置，不保存或解释Domain Fact；每页Scope全部完成幂等reconcile后才CAS推进，崩溃前未推进时允许整页重放"
+    },
+    "source": {
+      "section": "8.5.10",
+      "line": 8618,
+      "lineDigest": "8b4ed53d56e4b0879527ed42f72fee93c248c3302f5b98dddcd1603a833048bb"
+    },
+    "foreignKeys": []
+  }
+}

@@ -6,13 +6,24 @@
   "endOrdinal": 91,
   "entries": [
     {
+      "id": "libra_product_fact_revisions",
+      "owner": "libra",
+      "columnsContract": "`product_fact_id PK, libra_run_id FK, fact_kind, fact_revision, aggregate_id NULL, schema_ref, fact_json, fact_digest, evidence_digest, source_basis_kind(metadata_observation|western_analysis|western_match) NULL, source_basis_id NULL, source_basis_digest NULL, source_ref_count, verified_artifact_manifest_schema_ref NULL, verified_artifact_manifest_json NULL, verified_artifact_manifest_digest NULL, artifact_verification_result_count, commit_payload_schema_ref NULL, commit_payload_digest NULL, event_fence_digest NULL, commit_marker NULL FK UNIQUE, result_digest NULL, committed_at_ms`",
+      "constraintsContract": "`fact_kind`必须是Catalog已注册的Product Fact kind，不由Store发明open value；Fact JSON上限`64 KiB`且大Artifact只含handle。`media_cast|product_metadata`按8.6.19固定`product_fact_id/aggregate_id/revision/commit/evidence/result`，要求全部commit/Source Basis列非NULL。Product Metadata只允许`metadata_observation|western_analysis`，且三个Artifact Manifest列全非NULL、schema固定`VerifiedArtifactManifest@1`、canonical JSON≤`256 KiB`、digest逐字节等于Manifest `manifestDigest`，`artifact_verification_result_count`等于items中去重后的显式verification Result ID数并为`0..256`；Media Cast只允许`metadata_observation|western_match`，三个Manifest列全NULL且该count=0。Observation basis的`source_ref_count=1..16`；Western Product Metadata basis为`2..17`（至少一项Analysis Result加恰一项Normalize Result）；Western Media-Cast basis恰为1项Match Result。其他已注册kind继续服从各自既有精确合同，允许这些PBF-14专用列为NULL且两个count=0，不能被本修正反向套用未定义公式；非NULL `commit_marker`显式FK到`fx_commit_markers(commit_marker)`，`ON DELETE RESTRICT`且唯一，`result_digest`逐字节等于marker所指`fx_event_result_bindings`；`UNIQUE(libra_run_id,fact_kind,fact_revision)`；`INDEX(libra_run_id,fact_kind,fact_revision)`",
+      "source": {
+        "section": "8.5.11",
+        "line": 8695,
+        "lineDigest": "1ac5c18c220b829770431e8a720b32adf3835a6156e073c9145de8f581d98777"
+      }
+    },
+    {
       "id": "libra_product_fact_source_refs",
       "owner": "libra",
       "columnsContract": "`product_fact_id FK, ordinal, source_basis_kind(metadata_observation|western_analysis|western_match), work_id FK, attempt_id FK, plan_id FK, event_id FK, result_id FK, capability_ref, result_schema_ref, result_digest, source_ref, source_order, evidence_id NULL, evidence_digest NULL, input_binding_digest, reference_digest`",
       "constraintsContract": "`PK(product_fact_id,ordinal)`、`UNIQUE(product_fact_id,result_id)`；ordinal从0连续且恰等于Fact row的`source_ref_count`，`source_order=ordinal`，全部Work/Attempt/Plan/Event必须构成同一Run、同一Execution Basis；所有`result_digest`都逐字节复制对应`fx_event_result_bindings.result_digest=SHA-256(JCS(包含领域内digest字段的完整typed Result))`，不得复制Result内部排除自身计算的领域摘要；`input_binding_digest=SHA-256(JCS(fx_plan_nodes.input_bindings_json解析后的完整typed value))`。`metadata_observation`固定`libra.product_metadata.fetch@1 → MetadataObservation@1`，`source_ref=MetadataObservation.sourceRef`，按`sourcePriority,evidence_id`排序且Evidence列非NULL；`western_analysis`固定一至16项`libra.western.analysis.observe@1 → WesternAnalysisResult@1`后恰一项`libra.western.metadata.normalize@1 → ProductMetadataDraft@1`，observe的`source_ref=WesternAnalysisResult.resultArtifactHandle.artifactHandleId`且该Handle/digest逐字节命中同Run Artifact Registry，Evidence列非NULL；normalize的`source_ref=WesternAnalysisVariant.variantId`且Evidence列全NULL；normalize Plan input必须显式引用前序Result且最后Result逐字节等于Commit Draft；`western_match`恰一项`shared.face.reference.match@1 → PersonMatchEvidence@1`且`source_ref=PersonMatchEvidence.evidenceId`、Evidence列非NULL，其matches可为空但必须来自真实Frame→Embedding→Cluster→Match链。`reference_digest=SHA-256(JCS({schema:\"libra.product-fact-source-ref@1\",productFactId,ordinal,sourceBasisKind,workId,attemptId,planId,eventId,resultId,capabilityRef,resultSchemaRef,resultDigest,sourceRef,sourceOrder,evidenceId,evidenceDigest,inputBindingDigest}))`；relation存在期间所指Foundation链及Western Artifact Registry row不得GC；不得用later current Result替换历史引用",
       "source": {
         "section": "8.5.11",
-        "line": 8573,
+        "line": 8696,
         "lineDigest": "4884add10948ed498129ee8e25f5d2d500e4438ac3f382d042c39464fd9555a1"
       }
     },
@@ -23,19 +34,19 @@
       "constraintsContract": "`on_deck_package_id=SHA-256(JCS({schema:\"libra.on-deck-package-id@1\",libraRunId,packageRevision}))`，只作为由Run内唯一revision预派生的稳定身份；`package_digest`必须由完整`OnDeckProductPackage@1`按8.6.19公式重建，不能使用自选字段子集；`published_at_ms`是commit metadata且不进入该content digest；`offer_id=SHA-256(JCS({schema:\"libra.product-offer-id@1\",onDeckPackageId,packageDigest}))`且唯一；run state pair逐字节引用immutable Run revision；四个manifest ID按8.6.21由run/package revision和manifest kind唯一派生，`product_fact_manifest_digest/artifact_manifest_digest/offload_context_digest`分别等于对应完整Manifest digest而不是仅成员set digest；typed JSON各≤`64 KiB`；Fact/Artifact set必须由Package relation重建，resolved-identity/media-cast Fact必须各唯一且Media Cast完整Fact JSON包含relations；`promotion_decision_digest`与Run/Workspace/Control historical rows重建值逐字节一致；`UNIQUE(libra_run_id,package_revision)`及`UNIQUE(libra_run_id,package_digest)`；Package row append-only，accepted/rejected终态只由`libra_delivery_receipts`表达；`INDEX(shelf_id,state,published_at_ms)`",
       "source": {
         "section": "8.5.11",
-        "line": 8574,
+        "line": 8697,
         "lineDigest": "7de8e1c777360968d116f56e46ac5682dded3817f82cdf68b9ad4d0ec4113100"
       }
     },
     {
       "id": "libra_product_package_materials",
       "owner": "libra",
-      "columnsContract": "`on_deck_package_id FK, ordinal, material_handle_id NULL, material_key, role(primary_payload|structural_dependency|metadata_sidecar|poster|fanart|subtitle|external_audio|chapter), mount_scope_id, inode, content_hash_algorithm, content_hash, location_kind(domain_binding|workspace_handle), endpoint_id, location NULL, root_handle_ref NULL, relative_path NULL, binding_kind(libra_material_binding|workspace_material_reference), binding_revision, binding_evidence_digest, origin_intake_decision_id NULL FK, origin_offer_id NULL, origin_candidate_package_id NULL, origin_package_revision NULL, origin_package_digest NULL, origin_candidate_delivery_snapshot_digest NULL, origin_related_reference_set_digest NULL, workspace_reference_id NULL, workspace_handle_schema_ref NULL, workspace_handle_json NULL, workspace_handle_digest NULL, output_requirement_digest, episode_claim_set_digest, digest_algorithm, digest_hex, size_bytes, control_operation(assert_existing_input|acquire_workspace_product), expected_control_revision NULL, expected_control_projection_digest NULL, committed_control_revision, committed_control_projection_digest, member_digest`",
-      "constraintsContract": "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,material_key)`；一个Physical Material在同一Product Manifest只有一个业务role，ordinal从0连续且至少一个primary，只有primary允许Episode relation；`digest_algorithm=content_hash_algorithm=sha256`且`digest_hex=content_hash`，完整Physical Identity/Location/Binding/Requirement/Evidence可重建Product Material Manifest。`output_requirement_digest`必须按8.6.21从Package/Run共同引用的immutable Acceptance Spec及本Product member/relation重算并逐字节等于Manifest；assert variant固定domain location/Libra Binding，origin Delivery列全非NULL、Workspace/root-relative列全NULL且expected Control非NULL，其Physical Identity/Location/Binding/origin/expected Control逐项命中Run Input，Requirement因`manifestRole=product_delivery`按正式公式重新派生；acquire variant固定workspace location/Workspace Reference，origin/location列为NULL而root/relative及typed Handle JSON≤`4 KiB`逐字节命中current Product Staging Reference、expected Control为空并在Promotion事务取得revision 1；member/set digest按8.6.21唯一公式",
+      "columnsContract": "`on_deck_package_id FK, ordinal, material_handle_id NULL, material_key, role(primary_payload|structural_dependency|metadata_sidecar|poster|fanart|subtitle|external_audio|chapter), mount_scope_id, inode, fingerprint_algorithm, fingerprint_version, content_fingerprint, location_kind(domain_binding|workspace_handle), endpoint_id, location NULL, root_handle_ref NULL, relative_path NULL, binding_kind(libra_material_binding|workspace_material_reference), binding_revision, binding_evidence_digest, origin_intake_decision_id NULL FK, origin_offer_id NULL, origin_candidate_package_id NULL, origin_package_revision NULL, origin_package_digest NULL, origin_candidate_delivery_snapshot_digest NULL, origin_related_reference_set_digest NULL, workspace_reference_id NULL, workspace_handle_schema_ref NULL, workspace_handle_json NULL, workspace_handle_digest NULL, output_requirement_digest, episode_claim_set_digest, digest_algorithm, digest_hex, size_bytes, control_operation(assert_existing_input|acquire_workspace_product), expected_control_revision NULL, expected_control_projection_digest NULL, committed_control_revision, committed_control_projection_digest, member_digest`",
+      "constraintsContract": "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,material_key)`；一个Physical Material在同一Product Manifest只有一个业务role，ordinal从0连续且至少一个primary，只有primary允许Episode relation；完整Physical Identity/Location/Binding/Requirement/Evidence可重建Product Material Manifest。direct input的`digest_algorithm=middle-256k-sha256,digest_hex=content_fingerprint`；系统生成Workspace output的`digest_algorithm=sha256,digest_hex`来自原写入流的独立Artifact digest且不得参与materialKey。`output_requirement_digest`必须按8.6.21从Package/Run共同引用的immutable Acceptance Spec及本Product member/relation重算并逐字节等于Manifest；assert variant固定domain location/Libra Binding，origin Delivery列全非NULL、Workspace/root-relative列全NULL且expected Control非NULL，其Physical Identity/Location/Binding/origin/expected Control逐项命中Run Input，Requirement因`manifestRole=product_delivery`按正式公式重新派生；acquire variant固定workspace location/Workspace Reference，origin/location列为NULL而root/relative及typed Handle JSON≤`4 KiB`逐字节命中current Product Staging Reference、expected Control为空并在Promotion事务取得revision 1；member/set digest按8.6.21唯一公式",
       "source": {
         "section": "8.5.11",
-        "line": 8575,
-        "lineDigest": "d47dc11b599a42baa401451a807d6c0ee41e3e4e14d1fb33b934749032df0872"
+        "line": 8698,
+        "lineDigest": "1d8de04e6246a300022dac6aef8a668def2badf6ddb0b0eefda70fb6af260df5"
       }
     },
     {
@@ -45,7 +56,7 @@
       "constraintsContract": "`PK(on_deck_package_id,member_ordinal,episode_key)`并复合FK到Product member；只允许season primary payload；每个Material允许0..32个Episode，按episodeKey UTF-8 bytes排序；完整relation与`episode_claim_set_digest`必须按8.6.21逐字节重建，禁止只保存摘要或回读Run current scope补齐",
       "source": {
         "section": "8.5.11",
-        "line": 8576,
+        "line": 8699,
         "lineDigest": "c3d8a18af29cf5b0c742b25e66b56886428475c30ae6110084fec45e316ff66a"
       }
     },
@@ -56,7 +67,7 @@
       "constraintsContract": "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,product_fact_id,fact_revision)`；按factKind/id/revision排序；必须逐项引用同Run immutable Product Fact；历史Package读取以该relation连接`libra_product_fact_revisions`并展开同一typed `fact_json`，完整Product Fact Manifest不依赖current row或另一Domain Store",
       "source": {
         "section": "8.5.11",
-        "line": 8577,
+        "line": 8700,
         "lineDigest": "9dd954abffef9d834c6263741ceaaa7714a33415f6028cf7c65523e09f7c8515"
       }
     },
@@ -67,19 +78,19 @@
       "constraintsContract": "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,artifact_handle_id,artifact_revision)`；按kind/handle/revision排序；只保存typed immutable Artifact Handle ref，不保存大bytes；完整Artifact Manifest由relation重建",
       "source": {
         "section": "8.5.11",
-        "line": 8578,
+        "line": 8701,
         "lineDigest": "32d168641de734faba91e91219a37c082bf076ef79a68d45c4be429deb1bb44a"
       }
     },
     {
       "id": "libra_offload_context_materials",
       "owner": "libra",
-      "columnsContract": "`on_deck_package_id FK, ordinal, material_key, context_role(original_input|structural_dependency), mount_scope_id, inode, content_hash_algorithm, content_hash, endpoint_id, location, binding_revision, binding_evidence_digest, admitted_control_revision, admitted_control_projection_digest, settlement_expectation(retain|replace_or_move|remove_after_place), context_member_digest`",
+      "columnsContract": "`on_deck_package_id FK, ordinal, material_key, context_role(original_input|structural_dependency), mount_scope_id, inode, size_bytes, fingerprint_algorithm, fingerprint_version, content_fingerprint, endpoint_id, location, binding_revision, binding_evidence_digest, admitted_control_revision, admitted_control_projection_digest, settlement_expectation(retain|replace_or_move|remove_after_place), context_member_digest`",
       "constraintsContract": "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,material_key,context_role)`；逐列冻结Arca计算Final Inventory Decision所需Reality，不声明最终动作；按materialKey/contextRole排序并进入offload context digest",
       "source": {
         "section": "8.5.11",
-        "line": 8579,
-        "lineDigest": "d42a868c051259871ef309cec961ed873b7210ab03125b84a19f407e8587e69e"
+        "line": 8702,
+        "lineDigest": "b7b7d948eb334ad035cc2da3e5c4a8a2f4b416b2aaf28cf1be4ef1d2bcf0f09e"
       }
     },
     {
@@ -89,7 +100,7 @@
       "constraintsContract": "`receipt_id=SHA-256(JCS({schema:\"libra.product-delivery-receipt-id@1\",offerId}))`，offer逐字节等于Package row且`UNIQUE(offer_id)`；accepted要求Custody/Binding/Control列非NULL、rejection/closure列NULL，并逐项无损保存`ArcaProductAcceptedMessage@1` Receipt；rejected要求Custody/Binding/Control列NULL且decision/receipt/rejection/closure digest逐项等于`ArcaProductRejectedMessage@1`与`LibraProductRejectionClosureResult@1`；terminal后immutable，相反终态稳定拒绝；`INDEX(result,received_at_ms)`",
       "source": {
         "section": "8.5.11",
-        "line": 8580,
+        "line": 8703,
         "lineDigest": "8e8f2c4cad18bcfd0002929692d725234f35e17ab99583f0539a5541044d661d"
       }
     },
@@ -100,7 +111,7 @@
       "constraintsContract": "mount scope pair是Platform opaque technical ref；active Shelf name不作为identity；Shelf创建时routing projection revision=1，任何后续`status/current_standard_revision`变化都对该revision执行CAS并加1，再按`ShelfRoutingTargetProjection@1`公式重算digest；`INDEX(status,shelf_id)`；不得保存Libra Routing Priority",
       "source": {
         "section": "8.5.12",
-        "line": 8586,
+        "line": 8709,
         "lineDigest": "fb0d7dd2f0060eb79bacd13ded477487737287361b1f6acf01b597e26f233c18"
       }
     },
@@ -111,7 +122,7 @@
       "constraintsContract": "system template不能archive或创建draft；current revision显式FK；`INDEX(status,owner_kind,rule_template_id)`",
       "source": {
         "section": "8.5.12",
-        "line": 8587,
+        "line": 8710,
         "lineDigest": "bd5c979d8217bbe4ac7c7562b1b9edf0fc2732ef5d8cccbc27f1d01f79fbe829"
       }
     },
@@ -122,7 +133,7 @@
       "constraintsContract": "rules JSON上限`64 KiB`；`PK(rule_template_id,revision)`；immutable",
       "source": {
         "section": "8.5.12",
-        "line": 8588,
+        "line": 8711,
         "lineDigest": "6e3e8f8aa33fe6418af146903da0d1e6e2d7f8fd094681a008803ad07f8ceb51"
       }
     },
@@ -133,19 +144,8 @@
       "constraintsContract": "只允许user template；一个Template最多一份current draft；发布以expected draft revision/digest消费但保留审计Evidence",
       "source": {
         "section": "8.5.12",
-        "line": 8589,
+        "line": 8712,
         "lineDigest": "b27ad6918fa468908a559182fd6d6cce24143d3afa39a1f4c17b0f89bbd6155c"
-      }
-    },
-    {
-      "id": "arca_shelf_standard_revisions",
-      "owner": "arca",
-      "columnsContract": "`shelf_id FK, revision, rule_template_id, rule_template_revision, standard_schema_ref, standard_json, standard_digest, effective_at_ms`",
-      "constraintsContract": "Standard JSON上限`64 KiB`；`PK(shelf_id,revision)`；Shelf current pointer显式FK；当前row中的template pair同时是Shelf current Template binding权威来源；`INDEX(rule_template_id,rule_template_revision)`",
-      "source": {
-        "section": "8.5.12",
-        "line": 8590,
-        "lineDigest": "4fc3b60852bf253ca8b4f3f3741f542f3d5f5b3468003014b525d2311ab36fdb"
       }
     }
   ]

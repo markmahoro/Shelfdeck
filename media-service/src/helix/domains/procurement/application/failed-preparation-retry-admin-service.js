@@ -186,9 +186,10 @@ function repositoryDefinition(schemaManifest) {
           'material_key',
           'mount_scope_id',
           'inode',
-          'content_hash_algorithm',
-          'content_hash',
           'size_bytes',
+          'fingerprint_algorithm',
+          'fingerprint_version',
+          'content_fingerprint',
           'endpoint_id',
           'binding_revision',
           'current_location',
@@ -281,13 +282,15 @@ function runMember(material, controlSnapshot, ordinal) {
     materialKey: material.material_key,
     selectionRole: 'triage_input',
     physicalIdentity: {
-      schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v1',
-      schemaVersion: 1,
+      schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v2',
+      schemaVersion: 2,
       materialKey: material.material_key,
       mountScopeId: material.mount_scope_id,
       inode: String(material.inode),
-      contentHashAlgorithm: material.content_hash_algorithm,
-      contentHash: material.content_hash,
+      sizeBytes: Number(material.size_bytes),
+      fingerprintAlgorithm: material.fingerprint_algorithm,
+      fingerprintVersion: Number(material.fingerprint_version),
+      contentFingerprint: material.content_fingerprint,
     },
     sizeBytes: Number(material.size_bytes),
     bindingRevision: Number(material.binding_revision),
@@ -470,7 +473,7 @@ function createFailedPreparationRetryAdminService(options) {
           member.terminal_disposition === 'triage_failed');
         failedMembers.sort((left, right) =>
           left.material_key.localeCompare(right.material_key));
-        if (failedMembers.length < 1 || failedMembers.length > 1024 ||
+        if (failedMembers.length < 1 || failedMembers.length > 256 ||
             failedMembers.some((member) =>
               !Number.isSafeInteger(Number(member.ordinal)) ||
               Number(member.ordinal) < 0)) {

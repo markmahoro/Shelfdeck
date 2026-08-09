@@ -19,11 +19,15 @@ function canonical(value) {
 }
 const eventFenceDigest = hash('event-fence');
 const scope = Object.freeze({ scopeType: 'subject', scopeId: 'subject-1' });
-const identity = Object.freeze({
-  schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v1', schemaVersion: 1,
-  materialKey: hash('material-1'), mountScopeId: 'mount-1', inode: 'inode-1',
-  contentHashAlgorithm: 'sha256', contentHash: hash('content-1')
-});
+const identityValue = {
+  schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v2', schemaVersion: 2,
+  mountScopeId: 'mount-1', inode: '1', sizeBytes: 100,
+  fingerprintAlgorithm: 'middle-256k-sha256', fingerprintVersion: 1, contentFingerprint: hash('content-1')
+};
+identityValue.materialKey = hash(canonical({ schema:'physical-material-identity@2', mountScopeId:identityValue.mountScopeId,
+  inode:identityValue.inode, sizeBytes:identityValue.sizeBytes, fingerprintAlgorithm:identityValue.fingerprintAlgorithm,
+  fingerprintVersion:identityValue.fingerprintVersion, contentFingerprint:identityValue.contentFingerprint }));
+const identity = Object.freeze(identityValue);
 
 function fixture(overrides = {}) {
   let now = 1_000;
@@ -36,7 +40,7 @@ function fixture(overrides = {}) {
     binding: {
       basisDigest: hash('basis'), basisRevision: 4, bindingId: 'binding-1', bindingKind: 'primary', bindingRevision: 3,
       containmentRoot: '/media/field', endpointId: 'endpoint-1', expectedCtimeNs: 90, expectedMtimeNs: 100,
-      expectedSizeBytes: 10, hashVerifiedAtMs: 900, identity, location: '/media/field/movie.mkv',
+      expectedSizeBytes: 10, fingerprintVerifiedAtMs: 900, identity, location: '/media/field/movie.mkv',
       mountScopeRevision: 2, ownerDomain: 'libra', ownerScope: scope
     },
     control: { controlRevision: 7, materialKey: identity.materialKey, ownerDomain: 'libra', ownerScope: scope, state: 'active' },
@@ -133,7 +137,7 @@ test('issues exact Physical and Workspace handles from Owner projections without
   const workspace = fx.authority.issueWorkspace(workspaceRequest());
   assert.deepEqual(Object.keys(physical).sort(), [
     'bindingRevision', 'endpointId', 'expectedCtimeNs', 'expectedMtimeNs', 'expectedSizeBytes', 'expiresAtMs',
-    'fenceDigest', 'handleId', 'hashVerifiedAtMs', 'identity', 'location', 'mountScopeRevision', 'ownerDomain',
+    'fenceDigest', 'handleId', 'fingerprintVerifiedAtMs', 'identity', 'location', 'mountScopeRevision', 'ownerDomain',
     'ownerScope', 'readScope', 'schemaRef', 'schemaVersion'
   ].sort());
   assert.equal(physical.bindingRevision, 3);

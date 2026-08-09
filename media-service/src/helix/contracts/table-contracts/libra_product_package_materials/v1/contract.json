@@ -88,7 +88,7 @@
       },
       {
         "ordinal": 8,
-        "name": "content_hash_algorithm",
+        "name": "fingerprint_algorithm",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -98,7 +98,7 @@
       },
       {
         "ordinal": 9,
-        "name": "content_hash",
+        "name": "fingerprint_version",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -108,6 +108,16 @@
       },
       {
         "ordinal": 10,
+        "name": "content_fingerprint",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
         "name": "location_kind",
         "logicalType": "TEXT",
         "enumValues": [
@@ -120,7 +130,7 @@
         "nullable": false
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "endpoint_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -130,7 +140,7 @@
         "nullable": false
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "location",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -140,7 +150,7 @@
         "nullable": true
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "root_handle_ref",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -150,7 +160,7 @@
         "nullable": true
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "relative_path",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -160,7 +170,7 @@
         "nullable": true
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "binding_kind",
         "logicalType": "TEXT",
         "enumValues": [
@@ -173,7 +183,7 @@
         "nullable": false
       },
       {
-        "ordinal": 16,
+        "ordinal": 17,
         "name": "binding_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -183,7 +193,7 @@
         "nullable": false
       },
       {
-        "ordinal": 17,
+        "ordinal": 18,
         "name": "binding_evidence_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -193,7 +203,7 @@
         "nullable": false
       },
       {
-        "ordinal": 18,
+        "ordinal": 19,
         "name": "origin_intake_decision_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -203,7 +213,7 @@
         "nullable": true
       },
       {
-        "ordinal": 19,
+        "ordinal": 20,
         "name": "origin_offer_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -213,7 +223,7 @@
         "nullable": true
       },
       {
-        "ordinal": 20,
+        "ordinal": 21,
         "name": "origin_candidate_package_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -223,7 +233,7 @@
         "nullable": true
       },
       {
-        "ordinal": 21,
+        "ordinal": 22,
         "name": "origin_package_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -233,7 +243,7 @@
         "nullable": true
       },
       {
-        "ordinal": 22,
+        "ordinal": 23,
         "name": "origin_package_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -243,7 +253,7 @@
         "nullable": true
       },
       {
-        "ordinal": 23,
+        "ordinal": 24,
         "name": "origin_candidate_delivery_snapshot_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -253,7 +263,7 @@
         "nullable": true
       },
       {
-        "ordinal": 24,
+        "ordinal": 25,
         "name": "origin_related_reference_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -263,7 +273,7 @@
         "nullable": true
       },
       {
-        "ordinal": 25,
+        "ordinal": 26,
         "name": "workspace_reference_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -273,7 +283,7 @@
         "nullable": true
       },
       {
-        "ordinal": 26,
+        "ordinal": 27,
         "name": "workspace_handle_schema_ref",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -283,7 +293,7 @@
         "nullable": true
       },
       {
-        "ordinal": 27,
+        "ordinal": 28,
         "name": "workspace_handle_json",
         "logicalType": "TEXT_JSON",
         "enumValues": [],
@@ -293,7 +303,7 @@
         "nullable": true
       },
       {
-        "ordinal": 28,
+        "ordinal": 29,
         "name": "workspace_handle_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -303,7 +313,7 @@
         "nullable": true
       },
       {
-        "ordinal": 29,
+        "ordinal": 30,
         "name": "output_requirement_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -313,7 +323,7 @@
         "nullable": false
       },
       {
-        "ordinal": 30,
+        "ordinal": 31,
         "name": "episode_claim_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -323,7 +333,7 @@
         "nullable": false
       },
       {
-        "ordinal": 31,
+        "ordinal": 32,
         "name": "digest_algorithm",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -333,7 +343,7 @@
         "nullable": false
       },
       {
-        "ordinal": 32,
+        "ordinal": 33,
         "name": "digest_hex",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -343,7 +353,7 @@
         "nullable": false
       },
       {
-        "ordinal": 33,
+        "ordinal": 34,
         "name": "size_bytes",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -353,7 +363,7 @@
         "nullable": false
       },
       {
-        "ordinal": 34,
+        "ordinal": 35,
         "name": "control_operation",
         "logicalType": "TEXT",
         "enumValues": [
@@ -366,7 +376,7 @@
         "nullable": false
       },
       {
-        "ordinal": 35,
+        "ordinal": 36,
         "name": "expected_control_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -376,7 +386,7 @@
         "nullable": true
       },
       {
-        "ordinal": 36,
+        "ordinal": 37,
         "name": "expected_control_projection_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -386,7 +396,7 @@
         "nullable": true
       },
       {
-        "ordinal": 37,
+        "ordinal": 38,
         "name": "committed_control_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -396,7 +406,7 @@
         "nullable": false
       },
       {
-        "ordinal": 38,
+        "ordinal": 39,
         "name": "committed_control_projection_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -406,7 +416,7 @@
         "nullable": false
       },
       {
-        "ordinal": 39,
+        "ordinal": 40,
         "name": "member_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -493,7 +503,7 @@
     "immutability": {
       "immutable": true,
       "rules": [
-        "`digest_algorithm=content_hash_algorithm=sha256`且`digest_hex=content_hash`，完整Physical Identity/Location/Binding/Requirement/Evidence可重建Product Material Manifest。`output_requirement_digest`必须按8.6.21从Package/Run共同引用的immutable Acceptance Spec及本Product member/relation重算并逐字节等于Manifest"
+        "系统生成Workspace output的`digest_algorithm=sha256,digest_hex`来自原写入流的独立Artifact digest且不得参与materialKey。`output_requirement_digest`必须按8.6.21从Package/Run共同引用的immutable Acceptance Spec及本Product member/relation重算并逐字节等于Manifest"
       ]
     },
     "deletion": {
@@ -503,19 +513,20 @@
     "semanticRules": [
       "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,material_key)`",
       "一个Physical Material在同一Product Manifest只有一个业务role，ordinal从0连续且至少一个primary，只有primary允许Episode relation",
-      "`digest_algorithm=content_hash_algorithm=sha256`且`digest_hex=content_hash`，完整Physical Identity/Location/Binding/Requirement/Evidence可重建Product Material Manifest。`output_requirement_digest`必须按8.6.21从Package/Run共同引用的immutable Acceptance Spec及本Product member/relation重算并逐字节等于Manifest",
+      "完整Physical Identity/Location/Binding/Requirement/Evidence可重建Product Material Manifest。direct input的`digest_algorithm=middle-256k-sha256,digest_hex=content_fingerprint`",
+      "系统生成Workspace output的`digest_algorithm=sha256,digest_hex`来自原写入流的独立Artifact digest且不得参与materialKey。`output_requirement_digest`必须按8.6.21从Package/Run共同引用的immutable Acceptance Spec及本Product member/relation重算并逐字节等于Manifest",
       "assert variant固定domain location/Libra Binding，origin Delivery列全非NULL、Workspace/root-relative列全NULL且expected Control非NULL，其Physical Identity/Location/Binding/origin/expected Control逐项命中Run Input，Requirement因`manifestRole=product_delivery`按正式公式重新派生",
       "acquire variant固定workspace location/Workspace Reference，origin/location列为NULL而root/relative及typed Handle JSON≤`4 KiB`逐字节命中current Product Staging Reference、expected Control为空并在Promotion事务取得revision 1",
       "member/set digest按8.6.21唯一公式"
     ],
     "rawContract": {
-      "columns": "`on_deck_package_id FK, ordinal, material_handle_id NULL, material_key, role(primary_payload|structural_dependency|metadata_sidecar|poster|fanart|subtitle|external_audio|chapter), mount_scope_id, inode, content_hash_algorithm, content_hash, location_kind(domain_binding|workspace_handle), endpoint_id, location NULL, root_handle_ref NULL, relative_path NULL, binding_kind(libra_material_binding|workspace_material_reference), binding_revision, binding_evidence_digest, origin_intake_decision_id NULL FK, origin_offer_id NULL, origin_candidate_package_id NULL, origin_package_revision NULL, origin_package_digest NULL, origin_candidate_delivery_snapshot_digest NULL, origin_related_reference_set_digest NULL, workspace_reference_id NULL, workspace_handle_schema_ref NULL, workspace_handle_json NULL, workspace_handle_digest NULL, output_requirement_digest, episode_claim_set_digest, digest_algorithm, digest_hex, size_bytes, control_operation(assert_existing_input|acquire_workspace_product), expected_control_revision NULL, expected_control_projection_digest NULL, committed_control_revision, committed_control_projection_digest, member_digest`",
-      "constraints": "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,material_key)`；一个Physical Material在同一Product Manifest只有一个业务role，ordinal从0连续且至少一个primary，只有primary允许Episode relation；`digest_algorithm=content_hash_algorithm=sha256`且`digest_hex=content_hash`，完整Physical Identity/Location/Binding/Requirement/Evidence可重建Product Material Manifest。`output_requirement_digest`必须按8.6.21从Package/Run共同引用的immutable Acceptance Spec及本Product member/relation重算并逐字节等于Manifest；assert variant固定domain location/Libra Binding，origin Delivery列全非NULL、Workspace/root-relative列全NULL且expected Control非NULL，其Physical Identity/Location/Binding/origin/expected Control逐项命中Run Input，Requirement因`manifestRole=product_delivery`按正式公式重新派生；acquire variant固定workspace location/Workspace Reference，origin/location列为NULL而root/relative及typed Handle JSON≤`4 KiB`逐字节命中current Product Staging Reference、expected Control为空并在Promotion事务取得revision 1；member/set digest按8.6.21唯一公式"
+      "columns": "`on_deck_package_id FK, ordinal, material_handle_id NULL, material_key, role(primary_payload|structural_dependency|metadata_sidecar|poster|fanart|subtitle|external_audio|chapter), mount_scope_id, inode, fingerprint_algorithm, fingerprint_version, content_fingerprint, location_kind(domain_binding|workspace_handle), endpoint_id, location NULL, root_handle_ref NULL, relative_path NULL, binding_kind(libra_material_binding|workspace_material_reference), binding_revision, binding_evidence_digest, origin_intake_decision_id NULL FK, origin_offer_id NULL, origin_candidate_package_id NULL, origin_package_revision NULL, origin_package_digest NULL, origin_candidate_delivery_snapshot_digest NULL, origin_related_reference_set_digest NULL, workspace_reference_id NULL, workspace_handle_schema_ref NULL, workspace_handle_json NULL, workspace_handle_digest NULL, output_requirement_digest, episode_claim_set_digest, digest_algorithm, digest_hex, size_bytes, control_operation(assert_existing_input|acquire_workspace_product), expected_control_revision NULL, expected_control_projection_digest NULL, committed_control_revision, committed_control_projection_digest, member_digest`",
+      "constraints": "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,material_key)`；一个Physical Material在同一Product Manifest只有一个业务role，ordinal从0连续且至少一个primary，只有primary允许Episode relation；完整Physical Identity/Location/Binding/Requirement/Evidence可重建Product Material Manifest。direct input的`digest_algorithm=middle-256k-sha256,digest_hex=content_fingerprint`；系统生成Workspace output的`digest_algorithm=sha256,digest_hex`来自原写入流的独立Artifact digest且不得参与materialKey。`output_requirement_digest`必须按8.6.21从Package/Run共同引用的immutable Acceptance Spec及本Product member/relation重算并逐字节等于Manifest；assert variant固定domain location/Libra Binding，origin Delivery列全非NULL、Workspace/root-relative列全NULL且expected Control非NULL，其Physical Identity/Location/Binding/origin/expected Control逐项命中Run Input，Requirement因`manifestRole=product_delivery`按正式公式重新派生；acquire variant固定workspace location/Workspace Reference，origin/location列为NULL而root/relative及typed Handle JSON≤`4 KiB`逐字节命中current Product Staging Reference、expected Control为空并在Promotion事务取得revision 1；member/set digest按8.6.21唯一公式"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8575,
-      "lineDigest": "d47dc11b599a42baa401451a807d6c0ee41e3e4e14d1fb33b934749032df0872"
+      "line": 8698,
+      "lineDigest": "1d8de04e6246a300022dac6aef8a668def2badf6ddb0b0eefda70fb6af260df5"
     },
     "foreignKeys": [
       {

@@ -7,7 +7,7 @@
     "displayName": "Procurement Run Seal",
     "ownerScope": "procurement",
     "commitClass": "domain_fact_commit",
-    "atomicFactSet": "`ProcurementRunSealDecision@1` + Run expected state revision/basis CAS + sealed outcome/逐成员terminal Evidence/aggregate Evidence/finished time + 未成Package成员`run_selection → released`，保留`candidate_delivery`与全部Procurement Control + durable typed receipt/commit marker；candidate reservation、released member及seal Evidence的三项digest按8.6.18唯一公式形成并可由Owner rows重建；`hasOutbox=false`",
+    "atomicFactSet": "`ProcurementRunSealDecision@1` + Run expected state revision/basis CAS + sealed outcome/逐成员terminal Evidence/aggregate Evidence/finished time + 未成Package成员`run_selection → released`，保留`candidate_delivery`与全部Procurement Control + durable typed command receipt/commit marker；这是Coordinator收口terminal Work Result的短Owner transaction，使用`fx_command_receipts`而非伪造Event Result，不建立Work/Plan/Event且不申请Permit；candidate reservation、released member及seal Evidence的三项digest按8.6.18唯一公式形成并可由Owner rows重建；`hasOutbox=false`",
     "participants": [
       {
         "participantKind": "domain",
@@ -23,7 +23,7 @@
         "owner": "execution-foundation",
         "access": "write",
         "tables": [
-          "fx_event_result_bindings",
+          "fx_command_receipts",
           "fx_commit_markers"
         ]
       }
@@ -31,7 +31,7 @@
     "writeTables": [
       "proc_procurement_runs",
       "proc_run_materials",
-      "fx_event_result_bindings",
+      "fx_command_receipts",
       "fx_commit_markers"
     ],
     "readTables": [
@@ -54,8 +54,8 @@
     "crashFixtures": [
       {
         "fixtureId": "procurement-run-seal",
-        "faultInjectionPoints": "Seal Decision验证前后、Run revision/basis CAS、逐成员terminal Evidence形成、Reservation转换、aggregate Evidence/typed Result/marker前后、响应前崩溃",
-        "requiredInvariant": "Run sealed head、保留的candidate_delivery、全部released terminal members及逐成员Evidence、三项可重建digest、typed receipt和marker全有或全无；不释放Procurement Control且不写Outbox",
+        "faultInjectionPoints": "Seal Decision验证前后、Run revision/basis CAS、逐成员terminal Evidence形成、Reservation转换、aggregate Evidence/typed Command Receipt/marker前后、响应前崩溃",
+        "requiredInvariant": "Run sealed head、保留的candidate_delivery、全部released terminal members及逐成员Evidence、三项可重建digest、typed Command Receipt和marker全有或全无；不建立伪Event Result、不释放Procurement Control且不写Outbox",
         "source": {
           "section": "8.9.7",
           "line": 7623
@@ -64,8 +64,8 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7852,
-      "lineDigest": "f54e31f775accd471801677316643da5d78990ae36ef2f0a3379ea619fc1b894"
+      "line": 7974,
+      "lineDigest": "7c95c0020e839ac4e53b92ec994121da62780e3ee5c18f40fa495283254ff595"
     }
   }
 }

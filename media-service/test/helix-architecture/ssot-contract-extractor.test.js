@@ -54,7 +54,7 @@ test('fails closed when a required heading or Catalog row is missing', () => {
 
 test('fails closed on duplicate IDs and ambiguous Effect Class', () => {
   const duplicate = source.replace(
-    '`shared.material.content_hash.compute@1`',
+    '`shared.material.bounded_fingerprint.compute@1`',
     '`shared.material.filesystem_identity.observe@1`'
   );
   assert.throws(() => extractSsotContracts(duplicate), /duplicate IDs/);

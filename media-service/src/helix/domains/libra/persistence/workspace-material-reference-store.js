@@ -32,7 +32,7 @@ function libraDefinition(schemaManifest) {
 
 function foundationDefinition(schemaManifest) {
   return createRepositoryDefinition({ repositoryId:'workspace_material_reference_foundation', owner:'execution-foundation', schemaManifest, statements:{
-    find_material:{ kind:'select-one', tableId:'fx_workspace_materials', columns:['workspace_id','material_handle_id','material_key','endpoint_id','mount_scope_id','inode','content_hash_algorithm','content_hash','relative_path','digest_algorithm','digest_hex','size_bytes','reference_revision','owner_domain','process_id','root_handle_ref','access_scope','handle_schema_ref','handle_json','handle_digest','fence_digest','state'], keyColumns:['workspace_id','material_handle_id'], safeIntegers:true },
+    find_material:{ kind:'select-one', tableId:'fx_workspace_materials', columns:['workspace_id','material_handle_id','material_key','endpoint_id','mount_scope_id','inode','fingerprint_algorithm','fingerprint_version','content_fingerprint','relative_path','digest_algorithm','digest_hex','size_bytes','reference_revision','owner_domain','process_id','root_handle_ref','access_scope','handle_schema_ref','handle_json','handle_digest','fence_digest','state'], keyColumns:['workspace_id','material_handle_id'], safeIntegers:true },
     find_artifact:{ kind:'select-one', tableId:'fx_artifact_registry', columns:['artifact_handle_id','artifact_kind','owner_domain','owner_scope_type','owner_scope_id','storage_ref','digest_algorithm','digest_hex','size_bytes','media_type','provenance_ref','reference_revision','state'], keyColumns:['artifact_handle_id'], safeIntegers:true },
     find_marker:{ kind:'select-one', tableId:'fx_commit_markers', columns:['commit_marker','owner_domain','scope_type','scope_id','commit_digest','result_id','result_schema_ref','result_digest'], keyColumns:['commit_marker'] },
     find_result:{ kind:'select-one', tableId:'fx_event_result_bindings', columns:['result_id','result_json','result_digest'], keyColumns:['result_id'] },
@@ -81,8 +81,9 @@ function verifyFoundationMaterial(row, decision, workspace) {
   try { stored = JSON.parse(row.handle_json); } catch { fail('P9_REFERENCE_MATERIAL_CORRUPT', 'Foundation Handle JSON is corrupt.'); }
   const exact = row.workspace_id === handle.workspaceId && row.material_handle_id === handle.handleId &&
     row.material_key === handle.materialKey && row.endpoint_id === handle.endpointId && row.mount_scope_id === handle.physicalIdentity.mountScopeId &&
-    row.inode === handle.physicalIdentity.inode && row.content_hash_algorithm === handle.physicalIdentity.contentHashAlgorithm &&
-    row.content_hash === handle.physicalIdentity.contentHash && row.relative_path === handle.relativePath &&
+    row.inode === handle.physicalIdentity.inode && row.fingerprint_algorithm === handle.physicalIdentity.fingerprintAlgorithm &&
+    Number(row.fingerprint_version) === handle.physicalIdentity.fingerprintVersion &&
+    row.content_fingerprint === handle.physicalIdentity.contentFingerprint && row.relative_path === handle.relativePath &&
     row.digest_algorithm === handle.digestAlgorithm && row.digest_hex === handle.digestHex && Number(row.size_bytes) === handle.sizeBytes &&
     Number(row.reference_revision) === handle.referenceRevision && row.owner_domain === handle.ownerDomain && row.process_id === handle.processId &&
     row.root_handle_ref === handle.rootHandleRef && row.access_scope === handle.accessScope && row.handle_schema_ref === HANDLE_SCHEMA &&

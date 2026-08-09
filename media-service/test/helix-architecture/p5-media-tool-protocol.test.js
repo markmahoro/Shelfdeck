@@ -12,7 +12,7 @@ const operationCatalog = require('../../src/helix/contracts/ports/p5-media-tool-
 const ROOT = 'C:\\helix-controlled';
 const SHA = 'a'.repeat(64);
 const FACTORIES = {
-  ContentHashPort: 'createContentHashAdapter',
+  BoundedFingerprintPort: 'createBoundedFingerprintAdapter',
   FilesystemDestructiveCommitPort: 'createDestructiveCommitAdapter',
   FilesystemMaterialCommitPort: 'createMaterialCommitAdapter',
   FilesystemObservationPort: 'createFilesystemObservationAdapter',
@@ -29,7 +29,7 @@ function canonical(value) {
 function digest(value) { return crypto.createHash('sha256').update(value).digest('hex'); }
 function profile(operation) {
   const values = {
-    'identity-v1': {}, 'bounded-layout-v1': { maxDepth: 4, maxEntries: 100 }, 'sha256-full-v1': {}, 'media-summary-v1': {},
+    'identity-v1': {}, 'bounded-layout-v1': { maxDepth: 4, maxEntries: 100 }, 'middle-256k-sha256-v1': {}, 'media-summary-v1': {},
     'stage-copy-v1': { overwrite: false }, 'declared-cleanup-v1': { memberSetDigest: SHA },
     'frame-sampling-v1': { imageFormat: 'jpeg', timestampsMs: [1000] }, 'remux-v1': { container: 'mkv' },
     'care-remux-v1': { container: 'mkv' },
@@ -82,7 +82,8 @@ function options(records = {}) {
       return { outputDigest: SHA, verificationEvidenceDigest: digest(canonical(evidence)), bytesAffected: 10, itemCount: 1, evidence };
     } },
     hashAdapter: { compute: async (command) => {
-      records.command = command; const evidence = { algorithm: 'sha256', digestHex: SHA, sizeBytes: 10, fullHashComplete: true };
+      records.command = command; const evidence = { algorithm:'middle-256k-sha256', digestHex:SHA, sizeBytes:10,
+        sampleOffset:0, sampleLength:10, bytesSampled:10 };
       return { outputDigest: SHA, verificationEvidenceDigest: digest(canonical(evidence)), bytesAffected: 10, itemCount: 1, evidence };
     } },
     processAdapter: { execute: async (command) => {
@@ -154,6 +155,19 @@ test('FFprobe and FFmpeg commands are argv-only, bounded, and caller cannot supp
     (error) => error.code === 'P5_MEDIA_TOOL_PROFILE_SHAPE');
 });
 
+test('compact FFprobe projection accepts raw JSON above 64 KiB when typed evidence remains bounded', async () => {
+  const operation = operationCatalog.operations.find((item) => item.tool === 'ffprobe');
+  const custom = options();
+  const streams = [{ index:0, codec_type:'video', codec_name:'hevc', width:1920, height:1080, tags:{ title:'x'.repeat(80 * 1024) } }];
+  const normalized = { formatName:'matroska,webm', durationMs:1250, sizeBytes:10,
+    streams:[{ index:0, codecType:'video', codecName:'hevc', width:1920, height:1080, channels:0 }] };
+  custom.processAdapter.execute = async () => ({ exitCode:0, stdoutUtf8:JSON.stringify({ format:{ format_name:'matroska,webm', duration:'1.25', size:'10' }, streams }),
+    stderrUtf8:'', outputDigest:SHA, verificationEvidenceDigest:digest(canonical(normalized)), bytesAffected:10 });
+  const result = await protocol.createMediaProbeAdapter(custom).execute(request(operation));
+  assert.equal(result.evidence.streams.length, 1);
+  assert.ok(Buffer.byteLength(JSON.stringify({ format:{ format_name:'matroska,webm', duration:'1.25', size:'10' }, streams }), 'utf8') > 65536);
+});
+
 test('port, Capability, Effect Class, and pure/non-pure binding mismatches fail closed before side effects', async () => {
   const operation = operationCatalog.operations.find((item) => item.operationId === 'inventory.placement.switch@1');
   let calls = 0;
@@ -199,14 +213,14 @@ test('non-pure operation intent digest binds paths, authority, profile, and Effe
   assert.equal(result.effectId, valid.effectBinding.effectId);
 });
 
-test('typed hash and probe results reject malformed or digest-drifting evidence', async () => {
+test('typed bounded fingerprint and probe results reject malformed or digest-drifting evidence', async () => {
   const hashOperation = operationCatalog.operations.find((item) => item.tool === 'hash');
   const badHash = options(); badHash.hashAdapter.compute = async () => {
-    const evidence = { algorithm: 'sha1', digestHex: SHA, sizeBytes: 10, fullHashComplete: true };
+    const evidence = { algorithm:'sha1', digestHex:SHA, sizeBytes:10, sampleOffset:0, sampleLength:10, bytesSampled:10 };
     return { outputDigest: SHA, verificationEvidenceDigest: digest(canonical(evidence)), bytesAffected: 10, itemCount: 1, evidence };
   };
-  await assert.rejects(protocol.createContentHashAdapter(badHash).execute(request(hashOperation)),
-    (error) => error.code === 'P5_MEDIA_TOOL_HASH_EVIDENCE');
+  await assert.rejects(protocol.createBoundedFingerprintAdapter(badHash).execute(request(hashOperation)),
+    (error) => error.code === 'P5_MEDIA_TOOL_FINGERPRINT_EVIDENCE');
 
   const probeOperation = operationCatalog.operations.find((item) => item.tool === 'ffprobe');
   const badProbe = options(); badProbe.processAdapter.execute = async () => ({ exitCode: 0, stdoutUtf8: '{bad', stderrUtf8: '',

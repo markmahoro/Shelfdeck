@@ -1,6 +1,5 @@
 'use strict';
 
-const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const {
@@ -13,6 +12,7 @@ const {
 const {
   fromProductMember,
 } = require('./helix/domains/arca/model/material-episode-claims');
+const { computeBoundedMaterialFingerprintSync } = require('./helix/integrations/bounded-material-fingerprint');
 
 class CleanArcaInventoryPortError extends Error {
   constructor(code, message, details = {}) {
@@ -25,10 +25,6 @@ class CleanArcaInventoryPortError extends Error {
 
 function fail(code, message, details) {
   throw new CleanArcaInventoryPortError(code, message, details);
-}
-
-function digestFile(file) {
-  return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 }
 
 function safeSegment(value) {
@@ -164,16 +160,22 @@ function createCleanArcaInventoryPort(options) {
           materialKey: member.materialKey,
         });
     }
-    const stat = fs.statSync(source);
-    const digestHex = digestFile(source);
-    if (stat.size !== member.sizeBytes ||
-        digestHex !== member.physicalIdentity.contentHash) {
+    const bounded = computeBoundedMaterialFingerprintSync(source);
+    const stat = bounded.stat;
+    if (Number(stat.size) !== member.sizeBytes ||
+        Number(stat.size) !== member.physicalIdentity.sizeBytes ||
+        bounded.fingerprintAlgorithm !== member.physicalIdentity.fingerprintAlgorithm ||
+        bounded.fingerprintVersion !== member.physicalIdentity.fingerprintVersion ||
+        bounded.contentFingerprint !== member.physicalIdentity.contentFingerprint) {
       fail('CLEAN_ARCA_PRODUCT_SOURCE_DRIFT',
         'Product Material bytes drifted from the immutable Package.', {
           materialKey: member.materialKey,
         });
     }
-    return Object.freeze({ sizeBytes: stat.size, digestHex });
+    return Object.freeze({ sizeBytes:Number(stat.size), contentFingerprint:bounded.contentFingerprint,
+      digestHex:canonicalDigest({ schema:'physical-material-bounded-fingerprint-evidence@1', sizeBytes:Number(stat.size),
+        fingerprintAlgorithm:bounded.fingerprintAlgorithm, fingerprintVersion:bounded.fingerprintVersion,
+        contentFingerprint:bounded.contentFingerprint }) });
   }
 
   function buildPlan(request) {
@@ -454,10 +456,10 @@ function createCleanArcaInventoryPort(options) {
         fail('CLEAN_ARCA_REPLAY_EFFECT_MISSING',
           'Committed On-deck replay requires its exact committed Inventory Effect.');
       }
-      const targetExact = fs.existsSync(plan.target) &&
-        fs.statSync(plan.target).isFile() &&
-        fs.statSync(plan.target).size === plan.sizeBytes &&
-        digestFile(plan.target) === plan.digestHex;
+      const targetFingerprint = fs.existsSync(plan.target) && fs.statSync(plan.target).isFile()
+        ? computeBoundedMaterialFingerprintSync(plan.target) : null;
+      const targetExact = targetFingerprint && Number(targetFingerprint.stat.size) === plan.sizeBytes &&
+        targetFingerprint.contentFingerprint === plan.contentFingerprint;
       if (prior.state === 'committed' && !targetExact) {
         fail('CLEAN_ARCA_COMMITTED_REALITY_DRIFT',
           'Committed Inventory Effect no longer matches physical reality.');
@@ -471,8 +473,9 @@ function createCleanArcaInventoryPort(options) {
         const temporary = plan.target + '.tmp-' + effectId.slice(0, 16);
         if (fs.existsSync(temporary)) fs.rmSync(temporary, { force: true });
         fs.copyFileSync(plan.source, temporary, fs.constants.COPYFILE_EXCL);
-        if (fs.statSync(temporary).size !== plan.sizeBytes ||
-            digestFile(temporary) !== plan.digestHex) {
+        const temporaryFingerprint = computeBoundedMaterialFingerprintSync(temporary);
+        if (Number(temporaryFingerprint.stat.size) !== plan.sizeBytes ||
+            temporaryFingerprint.contentFingerprint !== plan.contentFingerprint) {
           fs.rmSync(temporary, { force: true });
           fail('CLEAN_ARCA_STAGE_COPY_VERIFY',
             'Staged Inventory bytes failed verification.');
@@ -487,21 +490,26 @@ function createCleanArcaInventoryPort(options) {
           }));
         }
       }
-      const stat = fs.statSync(plan.target, { bigint: true });
+      const finalFingerprint = computeBoundedMaterialFingerprintSync(plan.target);
+      const stat = finalFingerprint.stat;
       const identityBase = {
-        schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v1',
-        schemaVersion: 1,
+        schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v2',
+        schemaVersion: 2,
         mountScopeId: shelf.target.mountScopeId,
         inode: stat.ino.toString(),
-        contentHashAlgorithm: 'sha256',
-        contentHash: plan.digestHex,
+        sizeBytes: Number(stat.size),
+        fingerprintAlgorithm: finalFingerprint.fingerprintAlgorithm,
+        fingerprintVersion: finalFingerprint.fingerprintVersion,
+        contentFingerprint: finalFingerprint.contentFingerprint,
       };
       const materialKey = canonicalDigest({
-        schema: 'physical-material-identity@1',
+        schema: 'physical-material-identity@2',
         mountScopeId: identityBase.mountScopeId,
         inode: identityBase.inode,
-        contentHashAlgorithm: identityBase.contentHashAlgorithm,
-        contentHash: identityBase.contentHash,
+        sizeBytes: identityBase.sizeBytes,
+        fingerprintAlgorithm: identityBase.fingerprintAlgorithm,
+        fingerprintVersion: identityBase.fingerprintVersion,
+        contentFingerprint: identityBase.contentFingerprint,
       });
       const physicalIdentity = Object.freeze({
         ...identityBase,

@@ -30,7 +30,7 @@ module.exports = Object.freeze([
   require('../../../contracts/types/FrameArtifactSet/v1/schema.json'),
   require('../../../contracts/types/MetadataObservation/v1/schema.json'),
   require('../../../contracts/types/PersonMatchEvidence/v1/schema.json'),
-  require('../../../contracts/types/PhysicalMaterialIdentity/v1/schema.json'),
+  require('../../../contracts/types/PhysicalMaterialIdentity/v2/schema.json'),
   require('../../../contracts/types/PhysicalMaterialReadHandle/v1/schema.json'),
   require('../../../contracts/types/ProductMetadataDraft/v1/schema.json'),
   require('../../../contracts/types/WesternAnalysisResult/v1/schema.json'),

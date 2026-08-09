@@ -5,8 +5,8 @@
   "ownerScope": "execution-foundation",
   "effectClass": "pure_observation",
   "inputPorts": {
-    "physicalMaterialReadHandle": {
-      "schemaRef": "helix://contracts/capabilities/shared.material.layout.observe/v1/inputs#/$defs/physicalMaterialReadHandle",
+    "fieldObservationLayoutSnapshot": {
+      "schemaRef": "helix://contracts/capabilities/shared.material.layout.observe/v1/inputs#/$defs/fieldObservationLayoutSnapshot",
       "required": true,
       "cardinality": "one"
     },
@@ -29,7 +29,7 @@
   },
   "sourceLocator": {
     "section": "8.6.3",
-    "line": 8743,
-    "lineDigest": "2c9ef79a156c8efbaf548d3118dd00d614b415350dc86aa40299b10a0b936f49"
+    "line": 8866,
+    "lineDigest": "5c22f079cbce009a889c98c717677e602190e1afa9b8edb63f41216d396d7b29"
   }
 }

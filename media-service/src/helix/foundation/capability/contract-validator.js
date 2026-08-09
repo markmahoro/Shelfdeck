@@ -42,10 +42,7 @@ function createCapabilityContractValidator(options) {
         fail('P4_CAPABILITY_SCHEMA_COMPILE_FAILED', 'Runtime schema graph cannot be compiled.', { schemaRef, message: error.message });
       }
       if (!validate) fail('P4_CAPABILITY_UNKNOWN_SCHEMA', 'Runtime schema is not registered.', { schemaRef });
-      if (!validate(value)) fail('P4_CAPABILITY_SCHEMA_REJECTED', 'Runtime value violates its exact nominal schema.', {
-        schemaRef,
-        errors: (validate.errors || []).map((error) => ({ instancePath: error.instancePath, keyword: error.keyword, message: error.message }))
-      });
+      if (!validate(value)) { const errors = (validate.errors || []).map((error) => ({ instancePath: error.instancePath, keyword: error.keyword, message: error.message })); fail('P4_CAPABILITY_SCHEMA_REJECTED', 'Runtime value violates its exact nominal schema: ' + JSON.stringify(errors), { schemaRef, errors }); }
       return value;
     }
   });

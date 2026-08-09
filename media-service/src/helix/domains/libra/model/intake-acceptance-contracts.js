@@ -38,9 +38,11 @@ function buildLibraBindingDraft(snapshot,decision,producedAtMs){
   const bindings=deliveries.map((item)=>{
     const episodeClaims=[...item.episodeClaims].sort((a,b)=>utf8Compare(a.episodeKey,b.episodeKey));
     const identity=item.physicalIdentity;
-    if(!identity||identity.materialKey!==item.materialKey||identity.contentHashAlgorithm!=='sha256'||
-        identity.materialKey!==canonicalDigest({schema:'physical-material-identity@1',mountScopeId:identity.mountScopeId,
-          inode:identity.inode,contentHashAlgorithm:'sha256',contentHash:identity.contentHash})||
+    if(!identity||identity.materialKey!==item.materialKey||identity.fingerprintAlgorithm!=='middle-256k-sha256'||
+        identity.fingerprintVersion!==1||identity.sizeBytes!==item.sizeBytes||
+        identity.materialKey!==canonicalDigest({schema:'physical-material-identity@2',mountScopeId:identity.mountScopeId,
+          inode:identity.inode,sizeBytes:identity.sizeBytes,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,
+          contentFingerprint:identity.contentFingerprint})||
         !Number.isSafeInteger(item.sizeBytes)||item.sizeBytes<0)fail('P8_BINDING_IDENTITY_INVALID','Delivery Physical Identity or size is invalid.');
     const value={materialKey:item.materialKey,role:item.role,physicalIdentity:identity,sizeBytes:item.sizeBytes,
       endpointId:item.endpointId,location:item.location,bindingRevision:1,

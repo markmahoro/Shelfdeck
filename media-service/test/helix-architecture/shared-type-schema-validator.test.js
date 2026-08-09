@@ -34,13 +34,16 @@ test('validates all SSOT shared handles, envelopes, context, and Outcome', () =>
 });
 
 test('requires the exact mandatory Physical Material identity fields', () => {
-  const schema = JSON.parse(fs.readFileSync(path.join(actualContractsRoot, 'types/PhysicalMaterialIdentity/v1/schema.json'), 'utf8'));
+  const schema = JSON.parse(fs.readFileSync(path.join(actualContractsRoot, 'types/PhysicalMaterialIdentity/v2/schema.json'), 'utf8'));
   assert.deepEqual(
     new Set(schema.required),
-    new Set(['schemaRef', 'schemaVersion', 'materialKey', 'mountScopeId', 'inode', 'contentHashAlgorithm', 'contentHash'])
+    new Set(['schemaRef', 'schemaVersion', 'materialKey', 'mountScopeId', 'inode', 'sizeBytes',
+      'fingerprintAlgorithm', 'fingerprintVersion', 'contentFingerprint'])
   );
-  assert.equal(schema.properties.contentHashAlgorithm.const, 'sha256');
-  assert.equal(schema.properties.contentHash.pattern, '^[a-f0-9]{64}$');
+  assert.equal(schema.properties.schemaVersion.const, 2);
+  assert.equal(schema.properties.fingerprintAlgorithm.const, 'middle-256k-sha256');
+  assert.equal(schema.properties.fingerprintVersion.const, 1);
+  assert.equal(schema.properties.contentFingerprint.pattern, '^[a-f0-9]{64}$');
 });
 
 test('freezes the complete read-only Workspace Material Handle', () => {

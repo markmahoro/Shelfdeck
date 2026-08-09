@@ -39,6 +39,16 @@
       "outputSchemaRefs": {
         "readSnapshot": "helix://contracts/domain-types/CandidateDeliveryReadResult/v1"
       }
+    },
+    {
+      "exportName": "ProcurementExecutionRegistration",
+      "packageId": "domains.procurement.public",
+      "kind": "foundation-construction-port",
+      "methods": [
+        "createCapabilityRegistration",
+        "createProcessServices",
+        "createPlanningRegistration"
+      ]
     }
   ]
 }

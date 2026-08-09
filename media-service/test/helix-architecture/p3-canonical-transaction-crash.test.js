@@ -91,7 +91,7 @@ function columnIsNullableReference(contractTable, column) {
 function valueFor(tableId, column, definition, owner, sequence) {
   if (definition.enumValues.length > 0) return definition.enumValues[0];
   if (column.endsWith('_json')) return '{}';
-  if (column.includes('digest') || column === 'content_hash' || column === 'material_key') return digest(tableId + '/' + column + '/' + sequence);
+  if (column.includes('digest') || column === 'content_fingerprint' || column === 'material_key') return digest(tableId + '/' + column + '/' + sequence);
   if (column.endsWith('_schema_ref')) return 'helix://fixtures/' + tableId + '/v1';
   if (column.endsWith('_algorithm')) return 'sha256';
   if (column === 'owner_domain') return owner;
@@ -258,8 +258,9 @@ function commandReceiptParticipant(contract, owner) {
 
 function identity(label) {
   const result = {
-    schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v1', schemaVersion: 1,
-    mountScopeId: 'fixture-mount', inode: BigInt('0x' + digest('inode/' + label).slice(0, 15)).toString(), contentHashAlgorithm: 'sha256', contentHash: digest('content/' + label)
+    schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v2', schemaVersion: 2,
+    mountScopeId: 'fixture-mount', inode: BigInt('0x' + digest('inode/' + label).slice(0, 15)).toString(), sizeBytes:100,
+    fingerprintAlgorithm: 'middle-256k-sha256', fingerprintVersion:1, contentFingerprint: digest('content/' + label)
   };
   result.materialKey = materialKey(result);
   return result;

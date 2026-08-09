@@ -12,7 +12,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10075,
+        "line": 10200,
         "lineDigest": "0d7c291dd2c62b69d64d7741a78737df79204a73ecb2a2344980ed8f2eee787a"
       },
       "targetLocator": {
@@ -46,7 +46,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10069,
+        "line": 10194,
         "lineDigest": "9cbf5de0790297e9178106d7be41525efa16402bb4a5433e4a4ef003e7ff505c"
       },
       "targetLocator": {
@@ -76,7 +76,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10071,
+        "line": 10196,
         "lineDigest": "13c2cfd86fcf906ca4cfc0134b5d7ee9e632392994ea5e72359aa725675bf748"
       },
       "targetLocator": {
@@ -106,7 +106,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10068,
+        "line": 10193,
         "lineDigest": "7dc3dd81b4604b5dae01d2df2fdbc132fa2a4a55ac6f37a393d6b91fa9082c34"
       },
       "targetLocator": {
@@ -136,7 +136,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10093,
+        "line": 10218,
         "lineDigest": "01a12184f6fce3faf64e3fdd437256c87571e420dcade65866b4d85c05bbd62a"
       },
       "targetLocator": {
@@ -166,7 +166,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10092,
+        "line": 10217,
         "lineDigest": "5175a3accb313aada0298b23f9f1ed80908e7e4053f7d14da797f53eda8a4da0"
       },
       "targetLocator": {
@@ -196,7 +196,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10050,
+        "line": 10175,
         "lineDigest": "bddb45252a26092fdbf3671ef31102d615f87d8ebf704d4c94ef4d596260efe9"
       },
       "targetLocator": {
@@ -227,7 +227,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.18",
-        "line": 9622,
+        "line": 9745,
         "lineDigest": "a1e77d2164eaee19b83a55a14d71b0e8a13f8444a0a3e9551d8e9f16b73a2053"
       },
       "targetLocator": {
@@ -261,7 +261,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10027,
+        "line": 10152,
         "lineDigest": "6405b95dbcd5625de5fd30026da70327566ede3e4379c26d3de87e5712dadd7c"
       },
       "targetLocator": {
@@ -291,7 +291,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10089,
+        "line": 10214,
         "lineDigest": "a99abcea2ac9e22e3a613685713daa36d7c5c3c1c276ed728b2739f2b233cd4b"
       },
       "targetLocator": {
@@ -312,6 +312,36 @@
       }
     },
     {
+      "id": "BoundedContentFingerprintEvidence",
+      "version": 1,
+      "owner": "contracts",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.19"
+      ],
+      "sourceLocator": {
+        "section": "8.6.19",
+        "line": 10149,
+        "lineDigest": "90d62ce7445259e1026460cf907c714b7137251be1694d79d3aa983c778f71d1"
+      },
+      "targetLocator": {
+        "path": "types/BoundedContentFingerprintEvidence/v1/schema.json"
+      },
+      "contract": {
+        "resultKind": "nominal-result",
+        "schemaId": "helix://contracts/types/BoundedContentFingerprintEvidence/v1",
+        "schemaPath": "types/BoundedContentFingerprintEvidence/v1/schema.json",
+        "producedBy": [
+          "shared.material.bounded_fingerprint.compute@1"
+        ],
+        "sourceSection": "8.6.19"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "37f8baae9187ccd2a9af79c285f0017acf9d8333f5c6617bb20c2e4056d031e8"
+      }
+    },
+    {
       "id": "CandidateContractVerification",
       "version": 1,
       "owner": "contracts",
@@ -321,7 +351,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10039,
+        "line": 10164,
         "lineDigest": "2ec63d726636f23665a268eb846dc87ccf7c1c5eb4bc7092522947b9da515175"
       },
       "targetLocator": {
@@ -351,7 +381,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10038,
+        "line": 10163,
         "lineDigest": "ab809ed463191ed454baab405e0cc4f135e3a1613b1496553bd5ebdc5fdfaeb1"
       },
       "targetLocator": {
@@ -381,7 +411,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.17",
-        "line": 9586,
+        "line": 9709,
         "lineDigest": "06694ab63e7e9d5f8038d3a157305b48fcccbf884dd09ea89ac20bb8e43cc35c"
       },
       "targetLocator": {
@@ -409,7 +439,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10091,
+        "line": 10216,
         "lineDigest": "06cffb9c1a907ea8a0dbeaab0efcbbac0a3ddf9b49c8e5d1646b36b584e0ad8f"
       },
       "targetLocator": {
@@ -439,7 +469,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10088,
+        "line": 10213,
         "lineDigest": "86438dfbcfc7e68248c39d39e0cc146b0f2dce35a72bbea13f79eae98c044874"
       },
       "targetLocator": {
@@ -460,36 +490,6 @@
       }
     },
     {
-      "id": "ContentHashEvidence",
-      "version": 1,
-      "owner": "contracts",
-      "status": "contracted",
-      "ssotRefs": [
-        "8.6.19"
-      ],
-      "sourceLocator": {
-        "section": "8.6.19",
-        "line": 10024,
-        "lineDigest": "171286acc3ba5e785b38d141d86962aead498a2ae8ad3516e72e62feccf449c8"
-      },
-      "targetLocator": {
-        "path": "types/ContentHashEvidence/v1/schema.json"
-      },
-      "contract": {
-        "resultKind": "nominal-result",
-        "schemaId": "helix://contracts/types/ContentHashEvidence/v1",
-        "schemaPath": "types/ContentHashEvidence/v1/schema.json",
-        "producedBy": [
-          "shared.material.content_hash.compute@1"
-        ],
-        "sourceSection": "8.6.19"
-      },
-      "contractDigest": {
-        "algorithm": "sha256",
-        "value": "3ae26cfbb56c2e79cac406ef4273eb439968a817a0042ebfdbb4cfd856b15e23"
-      }
-    },
-    {
       "id": "CustodyAndTransferReceipt",
       "version": 1,
       "owner": "contracts",
@@ -499,7 +499,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10078,
+        "line": 10203,
         "lineDigest": "b5bd3a8e6290c0bbe02331dc6f7bd853609b1cca1f4968f73ebdcb413eeddc77"
       },
       "targetLocator": {
@@ -529,7 +529,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10088,
+        "line": 10213,
         "lineDigest": "86438dfbcfc7e68248c39d39e0cc146b0f2dce35a72bbea13f79eae98c044874"
       },
       "targetLocator": {
@@ -559,7 +559,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10047,
+        "line": 10172,
         "lineDigest": "ccf52535ed19262ad26e7a823e9353b2a3be7039d783492e8cacf83bdc489332"
       },
       "targetLocator": {
@@ -589,7 +589,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10083,
+        "line": 10208,
         "lineDigest": "81360bcdf4896f3a43a20fab30f3ea6b4bfbe264048beb9df9bb4c0b94c869b8"
       },
       "targetLocator": {
@@ -620,7 +620,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10102,
+        "line": 10227,
         "lineDigest": "1c7d583008a321b9d2696bfe33fb02612c06b37b1a6398b933243ef7948646c7"
       },
       "targetLocator": {
@@ -650,7 +650,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10099,
+        "line": 10224,
         "lineDigest": "ac70f56670893238e3f35e0f9bbead0ee72b05abed8005980393a7924226d108"
       },
       "targetLocator": {
@@ -680,7 +680,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10094,
+        "line": 10219,
         "lineDigest": "7f62cd087f3a985a1fdcd633465a53826cd963fd949c2e8dc8ebe181a0e9d2fa"
       },
       "targetLocator": {
@@ -710,7 +710,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10095,
+        "line": 10220,
         "lineDigest": "4e297ce353239e50fb61251c41d17ad36662063ceef7923e948168df26be5eae"
       },
       "targetLocator": {

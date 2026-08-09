@@ -19,7 +19,7 @@
       "items": {
         "$ref": "helix://contracts/domain-types/TriageMaterialProbeBatch/v1"
       },
-      "maxItems": 11,
+      "maxItems": 3,
       "minItems": 1
     },
     "playabilityPages": {
@@ -27,7 +27,7 @@
       "items": {
         "$ref": "helix://contracts/types/PlayabilityEvidence/v1"
       },
-      "maxItems": 11,
+      "maxItems": 3,
       "minItems": 1
     },
     "materialFieldContext": {
@@ -127,7 +127,7 @@
               "layoutEvidenceRefs"
             ]
           },
-          "maxItems": 1024,
+          "maxItems": 256,
           "minItems": 1
         },
         "contextDigest": {
@@ -150,7 +150,7 @@
       "items": {
         "$ref": "helix://contracts/types/LayoutEvidence/v1"
       },
-      "maxItems": 1024
+      "maxItems": 256
     },
     "pageRequest": {
       "type": "object",

@@ -14,22 +14,25 @@ const {
 } = require('../../src/helix/domains/libra/model/libra-intake-contracts');
 
 function row(ordinal, location, extensionLabel) {
-  const contentHash = canonicalDigest({ extensionLabel });
+  const contentFingerprint = canonicalDigest({ extensionLabel });
   const mountScopeId = 'series-layout-mount';
   const inode = String(ordinal + 1);
   return {
     ordinal,
     material_key: canonicalDigest({
-      schema: 'physical-material-identity@1',
+      schema: 'physical-material-identity@2',
       mountScopeId,
       inode,
-      contentHashAlgorithm: 'sha256',
-      contentHash,
+      sizeBytes:10,
+      fingerprintAlgorithm: 'middle-256k-sha256',
+      fingerprintVersion:1,
+      contentFingerprint,
     }),
     mount_scope_id: mountScopeId,
     inode,
-    content_hash_algorithm: 'sha256',
-    content_hash: contentHash,
+    fingerprint_algorithm: 'middle-256k-sha256',
+    fingerprint_version: 1,
+    content_fingerprint: contentFingerprint,
     size_bytes: 10,
     endpoint_id: 'series-layout-endpoint',
     location,
@@ -52,7 +55,7 @@ function snapshot(members) {
   };
 }
 
-test('Series layout keeps Episode media primary and associates NFO/artwork as references', () => {
+test('Run layout keeps media primary and leaves sidecar observation to the formal Layout capability', () => {
   const episode1 = row(0, 'C:/series/Season 1/Demo.Show.S01E01.mkv', 'episode-1');
   const episode1Nfo = row(1, 'C:/series/Season 1/Demo.Show.S01E01.nfo', 'episode-1-nfo');
   const episode1Art = row(2, 'C:/series/Season 1/Demo.Show.S01E01.jpg', 'episode-1-art');
@@ -73,9 +76,9 @@ test('Series layout keeps Episode media primary and associates NFO/artwork as re
     layout.primaryContexts.map((item) => item.materialKey),
     [episode1.material_key, episode2.material_key],
   );
-  const entries = layout.layoutEvidence.flatMap((item) => item.entries);
+  assert.deepEqual(layout.layoutEvidence, []);
   assert.deepEqual(
-    entries.map((item) => item.identity.materialKey).sort(),
+    layout.unresolved.map((item) => item.materialKey).sort(),
     [
       episode1Nfo.material_key,
       episode1Art.material_key,
@@ -83,9 +86,7 @@ test('Series layout keeps Episode media primary and associates NFO/artwork as re
       seasonPoster.material_key,
     ].sort(),
   );
-  assert.equal(entries.some((item) => item.identity.materialKey === episode1.material_key), false);
-  assert.equal(entries.some((item) => item.identity.materialKey === episode2.material_key), false);
-  assert.equal(layout.unresolved.length, 0);
+  assert.equal(layout.primaryContexts.every((item) => item.layoutEvidenceRefs.length === 0), true);
 });
 
 test('ambiguous unrelated sidecars remain read-only layout evidence and never become primary', () => {
@@ -99,7 +100,7 @@ test('ambiguous unrelated sidecars remain read-only layout evidence and never be
   assert.equal(layout.primaryContexts.some((item) => item.materialKey === unrelated.material_key), false);
 });
 
-test('generic and Season artwork sidecars never cross-associate between local Series trees', () => {
+test('Run layout never cross-associates generic or Season artwork before Layout observation', () => {
   const showAEpisode = row(0, 'C:/series/Show.A/Season 1/Show.A.S01E01.mkv', 'show-a-episode');
   const showATv = row(1, 'C:/series/Show.A/tvshow.nfo', 'show-a-tvshow');
   const showAPoster = row(2, 'C:/series/Show.A/season01-poster.jpg', 'show-a-poster');
@@ -114,25 +115,10 @@ test('generic and Season artwork sidecars never cross-associate between local Se
     showBTv,
     showBPoster,
   ]));
-  const evidenceById = new Map(layout.layoutEvidence.map((item) => [item.evidenceId, item]));
-  const entriesFor = (materialKey) => layout.primaryContexts
-    .find((item) => item.materialKey === materialKey)
-    .layoutEvidenceRefs
-    .flatMap((ref) => evidenceById.get(ref.evidenceId).entries)
-    .map((entry) => entry.identity.materialKey)
-    .sort();
-
-  assert.deepEqual(entriesFor(showAEpisode.material_key), [
-    showATv.material_key,
-    showAPoster.material_key,
+  assert.deepEqual(layout.layoutEvidence, []);
+  assert.deepEqual(layout.unresolved.map((item) => item.materialKey).sort(), [
+    showATv.material_key, showAPoster.material_key, showBTv.material_key, showBPoster.material_key,
   ].sort());
-  assert.deepEqual(entriesFor(showBEpisode.material_key), [
-    showBTv.material_key,
-    showBPoster.material_key,
-  ].sort());
-  assert.equal(entriesFor(showAEpisode.material_key).includes(showBTv.material_key), false);
-  assert.equal(entriesFor(showBEpisode.material_key).includes(showATv.material_key), false);
-  assert.equal(layout.unresolved.length, 0);
 });
 
 test('global generic sidecars spanning multiple local Series groups remain unresolved', () => {

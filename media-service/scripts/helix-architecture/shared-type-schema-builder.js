@@ -3,7 +3,8 @@
 const crypto = require('crypto');
 
 const DRAFT = 'https://json-schema.org/draft/2020-12/schema';
-const typeId = (name) => `helix://contracts/types/${name}/v1`;
+const typeVersion = (name) => name === 'PhysicalMaterialIdentity' ? 2 : 1;
+const typeId = (name) => `helix://contracts/types/${name}/v${typeVersion(name)}`;
 const ref = (name) => ({ $ref: typeId(name) });
 const domainRef = (name) => ({ $ref: `helix://contracts/domain-types/${name}/v1` });
 const applicationRef = (name) => ({ $ref: `helix://contracts/application-types/${name}/v1` });
@@ -44,12 +45,12 @@ function nominal(name, properties, required = Object.keys(properties), options =
   const { ssotRefs = ['8.6.18'], ...schemaOptions } = options;
   const common = {
     schemaRef: { const: typeId(name) },
-    schemaVersion: { const: 1 }
+    schemaVersion: { const: typeVersion(name) }
   };
   return {
     $schema: DRAFT,
     $id: typeId(name),
-    title: `${name}@1`,
+    title: `${name}@${typeVersion(name)}`,
     'x-helix-ssotRefs': ssotRefs,
     ...object({ ...common, ...properties }, ['schemaRef', 'schemaVersion', ...required], schemaOptions)
   };
@@ -95,18 +96,21 @@ function providerAcquisitionCandidateSnapshotSchema() {
 
 const definitions = {
   PhysicalMaterialIdentity: () => nominal('PhysicalMaterialIdentity', {
-    materialKey: digestHex(), mountScopeId: opaqueId(), inode: text({ pattern: '^(0|[1-9][0-9]*)$' }), contentHashAlgorithm: digestAlgorithm(), contentHash: digestHex()
+    materialKey: digestHex(), mountScopeId: opaqueId(), inode: text({ pattern: '^(0|[1-9][0-9]*)$' }),
+    sizeBytes: nonNegativeInteger(), fingerprintAlgorithm: { const: 'middle-256k-sha256' },
+    fingerprintVersion: { const: 1 }, contentFingerprint: digestHex()
   }),
   PhysicalMaterialReadHandle: () => nominal('PhysicalMaterialReadHandle', {
     handleId: opaqueId(), identity: ref('PhysicalMaterialIdentity'), ownerDomain: text(), ownerScope: ownerScope(),
     bindingRevision: positiveInteger(), endpointId: opaqueId(), location: text(), mountScopeRevision: positiveInteger(),
     expectedSizeBytes: nonNegativeInteger(), expectedMtimeNs: nonNegativeInteger(), expectedCtimeNs: nonNegativeInteger(),
-    hashVerifiedAtMs: nonNegativeInteger(), readScope: text(), expiresAtMs: nonNegativeInteger(), fenceDigest: digestHex()
+    fingerprintVerifiedAtMs: nonNegativeInteger(), readScope: text(), expiresAtMs: nonNegativeInteger(), fenceDigest: digestHex()
   }),
   WorkspaceMaterialHandle: () => nominal('WorkspaceMaterialHandle', {
     handleId: opaqueId(), workspaceId: opaqueId(), ownerDomain: text(), processId: opaqueId(), endpointId: opaqueId(),
     materialKey: digestHex(), physicalIdentity: object({ mountScopeId: opaqueId(),
-      inode: text({ pattern: '^(0|[1-9][0-9]*)$' }), contentHashAlgorithm: digestAlgorithm(), contentHash: digestHex() }),
+      inode: text({ pattern: '^(0|[1-9][0-9]*)$' }), sizeBytes: nonNegativeInteger(),
+      fingerprintAlgorithm: { const: 'middle-256k-sha256' }, fingerprintVersion: { const: 1 }, contentFingerprint: digestHex() }),
     rootHandleRef: opaqueId(), relativePath: text(),
     digestAlgorithm: digestAlgorithm(), digestHex: digestHex(), sizeBytes: nonNegativeInteger(), referenceRevision: positiveInteger(),
     accessScope: { const: 'workspace_material_read' }, fenceDigest: digestHex()
@@ -119,7 +123,7 @@ const definitions = {
   FieldAccessHandle: () => nominal('FieldAccessHandle', {
     handleId: opaqueId(), fieldId: opaqueId(), accessRevision: positiveInteger(), accessDigest: digestHex(), endpointId: opaqueId(), rootLocation: text(),
     mountScopeId: opaqueId(), mountScopeRevision: positiveInteger(),
-    allowedOperations: arrayOf(enumText('read', 'list', 'stat', 'hash'), 4), containmentDigest: digestHex(), expiresAtMs: nonNegativeInteger()
+    allowedOperations: arrayOf(enumText('read', 'list', 'stat', 'fingerprint'), 4), containmentDigest: digestHex(), expiresAtMs: nonNegativeInteger()
   }),
   FieldObservationPageRequest: () => nominal('FieldObservationPageRequest', {
     fieldObservationWorkId: opaqueId(), observationId: opaqueId(), pageOrdinal: nonNegativeInteger(),

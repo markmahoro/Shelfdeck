@@ -22,11 +22,13 @@ function bytes(value, maximum, code) { if (Buffer.byteLength(canonicalJson(value
 function physicalMaterialKey(identity) {
   object(identity, 'P9_RUN_PHYSICAL_IDENTITY');
   text(identity.mountScopeId, 'physicalIdentity.mountScopeId');
-  if (!/^(0|[1-9][0-9]*)$/.test(text(identity.inode, 'physicalIdentity.inode')) || identity.contentHashAlgorithm !== 'sha256')
+  if (!/^(0|[1-9][0-9]*)$/.test(text(identity.inode, 'physicalIdentity.inode')) || identity.fingerprintAlgorithm !== 'middle-256k-sha256' ||
+      identity.fingerprintVersion !== 1 || !Number.isSafeInteger(identity.sizeBytes) || identity.sizeBytes < 0)
     fail('P9_RUN_PHYSICAL_IDENTITY', 'Physical identity is outside the clean contract.');
-  digest(identity.contentHash, 'physicalIdentity.contentHash');
-  return canonicalDigest({ schema: 'physical-material-identity@1', mountScopeId: identity.mountScopeId,
-    inode: identity.inode, contentHashAlgorithm: identity.contentHashAlgorithm, contentHash: identity.contentHash });
+  digest(identity.contentFingerprint, 'physicalIdentity.contentFingerprint');
+  return canonicalDigest({ schema: 'physical-material-identity@2', mountScopeId: identity.mountScopeId,
+    inode:identity.inode,sizeBytes:identity.sizeBytes,fingerprintAlgorithm:identity.fingerprintAlgorithm,
+    fingerprintVersion:identity.fingerprintVersion,contentFingerprint:identity.contentFingerprint });
 }
 
 function buildEpisodeClaims(value) {
@@ -111,8 +113,10 @@ function buildRunInputMember(value, ordinal, acceptanceSpec) {
   if (value.role !== 'primary_payload' && episodeClaims.length) fail('P9_RUN_EPISODE_ROLE', 'Only primary payload members can carry Episode claims.');
   const member = {
     ordinal, materialKey, role: value.role,
-    physicalIdentity: { mountScopeId: physicalIdentity.mountScopeId, inode: physicalIdentity.inode,
-      contentHashAlgorithm: physicalIdentity.contentHashAlgorithm, contentHash: physicalIdentity.contentHash },
+    physicalIdentity: { schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2', schemaVersion:2,
+      materialKey, mountScopeId: physicalIdentity.mountScopeId, inode: physicalIdentity.inode,
+      sizeBytes:physicalIdentity.sizeBytes,fingerprintAlgorithm:physicalIdentity.fingerprintAlgorithm,
+      fingerprintVersion:physicalIdentity.fingerprintVersion,contentFingerprint:physicalIdentity.contentFingerprint },
     sizeBytes: integer(value.sizeBytes, 0, 'sizeBytes'),
     location: { locationKind: 'domain_binding', endpointId: text(location.endpointId, 'location.endpointId'), location: location.location },
     bindingKind: value.bindingKind,

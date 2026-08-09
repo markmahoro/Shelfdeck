@@ -79,7 +79,7 @@ test('persists Subject continuity and Material-to-Episode N:M relations without 
     for(const episodeKey of ['S01E01','S01E02'])s.invoke('insert_episode',{ subject_id:subjectId,episode_key:episodeKey,
       first_intake_decision_id:decisionId,source_episode_scope_digest:episodeDigest,accepted_at_ms:at });
     b.invoke('insert_binding',{ subject_id:subjectId,material_key:materialKey,role:'primary_payload',mount_scope_id:'mount-1',inode:'42',
-      content_hash_algorithm:'sha256',content_hash:D('content'),size_bytes:100,endpoint_id:'endpoint-1',location:'/field/show.mkv',
+      fingerprint_algorithm:'middle-256k-sha256',fingerprint_version:1,content_fingerprint:D('content'),size_bytes:100,endpoint_id:'endpoint-1',location:'/field/show.mkv',
       binding_revision:1,health_state:'active',evidence_digest:D('delivery-member'),current:1 });
     for(const episodeKey of ['S01E01','S01E02'])b.invoke('insert_binding_episode',{ subject_id:subjectId,material_key:materialKey,binding_revision:1,
       episode_key:episodeKey,season_claim_digest:D('season'),claim_digest:D(episodeKey) });

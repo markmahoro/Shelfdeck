@@ -24,12 +24,12 @@ function profileHintSnapshot(contentProfileHint) {
 }
 
 function probeMember(ordinal, label, probe = {}) {
-  const identity={schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v1',schemaVersion:1,mountScopeId:'mount-1',inode:String(ordinal+1),contentHashAlgorithm:'sha256',contentHash:d(`material:${label}`)};
-  identity.materialKey=canonicalDigest({schema:'physical-material-identity@1',mountScopeId:identity.mountScopeId,inode:identity.inode,contentHashAlgorithm:'sha256',contentHash:identity.contentHash});
+  const identity={schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,mountScopeId:'mount-1',inode:String(ordinal+1),sizeBytes:100,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint:d(`material:${label}`)};
+  identity.materialKey=canonicalDigest({schema:'physical-material-identity@2',mountScopeId:identity.mountScopeId,inode:identity.inode,sizeBytes:identity.sizeBytes,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint:identity.contentFingerprint});
   const materialKey = identity.materialKey;
   const readHandle = { handleId:`handle-${label}`, identity, ownerDomain:'procurement', ownerScope:{}, bindingRevision:1,
     endpointId:'endpoint-1', location:`shows/Demo/${label}.mkv`, mountScopeRevision:1, expectedSizeBytes:100,
-    expectedMtimeNs:'1', expectedCtimeNs:'1', hashVerifiedAtMs:1, readScope:'media_probe', expiresAtMs:2000, fenceDigest:d(`fence:${label}`) };
+    expectedMtimeNs:'1', expectedCtimeNs:'1', fingerprintVerifiedAtMs:1, readScope:'media_probe', expiresAtMs:2000, fenceDigest:d(`fence:${label}`) };
   const mediaProbe = { sourceHandleDigest:canonicalDigest(readHandle), resultKind:'probed', container:'matroska', durationMs:1000,
     sizeBytes:100, videoStreams:[{ streamIndex:0 }], audioStreams:[], subtitleStreams:[], payloadDigest:d(`probe:${label}`), ...probe };
   const value = { selectionOrdinal:ordinal, materialKey, bindingRevision:1, admittedControlRevision:2,
@@ -126,6 +126,29 @@ function singleStructureFixture(label, contentProfileHint) {
   };
 }
 
+function movieStructureInput(count, pageOrdinal=0, cursorIn=null) {
+  const members=Array.from({length:count},(_,index)=>probeMember(index,`movie-${String(index).padStart(3,'0')}-${'x'.repeat(96)}`));
+  const probeBatch=batch(members);const playability=capabilities.playabilityInspect.execute({
+    triageMaterialProbeBatch:probeBatch,procurementTriageRuleSnapshot:rule});
+  const selected={procurementRunId:'run-1',fieldId:'field-1',members:members.map((member,ordinal)=>({ordinal,
+    materialKey:member.materialKey,selectionRole:'triage_input',physicalIdentity:member.readHandle.identity,sizeBytes:100,bindingRevision:1,
+    eligibilityRevision:1,eligibilityBasisDigest:d(`eligibility:${ordinal}`),lastSnapshotDigest:d(`snapshot:${ordinal}`),
+    lastObservationId:`observation-${ordinal}`,endpointId:'endpoint-1',location:member.readHandle.location,realityDigest:d(`reality:${ordinal}`),
+    provenanceDigest:d(`provenance:${ordinal}`),controlSnapshot:{},admissionControlAction:'acquire',basisMemberDigest:d(`basis:${ordinal}`)})),
+    selectionDigest:probeBatch.selectionDigest};
+  const contextValue={fieldId:'field-1',accessRevision:1,accessDigest:d('access'),profileHintSnapshot:profileHintSnapshot('movie'),
+    memberContexts:members.map((member,selectionOrdinal)=>({selectionOrdinal,materialKey:member.materialKey,
+      fieldRelativeLocation:member.readHandle.location,baseName:`movie-${selectionOrdinal}-${'x'.repeat(96)}.mkv`,extension:'.mkv',
+      parentSegments:[],layoutEvidenceRefs:[]}))};
+  const materialFieldContext={...contextValue,contextDigest:canonicalDigest(contextValue)};
+  const requestValue={pageOrdinal,cursorIn,maxUnits:32};const pageRequest={...requestValue,requestDigest:canonicalDigest(requestValue)};
+  const basis={schema:'procurement.triage-structure-input@1',selectionDigest:selected.selectionDigest,
+    probeBatchDigests:[probeBatch.batchDigest],playabilityPayloadDigests:[playability.payloadDigest],contextDigest:materialFieldContext.contextDigest,
+    layoutPayloadDigests:[],pageRequest};
+  return {selectedFieldMaterialSet:selected,probeBatches:[probeBatch],playabilityPages:[playability],materialFieldContext,
+    layoutEvidence:[],pageRequest,inputDigest:canonicalDigest(basis)};
+}
+
 test('playability consumes typed probe evidence and emits the closed ordered reason set', () => {
   const good = probeMember(0, 'good');
   const bad = probeMember(1, 'bad', { durationMs:0, videoStreams:[] });
@@ -134,6 +157,20 @@ test('playability consumes typed probe evidence and emits the closed ordered rea
   assert.deepEqual(result.materialResults[1].reasonCodes, ['no_video_stream','non_positive_duration']);
   assert.equal(result.materialResults[1].materialKey, bad.materialKey);
   assert.match(result.materialResults[1].resultDigest, /^[a-f0-9]{64}$/);
+});
+
+test('Structure automatically paginates complete Movie Units at the 64 KiB boundary', () => {
+  const collected=[];let cursorIn=null,pageOrdinal=0;
+  do {
+    const result=capabilities.structureInspect.execute({triageStructureInspectionInput:movieStructureInput(100,pageOrdinal,cursorIn),
+      procurementTriageRuleSnapshot:rule});
+    assert.ok(Buffer.byteLength(JSON.stringify(result),'utf8')<=65536);
+    assert.ok(result.units.length>=1&&result.units.length<=32);
+    collected.push(...result.units.map((unit)=>unit.unitId));cursorIn=result.cursorOut;pageOrdinal+=1;
+  } while(cursorIn!==null);
+  assert.equal(pageOrdinal>1,true);
+  assert.equal(collected.length,100);
+  assert.equal(new Set(collected).size,100);
 });
 
 test('explicit JAV Hint falls back to title without inventing a code and mixed remains movie fallback', () => {
@@ -440,19 +477,23 @@ test('Movie Triage associates only the exact NFO sidecar and conserves its canon
   };
   function relatedIdentity(label, inode) {
     const value = {
-      schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v1',
-      schemaVersion: 1,
+      schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v2',
+      schemaVersion: 2,
       mountScopeId: 'mount-1',
       inode,
-      contentHashAlgorithm: 'sha256',
-      contentHash: d(label),
+      sizeBytes: 20,
+      fingerprintAlgorithm: 'middle-256k-sha256',
+      fingerprintVersion: 1,
+      contentFingerprint: d(label),
     };
     value.materialKey = canonicalDigest({
-      schema: 'physical-material-identity@1',
+      schema: 'physical-material-identity@2',
       mountScopeId: value.mountScopeId,
       inode: value.inode,
-      contentHashAlgorithm: 'sha256',
-      contentHash: value.contentHash,
+      sizeBytes: value.sizeBytes,
+      fingerprintAlgorithm: 'middle-256k-sha256',
+      fingerprintVersion: 1,
+      contentFingerprint: value.contentFingerprint,
     });
     return value;
   }
@@ -460,22 +501,27 @@ test('Movie Triage associates only the exact NFO sidecar and conserves its canon
   const unrelatedIdentity = relatedIdentity('unrelated-nfo', '11');
   const entryValues = [
     {
-      entryOrdinal: 0, entryKind: 'file', relativeLocation: 'shows/Demo/Example.Movie.nfo',
+      entryOrdinal: 0, entryKind: 'directory', relativeLocation: '.',
+      baseName: '银翼杀手：2022黑暗浩劫 (2017)', endpointId: 'endpoint-1', location: 'shows/Demo',
+    },
+    {
+      entryOrdinal: 1, entryKind: 'file', relativeLocation: 'shows/Demo/Example.Movie.nfo',
       baseName: 'Example.Movie.nfo', extension: '.nfo', identity: nfoIdentity,
       endpointId: 'endpoint-1', location: 'shows/Demo/Example.Movie.nfo', sizeBytes: 20,
-      checksumAlgorithm: 'sha256', checksumHex: nfoIdentity.contentHash,
+      fingerprintAlgorithm: nfoIdentity.fingerprintAlgorithm, fingerprintVersion: nfoIdentity.fingerprintVersion,
+      contentFingerprint: nfoIdentity.contentFingerprint,
     },
     {
-      entryOrdinal: 1, entryKind: 'file', relativeLocation: 'shows/Demo/Other.Title.nfo',
+      entryOrdinal: 2, entryKind: 'file', relativeLocation: 'shows/Demo/Other.Title.nfo',
       baseName: 'Other.Title.nfo', extension: '.nfo', identity: unrelatedIdentity,
       endpointId: 'endpoint-1', location: 'shows/Demo/Other.Title.nfo', sizeBytes: 20,
-      checksumAlgorithm: 'sha256', checksumHex: unrelatedIdentity.contentHash,
+      checksumAlgorithm: 'sha256', checksumHex: unrelatedIdentity.contentFingerprint,
     },
     {
-      entryOrdinal: 2, entryKind: 'file', relativeLocation: 'shows/Demo/Example.Movie.mkv',
+      entryOrdinal: 3, entryKind: 'file', relativeLocation: 'shows/Demo/Example.Movie.mkv',
       baseName: 'Example.Movie.mkv', extension: '.mkv', identity: member.readHandle.identity,
       endpointId: 'endpoint-1', location: member.readHandle.location, sizeBytes: 100,
-      checksumAlgorithm: 'sha256', checksumHex: member.readHandle.identity.contentHash,
+      checksumAlgorithm: 'sha256', checksumHex: member.readHandle.identity.contentFingerprint,
     },
   ];
   const entries = entryValues.map((value) => ({
@@ -514,7 +560,7 @@ test('Movie Triage associates only the exact NFO sidecar and conserves its canon
       fieldRelativeLocation: member.readHandle.location,
       baseName: 'Example.Movie.mkv',
       extension: '.mkv',
-      parentSegments: ['shows', 'Demo'],
+      parentSegments: [],
       layoutEvidenceRefs: [{
         evidenceId: layout.evidenceId,
         payloadDigest: layout.payloadDigest,
@@ -551,8 +597,13 @@ test('Movie Triage associates only the exact NFO sidecar and conserves its canon
   });
   assert.equal(structure.units.length, 1);
   assert.equal(structure.units[0].members.length, 1);
+  assert.equal(structure.units[0].displayIdentity, '银翼杀手：2022黑暗浩劫 (2017)');
+  assert.equal(structure.units[0].identityMetadata.sourceHints.some((hint) =>
+    hint.hintKind === 'directory_title' && hint.hintValue === '银翼杀手：2022黑暗浩劫 (2017)'), true);
   assert.equal(structure.units[0].relatedReferences.length, 1);
   const reference = structure.units[0].relatedReferences[0];
+  assert.equal(Object.hasOwn(reference, 'schemaRef'), false);
+  assert.equal(Object.hasOwn(reference, 'schemaVersion'), false);
   assert.equal(reference.identity.materialKey, nfoIdentity.materialKey);
   assert.equal(reference.role, 'nfo');
   assert.equal(reference.referenceId, canonicalDigest({
@@ -577,7 +628,7 @@ test('Movie Triage associates only the exact NFO sidecar and conserves its canon
       location: `shows/Demo/metadata-${String(ordinal).padStart(3, '0')}/movie.nfo`,
       sizeBytes: 20,
       checksumAlgorithm: 'sha256',
-      checksumHex: identity.contentHash,
+      checksumHex: identity.contentFingerprint,
     };
     return { ...value, entryDigest: canonicalDigest(value) };
   });

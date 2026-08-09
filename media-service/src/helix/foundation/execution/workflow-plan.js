@@ -54,6 +54,107 @@ function requiredText(value, field) {
 
 function inputSchemaRef(manifest) { return manifest.parametersSchemaRef.replace(/\/parameters$/, '/inputs'); }
 
+function isBindingSet(value) {
+  return value?.schemaRef === 'helix://foundation/types/EventInputBindingSet/v1' && value.schemaVersion === 1;
+}
+
+function validateBindingSets(nodes, registry, contractValidator, ownerDomain) {
+  const byEvent = new Map(nodes.map((node) => [node.eventId, node]));
+  for (const node of nodes) {
+    if (!isBindingSet(node.inputBindings)) continue;
+    const value = node.inputBindings;
+    if (!value || typeof value !== 'object' || Array.isArray(value) ||
+        JSON.stringify(Object.keys(value).sort()) !== JSON.stringify(['bindings', 'schemaRef', 'schemaVersion']) ||
+        !Array.isArray(value.bindings)) fail('P4_PLAN_INPUT_BINDING_SET_INVALID', 'Event Input Binding Set shape is invalid.');
+    const targetManifest = registry.resolve(node.capabilityRef, ownerDomain).manifest;
+    const expectedPorts = Object.keys(targetManifest.inputPorts || {}).sort();
+    const actualPorts = value.bindings.map((binding) => binding?.portName).sort();
+    if (JSON.stringify(actualPorts) !== JSON.stringify(expectedPorts)) {
+      fail('P4_PLAN_INPUT_BINDING_PORT_SET_MISMATCH', 'Input bindings must cover the exact Capability input port set.', { eventId: node.eventId });
+    }
+    const seen = new Set();
+    for (const binding of value.bindings) {
+      if (!binding || typeof binding !== 'object' || Array.isArray(binding) || typeof binding.portName !== 'string' ||
+          seen.has(binding.portName) || !['literal', 'event_result', 'projected_event_result', 'projected_event_results', 'projected_work_results', 'projected_owner_facts'].includes(binding.bindingKind)) {
+        fail('P4_PLAN_INPUT_BINDING_INVALID', 'Input binding is invalid or duplicated.', { eventId: node.eventId });
+      }
+      seen.add(binding.portName);
+      if (binding.bindingKind === 'literal') {
+        if (JSON.stringify(Object.keys(binding).sort()) !== JSON.stringify(['bindingKind', 'portName', 'value'])) {
+          fail('P4_PLAN_LITERAL_BINDING_INVALID', 'Literal binding shape is invalid.');
+        }
+      } else if (binding.bindingKind === 'projected_owner_facts') {
+        const expectedKeys = ['bindingKind', 'ownerDomain', 'parameters', 'portName', 'processId', 'processType', 'projectionRef'];
+        if (JSON.stringify(Object.keys(binding).sort()) !== JSON.stringify(expectedKeys.sort()) ||
+            typeof binding.ownerDomain !== 'string' || !binding.ownerDomain || typeof binding.processType !== 'string' || !binding.processType ||
+            typeof binding.processId !== 'string' || !binding.processId || typeof binding.projectionRef !== 'string' || !binding.projectionRef ||
+            !binding.parameters || typeof binding.parameters !== 'object' || Array.isArray(binding.parameters)) {
+          fail('P4_PLAN_OWNER_FACT_PROJECTION_INVALID', 'Projected Owner Facts binding requires an exact process scope and versioned projection.');
+        }
+      } else if (binding.bindingKind === 'projected_work_results') {
+        const expectedKeys = ['bindingKind', 'parameters', 'portName', 'projectionRef', 'resultSchemaRefs', 'sourceWorkId'];
+        if (JSON.stringify(Object.keys(binding).sort()) !== JSON.stringify(expectedKeys.sort()) ||
+            typeof binding.sourceWorkId !== 'string' || !binding.sourceWorkId ||
+            !Array.isArray(binding.resultSchemaRefs) || binding.resultSchemaRefs.length === 0 ||
+            new Set(binding.resultSchemaRefs).size !== binding.resultSchemaRefs.length ||
+            binding.resultSchemaRefs.some((item) => typeof item !== 'string' || !item) ||
+            typeof binding.projectionRef !== 'string' || !binding.projectionRef || !binding.parameters ||
+            typeof binding.parameters !== 'object' || Array.isArray(binding.parameters)) {
+          fail('P4_PLAN_WORK_RESULT_SET_PROJECTION_INVALID', 'Projected Work Results binding requires one exact Work and typed Result contracts.');
+        }
+      } else if (binding.bindingKind === 'projected_event_results') {
+        const expectedKeys = ['bindingKind', 'eventResults', 'parameters', 'portName', 'projectionRef'];
+        if (JSON.stringify(Object.keys(binding).sort()) !== JSON.stringify(expectedKeys.sort()) ||
+            !Array.isArray(binding.eventResults) || binding.eventResults.length === 0 ||
+            typeof binding.projectionRef !== 'string' || !binding.projectionRef || !binding.parameters ||
+            typeof binding.parameters !== 'object' || Array.isArray(binding.parameters)) {
+          fail('P4_PLAN_RESULT_SET_PROJECTION_INVALID', 'Projected Event Results binding requires ordered typed sources and a versioned projection.');
+        }
+        const sourceIds = new Set();
+        for (const resultRef of binding.eventResults) {
+          if (!resultRef || typeof resultRef !== 'object' || Array.isArray(resultRef) ||
+              JSON.stringify(Object.keys(resultRef).sort()) !== JSON.stringify(['eventId', 'resultSchemaRef']) ||
+              typeof resultRef.eventId !== 'string' || !resultRef.eventId || sourceIds.has(resultRef.eventId) ||
+              typeof resultRef.resultSchemaRef !== 'string' || !resultRef.resultSchemaRef) {
+            fail('P4_PLAN_RESULT_SET_SOURCE_INVALID', 'Projected Event Results sources must be unique exact Event Result references.');
+          }
+          sourceIds.add(resultRef.eventId);
+          const source = byEvent.get(resultRef.eventId);
+          if (!source || !node.dependsOn.some((dependency) => dependency.eventId === resultRef.eventId && dependency.satisfaction === 'success')) {
+            fail('P4_PLAN_RESULT_BINDING_DEPENDENCY_REQUIRED', 'Event Result binding requires a success dependency on every source Event.');
+          }
+          const sourceManifest = registry.resolve(source.capabilityRef, ownerDomain).manifest;
+          if (resultRef.resultSchemaRef !== sourceManifest.resultSchemaRef) {
+            fail('P4_PLAN_RESULT_BINDING_CONTRACT_MISMATCH', 'Event Result binding schema does not match the source Output Contract.');
+          }
+        }
+      } else {
+        const expectedKeys = binding.bindingKind === 'event_result'
+          ? ['bindingKind', 'eventId', 'portName', 'resultSchemaRef']
+          : ['bindingKind', 'eventId', 'parameters', 'portName', 'projectionRef', 'resultSchemaRef'];
+        if (JSON.stringify(Object.keys(binding).sort()) !== JSON.stringify(expectedKeys.sort()) ||
+            typeof binding.eventId !== 'string' || !binding.eventId || typeof binding.resultSchemaRef !== 'string' || !binding.resultSchemaRef) {
+          fail('P4_PLAN_RESULT_BINDING_INVALID', 'Event Result binding shape is invalid.');
+        }
+        if (binding.bindingKind === 'projected_event_result' &&
+            (typeof binding.projectionRef !== 'string' || !binding.projectionRef || !binding.parameters ||
+             typeof binding.parameters !== 'object' || Array.isArray(binding.parameters))) {
+          fail('P4_PLAN_RESULT_PROJECTION_INVALID', 'Projected Event Result binding requires a versioned projection and frozen parameters.');
+        }
+        const source = byEvent.get(binding.eventId);
+        if (!source || !node.dependsOn.some((dependency) => dependency.eventId === binding.eventId && dependency.satisfaction === 'success')) {
+          fail('P4_PLAN_RESULT_BINDING_DEPENDENCY_REQUIRED', 'Event Result binding requires a success dependency on its source Event.');
+        }
+        const sourceManifest = registry.resolve(source.capabilityRef, ownerDomain).manifest;
+        if (binding.resultSchemaRef !== sourceManifest.resultSchemaRef) {
+          fail('P4_PLAN_RESULT_BINDING_CONTRACT_MISMATCH', 'Event Result binding schema does not match the source Output Contract.');
+        }
+      }
+    }
+    if (expectedPorts.length === 0) contractValidator.validate(inputSchemaRef(targetManifest), {});
+  }
+}
+
 function validateNode(node, plan, registry, contractValidator) {
   const required = [
     'nodeId', 'eventId', 'capabilityRef', 'contractVersion', 'inputBindingsSchemaRef', 'inputBindings',
@@ -79,7 +180,7 @@ function validateNode(node, plan, registry, contractValidator) {
     fail('P4_PLAN_CAPABILITY_CONTRACT_MISMATCH', 'Plan node does not preserve the exact frozen Capability contract.', { nodeId: node.nodeId });
   }
   assertEffectClass(node.effectClass);
-  contractValidator.validate(node.inputBindingsSchemaRef, node.inputBindings);
+  if (!isBindingSet(node.inputBindings)) contractValidator.validate(node.inputBindingsSchemaRef, node.inputBindings);
   contractValidator.validate(node.parametersSchemaRef, node.parameters);
   contractValidator.validate(node.resourceDemandSchemaRef, node.resourceDemand);
   contractValidator.validate(node.fenceSchemaRef, node.fenceBasis);
@@ -188,6 +289,7 @@ function validateWorkflowPlan(rawPlan, options) {
   const planContext = { ownerDomain: rawPlan.ownerDomain, policyRegistry: options.policyRegistry };
   const nodes = rawPlan.nodes.map((node) => validateNode(node, planContext, options.registry, options.contractValidator));
   assertDag(nodes);
+  validateBindingSets(nodes, options.registry, options.contractValidator, rawPlan.ownerDomain);
   validateCompensations(nodes, options.policyRegistry);
   const normalized = Object.freeze({ ...rawPlan, nodes: Object.freeze(nodes) });
   return Object.freeze({ plan: normalized, graphDigest: digest(canonicalJson(normalized)) });

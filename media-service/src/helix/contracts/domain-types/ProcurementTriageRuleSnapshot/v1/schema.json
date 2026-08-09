@@ -39,7 +39,7 @@
           "const": true
         },
         "maxPrimaryMaterials": {
-          "const": 1024
+          "const": 256
         },
         "probeBatchSize": {
           "const": 100
@@ -125,7 +125,7 @@
               "const": 1
             },
             "maximumMembers": {
-              "const": 1024
+              "const": 256
             },
             "firstOrdinal": {
               "const": 0

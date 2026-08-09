@@ -72,8 +72,8 @@
       },
       {
         "ordinal": 7,
-        "name": "content_hash_algorithm",
-        "logicalType": "TEXT",
+        "name": "size_bytes",
+        "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -82,7 +82,7 @@
       },
       {
         "ordinal": 8,
-        "name": "content_hash",
+        "name": "fingerprint_algorithm",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -92,7 +92,7 @@
       },
       {
         "ordinal": 9,
-        "name": "endpoint_id",
+        "name": "fingerprint_version",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -102,7 +102,7 @@
       },
       {
         "ordinal": 10,
-        "name": "location",
+        "name": "content_fingerprint",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -112,8 +112,8 @@
       },
       {
         "ordinal": 11,
-        "name": "binding_revision",
-        "logicalType": "INTEGER",
+        "name": "endpoint_id",
+        "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -122,7 +122,7 @@
       },
       {
         "ordinal": 12,
-        "name": "binding_evidence_digest",
+        "name": "location",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -132,7 +132,7 @@
       },
       {
         "ordinal": 13,
-        "name": "admitted_control_revision",
+        "name": "binding_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -142,7 +142,7 @@
       },
       {
         "ordinal": 14,
-        "name": "admitted_control_projection_digest",
+        "name": "binding_evidence_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -152,6 +152,26 @@
       },
       {
         "ordinal": 15,
+        "name": "admitted_control_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 16,
+        "name": "admitted_control_projection_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 17,
         "name": "settlement_expectation",
         "logicalType": "TEXT",
         "enumValues": [
@@ -165,7 +185,7 @@
         "nullable": false
       },
       {
-        "ordinal": 16,
+        "ordinal": 18,
         "name": "context_member_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -232,13 +252,13 @@
       "按materialKey/contextRole排序并进入offload context digest"
     ],
     "rawContract": {
-      "columns": "`on_deck_package_id FK, ordinal, material_key, context_role(original_input|structural_dependency), mount_scope_id, inode, content_hash_algorithm, content_hash, endpoint_id, location, binding_revision, binding_evidence_digest, admitted_control_revision, admitted_control_projection_digest, settlement_expectation(retain|replace_or_move|remove_after_place), context_member_digest`",
+      "columns": "`on_deck_package_id FK, ordinal, material_key, context_role(original_input|structural_dependency), mount_scope_id, inode, size_bytes, fingerprint_algorithm, fingerprint_version, content_fingerprint, endpoint_id, location, binding_revision, binding_evidence_digest, admitted_control_revision, admitted_control_projection_digest, settlement_expectation(retain|replace_or_move|remove_after_place), context_member_digest`",
       "constraints": "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,material_key,context_role)`；逐列冻结Arca计算Final Inventory Decision所需Reality，不声明最终动作；按materialKey/contextRole排序并进入offload context digest"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8579,
-      "lineDigest": "d42a868c051259871ef309cec961ed873b7210ab03125b84a19f407e8587e69e"
+      "line": 8702,
+      "lineDigest": "b7b7d948eb334ad035cc2da3e5c4a8a2f4b416b2aaf28cf1be4ef1d2bcf0f09e"
     },
     "foreignKeys": [
       {

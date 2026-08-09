@@ -14,15 +14,15 @@ SSOT §8.2.1、§8.4.2和§8.6.18要求`CandidateDeliveryPort@1.readSnapshot(Can
 
 `CandidatePackage@1.relatedReferences[]`中的每项要求：
 
-- 完整`PhysicalMaterialIdentity@1`：`materialKey,mountScopeId,inode,contentHashAlgorithm,contentHash`；
+- 完整`PhysicalMaterialIdentity@1`：`materialKey,mountScopeId,inode,fingerprintAlgorithm,contentFingerprint`；
 - `endpointId,location,checksumAlgorithm,checksumHex,associationEvidenceDigest,referenceDigest`。
 
 但`proc_candidate_related_references`只保存：
 
 `candidate_package_id,reference_id,primary_ordinal,role,endpoint_id,location,checksum_algorithm,checksum_hex,evidence_digest`
 
-缺失`identity.materialKey`、`identity.mountScopeId`、`identity.inode`、`identity.contentHashAlgorithm`、
-`identity.contentHash`和`referenceDigest`。checksum不能反推mount scope、inode或material key，也无法在缺失完整identity时重算
+缺失`identity.materialKey`、`identity.mountScopeId`、`identity.inode`、`identity.fingerprintAlgorithm`、
+`identity.contentFingerprint`和`referenceDigest`。checksum不能反推mount scope、inode或material key，也无法在缺失完整identity时重算
 `referenceDigest`。因此发布后无法从正式Procurement Owner rows重建完整Package、验证`relatedReferenceSetDigest`和`packageDigest`。
 
 ## 3. Rejected implementation shortcuts

@@ -102,7 +102,33 @@ function createWorkAdmission(options) {
     fail('P4_WORK_ADMISSION_DEPENDENCIES_REQUIRED', 'Scoped UoW, eligibility provider, and positive hard limits are required.');
   }
   const definitions = repositories(options.schemaManifest);
+  function replay(rawDefinition) {
+    let definition;
+    try { definition = validateSupportingWorkDefinition(rawDefinition); } catch (_error) { return null; }
+    const requestDigest = digest(canonicalJson(definition));
+    const result = options.unitOfWork.execute([{
+      participantId: 'work_admission_replay', owner: 'execution-foundation',
+      repositories: [definitions.receipts],
+      execute(context) {
+        const rows = context.repository('work_admission_receipts').invoke('list_key', {
+          owner_domain: definition.ownerDomain,
+          command_contract: COMMAND_CONTRACT,
+          idempotency_key: definition.idempotencyKey,
+        });
+        if (rows.length > 1) fail('P4_WORK_ADMISSION_RECEIPT_CORRUPT', 'Work Admission idempotency key has multiple receipts.');
+        if (rows.length === 0) return null;
+        if (rows[0].request_digest !== requestDigest) fail(
+          'P4_WORK_ADMISSION_IDEMPOTENCY_CONFLICT',
+          'Work Admission idempotency key already binds a different Definition digest.',
+        );
+        return decodeReplay(rows[0]);
+      },
+    }]).work_admission_replay;
+    return result ? Object.freeze(result) : null;
+  }
+
   return Object.freeze({
+    replay,
     submit(rawDefinition) {
       let definition;
       try { definition = validateSupportingWorkDefinition(rawDefinition); } catch (error) {

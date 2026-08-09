@@ -66,9 +66,6 @@ const {
 } = require('./helix/domains/procurement/application/candidate-acceptance-consumer');
 const { createInboxCoordinator } = require('./helix/foundation/persistence/outbox-inbox');
 const {
-  createMovieRunCoordinator,
-} = require('./helix/domains/procurement/application/movie-run-coordinator');
-const {
   createIntakeAcceptanceCoordinator,
 } = require('./helix/domains/libra/application/intake-acceptance-coordinator');
 const {
@@ -117,7 +114,14 @@ const {
 const {
   createCleanFieldObservationEnumerator,
 } = require('./clean-field-observation-enumerator');
+const {
+  createProcurementExecutionRuntime,
+} = require('./helix/composition/create-procurement-execution-runtime');
+const {
+  createMaterialFieldStore,
+} = require('./helix/domains/procurement/persistence/material-field-store');
 const { createCleanMediaProbe } = require('./clean-media-probe');
+const { createCleanLayoutObserver } = require('./clean-layout-observer');
 const {
   createCleanProductProductionPort,
 } = require('./clean-product-production-port');
@@ -804,7 +808,8 @@ function errorResponse(error, correlationId) {
   ) status = 409;
   else if (error.code === 'ADMIN_ROUTING_COMMAND_REJECTED' || error.code === 'ADMIN_ROUTING_TARGET_MISMATCH') status = 400;
   else if (error.code === 'ADMIN_ROUTING_IDEMPOTENCY_CONFLICT') status = 409;
-  else if (error.code === 'ADMIN_FIELD_COMMAND_REJECTED' || error.code === 'ADMIN_FIELD_TARGET_MISMATCH') status = 400;
+  else if (error.code === 'ADMIN_FIELD_COMMAND_REJECTED' || error.code === 'ADMIN_FIELD_TARGET_MISMATCH' ||
+    error.code === 'ADMIN_MEDIA_PROFILE_UNSUPPORTED') status = 400;
   else if (error.code === 'ADMIN_FIELD_IDEMPOTENCY_CONFLICT') status = 409;
   else if (error.code === 'ADMIN_FIELD_CONFLICT') status = 409;
   else if (
@@ -1027,6 +1032,7 @@ async function createCleanServiceHost(options) {
     constructed.applicationDependencies,
   );
   const mediaProbe = options.mediaProbe || createCleanMediaProbe();
+  const layoutObserver = options.layoutObserver || createCleanLayoutObserver();
   const workspaceProductPort = createCleanWorkspaceProductPort({
     ...constructed.applicationDependencies,
     rootPath: options.workspaceRoot || path.join(options.dataDir, 'workspace'),
@@ -1338,18 +1344,25 @@ async function createCleanServiceHost(options) {
       production: await advanceProduction(formation),
     });
   };
-  const movieRunCoordinator = createMovieRunCoordinator({
-    ...constructed.applicationDependencies,
-    triageRegistry: require('./helix/domains/procurement/model/procurement-run-contracts').createDefaultTriageRuleRegistry(),
-    workRuntime,
-    mediaProbe,
-    faultInjector: options.movieRunFaultInjector,
-    offerCandidate: handoffOffer,
-    resumeAcceptedHandoff,
-  });
   const libraRoutingAdmin = createLibraRoutingAdminApplication({
     ...constructed.applicationDependencies,
     readArcaRoutingTargets: arcaRoutingTargets.list,
+  });
+  const materialFieldStore = createMaterialFieldStore(
+    constructed.applicationDependencies,
+  );
+  const fieldEnumerator = options.fieldObservationEnumerator || createCleanFieldObservationEnumerator({
+    onFingerprintRead: options.onPhysicalMaterialFingerprintRead,
+  });
+  const procurementExecution = createProcurementExecutionRuntime({
+    ...constructed.applicationDependencies,
+    materialFieldStore,
+    pageObserverFactory: createFieldPageObserver,
+    enumerator: fieldEnumerator,
+    mediaProbe,
+    layoutObserver,
+    now: options.now || Date.now,
+    onError: options.onExecutionRuntimeError,
   });
   const facades = createCleanFacades({
     sessionTokens,
@@ -1357,10 +1370,8 @@ async function createCleanServiceHost(options) {
     credentialMetadata: runtime.readActiveCredential,
     procurementAdmin: createProcurementAdminApplication({
       ...constructed.applicationDependencies,
-      enumerator: createCleanFieldObservationEnumerator(),
-      pageObserverFactory: createFieldPageObserver,
-      workRuntime,
-      movieRunCoordinator,
+      materialFieldStore,
+      executionRuntimeHost: procurementExecution.host,
     }),
     arcaShelfAdmin,
     arcaRuleTemplateAdmin,
@@ -1368,8 +1379,12 @@ async function createCleanServiceHost(options) {
     platformIntegrationAdmin: platformIntegrations.admin,
     nonce: crypto.randomUUID,
   });
-  const application = createHelixApplication({ facades, sessionTokens });
-  application.start();
+  const application = createHelixApplication({
+    facades,
+    sessionTokens,
+    executionRuntimeHost: procurementExecution.host,
+  });
+  await application.start();
 
   const server = Fastify({ logger: false, trustProxy: false });
   await server.register(fastifyStatic, {
@@ -1411,7 +1426,7 @@ async function createCleanServiceHost(options) {
   try {
     await server.ready();
   } catch (error) {
-    application.stop();
+    await application.stop();
     constructed.close();
     throw error;
   }
@@ -1426,7 +1441,7 @@ async function createCleanServiceHost(options) {
     async close() {
       if (closed) return;
       closed = true;
-      application.stop();
+      await application.stop();
       try {
         await server.close();
       } finally {

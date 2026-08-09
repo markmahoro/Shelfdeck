@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/BoundedContentFingerprintEvidence/v1",
+  "title": "BoundedContentFingerprintEvidence@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "x-helix-envelopeRef": "helix://contracts/types/EvidenceEnvelope/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/BoundedContentFingerprintEvidence/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "evidenceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "evidenceKind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "producerRef": {
+      "type": "string",
+      "minLength": 1
+    },
+    "basisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "payloadDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "observedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "identity": {
+      "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
+    },
+    "fingerprintProfileRef": {
+      "const": "middle-256k-sha256@1"
+    },
+    "sampleOffset": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "sampleLength": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 262144
+    },
+    "bytesSampled": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 262144
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "evidenceId",
+    "evidenceKind",
+    "producerRef",
+    "basisDigest",
+    "payloadDigest",
+    "observedAtMs",
+    "identity",
+    "fingerprintProfileRef",
+    "sampleOffset",
+    "sampleLength",
+    "bytesSampled"
+  ]
+}

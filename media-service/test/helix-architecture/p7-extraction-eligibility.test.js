@@ -62,7 +62,7 @@ test('Material Control Query performs one bounded read and distinguishes absent,
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-control-query-')); const databasePath = path.join(root, 'shelfdeck.db');
   const kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest, now:() => 1 });
   const database = new Database(databasePath);
-  database.prepare(`INSERT INTO fx_material_controls(material_key,mount_scope_id,inode,content_hash_algorithm,content_hash,
+  database.prepare(`INSERT INTO fx_material_controls(material_key,mount_scope_id,inode,fingerprint_algorithm,content_fingerprint,
     owner_domain,owner_scope_type,owner_scope_id,control_revision,state,updated_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?)`)
     .run(SHA_B,'mount-1','1','sha256','c'.repeat(64),'libra','run','run-1',1,'controlled',1);
   const port = createMaterialControlProjectionPort({ schemaManifest, unitOfWork:createSqliteUnitOfWork({ kernel }) });

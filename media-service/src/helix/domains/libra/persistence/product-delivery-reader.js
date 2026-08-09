@@ -90,7 +90,7 @@ function definition(schemaManifest) {
         tableId: 'libra_product_package_materials',
         columns: [
           'on_deck_package_id', 'ordinal', 'material_handle_id', 'material_key', 'role',
-          'mount_scope_id', 'inode', 'content_hash_algorithm', 'content_hash',
+          'mount_scope_id', 'inode', 'fingerprint_algorithm', 'fingerprint_version', 'content_fingerprint',
           'location_kind', 'endpoint_id', 'location', 'root_handle_ref', 'relative_path',
           'binding_kind', 'binding_revision', 'binding_evidence_digest',
           'origin_intake_decision_id', 'origin_offer_id', 'origin_candidate_package_id',
@@ -151,7 +151,7 @@ function definition(schemaManifest) {
         tableId: 'libra_offload_context_materials',
         columns: [
           'on_deck_package_id', 'ordinal', 'material_key', 'context_role',
-          'mount_scope_id', 'inode', 'content_hash_algorithm', 'content_hash',
+          'mount_scope_id', 'inode', 'size_bytes', 'fingerprint_algorithm', 'fingerprint_version', 'content_fingerprint',
           'endpoint_id', 'location', 'binding_revision', 'binding_evidence_digest',
           'admitted_control_revision', 'admitted_control_projection_digest',
           'settlement_expectation', 'context_member_digest',
@@ -181,13 +181,15 @@ function definition(schemaManifest) {
 
 function physical(row) {
   return {
-    schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v1',
-    schemaVersion: 1,
+    schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v2',
+    schemaVersion: 2,
     materialKey: row.material_key,
     mountScopeId: row.mount_scope_id,
     inode: String(row.inode),
-    contentHashAlgorithm: row.content_hash_algorithm,
-    contentHash: row.content_hash,
+    sizeBytes: number(row.size_bytes),
+    fingerprintAlgorithm: row.fingerprint_algorithm,
+    fingerprintVersion: number(row.fingerprint_version),
+    contentFingerprint: row.content_fingerprint,
   };
 }
 

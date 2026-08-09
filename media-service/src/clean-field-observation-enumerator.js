@@ -1,14 +1,21 @@
 'use strict';
 
-const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const { FINGERPRINT_SAMPLE_BYTES, computeBoundedMaterialFingerprint } = require('./helix/integrations/bounded-material-fingerprint');
 const { canonicalDigest } = require('./helix/contracts/canonical-json');
 const {
   identityBasis,
 } = require('./helix/domains/procurement/model/field-observation-contracts');
 
-const MAX_FILES_PER_SCAN = 10_000;
+const MAX_FILES_PER_SCAN = 100_000;
+const MAX_FINGERPRINTED_FILES_PER_PAGE = 100;
+// The contract permits up to 100 observations, but the complete typed page must
+// also fit in 64 KiB. Keep the filesystem adapter's batch conservative so that
+// its path cursor can advance only after the entire canonical-key-sorted batch
+// is committed. A too-large exceptional batch is rejected by FieldPageObserver
+// instead of silently skipping its uncommitted tail.
+const DEFAULT_FINGERPRINTED_FILES_PER_BATCH = 16;
 const INT64_MAX = 9_223_372_036_854_775_807n;
 
 class CleanFieldObservationEnumeratorError extends Error {
@@ -36,13 +43,6 @@ function checkedInt64(value, field, location) {
     });
   }
   return value.toString();
-}
-
-async function sha256File(location) {
-  const hash = crypto.createHash('sha256');
-  const stream = fs.createReadStream(location, { flags: 'r' });
-  for await (const chunk of stream) hash.update(chunk);
-  return hash.digest('hex');
 }
 
 async function collectFiles(rootLocation) {
@@ -73,12 +73,72 @@ async function collectFiles(rootLocation) {
       }
     }
   }
+  files.sort((left, right) => Buffer.compare(
+    Buffer.from(normalizedLocation(path.relative(rootLocation, left)), 'utf8'),
+    Buffer.from(normalizedLocation(path.relative(rootLocation, right)), 'utf8'),
+  ));
   return files;
+}
+
+function pathCursor(rootLocation, location) {
+  return 'path:' + Buffer.from(normalizedLocation(path.relative(rootLocation, location)), 'utf8').toString('base64url');
+}
+
+function decodePathCursor(cursor) {
+  if (cursor === null) return null;
+  if (typeof cursor !== 'string' || !cursor.startsWith('path:')) fail('FIELD_OBSERVATION_CURSOR_INVALID', 'Field Observation cursor is invalid.');
+  try { return Buffer.from(cursor.slice(5), 'base64url').toString('utf8'); }
+  catch { fail('FIELD_OBSERVATION_CURSOR_INVALID', 'Field Observation cursor is invalid.'); }
+}
+
+async function observeFile(location, fieldAccessHandle, now, fingerprintOptions) {
+  const sampled = await computeBoundedMaterialFingerprint(location, fingerprintOptions);
+  const stat = sampled.stat;
+  const inode = checkedInt64(stat.ino, 'inode', location);
+  const materialKey = canonicalDigest(identityBasis({ mountScopeId:fieldAccessHandle.mountScopeId, inode,
+    sizeBytes:Number(stat.size), fingerprintAlgorithm:'middle-256k-sha256', fingerprintVersion:1,
+    contentFingerprint:sampled.contentFingerprint }));
+  return Object.freeze({ materialKey, material:Object.freeze({ inode, contentFingerprint:sampled.contentFingerprint,
+    fingerprintAlgorithm:'middle-256k-sha256', fingerprintVersion:1, sampleOffset:sampled.sampleOffset,
+    sampleLength:sampled.sampleLength, bytesSampled:sampled.bytesSampled, location:normalizedLocation(location),
+    sizeBytes:Number(stat.size), mtimeNs:checkedInt64(stat.mtimeNs, 'mtimeNs', location),
+    ctimeNs:checkedInt64(stat.ctimeNs, 'ctimeNs', location), fingerprintVerifiedAtMs:now() }) });
 }
 
 function createCleanFieldObservationEnumerator(options = {}) {
   const now = options.now || Date.now;
+  const fingerprintOptions = Object.freeze({ onRead:options.onFingerprintRead });
+  const batchLimit = options.batchLimit || DEFAULT_FINGERPRINTED_FILES_PER_BATCH;
+  if (!Number.isInteger(batchLimit) || batchLimit < 1 || batchLimit > MAX_FINGERPRINTED_FILES_PER_PAGE) {
+    fail('FIELD_OBSERVATION_BATCH_LIMIT_INVALID', 'Field Observation batch limit is invalid.', {
+      maximum: MAX_FINGERPRINTED_FILES_PER_PAGE,
+    });
+  }
+  const locationSnapshots = new Map();
+  async function locations(fieldAccessHandle) {
+    const rootLocation=path.resolve(fieldAccessHandle.rootLocation);
+    const key=fieldAccessHandle.handleId+'\u0000'+fieldAccessHandle.accessDigest;
+    if(!locationSnapshots.has(key))locationSnapshots.set(key,collectFiles(rootLocation));
+    return Object.freeze({rootLocation,items:await locationSnapshots.get(key)});
+  }
   return Object.freeze({
+    async enumeratePage({ fieldAccessHandle, pageRequest }) {
+      const inventory=await locations(fieldAccessHandle);const cursorRelative=decodePathCursor(pageRequest.cursorIn);
+      const start=cursorRelative===null?0:inventory.items.findIndex((location)=>Buffer.compare(
+        Buffer.from(normalizedLocation(path.relative(inventory.rootLocation,location)),'utf8'),Buffer.from(cursorRelative,'utf8'))>0);
+      const startIndex=start<0?inventory.items.length:start;
+      const selected=inventory.items.slice(startIndex,startIndex+Math.min(
+        pageRequest.pageBudget,
+        MAX_FINGERPRINTED_FILES_PER_PAGE,
+        batchLimit,
+      ));
+      const observed=(await Promise.all(selected.map((location)=>observeFile(location,fieldAccessHandle,now,fingerprintOptions)))).filter(Boolean);
+      observed.sort((left,right)=>Buffer.compare(Buffer.from(left.materialKey),Buffer.from(right.materialKey)));
+      const boundary=selected.length?pathCursor(inventory.rootLocation,selected.at(-1)):null;
+      const items=observed.map((item)=>Object.freeze({cursor:boundary,material:item.material}));
+      return Object.freeze({items:Object.freeze(items),hasMore:startIndex+selected.length<inventory.items.length,
+        sourceFileCount:inventory.items.length});
+    },
     async scan(fieldAccessHandle) {
       const rootLocation = path.resolve(fieldAccessHandle.rootLocation);
       let root;
@@ -100,33 +160,7 @@ function createCleanFieldObservationEnumerator(options = {}) {
       const locations = await collectFiles(rootLocation);
       const items = [];
       for (const location of locations) {
-        const stat = await fs.promises.stat(location, { bigint: true });
-        if (!stat.isFile()) continue;
-        if (stat.size > BigInt(Number.MAX_SAFE_INTEGER)) {
-          fail('FIELD_OBSERVATION_FILE_TOO_LARGE', '文件大小超出Field Observation安全整数范围。', {
-            location: normalizedLocation(location),
-          });
-        }
-        const inode = checkedInt64(stat.ino, 'inode', location);
-        const contentHash = await sha256File(location);
-        const materialKey = canonicalDigest(identityBasis({
-          mountScopeId: fieldAccessHandle.mountScopeId,
-          inode,
-          contentHashAlgorithm: 'sha256',
-          contentHash,
-        }));
-        items.push(Object.freeze({
-          cursor: materialKey,
-          material: Object.freeze({
-            inode,
-            contentHash,
-            location: normalizedLocation(location),
-            sizeBytes: Number(stat.size),
-            mtimeNs: checkedInt64(stat.mtimeNs, 'mtimeNs', location),
-            ctimeNs: checkedInt64(stat.ctimeNs, 'ctimeNs', location),
-            hashVerifiedAtMs: now(),
-          }),
-        }));
+        const observed=await observeFile(location,fieldAccessHandle,now,fingerprintOptions);if(observed)items.push(Object.freeze({cursor:observed.materialKey,material:observed.material}));
       }
       items.sort((left, right) => Buffer.compare(
         Buffer.from(left.cursor, 'utf8'),
@@ -144,5 +178,8 @@ function createCleanFieldObservationEnumerator(options = {}) {
 module.exports = Object.freeze({
   CleanFieldObservationEnumeratorError,
   MAX_FILES_PER_SCAN,
+  FINGERPRINT_SAMPLE_BYTES,
+  MAX_FINGERPRINTED_FILES_PER_PAGE,
+  DEFAULT_FINGERPRINTED_FILES_PER_BATCH,
   createCleanFieldObservationEnumerator,
 });

@@ -45,7 +45,7 @@ function validateDraft(draft, runBasisMembers) {
     fail('P7_CANDIDATE_DRAFT_INVALID', 'Candidate Draft is incomplete.');
   }
   const unit = draft.structureEvidence.unit;
-  requireArray(unit.members, 'structureEvidence.unit.members', 1024, 1);
+  requireArray(unit.members, 'structureEvidence.unit.members', 256, 1);
   requireArray(unit.relatedReferences, 'structureEvidence.unit.relatedReferences', 256);
   let previousMember = null;
   const memberKeys = new Set();
@@ -74,15 +74,18 @@ function validateDraft(draft, runBasisMembers) {
   let previousReference = null;
   for (const reference of unit.relatedReferences) {
     const identity = reference.identity;
-    const identityMaterialKey = identity && canonicalDigest({ schema:'physical-material-identity@1', mountScopeId:identity.mountScopeId,
-      inode:identity.inode, contentHashAlgorithm:'sha256', contentHash:identity.contentHash });
+    const identityMaterialKey = identity && canonicalDigest({ schema:'physical-material-identity@2', mountScopeId:identity.mountScopeId,
+      inode:identity.inode, sizeBytes:identity.sizeBytes, fingerprintAlgorithm:'middle-256k-sha256', fingerprintVersion:1,
+      contentFingerprint:identity.contentFingerprint });
     const referenceId = identity && canonicalDigest({ schema:'procurement.related-material-reference-id@1',
       primaryMaterialKey:reference.primaryMaterialKey, role:reference.role, relatedMaterialKey:identity.materialKey,
       endpointId:reference.endpointId, location:reference.location });
     if (previousReference !== null && compareUtf8(previousReference, reference.referenceId) >= 0 ||
-        !memberKeys.has(reference.primaryMaterialKey) || !identity || identity.schemaRef !== 'helix://contracts/types/PhysicalMaterialIdentity/v1' ||
-        identity.schemaVersion !== 1 || identity.contentHashAlgorithm !== 'sha256' || identity.materialKey !== identityMaterialKey ||
-        reference.checksumAlgorithm !== 'sha256' || reference.checksumHex !== identity.contentHash || reference.referenceId !== referenceId ||
+        !memberKeys.has(reference.primaryMaterialKey) || !identity || identity.schemaRef !== 'helix://contracts/types/PhysicalMaterialIdentity/v2' ||
+        identity.schemaVersion !== 2 || identity.fingerprintAlgorithm !== 'middle-256k-sha256' || identity.fingerprintVersion !== 1 ||
+        !Number.isSafeInteger(identity.sizeBytes) || identity.sizeBytes < 0 || identity.materialKey !== identityMaterialKey ||
+        reference.fingerprintAlgorithm !== identity.fingerprintAlgorithm || reference.fingerprintVersion !== identity.fingerprintVersion ||
+        reference.contentFingerprint !== identity.contentFingerprint || reference.referenceId !== referenceId ||
         reference.referenceDigest !== canonicalDigest(without(reference, 'referenceDigest'))) {
       fail('P7_CANDIDATE_RELATED_CANONICAL', 'Related References must be sorted, digested, and point into the Unit.');
     }

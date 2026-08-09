@@ -118,7 +118,7 @@ The formal Platform public ports are:
 `AdminCredentialRevisionQueryPort`.
 
 The formal Integration ports are:
-`FilesystemObservationPort`, `ContentHashPort`, `MediaProbePort`,
+`FilesystemObservationPort`, `BoundedFingerprintPort`, `MediaProbePort`,
 `WorkspaceFileEffectPort`, `MediaTransformPort`,
 `FilesystemMaterialCommitPort`, `FilesystemDestructiveCommitPort`,
 `ExternalProviderObservationPort`, `ExternalProviderArtifactPort`,

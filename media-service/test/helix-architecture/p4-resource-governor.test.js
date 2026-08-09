@@ -88,7 +88,20 @@ test('one Event has one waiter and newer Owner projection can reprioritize it', 
   });
 });
 
-test('waiter aging remains inside priority class and cannot cross safety lane', () => {
+test('independent Capability resource keys do not share one global waiter head', () => {
+  fixture(({ governor, seedEvents }) => {
+    seedEvents('holder-a', 'holder-b', 'waiter-a', 'waiter-b');
+    const holderA=governor.acquire(request('holder-a',[['cpu_heavy']]));
+    const holderB=governor.acquire(request('holder-b',[['sqlite_write']]));
+    assert.equal(governor.acquire(request('waiter-a',[['cpu_heavy']])).kind,'waiting');
+    assert.equal(governor.acquire(request('waiter-b',[['sqlite_write']])).kind,'waiting');
+    governor.release(holderA.permit);governor.release(holderB.permit);
+    assert.equal(governor.acquire(request('waiter-b',[['sqlite_write']])).kind,'permitted');
+    assert.equal(governor.snapshot().waiterCount,1);
+  });
+});
+
+test('Governor does not override the Work Scheduler lease with a hidden waiter priority head', () => {
   fixture(({ governor, seedEvents, setNow }) => {
     seedEvents('holder', 'background', 'safety');
     const holder = governor.acquire(request('holder', [['cpu_heavy']]));
@@ -96,8 +109,8 @@ test('waiter aging remains inside priority class and cannot cross safety lane', 
     setNow(780000);
     governor.acquire(request('safety', [['cpu_heavy']], { queueClass: 'safety_liveness' }));
     governor.release(holder.permit);
-    assert.equal(governor.acquire(request('background', [['cpu_heavy']], { queueClass: 'background_observation', localPriority: 100 })).kind, 'waiting');
-    assert.equal(governor.acquire(request('safety', [['cpu_heavy']], { queueClass: 'safety_liveness' })).kind, 'permitted');
+    assert.equal(governor.acquire(request('background', [['cpu_heavy']], { queueClass: 'background_observation', localPriority: 100 })).kind, 'permitted');
+    assert.equal(governor.acquire(request('safety', [['cpu_heavy']], { queueClass: 'safety_liveness' })).kind, 'waiting');
     assert.equal(governor.snapshot().waiterCount, 1);
   });
 });

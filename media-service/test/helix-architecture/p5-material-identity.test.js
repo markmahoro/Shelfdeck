@@ -6,7 +6,6 @@ const test = require('node:test');
 
 const { materialKey: p3MaterialKey } = require('../../src/helix/foundation/persistence/material-control');
 const {
-  canReuseFullHash,
   createPhysicalMaterialIdentityFactory
 } = require('../../src/helix/platform/model/physical-material-identity');
 const {
@@ -21,8 +20,8 @@ const contentB = digest('content-b');
 
 function identity(overrides = {}) {
   return factory.derive({
-    mountScopeId: 'mount-1', inode: '1001', contentHashAlgorithm: 'sha256',
-    contentHash: contentA, fullHashComplete: true, ...overrides
+    mountScopeId: 'mount-1', inode: '1001', fingerprintAlgorithm: 'middle-256k-sha256',
+    fingerprintVersion: 1, sizeBytes: 1000, contentFingerprint: contentA, boundedFingerprintComplete: true, ...overrides
   });
 }
 
@@ -33,20 +32,21 @@ function expectedBinding(material = identity()) {
 function observation(overrides = {}) {
   return {
     endpointReachable: true, endpointId: 'endpoint-1', locationState: 'resolved', location: '/media/movie.mkv',
-    mountScopeId: 'mount-1', mountScopeRevision: 4, inode: '1001', contentHash: contentA,
+    mountScopeId: 'mount-1', mountScopeRevision: 4, inode: '1001', sizeBytes: 1000,
+    fingerprintAlgorithm: 'middle-256k-sha256', fingerprintVersion: 1, contentFingerprint: contentA,
     observationEvidenceDigest: digest('observation-1'), ...overrides
   };
 }
 
-test('derives exactly the P3 canonical Physical Material Identity from full SHA-256 evidence', () => {
+test('derives exactly the P3 canonical Physical Material Identity from bounded fingerprint evidence', () => {
   const material = identity();
-  assert.equal(material.schemaRef, 'helix://contracts/types/PhysicalMaterialIdentity/v1');
+  assert.equal(material.schemaRef, 'helix://contracts/types/PhysicalMaterialIdentity/v2');
   assert.equal(material.materialKey, p3MaterialKey(material));
   assert.equal(Object.isFrozen(material), true);
-  assert.throws(() => identity({ fullHashComplete: false }),
-    (error) => error.code === 'P5_MATERIAL_IDENTITY_FULL_HASH_REQUIRED');
-  assert.throws(() => identity({ contentHash: digest('fast-fingerprint'), contentHashAlgorithm: 'fast' }),
-    (error) => error.code === 'P5_MATERIAL_IDENTITY_FULL_HASH_REQUIRED');
+  assert.throws(() => identity({ boundedFingerprintComplete: false }),
+    (error) => error.code === 'P5_MATERIAL_IDENTITY_FINGERPRINT_REQUIRED');
+  assert.throws(() => identity({ contentFingerprint: digest('fast-fingerprint'), fingerprintAlgorithm: 'fast' }),
+    (error) => error.code === 'P5_MATERIAL_IDENTITY_FINGERPRINT_REQUIRED');
 });
 
 test('location rename preserves identity while mount, inode, or bytes produce a new identity', () => {
@@ -55,31 +55,12 @@ test('location rename preserves identity while mount, inode, or bytes produce a 
   assert.equal(original.materialKey, renamed.materialKey);
   assert.notEqual(identity({ mountScopeId: 'mount-2' }).materialKey, original.materialKey);
   assert.notEqual(identity({ inode: '1002' }).materialKey, original.materialKey);
-  assert.notEqual(identity({ contentHash: contentB }).materialKey, original.materialKey);
-  assert.notEqual(identity({ inode: '1002', contentHash: contentA }).materialKey, original.materialKey);
+  assert.notEqual(identity({ sizeBytes: 1001 }).materialKey, original.materialKey);
+  assert.notEqual(identity({ contentFingerprint: contentB }).materialKey, original.materialKey);
+  assert.notEqual(identity({ inode: '1002', contentFingerprint: contentA }).materialKey, original.materialKey);
 });
 
-test('reuses a full hash only under the exact trustworthy stat fence', () => {
-  const previous = {
-    mountScopeId: 'mount-1', mountScopeRevision: 4, inode: '1001', sizeBytes: 1000,
-    mtimeNs: '1000000001', ctimeNs: '1000000002', contentHashAlgorithm: 'sha256',
-    contentHash: contentA, fullHashComplete: true
-  };
-  const current = {
-    mountScopeId: 'mount-1', mountScopeRevision: 4, inode: '1001', sizeBytes: 1000,
-    mtimeNs: '1000000001', ctimeNs: '1000000002', trustworthyNanosecondStat: true
-  };
-  assert.equal(canReuseFullHash(previous, current), true);
-  for (const drift of [
-    { mountScopeId: 'mount-2' }, { mountScopeRevision: 5 }, { inode: '1002' }, { sizeBytes: 1001 },
-    { mtimeNs: '1000000003' }, { ctimeNs: '1000000003' }, { trustworthyNanosecondStat: false }
-  ]) assert.equal(canReuseFullHash(previous, { ...current, ...drift }), false);
-  assert.equal(canReuseFullHash({
-    contentHashAlgorithm: 'sha256', contentHash: contentA, fullHashComplete: true
-  }, { trustworthyNanosecondStat: true }), false);
-});
-
-test('Binding Health requires endpoint, location, filesystem object, and content hash together', () => {
+test('Binding Health requires endpoint, location, filesystem object, and bounded fingerprint together', () => {
   const expected = expectedBinding();
   assert.deepEqual(evaluateBindingHealth({ expected, observation: observation() }).reasonCodes, []);
   assert.deepEqual(evaluateBindingHealth({
@@ -91,8 +72,8 @@ test('Binding Health requires endpoint, location, filesystem object, and content
     ['location_unreadable']);
   assert.deepEqual(evaluateBindingHealth({ expected, observation: observation({ inode: '1002' }) }).reasonCodes,
     ['filesystem_object_mismatch']);
-  assert.deepEqual(evaluateBindingHealth({ expected, observation: observation({ contentHash: contentB }) }).reasonCodes,
-    ['content_hash_mismatch']);
+  assert.deepEqual(evaluateBindingHealth({ expected, observation: observation({ contentFingerprint: contentB }) }).reasonCodes,
+    ['content_fingerprint_mismatch']);
   assert.deepEqual(evaluateBindingHealth({ expected, observation: observation({ location: '/media/renamed.mkv' }) }).reasonCodes,
     ['location_mismatch']);
 });

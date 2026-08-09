@@ -79,8 +79,8 @@
       },
       {
         "ordinal": 8,
-        "name": "content_hash_algorithm",
-        "logicalType": "TEXT",
+        "name": "size_bytes",
+        "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -89,7 +89,7 @@
       },
       {
         "ordinal": 9,
-        "name": "content_hash",
+        "name": "fingerprint_algorithm",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -99,7 +99,7 @@
       },
       {
         "ordinal": 10,
-        "name": "endpoint_id",
+        "name": "fingerprint_version",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -109,7 +109,7 @@
       },
       {
         "ordinal": 11,
-        "name": "location",
+        "name": "content_fingerprint",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -119,7 +119,7 @@
       },
       {
         "ordinal": 12,
-        "name": "checksum_algorithm",
+        "name": "endpoint_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -129,7 +129,7 @@
       },
       {
         "ordinal": 13,
-        "name": "checksum_hex",
+        "name": "location",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -170,7 +170,7 @@
     "partialUniqueRules": [],
     "checkRules": [
       {
-        "rule": "Physical Identity/materialKey、SHA-256 checksum和reference digest均按8.6.18重验，`content_hash_algorithm=checksum_algorithm=sha256`且`content_hash=checksum_hex`"
+        "rule": "Physical Identity/materialKey及reference digest均按8.6.18重验，Related不再携带或要求全文件checksum"
       }
     ],
     "revisionContract": {
@@ -194,18 +194,18 @@
     "semanticRules": [
       "`PK(candidate_package_id,reference_id)`及复合FK`(candidate_package_id,primary_ordinal) → proc_candidate_primary_materials(candidate_package_id,ordinal)`",
       "逐列无损保存一个`RelatedMaterialReference@1`，`primaryMaterialKey`只由该immutable FK目标重建",
-      "Physical Identity/materialKey、SHA-256 checksum和reference digest均按8.6.18重验，`content_hash_algorithm=checksum_algorithm=sha256`且`content_hash=checksum_hex`",
+      "Physical Identity/materialKey及reference digest均按8.6.18重验，Related不再携带或要求全文件checksum",
       "published row immutable，Related不进入Material Control",
       "Candidate关闭、Run封口或Offer关闭不得删除，历史Delivery Snapshot仍从本Owner relation恢复"
     ],
     "rawContract": {
-      "columns": "`candidate_package_id FK, reference_id, primary_ordinal, role, material_key, mount_scope_id, inode, content_hash_algorithm, content_hash, endpoint_id, location, checksum_algorithm, checksum_hex, association_evidence_digest, reference_digest`",
-      "constraints": "`PK(candidate_package_id,reference_id)`及复合FK`(candidate_package_id,primary_ordinal) → proc_candidate_primary_materials(candidate_package_id,ordinal)`；逐列无损保存一个`RelatedMaterialReference@1`，`primaryMaterialKey`只由该immutable FK目标重建；Physical Identity/materialKey、SHA-256 checksum和reference digest均按8.6.18重验，`content_hash_algorithm=checksum_algorithm=sha256`且`content_hash=checksum_hex`；published row immutable，Related不进入Material Control；Candidate关闭、Run封口或Offer关闭不得删除，历史Delivery Snapshot仍从本Owner relation恢复"
+      "columns": "`candidate_package_id FK, reference_id, primary_ordinal, role, material_key, mount_scope_id, inode, size_bytes, fingerprint_algorithm, fingerprint_version, content_fingerprint, endpoint_id, location, association_evidence_digest, reference_digest`",
+      "constraints": "`PK(candidate_package_id,reference_id)`及复合FK`(candidate_package_id,primary_ordinal) → proc_candidate_primary_materials(candidate_package_id,ordinal)`；逐列无损保存一个`RelatedMaterialReference@1`，`primaryMaterialKey`只由该immutable FK目标重建；Physical Identity/materialKey及reference digest均按8.6.18重验，Related不再携带或要求全文件checksum；published row immutable，Related不进入Material Control；Candidate关闭、Run封口或Offer关闭不得删除，历史Delivery Snapshot仍从本Owner relation恢复"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8534,
-      "lineDigest": "92c124a5991f66030d745e5df32d8c0456a3de47acdf2ddd922e3672978fb9db"
+      "line": 8657,
+      "lineDigest": "ff39b49ddcdd8f5213d6467b7495dee5f15f3516342aeedf9cef88d51cab2e14"
     },
     "foreignKeys": [
       {

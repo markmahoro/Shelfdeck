@@ -41,17 +41,33 @@ function createHelixApplication(options = {}) {
     facades: options.facades,
     sessionTokens: options.sessionTokens,
   });
+  const executionRuntimeHost = options.executionRuntimeHost || null;
+  if (executionRuntimeHost &&
+      (typeof executionRuntimeHost.start !== 'function' ||
+       typeof executionRuntimeHost.stop !== 'function')) {
+    throw new HelixCompositionError(
+      'HELIX_EXECUTION_RUNTIME_HOST_INVALID',
+      'Execution Runtime Host must expose start and stop lifecycle methods.',
+    );
+  }
   let state = 'created';
 
   return Object.freeze({
     generation: 'helix-clean-v1',
     routeCount: routeRegistry.entries.length,
-    start() {
+    async start() {
       if (state !== 'created') {
         throw new HelixCompositionError(
           'HELIX_LIFECYCLE_CONFLICT',
           'Application can start exactly once.',
         );
+      }
+      state = 'starting';
+      try {
+        if (executionRuntimeHost) await executionRuntimeHost.start();
+      } catch (error) {
+        state = 'failed';
+        throw error;
       }
       state = 'ready';
       return { state, normalSupplyAllowed: true };
@@ -69,8 +85,14 @@ function createHelixApplication(options = {}) {
       }
       return adapter.dispatch(request);
     },
-    stop() {
-      if (state !== 'stopped') state = 'stopped';
+    async stop() {
+      if (state === 'stopped') return;
+      state = 'stopping';
+      try {
+        if (executionRuntimeHost) await executionRuntimeHost.stop();
+      } finally {
+        state = 'stopped';
+      }
     },
   });
 }

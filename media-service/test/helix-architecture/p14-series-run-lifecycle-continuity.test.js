@@ -102,12 +102,19 @@ function fixture(run) {
   const identity = {
     mountScopeId: 'series-mount',
     inode: '11',
-    contentHashAlgorithm: 'sha256',
-    contentHash: D('series-content'),
+    sizeBytes:100,
+    fingerprintAlgorithm: 'middle-256k-sha256',
+    fingerprintVersion:1,
+    contentFingerprint: D('series-content'),
   };
   const materialKey = canonicalDigest({
-    schema: 'physical-material-identity@1',
+    schema: 'physical-material-identity@2',
     ...identity,
+  });
+  Object.assign(identity, {
+    schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',
+    schemaVersion:2,
+    materialKey,
   });
   const episodeClaims = ['E001', 'E002'].map((episodeKey) => ({
     episodeKey,
@@ -192,14 +199,14 @@ function fixture(run) {
   ).run(subjectId, 4, headDigest, null, 'series-basis', spec.acceptanceSpecId, 1);
   db.prepare(
     `INSERT INTO libra_material_bindings
-       (subject_id,material_key,role,mount_scope_id,inode,content_hash_algorithm,
-        content_hash,size_bytes,endpoint_id,location,binding_revision,health_state,
+       (subject_id,material_key,role,mount_scope_id,inode,fingerprint_algorithm,
+        fingerprint_version,content_fingerprint,size_bytes,endpoint_id,location,binding_revision,health_state,
         evidence_digest,origin_intake_decision_id,origin_offer_id,
         origin_candidate_package_id,origin_package_revision,origin_package_digest,
         origin_candidate_delivery_snapshot_digest,origin_related_reference_set_digest,current)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
   ).run(subjectId, materialKey, 'primary_payload', identity.mountScopeId,
-    identity.inode, identity.contentHashAlgorithm, identity.contentHash, 100,
+    identity.inode, identity.fingerprintAlgorithm, identity.fingerprintVersion, identity.contentFingerprint, 100,
     'series-endpoint', '/library/series.mkv', 1, 'active', D('binding'),
     'series-intake', 'series-offer', 'series-candidate', 1, D('package'),
     D('delivery'), D('related'), 1);
@@ -214,11 +221,11 @@ function fixture(run) {
   }
   db.prepare(
     `INSERT INTO fx_material_controls
-       (material_key,mount_scope_id,inode,content_hash_algorithm,content_hash,
+       (material_key,mount_scope_id,inode,size_bytes,fingerprint_algorithm,fingerprint_version,content_fingerprint,
         owner_domain,owner_scope_type,owner_scope_id,control_revision,state,updated_at_ms)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?)`
-  ).run(materialKey, identity.mountScopeId, identity.inode,
-    identity.contentHashAlgorithm, identity.contentHash, 'libra', 'subject',
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
+  ).run(materialKey, identity.mountScopeId, identity.inode, identity.sizeBytes,
+    identity.fingerprintAlgorithm, identity.fingerprintVersion, identity.contentFingerprint, 'libra', 'subject',
     subjectId, 2, 'controlled', 1);
   db.prepare('INSERT INTO fx_material_control_revisions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')
     .run(materialKey, 1, 'acquire', null, null, null, 'libra', 'subject',

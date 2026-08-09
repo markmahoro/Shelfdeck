@@ -9,8 +9,8 @@ const {buildAcceptedIntakePayload,buildLibraBindingDraft,buildLibraCandidateAcce
 const D=(value)=>canonicalDigest({value});
 const without=(value,...fields)=>Object.fromEntries(Object.entries(value).filter(([key])=>!fields.includes(key)));
 function basis(){
-  const physicalIdentity={schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v1',schemaVersion:1,mountScopeId:'mount-1',inode:'42',contentHashAlgorithm:'sha256',contentHash:D('content')};
-  physicalIdentity.materialKey=canonicalDigest({schema:'physical-material-identity@1',mountScopeId:physicalIdentity.mountScopeId,inode:physicalIdentity.inode,contentHashAlgorithm:'sha256',contentHash:physicalIdentity.contentHash});
+  const physicalIdentity={schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,mountScopeId:'mount-1',inode:'42',sizeBytes:100,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint:D('content')};
+  physicalIdentity.materialKey=canonicalDigest({schema:'physical-material-identity@2',mountScopeId:physicalIdentity.mountScopeId,inode:physicalIdentity.inode,sizeBytes:physicalIdentity.sizeBytes,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint:physicalIdentity.contentFingerprint});
   const materialKey=physicalIdentity.materialKey;
   const member={ordinal:0,materialKey,role:'primary_payload',physicalIdentity,sizeBytes:100,bindingRevision:1,admittedControlRevision:2,
     admittedControlProjectionDigest:D('control'),endpointId:'endpoint-1',location:'/field/show.mkv',lastSnapshotDigest:D('snapshot'),

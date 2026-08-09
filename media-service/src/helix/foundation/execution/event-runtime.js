@@ -47,7 +47,7 @@ function definitions(schemaManifest) {
     } }),
     works: createRepositoryDefinition({ repositoryId: 'runtime_works', owner: 'execution-foundation', schemaManifest, statements: {
       find: { kind: 'select-one', tableId: 'fx_supporting_works', columns: [
-        'work_id', 'owner_domain', 'process_type', 'process_id', 'basis_digest', 'state'
+        'work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'basis_digest', 'priority_class', 'state'
       ], keyColumns: ['work_id'] }
     } }),
     workAttempts: createRepositoryDefinition({ repositoryId: 'runtime_work_attempts', owner: 'execution-foundation', schemaManifest, statements: {
@@ -72,7 +72,10 @@ function definitions(schemaManifest) {
       ], keyColumns: ['event_attempt_id'] }
     } }),
     results: createRepositoryDefinition({ repositoryId: 'runtime_results', owner: 'execution-foundation', schemaManifest, statements: {
-      find: { kind: 'select-one', tableId: 'fx_event_result_bindings', columns: ['result_id', 'event_id', 'result_digest'], keyColumns: ['event_id'] },
+      find: { kind: 'select-one', tableId: 'fx_event_result_bindings', columns: [
+        'result_id', 'event_id', 'result_schema_ref', 'result_json', 'result_digest',
+        'evidence_schema_ref', 'evidence_json', 'evidence_digest', 'effect_receipt_id'
+      ], keyColumns: ['event_id'] },
       list: { kind: 'select-all', tableId: 'fx_event_result_bindings', columns: [
         'event_id', 'outcome_kind', 'result_schema_ref', 'result_json', 'evidence_schema_ref', 'evidence_json', 'effect_receipt_id'
       ], keyColumns: [] },
@@ -248,17 +251,30 @@ function createEventRuntime(options) {
         let eventState; let retryAtMs = null; let resultId = null; let failureClass = null; let failureCode = null;
         const finishedAtMs = context.commitTimeMs;
         if (outcome.kind === 'succeeded') {
-          if (context.repository('runtime_results').invoke('find', { event_id: event.event_id })) fail(
-            'P4_EVENT_RESULT_ALREADY_BOUND', 'Event already owns an immutable Result binding.'
-          );
-          resultId = assertId(options.nextResultId(), 'result');
           const resultJson = json(outcome.result); const evidenceJson = json(outcome.evidence);
-          context.repository('runtime_results').invoke('insert', {
-            result_id: resultId, event_id: event.event_id, outcome_kind: 'succeeded', result_schema_ref: outcome.resultSchemaRef,
-            result_json: resultJson, result_digest: digest(resultJson), evidence_schema_ref: outcome.evidenceSchemaRef,
-            evidence_json: evidenceJson, evidence_digest: digest(evidenceJson),
-            effect_receipt_id: outcome.effectReceipt ? outcome.effectReceipt.effectReceiptId : null, committed_at_ms: finishedAtMs
-          });
+          const existing = context.repository('runtime_results').invoke('find', { event_id: event.event_id });
+          if (existing) {
+            const expectedReceiptId = outcome.effectReceipt ? outcome.effectReceipt.effectReceiptId : null;
+            const evidenceMatches = existing.evidence_schema_ref === outcome.evidenceSchemaRef &&
+              existing.evidence_json === evidenceJson && existing.evidence_digest === digest(evidenceJson);
+            const canonicalEvidenceBound = outcome.evidence && outcome.evidence.payloadDigest === existing.evidence_digest;
+            const resultSchemaMatches = existing.result_schema_ref === outcome.resultSchemaRef ||
+              existing.result_schema_ref === outcome.result?.schemaRef;
+            if (!resultSchemaMatches || existing.result_json !== resultJson ||
+                existing.result_digest !== digest(resultJson) || (!evidenceMatches && !canonicalEvidenceBound) ||
+                existing.effect_receipt_id !== expectedReceiptId) {
+              fail('P4_EVENT_PREBOUND_RESULT_CONFLICT', 'Atomic Capability commit pre-bound a different Event Result.');
+            }
+            resultId = existing.result_id;
+          } else {
+            resultId = assertId(options.nextResultId(), 'result');
+            context.repository('runtime_results').invoke('insert', {
+              result_id: resultId, event_id: event.event_id, outcome_kind: 'succeeded', result_schema_ref: outcome.resultSchemaRef,
+              result_json: resultJson, result_digest: digest(resultJson), evidence_schema_ref: outcome.evidenceSchemaRef,
+              evidence_json: evidenceJson, evidence_digest: digest(evidenceJson),
+              effect_receipt_id: outcome.effectReceipt ? outcome.effectReceipt.effectReceiptId : null, committed_at_ms: finishedAtMs
+            });
+          }
           eventState = 'succeeded';
         } else if (outcome.kind === 'deferred') {
           if (policyDecision && policyDecision.decision === 'observe') {

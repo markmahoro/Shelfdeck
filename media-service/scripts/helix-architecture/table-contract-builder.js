@@ -125,6 +125,7 @@ const INTEGER_COLUMN_OVERRIDES = new Set([
 ]);
 const INTEGER_BOOLEAN_COLUMN_OVERRIDES = new Set(['perception_records.watched_state']);
 const NULLABLE_COLUMN_OVERRIDES = new Set([
+  'fx_reconcile_cursors.opaque_cursor',
   'perception_records.rating',
   'perception_records.watched_state',
   'proc_field_observations.cursor_in',

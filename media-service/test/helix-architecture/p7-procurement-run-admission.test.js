@@ -32,8 +32,9 @@ const PROFILE_HINT = Object.freeze({
     contentProfileHint:'mixed',
   }),
 });
-function identity() { const value={ schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v1', schemaVersion:1,
-  mountScopeId:'mount-1', inode:'42', contentHashAlgorithm:'sha256', contentHash:D('content') }; return { ...value, materialKey:materialKey(value) }; }
+function identity() { const value={ schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2', schemaVersion:2,
+  mountScopeId:'mount-1', inode:'42', sizeBytes:100, fingerprintAlgorithm:'middle-256k-sha256', fingerprintVersion:1,
+  contentFingerprint:D('content') }; return { ...value, materialKey:materialKey(value) }; }
 function controlSnapshot(material) { const evidence={schema:'foundation.material-control-evidence@1',materialKey:material.materialKey,
   resultKind:'available',controlRevision:0,controlState:'uncontrolled'}; const value={materialKey:material.materialKey,resultKind:'available',
   controlRevision:0,controlState:'uncontrolled',regionProjection:'uncontrolled',evidenceDigest:canonicalDigest(evidence)};
@@ -108,8 +109,8 @@ function seed(database, material, control) {
     database.prepare('INSERT INTO proc_field_observations(field_id,revision,observation_id,field_observation_work_id,access_revision,content_profile_hint,profile_hint_revision,profile_hint_digest,page_ordinal,expected_revision,cursor_in,cursor_out,page_digest,fact_digest,commit_marker,result_digest,observed_at_ms,completed) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
       .run('field-1',1,'observation-1','observation-work-1',1,'mixed',1,PROFILE_HINT.hintDigest,0,0,null,null,D('page'),D('fact'),'observation-marker',D('result'),1,1);
     database.prepare('UPDATE proc_material_fields SET current_observation_revision=1 WHERE field_id=?').run('field-1');
-    database.prepare(`INSERT INTO proc_field_materials VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-      'field-1',material.materialKey,material.mountScopeId,material.inode,material.contentHashAlgorithm,material.contentHash,'endpoint-1',1,1,100,1,1,1,
+    database.prepare(`INSERT INTO proc_field_materials VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+      'field-1',material.materialKey,material.mountScopeId,material.inode,material.fingerprintAlgorithm,material.fingerprintVersion,material.contentFingerprint,'endpoint-1',1,1,100,1,1,1,
       '/field/title.mkv',1,D('reality'),D('provenance'),D('snapshot'),'observation-1',2,'eligible','eligible',D('eligibility'),'active',1,1,
       D('selection'),control.regionProjection,control.controlRevision > 0 ? control.controlRevision : null,control.projectionDigest,1);
   });
@@ -166,8 +167,9 @@ test('Profile Hint revision change makes the frozen terminal Observation stale f
 test('same-Field Control is asserted without a fake release/acquire revision',()=>fixture(({databasePath,unitOfWork})=>{
   const registry=createDefaultTriageRuleRegistry(); const material=identity(); const control=controlledSnapshot(material); const runBasis=basis(registry,material,control);
   const database=new Database(databasePath); seed(database,material,control);
-  database.prepare(`INSERT INTO fx_material_controls VALUES(?,?,?,?,?,?,?,?,?,?,?)`).run(material.materialKey,material.mountScopeId,material.inode,
-    material.contentHashAlgorithm,material.contentHash,'procurement','material_field','field-1',1,'controlled',1);
+  database.prepare(`INSERT INTO fx_material_controls VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(material.materialKey,material.mountScopeId,material.inode,
+    material.sizeBytes,material.fingerprintAlgorithm,material.fingerprintVersion,material.contentFingerprint,
+    'procurement','material_field','field-1',1,'controlled',1);
   database.prepare(`INSERT INTO fx_material_control_revisions VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`).run(material.materialKey,1,'acquire',null,null,null,
     'procurement','material_field','field-1',D('initial-control'),'observation-marker',1); database.close();
   const store=createProcurementRunAdmissionStore({schemaManifest,unitOfWork,triageRegistry:registry}); const committed=store.admit({basis:runBasis,

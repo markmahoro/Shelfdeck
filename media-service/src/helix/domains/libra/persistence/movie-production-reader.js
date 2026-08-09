@@ -82,8 +82,8 @@ function definition(schemaManifest) {
         tableId: 'libra_run_material_members',
         columns: [
           'run_material_manifest_id', 'ordinal', 'material_key', 'role',
-          'mount_scope_id', 'inode', 'content_hash_algorithm', 'content_hash',
-          'size_bytes', 'location_kind', 'endpoint_id', 'location',
+          'mount_scope_id', 'inode', 'size_bytes', 'fingerprint_algorithm', 'fingerprint_version', 'content_fingerprint',
+          'location_kind', 'endpoint_id', 'location',
           'binding_kind', 'binding_revision', 'binding_evidence_digest',
           'origin_intake_decision_id', 'origin_offer_id',
           'origin_candidate_package_id', 'origin_package_revision',
@@ -183,20 +183,24 @@ function definition(schemaManifest) {
 
 function physicalIdentity(row) {
   const identity = {
-    schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v1',
-    schemaVersion: 1,
+    schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v2',
+    schemaVersion: 2,
     materialKey: row.material_key,
     mountScopeId: row.mount_scope_id,
     inode: String(row.inode),
-    contentHashAlgorithm: row.content_hash_algorithm,
-    contentHash: row.content_hash,
+    sizeBytes: Number(row.size_bytes),
+    fingerprintAlgorithm: row.fingerprint_algorithm,
+    fingerprintVersion: Number(row.fingerprint_version),
+    contentFingerprint: row.content_fingerprint,
   };
   const materialKey = canonicalDigest({
-    schema: 'physical-material-identity@1',
+    schema: 'physical-material-identity@2',
     mountScopeId: identity.mountScopeId,
     inode: identity.inode,
-    contentHashAlgorithm: identity.contentHashAlgorithm,
-    contentHash: identity.contentHash,
+    sizeBytes: identity.sizeBytes,
+    fingerprintAlgorithm: identity.fingerprintAlgorithm,
+    fingerprintVersion: identity.fingerprintVersion,
+    contentFingerprint: identity.contentFingerprint,
   });
   if (identity.materialKey !== materialKey) {
     fail('P14_MOVIE_PRODUCTION_IDENTITY_DRIFT',

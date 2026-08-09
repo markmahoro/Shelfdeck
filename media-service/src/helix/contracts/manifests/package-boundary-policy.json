@@ -21,6 +21,22 @@
         "ajv/dist/2020",
         "ajv-formats"
       ]
+    },
+    {
+      "source": "composition",
+      "allow": ["node:fs", "node:os", "node:path", "node:crypto"]
+    },
+    {
+      "source": "domains.*.model",
+      "allow": ["node:path"]
+    },
+    {
+      "source": "domains.*.planning",
+      "allow": ["node:path"]
+    },
+    {
+      "source": "integrations",
+      "allow": ["node:crypto", "node:fs"]
     }
   ],
   "externalDomainImport": "domains/{owner}/public/index.js",
@@ -49,6 +65,9 @@
       "allow": [
         "domains.{owner}.application",
         "domains.{owner}.model",
+        "domains.{owner}.planning",
+        "domains.{owner}.persistence",
+        "domains.{owner}.capabilities",
         "contracts"
       ]
     },
@@ -75,6 +94,7 @@
       "allow": [
         "domains.{owner}.model",
         "foundation.capability",
+        "foundation.execution",
         "contracts"
       ]
     },
@@ -82,7 +102,9 @@
       "source": "domains.*.capabilities",
       "allow": [
         "domains.{owner}.model",
+        "domains.{owner}.persistence",
         "foundation.capability",
+        "foundation.persistence",
         "contracts"
       ]
     },

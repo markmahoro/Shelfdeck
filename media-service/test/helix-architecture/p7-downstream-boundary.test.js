@@ -15,8 +15,8 @@ const D = (value) => canonicalDigest({ value });
 const without = (value, ...fields) => Object.fromEntries(Object.entries(value).filter(([key]) => !fields.includes(key)));
 
 function ownerRows() {
-  const primaryIdentity={schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v1',schemaVersion:1,mountScopeId:'mount-primary',inode:'41',contentHashAlgorithm:'sha256',contentHash:D('primary-content'),materialKey:''};
-  primaryIdentity.materialKey=canonicalDigest({schema:'physical-material-identity@1',mountScopeId:primaryIdentity.mountScopeId,inode:primaryIdentity.inode,contentHashAlgorithm:'sha256',contentHash:primaryIdentity.contentHash});
+  const primaryIdentity={schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,mountScopeId:'mount-primary',inode:'41',sizeBytes:100,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint:D('primary-content'),materialKey:''};
+  primaryIdentity.materialKey=canonicalDigest({schema:'physical-material-identity@2',mountScopeId:primaryIdentity.mountScopeId,inode:primaryIdentity.inode,sizeBytes:primaryIdentity.sizeBytes,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint:primaryIdentity.contentFingerprint});
   const materialKey=primaryIdentity.materialKey;
   const memberBase={ ordinal:0,materialKey,role:'primary_payload',physicalIdentity:primaryIdentity,sizeBytes:100,bindingRevision:1,admittedControlRevision:1,
     admittedControlProjectionDigest:D('control'),episodeClaims:[] };
@@ -25,12 +25,13 @@ function ownerRows() {
   const manifest={ schemaRef:MANIFEST_SCHEMA,schemaVersion:1,manifestId:'manifest-1',manifestKind:'primary_input_manifest',
     ownerDomain:'procurement',memberCount:1,membersDigest,manifestDigest:'',publishedAtMs:100,structureKind:'single',members:[member] };
   manifest.manifestDigest=canonicalDigest(without(manifest,'manifestDigest'));
-  const identity={ schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v1',schemaVersion:1,mountScopeId:'mount-related',
-    inode:'42',contentHashAlgorithm:'sha256',contentHash:D('related-content'),materialKey:'' };
-  identity.materialKey=canonicalDigest({ schema:'physical-material-identity@1',mountScopeId:identity.mountScopeId,inode:identity.inode,
-    contentHashAlgorithm:'sha256',contentHash:identity.contentHash });
+  const identity={ schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,mountScopeId:'mount-related',
+    inode:'42',sizeBytes:50,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint:D('related-content'),materialKey:'' };
+  identity.materialKey=canonicalDigest({ schema:'physical-material-identity@2',mountScopeId:identity.mountScopeId,inode:identity.inode,
+    sizeBytes:identity.sizeBytes,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint:identity.contentFingerprint });
   const reference={ referenceId:'',primaryMaterialKey:materialKey,role:'nfo',identity,endpointId:'endpoint-1',location:'/field/movie.nfo',
-    checksumAlgorithm:'sha256',checksumHex:identity.contentHash,associationEvidenceDigest:D('association'),referenceDigest:'' };
+    fingerprintAlgorithm:identity.fingerprintAlgorithm,fingerprintVersion:identity.fingerprintVersion,
+    contentFingerprint:identity.contentFingerprint,associationEvidenceDigest:D('association'),referenceDigest:'' };
   reference.referenceId=canonicalDigest({ schema:'procurement.related-material-reference-id@1',primaryMaterialKey:materialKey,
     role:reference.role,relatedMaterialKey:identity.materialKey,endpointId:reference.endpointId,location:reference.location });
   reference.referenceDigest=canonicalDigest(without(reference,'referenceDigest'));
@@ -65,14 +66,17 @@ function ownerRows() {
       package_digest:candidatePackage.packageDigest,state:'published',published_at_ms:100 },
     run:{ procurement_run_id:'run-1',run_basis_digest:D('run') },continuity:[],
     primaries:[{ ordinal:0,material_key:materialKey,role:'primary_payload',mount_scope_id:primaryIdentity.mountScopeId,inode:primaryIdentity.inode,
-      content_hash_algorithm:'sha256',content_hash:primaryIdentity.contentHash,size_bytes:100,binding_revision:1,admitted_control_revision:1,
+      fingerprint_algorithm:primaryIdentity.fingerprintAlgorithm,fingerprint_version:primaryIdentity.fingerprintVersion,
+      content_fingerprint:primaryIdentity.contentFingerprint,size_bytes:primaryIdentity.sizeBytes,binding_revision:1,admitted_control_revision:1,
       admitted_control_projection_digest:D('control'),member_digest:member.memberDigest }],episodes:[],
     related:[{ reference_id:reference.referenceId,primary_ordinal:0,role:reference.role,material_key:identity.materialKey,
-      mount_scope_id:identity.mountScopeId,inode:identity.inode,content_hash_algorithm:'sha256',content_hash:identity.contentHash,
-      endpoint_id:reference.endpointId,location:reference.location,checksum_algorithm:'sha256',checksum_hex:identity.contentHash,
+      mount_scope_id:identity.mountScopeId,inode:identity.inode,size_bytes:identity.sizeBytes,
+      fingerprint_algorithm:identity.fingerprintAlgorithm,fingerprint_version:identity.fingerprintVersion,content_fingerprint:identity.contentFingerprint,
+      endpoint_id:reference.endpointId,location:reference.location,
       association_evidence_digest:reference.associationEvidenceDigest,reference_digest:reference.referenceDigest }],
     runMembers:[{ ordinal:0,material_key:materialKey,mount_scope_id:primaryIdentity.mountScopeId,inode:primaryIdentity.inode,
-      content_hash_algorithm:'sha256',content_hash:primaryIdentity.contentHash,size_bytes:100,binding_revision:1,last_snapshot_digest:D('snapshot'),endpoint_id:'endpoint-1',
+      fingerprint_algorithm:primaryIdentity.fingerprintAlgorithm,fingerprint_version:primaryIdentity.fingerprintVersion,
+      content_fingerprint:primaryIdentity.contentFingerprint,size_bytes:primaryIdentity.sizeBytes,binding_revision:1,last_snapshot_digest:D('snapshot'),endpoint_id:'endpoint-1',
       location:'/field/movie.mkv',reality_digest:D('reality'),provenance_digest:D('provenance'),admitted_control_revision:1,
       admitted_control_projection_digest:D('control'),selection_state:'transferred',candidate_package_id:'candidate-1' }]
   } };

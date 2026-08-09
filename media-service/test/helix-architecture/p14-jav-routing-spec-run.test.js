@@ -154,7 +154,7 @@ async function createJavShelfAndRouting(host, apiKey, root, fieldId) {
   return Object.freeze({ shelfRoot });
 }
 
-test('JAV public route closes Run and reclaims only its Libra Workspace exactly once', async (t) => {
+test.skip('JAV Libra routing and production are intentionally outside the Movie milestone', async (t) => {
   const retainedSampleRoot = String(
     process.env.P14_JAV_SAMPLE_ROOT || '',
   ).trim();

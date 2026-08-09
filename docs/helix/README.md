@@ -1,9 +1,25 @@
 # ShelfDeck / Helix Documentation Index
 
-Status: clean architecture accepted through `PBF-13`（含`PBF-09-R1`、`PBF-10-R1`、`PBF-10-R2`、`PBF-10-R3`、`PBF-11-R1`、`PBF-11-R2`、`PBF-11-R2-R1`、`PBF-11-R2-R2`、`PBF-11-R3`、`PBF-12-R1`）；P0–P8 complete；P9 active；E2E、Docker/Canary、production、real-media side effects和`media-desktop` changes paused.
+Status: first-implementation retake active；Execution Foundation已`CLOSED FOR DOMAIN ONBOARDING`；Layout Snapshot及Triage Unit/Candidate Context改造已通过本地Node回归和只读全库Canary；Docker/NAS和生产均未开始。
 
-工程Program固定为P0–P13；P13交付冻结的E2E-ready package后，本实施线程完成。真实来源完整E2E与部署不再纳入本Program，
-分别由后续独立任务在单独授权下执行。
+第一次实施的P0–P13资产继续保留，但此前由大型Coordinator同步闭环得到的Movie Canary只证明低层Capability、Owner事实和
+Handoff A Ready数据形态可工作，不构成`Work Scheduler → Event Runtime → Resource Governor`已经参与的Foundation E2E证据。
+当前唯一活动实施计划见`CURRENT_PLAN.md`。最终`Z:\Film`全库Canary使用本机Node.js临时clean数据库完成，曾在中断后从durable事实恢复；本线程负责实现及异常诊断。
+
+Physical Material不再计算全文件Hash。当前唯一合同读取文件正中间最多262,144 bytes并执行前后stat fence；NAS负责bit rot和底层
+完整性。Artifact、Canonical JSON与事务Evidence digest仍使用SHA-256，这些digest不得作为Physical Material Identity。
+
+Observation完成后会生成冻结的Layout Snapshot供Procurement Triage复用；Triage Layout不再重复扫描NAS目录或读取相关文件。
+Media Probe仍是独立Event，仅对Run Selection执行。
+
+Candidate Assembly现在通过运行时可重建的`TriageEvidenceIndex`按`unitId`直接定位Structure Result，并按`runId + unitId`
+共享不可变Candidate Context；Identity、Manifest、Publication不再重复读取完整Run、完整Structure Result或整Field Material。
+
+BDMV采用SSOT定义的拓扑边界：它不是pre-triage的Movie类别，而是Run Creator识别的不可拆分container group。
+同一最近`BDMV`祖先目录下的全部terminal Observation成员必须进入同一Run；完整group可与其他group稳定装箱，
+超过256项时整体不建Run。Structure消费完整group并将单标题解析为一个Triage Unit，不能把内部M2TS拆成多个Candidate；
+多标题、歧义或结构不完整保持`not_ready`。所需Playlist/Clip/结构依赖必须在Run Admission前完成Observation、Eligibility
+和Control，不能由Triage在Admission后静默扩张。
 
 ## Architecture authority
 

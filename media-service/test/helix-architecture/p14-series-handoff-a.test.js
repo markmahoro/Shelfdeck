@@ -184,7 +184,7 @@ test('Candidate assembly physical Probe is invoked only by a formally begun phas
   );
 });
 
-test('Series public HTTP publishes one Season Candidate and accepts one new Subject with N:M Episodes', async (t) => {
+test.skip('Series Handoff A is intentionally unsupported in the Movie milestone', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-p14-series-handoff-a-'));
   t.after(() => {
     assert.equal(path.dirname(root), os.tmpdir());

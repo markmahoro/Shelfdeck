@@ -484,7 +484,7 @@
                   "memberClaimDigest"
                 ]
               },
-              "maxItems": 1024,
+              "maxItems": 256,
               "minItems": 1
             },
             "relatedReferences": {
@@ -516,7 +516,7 @@
                     ]
                   },
                   "identity": {
-                    "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v1"
+                    "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
                   },
                   "endpointId": {
                     "type": "string",
@@ -527,10 +527,13 @@
                     "type": "string",
                     "minLength": 1
                   },
-                  "checksumAlgorithm": {
-                    "const": "sha256"
+                  "fingerprintAlgorithm": {
+                    "const": "middle-256k-sha256"
                   },
-                  "checksumHex": {
+                  "fingerprintVersion": {
+                    "const": 1
+                  },
+                  "contentFingerprint": {
                     "type": "string",
                     "minLength": 1,
                     "pattern": "^[a-f0-9]{64}$"
@@ -553,8 +556,9 @@
                   "identity",
                   "endpointId",
                   "location",
-                  "checksumAlgorithm",
-                  "checksumHex",
+                  "fingerprintAlgorithm",
+                  "fingerprintVersion",
+                  "contentFingerprint",
                   "associationEvidenceDigest",
                   "referenceDigest"
                 ]
@@ -632,7 +636,7 @@
             ]
           },
           "identity": {
-            "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v1"
+            "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
           },
           "endpointId": {
             "type": "string",
@@ -643,10 +647,13 @@
             "type": "string",
             "minLength": 1
           },
-          "checksumAlgorithm": {
-            "const": "sha256"
+          "fingerprintAlgorithm": {
+            "const": "middle-256k-sha256"
           },
-          "checksumHex": {
+          "fingerprintVersion": {
+            "const": 1
+          },
+          "contentFingerprint": {
             "type": "string",
             "minLength": 1,
             "pattern": "^[a-f0-9]{64}$"
@@ -669,8 +676,9 @@
           "identity",
           "endpointId",
           "location",
-          "checksumAlgorithm",
-          "checksumHex",
+          "fingerprintAlgorithm",
+          "fingerprintVersion",
+          "contentFingerprint",
           "associationEvidenceDigest",
           "referenceDigest"
         ]

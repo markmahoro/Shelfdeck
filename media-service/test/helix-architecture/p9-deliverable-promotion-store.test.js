@@ -63,20 +63,24 @@ function controlProjection(materialKey) {
 
 function fixtureValue() {
   const physical = {
-    schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v1',
-    schemaVersion: 1,
+    schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v2',
+    schemaVersion: 2,
     materialKey: '',
     mountScopeId: 'mount-1',
     inode: '1',
-    contentHashAlgorithm: 'sha256',
-    contentHash: D('movie-bytes'),
+    sizeBytes: 100,
+    fingerprintAlgorithm: 'middle-256k-sha256',
+    fingerprintVersion: 1,
+    contentFingerprint: D('movie-bytes'),
   };
   physical.materialKey = canonicalDigest({
-    schema: 'physical-material-identity@1',
+    schema: 'physical-material-identity@2',
     mountScopeId: physical.mountScopeId,
     inode: physical.inode,
-    contentHashAlgorithm: physical.contentHashAlgorithm,
-    contentHash: physical.contentHash,
+    sizeBytes: physical.sizeBytes,
+    fingerprintAlgorithm: physical.fingerprintAlgorithm,
+    fingerprintVersion: physical.fingerprintVersion,
+    contentFingerprint: physical.contentFingerprint,
   });
   const control = controlProjection(physical.materialKey);
   const identityFact = {
@@ -588,11 +592,11 @@ function seed(databasePath, value) {
       );
     }
     prepare(`INSERT INTO fx_material_controls
-      (material_key,mount_scope_id,inode,content_hash_algorithm,content_hash,
+      (material_key,mount_scope_id,inode,size_bytes,fingerprint_algorithm,fingerprint_version,content_fingerprint,
        owner_domain,owner_scope_type,owner_scope_id,control_revision,state,updated_at_ms)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?)`).run(
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
       value.physical.materialKey, value.physical.mountScopeId, value.physical.inode,
-      value.physical.contentHashAlgorithm, value.physical.contentHash,
+      value.physical.sizeBytes, value.physical.fingerprintAlgorithm, value.physical.fingerprintVersion, value.physical.contentFingerprint,
       'libra', 'subject', 'subject-1', 1, 'controlled', 1,
     );
     prepare(`INSERT INTO fx_material_control_revisions

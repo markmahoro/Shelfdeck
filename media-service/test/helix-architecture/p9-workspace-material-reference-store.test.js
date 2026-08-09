@@ -17,20 +17,20 @@ const schemaManifest=JSON.parse(fs.readFileSync(path.join(generated,'clean-schem
 const D=(value)=>canonicalDigest({fixture:value});
 
 function createHandle(options={}) {
-  const workspaceId=D('workspace'),contentHash=options.contentHash||D('content'),inode=options.inode||'42',
+  const workspaceId=D('workspace'),contentFingerprint=options.contentFingerprint||D('content'),inode=options.inode||'42',
     relativePath=options.relativePath||'output/movie.mkv',sizeBytes=options.sizeBytes??100,
-    materialKey=canonicalDigest({schema:'physical-material-identity@1',mountScopeId:'mount-1',inode,contentHashAlgorithm:'sha256',contentHash}),
+    materialKey=canonicalDigest({schema:'physical-material-identity@2',mountScopeId:'mount-1',inode,sizeBytes,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint}),
     basis={schemaRef:'helix://contracts/types/WorkspaceMaterialHandle/v1',schemaVersion:1,handleId:'',workspaceId,ownerDomain:'libra',processId:'run-1',endpointId:'endpoint-1',materialKey,
-      physicalIdentity:{mountScopeId:'mount-1',inode,contentHashAlgorithm:'sha256',contentHash},rootHandleRef:'root-handle-1',relativePath,digestAlgorithm:'sha256',digestHex:contentHash,sizeBytes,referenceRevision:1,accessScope:'workspace_material_read',fenceDigest:''};
+      physicalIdentity:{mountScopeId:'mount-1',inode,sizeBytes,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint},rootHandleRef:'root-handle-1',relativePath,digestAlgorithm:'sha256',digestHex:contentFingerprint,sizeBytes,referenceRevision:1,accessScope:'workspace_material_read',fenceDigest:''};
   basis.handleId=canonicalDigest({schema:'foundation.workspace-material-handle-id@1',workspaceId,materialKey,relativePath:basis.relativePath,referenceRevision:1});
   basis.fenceDigest=canonicalDigest({schema:'foundation.workspace-material-handle-fence@1',handleId:basis.handleId,workspaceId,ownerDomain:'libra',processId:'run-1',endpointId:'endpoint-1',materialKey,physicalIdentity:basis.physicalIdentity,rootHandleRef:basis.rootHandleRef,relativePath:basis.relativePath,digestAlgorithm:'sha256',digestHex:basis.digestHex,sizeBytes,referenceRevision:1,accessScope:'workspace_material_read'});
   return basis;
 }
 
 function insertWorkspaceMaterial(db,handle) {
-  db.prepare('INSERT INTO fx_workspace_materials (workspace_id,material_handle_id,material_key,endpoint_id,mount_scope_id,inode,content_hash_algorithm,content_hash,relative_path,digest_algorithm,digest_hex,size_bytes,reference_revision,owner_domain,process_id,root_handle_ref,access_scope,handle_schema_ref,handle_json,handle_digest,fence_digest,state) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+  db.prepare('INSERT INTO fx_workspace_materials (workspace_id,material_handle_id,material_key,endpoint_id,mount_scope_id,inode,fingerprint_algorithm,fingerprint_version,content_fingerprint,relative_path,digest_algorithm,digest_hex,size_bytes,reference_revision,owner_domain,process_id,root_handle_ref,access_scope,handle_schema_ref,handle_json,handle_digest,fence_digest,state) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
     .run(handle.workspaceId,handle.handleId,handle.materialKey,handle.endpointId,handle.physicalIdentity.mountScopeId,
-      handle.physicalIdentity.inode,'sha256',handle.physicalIdentity.contentHash,handle.relativePath,'sha256',
+      handle.physicalIdentity.inode,handle.physicalIdentity.fingerprintAlgorithm,handle.physicalIdentity.fingerprintVersion,handle.physicalIdentity.contentFingerprint,handle.relativePath,'sha256',
       handle.digestHex,handle.sizeBytes,1,'libra','run-1',handle.rootHandleRef,handle.accessScope,handle.schemaRef,
       canonicalJson(handle),canonicalDigest(handle),handle.fenceDigest,'active');
 }
@@ -152,7 +152,7 @@ test('rejects forged Handle and cross-Handle Product Verification',()=>fixture((
 }));
 
 test('stages an NFO only with exact Artifact verification, Registry bytes, replay, and role binding',()=>fixture((input)=>{
-  const handle=createHandle({inode:'43',relativePath:'output/movie.nfo',contentHash:D('nfo-content'),sizeBytes:55}),
+  const handle=createHandle({inode:'43',relativePath:'output/movie.nfo',contentFingerprint:D('nfo-content'),sizeBytes:55}),
     productVerificationRef=artifactVerification(handle),artifact=productVerificationRef.artifactHandle,
     db=new Database(input.databasePath);
   db.pragma('foreign_keys = OFF');insertWorkspaceMaterial(db,handle);
@@ -195,7 +195,7 @@ test('stages an NFO only with exact Artifact verification, Registry bytes, repla
 }));
 
 test('rejects Artifact Registry byte drift before any staging commit',()=>fixture((input)=>{
-  const nfo=createHandle({inode:'44',relativePath:'output/drift.nfo',contentHash:D('drift-content'),sizeBytes:66}),
+  const nfo=createHandle({inode:'44',relativePath:'output/drift.nfo',contentFingerprint:D('drift-content'),sizeBytes:66}),
     artifactSnapshot=artifactVerification(nfo),artifact=artifactSnapshot.artifactHandle,
     db=new Database(input.databasePath);
   db.pragma('foreign_keys = OFF');insertWorkspaceMaterial(db,nfo);
@@ -221,7 +221,7 @@ test('rejects Artifact Registry byte drift before any staging commit',()=>fixtur
 }));
 
 test('stages a structural member with the exact role-aware Manifest proof',()=>fixture((input)=>{
-  const handle=createHandle({inode:'45',relativePath:'output/movie.en.srt',contentHash:D('subtitle'),sizeBytes:77}),
+  const handle=createHandle({inode:'45',relativePath:'output/movie.en.srt',contentFingerprint:D('subtitle'),sizeBytes:77}),
     db=new Database(input.databasePath);
   db.pragma('foreign_keys = OFF');insertWorkspaceMaterial(db,handle);db.close();
   const store=createWorkspaceMaterialReferenceStore({schemaManifest,unitOfWork:input.unitOfWork}),

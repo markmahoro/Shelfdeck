@@ -10,6 +10,8 @@ const SHA256 = /^[a-f0-9]{64}$/;
 const DECIMAL_INT64 = /^(0|[1-9][0-9]{0,18})$/;
 const INT64_MAX = 9223372036854775807n;
 const PAGE_SCHEMA = 'helix://contracts/types/FieldObservationPage/v1';
+const FACT_SCHEMA = 'helix://domains/procurement/facts/FieldObservationRevision/v1';
+const RESULT_SCHEMA = 'helix://contracts/types/ObservationCommitResult/v1';
 
 class FieldObservationContractError extends Error {
   constructor(code, message, details = {}) { super(message); this.name = 'FieldObservationContractError'; this.code = code; this.details = details; }
@@ -26,14 +28,17 @@ function digest(value, field) { if (!SHA256.test(value || '')) fail('P7_FIELD_OB
 function decimalInt64(value, field) {
   if (!DECIMAL_INT64.test(value || '') || BigInt(value) > INT64_MAX) fail('P7_FIELD_OBSERVATION_INT64_INVALID', field + ' is invalid.', { field });
 }
-function identityBasis(value) { return { schema: 'physical-material-identity@1', mountScopeId: value.mountScopeId,
-  inode: value.inode, contentHashAlgorithm: value.contentHashAlgorithm, contentHash: value.contentHash }; }
+function identityBasis(value) { return { schema: 'physical-material-identity@2', mountScopeId: value.mountScopeId,
+  inode: value.inode, sizeBytes:value.sizeBytes, fingerprintAlgorithm:value.fingerprintAlgorithm,
+  fingerprintVersion:value.fingerprintVersion, contentFingerprint:value.contentFingerprint }; }
 function validateIdentity(value) {
-  exact(value, ['schemaRef','schemaVersion','materialKey','mountScopeId','inode','contentHashAlgorithm','contentHash'], 'P7_PHYSICAL_IDENTITY_SHAPE');
-  if (value.schemaRef !== 'helix://contracts/types/PhysicalMaterialIdentity/v1' || value.schemaVersion !== 1 || value.contentHashAlgorithm !== 'sha256') {
+  exact(value, ['schemaRef','schemaVersion','materialKey','mountScopeId','inode','sizeBytes','fingerprintAlgorithm','fingerprintVersion','contentFingerprint'], 'P7_PHYSICAL_IDENTITY_SHAPE');
+  if (value.schemaRef !== 'helix://contracts/types/PhysicalMaterialIdentity/v2' || value.schemaVersion !== 2 ||
+      value.fingerprintAlgorithm !== 'middle-256k-sha256' || value.fingerprintVersion !== 1) {
     fail('P7_PHYSICAL_IDENTITY_NOMINAL_INVALID', 'Physical Material Identity nominal contract is invalid.');
   }
-  decimalInt64(value.inode, 'inode'); digest(value.contentHash, 'contentHash'); digest(value.materialKey, 'materialKey');
+  decimalInt64(value.inode, 'inode'); safeInteger(value.sizeBytes, 'identity.sizeBytes');
+  digest(value.contentFingerprint, 'contentFingerprint'); digest(value.materialKey, 'materialKey');
   if (canonicalDigest(identityBasis(value)) !== value.materialKey) fail('P7_PHYSICAL_IDENTITY_KEY_MISMATCH', 'Physical Material Identity key is invalid.');
 }
 function requestBasis(value) { const { requestDigest, ...basis } = value; return basis; }
@@ -51,8 +56,8 @@ function validateAccessHandle(value, nowMs) {
   if (value.schemaRef !== 'helix://contracts/types/FieldAccessHandle/v1' || value.schemaVersion !== 1) fail('P7_FIELD_ACCESS_HANDLE_NOMINAL_INVALID', 'Field Access Handle nominal contract is invalid.');
   safeInteger(value.accessRevision, 'accessRevision', 1); safeInteger(value.mountScopeRevision, 'mountScopeRevision', 1);
   safeInteger(value.expiresAtMs, 'expiresAtMs'); digest(value.accessDigest, 'accessDigest'); digest(value.containmentDigest, 'containmentDigest');
-  if (!Array.isArray(value.allowedOperations) || !['list','stat','hash'].every((operation) => value.allowedOperations.includes(operation)) ||
-      value.allowedOperations.some((operation) => !['read','list','stat','hash'].includes(operation))) fail('P7_FIELD_ACCESS_OPERATIONS_INVALID', 'Observation requires list/stat/hash authority.');
+  if (!Array.isArray(value.allowedOperations) || !['list','stat','fingerprint'].every((operation) => value.allowedOperations.includes(operation)) ||
+      value.allowedOperations.some((operation) => !['read','list','stat','fingerprint'].includes(operation))) fail('P7_FIELD_ACCESS_OPERATIONS_INVALID', 'Observation requires list/stat/fingerprint authority.');
   if (value.expiresAtMs < nowMs) fail('P7_FIELD_ACCESS_EXPIRED', 'Field Access Handle has expired.');
 }
 function validateContainment(root, location) {
@@ -62,8 +67,10 @@ function validateContainment(root, location) {
 }
 function snapshotWithoutDigest(value) { const { snapshotDigest, ...basis } = value; return basis; }
 function validateSnapshotIntegrity(value) {
-  exact(value, ['materialObservationId','observationId','fieldId','accessRevision','accessDigest','fieldAccessHandleId','endpointId','mountScopeRevision','identity','location','sizeBytes','mtimeNs','ctimeNs','hashVerifiedAtMs','observedAtMs','containmentDigest','realityDigest','provenanceDigest','snapshotDigest'], 'P7_FIELD_SNAPSHOT_SHAPE');
-  validateIdentity(value.identity); safeInteger(value.sizeBytes, 'sizeBytes'); safeInteger(value.hashVerifiedAtMs, 'hashVerifiedAtMs'); safeInteger(value.observedAtMs, 'observedAtMs');
+  exact(value, ['materialObservationId','observationId','fieldId','accessRevision','accessDigest','fieldAccessHandleId','endpointId','mountScopeRevision','identity','location','sizeBytes','mtimeNs','ctimeNs','fingerprintVerifiedAtMs','observedAtMs','containmentDigest','realityDigest','provenanceDigest','snapshotDigest'], 'P7_FIELD_SNAPSHOT_SHAPE');
+  validateIdentity(value.identity); safeInteger(value.sizeBytes, 'sizeBytes');
+  if (value.identity.sizeBytes !== value.sizeBytes) fail('P7_FIELD_SNAPSHOT_IDENTITY_SIZE_MISMATCH', 'Snapshot size must equal its Physical Material Identity size.');
+  safeInteger(value.fingerprintVerifiedAtMs, 'fingerprintVerifiedAtMs'); safeInteger(value.observedAtMs, 'observedAtMs');
   decimalInt64(value.mtimeNs, 'mtimeNs'); decimalInt64(value.ctimeNs, 'ctimeNs');
   for (const field of ['materialObservationId','accessDigest','containmentDigest','realityDigest','provenanceDigest','snapshotDigest']) digest(value[field], field);
   const expectedId = canonicalDigest({ schema:'procurement.field-material-observation-id@1', observationId:value.observationId, materialKey:value.identity.materialKey });
@@ -72,7 +79,7 @@ function validateSnapshotIntegrity(value) {
   const expectedProvenance = canonicalDigest({ schema:'procurement.field-material-provenance@1', fieldId:value.fieldId,
     accessRevision:value.accessRevision, accessDigest:value.accessDigest, fieldAccessHandleId:value.fieldAccessHandleId,
     mountScopeRevision:value.mountScopeRevision, containmentDigest:value.containmentDigest,
-    hashVerifiedAtMs:value.hashVerifiedAtMs, observedAtMs:value.observedAtMs });
+    fingerprintVerifiedAtMs:value.fingerprintVerifiedAtMs, observedAtMs:value.observedAtMs });
   if (value.materialObservationId !== expectedId || value.realityDigest !== expectedReality || value.provenanceDigest !== expectedProvenance ||
       value.snapshotDigest !== canonicalDigest(snapshotWithoutDigest(value))) fail('P7_FIELD_SNAPSHOT_DIGEST_MISMATCH', 'Snapshot digest chain is invalid.');
   if (Buffer.byteLength(canonicalJson(value), 'utf8') > 4096) fail('P7_FIELD_SNAPSHOT_TOO_LARGE', 'One Field snapshot exceeds 4 KiB.');
@@ -130,6 +137,6 @@ function validateCommittedPage(value) {
   return value;
 }
 
-module.exports = Object.freeze({ FieldObservationContractError, PAGE_SCHEMA, identityBasis, pageDigestBasis,
+module.exports = Object.freeze({ FieldObservationContractError, FACT_SCHEMA, PAGE_SCHEMA, RESULT_SCHEMA, identityBasis, pageDigestBasis,
   requestBasis, snapshotWithoutDigest, validateAccessHandle, validateCommittedPage, validateIdentity, validatePage, validateRequest,
   validateSnapshot, validateSnapshotIntegrity });

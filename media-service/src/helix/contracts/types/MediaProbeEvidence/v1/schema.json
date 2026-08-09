@@ -265,12 +265,83 @@
           "type": "string",
           "minLength": 1,
           "pattern": "^[a-f0-9]{64}$"
+        },
+        "topologyVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "topologyDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "selectedPlaylist": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "relativeLocation": {
+              "type": "string",
+              "minLength": 1
+            },
+            "durationMs": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "clipIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "maxItems": 256,
+              "minItems": 1
+            }
+          },
+          "required": [
+            "relativeLocation",
+            "durationMs",
+            "clipIds"
+          ]
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "relativeLocation": {
+                "type": "string",
+                "minLength": 1
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "primary_payload",
+                  "structural_dependency"
+                ]
+              },
+              "clipId": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "relativeLocation",
+              "role"
+            ]
+          },
+          "maxItems": 256,
+          "minItems": 1
         }
       },
       "required": [
         "discKind",
         "titleCount",
-        "singleTitleEvidenceDigest"
+        "singleTitleEvidenceDigest",
+        "topologyVersion",
+        "topologyDigest",
+        "selectedPlaylist",
+        "members"
       ]
     }
   },

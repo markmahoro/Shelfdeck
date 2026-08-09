@@ -40,7 +40,7 @@
             "const": "triage_input"
           },
           "physicalIdentity": {
-            "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v1"
+            "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
           },
           "sizeBytes": {
             "type": "integer",
@@ -185,7 +185,7 @@
           "basisMemberDigest"
         ]
       },
-      "maxItems": 1024,
+      "maxItems": 256,
       "minItems": 1
     },
     "selectionDigest": {

@@ -76,7 +76,7 @@
             ]
           },
           "physicalIdentity": {
-            "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v1"
+            "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
           },
           "sizeBytes": {
             "type": "integer",
@@ -143,7 +143,7 @@
           "memberDigest"
         ]
       },
-      "maxItems": 1024,
+      "maxItems": 256,
       "minItems": 1
     }
   },

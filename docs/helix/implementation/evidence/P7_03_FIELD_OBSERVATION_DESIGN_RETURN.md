@@ -34,12 +34,12 @@ objectKind = field-material-observation
 material_key
 mount_scope_id
 inode
-content_hash_algorithm
-content_hash
+fingerprint_algorithm
+content_fingerprint
 size_bytes
 mtime_ns
 ctime_ns
-hash_verified_at_ms
+fingerprint_verified_at_ms
 current_location
 binding_revision
 last_observation_id

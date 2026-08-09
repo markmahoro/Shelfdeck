@@ -34,18 +34,21 @@ function validateWorkspaceMaterialHandle(value) {
     ownerDomain:text(value?.ownerDomain, 'ownerDomain'), processId:text(value?.processId, 'processId'),
     endpointId:text(value?.endpointId, 'endpointId'), materialKey:digest(value?.materialKey, 'materialKey'),
     physicalIdentity:{ mountScopeId:text(identity?.mountScopeId, 'mountScopeId'), inode:text(identity?.inode, 'inode'),
-      contentHashAlgorithm:identity?.contentHashAlgorithm, contentHash:digest(identity?.contentHash, 'contentHash') },
+      sizeBytes:identity?.sizeBytes,fingerprintAlgorithm:identity?.fingerprintAlgorithm,
+      fingerprintVersion:identity?.fingerprintVersion,contentFingerprint:digest(identity?.contentFingerprint, 'contentFingerprint') },
     rootHandleRef:text(value?.rootHandleRef, 'rootHandleRef'), relativePath:text(value?.relativePath, 'relativePath'),
     digestAlgorithm:value?.digestAlgorithm, digestHex:digest(value?.digestHex, 'digestHex'), sizeBytes:value?.sizeBytes,
     referenceRevision:value?.referenceRevision, accessScope:value?.accessScope, fenceDigest:digest(value?.fenceDigest, 'fenceDigest') };
   if (handle.schemaRef !== 'helix://contracts/types/WorkspaceMaterialHandle/v1' || handle.schemaVersion !== 1 ||
-      handle.ownerDomain !== 'libra' || handle.physicalIdentity.contentHashAlgorithm !== 'sha256' || handle.digestAlgorithm !== 'sha256' ||
+      handle.ownerDomain !== 'libra' || handle.physicalIdentity.fingerprintAlgorithm !== 'middle-256k-sha256' || handle.digestAlgorithm !== 'sha256' ||
+      handle.physicalIdentity.fingerprintVersion !== 1 || handle.physicalIdentity.sizeBytes !== handle.sizeBytes ||
       handle.accessScope !== 'workspace_material_read' || !/^(0|[1-9][0-9]*)$/.test(handle.physicalIdentity.inode) ||
       !Number.isSafeInteger(handle.sizeBytes) || handle.sizeBytes < 0 || !Number.isSafeInteger(handle.referenceRevision) ||
-      handle.referenceRevision < 1 || handle.digestHex !== handle.physicalIdentity.contentHash)
+      handle.referenceRevision < 1)
     fail('P9_REFERENCE_HANDLE', 'Workspace Material Handle violates its nominal contract.');
-  const materialKey = canonicalDigest({ schema:'physical-material-identity@1', mountScopeId:handle.physicalIdentity.mountScopeId,
-    inode:handle.physicalIdentity.inode, contentHashAlgorithm:'sha256', contentHash:handle.physicalIdentity.contentHash });
+  const materialKey = canonicalDigest({ schema:'physical-material-identity@2', mountScopeId:handle.physicalIdentity.mountScopeId,
+    inode:handle.physicalIdentity.inode,sizeBytes:handle.physicalIdentity.sizeBytes,fingerprintAlgorithm:'middle-256k-sha256',
+    fingerprintVersion:1,contentFingerprint:handle.physicalIdentity.contentFingerprint });
   const handleId = canonicalDigest({ schema:'foundation.workspace-material-handle-id@1', workspaceId:handle.workspaceId,
     materialKey:handle.materialKey, relativePath:handle.relativePath, referenceRevision:handle.referenceRevision });
   const fenceDigest = canonicalDigest({ schema:'foundation.workspace-material-handle-fence@1', handleId:handle.handleId,

@@ -88,6 +88,18 @@ function compileStatement(statementId, statement, table) {
         ' WHERE ' + (fixedKeyColumns.length ? fixedKeyColumns.map((column) => quote(column) + '=@' + column).join(' AND ') + ' AND ' : '') +
         quote(statement.keyColumn) + ' IN (', orderBy:quote(statement.keyColumn) };
   }
+  if(statement.kind==='select-page-after'){
+    requireColumns(table,statement.columns,statementId);requireColumns(table,[statement.keyColumn],statementId);
+    const fixedKeyColumns=statement.fixedKeyColumns||[];if(fixedKeyColumns.length>0)requireColumns(table,fixedKeyColumns,statementId);
+    if(!Number.isSafeInteger(statement.maxItems)||statement.maxItems<1||statement.maxItems>500){
+      fail('P3_REPOSITORY_INVALID_COLUMNS','select-page-after requires a bounded maxItems.',{statementId});
+    }
+    return {statementId,kind:statement.kind,tableId:table.tableId,parameters:[...fixedKeyColumns,'cursor','limit'],
+      safeIntegers:statement.safeIntegers===true,maxItems:statement.maxItems,
+      sql:'SELECT '+statement.columns.map(quote).join(', ')+' FROM '+tableName+' WHERE '+
+        (fixedKeyColumns.length?fixedKeyColumns.map((column)=>quote(column)+'=@'+column).join(' AND ')+' AND ':'')+
+        '(@cursor IS NULL OR '+quote(statement.keyColumn)+'>@cursor) ORDER BY '+quote(statement.keyColumn)+' LIMIT @limit'};
+  }
   fail('P3_REPOSITORY_UNSUPPORTED_STATEMENT', 'Repository statement kind is unsupported.', { statementId, kind: statement && statement.kind });
 }
 
@@ -114,7 +126,7 @@ function createRepositoryDefinition(options) {
     repositoryId: options.repositoryId,
     owner: options.owner,
     readOnly: [...compiled.values()].every((statement) =>
-      statement.kind === 'select-one' || statement.kind === 'select-all' || statement.kind === 'select-in'),
+      statement.kind === 'select-one' || statement.kind === 'select-all' || statement.kind === 'select-in'||statement.kind==='select-page-after'),
     statementIds: Object.freeze([...compiled.keys()].sort()),
     tableIds: Object.freeze([...tableIds].sort())
   });
@@ -151,11 +163,14 @@ function bindRepository(definition, transaction, isActive) {
         inValues.forEach((value, index) => { bindings['in_' + index] = value; });
         const executable = prepared.get(cacheKey); if (statement.safeIntegers) executable.safeIntegers(true); return executable.all(bindings);
       }
+      if(statement.kind==='select-page-after'&&(!Number.isSafeInteger(parameters.limit)||parameters.limit<1||parameters.limit>statement.maxItems)){
+        fail('P3_REPOSITORY_INVALID_PAGE_LIMIT','select-page-after limit exceeds its declared bound.',{statementId});
+      }
       if (!prepared.has(statementId)) prepared.set(statementId, transaction.prepare(statement.sql));
       const executable = prepared.get(statementId);
       if (statement.safeIntegers) executable.safeIntegers(true);
       if (statement.kind === 'select-one') return executable.get(values);
-      if (statement.kind === 'select-all') return executable.all(values);
+      if (statement.kind === 'select-all'||statement.kind==='select-page-after') return executable.all(values);
       return executable.run(values);
     }
   });

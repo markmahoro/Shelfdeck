@@ -164,9 +164,10 @@ function createResourceGovernor(options) {
     if (existingWaiter) {
       const same = JSON.stringify(existingWaiter.request) === JSON.stringify(request);
       if (!same) fail('P4_RESOURCE_DUPLICATE_WAITER_CONFLICT', 'Event cannot register a second or changed Resource waiter.');
-      const firstGrantable = [...waiters.values()].sort((left, right) => compareWaiters(left, right, requestedAtMs))
-        .find((waiter) => canAcquire(waiter.request.resources, currentMapper));
-      if (firstGrantable && firstGrantable.request.eventId === request.eventId) {
+      // Work Scheduler owns Event ordering. Governor only arbitrates whether the selected
+      // Event's complete resource bundle fits; a second hidden queue head would deadlock
+      // when its ordering differs from the durable Scheduler lease ordering.
+      if (canAcquire(request.resources, currentMapper)) {
         waiters.delete(request.eventId);
         return Object.freeze({ kind: 'permitted', permit: issue(request, currentMapper, requestedAtMs) });
       }

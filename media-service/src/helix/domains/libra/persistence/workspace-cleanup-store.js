@@ -341,7 +341,7 @@ function controlDefinition(schemaManifest) {
         kind: 'select-one', tableId: 'fx_material_controls',
         columns: [
           'material_key', 'mount_scope_id', 'inode',
-          'content_hash_algorithm', 'content_hash', 'owner_domain',
+          'size_bytes', 'fingerprint_algorithm', 'fingerprint_version', 'content_fingerprint', 'owner_domain',
           'owner_scope_type', 'owner_scope_id', 'control_revision', 'state',
         ],
         keyColumns: ['material_key'], safeIntegers: true,

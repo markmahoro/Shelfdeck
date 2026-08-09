@@ -49,7 +49,7 @@ function accessHandle(access) {
   return { schemaRef:'helix://contracts/types/FieldAccessHandle/v1', schemaVersion:1, handleId:'field-access-handle-1',
     fieldId:access.fieldId, accessRevision:access.revision, accessDigest:access.accessDigest, endpointId:access.endpointId,
     rootLocation:access.rootLocation, mountScopeId:access.mountScopeId, mountScopeRevision:access.mountScopeRevision,
-    allowedOperations:['read','list','stat','hash'], containmentDigest:hash('containment'), expiresAtMs:NOW + 1_000_000 };
+    allowedOperations:['read','list','stat','fingerprint'], containmentDigest:hash('containment'), expiresAtMs:NOW + 1_000_000 };
 }
 function pageRequest(workId, observationId, expectedRevision, pageOrdinal=0, cursorIn=null, pageBudget=100) {
   const value = { schemaRef:'helix://contracts/types/FieldObservationPageRequest/v1', schemaVersion:1,
@@ -57,12 +57,15 @@ function pageRequest(workId, observationId, expectedRevision, pageOrdinal=0, cur
     profileHintSnapshot, cursorIn, pageBudget, requestDigest:'' };
   value.requestDigest = canonicalDigest(requestBasis(value)); return value;
 }
-function raw(name, overrides={}) { return { inode:overrides.inode || String(name.charCodeAt(0)), contentHash:overrides.contentHash || hash('content-'+name),
+function raw(name, overrides={}) { return { inode:overrides.inode || String(name.charCodeAt(0)),
+  fingerprintAlgorithm:'middle-256k-sha256', fingerprintVersion:1,
+  contentFingerprint:overrides.contentFingerprint || hash('content-'+name),
   location:overrides.location || '/media/field-1/'+name+'.mkv', sizeBytes:overrides.sizeBytes || 100,
   mtimeNs:overrides.mtimeNs || '9223372036854775807', ctimeNs:overrides.ctimeNs || '9223372036854775806',
-  hashVerifiedAtMs:NOW-10 }; }
+  fingerprintVerifiedAtMs:NOW-10 }; }
 function sortedEntries(materials) {
-  return materials.map((material) => { const identity = { mountScopeId:'mount-1', inode:String(material.inode), contentHashAlgorithm:'sha256', contentHash:material.contentHash };
+  return materials.map((material) => { const identity = { mountScopeId:'mount-1', inode:String(material.inode), sizeBytes:material.sizeBytes,
+    fingerprintAlgorithm:'middle-256k-sha256', fingerprintVersion:1, contentFingerprint:material.contentFingerprint };
     return { material, key:canonicalDigest(identityBasis(identity)) }; }).sort((a,b) => Buffer.compare(Buffer.from(a.key),Buffer.from(b.key)))
     .map((entry,index) => ({ cursor:'cursor-'+index+'-'+entry.key, material:entry.material }));
 }
@@ -138,6 +141,19 @@ test('fails stale fences and paginates by byte/item budget without skipping the 
   seedRuntime(databasePath,'work-1','event-1'); const stale={...page,expectedObservationRevision:1}; stale.pageDigest=canonicalDigest(require('../../src/helix/domains/procurement/model/field-observation-contracts').pageDigestBasis(stale)); stale.payloadDigest=stale.pageDigest;
   assert.throws(()=>coordinator.execute(commitRequest(stale,'event-1')),(error)=>error.code==='P7_FIELD_OBSERVATION_FENCE_CONFLICT');
   const inspect=new Database(databasePath,{readonly:true}); assert.equal(inspect.prepare('SELECT COUNT(*) count FROM proc_field_observations').get().count,0); assert.equal(inspect.prepare('SELECT COUNT(*) count FROM fx_commit_markers').get().count,0); inspect.close();
+}));
+
+test('rejects a byte-truncated enumerator batch whose shared path boundary would skip uncommitted material', async () => fixture(async ({field}) => {
+  const materials=Array.from({length:40},(_,index)=>raw(String.fromCharCode(65+(index%26)),{
+    inode:String(1000+index),
+    location:'/media/field-1/'+String(index).padStart(3,'0')+'-'+('x'.repeat(1800))+'.mkv',
+  }));
+  const entries=sortedEntries(materials).map((entry)=>({...entry,cursor:'path:shared-batch-boundary'}));
+  const observer=createFieldPageObserver({now:()=>NOW,enumeratePage:async()=>({items:entries,hasMore:true})});
+  await assert.rejects(
+    observer.observe({fieldAccessHandle:accessHandle(field.access),pageRequest:pageRequest('work-1','observation-1',0)}),
+    (error)=>error.code==='P7_FIELD_ENUMERATION_BATCH_TOO_LARGE',
+  );
 }));
 
 test('rejects an Observation page when the Field Profile Hint changes after the physical read', async () => fixture(async ({databasePath,field,fieldStore,coordinator}) => {

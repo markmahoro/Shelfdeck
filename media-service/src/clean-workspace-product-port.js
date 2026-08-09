@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { canonicalDigest, canonicalJson } = require('./helix/contracts/canonical-json');
 const { createRepositoryDefinition } = require('./helix/foundation/persistence/owner-repository');
+const { fingerprintBuffer } = require('./helix/integrations/bounded-material-fingerprint');
 
 class CleanWorkspaceProductPortError extends Error {
   constructor(code, message, details = {}) {
@@ -125,7 +126,7 @@ function definitions(schemaManifest) {
           tableId: 'fx_workspace_materials',
           columns: [
             'workspace_id', 'material_handle_id', 'material_key', 'endpoint_id',
-            'mount_scope_id', 'inode', 'content_hash_algorithm', 'content_hash',
+            'mount_scope_id', 'inode', 'fingerprint_algorithm', 'fingerprint_version', 'content_fingerprint',
             'relative_path', 'digest_algorithm', 'digest_hex', 'size_bytes',
             'reference_revision', 'owner_domain', 'process_id', 'root_handle_ref',
             'access_scope', 'handle_schema_ref', 'handle_json', 'handle_digest',
@@ -139,7 +140,7 @@ function definitions(schemaManifest) {
           tableId: 'fx_workspace_materials',
           columns: [
             'workspace_id', 'material_handle_id', 'material_key', 'endpoint_id',
-            'mount_scope_id', 'inode', 'content_hash_algorithm', 'content_hash',
+            'mount_scope_id', 'inode', 'fingerprint_algorithm', 'fingerprint_version', 'content_fingerprint',
             'relative_path', 'digest_algorithm', 'digest_hex', 'size_bytes',
             'reference_revision', 'owner_domain', 'process_id', 'root_handle_ref',
             'access_scope', 'handle_schema_ref', 'handle_json', 'handle_digest',
@@ -153,7 +154,7 @@ function definitions(schemaManifest) {
           tableId: 'fx_workspace_materials',
           columns: [
             'workspace_id', 'material_handle_id', 'material_key', 'endpoint_id',
-            'mount_scope_id', 'inode', 'content_hash_algorithm', 'content_hash',
+            'mount_scope_id', 'inode', 'fingerprint_algorithm', 'fingerprint_version', 'content_fingerprint',
             'relative_path', 'digest_algorithm', 'digest_hex', 'size_bytes',
             'reference_revision', 'owner_domain', 'process_id', 'root_handle_ref',
             'access_scope', 'handle_schema_ref', 'handle_json', 'handle_digest',
@@ -520,16 +521,24 @@ function createCleanWorkspaceProductPort(options) {
     }
     const stat = fs.statSync(identity.target, { bigint: true });
     const inode = stat.ino.toString();
+    const bounded = fingerprintBuffer(bytes);
     const physicalIdentity = Object.freeze({
+      schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v2',
+      schemaVersion: 2,
+      materialKey: '',
       mountScopeId,
       inode,
-      contentHashAlgorithm: 'sha256',
-      contentHash: digestHex,
+      sizeBytes: bytes.length,
+      fingerprintAlgorithm: bounded.fingerprintAlgorithm,
+      fingerprintVersion: bounded.fingerprintVersion,
+      contentFingerprint: bounded.contentFingerprint,
     });
     const materialKey = canonicalDigest({
-      schema: 'physical-material-identity@1',
-      ...physicalIdentity,
+      schema: 'physical-material-identity@2', mountScopeId, inode, sizeBytes:bytes.length,
+      fingerprintAlgorithm:bounded.fingerprintAlgorithm, fingerprintVersion:bounded.fingerprintVersion,
+      contentFingerprint:bounded.contentFingerprint,
     });
+    const materialIdentity = Object.freeze({ ...physicalIdentity, materialKey });
     const handleId = canonicalDigest({
       schema: 'foundation.workspace-material-handle-id@1',
       workspaceId: request.workspaceId,
@@ -546,7 +555,7 @@ function createCleanWorkspaceProductPort(options) {
       processId: request.libraRunId,
       endpointId,
       materialKey,
-      physicalIdentity,
+      physicalIdentity: materialIdentity,
       rootHandleRef,
       relativePath: identity.relativePath,
       digestAlgorithm: 'sha256',
@@ -563,7 +572,7 @@ function createCleanWorkspaceProductPort(options) {
       processId: request.libraRunId,
       endpointId,
       materialKey,
-      physicalIdentity,
+      physicalIdentity: materialIdentity,
       rootHandleRef,
       relativePath: identity.relativePath,
       digestAlgorithm: 'sha256',
@@ -655,8 +664,9 @@ function createCleanWorkspaceProductPort(options) {
           endpoint_id: endpointId,
           mount_scope_id: mountScopeId,
           inode,
-          content_hash_algorithm: 'sha256',
-          content_hash: digestHex,
+          fingerprint_algorithm: bounded.fingerprintAlgorithm,
+          fingerprint_version: bounded.fingerprintVersion,
+          content_fingerprint: bounded.contentFingerprint,
           relative_path: identity.relativePath,
           digest_algorithm: 'sha256',
           digest_hex: digestHex,

@@ -10,8 +10,9 @@ class FieldPageObserverError extends Error {
 function fail(code, message) { throw new FieldPageObserverError(code, message); }
 
 function createIdentity(raw, handle) {
-  const identity = { schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v1', schemaVersion:1,
-    materialKey:'', mountScopeId:handle.mountScopeId, inode:String(raw.inode), contentHashAlgorithm:'sha256', contentHash:raw.contentHash };
+  const identity = { schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2', schemaVersion:2,
+    materialKey:'', mountScopeId:handle.mountScopeId, inode:String(raw.inode), sizeBytes:raw.sizeBytes,
+    fingerprintAlgorithm:'middle-256k-sha256', fingerprintVersion:1, contentFingerprint:raw.contentFingerprint };
   identity.materialKey = canonicalDigest(identityBasis(identity));
   return Object.freeze(identity);
 }
@@ -22,13 +23,13 @@ function createSnapshot(raw, handle, request, observedAtMs) {
     observationId:request.observationId, fieldId:handle.fieldId, accessRevision:handle.accessRevision, accessDigest:handle.accessDigest,
     fieldAccessHandleId:handle.handleId, endpointId:handle.endpointId, mountScopeRevision:handle.mountScopeRevision,
     identity, location:raw.location, sizeBytes:raw.sizeBytes, mtimeNs:String(raw.mtimeNs), ctimeNs:String(raw.ctimeNs),
-    hashVerifiedAtMs:raw.hashVerifiedAtMs, observedAtMs, containmentDigest:handle.containmentDigest,
+    fingerprintVerifiedAtMs:raw.fingerprintVerifiedAtMs, observedAtMs, containmentDigest:handle.containmentDigest,
     realityDigest:canonicalDigest({ schema:'procurement.field-material-reality@1', identity, endpointId:handle.endpointId,
       location:raw.location, sizeBytes:raw.sizeBytes, mtimeNs:String(raw.mtimeNs), ctimeNs:String(raw.ctimeNs) }),
     provenanceDigest:canonicalDigest({ schema:'procurement.field-material-provenance@1', fieldId:handle.fieldId,
       accessRevision:handle.accessRevision, accessDigest:handle.accessDigest, fieldAccessHandleId:handle.handleId,
       mountScopeRevision:handle.mountScopeRevision, containmentDigest:handle.containmentDigest,
-      hashVerifiedAtMs:raw.hashVerifiedAtMs, observedAtMs }), snapshotDigest:''
+      fingerprintVerifiedAtMs:raw.fingerprintVerifiedAtMs, observedAtMs }), snapshotDigest:''
   };
   value.snapshotDigest = canonicalDigest(snapshotWithoutDigest(value));
   validateSnapshot(value, { handle, request });
@@ -75,6 +76,15 @@ function createFieldPageObserver(options) {
       }
       const consumed = accepted.length;
       const hasMore = consumed < candidates.length || enumeration.hasMore;
+      if (consumed < candidates.length) {
+        const acceptedCursor = consumed > 0 ? candidates[consumed - 1].cursor : null;
+        const uncommittedUsesSameBoundary = acceptedCursor !== null && candidates
+          .slice(consumed)
+          .some((candidate) => candidate.cursor === acceptedCursor);
+        if (uncommittedUsesSameBoundary) {
+          fail('P7_FIELD_ENUMERATION_BATCH_TOO_LARGE', 'Enumerator batch cannot be partially committed without skipping material.');
+        }
+      }
       if (hasMore && consumed === 0) fail('P7_FIELD_PAGE_EMPTY_PROGRESS', 'A non-terminal page must make cursor progress.');
       const cursorOut = hasMore ? candidates[consumed - 1].cursor : null;
       const page = buildPage(fieldAccessHandle, pageRequest, producerRef, observedAtMs, accepted, cursorOut, hasMore);

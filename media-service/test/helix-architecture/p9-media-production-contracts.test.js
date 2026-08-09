@@ -11,8 +11,10 @@ const {createMediaProductionCoordinator}=require('../../src/helix/domains/libra/
 
 const D=(value)=>canonicalDigest({value});
 const contractRoot=path.resolve(__dirname,'../../src/helix/contracts');
-const schemas=['types','domain-types','application-types'].flatMap((group)=>fs.readdirSync(path.join(contractRoot,group)).map((name)=>
-  JSON.parse(fs.readFileSync(path.join(contractRoot,group,name,'v1/schema.json'),'utf8'))));
+const schemas=['types','domain-types','application-types'].flatMap((group)=>fs.readdirSync(path.join(contractRoot,group)).map((name)=>{
+  const version=fs.readdirSync(path.join(contractRoot,group,name)).find((entry)=>/^v[0-9]+$/.test(entry));
+  return JSON.parse(fs.readFileSync(path.join(contractRoot,group,name,version,'schema.json'),'utf8'));
+}));
 const schemaValidator=createCapabilityContractValidator({schemas});
 const valid=(ref,value)=>{try{return schemaValidator.validate(ref,value);}catch(error){error.message+=' '+JSON.stringify(error.details?.errors);throw error;}};
 function spec(){return {schemaRef:'libra.acceptance-spec@1',schemaVersion:1,acceptanceSpecId:'spec-1',specRevision:2,recordDigest:D('spec-record'),
@@ -20,10 +22,10 @@ function spec(){return {schemaRef:'libra.acceptance-spec@1',schemaVersion:1,acce
     fileExtension:'mkv',minimumRasterClass:'none',acceptedPrimaryAudioClasses:['truehd'],forbidSystemUpscaleFor4k:true},
   space:{unit:'product',maxSizeGiB:1,maxSizeBytes:1073741824}}};}
 function source(){return valid('helix://contracts/types/PhysicalMaterialReadHandle/v1',{schemaRef:'helix://contracts/types/PhysicalMaterialReadHandle/v1',schemaVersion:1,handleId:D('source-handle'),
-  identity:{schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v1',schemaVersion:1,materialKey:D('material'),mountScopeId:'mount-1',inode:'1',
-    contentHashAlgorithm:'sha256',contentHash:D('source-bytes')},ownerDomain:'libra',ownerScope:{scopeType:'libra_run',scopeId:'run-1'},
+  identity:{schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,materialKey:D('material'),mountScopeId:'mount-1',inode:'1',
+    sizeBytes:100,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint:D('source-bytes')},ownerDomain:'libra',ownerScope:{scopeType:'libra_run',scopeId:'run-1'},
   bindingRevision:1,endpointId:'endpoint-1',location:'input.mkv',mountScopeRevision:1,expectedSizeBytes:100,expectedMtimeNs:1,
-  expectedCtimeNs:1,hashVerifiedAtMs:1,readScope:'material_read',expiresAtMs:9999999999999,fenceDigest:D('source-fence')});}
+  expectedCtimeNs:1,fingerprintVerifiedAtMs:1,readScope:'material_read',expiresAtMs:9999999999999,fenceDigest:D('source-fence')});}
 function probe(handle,id='probe-1',overrides={}){const value={schemaRef:'helix://contracts/types/MediaProbeEvidence/v1',schemaVersion:1,evidenceId:id,
   evidenceKind:'media_probe',producerRef:'fake-media-port',basisDigest:D(id+'-basis'),payloadDigest:'',observedAtMs:1,
   sourceHandleDigest:canonicalDigest(handle),resultKind:'probed',container:'matroska',durationMs:1000,sizeBytes:handle.sizeBytes??handle.expectedSizeBytes,
@@ -68,7 +70,7 @@ test('builds one target-bound workspace result and verifies it without hidden pa
     expectedWorkspaceRevision:2,expectedWorkspaceStateDigest:D('workspace-state'),rootSnapshot:root,workspaceScopeDigest:D('scope'),
     targetRelativePath:'products/movie.mkv',productionIntentDigest:intent.intentDigest});
   const output={schemaRef:'helix://contracts/types/WorkspaceMaterialHandle/v1',schemaVersion:1,handleId:D('output-handle'),workspaceId,ownerDomain:'libra',processId:'run-1',
-    endpointId:'endpoint-1',materialKey:D('output-material'),physicalIdentity:{mountScopeId:'mount-1',inode:'2',contentHashAlgorithm:'sha256',contentHash:D('bytes')},
+    endpointId:'endpoint-1',materialKey:D('output-material'),physicalIdentity:{mountScopeId:'mount-1',inode:'2',sizeBytes:100,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint:D('bytes')},
     rootHandleRef:'root-handle',relativePath:'products/movie.mkv',digestAlgorithm:'sha256',digestHex:D('bytes'),sizeBytes:100,referenceRevision:1,
     accessScope:'workspace_material_read',fenceDigest:D('output-fence')};
   const result=media.buildWorkspaceMediaHandle({sourceHandle:handle,outputTarget:target,workspaceMaterialHandle:output,productionIntentKind:'encode',productionIntent:intent,
@@ -132,7 +134,7 @@ test('coordinator accepts only a receipt bound to the frozen target and a passed
     targetRelativePath:'products/coordinator.mkv',productionIntentDigest:intent.intentDigest});
   const workspaceMaterialHandle={schemaRef:'helix://contracts/types/WorkspaceMaterialHandle/v1',schemaVersion:1,handleId:D('coordinator-output'),workspaceId,
     ownerDomain:'libra',processId:'run-1',endpointId:'endpoint-1',materialKey:D('coordinator-material'),
-    physicalIdentity:{mountScopeId:'mount-1',inode:'3',contentHashAlgorithm:'sha256',contentHash:D('coordinator-bytes')},rootHandleRef:'root-handle',
+    physicalIdentity:{mountScopeId:'mount-1',inode:'3',sizeBytes:100,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint:D('coordinator-bytes')},rootHandleRef:'root-handle',
     relativePath:target.targetRelativePath,digestAlgorithm:'sha256',digestHex:D('coordinator-bytes'),sizeBytes:100,referenceRevision:1,
     accessScope:'workspace_material_read',fenceDigest:D('coordinator-fence')};
   const receipt={effectId:'effect-1',effectReceiptId:'receipt-1',effectReceiptDigest:D('receipt-1'),effectScopeDigest:target.effectScopeDigest,
@@ -158,7 +160,7 @@ test('restart replays one journaled media effect without producing a second Work
       workspaceScopeDigest:D('scope-replay'),targetRelativePath:'products/replay.mkv',productionIntentDigest:intent.intentDigest});
   const output={schemaRef:'helix://contracts/types/WorkspaceMaterialHandle/v1',schemaVersion:1,handleId:D('replay-output'),workspaceId,
     ownerDomain:'libra',processId:'run-1',endpointId:'endpoint-1',materialKey:D('replay-material'),physicalIdentity:{mountScopeId:'mount-1',
-      inode:'4',contentHashAlgorithm:'sha256',contentHash:D('replay-bytes')},rootHandleRef:'root-handle',relativePath:target.targetRelativePath,
+      inode:'4',sizeBytes:100,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint:D('replay-bytes')},rootHandleRef:'root-handle',relativePath:target.targetRelativePath,
     digestAlgorithm:'sha256',digestHex:D('replay-bytes'),sizeBytes:100,referenceRevision:1,accessScope:'workspace_material_read',fenceDigest:D('replay-fence')};
   const journal=new Map();let physicalWrites=0,crashOnce=true;
   const effectPort={async executeRemux(value){let receipt=journal.get(value.outputTarget.effectScopeDigest);if(!receipt){physicalWrites+=1;

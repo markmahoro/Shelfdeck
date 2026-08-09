@@ -19,6 +19,9 @@ const {
   createEligibilityReconcileStore,
 } = require('../persistence/eligibility-reconcile-store');
 const {
+  createProcurementRunSlices,
+} = require('../model/procurement-run-creator');
+const {
   createProcurementRunAdmissionStore,
 } = require('../persistence/procurement-run-admission-store');
 
@@ -32,7 +35,7 @@ const CAPABILITY_FENCE =
 const CAPABILITY_DEMAND =
   'helix://contracts/capabilities/procurement.material.control.acquire/v1/resource-demand';
 const RESULT_SCHEMA = 'helix://contracts/types/ProcurementControlReceipt/v1';
-const MAX_RUN_MEMBERS = 1024;
+const MAX_RUN_MEMBERS = 256;
 const RECONCILE_BATCH_SIZE = 100;
 
 class ProcurementAutomationServiceError extends Error {
@@ -144,11 +147,12 @@ function repositoryDefinition(schemaManifest) {
           'material_key',
           'mount_scope_id',
           'inode',
-          'content_hash_algorithm',
-          'content_hash',
+          'size_bytes',
+          'fingerprint_algorithm',
+          'fingerprint_version',
+          'content_fingerprint',
           'endpoint_id',
           'access_revision',
-          'size_bytes',
           'current_location',
           'binding_revision',
           'reality_digest',
@@ -398,9 +402,10 @@ function readControlSnapshots(options, materialKeys, participantId) {
     unitOfWork: options.unitOfWork,
   });
   const controls = [];
-  for (let offset = 0; offset < materialKeys.length; offset += 500) {
+  const orderedKeys=[...materialKeys].sort((left,right)=>Buffer.compare(Buffer.from(left),Buffer.from(right)));
+  for (let offset = 0; offset < orderedKeys.length; offset += 500) {
     controls.push(...port.getMaterialControlProjections(
-      materialKeys.slice(offset, offset + 500),
+      orderedKeys.slice(offset, offset + 500),
     ));
   }
   if (controls.some((control) => control.resultKind !== 'available')) {
@@ -410,7 +415,8 @@ function readControlSnapshots(options, materialKeys, participantId) {
       { participantId },
     );
   }
-  return Object.freeze(controls);
+  const byKey=new Map(controls.map((control)=>[control.materialKey,control]));
+  return Object.freeze(materialKeys.map((materialKey)=>byKey.get(materialKey)));
 }
 
 function policyValue(row) {
@@ -518,13 +524,15 @@ function runMember(material, controlSnapshot, ordinal) {
     materialKey: material.material_key,
     selectionRole: 'triage_input',
     physicalIdentity: {
-      schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v1',
-      schemaVersion: 1,
+      schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v2',
+      schemaVersion: 2,
       materialKey: material.material_key,
       mountScopeId: material.mount_scope_id,
       inode: String(material.inode),
-      contentHashAlgorithm: material.content_hash_algorithm,
-      contentHash: material.content_hash,
+      sizeBytes: Number(material.size_bytes),
+      fingerprintAlgorithm: material.fingerprint_algorithm,
+      fingerprintVersion: Number(material.fingerprint_version),
+      contentFingerprint: material.content_fingerprint,
     },
     sizeBytes: Number(material.size_bytes),
     bindingRevision: Number(material.binding_revision),
@@ -678,10 +686,10 @@ function resultSummary(run, members, replayed, recovered = false) {
 
 function createProcurementAutomationService(options) {
   if (!options?.schemaManifest || !options.unitOfWork ||
-      !options.triageRegistry || !options.workRuntime) {
+      !options.triageRegistry) {
     fail(
       'PROCUREMENT_AUTOMATION_DEPENDENCIES',
-      'Procurement Automation requires Owner-local persistence, Registry, and Work runtime.',
+      'Procurement Automation requires Owner-local persistence and Registry.',
     );
   }
   const repository = repositoryDefinition(options.schemaManifest);
@@ -760,6 +768,10 @@ function createProcurementAutomationService(options) {
   }
 
   function advanceFromObservation(observation) {
+    if (!options.workRuntime) {
+      fail('PROCUREMENT_AUTOMATION_SYNCHRONOUS_RUNTIME_UNAVAILABLE',
+        'The retired synchronous Procurement automation path is unavailable.');
+    }
     if (!observation || observation.state !== 'succeeded' ||
         typeof observation.fieldId !== 'string' ||
         !Number.isSafeInteger(observation.accessRevision) ||
@@ -783,7 +795,7 @@ function createProcurementAutomationService(options) {
     if (current.materials.length > MAX_RUN_MEMBERS) {
       fail(
         'PROCUREMENT_AUTOMATION_SELECTION_BOUNDS',
-        '单个automatic Run最多冻结1024个Material；当前Field需要后续分片策略。',
+        '单个automatic Run最多冻结256个Material；当前Field需要后续分片策略。',
         { materialCount: current.materials.length },
       );
     }
@@ -1005,7 +1017,79 @@ function createProcurementAutomationService(options) {
     );
   }
 
-  return Object.freeze({ advanceFromObservation });
+  function reconcileFromObservation(observation) {
+    if (!observation || observation.state !== 'succeeded' ||
+        typeof observation.fieldId !== 'string' ||
+        !Number.isSafeInteger(observation.accessRevision) ||
+        !Number.isSafeInteger(observation.terminalObservationRevision) ||
+        typeof observation.observationWorkId !== 'string') {
+      fail('PROCUREMENT_AUTOMATION_OBSERVATION_INVALID',
+        'Procurement Automation只接受正式terminal Observation Result。');
+    }
+    let current = snapshot(observation);
+    if (current.materials.length === 0) return Object.freeze({ stage:'no_observed_material', runs:Object.freeze([]), closedGroups:Object.freeze([]) });
+    const alreadyReconciled = current.materials.every((material) =>
+      material.eligibility_field_status === current.field.status &&
+      Number(material.eligibility_observation_revision) === observation.terminalObservationRevision &&
+      Number(material.eligibility_policy_revision) === Number(current.policy.revision) &&
+      typeof material.eligibility_basis_digest === 'string');
+    if (!alreadyReconciled) {
+      const controls = readControlSnapshots(options, current.materials.map((material) => material.material_key),
+        'procurement_automation_eligibility_control');
+      reconcileEligibility(options, current, eligibilityDecisions(current, controls));
+      current = snapshot(observation);
+    }
+    const eligible = current.materials.filter((material) =>
+      material.eligibility_state === 'eligible' && material.eligibility_field_status === 'active' &&
+      Number(material.eligibility_observation_revision) === observation.terminalObservationRevision &&
+      Number(material.eligibility_policy_revision) === Number(current.policy.revision));
+    const creationBasisDigest = canonicalDigest({ schema:'procurement.run-creator-basis@1', fieldId:observation.fieldId,
+      accessRevision:observation.accessRevision, accessDigest:current.access.access_digest,
+      profileHintRevision:Number(current.profileHint.revision), profileHintDigest:current.profileHint.hint_digest,
+      terminalObservationRevision:observation.terminalObservationRevision,
+      fieldObservationWorkId:observation.observationWorkId,
+      extractionPolicyId:current.policy.extraction_policy_id, extractionPolicyRevision:Number(current.policy.revision),
+      extractionPolicyDigest:current.policy.policy_digest, triageRuleAuthorityDigest:rule.authorityDigest });
+    const sliced = createProcurementRunSlices({ fieldId:observation.fieldId, creationBasisDigest,
+      materials:eligible.map((material) => ({ materialKey:material.material_key,
+        relativeLocation:relativeLocation(current.access.root_location, material.current_location), material })) });
+    const admittedRuns = [];
+    for (const slice of sliced.runs) {
+      const orderedMembers=[...slice.members].sort((left,right)=>Buffer.compare(Buffer.from(left.materialKey),Buffer.from(right.materialKey)));
+      const controls = readControlSnapshots(options, orderedMembers.map((item) => item.materialKey),
+        'procurement_automation_admission_control');
+      const members = orderedMembers.map((item, index) => runMember(item.material, controls[index], index));
+      const selectionValue = { procurementRunId:slice.procurementRunId, fieldId:observation.fieldId,
+        members:Object.freeze(members) };
+      const selectedFieldMaterialSet = Object.freeze({ ...selectionValue, selectionDigest:canonicalDigest({
+        schema:'procurement.selected-field-material-set@1', ...selectionValue }) });
+      const profileHintSnapshot = Object.freeze({ fieldId:observation.fieldId,
+        revision:Number(current.profileHint.revision), contentProfileHint:current.profileHint.content_profile_hint,
+        hintDigest:current.profileHint.hint_digest });
+      const basisValue = { procurementRunId:slice.procurementRunId, fieldId:observation.fieldId, fieldStatus:'active',
+        fieldAccess:Object.freeze({ revision:Number(current.access.revision), digest:current.access.access_digest }),
+        profileHintSnapshot,
+        terminalObservation:Object.freeze({ revision:Number(current.terminalObservation.revision),
+          fieldObservationWorkId:current.terminalObservation.field_observation_work_id, profileHintSnapshot }),
+        extractionPolicy:Object.freeze({ policyId:current.policy.extraction_policy_id,
+          revision:Number(current.policy.revision), digest:current.policy.policy_digest }),
+        triageRule:rule, selectedFieldMaterialSet };
+      const runBasis = createProcurementRunExecutionBasis(Object.freeze({ ...basisValue,
+        basisDigest:canonicalDigest(basisValue) }), options.triageRegistry);
+      const handle = controlHandle(runBasis);
+      const commitDigest = canonicalDigest({ schema:'procurement.run-admission-command@2',
+        runBasisDigest:runBasis.basisDigest, controlHandleDigest:canonicalDigest(handle) });
+      const committed = runAdmissionStore.admit({ basis:runBasis, controlHandle:handle, priorityClass:'normal',
+        commitMarker:Object.freeze({ commitMarker:stableId('procurement-run-admission-marker-', {
+          procurementRunId:runBasis.procurementRunId, basisDigest:runBasis.basisDigest }), commitDigest }) });
+      admittedRuns.push(Object.freeze({ procurementRunId:runBasis.procurementRunId,
+        runBasisDigest:runBasis.basisDigest, selectedMaterialCount:members.length, replayed:committed.replayed }));
+    }
+    return Object.freeze({ stage:admittedRuns.length ? 'procurement_runs_active' : 'no_eligible_material',
+      runs:Object.freeze(admittedRuns), closedGroups:sliced.closedGroups });
+  }
+
+  return Object.freeze({ reconcileFromObservation });
 }
 
 module.exports = Object.freeze({

@@ -320,7 +320,7 @@
     },
     "semanticRules": [
       "`PK(retry_intent_id,ordinal)`及`UNIQUE(retry_intent_id,material_key)`",
-      "成员必须来自failed Run中`released+triage_failed`的Material，按materialKey UTF-8 bytes升序且`1..1024`项",
+      "成员必须来自failed Run中`released+triage_failed`的Material，按materialKey UTF-8 bytes升序且`1..256`项",
       "`CHECK(expected_selection_has_conflict=0)`",
       "完整expected rows重建Intent member/precondition set，aggregate digest必须匹配Intent head",
       "Control列必须完整映射available `MaterialControlProjectionSnapshot`，包括evidence/projection两个不同digest",
@@ -331,12 +331,12 @@
     ],
     "rawContract": {
       "columns": "`retry_intent_id FK, ordinal, material_key, failed_run_material_digest, expected_binding_revision, expected_eligibility_revision, expected_eligibility_basis_digest, expected_selection_basis_digest, expected_selection_has_conflict, expected_control_revision, expected_control_state, expected_control_owner_domain NULL, expected_control_owner_scope_type NULL, expected_control_owner_scope_id NULL, expected_control_region_projection, expected_control_evidence_digest, expected_control_projection_digest, member_precondition_digest, consume_snapshot_schema_ref NULL, consume_snapshot_json NULL, consume_snapshot_digest NULL, consume_outcome NULL|matched|stale, consume_stale_reason_code NULL, consumed_at_ms NULL`",
-      "constraints": "`PK(retry_intent_id,ordinal)`及`UNIQUE(retry_intent_id,material_key)`；成员必须来自failed Run中`released+triage_failed`的Material，按materialKey UTF-8 bytes升序且`1..1024`项；`CHECK(expected_selection_has_conflict=0)`；完整expected rows重建Intent member/precondition set，aggregate digest必须匹配Intent head；Control列必须完整映射available `MaterialControlProjectionSnapshot`，包括evidence/projection两个不同digest；expected列immutable；Intent消费时全部member在同事务一次性写完整`ProcurementRetryConsumeMemberSnapshot@1`（JCS bytes≤`4 KiB`）及digest/outcome，之后immutable；stale只保存8.6.18 closed set中的唯一primary code，matched不得保存code；terminal Intent不允许存在未写consume snapshot的member"
+      "constraints": "`PK(retry_intent_id,ordinal)`及`UNIQUE(retry_intent_id,material_key)`；成员必须来自failed Run中`released+triage_failed`的Material，按materialKey UTF-8 bytes升序且`1..256`项；`CHECK(expected_selection_has_conflict=0)`；完整expected rows重建Intent member/precondition set，aggregate digest必须匹配Intent head；Control列必须完整映射available `MaterialControlProjectionSnapshot`，包括evidence/projection两个不同digest；expected列immutable；Intent消费时全部member在同事务一次性写完整`ProcurementRetryConsumeMemberSnapshot@1`（JCS bytes≤`4 KiB`）及digest/outcome，之后immutable；stale只保存8.6.18 closed set中的唯一primary code，matched不得保存code；terminal Intent不允许存在未写consume snapshot的member"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8528,
-      "lineDigest": "4cf05d83c863e6e7db91c3408942f16d7138dc6c7df072a41ce020d21b7721e3"
+      "line": 8651,
+      "lineDigest": "8d2d0a26be99897eb9aba87966b2e83ec2c43e48952c40a4c365e9d0f831745d"
     },
     "foreignKeys": [
       {

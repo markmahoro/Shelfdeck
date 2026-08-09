@@ -48,7 +48,7 @@ test('clean package IDs exactly match the accepted P1 physical skeleton', () => 
 
 test('each Domain exposes one frozen public package identity', () => {
   const expectedExports = {
-    procurement: ['PACKAGE_ID', 'CandidateDeliveryPort', 'ProcurementCommandFacade', 'ProcurementQueryFacade'],
+    procurement: ['PACKAGE_ID', 'CandidateDeliveryPort', 'ProcurementCommandFacade', 'ProcurementExecutionRegistration', 'ProcurementQueryFacade'],
     libra: ['PACKAGE_ID', 'LibraIntakeFacade', 'ProductDeliveryPort', 'WorkspaceReclamationPort'],
     arca: ['PACKAGE_ID'],
     perception: ['PACKAGE_ID', 'PerceptionCommandFacade', 'PerceptionResolutionFacade'],
@@ -78,7 +78,7 @@ test('Platform is a required four-package technical owner with one frozen public
   }
 });
 
-test('composition root import is side-effect free and factory requires exact clean Facades', () => {
+test('composition root import is side-effect free and factory requires exact clean Facades', async () => {
   const handlesBefore = process._getActiveHandles().length;
   const requestsBefore = process._getActiveRequests().length;
   const composition = require(path.join(helixRoot, 'composition', 'createHelixApplication'));
@@ -97,10 +97,10 @@ test('composition root import is side-effect free and factory requires exact cle
     sessionTokens:{ authenticate:() => ({}), verifyApiKey:() => ({}) },
   });
   assert.equal(app.routeCount, 114);
-  assert.deepEqual(app.start(), { state:'ready', normalSupplyAllowed:true });
+  assert.deepEqual(await app.start(), { state:'ready', normalSupplyAllowed:true });
   assert.equal(app.readiness().generation, 'helix-clean-v1');
-  assert.throws(() => app.start(), (error) => error.code === 'HELIX_LIFECYCLE_CONFLICT');
-  app.stop();
+  await assert.rejects(app.start(), (error) => error.code === 'HELIX_LIFECYCLE_CONFLICT');
+  await app.stop();
 });
 
 test('formal product startup selects only the P14 clean service host', () => {

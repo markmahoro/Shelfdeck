@@ -24,7 +24,7 @@ function fixture(run) {
   const unitOfWork = createSqliteUnitOfWork({ kernel });
   const seed = createRepositoryDefinition({ repositoryId: 'scheduler_seed', owner: 'execution-foundation', schemaManifest, statements: {
     work: { kind: 'insert', tableId: 'fx_supporting_works', columns: [
-      'work_id', 'owner_domain', 'process_type', 'process_id', 'priority_class', 'state', 'idempotency_key', 'created_at_ms'
+      'work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'priority_class', 'state', 'idempotency_key', 'created_at_ms'
     ] },
     attempt: { kind: 'insert', tableId: 'fx_work_attempts', columns: ['attempt_id', 'work_id', 'state'] },
     plan: { kind: 'insert', tableId: 'fx_workflow_plans', columns: ['plan_id', 'attempt_id', 'state'] },
@@ -49,8 +49,9 @@ function fixture(run) {
 function addWork(repository, projections, id, options = {}) {
   const priorityClass = options.priorityClass || 'normal_foreground';
   repository.invoke('work', { work_id: 'work-' + id, owner_domain: 'libra', process_type: 'libra_run', process_id: 'process-' + id,
-    priority_class: priorityClass, state: options.state || 'admitted', idempotency_key: 'key-' + id, created_at_ms: options.createdAtMs ?? 120000 });
-  projections.set('process-' + id, Object.freeze({ priorityClass, localPriority: options.localPriority || 0, priorityRevision: options.priorityRevision || 1 }));
+    work_kind:'fixture_work',priority_class: priorityClass, state: options.state || 'admitted', idempotency_key: 'key-' + id, created_at_ms: options.createdAtMs ?? 120000 });
+  projections.set('process-' + id, Object.freeze({ priorityClass, localPriority: options.localPriority || 0,
+    priorityRevision: options.priorityRevision || 1,supplyRole:'expansion' }));
 }
 
 function addEventGraph(repository, projections, id, options = {}) {
@@ -130,12 +131,25 @@ test('technical lease is unique, expiring, releasable, and never durable', () =>
   });
 });
 
+test('technical lease can be renewed across a bounded planning critical section', () => {
+  fixture(({ scheduler, seedRows, projections, setNow }) => {
+    seedRows((repository) => addWork(repository, projections, 'renew'));
+    const first = scheduler.acquire({ targetType: 'work' });
+    setNow(180900);
+    const renewed = scheduler.renew(first.lease);
+    assert.equal(renewed.leaseId, first.lease.leaseId);
+    setNow(181800);
+    assert.equal(scheduler.assertCurrent(first.lease).leaseId, first.lease.leaseId);
+    scheduler.release(first.lease);
+  });
+});
+
 test('stale Owner projection fails closed and Supply defer cannot cause priority inversion', () => {
   fixture(({ scheduler, seedRows, projections, supplyController }) => {
     seedRows((repository) => addWork(repository, projections, 'one'));
-    projections.set('process-one', { priorityClass: 'expedited_formation', localPriority: 0, priorityRevision: 2 });
+    projections.set('process-one', { priorityClass: 'expedited_formation', localPriority: 0, priorityRevision: 2,supplyRole:'expansion' });
     assert.throws(() => scheduler.acquire({ targetType: 'work' }), { code: 'P4_SCHEDULER_PRIORITY_PROJECTION_MISMATCH' });
-    projections.set('process-one', { priorityClass: 'normal_foreground', localPriority: 0, priorityRevision: 2 });
+    projections.set('process-one', { priorityClass: 'normal_foreground', localPriority: 0, priorityRevision: 2,supplyRole:'expansion' });
     supplyController.evaluate = () => ({ kind: 'deferred', reasonCode: 'SUPPLY_SOFT_CAP' });
     assert.deepEqual(scheduler.acquire({ targetType: 'work' }), {
       kind: 'deferred', reasonCode: 'SUPPLY_SOFT_CAP', targetType: 'work', targetId: 'work-one'

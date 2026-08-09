@@ -5,21 +5,128 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "physicalMaterialReadHandle": {
-      "$ref": "#/$defs/physicalMaterialReadHandle"
+    "fieldObservationLayoutSnapshot": {
+      "$ref": "#/$defs/fieldObservationLayoutSnapshot"
     },
     "boundedLayoutScope": {
       "$ref": "#/$defs/boundedLayoutScope"
     }
   },
   "required": [
-    "physicalMaterialReadHandle",
+    "fieldObservationLayoutSnapshot",
     "boundedLayoutScope"
   ],
   "$defs": {
-    "physicalMaterialReadHandle": {
-      "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1",
-      "x-helix-typeExpression": "PhysicalMaterialReadHandle"
+    "fieldObservationLayoutSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "const": "helix://contracts/types/FieldObservationLayoutSnapshot/v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "snapshotId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "snapshotDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "observationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fieldId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parentDirectory": {
+          "type": "string",
+          "minLength": 1
+        },
+        "entries": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "entryOrdinal": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "entryKind": {
+                "type": "string",
+                "enum": [
+                  "file",
+                  "directory"
+                ]
+              },
+              "relativeLocation": {
+                "type": "string",
+                "minLength": 1
+              },
+              "baseName": {
+                "type": "string",
+                "minLength": 1
+              },
+              "extension": {
+                "type": "string",
+                "minLength": 1
+              },
+              "identity": {
+                "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
+              },
+              "endpointId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "location": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sizeBytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "mtimeNs": {
+                "type": "string",
+                "minLength": 1
+              },
+              "entryDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "entryOrdinal",
+              "entryKind",
+              "relativeLocation",
+              "baseName",
+              "endpointId",
+              "location",
+              "entryDigest"
+            ]
+          }
+        }
+      },
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "snapshotId",
+        "snapshotDigest",
+        "observationId",
+        "fieldId",
+        "parentDirectory",
+        "entries"
+      ],
+      "x-helix-typeExpression": "FieldObservationLayoutSnapshot"
     },
     "boundedLayoutScope": {
       "$ref": "helix://contracts/domain-types/BoundedLayoutScope/v1",

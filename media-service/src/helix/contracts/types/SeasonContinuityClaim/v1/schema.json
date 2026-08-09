@@ -8,12 +8,6 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "schemaRef": {
-      "const": "helix://contracts/types/SeasonContinuityClaim/v1"
-    },
-    "schemaVersion": {
-      "const": 1
-    },
     "claimKind": {
       "type": "string",
       "enum": [
@@ -41,8 +35,6 @@
     }
   },
   "required": [
-    "schemaRef",
-    "schemaVersion",
     "claimKind",
     "claimNamespace",
     "claimKey",

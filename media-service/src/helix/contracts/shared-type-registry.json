@@ -13,13 +13,13 @@
   "entries": [
     {
       "id": "PhysicalMaterialIdentity",
-      "version": 1,
+      "version": 2,
       "role": "shared-nominal-handle",
-      "schemaId": "helix://contracts/types/PhysicalMaterialIdentity/v1",
-      "relativePath": "types/PhysicalMaterialIdentity/v1/schema.json",
+      "schemaId": "helix://contracts/types/PhysicalMaterialIdentity/v2",
+      "relativePath": "types/PhysicalMaterialIdentity/v2/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "f063352fbe808236eebb722034aeaf1b35b91e17737209f1991c35627e832da9"
+        "value": "e765cfbd01fe9943ea1edb7a3ae0a3df76ec1a65f68b1cedf9ea43b0db4d21fe"
       },
       "ssotRefs": [
         "8.6.18"
@@ -33,7 +33,7 @@
       "relativePath": "types/PhysicalMaterialReadHandle/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "e8674cfe9a19d8ebda31bbaafba89ae73a339e2d75f5240a976bfd1ed5172dc7"
+        "value": "0b5390b51b1563bc39ace0baa2dd6ac96258ad71587bad8b9823604a009b1942"
       },
       "ssotRefs": [
         "8.6.18"
@@ -47,7 +47,7 @@
       "relativePath": "types/WorkspaceMaterialHandle/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "8eed40742a4bd7433e35e5bf81af99c810f0449faab5196d21f7ed5ffc52f613"
+        "value": "0460306f3c63fe3020c2101976e3dcbaf2b8a3d3e58a1c4852df203277ee4936"
       },
       "ssotRefs": [
         "8.6.18"
@@ -75,7 +75,7 @@
       "relativePath": "types/FieldAccessHandle/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "8b17d8ff3df293679bc9cb0d63e2e66797835aa5a96f53ecd67514ce53df0da7"
+        "value": "6dc9737eb07ae11bbf096e736bb4223a1993f07f1ec6f27f1c594aa58dc8647e"
       },
       "ssotRefs": [
         "8.6.18"

@@ -484,7 +484,7 @@ Production Workspace材料；Finished Goods Region覆盖Arca当前控制的On-de
 
 | ID | Status | Prerequisite |
 | --- | --- | --- |
-| `L7-P1` | `NOT_STARTED` | 验证`mountScopeId + inode + contentHash`在目标Linux/NAS挂载上的稳定性、成本与inode复用风险 |
+| `L7-P1` | `NOT_STARTED` | 验证`mountScopeId + inode + contentFingerprint`在目标Linux/NAS挂载上的稳定性、成本与inode复用风险 |
 | `L7-P2` | `NOT_STARTED` | 设计Arca Target Commit Slot的同卷rename、跨卷copy、rollback、空间Reservation、恢复和性能合同 |
 
 ## 7. Active audit gate
@@ -1174,7 +1174,7 @@ IMPLEMENTATION AUTHORIZED   NO
 | `FA-20` | HTTP总数漏计公共health route | `DOC_FIX` | Admin/public分别计数 |
 | `FA-21` | Process表的单一`work_id`与Process→Supporting Work `0..N`冲突 | `DOC_FIX` | 以Foundation owner/process反向关系为唯一链接 |
 | `FA-22` | 持久`resource_lease_id`与Permit纯内存合同冲突 | `DOC_FIX` | 删除权威lease持久字段，只保留timing Evidence |
-| `FA-23` | Physical contentHash算法、缓存与重新验证时点仍未闭合 | `ENGINEERING_CHOICE` | 固定Beta SHA-256与stat-fenced缓存 |
+| `FA-23` | Physical contentFingerprint算法、缓存与重新验证时点仍未闭合 | `ENGINEERING_CHOICE` | 固定Beta SHA-256与stat-fenced缓存 |
 | `FA-24` | 5星Movie的4K-class精确判据被保留到Level 8但未兑现 | `ENGINEERING_CHOICE` | 补可执行raster判据和Probe字段 |
 | `FA-25` | People Candidate有dismissed状态但无用户Command/API | `DOC_FIX` | 补统一dismiss动作，不改变注册/合并Owner |
 | `FA-26` | Security页面承诺active credential revoke但无安全恢复旅程 | `DOC_FIX` | 收窄为rotate与session logout |

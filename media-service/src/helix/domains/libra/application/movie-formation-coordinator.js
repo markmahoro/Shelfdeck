@@ -107,7 +107,7 @@ function definition(schemaManifest) {
         kind: 'select-all', tableId: 'libra_material_bindings', safeIntegers: true,
         columns: [
           'subject_id', 'material_key', 'role', 'mount_scope_id', 'inode',
-          'content_hash_algorithm', 'content_hash', 'size_bytes', 'endpoint_id',
+          'fingerprint_algorithm', 'fingerprint_version', 'content_fingerprint', 'size_bytes', 'endpoint_id',
           'location', 'binding_revision', 'health_state', 'evidence_digest',
           'origin_intake_decision_id', 'origin_offer_id',
           'origin_candidate_package_id', 'origin_package_revision',
@@ -473,8 +473,10 @@ function runManifest(snapshot, controlPort, spec, libraRunId, episodeKeys) {
       physicalIdentity: Object.freeze({
         mountScopeId: row.mount_scope_id,
         inode: String(row.inode),
-        contentHashAlgorithm: row.content_hash_algorithm,
-        contentHash: row.content_hash,
+        sizeBytes: Number(row.size_bytes),
+        fingerprintAlgorithm: row.fingerprint_algorithm,
+        fingerprintVersion: Number(row.fingerprint_version),
+        contentFingerprint: row.content_fingerprint,
       }),
       sizeBytes: number(row.size_bytes),
       location: Object.freeze({

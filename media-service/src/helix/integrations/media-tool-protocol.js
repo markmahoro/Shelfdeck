@@ -5,6 +5,8 @@ const catalog = require('../contracts/ports/p5-media-tool-operation-contracts.js
 const SHA256 = /^[0-9a-f]{64}$/;
 const TOKEN = /^[a-zA-Z0-9][a-zA-Z0-9._:@-]{0,255}$/;
 const EFFECTS = new Set(['pure_observation', 'workspace_write', 'material_commit', 'destructive_commit']);
+const FFPROBE_MAX_STDOUT_BYTES = 256 * 1024;
+const FFPROBE_MAX_STDERR_BYTES = 16 * 1024;
 const operations = new Map(catalog.operations.map((operation) => [operation.operationId, Object.freeze({ ...operation })]));
 
 class MediaToolProtocolError extends Error {
@@ -57,7 +59,7 @@ function validateProfile(operation, profile) {
   const definitions = {
     'identity-v1': [[], () => true],
     'bounded-layout-v1': [['maxDepth', 'maxEntries'], (p) => count(p.maxDepth, 'maxDepth', 64) >= 0 && count(p.maxEntries, 'maxEntries', 100000) >= 0],
-    'sha256-full-v1': [[], () => true],
+    'middle-256k-sha256-v1': [[], () => true],
     'media-summary-v1': [[], () => true],
     'stage-copy-v1': [['overwrite'], (p) => p.overwrite === false],
     'declared-cleanup-v1': [['memberSetDigest'], (p) => Boolean(digest(p.memberSetDigest, 'memberSetDigest'))],
@@ -167,8 +169,10 @@ function ffmpegArgs(operation, grant, profile) {
 
 function commandFor(operation, grant, profile) {
   if (operation.tool === 'ffprobe') return freeze({ tool: 'ffprobe', atomId: operation.atomId,
-    argv: ['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', grant.sourcePaths[0]],
-    timeoutMs: operation.timeoutMs, maxStdoutBytes: 65536, maxStderrBytes: 16384 });
+    argv: ['-v', 'fatal', '-of', 'json=compact=1', '-show_streams', '-show_entries',
+      'format=format_name,duration,size:stream=index,codec_type,codec_name,profile,width,height,channels,channel_layout,disposition:stream_tags=language,title',
+      grant.sourcePaths[0]], timeoutMs: operation.timeoutMs,
+    maxStdoutBytes: FFPROBE_MAX_STDOUT_BYTES, maxStderrBytes: FFPROBE_MAX_STDERR_BYTES });
   if (operation.tool === 'ffmpeg') return freeze({ tool: 'ffmpeg', atomId: operation.atomId,
     argv: ffmpegArgs(operation, grant, profile), timeoutMs: operation.timeoutMs, maxStdoutBytes: 16384, maxStderrBytes: 65536 });
   return null;
@@ -177,13 +181,18 @@ function commandFor(operation, grant, profile) {
 function validateAdapterResult(result, operation, options) {
   if (operation.tool === 'ffprobe' || operation.tool === 'ffmpeg') {
     exact(result, ['bytesAffected', 'exitCode', 'outputDigest', 'stderrUtf8', 'stdoutUtf8', 'verificationEvidenceDigest'], 'P5_MEDIA_TOOL_PROCESS_RESULT_SHAPE');
-    if (result.exitCode !== 0 || typeof result.stdoutUtf8 !== 'string' || typeof result.stderrUtf8 !== 'string' ||
-        Buffer.byteLength(result.stdoutUtf8, 'utf8') > (operation.tool === 'ffprobe' ? 65536 : 16384) || Buffer.byteLength(result.stderrUtf8, 'utf8') > 65536) {
+    if (typeof result.stdoutUtf8 !== 'string' || typeof result.stderrUtf8 !== 'string' ||
+        Buffer.byteLength(result.stdoutUtf8, 'utf8') > (operation.tool === 'ffprobe' ? FFPROBE_MAX_STDOUT_BYTES : 16384) ||
+        Buffer.byteLength(result.stderrUtf8, 'utf8') > (operation.tool === 'ffprobe' ? FFPROBE_MAX_STDERR_BYTES : 65536)) {
       fail('P5_MEDIA_TOOL_PROCESS_RESULT_INVALID', 'Typed process result is invalid or failed.');
     }
     digest(result.outputDigest, 'outputDigest'); digest(result.verificationEvidenceDigest, 'verificationEvidenceDigest');
     count(result.bytesAffected, 'bytesAffected', Number.MAX_SAFE_INTEGER);
-    if (operation.tool === 'ffprobe') return normalizeProbe(result, options);
+    if (operation.tool === 'ffprobe') {
+      if (result.exitCode !== 0) return normalizeProbeFailure(result, options);
+      return normalizeProbe(result, options);
+    }
+    if (result.exitCode !== 0) fail('P5_MEDIA_TOOL_PROCESS_RESULT_INVALID', 'Media transform process failed.');
     return freeze({ ...result, evidence: { bytesAffected: result.bytesAffected } });
   }
   exact(result, ['bytesAffected', 'evidence', 'itemCount', 'outputDigest', 'verificationEvidenceDigest'], 'P5_MEDIA_TOOL_ADAPTER_RESULT_SHAPE');
@@ -207,10 +216,13 @@ function validateTypedEvidence(operation, evidence) {
     exact(evidence, ['entryCount', 'layoutDigest', 'truncated'], 'P5_MEDIA_TOOL_LAYOUT_EVIDENCE_SHAPE');
     count(evidence.entryCount, 'entryCount', 100000); digest(evidence.layoutDigest, 'layoutDigest');
     if (typeof evidence.truncated !== 'boolean') fail('P5_MEDIA_TOOL_LAYOUT_EVIDENCE', 'Layout evidence truncation marker is invalid.');
-  } else if (operation.atomId === 'content.sha256.full@1') {
-    exact(evidence, ['algorithm', 'digestHex', 'fullHashComplete', 'sizeBytes'], 'P5_MEDIA_TOOL_HASH_EVIDENCE_SHAPE');
-    if (evidence.algorithm !== 'sha256' || evidence.fullHashComplete !== true || !Number.isSafeInteger(evidence.sizeBytes) || evidence.sizeBytes < 0) {
-      fail('P5_MEDIA_TOOL_HASH_EVIDENCE', 'Full SHA-256 evidence is invalid.');
+  } else if (operation.atomId === 'material.middle-256k-sha256@1') {
+    exact(evidence, ['algorithm', 'bytesSampled', 'digestHex', 'sampleLength', 'sampleOffset', 'sizeBytes'], 'P5_MEDIA_TOOL_FINGERPRINT_EVIDENCE_SHAPE');
+    if (evidence.algorithm !== 'middle-256k-sha256' || !Number.isSafeInteger(evidence.sizeBytes) || evidence.sizeBytes < 0 ||
+        !Number.isSafeInteger(evidence.sampleOffset) || !Number.isSafeInteger(evidence.sampleLength) ||
+        evidence.sampleLength !== Math.min(evidence.sizeBytes, 262144) || evidence.bytesSampled !== evidence.sampleLength ||
+        evidence.sampleOffset !== Math.floor((evidence.sizeBytes - evidence.sampleLength) / 2)) {
+      fail('P5_MEDIA_TOOL_FINGERPRINT_EVIDENCE', 'Bounded middle-sample fingerprint evidence is invalid.');
     }
     digest(evidence.digestHex, 'digestHex');
   }
@@ -229,9 +241,17 @@ function normalizeProbe(result, options) {
     streams: parsed.streams.map((stream) => ({ index: Number(stream.index), codecType: String(stream.codec_type || '').slice(0, 32),
       codecName: String(stream.codec_name || '').slice(0, 64), width: Number(stream.width || 0), height: Number(stream.height || 0), channels: Number(stream.channels || 0) }))
   };
+  if (Buffer.byteLength(canonical(evidence), 'utf8') > 65536) {
+    fail('P5_MEDIA_TOOL_EVIDENCE_INVALID', 'Normalized Media Probe evidence exceeds the typed 64 KiB bound.');
+  }
   const evidenceDigest = options.digest(canonical(evidence));
   if (evidenceDigest !== result.verificationEvidenceDigest) fail('P5_MEDIA_TOOL_PROBE_DIGEST', 'Probe evidence digest does not match normalized output.');
   return freeze({ ...result, evidence });
+}
+
+function normalizeProbeFailure(result, options) {
+  const evidence = { formatName: '', durationMs: 0, sizeBytes: 0, streams: [], resultKind: 'not_media', reasonCode: 'probe_not_media' };
+  return freeze({ ...result, evidence, exitCode: Number(result.exitCode) });
 }
 
 function createAdapter(portExport, effectClass, options) {
@@ -280,7 +300,9 @@ function createAdapter(portExport, effectClass, options) {
 
 module.exports = Object.freeze({
   MediaToolProtocolError,
-  createContentHashAdapter: (options) => createAdapter('ContentHashPort', 'pure_observation', options),
+  FFPROBE_MAX_STDOUT_BYTES,
+  FFPROBE_MAX_STDERR_BYTES,
+  createBoundedFingerprintAdapter: (options) => createAdapter('BoundedFingerprintPort', 'pure_observation', options),
   createDestructiveCommitAdapter: (options) => createAdapter('FilesystemDestructiveCommitPort', 'destructive_commit', options),
   createFilesystemObservationAdapter: (options) => createAdapter('FilesystemObservationPort', 'pure_observation', options),
   createMaterialCommitAdapter: (options) => createAdapter('FilesystemMaterialCommitPort', 'material_commit', options),

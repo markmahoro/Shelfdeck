@@ -52,12 +52,14 @@ function fixture(run) {
 
 function identity(name) {
   const value = {
-    schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v1',
-    schemaVersion: 1,
+    schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v2',
+    schemaVersion: 2,
     mountScopeId: 'mount-1',
     inode: BigInt('0x' + digest('inode-' + name).slice(0, 15)).toString(),
-    contentHashAlgorithm: 'sha256',
-    contentHash: digest('content-' + name)
+    sizeBytes: 100,
+    fingerprintAlgorithm: 'middle-256k-sha256',
+    fingerprintVersion: 1,
+    contentFingerprint: digest('content-' + name)
   };
   value.materialKey = materialKey(value);
   return value;

@@ -72,7 +72,7 @@
       },
       {
         "ordinal": 7,
-        "name": "content_hash_algorithm",
+        "name": "fingerprint_algorithm",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -82,7 +82,7 @@
       },
       {
         "ordinal": 8,
-        "name": "content_hash",
+        "name": "fingerprint_version",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -92,6 +92,16 @@
       },
       {
         "ordinal": 9,
+        "name": "content_fingerprint",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
         "name": "size_bytes",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -101,7 +111,7 @@
         "nullable": false
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "binding_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -111,7 +121,7 @@
         "nullable": false
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "admitted_control_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -121,7 +131,7 @@
         "nullable": false
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "admitted_control_projection_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -131,7 +141,7 @@
         "nullable": false
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "member_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -193,13 +203,13 @@
       "Identity/size随Candidate Publication原子复制且published row immutable，历史Delivery不得旁读current Field Material补值"
     ],
     "rawContract": {
-      "columns": "`candidate_package_id FK, ordinal, material_key, role(primary_payload|structural_dependency), mount_scope_id, inode, content_hash_algorithm, content_hash, size_bytes, binding_revision, admitted_control_revision, admitted_control_projection_digest, member_digest`",
+      "columns": "`candidate_package_id FK, ordinal, material_key, role(primary_payload|structural_dependency), mount_scope_id, inode, fingerprint_algorithm, fingerprint_version, content_fingerprint, size_bytes, binding_revision, admitted_control_revision, admitted_control_projection_digest, member_digest`",
       "constraints": "`PK(candidate_package_id,ordinal)`及`UNIQUE(candidate_package_id,material_key)`；ordinal从0连续；每行必须与Candidate Draft Unit、final Manifest member及对应immutable Run member的material/Physical Identity/size/binding/admitted Control逐项一致；Identity/size随Candidate Publication原子复制且published row immutable，历史Delivery不得旁读current Field Material补值"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8532,
-      "lineDigest": "ecd8dcba4609b46645ff5b2f966d95ea8c2b8e809883ded13af6efe68a5204d9"
+      "line": 8655,
+      "lineDigest": "9113df03d7d6e52246bc63b31493d5254d8e1d7617a2af4442254ecf780e74ca"
     },
     "foreignKeys": [
       {

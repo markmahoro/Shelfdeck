@@ -44,7 +44,7 @@ function expectedCatalog(manifest) {
 
 function assertManifest(manifest, ddl) {
   if (!manifest || manifest.schemaVersion !== 1 || manifest.compilerContract !== 'helix-p3-deterministic-sqlite-ddl/v1' ||
-      manifest.tableCount !== 178 || !Array.isArray(manifest.tables) || manifest.tables.length !== 178) {
+      manifest.tableCount !== 179 || !Array.isArray(manifest.tables) || manifest.tables.length !== 179) {
     fail('P3_SQLITE_INVALID_SCHEMA_MANIFEST', 'The clean schema manifest is incomplete or unsupported.');
   }
   if (manifest.digestAlgorithm !== 'sha256' || digest(normalizedDdl(ddl)) !== manifest.ddlDigest) {
@@ -169,18 +169,20 @@ function assertMessageConsistency(database) {
 
 function assertMaterialControlConsistency(database) {
   const controls = database.prepare(
-    'SELECT material_key,mount_scope_id,inode,content_hash_algorithm,content_hash,owner_domain,owner_scope_type,owner_scope_id,control_revision,state FROM fx_material_controls'
+    'SELECT material_key,mount_scope_id,inode,size_bytes,fingerprint_algorithm,fingerprint_version,content_fingerprint,owner_domain,owner_scope_type,owner_scope_id,control_revision,state FROM fx_material_controls'
   ).all();
   const revisionsStatement = database.prepare(
     'SELECT revision,operation_kind,to_owner_domain,to_scope_type,to_scope_id FROM fx_material_control_revisions WHERE material_key=? ORDER BY revision'
   );
   for (const control of controls) {
     const identity = {
-      schema: 'physical-material-identity@1',
+      schema: 'physical-material-identity@2',
       mountScopeId: control.mount_scope_id,
       inode: control.inode,
-      contentHashAlgorithm: control.content_hash_algorithm,
-      contentHash: control.content_hash
+      sizeBytes: Number(control.size_bytes),
+      fingerprintAlgorithm: control.fingerprint_algorithm,
+      fingerprintVersion: Number(control.fingerprint_version),
+      contentFingerprint: control.content_fingerprint
     };
     const identityJson = JSON.stringify(identity, Object.keys(identity).sort());
     const revisions = revisionsStatement.all(control.material_key);
@@ -190,7 +192,8 @@ function assertMaterialControlConsistency(database) {
     const targetValid = control.state === 'controlled'
       ? latest && latest.to_owner_domain === control.owner_domain && latest.to_scope_type === control.owner_scope_type && latest.to_scope_id === control.owner_scope_id
       : latest && latest.operation_kind === 'release' && control.owner_domain === null && control.owner_scope_type === null && control.owner_scope_id === null;
-    if (control.content_hash_algorithm !== 'sha256' || digest(identityJson) !== control.material_key || !sequenceValid || !targetValid) {
+    if (control.fingerprint_algorithm !== 'middle-256k-sha256' || Number(control.fingerprint_version) !== 1 ||
+        digest(identityJson) !== control.material_key || !sequenceValid || !targetValid) {
       fail('P3_SQLITE_MATERIAL_CONTROL_DRIFT', 'Current Material Control and append-only revision history are inconsistent.', {
         materialKey: control.material_key
       });

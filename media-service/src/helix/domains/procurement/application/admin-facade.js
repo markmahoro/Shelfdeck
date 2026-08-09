@@ -9,11 +9,11 @@ const {
   createFailedPreparationRetryAdminService,
 } = require('./failed-preparation-retry-admin-service');
 const {
-  createProcurementAutomationService,
-} = require('./procurement-automation-service');
-const {
   createDefaultTriageRuleRegistry,
 } = require('../model/procurement-run-contracts');
+const {
+  createProcurementFieldStatusQuery,
+} = require('./field-procurement-status-query');
 const {
   assertProfileHint,
 } = require('../model/field-profile-hint-contracts');
@@ -174,21 +174,17 @@ function createProcurementAdminApplication(options) {
   if (!options?.schemaManifest || !options.unitOfWork) {
     throw new TypeError('Procurement Admin application requires clean persistence dependencies.');
   }
-  const store = createMaterialFieldStore(options);
+  const store = options.materialFieldStore || createMaterialFieldStore(options);
+  const fieldStatus = createProcurementFieldStatusQuery(options);
   const observation = createFieldObservationAdminService({
     ...options,
     materialFieldStore: store,
     now: options.now || Date.now,
   });
   const triageRegistry = options.triageRegistry || createDefaultTriageRuleRegistry();
-  const retry = createFailedPreparationRetryAdminService({
-    ...options,
-    triageRegistry,
-  });
-  const automation = createProcurementAutomationService({
-    ...options,
-    triageRegistry,
-  });
+  const retry = options.workRuntime
+    ? createFailedPreparationRetryAdminService({ ...options, triageRegistry })
+    : null;
   const commands = procurementPublic.ProcurementCommandFacade({
     registerMaterialField: (envelope) => store.commitAdminCommand({ operation: 'register', ...envelope }),
     updateMaterialField: (envelope) => {
@@ -207,16 +203,27 @@ function createProcurementAdminApplication(options) {
       ...envelope.input,
       idempotencyKey: envelope.idempotencyKey,
     }),
-    retryFailedPreparation: (envelope) => retry.retry({
-      ...envelope.input,
-      idempotencyKey: envelope.idempotencyKey,
-      actorId: envelope.actorId,
-    }),
+    retryFailedPreparation: (envelope) => retry
+      ? retry.retry({
+        ...envelope.input,
+        idempotencyKey: envelope.idempotencyKey,
+        actorId: envelope.actorId,
+      })
+      : unavailable('retryFailedPreparation')(),
     deregisterMaterialField: (envelope) => store.commitAdminCommand({ operation: 'deregister', ...envelope }),
   });
   const queries = procurementPublic.ProcurementQueryFacade({
-    listMaterialFields: () => store.listMaterialFields(),
-    getMaterialField: ({ fieldId }) => store.getMaterialField(fieldId),
+    listMaterialFields: () => store.listMaterialFields().map((field) => Object.freeze({
+      ...field,
+      procurementStatus: fieldStatus.read(field.fieldId),
+    })),
+    getMaterialField: ({ fieldId }) => {
+      const field = store.getMaterialField(fieldId);
+      return field ? Object.freeze({
+        ...field,
+        procurementStatus: fieldStatus.read(field.fieldId),
+      }) : null;
+    },
     getExtractionPolicy: ({ extractionPolicyId, revision }) => store.getExtractionPolicy(extractionPolicyId, revision),
     getCandidatePackage: unavailable('getCandidatePackage'),
   });
@@ -267,19 +274,26 @@ function createProcurementAdminApplication(options) {
     },
     async requestFieldObservation(fieldId, body) {
       try {
+        const envelope = commandEnvelope(body, fieldId);
+        const field = store.getMaterialField(fieldId);
+        if (!field) {
+          throw new ProcurementAdminApplicationError(
+            'ADMIN_FIELD_NOT_FOUND',
+            'Material Field不存在。',
+            { fieldId },
+          );
+        }
+        if (field.currentProfileHintSnapshot?.contentProfileHint !== 'movie') {
+          throw new ProcurementAdminApplicationError(
+            'ADMIN_MEDIA_PROFILE_UNSUPPORTED',
+            '当前Milestone只支持Movie Material Field。',
+            { contentProfileHint: field.currentProfileHintSnapshot?.contentProfileHint },
+          );
+        }
         const observed = await commands.requestFieldObservation(
-          commandEnvelope(body, fieldId),
+          envelope,
         );
-        const procurementAutomation = automation.advanceFromObservation(observed);
-        const movieJourney = procurementAutomation.stage === 'procurement_run_active' &&
-          options.movieRunCoordinator
-          ? await options.movieRunCoordinator.advance(procurementAutomation.procurementRunId)
-          : null;
-        return Object.freeze({
-          observation: observed,
-          procurementAutomation,
-          ...(movieJourney ? { movieJourney } : {}),
-        });
+        return Object.freeze({ observation: observed });
       } catch (error) {
         rejected(error);
       }

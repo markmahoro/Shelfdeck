@@ -19,12 +19,14 @@ const schemaManifest = JSON.parse(fs.readFileSync(path.join(generatedRoot, 'clea
 const manifests = Object.freeze({
   'libra.fixture.observe@1': Object.freeze({
     capabilityRef: 'libra.fixture.observe@1', contractVersion: 1, ownerScope: 'libra', effectClass: 'pure_observation',
+    inputPorts: { inputId: { schemaRef: 'helix://fixture/input-id', required: true, cardinality: 'one' } },
     parametersSchemaRef: 'helix://fixture/observe/parameters', resultSchemaRef: 'helix://fixture/observe/result',
     evidenceSchemaRef: 'helix://fixture/observe/evidence', fenceSchemaRef: 'helix://fixture/observe/fence',
     resourceDemandSchemaRef: 'helix://fixture/observe/resource-demand', executorCompatibility: { minimumVersion: 1 }
   }),
   'libra.fixture.commit@1': Object.freeze({
     capabilityRef: 'libra.fixture.commit@1', contractVersion: 1, ownerScope: 'libra', effectClass: 'domain_fact_commit',
+    inputPorts: { inputId: { schemaRef: 'helix://fixture/input-id', required: true, cardinality: 'one' } },
     parametersSchemaRef: 'helix://fixture/commit/parameters', resultSchemaRef: 'helix://fixture/commit/result',
     evidenceSchemaRef: 'helix://fixture/commit/evidence', fenceSchemaRef: 'helix://fixture/commit/fence',
     resourceDemandSchemaRef: 'helix://fixture/commit/resource-demand', approvalRequirementRef: 'helix://fixture/approval',
@@ -97,6 +99,22 @@ test('validator freezes a deterministic acyclic Plan with exact Capability contr
   assert.equal(first.graphDigest, second.graphDigest);
   assert.match(first.graphDigest, /^[0-9a-f]{64}$/);
   assert.equal(Object.isFrozen(first.plan.nodes), true);
+});
+
+test('Plan declares a typed predecessor Result binding without embedding unavailable output', () => {
+  const observe = node('observe');
+  const commit = node('commit', {
+    dependsOn: [{ eventId: observe.eventId, satisfaction: 'success' }],
+    inputBindings: {
+      schemaRef: 'helix://foundation/types/EventInputBindingSet/v1', schemaVersion: 1,
+      bindings: [{ portName: 'inputId', bindingKind: 'event_result', eventId: observe.eventId,
+        resultSchemaRef: manifests['libra.fixture.observe@1'].resultSchemaRef }],
+    },
+  });
+  assert.equal(validateWorkflowPlan(plan({ nodes: [observe, commit] }), { registry, contractValidator, policyRegistry })
+    .plan.nodes[1].inputBindings.bindings[0].eventId, observe.eventId);
+  assert.throws(() => validateWorkflowPlan(plan({ nodes: [observe, { ...commit, dependsOn: [] }] }),
+    { registry, contractValidator, policyRegistry }), { code: 'P4_PLAN_RESULT_BINDING_DEPENDENCY_REQUIRED' });
 });
 
 test('validator rejects cycle, missing/duplicate dependency, duplicate identity, and contract drift', () => {

@@ -98,7 +98,10 @@ test('dispatcher rejects owner/context/output drift and non-pure success without
 
 test('real CapabilityExecutionContext schema rejects forbidden authority fields', () => {
   const typeRoot = path.join(serviceRoot, 'src/helix/contracts/types');
-  const schemas = fs.readdirSync(typeRoot).map((name) => JSON.parse(fs.readFileSync(path.join(typeRoot, name, 'v1/schema.json'), 'utf8')));
+  const schemas = fs.readdirSync(typeRoot).map((name) => {
+    const version=fs.readdirSync(path.join(typeRoot,name)).find((entry)=>/^v[0-9]+$/.test(entry));
+    return JSON.parse(fs.readFileSync(path.join(typeRoot,name,version,'schema.json'),'utf8'));
+  });
   const validator = createCapabilityContractValidator({ schemas });
   assert.equal(validator.validate('helix://contracts/types/CapabilityExecutionContext/v1', context()).executionId, 'execution-1');
   for (const field of ['repository', 'store', 'facade', 'planner', 'runtime', 'governor', 'executor', 'config', 'task']) {
@@ -118,6 +121,10 @@ test('Capability runtime sources contain no fallback, historical flow routing, S
   assert.deepEqual(policy.externalModuleRules, [
     { source: 'contracts', allow: ['node:crypto'] },
     { source: 'platform.public', allow: ['node:crypto'] },
-    { source: 'foundation.capability', allow: ['ajv/dist/2020', 'ajv-formats'] }
+    { source: 'foundation.capability', allow: ['ajv/dist/2020', 'ajv-formats'] },
+    { source: 'composition', allow: ['node:fs', 'node:os', 'node:path', 'node:crypto'] },
+    { source: 'domains.*.model', allow: ['node:path'] },
+    { source: 'domains.*.planning', allow: ['node:path'] },
+    { source: 'integrations', allow: ['node:crypto', 'node:fs'] }
   ]);
 });

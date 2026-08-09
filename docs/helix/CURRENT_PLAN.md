@@ -1,8 +1,50 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: Levels 0–10 accepted; P0–P13 complete; Helix Local Implementation closed; independent P14 qualification not started.
+Status: Execution Foundation已封口（CLOSED FOR DOMAIN ONBOARDING）；Procurement Triage Unit/Candidate Assembly性能修正及本地全库Canary已完成。
 
-Last updated: 2026-07-23
+Last updated: 2026-08-09
+
+## 0. Active implementation checkpoints
+
+本轮在已经恢复的`Run → Work → Event`产品路径上正式封闭Execution Foundation的设计与实现接口；不回退Mirex，不重建骨架，
+不进入Libra或Arca：
+
+1. **SSOT封闭**：明确Event有界并发、`maxInFlightEvents=16`、typed Resource Key、精确Process reconcile、30秒fallback sweep、
+   Domain Execution Projection及soft/hard cap语义；新增`fx_reconcile_cursors`，clean table总数为179。
+2. **产品接线修复**：Runtime Host有界启动多个Event；Resource Governor逐Event原子发放Permit bundle；Scheduler、Work Supply与
+   waiter遵守同一Domain Execution Projection；删除每Event全Run扫描及整Field Triage读取。
+3. **Foundation封口验证**：以产品Composition Root覆盖并发、Permit、immutable Plan、Result Binding、terminal aggregation、
+   205个Process三页cursor恢复、lost wake、retry/defer/timeout及七类Effect crash window。
+4. **Procurement压力回归**：以260个Candidate需求证明hard cap有界、completion持续产出、Package/Offer早于全部Run Seal，且
+   Coordinator不执行Capability、不做整Field读取。
+5. **最终全库Canary与封口**：本地Node.js在新的系统Temp clean数据库上运行`Z:\Film`只读Canary；原进程中断后从同一
+   durable数据库恢复，未重扫Observation。最终8/8 Run Seal、1,751 Candidate Package/1,751 open Handoff A Offer、
+   `failedWorks=0`、`failedEvents=0`、源Reality前后一致、Libra/Arca为0，已改为`CLOSED FOR DOMAIN ONBOARDING`。
+
+Checkpoint 1–5的实现与本地fixture已经完成；Layout Snapshot及Triage Unit/Candidate Context改造的Node回归和Procurement压力fixture已通过；全量真实Canary已完成。运行边界固定为本机Node.js、临时clean数据库和
+只读媒体源；不使用Docker、不部署NAS、不消费Handoff A Offer、不进入Libra或Arca。
+
+Physical Material Identity不承担NAS字节完整性证明。所有Physical Material统一使用`middle-256k-sha256`：读取正中间最多
+262,144 bytes并执行前后stat fence；禁止首次登记、Control、Binding或Effect Fence触发全文件Hash。Artifact、Canonical JSON和
+事务Evidence的SHA-256保持不变。当前本地数据库不迁移Identity v1，也不保留alias、fallback或dual contract。
+
+2026-08-09 Layout性能修订：唯一SSOT已补充Field Observation Layout Snapshot合同。Observation terminal后生成可复用的
+profile-neutral目录索引；Evidence Assessment按唯一直接父目录规划Layout Event，Triage Layout只读取Snapshot，不再
+执行NAS `readdir`或相关文件指纹读取。Media Probe仍保持为独立Event并只对Run Selection访问源文件。
+
+2026-08-09 BDMV拓扑边界已确认（Design记录，尚未宣称新增实现完成）：BDMV不是pre-triage的`movie`类别，
+而是Run Creator使用的不可拆分container group。最近`BDMV`祖先目录下的全部terminal Observation成员必须进入同一Run，
+完整group可以与其他group按稳定顺序装入同一Run，单个group超过256项时整体不建Run。Structure只消费完整group，
+解析Playlist、Clip与结构依赖并形成单标题Triage Unit；BDMV内部成员不得各自形成Candidate，多标题/歧义/不完整保持
+`not_ready`。Run Admission不得等待Structure发现依赖后再静默扩张；所需结构成员必须在Admission前完成Observation、
+Eligibility和Control。该决定不新增Domain、Business Object、Capability、Result family、表或Admin route。
+
+当前产品压力证据为260个Movie Primary、2个并存Run：260份Candidate Assembly Work最终形成260个Package和260个open
+Handoff A Offer，全部Run Seal，零failed Work/Event；开放Work从未突破256。全链由产品Composition Root中的Scheduler、
+Event Runtime及typed Resource Governor推进；没有Coordinator直接执行Capability的路径。
+
+此前同步Coordinator路径完成的单Movie Canary保留为低层Capability和Owner事实的诊断证据，但它绕过了产品形态的Work Scheduler、
+Event Runtime与Resource Governor，因此自本计划起不再作为有效Foundation E2E或Handoff A Ready E2E验收证据。
 
 ## 1. Role and authority
 

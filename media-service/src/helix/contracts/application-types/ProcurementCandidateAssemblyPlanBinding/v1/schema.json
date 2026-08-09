@@ -19,6 +19,255 @@
           "const": 1
         },
         "bindingKind": {
+          "const": "layout"
+        },
+        "assemblyBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "ordinal": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "readHandle": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "identity": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "schemaRef": {
+                  "const": "helix://contracts/types/PhysicalMaterialIdentity/v2"
+                },
+                "schemaVersion": {
+                  "const": 2
+                },
+                "materialKey": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "mountScopeId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "inode": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "sizeBytes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "fingerprintAlgorithm": {
+                  "const": "middle-256k-sha256"
+                },
+                "fingerprintVersion": {
+                  "const": 1
+                },
+                "contentFingerprint": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "required": [
+                "schemaRef",
+                "schemaVersion",
+                "materialKey",
+                "mountScopeId",
+                "inode",
+                "sizeBytes",
+                "fingerprintAlgorithm",
+                "fingerprintVersion",
+                "contentFingerprint"
+              ]
+            },
+            "bindingRevision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "location": {
+              "type": "string",
+              "minLength": 1
+            },
+            "endpointId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          },
+          "required": [
+            "identity",
+            "bindingRevision",
+            "location",
+            "endpointId"
+          ]
+        },
+        "boundedLayoutScope": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "schemaRef": {
+              "const": "helix://contracts/domain-types/BoundedLayoutScope/v1"
+            },
+            "schemaVersion": {
+              "const": 1
+            },
+            "scopeId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "digest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "rootHandleDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "maxDepth": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "maxMembers": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 256
+            },
+            "typedParameters": {
+              "type": "array",
+              "maxItems": 256,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "parameter": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-zA-Z0-9_.-]{0,127}$"
+                  },
+                  "valueType": {
+                    "type": "string",
+                    "enum": [
+                      "string",
+                      "integer",
+                      "number",
+                      "boolean"
+                    ]
+                  },
+                  "value": {
+                    "type": [
+                      "string",
+                      "integer",
+                      "number",
+                      "boolean"
+                    ]
+                  },
+                  "valueDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "parameter",
+                  "valueType",
+                  "value",
+                  "valueDigest"
+                ]
+              }
+            }
+          },
+          "required": [
+            "schemaRef",
+            "schemaVersion",
+            "scopeId",
+            "revision",
+            "digest",
+            "rootHandleDigest",
+            "maxDepth",
+            "maxMembers",
+            "typedParameters"
+          ]
+        },
+        "outputIdentity": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "role": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "eventId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "resultId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "capabilityRef": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "resultSchemaRef": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          },
+          "required": [
+            "role",
+            "eventId",
+            "resultId",
+            "capabilityRef",
+            "resultSchemaRef"
+          ]
+        },
+        "bindingDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "bindingKind",
+        "assemblyBasisDigest",
+        "ordinal",
+        "readHandle",
+        "boundedLayoutScope",
+        "outputIdentity",
+        "bindingDigest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "const": "helix://contracts/application-types/ProcurementCandidateAssemblyPlanBinding/v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "bindingKind": {
           "const": "media_probe"
         },
         "assemblyBasisDigest": {
@@ -39,10 +288,10 @@
               "additionalProperties": false,
               "properties": {
                 "schemaRef": {
-                  "const": "helix://contracts/types/PhysicalMaterialIdentity/v1"
+                  "const": "helix://contracts/types/PhysicalMaterialIdentity/v2"
                 },
                 "schemaVersion": {
-                  "const": 1
+                  "const": 2
                 },
                 "materialKey": {
                   "type": "string",
@@ -59,10 +308,17 @@
                   "minLength": 1,
                   "maxLength": 256
                 },
-                "contentHashAlgorithm": {
-                  "const": "sha256"
+                "sizeBytes": {
+                  "type": "integer",
+                  "minimum": 0
                 },
-                "contentHash": {
+                "fingerprintAlgorithm": {
+                  "const": "middle-256k-sha256"
+                },
+                "fingerprintVersion": {
+                  "const": 1
+                },
+                "contentFingerprint": {
                   "type": "string",
                   "minLength": 1,
                   "pattern": "^[a-f0-9]{64}$"
@@ -74,8 +330,10 @@
                 "materialKey",
                 "mountScopeId",
                 "inode",
-                "contentHashAlgorithm",
-                "contentHash"
+                "sizeBytes",
+                "fingerprintAlgorithm",
+                "fingerprintVersion",
+                "contentFingerprint"
               ]
             },
             "bindingRevision": {

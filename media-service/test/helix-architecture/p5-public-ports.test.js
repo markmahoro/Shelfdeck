@@ -17,7 +17,7 @@ const PLATFORM_EXPORTS = [
   'PlatformWorkspaceRuntimePort', 'ResourceProfileQueryPort', 'SecretLeaseResolverPort', 'WorkerHandleResolverPort'
 ];
 const INTEGRATION_EXPORTS = [
-  'ContentHashPort', 'ExternalProviderArtifactPort', 'ExternalProviderObservationPort', 'ExternalProviderRequestPort',
+  'BoundedFingerprintPort', 'ExternalProviderArtifactPort', 'ExternalProviderObservationPort', 'ExternalProviderRequestPort',
   'FilesystemDestructiveCommitPort', 'FilesystemMaterialCommitPort', 'FilesystemObservationPort', 'MediaProbePort',
   'MediaTransformPort', 'WorkerComputePort', 'WorkspaceFileEffectPort'
 ];
@@ -58,7 +58,7 @@ test('Platform and Integration entry points export only nominal factories plus p
   assert.equal(integrations.PACKAGE_ID, 'integrations');
 
   const platformPort = platformPublic.MountScopeResolverPort({ resolve: (input) => input });
-  const integrationPort = integrations.ContentHashPort({ execute: (input) => input });
+  const integrationPort = integrations.BoundedFingerprintPort({ execute: (input) => input });
   const artifactPort = foundationPublic.ArtifactQueryPort({ query: (input) => input });
   const workspacePort = platformPublic.PlatformWorkspaceRuntimePort({
     resolveWorkspaceRoot: (input) => input, assessWorkspaceSpace: (input) => input

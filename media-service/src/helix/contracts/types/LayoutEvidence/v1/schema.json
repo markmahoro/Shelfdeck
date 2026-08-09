@@ -82,7 +82,7 @@
             "minLength": 1
           },
           "identity": {
-            "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v1"
+            "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
           },
           "endpointId": {
             "type": "string",
@@ -100,14 +100,6 @@
           "mtimeNs": {
             "type": "string",
             "minLength": 1
-          },
-          "checksumAlgorithm": {
-            "const": "sha256"
-          },
-          "checksumHex": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
           },
           "entryDigest": {
             "type": "string",

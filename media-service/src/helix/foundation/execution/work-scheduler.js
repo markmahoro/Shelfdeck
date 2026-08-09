@@ -7,7 +7,12 @@ const { PRIORITY_CLASSES } = require('./runtime-contracts');
 const TERMINAL_EVENT_STATES = new Set(['succeeded', 'skipped', 'failed', 'cancelled']);
 const WORK_STATES = new Set(['admitted', 'ready']);
 const AGING_INTERVAL_MS = 60000;
-const DEFAULT_LEASE_TTL_MS = 5000;
+// Planning is allowed to build a bounded immutable plan from durable facts.  A
+// five-second technical lease is shorter than a legitimate plan construction
+// (especially when SQLite is briefly contended), so the default must cover the
+// whole planning critical section.  Long-running callers can still renew the
+// lease; this is only the safe default, not a work-duration contract.
+const DEFAULT_LEASE_TTL_MS = 60000;
 
 class WorkSchedulerError extends Error {
   constructor(code, message, details = {}) { super(message); this.name = 'WorkSchedulerError'; this.code = code; this.details = details; }
@@ -35,7 +40,7 @@ function repositories(schemaManifest) {
   return Object.freeze({
     works: createRepositoryDefinition({ repositoryId: 'scheduler_works', owner: 'execution-foundation', schemaManifest, statements: {
       list: { kind: 'select-all', tableId: 'fx_supporting_works', columns: [
-        'work_id', 'owner_domain', 'process_type', 'process_id', 'priority_class', 'state', 'created_at_ms'
+        'work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'priority_class', 'state', 'created_at_ms'
       ], keyColumns: [] }
     } }),
     events: createRepositoryDefinition({ repositoryId: 'scheduler_events', owner: 'execution-foundation', schemaManifest, statements: {
@@ -53,9 +58,10 @@ function repositories(schemaManifest) {
 
 function assertProjection(projection, work) {
   if (!projection || typeof projection !== 'object' || Array.isArray(projection) ||
-      JSON.stringify(Object.keys(projection).sort()) !== JSON.stringify(['localPriority', 'priorityClass', 'priorityRevision']) ||
+      JSON.stringify(Object.keys(projection).sort()) !== JSON.stringify(['localPriority', 'priorityClass', 'priorityRevision', 'supplyRole']) ||
       !PRIORITY_CLASSES.includes(projection.priorityClass) || !Number.isSafeInteger(projection.localPriority) || projection.localPriority < 0 ||
-      !Number.isSafeInteger(projection.priorityRevision) || projection.priorityRevision < 1) {
+      !Number.isSafeInteger(projection.priorityRevision) || projection.priorityRevision < 1 ||
+      !['expansion','completion'].includes(projection.supplyRole)) {
     fail('P4_SCHEDULER_PRIORITY_PROJECTION_INVALID', 'Owner priority provider returned an invalid projection.', { workId: work.work_id });
   }
   if (projection.priorityClass !== work.priority_class) {
@@ -134,7 +140,7 @@ function createWorkScheduler(options) {
       const work = request.targetType === 'work' ? target : workById.get(target.work_id);
       if (!work) fail('P4_SCHEDULER_WORK_FACT_MISSING', 'Event has no corresponding Supporting Work.', { eventId: target.event_id });
       const projection = assertProjection(options.priorityProjectionProvider.read(Object.freeze({
-        ownerDomain: work.owner_domain, processType: work.process_type, processId: work.process_id
+        ownerDomain: work.owner_domain, processType: work.process_type, processId: work.process_id, workKind:work.work_kind
       })), work);
       if (target.priority_class !== projection.priorityClass) fail(
         'P4_SCHEDULER_EVENT_PRIORITY_STALE', 'Event priority class is stale against its Owner projection.', { eventId: target.event_id }
@@ -191,7 +197,18 @@ function createWorkScheduler(options) {
     return Object.freeze({ released: true, leaseId: current.leaseId });
   }
 
-  return Object.freeze({ acquire, assertCurrent, release });
+  function renew(lease) {
+    const current = assertCurrent(lease);
+    const nowMs = options.now();
+    if (!Number.isSafeInteger(nowMs) || nowMs < 0) {
+      fail('P4_SCHEDULER_CLOCK_INVALID', 'Scheduler clock must return epoch milliseconds.');
+    }
+    const renewed = Object.freeze({ ...current, expiresAtMs: nowMs + leaseTtlMs });
+    activeLeases.set(current.targetType + ':' + current.targetId, renewed);
+    return renewed;
+  }
+
+  return Object.freeze({ acquire, assertCurrent, release, renew });
 }
 
 module.exports = Object.freeze({ AGING_INTERVAL_MS, DEFAULT_LEASE_TTL_MS, WorkSchedulerError, createWorkScheduler });

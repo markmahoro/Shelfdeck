@@ -10,15 +10,18 @@ function implementation(exportName) {
   return Object.fromEntries(contract.methods.map((method) => [method, (input) => ({ method, input })]));
 }
 
-test('P7 publishes exactly the three SSOT Procurement public ports', () => {
+test('P7 publishes the three business ports and one typed Foundation construction port', () => {
   assert.equal(catalog.owner, 'procurement');
   assert.deepEqual(catalog.facades.map((item) => item.exportName).sort(), [
-    'CandidateDeliveryPort', 'ProcurementCommandFacade', 'ProcurementQueryFacade'
+    'CandidateDeliveryPort', 'ProcurementCommandFacade', 'ProcurementExecutionRegistration', 'ProcurementQueryFacade'
   ]);
   assert.deepEqual(Object.keys(procurement).sort(), [
-    'CandidateDeliveryPort', 'PACKAGE_ID', 'ProcurementCommandFacade', 'ProcurementQueryFacade'
+    'CandidateDeliveryPort', 'PACKAGE_ID', 'ProcurementCommandFacade', 'ProcurementExecutionRegistration', 'ProcurementQueryFacade'
   ]);
   assert.equal(Object.isFrozen(procurement), true);
+  assert.deepEqual(Object.keys(procurement.ProcurementExecutionRegistration()).sort(), [
+    'createCapabilityRegistration', 'createPlanningRegistration', 'createProcessServices'
+  ]);
 });
 
 test('Procurement ports require the exact nominal method set', () => {

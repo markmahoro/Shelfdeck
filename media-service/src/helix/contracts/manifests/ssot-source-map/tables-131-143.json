@@ -6,13 +6,24 @@
   "endOrdinal": 143,
   "entries": [
     {
+      "id": "arca_offdeck_scope_materials",
+      "owner": "arca",
+      "columnsContract": "`destruction_scope_id FK, ordinal, material_key, material_role, delete_condition, binding_revision`",
+      "constraintsContract": "`PK(destruction_scope_id,ordinal)`及`UNIQUE(destruction_scope_id,material_key,material_role)`",
+      "source": {
+        "section": "8.5.12",
+        "line": 8752,
+        "lineDigest": "84ca6df6a4203cd2f55d9007ef260daa01b437afeb3408bc8a5b7819fbd07e75"
+      }
+    },
+    {
       "id": "arca_offdeck_selection_receipts",
       "owner": "arca",
       "columnsContract": "`selection_receipt_id PK, review_id FK, scope_set_digest, entry_count, primary_count, total_bytes, shelf_coverage_digest, deck_coverage_ratio, high_volume, actor_id, confirmed_at_ms`",
       "constraintsContract": "`UNIQUE(review_id,scope_set_digest)`；服务端按当前Scope集合计算，不信任客户端阈值",
       "source": {
         "section": "8.5.12",
-        "line": 8630,
+        "line": 8753,
         "lineDigest": "77ff625978aa23c853bd9e91791693fea79fba47a6af914ec93848082a37c464"
       }
     },
@@ -23,7 +34,7 @@
       "constraintsContract": "`UNIQUE(selection_receipt_id)`；只在high-volume时生成且必须来自独立第二次操作",
       "source": {
         "section": "8.5.12",
-        "line": 8631,
+        "line": 8754,
         "lineDigest": "63661ab1e465cec55b486f8361793d31c5f38bf14b10b4f541dd19f3fae16945"
       }
     },
@@ -34,7 +45,7 @@
       "constraintsContract": "`UNIQUE(review_id,scope_set_digest)`；high-volume时escalation receipt必填；Batch只是一份Envelope",
       "source": {
         "section": "8.5.12",
-        "line": 8632,
+        "line": 8755,
         "lineDigest": "6f6a4f74e1e04cf563db3b897b459abc2d5c4cf59729dc0719c36067a4db059a"
       }
     },
@@ -45,7 +56,7 @@
       "constraintsContract": "`UNIQUE(destruction_scope_id,scope_digest)`；授权后不可取消或改Scope",
       "source": {
         "section": "8.5.12",
-        "line": 8633,
+        "line": 8756,
         "lineDigest": "db1e1f835efe4418958fd09657084cb2209614e665a8eb30a5b17da8f8dd27c8"
       }
     },
@@ -56,7 +67,7 @@
       "constraintsContract": "`UNIQUE(authorization_id)`；只在Authorization事务中创建；Direct Intent不要求Candidate",
       "source": {
         "section": "8.5.12",
-        "line": 8634,
+        "line": 8757,
         "lineDigest": "39431939efb319de4ee6902e53bddf22cf1b589501c695d34392663403c93f3d"
       }
     },
@@ -67,7 +78,7 @@
       "constraintsContract": "`PK(destruction_scope_id,material_key)`；append-only completion evidence",
       "source": {
         "section": "8.5.12",
-        "line": 8635,
+        "line": 8758,
         "lineDigest": "80df836f66b917346071463131df10c28384e576064fc715c70637d03826e7bf"
       }
     },
@@ -78,7 +89,7 @@
       "constraintsContract": "`UNIQUE(offdeck_case_id)`；与Deck Fact terminal和Control release同事务成立",
       "source": {
         "section": "8.5.12",
-        "line": 8636,
+        "line": 8759,
         "lineDigest": "c9422a9dd022288f5e55118613cabb0d1961f91f3e93cd97d92a17f367ce1dca"
       }
     },
@@ -89,7 +100,7 @@
       "constraintsContract": "每个Shelf一个non-terminal Deregistration；Supporting Work通过Foundation反向关联；不得引用Deletion Capability",
       "source": {
         "section": "8.5.12",
-        "line": 8637,
+        "line": 8760,
         "lineDigest": "b15fbdfb86e44ba54914a3af9704aceba5cd4a3366acbeb8b66d4f1df1bf23b1"
       }
     },
@@ -100,7 +111,7 @@
       "constraintsContract": "`PK(deregistration_id,material_key)`",
       "source": {
         "section": "8.5.12",
-        "line": 8638,
+        "line": 8761,
         "lineDigest": "a6975864f9858713c71fd2a87965c46dd8132bd8172b85011d5ac6df8d671698"
       }
     },
@@ -111,7 +122,7 @@
       "constraintsContract": "`UNIQUE(deregistration_id)`；与Shelf administrative terminal commit同事务成立",
       "source": {
         "section": "8.5.12",
-        "line": 8639,
+        "line": 8762,
         "lineDigest": "ece31b95a4de939548e814885196b887f9a0f38c6507ec76e9eb2165896b7d33"
       }
     },
@@ -122,7 +133,7 @@
       "constraintsContract": "`current_cursor_revision IS NULL`表示尚无cursor row；`FOREIGN KEY(perception_source_id,current_cursor_revision) REFERENCES perception_source_cursors(perception_source_id,revision)`，SQLite以NULL跳过尚不存在的optional pointer校验；`INDEX(status,source_kind,perception_source_id)`；Integration ID为opaque platform reference",
       "source": {
         "section": "8.5.13",
-        "line": 8645,
+        "line": 8768,
         "lineDigest": "34bdf0c016622b6e972c4799b9a649b5fc923d7277a94298de102e9ece3182a5"
       }
     },
@@ -133,19 +144,8 @@
       "constraintsContract": "一次Acquisition只属于一个Source/config revision；Scope JSON上限`16 KiB`；`UNIQUE(perception_source_id) WHERE state='active'`；`initial_cursor_revision=0`只是“创建时不存在cursor row”的逻辑CAS sentinel，不是FK pointer；Process历史不覆盖",
       "source": {
         "section": "8.5.13",
-        "line": 8646,
+        "line": 8769,
         "lineDigest": "d4bfdbe0156ddb39ce060728f319fffe67e356241e77aed250f6fbb046790f3b"
-      }
-    },
-    {
-      "id": "perception_source_cursors",
-      "owner": "perception",
-      "columnsContract": "`perception_source_id FK, revision, perception_acquisition_id FK, cursor_in, cursor_out, observation_page_digest, has_more, committed_at_ms`",
-      "constraintsContract": "`PK(perception_source_id,revision)`；revision从1递增且不重置；Source current pointer显式复合FK引用；仅Source从未同步时expected revision为0，配置/scope不兼容的后续Acquisition可令`cursor_in=null`但仍CAS当前非零revision；不覆盖历史",
-      "source": {
-        "section": "8.5.13",
-        "line": 8647,
-        "lineDigest": "d904ca3d03d48f36f837049824d373257b78c8abafb50cbbd529238ab700d8bb"
       }
     }
   ]

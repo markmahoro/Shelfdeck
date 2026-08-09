@@ -7,6 +7,7 @@ const { createProcurementRunExecutionBasis } = require('../model/procurement-run
 
 const RESULT_SCHEMA = 'helix://contracts/types/ProcurementControlReceipt/v1';
 const RUN_BASIS_SCHEMA = 'helix://contracts/application-types/ProcurementRunExecutionBasis/v1';
+const COMMAND_CONTRACT = 'helix://procurement/commands/ProcurementRunAdmission/v1';
 const SHA256 = /^[0-9a-f]{64}$/;
 
 class ProcurementRunAdmissionStoreError extends Error {
@@ -21,7 +22,7 @@ function digest(value, field) { if (!SHA256.test(value || '')) fail('P7_RUN_ADMI
 function toNumber(value, field) { const number = Number(value); if (!Number.isSafeInteger(number)) fail('P7_RUN_ADMISSION_INTEGER_RANGE', field + ' is outside the safe integer range.'); return number; }
 
 function procurementRepository(schemaManifest) {
-  const materialColumns = ['field_id','material_key','mount_scope_id','inode','content_hash_algorithm','content_hash','size_bytes','endpoint_id','binding_revision',
+  const materialColumns = ['field_id','material_key','mount_scope_id','inode','size_bytes','fingerprint_algorithm','fingerprint_version','content_fingerprint','endpoint_id','binding_revision',
     'current_location','reality_digest','provenance_digest','last_snapshot_digest','last_observation_id','eligibility_revision','eligibility_state',
     'eligibility_basis_digest','eligibility_field_status','eligibility_observation_revision','eligibility_policy_revision','selection_basis_digest',
     'control_projection','control_projection_revision','control_projection_digest'];
@@ -30,7 +31,7 @@ function procurementRepository(schemaManifest) {
     'triage_rule_schema_ref','triage_rule_digest','triage_rule_authority_digest','run_basis_digest','retry_intent_id','state','state_revision',
     'candidate_package_revision_head','seal_outcome','seal_decision_id','seal_decision_digest','seal_evidence_digest','admission_commit_marker','admission_result_digest',
     'seal_commit_marker','seal_result_digest','priority_class','created_at_ms','finished_at_ms'];
-  const runMaterialColumns = ['procurement_run_id','ordinal','material_key','selection_role','mount_scope_id','inode','content_hash_algorithm','content_hash','size_bytes','binding_revision','eligibility_revision',
+  const runMaterialColumns = ['procurement_run_id','ordinal','material_key','selection_role','mount_scope_id','inode','size_bytes','fingerprint_algorithm','fingerprint_version','content_fingerprint','binding_revision','eligibility_revision',
     'eligibility_basis_digest','last_snapshot_digest','last_observation_id','endpoint_id','location','reality_digest','provenance_digest',
     'expected_control_revision','expected_control_state','expected_control_owner_domain','expected_control_owner_scope_type',
     'expected_control_owner_scope_id','expected_control_region_projection','expected_control_evidence_digest','expected_control_projection_digest',
@@ -52,8 +53,8 @@ function foundationRepository(schemaManifest) {
   return createRepositoryDefinition({ repositoryId:'procurement_run_admission_foundation', owner:'execution-foundation', schemaManifest, statements:{
     find_marker:{ kind:'select-one', tableId:'fx_commit_markers', columns:['commit_marker','owner_domain','scope_type','scope_id','commit_digest','result_id','result_schema_ref','result_digest','committed_at_ms'], keyColumns:['commit_marker'] },
     insert_marker:{ kind:'insert', tableId:'fx_commit_markers', columns:['commit_marker','effect_id','owner_domain','scope_type','scope_id','commit_digest','result_id','result_schema_ref','result_digest','committed_at_ms'] },
-    find_result:{ kind:'select-one', tableId:'fx_event_result_bindings', columns:['result_id','event_id','outcome_kind','result_schema_ref','result_json','result_digest','evidence_schema_ref','evidence_json','evidence_digest','effect_receipt_id','committed_at_ms'], keyColumns:['result_id'] },
-    insert_result:{ kind:'insert', tableId:'fx_event_result_bindings', columns:['result_id','event_id','outcome_kind','result_schema_ref','result_json','result_digest','evidence_schema_ref','evidence_json','evidence_digest','effect_receipt_id','committed_at_ms'] }
+    find_receipt:{ kind:'select-one', tableId:'fx_command_receipts', columns:['command_receipt_id','owner_domain','command_contract','caller_scope','idempotency_key','request_digest','target_type','target_id','result_schema_ref','result_ref_json','result_digest','committed_at_ms'], keyColumns:['command_receipt_id'] },
+    insert_receipt:{ kind:'insert', tableId:'fx_command_receipts', columns:['command_receipt_id','owner_domain','command_contract','caller_scope','idempotency_key','request_digest','target_type','target_id','result_schema_ref','result_ref_json','result_digest','committed_at_ms'] }
   } });
 }
 function validateControlHandle(handle, basis) {
@@ -69,12 +70,21 @@ function validateControlHandle(handle, basis) {
     fail('P7_RUN_ADMISSION_HANDLE_MISMATCH', 'Control Handle does not authorize this exact Run Basis and Selection.');
   }
 }
+function commandReceiptId(basis) { return 'procurement-run-admission/' + basis.procurementRunId; }
+function controlReceiptId(basis) { return 'procurement-control-receipt-' + canonicalDigest({
+  schema:'procurement.control-receipt-identity@1', procurementRunId:basis.procurementRunId, basisDigest:basis.basisDigest
+}).slice(0, 40); }
 function parseReplay(repo, marker, basis, commitDigest) {
   if (marker.owner_domain !== 'procurement' || marker.scope_type !== 'procurement_run' || marker.scope_id !== basis.procurementRunId ||
-      marker.commit_digest !== commitDigest || marker.result_schema_ref !== RESULT_SCHEMA) fail('P7_RUN_ADMISSION_MARKER_CONFLICT', 'Commit marker is bound to a different admission.');
-  const row = repo.invoke('find_result', { result_id:marker.result_id });
-  if (!row || row.result_schema_ref !== RESULT_SCHEMA || row.result_digest !== marker.result_digest) fail('P7_RUN_ADMISSION_REPLAY_CORRUPT', 'Admission marker result binding is missing or corrupt.');
-  let result; try { result = JSON.parse(row.result_json); } catch { fail('P7_RUN_ADMISSION_REPLAY_CORRUPT', 'Stored admission Result is not JSON.'); }
+      marker.commit_digest !== commitDigest || marker.result_id !== null || marker.result_schema_ref !== null || marker.result_digest !== null) {
+    fail('P7_RUN_ADMISSION_MARKER_CONFLICT', 'Commit marker is bound to a different admission.');
+  }
+  const row = repo.invoke('find_receipt', { command_receipt_id:commandReceiptId(basis) });
+  if (!row || row.owner_domain !== 'procurement' || row.command_contract !== COMMAND_CONTRACT ||
+      row.request_digest !== commitDigest || row.target_id !== basis.procurementRunId || row.result_schema_ref !== RESULT_SCHEMA) {
+    fail('P7_RUN_ADMISSION_REPLAY_CORRUPT', 'Admission Command Receipt is missing or corrupt.');
+  }
+  let result; try { result = JSON.parse(row.result_ref_json); } catch { fail('P7_RUN_ADMISSION_REPLAY_CORRUPT', 'Stored admission Result is not JSON.'); }
   if (canonicalDigest(result) !== row.result_digest || result.procurementRunId !== basis.procurementRunId ||
       result.runBasisDigest !== basis.basisDigest || result.selectedMaterialSetDigest !== basis.selectedFieldMaterialSet.selectionDigest) {
     fail('P7_RUN_ADMISSION_REPLAY_CORRUPT', 'Stored admission Result does not match the requested Basis.');
@@ -88,10 +98,10 @@ function createProcurementRunAdmissionStore(options) {
   }
   const procurement = procurementRepository(options.schemaManifest); const foundation = foundationRepository(options.schemaManifest);
   return Object.freeze({ repositoryManifest:Object.freeze({ procurement:procurement.tableIds, foundation:foundation.tableIds }), admit(request) {
-    if (!request || !request.basis || !request.controlHandle || !request.commitMarker || !request.resultBinding) fail('P7_RUN_ADMISSION_REQUEST_INVALID', 'Run Admission request is incomplete.');
+    if (!request || !request.basis || !request.controlHandle || !request.commitMarker) fail('P7_RUN_ADMISSION_REQUEST_INVALID', 'Run Admission request is incomplete.');
     const basis = createProcurementRunExecutionBasis(request.basis, options.triageRegistry); validateControlHandle(request.controlHandle, basis);
     const commitMarker = text(request.commitMarker.commitMarker, 'commitMarker'); const commitDigest = digest(request.commitMarker.commitDigest, 'commitDigest');
-    const resultId = text(request.resultBinding.resultId, 'resultId'); const eventId = text(request.resultBinding.eventId, 'eventId');
+    const resultId = controlReceiptId(basis);
     const priorityClass = text(request.priorityClass || 'normal', 'priorityClass'); let prepared; let controlResults; let receipt;
     const preflight = { participantId:'procurement_run_preflight', owner:'execution-foundation', boundBusinessOwner:'procurement', repositories:[foundation], execute(context) {
       const repo = context.repository(foundation.repositoryId); const marker = repo.invoke('find_marker', { commit_marker:commitMarker });
@@ -129,14 +139,16 @@ function createProcurementRunAdmissionStore(options) {
             row.last_snapshot_digest !== member.lastSnapshotDigest || row.last_observation_id !== member.lastObservationId || row.endpoint_id !== member.endpointId ||
             row.current_location !== member.location || row.reality_digest !== member.realityDigest || row.provenance_digest !== member.provenanceDigest ||
             row.mount_scope_id !== member.physicalIdentity.mountScopeId || String(row.inode) !== member.physicalIdentity.inode ||
-            row.content_hash_algorithm !== member.physicalIdentity.contentHashAlgorithm || row.content_hash !== member.physicalIdentity.contentHash ||
+            row.fingerprint_algorithm !== member.physicalIdentity.fingerprintAlgorithm || Number(row.fingerprint_version) !== member.physicalIdentity.fingerprintVersion ||
+            row.content_fingerprint !== member.physicalIdentity.contentFingerprint ||
             toNumber(row.size_bytes, 'sizeBytes') !== member.sizeBytes ||
             row.eligibility_field_status !== 'active' || toNumber(row.eligibility_observation_revision, 'eligibilityObservationRevision') !== basis.terminalObservation.revision ||
             toNumber(row.eligibility_policy_revision, 'eligibilityPolicyRevision') !== basis.extractionPolicy.revision || row.control_projection_digest !== snapshot.projectionDigest) {
           fail('P7_RUN_ADMISSION_MEMBER_STALE', 'Selected Material no longer matches its frozen eligible snapshot.', { materialKey:member.materialKey });
         }
-        const identity = { schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v1', schemaVersion:1, materialKey:member.materialKey,
-          mountScopeId:row.mount_scope_id, inode:String(row.inode), contentHashAlgorithm:row.content_hash_algorithm, contentHash:row.content_hash };
+        const identity = { schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2', schemaVersion:2, materialKey:member.materialKey,
+          mountScopeId:row.mount_scope_id, inode:String(row.inode), sizeBytes:Number(row.size_bytes),
+          fingerprintAlgorithm:row.fingerprint_algorithm, fingerprintVersion:Number(row.fingerprint_version), contentFingerprint:row.content_fingerprint };
         const fieldScope = { ownerDomain:'procurement', scopeType:'material_field', scopeId:basis.fieldId };
         changes.push({ action:member.admissionControlAction, identity, expectedRevision:snapshot.controlRevision,
           expectedProjectionDigest:snapshot.projectionDigest, fromScope:member.admissionControlAction === 'assert_same_field' ? fieldScope : null,
@@ -146,8 +158,9 @@ function createProcurementRunAdmissionStore(options) {
     } };
     const control = createMaterialControlParticipant({ schemaManifest:options.schemaManifest, handle:request.controlHandle,
       changes:basis.selectedFieldMaterialSet.members.map((member) => ({ action:member.admissionControlAction,
-        identity:{ schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v1', schemaVersion:1, materialKey:member.materialKey,
-          mountScopeId:'pending', inode:'0', contentHashAlgorithm:'sha256', contentHash:'0'.repeat(64) }, expectedRevision:member.controlSnapshot.controlRevision,
+        identity:{ schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2', schemaVersion:2, materialKey:member.materialKey,
+          mountScopeId:'pending', inode:'0', sizeBytes:0, fingerprintAlgorithm:'middle-256k-sha256', fingerprintVersion:1,
+          contentFingerprint:'0'.repeat(64) }, expectedRevision:member.controlSnapshot.controlRevision,
         expectedProjectionDigest:member.controlSnapshot.projectionDigest,
         fromScope:member.admissionControlAction === 'assert_same_field' ? { ownerDomain:'procurement', scopeType:'material_field', scopeId:basis.fieldId } : null,
         toScope:member.admissionControlAction === 'acquire' ? { ownerDomain:'procurement', scopeType:'material_field', scopeId:basis.fieldId } : null })),
@@ -158,7 +171,7 @@ function createProcurementRunAdmissionStore(options) {
         authorizedScopeDigest:basis.selectedFieldMaterialSet.selectionDigest, commitMarker, participantId:'procurement_run_control_actual' });
       controlResults = actual.execute(context); return controlResults;
     } };
-    const resultParticipant = { participantId:'procurement_run_result', owner:'execution-foundation', boundBusinessOwner:'procurement', repositories:[foundation], execute(context) {
+    const resultParticipant = { participantId:'procurement_run_command_receipt', owner:'execution-foundation', boundBusinessOwner:'procurement', repositories:[foundation], execute(context) {
       const items = controlResults.map((item) => ({ materialKey:item.materialKey, admittedControlRevision:item.revision,
         admittedControlProjectionDigest:item.projection.projectionDigest })).sort((left, right) => left.materialKey.localeCompare(right.materialKey));
       const acquiredMaterialCount = controlResults.filter((item) => item.action === 'acquire').length;
@@ -169,15 +182,17 @@ function createProcurementRunAdmissionStore(options) {
         acquiredMaterialCount, assertedMaterialCount:items.length - acquiredMaterialCount,
         controlRevisionSetDigest:canonicalDigest({ schema:'procurement.admitted-control-set@1', items }) };
       receipt = Object.freeze(value); const json = canonicalJson(receipt); if (Buffer.byteLength(json, 'utf8') > 65536) fail('P7_RUN_ADMISSION_RESULT_TOO_LARGE', 'Procurement Control Receipt exceeds 64 KiB.');
-      const resultDigest = canonicalDigest(receipt); context.repository(foundation.repositoryId).invoke('insert_result', {
-        result_id:resultId, event_id:eventId, outcome_kind:'succeeded', result_schema_ref:RESULT_SCHEMA, result_json:json,
-        result_digest:resultDigest, evidence_schema_ref:RESULT_SCHEMA, evidence_json:json, evidence_digest:resultDigest,
-        effect_receipt_id:null, committed_at_ms:context.commitTimeMs }); return resultDigest;
+      const resultDigest = canonicalDigest(receipt); context.repository(foundation.repositoryId).invoke('insert_receipt', {
+        command_receipt_id:commandReceiptId(basis), owner_domain:'procurement', command_contract:COMMAND_CONTRACT,
+        caller_scope:basis.fieldId + '/run-creator', idempotency_key:basis.procurementRunId,
+        request_digest:commitDigest, target_type:'procurement_run', target_id:basis.procurementRunId,
+        result_schema_ref:RESULT_SCHEMA, result_ref_json:json, result_digest:resultDigest,
+        committed_at_ms:context.commitTimeMs }); return resultDigest;
     } };
     const markerParticipant = { participantId:'procurement_run_marker', owner:'execution-foundation', boundBusinessOwner:'procurement', repositories:[foundation], execute(context) {
-      context.repository(foundation.repositoryId).invoke('insert_marker', { commit_marker:commitMarker, effect_id:request.commitMarker.effectId || null,
+      context.repository(foundation.repositoryId).invoke('insert_marker', { commit_marker:commitMarker, effect_id:null,
         owner_domain:'procurement', scope_type:'procurement_run', scope_id:basis.procurementRunId, commit_digest:commitDigest,
-        result_id:resultId, result_schema_ref:RESULT_SCHEMA, result_digest:canonicalDigest(receipt), committed_at_ms:context.commitTimeMs });
+        result_id:null, result_schema_ref:null, result_digest:null, committed_at_ms:context.commitTimeMs });
     } };
     const write = { participantId:'procurement_run_write', owner:'procurement', repositories:[procurement], execute(context) {
       const repo = context.repository(procurement.repositoryId); const rule = basis.triageRule;
@@ -199,8 +214,9 @@ function createProcurementRunAdmissionStore(options) {
       for (const member of basis.selectedFieldMaterialSet.members) { const admitted = resultByKey.get(member.materialKey); const controlSnapshot = member.controlSnapshot;
         repo.invoke('insert_run_material', { procurement_run_id:basis.procurementRunId, ordinal:member.ordinal, material_key:member.materialKey,
           selection_role:member.selectionRole, mount_scope_id:member.physicalIdentity.mountScopeId, inode:member.physicalIdentity.inode,
-          content_hash_algorithm:member.physicalIdentity.contentHashAlgorithm, content_hash:member.physicalIdentity.contentHash,
-          size_bytes:member.sizeBytes, binding_revision:member.bindingRevision, eligibility_revision:member.eligibilityRevision,
+          size_bytes:member.physicalIdentity.sizeBytes, fingerprint_algorithm:member.physicalIdentity.fingerprintAlgorithm,
+          fingerprint_version:member.physicalIdentity.fingerprintVersion, content_fingerprint:member.physicalIdentity.contentFingerprint,
+          binding_revision:member.bindingRevision, eligibility_revision:member.eligibilityRevision,
           eligibility_basis_digest:member.eligibilityBasisDigest, last_snapshot_digest:member.lastSnapshotDigest, last_observation_id:member.lastObservationId,
           endpoint_id:member.endpointId, location:member.location, reality_digest:member.realityDigest, provenance_digest:member.provenanceDigest,
           expected_control_revision:controlSnapshot.controlRevision, expected_control_state:controlSnapshot.controlState,

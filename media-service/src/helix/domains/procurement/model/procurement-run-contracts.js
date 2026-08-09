@@ -16,14 +16,14 @@ const TRIAGE_PAYLOAD = Object.freeze({
     'helix.procurement.candidate-readiness@1', 'helix.procurement.profile-claim-baseline@1',
     'helix.procurement.primary-input-manifest@1', 'helix.procurement.related-material-reference@1'
   ]),
-  recallPriority: true, maxPrimaryMaterials: 1024, probeBatchSize: 100,
+  recallPriority: true, maxPrimaryMaterials: 256, probeBatchSize: 100,
   playabilityRule: Object.freeze({ minimumDurationMs:1, minimumVideoStreamCount:1,
     reasonPrecedence:Object.freeze(['probe_not_media','no_video_stream','non_positive_duration']) }),
   profileResolutionRule: Object.freeze({ mixedPrecedence:Object.freeze(['series_episode_token','jav_code','movie_fallback']),
     westernAdultRequiresExplicitHint:true }),
   structureRule: Object.freeze({ maxUnitCanonicalBytes:65536 }),
   identityRule: Object.freeze({ claimKinds:Object.freeze(['movie_title','series_season','jav_code','western_temporary']) }),
-  manifestRule: Object.freeze({ minimumMembers:1, maximumMembers:1024, firstOrdinal:0 })
+  manifestRule: Object.freeze({ minimumMembers:1, maximumMembers:256, firstOrdinal:0 })
 });
 
 class ProcurementRunContractError extends Error {
@@ -99,12 +99,14 @@ function validateSelectedMember(member, index, fieldId) {
     'lastObservationId','endpointId','location','realityDigest','provenanceDigest','controlSnapshot','admissionControlAction','basisMemberDigest'], 'P7_RUN_MEMBER_SHAPE');
   if (member.ordinal !== index || member.selectionRole !== 'triage_input') fail('P7_RUN_MEMBER_ORDINAL_ROLE', 'Run member ordinal or role is invalid.');
   digest(member.materialKey, 'materialKey'); revision(member.bindingRevision, 'bindingRevision'); revision(member.eligibilityRevision, 'eligibilityRevision');
-  exact(member.physicalIdentity, ['schemaRef','schemaVersion','materialKey','mountScopeId','inode','contentHashAlgorithm','contentHash'], 'P7_RUN_MEMBER_IDENTITY_SHAPE');
+  exact(member.physicalIdentity, ['schemaRef','schemaVersion','materialKey','mountScopeId','inode','sizeBytes','fingerprintAlgorithm','fingerprintVersion','contentFingerprint'], 'P7_RUN_MEMBER_IDENTITY_SHAPE');
   const identity = member.physicalIdentity;
-  if (identity.schemaRef !== 'helix://contracts/types/PhysicalMaterialIdentity/v1' || identity.schemaVersion !== 1 ||
-      identity.materialKey !== member.materialKey || identity.contentHashAlgorithm !== 'sha256' ||
-      identity.materialKey !== canonicalDigest({ schema:'physical-material-identity@1', mountScopeId:identity.mountScopeId,
-        inode:identity.inode, contentHashAlgorithm:'sha256', contentHash:identity.contentHash }) ||
+  if (identity.schemaRef !== 'helix://contracts/types/PhysicalMaterialIdentity/v2' || identity.schemaVersion !== 2 ||
+      identity.materialKey !== member.materialKey || identity.fingerprintAlgorithm !== 'middle-256k-sha256' ||
+      identity.fingerprintVersion !== 1 || identity.sizeBytes !== member.sizeBytes ||
+      identity.materialKey !== canonicalDigest({ schema:'physical-material-identity@2', mountScopeId:identity.mountScopeId,
+        inode:identity.inode, sizeBytes:identity.sizeBytes, fingerprintAlgorithm:'middle-256k-sha256', fingerprintVersion:1,
+        contentFingerprint:identity.contentFingerprint }) ||
       !Number.isSafeInteger(member.sizeBytes) || member.sizeBytes < 0) {
     fail('P7_RUN_MEMBER_IDENTITY_INVALID', 'Run member Physical Identity or size is invalid.');
   }
@@ -122,7 +124,7 @@ function validateSelectedMember(member, index, fieldId) {
 function createSelectedFieldMaterialSet(value) {
   exact(value, ['procurementRunId','fieldId','members','selectionDigest'], 'P7_RUN_SELECTION_SHAPE');
   text(value.procurementRunId, 'procurementRunId'); text(value.fieldId, 'fieldId');
-  if (!Array.isArray(value.members) || value.members.length < 1 || value.members.length > 1024) fail('P7_RUN_SELECTION_BOUNDS', 'Run Selection must contain 1..1024 members.');
+  if (!Array.isArray(value.members) || value.members.length < 1 || value.members.length > 256) fail('P7_RUN_SELECTION_BOUNDS', 'Run Selection must contain 1..256 members.');
   for (const [index, member] of value.members.entries()) {
     validateSelectedMember(member, index, value.fieldId);
     if (index > 0 && compareUtf8(value.members[index - 1].materialKey, member.materialKey) >= 0) fail('P7_RUN_SELECTION_ORDER', 'Run members must be unique and UTF-8 sorted.');

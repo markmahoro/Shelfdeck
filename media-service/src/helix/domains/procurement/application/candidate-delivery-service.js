@@ -7,7 +7,7 @@ const { ACCEPTANCE_BASIS_SCHEMA, MANIFEST_SCHEMA, OFFER_MESSAGE_SCHEMA, PACKAGE_
 const QUERY_SCHEMA = 'helix://contracts/domain-types/CandidateDeliveryQuery/v1';
 const RESULT_SCHEMA = 'helix://contracts/domain-types/CandidateDeliveryReadResult/v1';
 const SNAPSHOT_SCHEMA = 'helix://contracts/domain-types/CandidateDeliverySnapshot/v1';
-const IDENTITY_SCHEMA = 'helix://contracts/types/PhysicalMaterialIdentity/v1';
+const IDENTITY_SCHEMA = 'helix://contracts/types/PhysicalMaterialIdentity/v2';
 
 class CandidateDeliveryServiceError extends Error {
   constructor(code, message, details = {}) { super(message); this.name = 'CandidateDeliveryServiceError'; this.code = code; this.details = details; }
@@ -50,7 +50,7 @@ function result(query, value) {
 function reconstruct(rows) {
   const pkg = rows.candidatePackage;
   const primaries = [...rows.primaries].sort((a, b) => Number(a.ordinal) - Number(b.ordinal));
-  if (primaries.length < 1 || primaries.length > 1024 || primaries.some((row, index) => Number(row.ordinal) !== index)) {
+  if (primaries.length < 1 || primaries.length > 256 || primaries.some((row, index) => Number(row.ordinal) !== index)) {
     fail('P8_CANDIDATE_DELIVERY_PRIMARY_SET', 'Primary Material ordinals are incomplete or out of bounds.');
   }
   const episodes = new Map();
@@ -61,8 +61,9 @@ function reconstruct(rows) {
   }
   for (const values of episodes.values()) values.sort((a, b) => compareUtf8(a.episodeKey, b.episodeKey));
   const manifestMembers = primaries.map((row) => {
-    const physicalIdentity = { schemaRef:IDENTITY_SCHEMA, schemaVersion:1, materialKey:row.material_key,
-      mountScopeId:row.mount_scope_id, inode:String(row.inode), contentHashAlgorithm:row.content_hash_algorithm, contentHash:row.content_hash };
+    const physicalIdentity = { schemaRef:IDENTITY_SCHEMA, schemaVersion:2, materialKey:row.material_key,
+      mountScopeId:row.mount_scope_id, inode:String(row.inode), sizeBytes:Number(row.size_bytes),
+      fingerprintAlgorithm:row.fingerprint_algorithm, fingerprintVersion:Number(row.fingerprint_version), contentFingerprint:row.content_fingerprint };
     const value = { ordinal:Number(row.ordinal), materialKey:row.material_key, role:row.role, physicalIdentity,
       sizeBytes:Number(row.size_bytes),
       bindingRevision:Number(row.binding_revision), admittedControlRevision:Number(row.admitted_control_revision),
@@ -83,17 +84,20 @@ function reconstruct(rows) {
   const related = [...rows.related].sort((a, b) => compareUtf8(a.reference_id, b.reference_id)).map((row) => {
     const primary = primaryByOrdinal.get(Number(row.primary_ordinal));
     if (!primary) fail('P8_CANDIDATE_DELIVERY_RELATED_PRIMARY', 'Related Reference points outside the Manifest.');
-    const identity = { schemaRef:IDENTITY_SCHEMA, schemaVersion:1, materialKey:row.material_key, mountScopeId:row.mount_scope_id,
-      inode:row.inode, contentHashAlgorithm:row.content_hash_algorithm, contentHash:row.content_hash };
-    const materialKey = canonicalDigest({ schema:'physical-material-identity@1', mountScopeId:identity.mountScopeId, inode:identity.inode,
-      contentHashAlgorithm:'sha256', contentHash:identity.contentHash });
+    const identity = { schemaRef:IDENTITY_SCHEMA, schemaVersion:2, materialKey:row.material_key, mountScopeId:row.mount_scope_id,
+      inode:String(row.inode), sizeBytes:Number(row.size_bytes), fingerprintAlgorithm:row.fingerprint_algorithm,
+      fingerprintVersion:Number(row.fingerprint_version), contentFingerprint:row.content_fingerprint };
+    const materialKey = canonicalDigest({ schema:'physical-material-identity@2', mountScopeId:identity.mountScopeId, inode:identity.inode,
+      sizeBytes:identity.sizeBytes, fingerprintAlgorithm:'middle-256k-sha256', fingerprintVersion:1,
+      contentFingerprint:identity.contentFingerprint });
     const referenceId = canonicalDigest({ schema:'procurement.related-material-reference-id@1', primaryMaterialKey:primary.material_key,
       role:row.role, relatedMaterialKey:identity.materialKey, endpointId:row.endpoint_id, location:row.location });
     const reference = { referenceId:row.reference_id, primaryMaterialKey:primary.material_key, role:row.role, identity,
-      endpointId:row.endpoint_id, location:row.location, checksumAlgorithm:row.checksum_algorithm, checksumHex:row.checksum_hex,
+      endpointId:row.endpoint_id, location:row.location, fingerprintAlgorithm:identity.fingerprintAlgorithm,
+      fingerprintVersion:identity.fingerprintVersion, contentFingerprint:identity.contentFingerprint,
       associationEvidenceDigest:row.association_evidence_digest, referenceDigest:row.reference_digest };
-    if (identity.contentHashAlgorithm !== 'sha256' || identity.materialKey !== materialKey || row.checksum_algorithm !== 'sha256' ||
-        row.checksum_hex !== identity.contentHash || row.reference_id !== referenceId ||
+    if (identity.fingerprintAlgorithm !== 'middle-256k-sha256' || identity.fingerprintVersion !== 1 || identity.materialKey !== materialKey ||
+        row.reference_id !== referenceId ||
         row.reference_digest !== canonicalDigest(without(reference, 'referenceDigest'))) {
       fail('P8_CANDIDATE_DELIVERY_RELATED', 'Related Reference identity or digest is invalid.');
     }
@@ -136,8 +140,10 @@ function reconstruct(rows) {
     const row = runMembers.get(member.materialKey);
     if (!row || Number(row.binding_revision) !== member.bindingRevision || Number(row.admitted_control_revision) !== member.admittedControlRevision ||
         row.admitted_control_projection_digest !== member.admittedControlProjectionDigest || row.mount_scope_id !== member.physicalIdentity.mountScopeId ||
-        String(row.inode) !== member.physicalIdentity.inode || row.content_hash_algorithm !== member.physicalIdentity.contentHashAlgorithm ||
-        row.content_hash !== member.physicalIdentity.contentHash || Number(row.size_bytes) !== member.sizeBytes) {
+        String(row.inode) !== member.physicalIdentity.inode || Number(row.size_bytes) !== member.physicalIdentity.sizeBytes ||
+        row.fingerprint_algorithm !== member.physicalIdentity.fingerprintAlgorithm ||
+        Number(row.fingerprint_version) !== member.physicalIdentity.fingerprintVersion ||
+        row.content_fingerprint !== member.physicalIdentity.contentFingerprint || Number(row.size_bytes) !== member.sizeBytes) {
       fail('P8_CANDIDATE_DELIVERY_RUN_BASIS', 'Manifest member does not match its immutable Run Basis row.');
     }
     const value = { ordinal:member.ordinal, materialKey:member.materialKey, role:member.role,

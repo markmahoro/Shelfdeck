@@ -128,7 +128,7 @@ function normalizedTypeName(value) {
 }
 
 function typeRef(name) {
-  if (SHARED_TYPES.has(name)) return `helix://contracts/types/${name}/v1`;
+  if (SHARED_TYPES.has(name)) return `helix://contracts/types/${name}/v${name === 'PhysicalMaterialIdentity' ? 2 : 1}`;
   if (RESULT_TYPES.has(name)) return `helix://contracts/types/${name}/v1`;
   if (name === 'MaterialHandle') return null;
   return `helix://contracts/domain-types/${name}/v1`;
@@ -151,6 +151,28 @@ function splitTopLevelUnion(expression) {
 }
 
 function expressionSchema(expression) {
+  if (expression === 'FieldObservationLayoutSnapshot') {
+    return {
+      type: 'object', additionalProperties: false,
+      properties: {
+        schemaRef: { const: 'helix://contracts/types/FieldObservationLayoutSnapshot/v1' },
+        schemaVersion: { const: 1 }, snapshotId: text(), snapshotDigest: digest(), observationId: text(),
+        fieldId: text(), parentDirectory: text(),
+        entries: { type: 'array', maxItems: 256, items: {
+          type: 'object', additionalProperties: false,
+          properties: {
+            entryOrdinal: { type: 'integer', minimum: 0 }, entryKind: { type: 'string', enum: ['file', 'directory'] },
+            relativeLocation: text(), baseName: text(), extension: text(),
+            identity: { $ref: typeRef('PhysicalMaterialIdentity') }, endpointId: text({ maxLength: 256 }), location: text(),
+            sizeBytes: { type: 'integer', minimum: 0 }, mtimeNs: text(), entryDigest: digest()
+          },
+          required: ['entryOrdinal', 'entryKind', 'relativeLocation', 'baseName', 'endpointId', 'location', 'entryDigest']
+        } }
+      },
+      required: ['schemaRef', 'schemaVersion', 'snapshotId', 'snapshotDigest', 'observationId', 'fieldId', 'parentDirectory', 'entries'],
+      'x-helix-typeExpression': expression
+    };
+  }
   if (expression === 'mediaCastFactRef?{productFactId,factRevision,factDigest}') {
     return {
       anyOf: [object({
@@ -240,6 +262,7 @@ function approvalAuthorization(capabilityRef) {
 }
 
 function resourceKinds(capability) {
+  if (capability.id === 'shared.material.layout.observe@1') return ['cpu'];
   const value = `${capability.id} ${capability.inputSummary}`.toLowerCase();
   const kinds = new Set();
   if (/integration|external|worker|provider|search|acquire|upload|request/.test(value)) kinds.add('network');

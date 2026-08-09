@@ -10,8 +10,8 @@ const {
 
 const D = (value) => canonicalDigest({ value });
 function identity(inode, content) {
-  const physicalIdentity = { mountScopeId: 'mount-1', inode, contentHashAlgorithm: 'sha256', contentHash: D(content) };
-  const materialKey = canonicalDigest({ schema: 'physical-material-identity@1', ...physicalIdentity });
+  const physicalIdentity = { mountScopeId: 'mount-1', inode, sizeBytes: 100, fingerprintAlgorithm: 'middle-256k-sha256', fingerprintVersion: 1, contentFingerprint: D(content) };
+  const materialKey = canonicalDigest({ schema: 'physical-material-identity@2', ...physicalIdentity });
   return { physicalIdentity, materialKey };
 }
 function member(material, episodeClaims = []) {

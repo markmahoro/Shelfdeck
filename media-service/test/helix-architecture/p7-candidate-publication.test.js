@@ -23,8 +23,8 @@ const D = (value) => canonicalDigest({ value });
 const without = (value, ...fields) => Object.fromEntries(Object.entries(value).filter(([key]) => !fields.includes(key)));
 
 function candidateDraft() {
-  const physicalIdentity={schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v1',schemaVersion:1,mountScopeId:'mount-1',inode:'41',contentHashAlgorithm:'sha256',contentHash:D('material-content')};
-  physicalIdentity.materialKey=canonicalDigest({schema:'physical-material-identity@1',mountScopeId:physicalIdentity.mountScopeId,inode:physicalIdentity.inode,contentHashAlgorithm:'sha256',contentHash:physicalIdentity.contentHash});
+  const physicalIdentity={schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,mountScopeId:'mount-1',inode:'41',sizeBytes:100,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint:D('material-content')};
+  physicalIdentity.materialKey=canonicalDigest({schema:'physical-material-identity@2',mountScopeId:physicalIdentity.mountScopeId,inode:physicalIdentity.inode,sizeBytes:physicalIdentity.sizeBytes,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint:physicalIdentity.contentFingerprint});
   const materialKey = physicalIdentity.materialKey;
   const episodeBase = { episodeKey:'E001', seasonClaimDigest:D('season'), claimDigest:'' };
   episodeBase.claimDigest = canonicalDigest(without(episodeBase, 'claimDigest'));
@@ -38,12 +38,14 @@ function candidateDraft() {
   const identityPayload = { claimKind:'series_season', mediaType:'group', contentProfile:'series', claimedTitle:metadata.claimedTitle,
     displayIdentity:metadata.claimedTitle, seasonClaim:metadata.seasonClaim, identityMetadataDigest:metadata.metadataDigest,
     structureUnitDigest:'', sourceHints:metadata.sourceHints };
-  const referenceIdentity = { schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v1', schemaVersion:1,
-    materialKey:'', mountScopeId:'mount-1', inode:'42', contentHashAlgorithm:'sha256', contentHash:D('reference-content') };
-  referenceIdentity.materialKey = canonicalDigest({ schema:'physical-material-identity@1', mountScopeId:referenceIdentity.mountScopeId,
-    inode:referenceIdentity.inode, contentHashAlgorithm:'sha256', contentHash:referenceIdentity.contentHash });
+  const referenceIdentity = { schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2', schemaVersion:2,
+    materialKey:'', mountScopeId:'mount-1', inode:'42', sizeBytes:50, fingerprintAlgorithm:'middle-256k-sha256', fingerprintVersion:1, contentFingerprint:D('reference-content') };
+  referenceIdentity.materialKey = canonicalDigest({ schema:'physical-material-identity@2', mountScopeId:referenceIdentity.mountScopeId,
+    inode:referenceIdentity.inode, sizeBytes:referenceIdentity.sizeBytes, fingerprintAlgorithm:'middle-256k-sha256', fingerprintVersion:1,
+    contentFingerprint:referenceIdentity.contentFingerprint });
   const referenceBase = { referenceId:'', primaryMaterialKey:materialKey, role:'nfo', identity:referenceIdentity,
-    endpointId:'endpoint-1', location:'/field/series.nfo', checksumAlgorithm:'sha256', checksumHex:D('reference-content'),
+    endpointId:'endpoint-1', location:'/field/series.nfo', fingerprintAlgorithm:'middle-256k-sha256', fingerprintVersion:1,
+    contentFingerprint:referenceIdentity.contentFingerprint,
     associationEvidenceDigest:D('reference-evidence'), referenceDigest:'' };
   referenceBase.referenceId = canonicalDigest({ schema:'procurement.related-material-reference-id@1', primaryMaterialKey:materialKey,
     role:referenceBase.role, relatedMaterialKey:referenceIdentity.materialKey, endpointId:referenceBase.endpointId,
@@ -104,10 +106,10 @@ function seed(database, draft) {
     triage_rule_authority_digest,run_basis_digest,state,state_revision,candidate_package_revision_head) VALUES(?,?,?,?,?,?,?,?,?,?)`).run(
     'run-1','field-1',1,draft.triageRule.ruleRef,1,draft.triageRule.authorityDigest,draft.runBasisDigest,'active',1,0);
   const member = draft.structureEvidence.unit.members[0];
-  const physicalIdentity={schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v1',schemaVersion:1,mountScopeId:'mount-1',inode:'41',contentHashAlgorithm:'sha256',contentHash:D('material-content')};
-  database.prepare(`INSERT INTO proc_run_materials(procurement_run_id,ordinal,material_key,mount_scope_id,inode,content_hash_algorithm,content_hash,size_bytes,binding_revision,admitted_control_revision,
-    admitted_control_projection_digest,selection_state,candidate_package_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-    'run-1',0,member.materialKey,physicalIdentity.mountScopeId,physicalIdentity.inode,physicalIdentity.contentHashAlgorithm,physicalIdentity.contentHash,100,member.bindingRevision,member.admittedControlRevision,member.admittedControlProjectionDigest,'run_selection',null);
+  const physicalIdentity={schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,mountScopeId:'mount-1',inode:'41',sizeBytes:100,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint:D('material-content')};
+  database.prepare(`INSERT INTO proc_run_materials(procurement_run_id,ordinal,material_key,mount_scope_id,inode,size_bytes,fingerprint_algorithm,fingerprint_version,content_fingerprint,binding_revision,admitted_control_revision,
+    admitted_control_projection_digest,selection_state,candidate_package_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+    'run-1',0,member.materialKey,physicalIdentity.mountScopeId,physicalIdentity.inode,physicalIdentity.sizeBytes,physicalIdentity.fingerprintAlgorithm,physicalIdentity.fingerprintVersion,physicalIdentity.contentFingerprint,member.bindingRevision,member.admittedControlRevision,member.admittedControlProjectionDigest,'run_selection',null);
   database.pragma('foreign_keys = ON');
 }
 

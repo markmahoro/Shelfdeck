@@ -1888,7 +1888,7 @@ function createMovieProductionCoordinator(options) {
         const sidecarBasis = {
           schemaRef:
             'helix://contracts/domain-types/SidecarProfile/v1',
-          schemaVersion: 1,
+          schemaVersion: 2,
           profileId: 'helix-sidecar-western-adult-nfo',
           revision: 1,
           format: 'nfo_xml',
@@ -2726,7 +2726,7 @@ function createMovieProductionCoordinator(options) {
         materialKey: handle.materialKey,
         role: item.role,
         physicalIdentity: {
-          schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v1',
+          schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v2',
           schemaVersion: 1,
           materialKey: handle.materialKey,
           ...handle.physicalIdentity,

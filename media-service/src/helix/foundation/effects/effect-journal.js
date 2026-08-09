@@ -172,17 +172,18 @@ function createEffectJournal(options) {
       repositories: [repositories.effects, repositories.markers], execute(context) {
         const current = context.repository('effect_journal').invoke('find', { effect_id: effect.effect_id });
         if (!current || current.state !== 'effect_observed') fail('P4_EFFECT_COMMIT_STATE_INVALID', 'Only an observed effect can commit.');
-        const expectedMarker = {
+        const marker = context.repository('effect_commit_markers').invoke('find', { commit_marker: receipt.commitMarker });
+        if (marker) {
+          const expectedExisting = { effect_id: effect.effect_id, commit_digest: receipt.verificationEvidenceDigest,
+            committed_at_ms: receipt.committedAtMs };
+          for (const [key, value] of Object.entries(expectedExisting)) if (marker[key] !== value) fail(
+            'P4_EFFECT_COMMIT_MARKER_CONFLICT', 'Commit marker is already bound to another effect or reality digest.', { key }
+          );
+        } else context.repository('effect_commit_markers').invoke('insert', {
           commit_marker: receipt.commitMarker, effect_id: effect.effect_id, owner_domain: text(scope.ownerDomain, 'ownerDomain'),
           scope_type: text(scope.scopeType, 'scopeType'), scope_id: text(scope.scopeId, 'scopeId'),
           commit_digest: receipt.verificationEvidenceDigest, committed_at_ms: receipt.committedAtMs
-        };
-        const marker = context.repository('effect_commit_markers').invoke('find', { commit_marker: receipt.commitMarker });
-        if (marker) {
-          for (const [key, value] of Object.entries(expectedMarker)) if (marker[key] !== value) fail(
-            'P4_EFFECT_COMMIT_MARKER_CONFLICT', 'Commit marker is already bound to another effect or reality digest.', { key }
-          );
-        } else context.repository('effect_commit_markers').invoke('insert', expectedMarker);
+        });
         const updated = context.repository('effect_journal').invoke('transition', {
           effect_id: effect.effect_id, expected_state: 'effect_observed', state: 'committed',
           external_receipt_ref: current.external_receipt_ref, output_digest: current.output_digest,
@@ -202,11 +203,12 @@ function createEffectJournal(options) {
         repositories: [repositories.markers], execute(context) {
           return context.repository('effect_commit_markers').invoke('find', { commit_marker: request.receipt.commitMarker });
         } }]).effect_journal_replay;
-      const expected = {
-        effect_id: observed.effect_id, owner_domain: text(request.scope.ownerDomain, 'ownerDomain'),
-        scope_type: text(request.scope.scopeType, 'scopeType'), scope_id: text(request.scope.scopeId, 'scopeId'),
-        commit_digest: request.receipt.verificationEvidenceDigest, committed_at_ms: request.receipt.committedAtMs
-      };
+      const expected = { effect_id: observed.effect_id,
+        owner_domain: text(request.scope.ownerDomain, 'ownerDomain'),
+        scope_type: text(request.scope.scopeType, 'scopeType'),
+        scope_id: text(request.scope.scopeId, 'scopeId'),
+        commit_digest: request.receipt.verificationEvidenceDigest,
+        committed_at_ms: request.receipt.committedAtMs };
       if (!marker || Object.entries(expected).some(([key, value]) => marker[key] !== value)) fail(
         'P4_EFFECT_COMMITTED_REPLAY_CONFLICT', 'Committed Effect replay does not match its immutable marker.'
       );

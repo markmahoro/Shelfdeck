@@ -27,7 +27,7 @@ const procurementNoop=createRepositoryDefinition({repositoryId:'acceptance_seed_
 function fixture(run){const directory=fs.mkdtempSync(path.join(os.tmpdir(),'helix-p8-accepted-')),databasePath=path.join(directory,'shelfdeck.db');let now=1700080000000;
   const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>now++}),unitOfWork=createSqliteUnitOfWork({kernel});
   try{return run({databasePath,kernel,unitOfWork});}finally{kernel.close();fs.rmSync(directory,{recursive:true,force:true});}}
-function identity(){const value={schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v1',schemaVersion:1,mountScopeId:'mount-1',inode:'123',contentHashAlgorithm:'sha256',contentHash:D('content')};value.materialKey=materialKey(value);return value;}
+function identity(){const value={schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,mountScopeId:'mount-1',inode:'123',sizeBytes:100,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint:D('content')};value.materialKey=materialKey(value);return value;}
 function seedControl(unitOfWork,material){const field={ownerDomain:'procurement',scopeType:'material_field',scopeId:'field-1'},change={action:'acquire',identity:material,expectedRevision:0,fromScope:null,toScope:field};
   const handle={schemaRef:'helix://contracts/types/ResponsibilityControlCommitHandle/v1',schemaVersion:1,handleId:'seed-control',operationKind:'acquire',ownerDomain:'procurement',processType:'seed',processId:'seed-1',
     basisRef:{objectType:'seed',objectId:'seed-1',revision:1,digest:D('basis-ref')},basisDigest:D('basis'),canonicalFactSetDigest:D('facts'),bindingSetDigest:D('bindings'),

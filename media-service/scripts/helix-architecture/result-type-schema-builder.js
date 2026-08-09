@@ -5,7 +5,9 @@ const { buildSharedTypeSchemas, externalOutputSnapshotSchema,
   providerAcquisitionCandidateSnapshotSchema } = require('./shared-type-schema-builder');
 
 const DRAFT = 'https://json-schema.org/draft/2020-12/schema';
-const typeId = (name) => `helix://contracts/types/${name}/v1`;
+const PROCUREMENT_RUN_MEMBER_LIMIT = 256;
+const typeVersion = (name) => name === 'PhysicalMaterialIdentity' ? 2 : 1;
+const typeId = (name) => `helix://contracts/types/${name}/v${typeVersion(name)}`;
 const ref = (name) => ({ $ref: typeId(name) });
 const domainRef = (name) => ({ $ref: `helix://contracts/domain-types/${name}/v1` });
 const applicationRef = (name) => ({
@@ -49,6 +51,11 @@ const envelopeFields = {
   }
 };
 const envelopeOptionalFields = { ReceiptEnvelope: new Set(['effectReceiptRef']) };
+// These are embedded immutable values, not independently transported Result envelopes.
+// Their @1 name fixes their nominal shape, while their exact SSOT value and digest do
+// not contain schemaRef/schemaVersion. Keeping that distinction also makes the Result
+// graph byte-for-byte compatible with the accepted Domain input DTOs.
+const embeddedValueTypes = new Set(['RelatedMaterialReference', 'SeasonContinuityClaim']);
 
 function boundedRecord(kind) {
   return object({
@@ -126,7 +133,7 @@ const fieldMaterialObservation = object({
   materialObservationId: digest(), observationId: id(), fieldId: id(), accessRevision: positiveInteger(), accessDigest: digest(),
   fieldAccessHandleId: id(), endpointId: id(), mountScopeRevision: positiveInteger(), identity: ref('PhysicalMaterialIdentity'),
   location: text(), sizeBytes: { type: 'integer', minimum: 0, maximum: Number.MAX_SAFE_INTEGER }, mtimeNs: decimalInt64,
-  ctimeNs: decimalInt64, hashVerifiedAtMs: nonNegativeInteger(), observedAtMs: nonNegativeInteger(), containmentDigest: digest(),
+  ctimeNs: decimalInt64, fingerprintVerifiedAtMs: nonNegativeInteger(), observedAtMs: nonNegativeInteger(), containmentDigest: digest(),
   realityDigest: digest(), provenanceDigest: digest(), snapshotDigest: digest()
 });
 const acceptedFieldMaterial = object({
@@ -152,18 +159,40 @@ const triageUnit = () => object({ unitId: digest(), mediaType: triageMediaType()
   members: { ...arrayOf(object({ materialKey: digest(),
     bindingRevision: positiveInteger(), admittedControlRevision: positiveInteger(), admittedControlProjectionDigest: digest(),
     role: enumText('primary_payload', 'structural_dependency'), episodeClaims: arrayOf(triageEpisodeClaim(), 32), memberClaimDigest: digest()
-  }), 1024), minItems: 1 }, relatedReferences: arrayOf(triageRelatedReference(), 1024), unitDigest: digest() });
+  }), PROCUREMENT_RUN_MEMBER_LIMIT), minItems: 1 }, relatedReferences: arrayOf(triageRelatedReference(), 1024), unitDigest: digest() });
 
 const special = {
   'FilesystemIdentityEvidence.identity': ref('PhysicalMaterialIdentity'),
-  'ContentHashEvidence.identity': ref('PhysicalMaterialIdentity'),
+  'BoundedContentFingerprintEvidence.identity': ref('PhysicalMaterialIdentity'),
+  'BoundedContentFingerprintEvidence.fingerprintProfileRef': { const: 'middle-256k-sha256@1' },
+  'BoundedContentFingerprintEvidence.sampleOffset': nonNegativeInteger(),
+  'BoundedContentFingerprintEvidence.sampleLength': { type:'integer', minimum:0, maximum:262144 },
+  'BoundedContentFingerprintEvidence.bytesSampled': { type:'integer', minimum:0, maximum:262144 },
   'MediaProbeEvidence.resultKind': enumText('probed', 'not_media'),
   'MediaProbeEvidence.reasonCode': enumText('probe_not_media'),
-  'MediaProbeEvidence.discTopology': object({ discKind: enumText('bdmv', 'dvd', 'iso'), titleCount: positiveInteger(),
-    singleTitleEvidenceDigest: digest() }),
+  'MediaProbeEvidence.discTopology': object({
+    discKind: enumText('bdmv', 'dvd', 'iso'),
+    titleCount: positiveInteger(),
+    singleTitleEvidenceDigest: digest(),
+    topologyVersion: positiveInteger(),
+    topologyDigest: digest(),
+    selectedPlaylist: object({
+      relativeLocation: text(),
+      durationMs: nonNegativeInteger(),
+      clipIds: { ...arrayOf(text(), 256), minItems: 1 },
+    }),
+    members: {
+      ...arrayOf(object({
+        relativeLocation: text(),
+        role: enumText('primary_payload', 'structural_dependency'),
+        clipId: text(),
+      }, ['relativeLocation', 'role']), PROCUREMENT_RUN_MEMBER_LIMIT),
+      minItems: 1,
+    },
+  }),
   'LayoutEvidence.entries': arrayOf(object({ entryOrdinal: nonNegativeInteger(), entryKind: enumText('file', 'directory'),
     relativeLocation: text(), baseName: text(), extension: text(), identity: ref('PhysicalMaterialIdentity'), endpointId: id(),
-    location: text(), sizeBytes: nonNegativeInteger(), mtimeNs: text(), checksumAlgorithm: { const: 'sha256' }, checksumHex: digest(),
+    location: text(), sizeBytes: nonNegativeInteger(), mtimeNs: text(),
     entryDigest: digest() }, ['entryOrdinal', 'entryKind', 'relativeLocation', 'baseName', 'endpointId', 'location', 'entryDigest']), 256),
   'MediaProbeEvidence.videoStreams': arrayOf(stream, 64),
   'MediaProbeEvidence.audioStreams': arrayOf(audioStream, 128),
@@ -187,7 +216,7 @@ const special = {
   'TriageStructureEvidence.unassignedMaterials': arrayOf(object({ materialKey: digest(), reasonCode: enumText('probe_not_media',
     'no_video_stream', 'non_positive_duration', 'content_profile_unresolved', 'conflicting_season_claim',
     'episode_claim_unresolved', 'disc_structure_incomplete', 'disc_multi_title_unsupported', 'triage_unit_contract_too_large',
-    'structure_ambiguous'), evidenceDigest: digest() }), 1024),
+    'structure_ambiguous'), evidenceDigest: digest() }), PROCUREMENT_RUN_MEMBER_LIMIT),
   'TriageStructureEvidence.cursorIn': nullable(text()),
   'TriageStructureEvidence.cursorOut': nullable(text()),
   'IdentityClaim.claimKind': enumText('movie_title', 'series_season', 'jav_code', 'western_temporary'),
@@ -205,7 +234,7 @@ const special = {
     physicalIdentity: ref('PhysicalMaterialIdentity'), sizeBytes: nonNegativeInteger(),
     bindingRevision: positiveInteger(), admittedControlRevision: positiveInteger(), admittedControlProjectionDigest: digest(),
     episodeClaims: arrayOf(triageEpisodeClaim(), 32), memberDigest: digest()
-  })), minItems: 1 },
+  }), PROCUREMENT_RUN_MEMBER_LIMIT), minItems: 1 },
   'CandidatePackage.identityClaim': ref('IdentityClaim'),
   'CandidatePackage.packageRevision': positiveInteger(),
   'CandidatePackage.runBasisDigest': digest(),
@@ -222,8 +251,9 @@ const special = {
   'RelatedMaterialReference.identity': ref('PhysicalMaterialIdentity'),
   'RelatedMaterialReference.primaryMaterialKey': digest(),
   'RelatedMaterialReference.role': enumText('nfo', 'poster', 'fanart', 'subtitle', 'external_audio', 'chapter', 'sidecar'),
-  'RelatedMaterialReference.checksumAlgorithm': { const: 'sha256' },
-  'RelatedMaterialReference.checksumHex': digest(),
+  'RelatedMaterialReference.fingerprintAlgorithm': { const: 'middle-256k-sha256' },
+  'RelatedMaterialReference.fingerprintVersion': { const: 1 },
+  'RelatedMaterialReference.contentFingerprint': digest(),
   'SeasonContinuityClaim.claimKind': enumText('provider_season_identity', 'triage_grouping_lineage'),
   'SeasonContinuityClaim.claimNamespace': text(),
   'SeasonContinuityClaim.claimKey': text(),
@@ -445,7 +475,7 @@ function inferredField(resultName, fieldName) {
 
 const contracts = {
   FilesystemIdentityEvidence: ['EvidenceEnvelope', 'identity,endpointId,location,statSizeBytes,statMtimeMs'],
-  ContentHashEvidence: ['EvidenceEnvelope', 'identity,hashProfileRef,bytesHashed'],
+  BoundedContentFingerprintEvidence: ['EvidenceEnvelope', 'identity,fingerprintProfileRef,sampleOffset,sampleLength,bytesSampled'],
   MediaProbeEvidence: ['EvidenceEnvelope', 'sourceHandleDigest,resultKind,reasonCode?,container?,durationMs?,sizeBytes,videoStreams,audioStreams,subtitleStreams,discTopology?'],
   LayoutEvidence: ['EvidenceEnvelope', 'sourceHandleDigest,boundedScopeDigest,entries,entriesDigest,layoutDigest'],
   ManifestVerification: ['VerificationEnvelope', 'manifestDigest,contractRef'],
@@ -461,7 +491,7 @@ const contracts = {
   PrimaryInputManifestDraft: ['DraftEnvelope', 'preallocatedManifestId,procurementRunId,runBasisDigest,structureEvidencePayloadDigest,unitId,structureKind,memberCount,membersDigest,memberSourceDigest,manifestDraftDigest'],
   PrimaryInputManifest: ['ManifestEnvelope', 'structureKind,members'],
   CandidatePackage: ['ManifestEnvelope', 'candidatePackageId,packageRevision,procurementRunId,runBasisDigest,triageRule,materialFieldContextRef,mediaType,contentProfile,displayIdentity,identityMetadata,identityClaim,structureEvidenceRef,seasonContinuityClaims,seasonContinuityClaimSetDigest,primaryInputManifestRef,relatedReferences,relatedReferenceSetDigest,memberControlEvidenceSetDigest,packageDigest'],
-  RelatedMaterialReference: [null, 'referenceId,primaryMaterialKey,role,identity,endpointId,location,checksumAlgorithm,checksumHex,associationEvidenceDigest,referenceDigest'],
+  RelatedMaterialReference: [null, 'referenceId,primaryMaterialKey,role,identity,endpointId,location,fingerprintAlgorithm,fingerprintVersion,contentFingerprint,associationEvidenceDigest,referenceDigest'],
   SeasonContinuityClaim: [null, 'claimKind,claimNamespace,claimKey,claimDigest,evidenceDigest'],
   CandidateIntakeAcceptanceBasis: [null, 'handoffContractRef,acceptanceOwnerDomain,targetContext,candidatePackageId,packageRevision,packageDigest,primaryInputManifestDigest,seasonContinuityClaimSetDigest,relatedReferenceSetDigest,memberControlEvidenceSetDigest,acceptanceBasisDigest'],
   ProcurementCandidateOfferAvailableMessage: [null, 'messageKind,offerId,candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest,acceptanceOwnerDomain,targetContext'],
@@ -576,7 +606,7 @@ function buildResultTypeSchema(name, [base, fieldList]) {
       .filter(([field]) => field !== 'schemaRef' && field !== 'schemaVersion'))
     : {};
   const inherited = {
-    schemaRef: { const: typeId(name) }, schemaVersion: { const: 1 },
+    ...(embeddedValueTypes.has(name) ? {} : { schemaRef: { const: typeId(name) }, schemaVersion: { const: 1 } }),
     ...(base === 'WorkspaceMaterialHandle' ? workspaceFields : base ? envelopeFields[base] : {})
   };
   const required = Object.keys(inherited).filter((field) => !(envelopeOptionalFields[base] || new Set()).has(field));

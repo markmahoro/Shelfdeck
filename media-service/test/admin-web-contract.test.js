@@ -16,6 +16,37 @@ test('Admin Web exposes exactly the nine Helix journey pages', () => {
   assert.doesNotMatch(app, /TasksPage|LibrariesPage|CleanupPage|PoliciesPage/);
 });
 
+test('Material Fields admits background Observation and projects progress toward Handoff A ready', () => {
+  const app = read('web/src/App.tsx');
+  const page = read('web/src/helix/MaterialFieldsPage.tsx');
+  const api = read('web/src/helix/api.ts');
+  const admin = read('src/helix/domains/procurement/application/admin-facade.js');
+  assert.match(app, /MaterialFieldsPage/);
+  assert.match(api, /\/v1\/admin\/session/);
+  assert.match(api, /\/v1\/admin\/material-fields/);
+  assert.match(page, /保存文件来源/);
+  assert.match(page, /观察并准备候选/);
+  assert.match(page, /注销文件来源/);
+  assert.match(api, /actions\/deregister/);
+  assert.match(api, /procurementStatus/);
+  assert.doesNotMatch(page, />删除文件来源</);
+  assert.match(page, /Candidate Package/);
+  assert.match(page, /Handoff A/);
+  assert.match(api, /actions\/observe/);
+  assert.match(page, /Observation已进入后台队列/);
+  assert.match(api, /operationRef/);
+  assert.doesNotMatch(admin, /advanceToHandoffAReady/);
+  assert.doesNotMatch(admin, /movieRunCoordinator\.advance\(/);
+});
+
+test('Formation progress begins after Procurement handoff', () => {
+  const model = read('web/src/helix/surface-model.ts');
+  const formation = model.split("slug:'formation'")[1].split("slug:'care'")[0];
+  assert.match(formation, /从生产到正式入架/);
+  assert.match(formation, /文件发现与采购准备留在文件来源/);
+  assert.doesNotMatch(formation, /判断开采资格|准备候选包/);
+});
+
 test('legacy Admin routes, pages and style layers are absent', () => {
   const removed = [
     'web/src/pages/AdultConfigPage.tsx', 'web/src/pages/AdvancedPage.tsx', 'web/src/pages/OffboardingCandidatesPage.tsx',

@@ -40,8 +40,15 @@ test('freezes FA-04 continuity kinds and non-empty Primary Input membership', ()
     assert.ok(schemas.CandidatePackage.required.includes(field), field);
   }
   assert.equal(schemas.PrimaryInputManifest.properties.members.minItems, 1);
+  assert.equal(schemas.PrimaryInputManifest.properties.members.maxItems, 256);
   assert.equal(schemas.PrimaryInputManifest.properties.members.items.additionalProperties, false);
   assert.equal(schemas.PrimaryInputManifest.properties.members.items.properties.ordinal.minimum, 0);
+  assert.equal(schemas.TriageStructureEvidence.properties.units.items.properties.members.maxItems, 256);
+  assert.equal(schemas.TriageStructureEvidence.properties.unassignedMaterials.maxItems, 256);
+  for (const embedded of ['RelatedMaterialReference', 'SeasonContinuityClaim']) {
+    assert.equal(Object.hasOwn(schemas[embedded].properties, 'schemaRef'), false);
+    assert.equal(Object.hasOwn(schemas[embedded].properties, 'schemaVersion'), false);
+  }
 });
 
 test('keeps On-deck atomic success and business not-available distinct from Runtime Outcome variants', () => {

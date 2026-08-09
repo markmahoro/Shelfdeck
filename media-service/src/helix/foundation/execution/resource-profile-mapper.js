@@ -65,6 +65,7 @@ function createResourceProfileMapper(rawProjection) {
     const kind = resourceKey.slice(0, separator);
     const key = resourceKey.slice(separator + 1);
     if (!OPAQUE_KEY.test(key)) fail('P4_RESOURCE_KEY_INVALID', 'Resource key suffix must be opaque platform identity.', { resourceKey });
+    if (kind === 'capability') return full ? 2 : 1;
     if (kind === 'integration') {
       const entry = integrations.get(key); if (!entry) return 0;
       return Math.min(full ? 2 : 1, entry.providerMaxConcurrency);

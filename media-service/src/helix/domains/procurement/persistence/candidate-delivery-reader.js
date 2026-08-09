@@ -26,14 +26,14 @@ function createCandidateDeliveryReader(options) {
         keyColumns:['procurement_run_id'] },
       list_continuity:{ kind:'select-all', tableId:'proc_candidate_season_continuity_claims', columns:['claim_kind','claim_namespace',
         'claim_key','claim_digest','evidence_digest'], keyColumns:['candidate_package_id'] },
-      list_primary:{ kind:'select-all', tableId:'proc_candidate_primary_materials', columns:['ordinal','material_key','role','mount_scope_id','inode','content_hash_algorithm','content_hash','size_bytes','binding_revision',
+      list_primary:{ kind:'select-all', tableId:'proc_candidate_primary_materials', columns:['ordinal','material_key','role','mount_scope_id','inode','size_bytes','fingerprint_algorithm','fingerprint_version','content_fingerprint','binding_revision',
         'admitted_control_revision','admitted_control_projection_digest','member_digest'], keyColumns:['candidate_package_id'], safeIntegers:true },
       list_episodes:{ kind:'select-all', tableId:'proc_candidate_primary_material_episode_claims', columns:['primary_ordinal','episode_key',
         'season_claim_digest','claim_digest'], keyColumns:['candidate_package_id'], safeIntegers:true },
       list_related:{ kind:'select-all', tableId:'proc_candidate_related_references', columns:['reference_id','primary_ordinal','role','material_key',
-        'mount_scope_id','inode','content_hash_algorithm','content_hash','endpoint_id','location','checksum_algorithm','checksum_hex',
+        'mount_scope_id','inode','size_bytes','fingerprint_algorithm','fingerprint_version','content_fingerprint','endpoint_id','location',
         'association_evidence_digest','reference_digest'], keyColumns:['candidate_package_id'], safeIntegers:true },
-      list_run_members:{ kind:'select-all', tableId:'proc_run_materials', columns:['ordinal','material_key','mount_scope_id','inode','content_hash_algorithm','content_hash','size_bytes','binding_revision','last_snapshot_digest',
+      list_run_members:{ kind:'select-all', tableId:'proc_run_materials', columns:['ordinal','material_key','mount_scope_id','inode','size_bytes','fingerprint_algorithm','fingerprint_version','content_fingerprint','binding_revision','last_snapshot_digest',
         'endpoint_id','location','reality_digest','provenance_digest','admitted_control_revision','admitted_control_projection_digest',
         'selection_state','candidate_package_id'], keyColumns:['procurement_run_id'], safeIntegers:true }
     } });

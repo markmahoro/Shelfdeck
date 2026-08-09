@@ -29,15 +29,15 @@ function canonical(value) {
 function repositories(schemaManifest) {
   return Object.freeze({
     works: createRepositoryDefinition({ repositoryId: 'work_supply_works', owner: 'execution-foundation', schemaManifest, statements: {
-      list: { kind: 'select-all', tableId: 'fx_supporting_works', columns: ['work_id', 'owner_domain', 'priority_class', 'state'], keyColumns: [] },
-      find: { kind: 'select-one', tableId: 'fx_supporting_works', columns: ['work_id', 'owner_domain', 'priority_class', 'state'], keyColumns: ['work_id'] }
+      list: { kind: 'select-all', tableId: 'fx_supporting_works', columns: ['work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'priority_class', 'state'], keyColumns: [] },
+      find: { kind: 'select-one', tableId: 'fx_supporting_works', columns: ['work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'priority_class', 'state'], keyColumns: ['work_id'] }
     } }),
     attempts: createRepositoryDefinition({ repositoryId: 'work_supply_attempts', owner: 'execution-foundation', schemaManifest, statements: {
       list: { kind: 'select-all', tableId: 'fx_work_attempts', columns: ['attempt_id', 'work_id', 'state'], keyColumns: [] }
     } }),
     events: createRepositoryDefinition({ repositoryId: 'work_supply_events', owner: 'execution-foundation', schemaManifest, statements: {
-      list: { kind: 'select-all', tableId: 'fx_workflow_events', columns: ['event_id', 'owner_domain', 'priority_class', 'state'], keyColumns: [] },
-      find: { kind: 'select-one', tableId: 'fx_workflow_events', columns: ['event_id', 'owner_domain', 'priority_class', 'state'], keyColumns: ['event_id'] }
+      list: { kind: 'select-all', tableId: 'fx_workflow_events', columns: ['event_id', 'work_id', 'owner_domain', 'priority_class', 'state'], keyColumns: [] },
+      find: { kind: 'select-one', tableId: 'fx_workflow_events', columns: ['event_id', 'work_id', 'owner_domain', 'priority_class', 'state'], keyColumns: ['event_id'] }
     } }),
     eventAttempts: createRepositoryDefinition({ repositoryId: 'work_supply_event_attempts', owner: 'execution-foundation', schemaManifest, statements: {
       list: { kind: 'select-all', tableId: 'fx_event_attempts', columns: ['event_id', 'started_at_ms'], keyColumns: [] }
@@ -60,6 +60,7 @@ function assertLimits(limits) {
 
 function createWorkSupplyController(options) {
   if (!options || !options.schemaManifest || !options.unitOfWork || typeof options.unitOfWork.execute !== 'function' ||
+      !options.executionProjectionProvider || typeof options.executionProjectionProvider.read !== 'function' ||
       typeof options.now !== 'function') fail('P4_WORK_SUPPLY_DEPENDENCIES_REQUIRED', 'Scoped UoW and clock are required.');
   const limits = Object.freeze({ ...(options.limits || DEFAULT_LIMITS) });
   assertLimits(limits);
@@ -84,6 +85,13 @@ function createWorkSupplyController(options) {
           if (!target || (request.supplyKind === 'work_attempt' ? !['admitted', 'ready'].includes(target.state) : target.state !== 'ready')) {
             return Object.freeze({ kind: 'ineligible', reasonCode: 'TARGET_NOT_SUPPLY_ELIGIBLE' });
           }
+          const work=request.supplyKind==='work_attempt'?target:worksRepo.invoke('find',{work_id:target.work_id});
+          if(!work)fail('P4_WORK_SUPPLY_WORK_FACT_MISSING','Supply target has no Supporting Work fact.');
+          const projection=options.executionProjectionProvider.read(Object.freeze({ownerDomain:work.owner_domain,
+            processType:work.process_type,processId:work.process_id,workKind:work.work_kind}));
+          if(!projection||!['expansion','completion'].includes(projection.supplyRole)){
+            fail('P4_WORK_SUPPLY_PROJECTION_INVALID','Domain Execution Projection is missing a valid supply role.');
+          }
           for (const key of ['foundation/work-supply', 'owner/' + target.owner_domain + '/work-supply']) {
             const circuit = context.repository('work_supply_circuits').invoke('find', { circuit_key: key });
             if (circuit && circuit.state !== 'closed') return Object.freeze({ kind: 'deferred', reasonCode: 'CIRCUIT_' + circuit.state.toUpperCase() });
@@ -97,11 +105,14 @@ function createWorkSupplyController(options) {
             dispatchableEvent: events.filter((item) => DISPATCHABLE_EVENT.has(item.state)).length,
             backgroundWork: works.filter((item) => OPEN_WORK.has(item.state) && item.priority_class === 'background_observation').length
           };
-          const hard = snapshot.openWork >= limits.openWorkHard || snapshot.activeAttempt >= limits.activeAttemptHard ||
-            snapshot.dispatchableEvent >= limits.dispatchableEventHard || snapshot.backgroundWork >= limits.backgroundWorkHard;
-          if (hard) return Object.freeze({ kind: 'deferred', reasonCode: 'SUPPLY_HARD_CAP', snapshotDigest: digest(JSON.stringify(canonical(snapshot))) });
-          const soft = snapshot.openWork >= limits.openWorkSoft || snapshot.activeAttempt >= limits.activeAttemptSoft ||
-            snapshot.dispatchableEvent >= limits.dispatchableEventSoft || snapshot.backgroundWork >= limits.backgroundWorkSoft;
+          // Open Work and background Work caps govern admission of new durable demand.
+          // They must never prevent an already-admitted Work from starting, because
+          // execution is the only operation that can drain that backlog. Work planning
+          // is instead bounded by active Attempts and the dispatchable Event frontier.
+          const hard = snapshot.activeAttempt >= limits.activeAttemptHard ||
+            snapshot.dispatchableEvent >= limits.dispatchableEventHard;
+          const soft = snapshot.activeAttempt >= limits.activeAttemptSoft ||
+            snapshot.dispatchableEvent >= limits.dispatchableEventSoft;
           const priority = target.priority_class;
           let minimumBackgroundDue = false;
           if (request.supplyKind === 'event_dispatch' && priority === 'background_observation') {
@@ -112,12 +123,19 @@ function createWorkSupplyController(options) {
             const reservedReady = events.some((event) => event.state === 'ready' && RESERVED.has(event.priority_class));
             minimumBackgroundDue = !reservedReady && nowMs - lastBackground >= 60000;
           }
-          if (soft && !RESERVED.has(priority) && !minimumBackgroundDue) {
+          // Backlog limits gate creation of another Work Attempt. Once an Event exists,
+          // refusing to dispatch it would prevent the active backlog from ever draining;
+          // Resource Governor remains the sole Capability-capacity gate for that Event.
+          if (request.supplyKind === 'work_attempt' && hard) {
+            return Object.freeze({ kind: 'deferred', reasonCode: 'SUPPLY_HARD_CAP', snapshotDigest: digest(JSON.stringify(canonical(snapshot))) });
+          }
+          if (request.supplyKind === 'work_attempt' && soft && !RESERVED.has(priority) && projection.supplyRole !== 'completion') {
             return Object.freeze({ kind: 'deferred', reasonCode: 'SUPPLY_SOFT_CAP', snapshotDigest: digest(JSON.stringify(canonical(snapshot))) });
           }
           return Object.freeze({
             kind: 'permitted', supplyKind: request.supplyKind, targetId: request.targetId,
-            lane: RESERVED.has(priority) ? 'reserved' : minimumBackgroundDue ? 'minimum_background' : 'normal',
+            lane: RESERVED.has(priority) ? 'reserved' : minimumBackgroundDue ? 'minimum_background' :
+              projection.supplyRole==='completion'?'completion':'normal',
             snapshotDigest: digest(JSON.stringify(canonical(snapshot)))
           });
         }

@@ -27,10 +27,10 @@ function fixture(run, now = 120000) {
   const seed = createRepositoryDefinition({
     repositoryId: 'supply_seed', owner: 'execution-foundation', schemaManifest,
     statements: {
-      work: { kind: 'insert', tableId: 'fx_supporting_works', columns: ['work_id', 'owner_domain', 'priority_class', 'state', 'idempotency_key'] },
+      work: { kind: 'insert', tableId: 'fx_supporting_works', columns: ['work_id', 'owner_domain', 'process_type','process_id','work_kind','priority_class', 'state', 'idempotency_key'] },
       attempt: { kind: 'insert', tableId: 'fx_work_attempts', columns: ['attempt_id', 'work_id', 'state'] },
       plan: { kind: 'insert', tableId: 'fx_workflow_plans', columns: ['plan_id', 'attempt_id', 'state'] },
-      event: { kind: 'insert', tableId: 'fx_workflow_events', columns: ['event_id', 'plan_id', 'owner_domain', 'priority_class', 'state'] },
+      event: { kind: 'insert', tableId: 'fx_workflow_events', columns: ['event_id', 'plan_id','work_id', 'owner_domain', 'priority_class', 'state'] },
       event_attempt: { kind: 'insert', tableId: 'fx_event_attempts', columns: ['event_attempt_id', 'event_id', 'ordinal', 'state', 'started_at_ms'] },
       circuit: { kind: 'insert', tableId: 'fx_circuit_states', columns: ['circuit_key', 'state'] }
     }
@@ -41,20 +41,23 @@ function fixture(run, now = 120000) {
       execute(context) { callback(context.repository('supply_seed')); }
     }]);
   }
-  const controller = createWorkSupplyController({ schemaManifest, unitOfWork, limits, now: () => now });
+  const controller = createWorkSupplyController({ schemaManifest, unitOfWork, limits, now: () => now,
+    executionProjectionProvider:{read:({workKind})=>Object.freeze({priorityClass:'normal_foreground',localPriority:0,priorityRevision:1,
+      supplyRole:workKind==='candidate_assembly'?'completion':'expansion'})} });
   try { return run({ controller, databasePath, seedRows }); }
   finally { kernel.close(); fs.rmSync(root, { recursive: true, force: true }); }
 }
 
-function addWork(repository, id, priority = 'normal_foreground', state = 'admitted', owner = 'libra') {
-  repository.invoke('work', { work_id: id, owner_domain: owner, priority_class: priority, state, idempotency_key: 'key-' + id });
+function addWork(repository, id, priority = 'normal_foreground', state = 'admitted', owner = 'libra', workKind='fixture_work') {
+  repository.invoke('work', { work_id: id, owner_domain: owner,process_type:'fixture_process',process_id:'process-'+id,work_kind:workKind,
+    priority_class: priority, state, idempotency_key: 'key-' + id });
 }
 
 function addEventGraph(repository, id, priority = 'normal_foreground', state = 'ready') {
   addWork(repository, 'work-' + id, priority, 'running');
   repository.invoke('attempt', { attempt_id: 'attempt-' + id, work_id: 'work-' + id, state: 'running' });
   repository.invoke('plan', { plan_id: 'plan-' + id, attempt_id: 'attempt-' + id, state: 'planned' });
-  repository.invoke('event', { event_id: 'event-' + id, plan_id: 'plan-' + id, owner_domain: 'libra', priority_class: priority, state });
+  repository.invoke('event', { event_id: 'event-' + id, plan_id: 'plan-' + id,work_id:'work-'+id,owner_domain: 'libra', priority_class: priority, state });
 }
 
 test('Supply permits eligible Work Attempt from persisted target and produces stable snapshot', () => {
@@ -71,21 +74,30 @@ test('Supply permits eligible Work Attempt from persisted target and produces st
   });
 });
 
-test('soft cap defers normal supply but preserves reserved safety and handoff lanes', () => {
+test('active execution soft cap defers normal supply but preserves reserved safety and handoff lanes', () => {
   fixture(({ controller, seedRows }) => {
     seedRows((repository) => {
       addWork(repository, 'normal');
-      addWork(repository, 'filler');
+      addWork(repository, 'filler-one', 'normal_foreground', 'running');
+      repository.invoke('attempt', { attempt_id:'attempt-filler-one', work_id:'filler-one', state:'running' });
+      addWork(repository, 'filler-two', 'normal_foreground', 'running');
+      repository.invoke('attempt', { attempt_id:'attempt-filler-two', work_id:'filler-two', state:'running' });
       addWork(repository, 'safety', 'safety_liveness');
+      addWork(repository, 'completion', 'normal_foreground','admitted','procurement','candidate_assembly');
     });
     assert.deepEqual(controller.evaluate({ supplyKind: 'work_attempt', targetId: 'normal' }).kind, 'deferred');
     const safety = controller.evaluate({ supplyKind: 'work_attempt', targetId: 'safety' });
-    assert.equal(safety.kind, 'deferred');
-    assert.equal(safety.reasonCode, 'SUPPLY_HARD_CAP');
+    assert.equal(safety.kind, 'permitted');
+    assert.equal(safety.lane, 'reserved');
+    assert.equal(controller.evaluate({supplyKind:'work_attempt',targetId:'completion'}).lane,'completion');
   });
   fixture(({ controller, seedRows }) => {
     seedRows((repository) => {
       addWork(repository, 'normal');
+      addWork(repository, 'filler-one', 'normal_foreground', 'running');
+      repository.invoke('attempt', { attempt_id:'attempt-filler-one', work_id:'filler-one', state:'running' });
+      addWork(repository, 'filler-two', 'normal_foreground', 'running');
+      repository.invoke('attempt', { attempt_id:'attempt-filler-two', work_id:'filler-two', state:'running' });
       addWork(repository, 'safety', 'safety_liveness');
     });
     assert.equal(controller.evaluate({ supplyKind: 'work_attempt', targetId: 'normal' }).reasonCode, 'SUPPLY_SOFT_CAP');
@@ -93,21 +105,35 @@ test('soft cap defers normal supply but preserves reserved safety and handoff la
   });
 });
 
-test('hard caps block every new lane without deleting or changing Work', () => {
+test('active execution hard caps block every new lane without deleting or changing Work', () => {
   fixture(({ controller, databasePath, seedRows }) => {
     seedRows((repository) => {
       addWork(repository, 'target', 'handoff_acceptance');
-      addWork(repository, 'two');
-      addWork(repository, 'three');
+      for (const id of ['one','two','three']) {
+        addWork(repository, id, 'normal_foreground', 'running');
+        repository.invoke('attempt', { attempt_id:'attempt-'+id, work_id:id, state:'running' });
+      }
     });
     assert.deepEqual(controller.evaluate({ supplyKind: 'work_attempt', targetId: 'target' }).reasonCode, 'SUPPLY_HARD_CAP');
     const database = new Database(databasePath, { readonly: true });
-    assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_supporting_works').get().count, 3);
+    assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_supporting_works').get().count, 4);
     database.close();
   });
 });
 
-test('minimum background lane opens after 60 seconds only when no reserved Event is ready', () => {
+test('open admitted backlog above its hard cap remains drainable', () => {
+  fixture(({ controller, seedRows }) => {
+    seedRows((repository) => {
+      addWork(repository, 'target');
+      addWork(repository, 'two');
+      addWork(repository, 'three');
+      addWork(repository, 'four');
+    });
+    assert.equal(controller.evaluate({ supplyKind:'work_attempt', targetId:'target' }).kind, 'permitted');
+  });
+});
+
+test('existing Events keep draining across Work backlog caps and background minimum remains observable', () => {
   fixture(({ controller, seedRows }) => {
     seedRows((repository) => {
       addEventGraph(repository, 'background', 'background_observation');
@@ -122,7 +148,9 @@ test('minimum background lane opens after 60 seconds only when no reserved Event
       addEventGraph(repository, 'background', 'background_observation');
       addEventGraph(repository, 'safety', 'safety_liveness');
     });
-    assert.equal(controller.evaluate({ supplyKind: 'event_dispatch', targetId: 'event-background' }).reasonCode, 'SUPPLY_SOFT_CAP');
+    const decision=controller.evaluate({ supplyKind: 'event_dispatch', targetId: 'event-background' });
+    assert.equal(decision.kind,'permitted');
+    assert.equal(decision.lane,'normal');
   }, 120000);
   fixture(({ controller, seedRows }) => {
     seedRows((repository) => {
@@ -132,7 +160,9 @@ test('minimum background lane opens after 60 seconds only when no reserved Event
         event_attempt_id: 'event-attempt-background', event_id: 'event-background', ordinal: 1, state: 'completed', started_at_ms: 90000
       });
     });
-    assert.equal(controller.evaluate({ supplyKind: 'event_dispatch', targetId: 'event-background' }).reasonCode, 'SUPPLY_SOFT_CAP');
+    const decision=controller.evaluate({ supplyKind: 'event_dispatch', targetId: 'event-background' });
+    assert.equal(decision.kind,'permitted');
+    assert.equal(decision.lane,'normal');
   }, 120000);
 });
 

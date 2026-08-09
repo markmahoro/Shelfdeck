@@ -39,8 +39,8 @@
       },
       {
         "ordinal": 4,
-        "name": "content_hash_algorithm",
-        "logicalType": "TEXT",
+        "name": "size_bytes",
+        "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -49,7 +49,7 @@
       },
       {
         "ordinal": 5,
-        "name": "content_hash",
+        "name": "fingerprint_algorithm",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -59,6 +59,26 @@
       },
       {
         "ordinal": 6,
+        "name": "fingerprint_version",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "content_fingerprint",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
         "name": "owner_domain",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -68,7 +88,7 @@
         "nullable": true
       },
       {
-        "ordinal": 7,
+        "ordinal": 9,
         "name": "owner_scope_type",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -78,7 +98,7 @@
         "nullable": true
       },
       {
-        "ordinal": 8,
+        "ordinal": 10,
         "name": "owner_scope_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -88,7 +108,7 @@
         "nullable": true
       },
       {
-        "ordinal": 9,
+        "ordinal": 11,
         "name": "control_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -98,7 +118,7 @@
         "nullable": false
       },
       {
-        "ordinal": 10,
+        "ordinal": 12,
         "name": "state",
         "logicalType": "TEXT",
         "enumValues": [
@@ -111,7 +131,7 @@
         "nullable": false
       },
       {
-        "ordinal": 11,
+        "ordinal": 13,
         "name": "updated_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -129,8 +149,10 @@
       [
         "mount_scope_id",
         "inode",
-        "content_hash_algorithm",
-        "content_hash"
+        "size_bytes",
+        "fingerprint_algorithm",
+        "fingerprint_version",
+        "content_fingerprint"
       ]
     ],
     "hotIndexes": [],
@@ -162,20 +184,20 @@
       "rules": []
     },
     "semanticRules": [
-      "`UNIQUE(mount_scope_id,inode,content_hash_algorithm,content_hash)`",
+      "`UNIQUE(mount_scope_id,inode,size_bytes,fingerprint_algorithm,fingerprint_version,content_fingerprint)`",
       "一项Identity只有一行current Control且Identity列write-once，Control row不得物理删除",
       "controlled必须有完整owner，released必须三个owner列均NULL",
       "首次acquire revision=1，transfer/release必须CAS并递增`control_revision`",
       "从未存在row与released row都可投影uncontrolled，但revision分别为0和当前正整数"
     ],
     "rawContract": {
-      "columns": "`material_key PK, mount_scope_id, inode, content_hash_algorithm, content_hash, owner_domain NULL, owner_scope_type NULL, owner_scope_id NULL, control_revision, state(controlled|released), updated_at_ms`",
-      "constraints": "`UNIQUE(mount_scope_id,inode,content_hash_algorithm,content_hash)`；一项Identity只有一行current Control且Identity列write-once，Control row不得物理删除；controlled必须有完整owner，released必须三个owner列均NULL；首次acquire revision=1，transfer/release必须CAS并递增`control_revision`；从未存在row与released row都可投影uncontrolled，但revision分别为0和当前正整数"
+      "columns": "`material_key PK, mount_scope_id, inode, size_bytes, fingerprint_algorithm, fingerprint_version, content_fingerprint, owner_domain NULL, owner_scope_type NULL, owner_scope_id NULL, control_revision, state(controlled|released), updated_at_ms`",
+      "constraints": "`UNIQUE(mount_scope_id,inode,size_bytes,fingerprint_algorithm,fingerprint_version,content_fingerprint)`；一项Identity只有一行current Control且Identity列write-once，Control row不得物理删除；controlled必须有完整owner，released必须三个owner列均NULL；首次acquire revision=1，transfer/release必须CAS并递增`control_revision`；从未存在row与released row都可投影uncontrolled，但revision分别为0和当前正整数"
     },
     "source": {
       "section": "8.5.10",
-      "line": 8505,
-      "lineDigest": "3c3cd59bea871d89b60f63133a17d1aa87885c19b463e8ba124e7d27b5604352"
+      "line": 8628,
+      "lineDigest": "dd4a23cb15cf44980d62c6854c1f8335776ad66004d228430fc2d650714d9cbe"
     },
     "foreignKeys": []
   }

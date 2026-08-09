@@ -23,17 +23,17 @@ function mutate(filePath, change) {
   fs.writeFileSync(filePath, JSON.stringify(value, null, 2));
 }
 
-test('closes the exact current 112/97/178/43 baseline with a stable aggregate digest', () => {
+test('closes the exact current 112/97/179/43 baseline with a stable aggregate digest', () => {
   const first = validateP2ContractBaseline({ repositoryRoot, contractsRoot });
   const second = validateP2ContractBaseline({ repositoryRoot, contractsRoot });
   assert.equal(first.ok, true);
   assert.deepEqual(first.counts, {
-    capabilities: 112, resultFamilies: 97, tables: 178, transactions: 43,
-    sharedTypes: 29, domainInputs: 109, referencedTypeRefs: 205,
+    capabilities: 112, resultFamilies: 97, tables: 179, transactions: 43,
+    sharedTypes: 29, domainInputs: 109, referencedTypeRefs: 206,
     unresolvedTypeRefs: 0
   });
   assert.equal(first.aggregateDigest,
-    'c5a62e222ce4063f7ad05073f343e525d417f625cc937ee5f1284a2cf2090995');
+    '7d856b57d66ae447666c1669b5aa9a981ef5be4aec99cbf115def357c6fbf49a');
   assert.equal(first.aggregateDigest, second.aggregateDigest);
   assert.deepEqual(first.prohibitedActionsRun, []);
 });

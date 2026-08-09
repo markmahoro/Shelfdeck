@@ -4,9 +4,15 @@ const crypto = require('crypto');
 const { selectedCandidateSelectedValueSchema } = require('./result-type-schema-builder');
 
 const DRAFT = 'https://json-schema.org/draft/2020-12/schema';
+const PROCUREMENT_RUN_MEMBER_LIMIT = 256;
+const PROCUREMENT_PROBE_BATCH_LIMIT = 100;
+const PROCUREMENT_PROBE_PAGE_LIMIT = Math.ceil(
+  PROCUREMENT_RUN_MEMBER_LIMIT / PROCUREMENT_PROBE_BATCH_LIMIT,
+);
 const domainTypeId = (name) => `helix://contracts/domain-types/${name}/v1`;
 const domainRef = (name) => ({ $ref: domainTypeId(name) });
-const typeRef = (name) => ({ $ref: `helix://contracts/types/${name}/v1` });
+const typeVersion = (name) => name === 'PhysicalMaterialIdentity' ? 2 : 1;
+const typeRef = (name) => ({ $ref: `helix://contracts/types/${name}/v${typeVersion(name)}` });
 const applicationRef = (name) => ({ $ref: `helix://contracts/application-types/${name}/v1` });
 const text = (options = {}) => ({ type: 'string', minLength: 1, ...options });
 const id = () => text({ maxLength: 256 });
@@ -40,8 +46,11 @@ const special = {
   'ClusterParameters.distanceThreshold': { type: 'number', minimum: 0, maximum: 1 },
   'ClusterParameters.minClusterSize': positiveInteger(),
   'EncodeIntent.deviceClass': text(),
-  'HashProfile.algorithm': { const: 'sha256' },
-  'HashProfile.fullContentRequired': { const: true },
+  'BoundedFingerprintProfile.profileRef': { const: 'middle-256k-sha256@1' },
+  'BoundedFingerprintProfile.revision': { const: 1 },
+  'BoundedFingerprintProfile.algorithm': { const: 'middle-256k-sha256' },
+  'BoundedFingerprintProfile.maxSampleBytes': { const: 262144 },
+  'BoundedFingerprintProfile.profileDigest': digest(),
   'IdentityRequirement.strengthClass': text(),
   'PlacementPolicy.targetEndpointIds': arrayOf(id(), 128),
   'PerceptionAcquisitionCursor.pageBudget': positiveInteger(),
@@ -105,7 +114,7 @@ const boundedContracts = {
   ClusterParameters: '',
   EncodeIntent: '',
   FaceModelRef: '',
-  HashProfile: 'algorithm,chunkSizeBytes,fullContentRequired',
+  BoundedFingerprintProfile: 'profileRef,revision,algorithm,maxSampleBytes,profileDigest',
   IdentityRequirement: '',
   MandatoryRequirement: 'requirementCodes',
   ManifestContract: 'manifestKind,memberSchemaRef,minMembers,maxMembers',
@@ -320,7 +329,7 @@ function selectedFieldMaterialSetSchema() {
     basisMemberDigest: digest()
   });
   return exactDomainSchema('SelectedFieldMaterialSet', {
-    procurementRunId: id(), fieldId: id(), members: { ...arrayOf(member, 1024), minItems: 1 }, selectionDigest: digest()
+    procurementRunId: id(), fieldId: id(), members: { ...arrayOf(member, PROCUREMENT_RUN_MEMBER_LIMIT), minItems: 1 }, selectionDigest: digest()
   });
 }
 
@@ -330,8 +339,9 @@ const structureKind = () => enumText('single', 'season');
 const episodeClaim = () => object({ episodeKey: text(), seasonClaimDigest: digest(), claimDigest: digest() });
 const relatedReference = () => object({
   referenceId: id(), primaryMaterialKey: digest(), role: enumText('nfo', 'poster', 'fanart', 'subtitle', 'external_audio', 'chapter', 'sidecar'),
-  identity: typeRef('PhysicalMaterialIdentity'), endpointId: id(), location: text(), checksumAlgorithm: { const: 'sha256' },
-  checksumHex: digest(), associationEvidenceDigest: digest(), referenceDigest: digest()
+  identity: typeRef('PhysicalMaterialIdentity'), endpointId: id(), location: text(),
+  fingerprintAlgorithm:{const:'middle-256k-sha256'},fingerprintVersion:{const:1},contentFingerprint:digest(),
+  associationEvidenceDigest: digest(), referenceDigest: digest()
 });
 const seasonContinuityClaim = () => typeRef('SeasonContinuityClaim');
 
@@ -363,7 +373,7 @@ function candidateDeliverySnapshotSchema() {
   return { ...exactDomainSchema('CandidateDeliverySnapshot', {
     snapshotContract: { const: 'procurement.candidate-delivery@1' }, offer: typeRef('ProcurementCandidateOfferAvailableMessage'),
     acceptanceBasis: typeRef('CandidateIntakeAcceptanceBasis'), candidatePackage: typeRef('CandidatePackage'),
-    primaryInputManifest: typeRef('PrimaryInputManifest'), primaryMaterialDeliveries: { ...arrayOf(delivery, 1024), minItems: 1 },
+    primaryInputManifest: typeRef('PrimaryInputManifest'), primaryMaterialDeliveries: { ...arrayOf(delivery, PROCUREMENT_RUN_MEMBER_LIMIT), minItems: 1 },
     deliveryMemberSetDigest: digest(), deliverySnapshotDigest: digest()
   }), 'x-helix-maxCanonicalBytes': 8 * 1024 * 1024 };
 }
@@ -441,7 +451,7 @@ function acceptedIntakePayloadSchema() {
     candidateVerification: typeRef('CandidateContractVerification'), materialVerification: typeRef('IntakeMaterialVerification'),
     resolutionDecision: domainRef('SubjectContinuityResolutionDecision'), bindingDraft: typeRef('LibraBindingDraft'),
     controlTransferScope: object({ fieldId: id(), fromOwnerDomain: { const: 'procurement' },
-      fromOwnerScopeType: { const: 'material_field' }, fromOwnerScopeId: id(), items: { ...arrayOf(item, 1024), minItems: 1 },
+      fromOwnerScopeType: { const: 'material_field' }, fromOwnerScopeId: id(), items: { ...arrayOf(item, PROCUREMENT_RUN_MEMBER_LIMIT), minItems: 1 },
       controlScopeDigest: digest() }), payloadDigest: digest()
   });
 }
@@ -460,19 +470,19 @@ const triageUnit = () => object({
   seasonContinuityClaimSetDigest: digest(),
   members: { ...arrayOf(object({ materialKey: digest(), bindingRevision: positiveInteger(), admittedControlRevision: positiveInteger(),
     admittedControlProjectionDigest: digest(), role: enumText('primary_payload', 'structural_dependency'),
-    episodeClaims: arrayOf(episodeClaim(), 32), memberClaimDigest: digest() }), 1024), minItems: 1 },
+    episodeClaims: arrayOf(episodeClaim(), 32), memberClaimDigest: digest() }), PROCUREMENT_RUN_MEMBER_LIMIT), minItems: 1 },
   relatedReferences: arrayOf(relatedReference(), 1024), unitDigest: digest()
 });
 
 function procurementTriageRuleSnapshotSchema() {
   const rulePayload = object({
-    contractRefs: arrayOf(text(), 32), recallPriority: { const: true }, maxPrimaryMaterials: { const: 1024 },
+    contractRefs: arrayOf(text(), 32), recallPriority: { const: true }, maxPrimaryMaterials: { const: PROCUREMENT_RUN_MEMBER_LIMIT },
     probeBatchSize: { const: 100 }, playabilityRule: object({ minimumDurationMs: { const: 1 }, minimumVideoStreamCount: { const: 1 },
       reasonPrecedence: { const: ['probe_not_media', 'no_video_stream', 'non_positive_duration'] } }),
     profileResolutionRule: object({ mixedPrecedence: { const: ['series_episode_token', 'jav_code', 'movie_fallback'] },
       westernAdultRequiresExplicitHint: { const: true } }), structureRule: object({ maxUnitCanonicalBytes: { const: 65536 } }),
     identityRule: object({ claimKinds: { const: ['movie_title', 'series_season', 'jav_code', 'western_temporary'] } }),
-    manifestRule: object({ minimumMembers: { const: 1 }, maximumMembers: { const: 1024 }, firstOrdinal: { const: 0 } })
+    manifestRule: object({ minimumMembers: { const: 1 }, maximumMembers: { const: PROCUREMENT_RUN_MEMBER_LIMIT }, firstOrdinal: { const: 0 } })
   });
   return exactDomainSchema('ProcurementTriageRuleSnapshot', { ruleRef: id(), revision: positiveInteger(),
     ruleSchemaRef: { const: 'procurement.triage-rule.beta@1' }, rulePayload, ruleDigest: digest(), authorityDigest: digest() });
@@ -491,14 +501,14 @@ function materialFieldContextSchema() {
     profileHintSnapshot: applicationRef('MaterialFieldProfileHintSnapshot'),
     memberContexts: { ...arrayOf(object({ selectionOrdinal: nonNegativeInteger(), materialKey: digest(), fieldRelativeLocation: text(),
       baseName: text(), extension: text(), parentSegments: arrayOf(text(), 32), layoutEvidenceRefs: arrayOf(object({ evidenceId: id(),
-      payloadDigest: digest(), boundedScopeDigest: digest() }), 16) }), 1024), minItems: 1 }, contextDigest: digest() });
+      payloadDigest: digest(), boundedScopeDigest: digest() }), 16) }), PROCUREMENT_RUN_MEMBER_LIMIT), minItems: 1 }, contextDigest: digest() });
 }
 
 function triageStructureInspectionInputSchema() {
   return exactDomainSchema('TriageStructureInspectionInput', { selectedFieldMaterialSet: domainRef('SelectedFieldMaterialSet'),
-    probeBatches: { ...arrayOf(domainRef('TriageMaterialProbeBatch'), 11), minItems: 1 },
-    playabilityPages: { ...arrayOf(typeRef('PlayabilityEvidence'), 11), minItems: 1 }, materialFieldContext: materialFieldContextSchema(),
-    layoutEvidence: arrayOf(typeRef('LayoutEvidence'), 1024), pageRequest: object({ pageOrdinal: nonNegativeInteger(),
+    probeBatches: { ...arrayOf(domainRef('TriageMaterialProbeBatch'), PROCUREMENT_PROBE_PAGE_LIMIT), minItems: 1 },
+    playabilityPages: { ...arrayOf(typeRef('PlayabilityEvidence'), PROCUREMENT_PROBE_PAGE_LIMIT), minItems: 1 }, materialFieldContext: materialFieldContextSchema(),
+    layoutEvidence: arrayOf(typeRef('LayoutEvidence'), PROCUREMENT_RUN_MEMBER_LIMIT), pageRequest: object({ pageOrdinal: nonNegativeInteger(),
       cursorIn: { anyOf: [text(), { type: 'null' }] }, maxUnits: { type: 'integer', minimum: 1, maximum: 100 }, requestDigest: digest() }),
     inputDigest: digest() });
 }
