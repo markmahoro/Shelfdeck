@@ -90,10 +90,10 @@ const definitions = Object.freeze({
   },
   'Field Observation Page Commit': {
     commitClass: 'domain_fact_commit',
-    writeTables: ['proc_material_fields', 'proc_field_observations', 'proc_field_materials',
+    writeTables: ['proc_material_fields', 'proc_field_observations', 'proc_field_observation_entries', 'proc_field_materials',
       'fx_event_result_bindings', 'fx_commit_markers'],
     readTables: ['proc_material_fields', 'proc_field_profile_hint_revisions', 'proc_field_access_revisions', 'proc_field_observations',
-      'proc_field_materials', 'fx_supporting_works'],
+      'proc_field_observation_entries', 'proc_field_materials', 'fx_supporting_works'],
     fixtureRefs: ['field-observation-page'], hasOutbox: false
   },
   'Field Eligibility Reconcile Commit': {

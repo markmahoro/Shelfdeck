@@ -127,7 +127,7 @@ const definitions = {
   }),
   FieldObservationPageRequest: () => nominal('FieldObservationPageRequest', {
     fieldObservationWorkId: opaqueId(), observationId: opaqueId(), pageOrdinal: nonNegativeInteger(),
-    expectedObservationRevision: nonNegativeInteger(), cursorIn: nullable(text()), pageBudget: boundedPositiveInteger(100),
+    expectedObservationRevision: nonNegativeInteger(), cursorIn: nullable(text()), pageBudget: boundedPositiveInteger(256),
     profileHintSnapshot: applicationRef('MaterialFieldProfileHintSnapshot'), requestDigest: digestHex()
   }),
   IntegrationHandle: () => nominal('IntegrationHandle', {

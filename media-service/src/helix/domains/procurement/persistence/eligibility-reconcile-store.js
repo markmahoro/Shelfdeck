@@ -59,6 +59,10 @@ function selectionSnapshot(repo, runs, material) {
 function createEligibilityReconcileStore(options) {
   if (!options || !options.schemaManifest || !options.unitOfWork || typeof options.unitOfWork.execute !== 'function') fail('P7_ELIGIBILITY_STORE_DEPENDENCIES', 'Eligibility Reconcile Store dependencies are required.');
   const repository = definition(options.schemaManifest);
+  const metrics = options.procurementMetrics;
+  const increment = (key, amount = 1) => {
+    if (metrics && typeof metrics[key] === 'number') metrics[key] += amount;
+  };
   return Object.freeze({ repositoryManifest:Object.freeze({ repositoryId:repository.repositoryId, tableIds:repository.tableIds }), reconcile(batch) {
     const batchKeys = ['fieldId','accessRevision','terminalObservationRevision','policyRevision','decisions','batchDigest'];
     if (!exact(batch, batchKeys) || typeof batch.fieldId !== 'string' || !batch.fieldId ||
@@ -74,6 +78,8 @@ function createEligibilityReconcileStore(options) {
         canonicalDigest(Object.fromEntries(Object.entries(batch).filter(([key]) => key !== 'batchDigest'))) !== batch.batchDigest) {
       fail('P7_ELIGIBILITY_BATCH_INVALID', 'Eligibility Decision Batch is invalid, unsorted, or digest-mismatched.');
     }
+    increment('reconcileBatchCount');
+    increment('reconcileMaterialKeys', batch.decisions.length);
     const keys = batch.decisions.map((decision) => decision.materialKey); let controls;
     const controlParticipant = createMaterialControlProjectionReadParticipant({ schemaManifest:options.schemaManifest, materialKeys:keys,
       accept(value) { controls = value; } });
@@ -123,6 +129,9 @@ function createEligibilityReconcileStore(options) {
         applied.push(Object.freeze({ materialKey:submitted.materialKey, eligibilityRevision:nextRevision, decisionState:submitted.decisionState,
           controlProjection:submitted.controlProjection, reasonCode:submitted.reasonCode, basisDigest:submitted.basisDigest }));
       }
+      increment('eligibilityDecisionWrites', applied.length);
+      increment('eligibilityNoOpCount', noOpMaterialKeys.length);
+      increment('eligibilityStaleCount', staleMaterialKeys.length);
       const value = { fieldId:batch.fieldId, terminalObservationRevision:batch.terminalObservationRevision, policyRevision:batch.policyRevision,
         applied, noOpMaterialKeys, staleMaterialKeys }; return Object.freeze({ ...value, summaryDigest:canonicalDigest(value) });
     } };

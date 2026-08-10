@@ -29,7 +29,10 @@ function snapshot(databasePath){const database=new Database(databasePath,{readon
   const works=grouped(database,'fx_supporting_works','state');
   return {
   observations:database.prepare('SELECT count(*) count FROM proc_field_observations').get().count,
+  observationEntries:database.prepare('SELECT count(*) count FROM proc_field_observation_entries').get().count,
   materials:database.prepare('SELECT count(*) count FROM proc_field_materials').get().count,
+  eligibilityStates:grouped(database,'proc_field_materials','eligibility_state'),
+  eligibilityRevisionSum:database.prepare('SELECT COALESCE(sum(eligibility_revision),0) value FROM proc_field_materials').get().value,
   observationWorkState:database.prepare("SELECT state FROM fx_supporting_works WHERE work_kind='field_observation' ORDER BY created_at_ms DESC LIMIT 1").get()?.state||null,
   runs,runCount:runs.reduce((total,row)=>total+row.count,0),sealedRuns:runs.find((row)=>row.state==='sealed')?.count||0,
   works,
@@ -92,7 +95,8 @@ async function main(){const root=path.resolve(process.argv[2]||'');if(!root||!fs
   fs.mkdirSync(adminDistDir,{recursive:true});fs.writeFileSync(path.join(adminDistDir,'index.html'),'<div id="root"></div>');
   const secretRoot='helix-local-canary-'+crypto.randomUUID();const initialized=initializeCleanData({dataDir,confirmation:'INITIALIZE_HELIX_CLEAN_V1',secretRoot});
   const databasePath=path.join(dataDir,'shelfdeck.db');let runtimeError=null,closing=false,restarted=false;
-  const hostOptions={dataDir,adminDistDir,secretRoot,onPhysicalMaterialFingerprintRead:onFingerprintRead,
+  const procurementMetrics={reconcileBatchCount:0,reconcileMaterialKeys:0,eligibilityDecisionWrites:0,eligibilityNoOpCount:0,eligibilityStaleCount:0};
+  const hostOptions={dataDir,adminDistDir,secretRoot,procurementMetrics,onPhysicalMaterialFingerprintRead:onFingerprintRead,
     onExecutionRuntimeError(error){runtimeError=error;emit('runtime_error',{code:error.code||error.name,message:error.message});}};
   let host=await createCleanServiceHost(hostOptions);
   async function close(){if(closing)return;closing=true;await host.close();}
@@ -111,7 +115,7 @@ async function main(){const root=path.resolve(process.argv[2]||'');if(!root||!fs
         policySchemaRef:'helix://contracts/domain-types/ExtractionPolicy/v1',policy:policyValue,policyDigest:canonicalDigest(policyBasis)},
       access:{...accessBasis,accessDigest:canonicalDigest(accessBasis)}}});if(created.statusCode!==201)throw new Error('Field registration failed: '+created.body);
     const observed=await host.inject({method:'POST',url:`/v1/admin/material-fields/${fieldId}/actions/observe`,headers:{cookie},payload:{
-      idempotencyKey:'full-movie-canary-observe',fieldId,expectedAccessRevision:1,expectedObservationRevision:0,pageBudget:100}});
+      idempotencyKey:'full-movie-canary-observe',fieldId,expectedAccessRevision:1,expectedObservationRevision:0,pageBudget:256}});
     if(observed.statusCode!==202)throw new Error('Observation admission failed: '+observed.body);
     timing.observationAdmittedAtMs=Date.now();
     emit('started',{root,canaryRoot,databasePath,sourceBefore,observation:observed.json().observation,timing:timingSummary(timing)});let previousCpu=process.cpuUsage(),previousAt=Date.now(),previousReadBytes=0;
@@ -120,6 +124,7 @@ async function main(){const root=path.resolve(process.argv[2]||'');if(!root||!fs
         logicalReadBytes,fingerprintedRegularFiles:fingerprintReads.size,readCalls,
         fingerprintBytesPerSecond:Math.round((logicalReadBytes-previousReadBytes)/(elapsedMs/1000)),
         maximumAllowedReadBytes:fingerprintReads.size*FINGERPRINT_SAMPLE_BYTES,
+        eligibilityMetrics:{...procurementMetrics},
         rssBytes:memory.rss,heapUsedBytes:memory.heapUsed,cpuPercent:Number(((cpu.user+cpu.system)/1000/elapsedMs*100).toFixed(2))});previousReadBytes=logicalReadBytes;
       if(timing.observationTerminalAtMs===null&&facts.observationWorkState==='succeeded'){timing.observationTerminalAtMs=now;emit('milestone',{name:'observation_terminal',timing:timingSummary(timing)});}
       if(timing.firstStructureAtMs===null&&facts.structurePages>0){timing.firstStructureAtMs=now;emit('milestone',{name:'first_structure_page',timing:timingSummary(timing)});}
@@ -130,12 +135,12 @@ async function main(){const root=path.resolve(process.argv[2]||'');if(!root||!fs
       if(runtimeError)throw runtimeError;
       if(facts.failedWorks>0||facts.failedEvents>0)throw Object.assign(new Error('Foundation Work or Event failed during Canary.'),{code:'CANARY_FOUNDATION_FAILURE'});
       if(facts.consumedOffers>0||facts.libraFacts>0||facts.arcaFacts>0)throw Object.assign(new Error('Canary crossed the Handoff A Ready boundary.'),{code:'CANARY_SCOPE_BOUNDARY_VIOLATION'});
-      if(terminal(facts)){timing.terminalReachedAtMs=Date.now();emit('complete',{...facts,canaryRoot,databasePath,timing:timingSummary(timing)});break;}}
+      if(terminal(facts)){timing.terminalReachedAtMs=Date.now();emit('complete',{...facts,eligibilityMetrics:{...procurementMetrics},canaryRoot,databasePath,timing:timingSummary(timing)});break;}}
     const sourceAfter=sourceReality(root);if(sourceAfter.digest!==sourceBefore.digest||sourceAfter.regularFileCount!==sourceBefore.regularFileCount)throw Object.assign(new Error('Movie Field reality changed during read-only Canary.'),{code:'CANARY_SOURCE_REALITY_CHANGED'});
     const finalDatabase=new Database(databasePath,{readonly:true});const integrity=finalDatabase.pragma('integrity_check',{simple:true});finalDatabase.close();
     if(integrity!=='ok')throw Object.assign(new Error('Canary database integrity_check failed.'),{code:'CANARY_DATABASE_INTEGRITY_FAILED'});
     timing.completedAtMs=Date.now();
-    emit('source_verified',{sourceAfter,logicalReadBytes,fingerprintedRegularFiles:fingerprintReads.size,restarted,timing:timingSummary(timing)});
+    emit('source_verified',{sourceAfter,logicalReadBytes,fingerprintedRegularFiles:fingerprintReads.size,restarted,eligibilityMetrics:{...procurementMetrics},timing:timingSummary(timing)});
     emit('timing_summary',{timing:timingSummary(timing),sourceBefore,sourceAfter,restarted});
   }finally{await close();}}
 

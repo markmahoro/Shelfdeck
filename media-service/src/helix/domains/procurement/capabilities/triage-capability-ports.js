@@ -60,29 +60,6 @@ function mediaEvidence(raw, handle, nowMs) {
   return Object.freeze(value);
 }
 
-function layoutFromSnapshot(snapshot, nowMs) {
-  if (!snapshot || snapshot.schemaRef !== 'helix://contracts/types/FieldObservationLayoutSnapshot/v1' ||
-      snapshot.schemaVersion !== 1 || !Array.isArray(snapshot.entries) || snapshot.entries.length > 256) {
-    throw new TypeError('Layout Snapshot input is invalid.');
-  }
-  const entries = Object.freeze(snapshot.entries.map((entry) => Object.freeze({ ...entry })));
-  const entriesDigest = canonicalDigest({ schema:'shared.material.layout.entries@1', items:entries });
-  const boundedScopeDigest = canonicalDigest({ schema:'procurement.observation-layout-scope@1',
-    observationId:snapshot.observationId, fieldId:snapshot.fieldId, parentDirectory:snapshot.parentDirectory,
-    snapshotDigest:snapshot.snapshotDigest });
-  const base = {
-    schemaRef:'helix://contracts/types/LayoutEvidence/v1', schemaVersion:1,
-    evidenceId:'layout-evidence-' + canonicalDigest({ snapshotId:snapshot.snapshotId, entriesDigest }).slice(0,40),
-    evidenceKind:'observation_layout_snapshot', producerRef:'shared.material.layout.observe@1',
-    basisDigest:canonicalDigest({ snapshotId:snapshot.snapshotId, snapshotDigest:snapshot.snapshotDigest }),
-    payloadDigest:'', observedAtMs:nowMs, sourceHandleDigest:snapshot.snapshotDigest, boundedScopeDigest,
-    entries, entriesDigest,
-    layoutDigest:canonicalDigest({ schema:'shared.material.layout@1', sourceHandleDigest:snapshot.snapshotDigest,
-      boundedScopeDigest, entriesDigest }),
-  };
-  return Object.freeze({ ...base, payloadDigest:canonicalDigest(Object.fromEntries(Object.entries(base).filter(([key]) => key !== 'payloadDigest'))) });
-}
-
 function createTriageCapabilityPorts(options) {
   if (!options?.mediaProbe || typeof options.now !== 'function') {
     throw new TypeError('Triage Capability ports require typed read-only integrations.');
@@ -97,9 +74,6 @@ function createTriageCapabilityPorts(options) {
     } },
   });
   return Object.freeze({
-    'shared.material.layout.observe@1':pure('shared.material.layout.observe@1', ({ fieldObservationLayoutSnapshot, physicalMaterialReadHandle, boundedLayoutScope }) =>
-      fieldObservationLayoutSnapshot ? layoutFromSnapshot(fieldObservationLayoutSnapshot, options.now())
-        : options.layoutObserver.observe(physicalMaterialReadHandle, boundedLayoutScope)),
     'shared.material.media.probe@1':pure('shared.material.media.probe@1', async ({ physicalMaterialReadHandleOrWorkspaceMaterialHandle:handle }) =>
       mediaEvidence(await options.mediaProbe.probe(handle), handle, options.now())),
     'procurement.triage.playability.inspect@1':pure('procurement.triage.playability.inspect@1', ({ triageMaterialProbeBatch, procurementTriageRuleSnapshot }) =>
@@ -138,4 +112,4 @@ function createTriageCapabilityPorts(options) {
   });
 }
 
-module.exports = Object.freeze({ createTriageCapabilityPorts, layoutFromSnapshot });
+module.exports = Object.freeze({ createTriageCapabilityPorts });

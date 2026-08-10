@@ -9,13 +9,10 @@ const {
 } = require('./helix/domains/procurement/model/field-observation-contracts');
 
 const MAX_FILES_PER_SCAN = 100_000;
-const MAX_FINGERPRINTED_FILES_PER_PAGE = 100;
-// The contract permits up to 100 observations, but the complete typed page must
-// also fit in 64 KiB. Keep the filesystem adapter's batch conservative so that
-// its path cursor can advance only after the entire canonical-key-sorted batch
-// is committed. A too-large exceptional batch is rejected by FieldPageObserver
-// instead of silently skipping its uncommitted tail.
-const DEFAULT_FINGERPRINTED_FILES_PER_BATCH = 16;
+const MAX_FINGERPRINTED_FILES_PER_PAGE = 256;
+// One observation page may sample at most 256 files. With the fixed 256 KiB
+// fingerprint ceiling this is exactly a 64 MiB physical-read budget.
+const DEFAULT_FINGERPRINTED_FILES_PER_BATCH = 256;
 const INT64_MAX = 9_223_372_036_854_775_807n;
 
 class CleanFieldObservationEnumeratorError extends Error {

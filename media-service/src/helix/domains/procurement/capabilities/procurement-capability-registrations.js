@@ -1,8 +1,7 @@
 'use strict';
 
 const CONTRACTS = Object.freeze({
-  'procurement.field.page.observe@1': 'pure_observation',
-  'procurement.field.observation.commit@1': 'domain_fact_commit',
+  'procurement.field.observation.page.commit@1': 'domain_fact_commit',
   'procurement.material.control.acquire@1': 'responsibility_control_commit',
   'procurement.triage.playability.inspect@1': 'pure_observation',
   'procurement.triage.structure.inspect@1': 'pure_observation',

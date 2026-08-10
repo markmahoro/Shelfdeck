@@ -275,6 +275,68 @@
           "minLength": 1,
           "pattern": "^[a-f0-9]{64}$"
         },
+        "titleSelectionEvidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "selectionRule": {
+              "const": "unique_payload_bytes_then_duration_then_distinct_clip_count_then_playlist_path"
+            },
+            "candidateTitleCount": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "selectedPlaylist": {
+              "type": "string",
+              "minLength": 1
+            },
+            "candidateDigests": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "signature": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "playlist": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "uniqueStreamBytes": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "durationMs": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "distinctClipCount": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                },
+                "required": [
+                  "signature",
+                  "playlist",
+                  "uniqueStreamBytes",
+                  "durationMs",
+                  "distinctClipCount"
+                ]
+              },
+              "maxItems": 256,
+              "minItems": 1
+            }
+          },
+          "required": [
+            "selectionRule",
+            "candidateTitleCount",
+            "selectedPlaylist",
+            "candidateDigests"
+          ]
+        },
         "selectedPlaylist": {
           "type": "object",
           "additionalProperties": false,
@@ -340,6 +402,7 @@
         "singleTitleEvidenceDigest",
         "topologyVersion",
         "topologyDigest",
+        "titleSelectionEvidence",
         "selectedPlaylist",
         "members"
       ]

@@ -262,7 +262,7 @@ function approvalAuthorization(capabilityRef) {
 }
 
 function resourceKinds(capability) {
-  if (capability.id === 'shared.material.layout.observe@1') return ['cpu'];
+  if (capability.id === 'procurement.field.observation.page.commit@1') return ['volume_read', 'sqlite_write'];
   const value = `${capability.id} ${capability.inputSummary}`.toLowerCase();
   const kinds = new Set();
   if (/integration|external|worker|provider|search|acquire|upload|request/.test(value)) kinds.add('network');

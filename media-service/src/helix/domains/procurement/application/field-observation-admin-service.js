@@ -27,7 +27,7 @@ function validateInput(input) {
       typeof input.fieldId !== 'string' || !input.fieldId || typeof input.idempotencyKey !== 'string' || !input.idempotencyKey ||
       !Number.isSafeInteger(input.expectedAccessRevision) || input.expectedAccessRevision < 1 ||
       !Number.isSafeInteger(input.expectedObservationRevision) || input.expectedObservationRevision < 0 ||
-      !Number.isSafeInteger(input.pageBudget) || input.pageBudget < 1 || input.pageBudget > 100) {
+      !Number.isSafeInteger(input.pageBudget) || input.pageBudget < 1 || input.pageBudget > 256) {
     fail('FIELD_OBSERVATION_ADMIN_INPUT_INVALID', '显式观察请求不符合closed input合同。');
   }
 }
@@ -42,7 +42,7 @@ function workDefinition(field, input, workId, basisDigest) {
     executionBasisDigest: basisDigest, dependencyRefs: Object.freeze([]), priorityClass: 'background_observation',
     priorityRevision: 1, capabilityCatalogScope: 'procurement', workspaceMaterialScope: Object.freeze([]),
     idempotencyKey: input.idempotencyKey, concurrencyScope: field.fieldId + '/field-observation',
-    outputContractRef: 'helix://contracts/results/ObservationCommitResult/v1',
+    outputContractRef: 'helix://contracts/types/ObservationPageCommitResult/v1',
   });
 }
 

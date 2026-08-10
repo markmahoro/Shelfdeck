@@ -77,12 +77,12 @@ function seedRuntime(databasePath, workId, eventId) {
   db.prepare('INSERT INTO fx_workflow_plans(plan_id,attempt_id,planner_ref,planner_version,catalog_digest,basis_digest,graph_digest,state,created_at_ms) VALUES(?,?,?,?,?,?,?,?,?)')
     .run('plan-'+workId,'attempt-'+workId,'procurement-field@1',1,hash('catalog'),hash(workId),hash('graph-'+workId),'planned',1);
   db.prepare('INSERT INTO fx_workflow_events(event_id,plan_id,node_id,work_id,attempt_id,owner_domain,capability_ref,contract_version,state,priority_class,ready_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
-    .run(eventId,'plan-'+workId,'node-'+eventId,workId,'attempt-'+workId,'procurement','procurement.field.observation.commit@1',1,'executing','normal',1);
+    .run(eventId,'plan-'+workId,'node-'+eventId,workId,'attempt-'+workId,'procurement','procurement.field.observation.page.commit@1',1,'executing','normal',1);
   db.close();
 }
 function seedAdditionalEvent(databasePath, workId, eventId) {
   const db=new Database(databasePath); db.prepare('INSERT INTO fx_workflow_events(event_id,plan_id,node_id,work_id,attempt_id,owner_domain,capability_ref,contract_version,state,priority_class,ready_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
-    .run(eventId,'plan-'+workId,'node-'+eventId,workId,'attempt-'+workId,'procurement','procurement.field.observation.commit@1',1,'executing','normal',1); db.close();
+    .run(eventId,'plan-'+workId,'node-'+eventId,workId,'attempt-'+workId,'procurement','procurement.field.observation.page.commit@1',1,'executing','normal',1); db.close();
 }
 async function fixture(run) {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-field-observation-')); const databasePath=path.join(root,'shelfdeck.db');
@@ -98,29 +98,32 @@ async function fixture(run) {
 async function observe(field, request, materials, enumerationHasMore=false) {
   const entries=sortedEntries(materials); const observer=createFieldPageObserver({ now:()=>NOW,
     enumeratePage:async()=>({ items:entries,hasMore:enumerationHasMore }) });
-  return observer.observe({ fieldAccessHandle:accessHandle(field.access),pageRequest:request });
+  const draft=await observer.observe({ fieldAccessHandle:accessHandle(field.access),pageRequest:request });
+  return Object.freeze({ ...draft.page, entries:Object.freeze(draft.entries) });
 }
 function commitRequest(page,eventId) {
+  const compact={...page}; delete compact.entries;
   const handle={ schemaRef:'helix://contracts/types/DomainFactCommitHandle/v1',schemaVersion:1,handleId:'handle-'+page.observationId,
-    ownerDomain:'procurement',aggregateType:'material_field_observation',aggregateId:page.fieldId,factType:'FieldObservationPage',
+    ownerDomain:'procurement',aggregateType:'material_field_observation',aggregateId:page.fieldId,factType:'ObservationPageCommit',
     factSchemaRef:FACT_SCHEMA,resultSchemaRef:RESULT_SCHEMA,expectedRevision:page.expectedObservationRevision,
     payloadDigest:canonicalDigest(page),commitIdempotencyKey:'key-'+page.observationId,eventFenceDigest:hash('fence-'+page.observationId) };
   return { transactionId:'helix.transaction.field-observation-page-commit',supportingWorkId:page.fieldObservationWorkId,
     handle,payload:page,commitMarker:{commitMarker:'marker-'+page.observationId,effectId:null,commitDigest:hash('commit-'+page.observationId)},
-    resultBinding:{resultId:'result-'+page.observationId,eventId,evidenceSchemaRef:page.schemaRef,evidence:page},outboxMessages:[] };
+    resultBinding:{resultId:'result-'+page.observationId,eventId,evidenceSchemaRef:compact.schemaRef,evidence:compact},outboxMessages:[] };
 }
 
 test('observes and atomically commits a durable bounded page with zero Outbox and lossless int64 persistence', async () => fixture(async ({databasePath,field,coordinator}) => {
   seedRuntime(databasePath,'work-1','event-1'); const page=await observe(field,pageRequest('work-1','observation-1',0),[raw('a'),raw('b')]);
   const request=commitRequest(page,'event-1'); const first=coordinator.execute(request); const replay=coordinator.execute(request);
-  assert.equal(first.typedResult.revision,1); assert.equal(first.typedResult.acceptedMaterials.length,2); assert.equal(first.outboxResult,undefined);
-  assert.deepEqual(replay.typedResult,first.typedResult); assert.deepEqual(replay.typedEvidence,page);
+  assert.equal(first.typedResult.revision,1); assert.equal(first.typedResult.entryCount,2); assert.equal(first.outboxResult,undefined);
+  assert.deepEqual(replay.typedResult,first.typedResult); assert.equal(replay.typedEvidence.entryCount,2); assert.equal(Object.hasOwn(replay.typedEvidence,'entries'),false);
   const db=new Database(databasePath,{readonly:true}); db.defaultSafeIntegers(true);
   assert.equal(db.prepare('SELECT current_observation_revision value FROM proc_material_fields WHERE field_id=?').get('field-1').value,1n);
   assert.equal(db.prepare('SELECT mtime_ns value FROM proc_field_materials LIMIT 1').get().value,9223372036854775807n);
   assert.equal(db.prepare('SELECT COUNT(*) value FROM fx_outbox').get().value,0n);
   const binding=db.prepare('SELECT evidence_json,result_json FROM fx_event_result_bindings WHERE result_id=?').get('result-observation-1');
-  assert.deepEqual(JSON.parse(binding.evidence_json),page); assert.deepEqual(JSON.parse(binding.result_json),first.typedResult); db.close();
+  const storedEvidence=JSON.parse(binding.evidence_json); assert.equal(storedEvidence.entryCount,2); assert.equal(Object.hasOwn(storedEvidence,'entries'),false);
+  assert.deepEqual(JSON.parse(binding.result_json),first.typedResult); assert.equal(db.prepare('SELECT COUNT(*) count FROM proc_field_observation_entries').get().count,2n); db.close();
 }));
 
 test('preserves binding revision on refresh, increments it on rebound, and resets eligibility only on reality change', async () => fixture(async ({databasePath,field,coordinator}) => {
@@ -128,32 +131,32 @@ test('preserves binding revision on refresh, increments it on rebound, and reset
   coordinator.execute(commitRequest(firstPage,'event-1'));
   const db=new Database(databasePath); db.prepare("UPDATE proc_field_materials SET eligibility_state='eligible' WHERE field_id='field-1'").run(); db.close();
   seedRuntime(databasePath,'work-2','event-2'); const refreshed=await observe(field,pageRequest('work-2','observation-2',1),[raw('a')]);
-  let result=coordinator.execute(commitRequest(refreshed,'event-2')).typedResult; assert.equal(result.acceptedMaterials[0].changeKind,'refreshed'); assert.equal(result.acceptedMaterials[0].bindingRevision,1);
+  let result=coordinator.execute(commitRequest(refreshed,'event-2')).typedResult; assert.equal(result.entryCount,1);
   seedRuntime(databasePath,'work-3','event-3'); const moved=await observe(field,pageRequest('work-3','observation-3',2),[raw('a',{location:'/media/field-1/moved/a.mkv'})]);
-  result=coordinator.execute(commitRequest(moved,'event-3')).typedResult; assert.equal(result.acceptedMaterials[0].changeKind,'rebound'); assert.equal(result.acceptedMaterials[0].bindingRevision,2);
+  result=coordinator.execute(commitRequest(moved,'event-3')).typedResult; assert.equal(result.entryCount,1);
   const inspect=new Database(databasePath,{readonly:true}); const row=inspect.prepare('SELECT eligibility_state,control_projection FROM proc_field_materials WHERE field_id=?').get('field-1');
   assert.equal(row.eligibility_state,'unknown'); assert.equal(row.control_projection,'unknown'); inspect.close();
 }));
 
 test('fails stale fences and paginates by byte/item budget without skipping the first excluded material', async () => fixture(async ({databasePath,field,coordinator}) => {
   const entries=Array.from({length:3},(_,index)=>raw(String.fromCharCode(97+index))); const page=await observe(field,pageRequest('work-1','observation-1',0,0,null,2),entries,true);
-  assert.equal(page.materialObservations.length,2); assert.equal(page.hasMore,true); assert.match(page.cursorOut,/^cursor-1-/);
+  assert.equal(page.entries.length,2); assert.equal(page.hasMore,true); assert.match(page.cursorOut,/^cursor-1-/);
   seedRuntime(databasePath,'work-1','event-1'); const stale={...page,expectedObservationRevision:1}; stale.pageDigest=canonicalDigest(require('../../src/helix/domains/procurement/model/field-observation-contracts').pageDigestBasis(stale)); stale.payloadDigest=stale.pageDigest;
   assert.throws(()=>coordinator.execute(commitRequest(stale,'event-1')),(error)=>error.code==='P7_FIELD_OBSERVATION_FENCE_CONFLICT');
   const inspect=new Database(databasePath,{readonly:true}); assert.equal(inspect.prepare('SELECT COUNT(*) count FROM proc_field_observations').get().count,0); assert.equal(inspect.prepare('SELECT COUNT(*) count FROM fx_commit_markers').get().count,0); inspect.close();
 }));
 
-test('rejects a byte-truncated enumerator batch whose shared path boundary would skip uncommitted material', async () => fixture(async ({field}) => {
+test('keeps the Page receipt compact while detail rows remain relationized', async () => fixture(async ({field}) => {
   const materials=Array.from({length:40},(_,index)=>raw(String.fromCharCode(65+(index%26)),{
     inode:String(1000+index),
     location:'/media/field-1/'+String(index).padStart(3,'0')+'-'+('x'.repeat(1800))+'.mkv',
   }));
   const entries=sortedEntries(materials).map((entry)=>({...entry,cursor:'path:shared-batch-boundary'}));
   const observer=createFieldPageObserver({now:()=>NOW,enumeratePage:async()=>({items:entries,hasMore:true})});
-  await assert.rejects(
-    observer.observe({fieldAccessHandle:accessHandle(field.access),pageRequest:pageRequest('work-1','observation-1',0)}),
-    (error)=>error.code==='P7_FIELD_ENUMERATION_BATCH_TOO_LARGE',
-  );
+  const draft=await observer.observe({fieldAccessHandle:accessHandle(field.access),pageRequest:pageRequest('work-1','observation-1',0)});
+  assert.equal(draft.page.entryCount,40);
+  assert.equal(Object.hasOwn(draft.page,'materialObservations'),false);
+  assert.ok(Buffer.byteLength(JSON.stringify(draft.page),'utf8')<16*1024);
 }));
 
 test('rejects an Observation page when the Field Profile Hint changes after the physical read', async () => fixture(async ({databasePath,field,fieldStore,coordinator}) => {
@@ -198,7 +201,7 @@ test('enforces same-work page continuity, exact access head, and the canonical z
 
 test('reconciles one terminal Field batch with same-transaction Control freshness and exact CAS', async () => fixture(async ({databasePath,field,coordinator,unitOfWork}) => {
   seedRuntime(databasePath,'work-1','event-1'); const page=await observe(field,pageRequest('work-1','observation-1',0),[raw('a')]);
-  coordinator.execute(commitRequest(page,'event-1')); const snapshot=page.materialObservations[0];
+  coordinator.execute(commitRequest(page,'event-1')); const snapshot=page.entries[0];
   const control=createMaterialControlProjectionPort({schemaManifest,unitOfWork}).getMaterialControlProjection(snapshot.identity.materialKey);
   const selectionBasis={materialKey:snapshot.identity.materialKey,activeSelections:[],hasConflict:false};
   const extractionPolicy={extractionPolicyId:field.policy.extractionPolicyId,revision:field.policy.revision,...field.policy.policy,policyDigest:field.policy.policyDigest};
@@ -216,4 +219,34 @@ test('reconciles one terminal Field batch with same-transaction Control freshnes
   const db=new Database(databasePath,{readonly:true}); const row=db.prepare('SELECT eligibility_revision,eligibility_state,eligibility_reason_code,control_projection FROM proc_field_materials').get(); db.close();
   assert.deepEqual(row,{eligibility_revision:2,eligibility_state:'eligible',eligibility_reason_code:'eligible',control_projection:'uncontrolled'});
   const outbox=new Database(databasePath,{readonly:true}); assert.equal(outbox.prepare('SELECT COUNT(*) count FROM fx_outbox').get().count,0); outbox.close();
+}));
+
+test('does not rewrite Eligibility when a later Observation has identical material-local facts', async () => fixture(async ({databasePath,field,coordinator,unitOfWork}) => {
+  seedRuntime(databasePath,'work-1','event-1');
+  const firstPage=await observe(field,pageRequest('work-1','observation-1',0),[raw('a')]);
+  coordinator.execute(commitRequest(firstPage,'event-1'));
+  const snapshot=firstPage.entries[0];
+  const control=createMaterialControlProjectionPort({schemaManifest,unitOfWork}).getMaterialControlProjection(snapshot.identity.materialKey);
+  const selectionBasis={materialKey:snapshot.identity.materialKey,activeSelections:[],hasConflict:false};
+  const extractionPolicy={extractionPolicyId:field.policy.extractionPolicyId,revision:field.policy.revision,...field.policy.policy,policyDigest:field.policy.policyDigest};
+  const decision=evaluateExtractionEligibility({fieldId:'field-1',fieldStatus:'active',materialKey:snapshot.identity.materialKey,
+    expectedEligibilityRevision:1,accessRevision:1,accessDigest:field.access.accessDigest,terminalObservationRevision:1,
+    fieldObservationWorkId:'work-1',materialBindingRevision:1,lastSnapshotDigest:snapshot.snapshotDigest,lastObservationId:'observation-1',
+    appearedInTerminalWork:true,materialRelativeLocation:'a.mkv',sizeBytes:100,observedExtension:'.mkv',extractionPolicy,
+    selectionSnapshot:{...selectionBasis,selectionBasisDigest:canonicalDigest(selectionBasis)},controlSnapshot:control});
+  const basis={fieldId:'field-1',accessRevision:1,terminalObservationRevision:1,policyRevision:1,decisions:[decision]};
+  const store=createEligibilityReconcileStore({schemaManifest,unitOfWork});
+  const firstBatch={...basis,batchDigest:canonicalDigest(basis)}; const firstReconcile=store.reconcile(firstBatch);
+  assert.deepEqual(firstReconcile.applied.map((item)=>item.materialKey),[snapshot.identity.materialKey]);
+  const beforeDb=new Database(databasePath,{readonly:true});
+  const before=beforeDb.prepare('SELECT eligibility_revision,eligibility_state,eligibility_basis_digest,eligibility_observation_revision FROM proc_field_materials').get();
+  const beforeEntries=beforeDb.prepare('SELECT COUNT(*) count FROM proc_field_observation_entries').get().count; beforeDb.close();
+  seedRuntime(databasePath,'work-2','event-2');
+  const secondPage=await observe(field,pageRequest('work-2','observation-2',1),[raw('a')]);
+  coordinator.execute(commitRequest(secondPage,'event-2'));
+  const inspect=new Database(databasePath,{readonly:true});
+  const after=inspect.prepare('SELECT eligibility_revision,eligibility_state,eligibility_basis_digest,eligibility_observation_revision FROM proc_field_materials').get();
+  const afterEntries=inspect.prepare('SELECT COUNT(*) count FROM proc_field_observation_entries').get().count; inspect.close();
+  assert.deepEqual(after,before);
+  assert.equal(Number(afterEntries),Number(beforeEntries)+1);
 }));

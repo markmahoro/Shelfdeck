@@ -1,6 +1,0 @@
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "helix://contracts/capabilities/procurement.field.page.observe/v1/result",
-  "title": "procurement.field.page.observe@1 succeeded result",
-  "$ref": "helix://contracts/types/FieldObservationPage/v1"
-}

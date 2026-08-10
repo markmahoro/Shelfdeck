@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/procurement.field.observation.page.commit/v1/inputs",
+  "title": "procurement.field.observation.page.commit@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "fieldAccessHandle": {
+      "$ref": "#/$defs/fieldAccessHandle"
+    },
+    "fieldObservationPageRequest": {
+      "$ref": "#/$defs/fieldObservationPageRequest"
+    }
+  },
+  "required": [
+    "fieldAccessHandle",
+    "fieldObservationPageRequest"
+  ],
+  "$defs": {
+    "fieldAccessHandle": {
+      "$ref": "helix://contracts/types/FieldAccessHandle/v1",
+      "x-helix-typeExpression": "FieldAccessHandle"
+    },
+    "fieldObservationPageRequest": {
+      "$ref": "helix://contracts/types/FieldObservationPageRequest/v1",
+      "x-helix-typeExpression": "FieldObservationPageRequest"
+    }
+  }
+}

@@ -2935,6 +2935,46 @@ CREATE TABLE "proc_field_materials" (
 CREATE INDEX "idx_proc_field_materials_hot_01" ON "proc_field_materials" ("field_id", "eligibility_state", "control_projection", "material_key");
 CREATE INDEX "idx_proc_field_materials_hot_02" ON "proc_field_materials" ("field_id", "eligibility_observation_revision", "eligibility_policy_revision", "material_key");
 
+CREATE TABLE "proc_field_observation_entries" (
+  "field_id" TEXT,
+  "field_observation_work_id" TEXT,
+  "observation_id" TEXT,
+  "observation_revision" INTEGER CHECK ("observation_revision" >= 1),
+  "page_ordinal" INTEGER CHECK ("page_ordinal" >= 0),
+  "entry_ordinal" INTEGER CHECK ("entry_ordinal" >= 0),
+  "material_observation_id" TEXT,
+  "material_key" TEXT,
+  "mount_scope_id" TEXT,
+  "inode" TEXT,
+  "size_bytes" INTEGER CHECK ("size_bytes" >= 0),
+  "fingerprint_algorithm" TEXT,
+  "fingerprint_version" TEXT,
+  "content_fingerprint" TEXT,
+  "endpoint_id" TEXT,
+  "access_revision" INTEGER CHECK ("access_revision" >= 1),
+  "mount_scope_revision" INTEGER CHECK ("mount_scope_revision" >= 1),
+  "current_location" TEXT,
+  "relative_location" TEXT,
+  "mtime_ns" INTEGER CHECK ("mtime_ns" >= 0),
+  "ctime_ns" INTEGER CHECK ("ctime_ns" >= 0),
+  "fingerprint_verified_at_ms" INTEGER CHECK ("fingerprint_verified_at_ms" >= 0),
+  "observed_at_ms" INTEGER CHECK ("observed_at_ms" >= 0),
+  "containment_digest" TEXT CHECK (length("containment_digest") = 64 AND "containment_digest" NOT GLOB '*[^0-9a-f]*'),
+  "reality_digest" TEXT CHECK (length("reality_digest") = 64 AND "reality_digest" NOT GLOB '*[^0-9a-f]*'),
+  "provenance_digest" TEXT CHECK (length("provenance_digest") = 64 AND "provenance_digest" NOT GLOB '*[^0-9a-f]*'),
+  "snapshot_digest" TEXT CHECK (length("snapshot_digest") = 64 AND "snapshot_digest" NOT GLOB '*[^0-9a-f]*'),
+  "entry_digest" TEXT CHECK (length("entry_digest") = 64 AND "entry_digest" NOT GLOB '*[^0-9a-f]*'),
+  PRIMARY KEY ("field_id", "field_observation_work_id", "page_ordinal", "entry_ordinal"),
+  UNIQUE ("field_id", "observation_id", "entry_ordinal"),
+  UNIQUE ("field_id", "observation_id", "material_observation_id"),
+  FOREIGN KEY ("field_id") REFERENCES "proc_material_fields" ("field_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("field_observation_work_id") REFERENCES "fx_supporting_works" ("work_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("observation_id") REFERENCES "proc_field_observations" ("observation_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_proc_field_observation_entries_hot_01" ON "proc_field_observation_entries" ("field_id", "field_observation_work_id", "observation_revision", "relative_location");
+CREATE INDEX "idx_proc_field_observation_entries_hot_02" ON "proc_field_observation_entries" ("field_id", "field_observation_work_id", "material_key");
+CREATE INDEX "idx_proc_field_observation_entries_hot_03" ON "proc_field_observation_entries" ("field_id", "field_observation_work_id", "page_ordinal", "entry_ordinal");
+
 CREATE TABLE "proc_field_observations" (
   "field_id" TEXT,
   "revision" INTEGER CHECK ("revision" >= 1),

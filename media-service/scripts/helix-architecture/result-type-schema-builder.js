@@ -6,6 +6,7 @@ const { buildSharedTypeSchemas, externalOutputSnapshotSchema,
 
 const DRAFT = 'https://json-schema.org/draft/2020-12/schema';
 const PROCUREMENT_RUN_MEMBER_LIMIT = 256;
+const PROCUREMENT_RUN_PHYSICAL_MEMBER_LIMIT = 1024;
 const typeVersion = (name) => name === 'PhysicalMaterialIdentity' ? 2 : 1;
 const typeId = (name) => `helix://contracts/types/${name}/v${typeVersion(name)}`;
 const ref = (name) => ({ $ref: typeId(name) });
@@ -176,6 +177,12 @@ const special = {
     singleTitleEvidenceDigest: digest(),
     topologyVersion: positiveInteger(),
     topologyDigest: digest(),
+    titleSelectionEvidence: object({
+      selectionRule: { const: 'unique_payload_bytes_then_duration_then_distinct_clip_count_then_playlist_path' },
+      candidateTitleCount: positiveInteger(), selectedPlaylist: text(),
+      candidateDigests: { ...arrayOf(object({ signature:digest(), playlist:text(), uniqueStreamBytes:nonNegativeInteger(),
+        durationMs:nonNegativeInteger(), distinctClipCount:positiveInteger() }), 256), minItems:1 },
+    }),
     selectedPlaylist: object({
       relativeLocation: text(),
       durationMs: nonNegativeInteger(),
@@ -190,10 +197,6 @@ const special = {
       minItems: 1,
     },
   }),
-  'LayoutEvidence.entries': arrayOf(object({ entryOrdinal: nonNegativeInteger(), entryKind: enumText('file', 'directory'),
-    relativeLocation: text(), baseName: text(), extension: text(), identity: ref('PhysicalMaterialIdentity'), endpointId: id(),
-    location: text(), sizeBytes: nonNegativeInteger(), mtimeNs: text(),
-    entryDigest: digest() }, ['entryOrdinal', 'entryKind', 'relativeLocation', 'baseName', 'endpointId', 'location', 'entryDigest']), 256),
   'MediaProbeEvidence.videoStreams': arrayOf(stream, 64),
   'MediaProbeEvidence.audioStreams': arrayOf(audioStream, 128),
   'MediaProbeEvidence.subtitleStreams': arrayOf(simpleStream, 256),
@@ -201,13 +204,8 @@ const special = {
     projectionRevision: positiveInteger(), projectionDigest: digest(), confidenceClass: text(), evidenceDigest: digest() }), 1024),
   'PersonMatchEvidence.referenceProjectionSetDigest': digest(),
   'PersonMatchEvidence.unmatchedClusterIds': arrayOf(id(), 1024),
-  'FieldObservationPage.materialObservations': arrayOf(fieldMaterialObservation, 100),
-  'FieldObservationPage.profileHintSnapshot': applicationRef('MaterialFieldProfileHintSnapshot'),
-  'FieldObservationPage.cursorIn': nullable(text()),
-  'FieldObservationPage.cursorOut': nullable(text()),
-  'ObservationCommitResult.acceptedMaterials': arrayOf(acceptedFieldMaterial, 100),
-  'ObservationCommitResult.profileHintSnapshot': applicationRef('MaterialFieldProfileHintSnapshot'),
-  'ObservationCommitResult.nextCursor': nullable(text()),
+  'ObservationPageCommitResult.profileHintSnapshot': applicationRef('MaterialFieldProfileHintSnapshot'),
+  'ObservationPageCommitResult.nextCursor': nullable(text()),
   'PlayabilityEvidence.materialResults': { ...arrayOf(object({ selectionOrdinal: nonNegativeInteger(), materialKey: digest(),
     bindingRevision: positiveInteger(), probeEvidenceDigest: digest(), playable: bool(),
     reasonCodes: arrayOf(enumText('probe_not_media', 'no_video_stream', 'non_positive_duration'), 3), resultDigest: digest() }), 100), minItems: 1 },
@@ -216,7 +214,7 @@ const special = {
   'TriageStructureEvidence.unassignedMaterials': arrayOf(object({ materialKey: digest(), reasonCode: enumText('probe_not_media',
     'no_video_stream', 'non_positive_duration', 'content_profile_unresolved', 'conflicting_season_claim',
     'episode_claim_unresolved', 'disc_structure_incomplete', 'disc_multi_title_unsupported', 'triage_unit_contract_too_large',
-    'structure_ambiguous'), evidenceDigest: digest() }), PROCUREMENT_RUN_MEMBER_LIMIT),
+    'structure_ambiguous', 'disc_non_primary_title'), evidenceDigest: digest() }), PROCUREMENT_RUN_PHYSICAL_MEMBER_LIMIT),
   'TriageStructureEvidence.cursorIn': nullable(text()),
   'TriageStructureEvidence.cursorOut': nullable(text()),
   'IdentityClaim.claimKind': enumText('movie_title', 'series_season', 'jav_code', 'western_temporary'),
@@ -477,13 +475,12 @@ const contracts = {
   FilesystemIdentityEvidence: ['EvidenceEnvelope', 'identity,endpointId,location,statSizeBytes,statMtimeMs'],
   BoundedContentFingerprintEvidence: ['EvidenceEnvelope', 'identity,fingerprintProfileRef,sampleOffset,sampleLength,bytesSampled'],
   MediaProbeEvidence: ['EvidenceEnvelope', 'sourceHandleDigest,resultKind,reasonCode?,container?,durationMs?,sizeBytes,videoStreams,audioStreams,subtitleStreams,discTopology?'],
-  LayoutEvidence: ['EvidenceEnvelope', 'sourceHandleDigest,boundedScopeDigest,entries,entriesDigest,layoutDigest'],
   ManifestVerification: ['VerificationEnvelope', 'manifestDigest,contractRef'],
   ArtifactManifestVerification: ['VerificationEnvelope', 'manifestDigest,contractRef,requirement,verifiedArtifacts,artifactDigests,verificationDigest'],
   IntegrationAvailabilityEvidence: ['EvidenceEnvelope', 'integrationId,configRevision,availabilityState,latencyMs?'],
   PersonMatchEvidence: ['EvidenceEnvelope', 'clusterSetDigest,referenceProjectionSetDigest,matches,unmatchedClusterIds'],
-  FieldObservationPage: ['EvidenceEnvelope', 'fieldObservationWorkId,observationId,fieldId,accessRevision,profileHintSnapshot,pageOrdinal,expectedObservationRevision,cursorIn,cursorOut,materialObservations,pageDigest,hasMore'],
-  ObservationCommitResult: ['DomainFactEnvelope', 'observationId,fieldObservationWorkId,fieldId,accessRevision,profileHintSnapshot,pageOrdinal,committedObservationRevision,pageDigest,acceptedMaterials,acceptedMaterialSetDigest,nextCursor,hasMore'],
+  ObservationPageCommitResult: ['DomainFactEnvelope', 'observationId,fieldObservationWorkId,fieldId,accessRevision,profileHintSnapshot,pageOrdinal,committedObservationRevision,entryCount,firstEntryDigest,lastEntryDigest,pageDigest,entrySetDigest,nextCursor,hasMore'],
+  ObservationPageCommitReceipt: ['ReceiptEnvelope', 'observationId,fieldObservationWorkId,fieldId,committedObservationRevision,pageOrdinal,entryCount,pageDigest,entrySetDigest,nextCursor,hasMore,receiptDigest'],
   ProcurementControlReceipt: ['ReceiptEnvelope', 'procurementRunId,fieldId,runBasisDigest,selectedMaterialCount,selectedMaterialSetDigest,acquiredMaterialCount,assertedMaterialCount,controlRevisionSetDigest'],
   PlayabilityEvidence: ['EvidenceEnvelope', 'procurementRunId,runBasisDigest,selectionDigest,batchOrdinal,materialResults,materialResultSetDigest'],
   TriageStructureEvidence: ['EvidenceEnvelope', 'procurementRunId,runBasisDigest,selectionDigest,triageRuleAuthorityDigest,materialFieldContextDigest,pageRequestDigest,pageOrdinal,cursorIn,cursorOut,resultKind,units,unassignedMaterials,unitSetDigest,unassignedSetDigest'],
@@ -622,9 +619,7 @@ function buildResultTypeSchema(name, [base, fieldList]) {
     ...(base ? { 'x-helix-envelopeRef': typeId(base) } : {}),
     ...object(properties, required)
   };
-  if (name === 'FieldObservationPage' || name === 'ObservationCommitResult') {
-    result['x-helix-maxCanonicalBytes'] = 64 * 1024;
-  }
+  if (name === 'ObservationPageCommitResult' || name === 'ObservationPageCommitReceipt') result['x-helix-maxCanonicalBytes'] = 16 * 1024;
   if (name === 'LibraCandidateAcceptedMessage' || name === 'LibraCandidateRejectedMessage') result['x-helix-maxCanonicalBytes'] = 16 * 1024;
   if (name === 'ProcurementCandidateRejectionClosureResult') result['x-helix-maxCanonicalBytes'] = 64 * 1024;
   if (name === 'ProcurementCandidateAcceptanceClosureResult') result['x-helix-maxCanonicalBytes'] = 64 * 1024;

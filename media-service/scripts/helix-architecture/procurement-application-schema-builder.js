@@ -76,7 +76,8 @@ function triageRuleSnapshot() {
   const payload = object({
     contractRefs:{ const:['helix.procurement.candidate-readiness@1','helix.procurement.profile-claim-baseline@1',
       'helix.procurement.primary-input-manifest@1','helix.procurement.related-material-reference@1'] },
-    recallPriority:{ const:true }, maxPrimaryMaterials:{ const:PROCUREMENT_RUN_MEMBER_LIMIT }, probeBatchSize:{ const:100 },
+    recallPriority:{ const:true }, maxPrimaryMaterials:{ const:PROCUREMENT_RUN_MEMBER_LIMIT },
+    maxLogicalSelectionGroups:{ const:PROCUREMENT_RUN_MEMBER_LIMIT }, maxBdmvContainerMembers:{ const:1024 }, probeBatchSize:{ const:100 },
     playabilityRule:object({minimumDurationMs:{const:1},minimumVideoStreamCount:{const:1},
       reasonPrecedence:{const:['probe_not_media','no_video_stream','non_positive_duration']}}),
     profileResolutionRule:object({mixedPrecedence:{const:['series_episode_token','jav_code','movie_fallback']},westernAdultRequiresExplicitHint:{const:true}}),
@@ -146,7 +147,7 @@ function candidateAssemblyPlanBinding(){
       variant('layout',{ordinal:nonNegative(),readHandle:layoutReadHandle,boundedLayoutScope,outputIdentity:resultIdentity}),
       variant('media_probe',{ordinal:nonNegative(),readHandle,outputIdentity:resultIdentity}),
       variant('playability',{runRef,ruleRef,sourceResultRefs:refs(),outputIdentity:resultIdentity}),
-      variant('structure',{runRef:object({...runRef.properties,materialFieldContextDigest:digest(),layoutEvidenceSetDigest:digest()}),
+      variant('structure',{runRef:object({...runRef.properties,materialFieldContextDigest:digest(),observationScopeProjectionDigest:digest()}),
         structureInputDigest:digest(),sourceResultRefs:refs(2),outputIdentity:resultIdentity}),
       variant('identity_claim',{sourceResultRefs:refs(1,1),outputIdentity:resultIdentity}),
       variant('primary_manifest',{selectionDigest:digest(),sourceResultRefs:refs(1,1),outputIdentity:resultIdentity}),

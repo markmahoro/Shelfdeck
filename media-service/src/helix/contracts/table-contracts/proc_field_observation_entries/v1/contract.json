@@ -1,0 +1,409 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/proc_field_observation_entries/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "proc_field_observation_entries",
+    "owner": "procurement",
+    "prefix": "proc_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "field_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "field_observation_work_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "observation_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "observation_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "page_ordinal",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "entry_ordinal",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "material_observation_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "material_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "mount_scope_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "inode",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "size_bytes",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "fingerprint_algorithm",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 13,
+        "name": "fingerprint_version",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 14,
+        "name": "content_fingerprint",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 15,
+        "name": "endpoint_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 16,
+        "name": "access_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 17,
+        "name": "mount_scope_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 18,
+        "name": "current_location",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 19,
+        "name": "relative_location",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 20,
+        "name": "mtime_ns",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 21,
+        "name": "ctime_ns",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 22,
+        "name": "fingerprint_verified_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 23,
+        "name": "observed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 24,
+        "name": "containment_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 25,
+        "name": "reality_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 26,
+        "name": "provenance_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 27,
+        "name": "snapshot_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 28,
+        "name": "entry_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "field_id",
+      "field_observation_work_id",
+      "page_ordinal",
+      "entry_ordinal"
+    ],
+    "declaredForeignKeyColumns": [
+      "field_id",
+      "field_observation_work_id",
+      "observation_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "field_id",
+        "observation_id",
+        "entry_ordinal"
+      ],
+      [
+        "field_id",
+        "observation_id",
+        "material_observation_id"
+      ]
+    ],
+    "hotIndexes": [
+      [
+        "field_id",
+        "field_observation_work_id",
+        "observation_revision",
+        "relative_location"
+      ],
+      [
+        "field_id",
+        "field_observation_work_id",
+        "material_key"
+      ],
+      [
+        "field_id",
+        "field_observation_work_id",
+        "page_ordinal",
+        "entry_ordinal"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "observation_revision",
+        "access_revision",
+        "mount_scope_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "每页/Entry只允许一次写入，历史行append-only且永久保留"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(field_id,field_observation_work_id,page_ordinal,entry_ordinal)`",
+      "每页/Entry只允许一次写入，历史行append-only且永久保留",
+      "`UNIQUE(field_id,observation_id,entry_ordinal)`及`UNIQUE(field_id,observation_id,material_observation_id)`",
+      "Entry Identity/size/path/stat/fingerprint逐字节复制Observation事实",
+      "`INDEX(field_id,field_observation_work_id,observation_revision,relative_location)`、`INDEX(field_id,field_observation_work_id,material_key)`、`INDEX(field_id,field_observation_work_id,page_ordinal,entry_ordinal)`",
+      "不保存媒体Profile、BDMV语义、Primary/Related角色或Layout Result JSON`"
+    ],
+    "rawContract": {
+      "columns": "`field_id FK, field_observation_work_id FK, observation_id FK, observation_revision, page_ordinal, entry_ordinal, material_observation_id, material_key, mount_scope_id, inode, size_bytes, fingerprint_algorithm, fingerprint_version, content_fingerprint, endpoint_id, access_revision, mount_scope_revision, current_location, relative_location, mtime_ns, ctime_ns, fingerprint_verified_at_ms, observed_at_ms, containment_digest, reality_digest, provenance_digest, snapshot_digest, entry_digest`",
+      "constraints": "`PK(field_id,field_observation_work_id,page_ordinal,entry_ordinal)`；每页/Entry只允许一次写入，历史行append-only且永久保留；`UNIQUE(field_id,observation_id,entry_ordinal)`及`UNIQUE(field_id,observation_id,material_observation_id)`；Entry Identity/size/path/stat/fingerprint逐字节复制Observation事实；`INDEX(field_id,field_observation_work_id,observation_revision,relative_location)`、`INDEX(field_id,field_observation_work_id,material_key)`、`INDEX(field_id,field_observation_work_id,page_ordinal,entry_ordinal)`；不保存媒体Profile、BDMV语义、Primary/Related角色或Layout Result JSON`"
+    },
+    "source": {
+      "section": "8.5.10",
+      "line": 8681,
+      "lineDigest": "51cd83a04736a62256f5531e871652b59b85ed66a4ca28d9178050dd37f0935e"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "field_id"
+        ],
+        "targetTable": "proc_material_fields",
+        "targetColumns": [
+          "field_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "field_observation_work_id"
+        ],
+        "targetTable": "fx_supporting_works",
+        "targetColumns": [
+          "work_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "observation_id"
+        ],
+        "targetTable": "proc_field_observations",
+        "targetColumns": [
+          "observation_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

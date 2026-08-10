@@ -46,7 +46,7 @@
     "pageBudget": {
       "type": "integer",
       "minimum": 1,
-      "maximum": 100
+      "maximum": 256
     },
     "profileHintSnapshot": {
       "$ref": "helix://contracts/application-types/MaterialFieldProfileHintSnapshot/v1"

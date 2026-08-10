@@ -5,9 +5,11 @@ const { selectedCandidateSelectedValueSchema } = require('./result-type-schema-b
 
 const DRAFT = 'https://json-schema.org/draft/2020-12/schema';
 const PROCUREMENT_RUN_MEMBER_LIMIT = 256;
+const PROCUREMENT_RUN_PHYSICAL_MEMBER_LIMIT = 1024;
+const PROCUREMENT_OBSERVATION_SCOPE_ENTRY_LIMIT = 4096;
 const PROCUREMENT_PROBE_BATCH_LIMIT = 100;
 const PROCUREMENT_PROBE_PAGE_LIMIT = Math.ceil(
-  PROCUREMENT_RUN_MEMBER_LIMIT / PROCUREMENT_PROBE_BATCH_LIMIT,
+  PROCUREMENT_RUN_PHYSICAL_MEMBER_LIMIT / PROCUREMENT_PROBE_BATCH_LIMIT,
 );
 const domainTypeId = (name) => `helix://contracts/domain-types/${name}/v1`;
 const domainRef = (name) => ({ $ref: domainTypeId(name) });
@@ -109,7 +111,6 @@ const boundedContracts = {
   AnalysisSpec: '',
   ArtifactProfile: 'artifactKinds,qualityPolicyDigest',
   ArtifactRequirement: 'artifactKind,requirementPayload,requirementDigest',
-  BoundedLayoutScope: 'rootHandleDigest,maxDepth,maxMembers',
   CareRequirement: 'careBasisDigest,requiredEffects,acceptanceDigest',
   ClusterParameters: '',
   EncodeIntent: '',
@@ -329,7 +330,7 @@ function selectedFieldMaterialSetSchema() {
     basisMemberDigest: digest()
   });
   return exactDomainSchema('SelectedFieldMaterialSet', {
-    procurementRunId: id(), fieldId: id(), members: { ...arrayOf(member, PROCUREMENT_RUN_MEMBER_LIMIT), minItems: 1 }, selectionDigest: digest()
+    procurementRunId: id(), fieldId: id(), members: { ...arrayOf(member, PROCUREMENT_RUN_PHYSICAL_MEMBER_LIMIT), minItems: 1 }, selectionDigest: digest()
   });
 }
 
@@ -477,6 +478,7 @@ const triageUnit = () => object({
 function procurementTriageRuleSnapshotSchema() {
   const rulePayload = object({
     contractRefs: arrayOf(text(), 32), recallPriority: { const: true }, maxPrimaryMaterials: { const: PROCUREMENT_RUN_MEMBER_LIMIT },
+    maxLogicalSelectionGroups: { const: PROCUREMENT_RUN_MEMBER_LIMIT }, maxBdmvContainerMembers: { const: PROCUREMENT_RUN_PHYSICAL_MEMBER_LIMIT },
     probeBatchSize: { const: 100 }, playabilityRule: object({ minimumDurationMs: { const: 1 }, minimumVideoStreamCount: { const: 1 },
       reasonPrecedence: { const: ['probe_not_media', 'no_video_stream', 'non_positive_duration'] } }),
     profileResolutionRule: object({ mixedPrecedence: { const: ['series_episode_token', 'jav_code', 'movie_fallback'] },
@@ -501,16 +503,20 @@ function materialFieldContextSchema() {
     profileHintSnapshot: applicationRef('MaterialFieldProfileHintSnapshot'),
     memberContexts: { ...arrayOf(object({ selectionOrdinal: nonNegativeInteger(), materialKey: digest(), fieldRelativeLocation: text(),
       baseName: text(), extension: text(), parentSegments: arrayOf(text(), 32), layoutEvidenceRefs: arrayOf(object({ evidenceId: id(),
-      payloadDigest: digest(), boundedScopeDigest: digest() }), 16) }), PROCUREMENT_RUN_MEMBER_LIMIT), minItems: 1 }, contextDigest: digest() });
+      payloadDigest: digest(), boundedScopeDigest: digest() }), 16) }), PROCUREMENT_RUN_PHYSICAL_MEMBER_LIMIT), minItems: 1 }, contextDigest: digest() });
 }
 
 function triageStructureInspectionInputSchema() {
   return exactDomainSchema('TriageStructureInspectionInput', { selectedFieldMaterialSet: domainRef('SelectedFieldMaterialSet'),
     probeBatches: { ...arrayOf(domainRef('TriageMaterialProbeBatch'), PROCUREMENT_PROBE_PAGE_LIMIT), minItems: 1 },
     playabilityPages: { ...arrayOf(typeRef('PlayabilityEvidence'), PROCUREMENT_PROBE_PAGE_LIMIT), minItems: 1 }, materialFieldContext: materialFieldContextSchema(),
-    layoutEvidence: arrayOf(typeRef('LayoutEvidence'), PROCUREMENT_RUN_MEMBER_LIMIT), pageRequest: object({ pageOrdinal: nonNegativeInteger(),
+    observationScopeProjection: object({ projectionRevision: positiveInteger(), scopeDigest: digest(), entriesDigest: digest(),
+      entryCount: nonNegativeInteger(), entries: arrayOf(object({ entryOrdinal: nonNegativeInteger(), materialKey: digest(),
+        relativeLocation: text(), currentLocation: text(), parentRelativeLocation: text(), baseName: text(), extension: text(),
+        identity: nullable(typeRef('PhysicalMaterialIdentity')), endpointId: nullable(id()), sizeBytes: nonNegativeInteger(),
+        entryDigest: digest() }), PROCUREMENT_OBSERVATION_SCOPE_ENTRY_LIMIT) }), pageRequest: object({ pageOrdinal: nonNegativeInteger(),
       cursorIn: { anyOf: [text(), { type: 'null' }] }, maxUnits: { type: 'integer', minimum: 1, maximum: 100 }, requestDigest: digest() }),
-    inputDigest: digest() });
+    inputDigest: digest() }, undefined, { 'x-helix-maxCanonicalBytes': 4 * 1024 * 1024 });
 }
 
 function triageIdentityResolutionInputSchema() {

@@ -1,8 +1,30 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: Execution Foundation已封口（CLOSED FOR DOMAIN ONBOARDING）；Procurement Triage Unit/Candidate Assembly性能修正及本地全库Canary已完成。
+Status: Observation事实表与增量Eligibility改造已完成；Execution Foundation与Procurement本地全链验证通过，保持不变。
 
-Last updated: 2026-08-09
+Last updated: 2026-08-10
+
+## 0.1 Current amendment — Observation facts and incremental Eligibility
+
+本轮废止“仅改Observation存储”的上一版计划，先修改唯一Architecture SSOT，再实现并验证两个相互关联的收敛点：
+
+- Observation明细永久写入Procurement-owned `proc_field_observation_entries`；Page JSON只保存游标、数量、边界digest、page/fact digest和commit marker。一个Page Event最多提交256个文件、物理读取最多64 MiB，每个Physical Material指纹读取最多262,144 bytes。独立Layout Capability/Event/Result废止，Layout只作为冻结Observation entries上的技术Projection。
+- Eligibility仍是`proc_field_materials`上的当前Decision Projection。全局Observation head推进不再使全部Material失效；Reconcile只接收新、Reality/Binding/位置变化、missing、unknown/basis失效，以及Field/Access/Policy/Selection/Reservation/Control影响的有界Material Key Change Set。未变化Material不执行Eligibility SQL UPDATE、不递增revision。
+
+本轮不新增Eligibility历史表、Capability、Result family、Admin route或业务对象；clean合同预期为110 Capability、96 Result family、180 table、43 Canonical Transaction。验证顺序固定为：合同/Schema → Observation幂等与批次边界 → 18,000项Eligibility写放大fixture → Procurement回归 → 本地只读`Z:\\Film`全量Canary。上述门禁已全部完成；本轮不进入Docker、NAS、Libra或Arca。
+
+### 0.2 Final evidence — 2026-08-10 local full Canary
+
+本轮使用本机Node.js、系统Temp下的clean数据库和只读`Z:\\Film`完成最终Canary：
+
+- sourceBefore/sourceAfter均为18,407个regular files，digest均为`a630ecf5b86c0da2541b5e53fae2bc6e5aa8d28fd181b7d6ce6c770042eb316d`；数据库`integrity_check=ok`。
+- Observation为72页、18,407条entry；每文件只读取一次中段指纹，逻辑读取`1,776,608,472` bytes，未超过`18,407 × 262,144`上限；主动重启后未重读已提交页。
+- 增量Eligibility首轮实际`eligibilityDecisionWrites=18,407`、`reconcileBatchCount=185`；Observation完成后的后续Triage没有增加Eligibility写入；完全相同Observation的0写入由专项fixture覆盖。
+- 创建29个并存Run并全部Seal；917个Work、1,083个Plan、8,816个Event/Attempt/Result全部成功；Candidate Package与open Handoff A Offer各887份，Related Reference共4,244份。
+- `failedWorks=0`、`failedEvents=0`、`resourceDefers=0`、RSS峰值约765 MiB；Related数据库审计未发现BDMV内部路径或视频载荷（包括`.m2ts`）被误记为Related；Offer未消费，Libra/Arca事实为0，源文件无写入/删除/移动/重命名。
+- 总耗时约22分53秒；Observation terminal已完成后首个Candidate/Offer约128秒，全部Run Seal约22分48秒。最新临时资产保留于`C:\\Users\\markm\\AppData\\Local\\Temp\\helix-full-movie-canary-RN9eJJ`；此前Canary资产未删除。
+
+本证据将Execution Foundation与Procurement本地验证状态更新为`CLOSED FOR DOMAIN ONBOARDING`。后续Libra/Arca接入若要求改变Foundation状态机、Permit、Result Binding、Reconcile或backpressure语义，必须返回Design。
 
 ## 0. Active implementation checkpoints
 
@@ -10,15 +32,15 @@ Last updated: 2026-08-09
 不进入Libra或Arca：
 
 1. **SSOT封闭**：明确Event有界并发、`maxInFlightEvents=16`、typed Resource Key、精确Process reconcile、30秒fallback sweep、
-   Domain Execution Projection及soft/hard cap语义；新增`fx_reconcile_cursors`，clean table总数为179。
+   Domain Execution Projection及soft/hard cap语义；新增`fx_reconcile_cursors`，当前Observation事实表改造后的clean table总数为180。
 2. **产品接线修复**：Runtime Host有界启动多个Event；Resource Governor逐Event原子发放Permit bundle；Scheduler、Work Supply与
    waiter遵守同一Domain Execution Projection；删除每Event全Run扫描及整Field Triage读取。
 3. **Foundation封口验证**：以产品Composition Root覆盖并发、Permit、immutable Plan、Result Binding、terminal aggregation、
    205个Process三页cursor恢复、lost wake、retry/defer/timeout及七类Effect crash window。
 4. **Procurement压力回归**：以260个Candidate需求证明hard cap有界、completion持续产出、Package/Offer早于全部Run Seal，且
    Coordinator不执行Capability、不做整Field读取。
-5. **最终全库Canary与封口**：本地Node.js在新的系统Temp clean数据库上运行`Z:\Film`只读Canary；原进程中断后从同一
-   durable数据库恢复，未重扫Observation。最终8/8 Run Seal、1,751 Candidate Package/1,751 open Handoff A Offer、
+5. **最终全库Canary与封口**：本地Node.js在新的系统Temp clean数据库上运行`Z:\Film`只读Canary；主动重启后从同一
+   durable数据库恢复，未重扫Observation。最终29/29 Run Seal、889 Candidate Package/889 open Handoff A Offer、
    `failedWorks=0`、`failedEvents=0`、源Reality前后一致、Libra/Arca为0，已改为`CLOSED FOR DOMAIN ONBOARDING`。
 
 Checkpoint 1–5的实现与本地fixture已经完成；Layout Snapshot及Triage Unit/Candidate Context改造的Node回归和Procurement压力fixture已通过；全量真实Canary已完成。运行边界固定为本机Node.js、临时clean数据库和

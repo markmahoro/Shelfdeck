@@ -77,7 +77,7 @@
       "relativePath": "application-types/ProcurementCandidateAssemblyPlanBinding/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "409cfbb7304dcc250c1a935701056f50bee140e3816c61950f1c848663cc9790"
+        "value": "feb9029b82c3523d665bc3b8d9fe4c0443f24da806696c79ef51ae26f5bb0286"
       },
       "ssotRefs": [
         "8.5.11",
@@ -261,7 +261,7 @@
       "relativePath": "application-types/ProcurementTriageRuleSnapshot/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "f8f71f06896fe6ee739a0b4b13c934ab2b061b80c929d5e91f2e612c414e2d15"
+        "value": "a7e548b8dae643cc9ed77fc13b409074b69322353e21a8adc5a80c17bd12904c"
       },
       "ssotRefs": [
         "5.3.2",

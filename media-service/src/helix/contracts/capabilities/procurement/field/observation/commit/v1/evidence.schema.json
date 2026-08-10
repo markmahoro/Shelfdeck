@@ -1,6 +1,0 @@
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "helix://contracts/capabilities/procurement.field.observation.commit/v1/evidence",
-  "title": "procurement.field.observation.commit@1 evidence",
-  "$ref": "helix://contracts/types/EvidenceEnvelope/v1"
-}

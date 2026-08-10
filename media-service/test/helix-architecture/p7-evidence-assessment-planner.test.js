@@ -9,7 +9,6 @@ const { createEvidenceAssessmentPlanner, createProbeBatchProjection } = require(
 
 const contractsRoot = path.resolve(__dirname, '../../src/helix/contracts');
 const refs = [
-  'shared.material.layout.observe@1',
   'shared.material.media.probe@1',
   'procurement.triage.playability.inspect@1',
   'procurement.triage.structure.inspect@1',

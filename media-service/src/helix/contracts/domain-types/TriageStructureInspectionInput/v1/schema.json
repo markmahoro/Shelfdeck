@@ -19,7 +19,7 @@
       "items": {
         "$ref": "helix://contracts/domain-types/TriageMaterialProbeBatch/v1"
       },
-      "maxItems": 3,
+      "maxItems": 11,
       "minItems": 1
     },
     "playabilityPages": {
@@ -27,7 +27,7 @@
       "items": {
         "$ref": "helix://contracts/types/PlayabilityEvidence/v1"
       },
-      "maxItems": 3,
+      "maxItems": 11,
       "minItems": 1
     },
     "materialFieldContext": {
@@ -127,7 +127,7 @@
               "layoutEvidenceRefs"
             ]
           },
-          "maxItems": 256,
+          "maxItems": 1024,
           "minItems": 1
         },
         "contextDigest": {
@@ -145,12 +145,119 @@
         "contextDigest"
       ]
     },
-    "layoutEvidence": {
-      "type": "array",
-      "items": {
-        "$ref": "helix://contracts/types/LayoutEvidence/v1"
+    "observationScopeProjection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "projectionRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "scopeDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "entriesDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "entryCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "entryOrdinal": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "materialKey": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "relativeLocation": {
+                "type": "string",
+                "minLength": 1
+              },
+              "currentLocation": {
+                "type": "string",
+                "minLength": 1
+              },
+              "parentRelativeLocation": {
+                "type": "string",
+                "minLength": 1
+              },
+              "baseName": {
+                "type": "string",
+                "minLength": 1
+              },
+              "extension": {
+                "type": "string",
+                "minLength": 1
+              },
+              "identity": {
+                "anyOf": [
+                  {
+                    "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "endpointId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "sizeBytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "entryDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "entryOrdinal",
+              "materialKey",
+              "relativeLocation",
+              "currentLocation",
+              "parentRelativeLocation",
+              "baseName",
+              "extension",
+              "identity",
+              "endpointId",
+              "sizeBytes",
+              "entryDigest"
+            ]
+          },
+          "maxItems": 4096
+        }
       },
-      "maxItems": 256
+      "required": [
+        "projectionRevision",
+        "scopeDigest",
+        "entriesDigest",
+        "entryCount",
+        "entries"
+      ]
     },
     "pageRequest": {
       "type": "object",
@@ -200,8 +307,9 @@
     "probeBatches",
     "playabilityPages",
     "materialFieldContext",
-    "layoutEvidence",
+    "observationScopeProjection",
     "pageRequest",
     "inputDigest"
-  ]
+  ],
+  "x-helix-maxCanonicalBytes": 4194304
 }

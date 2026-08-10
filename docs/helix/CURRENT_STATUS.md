@@ -1,10 +1,39 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Execution Foundation已封口（CLOSED FOR DOMAIN ONBOARDING）；Procurement Triage Unit/Candidate Assembly性能修正及本地全库Canary已完成。
+Status: Observation事实表与增量Eligibility改造已完成；Execution Foundation既有状态机和Permit合同未重新打开。
 
-Last updated: 2026-08-09
+Last updated: 2026-08-10
+
+## 0. Current implementation evidence
+
+- 唯一SSOT已补充Observation entries历史事实、compact Page receipt、256项/64 MiB批次边界，以及Material-local Eligibility Basis和有界Change Set语义。
+- 机器合同已生成并通过P2基线：110 Capability、96 Result family、180 table、43 Canonical Transaction；旧Layout/双Observation Capability与Result不再属于active catalog。
+- 当前本地Node回归为233/233 PASS；Observation/增量Eligibility/BDMV专项为16/16 PASS；P2合同基线为110/96/180/43。Observation Page Commit已同时申请`volume_read`与`sqlite_write` Permit。
+- 最终全量只读Canary已完成：18,407文件、72页、29/29 Run Seal、887 Candidate/Offer、8,816 succeeded Event/Attempt/Result、917 succeeded Work、无failed Work/Event、无Resource defer；source Reality前后一致，主动重启后未重复已提交Observation，Libra/Arca为0。总耗时约22分53秒，首个Offer约128秒。
+- 首轮clean Observation的Eligibility实际写入18,407条（185批），后续Triage未产生额外Eligibility写入；完全相同Observation的0写入由16/16专项fixture证明（其中包含Observation边界、BDMV与Eligibility no-op）。最新Canary数据库与日志保留于`C:\\Users\\markm\\AppData\\Local\\Temp\\helix-full-movie-canary-RN9eJJ`；此前`RD3ta3`资产仍保留作历史对照。
+- 本轮状态更新为`CLOSED FOR DOMAIN ONBOARDING`；该封口只覆盖Foundation与Procurement合同及本地验证，不代表Libra/Arca已实现或已接入。
+
+## 0.1 Final Canary record (2026-08-10)
+
+| Metric | Result |
+| --- | --- |
+| Source Reality | 18,407 regular files; before/after digest `a630ecf5b86c0da2541b5e53fae2bc6e5aa8d28fd181b7d6ce6c770042eb316d` |
+| Observation | 72 pages; 18,407 entries; 1,776,608,472 logical fingerprint bytes; 18,407 read calls |
+| Eligibility | 18,407 first-pass decision writes; 185 bounded batches; no Triage-induced writes |
+| Procurement | 29 concurrent Runs, all sealed; 917 Work; 1,083 Plan; 8,816 Event/Attempt/Result |
+| Handoff A Ready | 887 Candidate Package and 887 open Offer; none consumed; 4,244 Related references |
+| Related safety | roles: poster 869, fanart 952, nfo 879, subtitle 510, sidecar 1,034; BDMV-internal and video-payload Related references 0 |
+| Safety | failed Work/Event 0; defer 0; RSS peak ~765 MiB; integrity check ok; Libra/Arca facts 0 |
+| Recovery | one active restart; no reread of committed Observation pages or duplicate Run/Candidate/Offer |
+| Timing | first Offer 128.2 s; all Runs sealed ~22 min 48 s; total 22 min 52.9 s |
+
+临时资产未删除：最新为`C:\\Users\\markm\\AppData\\Local\\Temp\\helix-full-movie-canary-RN9eJJ`；此前`RD3ta3`及中止轮次同样保留。
+
+本次重跑前修复了Related关联的两个边界：Observation Scope Projection补回同目录/BDMV外部sidecar，且Related筛选排除同stem视频载荷（包括`.m2ts`）及全部BDMV内部路径。只读数据库审计确认`forbiddenRelated=0`，没有把视频文件或BDMV结构文件误记为Related。
 
 ## 0. Retake status
+
+以下条目保留为第一次实施、早期Checkpoint和旧Canary的追溯记录；若与本文件0/0.1节冲突，以当前110/96/180/43合同和2026-08-10最终Canary为准。
 
 - 当前分支以第一次实施关闭点及其细化后的SSOT为基线，不合入第二、第三次实施代码。
 - 当前目标不是重新搭建完整骨架，而是接通已有Foundation、重写Procurement Coordinator执行方式、恢复`Run → Work → Event`三层架构，再完成有效的Handoff A Ready E2E；到此停止，不进入Libra。

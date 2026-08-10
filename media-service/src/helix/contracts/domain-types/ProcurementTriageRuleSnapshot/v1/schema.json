@@ -41,6 +41,12 @@
         "maxPrimaryMaterials": {
           "const": 256
         },
+        "maxLogicalSelectionGroups": {
+          "const": 256
+        },
+        "maxBdmvContainerMembers": {
+          "const": 1024
+        },
         "probeBatchSize": {
           "const": 100
         },
@@ -142,6 +148,8 @@
         "contractRefs",
         "recallPriority",
         "maxPrimaryMaterials",
+        "maxLogicalSelectionGroups",
+        "maxBdmvContainerMembers",
         "probeBatchSize",
         "playabilityRule",
         "profileResolutionRule",

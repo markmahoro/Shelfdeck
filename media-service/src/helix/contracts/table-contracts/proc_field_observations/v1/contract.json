@@ -229,9 +229,7 @@
       ],
       "currentPointerColumns": [],
       "pointerTargets": [],
-      "pointerRules": [
-        "Page commit时冻结值必须命中Field current Profile pointer和精确revision row，current变化后旧Work不得继续"
-      ]
+      "pointerRules": []
     },
     "jsonContracts": [],
     "immutability": {
@@ -249,21 +247,21 @@
       "同一Work的pageOrdinal从0连续递增，每页使用不同observation_id且该ID只在该页重放时复用，且三项Profile Hint列逐字节相同",
       "`expected_revision=revision-1`，首个revision的expected为0",
       "`completed=1`恰好对应terminal page",
-      "Page commit时冻结值必须命中Field current Profile pointer和精确revision row，current变化后旧Work不得继续",
-      "`page_digest`必须匹配该marker所指Result Binding中完整`FieldObservationPage`的payloadDigest，`result_digest`必须匹配同一Binding的完整`ObservationCommitResult`",
-      "历史Page通过`commit_marker → fx_commit_markers.result_id → fx_event_result_bindings.evidence_json`唯一恢复，后续Material或Profile current-row更新不改变该链",
+      "Page只保存compact receipt，不保存文件明细，明细由同一`observation_id/page_ordinal/entry_ordinal`在`proc_field_observation_entries`恢复",
+      "`page_digest`必须匹配compact ObservationPageCommit Result，`result_digest`必须匹配typed Result",
+      "历史Page通过`commit_marker → fx_commit_markers.result_id → fx_event_result_bindings`恢复，后续Material或Profile current-row更新不改变该链",
       "该Observation revision存在时对应Result Binding/Evidence不得GC或压缩",
       "`observation_id/work/page`冲突重放必须拒绝",
       "`INDEX(field_id,completed,observed_at_ms)`"
     ],
     "rawContract": {
       "columns": "`field_id FK, revision, observation_id, field_observation_work_id, access_revision, content_profile_hint, profile_hint_revision, profile_hint_digest, page_ordinal, expected_revision, cursor_in, cursor_out, page_digest, fact_digest, commit_marker, result_digest, observed_at_ms, completed`",
-      "constraints": "`PK(field_id,revision)`、`UNIQUE(observation_id)`、`UNIQUE(field_id,observation_id)`供same-Field composite FK、`UNIQUE(field_observation_work_id,page_ordinal)`、`UNIQUE(commit_marker)`；`field_observation_work_id`显式FK引用`fx_supporting_works.work_id`，`(field_id,access_revision)`显式FK引用`proc_field_access_revisions`，`(field_id,profile_hint_revision)`显式FK引用`proc_field_profile_hint_revisions`，`commit_marker`显式FK引用`fx_commit_markers.commit_marker`；revision从1开始且跨Observation Work持续递增；同一Work的pageOrdinal从0连续递增，每页使用不同observation_id且该ID只在该页重放时复用，且三项Profile Hint列逐字节相同；`expected_revision=revision-1`，首个revision的expected为0；`completed=1`恰好对应terminal page；Page commit时冻结值必须命中Field current Profile pointer和精确revision row，current变化后旧Work不得继续；`page_digest`必须匹配该marker所指Result Binding中完整`FieldObservationPage`的payloadDigest，`result_digest`必须匹配同一Binding的完整`ObservationCommitResult`；历史Page通过`commit_marker → fx_commit_markers.result_id → fx_event_result_bindings.evidence_json`唯一恢复，后续Material或Profile current-row更新不改变该链；该Observation revision存在时对应Result Binding/Evidence不得GC或压缩；`observation_id/work/page`冲突重放必须拒绝；`INDEX(field_id,completed,observed_at_ms)`"
+      "constraints": "`PK(field_id,revision)`、`UNIQUE(observation_id)`、`UNIQUE(field_id,observation_id)`供same-Field composite FK、`UNIQUE(field_observation_work_id,page_ordinal)`、`UNIQUE(commit_marker)`；`field_observation_work_id`显式FK引用`fx_supporting_works.work_id`，`(field_id,access_revision)`显式FK引用`proc_field_access_revisions`，`(field_id,profile_hint_revision)`显式FK引用`proc_field_profile_hint_revisions`，`commit_marker`显式FK引用`fx_commit_markers.commit_marker`；revision从1开始且跨Observation Work持续递增；同一Work的pageOrdinal从0连续递增，每页使用不同observation_id且该ID只在该页重放时复用，且三项Profile Hint列逐字节相同；`expected_revision=revision-1`，首个revision的expected为0；`completed=1`恰好对应terminal page；Page只保存compact receipt，不保存文件明细，明细由同一`observation_id/page_ordinal/entry_ordinal`在`proc_field_observation_entries`恢复；`page_digest`必须匹配compact ObservationPageCommit Result，`result_digest`必须匹配typed Result；历史Page通过`commit_marker → fx_commit_markers.result_id → fx_event_result_bindings`恢复，后续Material或Profile current-row更新不改变该链；该Observation revision存在时对应Result Binding/Evidence不得GC或压缩；`observation_id/work/page`冲突重放必须拒绝；`INDEX(field_id,completed,observed_at_ms)`"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8647,
-      "lineDigest": "de9b17c657a93a57e1b5c8c69d8a03c78bf1b8c739dc8201cb9c0df803ad2617"
+      "line": 8720,
+      "lineDigest": "0fc7fd9298e1b4290ce31a249652f37731865cf176f5d64855360848a68c7eba"
     },
     "foreignKeys": [
       {

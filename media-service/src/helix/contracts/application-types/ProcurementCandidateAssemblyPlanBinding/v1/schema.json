@@ -622,7 +622,7 @@
               "minLength": 1,
               "pattern": "^[a-f0-9]{64}$"
             },
-            "layoutEvidenceSetDigest": {
+            "observationScopeProjectionDigest": {
               "type": "string",
               "minLength": 1,
               "pattern": "^[a-f0-9]{64}$"
@@ -633,7 +633,7 @@
             "runBasisDigest",
             "selectionDigest",
             "materialFieldContextDigest",
-            "layoutEvidenceSetDigest"
+            "observationScopeProjectionDigest"
           ]
         },
         "structureInputDigest": {

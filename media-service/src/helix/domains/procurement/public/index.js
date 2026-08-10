@@ -5,7 +5,7 @@ const { packageId } = require('./package.boundary.json');
 const { createFieldObservationCapabilityPorts } = require('../capabilities/field-observation-capability-ports');
 const { createTriageCapabilityPorts } = require('../capabilities/triage-capability-ports');
 const { createProcurementCapabilityRegistrations } = require('../capabilities/procurement-capability-registrations');
-const { PROJECTION_REF,createFieldObservationCommitHandleProjection,createFieldObservationPlanner } = require('../planning/field-observation-planner');
+const { createFieldObservationPlanner } = require('../planning/field-observation-planner');
 const { createFieldObservationProgressReader } = require('../persistence/field-observation-progress-reader');
 const { createProcurementRunTriageReader } = require('../persistence/procurement-run-triage-reader');
 const { createTriageEvidenceIndex } = require('../persistence/triage-evidence-index');
@@ -93,7 +93,6 @@ function createExecutionRegistration() {
           triageRuleRegistry, workResultReader, evidenceIndex, candidateContextReader, now })
       ]);
       const bindingProjections = Object.freeze([
-        Object.freeze({ projectionRef: PROJECTION_REF, projection: createFieldObservationCommitHandleProjection() }),
         Object.freeze({ projectionRef: PROBE_BATCH_PROJECTION, projection: createProbeBatchProjection({ triageReader }) }),
         Object.freeze({ projectionRef: STRUCTURE_INPUT_PROJECTION, projection: createStructureInputProjection({ triageReader }) }),
         Object.freeze({ projectionRef: IDENTITY_INPUT_PROJECTION, projection: createCandidateIdentityInputProjection({ triageReader, evidenceIndex, candidateContextReader, triageRuleRegistry }) }),

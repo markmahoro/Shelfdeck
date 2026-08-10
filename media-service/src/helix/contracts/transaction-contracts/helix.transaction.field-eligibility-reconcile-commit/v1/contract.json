@@ -7,7 +7,7 @@
     "displayName": "Field Eligibility Reconcile Commit",
     "ownerScope": "procurement",
     "commitClass": "domain_unit_of_work",
-    "atomicFactSet": "bounded `ExtractionEligibilityDecisionBatch` + current Field/Access/terminal Observation head/Policy/Material Binding和既有Eligibility revision CAS + 同事务重读并验证Selection conflict与Foundation Material Control revision/digest + 更新Field Material current Eligibility/Control Projection；更新后的rows就是唯一durable output，事务只返回typed summary；这是可重建的Procurement current decision-fact transaction，basis不变时幂等no-op，不写Event Result、commit marker或Outbox",
+    "atomicFactSet": "bounded `ExtractionEligibilityDecisionBatch` + exact Material Key Change Set + current Field/Access/Policy/Selection/Reservation/Control facts和既有Eligibility revision CAS + 同事务重读验证Material-local basis；只更新Decision或Basis实际变化的Field Material current Eligibility/Control Projection，unchanged rows为no-op且不执行SQL UPDATE；更新后的rows是唯一durable output，事务只返回typed summary，不写Event Result、commit marker或Outbox；全局terminal Observation revision只作审计输入，不能单独使全Field失效",
     "participants": [
       {
         "participantKind": "domain",
@@ -62,8 +62,8 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 7971,
-      "lineDigest": "7ba36a2ff58597421695676659ccb76bd30595feebcf1f1191d89a4ef9cfb701"
+      "line": 8043,
+      "lineDigest": "e0574119e310892c2ed9c6e2f7e018abce30cca77b2ab7f4d339bd04e2cf58dd"
     }
   }
 }

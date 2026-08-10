@@ -63,10 +63,31 @@ function validateEligibilityPolicy(value) {
   }
   return rules;
 }
+function materialLocalBasis(decision) {
+  // The observation head is an audit cursor, not a freshness key.  A full
+  // observation can advance while this material's identity, reality, binding,
+  // policy and control facts remain unchanged.  Keep only those material-local
+  // facts (plus explicit presence) in the Eligibility basis digest.
+  return {
+    fieldId: decision.fieldId,
+    fieldStatus: decision.fieldStatus,
+    materialKey: decision.materialKey,
+    accessRevision: decision.accessRevision,
+    accessDigest: decision.accessDigest,
+    materialBindingRevision: decision.materialBindingRevision,
+    lastSnapshotDigest: decision.lastSnapshotDigest,
+    materialPresent: Boolean(decision.appearedInTerminalWork),
+    materialRelativeLocation: decision.materialRelativeLocation,
+    sizeBytes: decision.sizeBytes,
+    observedExtension: decision.observedExtension,
+    extractionPolicy: decision.extractionPolicy,
+    selectionSnapshot: decision.selectionSnapshot,
+    controlSnapshot: decision.controlSnapshot,
+  };
+}
 function outcome(decision, decisionState, controlProjection, reasonCode) {
   const result = Object.freeze({ ...decision, decisionState, controlProjection, reasonCode });
-  return Object.freeze({ ...result, basisDigest: canonicalDigest(Object.fromEntries(Object.entries(result)
-    .filter(([key]) => !['decisionState','controlProjection','reasonCode','basisDigest'].includes(key)))) });
+  return Object.freeze({ ...result, basisDigest: canonicalDigest(materialLocalBasis(decision)) });
 }
 
 function evaluateExtractionEligibility(decision) {

@@ -11,12 +11,18 @@ const TRIAGE_RULE_SCHEMA = 'procurement.triage-rule.beta@1';
 const TRIAGE_REGISTRY_SCHEMA = 'procurement.triage-rule-registry@1';
 const RUN_BASIS_SCHEMA = 'ProcurementRunExecutionBasis@1';
 const SHA256 = /^[0-9a-f]{64}$/;
+// Run Admission's ResponsibilityControlCommitHandle is an atomic scope and
+// is closed at 1024 members by the sealed Execution Foundation contract.  A
+// BDMV container may occupy one logical slot, but it cannot make one atomic
+// Run Control scope larger than this bound.
+const MAX_RUN_PHYSICAL_MEMBERS = 1024;
 const TRIAGE_PAYLOAD = Object.freeze({
   contractRefs: Object.freeze([
     'helix.procurement.candidate-readiness@1', 'helix.procurement.profile-claim-baseline@1',
     'helix.procurement.primary-input-manifest@1', 'helix.procurement.related-material-reference@1'
   ]),
-  recallPriority: true, maxPrimaryMaterials: 256, probeBatchSize: 100,
+  recallPriority: true, maxPrimaryMaterials: 256, maxLogicalSelectionGroups: 256,
+  maxBdmvContainerMembers: MAX_RUN_PHYSICAL_MEMBERS, probeBatchSize: 100,
   playabilityRule: Object.freeze({ minimumDurationMs:1, minimumVideoStreamCount:1,
     reasonPrecedence:Object.freeze(['probe_not_media','no_video_stream','non_positive_duration']) }),
   profileResolutionRule: Object.freeze({ mixedPrecedence:Object.freeze(['series_episode_token','jav_code','movie_fallback']),
@@ -124,7 +130,7 @@ function validateSelectedMember(member, index, fieldId) {
 function createSelectedFieldMaterialSet(value) {
   exact(value, ['procurementRunId','fieldId','members','selectionDigest'], 'P7_RUN_SELECTION_SHAPE');
   text(value.procurementRunId, 'procurementRunId'); text(value.fieldId, 'fieldId');
-  if (!Array.isArray(value.members) || value.members.length < 1 || value.members.length > 256) fail('P7_RUN_SELECTION_BOUNDS', 'Run Selection must contain 1..256 members.');
+  if (!Array.isArray(value.members) || value.members.length < 1 || value.members.length > MAX_RUN_PHYSICAL_MEMBERS) fail('P7_RUN_SELECTION_BOUNDS', 'Run Selection exceeds the bounded physical member scope.');
   for (const [index, member] of value.members.entries()) {
     validateSelectedMember(member, index, value.fieldId);
     if (index > 0 && compareUtf8(value.members[index - 1].materialKey, member.materialKey) >= 0) fail('P7_RUN_SELECTION_ORDER', 'Run members must be unique and UTF-8 sorted.');
@@ -158,5 +164,6 @@ function createProcurementRunExecutionBasis(value, registry) {
 }
 
 module.exports = Object.freeze({ ProcurementRunContractError, RUN_BASIS_SCHEMA, TRIAGE_PAYLOAD, TRIAGE_REGISTRY_SCHEMA,
+  MAX_RUN_PHYSICAL_MEMBERS,
   TRIAGE_RULE_SCHEMA, activeTriageRule, authorityDigestFor, createDefaultTriageRuleRegistry, createProcurementRunExecutionBasis,
   createSelectedFieldMaterialSet, ruleDigestFor, validateTriageRuleRegistry, validateTriageRuleSnapshot });

@@ -19,10 +19,10 @@ test('Field enumerator fingerprints one bounded canonical path page and resumes 
   const pages=[];let cursorIn=null;
   for(let ordinal=0;cursorIn!==null||ordinal===0;ordinal+=1){const page=await enumerator.enumeratePage({fieldAccessHandle:handle,pageRequest:{cursorIn,pageBudget:100}});
     pages.push(page);cursorIn=page.hasMore?page.items.at(-1).cursor:null;}
-  assert.equal(MAX_FINGERPRINTED_FILES_PER_PAGE,100);
-  assert.equal(DEFAULT_FINGERPRINTED_FILES_PER_BATCH,16);
-  assert.deepEqual(pages.map((page)=>page.items.length),[16,9]);
-  assert.deepEqual(pages.map((page)=>page.hasMore),[true,false]);
+  assert.equal(MAX_FINGERPRINTED_FILES_PER_PAGE,256);
+  assert.equal(DEFAULT_FINGERPRINTED_FILES_PER_BATCH,256);
+  assert.deepEqual(pages.map((page)=>page.items.length),[25]);
+  assert.deepEqual(pages.map((page)=>page.hasMore),[false]);
   const locations=pages.flatMap((page)=>page.items.map((item)=>item.material.location));
   assert.equal(new Set(locations).size,25);
   assert.equal(locations.every((location)=>location.startsWith(root.replace(/\\/g,'/'))),true);

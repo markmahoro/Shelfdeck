@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/ObservationPageCommitResult/v1",
+  "title": "ObservationPageCommitResult@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "x-helix-envelopeRef": "helix://contracts/types/DomainFactEnvelope/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/ObservationPageCommitResult/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "factId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "ownerDomain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "aggregateType": {
+      "type": "string",
+      "minLength": 1
+    },
+    "aggregateId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "factSchemaRef": {
+      "type": "string",
+      "minLength": 1
+    },
+    "factDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "commitMarker": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "committedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "observationId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "fieldObservationWorkId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "fieldId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "accessRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "profileHintSnapshot": {
+      "$ref": "helix://contracts/application-types/MaterialFieldProfileHintSnapshot/v1"
+    },
+    "pageOrdinal": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "committedObservationRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "entryCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "firstEntryDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "lastEntryDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "pageDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "entrySetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "nextCursor": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "hasMore": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "factId",
+    "ownerDomain",
+    "aggregateType",
+    "aggregateId",
+    "revision",
+    "factSchemaRef",
+    "factDigest",
+    "commitMarker",
+    "committedAtMs",
+    "observationId",
+    "fieldObservationWorkId",
+    "fieldId",
+    "accessRevision",
+    "profileHintSnapshot",
+    "pageOrdinal",
+    "committedObservationRevision",
+    "entryCount",
+    "firstEntryDigest",
+    "lastEntryDigest",
+    "pageDigest",
+    "entrySetDigest",
+    "nextCursor",
+    "hasMore"
+  ],
+  "x-helix-maxCanonicalBytes": 16384
+}

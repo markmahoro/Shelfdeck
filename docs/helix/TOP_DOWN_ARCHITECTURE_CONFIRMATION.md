@@ -2,7 +2,7 @@
 
 Status: ShelfDeck / Helix architecture SSOT; Levels 0–10 accepted; final full-document audit and post-baseline `PBF-01`–`PBF-23`（含各自已记录的bounded revisions）closed; implementation not authorized by this document.
 
-Last updated: 2026-07-28
+Last updated: 2026-08-10
 
 ## Document purpose
 
@@ -20,24 +20,102 @@ Mirex、Kairox Classic、历代Helix文档、现有实现和此前对话只作�
 被取代的旧Helix合同保存在`docs/helix/archive/`，只作为历史证据，不再
 与本文竞争架构优先级。本文当前仍处于Design阶段，不授权代码实施、数据迁移、E2E或生产部署。
 
-### Bounded Observation Layout Snapshot amendment (2026-08-09)
+### Observation fact table and bounded page commit amendment (2026-08-10)
 
-Field Observation is also the immutable, profile-neutral source of the directory map used by Procurement Triage. A
-terminal Observation Work publishes a paged Layout Index projection bound to the exact `observationId`, Observation
-revision, Field Access revision and snapshot digest. The projection contains directly-parent directory groups, all
-observed regular-file entries, Physical Material Identity references, containment provenance and deterministic UTF-8
-ordering. It is a reusable frozen snapshot; it is not a second business object or Store.
+Field Observation is the profile-neutral, append-only source of physical file facts used by all later Procurement
+processes. Each committed page writes one durable row per observed regular file to the Procurement-owned
+`proc_field_observation_entries` table. Historical entries are retained indefinitely. `proc_field_observations` is the
+page/observation header and cursor ledger; `proc_field_materials` remains the current-state projection.
 
-Evidence Assessment reads Layout Evidence from that frozen projection. `shared.material.layout.observe@1` remains the
-same Capability and Result family but accepts either its existing physical read input (Observation-side construction)
-or an explicit Observation Layout Snapshot input (Triage-side projection). These variants are mutually exclusive.
-Triage Layout execution must not enumerate directories, calculate Physical Material fingerprints or read NAS files.
-Media Probe remains a separate Evidence Assessment Event before Playability and continues to read only the admitted Run
-Selection. Playability and Structure consume typed Results and perform no physical reads.
+The Page is only a batch receipt, not the storage location for file details. Its compact typed result/evidence contains
+the observation/work/page identity, cursors, entry count, boundary digests, page/fact digest and commit marker. It must
+not contain `materialObservations[]` or any other unbounded file array. The canonical detail set is the relationized
+entry rows, ordered by the frozen field-relative path and entry ordinal; `entryDigest` and `pageDigest` are recomputable
+from those rows.
 
-Run Admission pins the Observation snapshot used by Evidence Assessment. A changed Field reality requires a new
-Observation revision; Triage must never silently substitute the current Field rows. The snapshot is paged and durable;
-it is never represented as one unbounded JSON payload.
+Observation uses one Event/Capability per page: `procurement.field.observation.page.commit@1`. The Event enumerates and
+fingerprints at most 256 files and at most 64 MiB of Physical Material reads, then atomically writes entry rows, page
+header, current material projection, Field head, commit marker and compact typed Result. A retry may reread the bounded
+page, but it cannot leave a partial page or advance the cursor without the complete transaction. The existing
+`FieldObservationPageRequest@1` shape remains the request contract; its `pageBudget` is `1..256`.
+
+There is no independent Layout Capability, Layout Event or Layout Result. Layout is a technical read Projection over
+the pinned Observation entry rows. It is queried by Field/Observation revision and an explicit physical scope; it does
+not enumerate NAS, fingerprint files, read current mutable material rows as a fallback, or embed a large layout in a
+Workflow Plan. `ObservationScopeProjection.entries` carries the complete immutable `PhysicalMaterialIdentity@2`,
+Endpoint and size for the selected members plus already-observed sidecar candidates in the exact direct-parent scope;
+for BDMV it carries the BDMV-root topology scope and the immediate external parent scope. This is a bounded typed
+projection, not a new business fact, and its entries are never obtained from current mutable Material rows. Run Creator
+derives ordinary parent and nearest BDMV ancestor groups from the recorded relative paths; Observation itself remains
+media-profile and BDMV-semantic neutral.
+
+Media Probe and Structure continue to be separate Triage Events. They consume bounded Observation-scope projections;
+Structure performs no NAS reads. BDMV grouping and single-title topology remain Structure/Procurement rules, not
+Observation facts. Related Material is resolved from the same Observation rows and remains a reference only. The
+projection is partitioned by ordinary directory, BDMV root and BDMV external parent so a sidecar from one directory
+cannot be associated with a different Candidate; BDMV internal Playlist/Clipinfo/Stream/index/MovieObject entries are
+structural members only and are filtered from Related Material.
+
+### Incremental Eligibility amendment (2026-08-10)
+
+The current `eligibility_state` on `proc_field_materials` is a material-local Decision Projection with a
+`eligibility_basis_digest`; it is not invalidated merely because the Field's global Observation head advanced.
+The basis covers the Physical Material Identity, current Field/Access Binding and Reality/Snapshot, Extraction Policy
+revision/digest, Selection/Reservation snapshot, and Foundation Material Control projection. The global terminal
+Observation revision remains an audit pointer only. `eligibility_observation_revision` records the Observation revision
+used by the last decision and is allowed to lag the current head when the material-local basis is unchanged.
+
+After a terminal Observation, Eligibility Reconcile receives only a bounded Change Set: new or reality/binding/location
+changed materials, materials absent from the terminal work, materials with `unknown` or invalid basis, and materials
+affected by Field/Access/Policy/Selection/Reservation/Control revision changes. An unchanged material retains its
+Eligibility state, basis, and revision; no Eligibility SQL UPDATE or revision increment is performed for it. A lost
+Control/Handoff signal is discovered by the durable reconcile cursor and is handled with the same exact Material Key
+Change Set. `unknown` is fail-closed and never means `eligible` before a successful reconcile.
+
+This amendment supersedes older wording that required every material's Eligibility revision to equal the global
+terminal Observation revision or that described Observation Commit as an unbounded Page Evidence write. The canonical
+Observation detail remains `proc_field_observation_entries`; there is no second Eligibility history store.
+
+### BDMV container and deterministic main-title amendment (2026-08-10)
+
+For Procurement topology, a BDMV disc is the logical container directory that directly contains `BDMV`; an optional
+sibling `CERTIFICATE` directory belongs to the same container. `PLAYLIST`, `STREAM`, `CLIPINF`, `index.bdmv`,
+`MovieObject.bdmv` and `CERTIFICATE/id.bdmv` are therefore one Run scope and must never be admitted as separate
+ordinary directory groups. The ordinary Run limit remains 256 logical selections. A BDMV container consumes one
+logical selection slot, while its physical members use a separate bounded member limit of 1024. This is the same
+atomic physical scope limit as the sealed `ResponsibilityControlCommitHandle`, so Run Admission can acquire the whole
+scope in one transaction. A container above that limit is closed as `procurement_selection_scope_too_large` and is
+never split; the ordinary-directory 256-member rule is unchanged.
+
+Movie BDMV Triage no longer treats `titleCount > 1` as an automatic business failure. Playlist candidates are first
+normalized by their unique M2TS member set, then ranked deterministically by total unique payload bytes, duration,
+distinct clip count and canonical playlist path. The highest-ranked valid title is the primary Movie title. The
+selected playlist and its M2TS members form the one Movie Unit; other valid title families receive terminal
+`disc_non_primary_title` Evidence and never become Candidate or Related Material. The selection evidence remains in
+the durable `MediaProbeEvidence.discTopology` digest, so a later human review can identify the deterministic choice.
+Only a missing/invalid topology, missing selected dependency or an actually ambiguous fence remains `not_ready`; a
+multi-title disc by itself is not `disc_multi_title_unsupported`.
+
+Media Probe executes ffprobe only for selected payload files (ordinary media or BDMV `STREAM/*.m2ts`). BDMV
+structural files are represented by bounded typed structural evidence and are never sent to ffprobe. Structure consumes
+that durable topology/evidence, verifies the complete container scope, and emits exactly one BDMV Movie Unit. Internal
+BDMV members, including `CERTIFICATE/id.bdmv`, can never be independent Candidate or Related Material. This amendment
+supersedes earlier wording that required `titleCount=1` or grouped only by the nearest `BDMV` ancestor.
+
+### BDMV atomic Control scope alignment (2026-08-10)
+
+The earlier BDMV note's provisional physical-member value of 4096 is superseded for the clean implementation. Run
+Admission is a single atomic Material Control transaction, and the sealed `ResponsibilityControlCommitHandle` contract
+allows at most 1024 exact members. Therefore the effective BDMV container member limit and the maximum physical
+members of any admitted Run are 1024; ordinary directory groups remain limited to 256 members. This is not a
+Foundation state-machine change or a batch-acquire fallback: a larger BDMV container is closed as
+`procurement_selection_scope_too_large` and never split. The current Movie Field has no eligible BDMV container above
+1024 members, so this alignment removes the previously observed Admission failure without changing its business
+coverage.
+
+The machine contract generated from this amendment is closed at 110 active Capability contracts, 96 Result families,
+180 clean tables and 43 Canonical Transactions. Local implementation evidence is recorded in `CURRENT_STATUS.md`;
+this SSOT remains the architecture authority and does not authorize Docker, NAS, Libra or Arca deployment.
 
 ## SSOT authority boundary
 
@@ -2869,8 +2947,9 @@ Beta Rule只把已冻结的Material reality映射为可纠正Claim：显式Field
 `series episode token → JAV code → movie fallback`的固定顺序形成粗分类，`western_adult`只有显式Hint才形成；
 任何Profile都不得由文件名、目录或Hint升级为Canonical Content Identity。Series允许以稳定父目录形成
 provisional Season Claim，但每个`primary_payload`仍必须取得至少一个明确Episode Claim；相互冲突的Season、
-无法解析Episode、歧义/不完整或多标题Disc结构都形成稳定`not_ready`，不能由Executor默认成Season 1、Episode 1
-或任选主标题。现实读取、closed reason set、token grammar、Member映射与digest basis由`8.6.4`、`8.6.18`–
+无法解析Episode、真实歧义或结构不完整形成稳定`not_ready`，不能由Executor默认成Season 1、Episode 1
+或任选主标题；Movie BDMV多Playlist按已冻结的确定性主标题规则选择，不能把每个STREAM成员当作独立Unit。
+现实读取、closed reason set、token grammar、Member映射与digest basis由`8.6.4`、`8.6.18`–
 `8.6.20`唯一细化，不能留给实现按数组位置、Store旁读或路径猜测补齐。
 
 #### 5.3.3 Material Field contentProfile Hint降低Triage成本但不成为事实Owner
@@ -2909,22 +2988,25 @@ Candidate生产单位的语义基数与输入文件数量必须分离。所有Ca
 | Single-title ISO | 一个`primary_payload`文件成员，并以Material Field Context记录disc topology | 一个Movie语义生产单位 |
 
 Beta只承诺“一张原盘只表达一部Movie”的Candidate。Triage必须能够证明Material Field结构稳定、成员集合完整，
-并形成唯一Movie Claim和单标题topology；识别出的原盘内部成员不得退化为多个独立Candidate。包含多个
-独立Movie、多个Episode/Season、主标题歧义、结构不完整或仍在变化的原盘不满足Candidate Readiness，
-继续留在Procurement，不越过Handoff A。
+并形成唯一Movie Claim和可审计的主标题topology；识别出的原盘内部成员不得退化为多个独立Candidate。包含多个
+独立Movie、多个Episode/Season、真实主标题歧义、结构不完整或仍在变化的原盘不满足Candidate Readiness，
+继续留在Procurement，不越过Handoff A。普通的多Playlist并不自动等于主标题歧义，按BDMV主标题选择合同收口。
 
-BDMV的目录拓扑必须在Triage之前就保持完整。Run Creator把terminal Observation中位于同一个最近`BDMV`
-祖先目录下的全部Field Material视为一个不可拆分的container group；该分组键使用Field-root-relative的
-规范化路径确定，属于pre-triage拓扑事实，不是`movie`、`series`或其他mediaType判断。Run Creator不得把
-同一BDMV子树的`PLAYLIST`、`STREAM`、`CLIPINF`、`index`、`MovieObject`等已观察成员拆到不同Run。
+BDMV的目录拓扑必须在Triage之前就保持完整。Run Creator把terminal Observation中位于同一个直接包含
+`BDMV`目录的逻辑容器（以及可选的同级`CERTIFICATE`）下的全部Field Material视为一个不可拆分的
+container group；该分组键使用Field-root-relative的规范化容器路径确定，属于pre-triage拓扑事实，不是
+`movie`、`series`或其他mediaType判断。Run Creator不得把同一BDMV容器的`PLAYLIST`、`STREAM`、`CLIPINF`、
+`index`、`MovieObject`或`CERTIFICATE`成员拆到不同Run。
 Run Admission时，形成单标题所需的结构成员必须同时满足Observation、Eligibility与Control；缺失或不合格
 时，Triage不得在已Admission的Run中静默扩张，当前结构只能以稳定Evidence/closed reason收口并由后续
 Field Management重新观察、评估和建立新的完整Run。
 
-BDMV container group可以与其他完整group按canonical顺序依次装入同一Run，只要不超过单Run的256项
-Selection上限；单个group超过上限时整体不建立Run，不进行拆分。Structure Event只消费完整container group，
-解析Playlist与其Clip/结构依赖，形成一个有界Triage Unit；单标题BDMV内部的多个M2TS或结构文件不得
-退化为多个独立Candidate。多标题、主标题歧义或结构不完整继续保持`not_ready`，不越过Handoff A。
+BDMV container group可以与其他完整group按canonical顺序依次装入同一Run；每个BDMV group占一个逻辑
+Selection slot，内部物理成员最多1024项，普通directory group仍按物理成员计入256项上限。单个group超过
+自身上限时整体不建立Run，不进行拆分。Structure Event只消费完整container group，解析Playlist与其
+Clip/结构依赖，形成一个有界Triage Unit；BDMV内部的多个M2TS或结构文件不得退化为多个独立Candidate。
+多标题Movie按确定性主标题选择并为非主标题成员记录`disc_non_primary_title` Evidence；只有真实歧义或
+结构不完整保持`not_ready`，不越过Handoff A。
 Media Probe在Evidence Assessment阶段产生可重建的`discTopology`：它只读取有界的Playlist元数据，输出选中的
 单一Playlist、Clip/Stream成员、`primary_payload|structural_dependency`角色及稳定topology/member digest；
 不得读取M2TS payload。Structure只消费该durable descriptor，不再访问NAS，也不得把`STREAM`文件名当作
@@ -4152,7 +4234,7 @@ Process Root拥有用户可配置Policy。
   `1 GiB`的Profile初始空间上限。rating后来可解析造成的On-deck Gap由Arca/Aftercare闭环。
 - `L5-A2 — Unified Primary Input Manifest`：所有Candidate恰好拥有一份由`1..N`个Primary Material
   构成的Primary Input Manifest。普通single、Series Season文件集合、单标题BDMV/DVD/ISO复用同一
-  Manifest合同；Beta不接收多标题Movie、跨Season或拓扑不明确的原盘。Triage只完成结构分组与Claim，
+  Manifest合同；Movie BDMV多Playlist按主标题合同自动选择并保留选择Evidence，跨Season或拓扑不明确的原盘仍不接收。Triage只完成结构分组与Claim，
   不执行remux/transcode；最终single仍恰好一个Primary，Series每个Delivery Episode至少由一个Primary
   覆盖且每个Primary可保留`1..32`项同一Season Episode Claim。
 - `L5-Q1 — Strong Identity before Spec`：Beta不把强Identity设为首次Spec Resolution前置条件，不新增
@@ -4757,10 +4839,12 @@ Provenance、Endpoint/location及expected Control snapshot。`run_basis_digest`�
 充当历史Basis。
 
 Run Creator只读取同一terminal Observation与current Eligibility形成的pre-triage事实，不得先判断Movie、Series、
-JAV或Western Adult再选择分片规则。普通文件按Field-root-relative直接父目录形成不可拆分组；位于最近`BDMV`
-祖先目录下的材料则按该规范化BDMV root形成不可拆分container group。组与组内成员均按canonical UTF-8
+JAV或Western Adult再选择分片规则。普通文件按Field-root-relative直接父目录形成不可拆分组；含有`BDMV/`
+子树的外层目录（以及同级`CERTIFICATE/`）形成不可拆分BDMV container group。普通组按物理成员数占用
+`1..256`个logical slot；BDMV container作为一个logical slot，但物理成员最多1024个；该1024同时是Run
+Admission的atomic Control scope上限。组与组内成员均按canonical UTF-8
 bytes排序，再按该顺序依次装入Run；下一组加入后会超过256时关闭当前Run并从下一Run继续，不得通过重排式
-bin packing改变稳定结果。同一目录组或BDMV container group必须完整进入同一Run；单组超过256时不建立Run，
+bin packing改变稳定结果。同一目录组或BDMV container group必须完整进入同一Run；普通单组超过256或BDMV物理成员超过1024时不建立Run，
 并以`procurement_selection_scope_too_large`形成稳定closed reason，直到Observation、Binding、Policy或Eligibility
 事实改变。Field根目录下的成员属于同一直接父目录组。
 
@@ -4809,10 +4893,11 @@ Field Access revision。current Profile Hint在Work期间改变时，旧Work后�
 
 分页不得通过动态扩写一份Workflow Plan、Planner预扫描文件系统或Executor内部循环调用另一Capability实现。
 同一Field Observation Supporting Work按页使用多个有界Work Attempt：每个Attempt恰好发布一份immutable Plan，
-只包含当前页的`field.page.observe → field.observation.commit` DAG；Commit Event成功后，Procurement Owner读取
-durable typed Result。`hasMore=true`时Owner以同一Work Objective与Execution Basis签发下一Work Attempt并冻结
-上一页`cursorOut`及已提交revision；`hasMore=false`时Owner才把Supporting Work置为`succeeded`并触发Eligibility
-reconcile。Foundation只聚合Work Attempt终态，不得替Procurement判断Observation Work是否完成。
+只包含当前页的单一`procurement.field.observation.page.commit@1` Event；该Event同时完成有界物理读取和
+Observation事实提交。成功后，Procurement Owner读取compact durable typed Result，并从
+`proc_field_observation_entries`恢复明细。`hasMore=true`时Owner以同一Work Objective与Execution Basis签发下一
+Work Attempt并冻结上一页`cursorOut`及已提交revision；`hasMore=false`时Owner才把Supporting Work置为`succeeded`
+并触发Eligibility reconcile。Foundation只聚合Work Attempt终态，不得替Procurement判断Observation Work是否完成。
 
 #### 6.3.3 Procurement Run执行与封口
 
@@ -6562,7 +6647,7 @@ Physical Material Identity的Beta可执行合同固定为：
 - 启动发现mount replacement、fingerprint冲突、inode不稳定或无法提供可信纳秒级stat时，该root不进入Ready，
   不能按路径生成替代Identity，也不能静默关闭Fingerprint；
 - Fingerprint读取按volume resource分片、发布有界progress并服从Level 10的I/O容量；Field Observation Page最多
-  100项，因此单个Page Event的Physical Material读取上限为`25 MiB`。
+  256项，因此单个Page Event的Physical Material读取上限为`64 MiB`；两个上限任一先达到即提交当前页。
 
 该Identity用于ShelfDeck业务中的高可信文件对象识别，不承担NAS bit rot、坏道、RAID一致性或档案级完整性证明。
 同一filesystem object、相同size与中段样本相同而未采样区域发生变化时，Identity可以保持不变；这是明确接受的
@@ -7967,8 +8052,8 @@ fx_commit_markers,fx_audit_records]`；URL/body
 | Commit | Atomic fact set |
 | --- | --- |
 | Domain Fact Commit | Owner-defined Canonical/Process Fact + revision fence + commit marker + durable typed result + contract-declared Outbox；其Libra `media_cast|product_metadata` closed variants还必须包含current Run/fact revision fence、完整typed commit payload、immutable Product Fact revision与精确closed Source Basis Result references（Metadata Observation或Western Analysis/Normalize/Match），两种variant均`outboxRequired=false`且Fact、Source refs、Result与marker全有或全无；variant精确表集只由本节后文PBF-14 machine matrix展开，不形成额外顶层Commit行 |
-| Field Observation Page Commit | validated complete `FieldObservationPage`同时作为本Commit Event的immutable durable Evidence写入`fx_event_result_bindings.evidence_json` + current Field Profile Hint pointer/exact revision row验证 + current Field Observation head CAS + immutable page revision（逐列冻结完整Profile Hint Snapshot）+ Field Material current-row insert/update + durable `ObservationCommitResult` + commit marker；全部同事务成立；同一Work全部Page必须使用同一Hint Snapshot，Hint current pointer变化时旧Work后续Page整页rollback；新Material只置`unknown/unknown`初值，Observation Commit不计算最终Eligibility/Region，也不发布Outbox |
-| Field Eligibility Reconcile Commit | bounded `ExtractionEligibilityDecisionBatch` + current Field/Access/terminal Observation head/Policy/Material Binding和既有Eligibility revision CAS + 同事务重读并验证Selection conflict与Foundation Material Control revision/digest + 更新Field Material current Eligibility/Control Projection；更新后的rows就是唯一durable output，事务只返回typed summary；这是可重建的Procurement current decision-fact transaction，basis不变时幂等no-op，不写Event Result、commit marker或Outbox |
+| Field Observation Page Commit | compact `ObservationPageCommitResult@1`/Receipt（只含游标、entry count、边界和digest）+ current Field Profile Hint pointer/exact revision row验证 + current Field Observation head CAS + immutable page header revision + Procurement-owned `proc_field_observation_entries` rows + current Material physical projection（新/Reality或Binding变化才置`unknown`，不变材料不写Eligibility列）+ durable typed Result + commit marker；全部同事务成立；同一Work全部Page使用同一Hint Snapshot，Hint current pointer变化时旧Work后续Page整页rollback；Page不保存完整文件数组，不计算最终Eligibility/Region，也不发布Outbox |
+| Field Eligibility Reconcile Commit | bounded `ExtractionEligibilityDecisionBatch` + exact Material Key Change Set + current Field/Access/Policy/Selection/Reservation/Control facts和既有Eligibility revision CAS + 同事务重读验证Material-local basis；只更新Decision或Basis实际变化的Field Material current Eligibility/Control Projection，unchanged rows为no-op且不执行SQL UPDATE；更新后的rows是唯一durable output，事务只返回typed summary，不写Event Result、commit marker或Outbox；全局terminal Observation revision只作审计输入，不能单独使全Field失效 |
 | Procurement Run Admission | complete `ProcurementRunExecutionBasis@1` + prospective Run identity + `ResponsibilityControlCommitHandle` + current Field/Profile Hint/Access/terminal Observation/Policy/active Triage Rule authority/Material/Selection/Control fence + Run及relationized Basis rows + 全部`run_selection` guard + 对全部成员的同Field Procurement Control acquire/assert + durable `ProcurementControlReceipt` + `fx_command_receipts` + commit marker；这是Run Creator的短Owner transaction，不建立Supporting Work/Plan/Event且不申请Resource Permit；Profile Hint Snapshot必须逐字节命中current Field pointer、精确immutable revision row及terminal Observation冻结值；每个Selection member必须从同事务current Field Material row冻结完整Physical Identity四元组与size，写入`proc_run_materials`并纳入Basis member digest，不能只保留不可逆materialKey/摘要；Triage Rule必须由注入的Procurement Registry解析并匹配当前active snapshot，不能信任调用者值；`hasOutbox=false`，全部事实/Control/Command Receipt全有或全无，禁止分批Control后补建Run |
 | Procurement Candidate Publication | complete `CandidateDraft@1` + exact Run Basis/Triage Rule/Structure Unit/Identity/Manifest Draft fence + Run `candidate_package_revision_head` CAS + immutable Candidate Package + final Primary Input Manifest及N:M Episode Claim/完整Related Material Reference relation + package members是Run Selection精确非空子集 + 成员`run_selection → candidate_delivery` + 从final Package唯一派生的`CandidateIntakeAcceptanceBasis@1`和stable `offerId` + open Handoff Offer + durable typed Result/commit marker + `ProcurementCandidateOfferAvailableMessage@1` Outbox；final Manifest与Candidate Primary relation逐项复制immutable Run member的完整Physical Identity/size，并把它们纳入member/package/delivery digest；CommitParticipant只消费Draft/Handle，不旁读Foundation Event Result或Provider；Run revision head、Package、Manifest、Relation、Reservation、Offer、Result/marker与Outbox全有或全无；Canonical Transaction的Procurement domain write participant固定为`proc_procurement_runs`、`proc_candidate_packages`、`proc_candidate_season_continuity_claims`、`proc_candidate_primary_materials`、`proc_candidate_primary_material_episode_claims`、`proc_candidate_related_references`、`proc_candidate_deliveries`、`proc_run_materials`，不得从概括性“Run fence/Manifest/Relation”文字推断或漏表；Related relation必须逐列保存`RelatedMaterialReference@1`的完整Physical Identity、association Evidence和reference digest，不能把Foundation Event Result或current Material row当成历史Package payload |
 | Procurement Run Seal | `ProcurementRunSealDecision@1` + Run expected state revision/basis CAS + sealed outcome/逐成员terminal Evidence/aggregate Evidence/finished time + 未成Package成员`run_selection → released`，保留`candidate_delivery`与全部Procurement Control + durable typed command receipt/commit marker；这是Coordinator收口terminal Work Result的短Owner transaction，使用`fx_command_receipts`而非伪造Event Result，不建立Work/Plan/Event且不申请Permit；candidate reservation、released member及seal Evidence的三项digest按8.6.18唯一公式形成并可由Owner rows重建；`hasOutbox=false` |
@@ -8015,8 +8100,8 @@ Transaction、variant或write participant；materializer必须生成以下精确
 
 - `helix.transaction.field-observation-page-commit@1`
   `readTables=[proc_material_fields,proc_field_profile_hint_revisions,proc_field_access_revisions,
-  proc_field_observations,proc_field_materials,fx_supporting_works]`；
-  `writeTables=[proc_material_fields,proc_field_observations,proc_field_materials,
+  proc_field_observations,proc_field_observation_entries,proc_field_materials,fx_supporting_works]`；
+  `writeTables=[proc_material_fields,proc_field_observations,proc_field_observation_entries,proc_field_materials,
   fx_event_result_bindings,fx_commit_markers]`，`outboxRequired=false`；
 - `helix.transaction.procurement-run-admission@1`
   `readTables=[proc_material_fields,proc_field_profile_hint_revisions,proc_field_access_revisions,
@@ -8606,6 +8691,7 @@ Run/Retry引用核对；任一失败即拒绝可写启动。
 
 | Table | Primary/core columns | Required uniqueness and hot indexes |
 | --- | --- | --- |
+| `proc_field_observation_entries` | `field_id FK, field_observation_work_id FK, observation_id FK, observation_revision, page_ordinal, entry_ordinal, material_observation_id, material_key, mount_scope_id, inode, size_bytes, fingerprint_algorithm, fingerprint_version, content_fingerprint, endpoint_id, access_revision, mount_scope_revision, current_location, relative_location, mtime_ns, ctime_ns, fingerprint_verified_at_ms, observed_at_ms, containment_digest, reality_digest, provenance_digest, snapshot_digest, entry_digest` | `PK(field_id,field_observation_work_id,page_ordinal,entry_ordinal)`；每页/Entry只允许一次写入，历史行append-only且永久保留；`UNIQUE(field_id,observation_id,entry_ordinal)`及`UNIQUE(field_id,observation_id,material_observation_id)`；Entry Identity/size/path/stat/fingerprint逐字节复制Observation事实；`INDEX(field_id,field_observation_work_id,observation_revision,relative_location)`、`INDEX(field_id,field_observation_work_id,material_key)`、`INDEX(field_id,field_observation_work_id,page_ordinal,entry_ordinal)`；不保存媒体Profile、BDMV语义、Primary/Related角色或Layout Result JSON` |
 | `fx_command_receipts` | `command_receipt_id PK, owner_domain, command_contract, caller_scope, idempotency_key, request_digest, target_type, target_id, result_schema_ref, result_ref_json, result_digest, committed_at_ms` | `UNIQUE(owner_domain,command_contract,caller_scope,idempotency_key)`；同key不同request digest拒绝；Result JSON上限`16 KiB`且只含typed ref；与Owner修改同事务 |
 | `fx_supporting_works` | `work_id PK, owner_domain, process_type, process_id, work_kind, basis_digest, priority_class, state, idempotency_key, created_at_ms, updated_at_ms` | `UNIQUE(owner_domain,idempotency_key)`；`INDEX(owner_domain,state,priority_class,created_at_ms,work_id)` |
 | `fx_work_attempts` | `attempt_id PK, work_id FK, ordinal, basis_digest, state, started_at_ms, finished_at_ms, failure_code` | `UNIQUE(work_id,ordinal)`；同一Work至多一个`ready|running|blocked` attempt的partial unique index |
@@ -8616,7 +8702,7 @@ Run/Retry引用核对；任一失败即拒绝可写启动。
 | `fx_event_attempts` | `event_attempt_id PK, event_id FK, ordinal, executor_ref, executor_version, input_snapshot_schema_ref, input_snapshot_digest, fence_snapshot_digest, state, outcome_kind, retry_after_ms, failure_class, failure_code, evidence_digest, started_at_ms, finished_at_ms` | `UNIQUE(event_id,ordinal)`；同一Event至多一个`executing` attempt；Permit/lease不持久化，资源等待与持有只由timing Evidence表达；deferred/fence evidence留在Attempt而非伪terminal Result |
 | `fx_event_progress` | `event_id FK, event_attempt_id FK, revision, mode, current_value, total_value, unit, rate, eta_ms, source_sequence, progress_bucket, sampled_at_ms` | `PK(event_id,revision)`；`UNIQUE(event_attempt_id,source_sequence)` when sequence exists；只保留current及有界bucket history；数值必须满足non-negative/finite check |
 | `fx_reconcile_cursors` | `owner_domain, reconciler_key, revision, opaque_cursor NULL, updated_at_ms` | `PK(owner_domain,reconciler_key)`；revision从1递增；opaque cursor为不超过`4 KiB`的bounded string或NULL；只保存Foundation调度位置，不保存或解释Domain Fact；每页Scope全部完成幂等reconcile后才CAS推进，崩溃前未推进时允许整页重放 |
-| `fx_event_result_bindings` | `result_id PK, event_id FK, outcome_kind, result_schema_ref, result_json, result_digest, evidence_schema_ref, evidence_json, evidence_digest, effect_receipt_id, committed_at_ms` | terminal Event至多一个current result：`UNIQUE(event_id)`；两个JSON的UTF-8 JCS bytes各自≤`65,536`，大Payload必须只含typed handle；`result_digest=SHA-256(JCS(result_json解析后的完整typed Result，包含其中所有领域内digest字段))`，领域对象内部排除自身计算的digest不是Foundation storage digest；Field Observation Commit的`evidence_schema_ref`固定为`FieldObservationPage@1`并在`evidence_json`保存完整Page，`result_schema_ref/result_json`固定为完整`ObservationCommitResult@1` |
+| `fx_event_result_bindings` | `result_id PK, event_id FK, outcome_kind, result_schema_ref, result_json, result_digest, evidence_schema_ref, evidence_json, evidence_digest, effect_receipt_id, committed_at_ms` | terminal Event至多一个current result：`UNIQUE(event_id)`；两个JSON的UTF-8 JCS bytes各自≤`65,536`，大Payload必须只含typed handle；`result_digest=SHA-256(JCS(result_json解析后的完整typed Result，包含其中所有领域内digest字段))`，领域对象内部排除自身计算的digest不是Foundation storage digest；Observation Page Commit的`result_schema_ref`固定为`ObservationPageCommitResult@1`，`evidence_schema_ref`只保存同一批次的compact envelope与digest，不保存文件明细；文件明细唯一来源是Procurement-owned `proc_field_observation_entries` |
 | `fx_effect_journal` | `effect_id PK, event_attempt_id FK, effect_class, idempotency_key, intent_digest, state, external_receipt_ref, output_digest, verified_at_ms, updated_at_ms` | `UNIQUE(effect_class,idempotency_key)`；`INDEX(state,updated_at_ms,effect_id)`供Effect Reconcile |
 | `fx_commit_markers` | `commit_marker PK, effect_id, owner_domain, scope_type, scope_id, commit_digest, result_id FK, result_schema_ref, result_digest, committed_at_ms` | `commit_marker`全局唯一；Event驱动的`domain_fact_commit|responsibility_control_commit`其result字段必填并与对应`fx_event_result_bindings`同事务写入；唯一例外是非Event的Procurement Run Admission，其result字段为NULL，完整`ProcurementControlReceipt`由同事务`fx_command_receipts`承载并以marker scope/digest交叉验证；不能更新或删除 |
 | `fx_outbox` | `message_id PK, producer_domain, message_kind, aggregate_type, aggregate_id, aggregate_revision, dedup_key, consumer_set_digest, intended_consumer_count, payload_schema_ref, payload_json, payload_digest, state, available_at_ms, created_at_ms, all_acked_at_ms` | payload上限`16 KiB`且只含ID/revision/digest；`UNIQUE(producer_domain,dedup_key)`；`INDEX(state,available_at_ms,message_id)` |
@@ -8644,8 +8730,8 @@ Plan node input/parameter/Fence/Resource Demand的具体JSON不直接重复存�
 | `proc_field_profile_hint_revisions` | `field_id FK, revision, content_profile_hint(mixed|movie|series|jav|western_adult), hint_schema_ref, hint_digest, effective_at_ms, actor_id` | `PK(field_id,revision)`；`hint_schema_ref=helix://contracts/application-types/MaterialFieldProfileHintSnapshot/v1`；revision从1连续递增且row immutable；`hint_digest`逐字节匹配8.6.18唯一公式；注册未提供Hint时必须保存显式`mixed` revision 1，禁止NULL/空字符串/调用者默认旁路；同值修订不追加row；Field注销不删除历史；`proc_material_fields.current_profile_hint_revision`显式指向current row，`INDEX(content_profile_hint,field_id,revision)`只服务Field管理Projection，Triage不得按该索引扫描或旁读current值 |
 | `proc_extraction_policy_revisions` | `extraction_policy_id, revision, policy_schema_ref, policy_json, policy_digest, effective_at_ms` | `PK(extraction_policy_id,revision)`；首版schema只允许`ExtractionPolicy@1{includedDirectories[],excludedDirectories[],allowedExtensions[],minimumSizeBytes,excludedMaterialKeys[]}`，JSON UTF-8 JCS bytes≤`16 KiB`且digest覆盖完整typed value；目录/extension/key排序、数量、normalization与precedence严格遵守5.3.1，`additionalProperties=false`；immutable；Material Field引用精确revision而非可变配置 |
 | `proc_field_access_revisions` | `field_id FK, revision, endpoint_id, root_location, mount_scope_id, mount_scope_revision, access_schema_ref, access_digest, effective_at_ms` | `PK(field_id,revision)`；`proc_material_fields.current_access_revision`显式FK；mount scope pair是Platform opaque technical ref |
-| `proc_field_observations` | `field_id FK, revision, observation_id, field_observation_work_id, access_revision, content_profile_hint, profile_hint_revision, profile_hint_digest, page_ordinal, expected_revision, cursor_in, cursor_out, page_digest, fact_digest, commit_marker, result_digest, observed_at_ms, completed` | `PK(field_id,revision)`、`UNIQUE(observation_id)`、`UNIQUE(field_id,observation_id)`供same-Field composite FK、`UNIQUE(field_observation_work_id,page_ordinal)`、`UNIQUE(commit_marker)`；`field_observation_work_id`显式FK引用`fx_supporting_works.work_id`，`(field_id,access_revision)`显式FK引用`proc_field_access_revisions`，`(field_id,profile_hint_revision)`显式FK引用`proc_field_profile_hint_revisions`，`commit_marker`显式FK引用`fx_commit_markers.commit_marker`；revision从1开始且跨Observation Work持续递增；同一Work的pageOrdinal从0连续递增，每页使用不同observation_id且该ID只在该页重放时复用，且三项Profile Hint列逐字节相同；`expected_revision=revision-1`，首个revision的expected为0；`completed=1`恰好对应terminal page；Page commit时冻结值必须命中Field current Profile pointer和精确revision row，current变化后旧Work不得继续；`page_digest`必须匹配该marker所指Result Binding中完整`FieldObservationPage`的payloadDigest，`result_digest`必须匹配同一Binding的完整`ObservationCommitResult`；历史Page通过`commit_marker → fx_commit_markers.result_id → fx_event_result_bindings.evidence_json`唯一恢复，后续Material或Profile current-row更新不改变该链；该Observation revision存在时对应Result Binding/Evidence不得GC或压缩；`observation_id/work/page`冲突重放必须拒绝；`INDEX(field_id,completed,observed_at_ms)` |
-| `proc_field_materials` | `field_id FK, material_key, mount_scope_id, inode, fingerprint_algorithm, fingerprint_version, content_fingerprint, endpoint_id, access_revision, mount_scope_revision, size_bytes, mtime_ns, ctime_ns, fingerprint_verified_at_ms, current_location, binding_revision, reality_digest, provenance_digest, last_snapshot_digest, last_observation_id, eligibility_revision, eligibility_state, eligibility_reason_code, eligibility_basis_digest, eligibility_field_status NULL, eligibility_observation_revision NULL, eligibility_policy_revision NULL, selection_basis_digest NULL, control_projection, control_projection_revision NULL, control_projection_digest NULL, eligibility_reconciled_at_ms NULL` | `PK(field_id,material_key)`；Identity components unique within Field；`(field_id,last_observation_id)`显式复合FK引用同Field唯一Observation page；Fingerprint evidence只在mount/inode/size/mtime/ctime全部一致时有效；state enum为`unknown|eligible|ineligible`，Control enum为`unknown|uncontrolled|procurement|production|finished_goods`；新row固定`binding_revision=1,eligibility_revision=1,unknown/observation_pending_reconcile/unknown`且Eligibility Field/Policy/Selection/Control basis列为NULL；同Identity的endpoint/location变化才递增binding revision；相同reality重放保留Eligibility，reality变化原子递增eligibility revision并写`unknown/reality_changed/unknown`、清空Field/Policy/Selection/Control basis；P7-04 Reconcile只在完整basis变化时递增eligibility revision，完全相同basis幂等no-op；非unknown Control必须有revision/digest，uncontrolled允许revision 0或正整数；`INDEX(field_id,eligibility_state,control_projection,material_key)`及`INDEX(field_id,eligibility_observation_revision,eligibility_policy_revision,material_key)`；stored state只有在`eligibility_field_status`仍匹配Field current status且basis仍匹配Field current Access/terminal Observation/Policy、Selection和current Control时才可用于候选筛选，否则effective projection为unknown；最终Run admission仍必须CAS `fx_material_controls` |
+| `proc_field_observations` | `field_id FK, revision, observation_id, field_observation_work_id, access_revision, content_profile_hint, profile_hint_revision, profile_hint_digest, page_ordinal, expected_revision, cursor_in, cursor_out, page_digest, fact_digest, commit_marker, result_digest, observed_at_ms, completed` | `PK(field_id,revision)`、`UNIQUE(observation_id)`、`UNIQUE(field_id,observation_id)`供same-Field composite FK、`UNIQUE(field_observation_work_id,page_ordinal)`、`UNIQUE(commit_marker)`；`field_observation_work_id`显式FK引用`fx_supporting_works.work_id`，`(field_id,access_revision)`显式FK引用`proc_field_access_revisions`，`(field_id,profile_hint_revision)`显式FK引用`proc_field_profile_hint_revisions`，`commit_marker`显式FK引用`fx_commit_markers.commit_marker`；revision从1开始且跨Observation Work持续递增；同一Work的pageOrdinal从0连续递增，每页使用不同observation_id且该ID只在该页重放时复用，且三项Profile Hint列逐字节相同；`expected_revision=revision-1`，首个revision的expected为0；`completed=1`恰好对应terminal page；Page只保存compact receipt，不保存文件明细，明细由同一`observation_id/page_ordinal/entry_ordinal`在`proc_field_observation_entries`恢复；`page_digest`必须匹配compact ObservationPageCommit Result，`result_digest`必须匹配typed Result；历史Page通过`commit_marker → fx_commit_markers.result_id → fx_event_result_bindings`恢复，后续Material或Profile current-row更新不改变该链；该Observation revision存在时对应Result Binding/Evidence不得GC或压缩；`observation_id/work/page`冲突重放必须拒绝；`INDEX(field_id,completed,observed_at_ms)` |
+| `proc_field_materials` | `field_id FK, material_key, mount_scope_id, inode, fingerprint_algorithm, fingerprint_version, content_fingerprint, endpoint_id, access_revision, mount_scope_revision, size_bytes, mtime_ns, ctime_ns, fingerprint_verified_at_ms, current_location, binding_revision, reality_digest, provenance_digest, last_snapshot_digest, last_observation_id, eligibility_revision, eligibility_state, eligibility_reason_code, eligibility_basis_digest, eligibility_field_status NULL, eligibility_observation_revision NULL, eligibility_policy_revision NULL, selection_basis_digest NULL, control_projection, control_projection_revision NULL, control_projection_digest NULL, eligibility_reconciled_at_ms NULL` | `PK(field_id,material_key)`；Identity components unique within Field；`(field_id,last_observation_id)`显式复合FK引用同Field唯一Observation page；Fingerprint evidence只在mount/inode/size/mtime/ctime全部一致时有效；state enum为`unknown|eligible|ineligible`，Control enum为`unknown|uncontrolled|procurement|production|finished_goods`；新row固定`binding_revision=1,eligibility_revision=1,unknown/observation_pending_reconcile/unknown`且Eligibility Field/Policy/Selection/Control basis列为NULL；同Identity的endpoint/location变化才递增binding revision；相同reality重放保留Eligibility，reality变化原子递增eligibility revision并写`unknown/reality_changed/unknown`、清空Field/Policy/Selection/Control basis；Eligibility Basis必须由Material-local Identity、当前Field/Access Binding与Reality/Snapshot、Extraction Policy revision/digest、Selection/Reservation digest及Material Control projection组成，global terminal Observation revision只作审计指针；终态Observation后仅对new/reality_changed/binding_changed/location_changed/missing、unknown或basis失效、以及Field/Access/Policy/Selection/Reservation/Control影响的Material Key执行Reconcile；完全相同basis幂等no-op，未变化Material不执行SQL UPDATE、不递增eligibility revision；`eligibility_observation_revision`记录上次实际评估所用Observation revision，允许在basis不变时落后于current head；非unknown Control必须有revision/digest，uncontrolled允许revision 0或正整数；`INDEX(field_id,eligibility_state,control_projection,material_key)`及`INDEX(field_id,eligibility_observation_revision,eligibility_policy_revision,material_key)`；stored state只有在`eligibility_field_status`仍匹配Field current status且material-local basis仍匹配当前Access/Policy/Selection/Control时才可用于候选筛选，否则effective projection为unknown；最终Run admission仍必须CAS `fx_material_controls` |
 | `proc_procurement_runs` | `procurement_run_id PK, field_id FK, run_basis_schema_ref, access_revision, access_digest, content_profile_hint, profile_hint_revision, profile_hint_digest, terminal_observation_revision, field_observation_work_id, extraction_policy_id, extraction_policy_revision, extraction_policy_digest, triage_rule_ref, triage_rule_revision, triage_rule_schema_ref, triage_rule_digest, triage_rule_authority_digest, run_basis_digest, retry_intent_id NULL, state(active|waiting|sealed), state_revision, candidate_package_revision_head, seal_outcome NULL, seal_decision_id NULL, seal_decision_digest NULL, seal_evidence_digest NULL, admission_commit_marker, admission_result_digest, seal_commit_marker NULL, seal_result_digest NULL, priority_class, created_at_ms, finished_at_ms NULL` | `run_basis_schema_ref=ProcurementRunExecutionBasis@1`；Run及其`proc_run_materials` immutable basis列共同构成完整Basis，禁止只凭digest恢复；Field Access/Profile Hint/Observation/Policy均显式FK，`(field_id,profile_hint_revision)`指向immutable Hint revision且三项Hint列必须逐字节一致；Admission还要求terminal Observation冻结同一Hint Snapshot；Triage tuple必须由`ProcurementTriageRuleRegistry@1`当前active entry签发，Admission时验证active，历史恢复时验证精确immutable entry仍存在且digest匹配，不建立调用者可写Rule表；初始`state_revision=1,candidate_package_revision_head=0`；Candidate Publication CAS exact expected head并将其加1，Result/package revision等于新head；只有expected revision CAS可改变state；sealed时Decision ID/digest、Outcome、Evidence digest、finished time与Seal marker/result必须同时非NULL且写后immutable，非sealed时全部NULL，`UNIQUE(seal_decision_id) WHERE seal_decision_id IS NOT NULL`；`UNIQUE(field_id,run_basis_digest)`禁止同一Basis建立第二个Run，Retry Basis因包含唯一`sourceRetryIntentId`形成新digest；`retry_intent_id`为空或唯一引用一次性Intent并加`UNIQUE(retry_intent_id) WHERE retry_intent_id IS NOT NULL`；Admission/Seal marker各自唯一且显式FK；Retry建立的Run与Intent共享同一consume/admission marker和outer result digest；Supporting Work通过`owner_domain+process_type+process_id`关联；`INDEX(state,priority_class,created_at_ms)` |
 | `proc_procurement_retry_intents` | `retry_intent_id PK, field_id FK, failed_run_id FK, failed_basis_digest, retry_field_status, retry_content_profile_hint, retry_profile_hint_revision, retry_profile_hint_digest, retry_access_revision, retry_access_digest, retry_terminal_observation_revision, retry_field_observation_work_id, retry_extraction_policy_id, retry_extraction_policy_revision, retry_extraction_policy_digest, retry_triage_rule_ref, retry_triage_rule_revision, retry_triage_rule_schema_ref, retry_triage_rule_digest, retry_triage_rule_authority_digest, retry_admission_head_digest, retry_scope_digest, retry_member_count, precondition_set_digest, actor_id, idempotency_key, intent_digest, state(open|consumed|stale), state_revision, new_run_id NULL, primary_stale_reason_code NULL, consume_admission_head_schema_ref NULL, consume_admission_head_json NULL, consume_admission_head_digest NULL, create_commit_marker, create_result_digest, consume_commit_marker NULL, consume_result_digest NULL, created_at_ms, consumed_at_ms NULL` | `UNIQUE(field_id,idempotency_key)`；`UNIQUE(failed_run_id,failed_basis_digest) WHERE state IN ('open','consumed')`，stale后可按新current precondition建立新Intent，consumed后必须改为对其new Run重试；`retry_*` head按`ProcurementRetryAdmissionHead@1`关系化冻结，Profile Hint tuple必须指向精确immutable revision并与terminal Observation一致，Triage tuple必须来自创建时Registry active entry；初始`state_revision=1`；`new_run_id`只在consumed时非NULL并与`proc_procurement_runs.retry_intent_id`互证，两个方向FK均`DEFERRABLE INITIALLY DEFERRED`；terminal时`consume_admission_head_json`必须是schema验证且JCS bytes≤`16 KiB`的完整current head，digest精确匹配；stale时`primary_stale_reason_code`等于8.6.18固定precedence下`staleReasonCodes[0]`，created时为NULL；create与consume marker/result分别唯一且可重放，terminal Intent必须有consume pair；消费时CAS expected state/digest并重验全部relationized precondition，不修改旧Run |
 | `proc_procurement_retry_intent_materials` | `retry_intent_id FK, ordinal, material_key, failed_run_material_digest, expected_binding_revision, expected_eligibility_revision, expected_eligibility_basis_digest, expected_selection_basis_digest, expected_selection_has_conflict, expected_control_revision, expected_control_state, expected_control_owner_domain NULL, expected_control_owner_scope_type NULL, expected_control_owner_scope_id NULL, expected_control_region_projection, expected_control_evidence_digest, expected_control_projection_digest, member_precondition_digest, consume_snapshot_schema_ref NULL, consume_snapshot_json NULL, consume_snapshot_digest NULL, consume_outcome NULL|matched|stale, consume_stale_reason_code NULL, consumed_at_ms NULL` | `PK(retry_intent_id,ordinal)`及`UNIQUE(retry_intent_id,material_key)`；成员必须来自failed Run中`released+triage_failed`的Material，按materialKey UTF-8 bytes升序且`1..256`项；`CHECK(expected_selection_has_conflict=0)`；完整expected rows重建Intent member/precondition set，aggregate digest必须匹配Intent head；Control列必须完整映射available `MaterialControlProjectionSnapshot`，包括evidence/projection两个不同digest；expected列immutable；Intent消费时全部member在同事务一次性写完整`ProcurementRetryConsumeMemberSnapshot@1`（JCS bytes≤`4 KiB`）及digest/outcome，之后immutable；stale只保存8.6.18 closed set中的唯一primary code，matched不得保存code；terminal Intent不允许存在未写consume snapshot的member |
@@ -8863,7 +8949,6 @@ Executor不能返回Business Process完成状态。`deferred`不发布terminal R
 | `shared.material.filesystem_identity.observe@1` | `PhysicalMaterialReadHandle → FilesystemIdentityEvidence` | `pure_observation` |
 | `shared.material.bounded_fingerprint.compute@1` | `PhysicalMaterialReadHandle + BoundedFingerprintProfile → BoundedContentFingerprintEvidence` | `pure_observation` |
 | `shared.material.media.probe@1` | `PhysicalMaterialReadHandle|WorkspaceMaterialHandle → MediaProbeEvidence` | `pure_observation` |
-| `shared.material.layout.observe@1` | `FieldObservationLayoutSnapshot + BoundedLayoutScope → LayoutEvidence` | `pure_observation` |
 | `shared.manifest.verify@1` | `TypedManifest + ManifestContract → ManifestVerification` | `pure_observation` |
 | `shared.artifact.manifest.verify@1` | `ArtifactHandle[1..64] + ArtifactRequirement → ArtifactManifestVerification` | `pure_observation` |
 | `shared.integration.availability.observe@1` | `IntegrationHandle → IntegrationAvailabilityEvidence` | `pure_observation` |
@@ -8889,8 +8974,7 @@ contract failure，不得选择“最大的人脸”、按顺序猜测或把多�
 
 | Capability ref | Input → Output | Effect Class |
 | --- | --- | --- |
-| `procurement.field.page.observe@1` | `FieldAccessHandle + FieldObservationPageRequest → FieldObservationPage` | `pure_observation` |
-| `procurement.field.observation.commit@1` | `FieldObservationPage + DomainFactCommitHandle → ObservationCommitResult` | `domain_fact_commit` |
+| `procurement.field.observation.page.commit@1` | `FieldAccessHandle + FieldObservationPageRequest → ObservationPageCommitResult` | `domain_fact_commit` |
 | `procurement.material.control.acquire@1` | `SelectedFieldMaterialSet + ResponsibilityControlCommitHandle → ProcurementControlReceipt` | `responsibility_control_commit` |
 | `procurement.triage.playability.inspect@1` | `TriageMaterialProbeBatch + ProcurementTriageRuleSnapshot → PlayabilityEvidence` | `pure_observation` |
 | `procurement.triage.structure.inspect@1` | `TriageStructureInspectionInput + ProcurementTriageRuleSnapshot → TriageStructureEvidence` | `pure_observation` |
@@ -8917,7 +9001,6 @@ relationized values/temp relation一次重读并CAS全部`1..256`项；任一成
 
 ~~~text
 shared.material.media.probe@1
-shared.material.layout.observe@1
         ↓ typed Result binding
 procurement.triage.playability.inspect@1
 procurement.triage.structure.inspect@1
@@ -8926,53 +9009,38 @@ procurement.triage.identity_claim.resolve@1
 procurement.triage.primary_manifest.build@1
 ~~~
 
-Shared probe/layout Executor可以通过其既有typed filesystem/media-probe port执行一次有界只读观察；四个
+Shared probe Executor可以通过其既有typed media-probe port执行一次有界只读观察；四个
 Procurement Triage Executor只消费正式typed Result和冻结Rule，不调用Filesystem/FFprobe、Provider、Domain
 Repository、Facade或另一个Executor。`PrimaryInputManifestDraft`只是当前Candidate Assembly Plan内的完整
 Manifest构造证明；最终`PrimaryInputManifest`只能由`procurement.candidate.publish@1`与Candidate Package、
 成员关系、Reservation、Offer和Outbox同事务发布，避免pure Capability伪造业务发布时间或旁读成员。
 
-`FieldObservationPage`必须内联携带Commit所需的bounded typed Material snapshot；只有objectId/revision/digest的
-opaque引用不满足合同，也不存在允许CommitParticipant旁读的全局Snapshot Store。`page.observe`可以通过
-`FieldAccessHandle`执行当前页必要的list/stat/hash并返回Evidence，但其正式Request还必须内联Coordinator在
-Observation Work建立时从Procurement Owner row读取并冻结的完整`MaterialFieldProfileHintSnapshot@1`；Executor
-只复制该Snapshot进入Page并纳入basis/page digest，不能读取current Field、接受caller cache或自行默认`mixed`。
-`page.observe`仍是`pure_observation`：不得写Procurement
-Store、Artifact Registry或隐藏Workspace。Page最多100项，完整`FieldObservationPage`的UTF-8 JCS bytes必须
-≤`65,536`；Observer必须同时按条目数和byte budget截断本页，下一项会越界时以当前非空页和可继续的
-`cursorOut`返回；`cursorOut`只能越过已经实际纳入本页的成员，不能跳过第一个未返回成员。单项已超过snapshot
-上限或连一项也无法合法装入空页时稳定失败且不推进cursor。
-
-`field.observation.commit`的`commitPayload`恰为完整`FieldObservationPage`。Handle固定
-`ownerDomain=procurement, aggregateType=material_field_observation, aggregateId=fieldId,
-expectedRevision=page.expectedObservationRevision`；Commit产生的revision恰为`expectedRevision+1`。Participant
-只可读取同一Procurement事务中的Field current Observation/Profile Hint heads、精确Hint revision row和同Field
-Material current row完成CAS/binding revision演进，
-不得读取旧Store、Foundation Event payload或任意Object Registry补齐业务字段。Handle `payloadDigest`覆盖完整
-typed Page（包含其`pageDigest`，排除Handle本身），`factSchemaRef/resultSchemaRef`分别固定本页Observation revision和
-`ObservationCommitResult` schema。
+`procurement.field.observation.page.commit@1`的正式Request仍冻结完整
+`MaterialFieldProfileHintSnapshot@1`，但Event内部同时完成当前页必要的list/stat/bounded fingerprint与事实提交。
+一个Page最多256项、物理读取最多64 MiB；两个上限任一先达到即产生当前页。Page只产生compact
+`ObservationPageCommitResult@1`/`ObservationPageCommitReceipt@1`，不把Material snapshot写入Result或Evidence。
+Event申请完整`volume_read:<mountScopeId> + sqlite_write` Permit，且所有Entry、Page header、Material current row、
+Field head、typed Result、commit marker必须在同一Canonical Transaction中全有或全无。
 
 `bindingRevision`刻意不由Observer声明，也不属于Snapshot输入：它是Procurement对自己current Binding row的
 revision，由CommitParticipant比较同一materialKey现有`endpoint_id/current_location`后唯一计算；首次为1，
-二者均不变则保持，任一变化则加1。这样Snapshot提供完整可提交的Binding reality，但pure Observer不能猜测
-Owner Store revision。
+二者均不变则保持，任一变化则加1。这样Entry提供完整可提交的Binding reality，且单一Event不需要在两个
+Capability之间传输完整文件数组。
 
 Commit前必须同时验证Field仍active、`page.accessRevision`仍等于Field current Access revision、
 `page.profileHintSnapshot`逐字节命中Field current Profile Hint pointer及精确revision row、Field current
 Observation pointer等于expected revision，以及Work/page/cursor连续；同一Work已有Page时还必须命中其冻结
 Snapshot。第一次提交将SQL NULL pointer映射为逻辑
 expected `0`；任何后续page或后续Work都使用真实正整数revision。成功事务按materialKey upsert当前Field Material、
-追加不可变Observation revision、切换Field head，并在同一`fx_event_result_bindings`中把完整Page写为typed
-Evidence、把完整`ObservationCommitResult`写为typed Result，再写入同一result digest与commit marker；相同
+追加不可变Observation revision及`proc_field_observation_entries`明细、切换Field head，并在同一
+`fx_event_result_bindings`中写入compact Receipt/Result，再写入同一result digest与commit marker；相同
 `observationId + workId + pageOrdinal + pageDigest`重放返回原Result，任一同key异payload组合稳定冲突。`hasMore`
 为true时Coordinator只使用已提交Result的`nextCursor`准备下一页；terminal page结束Supporting Work。Signal丢失
 时从commit marker/typed Result恢复，不重新消费同一cursor或生成新revision。
 
-`page.observe`自身的durable Event Result只是尚未提交的Workflow输入传输，不是Field Observation canonical
-history；它存在并不证明Page已被接受。只有`field.observation.commit`成功后，同一Commit Event
-`fx_event_result_bindings.evidence_json`中的完整Page才是已提交历史的唯一权威payload，并由Observation revision的
-commit-marker链长期引用。未提交或CAS失败的Observe Result不得被Field Management、审计或Projection解释为
-已观察事实。
+Observation detail rows are the canonical historical payload. Page Result/Receipt only proves the row-set digest and
+cursor transition; any Projection, audit or Triage reader must rebuild details from the pinned Observation revision and
+must never parse a historical Page JSON to recover file facts.
 
 Extraction Eligibility、Candidate Readiness和是否建立Procurement Run属于Procurement Decision/Application组件，
 不是Capability。Candidate publication不创建Subject或转移Control；Control transfer只发生在Libra Accepted。
@@ -9750,7 +9818,7 @@ Executor只能返回以下discriminated union，且每个variant都`additionalPr
 | `MaterialFieldProfileHintRevisionCommand` | `{operation(revise_profile_hint),fieldId,expectedProfileHintRevision,newContentProfileHint(mixed|movie|series|jav|western_adult),idempotencyKey,requestDigest}`；URL/body fieldId必须相等，actor只来自已验证Admin session并进入Audit而不由body声明；`requestDigest=SHA-256(JCS({schema:"procurement.material-field-profile-hint-revision-command@1",operation,fieldId,expectedProfileHintRevision,newContentProfileHint}))`由Host计算并由Owner重算，idempotencyKey作为receipt/dedup identity而不进入payload digest；只允许expected current CAS，same value是no-op，不能跳revision或修改历史row |
 | `MaterialFieldAdminProjection` | `{fieldId,name,status,extractionPolicyId,extractionPolicyRevision,currentAccessRevision,currentProfileHintSnapshot(MaterialFieldProfileHintSnapshot),currentObservationRevision?,createdAtMs,updatedAtMs,policy(ExtractionPolicy@1),access{fieldId,revision,endpointId,rootLocation,mountScopeId,mountScopeRevision,accessSchemaRef,accessDigest,effectiveAtMs},projectionDigest}`；policy/access必须逐字节命中current pointers且两个fieldId一致；GET list/exact read必须返回完整current Profile Snapshot及既有Policy/Access projection，不能为增加Hint而缩水旧字段；`projectionDigest=SHA-256(JCS(完整value excluding projectionDigest))`；不内联历史revision列表 |
 | `ProcurementMaterialFieldAdminResult` | `{materialField(MaterialFieldAdminProjection),commandReceiptId,resultDigest}`；register、revise access、revise profile hint、publish policy与deregister共用该application Result；`resultDigest=SHA-256(JCS(完整value excluding resultDigest))`；transport可在该typed value之外标记`replayed`，不得把它纳入持久Result；同key同规范化Command跨重启返回逐字节相同typed value，同key异payload冲突且不得建立第二Field/revision |
-| `FieldObservationPageRequest` | `fieldObservationWorkId,observationId,pageOrdinal,expectedObservationRevision,cursorIn,pageBudget,profileHintSnapshot(MaterialFieldProfileHintSnapshot),requestDigest`；ID由Coordinator在Plan前分配并随重放保持；`fieldObservationWorkId`在整轮分页内不变，`observationId`每页唯一且只在该页重试中复用；同一Work全部Request的Profile Snapshot逐字节相同；pageOrdinal从0连续递增，pageBudget为`1..100`；`requestDigest=SHA-256(JCS(Request excluding requestDigest))`；首次从未观察Field才允许`expectedObservationRevision=0`，新一轮Work第一页不重置Field revision |
+| `FieldObservationPageRequest` | `fieldObservationWorkId,observationId,pageOrdinal,expectedObservationRevision,cursorIn,pageBudget,profileHintSnapshot(MaterialFieldProfileHintSnapshot),requestDigest`；ID由Coordinator在Plan前分配并随重放保持；`fieldObservationWorkId`在整轮分页内不变，`observationId`每页唯一且只在该页重试中复用；同一Work全部Request的Profile Snapshot逐字节相同；pageOrdinal从0连续递增，pageBudget为`1..256`，单页物理读取上限为`64 MiB`；`requestDigest=SHA-256(JCS(Request excluding requestDigest))`；首次从未观察Field才允许`expectedObservationRevision=0`，新一轮Work第一页不重置Field revision |
 | `FieldMaterialObservationSnapshot` | `materialObservationId,observationId,fieldId,accessRevision,accessDigest,fieldAccessHandleId,endpointId,mountScopeRevision,identity(PhysicalMaterialIdentity),location,sizeBytes,mtimeNs,ctimeNs,fingerprintVerifiedAtMs,observedAtMs,containmentDigest,realityDigest,provenanceDigest,snapshotDigest`；`sizeBytes`为不超过`2^53-1`的non-negative integer，`mtimeNs/ctimeNs`为`0..9223372036854775807`的十进制字符串并在SQLite持久化边界无损转为signed 64-bit INTEGER，两个`*AtMs`为non-negative safe integer；`materialObservationId=SHA-256(JCS({schema:"procurement.field-material-observation-id@1",observationId,materialKey:identity.materialKey}))`；`realityDigest=SHA-256(JCS({schema:"procurement.field-material-reality@1",identity,endpointId,location,sizeBytes,mtimeNs,ctimeNs}))`；`provenanceDigest=SHA-256(JCS({schema:"procurement.field-material-provenance@1",fieldId,accessRevision,accessDigest,fieldAccessHandleId,mountScopeRevision,containmentDigest,fingerprintVerifiedAtMs,observedAtMs}))`；`snapshotDigest=SHA-256(JCS(完整Snapshot excluding snapshotDigest))`；单项≤`4 KiB`，禁止opaque object ref替代完整snapshot |
 | `ExtractionPolicy` | `extractionPolicyId,revision,includedDirectories[],excludedDirectories[],allowedExtensions[],minimumSizeBytes,excludedMaterialKeys[],policyDigest`；formal schema固定`ExtractionPolicy@1`和5.3.1的排序/上限/path/extension/precedence规则，`policyDigest=SHA-256(JCS(完整value excluding policyDigest))`，禁止additional property、glob/regex或默认allow字段 |
 | `MaterialControlProjectionSnapshot` | `materialKey,resultKind(available|unavailable),controlRevision?,controlState?(uncontrolled|controlled),ownerDomain?,ownerScopeType?,ownerScopeId?,regionProjection?(uncontrolled|procurement|production|finished_goods),failureCode?,evidenceDigest,projectionDigest`；available时revision 0只表示Query成功且从未存在row，controlled必须完整owner并按Foundation current row映射；unavailable时只允许稳定failure/evidence且禁止猜测revision/state/owner/Region；`evidenceDigest=SHA-256(JCS({schema:"foundation.material-control-evidence@1",materialKey,resultKind,controlRevision?,controlState?,ownerDomain?,ownerScopeType?,ownerScopeId?,failureCode?}))`，`projectionDigest=SHA-256(JCS(完整value excluding projectionDigest))` |
@@ -9764,7 +9832,7 @@ Executor只能返回以下discriminated union，且每个variant都`additionalPr
 | `TriageMaterialProbeBatch` | `procurementRunId,runBasisDigest,selectionDigest,batchOrdinal,members[{selectionOrdinal,materialKey,bindingRevision,admittedControlRevision,admittedControlProjectionDigest,readHandle(PhysicalMaterialReadHandle),mediaProbe(MediaProbeEvidence),memberDigest}],batchDigest`；每批`1..100`项、按selectionOrdinal连续升序且materialKey唯一，所有Batch按batchOrdinal从0连续并精确覆盖完整SelectedFieldMaterialSet一次；Handle的identity.materialKey/bindingRevision必须等于Selection member，admitted Control pair必须等于Run Admission relationized output且当前selection_state仍为run_selection，`mediaProbe.sourceHandleDigest`必须等于该Handle的canonical digest；`memberDigest=SHA-256(JCS(完整member excluding memberDigest))`，`batchDigest=SHA-256(JCS(完整value excluding batchDigest))`；不得用result ID、数组位置或Store旁读代替映射 |
 | `MaterialFieldContext` | `fieldId,accessRevision,accessDigest,profileHintSnapshot(MaterialFieldProfileHintSnapshot),memberContexts[{selectionOrdinal,materialKey,fieldRelativeLocation,baseName,extension,parentSegments[],layoutEvidenceRefs[{evidenceId,payloadDigest,boundedScopeDigest}]}],contextDigest`；Profile Snapshot逐字节复制本Run Execution Basis且fieldId一致，Executor不得读current Field或接收caller override；成员按selectionOrdinal完整覆盖Selection，location/baseName/extension/parentSegments均从冻结Binding与Shared Layout Evidence确定，Linux大小写敏感且不得归一化成另一个路径；Layout ref必须来自本Run输入Handle授权的scope；`contextDigest=SHA-256(JCS(完整value excluding contextDigest))`，禁止opaque fieldRefs/context object |
 | `TriageStructurePageRequest` | `pageOrdinal,cursorIn,maxUnits,requestDigest`；pageOrdinal从0连续，`maxUnits=1..100`，cursor是前一页Result返回的opaque bounded值；首页`cursorIn=null`，terminal page返回`cursorOut=null`；`requestDigest=SHA-256(JCS(完整value excluding requestDigest))` |
-| `TriageStructureInspectionInput` | `selectedFieldMaterialSet(SelectedFieldMaterialSet),probeBatches[TriageMaterialProbeBatch],playabilityPages[PlayabilityEvidence],materialFieldContext(MaterialFieldContext),layoutEvidence[LayoutEvidence],pageRequest(TriageStructurePageRequest),inputDigest`；Selection与全部Batch/Page/Context必须具有相同run/basis/selection digest并完整覆盖`1..256`成员；Layout Evidence按evidenceId排序且所有Context ref恰好解析；`inputDigest=SHA-256(JCS({schema:"procurement.triage-structure-input@1",selectionDigest,probeBatchDigests[],playabilityPayloadDigests[],contextDigest,layoutPayloadDigests[],pageRequest}))`，数组digest按稳定ID排序；完整值通过Plan typed Result binding装配，Executor不得从Procurement或Foundation Store补读 |
+| `TriageStructureInspectionInput` | `selectedFieldMaterialSet(SelectedFieldMaterialSet),probeBatches[TriageMaterialProbeBatch],playabilityPages[PlayabilityEvidence],materialFieldContext(MaterialFieldContext),observationScopeProjection{projectionRevision,scopeDigest,entriesDigest,entryCount,entries[entryOrdinal,materialKey,relativeLocation,currentLocation,parentRelativeLocation,baseName,extension,identity(PhysicalMaterialIdentity@2)?,endpointId?,sizeBytes,entryDigest]}`、`pageRequest(TriageStructurePageRequest),inputDigest`；Selection与全部Batch/Page/Context必须具有相同run/basis/selection digest并完整覆盖`1..256`成员；Observation Scope Projection最多4096项，只能来自本Run冻结Observation revision，按普通直接父目录、BDMV根和BDMV外层父目录分域，selected member必须完整出现，已观察sidecar可作为Related候选出现；完整值通过Plan typed Result binding装配，Executor不得从Procurement或Foundation Store补读；`inputDigest=SHA-256(JCS({schema:"procurement.triage-structure-input@1",selectionDigest,probeBatchDigests[],playabilityPayloadDigests[],contextDigest,observationScopeProjectionDigest,pageRequest}))`，数组digest按稳定路径/Identity排序 |
 | `TriageIdentityMetadata` | `claimedTitle,claimedYear?,seasonClaim?,javCode?,contentProfileHint,sourceHints[{hintKind,hintValue,evidenceDigest}],metadataDigest`；`contentProfileHint`必须等于本Run Profile Snapshot值；sourceHints必须恰含一项`field_content_profile_hint`，固定`hintValue=contentProfileHint,evidenceDigest=profileHintSnapshot.hintDigest`，不得省略或使用Run/Observation/current Field的其他摘要；`seasonClaim`为`{claimKind(explicit_number|provisional_group),seasonNumber?,provisionalGroupKey?,claimDigest}`且两分支互斥；source hint只允许`field_content_profile_hint|filename_title|directory_title|filename_year|directory_year|filename_season|directory_season|filename_episode|jav_code|disc_structure|temporary_label`，按`hintKind,hintValue,evidenceDigest`排序；`metadataDigest=SHA-256(JCS(完整value excluding metadataDigest))`，所有值只是可纠正Evidence，不是Provider或Canonical Identity |
 | `SeasonContinuityClaim` | `claimKind(provider_season_identity|triage_grouping_lineage),claimNamespace,claimKey,claimDigest,evidenceDigest`；这是Level 3、Procurement Candidate relation与Libra Subject relation共用的唯一nominal value，不存在别名或转换层；`claimDigest=SHA-256(JCS({schema:"season-continuity-claim@1",claimKind,claimNamespace,claimKey}))`；数组最多64项，按`claimKind,claimNamespace,claimKey`的UTF-8 bytes升序且tuple唯一；`seasonContinuityClaimSetDigest=SHA-256(JCS({schema:"season-continuity-claim-set@1",items:排序后的完整SeasonContinuityClaim数组}))`，空数组也按同一公式形成确定digest |
 | `TriageUnitSnapshot` | `unitId,mediaType(single|group),contentProfile(movie|series|jav|western_adult),structureKind(single|season),displayIdentity,identityMetadata(TriageIdentityMetadata),seasonContinuityClaims[SeasonContinuityClaim],seasonContinuityClaimSetDigest,members[{materialKey,bindingRevision,admittedControlRevision,admittedControlProjectionDigest,role(primary_payload|structural_dependency),episodeClaims[{episodeKey,seasonClaimDigest,claimDigest}],memberClaimDigest}],relatedReferences[RelatedMaterialReference],unitDigest`；members按materialKey UTF-8 bytes排序、episodeClaims按episodeKey排序、Related按referenceId排序；每项Related的primaryMaterialKey必须命中本Unit member且完整Identity/reference digest有效；continuity只允许`SeasonContinuityClaim@1`并验证同一set digest，可为空；Control pair逐项复制Probe Batch的Run Admission output；single至少一个且普通文件恰好一个`primary_payload`，recognized single-title disc才允许追加structural dependency；series要求全部primary payload各有`1..N`Episode Claim且每个Episode至少有成员覆盖；`unitId=SHA-256(JCS({schema:"procurement.triage-unit-id@1",mediaType,contentProfile,structureKind,members:[{materialKey,role,episodeClaims}]}))`，`unitDigest=SHA-256(JCS(完整value excluding unitDigest))`；完整Unit的JCS bytes必须≤`64 KiB`，否则不形成Unit并返回`triage_unit_contract_too_large` |
@@ -9880,9 +9948,9 @@ default，也不能由Planner、Field配置或文件名library另设一套：
    检测JAV code grammar`2..10个ASCII letter + 可选[-_ ] + 2..6 digits`，其余可播放普通文件形成Movie
    fallback。Western Adult不从mixed猜测。single普通文件每个可播放Material形成一个Unit；Series按相同
    explicit/provisional Season claim与稳定父目录grouping形成Unit；BDMV只有同时观察到`BDMV/index.bdmv`、
-   `BDMV/MovieObject.bdmv`、至少一个`PLAYLIST/*.mpls`和`STREAM/*.m2ts`且Probe证明`titleCount=1`才形成
-   single-title Unit；DVD要求`VIDEO_TS/VIDEO_TS.IFO`、至少一个匹配VTS IFO/VOB且`titleCount=1`；ISO要求Probe
-   明确`discTopology=single_title`。多标题、结构缺失或不同Unit成员重叠均不ready。
+   `BDMV/MovieObject.bdmv`、至少一个`PLAYLIST/*.mpls`和`STREAM/*.m2ts`且Probe形成可审计主标题选择才形成
+   Movie Unit；DVD要求`VIDEO_TS/VIDEO_TS.IFO`、至少一个匹配VTS IFO/VOB；ISO要求Probe明确`discTopology=single_title`。
+   多标题本身不再阻塞；真实歧义、结构缺失或不同Unit成员重叠仍not_ready。
 4. **Related association**：只从Shared Layout Evidence中选择有完整Physical Identity、SHA-256、Endpoint与
    location的file entry；与Primary同stem，或basename恰为`movie.nfo|tvshow.nfo|poster.*|fanart.*`的标准
    Sidecar可形成Reference。扩展名只映射到`nfo|poster|fanart|subtitle|external_audio|chapter|sidecar`closed role；
@@ -9891,8 +9959,9 @@ default，也不能由Planner、Field配置或文件名library另设一套：
    sidecar只可来自已观察的外部电影目录Layout Evidence。
 5. **Structure Result**：`resolved` page中的Unit按`unitId` UTF-8 bytes排序，`unassignedMaterials[]`按materialKey
    排序并只使用`probe_not_media|no_video_stream|non_positive_duration|content_profile_unresolved|
-   conflicting_season_claim|episode_claim_unresolved|disc_structure_incomplete|disc_multi_title_unsupported|
-   triage_unit_contract_too_large|structure_ambiguous`；同一Material必须且只能出现在所有page的一个Unit或一项
+   conflicting_season_claim|episode_claim_unresolved|disc_structure_incomplete|disc_non_primary_title|
+   disc_multi_title_unsupported|triage_unit_contract_too_large|structure_ambiguous`；Movie多Playlist本身不再进入
+   `disc_multi_title_unsupported`，只有无法按确定性规则选出主标题时才稳定not_ready；同一Material必须且只能出现在所有page的一个Unit或一项
    unassigned结果中。整轮至少一个Unit时每页`resultKind=resolved`，整轮没有Unit时唯一terminal page固定
    `resultKind=not_ready,units=[]`；page完整JCS bytes≤`64 KiB`，超出时在Unit边界分页，禁止截断Unit。
 6. **Identity**：Claim kind按Profile固定映射；`claimedTitle/displayIdentity`按`directory_title → filename_title →
@@ -10140,11 +10209,16 @@ Accepted variant的`rejection_schema_ref`及全部rejection列必须为NULL。SQ
 
 #### 8.6.19 Domain nominal type registry
 
+`FieldObservationPage`、`ObservationCommitResult`和`LayoutEvidence`的旧registry行仅保留作历史语义追溯，
+不属于active Catalog；active Observation合同是`ObservationPageCommitResult@1`与紧凑
+`ObservationPageCommitReceipt@1`，Layout是Observation entry Projection，不是Capability或Result。
+
 下表给出Catalog所有Result type的mandatory domain payload。每一项同时继承上一节对应envelope；没有列出的
 字段可以在`@1`的JSON Schema中作为optional且必须有明确含义，但不得参与热筛选而不关系化。
 
 | Result type group | Mandatory domain payload |
 | --- | --- |
+| `ObservationPageCommitReceipt` | `ReceiptEnvelope + observationId + fieldObservationWorkId + fieldId + committedObservationRevision + pageOrdinal + entryCount + pageDigest + entrySetDigest + nextCursor + hasMore + receiptDigest`；只证明Observation entry rows已在同一事务成立，不内联文件明细；完整value≤`16 KiB` |
 | `FilesystemIdentityEvidence` | `EvidenceEnvelope + identity + endpointId + location + statSizeBytes + statMtimeMs` |
 | `BoundedContentFingerprintEvidence` | `EvidenceEnvelope + identity + fingerprintProfileRef + sampleOffset + sampleLength + bytesSampled`；profile固定`middle-256k-sha256@1`且`bytesSampled=sampleLength≤262144` |
 | `MediaProbeEvidence` | `EvidenceEnvelope + sourceHandleDigest + resultKind(probed|not_media) + reasonCode? + container? + durationMs? + sizeBytes + videoStreams[] + audioStreams[] + subtitleStreams[] + discTopology?{discKind(bdmv|dvd|iso),titleCount,singleTitleEvidenceDigest,topologyVersion,topologyDigest,selectedPlaylist{relativeLocation,durationMs,clipIds[]},members[{relativeLocation,role,clipId?}]}`；`probed`要求container/duration/stream数组并禁止reason，`not_media`只允许`probe_not_media`且stream数组为空；每个video stream至少含`streamIndex,dispositionDefault,codec,codedWidth,codedHeight,sampleAspectRatio,rotation,displayWidth,displayHeight,longEdge,shortEdge`；每个audio stream至少含`streamIndex,dispositionDefault,codec,profile,channels,channelLayout,formatTags[],normalizedAudioClass(eac3_atmos|truehd|truehd_atmos|dts_hd_ma|dts_x|other)`。Audio mapping按ASCII case-fold后的codec/profile/tag固定：E-AC-3且JOC/Atmos tag→eac3_atmos；TrueHD且Atmos tag→truehd_atmos；其余TrueHD→truehd；DTS且DTS:X tag→dts_x；其余DTS-HD MA profile→dts_hd_ma；不能精确证明→other，precedence按上述顺序。所有stream按streamIndex升序且index唯一，数组有数量上限；Primary Video与Primary Audio分别取本类全部`dispositionDefault=true`项，若为空则取该类最低streamIndex一项，仍为空表示该类不存在；Product Requirement只评估Primary集合，不能因任意附加轨满足而通过。BDMV `discTopology`只由Media Probe Event产生，Playlist读取有界且不读取M2TS payload；Structure不得回读物理文件。FFprobe原始stdout/stderr有独立bounded transport limit（分别256 KiB/16 KiB），typed MediaProbeEvidence仍≤64 KiB；transport overflow、JSON解析或typed shape失败属于Capability contract failure，不得伪装为`probe_not_media`。`payloadDigest=SHA-256(JCS(完整domain payload excluding EvidenceEnvelope.payloadDigest))`；4K-class只使用归一化display raster |
@@ -10159,7 +10233,7 @@ Accepted variant的`rejection_schema_ref`及全部rejection列必须为NULL。SQ
 | `TriageStructureEvidence` | `EvidenceEnvelope + procurementRunId + runBasisDigest + selectionDigest + triageRuleAuthorityDigest + materialFieldContextDigest + pageRequestDigest + pageOrdinal + cursorIn + cursorOut + resultKind(resolved|not_ready) + units[TriageUnitSnapshot] + unassignedMaterials[{materialKey,reasonCode,evidenceDigest}] + unitSetDigest + unassignedSetDigest`；units按unitId、unassigned按materialKey排序且跨page共同精确分区完整Selection；`unitSetDigest=SHA-256(JCS({schema:"procurement.triage-unit-set-page@1",items:units}))`，`unassignedSetDigest=SHA-256(JCS({schema:"procurement.triage-unassigned-set-page@1",items:unassignedMaterials}))`，Evidence payload digest覆盖全部字段并排除自身；terminal page的cursorOut为NULL，完整Evidence≤`64 KiB` |
 | `IdentityClaim` | `DraftEnvelope + claimKind(movie_title|series_season|jav_code|western_temporary) + mediaType(single|group) + contentProfile(movie|series|jav|western_adult) + claimedTitle + displayIdentity + claimedYear? + seasonClaim? + javCode? + identityMetadataDigest + structureUnitDigest + sourceHints[] + claimDigest`；字段只从`TriageIdentityResolutionInput.unit`与冻结Rule确定，`claimDigest=SHA-256(JCS(完整domain payload excluding claimDigest))`且等于DraftEnvelope.draftDigest；允许粗糙、可纠正，不是Canonical Identity |
 | `PrimaryInputManifestDraft` | `DraftEnvelope + preallocatedManifestId + procurementRunId + runBasisDigest + structureEvidencePayloadDigest + unitId + structureKind(single|season) + memberCount + membersDigest + memberSourceDigest + manifestDraftDigest`；`membersDigest=SHA-256(JCS({schema:"procurement.primary-input-manifest-members@1",items:[{ordinal从0连续,materialKey,role,physicalIdentity,sizeBytes,bindingRevision,admittedControlRevision,admittedControlProjectionDigest,episodeClaims[]}]按unit member稳定顺序}))`；每项Identity/size必须按materialKey从`TriageManifestBuildInput.selectedFieldMaterialSet`精确取得并与Unit member一致，不允许由文件名、current Field或Handle反推；`memberSourceDigest=TriageUnitSnapshot.unitDigest`，`manifestDraftDigest=SHA-256(JCS(完整domain payload excluding manifestDraftDigest))`且等于DraftEnvelope.draftDigest；它不含publishedAtMs、不写Domain Store |
-| `PrimaryInputManifest` | `ManifestEnvelope + structureKind(single|season) + members[{ordinal,materialKey,role(primary_payload|structural_dependency),physicalIdentity{mountScopeId,inode,sizeBytes,fingerprintAlgorithm(middle-256k-sha256),fingerprintVersion(1),contentFingerprint},sizeBytes,bindingRevision,admittedControlRevision,admittedControlProjectionDigest,episodeClaims[{episodeKey,seasonClaimDigest,claimDigest}],memberDigest}]`；最终Manifest只由Candidate Publication commit从同一`CandidateDraft.structureEvidence.unit`、`PrimaryInputManifestDraft`和immutable Run Basis原子建立；members为Run Selection非空子集、最多256项，按materialKey UTF-8 bytes排序后从0赋ordinal，materialKey唯一；Identity/size逐项等于Run member并满足`PhysicalMaterialIdentity@2`；每个`memberDigest=SHA-256(JCS(单项excluding memberDigest))`，memberCount/membersDigest/manifestDigest必须与完整稳定值匹配 |
+| `PrimaryInputManifest` | `ManifestEnvelope + structureKind(single|season) + members[{ordinal,materialKey,role(primary_payload|structural_dependency),physicalIdentity{mountScopeId,inode,sizeBytes,fingerprintAlgorithm(middle-256k-sha256),fingerprintVersion(1),contentFingerprint},sizeBytes,bindingRevision,admittedControlRevision,admittedControlProjectionDigest,episodeClaims[{episodeKey,seasonClaimDigest,claimDigest}],memberDigest}]`；最终Manifest只由Candidate Publication commit从同一`CandidateDraft.structureEvidence.unit`、`PrimaryInputManifestDraft`和immutable Run Basis原子建立；members为Run Selection非空子集，普通Candidate最多256项且BDMV Unit最多4096项，按materialKey UTF-8 bytes排序后从0赋ordinal，materialKey唯一；Identity/size逐项等于Run member并满足`PhysicalMaterialIdentity@2`；每个`memberDigest=SHA-256(JCS(单项excluding memberDigest))`，memberCount/membersDigest/manifestDigest必须与完整稳定值匹配 |
 | `CandidatePackage` | `ManifestEnvelope + candidatePackageId + packageRevision + procurementRunId + runBasisDigest + triageRule{ruleRef,revision,authorityDigest} + materialFieldContextRef{fieldId,accessRevision,contextDigest} + mediaType + contentProfile + displayIdentity + identityMetadata + identityClaim + structureEvidenceRef{evidenceId,payloadDigest,unitId,unitDigest} + seasonContinuityClaims[SeasonContinuityClaim] + seasonContinuityClaimSetDigest + primaryInputManifestRef{manifestId,manifestDigest,memberCount} + relatedReferences[RelatedMaterialReference] + relatedReferenceSetDigest + memberControlEvidenceSetDigest + packageDigest`；Package/Manifest、Field Context、Identity/Structure/Profile、Control Evidence和Related必须逐项来自完整CandidateDraft；Related完整值必须与`proc_candidate_related_references`逐列一一相等并按referenceId排序，不能用checksum摘要替代Physical Identity；continuity数组有界、允许空，只接受`provider_season_identity|triage_grouping_lineage`且set digest按8.6.18重算；`packageDigest=SHA-256(JCS(完整value excluding ManifestEnvelope.manifestDigest and packageDigest))`且ManifestEnvelope.manifestDigest=packageDigest；`offerId|acceptanceBasisDigest`属于同事务建立的Handoff Offer，`subjectId`属于Libra Acceptance结果，三者均不得写入或要求于`CandidatePackage@1` |
 | `CandidateContractVerification` / `IntakeMaterialVerification` | Candidate版为`VerificationEnvelope + offerId + candidatePackageId + packageRevision + packageDigest + acceptanceBasisDigest + primaryInputManifestDigest + candidateDeliverySnapshotDigest`；Material版为`VerificationEnvelope + candidatePackageId + packageDigest + candidateDeliverySnapshotDigest + verifiedMaterials[{materialKey,bindingRevision,locationEvidenceDigest,readHandleDigest,verificationDigest}] + verifiedMaterialSetDigest`，按materialKey排序并恰好覆盖全部Delivery member；每个`PhysicalMaterialReadHandle.identity/expectedSizeBytes/endpoint/location/bindingRevision`必须逐项等于对应`CandidatePrimaryMaterialDelivery@1`，否则不得passed；`verifiedMaterialSetDigest=SHA-256(JCS({schema:"libra.intake-verified-material-set@1",candidateDeliverySnapshotDigest,items:verifiedMaterials}))`；只有`result=passed`可进入Accepted payload，Executor不能只返回key或丢弃Identity/size/Location/Handle continuity |
 | `LibraBindingDraft` | `DraftEnvelope + subjectRef + candidateDeliverySnapshotDigest + bindings[{materialKey,role,physicalIdentity{mountScopeId,inode,sizeBytes,fingerprintAlgorithm(middle-256k-sha256),fingerprintVersion(1),contentFingerprint},sizeBytes,endpointId,location,bindingRevision(1),locationEvidenceDigest,episodeClaims[{episodeKey,seasonClaimDigest,claimDigest}],bindingDigest}] + bindingSetDigest`；每个Delivery member恰好一条Binding，按materialKey排序，Physical Identity/size/endpoint/location必须逐字节复制对应`CandidatePrimaryMaterialDelivery@1`并满足materialKey公式，不能从current Field、Provider或Foundation Result补值；Episode Claims完整复制同Manifest member并按episodeKey排序，不能取第一项、拼字符串或复制Binding row；`locationEvidenceDigest=CandidatePrimaryMaterialDelivery.deliveryMemberDigest`，`bindingDigest=SHA-256(JCS(单项excluding bindingDigest))`，`bindingSetDigest=SHA-256(JCS({schema:"libra.binding-set@1",subjectRef,candidateDeliverySnapshotDigest,items:bindings}))`且等于DraftEnvelope.draftDigest |
@@ -11432,8 +11506,8 @@ Level 8固定后续实现必须建立的可执行contract fixture，不把“以
 | Procurement Handoff A rejection consume | Inbox写入前后、open Delivery CAS前后、1/256个Reservation逐项释放中途、Delivery terminal与Inbox result提交前后、迟到Accepted消息 | Delivery、全部Candidate member `released+handoff_rejected`、同一Receipt Evidence与Inbox result全有或全无；Procurement Material Control完全不变；相同Rejected message重放同一closure digest，已accepted/成员不完整/digest冲突稳定拒绝；Repository只允许声明的`open → rejected`和`candidate_delivery → released`CAS，terminal row不得再UPDATE，绝不部分释放或重开Run |
 | Material Identity | mount remap/container restart、inode reuse、采样中stat变化、Fingerprint中断与Control acquire前 | 稳定Mount Scope才继承Identity；完成中段最多256 KiB Fingerprint前无Control；采样前后stat fence必须一致；同Fingerprint不同inode仍是不同Identity；任何路径均不得退化为全文件读取 |
 | Material Field Profile Hint | create省略/显式mixed/五项enum、Field aggregate与revision 1插入中间、URL/body mismatch、expected revision CAS、same value no-op、same-key replay/conflict、current pointer切换前后崩溃、active Observation/Run存在时修订 | 缺省只规范化为显式mixed且digest唯一；Field/current pointer/Profile revision及Foundation receipt/marker/audit全有或全无；same value不加revision；旧revision immutable且可历史恢复；current修改不改写旧Observation/Run/Retry/Candidate，也不通过Session/caller/current cache注入Triage |
-| Field Observation Page | Page DTO/Access/Profile Hint/Request digest验证前后、64 KiB byte budget边界、Field Observation/Profile heads CAS前后、immutable revision与Material current-row逐项写入前后、typed Evidence/Result/marker前后、零Outbox协调、响应前崩溃 | 任一DTO、顺序、continuity、digest、Supporting Work或CAS验证失败整页rollback；完整Page Evidence、Field head、Hint Snapshot revision、全部Material current rows、typed Result和marker全有或全无；同一Work每页Snapshot相同，Hint切换后旧Work后续页零写入；声明false时不要求或伪造Outbox；同marker重放返回原Result且不推进revision；current row被后续页改写后仍可由marker链恢复历史Page；terminal page以前不得形成缺失结论 |
-| Field Eligibility Reconcile | Policy schema/path/precedence边界、terminal coverage形成前后、Selection与Control snapshot读取前后、Batch提交前、逐项basis/revision重验、事务提交前后、响应前崩溃 | 只按`ExtractionPolicy@1`和固定reason precedence计算；无隐藏duplicate suppression；未terminal/Access变化/不可用basis只投影unknown；stale Material row不被覆盖并进入summary；同basis no-op；一个Batch的applied rows全有或全无；无Event Result/marker/Outbox；重启由current facts与rows重新收敛 |
+| Field Observation Page | Page DTO/Access/Profile Hint/Request digest验证前后、64 MiB physical-read边界、Field Observation/Profile heads CAS前后、immutable page header与`proc_field_observation_entries` rows写入前后、compact typed Result/marker前后、零Outbox协调、响应前崩溃 | 任一DTO、顺序、continuity、digest、Supporting Work或CAS验证失败整页rollback；entry rows、Page header、Field head、Hint Snapshot revision、current Material physical projection、typed Result和marker全有或全无；Page Result不含文件明细；同一Work每页Snapshot相同，Hint切换后旧Work后续页零写入；同marker重放返回原Result且不推进revision；历史Observation由entry rows重建 |
+| Field Eligibility Reconcile | Change Set形成前后、Policy schema/path/precedence边界、Selection与Control snapshot读取前后、Batch提交前、逐项material-local basis/revision重验、事务提交前后、响应前崩溃 | 只按`ExtractionPolicy@1`和固定reason precedence计算；无隐藏duplicate suppression；只处理new/changed/missing/unknown或Policy/Access/Control受影响Material；unchanged basis为no-op且不执行SQL UPDATE；stale Material row不被覆盖并进入summary；一个Batch的applied rows全有或全无；无Event Result/marker/Outbox；重启由current facts与durable cursor重新收敛，不要求每行追平全局Observation revision |
 | Procurement Run admission/seal/retry | 1/256/257 member边界、Profile Hint current/terminal Observation一致性与切换、Registry active Rule切换/缺失/digest冲突、Run/Basis/Selection写入前后、逐Control acquire/assert中途、Receipt/marker前后、Candidate publish reservation前后、Seal逐成员Evidence/aggregate digest前后、Retry Intent create/consume head/member snapshot与响应前崩溃 | 空或257项Selection稳定拒绝；新Admission冻结current Profile Hint及使用同一Snapshot的terminal Observation，current Hint变化但未重新Observation时拒绝；新Admission只冻结Registry current active Rule，调用者伪造tuple拒绝，existing Run按保留Profile/Rule entry恢复；1/256项时Run/完整relationized Basis/全部guard/全部Control/Receipt/marker全有或全无；同Field retained Control只assert不伪造revision；Seal只释放未成Package Selection并保留Control/Delivery Reservation，三个digest可在current row后续变化后由immutable relation重建；旧Run始终sealed；Retry Profile/head/set/member digest由rows重算一致，`field_profile_hint_changed` precedence与primary/aggregate映射唯一；一个Intent最多建立一个新Run，任一stale不建部分Run；失败不会自动连锁重试 |
 | Procurement Triage pipeline | Probe Batch 1/100/101边界、Selection完整覆盖/缺页/重复member、Playability closed reason、Structure page/cursor、single/season/disc与N:M Episode、显式Western及mixed profile precedence、Profile revision切换、Unit 64 KiB边界、Identity/Manifest并行、两种canonical continuity kind、Candidate Publication逐字段、完整Related Physical Identity/reference digest、Acceptance Basis/Offer ID/Outbox及revision-head CAS前后崩溃 | 现实读取只来自Shared typed Evidence；Batch/Structure page重放保持同digest；Triage只消费Run冻结Snapshot，caller/current Field/hardcoded mixed均拒绝；显式western_adult形成western_adult，mixed永不形成western_adult；Unit与unassigned跨page精确分区Selection；同Member不得进入两个Unit；Handle/Probe/Layout/Rule/Run digest不匹配fail closed；ordinal从0；Claim不升级为Canonical Identity，别名claim kind稳定拒绝；Identity/Manifest任一缺失不发布Package；Publication把Run `candidate_package_revision_head`增量、Package/final Manifest/`proc_candidate_primary_material_episode_claims`及逐列完整Related relation/Reservation/同一`acceptanceBasisDigest+offerId`的Offer/typed Outbox/typed Result/marker全有或全无，同marker返回原package revision/digest且不建立第二Offer；缺任一Related identity/reference字段整项rollback；Candidate/Run/Offer关闭后仍由Owner rows恢复相同Package/Snapshot digest；机器Transaction的8张domain participant表和3张Foundation participant表必须同时回滚或同时可见 |
 | Libra Subject Abandon | Decision前、Subject terminal后、Primary Control release前后、Receipt/Outbox前 | 要么Subject仍active且Control不变，要么abandoned/Primary released/Receipt全部成立；已有Run时Command稳定拒绝 |

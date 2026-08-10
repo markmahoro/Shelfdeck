@@ -396,7 +396,8 @@
               "disc_structure_incomplete",
               "disc_multi_title_unsupported",
               "triage_unit_contract_too_large",
-              "structure_ambiguous"
+              "structure_ambiguous",
+              "disc_non_primary_title"
             ]
           },
           "evidenceDigest": {
@@ -411,7 +412,7 @@
           "evidenceDigest"
         ]
       },
-      "maxItems": 256
+      "maxItems": 1024
     },
     "unitSetDigest": {
       "type": "string",

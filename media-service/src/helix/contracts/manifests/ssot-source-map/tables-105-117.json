@@ -6,13 +6,24 @@
   "endOrdinal": 117,
   "entries": [
     {
+      "id": "arca_ondeck_settlement_approvals",
+      "owner": "arca",
+      "columnsContract": "`approval_id PK, on_deck_run_id FK, settlement_scope_digest, standing_authorization_id, standing_authorization_revision, actor_or_policy_ref, approved_at_ms, state`",
+      "constraintsContract": "`UNIQUE(on_deck_run_id,settlement_scope_digest)`；自动模式可由当前standing authorization派生，已签发Scope不可扩张",
+      "source": {
+        "section": "8.5.12",
+        "line": 8811,
+        "lineDigest": "5cbc9ffd7ce5f4c44f861b79ff0c8a6cfa8a090d580f870401be0a08c386ea75"
+      }
+    },
+    {
       "id": "arca_shelf_entries",
       "owner": "arca",
       "columnsContract": "`shelf_entry_id PK, shelf_id FK, structure_kind, status, canonical_identity_revision, canonical_identity_key, current_inventory_revision, current_deck_fact_revision, created_at_ms, terminal_at_ms`",
       "constraintsContract": "三个current pointer均显式FK；`INDEX(shelf_id,status,shelf_entry_id)`；Movie/JAV/Western可以重复，Season对active `(shelf_id,canonical_identity_key)`建立partial unique，保证后续Episode Run扩充同一Entry",
       "source": {
         "section": "8.5.12",
-        "line": 8726,
+        "line": 8812,
         "lineDigest": "27009726b5c03e4052c17ab37b7c0044faa459ca91d36a211842bb5c4b38eec3"
       }
     },
@@ -23,7 +34,7 @@
       "constraintsContract": "`PK(shelf_entry_id,revision)`；`INDEX(provider,provider_key,structure_kind)`仅供Duplicate Detection，禁止全局unique",
       "source": {
         "section": "8.5.12",
-        "line": 8727,
+        "line": 8813,
         "lineDigest": "b6b7fb7e12bac7da8359799330c6882cb1bcca8f7968ecedda59d0d7a1254df6"
       }
     },
@@ -34,7 +45,7 @@
       "constraintsContract": "`PK(shelf_entry_id,revision)`；Shelf Entry current pointer显式FK",
       "source": {
         "section": "8.5.12",
-        "line": 8728,
+        "line": 8814,
         "lineDigest": "19ea29a73470be4c0f501b30a3cfcfe75272f78f820e2e13af830e0b00d73656"
       }
     },
@@ -45,7 +56,7 @@
       "constraintsContract": "`PK(shelf_entry_id,inventory_revision,ordinal)`；每个物理Material在一版Inventory中只有一row，active representation中Primary Material全局exclusive partial unique；Episode JSON固定`helix://contracts/application-types/ArcaMaterialEpisodeClaims/v1`、canonical JCS≤`16 KiB`且三列均非NULL，由同一On-deck Run verified `StagedInventoryManifest@1` member逐字节复制；Inventory Representation与Deck Fact digest覆盖完整typed Set，历史revision从本row独立重建，不得复制多条Material row表达多个Episode",
       "source": {
         "section": "8.5.12",
-        "line": 8729,
+        "line": 8815,
         "lineDigest": "4965590f2ef4d42820652677569fab11579d604801cf83c7f8e0f276a5b9cc94"
       }
     },
@@ -56,7 +67,7 @@
       "constraintsContract": "`PK(shelf_entry_id,inventory_revision,reference_id)`；last-reference计算只使用active Inventory revisions",
       "source": {
         "section": "8.5.12",
-        "line": 8730,
+        "line": 8816,
         "lineDigest": "1ebb004910adfed305d0022484124571dc61abfd903edc064775d184f9789bda"
       }
     },
@@ -67,7 +78,7 @@
       "constraintsContract": "Fact JSON上限`64 KiB`；`PK(shelf_entry_id,inventory_revision,fact_kind,fact_revision)`；Arca保存Accepted Product Fact snapshot，不运行时回读Libra Store",
       "source": {
         "section": "8.5.12",
-        "line": 8731,
+        "line": 8817,
         "lineDigest": "e26fbd4876a2b956d2690a4c2e5b9524753384bf8fc061c9671188d38fef5268"
       }
     },
@@ -78,7 +89,7 @@
       "constraintsContract": "`PK(shelf_entry_id,inventory_revision,relation_id)`；同一relation lineage可在新Inventory revision保留relationId；`person_id IS NULL`是合法未注册关系；Provider JSON上限`4 KiB`且digest匹配；`UNIQUE(shelf_entry_id,inventory_revision,relation_digest)`；`INDEX(person_id,role,shelf_entry_id)`供People/Off-deck只读Projection；Aftercare只能按`6.6.2.1`确定性Evidence发布新Inventory revision，不原地PATCH历史row",
       "source": {
         "section": "8.5.12",
-        "line": 8732,
+        "line": 8818,
         "lineDigest": "71a12e530d699cd8186a5ec1f7b56ab0b95cb0a27a1eb9d6575f24e04b4f968d"
       }
     },
@@ -89,7 +100,7 @@
       "constraintsContract": "`PK(shelf_entry_id,revision)`；只有On-deck Commit可写active Deck Fact",
       "source": {
         "section": "8.5.12",
-        "line": 8733,
+        "line": 8819,
         "lineDigest": "5fd9656b5a8d03c03e87964767d6f65267f763a59efd428706f1835e6885cb76"
       }
     },
@@ -100,7 +111,7 @@
       "constraintsContract": "`UNIQUE(on_deck_run_id)`；与On-deck Canonical Fact set同事务成立",
       "source": {
         "section": "8.5.12",
-        "line": 8734,
+        "line": 8820,
         "lineDigest": "9b60bbe10ab71f5ddfc41c57f1840664428b3dbafee698cfd75395720fae1db0"
       }
     },
@@ -111,7 +122,7 @@
       "constraintsContract": "`UNIQUE(on_deck_run_id)`；immutable Outbox source",
       "source": {
         "section": "8.5.12",
-        "line": 8735,
+        "line": 8821,
         "lineDigest": "a2d89572372aab45d8ef9f52b7386f3a46b333393352549fdcd3de1efbe66846"
       }
     },
@@ -122,7 +133,7 @@
       "constraintsContract": "`UNIQUE(shelf_entry_id,care_basis_digest,assessment_kind)`；`INDEX(result,assessed_at_ms)`；同Inventory/Standard下Decision Fact或Placement变化仍可形成新Assessment",
       "source": {
         "section": "8.5.12",
-        "line": 8736,
+        "line": 8822,
         "lineDigest": "dd5acb9f151e6c9596b56d003cbfe36bcbf4c464a6daec044a78747eef6703e7"
       }
     },
@@ -133,19 +144,8 @@
       "constraintsContract": "`INDEX(state,repairability,severity,created_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 8737,
+        "line": 8823,
         "lineDigest": "2d8dd47bea6e2d8bb59708cdf5e919dd788c4a77c0c09dc14b036a62f3def09f"
-      }
-    },
-    {
-      "id": "arca_aftercare_cases",
-      "owner": "arca",
-      "columnsContract": "`aftercare_case_id PK, shelf_entry_id FK, finding_set_digest, care_basis_schema_ref, care_basis_json, care_basis_digest, care_requirement_schema_ref, care_requirement_json, care_requirement_digest, state, created_at_ms, terminal_at_ms`",
-      "constraintsContract": "两个JSON各上限`64 KiB`；相同`care_basis+finding_set+requirement`至多一个non-terminal Case；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)`",
-      "source": {
-        "section": "8.5.12",
-        "line": 8738,
-        "lineDigest": "2ecca7c7375285756a1db62efc10b27c217c21ae7ab249c784d5905e48571476"
       }
     }
   ]

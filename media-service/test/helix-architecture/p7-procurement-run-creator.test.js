@@ -36,25 +36,45 @@ test('257 member directory is closed and never split', () => {
     reasonCode: 'procurement_selection_scope_too_large' }]);
 });
 
-test('BDMV members use the nearest BDMV ancestor as one indivisible group', () => {
+test('BDMV members and sibling CERTIFICATE use one logical container group', () => {
   const materials = [
     { materialKey:'a'.repeat(64), relativeLocation:'Movie/BDMV/STREAM/00000.m2ts' },
     { materialKey:'b'.repeat(64), relativeLocation:'Movie/BDMV/PLAYLIST/00000.mpls' },
     { materialKey:'c'.repeat(64), relativeLocation:'Movie/BDMV/CLIPINF/00000.clpi' },
+    { materialKey:'e'.repeat(64), relativeLocation:'Movie/CERTIFICATE/id.bdmv' },
     { materialKey:'d'.repeat(64), relativeLocation:'Movie/sidecar.nfo' },
   ];
   const value = createProcurementRunSlices({ fieldId:'field', creationBasisDigest:BASIS, materials });
   assert.equal(value.runs.length, 1);
-  assert.equal(new Set(value.runs[0].members.map((item) => item.directParent)).size, 2);
-  assert.equal(value.runs[0].members.filter((item) => item.relativeLocation.includes('/BDMV/')).length, 3);
+  assert.equal(value.runs[0].members.filter((item) => /(?:BDMV|CERTIFICATE)/i.test(item.relativeLocation)).length, 4);
+  assert.equal(value.runs[0].logicalSelectionCount, 2);
 });
 
-test('BDMV group over 256 is closed as one group', () => {
+test('BDMV group uses one logical slot up to the atomic Control physical cap', () => {
   const materials = group('Movie/BDMV/STREAM', 257);
+  const value = createProcurementRunSlices({ fieldId:'field', creationBasisDigest:BASIS, materials });
+  assert.equal(value.runs.length, 1);
+  assert.equal(value.runs[0].members.length, 257);
+  assert.equal(value.runs[0].logicalSelectionCount, 1);
+});
+
+test('BDMV group above the bounded physical cap is closed as one group', () => {
+  const materials = group('Movie/BDMV/STREAM', 1025);
   const value = createProcurementRunSlices({ fieldId:'field', creationBasisDigest:BASIS, materials });
   assert.equal(value.runs.length, 0);
   assert.equal(value.closedGroups[0].groupKind, 'bdmv');
   assert.equal(value.closedGroups[0].reasonCode, 'procurement_selection_scope_too_large');
+});
+
+test('multiple legal BDMV groups cannot overflow one Run physical input', () => {
+  const materials = [
+    ...group('A/BDMV/STREAM', 500),
+    ...group('B/BDMV/STREAM', 500),
+    ...group('C/BDMV/STREAM', 500),
+  ];
+  const value = createProcurementRunSlices({ fieldId:'field', creationBasisDigest:BASIS, materials });
+  assert.deepEqual(value.runs.map((run) => run.members.length), [1000, 500]);
+  assert.deepEqual(value.runs.map((run) => run.logicalSelectionCount), [2, 1]);
 });
 
 test('1000 members create multiple non-overlapping stable Runs', () => {

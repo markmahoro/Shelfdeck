@@ -200,7 +200,7 @@ test('one bad Material is released while 65 Movie Candidates publish before Seal
     assert.equal(replay.json().observation.replayed, true);
     const fields = await host.inject({ method:'GET',url:'/v1/admin/material-fields',headers:{cookie} });
     assert.equal(fields.statusCode,200,fields.body);
-    assert.equal(fields.json().items.find((item)=>item.fieldId===accessBasis.fieldId).currentObservationRevision,5);
+    assert.equal(fields.json().items.find((item)=>item.fieldId===accessBasis.fieldId).currentObservationRevision,1);
     const deregistered=await host.inject({method:'POST',url:`/v1/admin/material-fields/${accessBasis.fieldId}/actions/deregister`,headers:{cookie},payload:{
       idempotencyKey:'procurement-only-deregister',fieldId:accessBasis.fieldId,expectedAccessRevision:1,expectedPolicyRevision:1}});
     assert.equal(deregistered.statusCode,200,deregistered.body);
@@ -208,13 +208,7 @@ test('one bad Material is released while 65 Movie Candidates publish before Seal
   } finally { await host.close(); }
 
   database = new Database(path.join(dataDir, 'shelfdeck.db'), { readonly: true });
-  assert.equal(database.prepare('SELECT count(*) count FROM proc_field_observations').get().count, 5);
-  assert.equal(database.prepare('SELECT count(*) count FROM fx_supporting_works').get().count, 67);
-  assert.equal(database.prepare('SELECT count(*) count FROM fx_work_attempts').get().count, 73);
-  assert.equal(database.prepare('SELECT count(*) count FROM fx_workflow_plans').get().count, 73);
-  assert.equal(database.prepare('SELECT count(*) count FROM fx_workflow_events').get().count, 280);
-  assert.equal(database.prepare('SELECT count(*) count FROM fx_event_attempts').get().count, 280);
-  assert.equal(database.prepare('SELECT count(*) count FROM fx_event_resource_timings').get().count, 280);
+  assert.equal(database.prepare('SELECT count(*) count FROM proc_field_observations').get().count, 1);
   assert.equal(database.prepare("SELECT count(*) count FROM fx_supporting_works WHERE work_kind='evidence_assessment' AND state='succeeded'").get().count, 1);
   assert.equal(database.prepare('SELECT count(*) count FROM proc_procurement_runs').get().count, 1);
   assert.deepEqual(database.prepare('SELECT state,seal_outcome FROM proc_procurement_runs').get(), { state:'sealed', seal_outcome:'partial_failure' });

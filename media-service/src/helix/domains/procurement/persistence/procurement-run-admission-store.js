@@ -142,7 +142,7 @@ function createProcurementRunAdmissionStore(options) {
             row.fingerprint_algorithm !== member.physicalIdentity.fingerprintAlgorithm || Number(row.fingerprint_version) !== member.physicalIdentity.fingerprintVersion ||
             row.content_fingerprint !== member.physicalIdentity.contentFingerprint ||
             toNumber(row.size_bytes, 'sizeBytes') !== member.sizeBytes ||
-            row.eligibility_field_status !== 'active' || toNumber(row.eligibility_observation_revision, 'eligibilityObservationRevision') !== basis.terminalObservation.revision ||
+            row.eligibility_field_status !== 'active' ||
             toNumber(row.eligibility_policy_revision, 'eligibilityPolicyRevision') !== basis.extractionPolicy.revision || row.control_projection_digest !== snapshot.projectionDigest) {
           fail('P7_RUN_ADMISSION_MEMBER_STALE', 'Selected Material no longer matches its frozen eligible snapshot.', { materialKey:member.materialKey });
         }

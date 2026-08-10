@@ -121,7 +121,6 @@ const {
   createMaterialFieldStore,
 } = require('./helix/domains/procurement/persistence/material-field-store');
 const { createCleanMediaProbe } = require('./clean-media-probe');
-const { createCleanLayoutObserver } = require('./clean-layout-observer');
 const {
   createCleanProductProductionPort,
 } = require('./clean-product-production-port');
@@ -924,7 +923,11 @@ function createRuntime(options) {
     });
     return Object.freeze({
       runtime,
-      applicationDependencies: Object.freeze({ schemaManifest, unitOfWork }),
+      applicationDependencies: Object.freeze({
+        schemaManifest,
+        unitOfWork,
+        procurementMetrics: options.procurementMetrics || null,
+      }),
       findings: Object.freeze([]),
       close: () => kernel.close(),
     });
@@ -1032,7 +1035,6 @@ async function createCleanServiceHost(options) {
     constructed.applicationDependencies,
   );
   const mediaProbe = options.mediaProbe || createCleanMediaProbe();
-  const layoutObserver = options.layoutObserver || createCleanLayoutObserver();
   const workspaceProductPort = createCleanWorkspaceProductPort({
     ...constructed.applicationDependencies,
     rootPath: options.workspaceRoot || path.join(options.dataDir, 'workspace'),
@@ -1360,7 +1362,6 @@ async function createCleanServiceHost(options) {
     pageObserverFactory: createFieldPageObserver,
     enumerator: fieldEnumerator,
     mediaProbe,
-    layoutObserver,
     now: options.now || Date.now,
     onError: options.onExecutionRuntimeError,
   });

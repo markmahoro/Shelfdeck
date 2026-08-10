@@ -3,11 +3,13 @@
 const crypto = require('crypto');
 
 const EXPECTED_COUNTS = Object.freeze({
-  capabilities: 112,
-  resultFamilies: 97,
-  tables: 179,
+  capabilities: 110,
+  resultFamilies: 96,
+  tables: 180,
   transactions: 43
 });
+
+const RETIRED_RESULT_FAMILIES = new Set(['FieldObservationPage', 'ObservationCommitResult', 'LayoutEvidence']);
 
 function sha256(value) {
   return crypto.createHash('sha256').update(value).digest('hex');
@@ -153,6 +155,7 @@ function buildResultFamilies(lines, capabilities) {
       const cells = splitMarkdownRow(rawLine);
       if (cells.length < 2) continue;
       for (const name of codeTokens(cells[0])) {
+        if (RETIRED_RESULT_FAMILIES.has(name)) continue;
         if (!definitionLocators.has(name)) {
           definitionLocators.set(name, locator(sectionForLine(lines, range.start + offset), range.start + offset, rawLine));
         }
@@ -171,6 +174,20 @@ function buildResultFamilies(lines, capabilities) {
     };
     entry.producedBy.push(capability.id);
     byName.set(name, entry);
+  }
+
+  // Receipt-only nominal types are not capability outputs, but remain part of the
+  // active Result-family catalog because canonical transactions persist them.
+  const receiptName = 'ObservationPageCommitReceipt';
+  if (!byName.has(receiptName)) {
+    const locatorEntry = definitionLocators.get(receiptName);
+    if (!locatorEntry) throw new Error(`Missing active Result family definition: ${receiptName}`);
+    byName.set(receiptName, {
+      id: receiptName,
+      kind: locatorEntry.section === '8.6.18' ? 'direct-handle-result' : 'nominal-result',
+      producedBy: [],
+      source: locatorEntry
+    });
   }
 
   const outcomeLineOffset = outcomeRange.lines.findIndex((line) => line.startsWith('| `succeeded`'));

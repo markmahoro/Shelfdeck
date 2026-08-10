@@ -1,16 +1,20 @@
 # ShelfDeck / Helix Documentation Index
 
-Status: first-implementation retake active；Execution Foundation已`CLOSED FOR DOMAIN ONBOARDING`；Layout Snapshot及Triage Unit/Candidate Context改造已通过本地Node回归和只读全库Canary；Docker/NAS和生产均未开始。
+Status: first-implementation retake active；Observation事实表与增量Eligibility改造已完成；Execution Foundation与Procurement已通过本地全链验证并标记`CLOSED FOR DOMAIN ONBOARDING`。Docker/NAS和生产均未开始。
 
 第一次实施的P0–P13资产继续保留，但此前由大型Coordinator同步闭环得到的Movie Canary只证明低层Capability、Owner事实和
 Handoff A Ready数据形态可工作，不构成`Work Scheduler → Event Runtime → Resource Governor`已经参与的Foundation E2E证据。
-当前唯一活动实施计划见`CURRENT_PLAN.md`。最终`Z:\Film`全库Canary使用本机Node.js临时clean数据库完成，曾在中断后从durable事实恢复；本线程负责实现及异常诊断。
+当前唯一活动实施计划见`CURRENT_PLAN.md`。最终`Z:\Film`全库Canary使用本机Node.js临时clean数据库完成，主动重启后从durable事实恢复；本线程负责实现及异常诊断。最新Canary还验证了Related关联不会吸收BDMV内部文件或同stem视频载荷；证据记录在`CURRENT_STATUS.md`。
 
 Physical Material不再计算全文件Hash。当前唯一合同读取文件正中间最多262,144 bytes并执行前后stat fence；NAS负责bit rot和底层
 完整性。Artifact、Canonical JSON与事务Evidence digest仍使用SHA-256，这些digest不得作为Physical Material Identity。
 
-Observation完成后会生成冻结的Layout Snapshot供Procurement Triage复用；Triage Layout不再重复扫描NAS目录或读取相关文件。
-Media Probe仍是独立Event，仅对Run Selection执行。
+Observation是Procurement后续流程的物理事实起点：每个已观察文件永久写入`proc_field_observation_entries`，
+`proc_field_observations`只保存Page/Observation头和compact receipt。Page最多256个文件、64 MiB物理读取；
+Eligibility保留在`proc_field_materials`，但只对有界Material-local Change Set重算，完全不变的每日Observation不写Eligibility列。
+
+Observation完成后，Layout只作为Observation entries上的冻结技术Projection供Procurement Triage复用；不再有独立Layout Capability/Event/Result，
+Triage不重复解析Page JSON，也不重复扫描NAS目录。Media Probe仍是独立Event，仅对Run Selection执行。
 
 Candidate Assembly现在通过运行时可重建的`TriageEvidenceIndex`按`unitId`直接定位Structure Result，并按`runId + unitId`
 共享不可变Candidate Context；Identity、Manifest、Publication不再重复读取完整Run、完整Structure Result或整Field Material。

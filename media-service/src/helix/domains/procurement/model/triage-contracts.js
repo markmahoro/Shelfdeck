@@ -7,8 +7,9 @@ const {
 } = require('./field-profile-hint-contracts');
 
 const PLAYABILITY_REASONS = Object.freeze(['probe_not_media', 'no_video_stream', 'non_positive_duration']);
+const MAX_RUN_PHYSICAL_MEMBERS = 1024;
 const STRUCTURE_REASONS = Object.freeze([...PLAYABILITY_REASONS, 'content_profile_unresolved', 'conflicting_season_claim',
-  'episode_claim_unresolved', 'disc_structure_incomplete', 'disc_multi_title_unsupported',
+  'episode_claim_unresolved', 'disc_structure_incomplete', 'disc_multi_title_unsupported', 'disc_non_primary_title',
   'triage_unit_contract_too_large', 'structure_ambiguous']);
 const CLAIM_KIND = Object.freeze({ movie:'movie_title', series:'series_season', jav:'jav_code', western_adult:'western_temporary' });
 
@@ -46,10 +47,26 @@ function validateBatch(batch) {
   });
 }
 
+function isBdmvStructuralLocation(location) {
+  const normalized = String(location || '').replace(/\\/g, '/').toUpperCase();
+  // The BDMV BACKUP subtree carries the same structural metadata.  Keep it
+  // out of the Playability failure path just like the root metadata tree.
+  return /(?:^|\/)BDMV\/(?:.*\/)?(?:[^/]+\.MPLS|[^/]+\.CLPI|INDEX\.BDMV|MOVIEOBJECT\.BDMV)$/.test(normalized) ||
+    /(?:^|\/)CERTIFICATE\/ID\.BDMV$/.test(normalized);
+}
+
 function inspectPlayability(batch, rule, options = {}) {
   validateTriageRuleSnapshot(rule); validateBatch(batch);
   const materialResults = batch.members.map((member) => {
     const probe = member.mediaProbe; const reasons = [];
+    // BDMV metadata files are structural dependencies, not playable payloads.
+    // Their bounded topology evidence is still carried by MediaProbeEvidence,
+    // but they must never fail the payload Playability gate.
+    if (isBdmvStructuralLocation(member.readHandle.location)) {
+      const result = { selectionOrdinal:member.selectionOrdinal, materialKey:member.materialKey, bindingRevision:member.bindingRevision,
+        probeEvidenceDigest:probe.payloadDigest, playable:true, reasonCodes:[] };
+      return freeze({ ...result, resultDigest:digest(result) });
+    }
     if (probe.resultKind !== 'probed') reasons.push('probe_not_media');
     else {
       if (!Array.isArray(probe.videoStreams) || probe.videoStreams.length < rule.rulePayload.playabilityRule.minimumVideoStreamCount) reasons.push('no_video_stream');
@@ -95,10 +112,73 @@ function seriesTitleFrom(context, temporaryLabel) {
 function contextMap(input) { return new Map(input.materialFieldContext.memberContexts.map((item) => [item.materialKey, item])); }
 function probeMap(input) { return new Map(input.probeBatches.flatMap((batch) => batch.members).map((item) => [item.materialKey, item])); }
 function playableMap(input) { return new Map(input.playabilityPages.flatMap((page) => page.materialResults).map((item) => [item.materialKey, item])); }
+function observationScopeLayoutEvidence(input) {
+  const projection = input.observationScopeProjection;
+  if (!projection) return input.layoutEvidence || [];
+  const selectedByKey = new Map(input.selectedFieldMaterialSet.members.map((member) => [member.materialKey, member]));
+  const entries = (projection.entries || []).map((entry, ordinal) => {
+    const member = selectedByKey.get(entry.materialKey);
+    const location = entry.currentLocation || entry.relativeLocation;
+    return { entryOrdinal:ordinal, entryKind:'file', relativeLocation:entry.relativeLocation, baseName:entry.baseName,
+      extension:entry.extension, identity:entry.identity || member?.physicalIdentity || null,
+      endpointId:entry.endpointId || member?.endpointId || null, location, sizeBytes:Number(entry.sizeBytes ?? member?.sizeBytes ?? 0), entryDigest:entry.entryDigest };
+  }).filter((entry) => entry.identity);
+
+  // A BDMV topology must see the complete BDMV root as one scope, while its
+  // external sidecars live in the immediate parent scope.  Ordinary materials
+  // use their direct parent scope.  Keeping separate evidence objects prevents
+  // a poster from one directory being considered for a different movie.
+  const byScope = new Map();
+  for (const entry of entries) {
+    // Directory matching is against the frozen Field-relative context; the
+    // file entry itself still retains its absolute current location for the
+    // eventual Related Material reference.
+    const scopeSource = entry.relativeLocation || entry.location;
+    const root = bdmvRootForLocation(scopeSource);
+    const scopeLocation = root || String(scopeSource || '').replace(/\\/g, '/').split('/').slice(0, -1).join('/') || '.';
+    const scopeKey = (root ? 'bdmv:' : 'directory:') + normalizedLocation(scopeLocation);
+    if (!byScope.has(scopeKey)) byScope.set(scopeKey, { scopeLocation, entries:[] });
+    byScope.get(scopeKey).entries.push(entry);
+  }
+  return [...byScope.values()].sort((left, right) => compareUtf8(normalizedLocation(left.scopeLocation), normalizedLocation(right.scopeLocation)))
+    .map((scope, scopeOrdinal) => {
+      const files = scope.entries.sort((left, right) => compareUtf8(normalizedLocation(left.location), normalizedLocation(right.location)) ||
+        compareUtf8(left.identity.materialKey, right.identity.materialKey)).map((entry, ordinal) => ({ ...entry, entryOrdinal:ordinal + 1 }));
+      const directory = { entryOrdinal:0, entryKind:'directory', relativeLocation:'.',
+        baseName:String(scope.scopeLocation).replace(/\\/g, '/').split('/').at(-1) || '.', extension:'', identity:null,
+        endpointId:null, location:scope.scopeLocation, sizeBytes:0, entryDigest:digest({ schema:'procurement.observation-scope-directory@1', location:scope.scopeLocation }) };
+      const scopedEntries = [directory, ...files];
+      const scopeDigest = digest({ schema:'procurement.observation-scope@2', projectionRevision:projection.projectionRevision,
+        projectionScopeDigest:projection.scopeDigest, scopeLocation:normalizedLocation(scope.scopeLocation),
+        entries:scopedEntries.map(({ entryOrdinal, entryKind, relativeLocation, baseName, extension, identity, endpointId, location, sizeBytes, entryDigest }) =>
+          ({ entryOrdinal, entryKind, relativeLocation, baseName, extension, materialKey:identity?.materialKey || null, endpointId, location, sizeBytes, entryDigest })) });
+      const entriesDigest = digest({ schema:'procurement.observation-scope-entries@2', items:scopedEntries });
+      const payloadDigest = digest({ schema:'procurement.observation-scope-projection@2', projectionRevision:projection.projectionRevision,
+        projectionScopeDigest:projection.scopeDigest, scopeDigest, entriesDigest });
+      return { schemaRef:'helix://contracts/types/LayoutEvidence/v1', schemaVersion:1,
+        evidenceId:'observation-scope-' + scopeOrdinal + '-' + scopeDigest.slice(0, 40), evidenceKind:'observation_scope_projection',
+        producerRef:'procurement.observation.scope.projection@2', basisDigest:projection.scopeDigest, payloadDigest, observedAtMs:0,
+        sourceHandleDigest:projection.scopeDigest, boundedScopeDigest:scopeDigest, entries:scopedEntries, entriesDigest, layoutDigest:scopeDigest };
+    });
+}
 function bdmvRootForLocation(location) {
   const parts = String(location || '').replace(/\\/g, '/').split('/');
   for (let index = parts.length - 2; index >= 0; index -= 1) {
     if (parts[index].toUpperCase() === 'BDMV') return parts.slice(0, index + 1).join('/');
+  }
+  return null;
+}
+function bdmvContainerForLocation(location, contexts = []) {
+  const normalized = String(location || '').replace(/\\/g, '/');
+  const parts = normalized.split('/');
+  for (let index = parts.length - 2; index >= 0; index -= 1) {
+    if (parts[index].toUpperCase() === 'BDMV') return parts.slice(0, index).join('/') || '.';
+  }
+  const certificateIndex = parts.length - 2;
+  if (certificateIndex >= 0 && parts[certificateIndex].toUpperCase() === 'CERTIFICATE') {
+    const candidate = parts.slice(0, certificateIndex).join('/') || '.';
+    const hasBdmvSibling = contexts.some((context) => bdmvContainerForLocation(context.fieldRelativeLocation, []) === candidate);
+    if (hasBdmvSibling) return candidate;
   }
   return null;
 }
@@ -113,11 +193,11 @@ function bdmvInternalEntry(entry) {
     /\.(MPLS|CLPI|M2TS|BDMV)$/.test(baseName);
 }
 function validateStructureInput(input) {
-  exact(input, ['selectedFieldMaterialSet','probeBatches','playabilityPages','materialFieldContext','layoutEvidence','pageRequest','inputDigest'],
+  exact(input, ['selectedFieldMaterialSet','probeBatches','playabilityPages','materialFieldContext','observationScopeProjection','pageRequest','inputDigest'],
     'P7_TRIAGE_STRUCTURE_INPUT_SHAPE');
   const selection = input.selectedFieldMaterialSet;
-  if (!Array.isArray(selection.members) || selection.members.length < 1 || selection.members.length > 256 ||
-      !Array.isArray(input.probeBatches) || !Array.isArray(input.playabilityPages) || !Array.isArray(input.layoutEvidence)) {
+  if (!Array.isArray(selection.members) || selection.members.length < 1 || selection.members.length > MAX_RUN_PHYSICAL_MEMBERS ||
+      !Array.isArray(input.probeBatches) || !Array.isArray(input.playabilityPages) || !input.observationScopeProjection || !Array.isArray(input.observationScopeProjection.entries)) {
     fail('P7_TRIAGE_STRUCTURE_INPUT_BOUNDS', 'Structure input collections are invalid.');
   }
   input.probeBatches.forEach(validateBatch);
@@ -147,7 +227,7 @@ function validateStructureInput(input) {
   const basis = { schema:'procurement.triage-structure-input@1', selectionDigest:selection.selectionDigest,
     probeBatchDigests:input.probeBatches.map((item) => item.batchDigest),
     playabilityPayloadDigests:input.playabilityPages.map((item) => item.payloadDigest), contextDigest:input.materialFieldContext.contextDigest,
-    layoutPayloadDigests:[...input.layoutEvidence].sort((a,b) => compareUtf8(a.evidenceId,b.evidenceId)).map((item) => item.payloadDigest),
+    observationScopeProjectionDigest:input.observationScopeProjection.scopeDigest,
     pageRequest:input.pageRequest };
   if (input.inputDigest !== digest(basis)) fail('P7_TRIAGE_STRUCTURE_INPUT_DIGEST', 'Structure input digest is invalid.');
 }
@@ -165,11 +245,15 @@ function layoutEvidenceForContext(context, layoutEvidence) {
   const fieldLocation = String(context.fieldRelativeLocation || '').replace(/\\/g, '/');
   const bdmvRoot = bdmvRootForLocation(fieldLocation);
   const separator = fieldLocation.lastIndexOf('/');
-  const expectedDirectory = normalizedLocation(bdmvRoot || (separator >= 0 ? fieldLocation.slice(0, separator) : '.'));
+  const expectedDirectories = new Set([normalizedLocation(bdmvRoot || (separator >= 0 ? fieldLocation.slice(0, separator) : '.'))]);
+  if (bdmvRoot) {
+    const rootSeparator = bdmvRoot.lastIndexOf('/');
+    expectedDirectories.add(normalizedLocation(rootSeparator >= 0 ? bdmvRoot.slice(0, rootSeparator) : '.'));
+  }
   return layoutEvidence.filter((evidence) => {
     if (refs.has(layoutEvidenceRefKey(evidence))) return true;
     const directory = (evidence.entries || []).find((entry) => entry.entryKind === 'directory' && entry.relativeLocation === '.');
-    return directory && normalizedLocation(directory.location) === expectedDirectory;
+    return directory && expectedDirectories.has(normalizedLocation(directory.location));
   });
 }
 
@@ -190,6 +274,11 @@ function relatedFor(context, layoutEvidence, primaryMaterialKey) {
       const stemMatches = [...primaryStems].some((primaryStem) => stem === primaryStem || stem.startsWith(primaryStem + '.') ||
         stem.startsWith(primaryStem + '-') || stem.startsWith(primaryStem + '_'));
       const sidecar = /\.(srt|ass|ssa|vtt|aac|ac3|dts|flac|mka|chapters|xml)$/.test(lower);
+      // A same-stem video is another payload, not a Related Material.  It
+      // must be represented by the Structure/primary selection rules (or
+      // remain unassigned), never smuggled into the sidecar reference set.
+      const mediaPayload = /\.(3gp|asf|avi|divx|flv|iso|m2ts|m4v|mkv|mov|mp4|mpeg|mpg|mts|mxf|ogm|rm|rmvb|ts|vob|webm|wmv)$/.test(lower);
+      if (mediaPayload) continue;
       if (!stemMatches && !standard) continue;
       const chapter = extension === '.chapters' || extension === '.xml' && /(?:^|[-_. ])chapters$/.test(stem);
       const role = extension === '.nfo' ? 'nfo' : image && /(?:^|[-_. ])poster$/.test(stem) ? 'poster'
@@ -304,9 +393,14 @@ function unitFor(
   return value;
 }
 
-function bdmvUnitFor(group, topology, contexts, probes, layoutEvidence, fieldContext, profileHintSnapshot) {
-  const root = bdmvRootForLocation(contexts[0].fieldRelativeLocation);
-  const byRelative = new Map(group.map((item) => [relativeToBdmvRoot(contexts.find((context) => context.materialKey === item.materialKey).fieldRelativeLocation, root).toUpperCase(), item]));
+function bdmvUnitFor(group, topology, contexts, probes, layoutEvidence, fieldContext, profileHintSnapshot, root) {
+  const topologyRoot = root || contexts.map((context) => bdmvRootForLocation(context.fieldRelativeLocation)).find(Boolean);
+  if (!topologyRoot) return { kind:'incomplete' };
+  const byRelative = new Map(group.map((item) => {
+    const context = contexts.find((candidate) => candidate.materialKey === item.materialKey);
+    const relative = relativeToBdmvRoot(context?.fieldRelativeLocation, topologyRoot);
+    return [relative ? relative.toUpperCase() : '', item];
+  }).filter(([key]) => key));
   const topologyMembers = topology.members.map((member) => ({ ...member, key: String(member.relativeLocation).replace(/\\/g, '/').toUpperCase() }));
   const selectedMembers = [];
   for (const topologyMember of topologyMembers) {
@@ -335,7 +429,7 @@ function bdmvUnitFor(group, topology, contexts, probes, layoutEvidence, fieldCon
   value.unitId = digest({ schema:'procurement.triage-unit-id@1', mediaType:value.mediaType, contentProfile:value.contentProfile,
     structureKind:value.structureKind, members:value.members.map(({ materialKey, role, episodeClaims }) => ({ materialKey, role, episodeClaims })) });
   value.unitDigest = digest(without(value, 'unitDigest'));
-  return { kind:'resolved', unit:value, selectedKeys:new Set(topologyMembers.map((member) => member.key)) };
+  return { kind:'resolved', unit:value, selectedKeys:new Set(topologyMembers.map((member) => member.key)), topologyRoot };
 }
 
 function conserveUnitBound(unit, unassigned) {
@@ -426,6 +520,7 @@ function mergeSeriesUnits(groups, unassigned) {
 
 function inspectStructure(input, rule, options = {}) {
   validateTriageRuleSnapshot(rule); validateStructureInput(input);
+  const layoutEvidence = observationScopeLayoutEvidence(input);
   const selection = input.selectedFieldMaterialSet; const contexts = contextMap(input); const probes = probeMap(input); const playable = playableMap(input);
   const units = []; const unassigned = []; const seriesGroups = new Map(); const processed = new Set();
   const profileHintSnapshot = input.materialFieldContext.profileHintSnapshot;
@@ -433,13 +528,18 @@ function inspectStructure(input, rule, options = {}) {
     for (const selected of group) unassigned.push({ materialKey:selected.materialKey, reasonCode,
       evidenceDigest:evidenceDigest || digest({ schema:'procurement.bdmv-structure-decision@1', materialKey:selected.materialKey, reasonCode }) });
   };
+  const allContexts = [...contexts.values()];
+  const bdmvContainerKeys = new Map(allContexts.map((context) => [context.materialKey,
+    bdmvContainerForLocation(context.fieldRelativeLocation, allContexts)]));
   for (const selected of selection.members) {
     if (processed.has(selected.materialKey)) continue;
     const context = contexts.get(selected.materialKey); const probe = probes.get(selected.materialKey); const play = playable.get(selected.materialKey);
     if (!context || !probe || !play || probe.bindingRevision !== selected.bindingRevision) fail('P7_TRIAGE_STRUCTURE_MAPPING', 'Structure input does not exactly cover Selection.');
-    const bdmvRoot = bdmvRootForLocation(context.fieldRelativeLocation);
-    if (bdmvRoot) {
-      const group = selection.members.filter((candidate) => bdmvRootForLocation(contexts.get(candidate.materialKey)?.fieldRelativeLocation) === bdmvRoot);
+    const bdmvContainer = bdmvContainerKeys.get(selected.materialKey);
+    const bdmvRoot = bdmvContainer ? allContexts.map((candidate) => bdmvRootForLocation(candidate.fieldRelativeLocation))
+      .find((root) => root && root.replace(/\\/g, '/').replace(/\/BDMV$/, '') === bdmvContainer) : null;
+    if (bdmvContainer && bdmvRoot) {
+      const group = selection.members.filter((candidate) => bdmvContainerKeys.get(candidate.materialKey) === bdmvContainer);
       group.forEach((candidate) => processed.add(candidate.materialKey));
       const topologyResults = group.map((candidate) => probes.get(candidate.materialKey).mediaProbe.discTopology).filter(Boolean);
       const hint = profileHintSnapshot.contentProfileHint;
@@ -452,8 +552,12 @@ function inspectStructure(input, rule, options = {}) {
       if (topologyResults.some((item) => item.topologyDigest !== topology.topologyDigest)) {
         addGroupUnassigned(group, 'structure_ambiguous'); continue;
       }
-      if (topology.titleCount !== 1) { addGroupUnassigned(group, 'disc_multi_title_unsupported', topology.singleTitleEvidenceDigest); continue; }
-      const relatives = new Set(group.map((candidate) => relativeToBdmvRoot(contexts.get(candidate.materialKey).fieldRelativeLocation, bdmvRoot).toUpperCase()));
+      // Multiple valid playlists are common on commercial discs (menus,
+      // trailers, alternate cuts).  The topology reader already selected one
+      // deterministic primary; only the non-primary material is closed with
+      // evidence instead of blocking the whole Movie Candidate.
+      const relatives = new Set(group.map((candidate) => relativeToBdmvRoot(contexts.get(candidate.materialKey).fieldRelativeLocation, bdmvRoot))
+        .filter(Boolean).map((value) => value.toUpperCase()));
       const hasIndex = relatives.has('INDEX.BDMV'); const hasMovieObject = relatives.has('MOVIEOBJECT.BDMV');
       const hasPlaylist = [...relatives].some((value) => /^PLAYLIST\/[^/]+\.MPLS$/.test(value));
       const hasStream = [...relatives].some((value) => /^STREAM\/[^/]+\.M2TS$/.test(value));
@@ -461,24 +565,27 @@ function inspectStructure(input, rule, options = {}) {
       const groupContexts = group.map((candidate) => contexts.get(candidate.materialKey));
       const groupProbes = new Map(group.map((candidate) => [candidate.materialKey, probes.get(candidate.materialKey)]));
       const built = bdmvUnitFor(group.map((candidate) => probes.get(candidate.materialKey)), topology, groupContexts, groupProbes,
-        input.layoutEvidence, input.materialFieldContext, profileHintSnapshot);
+        layoutEvidence, input.materialFieldContext, profileHintSnapshot, bdmvRoot);
       if (built.kind !== 'resolved') { addGroupUnassigned(group, 'disc_structure_incomplete'); continue; }
       const primaryFailures = built.unit.members.map((member) => {
         if (member.role !== 'primary_payload') return null;
         const result = playable.get(member.materialKey); return result.playable ? null : result.reasonCodes[0];
       }).filter(Boolean);
       if (primaryFailures.length) { addGroupUnassigned(group, primaryFailures[0]); continue; }
-      for (const candidate of group) if (!built.selectedKeys.has(relativeToBdmvRoot(contexts.get(candidate.materialKey).fieldRelativeLocation, bdmvRoot).toUpperCase())) {
-        unassigned.push({ materialKey:candidate.materialKey, reasonCode:'disc_structure_incomplete', evidenceDigest:topology.topologyDigest });
+      for (const candidate of group) {
+        const relative = relativeToBdmvRoot(contexts.get(candidate.materialKey).fieldRelativeLocation, bdmvRoot);
+        if (!relative || !built.selectedKeys.has(relative.toUpperCase())) {
+          unassigned.push({ materialKey:candidate.materialKey, reasonCode:'disc_non_primary_title', evidenceDigest:topology.topologyDigest });
+        }
       }
       if (conserveUnitBound(built.unit, unassigned)) units.push(built.unit);
       continue;
     }
     processed.add(selected.materialKey);
     if (!play.playable) { unassigned.push({ materialKey:selected.materialKey, reasonCode:play.reasonCodes[0], evidenceDigest:play.resultDigest }); continue; }
-    if (probe.mediaProbe.discTopology && probe.mediaProbe.discTopology.titleCount !== 1) {
-      unassigned.push({ materialKey:selected.materialKey, reasonCode:'disc_multi_title_unsupported', evidenceDigest:probe.mediaProbe.payloadDigest }); continue;
-    }
+    // A disc topology on an ordinary material is still allowed to carry the
+    // deterministic title choice; the BDMV container branch above owns the
+    // member grouping and non-primary evidence.
     const token = episodeToken(context.baseName);
     const hint = profileHintSnapshot.contentProfileHint;
     const profileName = hint === 'mixed' ? (token ? 'series' : javCode(context.baseName) ? 'jav' : 'movie') : hint;
@@ -486,8 +593,8 @@ function inspectStructure(input, rule, options = {}) {
       unassigned.push({ materialKey:selected.materialKey, reasonCode:profileName === 'series' ? 'episode_claim_unresolved' : 'content_profile_unresolved',
         evidenceDigest:digest({ materialKey:selected.materialKey, contextDigest:input.materialFieldContext.contextDigest }) }); continue;
     }
-    const directoryTitle = directoryTitleFor(context, input.layoutEvidence);
-    const related = relatedFor({ ...context, contextDigest:input.materialFieldContext.contextDigest }, input.layoutEvidence, selected.materialKey);
+    const directoryTitle = directoryTitleFor(context, layoutEvidence);
+    const related = relatedFor({ ...context, contextDigest:input.materialFieldContext.contextDigest }, layoutEvidence, selected.materialKey);
     const unit = unitFor(probe, { ...context, directoryTitle, fieldId:input.materialFieldContext.fieldId }, profileName,
       profileName === 'series' ? 'group' : 'single', token && token.season, token ? token.episodes : [], related,
       profileHintSnapshot);
@@ -499,37 +606,61 @@ function inspectStructure(input, rule, options = {}) {
   }
   units.push(...mergeSeriesUnits(seriesGroups, unassigned));
   units.sort((a,b) => compareUtf8(a.unitId,b.unitId)); unassigned.sort((a,b) => compareUtf8(a.materialKey,b.materialKey));
-  const offset = input.pageRequest.cursorIn ? Number(input.pageRequest.cursorIn.split(':')[1]) : 0;
-  if (!Number.isSafeInteger(offset) || offset < 0 || offset > units.length) fail('P7_TRIAGE_STRUCTURE_CURSOR', 'Structure cursor is invalid.');
-  function buildPage(pageUnits, terminal) {
-    const pageUnassigned = terminal ? unassigned : [];
+  const cursor = input.pageRequest.cursorIn;
+  let cursorKind = 'units'; let offset = 0;
+  if (cursor) {
+    const match = /^(offset|units|unassigned):(\d+)$/.exec(cursor);
+    if (!match) fail('P7_TRIAGE_STRUCTURE_CURSOR', 'Structure cursor is invalid.');
+    cursorKind = match[1] === 'offset' ? 'units' : match[1]; offset = Number(match[2]);
+  }
+  if (!Number.isSafeInteger(offset) || offset < 0 ||
+      cursorKind === 'units' && offset > units.length || cursorKind === 'unassigned' && offset > unassigned.length) {
+    fail('P7_TRIAGE_STRUCTURE_CURSOR', 'Structure cursor is invalid.');
+  }
+  function buildPage(pageUnits, pageUnassigned, cursorOut) {
     const next = offset + pageUnits.length;
     const value = { ...envelope('TriageStructureEvidence', 'procurement.triage.structure.inspect@1',
       { inputDigest:input.inputDigest, ruleAuthorityDigest:rule.authorityDigest }, options.observedAtMs || 0),
       procurementRunId:selection.procurementRunId, runBasisDigest:input.probeBatches[0].runBasisDigest, selectionDigest:selection.selectionDigest,
       triageRuleAuthorityDigest:rule.authorityDigest, materialFieldContextDigest:input.materialFieldContext.contextDigest,
       pageRequestDigest:input.pageRequest.requestDigest, pageOrdinal:input.pageRequest.pageOrdinal, cursorIn:input.pageRequest.cursorIn,
-      cursorOut:terminal ? null : 'offset:' + next, resultKind:units.length ? 'resolved' : 'not_ready', units:pageUnits,
+      cursorOut, resultKind:pageUnits.length ? 'resolved' : 'not_ready', units:pageUnits,
       unassignedMaterials:pageUnassigned, unitSetDigest:digest({ schema:'procurement.triage-unit-set-page@1', items:pageUnits }),
       unassignedSetDigest:digest({ schema:'procurement.triage-unassigned-set-page@1', items:pageUnassigned }) };
     value.evidenceId = digest({ kind:'triage-structure', procurementRunId:value.procurementRunId, pageOrdinal:value.pageOrdinal, basisDigest:value.basisDigest });
     value.payloadDigest = digest(without(value, 'payloadDigest'));
     return value;
   }
-  const pageUnits = []; let value = null;
-  const maximum = Math.min(units.length, offset + input.pageRequest.maxUnits);
-  for (let index = offset; index < maximum; index += 1) {
-    const candidateUnits = [...pageUnits, units[index]];
-    const candidate = buildPage(candidateUnits, offset + candidateUnits.length >= units.length);
-    if (Buffer.byteLength(canonicalJson(candidate)) > 65536) break;
-    pageUnits.push(units[index]); value = candidate;
-  }
-  if (!value) {
-    value = buildPage([], offset >= units.length);
-    if (offset < units.length || Buffer.byteLength(canonicalJson(value)) > 65536) {
-      fail('P7_TRIAGE_STRUCTURE_PAGE_TOO_LARGE', 'One complete Structure Unit or terminal unassigned set cannot fit a 64 KiB page.');
+  if (cursorKind === 'units') {
+    const pageUnits = []; let value = null;
+    const maximum = Math.min(units.length, offset + input.pageRequest.maxUnits);
+    for (let index = offset; index < maximum; index += 1) {
+      const candidateUnits = [...pageUnits, units[index]];
+      const nextOffset = offset + candidateUnits.length;
+      const nextCursor = nextOffset < units.length ? 'offset:' + nextOffset
+        : unassigned.length ? 'unassigned:0' : null;
+      const candidate = buildPage(candidateUnits, [], nextCursor);
+      if (Buffer.byteLength(canonicalJson(candidate)) > 65536) break;
+      pageUnits.push(units[index]); value = candidate;
     }
+    if (!value) {
+      value = buildPage([], [], offset < units.length ? 'offset:' + offset : unassigned.length ? 'unassigned:0' : null);
+      if (offset < units.length || Buffer.byteLength(canonicalJson(value)) > 65536) {
+        fail('P7_TRIAGE_STRUCTURE_PAGE_TOO_LARGE', 'One complete Structure Unit cannot fit a 64 KiB page.');
+      }
+    }
+    return freeze(value);
   }
+  const pageUnassigned = []; let value = null;
+  for (let index = offset; index < unassigned.length; index += 1) {
+    const candidateUnassigned = [...pageUnassigned, unassigned[index]];
+    const nextOffset = offset + candidateUnassigned.length;
+    const nextCursor = nextOffset < unassigned.length ? 'unassigned:' + nextOffset : null;
+    const candidate = buildPage([], candidateUnassigned, nextCursor);
+    if (Buffer.byteLength(canonicalJson(candidate)) > 65536) break;
+    pageUnassigned.push(unassigned[index]); value = candidate;
+  }
+  if (!value) fail('P7_TRIAGE_STRUCTURE_PAGE_TOO_LARGE', 'One unassigned evidence item cannot fit a 64 KiB page.');
   return freeze(value);
 }
 

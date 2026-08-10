@@ -174,6 +174,11 @@ const EXPLICIT_FOREIGN_KEYS = Object.freeze({
     { columns: ['field_id', 'profile_hint_revision'], targetTable: 'proc_field_profile_hint_revisions', targetColumns: ['field_id', 'revision'] },
     { columns: ['commit_marker'], targetTable: 'fx_commit_markers', targetColumns: ['commit_marker'] }
   ],
+  proc_field_observation_entries: [
+    { columns: ['field_id'], targetTable: 'proc_material_fields', targetColumns: ['field_id'] },
+    { columns: ['field_observation_work_id'], targetTable: 'fx_supporting_works', targetColumns: ['work_id'] },
+    { columns: ['observation_id'], targetTable: 'proc_field_observations', targetColumns: ['observation_id'] }
+  ],
   proc_field_profile_hint_revisions: [
     { columns: ['field_id'], targetTable: 'proc_material_fields', targetColumns: ['field_id'] }
   ],

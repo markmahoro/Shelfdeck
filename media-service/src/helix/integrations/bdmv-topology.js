@@ -145,7 +145,8 @@ function parseMpls(buffer, playlistFile, streamByRelative) {
 function choosePlaylist(playlists) {
   return [...playlists].sort((left, right) =>
     right.uniqueStreamBytes - left.uniqueStreamBytes || right.durationMs - left.durationMs ||
-    right.clips.length - left.clips.length || utf8Compare(left.relativeLocation, right.relativeLocation))[0] || null;
+    new Set(right.clips.map((clip) => clip.clipId)).size - new Set(left.clips.map((clip) => clip.clipId)).size ||
+    utf8Compare(left.relativeLocation, right.relativeLocation))[0] || null;
 }
 
 function topologyForRoot(root, files, readLimitBytes) {
@@ -172,7 +173,10 @@ function topologyForRoot(root, files, readLimitBytes) {
   if (!playlists.length) return null;
   const signatures = new Map();
   for (const playlist of playlists) {
-    const signature = canonicalDigest({ clips: playlist.clips.map((clip) => clip.clipId).sort(utf8Compare) });
+    // A playlist can repeat the same clip for loop points or menu branches.
+    // Such repetitions are not a second title family; normalize by the
+    // unique M2TS member set before counting titles.
+    const signature = canonicalDigest({ clips: [...new Set(playlist.clips.map((clip) => clip.clipId))].sort(utf8Compare) });
     if (!signatures.has(signature)) signatures.set(signature, playlist);
   }
   const titleCount = signatures.size;
@@ -201,12 +205,21 @@ function topologyForRoot(root, files, readLimitBytes) {
     discKind: 'bdmv',
     titleCount,
     selectedPlaylist: Object.freeze({ relativeLocation: selected.relativeLocation, durationMs: selected.durationMs,
-      clipIds: Object.freeze(selected.clips.map((clip) => clip.clipId)) }),
+      clipIds: Object.freeze([...new Set(selected.clips.map((clip) => clip.clipId))]) }),
     members: Object.freeze(presentMembers.sort((left, right) =>
       utf8Compare(left.relativeLocation, right.relativeLocation) || utf8Compare(left.role, right.role))),
   };
-  const singleTitleEvidenceDigest = canonicalDigest({ schema: 'helix.bdmv-single-title-evidence@1', root, descriptor });
-  return Object.freeze({ ...descriptor, topologyVersion: 1, singleTitleEvidenceDigest,
+  const titleSelectionEvidence = Object.freeze({
+    selectionRule: 'unique_payload_bytes_then_duration_then_distinct_clip_count_then_playlist_path',
+    candidateTitleCount: titleCount,
+    selectedPlaylist: selected.relativeLocation,
+    candidateDigests: Object.freeze([...signatures.entries()].map(([signature, playlist]) => Object.freeze({
+      signature, playlist: playlist.relativeLocation, uniqueStreamBytes: playlist.uniqueStreamBytes,
+      durationMs: playlist.durationMs, distinctClipCount: new Set(playlist.clips.map((clip) => clip.clipId)).size,
+    })).sort((left, right) => utf8Compare(left.signature, right.signature))),
+  });
+  const singleTitleEvidenceDigest = canonicalDigest({ schema: 'helix.bdmv-main-title-selection@2', root, descriptor, titleSelectionEvidence });
+  return Object.freeze({ ...descriptor, topologyVersion: 2, titleSelectionEvidence, singleTitleEvidenceDigest,
     topologyDigest: canonicalDigest({ schema: 'helix.bdmv-topology@1', root, descriptor }) });
 }
 

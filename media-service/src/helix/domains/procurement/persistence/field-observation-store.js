@@ -8,7 +8,6 @@ const {
   createProfileHintSnapshot,
 } = require('../model/field-profile-hint-contracts');
 
-const PAGE_SCHEMA = 'helix://contracts/types/FieldObservationPage/v1';
 const { FACT_SCHEMA, RESULT_SCHEMA } = require('../model/field-observation-contracts');
 
 class FieldObservationStoreError extends Error {
@@ -25,6 +24,7 @@ function definition(schemaManifest) {
     find_observation:{ kind:'select-one', tableId:'proc_field_observations', columns:['field_id','revision','observation_id','field_observation_work_id','access_revision','content_profile_hint','profile_hint_revision','profile_hint_digest','page_ordinal','expected_revision','cursor_in','cursor_out','page_digest','fact_digest','commit_marker','result_digest','observed_at_ms','completed'], keyColumns:['field_id','revision'] },
     find_observation_id:{ kind:'select-one', tableId:'proc_field_observations', columns:['field_id','revision','observation_id','field_observation_work_id','page_ordinal','page_digest','commit_marker'], keyColumns:['observation_id'] },
     insert_observation:{ kind:'insert', tableId:'proc_field_observations', columns:['field_id','revision','observation_id','field_observation_work_id','access_revision','content_profile_hint','profile_hint_revision','profile_hint_digest','page_ordinal','expected_revision','cursor_in','cursor_out','page_digest','fact_digest','commit_marker','result_digest','observed_at_ms','completed'] },
+    insert_entry:{ kind:'insert', tableId:'proc_field_observation_entries', columns:['field_id','field_observation_work_id','observation_id','observation_revision','page_ordinal','entry_ordinal','material_observation_id','material_key','mount_scope_id','inode','size_bytes','fingerprint_algorithm','fingerprint_version','content_fingerprint','endpoint_id','access_revision','mount_scope_revision','current_location','relative_location','mtime_ns','ctime_ns','fingerprint_verified_at_ms','observed_at_ms','containment_digest','reality_digest','provenance_digest','snapshot_digest','entry_digest'] },
     advance_head:{ kind:'update', tableId:'proc_material_fields', setColumns:['current_observation_revision','updated_at_ms'], keyColumns:['field_id'], compareColumns:[
       { column:'current_observation_revision', parameter:'expected_observation_revision', nullSafe:true },
       { column:'current_access_revision', parameter:'expected_access_revision' },
@@ -33,17 +33,39 @@ function definition(schemaManifest) {
     ] },
     find_material:{ kind:'select-one', tableId:'proc_field_materials', columns:['field_id','material_key','endpoint_id','access_revision','mount_scope_revision','current_location','binding_revision','reality_digest','last_snapshot_digest','eligibility_revision','eligibility_state','eligibility_reason_code','eligibility_basis_digest','eligibility_field_status','eligibility_observation_revision','eligibility_policy_revision','selection_basis_digest','control_projection','control_projection_revision','control_projection_digest','eligibility_reconciled_at_ms'], keyColumns:['field_id','material_key'], safeIntegers:true },
     insert_material:{ kind:'insert', tableId:'proc_field_materials', columns:['field_id','material_key','mount_scope_id','inode','size_bytes','fingerprint_algorithm','fingerprint_version','content_fingerprint','endpoint_id','access_revision','mount_scope_revision','mtime_ns','ctime_ns','fingerprint_verified_at_ms','current_location','binding_revision','reality_digest','provenance_digest','last_snapshot_digest','last_observation_id','eligibility_revision','eligibility_state','eligibility_reason_code','eligibility_basis_digest','eligibility_field_status','eligibility_observation_revision','eligibility_policy_revision','selection_basis_digest','control_projection','control_projection_revision','control_projection_digest','eligibility_reconciled_at_ms'] },
-    update_material:{ kind:'update', tableId:'proc_field_materials', setColumns:['mount_scope_id','inode','size_bytes','fingerprint_algorithm','fingerprint_version','content_fingerprint','endpoint_id','access_revision','mount_scope_revision','mtime_ns','ctime_ns','fingerprint_verified_at_ms','current_location','binding_revision','reality_digest','provenance_digest','last_snapshot_digest','last_observation_id','eligibility_revision','eligibility_state','eligibility_reason_code','eligibility_basis_digest','eligibility_field_status','eligibility_observation_revision','eligibility_policy_revision','selection_basis_digest','control_projection','control_projection_revision','control_projection_digest','eligibility_reconciled_at_ms'], keyColumns:['field_id','material_key'] }
+    update_material:{ kind:'update', tableId:'proc_field_materials', setColumns:['mount_scope_id','inode','size_bytes','fingerprint_algorithm','fingerprint_version','content_fingerprint','endpoint_id','access_revision','mount_scope_revision','mtime_ns','ctime_ns','fingerprint_verified_at_ms','current_location','binding_revision','reality_digest','provenance_digest','last_snapshot_digest','last_observation_id','eligibility_revision','eligibility_state','eligibility_reason_code','eligibility_basis_digest','eligibility_field_status','eligibility_observation_revision','eligibility_policy_revision','selection_basis_digest','control_projection','control_projection_revision','control_projection_digest','eligibility_reconciled_at_ms'], keyColumns:['field_id','material_key'] },
+    // An unchanged observation updates only the current physical projection.
+    // Eligibility is a material-local decision projection and must not receive
+    // a write merely because the global observation head advanced.
+    update_material_observation:{ kind:'update', tableId:'proc_field_materials', setColumns:['mount_scope_id','inode','size_bytes','fingerprint_algorithm','fingerprint_version','content_fingerprint','endpoint_id','access_revision','mount_scope_revision','mtime_ns','ctime_ns','fingerprint_verified_at_ms','current_location','binding_revision','reality_digest','provenance_digest','last_snapshot_digest','last_observation_id'], keyColumns:['field_id','material_key'] }
   }});
 }
 
 function validateHandle(handle, page) {
   if (!handle || handle.schemaRef !== 'helix://contracts/types/DomainFactCommitHandle/v1' || handle.schemaVersion !== 1 ||
       handle.ownerDomain !== 'procurement' || handle.aggregateType !== 'material_field_observation' || handle.aggregateId !== page.fieldId ||
-      handle.factType !== 'FieldObservationPage' || handle.factSchemaRef !== FACT_SCHEMA || handle.resultSchemaRef !== RESULT_SCHEMA ||
-      handle.expectedRevision !== page.expectedObservationRevision || handle.payloadDigest !== canonicalDigest(page)) {
+      handle.factType !== 'ObservationPageCommit' || handle.factSchemaRef !== FACT_SCHEMA || handle.resultSchemaRef !== RESULT_SCHEMA ||
+      handle.expectedRevision !== page.expectedObservationRevision) {
     fail('P7_FIELD_OBSERVATION_HANDLE_MISMATCH', 'Domain Fact Commit Handle does not authorize this exact Field Observation Page.');
   }
+}
+function entryRow(snapshot, page, entryOrdinal, observationRevision, rootLocation) {
+  const normalized = snapshot.location.replace(/\\/g, '/').replace(/\/+/g, '/');
+  const normalizedRoot = String(rootLocation || '').replace(/\\/g, '/').replace(/\/+/g, '/').replace(/\/$/, '');
+  const prefix = normalizedRoot + '/';
+  const relativeLocation = normalized.startsWith(prefix) ? normalized.slice(prefix.length) : normalized;
+  return { field_id:snapshot.fieldId, field_observation_work_id:page.fieldObservationWorkId, observation_id:page.observationId,
+    observation_revision:observationRevision, page_ordinal:page.pageOrdinal, entry_ordinal:entryOrdinal,
+    material_observation_id:snapshot.materialObservationId, material_key:snapshot.identity.materialKey,
+    mount_scope_id:snapshot.identity.mountScopeId, inode:BigInt(snapshot.identity.inode), size_bytes:snapshot.sizeBytes,
+    fingerprint_algorithm:snapshot.identity.fingerprintAlgorithm, fingerprint_version:String(snapshot.identity.fingerprintVersion),
+    content_fingerprint:snapshot.identity.contentFingerprint, endpoint_id:snapshot.endpointId, access_revision:snapshot.accessRevision,
+    mount_scope_revision:snapshot.mountScopeRevision, current_location:snapshot.location, relative_location:relativeLocation,
+    mtime_ns:BigInt(snapshot.mtimeNs), ctime_ns:BigInt(snapshot.ctimeNs), fingerprint_verified_at_ms:snapshot.fingerprintVerifiedAtMs,
+    observed_at_ms:snapshot.observedAtMs, containment_digest:snapshot.containmentDigest, reality_digest:snapshot.realityDigest,
+    provenance_digest:snapshot.provenanceDigest, snapshot_digest:snapshot.snapshotDigest,
+    entry_digest:canonicalDigest({ schema:'procurement.field-observation-entry@1', observationId:page.observationId, entryOrdinal,
+      materialObservationId:snapshot.materialObservationId, snapshotDigest:snapshot.snapshotDigest }) };
 }
 function materialRow(snapshot, bindingRevision, eligibility) {
   return { field_id:snapshot.fieldId, material_key:snapshot.identity.materialKey, mount_scope_id:snapshot.identity.mountScopeId,
@@ -65,7 +87,8 @@ function materialRow(snapshot, bindingRevision, eligibility) {
 function createFieldObservationStore(options) {
   if (!options || !options.schemaManifest) fail('P7_FIELD_OBSERVATION_DEPENDENCIES', 'Schema manifest is required.');
   const repository = definition(options.schemaManifest);
-  function createParticipant(handle, page, commitMarker) {
+  function createParticipant(handle, payload, commitMarker) {
+    const page = payload && payload.page ? Object.freeze({ ...payload.page, entries:Object.freeze(payload.entries || []) }) : payload;
     validateCommittedPage(page); validateHandle(handle, page);
     return { participantId:'procurement_field_observation', owner:'procurement', boundBusinessOwner:'procurement', repositories:[repository],
       execute(context) {
@@ -90,7 +113,7 @@ function createFieldObservationStore(options) {
             })) !== canonicalJson(page.profileHintSnapshot)) {
           fail('PBF22_FIELD_OBSERVATION_PROFILE_HINT_STALE', 'Field Observation Profile Hint no longer matches the Owner row.');
         }
-        for (const snapshot of page.materialObservations) if (snapshot.accessDigest !== access.access_digest || snapshot.endpointId !== access.endpoint_id ||
+        for (const snapshot of page.entries) if (snapshot.accessDigest !== access.access_digest || snapshot.endpointId !== access.endpoint_id ||
           snapshot.identity.mountScopeId !== access.mount_scope_id || snapshot.mountScopeRevision !== access.mount_scope_revision) fail('P7_FIELD_OBSERVATION_ACCESS_MISMATCH', 'Page snapshot does not match current Field Access.');
         const collision = repo.invoke('find_observation_id', { observation_id:page.observationId });
         if (collision) fail('P7_FIELD_OBSERVATION_ID_CONFLICT', 'Observation ID already belongs to a committed page.');
@@ -107,15 +130,20 @@ function createFieldObservationStore(options) {
         const revision = page.expectedObservationRevision + 1;
         const acceptedMaterials = [];
         const materialWrites = [];
-        for (const snapshot of page.materialObservations) {
+        for (const snapshot of page.entries) {
           const existing = repo.invoke('find_material', { field_id:page.fieldId, material_key:snapshot.identity.materialKey });
           const oldBinding = existing ? toNumber(existing.binding_revision, 'bindingRevision') : 0;
           const rebound = existing && (existing.endpoint_id !== snapshot.endpointId || existing.current_location !== snapshot.location);
+          const accessChanged = existing && Number(existing.access_revision) !== Number(snapshot.accessRevision);
           const bindingRevision = existing ? oldBinding + (rebound ? 1 : 0) : 1;
           const changeKind = existing ? (rebound ? 'rebound' : 'refreshed') : 'inserted';
           const realityChanged = existing && existing.reality_digest !== snapshot.realityDigest;
-          const reasonCode = !existing ? 'observation_pending_reconcile' : realityChanged ? 'reality_changed' : existing.eligibility_reason_code;
-          const reset = !existing || realityChanged;
+          const reasonCode = !existing ? 'observation_pending_reconcile'
+            : realityChanged ? 'reality_changed'
+            : rebound ? 'binding_changed'
+            : accessChanged ? 'access_changed'
+            : existing.eligibility_reason_code;
+          const reset = !existing || realityChanged || rebound || accessChanged;
           const eligibility = reset ? { revision:existing ? toNumber(existing.eligibility_revision, 'eligibilityRevision') + 1 : 1,
             state:'unknown', reasonCode, basisDigest:canonicalDigest({ schema:'procurement.eligibility-unknown@1', materialKey:snapshot.identity.materialKey, reasonCode, realityDigest:snapshot.realityDigest }),
             fieldStatus:null, observationRevision:null, policyRevision:null, selectionBasisDigest:null, controlProjection:'unknown',
@@ -127,24 +155,28 @@ function createFieldObservationStore(options) {
             controlProjection:existing.control_projection, controlRevision:existing.control_projection_revision,
             controlDigest:existing.control_projection_digest, reconciledAtMs:existing.eligibility_reconciled_at_ms };
           const row = materialRow(snapshot, bindingRevision, eligibility);
-          materialWrites.push({ statement:existing ? 'update_material' : 'insert_material', row });
+          materialWrites.push({ statement:existing ? (reset ? 'update_material' : 'update_material_observation') : 'insert_material', row });
           acceptedMaterials.push(Object.freeze({ materialKey:snapshot.identity.materialKey, bindingRevision, changeKind,
             realityDigest:snapshot.realityDigest, snapshotDigest:snapshot.snapshotDigest }));
         }
-        const acceptedMaterialSetDigest = canonicalDigest({ schema:'procurement.field-observation-accepted-materials@1', items:acceptedMaterials });
+        const acceptedMaterialSetDigest = canonicalDigest({ schema:'procurement.field-observation-entry-set@1', items:acceptedMaterials });
         const nextCursor = page.hasMore ? page.cursorOut : null;
         const factDigest = canonicalDigest({ schema:'procurement.field-observation-revision@1', fieldId:page.fieldId,
           committedObservationRevision:revision, observationId:page.observationId, fieldObservationWorkId:page.fieldObservationWorkId,
           accessRevision:page.accessRevision, profileHintSnapshot:page.profileHintSnapshot,
           pageOrdinal:page.pageOrdinal, pageDigest:page.pageDigest,
           acceptedMaterialSetDigest, nextCursor, hasMore:page.hasMore });
+        const entryDigests = page.entries.map((snapshot) => canonicalDigest({ schema:'procurement.field-observation-entry@1', observationId:page.observationId,
+          materialObservationId:snapshot.materialObservationId, snapshotDigest:snapshot.snapshotDigest }));
         const result = Object.freeze({ schemaRef:RESULT_SCHEMA, schemaVersion:1, factId:page.observationId, ownerDomain:'procurement',
           aggregateType:'material_field_observation', aggregateId:page.fieldId, revision, factSchemaRef:FACT_SCHEMA, factDigest,
           commitMarker, committedAtMs:context.commitTimeMs, observationId:page.observationId,
           fieldObservationWorkId:page.fieldObservationWorkId, fieldId:page.fieldId, accessRevision:page.accessRevision,
           profileHintSnapshot:page.profileHintSnapshot,
-          pageOrdinal:page.pageOrdinal, committedObservationRevision:revision, pageDigest:page.pageDigest,
-          acceptedMaterials:Object.freeze(acceptedMaterials), acceptedMaterialSetDigest, nextCursor, hasMore:page.hasMore });
+          pageOrdinal:page.pageOrdinal, committedObservationRevision:revision, entryCount:page.entries.length,
+          firstEntryDigest:entryDigests[0] || canonicalDigest({ schema:'procurement.empty-page@1' }),
+          lastEntryDigest:entryDigests.at(-1) || canonicalDigest({ schema:'procurement.empty-page@1' }), pageDigest:page.pageDigest,
+          entrySetDigest:page.entrySetDigest, nextCursor, hasMore:page.hasMore });
         const resultDigest = canonicalDigest(result);
         if (Buffer.byteLength(canonicalJson(result), 'utf8') > 65536) fail('P7_FIELD_OBSERVATION_RESULT_TOO_LARGE', 'Observation Commit Result exceeds 64 KiB.');
         repo.invoke('insert_observation', { field_id:page.fieldId, revision, observation_id:page.observationId,
@@ -155,6 +187,7 @@ function createFieldObservationStore(options) {
           expected_revision:page.expectedObservationRevision, cursor_in:page.cursorIn, cursor_out:page.cursorOut,
           page_digest:page.pageDigest, fact_digest:factDigest, commit_marker:commitMarker,
           result_digest:resultDigest, observed_at_ms:page.observedAtMs, completed:page.hasMore ? 0 : 1 });
+        for (let index = 0; index < page.entries.length; index += 1) repo.invoke('insert_entry', entryRow(page.entries[index], page, index, revision, access.root_location));
         for (const write of materialWrites) repo.invoke(write.statement, write.row);
         const changed = repo.invoke('advance_head', { current_observation_revision:revision, updated_at_ms:context.commitTimeMs,
           field_id:page.fieldId, expected_observation_revision:currentRevision === 0 ? null : currentRevision,
@@ -171,7 +204,7 @@ function createFieldObservationStore(options) {
 
 function createFieldObservationCommitRegistration(store) {
   if (!store || typeof store.createParticipant !== 'function') fail('P7_FIELD_OBSERVATION_STORE_REQUIRED', 'Field Observation Store is required.');
-  return Object.freeze({ ownerDomain:'procurement', aggregateType:'material_field_observation', factType:'FieldObservationPage',
+  return Object.freeze({ ownerDomain:'procurement', aggregateType:'material_field_observation', factType:'ObservationPageCommit',
     factSchemaRef:FACT_SCHEMA, effectClass:'domain_fact_commit', revisionFence:true,
     createParticipant({ handle, payload, commitMarker }) { return store.createParticipant(handle, payload, commitMarker); } });
 }

@@ -1,8 +1,7 @@
 'use strict';
 
-const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
-const { PAGE_SCHEMA, identityBasis, pageDigestBasis, snapshotWithoutDigest,
-  validateAccessHandle, validatePage, validateRequest, validateSnapshot } = require('../model/field-observation-contracts');
+const { canonicalDigest } = require('../../../contracts/canonical-json');
+const { PAGE_SCHEMA, identityBasis, validateAccessHandle, validateRequest, validatePage } = require('../model/field-observation-contracts');
 
 class FieldPageObserverError extends Error {
   constructor(code, message) { super(message); this.name = 'FieldPageObserverError'; this.code = code; }
@@ -31,27 +30,35 @@ function createSnapshot(raw, handle, request, observedAtMs) {
       mountScopeRevision:handle.mountScopeRevision, containmentDigest:handle.containmentDigest,
       fingerprintVerifiedAtMs:raw.fingerprintVerifiedAtMs, observedAtMs }), snapshotDigest:''
   };
-  value.snapshotDigest = canonicalDigest(snapshotWithoutDigest(value));
-  validateSnapshot(value, { handle, request });
+  const { snapshotDigest, observedAtMs: _observedAtMs, fingerprintVerifiedAtMs: _fingerprintVerifiedAtMs, ...basis } = value;
+  value.snapshotDigest = canonicalDigest(basis);
   return Object.freeze(value);
 }
-function buildPage(handle, request, producerRef, observedAtMs, materialObservations, cursorOut, hasMore) {
-  const value = { schemaRef:PAGE_SCHEMA, schemaVersion:1, evidenceId:request.observationId, evidenceKind:'field_observation_page',
+
+function compactPage(handle, request, producerRef, observedAtMs, entries, cursorOut, hasMore) {
+  const entryDigests = entries.map((item) => item.snapshotDigest);
+  const value = { schemaRef:PAGE_SCHEMA, schemaVersion:1, evidenceId:request.observationId, evidenceKind:'observation_page_commit',
     producerRef, basisDigest:canonicalDigest({ schema:'procurement.field-observation-basis@1', fieldAccessHandle:handle, pageRequest:request }),
     payloadDigest:'', observedAtMs, fieldObservationWorkId:request.fieldObservationWorkId, observationId:request.observationId,
     fieldId:handle.fieldId, accessRevision:handle.accessRevision, profileHintSnapshot:request.profileHintSnapshot,
-    pageOrdinal:request.pageOrdinal,
-    expectedObservationRevision:request.expectedObservationRevision, cursorIn:request.cursorIn, cursorOut,
-    materialObservations:Object.freeze([...materialObservations]), pageDigest:'', hasMore };
-  value.pageDigest = canonicalDigest(pageDigestBasis(value)); value.payloadDigest = value.pageDigest;
-  return value;
+    pageOrdinal:request.pageOrdinal, expectedObservationRevision:request.expectedObservationRevision, cursorIn:request.cursorIn,
+    cursorOut, entryCount:entries.length, firstEntryDigest:entryDigests[0] || canonicalDigest({ schema:'procurement.empty-page@1' }),
+    lastEntryDigest:entryDigests[entryDigests.length - 1] || canonicalDigest({ schema:'procurement.empty-page@1' }),
+    entrySetDigest:canonicalDigest({ schema:'procurement.observation-entry-set@1', items:entryDigests }), pageDigest:'', hasMore };
+  const without = { ...value }; delete without.pageDigest; delete without.payloadDigest;
+  value.pageDigest = canonicalDigest({ schema:'procurement.field-observation-page-commit@1', producerRef:value.producerRef,
+    basisDigest:value.basisDigest, observedAtMs:value.observedAtMs, fieldObservationWorkId:value.fieldObservationWorkId,
+    observationId:value.observationId, fieldId:value.fieldId, accessRevision:value.accessRevision,
+    profileHintSnapshot:value.profileHintSnapshot, pageOrdinal:value.pageOrdinal, expectedObservationRevision:value.expectedObservationRevision,
+    cursorIn:value.cursorIn, cursorOut:value.cursorOut, entryCount:value.entryCount, firstEntryDigest:value.firstEntryDigest,
+    lastEntryDigest:value.lastEntryDigest, entrySetDigest:value.entrySetDigest, hasMore:value.hasMore });
+  value.payloadDigest = value.pageDigest;
+  return Object.freeze({ page:Object.freeze(value), entries:Object.freeze(entries) });
 }
 
 function createFieldPageObserver(options) {
-  if (!options || typeof options.enumeratePage !== 'function' || typeof options.now !== 'function') {
-    fail('P7_FIELD_OBSERVER_DEPENDENCIES', 'Bounded Field enumerator and clock are required.');
-  }
-  const producerRef = options.producerRef || 'procurement.field.page.observe@1';
+  if (!options || typeof options.enumeratePage !== 'function' || typeof options.now !== 'function') fail('P7_FIELD_OBSERVER_DEPENDENCIES', 'Bounded Field enumerator and clock are required.');
+  const producerRef = options.producerRef || 'procurement.field.observation.page.commit@1';
   return Object.freeze({
     async observe({ fieldAccessHandle, pageRequest }) {
       const observedAtMs = options.now(); validateAccessHandle(fieldAccessHandle, observedAtMs); validateRequest(pageRequest);
@@ -62,34 +69,13 @@ function createFieldPageObserver(options) {
         return Object.freeze({ cursor:entry.cursor, snapshot:createSnapshot(entry.material, fieldAccessHandle, pageRequest, observedAtMs) });
       });
       for (let index=1; index<candidates.length; index++) if (Buffer.compare(Buffer.from(candidates[index-1].snapshot.identity.materialKey), Buffer.from(candidates[index].snapshot.identity.materialKey)) >= 0) fail('P7_FIELD_ENUMERATION_ORDER_INVALID', 'Enumerator must preserve material-key byte order.');
-      const accepted = [];
-      for (let index=0; index<candidates.length && accepted.length<pageRequest.pageBudget; index++) {
-        const candidate = candidates[index];
-        const moreAfter = index < candidates.length - 1 || enumeration.hasMore;
-        const tentative = buildPage(fieldAccessHandle, pageRequest, producerRef, observedAtMs,
-          [...accepted, candidate.snapshot], moreAfter ? candidate.cursor : null, moreAfter);
-        if (Buffer.byteLength(canonicalJson(tentative), 'utf8') > 65536) {
-          if (accepted.length === 0) fail('P7_FIELD_PAGE_SINGLE_ITEM_TOO_LARGE', 'The first pending material cannot fit without advancing its cursor.');
-          break;
-        }
-        accepted.push(candidate.snapshot);
-      }
-      const consumed = accepted.length;
-      const hasMore = consumed < candidates.length || enumeration.hasMore;
-      if (consumed < candidates.length) {
-        const acceptedCursor = consumed > 0 ? candidates[consumed - 1].cursor : null;
-        const uncommittedUsesSameBoundary = acceptedCursor !== null && candidates
-          .slice(consumed)
-          .some((candidate) => candidate.cursor === acceptedCursor);
-        if (uncommittedUsesSameBoundary) {
-          fail('P7_FIELD_ENUMERATION_BATCH_TOO_LARGE', 'Enumerator batch cannot be partially committed without skipping material.');
-        }
-      }
-      if (hasMore && consumed === 0) fail('P7_FIELD_PAGE_EMPTY_PROGRESS', 'A non-terminal page must make cursor progress.');
-      const cursorOut = hasMore ? candidates[consumed - 1].cursor : null;
-      const page = buildPage(fieldAccessHandle, pageRequest, producerRef, observedAtMs, accepted, cursorOut, hasMore);
-      validatePage(page, fieldAccessHandle, pageRequest, observedAtMs);
-      return Object.freeze(page);
+      const accepted = candidates.slice(0, pageRequest.pageBudget);
+      const hasMore = accepted.length < candidates.length || enumeration.hasMore;
+      if (hasMore && accepted.length === 0) fail('P7_FIELD_PAGE_EMPTY_PROGRESS', 'A non-terminal page must make cursor progress.');
+      const cursorOut = hasMore ? accepted[accepted.length - 1].cursor : null;
+      const draft = compactPage(fieldAccessHandle, pageRequest, producerRef, observedAtMs, accepted.map((item) => item.snapshot), cursorOut, hasMore);
+      validatePage({ ...draft.page, entries:draft.entries }, fieldAccessHandle, pageRequest, observedAtMs);
+      return draft;
     }
   });
 }

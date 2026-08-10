@@ -1,14 +1,13 @@
 'use strict';
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
+const MAX_RUN_PHYSICAL_MEMBERS = 1024;
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 
 class ProcurementRunTriageReaderError extends Error {
   constructor(code, message, details = {}) { super(message); this.name='ProcurementRunTriageReaderError'; this.code=code; this.details=details; }
 }
 function fail(code, message, details) { throw new ProcurementRunTriageReaderError(code, message, details); }
-
-const FIELD_OBSERVATION_PAGE = 'helix://contracts/types/FieldObservationPage/v1';
 
 function normalizedLocation(value) {
   return String(value || '').replace(/\\/g, '/').replace(/\/+/g, '/').replace(/\/$/, '');
@@ -61,6 +60,8 @@ function definition(schemaManifest) {
     find_field_materials:{ kind:'select-in', tableId:'proc_field_materials', keyColumn:'material_key', fixedKeyColumns:['field_id'], maxItems:100, safeIntegers:true,
       columns:['field_id','material_key','mount_scope_id','inode','size_bytes','fingerprint_algorithm','fingerprint_version','content_fingerprint','endpoint_id','access_revision',
         'mount_scope_revision','mtime_ns','ctime_ns','fingerprint_verified_at_ms','current_location','binding_revision','reality_digest'] },
+    list_observed_entries:{ kind:'select-in', tableId:'proc_field_observation_entries', keyColumn:'field_observation_work_id', fixedKeyColumns:['field_id'], maxItems:500, safeIntegers:true,
+      columns:['field_id','field_observation_work_id','observation_id','observation_revision','page_ordinal','entry_ordinal','material_observation_id','material_key','mount_scope_id','inode','size_bytes','fingerprint_algorithm','fingerprint_version','content_fingerprint','endpoint_id','access_revision','mount_scope_revision','current_location','relative_location','mtime_ns','ctime_ns','fingerprint_verified_at_ms','observed_at_ms','containment_digest','reality_digest','provenance_digest','snapshot_digest','entry_digest'] },
     page_runs_by_state:{kind:'select-page-after',tableId:'proc_procurement_runs',keyColumn:'procurement_run_id',fixedKeyColumns:['state'],
       maxItems:100,columns:['procurement_run_id','state']},
   }});
@@ -75,27 +76,24 @@ function createProcurementRunTriageReader(options) {
 
   function readObservedMaterials(run) {
     const workId = run?.field_observation_work_id;
-    if (!workId || !options.workResultReader || typeof options.workResultReader.read !== 'function') return Object.freeze([]);
+    if (!workId) return Object.freeze([]);
     const cached = observedMaterialCache.get(workId);
     if (cached) return cached;
-    const rows = options.workResultReader.read(workId).filter((row) => row.outcomeKind === 'succeeded' &&
-      row.evidenceSchemaRef === FIELD_OBSERVATION_PAGE && row.evidence &&
-      row.evidence.fieldObservationWorkId === workId && row.evidence.fieldId === run.field_id);
+    const rows = options.unitOfWork.execute([{ participantId:'procurement_observation_entries_read', owner:'procurement', repositories:[repository],
+      execute(context) { return context.repository(repository.repositoryId).invoke('list_observed_entries', { field_id:run.field_id, values:[workId] }); } }]).procurement_observation_entries_read;
     const byMaterialKey = new Map();
     for (const row of rows) {
-      const page = row.evidence;
-      for (const snapshot of page.materialObservations || []) {
-        const material = observedLayoutMaterial(snapshot, page);
-        const prior = byMaterialKey.get(material.materialKey);
-        if (prior && (prior.identity.materialKey !== material.identity.materialKey ||
-            prior.location !== material.location || prior.endpointId !== material.endpointId ||
-            prior.identity.contentFingerprint !== material.identity.contentFingerprint)) {
-          fail('P7_TRIAGE_OBSERVATION_MATERIAL_CONFLICT', 'Observation pages contain conflicting Material Reality.', {
-            fieldId:run.field_id, materialKey:material.materialKey,
-          });
-        }
-        byMaterialKey.set(material.materialKey, material);
+      const identity = Object.freeze({ schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2', schemaVersion:2,
+        materialKey:row.material_key, mountScopeId:row.mount_scope_id, inode:String(row.inode), sizeBytes:Number(row.size_bytes),
+        fingerprintAlgorithm:row.fingerprint_algorithm, fingerprintVersion:Number(row.fingerprint_version), contentFingerprint:row.content_fingerprint });
+      const material = Object.freeze({ materialKey:row.material_key, identity, endpointId:row.endpoint_id, location:row.current_location,
+        sizeBytes:Number(row.size_bytes), mtimeNs:String(row.mtime_ns), ctimeNs:String(row.ctime_ns), observationId:row.observation_id, fieldId:row.field_id,
+        relativeLocation:row.relative_location, entryDigest:row.entry_digest });
+      const prior = byMaterialKey.get(material.materialKey);
+      if (prior && (prior.location !== material.location || prior.endpointId !== material.endpointId || prior.identity.contentFingerprint !== material.identity.contentFingerprint)) {
+        fail('P7_TRIAGE_OBSERVATION_MATERIAL_CONFLICT', 'Observation entries contain conflicting Material Reality.', { fieldId:run.field_id, materialKey:material.materialKey });
       }
+      byMaterialKey.set(material.materialKey, material);
     }
     const materials = Object.freeze([...byMaterialKey.values()].sort((left, right) =>
       locationKey(left.location).localeCompare(locationKey(right.location), 'en-US') ||
@@ -157,7 +155,7 @@ function createProcurementRunTriageReader(options) {
           const access=repo.invoke('find_access',{ field_id:run.field_id, revision:Number(run.access_revision) });
           const members=repo.invoke('list_members',{ procurement_run_id:runId }).sort((a,b)=>Number(a.ordinal)-Number(b.ordinal));
           const candidates=repo.invoke('list_candidates',{procurement_run_id:runId}).sort((a,b)=>Buffer.compare(Buffer.from(a.candidate_package_id),Buffer.from(b.candidate_package_id)));
-          if (!access || access.access_digest !== run.access_digest || members.length < 1 || members.length > 256) {
+          if (!access || access.access_digest !== run.access_digest || members.length < 1 || members.length > MAX_RUN_PHYSICAL_MEMBERS) {
             fail('P7_TRIAGE_RUN_BASIS_CORRUPT', 'Run cannot reconstruct its exact admitted Triage basis.');
           }
           const currentRows=[];
@@ -206,7 +204,7 @@ function createProcurementRunTriageReader(options) {
           if (!run) return null;
           const access=basis?.access || repo.invoke('find_access',{ field_id:run.field_id, revision:Number(run.access_revision) });
           const members=basis?.members || repo.invoke('list_members',{ procurement_run_id:runId }).sort((a,b)=>Number(a.ordinal)-Number(b.ordinal));
-          if (!access || access.access_digest !== run.access_digest || members.length < 1 || members.length > 256) {
+          if (!access || access.access_digest !== run.access_digest || members.length < 1 || members.length > MAX_RUN_PHYSICAL_MEMBERS) {
             fail('P7_TRIAGE_RUN_BASIS_CORRUPT', 'Run cannot reconstruct its exact admitted Triage basis.');
           }
           const memberMap=new Map(members.map((member)=>[member.material_key,member]));

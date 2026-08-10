@@ -29,10 +29,10 @@ const { createDomainReconcileRunner } = require('../foundation/execution/domain-
 const { createWorkflowPlanPublisher, executionCatalogDigest } = require('../foundation/execution/workflow-plan');
 const { ProcurementExecutionRegistration } = require('../domains/procurement/public');
 
-const PROCUREMENT_ENABLED = Object.freeze(['procurement.field.page.observe@1', 'procurement.field.observation.commit@1',
+const PROCUREMENT_ENABLED = Object.freeze(['procurement.field.observation.page.commit@1',
   'procurement.triage.playability.inspect@1','procurement.triage.structure.inspect@1',
   'procurement.triage.identity_claim.resolve@1','procurement.triage.primary_manifest.build@1','procurement.candidate.publish@1']);
-const SHARED_ENABLED = Object.freeze(['shared.material.layout.observe@1','shared.material.media.probe@1']);
+const SHARED_ENABLED = Object.freeze(['shared.material.media.probe@1']);
 const ENABLED = Object.freeze([...PROCUREMENT_ENABLED, ...SHARED_ENABLED]);
 
 function collectSchemas(root) {
@@ -147,13 +147,15 @@ function createProcurementExecutionRuntime(options) {
     } },
     resourceDemandResolver: { resolve: ({ snapshot,inputs }) => {const projection=executionProjectionProvider.read({
       ownerDomain:snapshot.work.owner_domain,processType:snapshot.work.process_type,processId:snapshot.work.process_id,workKind:snapshot.work.work_kind});
-      const capability=snapshot.node.capability_ref;let resources;
-      if(['procurement.field.page.observe@1','shared.material.media.probe@1'].includes(capability)){
+      const capability=snapshot.node.capability_ref;let resources=[];
+      if(['procurement.field.observation.page.commit@1','shared.material.media.probe@1'].includes(capability)){
         const mountScopeId=findMountScopeId(inputs);if(!mountScopeId)throw new Error('P4_TYPED_VOLUME_RESOURCE_UNRESOLVED:'+capability);
-        validatedVolumeKeys.add(mountScopeId);resources=[{resourceKey:'volume_read:'+mountScopeId,units:1}];
-      }else if(['procurement.field.observation.commit@1','procurement.candidate.publish@1'].includes(capability)){
-        resources=[{resourceKey:'sqlite_write',units:1}];
-      }else resources=[{resourceKey:'cpu_heavy',units:1}];
+        validatedVolumeKeys.add(mountScopeId);resources.push({resourceKey:'volume_read:'+mountScopeId,units:1});
+      }
+      if(['procurement.field.observation.page.commit@1','procurement.candidate.publish@1'].includes(capability)){
+        resources.push({resourceKey:'sqlite_write',units:1});
+      }
+      if(resources.length===0)resources=[{resourceKey:'cpu_heavy',units:1}];
       return {eventId:snapshot.event.event_id,queueClass:projection.priorityClass,localPriority:projection.localPriority,
         priorityRevision:projection.priorityRevision,resources}; } },
     nextEventAttemptId: () => 'event-attempt-' + randomUUID(), nextExecutionId: () => 'execution-' + randomUUID(),
@@ -192,7 +194,7 @@ function createProcurementExecutionRuntime(options) {
     const field = options.materialFieldStore.getMaterialField(request.processId);
     const created=procurementAutomation.reconcileFromObservation(Object.freeze({ state:'succeeded', fieldId:request.processId,
       accessRevision:field.currentAccessRevision, terminalObservationRevision:progress.expectedObservationRevision,
-      observationWorkId:request.workId }));
+      observationWorkId:request.workId }), request.changedMaterialKeys || []);
     for(const run of created.runs)runCoordinator.reconcile(run.procurementRunId);
     return { workId: request.workId, disposition: 'succeeded' };
   } };

@@ -3,36 +3,6 @@
   "manifestId": "helix.inventory.result-families",
   "entries": [
     {
-      "id": "ObservationCommitResult",
-      "version": 1,
-      "owner": "contracts",
-      "status": "contracted",
-      "ssotRefs": [
-        "8.6.19"
-      ],
-      "sourceLocator": {
-        "section": "8.6.19",
-        "line": 10156,
-        "lineDigest": "7b51b76f934b54a9c677436f3653cbd4c97ac07388aa547136d203564e8d2752"
-      },
-      "targetLocator": {
-        "path": "types/ObservationCommitResult/v1/schema.json"
-      },
-      "contract": {
-        "resultKind": "nominal-result",
-        "schemaId": "helix://contracts/types/ObservationCommitResult/v1",
-        "schemaPath": "types/ObservationCommitResult/v1/schema.json",
-        "producedBy": [
-          "procurement.field.observation.commit@1"
-        ],
-        "sourceSection": "8.6.19"
-      },
-      "contractDigest": {
-        "algorithm": "sha256",
-        "value": "51579d9e742d81dc216035c4271f020c7f71d1af9066fef3f8acfdfbfe4d4af0"
-      }
-    },
-    {
       "id": "OffdeckTerminalReceipt",
       "version": 1,
       "owner": "contracts",
@@ -42,7 +12,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10225,
+        "line": 10286,
         "lineDigest": "410ff01aa2ffc75d0cbf40b7a5752800ca066105726722ddbe62ced6cc5934cc"
       },
       "targetLocator": {
@@ -72,7 +42,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10210,
+        "line": 10271,
         "lineDigest": "b157bd3826037172216166d58ecd5207bad62d26028ae576552593ae739fbca8"
       },
       "targetLocator": {
@@ -102,7 +72,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10190,
+        "line": 10251,
         "lineDigest": "bb76f7ddae0ac2b6fd10d3c186fd2fffae3b5fe85a8ebcf2f7c390ba964d72bb"
       },
       "targetLocator": {
@@ -132,7 +102,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10235,
+        "line": 10296,
         "lineDigest": "dfbf544c2202f00e30eced9de53a3df6753824523f862774b6128e5d102e4e99"
       },
       "targetLocator": {
@@ -162,7 +132,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10229,
+        "line": 10290,
         "lineDigest": "33ecd520822c50274c6a50a95ab32350b1925afdb275e8fddc6077b85dac4638"
       },
       "targetLocator": {
@@ -192,7 +162,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10228,
+        "line": 10289,
         "lineDigest": "6626847551461eaabf36bc5670675829946fc6edc31da9081488b41276437ec5"
       },
       "targetLocator": {
@@ -222,7 +192,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10230,
+        "line": 10291,
         "lineDigest": "8202910526d04f43693957b91e27f680ac8fb5651923067cfdc217a1142c6732"
       },
       "targetLocator": {
@@ -252,7 +222,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10231,
+        "line": 10292,
         "lineDigest": "dff760603183ae8ee4868b35dca576e46225f50283d4971ddc4deeb776db80ea"
       },
       "targetLocator": {
@@ -282,7 +252,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10232,
+        "line": 10293,
         "lineDigest": "1e80f1b2b09a41ad5f3d83fd58da0521428581e9dff06841c929c6b4532e9d57"
       },
       "targetLocator": {
@@ -312,7 +282,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10154,
+        "line": 10215,
         "lineDigest": "49ae33f9342076902367183355af0ded545563d517194bfce65a13c4b1d3c335"
       },
       "targetLocator": {
@@ -342,7 +312,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10239,
+        "line": 10300,
         "lineDigest": "c2c9c490acfa1e89ecd7f330cd72c0e92d9afa030824d85140d2f8d39720f6f4"
       },
       "targetLocator": {
@@ -372,7 +342,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10236,
+        "line": 10297,
         "lineDigest": "5eeee451eabf20b8b826ee0d0eb2c52ac3ee4e64477709e02b4af2473fc374e0"
       },
       "targetLocator": {
@@ -402,7 +372,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10233,
+        "line": 10294,
         "lineDigest": "3d9e16aa6e10b75844ddf294dcbfa97193e734998ce7333f60741c313c5322bd"
       },
       "targetLocator": {
@@ -432,7 +402,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10238,
+        "line": 10299,
         "lineDigest": "0662053484959f3cea1d64d762f834d250dec3c6452131fd92594e981ce1e013"
       },
       "targetLocator": {
@@ -462,7 +432,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10206,
+        "line": 10267,
         "lineDigest": "af6fa5b25e63ed21cdb55f225039a5a2fbdb54729bbda841fca16f982f8b6e22"
       },
       "targetLocator": {
@@ -492,7 +462,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10158,
+        "line": 10219,
         "lineDigest": "1ded95edf833931b5a9e8152f2c2dfa40475446a18f3ed1bf1fe4d49ee1d6871"
       },
       "targetLocator": {
@@ -522,7 +492,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10213,
+        "line": 10274,
         "lineDigest": "86438dfbcfc7e68248c39d39e0cc146b0f2dce35a72bbea13f79eae98c044874"
       },
       "targetLocator": {
@@ -552,7 +522,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10161,
+        "line": 10222,
         "lineDigest": "7a75d1b58a845f01ff10d0fbb1e5246e89ac5cfde44c79cb7364e0cbebd33411"
       },
       "targetLocator": {
@@ -582,7 +552,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10157,
+        "line": 10218,
         "lineDigest": "33261bfa90783ccc05dfe69a900a2b63a1010d27e48b5e6ff4d4118673ebff39"
       },
       "targetLocator": {
@@ -612,7 +582,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10188,
+        "line": 10249,
         "lineDigest": "719ad0a721e1e02d32da1048140bd02044d8aef4e8579e85af58f68d0cc0a358"
       },
       "targetLocator": {
@@ -642,7 +612,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10186,
+        "line": 10247,
         "lineDigest": "2574f47a40cd00eede72395b831b9907f6603cdb898a676d51e424ec7b0af52b"
       },
       "targetLocator": {
@@ -672,7 +642,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10176,
+        "line": 10237,
         "lineDigest": "b7d969b78d192123e0f38a5ff47e9f42b861b61f0bf38723bd2b450843682c29"
       },
       "targetLocator": {
@@ -702,7 +672,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.19",
-        "line": 10180,
+        "line": 10241,
         "lineDigest": "0f0b2bcb61549e00253acb6c8c14034fcc7572d3481f2b1e982ae0e156ba2114"
       },
       "targetLocator": {
@@ -720,6 +690,38 @@
       "contractDigest": {
         "algorithm": "sha256",
         "value": "a0fc4cc85bd3bc2a422781e0541ced777d1ea06d6134a935bee90a3a67bcae3d"
+      }
+    },
+    {
+      "id": "ReclamationReceipt",
+      "version": 1,
+      "owner": "contracts",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.19"
+      ],
+      "sourceLocator": {
+        "section": "8.6.19",
+        "line": 10252,
+        "lineDigest": "0ae7d1764590e405addd284d06fb7e5933f053c122997068d024b2c33b0ea009"
+      },
+      "targetLocator": {
+        "path": "types/ReclamationReceipt/v1/schema.json"
+      },
+      "contract": {
+        "resultKind": "nominal-result",
+        "schemaId": "helix://contracts/types/ReclamationReceipt/v1",
+        "schemaPath": "types/ReclamationReceipt/v1/schema.json",
+        "producedBy": [
+          "libra.workspace.material.reclaim@1",
+          "arca.aftercare.workspace.reclaim@1",
+          "people.workspace.reclaim@1"
+        ],
+        "sourceSection": "8.6.19"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "2313bc2c43e4ea066afa69060c92147ada1463d49afef2baf85f59dcb9120a5f"
       }
     }
   ]

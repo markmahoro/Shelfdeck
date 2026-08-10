@@ -106,6 +106,30 @@ function evidence(readHandle, parsed, discTopology = null) {
   return Object.freeze(value);
 }
 
+function bdmvTopologyLocation(location) {
+  const normalized = String(location || '').replace(/\\/g, '/');
+  const parts = normalized.split('/');
+  for (let index = parts.length - 2; index >= 0; index -= 1) {
+    if (parts[index].toUpperCase() === 'BDMV') return parts.slice(0, index + 1).join('/');
+  }
+  const certificateIndex = parts.length - 2;
+  if (certificateIndex >= 0 && parts[certificateIndex].toUpperCase() === 'CERTIFICATE') {
+    const root = parts.slice(0, certificateIndex).concat('BDMV').join('/');
+    return root;
+  }
+  return null;
+}
+
+function isBdmvStructuralLocation(location) {
+  const normalized = String(location || '').replace(/\\/g, '/').toUpperCase();
+  // BACKUP is a legal BDMV metadata subtree.  Structural files must be
+  // represented as typed topology evidence at any depth, otherwise a copied
+  // disc's BACKUP/*.mpls/*.clpi files are sent to ffprobe and become false
+  // probe_not_media business failures.
+  return /(?:^|\/)BDMV\/(?:.*\/)?(?:[^/]+\.MPLS|[^/]+\.CLPI|INDEX\.BDMV|MOVIEOBJECT\.BDMV)$/.test(normalized) ||
+    /(?:^|\/)CERTIFICATE\/ID\.BDMV$/.test(normalized);
+}
+
 function createCleanMediaProbe(options = {}) {
   const binary = options.binary || commandPath();
   if (!binary) {
@@ -118,6 +142,16 @@ function createCleanMediaProbe(options = {}) {
       if (!readHandle || typeof readHandle.location !== 'string' || !readHandle.identity) {
         throw new CleanMediaProbeError('CLEAN_MEDIA_PROBE_INPUT',
           'Media Probe requires an immutable Field read handle.');
+      }
+      if (isBdmvStructuralLocation(readHandle.location)) {
+        const topology = await topologyReader.inspect(bdmvTopologyLocation(readHandle.location));
+        const value = {
+          resultKind:'not_media', sourceHandleDigest:canonicalDigest(readHandle), durationMs:0,
+          videoStreams:Object.freeze([]), audioStreams:Object.freeze([]), subtitleStreams:Object.freeze([]),
+          discTopology:topology, payloadDigest:'',
+        };
+        value.payloadDigest = canonicalDigest(without(value, 'payloadDigest'));
+        return Object.freeze(value);
       }
       let result;
       try {

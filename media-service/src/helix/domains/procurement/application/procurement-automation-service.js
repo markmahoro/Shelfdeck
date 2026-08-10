@@ -35,7 +35,10 @@ const CAPABILITY_FENCE =
 const CAPABILITY_DEMAND =
   'helix://contracts/capabilities/procurement.material.control.acquire/v1/resource-demand';
 const RESULT_SCHEMA = 'helix://contracts/types/ProcurementControlReceipt/v1';
-const MAX_RUN_MEMBERS = 256;
+// The active reconciliation path uses the Run Creator's logical/physical
+// packing.  This legacy synchronous helper remains unavailable, but retain
+// the same Foundation physical bound if it is ever called by a fixture.
+const MAX_RUN_MEMBERS = 1024;
 const RECONCILE_BATCH_SIZE = 100;
 
 class ProcurementAutomationServiceError extends Error {
@@ -437,10 +440,10 @@ function policyValue(row) {
   });
 }
 
-function eligibilityDecisions(snapshot, controls) {
+function eligibilityDecisions(snapshot, controls, materials = snapshot.materials) {
   const policy = policyValue(snapshot.policy);
   const controlByKey = new Map(controls.map((item) => [item.materialKey, item]));
-  return Object.freeze(snapshot.materials.map((material) => {
+  return Object.freeze(materials.map((material) => {
     const relative = relativeLocation(
       snapshot.access.root_location,
       material.current_location,
@@ -489,7 +492,19 @@ function eligibilityDecisions(snapshot, controls) {
   }));
 }
 
+function needsEligibilityReconcile(material, snapshot, changedMaterialKeys = null) {
+  return changedMaterialKeys?.has(material.material_key) ||
+    material.eligibility_state === 'unknown' ||
+    !material.eligibility_basis_digest ||
+    Number(material.access_revision) !== Number(snapshot.access.revision) ||
+    material.eligibility_field_status !== snapshot.field.status ||
+    Number(material.eligibility_policy_revision) !== Number(snapshot.policy.revision) ||
+    material.eligibility_reason_code === 'not_observed_in_current_terminal_work' ||
+    !snapshot.appearedInTerminalWork.get(material.material_key);
+}
+
 function reconcileEligibility(options, snapshot, decisions) {
+  if (decisions.length === 0) return;
   const store = createEligibilityReconcileStore(options);
   for (let offset = 0; offset < decisions.length; offset += RECONCILE_BATCH_SIZE) {
     const batchDecisions = decisions.slice(
@@ -799,20 +814,15 @@ function createProcurementAutomationService(options) {
         { materialCount: current.materials.length },
       );
     }
-    const alreadyReconciled = current.materials.every((material) =>
-      material.eligibility_field_status === current.field.status &&
-      Number(material.eligibility_observation_revision) ===
-        observation.terminalObservationRevision &&
-      Number(material.eligibility_policy_revision) ===
-        Number(current.policy.revision) &&
-      typeof material.eligibility_basis_digest === 'string');
+    const changedMaterials = current.materials.filter((material) => needsEligibilityReconcile(material, current));
+    const alreadyReconciled = changedMaterials.length === 0;
     if (!alreadyReconciled) {
       const controls = readControlSnapshots(
         options,
-        current.materials.map((material) => material.material_key),
+        changedMaterials.map((material) => material.material_key),
         'procurement_automation_eligibility_control',
       );
-      const decisions = eligibilityDecisions(current, controls);
+      const decisions = eligibilityDecisions(current, controls, changedMaterials);
       reconcileEligibility(options, current, decisions);
       current = snapshot(observation);
     }
@@ -820,10 +830,7 @@ function createProcurementAutomationService(options) {
     const eligible = current.materials.filter((material) =>
       material.eligibility_state === 'eligible' &&
       material.eligibility_field_status === 'active' &&
-      Number(material.eligibility_observation_revision) ===
-        observation.terminalObservationRevision &&
-      Number(material.eligibility_policy_revision) ===
-        Number(current.policy.revision));
+      Number(material.eligibility_policy_revision) === Number(current.policy.revision));
     if (eligible.length === 0) {
       return Object.freeze({
         stage: 'no_eligible_material',
@@ -1017,7 +1024,7 @@ function createProcurementAutomationService(options) {
     );
   }
 
-  function reconcileFromObservation(observation) {
+  function reconcileFromObservation(observation, changedMaterialKeys = []) {
     if (!observation || observation.state !== 'succeeded' ||
         typeof observation.fieldId !== 'string' ||
         !Number.isSafeInteger(observation.accessRevision) ||
@@ -1026,22 +1033,26 @@ function createProcurementAutomationService(options) {
       fail('PROCUREMENT_AUTOMATION_OBSERVATION_INVALID',
         'Procurement Automation只接受正式terminal Observation Result。');
     }
+    if (!Array.isArray(changedMaterialKeys) || changedMaterialKeys.length > 256 ||
+        new Set(changedMaterialKeys).size !== changedMaterialKeys.length ||
+        changedMaterialKeys.some((materialKey) => typeof materialKey !== 'string' || !materialKey)) {
+      fail('PROCUREMENT_AUTOMATION_CHANGE_SET_INVALID',
+        'Eligibility Change Set must be a unique bounded Material Key list.');
+    }
+    const changedKeySet = new Set(changedMaterialKeys);
     let current = snapshot(observation);
     if (current.materials.length === 0) return Object.freeze({ stage:'no_observed_material', runs:Object.freeze([]), closedGroups:Object.freeze([]) });
-    const alreadyReconciled = current.materials.every((material) =>
-      material.eligibility_field_status === current.field.status &&
-      Number(material.eligibility_observation_revision) === observation.terminalObservationRevision &&
-      Number(material.eligibility_policy_revision) === Number(current.policy.revision) &&
-      typeof material.eligibility_basis_digest === 'string');
+    const changedMaterials = current.materials.filter((material) =>
+      needsEligibilityReconcile(material, current, changedKeySet));
+    const alreadyReconciled = changedMaterials.length === 0;
     if (!alreadyReconciled) {
-      const controls = readControlSnapshots(options, current.materials.map((material) => material.material_key),
+      const controls = readControlSnapshots(options, changedMaterials.map((material) => material.material_key),
         'procurement_automation_eligibility_control');
-      reconcileEligibility(options, current, eligibilityDecisions(current, controls));
+      reconcileEligibility(options, current, eligibilityDecisions(current, controls, changedMaterials));
       current = snapshot(observation);
     }
     const eligible = current.materials.filter((material) =>
       material.eligibility_state === 'eligible' && material.eligibility_field_status === 'active' &&
-      Number(material.eligibility_observation_revision) === observation.terminalObservationRevision &&
       Number(material.eligibility_policy_revision) === Number(current.policy.revision));
     const creationBasisDigest = canonicalDigest({ schema:'procurement.run-creator-basis@1', fieldId:observation.fieldId,
       accessRevision:observation.accessRevision, accessDigest:current.access.access_digest,
