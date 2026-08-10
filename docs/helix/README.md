@@ -4,7 +4,7 @@ Status: first-implementation retake本轮Procurement已完成；Observation事�
 
 第一次实施的P0–P13资产继续保留，但此前由大型Coordinator同步闭环得到的Movie Canary只证明低层Capability、Owner事实和
 Handoff A Ready数据形态可工作，不构成`Work Scheduler → Event Runtime → Resource Governor`已经参与的Foundation E2E证据。
-当前唯一活动实施计划见`CURRENT_PLAN.md`。最终`Z:\Film`全库Canary使用本机Node.js临时clean数据库完成，主动重启后从durable事实恢复；本线程负责实现及异常诊断。最新Canary还验证了每个BDMV容器只产生一个Assessment Event、BDMV内部成员不进入通用Probe/Candidate/Related，以及Related关联不会吸收BDMV内部文件或同stem视频载荷；证据记录在`CURRENT_STATUS.md`。
+当前唯一活动实施计划见`CURRENT_PLAN.md`。最终`Z:\Film`全库Canary使用本机Node.js临时clean数据库完成，主动重启后从durable事实恢复；本线程负责实现及异常诊断。最新Canary还验证了每个BDMV容器只产生一个Assessment Event、BDMV内部成员不进入通用Probe/Candidate/Related，以及Related关联不会吸收BDMV内部文件或同stem视频载荷；Scope成员索引优化后总耗时约5分42秒、首个Offer约142秒。证据记录在`CURRENT_STATUS.md`。
 
 Physical Material不再计算全文件Hash。当前唯一合同读取文件正中间最多262,144 bytes并执行前后stat fence；NAS负责bit rot和底层
 完整性。Artifact、Canonical JSON与事务Evidence digest仍使用SHA-256，这些digest不得作为Physical Material Identity。

@@ -5,6 +5,14 @@ const { validateTriageRuleSnapshot } = require('./procurement-run-contracts');
 const {
   createProfileHintSnapshot,
 } = require('./field-profile-hint-contracts');
+const {
+  normalized: normalizeScopeLocation,
+  parentRelativeLocation,
+  resolveBdmvContainerScope,
+  relativeToBdmvRoot,
+  relativeToBdmvContainer,
+  isBdmvInternalRelative,
+} = require('./bdmv-scope');
 
 const PLAYABILITY_REASONS = Object.freeze(['probe_not_media', 'no_video_stream', 'non_positive_duration']);
 const MAX_RUN_PHYSICAL_MEMBERS = 1024;
@@ -12,6 +20,8 @@ const STRUCTURE_REASONS = Object.freeze([...PLAYABILITY_REASONS, 'content_profil
   'episode_claim_unresolved', 'disc_structure_incomplete', 'disc_multi_title_unsupported', 'disc_non_primary_title',
   'triage_unit_contract_too_large', 'structure_ambiguous']);
 const CLAIM_KIND = Object.freeze({ movie:'movie_title', series:'series_season', jav:'jav_code', western_adult:'western_temporary' });
+const RELATED_RULE_REVISION = 1;
+const MATERIAL_INPUT_FORMS = Object.freeze(['stream_file', 'bdmv', 'dvd', 'iso']);
 
 class ProcurementTriageError extends Error {
   constructor(code, message, details = {}) { super(message); this.name = 'ProcurementTriageError'; this.code = code; this.details = details; }
@@ -155,13 +165,15 @@ function observationScopeLayoutEvidence(input) {
   // use their direct parent scope.  Keeping separate evidence objects prevents
   // a poster from one directory being considered for a different movie.
   const byScope = new Map();
+  const knownLocations = entries.map((entry) => entry.relativeLocation || entry.location);
   for (const entry of entries) {
     // Directory matching is against the frozen Field-relative context; the
     // file entry itself still retains its absolute current location for the
     // eventual Related Material reference.
     const scopeSource = entry.relativeLocation || entry.location;
-    const root = bdmvRootForLocation(scopeSource);
-    const scopeLocation = root || String(scopeSource || '').replace(/\\/g, '/').split('/').slice(0, -1).join('/') || '.';
+    const resolved = resolveBdmvContainerScope(scopeSource, knownLocations);
+    const root = resolved?.bdmvRootRelativeLocation || null;
+    const scopeLocation = root || parentRelativeLocation(scopeSource);
     const scopeKey = (root ? 'bdmv:' : 'directory:') + normalizedLocation(scopeLocation);
     if (!byScope.has(scopeKey)) byScope.set(scopeKey, { scopeLocation, entries:[] });
     byScope.get(scopeKey).entries.push(entry);
@@ -187,36 +199,20 @@ function observationScopeLayoutEvidence(input) {
         sourceHandleDigest:projection.scopeDigest, boundedScopeDigest:scopeDigest, entries:scopedEntries, entriesDigest, layoutDigest:scopeDigest };
     });
 }
-function bdmvRootForLocation(location) {
-  const parts = String(location || '').replace(/\\/g, '/').split('/');
-  for (let index = parts.length - 2; index >= 0; index -= 1) {
-    if (parts[index].toUpperCase() === 'BDMV') return parts.slice(0, index + 1).join('/');
-  }
-  return null;
+function bdmvRootForLocation(location, knownLocations = []) {
+  return resolveBdmvContainerScope(location, knownLocations)?.bdmvRootRelativeLocation || null;
 }
 function bdmvContainerForLocation(location, contexts = []) {
-  const normalized = String(location || '').replace(/\\/g, '/');
-  const parts = normalized.split('/');
-  for (let index = parts.length - 2; index >= 0; index -= 1) {
-    if (parts[index].toUpperCase() === 'BDMV') return parts.slice(0, index).join('/') || '.';
-  }
-  const certificateIndex = parts.length - 2;
-  if (certificateIndex >= 0 && parts[certificateIndex].toUpperCase() === 'CERTIFICATE') {
-    const candidate = parts.slice(0, certificateIndex).join('/') || '.';
-    const hasBdmvSibling = contexts.some((context) => bdmvContainerForLocation(context.fieldRelativeLocation, []) === candidate);
-    if (hasBdmvSibling) return candidate;
-  }
-  return null;
-}
-function relativeToBdmvRoot(location, root) {
-  const normalized = String(location || '').replace(/\\/g, '/');
-  return normalized.startsWith(root + '/') ? normalized.slice(root.length + 1) : null;
+  return resolveBdmvContainerScope(location, contexts)?.containerRelativeLocation || null;
 }
 function bdmvInternalEntry(entry) {
-  const relative = String(entry.relativeLocation || '').replace(/\\/g, '/').toUpperCase();
-  const baseName = String(entry.baseName || '').toUpperCase();
-  return /^(PLAYLIST|STREAM|CLIPINF)\//.test(relative) || /^(INDEX|MOVIEOBJECT)\.BDMV$/.test(baseName) ||
-    /\.(MPLS|CLPI|M2TS|BDMV)$/.test(baseName);
+  return isBdmvInternalRelative(entry.relativeLocation || entry.baseName);
+}
+function relativeToBdmvScope(location, bdmvRoot) {
+  const fromRoot = relativeToBdmvRoot(location, bdmvRoot);
+  if (fromRoot !== null) return fromRoot;
+  const container = String(bdmvRoot || '').replace(/\/BDMV$/i, '');
+  return relativeToBdmvContainer(location, { containerRelativeLocation:container });
 }
 function validateStructureInput(input) {
   const allowed = ['selectedFieldMaterialSet','probeBatches','bdmvAssessments','playabilityPages','materialFieldContext','observationScopeProjection','layoutEvidence','pageRequest','inputDigest'];
@@ -279,7 +275,8 @@ function normalizedLocation(value) {
 function layoutEvidenceForContext(context, layoutEvidence) {
   const refs = new Set((context.layoutEvidenceRefs || []).map(layoutEvidenceRefKey));
   const fieldLocation = String(context.fieldRelativeLocation || '').replace(/\\/g, '/');
-  const bdmvRoot = bdmvRootForLocation(fieldLocation);
+  const knownLocations = layoutEvidence.flatMap((evidence) => (evidence.entries || []).map((entry) => entry.relativeLocation || entry.location));
+  const bdmvRoot = bdmvRootForLocation(fieldLocation, knownLocations);
   const separator = fieldLocation.lastIndexOf('/');
   const expectedDirectories = new Set([normalizedLocation(bdmvRoot || (separator >= 0 ? fieldLocation.slice(0, separator) : '.'))]);
   if (bdmvRoot) {
@@ -296,11 +293,12 @@ function layoutEvidenceForContext(context, layoutEvidence) {
 function relatedFor(context, layoutEvidence, primaryMaterialKey) {
   const primaryStems = new Set([context.baseName.replace(/\.[^.]+$/, '').toLowerCase(),
     context.directoryTitle && String(context.directoryTitle).replace(/\.[^.]+$/, '').toLowerCase()].filter(Boolean)); const results = [];
+  const knownLocations = layoutEvidence.flatMap((evidence) => (evidence.entries || []).map((entry) => entry.relativeLocation || entry.location));
   const resultByReferenceId = new Map();
   for (const evidence of layoutEvidenceForContext(context, layoutEvidence)) {
     for (const entry of evidence.entries || []) {
       if (entry.entryKind !== 'file' || !entry.identity || entry.identity.fingerprintAlgorithm !== 'middle-256k-sha256') continue;
-      if (bdmvRootForLocation(context.fieldRelativeLocation) && bdmvInternalEntry(entry)) continue;
+      if (bdmvRootForLocation(context.fieldRelativeLocation, knownLocations) && bdmvInternalEntry(entry)) continue;
       if (entry.identity.materialKey === primaryMaterialKey) continue;
       const lower = entry.baseName.toLowerCase(); const stem = lower.replace(/\.[^.]+$/, ''); const extension = (entry.extension || '').toLowerCase();
       const image = /\.(jpg|jpeg|png|webp)$/.test(extension);
@@ -336,6 +334,52 @@ function relatedFor(context, layoutEvidence, primaryMaterialKey) {
   return results.sort((a,b) => compareUtf8(a.referenceId,b.referenceId));
 }
 
+function relatedScopeFor(context, layoutEvidence, primaryMaterialKey, projectionRevision = 1) {
+  const knownLocations = layoutEvidence.flatMap((evidence) => (evidence.entries || []).map((entry) => entry.relativeLocation || entry.location));
+  const resolved = resolveBdmvContainerScope(context.fieldRelativeLocation, knownLocations);
+  // For a BDMV container, the container directory itself is the external
+  // sidecar scope (BDMV/ and CERTIFICATE/ are children of it).  Using the
+  // container's parent would silently exclude `Movie/poster.jpg` and
+  // `Movie/movie.nfo` from Candidate Context reconstruction.
+  const parentRelativeLocation = resolved
+    ? resolved.containerRelativeLocation
+    : parentRelativeLocationOf(context.fieldRelativeLocation);
+  const stemKey = resolved
+    ? String(context.directoryTitle || parentRelativeLocation.split('/').at(-1) || '').trim().toLocaleLowerCase('en-US')
+    : String(context.baseName || '').replace(/\.[^.]+$/, '').trim().toLocaleLowerCase('en-US');
+  const value = {
+    scopeKind: resolved ? 'bdmv_external_parent' : 'ordinary_parent',
+    parentRelativeLocation: parentRelativeLocation || '.',
+    stemKey: stemKey || primaryMaterialKey.slice(0, 16),
+    observationProjectionRevision: Number.isSafeInteger(Number(projectionRevision)) ? Number(projectionRevision) : 1,
+    relatedRuleRevision: RELATED_RULE_REVISION,
+  };
+  return Object.freeze({ ...value, scopeDigest:digest({ schema:'procurement.related-scope@1', ...value }) });
+}
+
+function parentRelativeLocationOf(value) {
+  const normalized = normalizeScopeLocation(value);
+  const separator = normalized.lastIndexOf('/');
+  return separator < 0 ? '.' : normalized.slice(0, separator) || '.';
+}
+
+function materialInputFormFromProbe(probe) {
+  const topology = probe?.discTopology;
+  if (!topology) return 'stream_file';
+  const selectedPlaylist = topology.selectedPlaylist || topology.titleSelectionEvidence?.selectedPlaylist;
+  const validTopology = typeof topology.topologyDigest === 'string' && topology.topologyDigest.length > 0 &&
+    Number.isSafeInteger(Number(topology.topologyVersion)) && Number(topology.topologyVersion) > 0 &&
+    Number.isSafeInteger(Number(topology.titleCount)) && Number(topology.titleCount) > 0 &&
+    typeof topology.singleTitleEvidenceDigest === 'string' && topology.singleTitleEvidenceDigest.length > 0 &&
+    typeof topology.titleSelectionEvidence === 'object' && topology.titleSelectionEvidence !== null &&
+    typeof selectedPlaylist === 'string' && selectedPlaylist.length > 0 &&
+    Array.isArray(topology.members) && topology.members.length > 0;
+  if (!MATERIAL_INPUT_FORMS.includes(topology.discKind) || !validTopology) {
+    fail('P7_TRIAGE_INPUT_FORM_TOPOLOGY_INVALID', 'Typed disc topology evidence is incomplete for materialInputForm.');
+  }
+  return topology.discKind;
+}
+
 function directoryTitleFor(context, layoutEvidence) {
   const candidates = [];
   for (const evidence of layoutEvidenceForContext(context, layoutEvidence)) {
@@ -355,7 +399,8 @@ function unitFor(
   mediaTypeName,
   season,
   episodes,
-  relatedReferences,
+  relatedScope,
+  materialInputForm,
   profileHintSnapshot,
 ) {
   const seasonClaim = profileName === 'series' ? (season === null
@@ -422,19 +467,20 @@ function unitFor(
       ? normalizedJavCode || metadata.claimedTitle
       : metadata.claimedTitle, identityMetadata:metadata,
     seasonContinuityClaims:[], seasonContinuityClaimSetDigest:digest({ schema:'season-continuity-claim-set@1', items:[] }),
-    members:[unitMember], relatedReferences, unitDigest:'' };
+    members:[unitMember], relatedScope, materialInputForm, unitDigest:'' };
   value.unitId = digest({ schema:'procurement.triage-unit-id@1', mediaType:value.mediaType, contentProfile:value.contentProfile,
-    structureKind:value.structureKind, members:value.members.map(({ materialKey, role, episodeClaims }) => ({ materialKey, role, episodeClaims })) });
+    structureKind:value.structureKind, materialInputForm:value.materialInputForm, relatedScope:value.relatedScope,
+    members:value.members.map(({ materialKey, role, episodeClaims }) => ({ materialKey, role, episodeClaims })) });
   value.unitDigest = digest(without(value, 'unitDigest'));
   return value;
 }
 
-function bdmvUnitFor(group, topology, contexts, layoutEvidence, fieldContext, profileHintSnapshot, root, scopeReference, assessment) {
-  const topologyRoot = root || contexts.map((context) => bdmvRootForLocation(context.fieldRelativeLocation)).find(Boolean);
+function bdmvUnitFor(group, topology, contexts, layoutEvidence, fieldContext, profileHintSnapshot, root, scopeReference, assessment, projectionRevision = 1) {
+  const topologyRoot = root || contexts.map((context) => bdmvRootForLocation(context.fieldRelativeLocation, contexts)).find(Boolean);
   if (!topologyRoot) return { kind:'incomplete' };
   const byRelative = new Map(group.map((item) => {
     const context = contexts.find((candidate) => candidate.materialKey === item.materialKey);
-    const relative = relativeToBdmvRoot(context?.fieldRelativeLocation, topologyRoot);
+    const relative = relativeToBdmvScope(context?.fieldRelativeLocation, topologyRoot);
     return [relative ? relative.toUpperCase() : '', item];
   }).filter(([key]) => key));
   const topologyMembers = topology.members.map((member) => ({ ...member, key: String(member.relativeLocation).replace(/\\/g, '/').toUpperCase() }));
@@ -458,16 +504,17 @@ function bdmvUnitFor(group, topology, contexts, layoutEvidence, fieldContext, pr
   };
   const primaryContext = contexts.find((context) => context.materialKey === primaryMember.materialKey);
   const directoryTitle = directoryTitleFor(primaryContext, layoutEvidence);
-  const related = relatedFor({ ...primaryContext, directoryTitle, contextDigest:fieldContext.contextDigest }, layoutEvidence, primaryMember.materialKey);
-  const seed = unitFor(primaryUnitMember, { ...primaryContext, directoryTitle, fieldId:fieldContext.fieldId }, 'movie', 'single', null, [], related,
+  const relatedScope = relatedScopeFor({ ...primaryContext, directoryTitle, contextDigest:fieldContext.contextDigest }, layoutEvidence,
+    primaryMember.materialKey, projectionRevision);
+  const seed = unitFor(primaryUnitMember, { ...primaryContext, directoryTitle, fieldId:fieldContext.fieldId }, 'movie', 'single', null, [], relatedScope, 'bdmv',
     profileHintSnapshot);
   const memberScope = { scopeKind:'bdmv_container', procurementRunId:scopeReference.procurementRunId, bdmvGroupKey:scopeReference.bdmvGroupKey,
     scopeDigest:scopeReference.scopeDigest, memberSetDigest:scopeReference.memberSetDigest, memberCount:group.length,
     topologyDigest:assessment.topologyDigest, selectedPayloadSetDigest:assessment.selectedPayloadSetDigest };
-  const value = { ...seed, members:undefined, memberScope, relatedReferences:related };
+  const value = { ...seed, members:undefined, memberScope };
   delete value.members;
   value.unitId = digest({ schema:'procurement.triage-unit-id@2', mediaType:value.mediaType, contentProfile:value.contentProfile,
-    structureKind:value.structureKind, scope:memberScope });
+    structureKind:value.structureKind, scope:memberScope, materialInputForm:value.materialInputForm, relatedScope:value.relatedScope });
   value.unitDigest = digest(without(value, 'unitDigest'));
   return { kind:'resolved', unit:value, selectedKeys:new Set(topologyMembers.map((member) => member.key)), topologyRoot };
 }
@@ -516,9 +563,16 @@ function mergeSeriesUnits(groups, unassigned) {
     }
     const members = group.flatMap((unit) => unit.members)
       .sort((a,b) => compareUtf8(a.materialKey,b.materialKey));
-    const relatedReferences = group.flatMap((unit) => unit.relatedReferences)
-      .sort((a,b) => compareUtf8(a.referenceId,b.referenceId));
     const first = [...group].sort((a,b) => compareUtf8(a.unitId,b.unitId))[0];
+    const relatedScopes = group.map((unit) => unit.relatedScope).sort((a,b) => compareUtf8(a.scopeDigest,b.scopeDigest));
+    const relatedScope = relatedScopes.length && relatedScopes.every((scope) =>
+      scope.scopeKind === relatedScopes[0].scopeKind && scope.parentRelativeLocation === relatedScopes[0].parentRelativeLocation &&
+      scope.stemKey === relatedScopes[0].stemKey && scope.observationProjectionRevision === relatedScopes[0].observationProjectionRevision &&
+      scope.relatedRuleRevision === relatedScopes[0].relatedRuleRevision)
+      ? relatedScopes[0]
+      : Object.freeze({ scopeKind:'ordinary_parent', parentRelativeLocation:'@candidate', stemKey:'@candidate',
+        observationProjectionRevision:relatedScopes[0]?.observationProjectionRevision || 1, relatedRuleRevision:RELATED_RULE_REVISION,
+        scopeDigest:digest({ schema:'procurement.related-scope-set@1', items:relatedScopes }) });
     const sourceHints = group.flatMap((unit) => unit.identityMetadata.sourceHints)
       .filter((hint, index, all) =>
         hint.hintKind !== 'field_content_profile_hint' ||
@@ -547,11 +601,13 @@ function mergeSeriesUnits(groups, unassigned) {
       seasonContinuityClaims:[],
       seasonContinuityClaimSetDigest:digest({ schema:'season-continuity-claim-set@1', items:[] }),
       members,
-      relatedReferences,
+      relatedScope,
+      materialInputForm:first.materialInputForm,
       unitDigest:'',
     };
     value.unitId = digest({ schema:'procurement.triage-unit-id@1', mediaType:value.mediaType,
-      contentProfile:value.contentProfile, structureKind:value.structureKind,
+      contentProfile:value.contentProfile, structureKind:value.structureKind, materialInputForm:value.materialInputForm,
+      relatedScope:value.relatedScope,
       members:value.members.map(({ materialKey, role, episodeClaims }) => ({ materialKey, role, episodeClaims })) });
     value.unitDigest = digest(without(value, 'unitDigest'));
     if (conserveUnitBound(value, unassigned)) merged.push(value);
@@ -578,7 +634,7 @@ function inspectStructure(input, rule, options = {}) {
     const context = contexts.get(selected.materialKey); const probe = probes.get(selected.materialKey); const play = playable.get(selected.materialKey);
     if (!context) fail('P7_TRIAGE_STRUCTURE_MAPPING', 'Structure input does not exactly cover Selection.');
     const bdmvContainer = bdmvContainerKeys.get(selected.materialKey);
-    const bdmvRoot = bdmvContainer ? allContexts.map((candidate) => bdmvRootForLocation(candidate.fieldRelativeLocation))
+    const bdmvRoot = bdmvContainer ? allContexts.map((candidate) => bdmvRootForLocation(candidate.fieldRelativeLocation, allContexts))
       .find((root) => root && root.replace(/\\/g, '/').replace(/\/BDMV$/, '') === bdmvContainer) : null;
     if (bdmvContainer && bdmvRoot) {
       const group = selection.members.filter((candidate) => bdmvContainerKeys.get(candidate.materialKey) === bdmvContainer);
@@ -600,7 +656,10 @@ function inspectStructure(input, rule, options = {}) {
         members:assessment.selectedClipIds.map((clipId) => ({ relativeLocation:'STREAM/' + clipId + '.M2TS', role:'primary_payload', clipId })) };
       topology.members.push({ relativeLocation:assessment.selectedPlaylist.relativeLocation, role:'structural_dependency' },
         { relativeLocation:'index.bdmv', role:'structural_dependency' }, { relativeLocation:'MovieObject.bdmv', role:'structural_dependency' },
-        ...assessment.selectedClipIds.map((clipId) => ({ relativeLocation:'CLIPINF/' + clipId + '.CLPI', role:'structural_dependency' })));
+        ...assessment.selectedClipIds.map((clipId) => ({ relativeLocation:'CLIPINF/' + clipId + '.CLPI', role:'structural_dependency' })),
+        ...group.map((candidate) => relativeToBdmvScope(contexts.get(candidate.materialKey).fieldRelativeLocation, bdmvRoot))
+          .filter((relative) => relative && /^CERTIFICATE\//i.test(relative))
+          .map((relativeLocation) => ({ relativeLocation, role:'structural_dependency' })));
       if (topologyResults.some((item) => item.topologyDigest !== topology.topologyDigest)) {
         addGroupUnassigned(group, 'structure_ambiguous'); continue;
       }
@@ -616,12 +675,12 @@ function inspectStructure(input, rule, options = {}) {
       if (!hasIndex || !hasMovieObject || !hasPlaylist || !hasStream) { addGroupUnassigned(group, 'disc_structure_incomplete'); continue; }
       const groupContexts = group.map((candidate) => contexts.get(candidate.materialKey));
       const built = bdmvUnitFor(group, topology, groupContexts, layoutEvidence, input.materialFieldContext, profileHintSnapshot, bdmvRoot,
-        assessmentEnvelope.scope, assessment);
+        assessmentEnvelope.scope, assessment, input.observationScopeProjection?.projectionRevision || 1);
       if (built.kind !== 'resolved') { addGroupUnassigned(group, 'disc_structure_incomplete'); continue; }
       const primaryFailures = playableBdmv.get(bdmvGroup.scopeDigest)?.playable ? [] : [playableBdmv.get(bdmvGroup.scopeDigest)?.reasonCodes?.[0] || 'probe_not_media'];
       if (primaryFailures.length) { addGroupUnassigned(group, primaryFailures[0]); continue; }
       for (const candidate of group) {
-        const relative = relativeToBdmvRoot(contexts.get(candidate.materialKey).fieldRelativeLocation, bdmvRoot);
+        const relative = relativeToBdmvScope(contexts.get(candidate.materialKey).fieldRelativeLocation, bdmvRoot);
         if (!relative || !built.selectedKeys.has(relative.toUpperCase())) {
           unassigned.push({ materialKey:candidate.materialKey, reasonCode:'disc_non_primary_title', evidenceDigest:topology.topologyDigest });
         }
@@ -643,9 +702,11 @@ function inspectStructure(input, rule, options = {}) {
         evidenceDigest:digest({ materialKey:selected.materialKey, contextDigest:input.materialFieldContext.contextDigest }) }); continue;
     }
     const directoryTitle = directoryTitleFor(context, layoutEvidence);
-    const related = relatedFor({ ...context, contextDigest:input.materialFieldContext.contextDigest }, layoutEvidence, selected.materialKey);
+    const relatedScope = relatedScopeFor({ ...context, directoryTitle, contextDigest:input.materialFieldContext.contextDigest }, layoutEvidence,
+      selected.materialKey, input.observationScopeProjection?.projectionRevision || 1);
+    const materialInputForm = materialInputFormFromProbe(probe.mediaProbe);
     const unit = unitFor(probe, { ...context, directoryTitle, fieldId:input.materialFieldContext.fieldId }, profileName,
-      profileName === 'series' ? 'group' : 'single', token && token.season, token ? token.episodes : [], related,
+      profileName === 'series' ? 'group' : 'single', token && token.season, token ? token.episodes : [], relatedScope, materialInputForm,
       profileHintSnapshot);
     if (profileName !== 'series') { if (conserveUnitBound(unit, unassigned)) units.push(unit); continue; }
     const groupKey = digest({ schema:'procurement.series-candidate-group@1', claimedTitle:unit.identityMetadata.claimedTitle,
@@ -754,5 +815,6 @@ function buildPrimaryManifestDraft(input, rule, options = {}) {
   return freeze(value);
 }
 
-module.exports = Object.freeze({ CLAIM_KIND, PLAYABILITY_REASONS, STRUCTURE_REASONS, ProcurementTriageError,
+module.exports = Object.freeze({ CLAIM_KIND, PLAYABILITY_REASONS, STRUCTURE_REASONS, MATERIAL_INPUT_FORMS, RELATED_RULE_REVISION,
+  ProcurementTriageError, relatedScopeFor, materialInputFormFromProbe,
   buildPrimaryManifestDraft, inspectPlayability, inspectStructure, resolveIdentity });

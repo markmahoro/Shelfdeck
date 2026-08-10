@@ -46,7 +46,7 @@ function bdmvAssessment(scope, titleCount = 1) {
 
 function buildInput({ titleCount = 1, profileHint = 'movie' } = {}) {
   const names = [
-    ['index', 'Movies/My Movie/BDMV/index.bdmv'], ['movieobject', 'Movies/My Movie/BDMV/MovieObject.bdmv'], ['playlist', 'Movies/My Movie/BDMV/PLAYLIST/00000.mpls'],
+    ['certificate', 'Movies/My Movie/CERTIFICATE/id.bdmv'], ['index', 'Movies/My Movie/BDMV/index.bdmv'], ['movieobject', 'Movies/My Movie/BDMV/MovieObject.bdmv'], ['playlist', 'Movies/My Movie/BDMV/PLAYLIST/00000.mpls'],
     ['clip', 'Movies/My Movie/BDMV/CLIPINF/00000.clpi'], ['stream', 'Movies/My Movie/BDMV/STREAM/00000.m2ts'],
   ];
   const members = names.map(([label, location], ordinal) => ({
@@ -100,11 +100,12 @@ test('single-title BDMV becomes one compact Unit with structural dependencies an
   assert.equal(result.units.length, 1);
   assert.equal(result.units[0].contentProfile, 'movie');
   assert.equal(result.units[0].memberScope.scopeKind, 'bdmv_container');
-  assert.equal(result.units[0].memberScope.memberCount, 5);
+  assert.equal(result.units[0].memberScope.memberCount, 6);
   assert.equal(Object.hasOwn(result.units[0], 'members'), false);
-  assert.equal(result.units[0].relatedReferences.length, 1);
-  assert.equal(result.units[0].relatedReferences[0].role, 'nfo');
-  assert.equal(result.units[0].relatedReferences.some((item) => /\.m2ts$/i.test(item.location)), false);
+  assert.equal(result.units[0].relatedScope.scopeKind, 'bdmv_external_parent');
+  assert.equal(result.units[0].relatedScope.parentRelativeLocation, 'Movies/My Movie');
+  assert.equal(Object.hasOwn(result.units[0], 'relatedReferences'), false);
+  assert.equal(result.units[0].materialInputForm, 'bdmv');
   assert.equal(result.unassignedMaterials.length, 0);
 });
 
@@ -120,7 +121,7 @@ test('Series BDMV fails closed without creating a Unit', () => {
   const { input } = buildInput({ profileHint:'series' });
   const result = capabilities.structureInspect.execute({ triageStructureInspectionInput:input, procurementTriageRuleSnapshot:rule });
   assert.equal(result.units.length, 0);
-  assert.equal(result.unassignedMaterials.length, 5);
+  assert.equal(result.unassignedMaterials.length, 6);
   assert.ok(result.unassignedMaterials.every((item) => item.reasonCode === 'disc_structure_incomplete'));
 });
 

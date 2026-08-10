@@ -131,6 +131,15 @@
         "western_adult"
       ]
     },
+    "materialInputForm": {
+      "type": "string",
+      "enum": [
+        "stream_file",
+        "bdmv",
+        "dvd",
+        "iso"
+      ]
+    },
     "displayIdentity": {
       "type": "string",
       "minLength": 1
@@ -358,6 +367,7 @@
     "materialFieldContextRef",
     "mediaType",
     "contentProfile",
+    "materialInputForm",
     "displayIdentity",
     "identityMetadata",
     "identityClaim",

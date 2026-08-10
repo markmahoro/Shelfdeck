@@ -267,12 +267,56 @@
                 "minLength": 1,
                 "pattern": "^[a-f0-9]{64}$"
               },
-              "relatedReferences": {
-                "type": "array",
-                "items": {
-                  "$ref": "helix://contracts/types/RelatedMaterialReference/v1"
+              "relatedScope": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "scopeKind": {
+                    "type": "string",
+                    "enum": [
+                      "ordinary_parent",
+                      "bdmv_external_parent"
+                    ]
+                  },
+                  "parentRelativeLocation": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "stemKey": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "observationProjectionRevision": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "relatedRuleRevision": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "scopeDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
                 },
-                "maxItems": 1024
+                "required": [
+                  "scopeKind",
+                  "parentRelativeLocation",
+                  "stemKey",
+                  "observationProjectionRevision",
+                  "relatedRuleRevision",
+                  "scopeDigest"
+                ]
+              },
+              "materialInputForm": {
+                "type": "string",
+                "enum": [
+                  "stream_file",
+                  "bdmv",
+                  "dvd",
+                  "iso"
+                ]
               },
               "unitDigest": {
                 "type": "string",
@@ -368,7 +412,8 @@
               "identityMetadata",
               "seasonContinuityClaims",
               "seasonContinuityClaimSetDigest",
-              "relatedReferences",
+              "relatedScope",
+              "materialInputForm",
               "unitDigest",
               "members"
             ]
@@ -531,12 +576,56 @@
                 "minLength": 1,
                 "pattern": "^[a-f0-9]{64}$"
               },
-              "relatedReferences": {
-                "type": "array",
-                "items": {
-                  "$ref": "helix://contracts/types/RelatedMaterialReference/v1"
+              "relatedScope": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "scopeKind": {
+                    "type": "string",
+                    "enum": [
+                      "ordinary_parent",
+                      "bdmv_external_parent"
+                    ]
+                  },
+                  "parentRelativeLocation": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "stemKey": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "observationProjectionRevision": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "relatedRuleRevision": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "scopeDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
                 },
-                "maxItems": 1024
+                "required": [
+                  "scopeKind",
+                  "parentRelativeLocation",
+                  "stemKey",
+                  "observationProjectionRevision",
+                  "relatedRuleRevision",
+                  "scopeDigest"
+                ]
+              },
+              "materialInputForm": {
+                "type": "string",
+                "enum": [
+                  "stream_file",
+                  "bdmv",
+                  "dvd",
+                  "iso"
+                ]
               },
               "unitDigest": {
                 "type": "string",
@@ -606,7 +695,8 @@
               "identityMetadata",
               "seasonContinuityClaims",
               "seasonContinuityClaimSetDigest",
-              "relatedReferences",
+              "relatedScope",
+              "materialInputForm",
               "unitDigest",
               "memberScope"
             ]

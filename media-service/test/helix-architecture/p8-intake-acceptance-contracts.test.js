@@ -17,10 +17,10 @@ function basis(){
     realityDigest:D('reality'),provenanceDigest:D('provenance'),manifestMemberDigest:D('manifest-member'),episodeClaims:[{
       episodeKey:'S01E01',seasonClaimDigest:D('season'),claimDigest:D('episode')}],deliveryMemberDigest:D('delivery-member')};
   const candidatePackage={candidatePackageId:'candidate-1',packageRevision:1,packageDigest:D('package'),
-    materialFieldContextRef:{fieldId:'field-1',accessRevision:1,contextDigest:D('field-context')},contentProfile:'series',
+    materialFieldContextRef:{fieldId:'field-1',accessRevision:1,contextDigest:D('field-context')},contentProfile:'series',materialInputForm:'stream_file',
     identityClaim:{claimDigest:D('identity-claim')},seasonContinuityClaims:[],seasonContinuityClaimSetDigest:canonicalDigest({schema:'season-continuity-claim-set@1',items:[]})};
   const snapshot={snapshotContract:'procurement.candidate-delivery@1',offer:{offerId:'offer-1'},
-    acceptanceBasis:{acceptanceBasisDigest:D('basis')},candidatePackage,primaryInputManifest:{manifestDigest:D('manifest'),structureKind:'season'},
+    acceptanceBasis:{acceptanceBasisDigest:D('basis')},candidatePackage,materialInputForm:'stream_file',primaryInputManifest:{manifestDigest:D('manifest'),structureKind:'season'},
     primaryMaterialDeliveries:[member],deliveryMemberSetDigest:D('members'),deliverySnapshotDigest:''};
   snapshot.deliverySnapshotDigest=canonicalDigest(without(snapshot,'deliverySnapshotDigest'));
   const decision={decisionId:canonicalDigest({schema:'libra.intake-decision-id@1',offerId:'offer-1'}),offerId:'offer-1',

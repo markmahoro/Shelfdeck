@@ -8,6 +8,7 @@ const ACCEPTANCE_BASIS_SCHEMA = 'helix://contracts/types/CandidateIntakeAcceptan
 const OFFER_MESSAGE_SCHEMA = 'helix://contracts/types/ProcurementCandidateOfferAvailableMessage/v1';
 const HANDOFF_CONTRACT = 'helix://handoffs/procurement-to-libra/v1';
 const CLAIM_KINDS = new Set(['provider_season_identity', 'triage_grouping_lineage']);
+const MATERIAL_INPUT_FORMS = new Set(['stream_file', 'bdmv', 'dvd', 'iso']);
 const SHA256 = /^[0-9a-f]{64}$/;
 
 class CandidatePublicationContractError extends Error {
@@ -93,6 +94,18 @@ function validateManifestMemberSource(draft, unitMembers) {
 
 function digestString(value) { return typeof value === 'string' && SHA256.test(value); }
 
+function validateRelatedScope(scope) {
+  if (!scope || !['ordinary_parent', 'bdmv_external_parent'].includes(scope.scopeKind) ||
+      typeof scope.parentRelativeLocation !== 'string' || !scope.parentRelativeLocation || typeof scope.stemKey !== 'string' || !scope.stemKey ||
+      !Number.isSafeInteger(scope.observationProjectionRevision) || scope.observationProjectionRevision < 1 ||
+      !Number.isSafeInteger(scope.relatedRuleRevision) || scope.relatedRuleRevision < 1 ||
+      !digestString(scope.scopeDigest) || scope.scopeDigest !== canonicalDigest({ schema:'procurement.related-scope@1',
+        scopeKind:scope.scopeKind, parentRelativeLocation:scope.parentRelativeLocation, stemKey:scope.stemKey,
+        observationProjectionRevision:scope.observationProjectionRevision, relatedRuleRevision:scope.relatedRuleRevision })) {
+    fail('P7_CANDIDATE_RELATED_SCOPE_INVALID', 'Candidate Unit Related Scope is invalid.');
+  }
+}
+
 function validateEpisodeClaims(claims) {
   requireArray(claims, 'episodeClaims', 32);
   let previous = null;
@@ -135,8 +148,11 @@ function validateDraft(draft, runBasisMembers) {
   if (compact && (!unit.memberScope || unit.memberScope.scopeKind !== 'bdmv_container')) {
     fail('P7_CANDIDATE_UNIT_SCOPE_INVALID', 'Compact Candidate Unit must carry a BDMV Scope Reference.');
   }
+  validateRelatedScope(unit.relatedScope);
+  if (!MATERIAL_INPUT_FORMS.has(unit.materialInputForm) || draft.materialInputForm !== unit.materialInputForm) {
+    fail('P7_CANDIDATE_INPUT_FORM_INVALID', 'Candidate materialInputForm is missing or inconsistent with the Unit.');
+  }
   requireArray(unitMembers, compact ? 'primaryInputManifestDraft.members' : 'structureEvidence.unit.members', 1024, 1);
-  requireArray(unit.relatedReferences, 'structureEvidence.unit.relatedReferences', 256);
   let previousMember = null;
   const memberKeys = new Set();
   for (const member of unitMembers) {
@@ -152,16 +168,17 @@ function validateDraft(draft, runBasisMembers) {
   }
   const expectedUnitId = compact
     ? canonicalDigest({ schema:'procurement.triage-unit-id@2', mediaType:unit.mediaType, contentProfile:unit.contentProfile,
-      structureKind:unit.structureKind, scope:unit.memberScope })
+      structureKind:unit.structureKind, scope:unit.memberScope, materialInputForm:unit.materialInputForm, relatedScope:unit.relatedScope })
     : canonicalDigest({ schema:'procurement.triage-unit-id@1', mediaType:unit.mediaType,
-      contentProfile:unit.contentProfile, structureKind:unit.structureKind,
+      contentProfile:unit.contentProfile, structureKind:unit.structureKind, materialInputForm:unit.materialInputForm, relatedScope:unit.relatedScope,
       members:unitMembers.map(({ materialKey, role, episodeClaims }) => ({ materialKey, role, episodeClaims })) });
   if (unit.unitId !== expectedUnitId || draft.identityMetadata.metadataDigest !== canonicalDigest(without(draft.identityMetadata, 'metadataDigest'))) {
     fail('P7_CANDIDATE_UNIT_CANONICAL', 'Triage Unit identity or metadata digest is invalid.');
   }
+  requireArray(draft.relatedReferences, 'relatedReferences', 1024);
   const manifestByKey = validateManifestMemberSource(draft, unitMembers);
   let previousReference = null;
-  for (const reference of unit.relatedReferences) {
+  for (const reference of draft.relatedReferences) {
     const identity = reference.identity;
     const identityMaterialKey = identity && canonicalDigest({ schema:'physical-material-identity@2', mountScopeId:identity.mountScopeId,
       inode:identity.inode, sizeBytes:identity.sizeBytes, fingerprintAlgorithm:'middle-256k-sha256', fingerprintVersion:1,
@@ -184,7 +201,7 @@ function validateDraft(draft, runBasisMembers) {
   validateContinuity(unit.seasonContinuityClaims, unit.seasonContinuityClaimSetDigest);
   if (!same(draft.seasonContinuityClaims, unit.seasonContinuityClaims) ||
       draft.seasonContinuityClaimSetDigest !== unit.seasonContinuityClaimSetDigest ||
-      !same(draft.relatedReferences, unit.relatedReferences) || draft.mediaType !== unit.mediaType ||
+      draft.mediaType !== unit.mediaType ||
       draft.contentProfile !== unit.contentProfile || draft.displayIdentity !== unit.displayIdentity ||
       !same(draft.identityMetadata, unit.identityMetadata) || draft.identityClaim.mediaType !== unit.mediaType ||
       draft.identityClaim.contentProfile !== unit.contentProfile || draft.identityClaim.structureUnitDigest !== unit.unitDigest) {
@@ -286,7 +303,7 @@ function buildPublication(draft, publishedAtMs, runBasisMembers) {
     manifestKind:'candidate_package', ownerDomain:'procurement', memberCount:members.length, membersDigest,
     manifestDigest:'', publishedAtMs, candidatePackageId:draft.candidatePackageId, packageRevision:draft.expectedPackageRevision,
     procurementRunId:draft.procurementRunId, runBasisDigest:draft.runBasisDigest, triageRule:draft.triageRule,
-    materialFieldContextRef:draft.materialFieldContextRef, mediaType:draft.mediaType, contentProfile:draft.contentProfile,
+    materialFieldContextRef:draft.materialFieldContextRef, mediaType:draft.mediaType, contentProfile:draft.contentProfile, materialInputForm:draft.materialInputForm,
     displayIdentity:draft.displayIdentity, identityMetadata:draft.identityMetadata, identityClaim:draft.identityClaim,
     structureEvidenceRef:{ evidenceId:draft.structureEvidence.evidenceId, payloadDigest:draft.structureEvidence.payloadDigest,
       unitId:unit.unitId, unitDigest:unit.unitDigest }, seasonContinuityClaims:draft.seasonContinuityClaims,

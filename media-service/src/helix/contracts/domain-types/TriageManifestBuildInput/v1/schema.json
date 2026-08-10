@@ -199,83 +199,56 @@
               "minLength": 1,
               "pattern": "^[a-f0-9]{64}$"
             },
-            "relatedReferences": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "referenceId": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 256
-                  },
-                  "primaryMaterialKey": {
-                    "type": "string",
-                    "minLength": 1,
-                    "pattern": "^[a-f0-9]{64}$"
-                  },
-                  "role": {
-                    "type": "string",
-                    "enum": [
-                      "nfo",
-                      "poster",
-                      "fanart",
-                      "subtitle",
-                      "external_audio",
-                      "chapter",
-                      "sidecar"
-                    ]
-                  },
-                  "identity": {
-                    "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
-                  },
-                  "endpointId": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 256
-                  },
-                  "location": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "fingerprintAlgorithm": {
-                    "const": "middle-256k-sha256"
-                  },
-                  "fingerprintVersion": {
-                    "const": 1
-                  },
-                  "contentFingerprint": {
-                    "type": "string",
-                    "minLength": 1,
-                    "pattern": "^[a-f0-9]{64}$"
-                  },
-                  "associationEvidenceDigest": {
-                    "type": "string",
-                    "minLength": 1,
-                    "pattern": "^[a-f0-9]{64}$"
-                  },
-                  "referenceDigest": {
-                    "type": "string",
-                    "minLength": 1,
-                    "pattern": "^[a-f0-9]{64}$"
-                  }
+            "relatedScope": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "scopeKind": {
+                  "type": "string",
+                  "enum": [
+                    "ordinary_parent",
+                    "bdmv_external_parent"
+                  ]
                 },
-                "required": [
-                  "referenceId",
-                  "primaryMaterialKey",
-                  "role",
-                  "identity",
-                  "endpointId",
-                  "location",
-                  "fingerprintAlgorithm",
-                  "fingerprintVersion",
-                  "contentFingerprint",
-                  "associationEvidenceDigest",
-                  "referenceDigest"
-                ]
+                "parentRelativeLocation": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "stemKey": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "observationProjectionRevision": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "relatedRuleRevision": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "scopeDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                }
               },
-              "maxItems": 1024
+              "required": [
+                "scopeKind",
+                "parentRelativeLocation",
+                "stemKey",
+                "observationProjectionRevision",
+                "relatedRuleRevision",
+                "scopeDigest"
+              ]
+            },
+            "materialInputForm": {
+              "type": "string",
+              "enum": [
+                "stream_file",
+                "bdmv",
+                "dvd",
+                "iso"
+              ]
             },
             "unitDigest": {
               "type": "string",
@@ -371,7 +344,8 @@
             "identityMetadata",
             "seasonContinuityClaims",
             "seasonContinuityClaimSetDigest",
-            "relatedReferences",
+            "relatedScope",
+            "materialInputForm",
             "unitDigest",
             "members"
           ]
@@ -534,83 +508,56 @@
               "minLength": 1,
               "pattern": "^[a-f0-9]{64}$"
             },
-            "relatedReferences": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "referenceId": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 256
-                  },
-                  "primaryMaterialKey": {
-                    "type": "string",
-                    "minLength": 1,
-                    "pattern": "^[a-f0-9]{64}$"
-                  },
-                  "role": {
-                    "type": "string",
-                    "enum": [
-                      "nfo",
-                      "poster",
-                      "fanart",
-                      "subtitle",
-                      "external_audio",
-                      "chapter",
-                      "sidecar"
-                    ]
-                  },
-                  "identity": {
-                    "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
-                  },
-                  "endpointId": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 256
-                  },
-                  "location": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "fingerprintAlgorithm": {
-                    "const": "middle-256k-sha256"
-                  },
-                  "fingerprintVersion": {
-                    "const": 1
-                  },
-                  "contentFingerprint": {
-                    "type": "string",
-                    "minLength": 1,
-                    "pattern": "^[a-f0-9]{64}$"
-                  },
-                  "associationEvidenceDigest": {
-                    "type": "string",
-                    "minLength": 1,
-                    "pattern": "^[a-f0-9]{64}$"
-                  },
-                  "referenceDigest": {
-                    "type": "string",
-                    "minLength": 1,
-                    "pattern": "^[a-f0-9]{64}$"
-                  }
+            "relatedScope": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "scopeKind": {
+                  "type": "string",
+                  "enum": [
+                    "ordinary_parent",
+                    "bdmv_external_parent"
+                  ]
                 },
-                "required": [
-                  "referenceId",
-                  "primaryMaterialKey",
-                  "role",
-                  "identity",
-                  "endpointId",
-                  "location",
-                  "fingerprintAlgorithm",
-                  "fingerprintVersion",
-                  "contentFingerprint",
-                  "associationEvidenceDigest",
-                  "referenceDigest"
-                ]
+                "parentRelativeLocation": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "stemKey": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "observationProjectionRevision": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "relatedRuleRevision": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "scopeDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                }
               },
-              "maxItems": 1024
+              "required": [
+                "scopeKind",
+                "parentRelativeLocation",
+                "stemKey",
+                "observationProjectionRevision",
+                "relatedRuleRevision",
+                "scopeDigest"
+              ]
+            },
+            "materialInputForm": {
+              "type": "string",
+              "enum": [
+                "stream_file",
+                "bdmv",
+                "dvd",
+                "iso"
+              ]
             },
             "unitDigest": {
               "type": "string",
@@ -680,7 +627,8 @@
             "identityMetadata",
             "seasonContinuityClaims",
             "seasonContinuityClaimSetDigest",
-            "relatedReferences",
+            "relatedScope",
+            "materialInputForm",
             "unitDigest",
             "memberScope"
           ]

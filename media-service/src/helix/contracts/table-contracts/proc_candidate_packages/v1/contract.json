@@ -97,6 +97,21 @@
       },
       {
         "ordinal": 9,
+        "name": "material_input_form",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "stream_file",
+          "bdmv",
+          "dvd",
+          "iso"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
         "name": "structure_kind",
         "logicalType": "TEXT",
         "enumValues": [
@@ -109,7 +124,7 @@
         "nullable": false
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "display_identity",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -119,7 +134,7 @@
         "nullable": false
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "identity_metadata_schema_ref",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -129,7 +144,7 @@
         "nullable": false
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "identity_metadata_json",
         "logicalType": "TEXT_JSON",
         "enumValues": [],
@@ -139,7 +154,7 @@
         "nullable": false
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "identity_metadata_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -149,7 +164,7 @@
         "nullable": false
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "identity_claim_schema_ref",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -159,7 +174,7 @@
         "nullable": false
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "identity_claim_json",
         "logicalType": "TEXT_JSON",
         "enumValues": [],
@@ -169,7 +184,7 @@
         "nullable": false
       },
       {
-        "ordinal": 16,
+        "ordinal": 17,
         "name": "identity_claim_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -179,7 +194,7 @@
         "nullable": false
       },
       {
-        "ordinal": 17,
+        "ordinal": 18,
         "name": "structure_evidence_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -189,7 +204,7 @@
         "nullable": false
       },
       {
-        "ordinal": 18,
+        "ordinal": 19,
         "name": "structure_evidence_payload_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -199,7 +214,7 @@
         "nullable": false
       },
       {
-        "ordinal": 19,
+        "ordinal": 20,
         "name": "structure_unit_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -209,7 +224,7 @@
         "nullable": false
       },
       {
-        "ordinal": 20,
+        "ordinal": 21,
         "name": "structure_unit_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -219,7 +234,7 @@
         "nullable": false
       },
       {
-        "ordinal": 21,
+        "ordinal": 22,
         "name": "triage_rule_ref",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -229,7 +244,7 @@
         "nullable": false
       },
       {
-        "ordinal": 22,
+        "ordinal": 23,
         "name": "triage_rule_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -239,7 +254,7 @@
         "nullable": false
       },
       {
-        "ordinal": 23,
+        "ordinal": 24,
         "name": "triage_rule_authority_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -249,7 +264,7 @@
         "nullable": false
       },
       {
-        "ordinal": 24,
+        "ordinal": 25,
         "name": "primary_input_manifest_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -259,7 +274,7 @@
         "nullable": false
       },
       {
-        "ordinal": 25,
+        "ordinal": 26,
         "name": "manifest_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -269,7 +284,7 @@
         "nullable": false
       },
       {
-        "ordinal": 26,
+        "ordinal": 27,
         "name": "related_reference_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -279,7 +294,7 @@
         "nullable": false
       },
       {
-        "ordinal": 27,
+        "ordinal": 28,
         "name": "member_control_evidence_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -289,7 +304,7 @@
         "nullable": false
       },
       {
-        "ordinal": 28,
+        "ordinal": 29,
         "name": "package_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -299,7 +314,7 @@
         "nullable": false
       },
       {
-        "ordinal": 29,
+        "ordinal": 30,
         "name": "state",
         "logicalType": "TEXT",
         "enumValues": [
@@ -311,7 +326,7 @@
         "nullable": false
       },
       {
-        "ordinal": 30,
+        "ordinal": 31,
         "name": "published_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -355,6 +370,15 @@
           "series",
           "jav",
           "western_adult"
+        ]
+      },
+      {
+        "column": "material_input_form",
+        "enumValues": [
+          "stream_file",
+          "bdmv",
+          "dvd",
+          "iso"
         ]
       },
       {
@@ -418,13 +442,13 @@
       "`INDEX(state,published_at_ms)`"
     ],
     "rawContract": {
-      "columns": "`candidate_package_id PK, procurement_run_id FK, package_revision, field_id, field_access_revision, field_context_digest, media_type(single|group), content_profile(movie|series|jav|western_adult), structure_kind(single|season), display_identity, identity_metadata_schema_ref, identity_metadata_json, identity_metadata_digest, identity_claim_schema_ref, identity_claim_json, identity_claim_digest, structure_evidence_id, structure_evidence_payload_digest, structure_unit_id, structure_unit_digest, triage_rule_ref, triage_rule_revision, triage_rule_authority_digest, primary_input_manifest_id, manifest_digest, related_reference_set_digest, member_control_evidence_set_digest, package_digest, state, published_at_ms`",
+      "columns": "`candidate_package_id PK, procurement_run_id FK, package_revision, field_id, field_access_revision, field_context_digest, media_type(single|group), content_profile(movie|series|jav|western_adult), material_input_form(stream_file|bdmv|dvd|iso), structure_kind(single|season), display_identity, identity_metadata_schema_ref, identity_metadata_json, identity_metadata_digest, identity_claim_schema_ref, identity_claim_json, identity_claim_digest, structure_evidence_id, structure_evidence_payload_digest, structure_unit_id, structure_unit_digest, triage_rule_ref, triage_rule_revision, triage_rule_authority_digest, primary_input_manifest_id, manifest_digest, related_reference_set_digest, member_control_evidence_set_digest, package_digest, state, published_at_ms`",
       "constraints": "Identity Metadata/Claim JSON各≤`16 KiB`；`UNIQUE(procurement_run_id,package_revision)`且revision必须等于Run head CAS后的值；Field Context、Profile/mediaType/structure/Identity/Unit/Rule/Manifest/Control/Related必须与完整CandidateDraft逐项一致；`seasonContinuityClaimSetDigest`由immutable `proc_candidate_season_continuity_claims`、`relatedReferenceSetDigest`由immutable `proc_candidate_related_references`按8.6.18唯一公式重建，不新增opaque JSON或旁读；published内容immutable；Publication必须与Manifest、Episode Claim/完整Related relation、对应`proc_run_materials → candidate_delivery`、Offer/Outbox、typed Result/marker同事务成立；`INDEX(state,published_at_ms)`"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8742,
-      "lineDigest": "15ca95a4d56e696f6fb5fbc4e8aa8363092e824178d92a6ddbfe66542fb51835"
+      "line": 8767,
+      "lineDigest": "15368d72308aff25b3e30d28dda86d08086d109a926c86748f63660f7015493b"
     },
     "foreignKeys": [
       {

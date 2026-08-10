@@ -44,10 +44,10 @@ function acceptedBasis(unitOfWork,material){const projection=createMaterialContr
     draftKind:'procurement_identity_claim',basisDigest:D('identity-basis'),draftDigest:canonicalDigest(identityPayload),producedAtMs:0,
     ...identityPayload,claimDigest:canonicalDigest(identityPayload)};
   const candidatePackage={candidatePackageId:'candidate-1',packageRevision:1,packageDigest:D('package'),
-    materialFieldContextRef:{fieldId:'field-1',accessRevision:1,contextDigest:D('field-context')},contentProfile:'series',
+    materialFieldContextRef:{fieldId:'field-1',accessRevision:1,contextDigest:D('field-context')},contentProfile:'series',materialInputForm:'stream_file',
     identityClaim,seasonContinuityClaims:[claim],seasonContinuityClaimSetDigest:D('claim-set')};
   const snapshot={snapshotContract:'procurement.candidate-delivery@1',offer:{offerId:'offer-1'},acceptanceBasis:{acceptanceBasisDigest:D('acceptance')},candidatePackage,
-    primaryInputManifest:{manifestDigest:D('manifest'),structureKind:'season'},primaryMaterialDeliveries:[member],deliveryMemberSetDigest:D('members'),deliverySnapshotDigest:''};snapshot.deliverySnapshotDigest=canonicalDigest(without(snapshot,'deliverySnapshotDigest'));
+    materialInputForm:'stream_file',primaryInputManifest:{manifestDigest:D('manifest'),structureKind:'season'},primaryMaterialDeliveries:[member],deliveryMemberSetDigest:D('members'),deliverySnapshotDigest:''};snapshot.deliverySnapshotDigest=canonicalDigest(without(snapshot,'deliverySnapshotDigest'));
   const decision={decisionId:canonicalDigest({schema:'libra.intake-decision-id@1',offerId:'offer-1'}),offerId:'offer-1',candidatePackageId:'candidate-1',packageRevision:1,packageDigest:candidatePackage.packageDigest,
     candidateDeliverySnapshotDigest:snapshot.deliverySnapshotDigest,expectedContinuityHead:{revision:0,digest:continuityHeadDigest(0)},candidateContinuityClaims:[claim],candidateContinuitySetDigest:candidatePackage.seasonContinuityClaimSetDigest,
     candidateEpisodeScope:{structureKind:'season',episodeKeys:['S01E01'],episodeScopeDigest:D('candidate-episodes')},matchCardinality:'none',matchWitnesses:[],matchedSubjectSetDigest:D('matches'),

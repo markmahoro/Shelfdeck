@@ -2,6 +2,10 @@
 
 const path = require('node:path');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
+const {
+  normalized: normalizeScopeLocation,
+  resolveBdmvContainerScope,
+} = require('./bdmv-scope');
 
 const DEFAULT_MAX_SELECTION = 256;
 // A BDMV container occupies one logical Run slot, but its observed physical
@@ -34,7 +38,7 @@ function normalizedRelativeLocation(value) {
   if (typeof value !== 'string' || value.length === 0 || path.isAbsolute(value)) {
     fail('P7_RUN_CREATOR_LOCATION_INVALID', 'Run Creator requires a non-empty Field-relative location.');
   }
-  const normalized = value.replace(/\\/g, '/').replace(/^\.\//, '');
+  const normalized = normalizeScopeLocation(value.replace(/^\.\//, ''));
   if (!normalized || normalized === '..' || normalized.startsWith('../') || normalized.includes('/../')) {
     fail('P7_RUN_CREATOR_LOCATION_INVALID', 'Run Creator location escapes the Material Field.');
   }
@@ -47,41 +51,18 @@ function directParent(relativeLocation) {
 }
 
 function nearestBdmvRoot(relativeLocation) {
-  const parts = relativeLocation.split('/');
-  for (let index = parts.length - 2; index >= 0; index -= 1) {
-    if (parts[index].toUpperCase() === 'BDMV') return parts.slice(0, index + 1).join('/');
-  }
-  return null;
+  return resolveBdmvContainerScope(relativeLocation)?.bdmvRootRelativeLocation || null;
 }
 
-function bdmvContainerRoot(relativeLocation) {
-  const parts = relativeLocation.split('/');
-  for (let index = parts.length - 2; index >= 0; index -= 1) {
-    if (parts[index].toUpperCase() === 'BDMV') return parts.slice(0, index).join('/') || '.';
-  }
-  return null;
+function bdmvContainerRoot(relativeLocation, knownLocations = []) {
+  return resolveBdmvContainerScope(relativeLocation, knownLocations)?.containerRelativeLocation || null;
 }
 
-function groupFor(relativeLocation, knownContainers) {
-  const bdmvRoot = nearestBdmvRoot(relativeLocation);
-  const containerRoot = bdmvContainerRoot(relativeLocation);
-  if (containerRoot) {
-    return { groupKind:'bdmv', groupKey:'bdmv:' + containerRoot, directParent:containerRoot,
-      bdmvRoot, containerRoot, logicalWeight:1 };
-  }
-  // CERTIFICATE is a sibling of BDMV in a disc folder.  It has no BDMV
-  // ancestor of its own, so attach it only when the same container was proven
-  // by another observed BDMV member.  A standalone CERTIFICATE directory
-  // remains an ordinary directory and is handled by normal media rules.
+function groupFor(relativeLocation, knownLocations) {
+  const scope = resolveBdmvContainerScope(relativeLocation, knownLocations);
+  if (scope) return { groupKind:'bdmv', groupKey:scope.groupKey, directParent:scope.containerRelativeLocation,
+    bdmvRoot:scope.bdmvRootRelativeLocation, containerRoot:scope.containerRelativeLocation, logicalWeight:1 };
   const parent = directParent(relativeLocation);
-  const parentParts = parent.split('/');
-  if (parentParts.at(-1)?.toUpperCase() === 'CERTIFICATE') {
-    const candidate = parentParts.slice(0, -1).join('/') || '.';
-    if (knownContainers.has(candidate)) {
-      return { groupKind:'bdmv', groupKey:'bdmv:' + candidate, directParent:candidate,
-        bdmvRoot:candidate === '.' ? 'BDMV' : candidate + '/BDMV', containerRoot:candidate, logicalWeight:1 };
-    }
-  }
   return { groupKind:'directory', groupKey:'directory:' + parent, directParent:parent,
     bdmvRoot:null, containerRoot:null, logicalWeight:1 };
 }
@@ -98,7 +79,7 @@ function createProcurementRunSlices(input) {
   const normalizedMaterials = input.materials.map((material) => Object.freeze({
     ...material, relativeLocation: normalizedRelativeLocation(material.relativeLocation),
   }));
-  const knownContainers = new Set(normalizedMaterials.map((material) => bdmvContainerRoot(material.relativeLocation)).filter(Boolean));
+  const knownLocations = normalizedMaterials.map((material) => material.relativeLocation);
   const seen = new Set();
   const groups = new Map();
   for (const material of normalizedMaterials) {
@@ -107,7 +88,7 @@ function createProcurementRunSlices(input) {
     }
     seen.add(material.materialKey);
     const relativeLocation = material.relativeLocation;
-    const group = groupFor(relativeLocation, knownContainers);
+    const group = groupFor(relativeLocation, knownLocations);
     const member = Object.freeze({ ...material, relativeLocation, directParent: group.directParent });
     if (!groups.has(group.groupKey)) groups.set(group.groupKey, { ...group, members:[] });
     groups.get(group.groupKey).members.push(member);
@@ -167,7 +148,7 @@ function createProcurementRunSlices(input) {
     });
     const groupByKey = new Map(orderedGroups.map((group) => [group.groupKey, group]));
     const logicalSelectionCount = [...new Set(members.map((member) =>
-      groupFor(member.relativeLocation, knownContainers).groupKey))]
+      groupFor(member.relativeLocation, knownLocations).groupKey))]
       .reduce((sum, key) => sum + (groupByKey.get(key)?.logicalWeight || 0), 0);
     return Object.freeze({
       ordinal,

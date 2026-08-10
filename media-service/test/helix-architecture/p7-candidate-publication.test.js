@@ -51,13 +51,17 @@ function candidateDraft() {
     role:referenceBase.role, relatedMaterialKey:referenceIdentity.materialKey, endpointId:referenceBase.endpointId,
     location:referenceBase.location });
   referenceBase.referenceDigest = canonicalDigest(without(referenceBase, 'referenceDigest'));
+  const relatedScopeBase = { scopeKind:'ordinary_parent', parentRelativeLocation:'field', stemKey:'series',
+    observationProjectionRevision:1, relatedRuleRevision:1 };
+  const relatedScope = { ...relatedScopeBase, scopeDigest:canonicalDigest({ schema:'procurement.related-scope@1', ...relatedScopeBase }) };
   const continuity = [];
   const continuityDigest = canonicalDigest({ schema:'season-continuity-claim-set@1', items:continuity });
   const unit = { unitId:'', mediaType:'group', contentProfile:'series', structureKind:'season', displayIdentity:metadata.claimedTitle,
     identityMetadata:metadata, seasonContinuityClaims:continuity, seasonContinuityClaimSetDigest:continuityDigest,
-    members:[member], relatedReferences:[referenceBase], unitDigest:'' };
+    members:[member], relatedScope, materialInputForm:'stream_file', unitDigest:'' };
   unit.unitId = canonicalDigest({ schema:'procurement.triage-unit-id@1', mediaType:unit.mediaType, contentProfile:unit.contentProfile,
-    structureKind:unit.structureKind, members:unit.members.map(({ materialKey:key, role, episodeClaims }) => ({ materialKey:key, role, episodeClaims })) });
+    structureKind:unit.structureKind, materialInputForm:unit.materialInputForm, relatedScope:unit.relatedScope,
+    members:unit.members.map(({ materialKey:key, role, episodeClaims }) => ({ materialKey:key, role, episodeClaims })) });
   unit.unitDigest = canonicalDigest(without(unit, 'unitDigest'));
   identityPayload.structureUnitDigest = unit.unitDigest;
   const identityClaim = { schemaRef:'helix://contracts/types/IdentityClaim/v1', schemaVersion:1, draftId:'identity-1',
@@ -78,6 +82,7 @@ function candidateDraft() {
     producedAtMs:1, candidatePackageId:'candidate-1', expectedPackageRevision:1, procurementRunId:'run-1', runBasisDigest:D('run-basis'),
     triageRule:{ ruleRef:'procurement.triage.default', revision:1, authorityDigest:D('authority') },
     materialFieldContextRef:{ fieldId:'field-1', accessRevision:1, contextDigest:D('context') }, mediaType:'group', contentProfile:'series',
+    materialInputForm:'stream_file',
     displayIdentity:metadata.claimedTitle, identityMetadata:metadata, identityClaim,
     structureEvidence:{ evidenceId:'structure-1', payloadDigest:D('structure-evidence'), unit }, primaryInputManifestDraft:manifestDraft,
     seasonContinuityClaims:continuity, seasonContinuityClaimSetDigest:continuityDigest, relatedReferences:[referenceBase],

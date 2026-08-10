@@ -376,6 +376,7 @@ function candidateDeliverySnapshotSchema() {
   return { ...exactDomainSchema('CandidateDeliverySnapshot', {
     snapshotContract: { const: 'procurement.candidate-delivery@1' }, offer: typeRef('ProcurementCandidateOfferAvailableMessage'),
     acceptanceBasis: typeRef('CandidateIntakeAcceptanceBasis'), candidatePackage: typeRef('CandidatePackage'),
+    materialInputForm: enumText('stream_file', 'bdmv', 'dvd', 'iso'),
     primaryInputManifest: typeRef('PrimaryInputManifest'), primaryMaterialDeliveries: { ...arrayOf(delivery, PROCUREMENT_RUN_MEMBER_LIMIT), minItems: 1 },
     deliveryMemberSetDigest: digest(), deliverySnapshotDigest: digest()
   }), 'x-helix-maxCanonicalBytes': 8 * 1024 * 1024 };
@@ -451,6 +452,9 @@ function acceptedIntakePayloadSchema() {
     toOwnerDomain: { const: 'libra' }, toOwnerScopeType: { const: 'subject' }, toOwnerScopeId: id() });
   return exactDomainSchema('AcceptedIntakePayload', {
     intakeDecisionId: id(), decisionRevision: { const: 1 }, delivery,
+    sourceProvenance: object({ fieldId:id(), fieldAccessRevision:positiveInteger(), fieldContextDigest:digest(),
+      structureKind:structureKind(), contentProfile:profile(), materialInputForm:enumText('stream_file', 'bdmv', 'dvd', 'iso'),
+      identityClaimDigest:digest() }),
     candidateVerification: typeRef('CandidateContractVerification'), materialVerification: typeRef('IntakeMaterialVerification'),
     resolutionDecision: domainRef('SubjectContinuityResolutionDecision'), bindingDraft: typeRef('LibraBindingDraft'),
     controlTransferScope: object({ fieldId: id(), fromOwnerDomain: { const: 'procurement' },
@@ -471,7 +475,10 @@ const triageUnit = () => {
   const common = {
     unitId: digest(), mediaType: mediaType(), contentProfile: profile(), structureKind: structureKind(), displayIdentity: text(),
     identityMetadata: identityMetadata(), seasonContinuityClaims: arrayOf(seasonContinuityClaim(), 64),
-    seasonContinuityClaimSetDigest: digest(), relatedReferences: arrayOf(relatedReference(), 1024), unitDigest: digest()
+    seasonContinuityClaimSetDigest: digest(),
+    relatedScope: object({ scopeKind: enumText('ordinary_parent', 'bdmv_external_parent'), parentRelativeLocation:text(), stemKey:text(),
+      observationProjectionRevision:positiveInteger(), relatedRuleRevision:positiveInteger(), scopeDigest:digest() }),
+    materialInputForm:enumText('stream_file', 'bdmv', 'dvd', 'iso'), unitDigest: digest()
   };
   const members = { ...arrayOf(object({ materialKey: digest(), bindingRevision: positiveInteger(), admittedControlRevision: positiveInteger(),
     admittedControlProjectionDigest: digest(), role: enumText('primary_payload', 'structural_dependency'),
@@ -565,7 +572,7 @@ function candidateDraftSchema() {
     mediaType: mediaType(), contentProfile: profile(), displayIdentity: text(), identityMetadata: identityMetadata(),
     identityClaim: typeRef('IdentityClaim'), structureEvidence: object({ evidenceId: id(), payloadDigest: digest(), unit: triageUnit() }),
     primaryInputManifestDraft: typeRef('PrimaryInputManifestDraft'), seasonContinuityClaims: arrayOf(seasonContinuityClaim(), 64),
-    seasonContinuityClaimSetDigest: digest(), relatedReferences: arrayOf(relatedReference(), 1024),
+    seasonContinuityClaimSetDigest: digest(), relatedReferences: arrayOf(relatedReference(), 1024), materialInputForm:enumText('stream_file', 'bdmv', 'dvd', 'iso'),
     relatedReferenceSetDigest: digest(), memberControlEvidenceSetDigest: digest(), candidateDraftDigest: digest()
   });
 }

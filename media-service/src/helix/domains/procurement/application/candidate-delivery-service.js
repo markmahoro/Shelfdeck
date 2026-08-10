@@ -117,7 +117,7 @@ function reconstruct(rows) {
     packageRevision:Number(pkg.package_revision), procurementRunId:pkg.procurement_run_id, runBasisDigest:rows.run.run_basis_digest,
     triageRule:{ ruleRef:pkg.triage_rule_ref, revision:Number(pkg.triage_rule_revision), authorityDigest:pkg.triage_rule_authority_digest },
     materialFieldContextRef:{ fieldId:pkg.field_id, accessRevision:Number(pkg.field_access_revision), contextDigest:pkg.field_context_digest },
-    mediaType:pkg.media_type, contentProfile:pkg.content_profile, displayIdentity:pkg.display_identity, identityMetadata, identityClaim,
+    mediaType:pkg.media_type, contentProfile:pkg.content_profile, materialInputForm:pkg.material_input_form, displayIdentity:pkg.display_identity, identityMetadata, identityClaim,
     structureEvidenceRef:{ evidenceId:pkg.structure_evidence_id, payloadDigest:pkg.structure_evidence_payload_digest,
       unitId:pkg.structure_unit_id, unitDigest:pkg.structure_unit_digest }, seasonContinuityClaims:continuity,
     seasonContinuityClaimSetDigest:continuityDigest,
@@ -156,7 +156,11 @@ function reconstruct(rows) {
     return item;
   });
   const deliveryMemberSetDigest = canonicalDigest({ schema:'procurement.candidate-delivery-members@1', items:deliveries });
+  if (!['stream_file', 'bdmv', 'dvd', 'iso'].includes(candidatePackage.materialInputForm)) {
+    fail('P8_CANDIDATE_DELIVERY_INPUT_FORM', 'Candidate Package materialInputForm is missing or invalid.');
+  }
   const snapshot = { snapshotContract:'procurement.candidate-delivery@1', offer, acceptanceBasis, candidatePackage,
+    materialInputForm:candidatePackage.materialInputForm,
     primaryInputManifest:manifest, primaryMaterialDeliveries:deliveries, deliveryMemberSetDigest, deliverySnapshotDigest:'' };
   snapshot.deliverySnapshotDigest = canonicalDigest(without(snapshot, 'deliverySnapshotDigest'));
   requireBytes(snapshot, 8 * 1024 * 1024, 'P8_CANDIDATE_DELIVERY_SNAPSHOT_TOO_LARGE');

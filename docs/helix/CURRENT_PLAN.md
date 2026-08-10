@@ -26,10 +26,10 @@ Structure只消费durable `BdmvAssessmentEvidence@1`并输出紧凑`UnitScopeRef
 - sourceBefore/sourceAfter均为18,407个regular files，digest均为`a630ecf5b86c0da2541b5e53fae2bc6e5aa8d28fd181b7d6ce6c770042eb316d`；数据库`integrity_check=ok`。
 - Observation为72页、18,407条entry；每文件只读取一次中段指纹，逻辑读取`1,776,608,472` bytes，未超过`18,407 × 262,144`上限；主动重启后未重读已提交页。
 - 增量Eligibility首轮实际`eligibilityDecisionWrites=18,407`、`reconcileBatchCount=185`；Observation完成后的后续Triage没有增加Eligibility写入；完全相同Observation的0写入由专项fixture覆盖。
-- 创建12个并存Run并全部Seal；950个Work、1,148个Plan、4,029个Event/Attempt/Result全部成功；937个Candidate Package与937个open Handoff A Offer，Related Reference共4,397份。
-- BDMV容器共59个，其中56个Assessment为`resolved`、3个以`bdmv_topology_unavailable`带Evidence收口；产生56个BDMV Structure Unit、53个BDMV Candidate，普通Candidate为884个。通用Media Probe共929个，BDMV内部成员通用Probe为0；没有STREAM标题Candidate。
-- `failedWorks=0`、`failedEvents=0`、`resourceDefers=0`、RSS峰值约1.35 GiB；数据库`integrity_check=ok`。Related数据库审计未发现BDMV内部路径或视频载荷（包括`.m2ts`）被误记为Related；Offer未消费，Libra/Arca事实为0，源文件无写入/移动/删除/重命名。
-- 总耗时约8分04秒；Observation terminal后首个Structure约119秒、首个Candidate/Offer约140秒、全部Run Seal约7分56秒。临时资产保留于`C:\\Users\\markm\\AppData\\Local\\Temp\\helix-full-movie-canary-zpq4zN`；此前Canary资产未删除。
+- 创建12个并存Run并全部Seal；955个Work、1,080个Plan、3,926个Event/Attempt/Result全部成功；942个Candidate Package与942个open Handoff A Offer，Related Reference共122份。
+- BDMV容器共59个，全部Assessment为`resolved`；产生59个BDMV Structure Unit/Candidate，普通Candidate为883个。通用Media Probe共884个，BDMV内部成员通用Probe为0；没有STREAM标题Candidate。
+- `failedWorks=0`、`failedEvents=0`、`resourceDefers=0`、RSS峰值约0.78 GiB；数据库`integrity_check=ok`。Related数据库审计未发现BDMV内部路径或视频载荷（包括`.m2ts`）被误记为Related；Offer未消费，Libra/Arca事实为0，源文件无写入/移动/删除/重命名。
+- 总耗时约5分42秒；Observation terminal后首个Structure约131秒、首个Candidate/Offer约142秒、全部Run Seal约5分36秒。Scope成员路径归一化改为每个Run Basis只做一次，避免大BDMV Candidate Context的平方级重复扫描。临时资产保留于`C:\\Users\\markm\\AppData\\Local\\Temp\\helix-full-movie-canary-VFP6wA`；此前Canary资产未删除。
 
 本证据将Execution Foundation与Procurement本地验证状态更新为`CLOSED FOR DOMAIN ONBOARDING`。后续Libra/Arca接入若要求改变Foundation状态机、Permit、Result Binding、Reconcile或backpressure语义，必须返回Design。
 
@@ -47,7 +47,7 @@ Structure只消费durable `BdmvAssessmentEvidence@1`并输出紧凑`UnitScopeRef
 4. **Procurement压力回归**：以260个Candidate需求证明hard cap有界、completion持续产出、Package/Offer早于全部Run Seal，且
    Coordinator不执行Capability、不做整Field读取。
 5. **最终全库Canary与封口**：本地Node.js在新的系统Temp clean数据库上运行`Z:\Film`只读Canary；主动重启后从同一
-   durable数据库恢复，未重扫Observation。最终12/12 Run Seal、937 Candidate Package/937 open Handoff A Offer、
+   durable数据库恢复，未重扫Observation。最终12/12 Run Seal、942 Candidate Package/942 open Handoff A Offer、
    `failedWorks=0`、`failedEvents=0`、源Reality前后一致、Libra/Arca为0，已改为`CLOSED FOR DOMAIN ONBOARDING`。
 
 Checkpoint 1–5的实现与本地fixture已经完成；Layout Snapshot及Triage Unit/Candidate Context改造的Node回归和Procurement压力fixture已通过；全量真实Canary已完成。运行边界固定为本机Node.js、临时clean数据库和

@@ -14,6 +14,11 @@ function normalizedLocation(value) {
 }
 
 function locationKey(value) { return normalizedLocation(value).toLocaleLowerCase('en-US'); }
+function parentLocation(value) {
+  const normalized = normalizedLocation(value);
+  const index = normalized.lastIndexOf('/');
+  return index < 0 ? '.' : normalized.slice(0, index) || '.';
+}
 
 function observedLayoutMaterial(snapshot, page) {
   const identity = Object.freeze({ ...snapshot.identity });
@@ -60,7 +65,9 @@ function definition(schemaManifest) {
     find_field_materials:{ kind:'select-in', tableId:'proc_field_materials', keyColumn:'material_key', fixedKeyColumns:['field_id'], maxItems:100, safeIntegers:true,
       columns:['field_id','material_key','mount_scope_id','inode','size_bytes','fingerprint_algorithm','fingerprint_version','content_fingerprint','endpoint_id','access_revision',
         'mount_scope_revision','mtime_ns','ctime_ns','fingerprint_verified_at_ms','current_location','binding_revision','reality_digest'] },
-    list_observed_entries:{ kind:'select-in', tableId:'proc_field_observation_entries', keyColumn:'field_observation_work_id', fixedKeyColumns:['field_id'], maxItems:500, safeIntegers:true,
+    page_observed_entries:{ kind:'select-page-after', tableId:'proc_field_observation_entries', keyColumn:'material_observation_id', fixedKeyColumns:['field_id','field_observation_work_id'], maxItems:500, safeIntegers:true,
+      columns:['field_id','field_observation_work_id','observation_id','observation_revision','page_ordinal','entry_ordinal','material_observation_id','material_key','mount_scope_id','inode','size_bytes','fingerprint_algorithm','fingerprint_version','content_fingerprint','endpoint_id','access_revision','mount_scope_revision','current_location','relative_location','mtime_ns','ctime_ns','fingerprint_verified_at_ms','observed_at_ms','containment_digest','reality_digest','provenance_digest','snapshot_digest','entry_digest'] },
+    page_observed_scope:{ kind:'select-range', tableId:'proc_field_observation_entries', keyColumn:'relative_location', fixedKeyColumns:['field_id','field_observation_work_id','observation_revision'], maxItems:500, safeIntegers:true,
       columns:['field_id','field_observation_work_id','observation_id','observation_revision','page_ordinal','entry_ordinal','material_observation_id','material_key','mount_scope_id','inode','size_bytes','fingerprint_algorithm','fingerprint_version','content_fingerprint','endpoint_id','access_revision','mount_scope_revision','current_location','relative_location','mtime_ns','ctime_ns','fingerprint_verified_at_ms','observed_at_ms','containment_digest','reality_digest','provenance_digest','snapshot_digest','entry_digest'] },
     page_runs_by_state:{kind:'select-page-after',tableId:'proc_procurement_runs',keyColumn:'procurement_run_id',fixedKeyColumns:['state'],
       maxItems:100,columns:['procurement_run_id','state']},
@@ -79,8 +86,23 @@ function createProcurementRunTriageReader(options) {
     if (!workId) return Object.freeze([]);
     const cached = observedMaterialCache.get(workId);
     if (cached) return cached;
-    const rows = options.unitOfWork.execute([{ participantId:'procurement_observation_entries_read', owner:'procurement', repositories:[repository],
-      execute(context) { return context.repository(repository.repositoryId).invoke('list_observed_entries', { field_id:run.field_id, values:[workId] }); } }]).procurement_observation_entries_read;
+    const rows = [];
+    let cursor = null;
+    const pageSize = 500;
+    do {
+      const page = options.unitOfWork.execute([{ participantId:'procurement_observation_entries_read', owner:'procurement', repositories:[repository],
+        execute(context) {
+          return context.repository(repository.repositoryId).invoke('page_observed_entries', {
+            field_id: run.field_id,
+            field_observation_work_id: workId,
+            cursor,
+            limit: pageSize
+          });
+        } }]).procurement_observation_entries_read;
+      rows.push(...page);
+      cursor = page.length === pageSize ? page[page.length - 1].material_observation_id : null;
+      if (page.length < pageSize) break;
+    } while (cursor);
     const byMaterialKey = new Map();
     for (const row of rows) {
       const identity = Object.freeze({ schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2', schemaVersion:2,
@@ -100,6 +122,99 @@ function createProcurementRunTriageReader(options) {
       Buffer.compare(Buffer.from(left.materialKey), Buffer.from(right.materialKey))));
     observedMaterialCache.set(workId, materials);
     return materials;
+  }
+
+  function readObservedMaterialsInScope(run, scopeLocation, recursive = false) {
+    const workId = run?.field_observation_work_id;
+    if (!workId) return Object.freeze([]);
+    const scope = normalizedLocation(scopeLocation || '.');
+    const cacheKey = workId + ':scope:' + (recursive ? 'tree:' : 'direct:') + scope;
+    const cached = observedMaterialCache.get(cacheKey);
+    if (cached) return cached;
+    const rangeStart = scope === '.' ? '' : scope + '/';
+    const rangeEnd = rangeStart + '\uffff';
+    const rows = [];
+    let cursor = null;
+    const pageSize = 500;
+    do {
+      const page = options.unitOfWork.execute([{ participantId:'procurement_observation_scope_read', owner:'procurement', repositories:[repository],
+        execute(context) {
+          return context.repository(repository.repositoryId).invoke('page_observed_scope', {
+            field_id:run.field_id, field_observation_work_id:workId,
+            observation_revision:Number(run.terminal_observation_revision),
+            rangeStart, rangeEnd, cursor, limit:pageSize
+          });
+        } }]).procurement_observation_scope_read;
+      rows.push(...page);
+      cursor = page.length === pageSize ? page[page.length - 1].relative_location : null;
+      if (page.length < pageSize) break;
+    } while (cursor);
+    const materials = Object.freeze(rows.filter((row) => recursive || parentLocation(row.relative_location) === scope).map((row) => {
+      const identity = Object.freeze({ schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2', schemaVersion:2,
+        materialKey:row.material_key, mountScopeId:row.mount_scope_id, inode:String(row.inode), sizeBytes:Number(row.size_bytes),
+        fingerprintAlgorithm:row.fingerprint_algorithm, fingerprintVersion:Number(row.fingerprint_version), contentFingerprint:row.content_fingerprint });
+      return Object.freeze({ materialKey:row.material_key, identity, endpointId:row.endpoint_id, location:row.current_location,
+        sizeBytes:Number(row.size_bytes), mtimeNs:String(row.mtime_ns), ctimeNs:String(row.ctime_ns), observationId:row.observation_id, fieldId:row.field_id,
+        relativeLocation:row.relative_location, entryDigest:row.entry_digest });
+    }).sort((left, right) => locationKey(left.location).localeCompare(locationKey(right.location), 'en-US') ||
+      Buffer.compare(Buffer.from(left.materialKey), Buffer.from(right.materialKey))));
+    observedMaterialCache.set(cacheKey, materials);
+    return materials;
+  }
+
+  function readObservedMaterialsInScopes(run, requests) {
+    const workId = run?.field_observation_work_id;
+    if (!workId) return new Map();
+    const normalizedRequests = [...new Map((Array.isArray(requests) ? requests : []).map((request) => {
+      const scope = normalizedLocation(typeof request === 'string' ? request : request?.scopeLocation || '.');
+      const recursive = typeof request === 'object' && request?.recursive === true;
+      return [workId + ':scope:' + (recursive ? 'tree:' : 'direct:') + scope, { scope, recursive }];
+    })).values()];
+    const result = new Map();
+    const pending = normalizedRequests.filter(({ scope, recursive }) => {
+      const key = workId + ':scope:' + (recursive ? 'tree:' : 'direct:') + scope;
+      const cached = observedMaterialCache.get(key);
+      if (cached) result.set(key, cached);
+      return !cached;
+    });
+    if (pending.length === 0) return result;
+    const rowsByKey = new Map(pending.map(({ scope, recursive }) => {
+      const key = workId + ':scope:' + (recursive ? 'tree:' : 'direct:') + scope;
+      return [key, []];
+    }));
+    options.unitOfWork.execute([{ participantId:'procurement_observation_scope_batch_read', owner:'procurement', repositories:[repository],
+      execute(context) {
+        const repo = context.repository(repository.repositoryId);
+        const pageSize = 500;
+        for (const { scope, recursive } of pending) {
+          const key = workId + ':scope:' + (recursive ? 'tree:' : 'direct:') + scope;
+          const rangeStart = scope === '.' ? '' : scope + '/';
+          const rangeEnd = rangeStart + '\uffff';
+          let cursor = null;
+          do {
+            const page = repo.invoke('page_observed_scope', { field_id:run.field_id, field_observation_work_id:workId,
+              observation_revision:Number(run.terminal_observation_revision), rangeStart, rangeEnd, cursor, limit:pageSize });
+            rowsByKey.get(key).push(...page);
+            cursor = page.length === pageSize ? page[page.length - 1].relative_location : null;
+            if (page.length < pageSize) break;
+          } while (cursor);
+        }
+      } }]);
+    for (const { scope, recursive } of pending) {
+      const key = workId + ':scope:' + (recursive ? 'tree:' : 'direct:') + scope;
+      const materials = Object.freeze(rowsByKey.get(key).filter((row) => recursive || parentLocation(row.relative_location) === scope).map((row) => {
+        const identity = Object.freeze({ schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2', schemaVersion:2,
+          materialKey:row.material_key, mountScopeId:row.mount_scope_id, inode:String(row.inode), sizeBytes:Number(row.size_bytes),
+          fingerprintAlgorithm:row.fingerprint_algorithm, fingerprintVersion:Number(row.fingerprint_version), contentFingerprint:row.content_fingerprint });
+        return Object.freeze({ materialKey:row.material_key, identity, endpointId:row.endpoint_id, location:row.current_location,
+          sizeBytes:Number(row.size_bytes), mtimeNs:String(row.mtime_ns), ctimeNs:String(row.ctime_ns), observationId:row.observation_id, fieldId:row.field_id,
+          relativeLocation:row.relative_location, entryDigest:row.entry_digest });
+      }).sort((left, right) => locationKey(left.location).localeCompare(locationKey(right.location), 'en-US') ||
+        Buffer.compare(Buffer.from(left.materialKey), Buffer.from(right.materialKey))));
+      observedMaterialCache.set(key, materials);
+      result.set(key, materials);
+    }
+    return result;
   }
 
   return Object.freeze({
@@ -144,6 +259,15 @@ function createProcurementRunTriageReader(options) {
     listObservedMaterials(runId) {
       const run = this.readRunHeader(runId);
       return readObservedMaterials(run);
+    },
+    listObservedMaterialsInScope(runId, scopeLocation, options = {}) {
+      const run = this.readRunHeader(runId);
+      return readObservedMaterialsInScope(run, scopeLocation, options?.recursive === true);
+    },
+    listObservedMaterialsInScopes(runId, requests) {
+      const run = this.readRunHeader(runId);
+      const values = readObservedMaterialsInScopes(run, requests);
+      return Object.freeze([...values.values()].flat());
     },
     clearObservedMaterialCache() { observedMaterialCache.clear(); },
     readRunBasis(runId) {

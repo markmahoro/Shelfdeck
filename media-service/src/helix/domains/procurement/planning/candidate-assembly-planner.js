@@ -41,9 +41,9 @@ function createCandidateAssemblyPlanner(options){const catalogDigest=executionCa
     const projectionParameters={runId:snapshot.run.procurement_run_id,unitId:unit.unitId,ordinal,workId:request.workId,
       idempotencyKey:request.idempotencyKey,publishEventId:publishEvent};
     const nodes=[eventNode({registry:options.registry,policyRegistry:options.policyRegistry,request,snapshot},IDENTITY,'identity',identityEvent,
-      [ownerFacts('triageIdentityResolutionInput',request,IDENTITY_INPUT_PROJECTION,{unitId:unit.unitId}),literal('procurementTriageRuleSnapshot',rule)],[],['cpu']),
+      [ownerFacts('triageIdentityResolutionInput',request,IDENTITY_INPUT_PROJECTION,{unitId:unit.unitId,workId:request.workId}),literal('procurementTriageRuleSnapshot',rule)],[],['cpu']),
     eventNode({registry:options.registry,policyRegistry:options.policyRegistry,request,snapshot},MANIFEST,'manifest',manifestEvent,
-      [ownerFacts('triageManifestBuildInput',request,MANIFEST_INPUT_PROJECTION,{unitId:unit.unitId}),literal('procurementTriageRuleSnapshot',rule)],[],['cpu']),
+      [ownerFacts('triageManifestBuildInput',request,MANIFEST_INPUT_PROJECTION,{unitId:unit.unitId,workId:request.workId}),literal('procurementTriageRuleSnapshot',rule)],[],['cpu']),
     eventNode({registry:options.registry,policyRegistry:options.policyRegistry,request,snapshot},PUBLISH,'publication',publishEvent,
       [results('candidateDraft',[identityRef,manifestRef],DRAFT_PROJECTION,projectionParameters),
         results('domainFactCommitHandle',[identityRef,manifestRef],COMMIT_HANDLE_PROJECTION,projectionParameters)],
@@ -56,7 +56,7 @@ function createCandidateAssemblyPlanner(options){const catalogDigest=executionCa
 function draft(parameters,sourceResults){const identity=sourceResults.find((source)=>source.resultSchemaRef.includes('identity_claim.resolve')).result;
   const manifest=sourceResults.find((source)=>source.resultSchemaRef.includes('primary_manifest.build')).result;
   const {snapshot,structure,unit,candidateMembers,selected,rule,ordinal}=parameters;
-  const relatedReferences=Object.freeze([...unit.relatedReferences].sort((a,b)=>Buffer.compare(Buffer.from(a.referenceId),Buffer.from(b.referenceId))));
+  const relatedReferences=Object.freeze([...(parameters.relatedReferences || [])].sort((a,b)=>Buffer.compare(Buffer.from(a.referenceId),Buffer.from(b.referenceId))));
   const controls=Object.freeze([...(candidateMembers || unit.members)].sort((a,b)=>Buffer.compare(Buffer.from(a.materialKey),Buffer.from(b.materialKey))).map((member)=>Object.freeze({
     materialKey:member.materialKey,admittedControlRevision:member.admittedControlRevision,admittedControlProjectionDigest:member.admittedControlProjectionDigest})));
   const value={draftId:stableId('candidate-draft-',{runId:snapshot.run.procurement_run_id,unitId:unit.unitId}),draftKind:'procurement_candidate',
@@ -64,7 +64,7 @@ function draft(parameters,sourceResults){const identity=sourceResults.find((sour
     expectedPackageRevision:ordinal+1,procurementRunId:snapshot.run.procurement_run_id,runBasisDigest:snapshot.run.run_basis_digest,
     triageRule:{ruleRef:rule.ruleRef,revision:rule.revision,authorityDigest:rule.authorityDigest},materialFieldContextRef:{fieldId:snapshot.run.field_id,
       accessRevision:Number(snapshot.run.access_revision),contextDigest:structure.materialFieldContextDigest},mediaType:unit.mediaType,contentProfile:unit.contentProfile,
-    displayIdentity:unit.displayIdentity,identityMetadata:unit.identityMetadata,identityClaim:identity,
+    displayIdentity:unit.displayIdentity,identityMetadata:unit.identityMetadata,identityClaim:identity,materialInputForm:unit.materialInputForm,
     structureEvidence:{evidenceId:structure.evidenceId,payloadDigest:structure.payloadDigest,unit},primaryInputManifestDraft:manifest,
     seasonContinuityClaims:unit.seasonContinuityClaims,seasonContinuityClaimSetDigest:unit.seasonContinuityClaimSetDigest,relatedReferences,
     relatedReferenceSetDigest:canonicalDigest({schema:'procurement.related-reference-set@1',items:relatedReferences}),
@@ -73,10 +73,10 @@ function draft(parameters,sourceResults){const identity=sourceResults.find((sour
 function hydrate(parameters,options){
   const run=options.triageReader.readRunHeader(parameters.runId);
   if(!run)throw new Error('Candidate projection Run is unavailable.');
-  const context=options.candidateContextReader.read({runId:parameters.runId,evidenceWorkId:evidenceWorkId({run}),unitId:parameters.unitId});
+  const context=options.candidateContextReader.read({runId:parameters.runId,evidenceWorkId:evidenceWorkId({run}),unitId:parameters.unitId,workId:parameters.workId});
   if(!context)throw new Error('Candidate projection source Structure Unit is unavailable.');
   return Object.freeze({...parameters,snapshot:context.snapshot,structure:context.structure,unit:context.unit,
-    candidateMembers:context.candidateMembers,selected:context.selected,rule:context.rule});}
+    candidateMembers:context.candidateMembers,relatedReferences:context.relatedReferences,selected:context.selected,rule:context.rule});}
 function createCandidateDraftProjection(options){return Object.freeze({project({sourceResults,parameters}){return draft(hydrate(parameters,options),sourceResults);}});}
 function createCandidateCommitHandleProjection(options){return Object.freeze({project({sourceResults,parameters}){const value=draft(hydrate(parameters,options),sourceResults);return Object.freeze({
   schemaRef:'helix://contracts/types/DomainFactCommitHandle/v1',schemaVersion:1,handleId:stableId('candidate-commit-handle-',{draftId:value.draftId}),
@@ -86,12 +86,12 @@ function createCandidateCommitHandleProjection(options){return Object.freeze({pr
   eventFenceDigest:canonicalDigest({schema:'procurement.candidate-event-fence@1',eventId:parameters.publishEventId,workId:parameters.workId})});}});}
 
 function createCandidateIdentityInputProjection(options){return Object.freeze({project({ownerScope,parameters}){const hydrated=hydrate({
-  runId:ownerScope.processId,unitId:parameters.unitId},options);return Object.freeze({procurementRunId:ownerScope.processId,
+  runId:ownerScope.processId,unitId:parameters.unitId,workId:parameters.workId},options);return Object.freeze({procurementRunId:ownerScope.processId,
   runBasisDigest:hydrated.snapshot.run.run_basis_digest,triageRuleAuthorityDigest:hydrated.rule.authorityDigest,
   structureEvidenceId:hydrated.structure.evidenceId,structureEvidencePayloadDigest:hydrated.structure.payloadDigest,
   unit:hydrated.unit,inputDigest:hydrated.structure.payloadDigest});}});}
 function createCandidateManifestInputProjection(options){return Object.freeze({project({ownerScope,parameters}){const hydrated=hydrate({
-  runId:ownerScope.processId,unitId:parameters.unitId},options);return Object.freeze({preallocatedManifestId:stableId('primary-input-manifest-',{
+  runId:ownerScope.processId,unitId:parameters.unitId,workId:parameters.workId},options);return Object.freeze({preallocatedManifestId:stableId('primary-input-manifest-',{
     runId:ownerScope.processId,unitId:parameters.unitId}),procurementRunId:ownerScope.processId,
   runBasisDigest:hydrated.snapshot.run.run_basis_digest,structureEvidencePayloadDigest:hydrated.structure.payloadDigest,
   triageRuleAuthorityDigest:hydrated.rule.authorityDigest,structureEvidenceId:hydrated.structure.evidenceId,unit:hydrated.unit,

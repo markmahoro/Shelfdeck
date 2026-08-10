@@ -62,6 +62,65 @@
         "candidateDeliverySnapshotDigest"
       ]
     },
+    "sourceProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fieldId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "fieldAccessRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "fieldContextDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "structureKind": {
+          "type": "string",
+          "enum": [
+            "single",
+            "season"
+          ]
+        },
+        "contentProfile": {
+          "type": "string",
+          "enum": [
+            "movie",
+            "series",
+            "jav",
+            "western_adult"
+          ]
+        },
+        "materialInputForm": {
+          "type": "string",
+          "enum": [
+            "stream_file",
+            "bdmv",
+            "dvd",
+            "iso"
+          ]
+        },
+        "identityClaimDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "fieldId",
+        "fieldAccessRevision",
+        "fieldContextDigest",
+        "structureKind",
+        "contentProfile",
+        "materialInputForm",
+        "identityClaimDigest"
+      ]
+    },
     "candidateVerification": {
       "$ref": "helix://contracts/types/CandidateContractVerification/v1"
     },
@@ -163,6 +222,7 @@
     "intakeDecisionId",
     "decisionRevision",
     "delivery",
+    "sourceProvenance",
     "candidateVerification",
     "materialVerification",
     "resolutionDecision",

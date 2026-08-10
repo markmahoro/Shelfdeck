@@ -88,10 +88,18 @@ function buildAcceptedIntakePayload({snapshot,decision,bindingDraft,candidateVer
   controlTransferScope.controlScopeDigest=canonicalDigest({schema:'libra.handoff-a-control-scope@1',fieldId,
     fromOwnerDomain:controlTransferScope.fromOwnerDomain,fromOwnerScopeType:controlTransferScope.fromOwnerScopeType,
     fromOwnerScopeId:controlTransferScope.fromOwnerScopeId,items});
+  const materialInputForm=snapshot.materialInputForm;
+  if (!['stream_file','bdmv','dvd','iso'].includes(materialInputForm) ||
+      snapshot.candidatePackage.materialInputForm !== materialInputForm) {
+    fail('P8_ACCEPTANCE_INPUT_FORM','Candidate Delivery input form is missing or inconsistent.');
+  }
+  const sourceProvenance={fieldId,fieldAccessRevision:Number(snapshot.candidatePackage.materialFieldContextRef.accessRevision),
+    fieldContextDigest:snapshot.candidatePackage.materialFieldContextRef.contextDigest,structureKind:snapshot.primaryInputManifest.structureKind,
+    contentProfile:snapshot.candidatePackage.contentProfile,materialInputForm,identityClaimDigest:snapshot.candidatePackage.identityClaim.claimDigest};
   const value={intakeDecisionId:decision.decisionId,decisionRevision:1,delivery:{offerId:decision.offerId,
     candidatePackageId:decision.candidatePackageId,packageRevision:decision.packageRevision,packageDigest:decision.packageDigest,
     acceptanceBasisDigest:snapshot.acceptanceBasis.acceptanceBasisDigest,candidateDeliverySnapshotDigest:snapshot.deliverySnapshotDigest},
-    candidateVerification,materialVerification,resolutionDecision:decision,bindingDraft,controlTransferScope,payloadDigest:''};
+    sourceProvenance,candidateVerification,materialVerification,resolutionDecision:decision,bindingDraft,controlTransferScope,payloadDigest:''};
   value.payloadDigest=canonicalDigest(without(value,'payloadDigest'));bounded(value,8*1024*1024,'P8_ACCEPTANCE_PAYLOAD_TOO_LARGE');return freeze(value);
 }
 

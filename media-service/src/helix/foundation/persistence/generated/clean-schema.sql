@@ -2777,6 +2777,7 @@ CREATE TABLE "proc_candidate_packages" (
   "field_context_digest" TEXT CHECK (length("field_context_digest") = 64 AND "field_context_digest" NOT GLOB '*[^0-9a-f]*'),
   "media_type" TEXT CHECK ("media_type" IN ('single', 'group')),
   "content_profile" TEXT CHECK ("content_profile" IN ('movie', 'series', 'jav', 'western_adult')),
+  "material_input_form" TEXT CHECK ("material_input_form" IN ('stream_file', 'bdmv', 'dvd', 'iso')),
   "structure_kind" TEXT CHECK ("structure_kind" IN ('single', 'season')),
   "display_identity" TEXT,
   "identity_metadata_schema_ref" TEXT,

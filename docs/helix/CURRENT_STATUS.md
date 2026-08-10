@@ -9,8 +9,8 @@ Last updated: 2026-08-10
 - 唯一SSOT已补充Observation entries历史事实、compact Page receipt、256项/64 MiB批次边界，以及Material-local Eligibility Basis和有界Change Set语义。
 - 机器合同已生成并通过P2基线：111 Capability、97 Result family、180 table、43 Canonical Transaction；新增BDMV专用Assessment合同，旧Layout/双Observation Capability与Result不再属于active catalog。
 - 当前P7/BDMV/Candidate Publication聚焦回归通过；完整产品Architecture gate通过。Observation Page Commit已同时申请`volume_read`与`sqlite_write` Permit。
-- 最终全量只读Canary已完成：18,407文件、72页、12/12 Run Seal、937 Candidate/Offer、4,029 succeeded Event/Attempt/Result、950 succeeded Work、无failed Work/Event、无Resource defer；source Reality前后一致，主动重启后未重复已提交Observation，Libra/Arca为0。总耗时约8分04秒，首个Offer约140秒。
-- 首轮clean Observation的Eligibility实际写入18,407条（185批），后续Triage未产生额外Eligibility写入；完全相同Observation的0写入由16/16专项fixture证明（其中包含Observation边界、BDMV与Eligibility no-op）。最新Canary数据库与日志保留于`C:\\Users\\markm\\AppData\\Local\\Temp\\helix-full-movie-canary-RN9eJJ`；此前`RD3ta3`资产仍保留作历史对照。
+- 最终全量只读Canary已完成：18,407文件、72页、12/12 Run Seal、942 Candidate/Offer、3,926 succeeded Event/Attempt/Result、955 succeeded Work、无failed Work/Event、无Resource defer；source Reality前后一致，主动重启后未重复已提交Observation，Libra/Arca为0。总耗时约5分42秒，首个Offer约142秒。
+- 首轮clean Observation的Eligibility实际写入18,407条（185批），后续Triage未产生额外Eligibility写入；完全相同Observation的0写入由16/16专项fixture证明（其中包含Observation边界、BDMV与Eligibility no-op）。最新Canary数据库与日志保留于`C:\\Users\\markm\\AppData\\Local\\Temp\\helix-full-movie-canary-VFP6wA`；此前中止轮次及`RN9eJJ`资产仍保留作历史对照。
 - 本轮状态更新为`CLOSED FOR DOMAIN ONBOARDING`；该封口只覆盖Foundation与Procurement合同及本地验证，不代表Libra/Arca已实现或已接入。
 
 ## 0.1 Final Canary record (2026-08-10)
@@ -20,15 +20,15 @@ Last updated: 2026-08-10
 | Source Reality | 18,407 regular files; before/after digest `a630ecf5b86c0da2541b5e53fae2bc6e5aa8d28fd181b7d6ce6c770042eb316d` |
 | Observation | 72 pages; 18,407 entries; 1,776,608,472 logical fingerprint bytes; 18,407 read calls |
 | Eligibility | 18,407 first-pass decision writes; 185 bounded batches; no Triage-induced writes |
-| Procurement | 12 concurrent Runs, all sealed; 950 Work; 1,148 Plan; 4,029 Event/Attempt/Result |
-| BDMV Assessment | 59 BDMV containers; 56 resolved, 3 `bdmv_topology_unavailable`; 56 BDMV Units; 53 BDMV Candidates; 0 BDMV-internal generic Probe Event |
-| Handoff A Ready | 937 Candidate Package and 937 open Offer; none consumed; 4,397 Related references |
-| Related safety | BDMV-internal and video-payload Related references 0; no STREAM title Candidate; ordinary Candidate 884 |
-| Safety | failed Work/Event 0; defer 0; RSS peak ~1.35 GiB; integrity check ok; Libra/Arca facts 0 |
+| Procurement | 12 concurrent Runs, all sealed; 955 Work; 1,080 Plan; 3,926 Event/Attempt/Result; 4,057 ResourceTiming |
+| BDMV Assessment | 59 BDMV containers; 59 resolved; 59 BDMV Units/Candidates; 0 BDMV-internal generic Probe Event |
+| Handoff A Ready | 942 Candidate Package and 942 open Offer; none consumed; 122 Related references |
+| Related safety | BDMV-internal and video-payload Related references 0; no STREAM title Candidate; ordinary Candidate 883 |
+| Safety | failed Work/Event 0; defer 0; RSS peak ~0.78 GiB; integrity check ok; Libra/Arca facts 0 |
 | Recovery | one active restart; no reread of committed Observation pages or duplicate Run/Candidate/Offer |
-| Timing | first Structure 118.7 s; first Offer 139.9 s; all Runs sealed 475.7 s; total 483.7 s |
+| Timing | first Structure 131.5 s; first Offer 141.8 s; all Runs sealed 335.6 s; total 341.9 s |
 
-临时资产未删除：最新为`C:\\Users\\markm\\AppData\\Local\\Temp\\helix-full-movie-canary-zpq4zN`；此前`RN9eJJ`、`RD3ta3`及中止轮次同样保留。
+临时资产未删除：最新为`C:\\Users\\markm\\AppData\\Local\\Temp\\helix-full-movie-canary-VFP6wA`；此前`RN9eJJ`、`RD3ta3`及中止轮次同样保留。
 
 本次重跑前修复了Related关联的两个边界：Observation Scope Projection补回同目录/BDMV外部sidecar，且Related筛选排除同stem视频载荷（包括`.m2ts`）及全部BDMV内部路径。只读数据库审计确认`forbiddenRelated=0`，没有把视频文件或BDMV结构文件误记为Related。
 

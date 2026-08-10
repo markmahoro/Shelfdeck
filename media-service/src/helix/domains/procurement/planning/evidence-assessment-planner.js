@@ -4,6 +4,7 @@ const path = require('node:path');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { executionCatalogDigest } = require('../../../foundation/execution/workflow-plan');
 const { activeTriageRule } = require('../model/procurement-run-contracts');
+const { normalized: normalizeScopeLocation, parentRelativeLocation, resolveBdmvContainerScope } = require('../model/bdmv-scope');
 
 const PROBE = 'shared.material.media.probe@1';
 const BDMV_ASSESS = 'procurement.triage.bdmv.assess@1';
@@ -35,25 +36,12 @@ function selected(snapshot) {
   return Object.freeze({ ...value, selectionDigest:canonicalDigest({ schema:'procurement.selected-field-material-set@1', ...value }) });
 }
 
-function bdmvContainerForLocation(location, knownContainers = new Set()) {
-  const parts = String(location || '').replace(/\\/g, '/').split('/');
-  for (let index = parts.length - 2; index >= 0; index -= 1) {
-    if (parts[index].toUpperCase() === 'BDMV') return parts.slice(0, index).join('/') || '.';
-  }
-  const certificateIndex = parts.length - 2;
-  if (certificateIndex >= 0 && parts[certificateIndex].toUpperCase() === 'CERTIFICATE') {
-    const candidate = parts.slice(0, certificateIndex).join('/') || '.';
-    if (knownContainers.has(candidate)) return candidate;
-  }
-  return null;
-}
-
 function logicalItems(snapshot) {
   const contexts = snapshot.materials.map((material, ordinal) => memberContext(snapshot, material, ordinal));
-  const knownContainers = new Set(contexts.map((context) => bdmvContainerForLocation(context.fieldRelativeLocation)).filter(Boolean));
+  const knownLocations = contexts.map((context) => context.fieldRelativeLocation);
   const groups = new Map();
   for (const context of contexts) {
-    const container = bdmvContainerForLocation(context.fieldRelativeLocation, knownContainers);
+    const container = resolveBdmvContainerScope(context.fieldRelativeLocation, knownLocations)?.containerRelativeLocation || null;
     const key = container ? 'bdmv:' + container : 'material:' + context.materialKey;
     if (!groups.has(key)) groups.set(key, { kind:container ? 'bdmv_container' : 'material', groupKey:key, members:[] });
     groups.get(key).members.push(context);
@@ -78,7 +66,7 @@ function bdmvScopeReference(snapshot, item) {
   return Object.freeze({ scopeKind:'bdmv_container', procurementRunId:snapshot.run.procurement_run_id, bdmvGroupKey:item.groupKey,
     scopeDigest, memberSetDigest, memberCount:members.length, topologyDigest:canonicalDigest({ schema:'procurement.bdmv-topology-pending@1', scopeDigest }),
     selectedPayloadSetDigest,
-    rootLocation:[snapshot.access.root_location, bdmvRootLocation(item.members[0].fieldRelativeLocation)].filter(Boolean).join('/'),
+    rootLocation:[snapshot.access.root_location, bdmvRootLocation(item.members[0].fieldRelativeLocation, item.members)].filter(Boolean).join('/'),
     members:Object.freeze(members) });
 }
 function node(options, ref, nodeId, eventId, bindings, dependsOn, resourceKinds) {
@@ -182,22 +170,10 @@ function createProbeBatchProjection(options) {
   } });
 }
 
-function normalizedLocation(value) {
-  return String(value || '').replace(/\\/g, '/').replace(/\/+/g, '/').replace(/\/$/, '');
-}
-
-function parentLocation(value) {
-  const normalized = normalizedLocation(value);
-  const separator = normalized.lastIndexOf('/');
-  return separator < 0 ? '.' : normalized.slice(0, separator);
-}
-
-function bdmvRootLocation(value) {
-  const parts = normalizedLocation(value).split('/');
-  for (let index = parts.length - 2; index >= 0; index -= 1) {
-    if (parts[index].toUpperCase() === 'BDMV') return parts.slice(0, index + 1).join('/');
-  }
-  return null;
+function normalizedLocation(value) { return normalizeScopeLocation(value); }
+function parentLocation(value) { return parentRelativeLocation(value); }
+function bdmvRootLocation(value, knownLocations = []) {
+  return resolveBdmvContainerScope(value, knownLocations)?.bdmvRootRelativeLocation || null;
 }
 
 function observationProjectionEntry(item, context, ordinal) {
@@ -257,26 +233,53 @@ function createStructureInputProjection(options) {
       const orderedProbes = snapshot.materials.map((material) => probeByHandle.get(canonicalDigest(material.readHandle)));
 
       // Observation is the durable source of both selected material and nearby sidecar
-      // candidates.  The Run selection remains immutable; this projection merely adds
-      // already-observed entries from the exact scopes that Related Material may use.
-      const observed = typeof options.triageReader.listObservedMaterials === 'function'
-        ? options.triageReader.listObservedMaterials(parameters.runId) : [];
+      // candidates.  Read only the exact parent/container scopes needed by this Run;
+      // loading the complete Field here would turn every Structure Event into an
+      // 18,000-row scan and would make the first Candidate depend on unrelated files.
+      const knownLocations = contexts.map((context) => context.fieldRelativeLocation);
+      const scopeRequests = new Map();
+      for (const item of logical) {
+        const resolved = item.kind === 'bdmv_container'
+          ? resolveBdmvContainerScope(item.members[0].fieldRelativeLocation, knownLocations)
+          : null;
+        if (resolved) scopeRequests.set(resolved.containerRelativeLocation, true);
+        else item.members.forEach((context) => {
+          const scopeLocation = parentLocation(context.fieldRelativeLocation);
+          scopeRequests.set(scopeLocation, scopeRequests.get(scopeLocation) === true);
+        });
+      }
+      const observedMap = new Map();
+      if (typeof options.triageReader.listObservedMaterialsInScopes === 'function') {
+        for (const item of options.triageReader.listObservedMaterialsInScopes(parameters.runId,
+          [...scopeRequests].map(([scopeLocation, recursive]) => ({ scopeLocation, recursive })))) observedMap.set(item.materialKey, item);
+      } else if (typeof options.triageReader.listObservedMaterialsInScope === 'function') {
+        for (const [scopeLocation, recursive] of scopeRequests) {
+          for (const item of options.triageReader.listObservedMaterialsInScope(parameters.runId, scopeLocation, { recursive })) observedMap.set(item.materialKey, item);
+        }
+      } else if (typeof options.triageReader.listObservedMaterials === 'function') {
+        // Isolated historical fixtures may expose only the broad reader port. The
+        // production Composition Root uses the bounded scope port above.
+        for (const item of options.triageReader.listObservedMaterials(parameters.runId)) observedMap.set(item.materialKey, item);
+      }
+      const observed = [...observedMap.values()];
       const observedByKey = new Map(observed.map((item) => [item.materialKey, item]));
       const selectedKeys = new Set(selection.members.map((member) => member.materialKey));
       const relatedScopes = new Set();
       const bdmvScopes = new Set();
       for (const context of contexts) {
         const location = observedByKey.get(context.materialKey)?.location || context.fieldRelativeLocation;
-        const root = bdmvRootLocation(location);
+        const resolved = resolveBdmvContainerScope(location, observed);
+        const root = resolved?.bdmvRootRelativeLocation || null;
         if (root) {
           bdmvScopes.add(root);
-          relatedScopes.add(parentLocation(root));
+          relatedScopes.add(resolved.containerRelativeLocation);
         } else relatedScopes.add(parentLocation(location));
       }
       const projectionCandidates = [];
       for (const item of observed) {
         const location = item.location || item.relativeLocation;
-        const root = bdmvRootLocation(location);
+        const resolved = resolveBdmvContainerScope(location, observed);
+        const root = resolved?.bdmvRootRelativeLocation || null;
         const scope = root ? root : parentLocation(location);
         if (selectedKeys.has(item.materialKey) || bdmvScopes.has(root) || relatedScopes.has(scope)) {
           const context = contexts.find((candidate) => candidate.materialKey === item.materialKey) || {

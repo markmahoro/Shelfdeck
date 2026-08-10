@@ -23,6 +23,15 @@
     "candidatePackage": {
       "$ref": "helix://contracts/types/CandidatePackage/v1"
     },
+    "materialInputForm": {
+      "type": "string",
+      "enum": [
+        "stream_file",
+        "bdmv",
+        "dvd",
+        "iso"
+      ]
+    },
     "primaryInputManifest": {
       "$ref": "helix://contracts/types/PrimaryInputManifest/v1"
     },
@@ -170,6 +179,7 @@
     "offer",
     "acceptanceBasis",
     "candidatePackage",
+    "materialInputForm",
     "primaryInputManifest",
     "primaryMaterialDeliveries",
     "deliveryMemberSetDigest",

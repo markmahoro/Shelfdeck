@@ -16,7 +16,7 @@ function createCandidateDeliveryReader(options) {
       find_delivery:{ kind:'select-one', tableId:'proc_candidate_deliveries', columns:['offer_id','candidate_package_id','package_digest',
         'acceptance_basis_digest','state','handoff_receipt_id','offered_at_ms','closed_at_ms'], keyColumns:['offer_id'], safeIntegers:true },
       find_package:{ kind:'select-one', tableId:'proc_candidate_packages', columns:['candidate_package_id','procurement_run_id','package_revision',
-        'field_id','field_access_revision','field_context_digest','media_type','content_profile','structure_kind','display_identity',
+        'field_id','field_access_revision','field_context_digest','media_type','content_profile','material_input_form','structure_kind','display_identity',
         'identity_metadata_schema_ref','identity_metadata_json','identity_metadata_digest','identity_claim_schema_ref','identity_claim_json',
         'identity_claim_digest','structure_evidence_id','structure_evidence_payload_digest','structure_unit_id','structure_unit_digest',
         'triage_rule_ref','triage_rule_revision','triage_rule_authority_digest','primary_input_manifest_id','manifest_digest',

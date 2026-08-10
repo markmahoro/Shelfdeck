@@ -600,20 +600,11 @@ test('Movie Triage associates only the exact NFO sidecar and conserves its canon
   assert.equal(structure.units[0].displayIdentity, '银翼杀手：2022黑暗浩劫 (2017)');
   assert.equal(structure.units[0].identityMetadata.sourceHints.some((hint) =>
     hint.hintKind === 'directory_title' && hint.hintValue === '银翼杀手：2022黑暗浩劫 (2017)'), true);
-  assert.equal(structure.units[0].relatedReferences.length, 1);
-  const reference = structure.units[0].relatedReferences[0];
-  assert.equal(Object.hasOwn(reference, 'schemaRef'), false);
-  assert.equal(Object.hasOwn(reference, 'schemaVersion'), false);
-  assert.equal(reference.identity.materialKey, nfoIdentity.materialKey);
-  assert.equal(reference.role, 'nfo');
-  assert.equal(reference.referenceId, canonicalDigest({
-    schema: 'procurement.related-material-reference-id@1',
-    primaryMaterialKey: member.materialKey,
-    role: 'nfo',
-    relatedMaterialKey: nfoIdentity.materialKey,
-    endpointId: 'endpoint-1',
-    location: 'shows/Demo/Example.Movie.nfo',
-  }));
+  assert.equal(structure.units[0].relatedScope.scopeKind, 'ordinary_parent');
+  assert.equal(structure.units[0].relatedScope.parentRelativeLocation, 'shows/Demo');
+  assert.equal(structure.units[0].relatedScope.stemKey, 'example.movie');
+  assert.equal(Object.hasOwn(structure.units[0], 'relatedReferences'), false);
+  assert.equal(structure.units[0].materialInputForm, 'stream_file');
 
   const oversizedEntries = Array.from({ length: 256 }, (_, ordinal) => {
     const identity = relatedIdentity(`oversized-nfo-${ordinal}`, String(1000 + ordinal));
@@ -683,12 +674,10 @@ test('Movie Triage associates only the exact NFO sidecar and conserves its canon
     },
     procurementTriageRuleSnapshot: rule,
   });
-  assert.equal(oversizedResult.resultKind, 'not_ready');
-  assert.equal(oversizedResult.units.length, 0);
-  assert.deepEqual(
-    oversizedResult.unassignedMaterials.map((item) => item.reasonCode),
-    ['triage_unit_contract_too_large'],
-  );
+  assert.equal(oversizedResult.resultKind, 'resolved');
+  assert.equal(oversizedResult.units.length, 1);
+  assert.equal(oversizedResult.units[0].relatedScope.scopeKind, 'ordinary_parent');
+  assert.equal(oversizedResult.unassignedMaterials.length, 0);
 });
 
 test('Triage module has no Store, Provider, Runtime, or legacy fallback dependency', () => {

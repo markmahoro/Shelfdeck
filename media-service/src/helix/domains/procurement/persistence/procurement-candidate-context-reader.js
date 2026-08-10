@@ -2,6 +2,7 @@
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { activeTriageRule } = require('../model/procurement-run-contracts');
+const { normalized: normalizeScopeLocation, resolveBdmvContainerScope, relativeToBdmvRoot, relativeToBdmvContainer, isBdmvInternalRelative } = require('../model/bdmv-scope');
 
 // Keep the persistence reader owner-local.  Reusing the planner module here would
 // make a repository component depend on a planning component and would also make
@@ -57,9 +58,7 @@ function selectedFieldMaterialSet(snapshot) {
   }) });
 }
 
-function normalizedLocation(value) {
-  return String(value || '').replace(/\\/g, '/').replace(/\/+/g, '/').replace(/^\/+|\/+$/g, '');
-}
+function normalizedLocation(value) { return normalizeScopeLocation(value); }
 
 function fieldRelativeLocation(root, location) {
   const base = normalizedLocation(root);
@@ -70,37 +69,42 @@ function fieldRelativeLocation(root, location) {
   return foldedValue.startsWith(foldedBase + '/') ? value.slice(base.length + 1) : value;
 }
 
-function bdmvContainerKey(root, location) {
-  const parts = fieldRelativeLocation(root, location).split('/').filter(Boolean);
-  for (let index = parts.length - 2; index >= 0; index -= 1) {
-    if (parts[index].toUpperCase() === 'BDMV') return 'bdmv:' + parts.slice(0, index).join('/');
-  }
-  for (let index = parts.length - 2; index >= 0; index -= 1) {
-    if (parts[index].toUpperCase() === 'CERTIFICATE') return 'bdmv:' + parts.slice(0, index).join('/');
-  }
-  return null;
+function bdmvContainerKey(root, location, knownRelativeLocations = []) {
+  const relative = fieldRelativeLocation(root, location);
+  return resolveBdmvContainerScope(relative, knownRelativeLocations)?.groupKey || null;
 }
 
 function bdmvRelative(root, location, groupKey) {
   const relative = fieldRelativeLocation(root, location);
   const group = String(groupKey || '').replace(/^bdmv:/i, '');
-  const prefix = group ? group + '/' : '';
-  const value = relative.toLocaleLowerCase('en-US');
-  const foldedPrefix = prefix.toLocaleLowerCase('en-US');
-  if (!value.startsWith(foldedPrefix)) return null;
-  const rest = relative.slice(prefix.length).replace(/^\/+/g, '');
-  const parts = rest.split('/').filter(Boolean);
-  const bdmvIndex = parts.findIndex((part) => part.toUpperCase() === 'BDMV');
-  if (bdmvIndex >= 0) return parts.slice(bdmvIndex + 1).join('/');
-  const certificateIndex = parts.findIndex((part) => part.toUpperCase() === 'CERTIFICATE');
-  if (certificateIndex >= 0) return parts.slice(certificateIndex).join('/');
-  return null;
+  // The Candidate Context is reconstructed from the frozen Run Basis.  At
+  // this point we intentionally do not have to rediscover the scope from a
+  // single member: a CERTIFICATE member has no BDMV ancestor of its own and
+  // therefore cannot be resolved by `resolveBdmvContainerScope(relative,
+  // [relative])`.  Rebuild the already-admitted container scope directly from
+  // its stable group key so sibling CERTIFICATE files are included exactly as
+  // Structure planned them.
+  const container = group || '.';
+  const scope = {
+    containerRelativeLocation: container,
+    bdmvRootRelativeLocation: container === '.' ? 'BDMV' : container + '/BDMV',
+    groupKey: 'bdmv:' + container,
+  };
+  if (scope.groupKey !== 'bdmv:' + group) return null;
+  return relativeToBdmvRoot(relative, scope) ?? relativeToBdmvContainer(relative, scope);
 }
 
 function scopeMembers(basis, scope) {
   const root = basis.access.root_location;
   const groupKey = scope.bdmvGroupKey;
-  return basis.members.filter((member) => bdmvContainerKey(root, member.location) === groupKey);
+  // Normalize the frozen Basis locations once.  Re-normalizing the complete
+  // Basis inside the per-member resolver made a large BDMV scope quadratic
+  // during every Candidate Context reconstruction (500 members meant roughly
+  // 250k path conversions before any candidate work could publish).
+  const knownRelativeLocations = basis.members.map((member) =>
+    fieldRelativeLocation(root, member.location));
+  return basis.members.filter((member) =>
+    bdmvContainerKey(root, member.location, knownRelativeLocations) === groupKey);
 }
 
 function bdmvCandidateMembers(basis, scope, assessment, candidateMaterials = null) {
@@ -130,7 +134,7 @@ function bdmvCandidateMembers(basis, scope, assessment, candidateMaterials = nul
     if (streamMatch && selectedClipIds.has(streamMatch[1])) role = 'primary_payload';
     const clipInfoMatch = /^CLIPINF\/([^/]+)\.CLPI$/.exec(upper);
     if (!role && (upper === selectedPlaylist || /^INDEX\.BDMV$/.test(upper) || /^MOVIEOBJECT\.BDMV$/.test(upper) ||
-        (clipInfoMatch && selectedClipIds.has(clipInfoMatch[1])))) role = 'structural_dependency';
+        (clipInfoMatch && selectedClipIds.has(clipInfoMatch[1])) || /^CERTIFICATE\//.test(upper))) role = 'structural_dependency';
     if (!role) continue;
     if (materialByKey && !materialByKey.has(candidate.material_key)) {
       fail('P7_CANDIDATE_BDMV_MEMBER_MISSING', 'BDMV Candidate Context could not hydrate a selected member.');
@@ -145,6 +149,68 @@ function bdmvCandidateMembers(basis, scope, assessment, candidateMaterials = nul
   return Object.freeze(members.sort((a,b)=>Buffer.compare(Buffer.from(a.materialKey),Buffer.from(b.materialKey))));
 }
 
+function baseName(location) { return normalizedLocation(location).split('/').at(-1) || ''; }
+function parentOf(location) {
+  const value = normalizedLocation(location); const index = value.lastIndexOf('/');
+  return index < 0 ? '.' : value.slice(0, index) || '.';
+}
+function reconstructRelatedReferences({ basis, scope, candidateMembers, observed, observationRevision }) {
+  const primary = candidateMembers.filter((member) => member.role === 'primary_payload');
+  if (!primary.length || !scope) return Object.freeze([]);
+  const knownLocations = observed.map((item) => item.relativeLocation || item.location);
+  const primaryContexts = primary.map((member) => {
+    const source = basis.members.find((item) => item.material_key === member.materialKey);
+    const relative = source ? fieldRelativeLocation(basis.access.root_location, source.location) : '';
+    const stem = baseName(relative).replace(/\.[^.]+$/, '').toLocaleLowerCase('en-US');
+    return { materialKey:member.materialKey, stem, parent:parentOf(relative) };
+  });
+  const stems = new Set(primaryContexts.map((item) => item.stem).filter(Boolean));
+  if (scope.stemKey && scope.stemKey !== '@candidate') stems.add(String(scope.stemKey).toLocaleLowerCase('en-US'));
+  const candidateParents = new Set(primaryContexts.map((item) => item.parent));
+  const allowedParents = scope.parentRelativeLocation === '@candidate'
+    ? candidateParents : new Set([normalizedLocation(scope.parentRelativeLocation || '.')]);
+  const result = new Map();
+  for (const item of observed) {
+    const relative = normalizedLocation(item.relativeLocation || fieldRelativeLocation(basis.access.root_location, item.location));
+    const identity = item.identity;
+    if (!identity || identity.fingerprintAlgorithm !== 'middle-256k-sha256' || identity.fingerprintVersion !== 1 ||
+        primary.some((member) => member.materialKey === identity.materialKey)) continue;
+    const resolved = resolveBdmvContainerScope(relative, knownLocations);
+    const bdmvRelative = resolved ? relativeToBdmvRoot(relative, resolved) : null;
+    // The whole BDMV/CERTIFICATE topology is one structural scope.  Even
+    // CERTIFICATE files (which sit beside BDMV rather than below it) must not
+    // leak into the external sidecar references.
+    if (scope.scopeKind === 'bdmv_external_parent' && resolved &&
+        resolved.containerRelativeLocation === scope.parentRelativeLocation) continue;
+    if (resolved && bdmvRelative !== null && isBdmvInternalRelative(bdmvRelative)) continue;
+    if (!allowedParents.has(parentOf(relative))) continue;
+    const lower = baseName(relative).toLocaleLowerCase('en-US');
+    const stem = lower.replace(/\.[^.]+$/, '');
+    const extension = (lower.match(/\.[^.]+$/) || [''])[0];
+    const standard = /^(movie|tvshow)\.nfo$/.test(lower) ||
+      /^(poster|fanart|background|backdrop)\.(jpg|jpeg|png|webp)$/.test(lower) ||
+      /^season0*\d+-(poster|fanart|background|backdrop)\.(jpg|jpeg|png|webp)$/.test(lower);
+    const stemMatches = [...stems].some((value) => stem === value || stem.startsWith(value + '.') || stem.startsWith(value + '-') || stem.startsWith(value + '_'));
+    const sidecar = /\.(srt|ass|ssa|vtt|aac|ac3|dts|flac|mka|chapters|xml)$/.test(lower);
+    const mediaPayload = /\.(3gp|asf|avi|divx|flv|iso|m2ts|m4v|mkv|mov|mp4|mpeg|mpg|mts|mxf|ogm|rm|rmvb|ts|vob|webm|wmv)$/.test(lower);
+    if (mediaPayload || (!stemMatches && !standard && !sidecar)) continue;
+    const primaryContext = primaryContexts.find((value) => value.parent === parentOf(relative)) || primaryContexts[0];
+    const role = extension === '.nfo' ? 'nfo' : /\.(jpg|jpeg|png|webp)$/.test(extension) && /(?:^|[-_. ])poster$/.test(stem) ? 'poster'
+      : /\.(jpg|jpeg|png|webp)$/.test(extension) && /(?:^|[-_. ])(?:fanart|background|backdrop)$/.test(stem) ? 'fanart'
+      : /\.(srt|ass|ssa|vtt)$/.test(extension) ? 'subtitle' : /\.(aac|ac3|dts|flac|mka)$/.test(extension) ? 'external_audio'
+      : extension === '.chapters' || extension === '.xml' ? 'chapter' : 'sidecar';
+    const referenceId = canonicalDigest({ schema:'procurement.related-material-reference-id@1', primaryMaterialKey:primaryContext.materialKey,
+      role, relatedMaterialKey:identity.materialKey, endpointId:item.endpointId, location:item.location });
+    const reference = { referenceId, primaryMaterialKey:primaryContext.materialKey, role, identity, endpointId:item.endpointId,
+      location:item.location, fingerprintAlgorithm:identity.fingerprintAlgorithm, fingerprintVersion:identity.fingerprintVersion,
+      contentFingerprint:identity.contentFingerprint,
+      associationEvidenceDigest:canonicalDigest({ schema:'procurement.related-scope-association@1', scopeDigest:scope.scopeDigest,
+        observationRevision:Number(observationRevision || scope.observationProjectionRevision || 1), entryDigest:item.entryDigest }) };
+    result.set(referenceId, { ...reference, referenceDigest:canonicalDigest(reference) });
+  }
+  return Object.freeze([...result.values()].sort((a,b)=>Buffer.compare(Buffer.from(a.referenceId),Buffer.from(b.referenceId))));
+}
+
 class ProcurementCandidateContextReaderError extends Error {
   constructor(code, message, details = {}) { super(message); this.name = 'ProcurementCandidateContextReaderError'; this.code = code; this.details = details; }
 }
@@ -157,11 +223,16 @@ function createProcurementCandidateContextReader(options) {
     fail('P7_CANDIDATE_CONTEXT_DEPENDENCIES', 'Candidate Context Reader requires targeted Triage facts, Evidence Index and Triage Rules.');
   }
   const basisCache = new Map();
+  const observedCache = new Map();
+  const contextCache = new Map();
   return Object.freeze({
     read(request) {
       if (!request || typeof request.runId !== 'string' || typeof request.evidenceWorkId !== 'string' || typeof request.unitId !== 'string') {
         fail('P7_CANDIDATE_CONTEXT_REQUEST', 'Candidate Context requires runId, evidenceWorkId and unitId.');
       }
+      const contextCacheKey = typeof request.workId === 'string' && request.workId
+        ? request.workId + ':' + request.unitId : null;
+      if (contextCacheKey && contextCache.has(contextCacheKey)) return contextCache.get(contextCacheKey);
       const entry=options.evidenceIndex.find(request.evidenceWorkId,request.unitId);
       if (!entry) return null;
       const cached=basisCache.get(request.runId);
@@ -197,19 +268,42 @@ function createProcurementCandidateContextReader(options) {
         : Object.freeze((entry.unit.members || []).map((member) => Object.freeze({ ...member })));
       const selected=selectedFieldMaterialSet(snapshot);
       const rule=activeTriageRule(options.triageRuleRegistry);
-      return Object.freeze({
+      const relatedScope = entry.unit.relatedScope;
+      if (!relatedScope || relatedScope.scopeDigest !== canonicalDigest({
+        schema:'procurement.related-scope@1', scopeKind:relatedScope.scopeKind,
+        parentRelativeLocation:relatedScope.parentRelativeLocation, stemKey:relatedScope.stemKey,
+        observationProjectionRevision:relatedScope.observationProjectionRevision, relatedRuleRevision:relatedScope.relatedRuleRevision,
+      })) fail('P7_CANDIDATE_CONTEXT_RELATED_SCOPE', 'Candidate Unit Related Scope digest is invalid.');
+      const observedScopeKey = request.runId + ':' + relatedScope.parentRelativeLocation;
+      let observed = observedCache.get(observedScopeKey);
+      if (!observed && typeof options.triageReader.listObservedMaterialsInScope === 'function') {
+        observed = Object.freeze(options.triageReader.listObservedMaterialsInScope(request.runId, relatedScope.parentRelativeLocation));
+        observedCache.set(observedScopeKey, observed);
+      } else if (!observed && typeof options.triageReader.listObservedMaterials === 'function') {
+        // Test and migration fixtures may only expose the older reader port.  The
+        // production composition root always provides the bounded scope query.
+        observed = Object.freeze(options.triageReader.listObservedMaterials(request.runId)
+          .filter((item) => parentOf(item.relativeLocation || item.location) === normalizedLocation(relatedScope.parentRelativeLocation)));
+        observedCache.set(observedScopeKey, observed);
+      }
+      const relatedReferences = reconstructRelatedReferences({ basis, scope:relatedScope, candidateMembers,
+        observed:observed || [], observationRevision:relatedScope.observationProjectionRevision });
+      const context = Object.freeze({
         snapshot:Object.freeze({ run:snapshot.run, access:snapshot.access, materials:snapshot.materials, candidateMaterials:snapshot.candidateMaterials }),
         structure:entry.structure,
         unit:entry.unit,
         candidateMembers,
+        relatedReferences,
         ordinal:entry.ordinal,
         evidenceId:entry.evidenceId,
         evidencePayloadDigest:entry.payloadDigest,
         selected,
         rule,
       });
+      if (contextCacheKey) contextCache.set(contextCacheKey, context);
+      return context;
     },
-    clear() { basisCache.clear(); },
+    clear() { basisCache.clear(); observedCache.clear(); contextCache.clear(); },
   });
 }
 

@@ -158,7 +158,9 @@ const triageUnit = () => {
   const common = { unitId: digest(), mediaType: triageMediaType(), contentProfile: triageProfile(),
     structureKind: enumText('single', 'season'), displayIdentity: text(), identityMetadata: triageIdentityMetadata(),
     seasonContinuityClaims: arrayOf(seasonContinuityClaim(), 64), seasonContinuityClaimSetDigest: digest(),
-    relatedReferences: arrayOf(triageRelatedReference(), 1024), unitDigest: digest() };
+    relatedScope: object({ scopeKind: enumText('ordinary_parent', 'bdmv_external_parent'), parentRelativeLocation: text(), stemKey: text(),
+      observationProjectionRevision: positiveInteger(), relatedRuleRevision: positiveInteger(), scopeDigest: digest() }),
+    materialInputForm: enumText('stream_file', 'bdmv', 'dvd', 'iso'), unitDigest: digest() };
   const member = object({ materialKey: digest(), bindingRevision: positiveInteger(),
     admittedControlRevision: positiveInteger(), admittedControlProjectionDigest: digest(),
     role: enumText('primary_payload', 'structural_dependency'), episodeClaims: arrayOf(triageEpisodeClaim(), 32), memberClaimDigest: digest() });
@@ -274,6 +276,7 @@ const special = {
   'CandidatePackage.materialFieldContextRef': object({ fieldId: id(), accessRevision: positiveInteger(), contextDigest: digest() }),
   'CandidatePackage.mediaType': triageMediaType(),
   'CandidatePackage.contentProfile': triageProfile(),
+  'CandidatePackage.materialInputForm': enumText('stream_file', 'bdmv', 'dvd', 'iso'),
   'CandidatePackage.identityMetadata': triageIdentityMetadata(),
   'CandidatePackage.structureEvidenceRef': object({ evidenceId: id(), payloadDigest: digest(), unitId: digest(), unitDigest: digest() }),
   'CandidatePackage.seasonContinuityClaims': arrayOf(seasonContinuityClaim(), 64),
@@ -522,7 +525,7 @@ const contracts = {
   IdentityClaim: ['DraftEnvelope', 'claimKind,mediaType,contentProfile,claimedTitle,displayIdentity,claimedYear?,seasonClaim?,javCode?,identityMetadataDigest,structureUnitDigest,sourceHints,claimDigest'],
   PrimaryInputManifestDraft: ['DraftEnvelope', 'preallocatedManifestId,procurementRunId,runBasisDigest,structureEvidencePayloadDigest,unitId,structureKind,memberCount,members,membersDigest,memberSourceDigest,manifestDraftDigest'],
   PrimaryInputManifest: ['ManifestEnvelope', 'structureKind,members'],
-  CandidatePackage: ['ManifestEnvelope', 'candidatePackageId,packageRevision,procurementRunId,runBasisDigest,triageRule,materialFieldContextRef,mediaType,contentProfile,displayIdentity,identityMetadata,identityClaim,structureEvidenceRef,seasonContinuityClaims,seasonContinuityClaimSetDigest,primaryInputManifestRef,relatedReferences,relatedReferenceSetDigest,memberControlEvidenceSetDigest,packageDigest'],
+  CandidatePackage: ['ManifestEnvelope', 'candidatePackageId,packageRevision,procurementRunId,runBasisDigest,triageRule,materialFieldContextRef,mediaType,contentProfile,materialInputForm,displayIdentity,identityMetadata,identityClaim,structureEvidenceRef,seasonContinuityClaims,seasonContinuityClaimSetDigest,primaryInputManifestRef,relatedReferences,relatedReferenceSetDigest,memberControlEvidenceSetDigest,packageDigest'],
   RelatedMaterialReference: [null, 'referenceId,primaryMaterialKey,role,identity,endpointId,location,fingerprintAlgorithm,fingerprintVersion,contentFingerprint,associationEvidenceDigest,referenceDigest'],
   SeasonContinuityClaim: [null, 'claimKind,claimNamespace,claimKey,claimDigest,evidenceDigest'],
   CandidateIntakeAcceptanceBasis: [null, 'handoffContractRef,acceptanceOwnerDomain,targetContext,candidatePackageId,packageRevision,packageDigest,primaryInputManifestDigest,seasonContinuityClaimSetDigest,relatedReferenceSetDigest,memberControlEvidenceSetDigest,acceptanceBasisDigest'],
