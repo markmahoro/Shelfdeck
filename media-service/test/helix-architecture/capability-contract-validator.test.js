@@ -34,7 +34,7 @@ function codes(result) {
   return new Set(result.findings.map((item) => item.code));
 }
 
-test('validates 112 unique immutable Capability packages', () => {
+test('validates 111 unique immutable Capability packages', () => {
   const result = validateCapabilityContracts({ repositoryRoot, contractsRoot: actualContractsRoot });
   assert.equal(result.ok, true);
   assert.equal(result.packageCount, 111);

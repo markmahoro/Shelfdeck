@@ -1,8 +1,59 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: BDMV Triage性能重构与Scope Reference落地已完成；Execution Foundation与Procurement本地全链验证通过，已封口供后续Domain接入。
+Status: Movie Procurement已在`Handoff A Ready`边界完成并封口为`CLOSED FOR MOVIE`；下一业务目标尚未开启，Libra实现不因本次封口自动获得授权。
 
-Last updated: 2026-08-10
+Last updated: 2026-08-11
+
+## 0. Closure — Movie Procurement at Handoff A Ready
+
+2026-08-11，用户在审阅最新全库Canary、性能分段对账和Candidate抽样结果后接受Movie Procurement封口。当前活动改造已经完成，
+封口内容为：Observation事实、增量Eligibility、Selection Scope、Run Admission、Foundation三层执行链、Movie Triage、BDMV Assessment、
+Related重建、Candidate Assembly、Candidate Package与open Handoff A Offer。Series、JAV、Western Adult以及Handoff A之后的Libra Intake
+均不属于本次完成声明。
+
+后续若进入Movie Libra，应作为新的、可验证目标单独打开Implementation Gate；只能消费当前正式Handoff A合同，不得反向修改已经封口的
+Procurement或Execution Foundation语义来迁就Libra实现。当前线程在未获得新的明确实施指令前停在该边界。
+
+## 0.1 Completed amendment — Mixed Movie Field and unified Run bound
+
+本轮基于`bd6a0d2c`把Movie Field的pre-triage Selection正式统一为三类持久Scope：Field根目录中的每个普通文件分别形成
+`standalone_file`，非BDMV材料按Field根目录下第一级目录形成`ordinary_directory`，BDMV及同级`CERTIFICATE`形成
+`bdmv_container`。Run Creator只消费terminal Observation形成的冻结Scope，按canonical UTF-8顺序装箱；Run与任一不可拆分
+Scope的唯一业务上限都是1024个selected Physical Material。Related Material既不进入Selection，也不计入该上限。
+
+Planner、Structure及Candidate Context直接消费已Admission的Scope事实，不再重新猜目录类别。标题规则固定为：standalone取文件
+stem；单电影ordinary directory取目录名；多电影ordinary directory分别取对应文件stem；BDMV取容器目录名，Field根直接放置的
+BDMV使用稳定临时标签。Related在Candidate Assembly中只查询冻结Observation的当前Scope并按standalone、单电影目录、多电影目录、
+BDMV外部目录四种association mode重建，Structure不访问NAS且不内联大型Related数组。
+
+正式合同为111 Capability、97 Result family、180 table及43 Canonical Transaction；Run/Scope/Retry/Manifest/Handoff的物理成员
+上限统一为1024。Observation Page与Eligibility批次保持256，Probe批次保持100，Execution Runtime保持16个in-flight Event；本轮
+没有修改Scheduler、Event Runtime、Resource Governor、Permit、Retry或Result Binding语义。
+
+### Full Canary result and bounded performance return
+
+第一次全库复验使用新的临时clean数据库和只读`Z:\Film`完成。实际源为18,409个regular files（用户新增`苹果.mkv`及其
+`苹果.nfo`），不是计划假设的18,408。正确性全部通过：72个Observation Page、922个Selection Scope、8,627个selected
+Physical Material、10/10 Run Seal、943个Candidate Package/943个open Handoff A Offer；`苹果.mkv`形成唯一
+`standalone_file` Candidate，display identity为`苹果`、`materialInputForm=stream_file`、Primary Manifest只有自身，Related只有
+`苹果.nfo`。源Reality前后一致，0 duplicate Selection、0 failed Work/Event、0 Resource defer、Libra/Arca为0且Offer未消费。
+
+该轮性能未通过15%红线：首个Offer 163.385秒、全部Run Seal 445.122秒、总耗时451.260秒。资产保留于
+`C:\Users\markm\AppData\Local\Temp\helix-full-movie-canary-0af0uA`。诊断确认主要放大来自Candidate Manifest与Context对每个
+Candidate复制/读取整个1024成员Run，以及Coordinator在每次terminal Work后重复扫描旧Work/Package；不是Foundation状态机问题。
+
+修正后，Manifest只接收当前Candidate的精确成员，Candidate Context只查询当前Unit/Scope，Triage Evidence Index按确定性ordinal
+O(1)定位，Coordinator用O(log N)幂等Work存在性探测并只在Seal前执行完整集合核验。产品Composition Root的1000 Candidate压力
+fixture已形成1000个Candidate/Offer、最大open Work 33、0失败；`npm run test:helix-procurement`及`npm test`均通过。
+
+用户明确授权后，第二次全库复验已使用新的Temp clean数据库完成。正确性仍全部通过，资产保留于
+`C:\Users\markm\AppData\Local\Temp\helix-full-movie-canary-Ovor6i`。Candidate修正被真实数据验证：Manifest累计耗时从
+90.043秒降至16.335秒，首个Offer到全部Run Seal的尾段从281.737秒降至173.523秒，改善约38.4%。
+
+整轮绝对性能仍未过原红线：首个Offer 256.578秒、全部Run Seal 430.101秒、总耗时435.806秒。与第一次混乱Field Canary相比，
+Observation Capability累计耗时从42.320秒升至111.266秒，普通Media Probe从83.173秒升至122.758秒；上游source-dependent
+阶段的本轮波动掩盖了Candidate收益。该绝对耗时继续作为原始Evidence保留；用户已将其确认为环境波动并接受正确性与Candidate阶段
+性能证据，因此不再阻断Movie Procurement封口。不得通过修改Candidate或Foundation去“修复”该环境波动，也不自动第三次读取全库。
 
 ## 0.1 Current amendment — Observation facts and incremental Eligibility
 

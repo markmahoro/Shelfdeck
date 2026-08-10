@@ -212,15 +212,17 @@ test('keeps canonical content profile separate from season structure', () => {
 test('accepted DTOs freeze semantic members instead of exposing arbitrary payloads', () => {
   assert.equal(schemas.SelectedFieldMaterialSet.properties.members.maxItems, 1024);
   const triageRule = schemas.ProcurementTriageRuleSnapshot.properties.rulePayload.properties;
-  assert.equal(triageRule.maxPrimaryMaterials.const, 256);
-  assert.equal(triageRule.manifestRule.properties.maximumMembers.const, 256);
+  assert.equal(triageRule.maxRunPhysicalMembers.const, 1024);
+  assert.equal(triageRule.maxSelectionScopeMembers.const, 1024);
+  assert.equal(triageRule.maxCandidateManifestMembers.const, 1024);
+  assert.equal(triageRule.manifestRule.properties.maximumMembers.const, 1024);
   assert.equal(schemas.TriageStructureInspectionInput.properties.materialFieldContext.properties.memberContexts.maxItems, 1024);
   const triageUnitBranches = schemas.CandidateDraft.properties.structureEvidence.properties.unit.oneOf;
-  assert.equal(triageUnitBranches[0].properties.members.maxItems, 256);
+  assert.equal(triageUnitBranches[0].properties.members.maxItems, 1024);
   assert.equal(triageUnitBranches[1].properties.memberScope.properties.memberCount.minimum, 1);
   assert.equal(schemas.TriageStructureInspectionInput.properties.probeBatches.maxItems, 11);
   assert.equal(schemas.TriageStructureInspectionInput.properties.playabilityPages.maxItems, 11);
-  assert.equal(schemas.TriageStructureInspectionInput.properties.observationScopeProjection.properties.entries.maxItems, 4096);
+  assert.equal(schemas.TriageStructureInspectionInput.properties.observationScopeProjection.properties.entries.maxItems, 1024);
   assert.equal(schemas.CandidateDraft.properties.primaryInputManifestDraft.$ref, 'helix://contracts/types/PrimaryInputManifestDraft/v1');
   assert.equal(triageUnitBranches.every((branch) => branch.properties.mediaType.enum.includes('group')), true);
   assert.equal(schemas.CandidateDraft.properties.seasonContinuityClaims.items.$ref,
@@ -231,8 +233,8 @@ test('accepted DTOs freeze semantic members instead of exposing arbitrary payloa
   assert.equal(schemas.CandidateDeliverySnapshot.properties.candidatePackage.$ref,
     'helix://contracts/types/CandidatePackage/v1');
   assert.equal(schemas.CandidateDeliverySnapshot.properties.primaryMaterialDeliveries.minItems, 1);
-  assert.equal(schemas.CandidateDeliverySnapshot.properties.primaryMaterialDeliveries.maxItems, 256);
-  assert.equal(schemas.AcceptedIntakePayload.properties.controlTransferScope.properties.items.maxItems, 256);
+  assert.equal(schemas.CandidateDeliverySnapshot.properties.primaryMaterialDeliveries.maxItems, 1024);
+  assert.equal(schemas.AcceptedIntakePayload.properties.controlTransferScope.properties.items.maxItems, 1024);
   assert.equal(schemas.DestructionScope.properties.materialKeys.items.pattern, '^[a-f0-9]{64}$');
   for (const schema of Object.values(schemas)) {
     const objectSchemas = schema.oneOf || [schema];

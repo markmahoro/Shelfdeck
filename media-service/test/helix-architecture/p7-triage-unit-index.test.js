@@ -34,6 +34,8 @@ test('Triage Evidence Index resolves Units and reuses immutable Work Results', (
   assert.equal(index.find('evidence-work', a.unitId).evidenceId, rows[0].result.evidenceId);
   assert.equal(index.find('evidence-work', b.unitId).pageOrdinal, 1);
   assert.equal(index.findCandidate(candidateWorkId('run-1', b.unitId, 1), 'run-1', 'evidence-work').unitId, b.unitId);
+  assert.equal(index.findCandidate(candidateWorkId('run-2', b.unitId, 1), 'run-1', 'evidence-work'), null);
+  assert.equal(index.findCandidate('procurement-candidate-work-invalid', 'run-1', 'evidence-work'), null);
   assert.strictEqual(index.read('evidence-work'), first);
   assert.equal(reads, 1);
   index.invalidate('evidence-work');

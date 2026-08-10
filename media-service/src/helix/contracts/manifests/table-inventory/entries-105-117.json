@@ -13,7 +13,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.12",
-        "line": 8839,
+        "line": 8877,
         "lineDigest": "5cbc9ffd7ce5f4c44f861b79ff0c8a6cfa8a090d580f870401be0a08c386ea75"
       },
       "targetLocator": {
@@ -23,11 +23,11 @@
         "tableId": "arca_ondeck_settlement_approvals",
         "owner": "arca",
         "contractRef": "helix://contracts/tables/arca_ondeck_settlement_approvals/v1",
-        "contractDigest": "efb5c51ada89b191362b8066045f3301a68964041e302dbea4c451d7c2ceab8c"
+        "contractDigest": "cc6e5d91a5a8ab5286a25486e70b0c026a2dab6c193d7e8b27f997cc0e23cf60"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "73e3697c0c8d867d37683892c0b8891f17ea0253583b095144661b6952d884b4"
+        "value": "146698de6bb84f0b572c8ee201a2fd13186dad9a3b5d068915d952efb0320328"
       }
     },
     {
@@ -41,7 +41,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.12",
-        "line": 8840,
+        "line": 8878,
         "lineDigest": "27009726b5c03e4052c17ab37b7c0044faa459ca91d36a211842bb5c4b38eec3"
       },
       "targetLocator": {
@@ -51,11 +51,11 @@
         "tableId": "arca_shelf_entries",
         "owner": "arca",
         "contractRef": "helix://contracts/tables/arca_shelf_entries/v1",
-        "contractDigest": "1608248f4f2f5e8f513b0a0803015b62c6530d3a52817c513b0aabe0a4d93f8b"
+        "contractDigest": "15dd355c217dd94fb5ffcfd83cf0dd4eb43d97a1a84a1577481e8e55b8dde5f4"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "9edcd4ed64713ad08caf59103264bd7a48e2da7a45071d206eb6cf380d50df9c"
+        "value": "d6d436d79f9d9fdf2a554aa83ac1dd3d9d50b3ce8b0f25ec7dabe02b7d73d3c3"
       }
     },
     {
@@ -69,7 +69,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.12",
-        "line": 8841,
+        "line": 8879,
         "lineDigest": "b6b7fb7e12bac7da8359799330c6882cb1bcca8f7968ecedda59d0d7a1254df6"
       },
       "targetLocator": {
@@ -79,11 +79,11 @@
         "tableId": "arca_canonical_identity_revisions",
         "owner": "arca",
         "contractRef": "helix://contracts/tables/arca_canonical_identity_revisions/v1",
-        "contractDigest": "36c4c9d3b72d6705d315348f786e88218add78a171e13eedae4f01d5f67efdd3"
+        "contractDigest": "e6809af193abc66d0d11920179355517a0f269ba79668838ca9c1a52eae0de6a"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "b8caa9b91e138b4b6080bd53d8b4b71d0fb32bd7e78bf2bda926092113979b5e"
+        "value": "a55a3dc0209d39dd8c27b88c37090a59490cd16e988a708cc385e26a391cae62"
       }
     },
     {
@@ -97,7 +97,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.12",
-        "line": 8842,
+        "line": 8880,
         "lineDigest": "19ea29a73470be4c0f501b30a3cfcfe75272f78f820e2e13af830e0b00d73656"
       },
       "targetLocator": {
@@ -107,11 +107,11 @@
         "tableId": "arca_inventory_representations",
         "owner": "arca",
         "contractRef": "helix://contracts/tables/arca_inventory_representations/v1",
-        "contractDigest": "e61637408d357860250ed1c5e66d7e9cc8e2cb64d65c516aafaf2c5d0de02f10"
+        "contractDigest": "6f0a063f7314c97c18527d4c79ef6904662b5071b310a5aa49d220a99e8a2254"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "09d3fe684aaf69c6177e93cdb94a681957b486754cac456480f0213be8c26c2c"
+        "value": "2ed80a0c9b25bee73875282bb8af4ac9dc60457f36bd966503e0d4348d323cae"
       }
     },
     {
@@ -125,7 +125,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.12",
-        "line": 8843,
+        "line": 8881,
         "lineDigest": "4965590f2ef4d42820652677569fab11579d604801cf83c7f8e0f276a5b9cc94"
       },
       "targetLocator": {
@@ -135,11 +135,11 @@
         "tableId": "arca_inventory_materials",
         "owner": "arca",
         "contractRef": "helix://contracts/tables/arca_inventory_materials/v1",
-        "contractDigest": "f0a1ec38dc33d881dd22df3dce7a172577696fbbbb4173fe953a9e8417732e6f"
+        "contractDigest": "9fadc1422fb48bfdc5c9c03ba85ae02e2d7c5d1494ca93b0843f57b0713d70e3"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "ab4a6bc1ff1a516959f5a72154ea357ca6f0ab14b0554eef2485a52920cc50af"
+        "value": "05d468147b00e881247c8066f64c20445ebf15316a6118c31cf49d85b2cbfebe"
       }
     },
     {
@@ -153,7 +153,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.12",
-        "line": 8844,
+        "line": 8882,
         "lineDigest": "1ebb004910adfed305d0022484124571dc61abfd903edc064775d184f9789bda"
       },
       "targetLocator": {
@@ -163,11 +163,11 @@
         "tableId": "arca_inventory_related_references",
         "owner": "arca",
         "contractRef": "helix://contracts/tables/arca_inventory_related_references/v1",
-        "contractDigest": "82e046e4445b2ffeca5c75a637cb6cb76cfda8b8a6b796f7888972b85f10f549"
+        "contractDigest": "a5756a3317890b99412f53fbb80117e576214072431286bda2e58420b0cee803"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "1ec48837ff2bd64ac377b8f3c64b33cca278b60a26ec0b349a1ce788f65076f6"
+        "value": "8cfb88595f7ed2f6f5c4869e38c9daeb766fc570195c53fb76305d09a1738180"
       }
     },
     {
@@ -181,7 +181,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.12",
-        "line": 8845,
+        "line": 8883,
         "lineDigest": "e26fbd4876a2b956d2690a4c2e5b9524753384bf8fc061c9671188d38fef5268"
       },
       "targetLocator": {
@@ -191,11 +191,11 @@
         "tableId": "arca_inventory_product_facts",
         "owner": "arca",
         "contractRef": "helix://contracts/tables/arca_inventory_product_facts/v1",
-        "contractDigest": "360d7fdedca52f8b7f1fcd68fe53685e58f2cbb560cf9155a599c74937e60a2b"
+        "contractDigest": "b21044f598fdb56d41727fe504ddd6f02d074584eb5c04169b5e6bd453089984"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "f2466e1b964601d27beb348dc6a70e7149764f5a70cdc6c4eda8881d903c1961"
+        "value": "f6464b04d7469064eabdcc0a366f8b7f5c88284f9a367e4118c7f1929fee2846"
       }
     },
     {
@@ -209,7 +209,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.12",
-        "line": 8846,
+        "line": 8884,
         "lineDigest": "71a12e530d699cd8186a5ec1f7b56ab0b95cb0a27a1eb9d6575f24e04b4f968d"
       },
       "targetLocator": {
@@ -219,11 +219,11 @@
         "tableId": "arca_inventory_person_relations",
         "owner": "arca",
         "contractRef": "helix://contracts/tables/arca_inventory_person_relations/v1",
-        "contractDigest": "a26d8520787622f79ce21a41d334616c49616d5ff17b8d94041b6a981be70419"
+        "contractDigest": "8a3bc7c64df2fe85a70032e48be582d895debf8c0fe2380fbcd2bb8df984a543"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "35ef4085e0144a405001aa67c87d4af79562a584390f081a278016c2a204cae0"
+        "value": "61f4c42c2a1bea88c1b55e5a675ea270909e82d38a367ba32dafa2d55356b768"
       }
     },
     {
@@ -237,7 +237,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.12",
-        "line": 8847,
+        "line": 8885,
         "lineDigest": "5fd9656b5a8d03c03e87964767d6f65267f763a59efd428706f1835e6885cb76"
       },
       "targetLocator": {
@@ -247,11 +247,11 @@
         "tableId": "arca_deck_fact_revisions",
         "owner": "arca",
         "contractRef": "helix://contracts/tables/arca_deck_fact_revisions/v1",
-        "contractDigest": "b0b39db5c352f11b2896faa143ce5c1cbc7592a37c0d6b613b059934e630987f"
+        "contractDigest": "1d6a0b68c49ecbe46fc71854cdbe2990a80e6cd583b2b3d9a99bb9fb3c1ee733"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "f43748380fb501b8f740466ef31e22b5cac854f1c9d0db885b89494a407d037d"
+        "value": "ec8594d492929ead1d75eee1cdb3245be73c18eab082ac984d1437fba2b2ffcb"
       }
     },
     {
@@ -265,7 +265,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.12",
-        "line": 8848,
+        "line": 8886,
         "lineDigest": "9b60bbe10ab71f5ddfc41c57f1840664428b3dbafee698cfd75395720fae1db0"
       },
       "targetLocator": {
@@ -275,11 +275,11 @@
         "tableId": "arca_ondeck_commit_receipts",
         "owner": "arca",
         "contractRef": "helix://contracts/tables/arca_ondeck_commit_receipts/v1",
-        "contractDigest": "5572ee03cc1f5d5e58c8a58329389d134cf8430f1103db3c0ede4ab67fa32f33"
+        "contractDigest": "e733a2e70e98a0ad750b247b1b56c2bcc11808656688ba814fdc4ff41a1f05b3"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "983d9246d8f81e3e4d6f141a25171cc7da26110ef449d888ee33dc0657087014"
+        "value": "167bac462e3ec52b68aa8b0b1815d774b7b7235775ecb49a9f393655bcea05c0"
       }
     },
     {
@@ -293,7 +293,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.12",
-        "line": 8849,
+        "line": 8887,
         "lineDigest": "a2d89572372aab45d8ef9f52b7386f3a46b333393352549fdcd3de1efbe66846"
       },
       "targetLocator": {
@@ -303,11 +303,11 @@
         "tableId": "arca_offload_completions",
         "owner": "arca",
         "contractRef": "helix://contracts/tables/arca_offload_completions/v1",
-        "contractDigest": "6cadd1e22c842eb91ceeeabce08c31ab933687307871c0698db8d8fd08cd441f"
+        "contractDigest": "08185ad55dda05a98bffd5d8ca94a212fb9419dbe41f33d2f2a48d713613e970"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "1b49a770a09c4a49469b7b1a8b93fcee949a51fca62c780a608142d707ee5c20"
+        "value": "1c30bc5f475559cd0089a826c237d2a3d58ecc3551b3c04a7f89646dfadfb29d"
       }
     },
     {
@@ -321,7 +321,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.12",
-        "line": 8850,
+        "line": 8888,
         "lineDigest": "dd5acb9f151e6c9596b56d003cbfe36bcbf4c464a6daec044a78747eef6703e7"
       },
       "targetLocator": {
@@ -331,11 +331,11 @@
         "tableId": "arca_aftercare_assessments",
         "owner": "arca",
         "contractRef": "helix://contracts/tables/arca_aftercare_assessments/v1",
-        "contractDigest": "3c7adf5b9a2043d174752ab373766b07df4697d8b10ed73ca36502d972c7d00c"
+        "contractDigest": "0379432f56f9d4b33cb5d8e7d0c91f68898528666a6ab0dff824cb32403f88bd"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "bed8e7f86857db42d61596bada55f0067e7ae0e1ab47ffb8d82e37fd304bee66"
+        "value": "193655f5e70463f8cb93fb0a567b41bd3139b9f6c3d84856f901eff36ac2ffd4"
       }
     },
     {
@@ -349,7 +349,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.12",
-        "line": 8851,
+        "line": 8889,
         "lineDigest": "2d8dd47bea6e2d8bb59708cdf5e919dd788c4a77c0c09dc14b036a62f3def09f"
       },
       "targetLocator": {
@@ -359,11 +359,11 @@
         "tableId": "arca_aftercare_findings",
         "owner": "arca",
         "contractRef": "helix://contracts/tables/arca_aftercare_findings/v1",
-        "contractDigest": "c84e30b285c9520e2b096ba950393cd716dcdad8e0ab5ea4d36606727d8fe979"
+        "contractDigest": "d0fd188aa3450cb0fbc59298c2c8b76a923ec1266b70b7e9f721578c6148afee"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "e6d2a4f65917aab68d688f6765e3c9ada8de9a94e3f5afc6aa6ad9bc17900a89"
+        "value": "25376f89bf97e710d8b738e615f50e1ff273a8f8755d5c35718cea9776cc14b9"
       }
     }
   ]

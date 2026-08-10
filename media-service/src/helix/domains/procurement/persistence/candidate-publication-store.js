@@ -2,7 +2,7 @@
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
-const { buildPublication, OFFER_MESSAGE_SCHEMA, PACKAGE_SCHEMA } = require('../model/candidate-publication-contracts');
+const { buildPublication, buildPublicationReceipt, OFFER_MESSAGE_SCHEMA, RECEIPT_SCHEMA } = require('../model/candidate-publication-contracts');
 
 const DRAFT_SCHEMA = 'helix://contracts/domain-types/CandidateDraft/v1';
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -27,7 +27,8 @@ function foundationDefinition(schemaManifest) {
 function procurementDefinition(schemaManifest) {
   return createRepositoryDefinition({ repositoryId:'candidate_publication', owner:'procurement', schemaManifest, statements:{
     find_run:{ kind:'select-one', tableId:'proc_procurement_runs', columns:['procurement_run_id','field_id','access_revision','triage_rule_ref','triage_rule_revision','triage_rule_authority_digest','run_basis_digest','state','candidate_package_revision_head'], keyColumns:['procurement_run_id'], safeIntegers:true },
-    find_members:{ kind:'select-all', tableId:'proc_run_materials', columns:['ordinal','material_key','mount_scope_id','inode','size_bytes','fingerprint_algorithm','fingerprint_version','content_fingerprint','binding_revision','admitted_control_revision','admitted_control_projection_digest','selection_state','candidate_package_id'], keyColumns:['procurement_run_id'], safeIntegers:true },
+    find_members:{ kind:'select-in', tableId:'proc_run_materials', keyColumn:'material_key', fixedKeyColumns:['procurement_run_id'], maxItems:500,
+      columns:['ordinal','material_key','mount_scope_id','inode','size_bytes','fingerprint_algorithm','fingerprint_version','content_fingerprint','binding_revision','admitted_control_revision','admitted_control_projection_digest','selection_state','candidate_package_id'], safeIntegers:true },
     find_candidate:{ kind:'select-one', tableId:'proc_candidate_packages', columns:['candidate_package_id','package_digest'], keyColumns:['candidate_package_id'] },
     cas_run_head:{ kind:'update', tableId:'proc_procurement_runs', setColumns:['candidate_package_revision_head'], keyColumns:['procurement_run_id'], compareColumns:[{ column:'candidate_package_revision_head', parameter:'expected_head' },{ column:'run_basis_digest', parameter:'expected_run_basis_digest' }] },
     reserve_member:{ kind:'update', tableId:'proc_run_materials', setColumns:['selection_state','candidate_package_id','reservation_updated_at_ms'], keyColumns:['procurement_run_id','material_key'], compareColumns:[{ column:'selection_state', parameter:'expected_selection_state' },{ column:'binding_revision', parameter:'expected_binding_revision' },{ column:'admitted_control_revision', parameter:'expected_control_revision' },{ column:'admitted_control_projection_digest', parameter:'expected_control_digest' }] },
@@ -47,8 +48,8 @@ function procurementDefinition(schemaManifest) {
 function validateHandle(handle, draft) {
   if (!handle || handle.schemaRef !== 'helix://contracts/types/DomainFactCommitHandle/v1' || handle.schemaVersion !== 1 ||
       handle.ownerDomain !== 'procurement' || handle.aggregateType !== 'candidate_package' || handle.aggregateId !== draft.candidatePackageId ||
-      handle.factType !== 'CandidateDraft' || handle.factSchemaRef !== DRAFT_SCHEMA || handle.expectedRevision !== draft.expectedPackageRevision - 1 ||
-      handle.payloadDigest !== canonicalDigest(draft) || handle.resultSchemaRef !== PACKAGE_SCHEMA ||
+      handle.factType !== 'CandidateDraft' || handle.factSchemaRef !== DRAFT_SCHEMA || handle.expectedRevision !== 0 ||
+      handle.payloadDigest !== canonicalDigest(draft) || handle.resultSchemaRef !== RECEIPT_SCHEMA ||
       typeof handle.commitIdempotencyKey !== 'string' || !handle.commitIdempotencyKey || !SHA256.test(handle.eventFenceDigest || '')) {
     fail('P7_CANDIDATE_HANDLE_MISMATCH', 'Domain Fact Commit Handle does not authorize this exact Candidate Draft and revision.');
   }
@@ -56,13 +57,14 @@ function validateHandle(handle, draft) {
 
 function parseReplay(repo, marker, draft, commitDigest) {
   if (marker.owner_domain !== 'procurement' || marker.scope_type !== 'candidate_package' || marker.scope_id !== draft.candidatePackageId ||
-      marker.commit_digest !== commitDigest || marker.result_schema_ref !== PACKAGE_SCHEMA) fail('P7_CANDIDATE_MARKER_CONFLICT', 'Commit Marker belongs to another Candidate Publication.');
+      marker.commit_digest !== commitDigest || marker.result_schema_ref !== RECEIPT_SCHEMA) fail('P7_CANDIDATE_MARKER_CONFLICT', 'Commit Marker belongs to another Candidate Publication.');
   const row = repo.invoke('find_result', { result_id:marker.result_id });
-  if (!row || row.result_digest !== marker.result_digest || row.result_schema_ref !== PACKAGE_SCHEMA) fail('P7_CANDIDATE_REPLAY_CORRUPT', 'Candidate marker points to a missing Result.');
+  if (!row || row.result_digest !== marker.result_digest || row.result_schema_ref !== RECEIPT_SCHEMA) fail('P7_CANDIDATE_REPLAY_CORRUPT', 'Candidate marker points to a missing Result.');
   let result, evidence;
   try { result = JSON.parse(row.result_json); evidence = JSON.parse(row.evidence_json); } catch { fail('P7_CANDIDATE_REPLAY_CORRUPT', 'Stored Candidate Result or Evidence is corrupt.'); }
   if (canonicalDigest(result) !== row.result_digest || canonicalDigest(evidence) !== row.evidence_digest ||
-      result.candidatePackageId !== draft.candidatePackageId || result.packageRevision !== draft.expectedPackageRevision) {
+      result.candidatePackageId !== draft.candidatePackageId || result.candidateDraftDigest !== draft.candidateDraftDigest ||
+      result.scopeDigest !== draft.candidateDraftDigest) {
     fail('P7_CANDIDATE_REPLAY_CORRUPT', 'Stored Candidate Result does not match the Draft revision.');
   }
   throw new Replay(Object.freeze(result), Object.freeze(evidence), marker.commit_marker);
@@ -89,7 +91,7 @@ function createCandidatePublicationStore(options) {
           request.resultBinding.evidence.payloadDigest !== draft.structureEvidence.payloadDigest) {
         fail('P7_CANDIDATE_REQUEST_INVALID', 'Marker, Result binding, or typed Evidence is invalid.');
       }
-      let publication;
+      let publication, publicationReceipt;
       const preflight = { participantId:'candidate_publication_preflight', owner:'execution-foundation', boundBusinessOwner:'procurement', repositories:[foundation], execute(context) {
         const repo = context.repository(foundation.repositoryId);
         const marker = repo.invoke('find_marker', { commit_marker:markerId });
@@ -102,22 +104,29 @@ function createCandidatePublicationStore(options) {
         if (!run || !['active','waiting'].includes(run.state) || run.run_basis_digest !== draft.runBasisDigest ||
             run.field_id !== draft.materialFieldContextRef.fieldId || Number(run.access_revision) !== draft.materialFieldContextRef.accessRevision ||
             run.triage_rule_ref !== draft.triageRule.ruleRef || Number(run.triage_rule_revision) !== draft.triageRule.revision ||
-            run.triage_rule_authority_digest !== draft.triageRule.authorityDigest ||
-            Number(run.candidate_package_revision_head) !== draft.expectedPackageRevision - 1) {
+            run.triage_rule_authority_digest !== draft.triageRule.authorityDigest) {
           fail('P7_CANDIDATE_RUN_FENCE_STALE', 'Candidate Draft no longer matches the exact Run fence.');
         }
-        const rows = new Map(repo.invoke('find_members', { procurement_run_id:draft.procurementRunId }).map((row) => [row.material_key, row]));
         const sourceMembers = Array.isArray(draft.structureEvidence.unit.members)
           ? draft.structureEvidence.unit.members
           : (draft.primaryInputManifestDraft && draft.primaryInputManifestDraft.members);
         if (!Array.isArray(sourceMembers)) fail('P7_CANDIDATE_MEMBER_FENCE_STALE', 'Candidate member source is unavailable for the immutable Run Selection.');
+        const memberKeys=sourceMembers.map((member)=>member.materialKey);
+        const memberRows=[];
+        for(let offset=0;offset<memberKeys.length;offset+=500){
+          memberRows.push(...repo.invoke('find_members',{procurement_run_id:draft.procurementRunId,
+            values:memberKeys.slice(offset,offset+500)}));
+        }
+        const rows = new Map(memberRows.map((row) => [row.material_key, row]));
         const runBasisMembers = sourceMembers.map((member) => { const row=rows.get(member.materialKey); return row && {
           materialKey:row.material_key, physicalIdentity:{ schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2', schemaVersion:2,
             materialKey:row.material_key, mountScopeId:row.mount_scope_id, inode:String(row.inode), sizeBytes:Number(row.size_bytes),
             fingerprintAlgorithm:row.fingerprint_algorithm, fingerprintVersion:Number(row.fingerprint_version),
             contentFingerprint:row.content_fingerprint }, sizeBytes:Number(row.size_bytes) }; });
         if (runBasisMembers.some((item) => !item)) fail('P7_CANDIDATE_MEMBER_FENCE_STALE', 'Candidate member is absent from the immutable Run Selection.');
-        publication = buildPublication(draft, context.commitTimeMs, runBasisMembers);
+        const packageRevision = Number(run.candidate_package_revision_head) + 1;
+        publication = buildPublication(draft, context.commitTimeMs, runBasisMembers, packageRevision);
+        publicationReceipt = buildPublicationReceipt(publication, draft, context.commitTimeMs);
         for (const member of publication.manifest.members) {
           const row = rows.get(member.materialKey);
           if (!row || row.selection_state !== 'run_selection' || row.candidate_package_id !== null ||
@@ -129,12 +138,12 @@ function createCandidatePublicationStore(options) {
         return publication.candidatePackage;
       }};
       const result = { participantId:'candidate_publication_result', owner:'execution-foundation', boundBusinessOwner:'procurement', repositories:[foundation], execute(context) {
-        const typedResult = publication.candidatePackage;
+        const typedResult = publicationReceipt;
         const resultJson = canonicalJson(typedResult);
         const evidenceJson = canonicalJson(request.resultBinding.evidence);
-        if (Buffer.byteLength(resultJson) > 65536 || Buffer.byteLength(evidenceJson) > 65536) fail('P7_CANDIDATE_RESULT_TOO_LARGE', 'Candidate Result or Evidence exceeds 64 KiB.');
+        if (Buffer.byteLength(resultJson) > 16384 || Buffer.byteLength(evidenceJson) > 65536) fail('P7_CANDIDATE_RESULT_TOO_LARGE', 'Candidate Receipt exceeds 16 KiB or Evidence exceeds 64 KiB.');
         context.repository(foundation.repositoryId).invoke('insert_result', { result_id:request.resultBinding.resultId, event_id:request.resultBinding.eventId,
-          outcome_kind:'succeeded', result_schema_ref:PACKAGE_SCHEMA, result_json:resultJson, result_digest:canonicalDigest(typedResult),
+          outcome_kind:'succeeded', result_schema_ref:RECEIPT_SCHEMA, result_json:resultJson, result_digest:canonicalDigest(typedResult),
           evidence_schema_ref:request.resultBinding.evidenceSchemaRef, evidence_json:evidenceJson,
           evidence_digest:canonicalDigest(request.resultBinding.evidence), effect_receipt_id:request.resultBinding.effectReceiptId || null,
           committed_at_ms:context.commitTimeMs });
@@ -143,7 +152,7 @@ function createCandidatePublicationStore(options) {
       const marker = { participantId:'candidate_publication_marker', owner:'execution-foundation', boundBusinessOwner:'procurement', repositories:[foundation], execute(context) {
         context.repository(foundation.repositoryId).invoke('insert_marker', { commit_marker:markerId, effect_id:request.commitMarker.effectId || null,
           owner_domain:'procurement', scope_type:'candidate_package', scope_id:draft.candidatePackageId, commit_digest:commitDigest,
-          result_id:request.resultBinding.resultId, result_schema_ref:PACKAGE_SCHEMA, result_digest:canonicalDigest(publication.candidatePackage),
+          result_id:request.resultBinding.resultId, result_schema_ref:RECEIPT_SCHEMA, result_digest:canonicalDigest(publicationReceipt),
           committed_at_ms:context.commitTimeMs });
       }};
       const write = { participantId:'candidate_publication_write', owner:'procurement', repositories:[procurement], execute(context) {
@@ -210,7 +219,7 @@ function createCandidatePublicationStore(options) {
         if (Buffer.byteLength(payloadJson) > 16384) fail('P7_CANDIDATE_OUTBOX_TOO_LARGE', 'Candidate Offer payload exceeds 16 KiB.');
         context.repository(foundation.repositoryId).invoke('insert_outbox', { message_id:publication.messageId, producer_domain:'procurement',
           message_kind:'procurement_candidate_offer_available', aggregate_type:'candidate_package', aggregate_id:draft.candidatePackageId,
-          aggregate_revision:draft.expectedPackageRevision, dedup_key:publication.dedupKey,
+          aggregate_revision:publication.candidatePackage.packageRevision, dedup_key:publication.dedupKey,
           consumer_set_digest:canonicalDigest(['libra']), intended_consumer_count:1,
           payload_schema_ref:OFFER_MESSAGE_SCHEMA, payload_json:payloadJson, payload_digest:canonicalDigest(publication.offerMessage),
           state:'pending', available_at_ms:context.commitTimeMs, created_at_ms:context.commitTimeMs, all_acked_at_ms:null });
@@ -220,7 +229,7 @@ function createCandidatePublicationStore(options) {
       }};
       try {
         const results = options.unitOfWork.execute([preflight, validate, result, marker, write, outbox]);
-        return Object.freeze({ replayed:false, typedResult:results.candidate_publication_write,
+        return Object.freeze({ replayed:false, typedResult:results.candidate_publication_result,
           typedEvidence:request.resultBinding.evidence, commitMarker:markerId, outboxResult:results.candidate_publication_outbox,
           acceptanceBasis:publication.acceptanceBasis });
       } catch (error) {

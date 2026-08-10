@@ -4,60 +4,6 @@ const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { activeTriageRule } = require('../model/procurement-run-contracts');
 const { normalized: normalizeScopeLocation, resolveBdmvContainerScope, relativeToBdmvRoot, relativeToBdmvContainer, isBdmvInternalRelative } = require('../model/bdmv-scope');
 
-// Keep the persistence reader owner-local.  Reusing the planner module here would
-// make a repository component depend on a planning component and would also make
-// a candidate read accidentally inherit planning-time behavior.  This projection
-// is deliberately the same immutable selection projection used by the planner,
-// but it is rebuilt from the targeted durable snapshot.
-function selectedFieldMaterialSet(snapshot) {
-  const source = Array.isArray(snapshot.candidateMaterials) && snapshot.candidateMaterials.length
-    ? snapshot.candidateMaterials : snapshot.materials;
-  const members = source.map(({ member, identity }, ordinal) => {
-    const controlled = member.expected_control_state === 'controlled';
-    const controlSnapshot = {
-      materialKey: member.material_key,
-      resultKind: 'available',
-      controlRevision: Number(member.expected_control_revision),
-      controlState: member.expected_control_state,
-      ...(controlled ? {
-        ownerDomain: member.expected_control_owner_domain,
-        ownerScopeType: member.expected_control_owner_scope_type,
-        ownerScopeId: member.expected_control_owner_scope_id,
-      } : {}),
-      regionProjection: member.expected_control_region_projection,
-      evidenceDigest: member.expected_control_evidence_digest,
-      projectionDigest: member.expected_control_projection_digest,
-    };
-    return Object.freeze({
-      ordinal,
-      materialKey: member.material_key,
-      selectionRole: member.selection_role,
-      physicalIdentity: identity,
-      sizeBytes: Number(member.size_bytes),
-      bindingRevision: Number(member.binding_revision),
-      eligibilityRevision: Number(member.eligibility_revision),
-      eligibilityBasisDigest: member.eligibility_basis_digest,
-      lastSnapshotDigest: member.last_snapshot_digest,
-      lastObservationId: member.last_observation_id,
-      endpointId: member.endpoint_id,
-      location: member.location,
-      realityDigest: member.reality_digest,
-      provenanceDigest: member.provenance_digest,
-      controlSnapshot: Object.freeze(controlSnapshot),
-      admissionControlAction: member.admission_control_action,
-      basisMemberDigest: member.basis_member_digest,
-    });
-  });
-  const value = {
-    procurementRunId: snapshot.run.procurement_run_id,
-    fieldId: snapshot.run.field_id,
-    members: Object.freeze(members),
-  };
-  return Object.freeze({ ...value, selectionDigest: canonicalDigest({
-    schema: 'procurement.selected-field-material-set@1', ...value,
-  }) });
-}
-
 function normalizedLocation(value) { return normalizeScopeLocation(value); }
 
 function fieldRelativeLocation(root, location) {
@@ -95,16 +41,9 @@ function bdmvRelative(root, location, groupKey) {
 }
 
 function scopeMembers(basis, scope) {
-  const root = basis.access.root_location;
   const groupKey = scope.bdmvGroupKey;
-  // Normalize the frozen Basis locations once.  Re-normalizing the complete
-  // Basis inside the per-member resolver made a large BDMV scope quadratic
-  // during every Candidate Context reconstruction (500 members meant roughly
-  // 250k path conversions before any candidate work could publish).
-  const knownRelativeLocations = basis.members.map((member) =>
-    fieldRelativeLocation(root, member.location));
-  return basis.members.filter((member) =>
-    bdmvContainerKey(root, member.location, knownRelativeLocations) === groupKey);
+  return basis.members.filter((member) => member.selection_scope_kind === 'bdmv_container' &&
+    member.selection_scope_key === groupKey);
 }
 
 function bdmvCandidateMembers(basis, scope, assessment, candidateMaterials = null) {
@@ -115,7 +54,7 @@ function bdmvCandidateMembers(basis, scope, assessment, candidateMaterials = nul
   const all = scopeMembers(basis, scope);
   if (all.length !== Number(scope.memberCount)) fail('P7_CANDIDATE_BDMV_SCOPE_INCOMPLETE', 'BDMV Scope Reference does not cover its frozen members.');
   const derivedMemberSetDigest = canonicalDigest({ schema:'procurement.bdmv-member-set@1', items:all.map((member) => ({
-    materialKey:member.material_key, relativeLocation:fieldRelativeLocation(basis.access.root_location, member.location), sizeBytes:Number(member.size_bytes),
+    materialKey:member.material_key, relativeLocation:member.field_relative_location, sizeBytes:Number(member.size_bytes),
     identity:{ schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2', schemaVersion:2,
       materialKey:member.material_key, mountScopeId:member.mount_scope_id, inode:String(member.inode), sizeBytes:Number(member.size_bytes),
       fingerprintAlgorithm:member.fingerprint_algorithm, fingerprintVersion:Number(member.fingerprint_version), contentFingerprint:member.content_fingerprint }
@@ -139,9 +78,10 @@ function bdmvCandidateMembers(basis, scope, assessment, candidateMaterials = nul
     if (materialByKey && !materialByKey.has(candidate.material_key)) {
       fail('P7_CANDIDATE_BDMV_MEMBER_MISSING', 'BDMV Candidate Context could not hydrate a selected member.');
     }
+    const hydrated = materialByKey && materialByKey.get(candidate.material_key);
     const value = { materialKey:candidate.material_key, bindingRevision:Number(candidate.binding_revision),
       admittedControlRevision:Number(candidate.admitted_control_revision), admittedControlProjectionDigest:candidate.admitted_control_projection_digest,
-      role, episodeClaims:[] };
+      role, ...(hydrated ? { physicalIdentity:hydrated.identity, sizeBytes:Number(hydrated.member.size_bytes) } : {}), episodeClaims:[] };
     value.memberClaimDigest = canonicalDigest(value);
     members.push(Object.freeze(value));
   }
@@ -160,7 +100,7 @@ function reconstructRelatedReferences({ basis, scope, candidateMembers, observed
   const knownLocations = observed.map((item) => item.relativeLocation || item.location);
   const primaryContexts = primary.map((member) => {
     const source = basis.members.find((item) => item.material_key === member.materialKey);
-    const relative = source ? fieldRelativeLocation(basis.access.root_location, source.location) : '';
+    const relative = source ? source.field_relative_location : '';
     const stem = baseName(relative).replace(/\.[^.]+$/, '').toLocaleLowerCase('en-US');
     return { materialKey:member.materialKey, stem, parent:parentOf(relative) };
   });
@@ -193,7 +133,11 @@ function reconstructRelatedReferences({ basis, scope, candidateMembers, observed
     const stemMatches = [...stems].some((value) => stem === value || stem.startsWith(value + '.') || stem.startsWith(value + '-') || stem.startsWith(value + '_'));
     const sidecar = /\.(srt|ass|ssa|vtt|aac|ac3|dts|flac|mka|chapters|xml)$/.test(lower);
     const mediaPayload = /\.(3gp|asf|avi|divx|flv|iso|m2ts|m4v|mkv|mov|mp4|mpeg|mpg|mts|mxf|ogm|rm|rmvb|ts|vob|webm|wmv)$/.test(lower);
-    if (mediaPayload || (!stemMatches && !standard && !sidecar)) continue;
+    const associationMode = scope.associationMode;
+    const allowed = associationMode === 'single_movie_directory' || associationMode === 'bdmv_external'
+      ? stemMatches || standard
+      : stemMatches;
+    if (mediaPayload || !allowed) continue;
     const primaryContext = primaryContexts.find((value) => value.parent === parentOf(relative)) || primaryContexts[0];
     const role = extension === '.nfo' ? 'nfo' : /\.(jpg|jpeg|png|webp)$/.test(extension) && /(?:^|[-_. ])poster$/.test(stem) ? 'poster'
       : /\.(jpg|jpeg|png|webp)$/.test(extension) && /(?:^|[-_. ])(?:fanart|background|backdrop)$/.test(stem) ? 'fanart'
@@ -242,7 +186,7 @@ function createProcurementCandidateContextReader(options) {
       if (!basis && !entry.unit.memberScope && Array.isArray(entry.unit.members) && entry.unit.members.length) {
         const seed = options.triageReader.readCandidate(request.runId, [entry.unit.members[0].materialKey], null);
         basis = seed && Object.freeze({ run:seed.run, access:seed.access,
-          members:Object.freeze((seed.materials || []).map((item) => item.member)), materials:Object.freeze(seed.materials || []) });
+          members:Object.freeze(seed.runMembers || []), selectionScopes:seed.selectionScopes });
       }
       if (!basis) fail('P7_CANDIDATE_CONTEXT_BASIS_UNAVAILABLE', 'Candidate Context Run Basis is unavailable.');
       const assessment = entry.unit.memberScope && typeof options.evidenceIndex.findBdmvAssessment === 'function'
@@ -255,24 +199,29 @@ function createProcurementCandidateContextReader(options) {
         : (entry.unit.members || []).map((member)=>member.materialKey);
       if (!materialKeys.length) fail('P7_CANDIDATE_CONTEXT_MEMBER_SCOPE_EMPTY', 'Candidate Context Unit has no material members.');
       // The immutable Run Basis is shared by every Candidate in the Run.
-      // Caching by unitId would retain a full 256-member copy per Candidate.
+      // Caching by unitId would retain a full 1024-member Run Basis copy per Candidate.
       const snapshot=options.triageReader.readCandidate(request.runId,materialKeys,basis);
       if (!snapshot) return null;
       if (snapshot.run.run_basis_digest !== request.executionBasisDigest && request.executionBasisDigest) {
         fail('P7_CANDIDATE_CONTEXT_BASIS_STALE', 'Candidate Context Run Basis does not match the Work Basis.');
       }
-      if (!cached) basisCache.set(request.runId,Object.freeze({ basis:Object.freeze({ run:basis.run, access:basis.access,
-        members:Object.freeze(basis.members), materials:Object.freeze(snapshot.materials) }) }));
+      const candidateContexts = new Map(snapshot.candidateMaterials.map((item) => [item.member.material_key, item]));
       const candidateMembers = candidateMemberRefs
         ? bdmvCandidateMembers(basis, entry.unit.memberScope, assessment, snapshot.candidateMaterials)
-        : Object.freeze((entry.unit.members || []).map((member) => Object.freeze({ ...member })));
-      const selected=selectedFieldMaterialSet(snapshot);
+        : Object.freeze((entry.unit.members || []).map((member) => {
+          const hydrated=candidateContexts.get(member.materialKey);
+          if(!hydrated)fail('P7_CANDIDATE_CONTEXT_MEMBER_MISSING','Candidate member could not be hydrated from the immutable Run Selection.');
+          return Object.freeze({ ...member, physicalIdentity:hydrated.identity, sizeBytes:Number(hydrated.member.size_bytes) });
+        }));
+      if (!cached) basisCache.set(request.runId,Object.freeze({ basis:Object.freeze({ run:basis.run, access:basis.access,
+        selectionScopes:basis.selectionScopes, members:Object.freeze(basis.members) }) }));
       const rule=activeTriageRule(options.triageRuleRegistry);
       const relatedScope = entry.unit.relatedScope;
       if (!relatedScope || relatedScope.scopeDigest !== canonicalDigest({
         schema:'procurement.related-scope@1', scopeKind:relatedScope.scopeKind,
         parentRelativeLocation:relatedScope.parentRelativeLocation, stemKey:relatedScope.stemKey,
-        observationProjectionRevision:relatedScope.observationProjectionRevision, relatedRuleRevision:relatedScope.relatedRuleRevision,
+        associationMode:relatedScope.associationMode, observationProjectionRevision:relatedScope.observationProjectionRevision,
+        relatedRuleRevision:relatedScope.relatedRuleRevision,
       })) fail('P7_CANDIDATE_CONTEXT_RELATED_SCOPE', 'Candidate Unit Related Scope digest is invalid.');
       const observedScopeKey = request.runId + ':' + relatedScope.parentRelativeLocation;
       let observed = observedCache.get(observedScopeKey);
@@ -289,7 +238,8 @@ function createProcurementCandidateContextReader(options) {
       const relatedReferences = reconstructRelatedReferences({ basis, scope:relatedScope, candidateMembers,
         observed:observed || [], observationRevision:relatedScope.observationProjectionRevision });
       const context = Object.freeze({
-        snapshot:Object.freeze({ run:snapshot.run, access:snapshot.access, materials:snapshot.materials, candidateMaterials:snapshot.candidateMaterials }),
+        snapshot:Object.freeze({ run:snapshot.run, access:snapshot.access, selectionScopes:snapshot.selectionScopes,
+          candidateMaterials:snapshot.candidateMaterials }),
         structure:entry.structure,
         unit:entry.unit,
         candidateMembers,
@@ -297,7 +247,6 @@ function createProcurementCandidateContextReader(options) {
         ordinal:entry.ordinal,
         evidenceId:entry.evidenceId,
         evidencePayloadDigest:entry.payloadDigest,
-        selected,
         rule,
       });
       if (contextCacheKey) contextCache.set(contextCacheKey, context);

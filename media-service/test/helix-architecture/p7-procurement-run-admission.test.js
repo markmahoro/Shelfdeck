@@ -16,6 +16,7 @@ const { createProcurementRunAdmissionStore } = require('../../src/helix/domains/
 const { createProcurementRetryIntentStore } = require('../../src/helix/domains/procurement/persistence/procurement-retry-intent-store');
 const { createProcurementRetryAdmissionStore } = require('../../src/helix/domains/procurement/persistence/procurement-retry-admission-store');
 const { createProcurementRunSealStore } = require('../../src/helix/domains/procurement/persistence/procurement-run-seal-store');
+const { createSingleScopeSelection } = require('./helpers/procurement-selection-fixture');
 
 const generatedRoot = path.resolve(__dirname, '../../src/helix/foundation/persistence/generated');
 const schemaDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 'utf8');
@@ -48,8 +49,7 @@ function member(material, control) { const value={ordinal:0,materialKey:material
   eligibilityRevision:2,eligibilityBasisDigest:D('eligibility'),lastSnapshotDigest:D('snapshot'),lastObservationId:'observation-1',
   endpointId:'endpoint-1',location:'/field/title.mkv',realityDigest:D('reality'),provenanceDigest:D('provenance'),
   controlSnapshot:control,admissionControlAction:control.controlState==='controlled'?'assert_same_field':'acquire'}; return {...value,basisMemberDigest:canonicalDigest(value)}; }
-function basis(registry, material, control) { const selected={procurementRunId:'run-1',fieldId:'field-1',members:[member(material,control)]};
-  selected.selectionDigest=canonicalDigest({schema:'procurement.selected-field-material-set@1',...selected});
+function basis(registry, material, control) { const selected=createSingleScopeSelection({procurementRunId:'run-1',fieldId:'field-1',members:[member(material,control)]});
   const value={procurementRunId:'run-1',fieldId:'field-1',fieldStatus:'active',fieldAccess:{revision:1,digest:D('access')},
     profileHintSnapshot:PROFILE_HINT,terminalObservation:{revision:1,fieldObservationWorkId:'observation-work-1',profileHintSnapshot:PROFILE_HINT},extractionPolicy:{policyId:'policy-1',revision:1,digest:D('policy')},
     triageRule:activeTriageRule(registry),selectedFieldMaterialSet:selected}; return {...value,basisDigest:canonicalDigest(value)}; }
@@ -76,8 +76,8 @@ function retryIntent(registry, runBasis, material, expectedControl) {
 function retryRunBasis(registry, material, control) { const rawMember={ordinal:0,materialKey:material.materialKey,selectionRole:'triage_input',physicalIdentity:material,sizeBytes:100,bindingRevision:1,
   eligibilityRevision:2,eligibilityBasisDigest:D('eligibility'),lastSnapshotDigest:D('snapshot'),lastObservationId:'observation-1',endpointId:'endpoint-1',
   location:'/field/title.mkv',realityDigest:D('reality'),provenanceDigest:D('provenance'),controlSnapshot:control,admissionControlAction:'assert_same_field'};
-  const selected={procurementRunId:'run-2',fieldId:'field-1',members:[{...rawMember,basisMemberDigest:canonicalDigest(rawMember)}]};
-  selected.selectionDigest=canonicalDigest({schema:'procurement.selected-field-material-set@1',...selected});const value={procurementRunId:'run-2',fieldId:'field-1',fieldStatus:'active',profileHintSnapshot:PROFILE_HINT,fieldAccess:{revision:1,digest:D('access')},terminalObservation:{revision:1,fieldObservationWorkId:'observation-work-1',profileHintSnapshot:PROFILE_HINT},extractionPolicy:{policyId:'policy-1',revision:1,digest:D('policy')},triageRule:activeTriageRule(registry),sourceRetryIntentId:'retry-intent-1',selectedFieldMaterialSet:selected};return{...value,basisDigest:canonicalDigest(value)}; }
+  const selected=createSingleScopeSelection({procurementRunId:'run-2',fieldId:'field-1',members:[{...rawMember,basisMemberDigest:canonicalDigest(rawMember)}]});
+  const value={procurementRunId:'run-2',fieldId:'field-1',fieldStatus:'active',profileHintSnapshot:PROFILE_HINT,fieldAccess:{revision:1,digest:D('access')},terminalObservation:{revision:1,fieldObservationWorkId:'observation-work-1',profileHintSnapshot:PROFILE_HINT},extractionPolicy:{policyId:'policy-1',revision:1,digest:D('policy')},triageRule:activeTriageRule(registry),sourceRetryIntentId:'retry-intent-1',selectedFieldMaterialSet:selected};return{...value,basisDigest:canonicalDigest(value)}; }
 function handle(runBasis) { const memberValue=runBasis.selectedFieldMaterialSet.members[0]; return {
   schemaRef:'helix://contracts/types/ResponsibilityControlCommitHandle/v1',schemaVersion:1,handleId:'handle-1',operationKind:'acquire',
   ownerDomain:'procurement',processType:'procurement_run',processId:runBasis.procurementRunId,

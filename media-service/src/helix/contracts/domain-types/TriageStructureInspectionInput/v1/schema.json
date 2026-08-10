@@ -156,6 +156,31 @@
                 },
                 "maxItems": 32
               },
+              "selectionScopeKind": {
+                "type": "string",
+                "enum": [
+                  "standalone_file",
+                  "ordinary_directory",
+                  "bdmv_container"
+                ]
+              },
+              "selectionScopeKey": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "selectionScopeRootRelativeLocation": {
+                "type": "string",
+                "minLength": 1
+              },
+              "scopeOrdinal": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "scopeMemberOrdinal": {
+                "type": "integer",
+                "minimum": 0
+              },
               "layoutEvidenceRefs": {
                 "type": "array",
                 "items": {
@@ -194,6 +219,11 @@
               "baseName",
               "extension",
               "parentSegments",
+              "selectionScopeKind",
+              "selectionScopeKey",
+              "selectionScopeRootRelativeLocation",
+              "scopeOrdinal",
+              "scopeMemberOrdinal",
               "layoutEvidenceRefs"
             ]
           },
@@ -318,7 +348,7 @@
               "entryDigest"
             ]
           },
-          "maxItems": 4096
+          "maxItems": 1024
         }
       },
       "required": [

@@ -55,13 +55,13 @@ function createCandidateAssemblyPlanner(options){const catalogDigest=executionCa
 
 function draft(parameters,sourceResults){const identity=sourceResults.find((source)=>source.resultSchemaRef.includes('identity_claim.resolve')).result;
   const manifest=sourceResults.find((source)=>source.resultSchemaRef.includes('primary_manifest.build')).result;
-  const {snapshot,structure,unit,candidateMembers,selected,rule,ordinal}=parameters;
+  const {snapshot,structure,unit,candidateMembers,rule,ordinal}=parameters;
   const relatedReferences=Object.freeze([...(parameters.relatedReferences || [])].sort((a,b)=>Buffer.compare(Buffer.from(a.referenceId),Buffer.from(b.referenceId))));
   const controls=Object.freeze([...(candidateMembers || unit.members)].sort((a,b)=>Buffer.compare(Buffer.from(a.materialKey),Buffer.from(b.materialKey))).map((member)=>Object.freeze({
     materialKey:member.materialKey,admittedControlRevision:member.admittedControlRevision,admittedControlProjectionDigest:member.admittedControlProjectionDigest})));
   const value={draftId:stableId('candidate-draft-',{runId:snapshot.run.procurement_run_id,unitId:unit.unitId}),draftKind:'procurement_candidate',
     basisDigest:structure.payloadDigest,draftDigest:'',producedAtMs:0,candidatePackageId:stableId('candidate-package-',{runId:snapshot.run.procurement_run_id,unitId:unit.unitId}),
-    expectedPackageRevision:ordinal+1,procurementRunId:snapshot.run.procurement_run_id,runBasisDigest:snapshot.run.run_basis_digest,
+    procurementRunId:snapshot.run.procurement_run_id,runBasisDigest:snapshot.run.run_basis_digest,
     triageRule:{ruleRef:rule.ruleRef,revision:rule.revision,authorityDigest:rule.authorityDigest},materialFieldContextRef:{fieldId:snapshot.run.field_id,
       accessRevision:Number(snapshot.run.access_revision),contextDigest:structure.materialFieldContextDigest},mediaType:unit.mediaType,contentProfile:unit.contentProfile,
     displayIdentity:unit.displayIdentity,identityMetadata:unit.identityMetadata,identityClaim:identity,materialInputForm:unit.materialInputForm,
@@ -76,13 +76,13 @@ function hydrate(parameters,options){
   const context=options.candidateContextReader.read({runId:parameters.runId,evidenceWorkId:evidenceWorkId({run}),unitId:parameters.unitId,workId:parameters.workId});
   if(!context)throw new Error('Candidate projection source Structure Unit is unavailable.');
   return Object.freeze({...parameters,snapshot:context.snapshot,structure:context.structure,unit:context.unit,
-    candidateMembers:context.candidateMembers,relatedReferences:context.relatedReferences,selected:context.selected,rule:context.rule});}
+    candidateMembers:context.candidateMembers,relatedReferences:context.relatedReferences,rule:context.rule});}
 function createCandidateDraftProjection(options){return Object.freeze({project({sourceResults,parameters}){return draft(hydrate(parameters,options),sourceResults);}});}
 function createCandidateCommitHandleProjection(options){return Object.freeze({project({sourceResults,parameters}){const value=draft(hydrate(parameters,options),sourceResults);return Object.freeze({
   schemaRef:'helix://contracts/types/DomainFactCommitHandle/v1',schemaVersion:1,handleId:stableId('candidate-commit-handle-',{draftId:value.draftId}),
   ownerDomain:'procurement',aggregateType:'candidate_package',aggregateId:value.candidatePackageId,factType:'CandidateDraft',
-  factSchemaRef:'helix://contracts/domain-types/CandidateDraft/v1',expectedRevision:value.expectedPackageRevision-1,payloadDigest:canonicalDigest(value),
-  resultSchemaRef:'helix://contracts/types/CandidatePackage/v1',commitIdempotencyKey:parameters.idempotencyKey,
+  factSchemaRef:'helix://contracts/domain-types/CandidateDraft/v1',expectedRevision:0,payloadDigest:canonicalDigest(value),
+  resultSchemaRef:'helix://contracts/types/CandidatePublicationReceipt/v1',commitIdempotencyKey:parameters.idempotencyKey,
   eventFenceDigest:canonicalDigest({schema:'procurement.candidate-event-fence@1',eventId:parameters.publishEventId,workId:parameters.workId})});}});}
 
 function createCandidateIdentityInputProjection(options){return Object.freeze({project({ownerScope,parameters}){const hydrated=hydrate({
@@ -95,7 +95,7 @@ function createCandidateManifestInputProjection(options){return Object.freeze({p
     runId:ownerScope.processId,unitId:parameters.unitId}),procurementRunId:ownerScope.processId,
   runBasisDigest:hydrated.snapshot.run.run_basis_digest,structureEvidencePayloadDigest:hydrated.structure.payloadDigest,
   triageRuleAuthorityDigest:hydrated.rule.authorityDigest,structureEvidenceId:hydrated.structure.evidenceId,unit:hydrated.unit,
-  candidateMembers:hydrated.candidateMembers,selectedFieldMaterialSet:hydrated.selected,inputDigest:hydrated.structure.payloadDigest});}});}
+  candidateMembers:hydrated.candidateMembers,inputDigest:hydrated.structure.payloadDigest});}});}
 
 module.exports=Object.freeze({DRAFT_PROJECTION,COMMIT_HANDLE_PROJECTION,IDENTITY_INPUT_PROJECTION,MANIFEST_INPUT_PROJECTION,
   createCandidateAssemblyPlanner,createCandidateDraftProjection,createCandidateCommitHandleProjection,

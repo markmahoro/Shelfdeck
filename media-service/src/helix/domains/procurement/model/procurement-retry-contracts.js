@@ -10,7 +10,7 @@ class ProcurementRetryContractError extends Error{constructor(code,message,detai
 function fail(code,message,details){throw new ProcurementRetryContractError(code,message,details);}
 function exact(value,keys,code){if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).length!==keys.length||keys.some((key)=>!Object.hasOwn(value,key)))fail(code,'Value does not match its closed Retry contract.');}
 function without(value,field){return Object.fromEntries(Object.entries(value).filter(([key])=>key!==field));}
-function ordered(items){return Array.isArray(items)&&items.length>=1&&items.length<=256&&items.every((item,index)=>index===0||Buffer.compare(Buffer.from(items[index-1].materialKey),Buffer.from(item.materialKey))<0);}
+function ordered(items){return Array.isArray(items)&&items.length>=1&&items.length<=1024&&items.every((item,index)=>index===0||Buffer.compare(Buffer.from(items[index-1].materialKey),Buffer.from(item.materialKey))<0);}
 function validateRetryAdmissionHead(value,registry,requireActive=true){exact(value,['fieldId','fieldStatus','profileHintSnapshot','fieldAccess','terminalObservation','extractionPolicy','triageRule','headDigest'],'P7_RETRY_HEAD_SHAPE');
   const profileHintSnapshot=createProfileHintSnapshot(value.profileHintSnapshot);if(profileHintSnapshot.fieldId!==value.fieldId)fail('PBF22_RETRY_PROFILE_HINT_FIELD_MISMATCH','Retry Profile Hint belongs to another Field.');
   exact(value.fieldAccess,['revision','digest'],'P7_RETRY_HEAD_ACCESS');exact(value.extractionPolicy,['policyId','revision','digest'],'P7_RETRY_HEAD_POLICY');validateTriageRuleSnapshot(value.triageRule);

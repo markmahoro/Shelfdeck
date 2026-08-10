@@ -50,7 +50,7 @@ function result(query, value) {
 function reconstruct(rows) {
   const pkg = rows.candidatePackage;
   const primaries = [...rows.primaries].sort((a, b) => Number(a.ordinal) - Number(b.ordinal));
-  if (primaries.length < 1 || primaries.length > 256 || primaries.some((row, index) => Number(row.ordinal) !== index)) {
+  if (primaries.length < 1 || primaries.length > 1024 || primaries.some((row, index) => Number(row.ordinal) !== index)) {
     fail('P8_CANDIDATE_DELIVERY_PRIMARY_SET', 'Primary Material ordinals are incomplete or out of bounds.');
   }
   const episodes = new Map();

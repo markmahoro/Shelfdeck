@@ -4,6 +4,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const test=require('node:test');
+const {candidateWorkPrefixLengthByProbe}=require('../../src/helix/domains/procurement/application/procurement-run-coordinator');
 
 const root=path.resolve(__dirname,'../..');
 function source(relative){return fs.readFileSync(path.join(root,relative),'utf8');}
@@ -31,4 +32,12 @@ test('Procurement Run Coordinator only reads terminal facts and issues Work',()=
   assert.match(coordinator,/globalOpenWorks:256/);
   assert.match(coordinator,/candidate_work_deferred/);
   assert.doesNotMatch(coordinator,/globalOpenWorks:\s*1_?000/);
+});
+
+test('Candidate Work admission frontier uses logarithmic durable probes instead of replaying an entire large Run',()=>{
+  let probes=0;
+  const prefix=candidateWorkPrefixLengthByProbe(943,(ordinal)=>{probes+=1;return ordinal<517;});
+  assert.equal(prefix,517);
+  assert.ok(probes<=10,`probes=${probes}`);
+  assert.equal(candidateWorkPrefixLengthByProbe(0,()=>{throw new Error('empty prefix must not probe');}),0);
 });

@@ -24,26 +24,48 @@ function resultRef(options, capabilityRef) {
   const resolved = options.registry.resolve(capabilityRef, 'procurement');
   return resolved?.manifest?.resultSchemaRef || null;
 }
-function relative(root, location) { const r = String(root).replace(/\\/g,'/').replace(/\/+$/,''); const l = String(location).replace(/\\/g,'/'); return l.startsWith(r + '/') ? l.slice(r.length + 1) : null; }
-function memberContext(snapshot, material, ordinal) { const location = relative(snapshot.access.root_location, material.member.location); if (location === null) throw new Error('Run material is outside Field root.'); const baseName = path.posix.basename(location); return Object.freeze({ selectionOrdinal:ordinal, materialKey:material.member.material_key, fieldRelativeLocation:location, baseName, extension:path.posix.extname(baseName).toLowerCase() || '.unknown', parentSegments:path.posix.dirname(location).split('/').filter(Boolean) }); }
+function memberContext(snapshot, material, ordinal) {
+  const location = material.member.field_relative_location;
+  if (typeof location !== 'string' || !location) throw new Error('Run material has no frozen Field-relative location.');
+  const baseName = path.posix.basename(location);
+  return Object.freeze({ selectionOrdinal:ordinal, materialKey:material.member.material_key, fieldRelativeLocation:location,
+    baseName, extension:path.posix.extname(baseName).toLowerCase() || '.unknown',
+    parentSegments:path.posix.dirname(location).split('/').filter(Boolean),
+    selectionScopeKind:material.member.selection_scope_kind, selectionScopeKey:material.member.selection_scope_key,
+    selectionScopeRootRelativeLocation:material.member.selection_scope_root_relative_location,
+    scopeOrdinal:Number(material.member.selection_scope_ordinal), scopeMemberOrdinal:Number(material.member.scope_member_ordinal) });
+}
+function controlSnapshotFromMember(member) {
+  const value = { materialKey:member.material_key, resultKind:'available', controlRevision:Number(member.expected_control_revision),
+    controlState:member.expected_control_state, regionProjection:member.expected_control_region_projection,
+    evidenceDigest:member.expected_control_evidence_digest, projectionDigest:member.expected_control_projection_digest };
+  if (member.expected_control_state === 'controlled') Object.assign(value, { ownerDomain:member.expected_control_owner_domain,
+    ownerScopeType:member.expected_control_owner_scope_type, ownerScopeId:member.expected_control_owner_scope_id });
+  return Object.freeze(value);
+}
 function selected(snapshot) {
-  const members = snapshot.materials.map(({ member, identity }, ordinal) => Object.freeze({ ordinal, materialKey:member.material_key, selectionRole:member.selection_role, physicalIdentity:identity,
+  const members = snapshot.materials.map(({ member, identity }, ordinal) => Object.freeze({ ordinal, materialKey:member.material_key, selectionRole:member.selection_role,
+    fieldRelativeLocation:member.field_relative_location, scopeOrdinal:Number(member.selection_scope_ordinal),
+    scopeMemberOrdinal:Number(member.scope_member_ordinal), physicalIdentity:identity,
     sizeBytes:Number(member.size_bytes), bindingRevision:Number(member.binding_revision), eligibilityRevision:Number(member.eligibility_revision), eligibilityBasisDigest:member.eligibility_basis_digest,
     lastSnapshotDigest:member.last_snapshot_digest, lastObservationId:member.last_observation_id, endpointId:member.endpoint_id, location:member.location,
-    realityDigest:member.reality_digest, provenanceDigest:member.provenance_digest, controlSnapshot:Object.freeze({ materialKey:member.material_key, resultKind:'available', controlRevision:Number(member.expected_control_revision), controlState:member.expected_control_state, regionProjection:member.expected_control_region_projection, evidenceDigest:member.expected_control_evidence_digest, projectionDigest:member.expected_control_projection_digest }),
+    realityDigest:member.reality_digest, provenanceDigest:member.provenance_digest, controlSnapshot:controlSnapshotFromMember(member),
     admissionControlAction:member.admission_control_action, basisMemberDigest:member.basis_member_digest }));
-  const value = { procurementRunId:snapshot.run.procurement_run_id, fieldId:snapshot.run.field_id, members:Object.freeze(members) };
-  return Object.freeze({ ...value, selectionDigest:canonicalDigest({ schema:'procurement.selected-field-material-set@1', ...value }) });
+  const value = { procurementRunId:snapshot.run.procurement_run_id, fieldId:snapshot.run.field_id,
+    physicalMemberCount:Number(snapshot.run.selected_material_count), selectionScopeCount:Number(snapshot.run.selection_scope_count),
+    selectionScopes:snapshot.selectionScopes, scopeSetDigest:snapshot.run.selection_scope_set_digest, members:Object.freeze(members) };
+  return Object.freeze({ ...value, selectionDigest:canonicalDigest({ schema:'procurement.selected-field-material-set@2', ...value }) });
 }
 
 function logicalItems(snapshot) {
   const contexts = snapshot.materials.map((material, ordinal) => memberContext(snapshot, material, ordinal));
-  const knownLocations = contexts.map((context) => context.fieldRelativeLocation);
   const groups = new Map();
   for (const context of contexts) {
-    const container = resolveBdmvContainerScope(context.fieldRelativeLocation, knownLocations)?.containerRelativeLocation || null;
-    const key = container ? 'bdmv:' + container : 'material:' + context.materialKey;
-    if (!groups.has(key)) groups.set(key, { kind:container ? 'bdmv_container' : 'material', groupKey:key, members:[] });
+    const bdmv = context.selectionScopeKind === 'bdmv_container';
+    const key = bdmv ? context.selectionScopeKey : 'material:' + context.materialKey;
+    if (!groups.has(key)) groups.set(key, { kind:bdmv ? 'bdmv_container' : 'material', groupKey:key,
+      selectionScopeKind:context.selectionScopeKind, selectionScopeKey:context.selectionScopeKey,
+      selectionScopeRootRelativeLocation:context.selectionScopeRootRelativeLocation, scopeOrdinal:context.scopeOrdinal, members:[] });
     groups.get(key).members.push(context);
   }
   return [...groups.values()].map((group) => Object.freeze({ ...group,
@@ -53,6 +75,7 @@ function logicalItems(snapshot) {
 }
 
 function bdmvScopeReference(snapshot, item) {
+  if (item.selectionScopeKind !== 'bdmv_container') throw new Error('BDMV Scope Reference requires an admitted BDMV Selection Scope.');
   const members = item.members.map((context) => {
     const material = snapshot.materials[context.selectionOrdinal];
     return { materialKey:context.materialKey, relativeLocation:context.fieldRelativeLocation, sizeBytes:Number(material.member.size_bytes), readHandle:material.readHandle,
@@ -232,77 +255,33 @@ function createStructureInputProjection(options) {
       const logical = logicalItems(snapshot);
       const orderedProbes = snapshot.materials.map((material) => probeByHandle.get(canonicalDigest(material.readHandle)));
 
-      // Observation is the durable source of both selected material and nearby sidecar
-      // candidates.  Read only the exact parent/container scopes needed by this Run;
-      // loading the complete Field here would turn every Structure Event into an
-      // 18,000-row scan and would make the first Candidate depend on unrelated files.
-      const knownLocations = contexts.map((context) => context.fieldRelativeLocation);
-      const scopeRequests = new Map();
-      for (const item of logical) {
-        const resolved = item.kind === 'bdmv_container'
-          ? resolveBdmvContainerScope(item.members[0].fieldRelativeLocation, knownLocations)
-          : null;
-        if (resolved) scopeRequests.set(resolved.containerRelativeLocation, true);
-        else item.members.forEach((context) => {
-          const scopeLocation = parentLocation(context.fieldRelativeLocation);
-          scopeRequests.set(scopeLocation, scopeRequests.get(scopeLocation) === true);
-        });
-      }
-      const observedMap = new Map();
-      if (typeof options.triageReader.listObservedMaterialsInScopes === 'function') {
-        for (const item of options.triageReader.listObservedMaterialsInScopes(parameters.runId,
-          [...scopeRequests].map(([scopeLocation, recursive]) => ({ scopeLocation, recursive })))) observedMap.set(item.materialKey, item);
-      } else if (typeof options.triageReader.listObservedMaterialsInScope === 'function') {
-        for (const [scopeLocation, recursive] of scopeRequests) {
-          for (const item of options.triageReader.listObservedMaterialsInScope(parameters.runId, scopeLocation, { recursive })) observedMap.set(item.materialKey, item);
-        }
-      } else if (typeof options.triageReader.listObservedMaterials === 'function') {
-        // Isolated historical fixtures may expose only the broad reader port. The
-        // production Composition Root uses the bounded scope port above.
-        for (const item of options.triageReader.listObservedMaterials(parameters.runId)) observedMap.set(item.materialKey, item);
-      }
-      const observed = [...observedMap.values()];
-      const observedByKey = new Map(observed.map((item) => [item.materialKey, item]));
-      const selectedKeys = new Set(selection.members.map((member) => member.materialKey));
-      const relatedScopes = new Set();
-      const bdmvScopes = new Set();
-      for (const context of contexts) {
-        const location = observedByKey.get(context.materialKey)?.location || context.fieldRelativeLocation;
-        const resolved = resolveBdmvContainerScope(location, observed);
-        const root = resolved?.bdmvRootRelativeLocation || null;
-        if (root) {
-          bdmvScopes.add(root);
-          relatedScopes.add(resolved.containerRelativeLocation);
-        } else relatedScopes.add(parentLocation(location));
-      }
-      const projectionCandidates = [];
-      for (const item of observed) {
-        const location = item.location || item.relativeLocation;
-        const resolved = resolveBdmvContainerScope(location, observed);
-        const root = resolved?.bdmvRootRelativeLocation || null;
-        const scope = root ? root : parentLocation(location);
-        if (selectedKeys.has(item.materialKey) || bdmvScopes.has(root) || relatedScopes.has(scope)) {
-          const context = contexts.find((candidate) => candidate.materialKey === item.materialKey) || {
-            materialKey: item.materialKey,
-            fieldRelativeLocation: item.relativeLocation,
-            baseName: String(item.relativeLocation || item.location || '').split('/').at(-1) || item.materialKey.slice(0, 12),
-            extension: (() => { const base = String(item.relativeLocation || item.location || '').split('/').at(-1) || ''; const index = base.lastIndexOf('.'); return index >= 0 ? base.slice(index).toLowerCase() : '.unknown'; })(),
-            sizeBytes: item.sizeBytes,
-          };
-          projectionCandidates.push(observationProjectionEntry(item, context, 0));
-        }
-      }
-      // A selected material is always represented, even if a legacy fixture does not
-      // expose its observation row.  This keeps the immutable Run fence intact.
-      for (const [ordinal, member] of selection.members.entries()) {
-        if (projectionCandidates.some((entry) => entry.materialKey === member.materialKey)) continue;
-        projectionCandidates.push(observationProjectionEntry(observedByKey.get(member.materialKey), contexts[ordinal], 0));
-      }
+      // Structure consumes only the immutable Run Selection. Related candidates are
+      // reconstructed later by Candidate Context from the frozen Observation facts;
+      // carrying them here would duplicate the scope query, inflate this Event input,
+      // and revive the obsolete 4096-entry BDMV/Layout bound.
+      const projectionCandidates = snapshot.materials.map((material, ordinal) => {
+        const context = contexts[ordinal];
+        const item = {
+          materialKey: material.member.material_key,
+          relativeLocation: context.fieldRelativeLocation,
+          location: material.readHandle.location,
+          identity: material.identity,
+          endpointId: material.readHandle.endpointId,
+          sizeBytes: material.identity.sizeBytes,
+          entryDigest: material.current.last_snapshot_digest || canonicalDigest({
+            schema:'procurement.selected-observation-projection-entry@1',
+            procurementRunId:parameters.runId,
+            materialKey:material.member.material_key,
+            fieldRelativeLocation:context.fieldRelativeLocation,
+          }),
+        };
+        return observationProjectionEntry(item, context, ordinal);
+      });
       const entries = projectionCandidates
         .sort((left, right) => normalizedLocation(left.currentLocation).localeCompare(normalizedLocation(right.currentLocation), 'en-US') ||
           Buffer.compare(Buffer.from(left.materialKey), Buffer.from(right.materialKey)))
         .map((entry, ordinal) => Object.freeze({ ...entry, entryOrdinal: ordinal }));
-      if (entries.length > 4096) throw new Error('Observation Scope Projection exceeds its 4096-entry bounded scope.');
+      if (entries.length > 1024) throw new Error('Observation Scope Projection exceeds the 1024-member Run bound.');
       const projectionBase = {
         projectionRevision: Number(snapshot.run.terminal_observation_revision),
         scopeDigest: canonicalDigest({ schema: 'procurement.observation-scope-projection@2', runId: parameters.runId, entries }),

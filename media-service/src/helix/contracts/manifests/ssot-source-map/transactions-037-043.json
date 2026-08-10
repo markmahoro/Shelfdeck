@@ -11,7 +11,7 @@
       "atomicFactSet": "immutable Care Basis + relationized Basis inputs + Care Requirement Set + Case active + Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 8118,
+        "line": 8154,
         "lineDigest": "6402976bd648c711162050e188e5b50b575fbcf11f1ae69ebef2a59ccb8c15f2"
       }
     },
@@ -21,7 +21,7 @@
       "atomicFactSet": "Aftercare repair result + Inventory Representation/Product Fact/Media-Cast relation revision + required new Material Control acquire/old Control release（relation-only修正时两者均为空）+ commit receipt",
       "source": {
         "section": "8.5.4",
-        "line": 8119,
+        "line": 8155,
         "lineDigest": "de1c51e6951176758387b3780a09d928791d6d06095421ee2b96ff6cf5d7c45e"
       }
     },
@@ -31,7 +31,7 @@
       "atomicFactSet": "Review + per-Entry Reservation + immutable pre-authorization Destruction Scope + selection basis",
       "source": {
         "section": "8.5.4",
-        "line": 8120,
+        "line": 8156,
         "lineDigest": "d84e96ef7c300f188c7958c64da90cad90657ecdc8ba7aab1237058b1403e2e7"
       }
     },
@@ -41,7 +41,7 @@
       "atomicFactSet": "current Scope set verification + Selection Receipt + required High-volume Escalation Receipt + immutable Authorization Batch envelope；不创建跨Entry Case",
       "source": {
         "section": "8.5.4",
-        "line": 8121,
+        "line": 8157,
         "lineDigest": "cae8451f709cd026085b9cb061981d31da7a71f040b5c417586bfa44b31cc22d"
       }
     },
@@ -51,7 +51,7 @@
       "atomicFactSet": "Batch Intent + one current Scope verification + per-Scope Authorization + one Case + one Shelf Entry `offdeck_in_progress`；每Entry独立事务、幂等向前恢复",
       "source": {
         "section": "8.5.4",
-        "line": 8122,
+        "line": 8158,
         "lineDigest": "e4c3bc41ecb66e8a9d32433eb9626890f9e04770d6d967b5c0131efe88c3a8aa"
       }
     },
@@ -61,7 +61,7 @@
       "atomicFactSet": "全部Deletion Evidence核对后的Deck Fact terminal + Control release + terminal receipt",
       "source": {
         "section": "8.5.4",
-        "line": 8123,
+        "line": 8159,
         "lineDigest": "7dd0033bbb591666aee306f1ac5ec4ea1a987112608dc13ab5e84d5eb1cf0332"
       }
     },
@@ -71,7 +71,7 @@
       "atomicFactSet": "Shelf/Shelf Entry administrative terminal facts + Shelf routing projection revision/digest CAS + precise Control release + release receipt",
       "source": {
         "section": "8.5.4",
-        "line": 8124,
+        "line": 8160,
         "lineDigest": "1ac2e4b2302ce105295e044d2aa5a8d64d18c823254c007fe20ecf8916b39073"
       }
     }

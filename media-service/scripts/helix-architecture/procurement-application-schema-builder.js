@@ -2,7 +2,7 @@
 
 const crypto = require('crypto');
 const DRAFT = 'https://json-schema.org/draft/2020-12/schema';
-const PROCUREMENT_RUN_MEMBER_LIMIT = 256;
+const PROCUREMENT_RUN_MEMBER_LIMIT = 1024;
 const typeId = (name) => `helix://contracts/application-types/${name}/v1`;
 const text = (options = {}) => ({ type:'string', minLength:1, ...options });
 const id = () => text({ maxLength:256 });
@@ -76,8 +76,9 @@ function triageRuleSnapshot() {
   const payload = object({
     contractRefs:{ const:['helix.procurement.candidate-readiness@1','helix.procurement.profile-claim-baseline@1',
       'helix.procurement.primary-input-manifest@1','helix.procurement.related-material-reference@1'] },
-    recallPriority:{ const:true }, maxPrimaryMaterials:{ const:PROCUREMENT_RUN_MEMBER_LIMIT },
-    maxLogicalSelectionGroups:{ const:PROCUREMENT_RUN_MEMBER_LIMIT }, maxBdmvContainerMembers:{ const:1024 }, probeBatchSize:{ const:100 },
+    recallPriority:{ const:true }, maxRunPhysicalMembers:{ const:PROCUREMENT_RUN_MEMBER_LIMIT },
+    maxSelectionScopeMembers:{ const:PROCUREMENT_RUN_MEMBER_LIMIT },
+    maxCandidateManifestMembers:{ const:PROCUREMENT_RUN_MEMBER_LIMIT }, probeBatchSize:{ const:100 },
     playabilityRule:object({minimumDurationMs:{const:1},minimumVideoStreamCount:{const:1},
       reasonPrecedence:{const:['probe_not_media','no_video_stream','non_positive_duration']}}),
     profileResolutionRule:object({mixedPrecedence:{const:['series_episode_token','jav_code','movie_fallback']},westernAdultRequiresExplicitHint:{const:true}}),

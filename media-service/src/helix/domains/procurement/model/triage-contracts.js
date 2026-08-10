@@ -133,7 +133,10 @@ function episodeToken(name) {
   return null;
 }
 function javCode(name) { const match = name.match(/(?:^|[ ._-])([A-Za-z]{2,10})[-_ ]?(\d{2,6})(?=$|[ ._-])/); return match ? match[1].toUpperCase() + '-' + match[2] : null; }
-function titleFrom(context, temporaryLabel) { return (context.directoryTitle || context.parentSegments.at(-1) || context.baseName || temporaryLabel).trim() || temporaryLabel; }
+function titleFrom(context, temporaryLabel) {
+  const fileStem = String(context.baseName || '').replace(/\.[^.]+$/, '').trim();
+  return (context.directoryTitle || fileStem || temporaryLabel).trim() || temporaryLabel;
+}
 function seriesTitleFrom(context, temporaryLabel) {
   const stem = context.baseName.replace(/\.[^.]+$/, '');
   const match = stem.match(/(?:^|[ ._-])(?:S\d{1,2}E\d{1,3}(?:E|-)?\d{0,3}|\d{1,2}x\d{1,3}(?:-\d{1,3})?)(?=$|[ ._-])/i);
@@ -334,23 +337,19 @@ function relatedFor(context, layoutEvidence, primaryMaterialKey) {
   return results.sort((a,b) => compareUtf8(a.referenceId,b.referenceId));
 }
 
-function relatedScopeFor(context, layoutEvidence, primaryMaterialKey, projectionRevision = 1) {
-  const knownLocations = layoutEvidence.flatMap((evidence) => (evidence.entries || []).map((entry) => entry.relativeLocation || entry.location));
-  const resolved = resolveBdmvContainerScope(context.fieldRelativeLocation, knownLocations);
-  // For a BDMV container, the container directory itself is the external
-  // sidecar scope (BDMV/ and CERTIFICATE/ are children of it).  Using the
-  // container's parent would silently exclude `Movie/poster.jpg` and
-  // `Movie/movie.nfo` from Candidate Context reconstruction.
-  const parentRelativeLocation = resolved
-    ? resolved.containerRelativeLocation
+function relatedScopeFor(context, primaryMaterialKey, projectionRevision = 1, associationMode = 'multi_movie_directory') {
+  const bdmv = context.selectionScopeKind === 'bdmv_container';
+  const parentRelativeLocation = bdmv
+    ? context.selectionScopeRootRelativeLocation
     : parentRelativeLocationOf(context.fieldRelativeLocation);
-  const stemKey = resolved
+  const stemKey = bdmv
     ? String(context.directoryTitle || parentRelativeLocation.split('/').at(-1) || '').trim().toLocaleLowerCase('en-US')
     : String(context.baseName || '').replace(/\.[^.]+$/, '').trim().toLocaleLowerCase('en-US');
   const value = {
-    scopeKind: resolved ? 'bdmv_external_parent' : 'ordinary_parent',
+    scopeKind: bdmv ? 'bdmv_external_parent' : 'ordinary_parent',
     parentRelativeLocation: parentRelativeLocation || '.',
     stemKey: stemKey || primaryMaterialKey.slice(0, 16),
+    associationMode,
     observationProjectionRevision: Number.isSafeInteger(Number(projectionRevision)) ? Number(projectionRevision) : 1,
     relatedRuleRevision: RELATED_RULE_REVISION,
   };
@@ -380,16 +379,13 @@ function materialInputFormFromProbe(probe) {
   return topology.discKind;
 }
 
-function directoryTitleFor(context, layoutEvidence) {
-  const candidates = [];
-  for (const evidence of layoutEvidenceForContext(context, layoutEvidence)) {
-    const directory = (evidence.entries || []).find((entry) => entry.entryKind === 'directory' && entry.relativeLocation === '.');
-    if (directory?.baseName?.trim() && directory.baseName.toUpperCase() !== 'BDMV') candidates.push(directory.baseName.trim());
+function directoryTitleFor(context, resolvedMovieCount, scopeDigest) {
+  if (context.selectionScopeKind === 'standalone_file') return null;
+  const root = String(context.selectionScopeRootRelativeLocation || '').replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  if (context.selectionScopeKind === 'bdmv_container') {
+    return root && root !== '.' ? root.split('/').at(-1) : 'BDMV-' + String(scopeDigest || '').slice(0, 8);
   }
-  if (candidates.length) return candidates.at(-1);
-  const parts = String(context.fieldRelativeLocation || '').replace(/\\/g, '/').split('/');
-  const bdmvIndex = parts.map((part) => part.toUpperCase()).lastIndexOf('BDMV');
-  return bdmvIndex > 0 ? parts[bdmvIndex - 1] || null : null;
+  return resolvedMovieCount === 1 && root ? root.split('/').at(-1) : null;
 }
 
 function unitFor(
@@ -503,9 +499,9 @@ function bdmvUnitFor(group, topology, contexts, layoutEvidence, fieldContext, pr
     admittedControlProjectionDigest:primaryMember.admittedControlProjectionDigest ?? primaryMember.controlSnapshot?.projectionDigest,
   };
   const primaryContext = contexts.find((context) => context.materialKey === primaryMember.materialKey);
-  const directoryTitle = directoryTitleFor(primaryContext, layoutEvidence);
-  const relatedScope = relatedScopeFor({ ...primaryContext, directoryTitle, contextDigest:fieldContext.contextDigest }, layoutEvidence,
-    primaryMember.materialKey, projectionRevision);
+  const directoryTitle = directoryTitleFor(primaryContext, 1, scopeReference.scopeDigest);
+  const relatedScope = relatedScopeFor({ ...primaryContext, directoryTitle, contextDigest:fieldContext.contextDigest },
+    primaryMember.materialKey, projectionRevision, 'bdmv_external');
   const seed = unitFor(primaryUnitMember, { ...primaryContext, directoryTitle, fieldId:fieldContext.fieldId }, 'movie', 'single', null, [], relatedScope, 'bdmv',
     profileHintSnapshot);
   const memberScope = { scopeKind:'bdmv_container', procurementRunId:scopeReference.procurementRunId, bdmvGroupKey:scopeReference.bdmvGroupKey,
@@ -567,12 +563,16 @@ function mergeSeriesUnits(groups, unassigned) {
     const relatedScopes = group.map((unit) => unit.relatedScope).sort((a,b) => compareUtf8(a.scopeDigest,b.scopeDigest));
     const relatedScope = relatedScopes.length && relatedScopes.every((scope) =>
       scope.scopeKind === relatedScopes[0].scopeKind && scope.parentRelativeLocation === relatedScopes[0].parentRelativeLocation &&
-      scope.stemKey === relatedScopes[0].stemKey && scope.observationProjectionRevision === relatedScopes[0].observationProjectionRevision &&
+      scope.stemKey === relatedScopes[0].stemKey && scope.associationMode === relatedScopes[0].associationMode &&
+      scope.observationProjectionRevision === relatedScopes[0].observationProjectionRevision &&
       scope.relatedRuleRevision === relatedScopes[0].relatedRuleRevision)
       ? relatedScopes[0]
-      : Object.freeze({ scopeKind:'ordinary_parent', parentRelativeLocation:'@candidate', stemKey:'@candidate',
-        observationProjectionRevision:relatedScopes[0]?.observationProjectionRevision || 1, relatedRuleRevision:RELATED_RULE_REVISION,
-        scopeDigest:digest({ schema:'procurement.related-scope-set@1', items:relatedScopes }) });
+      : (() => {
+        const value = { scopeKind:'ordinary_parent', parentRelativeLocation:'@candidate', stemKey:'@candidate',
+          associationMode:'multi_movie_directory', observationProjectionRevision:relatedScopes[0]?.observationProjectionRevision || 1,
+          relatedRuleRevision:RELATED_RULE_REVISION };
+        return Object.freeze({ ...value, scopeDigest:digest({ schema:'procurement.related-scope@1', ...value }) });
+      })();
     const sourceHints = group.flatMap((unit) => unit.identityMetadata.sourceHints)
       .filter((hint, index, all) =>
         hint.hintKind !== 'field_content_profile_hint' ||
@@ -618,7 +618,22 @@ function mergeSeriesUnits(groups, unassigned) {
 function inspectStructure(input, rule, options = {}) {
   validateTriageRuleSnapshot(rule); validateStructureInput(input);
   const layoutEvidence = observationScopeLayoutEvidence(input);
-  const selection = input.selectedFieldMaterialSet; const contexts = contextMap(input); const probes = probeMap(input); const bdmvBatches = bdmvBatchMap(input);
+  const selection = input.selectedFieldMaterialSet;
+  const projectedContexts = contextMap(input);
+  const contexts = new Map(selection.members.map((member) => {
+    const context = projectedContexts.get(member.materialKey);
+    const scope = selection.selectionScopes[member.scopeOrdinal];
+    if (!context || !scope) fail('P7_TRIAGE_STRUCTURE_SCOPE_MAPPING', 'Structure input does not preserve the admitted Selection Scope.');
+    return [member.materialKey, Object.freeze({ ...context,
+      fieldRelativeLocation:member.fieldRelativeLocation,
+      selectionScopeKind:scope.scopeKind,
+      selectionScopeKey:scope.scopeKey,
+      selectionScopeRootRelativeLocation:scope.scopeRootRelativeLocation,
+      scopeOrdinal:member.scopeOrdinal,
+      scopeMemberOrdinal:member.scopeMemberOrdinal,
+    })];
+  }));
+  const probes = probeMap(input); const bdmvBatches = bdmvBatchMap(input);
   const bdmvAssessments = bdmvAssessmentMap(input); const playable = playableMap(input); const playableBdmv = playableBdmvMap(input);
   const units = []; const unassigned = []; const seriesGroups = new Map(); const processed = new Set();
   const profileHintSnapshot = input.materialFieldContext.profileHintSnapshot;
@@ -627,19 +642,33 @@ function inspectStructure(input, rule, options = {}) {
       evidenceDigest:evidenceDigest || digest({ schema:'procurement.bdmv-structure-decision@1', materialKey:selected.materialKey, reasonCode }) });
   };
   const allContexts = [...contexts.values()];
-  const bdmvContainerKeys = new Map(allContexts.map((context) => [context.materialKey,
-    bdmvContainerForLocation(context.fieldRelativeLocation, allContexts)]));
+  const resolvedMovieCountByScope = new Map();
+  for (const candidate of selection.members) {
+    const candidateContext = contexts.get(candidate.materialKey);
+    const candidateProbe = probes.get(candidate.materialKey);
+    const candidatePlay = playable.get(candidate.materialKey);
+    if (!candidateContext || candidateContext.selectionScopeKind === 'bdmv_container' || !candidateProbe || !candidatePlay?.playable) continue;
+    const token = episodeToken(candidateContext.baseName);
+    const hint = profileHintSnapshot.contentProfileHint;
+    const profileName = hint === 'mixed' ? (token ? 'series' : javCode(candidateContext.baseName) ? 'jav' : 'movie') : hint;
+    if (profileName === 'movie') resolvedMovieCountByScope.set(candidate.scopeOrdinal,
+      (resolvedMovieCountByScope.get(candidate.scopeOrdinal) || 0) + 1);
+  }
   for (const selected of selection.members) {
     if (processed.has(selected.materialKey)) continue;
     const context = contexts.get(selected.materialKey); const probe = probes.get(selected.materialKey); const play = playable.get(selected.materialKey);
     if (!context) fail('P7_TRIAGE_STRUCTURE_MAPPING', 'Structure input does not exactly cover Selection.');
-    const bdmvContainer = bdmvContainerKeys.get(selected.materialKey);
-    const bdmvRoot = bdmvContainer ? allContexts.map((candidate) => bdmvRootForLocation(candidate.fieldRelativeLocation, allContexts))
-      .find((root) => root && root.replace(/\\/g, '/').replace(/\/BDMV$/, '') === bdmvContainer) : null;
+    const selectionScope = selection.selectionScopes[selected.scopeOrdinal];
+    if (!selectionScope || selectionScope.scopeOrdinal !== selected.scopeOrdinal) {
+      fail('P7_TRIAGE_STRUCTURE_SCOPE_MAPPING', 'Structure input does not preserve the admitted Selection Scope.');
+    }
+    const bdmvContainer = selectionScope.scopeKind === 'bdmv_container'
+      ? selectionScope.scopeRootRelativeLocation : null;
+    const bdmvRoot = bdmvContainer ? (bdmvContainer === '.' ? 'BDMV' : bdmvContainer + '/BDMV') : null;
     if (bdmvContainer && bdmvRoot) {
-      const group = selection.members.filter((candidate) => bdmvContainerKeys.get(candidate.materialKey) === bdmvContainer);
+      const group = selection.members.filter((candidate) => candidate.scopeOrdinal === selected.scopeOrdinal);
       group.forEach((candidate) => processed.add(candidate.materialKey));
-      const expectedBdmvGroupKey = 'bdmv:' + bdmvContainer;
+      const expectedBdmvGroupKey = selectionScope.scopeKey;
       const bdmvGroup = [...bdmvBatches.values()].find((item) => item.bdmvGroupKey === expectedBdmvGroupKey &&
         item.scopeDigest && bdmvAssessments.has(item.scopeDigest));
       const assessmentEnvelope = bdmvGroup && bdmvAssessments.get(bdmvGroup.scopeDigest);
@@ -701,9 +730,12 @@ function inspectStructure(input, rule, options = {}) {
       unassigned.push({ materialKey:selected.materialKey, reasonCode:profileName === 'series' ? 'episode_claim_unresolved' : 'content_profile_unresolved',
         evidenceDigest:digest({ materialKey:selected.materialKey, contextDigest:input.materialFieldContext.contextDigest }) }); continue;
     }
-    const directoryTitle = directoryTitleFor(context, layoutEvidence);
-    const relatedScope = relatedScopeFor({ ...context, directoryTitle, contextDigest:input.materialFieldContext.contextDigest }, layoutEvidence,
-      selected.materialKey, input.observationScopeProjection?.projectionRevision || 1);
+    const resolvedMovieCount = resolvedMovieCountByScope.get(selected.scopeOrdinal) || 0;
+    const directoryTitle = directoryTitleFor(context, resolvedMovieCount, selectionScope.scopeDigest);
+    const associationMode = selectionScope.scopeKind === 'standalone_file' ? 'standalone_same_stem'
+      : resolvedMovieCount === 1 ? 'single_movie_directory' : 'multi_movie_directory';
+    const relatedScope = relatedScopeFor({ ...context, directoryTitle, contextDigest:input.materialFieldContext.contextDigest },
+      selected.materialKey, input.observationScopeProjection?.projectionRevision || 1, associationMode);
     const materialInputForm = materialInputFormFromProbe(probe.mediaProbe);
     const unit = unitFor(probe, { ...context, directoryTitle, fieldId:input.materialFieldContext.fieldId }, profileName,
       profileName === 'series' ? 'group' : 'single', token && token.season, token ? token.episodes : [], relatedScope, materialInputForm,
@@ -795,14 +827,16 @@ function resolveIdentity(input, rule, options = {}) {
 function buildPrimaryManifestDraft(input, rule, options = {}) {
   validateTriageRuleSnapshot(rule); const sourceMembers = input.candidateMembers || input.unit.members;
   if (!Array.isArray(sourceMembers) || sourceMembers.length < 1) fail('P7_TRIAGE_MANIFEST_MEMBERS_MISSING', 'Primary Manifest requires hydrated Candidate members.');
-  const members = [...sourceMembers].sort((a,b) => compareUtf8(a.materialKey,b.materialKey)).map((member, ordinal) => ({
-    ordinal, materialKey:member.materialKey, role:member.role,
-    physicalIdentity:input.selectedFieldMaterialSet.members.find((item)=>item.materialKey===member.materialKey).physicalIdentity,
-    sizeBytes:input.selectedFieldMaterialSet.members.find((item)=>item.materialKey===member.materialKey).sizeBytes,
-    bindingRevision:member.bindingRevision,
-    admittedControlRevision:member.admittedControlRevision, admittedControlProjectionDigest:member.admittedControlProjectionDigest,
-    episodeClaims:member.episodeClaims
-  }));
+  const members = [...sourceMembers].sort((a,b) => compareUtf8(a.materialKey,b.materialKey)).map((member, ordinal) => {
+    if (!member.physicalIdentity || member.physicalIdentity.materialKey !== member.materialKey ||
+        Number(member.physicalIdentity.sizeBytes) !== Number(member.sizeBytes)) {
+      fail('P7_TRIAGE_MANIFEST_MEMBER_PROJECTION_INVALID', 'Primary Manifest requires an exact Candidate-scoped immutable Material projection.');
+    }
+    return { ordinal, materialKey:member.materialKey, role:member.role,
+      physicalIdentity:member.physicalIdentity, sizeBytes:member.sizeBytes, bindingRevision:member.bindingRevision,
+      admittedControlRevision:member.admittedControlRevision, admittedControlProjectionDigest:member.admittedControlProjectionDigest,
+      episodeClaims:member.episodeClaims };
+  });
   const membersDigest = digest({ schema:'procurement.primary-input-manifest-members@1', items:members });
   const payload = { preallocatedManifestId:input.preallocatedManifestId, procurementRunId:input.procurementRunId,
     runBasisDigest:input.runBasisDigest, structureEvidencePayloadDigest:input.structureEvidencePayloadDigest, unitId:input.unit.unitId,

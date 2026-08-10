@@ -160,7 +160,7 @@
           "deliveryMemberDigest"
         ]
       },
-      "maxItems": 256,
+      "maxItems": 1024,
       "minItems": 1
     },
     "deliveryMemberSetDigest": {

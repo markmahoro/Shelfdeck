@@ -153,7 +153,7 @@
       "relativePath": "application-types/ProcurementRetryIntent/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "c8a4364e78e25ed739a7f9e7c6a3a82e4a5874b761cba0805c198a45c5980902"
+        "value": "dea50f967f376ff5350b524ed756a88ac7bcd106131e4a7237e2d74d3af78f87"
       },
       "ssotRefs": [
         "8.6.18"
@@ -261,7 +261,7 @@
       "relativePath": "application-types/ProcurementTriageRuleSnapshot/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "a7e548b8dae643cc9ed77fc13b409074b69322353e21a8adc5a80c17bd12904c"
+        "value": "302213d87bea8a685eaeb0245a126d01721a50b9f29c27d57c487ef465f80753"
       },
       "ssotRefs": [
         "5.3.2",

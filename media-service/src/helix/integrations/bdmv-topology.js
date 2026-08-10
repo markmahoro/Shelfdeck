@@ -9,7 +9,7 @@ const { canonicalDigest } = require('../contracts/canonical-json');
 
 const MAX_PLAYLIST_BYTES = 1024 * 1024;
 const MAX_TOTAL_PLAYLIST_BYTES = 16 * 1024 * 1024;
-const MAX_FILES = 4096;
+const MAX_FILES = 1024;
 
 // The integration boundary intentionally exposes only fs/crypto.  These small
 // path helpers keep the reader platform-neutral without importing a higher-level
@@ -96,6 +96,46 @@ function readFiles(root) {
         throw error;
       }
     }
+  }
+  return files.sort((left, right) => utf8Compare(left.relative, right.relative));
+}
+
+function readFrozenFiles(root, members) {
+  if (!Array.isArray(members) || members.length < 1) return [];
+  if (members.length > MAX_FILES) {
+    const error = new Error('BDMV frozen topology scope exceeds the admitted Physical Material limit.');
+    error.code = 'BDMV_TOPOLOGY_SCOPE_TOO_LARGE';
+    throw error;
+  }
+  const files = [];
+  const seen = new Set();
+  for (const member of members) {
+    const memberLocation = member?.readHandle?.location || member?.location;
+    if (typeof memberLocation !== 'string' || !memberLocation) {
+      const error = new Error('BDMV frozen topology member has no exact read location.');
+      error.code = 'BDMV_TOPOLOGY_SCOPE_STALE';
+      throw error;
+    }
+    const absolute = absoluteLocation(memberLocation);
+    if (seen.has(absolute)) continue;
+    seen.add(absolute);
+    const stat = fs.statSync(absolute);
+    if (!stat.isFile()) {
+      const error = new Error('BDMV frozen topology member is no longer a regular file.');
+      error.code = 'BDMV_TOPOLOGY_SCOPE_STALE';
+      throw error;
+    }
+    const expectedSize = Number(member?.sizeBytes ?? member?.readHandle?.identity?.sizeBytes);
+    if (Number.isSafeInteger(expectedSize) && expectedSize >= 0 && Number(stat.size) !== expectedSize) {
+      const error = new Error('BDMV frozen topology member size changed after Run Admission.');
+      error.code = 'BDMV_TOPOLOGY_SCOPE_STALE';
+      throw error;
+    }
+    files.push(Object.freeze({
+      absolute,
+      relative: relativePath(root, absolute),
+      sizeBytes: Number(stat.size),
+    }));
   }
   return files.sort((left, right) => utf8Compare(left.relative, right.relative));
 }
@@ -228,15 +268,25 @@ function createBdmvTopologyReader(options = {}) {
     ? Math.min(options.maxPlaylistBytes, MAX_TOTAL_PLAYLIST_BYTES) : MAX_TOTAL_PLAYLIST_BYTES;
   const cache = new Map();
   return Object.freeze({
-    async inspect(location) {
+    async inspect(location, frozenScope = null) {
       const root = nearestBdmvRoot(location);
       if (!root) return null;
       let stat;
       try { stat = fs.statSync(root); } catch (_) { return null; }
-      const key = root + '\0' + String(stat.mtimeMs) + '\0' + String(stat.ctimeMs || 0);
+      const frozenMembers = Array.isArray(frozenScope?.members) ? frozenScope.members : null;
+      const scopeKey = frozenMembers ? String(frozenScope.memberSetDigest || canonicalDigest(frozenMembers.map((member) => ({
+        location:member?.readHandle?.location || member?.location,
+        materialKey:member?.identity?.materialKey || member?.readHandle?.identity?.materialKey,
+        sizeBytes:Number((member?.sizeBytes ?? member?.readHandle?.identity?.sizeBytes) || 0),
+      })))) : 'recursive';
+      const key = root + '\0' + scopeKey + '\0' + String(stat.mtimeMs) + '\0' + String(stat.ctimeMs || 0);
       if (!cache.has(key)) {
         for (const oldKey of cache.keys()) if (!oldKey.startsWith(root + '\0')) cache.delete(oldKey);
-        try { cache.set(key, topologyForRoot(root, readFiles(root), readLimitBytes)); } catch (_) { cache.set(key, null); }
+        if (frozenMembers) {
+          cache.set(key, topologyForRoot(root, readFrozenFiles(root, frozenMembers), readLimitBytes));
+        } else {
+          try { cache.set(key, topologyForRoot(root, readFiles(root), readLimitBytes)); } catch (_) { cache.set(key, null); }
+        }
       }
       return cache.get(key);
     },

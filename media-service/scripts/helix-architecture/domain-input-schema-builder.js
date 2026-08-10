@@ -4,9 +4,9 @@ const crypto = require('crypto');
 const { selectedCandidateSelectedValueSchema } = require('./result-type-schema-builder');
 
 const DRAFT = 'https://json-schema.org/draft/2020-12/schema';
-const PROCUREMENT_RUN_MEMBER_LIMIT = 256;
+const PROCUREMENT_RUN_MEMBER_LIMIT = 1024;
 const PROCUREMENT_RUN_PHYSICAL_MEMBER_LIMIT = 1024;
-const PROCUREMENT_OBSERVATION_SCOPE_ENTRY_LIMIT = 4096;
+const PROCUREMENT_OBSERVATION_SCOPE_ENTRY_LIMIT = PROCUREMENT_RUN_PHYSICAL_MEMBER_LIMIT;
 const PROCUREMENT_PROBE_BATCH_LIMIT = 100;
 const PROCUREMENT_PROBE_PAGE_LIMIT = Math.ceil(
   PROCUREMENT_RUN_PHYSICAL_MEMBER_LIMIT / PROCUREMENT_PROBE_BATCH_LIMIT,
@@ -325,14 +325,20 @@ function selectedFieldMaterialSetSchema() {
   }, ['materialKey', 'resultKind', 'controlRevision', 'controlState', 'regionProjection', 'evidenceDigest', 'projectionDigest']);
   const member = object({
     ordinal: nonNegativeInteger(), materialKey: digest(), selectionRole: { const: 'triage_input' },
+    fieldRelativeLocation:text(), scopeOrdinal:nonNegativeInteger(), scopeMemberOrdinal:nonNegativeInteger(),
     physicalIdentity: typeRef('PhysicalMaterialIdentity'), sizeBytes: nonNegativeInteger(),
     bindingRevision: positiveInteger(), eligibilityRevision: positiveInteger(), eligibilityBasisDigest: digest(),
     lastSnapshotDigest: digest(), lastObservationId: id(), endpointId: id(), location: text(), realityDigest: digest(),
     provenanceDigest: digest(), controlSnapshot, admissionControlAction: enumText('acquire', 'assert_same_field'),
     basisMemberDigest: digest()
   });
+  const selectionScope = object({ scopeOrdinal:nonNegativeInteger(),
+    scopeKind:enumText('standalone_file','ordinary_directory','bdmv_container'), scopeKey:id(),
+    scopeRootRelativeLocation:text(), memberCount:positiveInteger(), memberSetDigest:digest(), scopeDigest:digest() });
   return exactDomainSchema('SelectedFieldMaterialSet', {
-    procurementRunId: id(), fieldId: id(), members: { ...arrayOf(member, PROCUREMENT_RUN_PHYSICAL_MEMBER_LIMIT), minItems: 1 }, selectionDigest: digest()
+    procurementRunId:id(), fieldId:id(), physicalMemberCount:positiveInteger(), selectionScopeCount:positiveInteger(),
+    selectionScopes:{ ...arrayOf(selectionScope, PROCUREMENT_RUN_MEMBER_LIMIT), minItems:1 }, scopeSetDigest:digest(),
+    members:{ ...arrayOf(member, PROCUREMENT_RUN_MEMBER_LIMIT), minItems:1 }, selectionDigest:digest()
   });
 }
 
@@ -477,6 +483,7 @@ const triageUnit = () => {
     identityMetadata: identityMetadata(), seasonContinuityClaims: arrayOf(seasonContinuityClaim(), 64),
     seasonContinuityClaimSetDigest: digest(),
     relatedScope: object({ scopeKind: enumText('ordinary_parent', 'bdmv_external_parent'), parentRelativeLocation:text(), stemKey:text(),
+      associationMode:enumText('standalone_same_stem','single_movie_directory','multi_movie_directory','bdmv_external'),
       observationProjectionRevision:positiveInteger(), relatedRuleRevision:positiveInteger(), scopeDigest:digest() }),
     materialInputForm:enumText('stream_file', 'bdmv', 'dvd', 'iso'), unitDigest: digest()
   };
@@ -491,8 +498,8 @@ const triageUnit = () => {
 
 function procurementTriageRuleSnapshotSchema() {
   const rulePayload = object({
-    contractRefs: arrayOf(text(), 32), recallPriority: { const: true }, maxPrimaryMaterials: { const: PROCUREMENT_RUN_MEMBER_LIMIT },
-    maxLogicalSelectionGroups: { const: PROCUREMENT_RUN_MEMBER_LIMIT }, maxBdmvContainerMembers: { const: PROCUREMENT_RUN_PHYSICAL_MEMBER_LIMIT },
+    contractRefs: arrayOf(text(), 32), recallPriority: { const: true }, maxRunPhysicalMembers: { const: PROCUREMENT_RUN_MEMBER_LIMIT },
+    maxSelectionScopeMembers:{ const:PROCUREMENT_RUN_MEMBER_LIMIT }, maxCandidateManifestMembers:{ const:PROCUREMENT_RUN_MEMBER_LIMIT },
     probeBatchSize: { const: 100 }, playabilityRule: object({ minimumDurationMs: { const: 1 }, minimumVideoStreamCount: { const: 1 },
       reasonPrecedence: { const: ['probe_not_media', 'no_video_stream', 'non_positive_duration'] } }),
     profileResolutionRule: object({ mixedPrecedence: { const: ['series_episode_token', 'jav_code', 'movie_fallback'] },
@@ -530,7 +537,10 @@ function materialFieldContextSchema() {
   return object({ fieldId: id(), accessRevision: positiveInteger(), accessDigest: digest(),
     profileHintSnapshot: applicationRef('MaterialFieldProfileHintSnapshot'),
     memberContexts: { ...arrayOf(object({ selectionOrdinal: nonNegativeInteger(), materialKey: digest(), fieldRelativeLocation: text(),
-      baseName: text(), extension: text(), parentSegments: arrayOf(text(), 32), layoutEvidenceRefs: arrayOf(object({ evidenceId: id(),
+      baseName:text(), extension:text(), parentSegments:arrayOf(text(),32),
+      selectionScopeKind:enumText('standalone_file','ordinary_directory','bdmv_container'), selectionScopeKey:id(),
+      selectionScopeRootRelativeLocation:text(), scopeOrdinal:nonNegativeInteger(), scopeMemberOrdinal:nonNegativeInteger(),
+      layoutEvidenceRefs: arrayOf(object({ evidenceId: id(),
       payloadDigest: digest(), boundedScopeDigest: digest() }), 16) }), PROCUREMENT_RUN_PHYSICAL_MEMBER_LIMIT), minItems: 1 }, contextDigest: digest() });
 }
 
@@ -557,16 +567,17 @@ function triageIdentityResolutionInputSchema() {
 
 function triageManifestBuildInputSchema() {
   return exactDomainSchema('TriageManifestBuildInput', { procurementRunId: id(), runBasisDigest: digest(), triageRuleAuthorityDigest: digest(),
-    selectedFieldMaterialSet: domainRef('SelectedFieldMaterialSet'), structureEvidenceId: id(), structureEvidencePayloadDigest: digest(),
+    structureEvidenceId: id(), structureEvidencePayloadDigest: digest(),
     unit: triageUnit(), candidateMembers: { ...arrayOf(object({ materialKey: digest(), bindingRevision: positiveInteger(),
       admittedControlRevision: positiveInteger(), admittedControlProjectionDigest: digest(), role: enumText('primary_payload', 'structural_dependency'),
+      physicalIdentity: typeRef('PhysicalMaterialIdentity'), sizeBytes: nonNegativeInteger(),
       episodeClaims: arrayOf(episodeClaim(), 32), memberClaimDigest: digest() }), PROCUREMENT_RUN_PHYSICAL_MEMBER_LIMIT), minItems: 1 },
     preallocatedManifestId: id(), inputDigest: digest() });
 }
 
 function candidateDraftSchema() {
   return exactDomainSchema('CandidateDraft', { draftId: id(), draftKind: text(), basisDigest: digest(), draftDigest: digest(),
-    producedAtMs: nonNegativeInteger(), candidatePackageId: id(), expectedPackageRevision: positiveInteger(), procurementRunId: id(),
+    producedAtMs: nonNegativeInteger(), candidatePackageId: id(), procurementRunId: id(),
     runBasisDigest: digest(), triageRule: object({ ruleRef: id(), revision: positiveInteger(), authorityDigest: digest() }),
     materialFieldContextRef: object({ fieldId: id(), accessRevision: positiveInteger(), contextDigest: digest() }),
     mediaType: mediaType(), contentProfile: profile(), displayIdentity: text(), identityMetadata: identityMetadata(),

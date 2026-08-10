@@ -5,7 +5,7 @@ const { buildSharedTypeSchemas, externalOutputSnapshotSchema,
   providerAcquisitionCandidateSnapshotSchema } = require('./shared-type-schema-builder');
 
 const DRAFT = 'https://json-schema.org/draft/2020-12/schema';
-const PROCUREMENT_RUN_MEMBER_LIMIT = 256;
+const PROCUREMENT_RUN_MEMBER_LIMIT = 1024;
 const PROCUREMENT_RUN_PHYSICAL_MEMBER_LIMIT = 1024;
 const typeVersion = (name) => name === 'PhysicalMaterialIdentity' ? 2 : 1;
 const typeId = (name) => `helix://contracts/types/${name}/v${typeVersion(name)}`;
@@ -159,6 +159,7 @@ const triageUnit = () => {
     structureKind: enumText('single', 'season'), displayIdentity: text(), identityMetadata: triageIdentityMetadata(),
     seasonContinuityClaims: arrayOf(seasonContinuityClaim(), 64), seasonContinuityClaimSetDigest: digest(),
     relatedScope: object({ scopeKind: enumText('ordinary_parent', 'bdmv_external_parent'), parentRelativeLocation: text(), stemKey: text(),
+      associationMode:enumText('standalone_same_stem','single_movie_directory','multi_movie_directory','bdmv_external'),
       observationProjectionRevision: positiveInteger(), relatedRuleRevision: positiveInteger(), scopeDigest: digest() }),
     materialInputForm: enumText('stream_file', 'bdmv', 'dvd', 'iso'), unitDigest: digest() };
   const member = object({ materialKey: digest(), bindingRevision: positiveInteger(),
@@ -283,6 +284,7 @@ const special = {
   'CandidatePackage.seasonContinuityClaimSetDigest': digest(),
   'CandidatePackage.primaryInputManifestRef': object({ manifestId: id(), manifestDigest: digest(), memberCount: positiveInteger() }),
   'CandidatePackage.relatedReferences': arrayOf(triageRelatedReference(), 1024),
+  'CandidatePublicationReceipt.packageRevision': positiveInteger(),
   'RelatedMaterialReference.identity': ref('PhysicalMaterialIdentity'),
   'RelatedMaterialReference.primaryMaterialKey': digest(),
   'RelatedMaterialReference.role': enumText('nfo', 'poster', 'fanart', 'subtitle', 'external_audio', 'chapter', 'sidecar'),
@@ -526,6 +528,7 @@ const contracts = {
   PrimaryInputManifestDraft: ['DraftEnvelope', 'preallocatedManifestId,procurementRunId,runBasisDigest,structureEvidencePayloadDigest,unitId,structureKind,memberCount,members,membersDigest,memberSourceDigest,manifestDraftDigest'],
   PrimaryInputManifest: ['ManifestEnvelope', 'structureKind,members'],
   CandidatePackage: ['ManifestEnvelope', 'candidatePackageId,packageRevision,procurementRunId,runBasisDigest,triageRule,materialFieldContextRef,mediaType,contentProfile,materialInputForm,displayIdentity,identityMetadata,identityClaim,structureEvidenceRef,seasonContinuityClaims,seasonContinuityClaimSetDigest,primaryInputManifestRef,relatedReferences,relatedReferenceSetDigest,memberControlEvidenceSetDigest,packageDigest'],
+  CandidatePublicationReceipt: ['ReceiptEnvelope', 'candidateDraftDigest,candidatePackageId,packageRevision,packageDigest,primaryInputManifestDigest,relatedReferenceSetDigest,memberControlEvidenceSetDigest,acceptanceBasisDigest,offerId,receiptDigest'],
   RelatedMaterialReference: [null, 'referenceId,primaryMaterialKey,role,identity,endpointId,location,fingerprintAlgorithm,fingerprintVersion,contentFingerprint,associationEvidenceDigest,referenceDigest'],
   SeasonContinuityClaim: [null, 'claimKind,claimNamespace,claimKey,claimDigest,evidenceDigest'],
   CandidateIntakeAcceptanceBasis: [null, 'handoffContractRef,acceptanceOwnerDomain,targetContext,candidatePackageId,packageRevision,packageDigest,primaryInputManifestDigest,seasonContinuityClaimSetDigest,relatedReferenceSetDigest,memberControlEvidenceSetDigest,acceptanceBasisDigest'],

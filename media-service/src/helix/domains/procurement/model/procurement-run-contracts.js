@@ -16,20 +16,23 @@ const SHA256 = /^[0-9a-f]{64}$/;
 // BDMV container may occupy one logical slot, but it cannot make one atomic
 // Run Control scope larger than this bound.
 const MAX_RUN_PHYSICAL_MEMBERS = 1024;
+const MAX_SELECTION_SCOPE_MEMBERS = 1024;
+const SELECTION_SCOPE_KINDS = new Set(['standalone_file','ordinary_directory','bdmv_container']);
 const TRIAGE_PAYLOAD = Object.freeze({
   contractRefs: Object.freeze([
     'helix.procurement.candidate-readiness@1', 'helix.procurement.profile-claim-baseline@1',
     'helix.procurement.primary-input-manifest@1', 'helix.procurement.related-material-reference@1'
   ]),
-  recallPriority: true, maxPrimaryMaterials: 256, maxLogicalSelectionGroups: 256,
-  maxBdmvContainerMembers: MAX_RUN_PHYSICAL_MEMBERS, probeBatchSize: 100,
+  recallPriority: true, maxRunPhysicalMembers: MAX_RUN_PHYSICAL_MEMBERS,
+  maxSelectionScopeMembers: MAX_SELECTION_SCOPE_MEMBERS, maxCandidateManifestMembers: MAX_RUN_PHYSICAL_MEMBERS,
+  probeBatchSize: 100,
   playabilityRule: Object.freeze({ minimumDurationMs:1, minimumVideoStreamCount:1,
     reasonPrecedence:Object.freeze(['probe_not_media','no_video_stream','non_positive_duration']) }),
   profileResolutionRule: Object.freeze({ mixedPrecedence:Object.freeze(['series_episode_token','jav_code','movie_fallback']),
     westernAdultRequiresExplicitHint:true }),
   structureRule: Object.freeze({ maxUnitCanonicalBytes:65536 }),
   identityRule: Object.freeze({ claimKinds:Object.freeze(['movie_title','series_season','jav_code','western_temporary']) }),
-  manifestRule: Object.freeze({ minimumMembers:1, maximumMembers:256, firstOrdinal:0 })
+  manifestRule: Object.freeze({ minimumMembers:1, maximumMembers:MAX_RUN_PHYSICAL_MEMBERS, firstOrdinal:0 })
 });
 
 class ProcurementRunContractError extends Error {
@@ -101,9 +104,14 @@ function activeTriageRule(registry) {
 }
 
 function validateSelectedMember(member, index, fieldId) {
-  exact(member, ['ordinal','materialKey','selectionRole','physicalIdentity','sizeBytes','bindingRevision','eligibilityRevision','eligibilityBasisDigest','lastSnapshotDigest',
+  exact(member, ['ordinal','materialKey','selectionRole','fieldRelativeLocation','scopeOrdinal','scopeMemberOrdinal','physicalIdentity','sizeBytes','bindingRevision','eligibilityRevision','eligibilityBasisDigest','lastSnapshotDigest',
     'lastObservationId','endpointId','location','realityDigest','provenanceDigest','controlSnapshot','admissionControlAction','basisMemberDigest'], 'P7_RUN_MEMBER_SHAPE');
   if (member.ordinal !== index || member.selectionRole !== 'triage_input') fail('P7_RUN_MEMBER_ORDINAL_ROLE', 'Run member ordinal or role is invalid.');
+  text(member.fieldRelativeLocation, 'fieldRelativeLocation');
+  if (!Number.isSafeInteger(member.scopeOrdinal) || member.scopeOrdinal < 0 ||
+      !Number.isSafeInteger(member.scopeMemberOrdinal) || member.scopeMemberOrdinal < 0) {
+    fail('P7_RUN_MEMBER_SCOPE_ORDINAL', 'Run member Scope ordinals are invalid.');
+  }
   digest(member.materialKey, 'materialKey'); revision(member.bindingRevision, 'bindingRevision'); revision(member.eligibilityRevision, 'eligibilityRevision');
   exact(member.physicalIdentity, ['schemaRef','schemaVersion','materialKey','mountScopeId','inode','sizeBytes','fingerprintAlgorithm','fingerprintVersion','contentFingerprint'], 'P7_RUN_MEMBER_IDENTITY_SHAPE');
   const identity = member.physicalIdentity;
@@ -127,16 +135,58 @@ function validateSelectedMember(member, index, fieldId) {
     fail('P7_RUN_MEMBER_INVALID', 'Run member action, Control scope, or digest is invalid.', { materialKey:member.materialKey });
   }
 }
+function validateSelectionScope(scope, index) {
+  exact(scope, ['scopeOrdinal','scopeKind','scopeKey','scopeRootRelativeLocation','memberCount','memberSetDigest','scopeDigest'], 'P7_RUN_SELECTION_SCOPE_SHAPE');
+  if (scope.scopeOrdinal !== index || !SELECTION_SCOPE_KINDS.has(scope.scopeKind) ||
+      !Number.isSafeInteger(scope.memberCount) || scope.memberCount < 1 || scope.memberCount > MAX_SELECTION_SCOPE_MEMBERS) {
+    fail('P7_RUN_SELECTION_SCOPE_INVALID', 'Run Selection Scope kind, ordinal, or member count is invalid.');
+  }
+  text(scope.scopeKey, 'selectionScope.scopeKey'); text(scope.scopeRootRelativeLocation, 'selectionScope.scopeRootRelativeLocation');
+  digest(scope.memberSetDigest, 'selectionScope.memberSetDigest'); digest(scope.scopeDigest, 'selectionScope.scopeDigest');
+  const expected = canonicalDigest({ schema:'procurement.selection-scope@1', scopeKind:scope.scopeKind,
+    scopeKey:scope.scopeKey, scopeRootRelativeLocation:scope.scopeRootRelativeLocation,
+    memberCount:scope.memberCount, memberSetDigest:scope.memberSetDigest });
+  if (scope.scopeDigest !== expected) fail('P7_RUN_SELECTION_SCOPE_DIGEST', 'Run Selection Scope digest is invalid.');
+}
 function createSelectedFieldMaterialSet(value) {
-  exact(value, ['procurementRunId','fieldId','members','selectionDigest'], 'P7_RUN_SELECTION_SHAPE');
+  exact(value, ['procurementRunId','fieldId','physicalMemberCount','selectionScopeCount','selectionScopes','scopeSetDigest','members','selectionDigest'], 'P7_RUN_SELECTION_SHAPE');
   text(value.procurementRunId, 'procurementRunId'); text(value.fieldId, 'fieldId');
-  if (!Array.isArray(value.members) || value.members.length < 1 || value.members.length > MAX_RUN_PHYSICAL_MEMBERS) fail('P7_RUN_SELECTION_BOUNDS', 'Run Selection exceeds the bounded physical member scope.');
+  if (!Array.isArray(value.members) || value.members.length < 1 || value.members.length > MAX_RUN_PHYSICAL_MEMBERS ||
+      value.physicalMemberCount !== value.members.length || !Array.isArray(value.selectionScopes) ||
+      value.selectionScopes.length < 1 || value.selectionScopeCount !== value.selectionScopes.length ||
+      value.selectionScopeCount > MAX_RUN_PHYSICAL_MEMBERS) {
+    fail('P7_RUN_SELECTION_BOUNDS', 'Run Selection exceeds the bounded physical member or Scope contract.');
+  }
+  for (const [index, scope] of value.selectionScopes.entries()) {
+    validateSelectionScope(scope, index);
+    if (index > 0 && compareUtf8(value.selectionScopes[index - 1].scopeKey, scope.scopeKey) >= 0) {
+      fail('P7_RUN_SELECTION_SCOPE_ORDER', 'Run Selection Scopes must be unique and UTF-8 sorted.');
+    }
+  }
+  const expectedScopeSetDigest = canonicalDigest({ schema:'procurement.selection-scope-set@1', scopes:value.selectionScopes });
+  if (value.scopeSetDigest !== expectedScopeSetDigest) fail('P7_RUN_SELECTION_SCOPE_SET_DIGEST', 'Run Selection Scope set digest is invalid.');
   for (const [index, member] of value.members.entries()) {
     validateSelectedMember(member, index, value.fieldId);
     if (index > 0 && compareUtf8(value.members[index - 1].materialKey, member.materialKey) >= 0) fail('P7_RUN_SELECTION_ORDER', 'Run members must be unique and UTF-8 sorted.');
+    if (!value.selectionScopes[member.scopeOrdinal]) fail('P7_RUN_SELECTION_MEMBER_SCOPE_MISSING', 'Run member references a missing Selection Scope.');
   }
-  const expected = canonicalDigest({ schema:'procurement.selected-field-material-set@1', procurementRunId:value.procurementRunId,
-    fieldId:value.fieldId, members:value.members });
+  let scopedCount = 0;
+  for (const scope of value.selectionScopes) {
+    const scopedMembers = value.members.filter((member) => member.scopeOrdinal === scope.scopeOrdinal)
+      .sort((left, right) => left.scopeMemberOrdinal - right.scopeMemberOrdinal);
+    if (scopedMembers.length !== scope.memberCount || scopedMembers.some((member, index) => member.scopeMemberOrdinal !== index)) {
+      fail('P7_RUN_SELECTION_SCOPE_COVERAGE', 'Run Selection Scope does not exactly cover its members.');
+    }
+    const memberSetDigest = canonicalDigest({ schema:'procurement.selection-scope-members@1', items:scopedMembers.map((member) => ({
+      materialKey:member.materialKey, fieldRelativeLocation:member.fieldRelativeLocation, scopeMemberOrdinal:member.scopeMemberOrdinal,
+    })) });
+    if (scope.memberSetDigest !== memberSetDigest) fail('P7_RUN_SELECTION_SCOPE_MEMBER_DIGEST', 'Run Selection Scope member digest is invalid.');
+    scopedCount += scopedMembers.length;
+  }
+  if (scopedCount !== value.physicalMemberCount) fail('P7_RUN_SELECTION_SCOPE_COVERAGE', 'Run Selection Scope coverage is incomplete.');
+  const expected = canonicalDigest({ schema:'procurement.selected-field-material-set@2', procurementRunId:value.procurementRunId,
+    fieldId:value.fieldId, physicalMemberCount:value.physicalMemberCount, selectionScopeCount:value.selectionScopeCount,
+    selectionScopes:value.selectionScopes, scopeSetDigest:value.scopeSetDigest, members:value.members });
   if (value.selectionDigest !== expected) fail('P7_RUN_SELECTION_DIGEST', 'Run Selection digest is invalid.');
   return deepFreeze(value);
 }
@@ -164,6 +214,6 @@ function createProcurementRunExecutionBasis(value, registry) {
 }
 
 module.exports = Object.freeze({ ProcurementRunContractError, RUN_BASIS_SCHEMA, TRIAGE_PAYLOAD, TRIAGE_REGISTRY_SCHEMA,
-  MAX_RUN_PHYSICAL_MEMBERS,
+  MAX_RUN_PHYSICAL_MEMBERS, MAX_SELECTION_SCOPE_MEMBERS,
   TRIAGE_RULE_SCHEMA, activeTriageRule, authorityDigestFor, createDefaultTriageRuleRegistry, createProcurementRunExecutionBasis,
   createSelectedFieldMaterialSet, ruleDigestFor, validateTriageRuleRegistry, validateTriageRuleSnapshot });

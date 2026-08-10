@@ -104,7 +104,11 @@ function createTriageEvidenceIndex(options) {
     },
     findCandidate(workId, runId, evidenceWorkId) {
       if (typeof runId !== 'string' || typeof evidenceWorkId !== 'string') return null;
-      return read(evidenceWorkId).units.find((entry) => candidateWorkId(runId, entry.unitId, entry.ordinal) === workId) || null;
+      const match=/^procurement-candidate-work-(\d{4})-[0-9a-f]{32}$/.exec(String(workId||''));
+      if(!match)return null;
+      const ordinal=Number(match[1]);
+      const entry=read(evidenceWorkId).units[ordinal];
+      return entry&&candidateWorkId(runId,entry.unitId,entry.ordinal)===workId?entry:null;
     },
     invalidate(workId) { if (typeof workId === 'string' && workId) cache.delete(workId); },
     clear() { cache.clear(); },

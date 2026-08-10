@@ -1,10 +1,10 @@
 # ShelfDeck / Helix Documentation Index
 
-Status: first-implementation retake本轮Procurement已完成；Observation事实表、增量Eligibility、BDMV Triage性能重构与Scope Reference均已通过本地全链验证；Execution Foundation与Procurement标记`CLOSED FOR DOMAIN ONBOARDING`。Docker/NAS和生产均未开始。
+Status: Movie Procurement已在`Handoff A Ready`边界封口为`CLOSED FOR MOVIE`。Docker/NAS、Libra/Arca接入和生产均未开始；Series/JAV/Western Adult不属于本次封口。
 
 第一次实施的P0–P13资产继续保留，但此前由大型Coordinator同步闭环得到的Movie Canary只证明低层Capability、Owner事实和
 Handoff A Ready数据形态可工作，不构成`Work Scheduler → Event Runtime → Resource Governor`已经参与的Foundation E2E证据。
-当前唯一活动实施计划见`CURRENT_PLAN.md`。最终`Z:\Film`全库Canary使用本机Node.js临时clean数据库完成，主动重启后从durable事实恢复；本线程负责实现及异常诊断。最新Canary还验证了每个BDMV容器只产生一个Assessment Event、BDMV内部成员不进入通用Probe/Candidate/Related，以及Related关联不会吸收BDMV内部文件或同stem视频载荷；Scope成员索引优化后总耗时约5分42秒、首个Offer约142秒。证据记录在`CURRENT_STATUS.md`。
+当前唯一活动实施计划见`CURRENT_PLAN.md`。最新`Z:\Film`全库Canary以本机Node.js、全新临时clean数据库和只读源完成，再次验证了`standalone_file|ordinary_directory|bdmv_container`三类Scope、1024物理成员Run上限、`苹果.mkv`独立Candidate、943个Handoff A Ready Offer及源Reality不变。Candidate尾段由281.737秒降至173.523秒，证明整Run重复投影与Coordinator扫描修正有效；Observation与普通Media Probe的本轮耗时变化由用户接受为环境波动。随后全量数据库约束及代表样本复核未发现正确性问题，Movie Procurement因此在Handoff A Ready边界正式封口。完整证据和保留资产记录在`CURRENT_STATUS.md`。
 
 Physical Material不再计算全文件Hash。当前唯一合同读取文件正中间最多262,144 bytes并执行前后stat fence；NAS负责bit rot和底层
 完整性。Artifact、Canonical JSON与事务Evidence digest仍使用SHA-256，这些digest不得作为Physical Material Identity。
@@ -24,6 +24,11 @@ BDMV采用SSOT定义的拓扑边界：它不是pre-triage的Movie类别，而是
 最多1024个物理成员，超过上限时整体不建Run。Structure消费完整group并将单标题解析为一个Triage Unit，不能把内部M2TS拆成多个Candidate；
 多标题、歧义或结构不完整保持`not_ready`。所需Playlist/Clip/结构依赖必须在Run Admission前完成Observation、Eligibility
 和Control，不能由Triage在Admission后静默扩张。每个BDMV容器由`procurement.triage.bdmv.assess@1`一次性完成有限拓扑和选定主标题metadata probe；Structure只消费`BdmvAssessmentEvidence@1`和`UnitScopeReference`，Candidate Context按Scope digest重建成员。
+
+混乱Movie Field的pre-triage边界同样由SSOT固定：Field根普通文件各自形成`standalone_file` Scope；第一层普通目录形成
+`ordinary_directory` Scope；BDMV及同级`CERTIFICATE`形成`bdmv_container` Scope。Run与任一Scope都以1024个selected
+Physical Material为唯一上限，Related不计数。Structure按冻结Scope决定标题与Related association mode，不重新猜测当前目录，
+Candidate Assembly只查询当前Scope；Execution Foundation的16 in-flight Event和Permit语义没有因此改变。
 
 ## Architecture authority
 

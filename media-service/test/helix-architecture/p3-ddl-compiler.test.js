@@ -11,7 +11,7 @@ const { readFrozenTableContracts } = require('../../scripts/helix-architecture/p
 const contractsRoot = path.resolve(__dirname, '../../src/helix/contracts');
 const contracts = readFrozenTableContracts(contractsRoot);
 
-test('compiles all 179 frozen contracts deterministically without legacy schema artifacts', () => {
+test('compiles all 180 frozen contracts deterministically without legacy schema artifacts', () => {
   const first = compileSchema(contracts);
   const second = compileSchema([...contracts].reverse());
   assert.equal(first.manifest.tableCount, 180);

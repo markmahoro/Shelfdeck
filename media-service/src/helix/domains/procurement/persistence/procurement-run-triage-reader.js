@@ -41,18 +41,81 @@ function identityFromMember(member) {
     fingerprintAlgorithm:member.fingerprint_algorithm, fingerprintVersion:Number(member.fingerprint_version), contentFingerprint:member.content_fingerprint });
 }
 
+function validatePersistedScopeBasis(run, members) {
+  if (Number(run.selected_material_count) !== members.length ||
+      !Number.isSafeInteger(Number(run.selection_scope_count)) || Number(run.selection_scope_count) < 1 ||
+      typeof run.selection_scope_set_digest !== 'string') {
+    fail('P7_TRIAGE_RUN_SCOPE_HEAD_CORRUPT', 'Run Scope head does not match its admitted members.');
+  }
+  const groups = new Map();
+  let priorMaterialKey = null;
+  for (const [ordinal, member] of members.entries()) {
+    if (Number(member.ordinal) !== ordinal || priorMaterialKey !== null &&
+        Buffer.compare(Buffer.from(priorMaterialKey), Buffer.from(member.material_key)) >= 0) {
+      fail('P7_TRIAGE_RUN_MEMBER_ORDER_CORRUPT', 'Run members are not the immutable UTF-8 ordered Selection.');
+    }
+    priorMaterialKey = member.material_key;
+    const scopeOrdinal = Number(member.selection_scope_ordinal);
+    const scopeMemberOrdinal = Number(member.scope_member_ordinal);
+    if (!Number.isSafeInteger(scopeOrdinal) || scopeOrdinal < 0 || !Number.isSafeInteger(scopeMemberOrdinal) || scopeMemberOrdinal < 0) {
+      fail('P7_TRIAGE_RUN_SCOPE_ORDINAL_CORRUPT', 'Run member Scope ordinal is invalid.');
+    }
+    const key = String(scopeOrdinal);
+    const scope = groups.get(key) || { scopeOrdinal, scopeKind:member.selection_scope_kind,
+      scopeKey:member.selection_scope_key, scopeRootRelativeLocation:member.selection_scope_root_relative_location,
+      memberCount:Number(member.selection_scope_member_count), memberSetDigest:member.selection_scope_member_set_digest,
+      scopeDigest:member.selection_scope_digest, members:[] };
+    if (scope.scopeKind !== member.selection_scope_kind || scope.scopeKey !== member.selection_scope_key ||
+        scope.scopeRootRelativeLocation !== member.selection_scope_root_relative_location ||
+        scope.memberCount !== Number(member.selection_scope_member_count) || scope.memberSetDigest !== member.selection_scope_member_set_digest ||
+        scope.scopeDigest !== member.selection_scope_digest) {
+      fail('P7_TRIAGE_RUN_SCOPE_ROW_CONFLICT', 'Run members disagree about their frozen Selection Scope.');
+    }
+    scope.members.push({ materialKey:member.material_key, fieldRelativeLocation:member.field_relative_location, scopeMemberOrdinal });
+    groups.set(key, scope);
+  }
+  const scopes = [...groups.values()].sort((left, right) => left.scopeOrdinal - right.scopeOrdinal).map((scope, index) => {
+    if (scope.scopeOrdinal !== index || scope.members.length !== scope.memberCount) {
+      fail('P7_TRIAGE_RUN_SCOPE_COVERAGE_CORRUPT', 'Run Selection Scope coverage is incomplete.');
+    }
+    const orderedMembers = scope.members.sort((left, right) => left.scopeMemberOrdinal - right.scopeMemberOrdinal);
+    if (orderedMembers.some((member, ordinal) => member.scopeMemberOrdinal !== ordinal)) {
+      fail('P7_TRIAGE_RUN_SCOPE_MEMBER_ORDER_CORRUPT', 'Run Selection Scope member ordinals are not contiguous.');
+    }
+    const memberSetDigest = canonicalDigest({ schema:'procurement.selection-scope-members@1', items:orderedMembers });
+    const scopeValue = { scopeOrdinal:scope.scopeOrdinal, scopeKind:scope.scopeKind, scopeKey:scope.scopeKey,
+      scopeRootRelativeLocation:scope.scopeRootRelativeLocation, memberCount:scope.memberCount,
+      memberSetDigest:scope.memberSetDigest, scopeDigest:scope.scopeDigest };
+    const scopeDigest = canonicalDigest({ schema:'procurement.selection-scope@1', scopeKind:scope.scopeKind,
+      scopeKey:scope.scopeKey, scopeRootRelativeLocation:scope.scopeRootRelativeLocation,
+      memberCount:scope.memberCount, memberSetDigest:scope.memberSetDigest });
+    if (scope.memberSetDigest !== memberSetDigest || scope.scopeDigest !== scopeDigest) {
+      fail('P7_TRIAGE_RUN_SCOPE_DIGEST_CORRUPT', 'Run Selection Scope digest cannot be reconstructed.');
+    }
+    return Object.freeze(scopeValue);
+  });
+  if (scopes.length !== Number(run.selection_scope_count) ||
+      canonicalDigest({ schema:'procurement.selection-scope-set@1', scopes }) !== run.selection_scope_set_digest) {
+    fail('P7_TRIAGE_RUN_SCOPE_SET_CORRUPT', 'Run Selection Scope set digest cannot be reconstructed.');
+  }
+  return Object.freeze(scopes);
+}
+
 function definition(schemaManifest) {
   return createRepositoryDefinition({ repositoryId:'procurement_run_triage_reader', owner:'procurement', schemaManifest, statements:{
     find_run:{ kind:'select-one', tableId:'proc_procurement_runs', safeIntegers:true,
       columns:['procurement_run_id','field_id','access_revision','access_digest','content_profile_hint','profile_hint_revision',
         'profile_hint_digest','run_basis_digest','triage_rule_ref','triage_rule_revision','triage_rule_digest',
-        'triage_rule_authority_digest','terminal_observation_revision','field_observation_work_id','state','state_revision',
+        'triage_rule_authority_digest','terminal_observation_revision','field_observation_work_id','selected_material_count',
+        'selection_scope_count','selection_scope_set_digest','state','state_revision',
         'candidate_package_revision_head','created_at_ms'], keyColumns:['procurement_run_id'] },
     find_access:{ kind:'select-one', tableId:'proc_field_access_revisions', safeIntegers:true,
       columns:['field_id','revision','endpoint_id','root_location','mount_scope_id','mount_scope_revision','access_digest'],
       keyColumns:['field_id','revision'] },
     list_members:{ kind:'select-all', tableId:'proc_run_materials', safeIntegers:true,
-      columns:['procurement_run_id','ordinal','material_key','mount_scope_id','inode','size_bytes','fingerprint_algorithm','fingerprint_version','content_fingerprint',
+      columns:['procurement_run_id','ordinal','material_key','field_relative_location','selection_scope_kind','selection_scope_key',
+        'selection_scope_root_relative_location','selection_scope_ordinal','scope_member_ordinal','selection_scope_member_count',
+        'selection_scope_member_set_digest','selection_scope_digest','mount_scope_id','inode','size_bytes','fingerprint_algorithm','fingerprint_version','content_fingerprint',
         'selection_role','binding_revision','eligibility_revision','eligibility_basis_digest','last_snapshot_digest','last_observation_id',
         'admitted_control_revision','admitted_control_projection_digest','selection_state','candidate_package_id','endpoint_id','location',
         'reality_digest','provenance_digest','expected_control_revision','expected_control_state','expected_control_owner_domain',
@@ -67,7 +130,7 @@ function definition(schemaManifest) {
         'mount_scope_revision','mtime_ns','ctime_ns','fingerprint_verified_at_ms','current_location','binding_revision','reality_digest'] },
     page_observed_entries:{ kind:'select-page-after', tableId:'proc_field_observation_entries', keyColumn:'material_observation_id', fixedKeyColumns:['field_id','field_observation_work_id'], maxItems:500, safeIntegers:true,
       columns:['field_id','field_observation_work_id','observation_id','observation_revision','page_ordinal','entry_ordinal','material_observation_id','material_key','mount_scope_id','inode','size_bytes','fingerprint_algorithm','fingerprint_version','content_fingerprint','endpoint_id','access_revision','mount_scope_revision','current_location','relative_location','mtime_ns','ctime_ns','fingerprint_verified_at_ms','observed_at_ms','containment_digest','reality_digest','provenance_digest','snapshot_digest','entry_digest'] },
-    page_observed_scope:{ kind:'select-range', tableId:'proc_field_observation_entries', keyColumn:'relative_location', fixedKeyColumns:['field_id','field_observation_work_id','observation_revision'], maxItems:500, safeIntegers:true,
+    page_observed_scope:{ kind:'select-range', tableId:'proc_field_observation_entries', keyColumn:'relative_location', fixedKeyColumns:['field_id','field_observation_work_id'], maxItems:500, safeIntegers:true,
       columns:['field_id','field_observation_work_id','observation_id','observation_revision','page_ordinal','entry_ordinal','material_observation_id','material_key','mount_scope_id','inode','size_bytes','fingerprint_algorithm','fingerprint_version','content_fingerprint','endpoint_id','access_revision','mount_scope_revision','current_location','relative_location','mtime_ns','ctime_ns','fingerprint_verified_at_ms','observed_at_ms','containment_digest','reality_digest','provenance_digest','snapshot_digest','entry_digest'] },
     page_runs_by_state:{kind:'select-page-after',tableId:'proc_procurement_runs',keyColumn:'procurement_run_id',fixedKeyColumns:['state'],
       maxItems:100,columns:['procurement_run_id','state']},
@@ -80,6 +143,7 @@ function createProcurementRunTriageReader(options) {
   }
   const repository = definition(options.schemaManifest);
   const observedMaterialCache = new Map();
+  const runMemberIndexCache = new Map();
 
   function readObservedMaterials(run) {
     const workId = run?.field_observation_work_id;
@@ -141,7 +205,6 @@ function createProcurementRunTriageReader(options) {
         execute(context) {
           return context.repository(repository.repositoryId).invoke('page_observed_scope', {
             field_id:run.field_id, field_observation_work_id:workId,
-            observation_revision:Number(run.terminal_observation_revision),
             rangeStart, rangeEnd, cursor, limit:pageSize
           });
         } }]).procurement_observation_scope_read;
@@ -193,7 +256,7 @@ function createProcurementRunTriageReader(options) {
           let cursor = null;
           do {
             const page = repo.invoke('page_observed_scope', { field_id:run.field_id, field_observation_work_id:workId,
-              observation_revision:Number(run.terminal_observation_revision), rangeStart, rangeEnd, cursor, limit:pageSize });
+              rangeStart, rangeEnd, cursor, limit:pageSize });
             rowsByKey.get(key).push(...page);
             cursor = page.length === pageSize ? page[page.length - 1].relative_location : null;
             if (page.length < pageSize) break;
@@ -282,7 +345,9 @@ function createProcurementRunTriageReader(options) {
           if (!access || access.access_digest !== run.access_digest || members.length < 1 || members.length > MAX_RUN_PHYSICAL_MEMBERS) {
             fail('P7_TRIAGE_RUN_BASIS_CORRUPT', 'Run cannot reconstruct its exact admitted Triage basis.');
           }
-          return Object.freeze({ run:Object.freeze(run), access:Object.freeze(access), members:Object.freeze(members.map((member)=>Object.freeze(member))) });
+          const selectionScopes=validatePersistedScopeBasis(run,members);
+          return Object.freeze({ run:Object.freeze(run), access:Object.freeze(access),
+            selectionScopes, members:Object.freeze(members.map((member)=>Object.freeze(member))) });
         } }]).procurement_run_basis_read;
     },
     read(runId) {
@@ -297,6 +362,7 @@ function createProcurementRunTriageReader(options) {
           if (!access || access.access_digest !== run.access_digest || members.length < 1 || members.length > MAX_RUN_PHYSICAL_MEMBERS) {
             fail('P7_TRIAGE_RUN_BASIS_CORRUPT', 'Run cannot reconstruct its exact admitted Triage basis.');
           }
+          const selectionScopes=validatePersistedScopeBasis(run,members);
           const currentRows=[];
           for(let offset=0;offset<members.length;offset+=100){
             currentRows.push(...repo.invoke('find_field_materials',{field_id:run.field_id,
@@ -327,7 +393,8 @@ function createProcurementRunTriageReader(options) {
               ...handleBasis, fenceDigest:canonicalDigest({ schema:'procurement.physical-read-fence@1', ...handleBasis }) });
             return Object.freeze({ member:Object.freeze(member), current:Object.freeze(row), identity, readHandle });
           });
-          return Object.freeze({ run:Object.freeze(run), access:Object.freeze(access), materials:Object.freeze(materialContexts),
+          return Object.freeze({ run:Object.freeze(run), access:Object.freeze(access), selectionScopes,
+            materials:Object.freeze(materialContexts),
             candidates:Object.freeze(candidates.map((candidate)=>Object.freeze(candidate))) });
         } }]).procurement_run_triage_snapshot;
     },
@@ -346,7 +413,13 @@ function createProcurementRunTriageReader(options) {
           if (!access || access.access_digest !== run.access_digest || members.length < 1 || members.length > MAX_RUN_PHYSICAL_MEMBERS) {
             fail('P7_TRIAGE_RUN_BASIS_CORRUPT', 'Run cannot reconstruct its exact admitted Triage basis.');
           }
-          const memberMap=new Map(members.map((member)=>[member.material_key,member]));
+          const selectionScopes=basis?.selectionScopes || validatePersistedScopeBasis(run,members);
+          const memberIndexKey=runId+'\0'+run.run_basis_digest;
+          let memberMap=runMemberIndexCache.get(memberIndexKey);
+          if(!memberMap){
+            memberMap=new Map(members.map((member)=>[member.material_key,member]));
+            runMemberIndexCache.set(memberIndexKey,memberMap);
+          }
           const selectedMembers=materialKeys.map((key)=>memberMap.get(key));
           if (selectedMembers.some((member)=>!member)) {
             fail('P7_TRIAGE_CANDIDATE_MEMBER_MISSING', 'Candidate Unit references a Material outside the admitted Run Selection.');
@@ -377,12 +450,12 @@ function createProcurementRunTriageReader(options) {
               ...handleBasis, fenceDigest:canonicalDigest({ schema:'procurement.physical-read-fence@1', ...handleBasis }) });
             return Object.freeze({ member:Object.freeze(member), current:Object.freeze(row), identity, readHandle });
           }
-          const basisMaterials=basis?.materials || members.map((member)=>Object.freeze({ member:Object.freeze(member), identity:identityFromMember(member), current:null }));
-          return Object.freeze({ run:Object.freeze(run), access:Object.freeze(access), materials:Object.freeze(basisMaterials),
+          return Object.freeze({ run:Object.freeze(run), access:Object.freeze(access), selectionScopes,
+            ...(basis ? {} : { runMembers:Object.freeze(members.map((member)=>Object.freeze(member))) }),
             candidateMaterials:Object.freeze(selectedMembers.map(contextFor)) });
         } }]).procurement_candidate_context;
     },
   });
 }
 
-module.exports=Object.freeze({ ProcurementRunTriageReaderError, createProcurementRunTriageReader });
+module.exports=Object.freeze({ ProcurementRunTriageReaderError, createProcurementRunTriageReader, validatePersistedScopeBasis });

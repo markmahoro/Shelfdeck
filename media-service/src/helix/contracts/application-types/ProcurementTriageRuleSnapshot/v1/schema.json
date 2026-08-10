@@ -37,13 +37,13 @@
         "recallPriority": {
           "const": true
         },
-        "maxPrimaryMaterials": {
-          "const": 256
+        "maxRunPhysicalMembers": {
+          "const": 1024
         },
-        "maxLogicalSelectionGroups": {
-          "const": 256
+        "maxSelectionScopeMembers": {
+          "const": 1024
         },
-        "maxBdmvContainerMembers": {
+        "maxCandidateManifestMembers": {
           "const": 1024
         },
         "probeBatchSize": {
@@ -130,7 +130,7 @@
               "const": 1
             },
             "maximumMembers": {
-              "const": 256
+              "const": 1024
             },
             "firstOrdinal": {
               "const": 0
@@ -146,9 +146,9 @@
       "required": [
         "contractRefs",
         "recallPriority",
-        "maxPrimaryMaterials",
-        "maxLogicalSelectionGroups",
-        "maxBdmvContainerMembers",
+        "maxRunPhysicalMembers",
+        "maxSelectionScopeMembers",
+        "maxCandidateManifestMembers",
         "probeBatchSize",
         "playabilityRule",
         "profileResolutionRule",

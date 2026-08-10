@@ -49,7 +49,7 @@
       },
       {
         "ordinal": 5,
-        "name": "mount_scope_id",
+        "name": "field_relative_location",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -59,9 +59,13 @@
       },
       {
         "ordinal": 6,
-        "name": "inode",
+        "name": "selection_scope_kind",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "standalone_file",
+          "ordinary_directory",
+          "bdmv_container"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
         "inlineUnique": false,
@@ -69,7 +73,7 @@
       },
       {
         "ordinal": 7,
-        "name": "fingerprint_algorithm",
+        "name": "selection_scope_key",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -79,7 +83,7 @@
       },
       {
         "ordinal": 8,
-        "name": "fingerprint_version",
+        "name": "selection_scope_root_relative_location",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -89,8 +93,8 @@
       },
       {
         "ordinal": 9,
-        "name": "content_fingerprint",
-        "logicalType": "TEXT",
+        "name": "selection_scope_ordinal",
+        "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -99,7 +103,7 @@
       },
       {
         "ordinal": 10,
-        "name": "size_bytes",
+        "name": "scope_member_ordinal",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -109,7 +113,7 @@
       },
       {
         "ordinal": 11,
-        "name": "binding_revision",
+        "name": "selection_scope_member_count",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -119,8 +123,8 @@
       },
       {
         "ordinal": 12,
-        "name": "eligibility_revision",
-        "logicalType": "INTEGER",
+        "name": "selection_scope_member_set_digest",
+        "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -129,7 +133,7 @@
       },
       {
         "ordinal": 13,
-        "name": "eligibility_basis_digest",
+        "name": "selection_scope_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -139,7 +143,7 @@
       },
       {
         "ordinal": 14,
-        "name": "last_snapshot_digest",
+        "name": "mount_scope_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -149,7 +153,7 @@
       },
       {
         "ordinal": 15,
-        "name": "last_observation_id",
+        "name": "inode",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -159,7 +163,7 @@
       },
       {
         "ordinal": 16,
-        "name": "endpoint_id",
+        "name": "fingerprint_algorithm",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -169,7 +173,7 @@
       },
       {
         "ordinal": 17,
-        "name": "location",
+        "name": "fingerprint_version",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -179,7 +183,7 @@
       },
       {
         "ordinal": 18,
-        "name": "reality_digest",
+        "name": "content_fingerprint",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -189,8 +193,8 @@
       },
       {
         "ordinal": 19,
-        "name": "provenance_digest",
-        "logicalType": "TEXT",
+        "name": "size_bytes",
+        "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -199,7 +203,7 @@
       },
       {
         "ordinal": 20,
-        "name": "expected_control_revision",
+        "name": "binding_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -209,6 +213,96 @@
       },
       {
         "ordinal": 21,
+        "name": "eligibility_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 22,
+        "name": "eligibility_basis_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 23,
+        "name": "last_snapshot_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 24,
+        "name": "last_observation_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 25,
+        "name": "endpoint_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 26,
+        "name": "location",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 27,
+        "name": "reality_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 28,
+        "name": "provenance_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 29,
+        "name": "expected_control_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 30,
         "name": "expected_control_state",
         "logicalType": "TEXT",
         "enumValues": [
@@ -221,7 +315,7 @@
         "nullable": false
       },
       {
-        "ordinal": 22,
+        "ordinal": 31,
         "name": "expected_control_owner_domain",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -231,7 +325,7 @@
         "nullable": true
       },
       {
-        "ordinal": 23,
+        "ordinal": 32,
         "name": "expected_control_owner_scope_type",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -241,7 +335,7 @@
         "nullable": true
       },
       {
-        "ordinal": 24,
+        "ordinal": 33,
         "name": "expected_control_owner_scope_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -251,7 +345,7 @@
         "nullable": true
       },
       {
-        "ordinal": 25,
+        "ordinal": 34,
         "name": "expected_control_region_projection",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -261,7 +355,7 @@
         "nullable": false
       },
       {
-        "ordinal": 26,
+        "ordinal": 35,
         "name": "expected_control_evidence_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -271,7 +365,7 @@
         "nullable": false
       },
       {
-        "ordinal": 27,
+        "ordinal": 36,
         "name": "expected_control_projection_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -281,7 +375,7 @@
         "nullable": false
       },
       {
-        "ordinal": 28,
+        "ordinal": 37,
         "name": "admission_control_action",
         "logicalType": "TEXT",
         "enumValues": [
@@ -294,7 +388,7 @@
         "nullable": false
       },
       {
-        "ordinal": 29,
+        "ordinal": 38,
         "name": "admitted_control_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -304,7 +398,7 @@
         "nullable": false
       },
       {
-        "ordinal": 30,
+        "ordinal": 39,
         "name": "admitted_control_projection_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -314,7 +408,7 @@
         "nullable": false
       },
       {
-        "ordinal": 31,
+        "ordinal": 40,
         "name": "basis_member_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -324,7 +418,7 @@
         "nullable": false
       },
       {
-        "ordinal": 32,
+        "ordinal": 41,
         "name": "selection_state",
         "logicalType": "TEXT",
         "enumValues": [
@@ -339,7 +433,7 @@
         "nullable": false
       },
       {
-        "ordinal": 33,
+        "ordinal": 42,
         "name": "candidate_package_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -349,7 +443,7 @@
         "nullable": true
       },
       {
-        "ordinal": 34,
+        "ordinal": 43,
         "name": "terminal_disposition",
         "logicalType": "TEXT",
         "enumValues": [
@@ -364,7 +458,7 @@
         "nullable": true
       },
       {
-        "ordinal": 35,
+        "ordinal": 44,
         "name": "terminal_evidence_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -374,7 +468,7 @@
         "nullable": true
       },
       {
-        "ordinal": 36,
+        "ordinal": 45,
         "name": "selected_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -384,7 +478,7 @@
         "nullable": false
       },
       {
-        "ordinal": 37,
+        "ordinal": 46,
         "name": "reservation_updated_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -413,6 +507,14 @@
       "`UNIQUE(material_key) WHERE selection_state IN ('run_selection','candidate_delivery')`强制跨Run/Candidate占用唯一"
     ],
     "checkRules": [
+      {
+        "column": "selection_scope_kind",
+        "enumValues": [
+          "standalone_file",
+          "ordinary_directory",
+          "bdmv_container"
+        ]
+      },
       {
         "column": "expected_control_state",
         "enumValues": [
@@ -474,11 +576,12 @@
     "semanticRules": [
       "`rowMutability=cas_lifecycle`",
       "closed transitions仅为`run_selection → candidate_delivery|released`及`candidate_delivery → transferred|released`。`PK(procurement_run_id,ordinal)`及`UNIQUE(procurement_run_id,material_key)`",
-      "ordinal从0连续，`1..256`项且`selection_role=triage_input`",
+      "ordinal从0连续，`1..1024`项且`selection_role=triage_input`",
+      "Scope identity/count/digests在同一Scope全部成员上逐字一致，scope/member ordinal连续且恰好重建Run head",
       "Physical Identity四元组与`size_bytes`必须从Admission同事务重读的`proc_field_materials` current row逐字节复制，满足8.6.18 `PhysicalMaterialIdentity@2`的materialKey公式且size为non-negative safe integer，并作为immutable Run Basis列参与`basis_member_digest`",
       "expected Control列完整映射Admission前的available `MaterialControlProjectionSnapshot`，包括evidence/projection两个不同digest",
       "admitted pair冻结事务后同Field Procurement Control output并共同形成Receipt的`controlRevisionSetDigest`",
-      "Identity/size、expected字段、`basis_member_digest`和admitted pair均为write-once，禁止旁读最新值覆盖",
+      "Identity/size/Scope、expected字段、`basis_member_digest`和admitted pair均为write-once，禁止旁读最新值覆盖",
       "`UNIQUE(material_key) WHERE selection_state IN ('run_selection','candidate_delivery')`强制跨Run/Candidate占用唯一",
       "`run_selection`无Candidate/terminal pair，`candidate_delivery`要求Candidate且无terminal pair",
       "Candidate publish只允许`run_selection → candidate_delivery`并一次性填Candidate FK，之后该FK不可改写",
@@ -487,13 +590,13 @@
       "terminal disposition/evidence是同一CAS的write-once bundle，终态后只能相同Evidence幂等重放，不得再次UPDATE"
     ],
     "rawContract": {
-      "columns": "`procurement_run_id FK, ordinal, material_key, selection_role, mount_scope_id, inode, fingerprint_algorithm, fingerprint_version, content_fingerprint, size_bytes, binding_revision, eligibility_revision, eligibility_basis_digest, last_snapshot_digest, last_observation_id, endpoint_id, location, reality_digest, provenance_digest, expected_control_revision, expected_control_state, expected_control_owner_domain NULL, expected_control_owner_scope_type NULL, expected_control_owner_scope_id NULL, expected_control_region_projection, expected_control_evidence_digest, expected_control_projection_digest, admission_control_action(acquire|assert_same_field), admitted_control_revision, admitted_control_projection_digest, basis_member_digest, selection_state(run_selection|candidate_delivery|released|transferred), candidate_package_id NULL FK, terminal_disposition NULL|completed_without_candidate|triage_failed|handoff_accepted|handoff_rejected, terminal_evidence_digest NULL, selected_at_ms, reservation_updated_at_ms`",
-      "constraints": "`rowMutability=cas_lifecycle`；closed transitions仅为`run_selection → candidate_delivery|released`及`candidate_delivery → transferred|released`。`PK(procurement_run_id,ordinal)`及`UNIQUE(procurement_run_id,material_key)`；ordinal从0连续，`1..256`项且`selection_role=triage_input`；Physical Identity四元组与`size_bytes`必须从Admission同事务重读的`proc_field_materials` current row逐字节复制，满足8.6.18 `PhysicalMaterialIdentity@2`的materialKey公式且size为non-negative safe integer，并作为immutable Run Basis列参与`basis_member_digest`；expected Control列完整映射Admission前的available `MaterialControlProjectionSnapshot`，包括evidence/projection两个不同digest；admitted pair冻结事务后同Field Procurement Control output并共同形成Receipt的`controlRevisionSetDigest`；Identity/size、expected字段、`basis_member_digest`和admitted pair均为write-once，禁止旁读最新值覆盖；`UNIQUE(material_key) WHERE selection_state IN ('run_selection','candidate_delivery')`强制跨Run/Candidate占用唯一；`run_selection`无Candidate/terminal pair，`candidate_delivery`要求Candidate且无terminal pair；Candidate publish只允许`run_selection → candidate_delivery`并一次性填Candidate FK，之后该FK不可改写；Run Seal只把剩余Selection置`released+completed_without_candidate|triage_failed`、要求Candidate为NULL并保存Decision同一逐成员Evidence digest；Handoff终态只允许已有Candidate的Reservation变`transferred+handoff_accepted`或`released+handoff_rejected`并保存对应Receipt/Decision Evidence digest；terminal disposition/evidence是同一CAS的write-once bundle，终态后只能相同Evidence幂等重放，不得再次UPDATE"
+      "columns": "`procurement_run_id FK, ordinal, material_key, selection_role, field_relative_location, selection_scope_kind(standalone_file|ordinary_directory|bdmv_container), selection_scope_key, selection_scope_root_relative_location, selection_scope_ordinal, scope_member_ordinal, selection_scope_member_count, selection_scope_member_set_digest, selection_scope_digest, mount_scope_id, inode, fingerprint_algorithm, fingerprint_version, content_fingerprint, size_bytes, binding_revision, eligibility_revision, eligibility_basis_digest, last_snapshot_digest, last_observation_id, endpoint_id, location, reality_digest, provenance_digest, expected_control_revision, expected_control_state, expected_control_owner_domain NULL, expected_control_owner_scope_type NULL, expected_control_owner_scope_id NULL, expected_control_region_projection, expected_control_evidence_digest, expected_control_projection_digest, admission_control_action(acquire|assert_same_field), admitted_control_revision, admitted_control_projection_digest, basis_member_digest, selection_state(run_selection|candidate_delivery|released|transferred), candidate_package_id NULL FK, terminal_disposition NULL|completed_without_candidate|triage_failed|handoff_accepted|handoff_rejected, terminal_evidence_digest NULL, selected_at_ms, reservation_updated_at_ms`",
+      "constraints": "`rowMutability=cas_lifecycle`；closed transitions仅为`run_selection → candidate_delivery|released`及`candidate_delivery → transferred|released`。`PK(procurement_run_id,ordinal)`及`UNIQUE(procurement_run_id,material_key)`；ordinal从0连续，`1..1024`项且`selection_role=triage_input`；Scope identity/count/digests在同一Scope全部成员上逐字一致，scope/member ordinal连续且恰好重建Run head；Physical Identity四元组与`size_bytes`必须从Admission同事务重读的`proc_field_materials` current row逐字节复制，满足8.6.18 `PhysicalMaterialIdentity@2`的materialKey公式且size为non-negative safe integer，并作为immutable Run Basis列参与`basis_member_digest`；expected Control列完整映射Admission前的available `MaterialControlProjectionSnapshot`，包括evidence/projection两个不同digest；admitted pair冻结事务后同Field Procurement Control output并共同形成Receipt的`controlRevisionSetDigest`；Identity/size/Scope、expected字段、`basis_member_digest`和admitted pair均为write-once，禁止旁读最新值覆盖；`UNIQUE(material_key) WHERE selection_state IN ('run_selection','candidate_delivery')`强制跨Run/Candidate占用唯一；`run_selection`无Candidate/terminal pair，`candidate_delivery`要求Candidate且无terminal pair；Candidate publish只允许`run_selection → candidate_delivery`并一次性填Candidate FK，之后该FK不可改写；Run Seal只把剩余Selection置`released+completed_without_candidate|triage_failed`、要求Candidate为NULL并保存Decision同一逐成员Evidence digest；Handoff终态只允许已有Candidate的Reservation变`transferred+handoff_accepted`或`released+handoff_rejected`并保存对应Receipt/Decision Evidence digest；terminal disposition/evidence是同一CAS的write-once bundle，终态后只能相同Evidence幂等重放，不得再次UPDATE"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8766,
-      "lineDigest": "7a41b51b9500537ccb0cd4edefdea0485f0388b77d8f5477a5edaae81283579b"
+      "line": 8804,
+      "lineDigest": "87ca8c7f32fb41c9f24633ec4131a3c08ff80c2ce437ebc988e9306f517a355a"
     },
     "foreignKeys": [
       {

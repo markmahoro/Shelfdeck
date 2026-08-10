@@ -392,7 +392,6 @@ function draftFor(unit, structure, selected, snapshot, rule, identityClaim, mani
     candidatePackageId: stableId('candidate-package-', {
       procurementRunId: snapshot.run.procurement_run_id, unitId: unit.unitId,
     }),
-    expectedPackageRevision: Number(snapshot.run.candidate_package_revision_head) + 1,
     procurementRunId: snapshot.run.procurement_run_id, runBasisDigest: snapshot.run.run_basis_digest,
     triageRule: Object.freeze({ ruleRef: rule.ruleRef, revision: rule.revision, authorityDigest: rule.authorityDigest }),
     materialFieldContextRef: Object.freeze({ fieldId: snapshot.run.field_id,
@@ -751,7 +750,7 @@ function createMovieRunCoordinator(options) {
   async function advanceToHandoffAReady(procurementRunId) {
     const snapshot = runSnapshot(options, repository, procurementRunId);
     if (!snapshot || !['active', 'waiting'].includes(snapshot.run.state) || !snapshot.access ||
-        snapshot.members.length < 1 || snapshot.members.length > 256) {
+        snapshot.members.length < 1 || snapshot.members.length > 1024) {
       fail('P14_MOVIE_RUN_NOT_ACTIVE', 'Movie journey requires one exact active Procurement Run and Field Access.');
     }
     const terminalReplay = acceptedHandoffReplay(snapshot);
@@ -1025,7 +1024,7 @@ function createMovieRunCoordinator(options) {
       bindingKind: 'candidate_publication',
       phaseBasisDigest: publicationPhaseBasisDigest,
       capabilityRef: CAPABILITY_REF,
-      resultSchemaRef: 'helix://contracts/types/CandidatePackage/v1',
+      resultSchemaRef: 'helix://contracts/types/CandidatePublicationReceipt/v1',
       contractBase: 'helix://contracts/capabilities/procurement.candidate.publish/v1',
       effectClass: 'domain_fact_commit',
       resourceKinds: ['disk_io'],
@@ -1086,8 +1085,8 @@ function createMovieRunCoordinator(options) {
         handleId: stableId('movie-candidate-handle-', { draftId: assembledDraft.draftId }), ownerDomain: 'procurement',
         aggregateType: 'candidate_package', aggregateId: assembledDraft.candidatePackageId, factType: 'CandidateDraft',
         factSchemaRef: 'helix://contracts/domain-types/CandidateDraft/v1',
-        expectedRevision: assembledDraft.expectedPackageRevision - 1,
-        payloadDigest: canonicalDigest(assembledDraft), resultSchemaRef: 'helix://contracts/types/CandidatePackage/v1',
+        expectedRevision: 0,
+        payloadDigest: canonicalDigest(assembledDraft), resultSchemaRef: 'helix://contracts/types/CandidatePublicationReceipt/v1',
         commitIdempotencyKey: publicationPlanned.work.idempotencyKey,
         eventFenceDigest: publicationPlanned.step.fenceBasis.eventFenceDigest }),
       commitMarker: Object.freeze({

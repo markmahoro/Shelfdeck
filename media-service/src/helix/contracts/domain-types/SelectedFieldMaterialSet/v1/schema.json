@@ -21,6 +21,74 @@
       "minLength": 1,
       "maxLength": 256
     },
+    "physicalMemberCount": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "selectionScopeCount": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "selectionScopes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "scopeOrdinal": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "scopeKind": {
+            "type": "string",
+            "enum": [
+              "standalone_file",
+              "ordinary_directory",
+              "bdmv_container"
+            ]
+          },
+          "scopeKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "scopeRootRelativeLocation": {
+            "type": "string",
+            "minLength": 1
+          },
+          "memberCount": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "memberSetDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "scopeDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "scopeOrdinal",
+          "scopeKind",
+          "scopeKey",
+          "scopeRootRelativeLocation",
+          "memberCount",
+          "memberSetDigest",
+          "scopeDigest"
+        ]
+      },
+      "maxItems": 1024,
+      "minItems": 1
+    },
+    "scopeSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
     "members": {
       "type": "array",
       "items": {
@@ -38,6 +106,18 @@
           },
           "selectionRole": {
             "const": "triage_input"
+          },
+          "fieldRelativeLocation": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scopeOrdinal": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "scopeMemberOrdinal": {
+            "type": "integer",
+            "minimum": 0
           },
           "physicalIdentity": {
             "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
@@ -169,6 +249,9 @@
           "ordinal",
           "materialKey",
           "selectionRole",
+          "fieldRelativeLocation",
+          "scopeOrdinal",
+          "scopeMemberOrdinal",
           "physicalIdentity",
           "sizeBytes",
           "bindingRevision",
@@ -197,6 +280,10 @@
   "required": [
     "procurementRunId",
     "fieldId",
+    "physicalMemberCount",
+    "selectionScopeCount",
+    "selectionScopes",
+    "scopeSetDigest",
     "members",
     "selectionDigest"
   ]

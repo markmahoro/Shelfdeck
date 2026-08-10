@@ -533,11 +533,18 @@ function reconcileEligibility(options, snapshot, decisions) {
   }
 }
 
-function runMember(material, controlSnapshot, ordinal) {
+function runMember(material, controlSnapshot, ordinal, scopeMember) {
+  if (!scopeMember || typeof scopeMember.fieldRelativeLocation !== 'string' ||
+      !Number.isSafeInteger(scopeMember.scopeOrdinal) || !Number.isSafeInteger(scopeMember.scopeMemberOrdinal)) {
+    fail('PROCUREMENT_AUTOMATION_SCOPE_MISSING', 'Run Admission requires a frozen Selection Scope for every Material.');
+  }
   const value = {
     ordinal,
     materialKey: material.material_key,
     selectionRole: 'triage_input',
+    fieldRelativeLocation: scopeMember.fieldRelativeLocation,
+    scopeOrdinal: scopeMember.scopeOrdinal,
+    scopeMemberOrdinal: scopeMember.scopeMemberOrdinal,
     physicalIdentity: {
       schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v2',
       schemaVersion: 2,
@@ -567,6 +574,25 @@ function runMember(material, controlSnapshot, ordinal) {
   return Object.freeze({
     ...value,
     basisMemberDigest: canonicalDigest(value),
+  });
+}
+
+function selectedSetForSlice(slice, fieldId, controls) {
+  const orderedMembers = [...slice.members]
+    .sort((left, right) => Buffer.compare(Buffer.from(left.materialKey), Buffer.from(right.materialKey)));
+  const members = orderedMembers.map((item, index) => runMember(item.material, controls[index], index, item));
+  const selectionValue = {
+    procurementRunId: slice.procurementRunId,
+    fieldId,
+    physicalMemberCount: slice.physicalMemberCount,
+    selectionScopeCount: slice.selectionScopeCount,
+    selectionScopes: slice.selectionScopes,
+    scopeSetDigest: slice.scopeSetDigest,
+    members: Object.freeze(members),
+  };
+  return Object.freeze({
+    ...selectionValue,
+    selectionDigest: canonicalDigest({ schema:'procurement.selected-field-material-set@2', ...selectionValue }),
   });
 }
 
@@ -782,248 +808,6 @@ function createProcurementAutomationService(options) {
     );
   }
 
-  function advanceFromObservation(observation) {
-    if (!options.workRuntime) {
-      fail('PROCUREMENT_AUTOMATION_SYNCHRONOUS_RUNTIME_UNAVAILABLE',
-        'The retired synchronous Procurement automation path is unavailable.');
-    }
-    if (!observation || observation.state !== 'succeeded' ||
-        typeof observation.fieldId !== 'string' ||
-        !Number.isSafeInteger(observation.accessRevision) ||
-        !Number.isSafeInteger(observation.terminalObservationRevision) ||
-        typeof observation.observationWorkId !== 'string') {
-      fail(
-        'PROCUREMENT_AUTOMATION_OBSERVATION_INVALID',
-        'Procurement Automation只接受正式terminal Observation Result。',
-      );
-    }
-    let current = snapshot(observation);
-    if (current.existingRun) return recoverExisting(current);
-    if (current.materials.length === 0) {
-      return Object.freeze({
-        stage: 'no_observed_material',
-        fieldId: observation.fieldId,
-        terminalObservationRevision: observation.terminalObservationRevision,
-        replayed: observation.replayed,
-      });
-    }
-    if (current.materials.length > MAX_RUN_MEMBERS) {
-      fail(
-        'PROCUREMENT_AUTOMATION_SELECTION_BOUNDS',
-        '单个automatic Run最多冻结256个Material；当前Field需要后续分片策略。',
-        { materialCount: current.materials.length },
-      );
-    }
-    const changedMaterials = current.materials.filter((material) => needsEligibilityReconcile(material, current));
-    const alreadyReconciled = changedMaterials.length === 0;
-    if (!alreadyReconciled) {
-      const controls = readControlSnapshots(
-        options,
-        changedMaterials.map((material) => material.material_key),
-        'procurement_automation_eligibility_control',
-      );
-      const decisions = eligibilityDecisions(current, controls, changedMaterials);
-      reconcileEligibility(options, current, decisions);
-      current = snapshot(observation);
-    }
-    if (current.existingRun) return recoverExisting(current);
-    const eligible = current.materials.filter((material) =>
-      material.eligibility_state === 'eligible' &&
-      material.eligibility_field_status === 'active' &&
-      Number(material.eligibility_policy_revision) === Number(current.policy.revision));
-    if (eligible.length === 0) {
-      return Object.freeze({
-        stage: 'no_eligible_material',
-        fieldId: observation.fieldId,
-        terminalObservationRevision: observation.terminalObservationRevision,
-        observedMaterialCount: current.materials.length,
-        replayed: observation.replayed,
-      });
-    }
-    const admissionControls = readControlSnapshots(
-      options,
-      eligible.map((material) => material.material_key),
-      'procurement_automation_admission_control',
-    );
-    const members = eligible.map((material, index) => {
-      const control = admissionControls[index];
-      const controlledBySameField = control?.resultKind === 'available' &&
-        control.controlState === 'controlled' &&
-        control.ownerDomain === 'procurement' &&
-        control.ownerScopeType === 'material_field' &&
-        control.ownerScopeId === observation.fieldId;
-      if (!control || control.resultKind !== 'available' ||
-          (control.controlState !== 'uncontrolled' && !controlledBySameField)) {
-        fail(
-          'PROCUREMENT_AUTOMATION_CONTROL_INELIGIBLE',
-          'Eligible Material的Control scope已变化，拒绝Run Admission。',
-          { materialKey: material.material_key },
-        );
-      }
-      return runMember(material, control, index);
-    });
-    const selectionValue = {
-      procurementRunId: current.runId,
-      fieldId: observation.fieldId,
-      members: Object.freeze(members),
-    };
-    const selectedFieldMaterialSet = Object.freeze({
-      ...selectionValue,
-      selectionDigest: canonicalDigest({
-        schema: 'procurement.selected-field-material-set@1',
-        ...selectionValue,
-      }),
-    });
-    const basisValue = {
-      procurementRunId: current.runId,
-      fieldId: observation.fieldId,
-      fieldStatus: 'active',
-      fieldAccess: Object.freeze({
-        revision: Number(current.access.revision),
-        digest: current.access.access_digest,
-      }),
-      profileHintSnapshot: Object.freeze({
-        fieldId: observation.fieldId,
-        revision: Number(current.profileHint.revision),
-        contentProfileHint: current.profileHint.content_profile_hint,
-        hintDigest: current.profileHint.hint_digest,
-      }),
-      terminalObservation: Object.freeze({
-        revision: Number(current.terminalObservation.revision),
-        fieldObservationWorkId:
-          current.terminalObservation.field_observation_work_id,
-        profileHintSnapshot: Object.freeze({
-          fieldId: observation.fieldId,
-          revision: Number(current.profileHint.revision),
-          contentProfileHint: current.profileHint.content_profile_hint,
-          hintDigest: current.profileHint.hint_digest,
-        }),
-      }),
-      extractionPolicy: Object.freeze({
-        policyId: current.policy.extraction_policy_id,
-        revision: Number(current.policy.revision),
-        digest: current.policy.policy_digest,
-      }),
-      triageRule: rule,
-      selectedFieldMaterialSet,
-    };
-    const runBasis = createProcurementRunExecutionBasis(Object.freeze({
-      ...basisValue,
-      basisDigest: canonicalDigest(basisValue),
-    }), options.triageRegistry);
-    const handle = controlHandle(runBasis);
-    const workId = stableId('procurement-run-admission-work-', {
-      procurementRunId: runBasis.procurementRunId,
-      basisDigest: runBasis.basisDigest,
-    });
-    const eventId = stableId('procurement-run-admission-event-', { workId });
-    const resultId = stableId('procurement-run-admission-result-', {
-      procurementRunId: runBasis.procurementRunId,
-      eventId,
-    });
-    const admission = createWorkAdmission({
-      schemaManifest: options.schemaManifest,
-      unitOfWork: options.unitOfWork,
-      eligibilityProvider: {
-        check: (request) => Object.freeze({
-          eligible: request.ownerDomain === 'procurement' &&
-            request.processId === runBasis.procurementRunId &&
-            request.executionBasisDigest === runBasis.basisDigest,
-          basisDigest: runBasis.basisDigest,
-          reasonCode: 'PROCUREMENT_RUN_ADMISSION_BASIS_STALE',
-        }),
-      },
-      limits: Object.freeze({
-        globalOpenWorks: 1_000,
-        ownerOpenWorks: 500,
-        openEvents: 100_000,
-      }),
-    }).submit(workDefinition(runBasis, workId));
-    if (admission.kind !== 'admitted') {
-      fail(
-        'PROCUREMENT_AUTOMATION_WORK_DEFERRED',
-        'Procurement Run Admission Work当前无法准入。',
-        { reasonCode: admission.reasonCode },
-      );
-    }
-    const step = capabilityStep(runBasis, handle, workId, eventId);
-    const activated = options.workRuntime.activate({
-      workId,
-      ownerDomain: 'procurement',
-      basisDigest: runBasis.basisDigest,
-      plannerRef: 'procurement.automatic-run-admission-planner@1',
-      catalogDigest: canonicalDigest({
-        schema: 'procurement.automatic-run-admission-catalog@1',
-        capabilities: Object.freeze([CAPABILITY_REF]),
-      }),
-      steps: Object.freeze([step]),
-    });
-    const frozenInput = activated.snapshot.pages[0];
-    if (!frozenInput ||
-        frozenInput.selectedFieldMaterialSet.selectionDigest !==
-          runBasis.selectedFieldMaterialSet.selectionDigest ||
-        frozenInput.responsibilityControlCommitHandle.basisDigest !==
-          runBasis.basisDigest) {
-      fail(
-        'PROCUREMENT_AUTOMATION_WORK_TOPOLOGY_CORRUPT',
-        'Frozen Run Admission Work未守恒Selection/Control inputs。',
-      );
-    }
-    const event = options.workRuntime.beginEvent(eventId);
-    let committed;
-    if (event.state === 'succeeded') {
-      committed = Object.freeze({ replayed: true });
-    } else {
-      const commitMarker = stableId('procurement-run-admission-marker-', {
-        procurementRunId: runBasis.procurementRunId,
-        basisDigest: runBasis.basisDigest,
-      });
-      committed = runAdmissionStore.admit({
-        basis: runBasis,
-        controlHandle: handle,
-        priorityClass: 'normal',
-        commitMarker: Object.freeze({
-          commitMarker,
-          effectId: eventId,
-          commitDigest: canonicalDigest({
-            schema: 'procurement.automatic-run-admission-command@1',
-            workId,
-            eventId,
-            runBasisDigest: runBasis.basisDigest,
-            controlHandleDigest: canonicalDigest(handle),
-          }),
-        }),
-        resultBinding: Object.freeze({ resultId, eventId }),
-      });
-      options.workRuntime.completeEvent(eventId, resultId);
-    }
-    options.workRuntime.complete(workId);
-    const persisted = snapshot(observation);
-    if (!persisted.existingRun) {
-      fail(
-        'PROCUREMENT_AUTOMATION_RUN_MISSING',
-        'Run Admission返回成功但Owner Run事实不可读。',
-      );
-    }
-    const persistedMembers = options.unitOfWork.execute([{
-      participantId: 'procurement_automation_committed_members',
-      owner: 'procurement',
-      repositories: [repository],
-      execute(context) {
-        return context.repository(repository.repositoryId).invoke(
-          'list_run_materials',
-          { procurement_run_id: runBasis.procurementRunId },
-        );
-      },
-    }]).procurement_automation_committed_members;
-    return resultSummary(
-      persisted.existingRun,
-      persistedMembers,
-      Boolean(admission.replayed && committed.replayed),
-      Boolean(event.recovered),
-    );
-  }
-
   function reconcileFromObservation(observation, changedMaterialKeys = []) {
     if (!observation || observation.state !== 'succeeded' ||
         typeof observation.fieldId !== 'string' ||
@@ -1062,6 +846,8 @@ function createProcurementAutomationService(options) {
       extractionPolicyId:current.policy.extraction_policy_id, extractionPolicyRevision:Number(current.policy.revision),
       extractionPolicyDigest:current.policy.policy_digest, triageRuleAuthorityDigest:rule.authorityDigest });
     const sliced = createProcurementRunSlices({ fieldId:observation.fieldId, creationBasisDigest,
+      maxRunPhysicalMembers:rule.maxRunPhysicalMembers,
+      maxSelectionScopeMembers:rule.maxSelectionScopeMembers,
       materials:eligible.map((material) => ({ materialKey:material.material_key,
         relativeLocation:relativeLocation(current.access.root_location, material.current_location), material })) });
     const admittedRuns = [];
@@ -1069,11 +855,7 @@ function createProcurementAutomationService(options) {
       const orderedMembers=[...slice.members].sort((left,right)=>Buffer.compare(Buffer.from(left.materialKey),Buffer.from(right.materialKey)));
       const controls = readControlSnapshots(options, orderedMembers.map((item) => item.materialKey),
         'procurement_automation_admission_control');
-      const members = orderedMembers.map((item, index) => runMember(item.material, controls[index], index));
-      const selectionValue = { procurementRunId:slice.procurementRunId, fieldId:observation.fieldId,
-        members:Object.freeze(members) };
-      const selectedFieldMaterialSet = Object.freeze({ ...selectionValue, selectionDigest:canonicalDigest({
-        schema:'procurement.selected-field-material-set@1', ...selectionValue }) });
+      const selectedFieldMaterialSet = selectedSetForSlice(slice, observation.fieldId, controls);
       const profileHintSnapshot = Object.freeze({ fieldId:observation.fieldId,
         revision:Number(current.profileHint.revision), contentProfileHint:current.profileHint.content_profile_hint,
         hintDigest:current.profileHint.hint_digest });
@@ -1094,7 +876,8 @@ function createProcurementAutomationService(options) {
         commitMarker:Object.freeze({ commitMarker:stableId('procurement-run-admission-marker-', {
           procurementRunId:runBasis.procurementRunId, basisDigest:runBasis.basisDigest }), commitDigest }) });
       admittedRuns.push(Object.freeze({ procurementRunId:runBasis.procurementRunId,
-        runBasisDigest:runBasis.basisDigest, selectedMaterialCount:members.length, replayed:committed.replayed }));
+        runBasisDigest:runBasis.basisDigest, selectedMaterialCount:selectedFieldMaterialSet.physicalMemberCount,
+        selectionScopeCount:selectedFieldMaterialSet.selectionScopeCount, replayed:committed.replayed }));
     }
     return Object.freeze({ stage:admittedRuns.length ? 'procurement_runs_active' : 'no_eligible_material',
       runs:Object.freeze(admittedRuns), closedGroups:sliced.closedGroups });

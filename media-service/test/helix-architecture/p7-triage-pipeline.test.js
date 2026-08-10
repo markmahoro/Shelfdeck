@@ -5,6 +5,7 @@ const test = require('node:test');
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const { createDefaultTriageRuleRegistry } = require('../../src/helix/domains/procurement/model/procurement-run-contracts');
 const { createTriageCapabilities } = require('../../src/helix/domains/procurement/capabilities/triage-pipeline');
+const { createSingleScopeSelection } = require('./helpers/procurement-selection-fixture');
 
 const d = (label) => canonicalDigest({ label });
 const rule = createDefaultTriageRuleRegistry().entries[0];
@@ -23,12 +24,12 @@ function profileHintSnapshot(contentProfileHint) {
   };
 }
 
-function probeMember(ordinal, label, probe = {}) {
+function probeMember(ordinal, label, probe = {}, location = `shows/Demo/${label}.mkv`) {
   const identity={schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,mountScopeId:'mount-1',inode:String(ordinal+1),sizeBytes:100,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint:d(`material:${label}`)};
   identity.materialKey=canonicalDigest({schema:'physical-material-identity@2',mountScopeId:identity.mountScopeId,inode:identity.inode,sizeBytes:identity.sizeBytes,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint:identity.contentFingerprint});
   const materialKey = identity.materialKey;
   const readHandle = { handleId:`handle-${label}`, identity, ownerDomain:'procurement', ownerScope:{}, bindingRevision:1,
-    endpointId:'endpoint-1', location:`shows/Demo/${label}.mkv`, mountScopeRevision:1, expectedSizeBytes:100,
+    endpointId:'endpoint-1', location, mountScopeRevision:1, expectedSizeBytes:100,
     expectedMtimeNs:'1', expectedCtimeNs:'1', fingerprintVerifiedAtMs:1, readScope:'media_probe', expiresAtMs:2000, fenceDigest:d(`fence:${label}`) };
   const mediaProbe = { sourceHandleDigest:canonicalDigest(readHandle), resultKind:'probed', container:'matroska', durationMs:1000,
     sizeBytes:100, videoStreams:[{ streamIndex:0 }], audioStreams:[], subtitleStreams:[], payloadDigest:d(`probe:${label}`), ...probe };
@@ -38,11 +39,107 @@ function probeMember(ordinal, label, probe = {}) {
   return value;
 }
 
+function movieScopeStructure(locations, scope) {
+  const probeMembers = locations.map((location, ordinal) => probeMember(
+    ordinal,
+    location.split('/').at(-1).replace(/\.[^.]+$/, ''),
+    {},
+    location,
+  ));
+  const selected = createSingleScopeSelection({
+    procurementRunId:'run-1',
+    fieldId:'field-1',
+    scopeKind:scope.scopeKind,
+    scopeKey:scope.scopeKey,
+    scopeRootRelativeLocation:scope.scopeRootRelativeLocation,
+    members:probeMembers.map((member, ordinal) => ({
+      ordinal,
+      materialKey:member.materialKey,
+      selectionRole:'triage_input',
+      physicalIdentity:member.readHandle.identity,
+      sizeBytes:100,
+      bindingRevision:1,
+      eligibilityRevision:1,
+      eligibilityBasisDigest:d(`scope-eligibility:${ordinal}`),
+      lastSnapshotDigest:d(`scope-snapshot:${ordinal}`),
+      lastObservationId:'observation-1',
+      endpointId:'endpoint-1',
+      location:member.readHandle.location,
+      realityDigest:d(`scope-reality:${ordinal}`),
+      provenanceDigest:d(`scope-provenance:${ordinal}`),
+      controlSnapshot:{},
+      admissionControlAction:'acquire',
+    })),
+  });
+  const probeBatch = batch(probeMembers);
+  probeBatch.selectionDigest = selected.selectionDigest;
+  probeBatch.batchDigest = canonicalDigest(Object.fromEntries(
+    Object.entries(probeBatch).filter(([key]) => key !== 'batchDigest'),
+  ));
+  const playability = capabilities.playabilityInspect.execute({
+    triageMaterialProbeBatch:probeBatch,
+    procurementTriageRuleSnapshot:rule,
+  });
+  const contextValue = {
+    fieldId:'field-1',
+    accessRevision:1,
+    accessDigest:d('scope-access'),
+    profileHintSnapshot:profileHintSnapshot('movie'),
+    memberContexts:probeMembers.map((member, selectionOrdinal) => ({
+      selectionOrdinal,
+      materialKey:member.materialKey,
+      fieldRelativeLocation:member.readHandle.location,
+      baseName:member.readHandle.location.split('/').at(-1),
+      extension:'.mkv',
+      parentSegments:member.readHandle.location.split('/').slice(0, -1),
+      layoutEvidenceRefs:[],
+    })),
+  };
+  const materialFieldContext = { ...contextValue, contextDigest:canonicalDigest(contextValue) };
+  const pageValue = { pageOrdinal:0, cursorIn:null, maxUnits:100 };
+  const pageRequest = { ...pageValue, requestDigest:canonicalDigest(pageValue) };
+  const input = {
+    selectedFieldMaterialSet:selected,
+    probeBatches:[probeBatch],
+    playabilityPages:[playability],
+    materialFieldContext,
+    layoutEvidence:[],
+    pageRequest,
+    inputDigest:canonicalDigest({
+      schema:'procurement.triage-structure-input@1',
+      selectionDigest:selected.selectionDigest,
+      probeBatchDigests:[probeBatch.batchDigest],
+      playabilityPayloadDigests:[playability.payloadDigest],
+      contextDigest:materialFieldContext.contextDigest,
+      layoutPayloadDigests:[],
+      pageRequest,
+    }),
+  };
+  return capabilities.structureInspect.execute({
+    triageStructureInspectionInput:input,
+    procurementTriageRuleSnapshot:rule,
+  });
+}
+
 function batch(members) {
   const value = { procurementRunId:'run-1', runBasisDigest:d('run-basis'), selectionDigest:d('selection'), batchOrdinal:0,
     members, batchDigest:'' };
   value.batchDigest = canonicalDigest(Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'batchDigest')));
   return value;
+}
+
+function scopedSelection(members, selectionDigest) {
+  return {
+    ...createSingleScopeSelection({
+      procurementRunId:'run-1',
+      fieldId:'field-1',
+      members,
+      scopeKind:'ordinary_directory',
+      scopeKey:'ordinary-directory:shows',
+      scopeRootRelativeLocation:'shows',
+    }),
+    selectionDigest,
+  };
 }
 
 function singleStructureFixture(label, contentProfileHint) {
@@ -52,10 +149,7 @@ function singleStructureFixture(label, contentProfileHint) {
     triageMaterialProbeBatch: probeBatch,
     procurementTriageRuleSnapshot: rule,
   });
-  const selected = {
-    procurementRunId: 'run-1',
-    fieldId: 'field-1',
-    members: [{
+  const selected = scopedSelection([{
       ordinal: 0,
       materialKey: member.materialKey,
       selectionRole: 'triage_input',
@@ -73,9 +167,7 @@ function singleStructureFixture(label, contentProfileHint) {
       controlSnapshot: {},
       admissionControlAction: 'acquire',
       basisMemberDigest: d(`basis:${label}`),
-    }],
-    selectionDigest: probeBatch.selectionDigest,
-  };
+    }], probeBatch.selectionDigest);
   const contextValue = {
     fieldId: 'field-1',
     accessRevision: 1,
@@ -130,12 +222,12 @@ function movieStructureInput(count, pageOrdinal=0, cursorIn=null) {
   const members=Array.from({length:count},(_,index)=>probeMember(index,`movie-${String(index).padStart(3,'0')}-${'x'.repeat(96)}`));
   const probeBatch=batch(members);const playability=capabilities.playabilityInspect.execute({
     triageMaterialProbeBatch:probeBatch,procurementTriageRuleSnapshot:rule});
-  const selected={procurementRunId:'run-1',fieldId:'field-1',members:members.map((member,ordinal)=>({ordinal,
+  const selected=scopedSelection(members.map((member,ordinal)=>({ordinal,
     materialKey:member.materialKey,selectionRole:'triage_input',physicalIdentity:member.readHandle.identity,sizeBytes:100,bindingRevision:1,
     eligibilityRevision:1,eligibilityBasisDigest:d(`eligibility:${ordinal}`),lastSnapshotDigest:d(`snapshot:${ordinal}`),
     lastObservationId:`observation-${ordinal}`,endpointId:'endpoint-1',location:member.readHandle.location,realityDigest:d(`reality:${ordinal}`),
     provenanceDigest:d(`provenance:${ordinal}`),controlSnapshot:{},admissionControlAction:'acquire',basisMemberDigest:d(`basis:${ordinal}`)})),
-    selectionDigest:probeBatch.selectionDigest};
+    probeBatch.selectionDigest);
   const contextValue={fieldId:'field-1',accessRevision:1,accessDigest:d('access'),profileHintSnapshot:profileHintSnapshot('movie'),
     memberContexts:members.map((member,selectionOrdinal)=>({selectionOrdinal,materialKey:member.materialKey,
       fieldRelativeLocation:member.readHandle.location,baseName:`movie-${selectionOrdinal}-${'x'.repeat(96)}.mkv`,extension:'.mkv',
@@ -159,6 +251,43 @@ test('playability consumes typed probe evidence and emits the closed ordered rea
   assert.match(result.materialResults[1].resultDigest, /^[a-f0-9]{64}$/);
 });
 
+test('Structure applies the persisted mixed-Field Scope title and Related association rules', () => {
+  const standalone = movieScopeStructure(['苹果.mkv'], {
+    scopeKind:'standalone_file',
+    scopeKey:'standalone-file:苹果.mkv',
+    scopeRootRelativeLocation:'苹果.mkv',
+  });
+  assert.equal(standalone.units.length, 1);
+  assert.equal(standalone.units[0].displayIdentity, '苹果');
+  assert.equal(standalone.units[0].relatedScope.parentRelativeLocation, '.');
+  assert.equal(standalone.units[0].relatedScope.associationMode, 'standalone_same_stem');
+
+  const singleDirectory = movieScopeStructure(['One Movie/Feature.mkv'], {
+    scopeKind:'ordinary_directory',
+    scopeKey:'ordinary-directory:One Movie',
+    scopeRootRelativeLocation:'One Movie',
+  });
+  assert.equal(singleDirectory.units.length, 1);
+  assert.equal(singleDirectory.units[0].displayIdentity, 'One Movie');
+  assert.equal(singleDirectory.units[0].relatedScope.associationMode, 'single_movie_directory');
+
+  const multiDirectory = movieScopeStructure([
+    'Mixed Folder/First Film.mkv',
+    'Mixed Folder/Second Film.mkv',
+  ], {
+    scopeKind:'ordinary_directory',
+    scopeKey:'ordinary-directory:Mixed Folder',
+    scopeRootRelativeLocation:'Mixed Folder',
+  });
+  assert.deepEqual(
+    multiDirectory.units.map((unit) => unit.displayIdentity).sort(),
+    ['First Film', 'Second Film'],
+  );
+  assert.ok(multiDirectory.units.every(
+    (unit) => unit.relatedScope.associationMode === 'multi_movie_directory',
+  ));
+});
+
 test('Structure automatically paginates complete Movie Units at the 64 KiB boundary', () => {
   const collected=[];let cursorIn=null,pageOrdinal=0;
   do {
@@ -180,7 +309,7 @@ test('explicit JAV Hint falls back to title without inventing a code and mixed r
   assert.equal(unit.mediaType, 'single');
   assert.equal(unit.contentProfile, 'jav');
   assert.equal(unit.structureKind, 'single');
-  assert.equal(unit.displayIdentity, 'Summer Night Feature.mkv');
+  assert.equal(unit.displayIdentity, 'Summer Night Feature');
   assert.equal(Object.hasOwn(unit.identityMetadata, 'javCode'), false);
   assert.deepEqual(
     unit.identityMetadata.sourceHints.map((hint) => hint.hintKind),
@@ -204,7 +333,7 @@ test('explicit JAV Hint falls back to title without inventing a code and mixed r
   });
   assert.equal(identity.claimKind, 'jav_code');
   assert.equal(identity.contentProfile, 'jav');
-  assert.equal(identity.displayIdentity, 'Summer Night Feature.mkv');
+  assert.equal(identity.displayIdentity, 'Summer Night Feature');
   assert.equal(Object.hasOwn(identity, 'javCode'), false);
   assert.equal(identity.sourceHints.some(
     (hint) => hint.hintKind === 'jav_code'
@@ -214,7 +343,7 @@ test('explicit JAV Hint falls back to title without inventing a code and mixed r
   assert.equal(mixed.structure.units.length, 1);
   assert.equal(mixed.structure.units[0].contentProfile, 'movie');
   assert.equal(mixed.structure.units[0].displayIdentity,
-    'Summer Night Feature.mkv');
+    'shows');
 
   const western = singleStructureFixture('Summer Night Feature', 'western_adult');
   assert.equal(western.structure.units.length, 1);
@@ -237,11 +366,11 @@ test('explicit JAV Hint falls back to title without inventing a code and mixed r
 test('structure preserves Selection mapping and carries series mediaType/contentProfile into Identity and Manifest Draft', () => {
   const member = probeMember(0, 'Demo.S02E03-04'); const probeBatch = batch([member]);
   const playability = capabilities.playabilityInspect.execute({ triageMaterialProbeBatch:probeBatch, procurementTriageRuleSnapshot:rule });
-  const selected = { procurementRunId:'run-1', fieldId:'field-1', members:[{ ordinal:0, materialKey:member.materialKey,
+  const selected = scopedSelection([{ ordinal:0, materialKey:member.materialKey,
     selectionRole:'triage_input', physicalIdentity:member.readHandle.identity,sizeBytes:100,bindingRevision:1, eligibilityRevision:1, eligibilityBasisDigest:d('eligibility'),
     lastSnapshotDigest:d('snapshot'), lastObservationId:'observation-1', endpointId:'endpoint-1', location:member.readHandle.location,
     realityDigest:d('reality'), provenanceDigest:d('provenance'), controlSnapshot:{}, admissionControlAction:'acquire',
-    basisMemberDigest:d('basis-member') }], selectionDigest:probeBatch.selectionDigest };
+    basisMemberDigest:d('basis-member') }], probeBatch.selectionDigest);
   const context = { fieldId:'field-1', accessRevision:1, accessDigest:d('access'), profileHintSnapshot:profileHintSnapshot('series'),
     memberContexts:[{ selectionOrdinal:0, materialKey:member.materialKey, fieldRelativeLocation:member.readHandle.location,
       baseName:'Demo.S02E03-04', extension:'.mkv', parentSegments:['shows','Demo'], layoutEvidenceRefs:[] }], contextDigest:'' };
@@ -265,7 +394,10 @@ test('structure preserves Selection mapping and carries series mediaType/content
   assert.equal(identity.mediaType, 'group'); assert.equal(identity.contentProfile, 'series'); assert.equal(identity.claimKind, 'series_season');
 
   const manifestInput = { procurementRunId:'run-1', runBasisDigest:probeBatch.runBasisDigest, triageRuleAuthorityDigest:rule.authorityDigest,
-    selectedFieldMaterialSet:selected, structureEvidenceId:structure.evidenceId, structureEvidencePayloadDigest:structure.payloadDigest,
+    candidateMembers:structure.units[0].members.map((candidate) => ({ ...candidate,
+      physicalIdentity:selected.members.find((selectedMember) => selectedMember.materialKey === candidate.materialKey).physicalIdentity,
+      sizeBytes:selected.members.find((selectedMember) => selectedMember.materialKey === candidate.materialKey).sizeBytes,
+    })), structureEvidenceId:structure.evidenceId, structureEvidencePayloadDigest:structure.payloadDigest,
     unit:structure.units[0], preallocatedManifestId:'manifest-1', inputDigest:d('manifest-input') };
   const manifest = capabilities.primaryManifestBuild.execute({ triageManifestBuildInput:manifestInput, procurementTriageRuleSnapshot:rule });
   assert.equal(manifest.memberCount, 1); assert.equal(manifest.structureKind, 'season');
@@ -302,12 +434,7 @@ test('Series Triage aggregates N:M Episode members into one Season unit without 
     admissionControlAction: 'acquire',
     basisMemberDigest: d(`basis:${ordinal}`),
   }));
-  const selected = {
-    procurementRunId: 'run-1',
-    fieldId: 'field-1',
-    members: selectedMembers,
-    selectionDigest: probeBatch.selectionDigest,
-  };
+  const selected = scopedSelection(selectedMembers, probeBatch.selectionDigest);
   const contexts = [first, second].map((member, selectionOrdinal) => ({
     selectionOrdinal,
     materialKey: member.materialKey,
@@ -373,10 +500,7 @@ test('Series Triage rejects overlapping Episode claims inside one Candidate unit
     triageMaterialProbeBatch: probeBatch,
     procurementTriageRuleSnapshot: rule,
   });
-  const selected = {
-    procurementRunId: 'run-1',
-    fieldId: 'field-1',
-    members: [first, second].map((member, ordinal) => ({
+  const selected = scopedSelection([first, second].map((member, ordinal) => ({
       ordinal,
       materialKey: member.materialKey,
       selectionRole: 'triage_input',
@@ -394,9 +518,7 @@ test('Series Triage rejects overlapping Episode claims inside one Candidate unit
       controlSnapshot: {},
       admissionControlAction: 'acquire',
       basisMemberDigest: d(`basis-overlap:${ordinal}`),
-    })),
-    selectionDigest: probeBatch.selectionDigest,
-  };
+    })), probeBatch.selectionDigest);
   const contextBase = {
     fieldId: 'field-1',
     accessRevision: 1,
@@ -451,10 +573,7 @@ test('Movie Triage associates only the exact NFO sidecar and conserves its canon
     triageMaterialProbeBatch: probeBatch,
     procurementTriageRuleSnapshot: rule,
   });
-  const selected = {
-    procurementRunId: 'run-1',
-    fieldId: 'field-1',
-    members: [{
+  const selected = scopedSelection([{
       ordinal: 0,
       materialKey: member.materialKey,
       selectionRole: 'triage_input',
@@ -472,9 +591,7 @@ test('Movie Triage associates only the exact NFO sidecar and conserves its canon
       controlSnapshot: {},
       admissionControlAction: 'acquire',
       basisMemberDigest: d('basis-member'),
-    }],
-    selectionDigest: probeBatch.selectionDigest,
-  };
+    }], probeBatch.selectionDigest);
   function relatedIdentity(label, inode) {
     const value = {
       schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v2',
@@ -597,9 +714,9 @@ test('Movie Triage associates only the exact NFO sidecar and conserves its canon
   });
   assert.equal(structure.units.length, 1);
   assert.equal(structure.units[0].members.length, 1);
-  assert.equal(structure.units[0].displayIdentity, '银翼杀手：2022黑暗浩劫 (2017)');
+  assert.equal(structure.units[0].displayIdentity, 'shows');
   assert.equal(structure.units[0].identityMetadata.sourceHints.some((hint) =>
-    hint.hintKind === 'directory_title' && hint.hintValue === '银翼杀手：2022黑暗浩劫 (2017)'), true);
+    hint.hintKind === 'directory_title' && hint.hintValue === 'shows'), true);
   assert.equal(structure.units[0].relatedScope.scopeKind, 'ordinary_parent');
   assert.equal(structure.units[0].relatedScope.parentRelativeLocation, 'shows/Demo');
   assert.equal(structure.units[0].relatedScope.stemKey, 'example.movie');

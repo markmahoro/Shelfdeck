@@ -101,6 +101,10 @@ function repositoryDefinition(schemaManifest) {
           'procurement_run_id',
           'ordinal',
           'material_key',
+          'field_relative_location',
+          'selection_scope_kind',
+          'selection_scope_key',
+          'selection_scope_root_relative_location',
           'basis_member_digest',
           'selection_state',
           'terminal_disposition',
@@ -276,11 +280,14 @@ function currentSelection(repository, runs, materialKey) {
   return Object.freeze({ ...value, selectionBasisDigest: canonicalDigest(value) });
 }
 
-function runMember(material, controlSnapshot, ordinal) {
+function runMember(material, controlSnapshot, ordinal, scopeMember) {
   const value = {
     ordinal,
     materialKey: material.material_key,
     selectionRole: 'triage_input',
+    fieldRelativeLocation: scopeMember.fieldRelativeLocation,
+    scopeOrdinal: scopeMember.scopeOrdinal,
+    scopeMemberOrdinal: scopeMember.scopeMemberOrdinal,
     physicalIdentity: {
       schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v2',
       schemaVersion: 2,
@@ -308,6 +315,34 @@ function runMember(material, controlSnapshot, ordinal) {
       : 'assert_same_field',
   };
   return Object.freeze({ ...value, basisMemberDigest: canonicalDigest(value) });
+}
+
+function retrySelectionScopes(failedMembers) {
+  const groups = new Map();
+  for (const member of failedMembers) {
+    const key = member.selection_scope_key;
+    if (!groups.has(key)) groups.set(key, { scopeKind:member.selection_scope_kind, scopeKey:key,
+      scopeRootRelativeLocation:member.selection_scope_root_relative_location, members:[] });
+    groups.get(key).members.push(member);
+  }
+  const scopeByMaterial = new Map();
+  const selectionScopes = [...groups.values()].sort((left,right)=>Buffer.compare(Buffer.from(left.scopeKey),Buffer.from(right.scopeKey)))
+    .map((group, scopeOrdinal) => {
+      const ordered = group.members.sort((left,right)=>Buffer.compare(Buffer.from(left.field_relative_location),Buffer.from(right.field_relative_location)) ||
+        Buffer.compare(Buffer.from(left.material_key),Buffer.from(right.material_key)));
+      const items = ordered.map((member, scopeMemberOrdinal) => {
+        const value={ materialKey:member.material_key, fieldRelativeLocation:member.field_relative_location, scopeMemberOrdinal };
+        scopeByMaterial.set(member.material_key, { ...value, scopeOrdinal }); return value;
+      });
+      const memberSetDigest=canonicalDigest({schema:'procurement.selection-scope-members@1',items});
+      const value={scopeOrdinal,scopeKind:group.scopeKind,scopeKey:group.scopeKey,
+        scopeRootRelativeLocation:group.scopeRootRelativeLocation,memberCount:items.length,memberSetDigest};
+      return Object.freeze({...value,scopeDigest:canonicalDigest({schema:'procurement.selection-scope@1',
+        scopeKind:value.scopeKind,scopeKey:value.scopeKey,scopeRootRelativeLocation:value.scopeRootRelativeLocation,
+        memberCount:value.memberCount,memberSetDigest:value.memberSetDigest})});
+    });
+  return Object.freeze({selectionScopes:Object.freeze(selectionScopes),scopeByMaterial,
+    scopeSetDigest:canonicalDigest({schema:'procurement.selection-scope-set@1',scopes:selectionScopes})});
 }
 
 function controlHandle(newRunBasis) {
@@ -473,7 +508,7 @@ function createFailedPreparationRetryAdminService(options) {
           member.terminal_disposition === 'triage_failed');
         failedMembers.sort((left, right) =>
           left.material_key.localeCompare(right.material_key));
-        if (failedMembers.length < 1 || failedMembers.length > 256 ||
+        if (failedMembers.length < 1 || failedMembers.length > 1024 ||
             failedMembers.some((member) =>
               !Number.isSafeInteger(Number(member.ordinal)) ||
               Number(member.ordinal) < 0)) {
@@ -675,17 +710,22 @@ function createFailedPreparationRetryAdminService(options) {
         control.ownerScopeId === input.fieldId));
     let newRunBasis;
     if (mayCreateRun) {
+      const retryScopes=retrySelectionScopes(snapshot.failedMembers);
       const selectedMembers = snapshot.materials.map((material, index) =>
-        runMember(material, controls[index], index));
+        runMember(material, controls[index], index, retryScopes.scopeByMaterial.get(material.material_key)));
       const selectedValue = {
         procurementRunId: newRunId,
         fieldId: input.fieldId,
+        physicalMemberCount:selectedMembers.length,
+        selectionScopeCount:retryScopes.selectionScopes.length,
+        selectionScopes:retryScopes.selectionScopes,
+        scopeSetDigest:retryScopes.scopeSetDigest,
         members: Object.freeze(selectedMembers),
       };
       const selectedFieldMaterialSet = Object.freeze({
         ...selectedValue,
         selectionDigest: canonicalDigest({
-          schema: 'procurement.selected-field-material-set@1',
+          schema: 'procurement.selected-field-material-set@2',
           ...selectedValue,
         }),
       });

@@ -6,11 +6,13 @@ const { buildResultTypeSchemas } = require('../../scripts/helix-architecture/res
 
 const schemas = buildResultTypeSchemas();
 
-test('builds the complete Catalog Result graph and twelve supporting schemas', () => {
-  assert.equal(Object.keys(schemas).length, 100);
+test('builds the complete Catalog Result graph and bounded Candidate publication receipt', () => {
+  assert.equal(Object.keys(schemas).length, 101);
   assert.equal(schemas.CandidatePackage.properties.relatedReferences.items.$ref,
     'helix://contracts/types/RelatedMaterialReference/v1');
-  for (const helper of ['OnDeckCommitReceipt', 'OffloadCompletionFact', 'PeopleCandidateDraft', 'PrimaryInputManifest',
+  assert.ok(schemas.CandidatePublicationReceipt.required.includes('candidateDraftDigest'));
+  assert.equal(schemas.CandidatePublicationReceipt.properties.packageRevision.minimum, 1);
+  for (const helper of ['CandidatePackage', 'OnDeckCommitReceipt', 'OffloadCompletionFact', 'PeopleCandidateDraft', 'PrimaryInputManifest',
     'SeasonContinuityClaim', 'CandidateIntakeAcceptanceBasis', 'ProcurementCandidateOfferAvailableMessage',
     'LibraCandidateAcceptedMessage', 'LibraCandidateRejectedMessage', 'ProcurementCandidateAcceptanceClosureResult',
     'ProcurementCandidateRejectionClosureResult', 'OnDeckProductPackageCommitReceipt']) assert.ok(schemas[helper]);
@@ -40,11 +42,11 @@ test('freezes FA-04 continuity kinds and non-empty Primary Input membership', ()
     assert.ok(schemas.CandidatePackage.required.includes(field), field);
   }
   assert.equal(schemas.PrimaryInputManifest.properties.members.minItems, 1);
-  assert.equal(schemas.PrimaryInputManifest.properties.members.maxItems, 256);
+  assert.equal(schemas.PrimaryInputManifest.properties.members.maxItems, 1024);
   assert.equal(schemas.PrimaryInputManifest.properties.members.items.additionalProperties, false);
   assert.equal(schemas.PrimaryInputManifest.properties.members.items.properties.ordinal.minimum, 0);
   const triageUnitBranches = schemas.TriageStructureEvidence.properties.units.items.oneOf;
-  assert.equal(triageUnitBranches[0].properties.members.maxItems, 256);
+  assert.equal(triageUnitBranches[0].properties.members.maxItems, 1024);
   assert.equal(triageUnitBranches[1].properties.memberScope.properties.memberCount.minimum, 1);
   assert.equal(schemas.TriageStructureEvidence.properties.unassignedMaterials.maxItems, 1024);
   for (const embedded of ['RelatedMaterialReference', 'SeasonContinuityClaim']) {

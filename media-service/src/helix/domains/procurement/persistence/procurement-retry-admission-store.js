@@ -147,7 +147,11 @@ function procurementDefinition(schemaManifest) {
     "triage_rule_digest",
     "triage_rule_authority_digest",
     "run_basis_digest",
+    "selected_material_count",
+    "selection_scope_count",
+    "selection_scope_set_digest",
     "retry_intent_id",
+    "candidate_package_revision_head",
     "state",
     "state_revision",
     "seal_outcome",
@@ -167,6 +171,15 @@ function procurementDefinition(schemaManifest) {
     "ordinal",
     "material_key",
     "selection_role",
+    "field_relative_location",
+    "selection_scope_kind",
+    "selection_scope_key",
+    "selection_scope_root_relative_location",
+    "selection_scope_ordinal",
+    "scope_member_ordinal",
+    "selection_scope_member_count",
+    "selection_scope_member_set_digest",
+    "selection_scope_digest",
     "mount_scope_id",
     "inode",
     "size_bytes",
@@ -212,6 +225,7 @@ function procurementDefinition(schemaManifest) {
         columns: [
           "retry_intent_id",
           "field_id",
+          "failed_run_id",
           "intent_digest",
           "state",
           "state_revision",
@@ -355,6 +369,10 @@ function procurementDefinition(schemaManifest) {
           "candidate_package_id",
           "selection_role",
           "binding_revision",
+          "field_relative_location",
+          "selection_scope_kind",
+          "selection_scope_key",
+          "selection_scope_root_relative_location",
         ],
         keyColumns: ["procurement_run_id", "material_key"],
       },
@@ -565,6 +583,9 @@ function validateCreatedBasis(basis, intent, actualHead, snapshots) {
         ordinal: index,
         materialKey: item.expected.materialKey,
         selectionRole: "triage_input",
+        fieldRelativeLocation: item.sourceMember.field_relative_location,
+        scopeOrdinal: basis.selectedFieldMaterialSet.members[index].scopeOrdinal,
+        scopeMemberOrdinal: basis.selectedFieldMaterialSet.members[index].scopeMemberOrdinal,
         physicalIdentity: {
           schemaRef: "helix://contracts/types/PhysicalMaterialIdentity/v2",
           schemaVersion: 2,
@@ -592,6 +613,12 @@ function validateCreatedBasis(basis, intent, actualHead, snapshots) {
             ? "acquire"
             : "assert_same_field",
       };
+    const expectedScope=basis.selectedFieldMaterialSet.selectionScopes[raw.scopeOrdinal];
+    if (!item.sourceMember || item.sourceMember.selection_scope_kind !== expectedScope?.scopeKind ||
+        item.sourceMember.selection_scope_key !== expectedScope?.scopeKey ||
+        item.sourceMember.selection_scope_root_relative_location !== expectedScope?.scopeRootRelativeLocation) {
+      fail('P7_RETRY_ADMISSION_SCOPE_MISMATCH', 'Retry Run Scope does not preserve the failed Run boundary.');
+    }
     const expected = { ...raw, basisMemberDigest: canonicalDigest(raw) };
     if (
       canonicalJson(basis.selectedFieldMaterialSet.members[index]) !==
@@ -728,7 +755,7 @@ function createProcurementRetryAdmissionStore(options) {
           memberRows = repo.invoke("find_members", {
             retry_intent_id: request.retryIntentId,
           });
-          if (memberRows.length < 1 || memberRows.length > 256)
+          if (memberRows.length < 1 || memberRows.length > 1024)
             fail(
               "P7_RETRY_ADMISSION_MEMBER_CORRUPT",
               "Retry Intent member scope is invalid.",
@@ -817,9 +844,12 @@ function createProcurementRetryAdmissionStore(options) {
               field_id: intent.field_id,
               material_key: row.material_key,
             });
+            const sourceMember=repo.invoke("find_run_member", { procurement_run_id:intent.failed_run_id, material_key:row.material_key });
+            if (!sourceMember) fail('P7_RETRY_ADMISSION_SOURCE_MEMBER_MISSING', 'Retry source Run member is missing.');
             return {
               expected: expectedMember(row),
               material,
+              sourceMember,
               actual: {
                 materialState: material ? "present" : "missing",
                 ...(material
@@ -1197,7 +1227,11 @@ function createProcurementRetryAdmissionStore(options) {
               triage_rule_digest: rule.ruleDigest,
               triage_rule_authority_digest: rule.authorityDigest,
               run_basis_digest: newBasis.basisDigest,
+              selected_material_count:newBasis.selectedFieldMaterialSet.physicalMemberCount,
+              selection_scope_count:newBasis.selectedFieldMaterialSet.selectionScopeCount,
+              selection_scope_set_digest:newBasis.selectedFieldMaterialSet.scopeSetDigest,
               retry_intent_id: intent.retry_intent_id,
+              candidate_package_revision_head: 0,
               state: "active",
               state_revision: 1,
               seal_outcome: null,
@@ -1218,11 +1252,21 @@ function createProcurementRetryAdmissionStore(options) {
             for (const member of newBasis.selectedFieldMaterialSet.members) {
               const admitted = admittedByKey.get(member.materialKey);
               const control = member.controlSnapshot;
+              const scope=newBasis.selectedFieldMaterialSet.selectionScopes[member.scopeOrdinal];
               repo.invoke("insert_run_member", {
                 procurement_run_id: newBasis.procurementRunId,
                 ordinal: member.ordinal,
                 material_key: member.materialKey,
                 selection_role: member.selectionRole,
+                field_relative_location:member.fieldRelativeLocation,
+                selection_scope_kind:scope.scopeKind,
+                selection_scope_key:scope.scopeKey,
+                selection_scope_root_relative_location:scope.scopeRootRelativeLocation,
+                selection_scope_ordinal:scope.scopeOrdinal,
+                scope_member_ordinal:member.scopeMemberOrdinal,
+                selection_scope_member_count:scope.memberCount,
+                selection_scope_member_set_digest:scope.memberSetDigest,
+                selection_scope_digest:scope.scopeDigest,
                 mount_scope_id: member.physicalIdentity.mountScopeId,
                 inode: member.physicalIdentity.inode,
                 size_bytes: member.physicalIdentity.sizeBytes,

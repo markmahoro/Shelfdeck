@@ -7,7 +7,7 @@
     "displayName": "Procurement Candidate Publication",
     "ownerScope": "procurement",
     "commitClass": "domain_fact_commit",
-    "atomicFactSet": "complete `CandidateDraft@1` + exact Run Basis/Triage Rule/Structure Unit/Identity/Manifest Draft fence + Run `candidate_package_revision_head` CAS + immutable Candidate Package + final Primary Input Manifest及N:M Episode Claim/完整Related Material Reference relation + package members是Run Selection精确非空子集 + 成员`run_selection → candidate_delivery` + 从final Package唯一派生的`CandidateIntakeAcceptanceBasis@1`和stable `offerId` + open Handoff Offer + durable typed Result/commit marker + `ProcurementCandidateOfferAvailableMessage@1` Outbox；final Manifest与Candidate Primary relation逐项复制immutable Run member的完整Physical Identity/size，并把它们纳入member/package/delivery digest；CommitParticipant只消费Draft/Handle，不旁读Foundation Event Result或Provider；Run revision head、Package、Manifest、Relation、Reservation、Offer、Result/marker与Outbox全有或全无；Canonical Transaction的Procurement domain write participant固定为`proc_procurement_runs`、`proc_candidate_packages`、`proc_candidate_season_continuity_claims`、`proc_candidate_primary_materials`、`proc_candidate_primary_material_episode_claims`、`proc_candidate_related_references`、`proc_candidate_deliveries`、`proc_run_materials`，不得从概括性“Run fence/Manifest/Relation”文字推断或漏表；Related relation必须逐列保存`RelatedMaterialReference@1`的完整Physical Identity、association Evidence和reference digest，不能把Foundation Event Result或current Material row当成历史Package payload",
+    "atomicFactSet": "complete `CandidateDraft@1` + exact Run Basis/Triage Rule/Structure Unit/Identity/Manifest Draft fence + Run `candidate_package_revision_head` transaction-local CAS/allocation + immutable Candidate Package + final Primary Input Manifest及N:M Episode Claim/完整Related Material Reference relation + package members是Run Selection精确非空子集 + 成员`run_selection → candidate_delivery` + 从final Package唯一派生的`CandidateIntakeAcceptanceBasis@1`和stable `offerId` + open Handoff Offer + durable bounded `CandidatePublicationReceipt@1` Result/commit marker + `ProcurementCandidateOfferAvailableMessage@1` Outbox；final Manifest与Candidate Primary relation逐项复制immutable Run member的完整Physical Identity/size，并把它们纳入member/package/delivery digest；CommitParticipant只消费Draft/Handle，不旁读Foundation Event Result或Provider；Run revision head、Package、Manifest、Relation、Reservation、Offer、Receipt/marker与Outbox全有或全无；Canonical Transaction的Procurement domain write participant固定为`proc_procurement_runs`、`proc_candidate_packages`、`proc_candidate_season_continuity_claims`、`proc_candidate_primary_materials`、`proc_candidate_primary_material_episode_claims`、`proc_candidate_related_references`、`proc_candidate_deliveries`、`proc_run_materials`，不得从概括性“Run fence/Manifest/Relation”文字推断或漏表；Related relation必须逐列保存`RelatedMaterialReference@1`的完整Physical Identity、association Evidence和reference digest，不能把Foundation Event Result或current Material row当成历史Package payload",
     "participants": [
       {
         "participantKind": "domain",
@@ -77,8 +77,8 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 8086,
-      "lineDigest": "1e2766b94c3c5f326380667caf556e276023e93d3b4625b785e878df19dff33c"
+      "line": 8122,
+      "lineDigest": "d98e55268c844f325fc86bc0632f893558712b99343cf3b860220f6a02ae2692"
     }
   }
 }

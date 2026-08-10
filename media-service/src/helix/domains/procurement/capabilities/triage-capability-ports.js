@@ -72,7 +72,10 @@ async function assessBdmv(input, options) {
   if (expectedScopeDigest !== input.scopeDigest) throw new TypeError('BDMV Assessment scope digest is inconsistent.');
   const topologyReader = options.bdmvTopologyReader || options.mediaProbe.bdmvTopologyReader;
   if (!topologyReader || typeof topologyReader.inspect !== 'function') throw new TypeError('BDMV topology reader is unavailable.');
-  const topology = await topologyReader.inspect(scope.rootLocation);
+  const topology = await topologyReader.inspect(scope.rootLocation, {
+    memberSetDigest:input.memberSetDigest,
+    members:scope.members,
+  });
   const base = { schemaRef:'helix://contracts/types/BdmvAssessmentEvidence/v1', schemaVersion:1,
     evidenceKind:'bdmv_assessment', producerRef:'procurement.triage.bdmv.assess@1', observedAtMs:options.now(),
     runId:input.runId, bdmvGroupKey:input.bdmvGroupKey, scopeDigest:input.scopeDigest, memberSetDigest:input.memberSetDigest,
@@ -161,10 +164,10 @@ function createTriageCapabilityPorts(options) {
         const effectReceipt=Object.freeze({schemaRef:'helix://contracts/types/EffectReceipt/v1',schemaVersion:1,
           effectReceiptId,effectId,effectClass:'domain_fact_commit',
           idempotencyKey:context.idempotencyKey,commitMarker:committed.commitMarker,externalReceiptRef:null,
-          outputDigest:canonicalDigest(result),verificationEvidenceDigest:commitDigest,committedAtMs:result.publishedAtMs});
+          outputDigest:canonicalDigest(result),verificationEvidenceDigest:commitDigest,committedAtMs:result.committedAtMs});
         const envelope=Object.freeze({evidenceId:'candidate-publication-evidence-'+canonicalDigest(result).slice(0,40),
           evidenceKind:'candidate_publication',producerRef:'procurement.candidate.publish@1',basisDigest:draft.draftDigest,
-          payloadDigest:canonicalDigest(structureEvidence),observedAtMs:result.publishedAtMs});
+          payloadDigest:canonicalDigest(structureEvidence),observedAtMs:result.committedAtMs});
         return Object.freeze({kind:'succeeded',resultSchemaRef:BASE+'procurement.candidate.publish/v1/result',result,
           evidenceSchemaRef:BASE+'procurement.candidate.publish/v1/evidence',evidence:envelope,effectReceipt});},
       validateResult(context,outcome){if(outcome.result.candidatePackageId!==context.namedInputs.candidateDraft.candidatePackageId)throw new TypeError('Candidate publication Result drifted.');},

@@ -5,84 +5,85 @@ const test = require('node:test');
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const { createProcurementRunSlices } = require('../../src/helix/domains/procurement/model/procurement-run-creator');
 
-const BASIS = canonicalDigest({ fixture: 'run-creator' });
+const BASIS = canonicalDigest({ fixture: 'run-creator-v2' });
 
 function group(folder, count) {
   return Array.from({ length: count }, (_, index) => ({
-    materialKey: `${folder}-${String(index).padStart(4, '0')}`,
-    relativeLocation: `${folder}/Episode.${String(index).padStart(4, '0')}.mkv`,
+    materialKey: canonicalDigest({ folder, index }),
+    relativeLocation: `${folder}/Movie.${String(index).padStart(4, '0')}.mkv`,
   }));
 }
 
-test('244 and 255 member directory groups form two whole Runs', () => {
-  const value = createProcurementRunSlices({ fieldId: 'field', creationBasisDigest: BASIS,
-    materials: [...group('Season 1', 244), ...group('Season 2', 255)] });
-  assert.deepEqual(value.runs.map((run) => run.members.length), [244, 255]);
-  assert.deepEqual(value.runs.map((run) => [...new Set(run.members.map((item) => item.directParent))]),
-    [['Season 1'], ['Season 2']]);
+function rootFiles(count) {
+  return Array.from({ length:count }, (_, index) => ({
+    materialKey:canonicalDigest({ root:index }), relativeLocation:`Root-${String(index).padStart(4,'0')}.mkv`,
+  }));
+}
+
+test('1024 root files fit one Run and 1025 split as 1024 plus 1 independent Scopes', () => {
+  const exact=createProcurementRunSlices({fieldId:'field',creationBasisDigest:BASIS,materials:rootFiles(1024)});
+  assert.deepEqual(exact.runs.map((run)=>run.physicalMemberCount),[1024]);
+  assert.equal(exact.runs[0].selectionScopeCount,1024);
+  assert.ok(exact.runs[0].selectionScopes.every((scope)=>scope.scopeKind==='standalone_file'&&scope.memberCount===1));
+  const split=createProcurementRunSlices({fieldId:'field',creationBasisDigest:BASIS,materials:rootFiles(1025)});
+  assert.deepEqual(split.runs.map((run)=>run.physicalMemberCount),[1024,1]);
 });
 
-test('small directory groups use canonical sequential packing without reordering', () => {
-  const materials = [...group('B', 100), ...group('A', 100), ...group('C', 100)];
-  const value = createProcurementRunSlices({ fieldId: 'field', creationBasisDigest: BASIS, materials });
-  assert.deepEqual(value.runs.map((run) => run.members.length), [200, 100]);
-  assert.deepEqual([...new Set(value.runs[0].members.map((item) => item.directParent))], ['A', 'B']);
+test('ordinary first-level directory is indivisible at the unified 1024 bound', () => {
+  const exact=createProcurementRunSlices({fieldId:'field',creationBasisDigest:BASIS,materials:group('Huge',1024)});
+  assert.equal(exact.runs.length,1);
+  assert.deepEqual(exact.runs[0].selectionScopes.map((scope)=>[scope.scopeKind,scope.scopeRootRelativeLocation,scope.memberCount]),
+    [['ordinary_directory','Huge',1024]]);
+  const closed=createProcurementRunSlices({fieldId:'field',creationBasisDigest:BASIS,materials:group('Huge',1025)});
+  assert.equal(closed.runs.length,0);
+  assert.deepEqual(closed.closedGroups,[{scopeKind:'ordinary_directory',scopeKey:'ordinary-directory:Huge',
+    scopeRootRelativeLocation:'Huge',memberCount:1025,reasonCode:'procurement_selection_scope_too_large'}]);
 });
 
-test('257 member directory is closed and never split', () => {
-  const value = createProcurementRunSlices({ fieldId: 'field', creationBasisDigest: BASIS, materials: group('Huge', 257) });
-  assert.equal(value.runs.length, 0);
-  assert.deepEqual(value.closedGroups, [{ directParent: 'Huge', groupKind:'directory', memberCount: 257,
-    reasonCode: 'procurement_selection_scope_too_large' }]);
+test('255 ordinary members and a 760-member BDMV container form one 1015-member Run', () => {
+  const value=createProcurementRunSlices({fieldId:'field',creationBasisDigest:BASIS,
+    materials:[...group('A',255),...group('B/BDMV/STREAM',760)]});
+  assert.deepEqual(value.runs.map((run)=>run.physicalMemberCount),[1015]);
+  assert.deepEqual(value.runs[0].selectionScopes.map((scope)=>[scope.scopeKind,scope.memberCount]),
+    [['bdmv_container',760],['ordinary_directory',255]]);
 });
 
-test('BDMV members and sibling CERTIFICATE use one logical container group', () => {
-  const materials = [
-    { materialKey:'a'.repeat(64), relativeLocation:'Movie/BDMV/STREAM/00000.m2ts' },
-    { materialKey:'b'.repeat(64), relativeLocation:'Movie/BDMV/PLAYLIST/00000.mpls' },
-    { materialKey:'c'.repeat(64), relativeLocation:'Movie/BDMV/CLIPINF/00000.clpi' },
-    { materialKey:'e'.repeat(64), relativeLocation:'Movie/CERTIFICATE/id.bdmv' },
-    { materialKey:'d'.repeat(64), relativeLocation:'Movie/sidecar.nfo' },
+test('BDMV and sibling CERTIFICATE persist one container Scope', () => {
+  const materials=[
+    {materialKey:'a'.repeat(64),relativeLocation:'Movie/BDMV/STREAM/00000.m2ts'},
+    {materialKey:'b'.repeat(64),relativeLocation:'Movie/BDMV/PLAYLIST/00000.mpls'},
+    {materialKey:'c'.repeat(64),relativeLocation:'Movie/BDMV/CLIPINF/00000.clpi'},
+    {materialKey:'d'.repeat(64),relativeLocation:'Movie/CERTIFICATE/id.bdmv'},
   ];
-  const value = createProcurementRunSlices({ fieldId:'field', creationBasisDigest:BASIS, materials });
-  assert.equal(value.runs.length, 1);
-  assert.equal(value.runs[0].members.filter((item) => /(?:BDMV|CERTIFICATE)/i.test(item.relativeLocation)).length, 4);
-  assert.equal(value.runs[0].logicalSelectionCount, 2);
+  const value=createProcurementRunSlices({fieldId:'field',creationBasisDigest:BASIS,materials});
+  assert.equal(value.runs.length,1);
+  assert.deepEqual(value.runs[0].selectionScopes.map((scope)=>[scope.scopeKind,scope.scopeRootRelativeLocation,scope.memberCount]),
+    [['bdmv_container','Movie',4]]);
+  assert.ok(value.runs[0].members.every((member)=>member.selectionScopeKey==='bdmv:Movie'));
 });
 
-test('BDMV group uses one logical slot up to the atomic Control physical cap', () => {
-  const materials = group('Movie/BDMV/STREAM', 257);
-  const value = createProcurementRunSlices({ fieldId:'field', creationBasisDigest:BASIS, materials });
-  assert.equal(value.runs.length, 1);
-  assert.equal(value.runs[0].members.length, 257);
-  assert.equal(value.runs[0].logicalSelectionCount, 1);
+test('multiple BDMV and ordinary Scopes pack sequentially without splitting or bin packing', () => {
+  const materials=[...group('A/BDMV/STREAM',500),...group('B/BDMV/STREAM',500),...group('C',100),...group('D',400)];
+  const value=createProcurementRunSlices({fieldId:'field',creationBasisDigest:BASIS,materials});
+  assert.deepEqual(value.runs.map((run)=>run.physicalMemberCount),[1000,500]);
+  assert.deepEqual(value.runs.map((run)=>run.selectionScopeCount),[2,2]);
+  assert.ok(value.runs.every((run)=>run.selectionScopes.every((scope)=>
+    run.members.filter((member)=>member.scopeOrdinal===scope.scopeOrdinal).length===scope.memberCount)));
 });
 
-test('BDMV group above the bounded physical cap is closed as one group', () => {
-  const materials = group('Movie/BDMV/STREAM', 1025);
-  const value = createProcurementRunSlices({ fieldId:'field', creationBasisDigest:BASIS, materials });
-  assert.equal(value.runs.length, 0);
-  assert.equal(value.closedGroups[0].groupKind, 'bdmv');
-  assert.equal(value.closedGroups[0].reasonCode, 'procurement_selection_scope_too_large');
+test('1025-member BDMV container is closed whole', () => {
+  const value=createProcurementRunSlices({fieldId:'field',creationBasisDigest:BASIS,materials:group('Movie/BDMV/STREAM',1025)});
+  assert.equal(value.runs.length,0);
+  assert.equal(value.closedGroups[0].scopeKind,'bdmv_container');
+  assert.equal(value.closedGroups[0].reasonCode,'procurement_selection_scope_too_large');
 });
 
-test('multiple legal BDMV groups cannot overflow one Run physical input', () => {
-  const materials = [
-    ...group('A/BDMV/STREAM', 500),
-    ...group('B/BDMV/STREAM', 500),
-    ...group('C/BDMV/STREAM', 500),
-  ];
-  const value = createProcurementRunSlices({ fieldId:'field', creationBasisDigest:BASIS, materials });
-  assert.deepEqual(value.runs.map((run) => run.members.length), [1000, 500]);
-  assert.deepEqual(value.runs.map((run) => run.logicalSelectionCount), [2, 1]);
-});
-
-test('1000 members create multiple non-overlapping stable Runs', () => {
-  const materials = Array.from({ length: 100 }, (_, index) => group(`Folder-${String(index).padStart(3, '0')}`, 10)).flat();
-  const first = createProcurementRunSlices({ fieldId: 'field', creationBasisDigest: BASIS, materials });
-  const replay = createProcurementRunSlices({ fieldId: 'field', creationBasisDigest: BASIS, materials: [...materials].reverse() });
-  assert.deepEqual(first, replay);
-  assert.deepEqual(first.runs.map((run) => run.members.length), [250, 250, 250, 250]);
-  const keys = first.runs.flatMap((run) => run.members.map((member) => member.materialKey));
-  assert.equal(new Set(keys).size, 1000);
+test('replay is stable and no Physical Material appears across Runs twice', () => {
+  const materials=[...rootFiles(300),...Array.from({length:100},(_,index)=>group(`Folder-${String(index).padStart(3,'0')}`,10)).flat()];
+  const first=createProcurementRunSlices({fieldId:'field',creationBasisDigest:BASIS,materials});
+  const replay=createProcurementRunSlices({fieldId:'field',creationBasisDigest:BASIS,materials:[...materials].reverse()});
+  assert.deepEqual(first,replay);
+  assert.deepEqual(first.runs.map((run)=>run.physicalMemberCount),[1024,276]);
+  const keys=first.runs.flatMap((run)=>run.members.map((member)=>member.materialKey));
+  assert.equal(new Set(keys).size,1300);
 });

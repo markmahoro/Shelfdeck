@@ -215,6 +215,15 @@
                   "type": "string",
                   "minLength": 1
                 },
+                "associationMode": {
+                  "type": "string",
+                  "enum": [
+                    "standalone_same_stem",
+                    "single_movie_directory",
+                    "multi_movie_directory",
+                    "bdmv_external"
+                  ]
+                },
                 "observationProjectionRevision": {
                   "type": "integer",
                   "minimum": 1
@@ -233,6 +242,7 @@
                 "scopeKind",
                 "parentRelativeLocation",
                 "stemKey",
+                "associationMode",
                 "observationProjectionRevision",
                 "relatedRuleRevision",
                 "scopeDigest"
@@ -328,7 +338,7 @@
                   "memberClaimDigest"
                 ]
               },
-              "maxItems": 256,
+              "maxItems": 1024,
               "minItems": 1
             }
           },
@@ -524,6 +534,15 @@
                   "type": "string",
                   "minLength": 1
                 },
+                "associationMode": {
+                  "type": "string",
+                  "enum": [
+                    "standalone_same_stem",
+                    "single_movie_directory",
+                    "multi_movie_directory",
+                    "bdmv_external"
+                  ]
+                },
                 "observationProjectionRevision": {
                   "type": "integer",
                   "minimum": 1
@@ -542,6 +561,7 @@
                 "scopeKind",
                 "parentRelativeLocation",
                 "stemKey",
+                "associationMode",
                 "observationProjectionRevision",
                 "relatedRuleRevision",
                 "scopeDigest"

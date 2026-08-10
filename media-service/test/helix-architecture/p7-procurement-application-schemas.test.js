@@ -35,7 +35,7 @@ test('Candidate assembly Plan binding is one materialized closed typed union',()
 test('Retry application schemas close create, consume evidence, and both terminal result variants',()=>{
   const schemas=buildProcurementApplicationSchemas();
   assert.equal(schemas.ProcurementRetryIntent.properties.members.minItems,1);
-  assert.equal(schemas.ProcurementRetryIntent.properties.members.maxItems,256);
+  assert.equal(schemas.ProcurementRetryIntent.properties.members.maxItems,1024);
   assert.equal(schemas.ProcurementRetryAdmissionHead.properties.terminalObservation.oneOf.length,2);
   assert.equal(schemas.ProcurementRetryConsumeMemberSnapshot.properties.consumeOutcome.enum.includes('stale'),true);
   assert.equal(schemas.ProcurementRetryIntentAvailableMessage.properties.messageKind.const,'procurement_retry_intent_available');
@@ -50,8 +50,10 @@ test('Run Basis schema requires complete heads and Selection while only retry co
   assert.equal(schema.properties.terminalObservation.required.includes('profileHintSnapshot'),true);
   assert.equal(schema.properties.selectedFieldMaterialSet.$ref,'helix://contracts/domain-types/SelectedFieldMaterialSet/v1');
   assert.equal(schema.properties.fieldStatus.const,'active');
-  assert.equal(schemas.ProcurementTriageRuleSnapshot.properties.rulePayload.properties.maxPrimaryMaterials.const,256);
-  assert.equal(schemas.ProcurementTriageRuleSnapshot.properties.rulePayload.properties.manifestRule.properties.maximumMembers.const,256);
+  assert.equal(schemas.ProcurementTriageRuleSnapshot.properties.rulePayload.properties.maxRunPhysicalMembers.const,1024);
+  assert.equal(schemas.ProcurementTriageRuleSnapshot.properties.rulePayload.properties.maxSelectionScopeMembers.const,1024);
+  assert.equal(schemas.ProcurementTriageRuleSnapshot.properties.rulePayload.properties.maxCandidateManifestMembers.const,1024);
+  assert.equal(schemas.ProcurementTriageRuleSnapshot.properties.rulePayload.properties.manifestRule.properties.maximumMembers.const,1024);
 });
 
 test('PBF-22 materializes closed Material Field Hint command, snapshot, projection, and result contracts',()=>{

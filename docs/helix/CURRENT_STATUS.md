@@ -1,10 +1,40 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: BDMV Triage性能重构与Scope Reference落地已完成；Execution Foundation既有状态机、Permit、Retry和Result Binding合同未重新打开，状态为`CLOSED FOR DOMAIN ONBOARDING`。
+Status: Movie Procurement已在`Handoff A Ready`边界正式封口；状态为`CLOSED FOR MOVIE`。Libra尚未接入，Series/JAV/Western Adult Procurement不在本次封口范围内。
 
-Last updated: 2026-08-10
+Last updated: 2026-08-11
 
-## 0. Current implementation evidence
+## 0. Closure decision — Movie Procurement
+
+用户于2026-08-11接受Movie Procurement封口。封口范围从Movie Material Field的terminal Observation开始，覆盖增量Eligibility、
+三类Selection Scope、1024物理成员Run Admission、`Run → Work → Event` Triage、Candidate Assembly、Candidate Package以及独立open
+Handoff A Offer，终点精确为`Handoff A Ready`。本轮不消费Offer、不建立Libra Subject/Run/Binding，也不产生Arca事实。
+
+封口证据为最新只读全库Canary及随后数据库全量一致性审计：18,409个文件、72个Observation Page、922个Scope、8,627个selected
+Material、10/10 Run Seal、943个published Candidate与943个open Offer；Run/Selection、Package/Offer、Primary/Related、Scope/Input Form、
+BDMV一容器一Candidate及digest连续性违规均为0。59个BDMV Scope全部闭合；`苹果.mkv`裸文件、普通单电影目录、多电影目录、BDMV和
+Related代表样本均符合合同。唯一普通`probe_not_media`文件已由独立ffprobe确认EBML header无效，不是有效MKV误判。
+
+Candidate放大修正已由真实全库数据证明有效。第二次Canary的Observation/Media Probe耗时波动经用户确认为环境波动，不作为Movie
+Procurement封口阻断项；原始绝对耗时仍保留在下方作为可追溯Evidence，不被改写成通过。后续Domain接入不得通过修改Procurement
+Scope、Run、Triage、Candidate或Handoff A合同来绕过自身设计问题；若发现违反SSOT的真实缺陷，必须重新返回Design。
+
+## 0.1 Current Mixed Field implementation evidence
+
+- 唯一SSOT已固定`standalone_file|ordinary_directory|bdmv_container`三类Selection Scope；Run与单个不可拆分Scope统一最多1024个selected Physical Material，旧256 logical selection及BDMV 4096上限不再是active合同。
+- `SelectedFieldMaterialSet`、Run/Member关系、Retry、Primary Manifest、Candidate Delivery、Accepted Intake与Control连续性均传播同一1024物理成员合同；Related Material不属于Selection或Control。
+- 机器合同门禁通过：111 Capability、97 Result family、180 table、43 Canonical Transaction，aggregate digest为`76b8114469e10bfeb64f6a822295b03fe0c893f1091c8f41dc18cfd56b49e362`，unresolved type ref为0。
+- 全库只读Canary正确性通过：18,409个regular files、72个Observation Page、922个Selection Scope、8,627个selected Material、10/10 Run Seal、943个Candidate/Offer；59个BDMV Scope、862个ordinary Scope及1个standalone Scope。
+- `Z:\Film\苹果.mkv`形成唯一standalone Candidate：display identity=`苹果`、`materialInputForm=stream_file`、Primary member=1、Related仅`Z:/Film/苹果.nfo`、Offer状态=open。
+- Canary读取`1,776,871,724` bytes、18,409次，源before/after digest均为`52072b5a14750e42f610ce264b9b80ecb6f36c406b2f8996f3086ed81388b420`；0 duplicate Selection、0 failed Work/Event、0 defer、Libra/Arca=0、Offer consumption=0、最大RSS约1.17 GiB。
+- Canary性能失败：首个Offer 163.385秒、全部Run Seal 445.122秒、总耗时451.260秒，超过批准的163.1/385.9/393.2秒红线。数据库和日志保留于`C:\Users\markm\AppData\Local\Temp\helix-full-movie-canary-0af0uA`。
+- 诊断将主要回退定位为Candidate Manifest/Context对整个1024成员Run的重复投影，以及Coordinator重复全量扫描。实现已改为Candidate-local member projection、Scope-local Context、O(1) Unit lookup、O(log N) Work-prefix probe，并保持Foundation状态机不变。
+- 修正后的确定性证据：`npm run test:helix-procurement`通过全部20个Procurement fixture及P2–P6门禁；`npm test`为233/233；产品Composition Root 1000 Candidate压力fixture生成1000个Candidate/Offer、最大open Work 33、0失败。
+- 用户授权后已使用新的Temp clean数据库完成第二次全库复验。正确性结果保持一致：18,409个文件、72页、922个Scope、8,627个selected Material、10/10 Run Seal、943个Candidate/Offer；源before/after digest一致，主动重启无重复事实，0 failed Work/Event、0 defer、Libra/Arca=0、Offer未消费。资产保留于`C:\Users\markm\AppData\Local\Temp\helix-full-movie-canary-Ovor6i`。
+- Candidate放大修正确实生效：`procurement.triage.primary_manifest.build@1`累计执行时间由第一次混乱Field Canary的90.043秒降至16.335秒；从首个Offer到全部Run Seal的Candidate尾段由281.737秒降至173.523秒，改善约38.4%，且比旧性能基线的193.8秒更快约10.5%。
+- 第二次端到端性能仍未通过原15%红线：首个Offer 256.578秒、全部Run Seal 430.101秒、总耗时435.806秒。对账显示本轮Observation Capability累计时间由42.320秒升至111.266秒，普通Media Probe由83.173秒升至122.758秒；这些source-dependent阶段的波动掩盖了Candidate修正收益。当前证据只能证明慢路径修复有效，不能把整轮性能标记为通过；在进一步诊断前不自动第三次读取全库。
+
+## 0.2 Previous BDMV baseline evidence
 
 - 唯一SSOT已补充Observation entries历史事实、compact Page receipt、256项/64 MiB批次边界，以及Material-local Eligibility Basis和有界Change Set语义。
 - 机器合同已生成并通过P2基线：111 Capability、97 Result family、180 table、43 Canonical Transaction；新增BDMV专用Assessment合同，旧Layout/双Observation Capability与Result不再属于active catalog。
@@ -34,7 +64,7 @@ Last updated: 2026-08-10
 
 ## 0. Retake status
 
-以下条目保留为第一次实施、早期Checkpoint和旧Canary的追溯记录；若与本文件0/0.1节冲突，以当前111/97/180/43合同和2026-08-10最终Canary为准。
+以下条目保留为第一次实施、早期Checkpoint和旧Canary的追溯记录；若与本文件顶部当前证据冲突，以顶部111/97/180/43合同、18,409文件正确性结果及“Candidate修正已验证、端到端绝对性能未过线”状态为准。
 
 - 当前分支以第一次实施关闭点及其细化后的SSOT为基线，不合入第二、第三次实施代码。
 - 当前目标不是重新搭建完整骨架，而是接通已有Foundation、重写Procurement Coordinator执行方式、恢复`Run → Work → Event`三层架构，再完成有效的Handoff A Ready E2E；到此停止，不进入Libra。

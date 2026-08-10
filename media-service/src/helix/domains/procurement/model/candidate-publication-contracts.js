@@ -3,6 +3,7 @@
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 
 const PACKAGE_SCHEMA = 'helix://contracts/types/CandidatePackage/v1';
+const RECEIPT_SCHEMA = 'helix://contracts/types/CandidatePublicationReceipt/v1';
 const MANIFEST_SCHEMA = 'helix://contracts/types/PrimaryInputManifest/v1';
 const ACCEPTANCE_BASIS_SCHEMA = 'helix://contracts/types/CandidateIntakeAcceptanceBasis/v1';
 const OFFER_MESSAGE_SCHEMA = 'helix://contracts/types/ProcurementCandidateOfferAvailableMessage/v1';
@@ -97,10 +98,12 @@ function digestString(value) { return typeof value === 'string' && SHA256.test(v
 function validateRelatedScope(scope) {
   if (!scope || !['ordinary_parent', 'bdmv_external_parent'].includes(scope.scopeKind) ||
       typeof scope.parentRelativeLocation !== 'string' || !scope.parentRelativeLocation || typeof scope.stemKey !== 'string' || !scope.stemKey ||
+      !['standalone_same_stem', 'single_movie_directory', 'multi_movie_directory', 'bdmv_external'].includes(scope.associationMode) ||
       !Number.isSafeInteger(scope.observationProjectionRevision) || scope.observationProjectionRevision < 1 ||
       !Number.isSafeInteger(scope.relatedRuleRevision) || scope.relatedRuleRevision < 1 ||
       !digestString(scope.scopeDigest) || scope.scopeDigest !== canonicalDigest({ schema:'procurement.related-scope@1',
         scopeKind:scope.scopeKind, parentRelativeLocation:scope.parentRelativeLocation, stemKey:scope.stemKey,
+        associationMode:scope.associationMode,
         observationProjectionRevision:scope.observationProjectionRevision, relatedRuleRevision:scope.relatedRuleRevision })) {
     fail('P7_CANDIDATE_RELATED_SCOPE_INVALID', 'Candidate Unit Related Scope is invalid.');
   }
@@ -138,8 +141,8 @@ function validateContinuity(claims, setDigest) {
 }
 
 function validateDraft(draft, runBasisMembers) {
-  if (!draft || typeof draft !== 'object' || Array.isArray(draft) || !Number.isSafeInteger(draft.expectedPackageRevision) ||
-      draft.expectedPackageRevision < 1 || !draft.structureEvidence || !draft.structureEvidence.unit || !draft.primaryInputManifestDraft) {
+  if (!draft || typeof draft !== 'object' || Array.isArray(draft) ||
+      !draft.structureEvidence || !draft.structureEvidence.unit || !draft.primaryInputManifestDraft) {
     fail('P7_CANDIDATE_DRAFT_INVALID', 'Candidate Draft is incomplete.');
   }
   const unit = draft.structureEvidence.unit;
@@ -279,9 +282,10 @@ function buildOffer(candidatePackage, acceptanceBasis = buildAcceptanceBasis(can
   return freeze({ message, offerId, dedupKey, messageId });
 }
 
-function buildPublication(draft, publishedAtMs, runBasisMembers) {
+function buildPublication(draft, publishedAtMs, runBasisMembers, packageRevision) {
   validateDraft(draft, runBasisMembers);
   if (!Number.isSafeInteger(publishedAtMs) || publishedAtMs < 0) fail('P7_CANDIDATE_PUBLISH_TIME', 'Publication time is invalid.');
+  if (!Number.isSafeInteger(packageRevision) || packageRevision < 1) fail('P7_CANDIDATE_PACKAGE_REVISION', 'Publication requires a transaction-allocated Package revision.');
   const unit = draft.structureEvidence.unit;
   const unitMembers = candidateUnitMembers(draft);
   const basisByKey = new Map(runBasisMembers.map((item) => [item.materialKey, item]));
@@ -301,7 +305,7 @@ function buildPublication(draft, publishedAtMs, runBasisMembers) {
   manifest.manifestDigest = canonicalDigest(without(manifest, 'manifestDigest'));
   const packageValue = { schemaRef:PACKAGE_SCHEMA, schemaVersion:1, manifestId:draft.candidatePackageId,
     manifestKind:'candidate_package', ownerDomain:'procurement', memberCount:members.length, membersDigest,
-    manifestDigest:'', publishedAtMs, candidatePackageId:draft.candidatePackageId, packageRevision:draft.expectedPackageRevision,
+    manifestDigest:'', publishedAtMs, candidatePackageId:draft.candidatePackageId, packageRevision,
     procurementRunId:draft.procurementRunId, runBasisDigest:draft.runBasisDigest, triageRule:draft.triageRule,
     materialFieldContextRef:draft.materialFieldContextRef, mediaType:draft.mediaType, contentProfile:draft.contentProfile, materialInputForm:draft.materialInputForm,
     displayIdentity:draft.displayIdentity, identityMetadata:draft.identityMetadata, identityClaim:draft.identityClaim,
@@ -319,5 +323,23 @@ function buildPublication(draft, publishedAtMs, runBasisMembers) {
     offerId:offer.offerId, dedupKey:offer.dedupKey, messageId:offer.messageId });
 }
 
+function buildPublicationReceipt(publication, draft, committedAtMs) {
+  const candidatePackage = publication.candidatePackage;
+  const value = { schemaRef:RECEIPT_SCHEMA, schemaVersion:1,
+    receiptId:canonicalDigest({ schema:'procurement.candidate-publication-receipt-id@1',
+      candidatePackageId:candidatePackage.candidatePackageId, packageRevision:candidatePackage.packageRevision }),
+    receiptKind:'procurement_candidate_published', ownerDomain:'procurement', scopeType:'candidate_package',
+    scopeId:candidatePackage.candidatePackageId, scopeDigest:draft.candidateDraftDigest, effectReceiptRef:null, committedAtMs,
+    candidateDraftDigest:draft.candidateDraftDigest, candidatePackageId:candidatePackage.candidatePackageId,
+    packageRevision:candidatePackage.packageRevision, packageDigest:candidatePackage.packageDigest,
+    primaryInputManifestDigest:candidatePackage.primaryInputManifestRef.manifestDigest,
+    relatedReferenceSetDigest:candidatePackage.relatedReferenceSetDigest,
+    memberControlEvidenceSetDigest:candidatePackage.memberControlEvidenceSetDigest,
+    acceptanceBasisDigest:publication.acceptanceBasis.acceptanceBasisDigest, offerId:publication.offerId, receiptDigest:'' };
+  value.receiptDigest = canonicalDigest(without(value, 'receiptDigest'));
+  return freeze(value);
+}
+
 module.exports = Object.freeze({ ACCEPTANCE_BASIS_SCHEMA, CandidatePublicationContractError, MANIFEST_SCHEMA,
-  OFFER_MESSAGE_SCHEMA, PACKAGE_SCHEMA, buildAcceptanceBasis, buildOffer, buildPublication, validateDraft });
+  OFFER_MESSAGE_SCHEMA, PACKAGE_SCHEMA, RECEIPT_SCHEMA, buildAcceptanceBasis, buildOffer, buildPublication,
+  buildPublicationReceipt, validateDraft });

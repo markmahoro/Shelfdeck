@@ -6,6 +6,7 @@ const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const { activeTriageRule, createDefaultTriageRuleRegistry, createProcurementRunExecutionBasis,
   createSelectedFieldMaterialSet } = require('../../src/helix/domains/procurement/model/procurement-run-contracts');
 const { retryHeadStaleReason, retryMemberStaleReason } = require('../../src/helix/domains/procurement/model/procurement-retry-contracts');
+const { createSingleScopeSelection } = require('./helpers/procurement-selection-fixture');
 
 const DIGEST = 'b'.repeat(64);
 const PROFILE_HINT = Object.freeze({
@@ -37,8 +38,14 @@ function member(overrides = {}) {
   return { ...value, basisMemberDigest:canonicalDigest(value) };
 }
 function selection(overrides = {}) {
-  const value = { procurementRunId:'run-1', fieldId:'field-1', members:[member()], ...overrides };
-  return { ...value, selectionDigest:canonicalDigest({ schema:'procurement.selected-field-material-set@1', ...value }) };
+  return createSingleScopeSelection({
+    procurementRunId:overrides.procurementRunId || 'run-1',
+    fieldId:overrides.fieldId || 'field-1',
+    members:overrides.members || [member()],
+    scopeKind:overrides.scopeKind,
+    scopeKey:overrides.scopeKey,
+    scopeRootRelativeLocation:overrides.scopeRootRelativeLocation,
+  });
 }
 function selectionWithCount(count) {
   const members = Array.from({ length: count }, (_, index) => {
