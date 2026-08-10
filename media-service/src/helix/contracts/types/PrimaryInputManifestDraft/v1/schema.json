@@ -74,6 +74,93 @@
       "type": "integer",
       "minimum": 1
     },
+    "members": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ordinal": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "materialKey": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "primary_payload",
+              "structural_dependency"
+            ]
+          },
+          "physicalIdentity": {
+            "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "bindingRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "admittedControlRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "admittedControlProjectionDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "episodeClaims": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "episodeKey": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "seasonClaimDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "claimDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "required": [
+                "episodeKey",
+                "seasonClaimDigest",
+                "claimDigest"
+              ]
+            },
+            "maxItems": 32
+          }
+        },
+        "required": [
+          "ordinal",
+          "materialKey",
+          "role",
+          "physicalIdentity",
+          "sizeBytes",
+          "bindingRevision",
+          "admittedControlRevision",
+          "admittedControlProjectionDigest",
+          "episodeClaims"
+        ]
+      },
+      "maxItems": 1024,
+      "minItems": 1
+    },
     "membersDigest": {
       "type": "string",
       "minLength": 1,
@@ -105,6 +192,7 @@
     "unitId",
     "structureKind",
     "memberCount",
+    "members",
     "membersDigest",
     "memberSourceDigest",
     "manifestDraftDigest"

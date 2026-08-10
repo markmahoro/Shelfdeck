@@ -27,8 +27,8 @@ const codes = (result) => new Set(result.findings.map((item) => item.code));
 test('validates all 179 SSOT table contracts without executing DDL', () => {
   const result = validateTableContracts({ contractsRoot: actualContractsRoot });
   assert.equal(result.ok, true);
-  assert.equal(result.tableCount, 179);
-  assert.equal(result.foreignKeyCount, 220);
+  assert.equal(result.tableCount, 180);
+  assert.equal(result.foreignKeyCount, 223);
   assert.equal(result.jsonColumnCount, 56);
 
   const runRevisionContract = JSON.parse(fs.readFileSync(

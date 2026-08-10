@@ -138,6 +138,10 @@ function createCleanMediaProbe(options = {}) {
   }
   const topologyReader = options.bdmvTopologyReader || createBdmvTopologyReader(options.bdmv || {});
   return Object.freeze({
+    // The Procurement BDMV Assessment Capability receives this typed,
+    // read-only topology port from the Composition Root.  It is deliberately
+    // not embedded in MediaProbeEvidence or stream payloads.
+    bdmvTopologyReader: topologyReader,
     async probe(readHandle) {
       if (!readHandle || typeof readHandle.location !== 'string' || !readHandle.identity) {
         throw new CleanMediaProbeError('CLEAN_MEDIA_PROBE_INPUT',

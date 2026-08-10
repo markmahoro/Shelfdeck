@@ -22,6 +22,76 @@
       "maxItems": 11,
       "minItems": 1
     },
+    "bdmvAssessments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "scope": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "scopeKind": {
+                "const": "bdmv_container"
+              },
+              "procurementRunId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "bdmvGroupKey": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "scopeDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "memberSetDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "memberCount": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "topologyDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "selectedPayloadSetDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "scopeKind",
+              "procurementRunId",
+              "bdmvGroupKey",
+              "scopeDigest",
+              "memberSetDigest",
+              "memberCount",
+              "topologyDigest",
+              "selectedPayloadSetDigest"
+            ]
+          },
+          "assessment": {
+            "$ref": "helix://contracts/types/BdmvAssessmentEvidence/v1"
+          }
+        },
+        "required": [
+          "scope",
+          "assessment"
+        ]
+      },
+      "maxItems": 1024
+    },
     "playabilityPages": {
       "type": "array",
       "items": {
@@ -305,6 +375,7 @@
   "required": [
     "selectedFieldMaterialSet",
     "probeBatches",
+    "bdmvAssessments",
     "playabilityPages",
     "materialFieldContext",
     "observationScopeProjection",

@@ -38,11 +38,24 @@ function validateBatch(batch) {
     fail('P7_TRIAGE_BATCH_INVALID', 'Probe Batch bounds or digest is invalid.');
   }
   batch.members.forEach((member, index) => {
-    exact(member, ['selectionOrdinal','materialKey','bindingRevision','admittedControlRevision','admittedControlProjectionDigest',
-      'readHandle','mediaProbe','memberDigest'], 'P7_TRIAGE_BATCH_MEMBER_SHAPE');
     if (!Number.isSafeInteger(member.selectionOrdinal) || member.selectionOrdinal < 0 || index > 0 &&
-        batch.members[index - 1].selectionOrdinal + 1 !== member.selectionOrdinal || member.memberDigest !== digest(without(member, 'memberDigest')) ||
-        member.readHandle.identity.materialKey !== member.materialKey || member.readHandle.bindingRevision !== member.bindingRevision ||
+        batch.members[index - 1].selectionOrdinal >= member.selectionOrdinal || member.memberDigest !== digest(without(member, 'memberDigest'))) {
+      fail('P7_TRIAGE_BATCH_MEMBER_INVALID', 'Probe member mapping or digest is invalid.');
+    }
+    const bdmv = member.inputKind === 'bdmv_container';
+    if (bdmv) {
+      exact(member, ['inputKind','selectionOrdinal','materialKey','bindingRevision','admittedControlRevision','admittedControlProjectionDigest',
+        'bdmvGroupKey','scopeDigest','memberSetDigest','memberCount','bdmvAssessment','memberDigest'], 'P7_TRIAGE_BATCH_MEMBER_SHAPE');
+      if (member.bdmvAssessment.scopeDigest !== member.scopeDigest || member.bdmvAssessment.memberSetDigest !== member.memberSetDigest ||
+          member.bdmvAssessment.bdmvGroupKey !== member.bdmvGroupKey) fail('P7_TRIAGE_BATCH_MEMBER_INVALID', 'BDMV Assessment mapping is invalid.');
+      return;
+    }
+    const ordinaryShape = !Object.hasOwn(member, 'inputKind');
+    const expectedKeys = ordinaryShape
+      ? ['selectionOrdinal','materialKey','bindingRevision','admittedControlRevision','admittedControlProjectionDigest','readHandle','mediaProbe','memberDigest']
+      : ['inputKind','selectionOrdinal','materialKey','bindingRevision','admittedControlRevision','admittedControlProjectionDigest','readHandle','mediaProbe','memberDigest'];
+    exact(member, expectedKeys, 'P7_TRIAGE_BATCH_MEMBER_SHAPE');
+    if (member.inputKind && member.inputKind !== 'material' || member.readHandle.identity.materialKey !== member.materialKey || member.readHandle.bindingRevision !== member.bindingRevision ||
         member.mediaProbe.sourceHandleDigest !== digest(member.readHandle)) fail('P7_TRIAGE_BATCH_MEMBER_INVALID', 'Probe member mapping or digest is invalid.');
   });
 }
@@ -58,6 +71,16 @@ function isBdmvStructuralLocation(location) {
 function inspectPlayability(batch, rule, options = {}) {
   validateTriageRuleSnapshot(rule); validateBatch(batch);
   const materialResults = batch.members.map((member) => {
+    if (member.inputKind === 'bdmv_container') {
+      const assessment = member.bdmvAssessment; const reasons = [];
+      if (assessment.resultKind !== 'resolved') reasons.push('bdmv_not_ready');
+      else if (assessment.mediaSummary?.probeState !== 'probed' || Number(assessment.mediaSummary?.durationMs || 0) < rule.rulePayload.playabilityRule.minimumDurationMs ||
+        !Array.isArray(assessment.mediaSummary?.videoClasses) || assessment.mediaSummary.videoClasses.length < rule.rulePayload.playabilityRule.minimumVideoStreamCount) reasons.push('probe_not_media');
+      const result = { inputKind:'bdmv_container', selectionOrdinal:member.selectionOrdinal, materialKey:member.materialKey,
+        bindingRevision:member.bindingRevision, bdmvGroupKey:member.bdmvGroupKey, scopeDigest:member.scopeDigest,
+        probeEvidenceDigest:assessment.payloadDigest, playable:reasons.length === 0, reasonCodes:reasons };
+      return freeze({ ...result, resultDigest:digest(result) });
+    }
     const probe = member.mediaProbe; const reasons = [];
     // BDMV metadata files are structural dependencies, not playable payloads.
     // Their bounded topology evidence is still carried by MediaProbeEvidence,
@@ -110,8 +133,11 @@ function seriesTitleFrom(context, temporaryLabel) {
   return title || titleFrom(context, temporaryLabel);
 }
 function contextMap(input) { return new Map(input.materialFieldContext.memberContexts.map((item) => [item.materialKey, item])); }
-function probeMap(input) { return new Map(input.probeBatches.flatMap((batch) => batch.members).map((item) => [item.materialKey, item])); }
+function probeMap(input) { return new Map(input.probeBatches.flatMap((batch) => batch.members).filter((item) => item.inputKind !== 'bdmv_container').map((item) => [item.materialKey, item])); }
+function bdmvBatchMap(input) { return new Map(input.probeBatches.flatMap((batch) => batch.members).filter((item) => item.inputKind === 'bdmv_container').map((item) => [item.scopeDigest, item])); }
+function bdmvAssessmentMap(input) { return new Map((input.bdmvAssessments || []).map((item) => [item.scope.scopeDigest, item])); }
 function playableMap(input) { return new Map(input.playabilityPages.flatMap((page) => page.materialResults).map((item) => [item.materialKey, item])); }
+function playableBdmvMap(input) { return new Map(input.playabilityPages.flatMap((page) => page.materialResults).filter((item) => item.inputKind === 'bdmv_container').map((item) => [item.scopeDigest, item])); }
 function observationScopeLayoutEvidence(input) {
   const projection = input.observationScopeProjection;
   if (!projection) return input.layoutEvidence || [];
@@ -193,11 +219,14 @@ function bdmvInternalEntry(entry) {
     /\.(MPLS|CLPI|M2TS|BDMV)$/.test(baseName);
 }
 function validateStructureInput(input) {
-  exact(input, ['selectedFieldMaterialSet','probeBatches','playabilityPages','materialFieldContext','observationScopeProjection','pageRequest','inputDigest'],
-    'P7_TRIAGE_STRUCTURE_INPUT_SHAPE');
+  const allowed = ['selectedFieldMaterialSet','probeBatches','bdmvAssessments','playabilityPages','materialFieldContext','observationScopeProjection','layoutEvidence','pageRequest','inputDigest'];
+  const required = ['selectedFieldMaterialSet','probeBatches','playabilityPages','materialFieldContext','pageRequest','inputDigest'];
+  if (!input || typeof input !== 'object' || Object.keys(input).some((key) => !allowed.includes(key)) ||
+      required.some((key) => !Object.hasOwn(input, key)) || (!Object.hasOwn(input, 'observationScopeProjection') && !Object.hasOwn(input, 'layoutEvidence'))) fail('P7_TRIAGE_STRUCTURE_INPUT_SHAPE', 'Structure input shape is invalid.');
   const selection = input.selectedFieldMaterialSet;
   if (!Array.isArray(selection.members) || selection.members.length < 1 || selection.members.length > MAX_RUN_PHYSICAL_MEMBERS ||
-      !Array.isArray(input.probeBatches) || !Array.isArray(input.playabilityPages) || !input.observationScopeProjection || !Array.isArray(input.observationScopeProjection.entries)) {
+      !Array.isArray(input.probeBatches) || !Array.isArray(input.playabilityPages) ||
+      input.observationScopeProjection && !Array.isArray(input.observationScopeProjection.entries)) {
     fail('P7_TRIAGE_STRUCTURE_INPUT_BOUNDS', 'Structure input collections are invalid.');
   }
   input.probeBatches.forEach(validateBatch);
@@ -210,14 +239,18 @@ function validateStructureInput(input) {
   if (profileHintSnapshot.fieldId !== input.materialFieldContext.fieldId) {
     fail('PBF22_TRIAGE_PROFILE_HINT_FIELD_MISMATCH', 'Triage Profile Hint belongs to another Field.');
   }
-  for (const [index, member] of selection.members.entries()) {
-    if (!probeMembers[index] || probeMembers[index].selectionOrdinal !== index || probeMembers[index].materialKey !== member.materialKey ||
-        !playResults[index] || playResults[index].selectionOrdinal !== index || playResults[index].materialKey !== member.materialKey ||
-        !contexts[index] || contexts[index].selectionOrdinal !== index || contexts[index].materialKey !== member.materialKey) {
-      fail('P7_TRIAGE_STRUCTURE_COVERAGE', 'Probe, Playability, and Context must cover Selection exactly once in ordinal order.');
+  const logicalProbeCount = probeMembers.length; const logicalPlayCount = playResults.length;
+  for (const member of probeMembers) {
+    if (member.inputKind === 'bdmv_container') {
+      if (!(input.bdmvAssessments || []).some((item) => item.scope.scopeDigest === member.scopeDigest) ||
+          !playResults.some((result) => result.inputKind === 'bdmv_container' && result.scopeDigest === member.scopeDigest)) {
+        fail('P7_TRIAGE_STRUCTURE_COVERAGE', 'BDMV Assessment and Playability must cover each logical container.');
+      }
+    } else if (!playResults.some((result) => result.materialKey === member.materialKey) || !contexts.some((context) => context.materialKey === member.materialKey)) {
+      fail('P7_TRIAGE_STRUCTURE_COVERAGE', 'Probe, Playability, and Context must cover each ordinary Selection member.');
     }
   }
-  if (probeMembers.length !== selection.members.length || playResults.length !== selection.members.length || contexts.length !== selection.members.length ||
+  if (logicalProbeCount !== logicalPlayCount || contexts.length !== selection.members.length ||
       input.probeBatches.some((batch) => batch.procurementRunId !== selection.procurementRunId || batch.selectionDigest !== selection.selectionDigest) ||
       input.playabilityPages.some((page) => page.procurementRunId !== selection.procurementRunId || page.selectionDigest !== selection.selectionDigest) ||
       input.materialFieldContext.contextDigest !== digest(without(input.materialFieldContext, 'contextDigest')) ||
@@ -225,10 +258,13 @@ function validateStructureInput(input) {
     fail('P7_TRIAGE_STRUCTURE_FENCE', 'Structure input fence or canonical digest is invalid.');
   }
   const basis = { schema:'procurement.triage-structure-input@1', selectionDigest:selection.selectionDigest,
-    probeBatchDigests:input.probeBatches.map((item) => item.batchDigest),
-    playabilityPayloadDigests:input.playabilityPages.map((item) => item.payloadDigest), contextDigest:input.materialFieldContext.contextDigest,
-    observationScopeProjectionDigest:input.observationScopeProjection.scopeDigest,
-    pageRequest:input.pageRequest };
+    probeBatchDigests:input.probeBatches.map((item) => item.batchDigest) };
+  if (Object.hasOwn(input, 'bdmvAssessments')) basis.bdmvAssessmentPayloadDigests = input.bdmvAssessments.map((item) => item.assessment.payloadDigest);
+  basis.playabilityPayloadDigests = input.playabilityPages.map((item) => item.payloadDigest);
+  basis.contextDigest = input.materialFieldContext.contextDigest;
+  if (Object.hasOwn(input, 'observationScopeProjection')) basis.observationScopeProjectionDigest = input.observationScopeProjection.scopeDigest;
+  if (Object.hasOwn(input, 'layoutEvidence')) basis.layoutPayloadDigests = input.layoutEvidence.map((item) => item.payloadDigest);
+  basis.pageRequest = input.pageRequest;
   if (input.inputDigest !== digest(basis)) fail('P7_TRIAGE_STRUCTURE_INPUT_DIGEST', 'Structure input digest is invalid.');
 }
 
@@ -393,7 +429,7 @@ function unitFor(
   return value;
 }
 
-function bdmvUnitFor(group, topology, contexts, probes, layoutEvidence, fieldContext, profileHintSnapshot, root) {
+function bdmvUnitFor(group, topology, contexts, layoutEvidence, fieldContext, profileHintSnapshot, root, scopeReference, assessment) {
   const topologyRoot = root || contexts.map((context) => bdmvRootForLocation(context.fieldRelativeLocation)).find(Boolean);
   if (!topologyRoot) return { kind:'incomplete' };
   const byRelative = new Map(group.map((item) => {
@@ -404,36 +440,41 @@ function bdmvUnitFor(group, topology, contexts, probes, layoutEvidence, fieldCon
   const topologyMembers = topology.members.map((member) => ({ ...member, key: String(member.relativeLocation).replace(/\\/g, '/').toUpperCase() }));
   const selectedMembers = [];
   for (const topologyMember of topologyMembers) {
-    const probe = byRelative.get(topologyMember.key);
-    if (!probe) return { kind:'incomplete' };
-    selectedMembers.push({ probe, role:topologyMember.role });
+    const selected = byRelative.get(topologyMember.key);
+    if (!selected) return { kind:'incomplete' };
+    selectedMembers.push({ selected, role:topologyMember.role });
   }
   const primary = selectedMembers.filter((item) => item.role === 'primary_payload');
   if (primary.length < 1) return { kind:'incomplete' };
-  const primaryProbe = primary[0].probe;
-  const primaryContext = contexts.find((context) => context.materialKey === primaryProbe.materialKey);
+  const primaryMember = primary[0].selected;
+  // Run Selection carries the admitted Control snapshot as a nested typed
+  // value.  Candidate/Unit contracts carry the two immutable admission
+  // fields directly, so project them here rather than reading an undefined
+  // property from the Selection member.
+  const primaryUnitMember = {
+    ...primaryMember,
+    admittedControlRevision:primaryMember.admittedControlRevision ?? primaryMember.controlSnapshot?.controlRevision,
+    admittedControlProjectionDigest:primaryMember.admittedControlProjectionDigest ?? primaryMember.controlSnapshot?.projectionDigest,
+  };
+  const primaryContext = contexts.find((context) => context.materialKey === primaryMember.materialKey);
   const directoryTitle = directoryTitleFor(primaryContext, layoutEvidence);
-  const related = relatedFor({ ...primaryContext, directoryTitle, contextDigest:fieldContext.contextDigest }, layoutEvidence, primaryProbe.materialKey);
-  const seed = unitFor(primaryProbe, { ...primaryContext, directoryTitle, fieldId:fieldContext.fieldId }, 'movie', 'single', null, [], related,
+  const related = relatedFor({ ...primaryContext, directoryTitle, contextDigest:fieldContext.contextDigest }, layoutEvidence, primaryMember.materialKey);
+  const seed = unitFor(primaryUnitMember, { ...primaryContext, directoryTitle, fieldId:fieldContext.fieldId }, 'movie', 'single', null, [], related,
     profileHintSnapshot);
-  const members = selectedMembers.map(({ probe, role }) => ({
-    materialKey:probe.materialKey,
-    bindingRevision:probe.bindingRevision,
-    admittedControlRevision:probe.admittedControlRevision,
-    admittedControlProjectionDigest:probe.admittedControlProjectionDigest,
-    role,
-    episodeClaims:[],
-  })).sort((left, right) => compareUtf8(left.materialKey, right.materialKey));
-  for (const member of members) member.memberClaimDigest = digest(member);
-  const value = { ...seed, members, relatedReferences:related };
-  value.unitId = digest({ schema:'procurement.triage-unit-id@1', mediaType:value.mediaType, contentProfile:value.contentProfile,
-    structureKind:value.structureKind, members:value.members.map(({ materialKey, role, episodeClaims }) => ({ materialKey, role, episodeClaims })) });
+  const memberScope = { scopeKind:'bdmv_container', procurementRunId:scopeReference.procurementRunId, bdmvGroupKey:scopeReference.bdmvGroupKey,
+    scopeDigest:scopeReference.scopeDigest, memberSetDigest:scopeReference.memberSetDigest, memberCount:group.length,
+    topologyDigest:assessment.topologyDigest, selectedPayloadSetDigest:assessment.selectedPayloadSetDigest };
+  const value = { ...seed, members:undefined, memberScope, relatedReferences:related };
+  delete value.members;
+  value.unitId = digest({ schema:'procurement.triage-unit-id@2', mediaType:value.mediaType, contentProfile:value.contentProfile,
+    structureKind:value.structureKind, scope:memberScope });
   value.unitDigest = digest(without(value, 'unitDigest'));
   return { kind:'resolved', unit:value, selectedKeys:new Set(topologyMembers.map((member) => member.key)), topologyRoot };
 }
 
 function conserveUnitBound(unit, unassigned) {
   if (Buffer.byteLength(canonicalJson(unit), 'utf8') <= 65536) return true;
+  if (!Array.isArray(unit.members)) return false;
   for (const member of unit.members) {
     unassigned.push({
       materialKey:member.materialKey,
@@ -521,7 +562,8 @@ function mergeSeriesUnits(groups, unassigned) {
 function inspectStructure(input, rule, options = {}) {
   validateTriageRuleSnapshot(rule); validateStructureInput(input);
   const layoutEvidence = observationScopeLayoutEvidence(input);
-  const selection = input.selectedFieldMaterialSet; const contexts = contextMap(input); const probes = probeMap(input); const playable = playableMap(input);
+  const selection = input.selectedFieldMaterialSet; const contexts = contextMap(input); const probes = probeMap(input); const bdmvBatches = bdmvBatchMap(input);
+  const bdmvAssessments = bdmvAssessmentMap(input); const playable = playableMap(input); const playableBdmv = playableBdmvMap(input);
   const units = []; const unassigned = []; const seriesGroups = new Map(); const processed = new Set();
   const profileHintSnapshot = input.materialFieldContext.profileHintSnapshot;
   const addGroupUnassigned = (group, reasonCode, evidenceDigest) => {
@@ -534,21 +576,31 @@ function inspectStructure(input, rule, options = {}) {
   for (const selected of selection.members) {
     if (processed.has(selected.materialKey)) continue;
     const context = contexts.get(selected.materialKey); const probe = probes.get(selected.materialKey); const play = playable.get(selected.materialKey);
-    if (!context || !probe || !play || probe.bindingRevision !== selected.bindingRevision) fail('P7_TRIAGE_STRUCTURE_MAPPING', 'Structure input does not exactly cover Selection.');
+    if (!context) fail('P7_TRIAGE_STRUCTURE_MAPPING', 'Structure input does not exactly cover Selection.');
     const bdmvContainer = bdmvContainerKeys.get(selected.materialKey);
     const bdmvRoot = bdmvContainer ? allContexts.map((candidate) => bdmvRootForLocation(candidate.fieldRelativeLocation))
       .find((root) => root && root.replace(/\\/g, '/').replace(/\/BDMV$/, '') === bdmvContainer) : null;
     if (bdmvContainer && bdmvRoot) {
       const group = selection.members.filter((candidate) => bdmvContainerKeys.get(candidate.materialKey) === bdmvContainer);
       group.forEach((candidate) => processed.add(candidate.materialKey));
-      const topologyResults = group.map((candidate) => probes.get(candidate.materialKey).mediaProbe.discTopology).filter(Boolean);
+      const expectedBdmvGroupKey = 'bdmv:' + bdmvContainer;
+      const bdmvGroup = [...bdmvBatches.values()].find((item) => item.bdmvGroupKey === expectedBdmvGroupKey &&
+        item.scopeDigest && bdmvAssessments.has(item.scopeDigest));
+      const assessmentEnvelope = bdmvGroup && bdmvAssessments.get(bdmvGroup.scopeDigest);
+      const topologyResults = assessmentEnvelope?.assessment?.topologyDigest ? [{ topologyDigest:assessmentEnvelope.assessment.topologyDigest }] : [];
       const hint = profileHintSnapshot.contentProfileHint;
       if (hint === 'series' || hint === 'jav' || hint === 'western_adult' || hint === 'mixed' && group.some((candidate) => episodeToken(contexts.get(candidate.materialKey).baseName))) {
         addGroupUnassigned(group, 'disc_structure_incomplete');
         continue;
       }
-      if (!topologyResults.length) { addGroupUnassigned(group, 'disc_structure_incomplete'); continue; }
-      const topology = topologyResults[0];
+      if (!bdmvGroup || !assessmentEnvelope || !topologyResults.length) { addGroupUnassigned(group, 'disc_structure_incomplete'); continue; }
+      const assessment = assessmentEnvelope.assessment;
+      if (assessment.resultKind !== 'resolved') { addGroupUnassigned(group, assessment.reasonCode === 'bdmv_series_unsupported' ? 'disc_structure_incomplete' : 'disc_structure_incomplete', assessment.payloadDigest); continue; }
+      const topology = { topologyDigest:assessment.topologyDigest, selectedPlaylist:assessment.selectedPlaylist, titleCount:assessment.titleCount,
+        members:assessment.selectedClipIds.map((clipId) => ({ relativeLocation:'STREAM/' + clipId + '.M2TS', role:'primary_payload', clipId })) };
+      topology.members.push({ relativeLocation:assessment.selectedPlaylist.relativeLocation, role:'structural_dependency' },
+        { relativeLocation:'index.bdmv', role:'structural_dependency' }, { relativeLocation:'MovieObject.bdmv', role:'structural_dependency' },
+        ...assessment.selectedClipIds.map((clipId) => ({ relativeLocation:'CLIPINF/' + clipId + '.CLPI', role:'structural_dependency' })));
       if (topologyResults.some((item) => item.topologyDigest !== topology.topologyDigest)) {
         addGroupUnassigned(group, 'structure_ambiguous'); continue;
       }
@@ -563,14 +615,10 @@ function inspectStructure(input, rule, options = {}) {
       const hasStream = [...relatives].some((value) => /^STREAM\/[^/]+\.M2TS$/.test(value));
       if (!hasIndex || !hasMovieObject || !hasPlaylist || !hasStream) { addGroupUnassigned(group, 'disc_structure_incomplete'); continue; }
       const groupContexts = group.map((candidate) => contexts.get(candidate.materialKey));
-      const groupProbes = new Map(group.map((candidate) => [candidate.materialKey, probes.get(candidate.materialKey)]));
-      const built = bdmvUnitFor(group.map((candidate) => probes.get(candidate.materialKey)), topology, groupContexts, groupProbes,
-        layoutEvidence, input.materialFieldContext, profileHintSnapshot, bdmvRoot);
+      const built = bdmvUnitFor(group, topology, groupContexts, layoutEvidence, input.materialFieldContext, profileHintSnapshot, bdmvRoot,
+        assessmentEnvelope.scope, assessment);
       if (built.kind !== 'resolved') { addGroupUnassigned(group, 'disc_structure_incomplete'); continue; }
-      const primaryFailures = built.unit.members.map((member) => {
-        if (member.role !== 'primary_payload') return null;
-        const result = playable.get(member.materialKey); return result.playable ? null : result.reasonCodes[0];
-      }).filter(Boolean);
+      const primaryFailures = playableBdmv.get(bdmvGroup.scopeDigest)?.playable ? [] : [playableBdmv.get(bdmvGroup.scopeDigest)?.reasonCodes?.[0] || 'probe_not_media'];
       if (primaryFailures.length) { addGroupUnassigned(group, primaryFailures[0]); continue; }
       for (const candidate of group) {
         const relative = relativeToBdmvRoot(contexts.get(candidate.materialKey).fieldRelativeLocation, bdmvRoot);
@@ -582,6 +630,7 @@ function inspectStructure(input, rule, options = {}) {
       continue;
     }
     processed.add(selected.materialKey);
+    if (!probe || !play || probe.bindingRevision !== selected.bindingRevision) fail('P7_TRIAGE_STRUCTURE_MAPPING', 'Structure input does not exactly cover ordinary Selection.');
     if (!play.playable) { unassigned.push({ materialKey:selected.materialKey, reasonCode:play.reasonCodes[0], evidenceDigest:play.resultDigest }); continue; }
     // A disc topology on an ordinary material is still allowed to carry the
     // deterministic title choice; the BDMV container branch above owns the
@@ -608,6 +657,11 @@ function inspectStructure(input, rule, options = {}) {
   units.sort((a,b) => compareUtf8(a.unitId,b.unitId)); unassigned.sort((a,b) => compareUtf8(a.materialKey,b.materialKey));
   const cursor = input.pageRequest.cursorIn;
   let cursorKind = 'units'; let offset = 0;
+  // If a page has no candidate Units at all, expose the terminal business
+  // failures immediately instead of emitting an empty page that only points
+  // to a second cursor.  When Units exist, they retain precedence and the
+  // following page carries unassigned members as before.
+  if (!input.pageRequest.cursorIn && units.length === 0 && unassigned.length > 0) cursorKind = 'unassigned';
   if (cursor) {
     const match = /^(offset|units|unassigned):(\d+)$/.exec(cursor);
     if (!match) fail('P7_TRIAGE_STRUCTURE_CURSOR', 'Structure cursor is invalid.');
@@ -678,7 +732,9 @@ function resolveIdentity(input, rule, options = {}) {
 }
 
 function buildPrimaryManifestDraft(input, rule, options = {}) {
-  validateTriageRuleSnapshot(rule); const members = [...input.unit.members].sort((a,b) => compareUtf8(a.materialKey,b.materialKey)).map((member, ordinal) => ({
+  validateTriageRuleSnapshot(rule); const sourceMembers = input.candidateMembers || input.unit.members;
+  if (!Array.isArray(sourceMembers) || sourceMembers.length < 1) fail('P7_TRIAGE_MANIFEST_MEMBERS_MISSING', 'Primary Manifest requires hydrated Candidate members.');
+  const members = [...sourceMembers].sort((a,b) => compareUtf8(a.materialKey,b.materialKey)).map((member, ordinal) => ({
     ordinal, materialKey:member.materialKey, role:member.role,
     physicalIdentity:input.selectedFieldMaterialSet.members.find((item)=>item.materialKey===member.materialKey).physicalIdentity,
     sizeBytes:input.selectedFieldMaterialSet.members.find((item)=>item.materialKey===member.materialKey).sizeBytes,
@@ -689,7 +745,8 @@ function buildPrimaryManifestDraft(input, rule, options = {}) {
   const membersDigest = digest({ schema:'procurement.primary-input-manifest-members@1', items:members });
   const payload = { preallocatedManifestId:input.preallocatedManifestId, procurementRunId:input.procurementRunId,
     runBasisDigest:input.runBasisDigest, structureEvidencePayloadDigest:input.structureEvidencePayloadDigest, unitId:input.unit.unitId,
-    structureKind:input.unit.structureKind, memberCount:members.length, membersDigest, memberSourceDigest:input.unit.unitDigest };
+    structureKind:input.unit.structureKind, memberCount:members.length, members:Object.freeze(members), membersDigest,
+    memberSourceDigest:input.unit.unitDigest };
   const value = { schemaRef:'helix://contracts/types/PrimaryInputManifestDraft/v1', schemaVersion:1,
     draftId:digest({ kind:'primary-manifest-draft', manifestId:input.preallocatedManifestId }), draftKind:'procurement_primary_input_manifest',
     basisDigest:input.inputDigest, draftDigest:'', producedAtMs:options.producedAtMs || 0, ...payload, manifestDraftDigest:'' };

@@ -8,8 +8,8 @@ const schemas = buildDomainInputSchemas();
 
 test('builds exactly the 109 formal domain input contracts', () => {
   assert.equal(Object.keys(schemas).length, 109);
-  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'bounded-contract').length, 24);
-  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'accepted-business-dto').length, 85);
+  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'bounded-contract').length, 23);
+  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'accepted-business-dto').length, 86);
 });
 
 test('materializes the exact service-local Western analysis construction inputs', () => {
@@ -210,17 +210,19 @@ test('keeps canonical content profile separate from season structure', () => {
 });
 
 test('accepted DTOs freeze semantic members instead of exposing arbitrary payloads', () => {
-  assert.equal(schemas.SelectedFieldMaterialSet.properties.members.maxItems, 256);
+  assert.equal(schemas.SelectedFieldMaterialSet.properties.members.maxItems, 1024);
   const triageRule = schemas.ProcurementTriageRuleSnapshot.properties.rulePayload.properties;
   assert.equal(triageRule.maxPrimaryMaterials.const, 256);
   assert.equal(triageRule.manifestRule.properties.maximumMembers.const, 256);
-  assert.equal(schemas.TriageStructureInspectionInput.properties.materialFieldContext.properties.memberContexts.maxItems, 256);
-  assert.equal(schemas.CandidateDraft.properties.structureEvidence.properties.unit.properties.members.maxItems, 256);
-  assert.equal(schemas.TriageStructureInspectionInput.properties.probeBatches.maxItems, 3);
-  assert.equal(schemas.TriageStructureInspectionInput.properties.playabilityPages.maxItems, 3);
-  assert.equal(schemas.TriageStructureInspectionInput.properties.layoutEvidence.maxItems, 256);
+  assert.equal(schemas.TriageStructureInspectionInput.properties.materialFieldContext.properties.memberContexts.maxItems, 1024);
+  const triageUnitBranches = schemas.CandidateDraft.properties.structureEvidence.properties.unit.oneOf;
+  assert.equal(triageUnitBranches[0].properties.members.maxItems, 256);
+  assert.equal(triageUnitBranches[1].properties.memberScope.properties.memberCount.minimum, 1);
+  assert.equal(schemas.TriageStructureInspectionInput.properties.probeBatches.maxItems, 11);
+  assert.equal(schemas.TriageStructureInspectionInput.properties.playabilityPages.maxItems, 11);
+  assert.equal(schemas.TriageStructureInspectionInput.properties.observationScopeProjection.properties.entries.maxItems, 4096);
   assert.equal(schemas.CandidateDraft.properties.primaryInputManifestDraft.$ref, 'helix://contracts/types/PrimaryInputManifestDraft/v1');
-  assert.equal(schemas.CandidateDraft.properties.structureEvidence.properties.unit.properties.mediaType.enum.includes('group'), true);
+  assert.equal(triageUnitBranches.every((branch) => branch.properties.mediaType.enum.includes('group')), true);
   assert.equal(schemas.CandidateDraft.properties.seasonContinuityClaims.items.$ref,
     'helix://contracts/types/SeasonContinuityClaim/v1');
   assert.ok(schemas.CandidateDraft.required.includes('seasonContinuityClaimSetDigest'));

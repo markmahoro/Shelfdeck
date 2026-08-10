@@ -17,7 +17,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10274,
+        "line": 10282,
         "lineDigest": "0d7c291dd2c62b69d64d7741a78737df79204a73ecb2a2344980ed8f2eee787a"
       }
     },
@@ -29,7 +29,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10268,
+        "line": 10276,
         "lineDigest": "9cbf5de0790297e9178106d7be41525efa16402bb4a5433e4a4ef003e7ff505c"
       }
     },
@@ -41,7 +41,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10270,
+        "line": 10278,
         "lineDigest": "13c2cfd86fcf906ca4cfc0134b5d7ee9e632392994ea5e72359aa725675bf748"
       }
     },
@@ -53,7 +53,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10267,
+        "line": 10275,
         "lineDigest": "7dc3dd81b4604b5dae01d2df2fdbc132fa2a4a55ac6f37a393d6b91fa9082c34"
       }
     },
@@ -65,7 +65,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10292,
+        "line": 10300,
         "lineDigest": "01a12184f6fce3faf64e3fdd437256c87571e420dcade65866b4d85c05bbd62a"
       }
     },
@@ -77,7 +77,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10291,
+        "line": 10299,
         "lineDigest": "5175a3accb313aada0298b23f9f1ed80908e7e4053f7d14da797f53eda8a4da0"
       }
     },
@@ -90,7 +90,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10249,
+        "line": 10257,
         "lineDigest": "bddb45252a26092fdbf3671ef31102d615f87d8ebf704d4c94ef4d596260efe9"
       }
     },
@@ -106,7 +106,7 @@
       ],
       "source": {
         "section": "8.6.18",
-        "line": 9813,
+        "line": 9819,
         "lineDigest": "a1e77d2164eaee19b83a55a14d71b0e8a13f8444a0a3e9551d8e9f16b73a2053"
       }
     },
@@ -118,7 +118,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10226,
+        "line": 10233,
         "lineDigest": "6405b95dbcd5625de5fd30026da70327566ede3e4379c26d3de87e5712dadd7c"
       }
     },
@@ -130,8 +130,20 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10288,
+        "line": 10296,
         "lineDigest": "a99abcea2ac9e22e3a613685713daa36d7c5c3c1c276ed728b2739f2b233cd4b"
+      }
+    },
+    {
+      "id": "BdmvAssessmentEvidence",
+      "kind": "nominal-result",
+      "producedBy": [
+        "procurement.triage.bdmv.assess@1"
+      ],
+      "source": {
+        "section": "8.6.19",
+        "line": 10240,
+        "lineDigest": "77d2cbc1718a5890e1ed42d5e009359d8a58c5e8cf09be68771aae8d839789c1"
       }
     },
     {
@@ -142,7 +154,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10223,
+        "line": 10230,
         "lineDigest": "90d62ce7445259e1026460cf907c714b7137251be1694d79d3aa983c778f71d1"
       }
     },
@@ -154,7 +166,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10238,
+        "line": 10246,
         "lineDigest": "2ec63d726636f23665a268eb846dc87ccf7c1c5eb4bc7092522947b9da515175"
       }
     },
@@ -166,7 +178,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10237,
+        "line": 10245,
         "lineDigest": "ab809ed463191ed454baab405e0cc4f135e3a1613b1496553bd5ebdc5fdfaeb1"
       }
     },
@@ -176,7 +188,7 @@
       "producedBy": [],
       "source": {
         "section": "8.6.17",
-        "line": 9777,
+        "line": 9783,
         "lineDigest": "06694ab63e7e9d5f8038d3a157305b48fcccbf884dd09ea89ac20bb8e43cc35c"
       }
     },
@@ -188,7 +200,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10290,
+        "line": 10298,
         "lineDigest": "06cffb9c1a907ea8a0dbeaab0efcbbac0a3ddf9b49c8e5d1646b36b584e0ad8f"
       }
     },
@@ -200,7 +212,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10287,
+        "line": 10295,
         "lineDigest": "86438dfbcfc7e68248c39d39e0cc146b0f2dce35a72bbea13f79eae98c044874"
       }
     },
@@ -212,7 +224,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10277,
+        "line": 10285,
         "lineDigest": "b5bd3a8e6290c0bbe02331dc6f7bd853609b1cca1f4968f73ebdcb413eeddc77"
       }
     },
@@ -224,7 +236,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10287,
+        "line": 10295,
         "lineDigest": "86438dfbcfc7e68248c39d39e0cc146b0f2dce35a72bbea13f79eae98c044874"
       }
     },
@@ -236,7 +248,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10246,
+        "line": 10254,
         "lineDigest": "ccf52535ed19262ad26e7a823e9353b2a3be7039d783492e8cacf83bdc489332"
       }
     },
@@ -249,7 +261,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10282,
+        "line": 10290,
         "lineDigest": "81360bcdf4896f3a43a20fab30f3ea6b4bfbe264048beb9df9bb4c0b94c869b8"
       }
     },
@@ -261,7 +273,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10301,
+        "line": 10309,
         "lineDigest": "1c7d583008a321b9d2696bfe33fb02612c06b37b1a6398b933243ef7948646c7"
       }
     },
@@ -273,7 +285,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10298,
+        "line": 10306,
         "lineDigest": "ac70f56670893238e3f35e0f9bbead0ee72b05abed8005980393a7924226d108"
       }
     },
@@ -285,7 +297,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10293,
+        "line": 10301,
         "lineDigest": "7f62cd087f3a985a1fdcd633465a53826cd963fd949c2e8dc8ebe181a0e9d2fa"
       }
     },
@@ -297,7 +309,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10294,
+        "line": 10302,
         "lineDigest": "4e297ce353239e50fb61251c41d17ad36662063ceef7923e948168df26be5eae"
       }
     },
@@ -309,7 +321,7 @@
       ],
       "source": {
         "section": "8.6.18",
-        "line": 9877,
+        "line": 9884,
         "lineDigest": "2d00908757ee3ade229b148ae5e34b2c3e1f1ef17e430b8ce00638a8a04d3468"
       }
     },
@@ -321,7 +333,7 @@
       ],
       "source": {
         "section": "8.6.18",
-        "line": 9880,
+        "line": 9887,
         "lineDigest": "c3f30de5e97f5b5be3f6f8c06ca818c4ce2c31df4c0a5161ad7df085dcfa5fe4"
       }
     },
@@ -333,7 +345,7 @@
       ],
       "source": {
         "section": "8.6.18",
-        "line": 9884,
+        "line": 9891,
         "lineDigest": "56aed30905e6d52443c3ed1004c3c81aef2cdfc9f059e2937b31a84aed6f91e8"
       }
     },
@@ -345,7 +357,7 @@
       ],
       "source": {
         "section": "8.6.18",
-        "line": 9883,
+        "line": 9890,
         "lineDigest": "91dcc850d0721cd785f73e02676e93e8e9ea778844c9b28f19cbbae9aa0796a2"
       }
     },
@@ -357,7 +369,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10222,
+        "line": 10229,
         "lineDigest": "fa7e777bb768c5a197a46c66f0e3114eb41786507520ab721bf02a088d6e0993"
       }
     },
@@ -369,7 +381,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10281,
+        "line": 10289,
         "lineDigest": "2eef38e8e10bbf29f430c4fe32d2f1b32f7d6d2163e5c483ec532e47e11688ad"
       }
     },
@@ -381,7 +393,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10247,
+        "line": 10255,
         "lineDigest": "b89cc5eff19ee99136a03dd5324588956c5720f6ddf8bc3104db5b617ed41a4f"
       }
     },
@@ -393,7 +405,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10283,
+        "line": 10291,
         "lineDigest": "97457a02ea9f5b8bafc07fb17486dd93bf81ad50373c209c6c1fc84893589b35"
       }
     },
@@ -405,7 +417,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10234,
+        "line": 10242,
         "lineDigest": "0d565181f74e0671af8bcc2467dc5dea09b7d9745c2e07d9027770cfd0a5ad75"
       }
     },
@@ -417,7 +429,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10272,
+        "line": 10280,
         "lineDigest": "3a890753cf6572a9a5371a6017c0e45b4695457f351f0bc58d8e904dcb27e041"
       }
     },
@@ -429,7 +441,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10238,
+        "line": 10246,
         "lineDigest": "2ec63d726636f23665a268eb846dc87ccf7c1c5eb4bc7092522947b9da515175"
       }
     },
@@ -441,7 +453,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10240,
+        "line": 10248,
         "lineDigest": "0beffbe5d74102e16f065af28f70836cae7d0b51b67934bc01ce3a220680d7e0"
       }
     },
@@ -453,7 +465,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10227,
+        "line": 10234,
         "lineDigest": "368c18200e48403dd94319fe51535478ee617805f0ed99ec03398006acb101f3"
       }
     },
@@ -465,7 +477,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10275,
+        "line": 10283,
         "lineDigest": "8382bdaad972ab3dc73c469079c3c738d83fab8b4671145bcffddc7ca323db9e"
       }
     },
@@ -477,7 +489,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10239,
+        "line": 10247,
         "lineDigest": "81d707a246292cb1e3a1eab0ad7f2de408fbb46e41226bcbae995d761ced5a0d"
       }
     },
@@ -489,7 +501,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10226,
+        "line": 10233,
         "lineDigest": "6405b95dbcd5625de5fd30026da70327566ede3e4379c26d3de87e5712dadd7c"
       }
     },
@@ -501,7 +513,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10289,
+        "line": 10297,
         "lineDigest": "104e0a7026e26cdf28839741e50548d94897cb5aaf01bcf939894799914a5281"
       }
     },
@@ -513,7 +525,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10251,
+        "line": 10259,
         "lineDigest": "63fecdfadd6649808dacecf93fa7a8cabca49356934d04ae91ed8f7da303bb29"
       }
     },
@@ -525,7 +537,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10253,
+        "line": 10261,
         "lineDigest": "2d5f091d47e1c6bc38094318d716205598384a5a1f7a870c12ed9c49a537769b"
       }
     },
@@ -537,7 +549,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10224,
+        "line": 10231,
         "lineDigest": "969e9781d2b9876424e6eaf8f58730a13d1934a990792a43af101ec24f0f0cbb"
       }
     },
@@ -549,7 +561,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10311,
+        "line": 10319,
         "lineDigest": "8c31a28e5c9cb30a5dec2bbd89f5ea7ae0758098c8a18171fd5e65b1c8c5463b"
       }
     },
@@ -561,7 +573,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10245,
+        "line": 10253,
         "lineDigest": "ba0f68bcc04582cb9a00a2273bd469e18be362f816e0f645828e0fd953a0b223"
       }
     },
@@ -571,20 +583,8 @@
       "producedBy": [],
       "source": {
         "section": "8.6.19",
-        "line": 10221,
+        "line": 10228,
         "lineDigest": "d254194b1b5f8ce20db8560b7f99bd7c8ef64fad5b8d9e3e62632267503f3976"
-      }
-    },
-    {
-      "id": "ObservationPageCommitResult",
-      "kind": "nominal-result",
-      "producedBy": [
-        "procurement.field.observation.page.commit@1"
-      ],
-      "source": {
-        "section": "8.6.4",
-        "line": 8977,
-        "lineDigest": "6a4d389e776dfefa15dfca29620a4942b2e7128e5a7eb652447f4bff0addbd21"
       }
     }
   ]

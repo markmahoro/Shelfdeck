@@ -1,0 +1,225 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/BdmvAssessmentEvidence/v1",
+  "title": "BdmvAssessmentEvidence@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "x-helix-envelopeRef": "helix://contracts/types/EvidenceEnvelope/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/BdmvAssessmentEvidence/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "evidenceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "evidenceKind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "producerRef": {
+      "type": "string",
+      "minLength": 1
+    },
+    "basisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "payloadDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "observedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "runId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "bdmvGroupKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "scopeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "memberSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "resultKind": {
+      "type": "string",
+      "enum": [
+        "resolved",
+        "not_ready"
+      ]
+    },
+    "reasonCode": {
+      "type": "string",
+      "enum": [
+        "bdmv_missing_dependency",
+        "bdmv_title_ambiguous",
+        "bdmv_series_unsupported",
+        "bdmv_topology_unavailable",
+        "bdmv_scope_digest_mismatch"
+      ]
+    },
+    "discKind": {
+      "const": "bdmv"
+    },
+    "titleCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "selectedPlaylist": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "relativeLocation": {
+              "type": "string",
+              "minLength": 1
+            },
+            "durationMs": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "clipIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "maxItems": 256,
+              "minItems": 1
+            }
+          },
+          "required": [
+            "relativeLocation",
+            "durationMs",
+            "clipIds"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "selectedClipIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "maxItems": 256
+    },
+    "topologyDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "selectedPayloadSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "memberCount": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "mediaSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "probeState": {
+          "type": "string",
+          "enum": [
+            "probed",
+            "not_media",
+            "not_available"
+          ]
+        },
+        "durationMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "videoClasses": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "maxItems": 64
+        },
+        "audioClasses": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "maxItems": 128
+        },
+        "subtitleClasses": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "maxItems": 256
+        }
+      },
+      "required": [
+        "probeState",
+        "durationMs",
+        "videoClasses",
+        "audioClasses",
+        "subtitleClasses"
+      ]
+    },
+    "evidenceDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "evidenceId",
+    "evidenceKind",
+    "producerRef",
+    "basisDigest",
+    "payloadDigest",
+    "observedAtMs",
+    "runId",
+    "bdmvGroupKey",
+    "scopeDigest",
+    "memberSetDigest",
+    "resultKind",
+    "discKind",
+    "titleCount",
+    "selectedClipIds",
+    "topologyDigest",
+    "selectedPayloadSetDigest",
+    "memberCount",
+    "mediaSummary",
+    "evidenceDigest"
+  ],
+  "x-helix-maxCanonicalBytes": 65536
+}

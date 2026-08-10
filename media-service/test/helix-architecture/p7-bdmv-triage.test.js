@@ -18,110 +18,121 @@ function identity(label, ordinal) {
   return value;
 }
 
-function member(label, ordinal, relativeLocation, mediaProbe) {
+function handle(label, ordinal, relativeLocation) {
   const materialIdentity = identity(label, ordinal);
-  const handle = { handleId:'handle-' + label, identity:materialIdentity, ownerDomain:'procurement', ownerScope:{}, bindingRevision:1,
-    endpointId:'endpoint-1', location:'Movies/My Movie/' + relativeLocation, mountScopeRevision:1, expectedSizeBytes:100,
+  return { handleId:'handle-' + label, identity:materialIdentity, ownerDomain:'procurement', ownerScope:{}, bindingRevision:1,
+    endpointId:'endpoint-1', location:relativeLocation.startsWith('Movies/') ? relativeLocation : 'Movies/My Movie/' + relativeLocation, mountScopeRevision:1, expectedSizeBytes:100,
     expectedMtimeNs:'1', expectedCtimeNs:'1', fingerprintVerifiedAtMs:1, readScope:'media_probe', expiresAtMs:2000, fenceDigest:digest('fence:' + label) };
-  const probe = { sourceHandleDigest:canonicalDigest(handle), resultKind:mediaProbe ? 'probed' : 'not_media',
-    ...(mediaProbe ? { container:'mpegts', durationMs:5000, videoStreams:[{ streamIndex:0, codedWidth:1920, codedHeight:1080 }], audioStreams:[], subtitleStreams:[] } :
-      { videoStreams:[], audioStreams:[], subtitleStreams:[] }), sizeBytes:100, payloadDigest:digest('probe:' + label), ...(mediaProbe ? { discTopology:mediaProbe } : {}) };
-  const value = { selectionOrdinal:ordinal, materialKey:materialIdentity.materialKey, bindingRevision:1, admittedControlRevision:2,
-    admittedControlProjectionDigest:digest('control:' + label), readHandle:handle, mediaProbe:probe, memberDigest:'' };
-  value.memberDigest = canonicalDigest(Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'memberDigest')));
-  return value;
 }
 
-function layoutEvidence(entries, id) {
-  const base = { schemaRef:'helix://contracts/types/LayoutEvidence/v1', schemaVersion:1, evidenceId:'layout-' + id, evidenceKind:'observation_layout_snapshot',
-    producerRef:'shared.material.layout.observe@1', basisDigest:digest('basis:' + id), payloadDigest:'', observedAtMs:1,
-    sourceHandleDigest:digest('source:' + id), boundedScopeDigest:digest('scope:' + id), entries, entriesDigest:digest(entries), layoutDigest:digest('layout:' + id) };
-  base.payloadDigest = canonicalDigest(Object.fromEntries(Object.entries(base).filter(([key]) => key !== 'payloadDigest')));
-  return base;
+function bdmvScope(members) {
+  return { scopeKind:'bdmv_container', procurementRunId:'run-1', bdmvGroupKey:'bdmv:Movies/My Movie',
+    scopeDigest:digest('scope'), memberSetDigest:digest(members.map((item) => item.identity.materialKey)), memberCount:members.length,
+    topologyDigest:digest('topology'), selectedPayloadSetDigest:digest('payload') };
 }
 
-function buildInput(topology) {
+function bdmvAssessment(scope, titleCount = 1) {
+  const assessment = { schemaRef:'helix://contracts/types/BdmvAssessmentEvidence/v1', schemaVersion:1,
+    evidenceId:'bdmv-evidence-1', evidenceKind:'bdmv_assessment', producerRef:'procurement.triage.bdmv.assess@1',
+    basisDigest:digest('assessment-basis'), payloadDigest:'', observedAtMs:1, runId:'run-1', bdmvGroupKey:scope.bdmvGroupKey,
+    scopeDigest:scope.scopeDigest, memberSetDigest:scope.memberSetDigest, resultKind:'resolved', reasonCode:null, discKind:'bdmv',
+    titleCount, selectedPlaylist:{ relativeLocation:'PLAYLIST/00000.mpls', durationMs:5000, clipIds:['00000'] }, selectedClipIds:['00000'],
+    topologyDigest:scope.topologyDigest, selectedPayloadSetDigest:scope.selectedPayloadSetDigest, memberCount:scope.memberCount,
+    mediaSummary:{ probeState:'probed', durationMs:5000, videoClasses:['h264'], audioClasses:['aac'], subtitleClasses:[] }, evidenceDigest:'' };
+  assessment.evidenceDigest = digest(Object.fromEntries(Object.entries(assessment).filter(([key]) => !['payloadDigest','evidenceDigest'].includes(key))));
+  assessment.payloadDigest = digest(Object.fromEntries(Object.entries(assessment).filter(([key]) => key !== 'payloadDigest')));
+  return assessment;
+}
+
+function buildInput({ titleCount = 1, profileHint = 'movie' } = {}) {
   const names = [
-    ['index', 'BDMV/index.bdmv', false], ['movieobject', 'BDMV/MovieObject.bdmv', false],
-    ['playlist', 'BDMV/PLAYLIST/00000.mpls', false], ['clip', 'BDMV/CLIPINF/00000.clpi', false],
-    ['stream', 'BDMV/STREAM/00000.m2ts', true],
+    ['index', 'Movies/My Movie/BDMV/index.bdmv'], ['movieobject', 'Movies/My Movie/BDMV/MovieObject.bdmv'], ['playlist', 'Movies/My Movie/BDMV/PLAYLIST/00000.mpls'],
+    ['clip', 'Movies/My Movie/BDMV/CLIPINF/00000.clpi'], ['stream', 'Movies/My Movie/BDMV/STREAM/00000.m2ts'],
   ];
-  const members = names.map(([label, location, playable], ordinal) => member(label, ordinal, location, playable ? topology : null));
-  const batch = { procurementRunId:'run-1', runBasisDigest:digest('run-basis'), selectionDigest:digest('selection'), batchOrdinal:0, members, batchDigest:'' };
+  const members = names.map(([label, location], ordinal) => ({
+    materialKey:identity(label, ordinal).materialKey, identity:identity(label, ordinal), relativeLocation:location,
+    location, baseName:location.split('/').at(-1), extension:'.' + location.split('.').at(-1).toLowerCase(),
+    endpointId:'endpoint-1', sizeBytes:100, entryDigest:digest('entry:' + label),
+  }));
+  const handles = members.map((item, ordinal) => handle(names[ordinal][0], ordinal, names[ordinal][1]));
+  const selectedMembers = members.map((item, ordinal) => ({ ordinal, materialKey:item.materialKey, selectionRole:'triage_input', physicalIdentity:item.identity,
+    sizeBytes:100, bindingRevision:1, eligibilityRevision:1, eligibilityBasisDigest:digest('eligibility:' + ordinal), lastSnapshotDigest:digest('snapshot:' + ordinal),
+    lastObservationId:'observation-1', endpointId:'endpoint-1', location:item.location, realityDigest:digest('reality:' + ordinal), provenanceDigest:digest('provenance:' + ordinal),
+    controlSnapshot:{ materialKey:item.materialKey, resultKind:'available', controlRevision:2, controlState:'uncontrolled', regionProjection:'uncontrolled',
+      evidenceDigest:digest('control:' + ordinal), projectionDigest:digest('projection:' + ordinal) }, admissionControlAction:'acquire', basisMemberDigest:digest('basis:' + ordinal) }));
+  const selection = { procurementRunId:'run-1', fieldId:'field-1', members:selectedMembers, selectionDigest:'' };
+  selection.selectionDigest = canonicalDigest({ schema:'procurement.selected-field-material-set@1', ...selection });
+  const scope = bdmvScope(members);
+  const assessment = bdmvAssessment(scope, titleCount);
+  const logical = { inputKind:'bdmv_container', selectionOrdinal:0,
+    materialKey:canonicalDigest({ schema:'procurement.bdmv-logical-material@1', bdmvGroupKey:scope.bdmvGroupKey }), bindingRevision:1,
+    admittedControlRevision:2, admittedControlProjectionDigest:selectedMembers[0].controlSnapshot.projectionDigest, bdmvGroupKey:scope.bdmvGroupKey,
+    scopeDigest:scope.scopeDigest, memberSetDigest:scope.memberSetDigest, memberCount:scope.memberCount, bdmvAssessment:assessment };
+  logical.memberDigest = canonicalDigest(logical);
+  const batch = { procurementRunId:'run-1', runBasisDigest:digest('run-basis'), selectionDigest:selection.selectionDigest, batchOrdinal:0, members:[logical], batchDigest:'' };
   batch.batchDigest = canonicalDigest(Object.fromEntries(Object.entries(batch).filter(([key]) => key !== 'batchDigest')));
   const playability = capabilities.playabilityInspect.execute({ triageMaterialProbeBatch:batch, procurementTriageRuleSnapshot:rule });
-  const selected = { procurementRunId:'run-1', fieldId:'field-1', members:members.map((item, ordinal) => ({ ordinal, materialKey:item.materialKey,
-    selectionRole:'triage_input', physicalIdentity:item.readHandle.identity, sizeBytes:100, bindingRevision:1, eligibilityRevision:1,
-    eligibilityBasisDigest:digest('eligibility:' + ordinal), lastSnapshotDigest:digest('snapshot:' + ordinal), lastObservationId:'observation-1',
-    endpointId:'endpoint-1', location:item.readHandle.location, realityDigest:digest('reality:' + ordinal), provenanceDigest:digest('provenance:' + ordinal),
-    controlSnapshot:{}, admissionControlAction:'acquire', basisMemberDigest:digest('basis:' + ordinal) })), selectionDigest:batch.selectionDigest };
   const contextValue = { fieldId:'field-1', accessRevision:1, accessDigest:digest('access'), profileHintSnapshot:{ fieldId:'field-1', revision:1,
-    contentProfileHint:'movie', hintDigest:canonicalDigest({ schema:'procurement.material-field-profile-hint@1', fieldId:'field-1', revision:1, contentProfileHint:'movie' }) }, memberContexts:members.map((item, ordinal) => ({ selectionOrdinal:ordinal,
-      materialKey:item.materialKey, fieldRelativeLocation:item.readHandle.location, baseName:item.readHandle.location.split('/').at(-1),
-      extension:'.' + item.readHandle.location.split('.').at(-1).toLowerCase(), parentSegments:item.readHandle.location.split('/').slice(0, -1), layoutEvidenceRefs:[] })) };
-  const internalEntries = names.map(([label, location], ordinal) => ({ entryOrdinal:ordinal + 1, entryKind:'file', materialKey:members[ordinal].materialKey, relativeLocation:location.replace(/^BDMV\//, ''),
-    baseName:location.split('/').at(-1), extension:'.' + location.split('.').at(-1).toLowerCase(), identity:members[ordinal].readHandle.identity,
-    endpointId:'endpoint-1', location:'Movies/My Movie/' + location, sizeBytes:100, mtimeNs:'1', entryDigest:digest('entry:' + label) }));
-  const outerIdentity = identity('movie-nfo', 10);
-  const outerEntry = { entryOrdinal:1, entryKind:'file', materialKey:outerIdentity.materialKey, relativeLocation:'Movies/My Movie/movie.nfo', baseName:'movie.nfo', extension:'.nfo', identity:outerIdentity,
-    endpointId:'endpoint-1', location:'Movies/My Movie/movie.nfo', sizeBytes:100, mtimeNs:'1', entryDigest:digest('outer-entry') };
-  const outerVideoIdentity = identity('movie-m2ts', 11);
-  const outerVideo = { entryOrdinal:2, entryKind:'file', materialKey:outerVideoIdentity.materialKey, relativeLocation:'Movies/My Movie/movie.m2ts', baseName:'movie.m2ts', extension:'.m2ts', identity:outerVideoIdentity,
-    endpointId:'endpoint-1', location:'Movies/My Movie/movie.m2ts', sizeBytes:100, mtimeNs:'1', entryDigest:digest('outer-video-entry') };
-  const observationEntries=[...internalEntries, outerEntry, outerVideo].map((entry)=>({materialKey:entry.materialKey,relativeLocation:entry.relativeLocation,currentLocation:entry.location,
-    baseName:entry.baseName,extension:entry.extension,identity:entry.identity,endpointId:entry.endpointId,sizeBytes:entry.sizeBytes,entryDigest:entry.entryDigest}));
-  const observationScopeProjection={projectionRevision:1,scopeDigest:digest(observationEntries),entriesDigest:digest(observationEntries),entryCount:observationEntries.length,entries:observationEntries};
+    contentProfileHint:profileHint, hintDigest:canonicalDigest({ schema:'procurement.material-field-profile-hint@1', fieldId:'field-1', revision:1, contentProfileHint:profileHint }) },
+    memberContexts:members.map((item, ordinal) => ({ selectionOrdinal:ordinal, materialKey:item.materialKey, fieldRelativeLocation:item.relativeLocation,
+      baseName:item.baseName, extension:item.extension, parentSegments:item.relativeLocation.split('/').slice(0, -1), layoutEvidenceRefs:[] })) };
   const materialFieldContext = { ...contextValue, contextDigest:canonicalDigest(contextValue) };
-  const request = { pageOrdinal:0, cursorIn:null, maxUnits:100, requestDigest:'' }; request.requestDigest = canonicalDigest({ pageOrdinal:0, cursorIn:null, maxUnits:100 });
-  const input = { selectedFieldMaterialSet:selected, probeBatches:[batch], playabilityPages:[playability], materialFieldContext,
-    observationScopeProjection, pageRequest:request, inputDigest:'' };
-  input.inputDigest = canonicalDigest({ schema:'procurement.triage-structure-input@1', selectionDigest:selected.selectionDigest, probeBatchDigests:[batch.batchDigest],
-    playabilityPayloadDigests:[playability.payloadDigest], contextDigest:materialFieldContext.contextDigest,
-    observationScopeProjectionDigest:observationScopeProjection.scopeDigest, pageRequest:request });
-  return input;
+  const outerIdentity = identity('movie-nfo', 10);
+  const outerEntry = { materialKey:outerIdentity.materialKey, relativeLocation:'Movies/My Movie/movie.nfo', currentLocation:'Movies/My Movie/movie.nfo',
+    baseName:'movie.nfo', extension:'.nfo', identity:outerIdentity, endpointId:'endpoint-1', sizeBytes:100, entryDigest:digest('outer-entry') };
+  const observationEntries = [...members, outerEntry].map((entry) => ({ ...entry, currentLocation:entry.currentLocation || entry.location }));
+  const observationScopeProjection = { projectionRevision:1, scopeDigest:digest(observationEntries), entriesDigest:digest(observationEntries), entryCount:observationEntries.length,
+    entries:observationEntries };
+  const pageRequest = { pageOrdinal:0, cursorIn:null, maxUnits:100, requestDigest:'' };
+  pageRequest.requestDigest = canonicalDigest({ pageOrdinal:0, cursorIn:null, maxUnits:100 });
+  const bdmvAssessments = [{ scope, assessment }];
+  const input = { selectedFieldMaterialSet:selection, probeBatches:[batch], bdmvAssessments, playabilityPages:[playability], materialFieldContext,
+    observationScopeProjection, pageRequest, inputDigest:'' };
+  input.inputDigest = canonicalDigest({ schema:'procurement.triage-structure-input@1', selectionDigest:selection.selectionDigest,
+    probeBatchDigests:[batch.batchDigest], bdmvAssessmentPayloadDigests:[assessment.payloadDigest], playabilityPayloadDigests:[playability.payloadDigest],
+    contextDigest:materialFieldContext.contextDigest, observationScopeProjectionDigest:observationScopeProjection.scopeDigest, pageRequest });
+  return { input, scope, assessment, handles };
 }
 
-test('single-title BDMV becomes one Unit with structural dependencies and no STREAM candidates', () => {
-  const topology = { discKind:'bdmv', titleCount:1, topologyVersion:1, singleTitleEvidenceDigest:digest('single-title'), topologyDigest:digest('topology'),
-    selectedPlaylist:{ relativeLocation:'PLAYLIST/00000.mpls', durationMs:5000, clipIds:['00000'] }, members:[
-      { relativeLocation:'PLAYLIST/00000.mpls', role:'structural_dependency' },
-      { relativeLocation:'STREAM/00000.m2ts', role:'primary_payload', clipId:'00000' },
-      { relativeLocation:'CLIPINF/00000.clpi', role:'structural_dependency' },
-      { relativeLocation:'index.bdmv', role:'structural_dependency' },
-      { relativeLocation:'MovieObject.bdmv', role:'structural_dependency' },
-    ] };
-  const result = capabilities.structureInspect.execute({ triageStructureInspectionInput:buildInput(topology), procurementTriageRuleSnapshot:rule });
+test('single-title BDMV becomes one compact Unit with structural dependencies and no STREAM candidates', () => {
+  const { input } = buildInput();
+  const result = capabilities.structureInspect.execute({ triageStructureInspectionInput:input, procurementTriageRuleSnapshot:rule });
   assert.equal(result.units.length, 1);
   assert.equal(result.units[0].contentProfile, 'movie');
-  assert.equal(result.units[0].members.filter((item) => item.role === 'primary_payload').length, 1);
-  assert.equal(result.units[0].members.filter((item) => item.role === 'structural_dependency').length, 4);
-  assert.equal(result.units[0].displayIdentity, 'My Movie');
+  assert.equal(result.units[0].memberScope.scopeKind, 'bdmv_container');
+  assert.equal(result.units[0].memberScope.memberCount, 5);
+  assert.equal(Object.hasOwn(result.units[0], 'members'), false);
   assert.equal(result.units[0].relatedReferences.length, 1);
   assert.equal(result.units[0].relatedReferences[0].role, 'nfo');
-  assert.equal(result.units[0].relatedReferences[0].location, 'Movies/My Movie/movie.nfo');
   assert.equal(result.units[0].relatedReferences.some((item) => /\.m2ts$/i.test(item.location)), false);
-  assert.equal(result.units[0].relatedReferences.some((item) => /(?:MPLS|CLPI|M2TS|BDMV)$/i.test(item.location)), false);
   assert.equal(result.unassignedMaterials.length, 0);
 });
 
-test('multi-title BDMV deterministically selects a primary title and creates one Unit', () => {
-  const topology = { discKind:'bdmv', titleCount:2, topologyVersion:1, singleTitleEvidenceDigest:digest('multi-title'), topologyDigest:digest('topology-multi'),
-    selectedPlaylist:{ relativeLocation:'PLAYLIST/00000.mpls', durationMs:5000, clipIds:['00000'] }, members:[
-      { relativeLocation:'PLAYLIST/00000.mpls', role:'structural_dependency' }, { relativeLocation:'STREAM/00000.m2ts', role:'primary_payload', clipId:'00000' },
-      { relativeLocation:'CLIPINF/00000.clpi', role:'structural_dependency' }, { relativeLocation:'index.bdmv', role:'structural_dependency' }, { relativeLocation:'MovieObject.bdmv', role:'structural_dependency' },
-    ] };
-  const result = capabilities.structureInspect.execute({ triageStructureInspectionInput:buildInput(topology), procurementTriageRuleSnapshot:rule });
+test('multi-title BDMV uses the durable selected title and still creates one Unit', () => {
+  const { input } = buildInput({ titleCount:2 });
+  const result = capabilities.structureInspect.execute({ triageStructureInspectionInput:input, procurementTriageRuleSnapshot:rule });
   assert.equal(result.units.length, 1);
   assert.equal(result.resultKind, 'resolved');
   assert.equal(result.unassignedMaterials.length, 0);
 });
 
+test('Series BDMV fails closed without creating a Unit', () => {
+  const { input } = buildInput({ profileHint:'series' });
+  const result = capabilities.structureInspect.execute({ triageStructureInspectionInput:input, procurementTriageRuleSnapshot:rule });
+  assert.equal(result.units.length, 0);
+  assert.equal(result.unassignedMaterials.length, 5);
+  assert.ok(result.unassignedMaterials.every((item) => item.reasonCode === 'disc_structure_incomplete'));
+});
+
 test('BDMV BACKUP structural metadata is not treated as a playability failure', () => {
-  const backup = member('backup-clip', 0, 'BDMV/BACKUP/CLIPINF/00000.clpi', null);
-  const batch = { procurementRunId:'run-backup', runBasisDigest:digest('run-backup-basis'), selectionDigest:digest('backup-selection'),
-    batchOrdinal:0, members:[backup], batchDigest:'' };
-  batch.batchDigest = canonicalDigest(Object.fromEntries(Object.entries(batch).filter(([key]) => key !== 'batchDigest')));
-  const result = capabilities.playabilityInspect.execute({ triageMaterialProbeBatch:batch, procurementTriageRuleSnapshot:rule });
+  const materialIdentity = identity('backup-clip', 0);
+  const readHandle = handle('backup-clip', 0, 'BDMV/BACKUP/CLIPINF/00000.clpi');
+  const value = { procurementRunId:'run-backup', runBasisDigest:digest('run-backup-basis'), selectionDigest:digest('backup-selection'), batchOrdinal:0,
+    members:[{ selectionOrdinal:0, materialKey:materialIdentity.materialKey, bindingRevision:1, admittedControlRevision:2, admittedControlProjectionDigest:digest('control'),
+      readHandle, mediaProbe:{ sourceHandleDigest:canonicalDigest(readHandle), resultKind:'probed', container:'unknown', durationMs:1, videoStreams:[], audioStreams:[], subtitleStreams:[], sizeBytes:100, payloadDigest:digest('probe') } }] };
+  value.members[0].memberDigest = canonicalDigest(Object.fromEntries(Object.entries(value.members[0]).filter(([key]) => key !== 'memberDigest')));
+  value.batchDigest = canonicalDigest(Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'batchDigest')));
+  const result = capabilities.playabilityInspect.execute({ triageMaterialProbeBatch:value, procurementTriageRuleSnapshot:rule });
   assert.deepEqual(result.materialResults[0].reasonCodes, []);
   assert.equal(result.materialResults[0].playable, true);
 });

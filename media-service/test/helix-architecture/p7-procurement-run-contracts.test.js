@@ -86,9 +86,9 @@ test('Selected Field Material Set freezes complete sorted members and action-spe
     (error) => error.code === 'P7_RUN_SELECTION_DIGEST');
 });
 
-test('Selected Field Material Set accepts 256 members and rejects 257', () => {
-  assert.equal(createSelectedFieldMaterialSet(selectionWithCount(256)).members.length, 256);
-  assert.throws(() => createSelectedFieldMaterialSet(selectionWithCount(257)),
+test('Selected Field Material Set accepts the 1024-member physical bound and rejects 1025', () => {
+  assert.equal(createSelectedFieldMaterialSet(selectionWithCount(1024)).members.length, 1024);
+  assert.throws(() => createSelectedFieldMaterialSet(selectionWithCount(1025)),
     (error) => error.code === 'P7_RUN_SELECTION_BOUNDS');
 });
 

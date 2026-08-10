@@ -29,7 +29,7 @@ test('P7 exit evidence is exact, complete, and free of scope findings', () => {
   const result = auditP7Exit({ repositoryRoot, requireClean:false });
   assert.equal(result.ok, true, JSON.stringify(result.findings, null, 2));
   assert.deepEqual(result.findings, []);
-  assert.equal(result.evidence.procurementTableCount, 16);
+  assert.equal(result.evidence.procurementTableCount, 17);
   assert.equal(result.evidence.procurementCapabilityCount, 8);
   assert.equal(result.evidence.transactionCount, 30);
   assert.deepEqual(result.evidence.prohibitedActionsRun, []);

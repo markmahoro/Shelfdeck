@@ -263,6 +263,16 @@ function approvalAuthorization(capabilityRef) {
 
 function resourceKinds(capability) {
   if (capability.id === 'procurement.field.observation.page.commit@1') return ['volume_read', 'sqlite_write'];
+  // BDMV assessment is the first triage capability whose atomic effect needs
+  // both source-volume I/O and bounded media parsing CPU.  Keep the demand
+  // dimensions explicit in the contract; the runtime resolver later expands
+  // volume_read to the validated mount-scoped key and cpu_heavy to the actual
+  // governor resource key.
+  if (capability.id === 'procurement.triage.bdmv.assess@1') return ['volume_read', 'cpu_heavy'];
+  // Playability consumes durable probe/assessment Results; it never reads the
+  // source volume itself.  Do not infer disk I/O merely from the word
+  // “material” in its typed input name.
+  if (capability.id === 'procurement.triage.playability.inspect@1') return ['cpu'];
   const value = `${capability.id} ${capability.inputSummary}`.toLowerCase();
   const kinds = new Set();
   if (/integration|external|worker|provider|search|acquire|upload|request/.test(value)) kinds.add('network');

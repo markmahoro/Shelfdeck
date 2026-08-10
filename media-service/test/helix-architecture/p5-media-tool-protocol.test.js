@@ -103,8 +103,8 @@ function adapterFor(operation, records = {}) { return protocol[FACTORIES[operati
 
 test('P5 media-tool catalog reverse-traces exact Capability Effect Classes and typed ports', () => {
   assert.equal(operationCatalog.schemaVersion, 1);
-  assert.equal(operationCatalog.operations.length, 20);
-  assert.equal(new Set(operationCatalog.operations.map((item) => item.operationId)).size, 20);
+  assert.equal(operationCatalog.operations.length, 19);
+  assert.equal(new Set(operationCatalog.operations.map((item) => item.operationId)).size, 19);
   for (const operation of operationCatalog.operations) {
     const capabilityPath = path.resolve(__dirname, '../../src/helix/contracts/capabilities',
       ...operation.capabilityRef.replace(/@1$/, '').split('.'), 'v1', 'manifest.json');

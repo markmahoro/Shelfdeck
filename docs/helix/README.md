@@ -1,10 +1,10 @@
 # ShelfDeck / Helix Documentation Index
 
-Status: first-implementation retake active；Observation事实表与增量Eligibility改造已完成；Execution Foundation与Procurement已通过本地全链验证并标记`CLOSED FOR DOMAIN ONBOARDING`。Docker/NAS和生产均未开始。
+Status: first-implementation retake本轮Procurement已完成；Observation事实表、增量Eligibility、BDMV Triage性能重构与Scope Reference均已通过本地全链验证；Execution Foundation与Procurement标记`CLOSED FOR DOMAIN ONBOARDING`。Docker/NAS和生产均未开始。
 
 第一次实施的P0–P13资产继续保留，但此前由大型Coordinator同步闭环得到的Movie Canary只证明低层Capability、Owner事实和
 Handoff A Ready数据形态可工作，不构成`Work Scheduler → Event Runtime → Resource Governor`已经参与的Foundation E2E证据。
-当前唯一活动实施计划见`CURRENT_PLAN.md`。最终`Z:\Film`全库Canary使用本机Node.js临时clean数据库完成，主动重启后从durable事实恢复；本线程负责实现及异常诊断。最新Canary还验证了Related关联不会吸收BDMV内部文件或同stem视频载荷；证据记录在`CURRENT_STATUS.md`。
+当前唯一活动实施计划见`CURRENT_PLAN.md`。最终`Z:\Film`全库Canary使用本机Node.js临时clean数据库完成，主动重启后从durable事实恢复；本线程负责实现及异常诊断。最新Canary还验证了每个BDMV容器只产生一个Assessment Event、BDMV内部成员不进入通用Probe/Candidate/Related，以及Related关联不会吸收BDMV内部文件或同stem视频载荷；证据记录在`CURRENT_STATUS.md`。
 
 Physical Material不再计算全文件Hash。当前唯一合同读取文件正中间最多262,144 bytes并执行前后stat fence；NAS负责bit rot和底层
 完整性。Artifact、Canonical JSON与事务Evidence digest仍使用SHA-256，这些digest不得作为Physical Material Identity。
@@ -21,9 +21,9 @@ Candidate Assembly现在通过运行时可重建的`TriageEvidenceIndex`按`unit
 
 BDMV采用SSOT定义的拓扑边界：它不是pre-triage的Movie类别，而是Run Creator识别的不可拆分container group。
 同一最近`BDMV`祖先目录下的全部terminal Observation成员必须进入同一Run；完整group可与其他group稳定装箱，
-超过256项时整体不建Run。Structure消费完整group并将单标题解析为一个Triage Unit，不能把内部M2TS拆成多个Candidate；
+最多1024个物理成员，超过上限时整体不建Run。Structure消费完整group并将单标题解析为一个Triage Unit，不能把内部M2TS拆成多个Candidate；
 多标题、歧义或结构不完整保持`not_ready`。所需Playlist/Clip/结构依赖必须在Run Admission前完成Observation、Eligibility
-和Control，不能由Triage在Admission后静默扩张。
+和Control，不能由Triage在Admission后静默扩张。每个BDMV容器由`procurement.triage.bdmv.assess@1`一次性完成有限拓扑和选定主标题metadata probe；Structure只消费`BdmvAssessmentEvidence@1`和`UnitScopeReference`，Candidate Context按Scope digest重建成员。
 
 ## Architecture authority
 

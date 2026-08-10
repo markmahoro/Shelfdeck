@@ -66,4 +66,20 @@ for (let start = 0; start < entries.length; start += 28) {
   }, null, 2)}\n`);
 }
 
+fs.writeFileSync(path.join(contractsRoot, 'manifests', 'capability-inventory.json'), `${JSON.stringify({
+  schemaVersion: 1,
+  manifestVersion: 1,
+  manifestId: 'helix.inventory.capabilities',
+  kind: 'capability-inventory',
+  owner: 'contracts',
+  status: 'active',
+  ssotRefs: ['7.7', '8.2.1', '8.6.1', '8.6.3', '8.6.14', '8.9.5'],
+  targetCount: entries.length,
+  entryFiles: Array.from({ length: Math.ceil(entries.length / 28) }, (_, index) => {
+    const start = index * 28 + 1;
+    const end = Math.min(start + 27, entries.length);
+    return `capability-inventory/entries-${String(start).padStart(3, '0')}-${String(end).padStart(3, '0')}.json`;
+  })
+}, null, 2)}\n`);
+
 process.stdout.write(`${JSON.stringify({ packageCount: packages.length }, null, 2)}\n`);

@@ -4,6 +4,7 @@ const CONTRACTS = Object.freeze({
   'procurement.field.observation.page.commit@1': 'domain_fact_commit',
   'procurement.material.control.acquire@1': 'responsibility_control_commit',
   'procurement.triage.playability.inspect@1': 'pure_observation',
+  'procurement.triage.bdmv.assess@1': 'pure_observation',
   'procurement.triage.structure.inspect@1': 'pure_observation',
   'procurement.triage.identity_claim.resolve@1': 'pure_observation',
   'procurement.triage.primary_manifest.build@1': 'pure_observation',

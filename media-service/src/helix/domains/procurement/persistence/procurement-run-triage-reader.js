@@ -146,6 +146,21 @@ function createProcurementRunTriageReader(options) {
       return readObservedMaterials(run);
     },
     clearObservedMaterialCache() { observedMaterialCache.clear(); },
+    readRunBasis(runId) {
+      if (typeof runId !== 'string' || !runId) fail('P7_TRIAGE_RUN_ID', 'Procurement Run id is required.');
+      return options.unitOfWork.execute([{ participantId:'procurement_run_basis_read', owner:'procurement', repositories:[repository],
+        execute(context) {
+          const repo=context.repository(repository.repositoryId);
+          const run=repo.invoke('find_run',{ procurement_run_id:runId });
+          if (!run) return null;
+          const access=repo.invoke('find_access',{ field_id:run.field_id, revision:Number(run.access_revision) });
+          const members=repo.invoke('list_members',{ procurement_run_id:runId }).sort((a,b)=>Number(a.ordinal)-Number(b.ordinal));
+          if (!access || access.access_digest !== run.access_digest || members.length < 1 || members.length > MAX_RUN_PHYSICAL_MEMBERS) {
+            fail('P7_TRIAGE_RUN_BASIS_CORRUPT', 'Run cannot reconstruct its exact admitted Triage basis.');
+          }
+          return Object.freeze({ run:Object.freeze(run), access:Object.freeze(access), members:Object.freeze(members.map((member)=>Object.freeze(member))) });
+        } }]).procurement_run_basis_read;
+    },
     read(runId) {
       return options.unitOfWork.execute([{ participantId:'procurement_run_triage_snapshot', owner:'procurement', repositories:[repository],
         execute(context) {
@@ -193,7 +208,7 @@ function createProcurementRunTriageReader(options) {
         } }]).procurement_run_triage_snapshot;
     },
     readCandidate(runId, materialKeys, basis = null) {
-      if (!Array.isArray(materialKeys) || materialKeys.length < 1 || materialKeys.length > 256 ||
+      if (!Array.isArray(materialKeys) || materialKeys.length < 1 || materialKeys.length > MAX_RUN_PHYSICAL_MEMBERS ||
           materialKeys.some((key) => typeof key !== 'string') || new Set(materialKeys).size !== materialKeys.length) {
         fail('P7_TRIAGE_CANDIDATE_MEMBER_KEYS', 'Candidate Material keys must be a unique bounded set.');
       }

@@ -13,7 +13,7 @@ const { createProcurementCandidateContextReader } = require('../persistence/proc
 const { createProcurementRunSealCommandStore } = require('../persistence/procurement-run-seal-command-store');
 const { createProcurementAutomationService } = require('../application/procurement-automation-service');
 const { createProcurementRunCoordinator } = require('../application/procurement-run-coordinator');
-const { PROBE_BATCH_PROJECTION,STRUCTURE_INPUT_PROJECTION,createEvidenceAssessmentPlanner,createProbeBatchProjection,createStructureInputProjection } = require('../planning/evidence-assessment-planner');
+const { PROBE_BATCH_PROJECTION,BDMV_ASSESS_INPUT_PROJECTION,STRUCTURE_INPUT_PROJECTION,createEvidenceAssessmentPlanner,createProbeBatchProjection,createBdmvAssessmentInputProjection,createStructureInputProjection } = require('../planning/evidence-assessment-planner');
 const { DRAFT_PROJECTION,COMMIT_HANDLE_PROJECTION,IDENTITY_INPUT_PROJECTION,MANIFEST_INPUT_PROJECTION,
   createCandidateAssemblyPlanner,createCandidateDraftProjection,createCandidateCommitHandleProjection,
   createCandidateIdentityInputProjection,createCandidateManifestInputProjection } = require('../planning/candidate-assembly-planner');
@@ -94,6 +94,7 @@ function createExecutionRegistration() {
       ]);
       const bindingProjections = Object.freeze([
         Object.freeze({ projectionRef: PROBE_BATCH_PROJECTION, projection: createProbeBatchProjection({ triageReader }) }),
+        Object.freeze({ projectionRef: BDMV_ASSESS_INPUT_PROJECTION, projection: createBdmvAssessmentInputProjection({ triageReader }) }),
         Object.freeze({ projectionRef: STRUCTURE_INPUT_PROJECTION, projection: createStructureInputProjection({ triageReader }) }),
         Object.freeze({ projectionRef: IDENTITY_INPUT_PROJECTION, projection: createCandidateIdentityInputProjection({ triageReader, evidenceIndex, candidateContextReader, triageRuleRegistry }) }),
         Object.freeze({ projectionRef: MANIFEST_INPUT_PROJECTION, projection: createCandidateManifestInputProjection({ triageReader, evidenceIndex, candidateContextReader, triageRuleRegistry }) }),

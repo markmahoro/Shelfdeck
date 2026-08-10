@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "procurement.triage.bdmv.assess@1",
+  "contractVersion": 1,
+  "ownerScope": "procurement",
+  "effectClass": "pure_observation",
+  "inputPorts": {
+    "bdmvAssessmentInput": {
+      "schemaRef": "helix://contracts/capabilities/procurement.triage.bdmv.assess/v1/inputs#/$defs/bdmvAssessmentInput",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/procurement.triage.bdmv.assess/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/procurement.triage.bdmv.assess/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/procurement.triage.bdmv.assess/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/procurement.triage.bdmv.assess/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/procurement.triage.bdmv.assess/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/procurement.triage.bdmv.assess/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/procurement.triage.bdmv.assess/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.4",
+    "line": 8983,
+    "lineDigest": "37698e376c7fbb0a2047fcfadc03730a416d70759bea954b11aa71ec137f9e65"
+  }
+}

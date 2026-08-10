@@ -60,6 +60,64 @@ function mediaEvidence(raw, handle, nowMs) {
   return Object.freeze(value);
 }
 
+function normalizedRelative(value) { return String(value || '').replace(/\\/g, '/').replace(/^\/+/, '').toUpperCase(); }
+
+async function assessBdmv(input, options) {
+  const scope = input && input.__bdmvScope;
+  if (!scope || !scope.rootLocation || !Array.isArray(scope.members)) {
+    throw new TypeError('BDMV Assessment requires a runtime-resolved frozen container scope.');
+  }
+  const expectedScopeDigest = canonicalDigest({ schema:'procurement.bdmv-scope@1', runId:input.runId, bdmvGroupKey:input.bdmvGroupKey,
+    accessRevision:Number(input.accessRevision), memberSetDigest:input.memberSetDigest });
+  if (expectedScopeDigest !== input.scopeDigest) throw new TypeError('BDMV Assessment scope digest is inconsistent.');
+  const topologyReader = options.bdmvTopologyReader || options.mediaProbe.bdmvTopologyReader;
+  if (!topologyReader || typeof topologyReader.inspect !== 'function') throw new TypeError('BDMV topology reader is unavailable.');
+  const topology = await topologyReader.inspect(scope.rootLocation);
+  const base = { schemaRef:'helix://contracts/types/BdmvAssessmentEvidence/v1', schemaVersion:1,
+    evidenceKind:'bdmv_assessment', producerRef:'procurement.triage.bdmv.assess@1', observedAtMs:options.now(),
+    runId:input.runId, bdmvGroupKey:input.bdmvGroupKey, scopeDigest:input.scopeDigest, memberSetDigest:input.memberSetDigest,
+    resultKind:'not_ready', discKind:'bdmv', titleCount:Number(topology?.titleCount || 0), selectedPlaylist:null, selectedClipIds:[],
+    topologyDigest:topology?.topologyDigest || canonicalDigest({ schema:'procurement.bdmv-missing-topology@1', scopeDigest:input.scopeDigest }),
+    selectedPayloadSetDigest:canonicalDigest({ schema:'procurement.bdmv-selected-payload-set@1', items:[] }), memberCount:scope.members.length,
+    mediaSummary:{ probeState:'not_available', durationMs:0, videoClasses:[], audioClasses:[], subtitleClasses:[] }, evidenceDigest:'' };
+  const finish = (value) => {
+    value.basisDigest = canonicalDigest({ runId:value.runId, bdmvGroupKey:value.bdmvGroupKey, scopeDigest:value.scopeDigest, memberSetDigest:value.memberSetDigest });
+    value.evidenceId = 'bdmv-assessment-evidence-' + canonicalDigest({ basis:value.basisDigest, topologyDigest:value.topologyDigest }).slice(0, 40);
+    value.payloadDigest = '';
+    value.evidenceDigest = canonicalDigest(Object.fromEntries(Object.entries(value).filter(([key]) => !['payloadDigest','evidenceDigest'].includes(key))));
+    value.payloadDigest = canonicalDigest(Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'payloadDigest')));
+    return Object.freeze(value);
+  };
+  if (!topology) return finish({ ...base, reasonCode:'bdmv_topology_unavailable' });
+  if (input.profileHint === 'series' || input.profileHint === 'jav' || input.profileHint === 'western_adult') {
+    return finish({ ...base, titleCount:Number(topology.titleCount), selectedPlaylist:topology.selectedPlaylist || null,
+      selectedClipIds:Object.freeze(topology.selectedPlaylist?.clipIds || []), reasonCode:'bdmv_series_unsupported' });
+  }
+  const selectedMembers = (topology.members || []).filter((member) => member.role === 'primary_payload');
+  const handlesByRelative = new Map(scope.members.map((member) => [normalizedRelative(String(member.relativeLocation).replace(/^.*?\/BDMV\//i, '')), member.readHandle]));
+  const primaryResults = [];
+  for (const member of selectedMembers) {
+    const handle = handlesByRelative.get(normalizedRelative(member.relativeLocation));
+    if (!handle) return finish({ ...base, titleCount:Number(topology.titleCount), selectedPlaylist:topology.selectedPlaylist || null,
+      selectedClipIds:Object.freeze(topology.selectedPlaylist?.clipIds || []), reasonCode:'bdmv_missing_dependency' });
+    primaryResults.push(await options.mediaProbe.probe(handle));
+  }
+  const firstFailure = primaryResults.find((result) => result.resultKind !== 'probed' || !Array.isArray(result.videoStreams) || !result.videoStreams.length ||
+    !Number.isFinite(result.durationMs) || result.durationMs <= 0);
+  const selectedKeys = selectedMembers.map((member) => {
+    const handle = handlesByRelative.get(normalizedRelative(member.relativeLocation));
+    return handle?.identity?.materialKey || member.relativeLocation;
+  }).sort();
+  const mediaSummary = { probeState:firstFailure ? 'not_media' : 'probed', durationMs:primaryResults.reduce((sum, result) => sum + Number(result.durationMs || 0), 0),
+    videoClasses:[...new Set(primaryResults.flatMap((result) => (result.videoStreams || []).map((stream) => stream.codec || 'unknown')))].sort(),
+    audioClasses:[...new Set(primaryResults.flatMap((result) => (result.audioStreams || []).map((stream) => stream.normalizedAudioClass || stream.codec || 'other')))].sort(),
+    subtitleClasses:[...new Set(primaryResults.flatMap((result) => (result.subtitleStreams || []).map((stream) => stream.codec || 'unknown')))].sort() };
+  const selectedPayloadSetDigest = canonicalDigest({ schema:'procurement.bdmv-selected-payload-set@1', items:selectedKeys });
+  return finish({ ...base, resultKind:firstFailure ? 'not_ready' : 'resolved', titleCount:Number(topology.titleCount),
+    selectedPlaylist:topology.selectedPlaylist || null, selectedClipIds:Object.freeze(topology.selectedPlaylist?.clipIds || []),
+    selectedPayloadSetDigest, mediaSummary, ...(firstFailure ? { reasonCode:'bdmv_missing_dependency' } : {}) });
+}
+
 function createTriageCapabilityPorts(options) {
   if (!options?.mediaProbe || typeof options.now !== 'function') {
     throw new TypeError('Triage Capability ports require typed read-only integrations.');
@@ -76,6 +134,8 @@ function createTriageCapabilityPorts(options) {
   return Object.freeze({
     'shared.material.media.probe@1':pure('shared.material.media.probe@1', async ({ physicalMaterialReadHandleOrWorkspaceMaterialHandle:handle }) =>
       mediaEvidence(await options.mediaProbe.probe(handle), handle, options.now())),
+    'procurement.triage.bdmv.assess@1':pure('procurement.triage.bdmv.assess@1', ({ bdmvAssessmentInput }) =>
+      assessBdmv(bdmvAssessmentInput, options)),
     'procurement.triage.playability.inspect@1':pure('procurement.triage.playability.inspect@1', ({ triageMaterialProbeBatch, procurementTriageRuleSnapshot }) =>
       inspectPlayability(triageMaterialProbeBatch, procurementTriageRuleSnapshot, { observedAtMs:options.now() })),
     'procurement.triage.structure.inspect@1':pure('procurement.triage.structure.inspect@1', ({ triageStructureInspectionInput, procurementTriageRuleSnapshot }) =>

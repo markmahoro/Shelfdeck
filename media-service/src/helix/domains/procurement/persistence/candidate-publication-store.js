@@ -107,7 +107,11 @@ function createCandidatePublicationStore(options) {
           fail('P7_CANDIDATE_RUN_FENCE_STALE', 'Candidate Draft no longer matches the exact Run fence.');
         }
         const rows = new Map(repo.invoke('find_members', { procurement_run_id:draft.procurementRunId }).map((row) => [row.material_key, row]));
-        const runBasisMembers = draft.structureEvidence.unit.members.map((member) => { const row=rows.get(member.materialKey); return row && {
+        const sourceMembers = Array.isArray(draft.structureEvidence.unit.members)
+          ? draft.structureEvidence.unit.members
+          : (draft.primaryInputManifestDraft && draft.primaryInputManifestDraft.members);
+        if (!Array.isArray(sourceMembers)) fail('P7_CANDIDATE_MEMBER_FENCE_STALE', 'Candidate member source is unavailable for the immutable Run Selection.');
+        const runBasisMembers = sourceMembers.map((member) => { const row=rows.get(member.materialKey); return row && {
           materialKey:row.material_key, physicalIdentity:{ schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2', schemaVersion:2,
             materialKey:row.material_key, mountScopeId:row.mount_scope_id, inode:String(row.inode), sizeBytes:Number(row.size_bytes),
             fingerprintAlgorithm:row.fingerprint_algorithm, fingerprintVersion:Number(row.fingerprint_version),

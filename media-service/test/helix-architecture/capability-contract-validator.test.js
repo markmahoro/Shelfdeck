@@ -37,7 +37,7 @@ function codes(result) {
 test('validates 112 unique immutable Capability packages', () => {
   const result = validateCapabilityContracts({ repositoryRoot, contractsRoot: actualContractsRoot });
   assert.equal(result.ok, true);
-  assert.equal(result.packageCount, 112);
+  assert.equal(result.packageCount, 111);
   assert.match(result.packageAggregateDigest, /^[a-f0-9]{64}$/);
   assert.ok(result.referencedTypeRefCount > 0);
   assert.equal(result.unresolvedTypeRefCount, 0);
@@ -63,7 +63,7 @@ test('rejects missing files and Catalog-external packages', () => {
 test('rejects Owner, Effect Class, parameter, and package digest drift', () => {
   const value = fixture();
   try {
-    const packagePath = path.join(value.contracts, 'capabilities/procurement/field/page/observe/v1');
+    const packagePath = path.join(value.contracts, 'capabilities/procurement/field/observation/page/commit/v1');
     mutateJson(path.join(packagePath, 'manifest.json'), (manifest) => {
       manifest.ownerScope = 'libra';
       manifest.effectClass = 'workspace_write';

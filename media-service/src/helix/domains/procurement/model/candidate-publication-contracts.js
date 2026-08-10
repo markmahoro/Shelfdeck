@@ -8,6 +8,7 @@ const ACCEPTANCE_BASIS_SCHEMA = 'helix://contracts/types/CandidateIntakeAcceptan
 const OFFER_MESSAGE_SCHEMA = 'helix://contracts/types/ProcurementCandidateOfferAvailableMessage/v1';
 const HANDOFF_CONTRACT = 'helix://handoffs/procurement-to-libra/v1';
 const CLAIM_KINDS = new Set(['provider_season_identity', 'triage_grouping_lineage']);
+const SHA256 = /^[0-9a-f]{64}$/;
 
 class CandidatePublicationContractError extends Error {
   constructor(code, message, details = {}) { super(message); this.name = 'CandidatePublicationContractError'; this.code = code; this.details = details; }
@@ -19,6 +20,90 @@ function same(left, right) { return canonicalJson(left) === canonicalJson(right)
 function freeze(value) { if (value && typeof value === 'object' && !Object.isFrozen(value)) { Object.values(value).forEach(freeze); Object.freeze(value); } return value; }
 function requireArray(value, field, maximum, minimum = 0) {
   if (!Array.isArray(value) || value.length < minimum || value.length > maximum) fail('P7_CANDIDATE_COLLECTION_BOUNDS', field + ' violates its closed bounds.');
+}
+
+function compactUnitMember(manifestMember) {
+  const value = {
+    materialKey: manifestMember.materialKey,
+    bindingRevision: manifestMember.bindingRevision,
+    admittedControlRevision: manifestMember.admittedControlRevision,
+    admittedControlProjectionDigest: manifestMember.admittedControlProjectionDigest,
+    role: manifestMember.role,
+    episodeClaims: manifestMember.episodeClaims,
+  };
+  return Object.freeze({ ...value, memberClaimDigest: canonicalDigest(value) });
+}
+
+function candidateUnitMembers(draft) {
+  const unit = draft?.structureEvidence?.unit;
+  if (Array.isArray(unit?.members)) return Object.freeze(unit.members);
+  const manifestMembers = draft?.primaryInputManifestDraft?.members;
+  if (!Array.isArray(manifestMembers)) {
+    fail('P7_CANDIDATE_MEMBER_SOURCE_MISSING', 'Compact Unit requires the complete Candidate Manifest member source.');
+  }
+  return Object.freeze(manifestMembers.map(compactUnitMember));
+}
+
+function physicalIdentityFromManifestMember(member) {
+  const identity = member?.physicalIdentity;
+  if (!identity || identity.schemaRef !== 'helix://contracts/types/PhysicalMaterialIdentity/v2' || identity.schemaVersion !== 2 ||
+      identity.fingerprintAlgorithm !== 'middle-256k-sha256' || identity.fingerprintVersion !== 1 ||
+      !Number.isSafeInteger(identity.sizeBytes) || identity.sizeBytes < 0 || member.sizeBytes !== identity.sizeBytes ||
+      identity.materialKey !== canonicalDigest({ schema:'physical-material-identity@2', mountScopeId:identity.mountScopeId,
+        inode:identity.inode, sizeBytes:identity.sizeBytes, fingerprintAlgorithm:'middle-256k-sha256', fingerprintVersion:1,
+        contentFingerprint:identity.contentFingerprint })) {
+    fail('P7_CANDIDATE_MANIFEST_IDENTITY_INVALID', 'Primary Manifest member Identity is not the exact bounded Physical Material Identity.');
+  }
+  return identity;
+}
+
+function validateManifestMemberSource(draft, unitMembers) {
+  const manifestDraft = draft.primaryInputManifestDraft;
+  requireArray(manifestDraft.members, 'primaryInputManifestDraft.members', 1024, 1);
+  if (manifestDraft.memberCount !== manifestDraft.members.length || manifestDraft.membersDigest !==
+      canonicalDigest({ schema:'procurement.primary-input-manifest-members@1', items:manifestDraft.members })) {
+    fail('P7_CANDIDATE_MANIFEST_MEMBER_DIGEST', 'Primary Manifest Draft members are not canonical.');
+  }
+  let previous = null;
+  const byKey = new Map();
+  for (const [ordinal, member] of manifestDraft.members.entries()) {
+    if (member.ordinal !== ordinal || (previous !== null && compareUtf8(previous, member.materialKey) >= 0) || byKey.has(member.materialKey) ||
+        !digestString(member.materialKey) || !Number.isSafeInteger(member.bindingRevision) || member.bindingRevision < 1 ||
+        !Number.isSafeInteger(member.admittedControlRevision) || member.admittedControlRevision < 1 ||
+        !SHA256.test(member.admittedControlProjectionDigest || '')) {
+      fail('P7_CANDIDATE_MANIFEST_MEMBER_CANONICAL', 'Primary Manifest Draft members must be ordered and uniquely keyed.');
+    }
+    physicalIdentityFromManifestMember(member);
+    validateEpisodeClaims(member.episodeClaims);
+    previous = member.materialKey;
+    byKey.set(member.materialKey, member);
+  }
+  if (byKey.size !== unitMembers.length || unitMembers.some((member) => {
+    const manifestMember = byKey.get(member.materialKey);
+    return !manifestMember || manifestMember.role !== member.role ||
+      manifestMember.bindingRevision !== member.bindingRevision ||
+      manifestMember.admittedControlRevision !== member.admittedControlRevision ||
+      manifestMember.admittedControlProjectionDigest !== member.admittedControlProjectionDigest ||
+      !same(manifestMember.episodeClaims, member.episodeClaims);
+  })) {
+    fail('P7_CANDIDATE_MANIFEST_MEMBER_MISMATCH', 'Primary Manifest Draft members do not preserve Candidate Context.');
+  }
+  return byKey;
+}
+
+function digestString(value) { return typeof value === 'string' && SHA256.test(value); }
+
+function validateEpisodeClaims(claims) {
+  requireArray(claims, 'episodeClaims', 32);
+  let previous = null;
+  for (const episode of claims) {
+    if (typeof episode.episodeKey !== 'string' || !episode.episodeKey || !digestString(episode.seasonClaimDigest) ||
+        episode.claimDigest !== canonicalDigest(without(episode, 'claimDigest')) ||
+        (previous !== null && compareUtf8(previous, episode.episodeKey) >= 0)) {
+      fail('P7_CANDIDATE_EPISODE_CANONICAL', 'Episode Claims must be uniquely sorted with exact digests.');
+    }
+    previous = episode.episodeKey;
+  }
 }
 
 function validateContinuity(claims, setDigest) {
@@ -45,32 +130,36 @@ function validateDraft(draft, runBasisMembers) {
     fail('P7_CANDIDATE_DRAFT_INVALID', 'Candidate Draft is incomplete.');
   }
   const unit = draft.structureEvidence.unit;
-  requireArray(unit.members, 'structureEvidence.unit.members', 256, 1);
+  const unitMembers = candidateUnitMembers(draft);
+  const compact = !Array.isArray(unit.members);
+  if (compact && (!unit.memberScope || unit.memberScope.scopeKind !== 'bdmv_container')) {
+    fail('P7_CANDIDATE_UNIT_SCOPE_INVALID', 'Compact Candidate Unit must carry a BDMV Scope Reference.');
+  }
+  requireArray(unitMembers, compact ? 'primaryInputManifestDraft.members' : 'structureEvidence.unit.members', 1024, 1);
   requireArray(unit.relatedReferences, 'structureEvidence.unit.relatedReferences', 256);
   let previousMember = null;
   const memberKeys = new Set();
-  for (const member of unit.members) {
+  for (const member of unitMembers) {
     if (previousMember !== null && compareUtf8(previousMember, member.materialKey) >= 0 || memberKeys.has(member.materialKey) ||
-        member.memberClaimDigest !== canonicalDigest(without(member, 'memberClaimDigest'))) {
+        (!compact && member.memberClaimDigest !== canonicalDigest(without(member, 'memberClaimDigest')))) {
       fail('P7_CANDIDATE_MEMBER_CANONICAL', 'Triage Unit members must be uniquely sorted with exact digests.');
     }
     previousMember = member.materialKey; memberKeys.add(member.materialKey);
-    requireArray(member.episodeClaims, 'member.episodeClaims', 32, unit.contentProfile === 'series' && member.role === 'primary_payload' ? 1 : 0);
-    let previousEpisode = null;
-    for (const episode of member.episodeClaims) {
-      if (previousEpisode !== null && compareUtf8(previousEpisode, episode.episodeKey) >= 0 ||
-          episode.claimDigest !== canonicalDigest(without(episode, 'claimDigest'))) {
-        fail('P7_CANDIDATE_EPISODE_CANONICAL', 'Episode Claims must be uniquely sorted with exact digests.');
-      }
-      previousEpisode = episode.episodeKey;
+    validateEpisodeClaims(member.episodeClaims);
+    if (unit.contentProfile === 'series' && member.role === 'primary_payload' && member.episodeClaims.length < 1) {
+      fail('P7_CANDIDATE_EPISODE_REQUIRED', 'Series primary members require an Episode Claim.');
     }
   }
-  const expectedUnitId = canonicalDigest({ schema:'procurement.triage-unit-id@1', mediaType:unit.mediaType,
-    contentProfile:unit.contentProfile, structureKind:unit.structureKind,
-    members:unit.members.map(({ materialKey, role, episodeClaims }) => ({ materialKey, role, episodeClaims })) });
+  const expectedUnitId = compact
+    ? canonicalDigest({ schema:'procurement.triage-unit-id@2', mediaType:unit.mediaType, contentProfile:unit.contentProfile,
+      structureKind:unit.structureKind, scope:unit.memberScope })
+    : canonicalDigest({ schema:'procurement.triage-unit-id@1', mediaType:unit.mediaType,
+      contentProfile:unit.contentProfile, structureKind:unit.structureKind,
+      members:unitMembers.map(({ materialKey, role, episodeClaims }) => ({ materialKey, role, episodeClaims })) });
   if (unit.unitId !== expectedUnitId || draft.identityMetadata.metadataDigest !== canonicalDigest(without(draft.identityMetadata, 'metadataDigest'))) {
     fail('P7_CANDIDATE_UNIT_CANONICAL', 'Triage Unit identity or metadata digest is invalid.');
   }
+  const manifestByKey = validateManifestMemberSource(draft, unitMembers);
   let previousReference = null;
   for (const reference of unit.relatedReferences) {
     const identity = reference.identity;
@@ -111,7 +200,7 @@ function validateDraft(draft, runBasisMembers) {
       canonicalDigest({ schema:'procurement.related-reference-set@1', items:related })) {
     fail('P7_CANDIDATE_RELATED_DIGEST', 'Related Reference set is not canonical.');
   }
-  const controls = [...unit.members].sort((a, b) => compareUtf8(a.materialKey, b.materialKey)).map((member) => ({
+  const controls = [...unitMembers].sort((a, b) => compareUtf8(a.materialKey, b.materialKey)).map((member) => ({
     materialKey:member.materialKey, admittedControlRevision:member.admittedControlRevision,
     admittedControlProjectionDigest:member.admittedControlProjectionDigest
   }));
@@ -119,9 +208,9 @@ function validateDraft(draft, runBasisMembers) {
     fail('P7_CANDIDATE_CONTROL_DIGEST', 'Candidate member Control Evidence set digest is invalid.');
   }
   const basisByKey = new Map((runBasisMembers || []).map((item) => [item.materialKey, item]));
-  if (basisByKey.size !== unit.members.length) fail('P7_CANDIDATE_RUN_BASIS_REQUIRED', 'Candidate Publication requires the exact immutable Run member basis.');
+  if (basisByKey.size !== unitMembers.length) fail('P7_CANDIDATE_RUN_BASIS_REQUIRED', 'Candidate Publication requires the exact immutable Run member basis.');
   const manifestDraft = draft.primaryInputManifestDraft;
-  const draftMembers = [...unit.members].sort((a, b) => compareUtf8(a.materialKey, b.materialKey)).map((member, ordinal) => ({
+  const draftMembers = [...unitMembers].sort((a, b) => compareUtf8(a.materialKey, b.materialKey)).map((member, ordinal) => ({
     ordinal, materialKey:member.materialKey, role:member.role, physicalIdentity:basisByKey.get(member.materialKey).physicalIdentity,
     sizeBytes:basisByKey.get(member.materialKey).sizeBytes,
     bindingRevision:member.bindingRevision,
@@ -177,8 +266,9 @@ function buildPublication(draft, publishedAtMs, runBasisMembers) {
   validateDraft(draft, runBasisMembers);
   if (!Number.isSafeInteger(publishedAtMs) || publishedAtMs < 0) fail('P7_CANDIDATE_PUBLISH_TIME', 'Publication time is invalid.');
   const unit = draft.structureEvidence.unit;
+  const unitMembers = candidateUnitMembers(draft);
   const basisByKey = new Map(runBasisMembers.map((item) => [item.materialKey, item]));
-  const members = [...unit.members].sort((a, b) => compareUtf8(a.materialKey, b.materialKey)).map((member, ordinal) => {
+  const members = [...unitMembers].sort((a, b) => compareUtf8(a.materialKey, b.materialKey)).map((member, ordinal) => {
     const basis = basisByKey.get(member.materialKey);
     const value = { ordinal, materialKey:member.materialKey, role:member.role, physicalIdentity:basis.physicalIdentity,
       sizeBytes:basis.sizeBytes, bindingRevision:member.bindingRevision,

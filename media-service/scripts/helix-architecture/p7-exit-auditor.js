@@ -122,7 +122,7 @@ function auditP7Exit(options) {
   const schemaManifest = JSON.parse(fs.readFileSync(path.join(repositoryRoot,
     'media-service/src/helix/foundation/persistence/generated/clean-schema.manifest.json'), 'utf8'));
   const procurementTables = schemaManifest.tables.filter((table) => table.owner === 'procurement').map((table) => table.tableId).sort();
-  if (procurementTables.length !== 16) findings.push({ code:'P7_PROCUREMENT_TABLE_COUNT_DRIFT', actual:procurementTables.length });
+  if (procurementTables.length !== 17) findings.push({ code:'P7_PROCUREMENT_TABLE_COUNT_DRIFT', actual:procurementTables.length });
   if (changedFiles.some((file) => file.startsWith('media-desktop/'))) findings.push({ code:'MEDIA_DESKTOP_TOUCHED_DURING_P7' });
   if (changedFiles.some((file) => file.startsWith('tests/') || /(?:dockerfile|docker\/|deploy-nas|build-image)/i.test(file))) {
     findings.push({ code:'EXTERNAL_OR_DEPLOYMENT_SCOPE_TOUCHED_DURING_P7' });

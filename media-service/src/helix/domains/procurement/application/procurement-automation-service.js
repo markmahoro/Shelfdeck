@@ -36,8 +36,8 @@ const CAPABILITY_DEMAND =
   'helix://contracts/capabilities/procurement.material.control.acquire/v1/resource-demand';
 const RESULT_SCHEMA = 'helix://contracts/types/ProcurementControlReceipt/v1';
 // The active reconciliation path uses the Run Creator's logical/physical
-// packing.  This legacy synchronous helper remains unavailable, but retain
-// the same Foundation physical bound if it is ever called by a fixture.
+// packing.  The synchronous helper is intentionally unavailable; retain the
+// same Foundation physical bound if it is ever called by a fixture.
 const MAX_RUN_MEMBERS = 1024;
 const RECONCILE_BATCH_SIZE = 100;
 

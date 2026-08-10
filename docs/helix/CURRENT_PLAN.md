@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: Observation事实表与增量Eligibility改造已完成；Execution Foundation与Procurement本地全链验证通过，保持不变。
+Status: BDMV Triage性能重构与Scope Reference落地已完成；Execution Foundation与Procurement本地全链验证通过，已封口供后续Domain接入。
 
 Last updated: 2026-08-10
 
@@ -11,7 +11,13 @@ Last updated: 2026-08-10
 - Observation明细永久写入Procurement-owned `proc_field_observation_entries`；Page JSON只保存游标、数量、边界digest、page/fact digest和commit marker。一个Page Event最多提交256个文件、物理读取最多64 MiB，每个Physical Material指纹读取最多262,144 bytes。独立Layout Capability/Event/Result废止，Layout只作为冻结Observation entries上的技术Projection。
 - Eligibility仍是`proc_field_materials`上的当前Decision Projection。全局Observation head推进不再使全部Material失效；Reconcile只接收新、Reality/Binding/位置变化、missing、unknown/basis失效，以及Field/Access/Policy/Selection/Reservation/Control影响的有界Material Key Change Set。未变化Material不执行Eligibility SQL UPDATE、不递增revision。
 
-本轮不新增Eligibility历史表、Capability、Result family、Admin route或业务对象；clean合同预期为110 Capability、96 Result family、180 table、43 Canonical Transaction。验证顺序固定为：合同/Schema → Observation幂等与批次边界 → 18,000项Eligibility写放大fixture → Procurement回归 → 本地只读`Z:\\Film`全量Canary。上述门禁已全部完成；本轮不进入Docker、NAS、Libra或Arca。
+本轮不新增Eligibility历史表、Capability、Result family、Admin route或业务对象；当前clean合同为111 Capability、97 Result family、180 table、43 Canonical Transaction。验证顺序固定为：合同/Schema → Observation幂等与批次边界 → 18,000项Eligibility写放大fixture → Procurement回归 → 本地只读`Z:\\Film`全量Canary。上述门禁已全部完成；本轮不进入Docker、NAS、Libra或Arca。
+
+### 0.1 Current amendment — BDMV Assessment and Scope Reference
+
+BDMV不再为每个物理成员建立通用Media Probe Event。每个BDMV容器只签发一个`procurement.triage.bdmv.assess@1`，在一次受控调用中完成有限Playlist/Clip拓扑解析、确定性主标题选择和选定主标题M2TS的bounded metadata probe；不读取完整M2TS、不计算全文件Hash、不嵌套调用Event Runtime。普通媒体仍使用`shared.material.media.probe@1`。
+
+Structure只消费durable `BdmvAssessmentEvidence@1`并输出紧凑`UnitScopeReference`；Candidate Context按冻结Run、Observation和Assessment facts重建主载荷与对应结构依赖。BDMV容器的全部物理成员仍作为不可拆分Scope参与Run Admission（最多1024），但不塞入Plan或Structure Result；未选中的M2TS/CLIPINF不进入Candidate或Related。
 
 ### 0.2 Final evidence — 2026-08-10 local full Canary
 
@@ -20,9 +26,10 @@ Last updated: 2026-08-10
 - sourceBefore/sourceAfter均为18,407个regular files，digest均为`a630ecf5b86c0da2541b5e53fae2bc6e5aa8d28fd181b7d6ce6c770042eb316d`；数据库`integrity_check=ok`。
 - Observation为72页、18,407条entry；每文件只读取一次中段指纹，逻辑读取`1,776,608,472` bytes，未超过`18,407 × 262,144`上限；主动重启后未重读已提交页。
 - 增量Eligibility首轮实际`eligibilityDecisionWrites=18,407`、`reconcileBatchCount=185`；Observation完成后的后续Triage没有增加Eligibility写入；完全相同Observation的0写入由专项fixture覆盖。
-- 创建29个并存Run并全部Seal；917个Work、1,083个Plan、8,816个Event/Attempt/Result全部成功；Candidate Package与open Handoff A Offer各887份，Related Reference共4,244份。
-- `failedWorks=0`、`failedEvents=0`、`resourceDefers=0`、RSS峰值约765 MiB；Related数据库审计未发现BDMV内部路径或视频载荷（包括`.m2ts`）被误记为Related；Offer未消费，Libra/Arca事实为0，源文件无写入/删除/移动/重命名。
-- 总耗时约22分53秒；Observation terminal已完成后首个Candidate/Offer约128秒，全部Run Seal约22分48秒。最新临时资产保留于`C:\\Users\\markm\\AppData\\Local\\Temp\\helix-full-movie-canary-RN9eJJ`；此前Canary资产未删除。
+- 创建12个并存Run并全部Seal；950个Work、1,148个Plan、4,029个Event/Attempt/Result全部成功；937个Candidate Package与937个open Handoff A Offer，Related Reference共4,397份。
+- BDMV容器共59个，其中56个Assessment为`resolved`、3个以`bdmv_topology_unavailable`带Evidence收口；产生56个BDMV Structure Unit、53个BDMV Candidate，普通Candidate为884个。通用Media Probe共929个，BDMV内部成员通用Probe为0；没有STREAM标题Candidate。
+- `failedWorks=0`、`failedEvents=0`、`resourceDefers=0`、RSS峰值约1.35 GiB；数据库`integrity_check=ok`。Related数据库审计未发现BDMV内部路径或视频载荷（包括`.m2ts`）被误记为Related；Offer未消费，Libra/Arca事实为0，源文件无写入/移动/删除/重命名。
+- 总耗时约8分04秒；Observation terminal后首个Structure约119秒、首个Candidate/Offer约140秒、全部Run Seal约7分56秒。临时资产保留于`C:\\Users\\markm\\AppData\\Local\\Temp\\helix-full-movie-canary-zpq4zN`；此前Canary资产未删除。
 
 本证据将Execution Foundation与Procurement本地验证状态更新为`CLOSED FOR DOMAIN ONBOARDING`。后续Libra/Arca接入若要求改变Foundation状态机、Permit、Result Binding、Reconcile或backpressure语义，必须返回Design。
 
@@ -40,7 +47,7 @@ Last updated: 2026-08-10
 4. **Procurement压力回归**：以260个Candidate需求证明hard cap有界、completion持续产出、Package/Offer早于全部Run Seal，且
    Coordinator不执行Capability、不做整Field读取。
 5. **最终全库Canary与封口**：本地Node.js在新的系统Temp clean数据库上运行`Z:\Film`只读Canary；主动重启后从同一
-   durable数据库恢复，未重扫Observation。最终29/29 Run Seal、889 Candidate Package/889 open Handoff A Offer、
+   durable数据库恢复，未重扫Observation。最终12/12 Run Seal、937 Candidate Package/937 open Handoff A Offer、
    `failedWorks=0`、`failedEvents=0`、源Reality前后一致、Libra/Arca为0，已改为`CLOSED FOR DOMAIN ONBOARDING`。
 
 Checkpoint 1–5的实现与本地fixture已经完成；Layout Snapshot及Triage Unit/Candidate Context改造的Node回归和Procurement压力fixture已通过；全量真实Canary已完成。运行边界固定为本机Node.js、临时clean数据库和
@@ -54,12 +61,13 @@ Physical Material Identity不承担NAS字节完整性证明。所有Physical Mat
 profile-neutral目录索引；Evidence Assessment按唯一直接父目录规划Layout Event，Triage Layout只读取Snapshot，不再
 执行NAS `readdir`或相关文件指纹读取。Media Probe仍保持为独立Event并只对Run Selection访问源文件。
 
-2026-08-09 BDMV拓扑边界已确认（Design记录，尚未宣称新增实现完成）：BDMV不是pre-triage的`movie`类别，
+2026-08-10 BDMV拓扑边界已确认并完成实现：BDMV不是pre-triage的`movie`类别，
 而是Run Creator使用的不可拆分container group。最近`BDMV`祖先目录下的全部terminal Observation成员必须进入同一Run，
 完整group可以与其他group按稳定顺序装入同一Run，单个group超过256项时整体不建Run。Structure只消费完整group，
 解析Playlist、Clip与结构依赖并形成单标题Triage Unit；BDMV内部成员不得各自形成Candidate，多标题/歧义/不完整保持
 `not_ready`。Run Admission不得等待Structure发现依赖后再静默扩张；所需结构成员必须在Admission前完成Observation、
-Eligibility和Control。该决定不新增Domain、Business Object、Capability、Result family、表或Admin route。
+Eligibility和Control。当前实现新增正式`procurement.triage.bdmv.assess@1`、`BdmvAssessmentEvidence@1`及
+`BdmvAssessmentInput@1`，Scope Reference为运行时可重建引用，不新增表或业务Domain。
 
 当前产品压力证据为260个Movie Primary、2个并存Run：260份Candidate Assembly Work最终形成260个Package和260个open
 Handoff A Offer，全部Run Seal，零failed Work/Event；开放Work从未突破256。全链由产品Composition Root中的Scheduler、

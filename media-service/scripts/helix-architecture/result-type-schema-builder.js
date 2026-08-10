@@ -154,13 +154,22 @@ const triageIdentityMetadata = () => object({ claimedTitle: text(), claimedYear:
     hintValue: text(), evidenceDigest: digest() }), 256), metadataDigest: digest()
 }, ['claimedTitle', 'contentProfileHint', 'sourceHints', 'metadataDigest']);
 const triageRelatedReference = () => ref('RelatedMaterialReference');
-const triageUnit = () => object({ unitId: digest(), mediaType: triageMediaType(), contentProfile: triageProfile(),
-  structureKind: enumText('single', 'season'), displayIdentity: text(), identityMetadata: triageIdentityMetadata(),
-  seasonContinuityClaims: arrayOf(seasonContinuityClaim(), 64), seasonContinuityClaimSetDigest: digest(),
-  members: { ...arrayOf(object({ materialKey: digest(),
-    bindingRevision: positiveInteger(), admittedControlRevision: positiveInteger(), admittedControlProjectionDigest: digest(),
-    role: enumText('primary_payload', 'structural_dependency'), episodeClaims: arrayOf(triageEpisodeClaim(), 32), memberClaimDigest: digest()
-  }), PROCUREMENT_RUN_MEMBER_LIMIT), minItems: 1 }, relatedReferences: arrayOf(triageRelatedReference(), 1024), unitDigest: digest() });
+const triageUnit = () => {
+  const common = { unitId: digest(), mediaType: triageMediaType(), contentProfile: triageProfile(),
+    structureKind: enumText('single', 'season'), displayIdentity: text(), identityMetadata: triageIdentityMetadata(),
+    seasonContinuityClaims: arrayOf(seasonContinuityClaim(), 64), seasonContinuityClaimSetDigest: digest(),
+    relatedReferences: arrayOf(triageRelatedReference(), 1024), unitDigest: digest() };
+  const member = object({ materialKey: digest(), bindingRevision: positiveInteger(),
+    admittedControlRevision: positiveInteger(), admittedControlProjectionDigest: digest(),
+    role: enumText('primary_payload', 'structural_dependency'), episodeClaims: arrayOf(triageEpisodeClaim(), 32), memberClaimDigest: digest() });
+  const scope = object({ scopeKind: { const: 'bdmv_container' }, procurementRunId: id(), bdmvGroupKey: id(),
+    scopeDigest: digest(), memberSetDigest: digest(), memberCount: positiveInteger(), topologyDigest: digest(),
+    selectedPayloadSetDigest: digest() });
+  return { oneOf: [
+    object({ ...common, members: { ...arrayOf(member, PROCUREMENT_RUN_MEMBER_LIMIT), minItems: 1 } }),
+    object({ ...common, memberScope: scope })
+  ] };
+};
 
 const special = {
   'FilesystemIdentityEvidence.identity': ref('PhysicalMaterialIdentity'),
@@ -206,9 +215,28 @@ const special = {
   'PersonMatchEvidence.unmatchedClusterIds': arrayOf(id(), 1024),
   'ObservationPageCommitResult.profileHintSnapshot': applicationRef('MaterialFieldProfileHintSnapshot'),
   'ObservationPageCommitResult.nextCursor': nullable(text()),
-  'PlayabilityEvidence.materialResults': { ...arrayOf(object({ selectionOrdinal: nonNegativeInteger(), materialKey: digest(),
-    bindingRevision: positiveInteger(), probeEvidenceDigest: digest(), playable: bool(),
-    reasonCodes: arrayOf(enumText('probe_not_media', 'no_video_stream', 'non_positive_duration'), 3), resultDigest: digest() }), 100), minItems: 1 },
+  'PlayabilityEvidence.materialResults': { ...arrayOf({ oneOf: [
+    object({ selectionOrdinal: nonNegativeInteger(), materialKey: digest(), bindingRevision: positiveInteger(), probeEvidenceDigest: digest(), playable: bool(),
+      reasonCodes: arrayOf(enumText('probe_not_media', 'no_video_stream', 'non_positive_duration'), 3), resultDigest: digest() }),
+    object({ inputKind:{ const:'bdmv_container' }, selectionOrdinal: nonNegativeInteger(), materialKey: digest(), bindingRevision: positiveInteger(),
+      bdmvGroupKey: id(), scopeDigest: digest(), probeEvidenceDigest: digest(), playable: bool(),
+      reasonCodes: arrayOf(enumText('probe_not_media', 'no_video_stream', 'non_positive_duration', 'bdmv_not_ready'), 4), resultDigest: digest() })
+  ] }, 100), minItems: 1 },
+  'BdmvAssessmentEvidence.resultKind': enumText('resolved', 'not_ready'),
+  'BdmvAssessmentEvidence.reasonCode': enumText('bdmv_missing_dependency', 'bdmv_title_ambiguous', 'bdmv_series_unsupported',
+    'bdmv_topology_unavailable', 'bdmv_scope_digest_mismatch'),
+  'BdmvAssessmentEvidence.discKind': { const: 'bdmv' },
+  // A structurally present BDMV with no readable Playlist can legitimately
+  // produce a not_ready evidence with zero discovered titles.  The business
+  // result is still typed and auditable; zero is not a schema failure.
+  'BdmvAssessmentEvidence.titleCount': nonNegativeInteger(),
+  'BdmvAssessmentEvidence.selectedPlaylist': nullable(object({ relativeLocation: text(), durationMs: nonNegativeInteger(), clipIds: { ...arrayOf(text(), 256), minItems: 1 } })),
+  'BdmvAssessmentEvidence.selectedClipIds': arrayOf(text(), 256),
+  'BdmvAssessmentEvidence.topologyDigest': digest(),
+  'BdmvAssessmentEvidence.selectedPayloadSetDigest': digest(),
+  'BdmvAssessmentEvidence.memberCount': positiveInteger(),
+  'BdmvAssessmentEvidence.mediaSummary': object({ probeState: enumText('probed', 'not_media', 'not_available'), durationMs: nonNegativeInteger(),
+    videoClasses: arrayOf(text(), 64), audioClasses: arrayOf(text(), 128), subtitleClasses: arrayOf(text(), 256) }),
   'TriageStructureEvidence.resultKind': enumText('resolved', 'not_ready'),
   'TriageStructureEvidence.units': arrayOf(triageUnit(), 100),
   'TriageStructureEvidence.unassignedMaterials': arrayOf(object({ materialKey: digest(), reasonCode: enumText('probe_not_media',
@@ -225,6 +253,12 @@ const special = {
   'IdentityClaim.seasonClaim': triageIdentityMetadata().properties.seasonClaim,
   'PrimaryInputManifestDraft.structureKind': enumText('single', 'season'),
   'PrimaryInputManifestDraft.memberCount': positiveInteger(),
+  'PrimaryInputManifestDraft.members': { ...arrayOf(object({
+    ordinal: nonNegativeInteger(), materialKey: digest(), role: enumText('primary_payload', 'structural_dependency'),
+    physicalIdentity: ref('PhysicalMaterialIdentity'), sizeBytes: nonNegativeInteger(),
+    bindingRevision: positiveInteger(), admittedControlRevision: positiveInteger(), admittedControlProjectionDigest: digest(),
+    episodeClaims: arrayOf(triageEpisodeClaim(), 32)
+  }), PROCUREMENT_RUN_PHYSICAL_MEMBER_LIMIT), minItems: 1 },
   'PrimaryInputManifest.structureKind': enumText('single', 'season'),
   'PrimaryInputManifest.memberCount': positiveInteger(),
   'PrimaryInputManifest.members': { ...arrayOf(object({
@@ -483,9 +517,10 @@ const contracts = {
   ObservationPageCommitReceipt: ['ReceiptEnvelope', 'observationId,fieldObservationWorkId,fieldId,committedObservationRevision,pageOrdinal,entryCount,pageDigest,entrySetDigest,nextCursor,hasMore,receiptDigest'],
   ProcurementControlReceipt: ['ReceiptEnvelope', 'procurementRunId,fieldId,runBasisDigest,selectedMaterialCount,selectedMaterialSetDigest,acquiredMaterialCount,assertedMaterialCount,controlRevisionSetDigest'],
   PlayabilityEvidence: ['EvidenceEnvelope', 'procurementRunId,runBasisDigest,selectionDigest,batchOrdinal,materialResults,materialResultSetDigest'],
+  BdmvAssessmentEvidence: ['EvidenceEnvelope', 'runId,bdmvGroupKey,scopeDigest,memberSetDigest,resultKind,reasonCode?,discKind,titleCount,selectedPlaylist?,selectedClipIds,topologyDigest,selectedPayloadSetDigest,memberCount,mediaSummary,evidenceDigest'],
   TriageStructureEvidence: ['EvidenceEnvelope', 'procurementRunId,runBasisDigest,selectionDigest,triageRuleAuthorityDigest,materialFieldContextDigest,pageRequestDigest,pageOrdinal,cursorIn,cursorOut,resultKind,units,unassignedMaterials,unitSetDigest,unassignedSetDigest'],
   IdentityClaim: ['DraftEnvelope', 'claimKind,mediaType,contentProfile,claimedTitle,displayIdentity,claimedYear?,seasonClaim?,javCode?,identityMetadataDigest,structureUnitDigest,sourceHints,claimDigest'],
-  PrimaryInputManifestDraft: ['DraftEnvelope', 'preallocatedManifestId,procurementRunId,runBasisDigest,structureEvidencePayloadDigest,unitId,structureKind,memberCount,membersDigest,memberSourceDigest,manifestDraftDigest'],
+  PrimaryInputManifestDraft: ['DraftEnvelope', 'preallocatedManifestId,procurementRunId,runBasisDigest,structureEvidencePayloadDigest,unitId,structureKind,memberCount,members,membersDigest,memberSourceDigest,manifestDraftDigest'],
   PrimaryInputManifest: ['ManifestEnvelope', 'structureKind,members'],
   CandidatePackage: ['ManifestEnvelope', 'candidatePackageId,packageRevision,procurementRunId,runBasisDigest,triageRule,materialFieldContextRef,mediaType,contentProfile,displayIdentity,identityMetadata,identityClaim,structureEvidenceRef,seasonContinuityClaims,seasonContinuityClaimSetDigest,primaryInputManifestRef,relatedReferences,relatedReferenceSetDigest,memberControlEvidenceSetDigest,packageDigest'],
   RelatedMaterialReference: [null, 'referenceId,primaryMaterialKey,role,identity,endpointId,location,fingerprintAlgorithm,fingerprintVersion,contentFingerprint,associationEvidenceDigest,referenceDigest'],
@@ -620,6 +655,7 @@ function buildResultTypeSchema(name, [base, fieldList]) {
     ...object(properties, required)
   };
   if (name === 'ObservationPageCommitResult' || name === 'ObservationPageCommitReceipt') result['x-helix-maxCanonicalBytes'] = 16 * 1024;
+  if (name === 'BdmvAssessmentEvidence') result['x-helix-maxCanonicalBytes'] = 64 * 1024;
   if (name === 'LibraCandidateAcceptedMessage' || name === 'LibraCandidateRejectedMessage') result['x-helix-maxCanonicalBytes'] = 16 * 1024;
   if (name === 'ProcurementCandidateRejectionClosureResult') result['x-helix-maxCanonicalBytes'] = 64 * 1024;
   if (name === 'ProcurementCandidateAcceptanceClosureResult') result['x-helix-maxCanonicalBytes'] = 64 * 1024;

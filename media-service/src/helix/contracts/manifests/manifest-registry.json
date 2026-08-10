@@ -10,8 +10,8 @@
     "packageBoundaries": 47
   },
   "manifests": [
-    { "manifestId": "helix.inventory.capabilities", "kind": "capability-inventory", "relativePath": "capability-inventory.json", "targetCount": 110 },
-    { "manifestId": "helix.inventory.result-families", "kind": "result-family-inventory", "relativePath": "result-family-inventory.json", "targetCount": 96 },
+    { "manifestId": "helix.inventory.capabilities", "kind": "capability-inventory", "relativePath": "capability-inventory.json", "targetCount": 111 },
+    { "manifestId": "helix.inventory.result-families", "kind": "result-family-inventory", "relativePath": "result-family-inventory.json", "targetCount": 97 },
     { "manifestId": "helix.inventory.tables", "kind": "table-inventory", "relativePath": "table-inventory.json", "targetCount": 180 },
     { "manifestId": "helix.inventory.routes", "kind": "route-inventory", "relativePath": "route-inventory.json", "targetCount": 114, "targetSegments": { "admin": 113, "publicHealth": 1 } },
     { "manifestId": "helix.inventory.canonical-transactions", "kind": "transaction-inventory", "relativePath": "transaction-inventory.json", "targetCount": 43 },

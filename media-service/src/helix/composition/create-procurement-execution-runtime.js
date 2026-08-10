@@ -30,7 +30,7 @@ const { createWorkflowPlanPublisher, executionCatalogDigest } = require('../foun
 const { ProcurementExecutionRegistration } = require('../domains/procurement/public');
 
 const PROCUREMENT_ENABLED = Object.freeze(['procurement.field.observation.page.commit@1',
-  'procurement.triage.playability.inspect@1','procurement.triage.structure.inspect@1',
+  'procurement.triage.playability.inspect@1','procurement.triage.bdmv.assess@1','procurement.triage.structure.inspect@1',
   'procurement.triage.identity_claim.resolve@1','procurement.triage.primary_manifest.build@1','procurement.candidate.publish@1']);
 const SHARED_ENABLED = Object.freeze(['shared.material.media.probe@1']);
 const ENABLED = Object.freeze([...PROCUREMENT_ENABLED, ...SHARED_ENABLED]);
@@ -148,10 +148,11 @@ function createProcurementExecutionRuntime(options) {
     resourceDemandResolver: { resolve: ({ snapshot,inputs }) => {const projection=executionProjectionProvider.read({
       ownerDomain:snapshot.work.owner_domain,processType:snapshot.work.process_type,processId:snapshot.work.process_id,workKind:snapshot.work.work_kind});
       const capability=snapshot.node.capability_ref;let resources=[];
-      if(['procurement.field.observation.page.commit@1','shared.material.media.probe@1'].includes(capability)){
+      if(['procurement.field.observation.page.commit@1','shared.material.media.probe@1','procurement.triage.bdmv.assess@1'].includes(capability)){
         const mountScopeId=findMountScopeId(inputs);if(!mountScopeId)throw new Error('P4_TYPED_VOLUME_RESOURCE_UNRESOLVED:'+capability);
         validatedVolumeKeys.add(mountScopeId);resources.push({resourceKey:'volume_read:'+mountScopeId,units:1});
       }
+      if(capability === 'procurement.triage.bdmv.assess@1') resources.push({resourceKey:'cpu_heavy',units:1});
       if(['procurement.field.observation.page.commit@1','procurement.candidate.publish@1'].includes(capability)){
         resources.push({resourceKey:'sqlite_write',units:1});
       }

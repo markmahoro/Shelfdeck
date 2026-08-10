@@ -47,7 +47,7 @@ function buildResultTypeRegistry(contractsRoot) {
     kind: 'result-type-registry',
     owner: 'contracts',
     status: 'active',
-    targetCatalogResultCount: 85,
+    targetCatalogResultCount: 86,
     helperCount: 13,
     entries
   };
@@ -80,9 +80,10 @@ function buildResultInventory(contractsRoot) {
 function materializeResultTypes(contractsRoot) {
   const schemas = buildResultTypeSchemas();
   const typesRoot = path.join(contractsRoot, 'types');
-  for (const name of fs.readdirSync(typesRoot, { withFileTypes: true })) {
-    if (name.isDirectory() && !Object.hasOwn(schemas, name.name)) fs.rmSync(path.join(typesRoot, name.name), { recursive: true, force: true });
-  }
+  // `contracts/types` is a shared root: the catalog source map also names
+  // reusable Foundation/domain helper types that this materializer does not
+  // emit.  Never infer deletions from the source-map list; materialization is
+  // additive for those helpers and only rewrites the schemas it owns below.
   for (const [name, schema] of Object.entries(schemas)) {
     const directory = path.join(contractsRoot, 'types', name, 'v1');
     fs.mkdirSync(directory, { recursive: true });
@@ -110,7 +111,7 @@ function materializeResultTypes(contractsRoot) {
     owner: 'contracts',
     status: 'active',
     ssotRefs: ['7.7', '8.2.1', '8.6.18', '8.6.19', '8.9.5'],
-    targetCount: 96,
+    targetCount: 97,
     entryFiles
   }, null, 2)}\n`);
   return registry;

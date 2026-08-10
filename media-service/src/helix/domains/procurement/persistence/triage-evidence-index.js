@@ -14,6 +14,7 @@ class TriageEvidenceIndexError extends Error {
 function fail(code, message, details) { throw new TriageEvidenceIndexError(code, message, details); }
 
 const STRUCTURE_RESULT = 'helix://contracts/capabilities/procurement.triage.structure.inspect/v1/result';
+const BDMV_ASSESSMENT_RESULT = 'helix://contracts/capabilities/procurement.triage.bdmv.assess/v1/result';
 
 function candidateWorkId(runId, unitId, ordinal) {
   return 'procurement-candidate-work-' + String(ordinal).padStart(4, '0') + '-' + canonicalDigest({ runId, unitId }).slice(0, 32);
@@ -26,7 +27,8 @@ function createTriageEvidenceIndex(options) {
   const cache = new Map();
 
   function build(workId) {
-    const rows = options.workResultReader.read(workId)
+    const allRows = options.workResultReader.read(workId);
+    const rows = allRows
       .filter((item) => item.outcomeKind === 'succeeded' && item.resultSchemaRef === STRUCTURE_RESULT)
       .sort((left, right) => Number(left.result.pageOrdinal) - Number(right.result.pageOrdinal));
     const unitsById = new Map();
@@ -74,6 +76,9 @@ function createTriageEvidenceIndex(options) {
       units: Object.freeze(units),
       unitsById,
       materialToUnit,
+      bdmvAssessments: new Map(allRows
+        .filter((item) => item.outcomeKind === 'succeeded' && item.resultSchemaRef === BDMV_ASSESSMENT_RESULT && item.result?.scopeDigest)
+        .map((item) => [item.result.scopeDigest, Object.freeze(item.result)])),
       terminal: rows.length > 0 && rows.at(-1).result.cursorOut === null,
     });
   }
@@ -93,6 +98,10 @@ function createTriageEvidenceIndex(options) {
       const entry = read(workId).unitsById.get(unitId);
       return entry || null;
     },
+    findBdmvAssessment(workId, scopeDigest) {
+      if (typeof scopeDigest !== 'string' || !scopeDigest) return null;
+      return read(workId).bdmvAssessments.get(scopeDigest) || null;
+    },
     findCandidate(workId, runId, evidenceWorkId) {
       if (typeof runId !== 'string' || typeof evidenceWorkId !== 'string') return null;
       return read(evidenceWorkId).units.find((entry) => candidateWorkId(runId, entry.unitId, entry.ordinal) === workId) || null;
@@ -102,4 +111,4 @@ function createTriageEvidenceIndex(options) {
   });
 }
 
-module.exports = Object.freeze({ TriageEvidenceIndexError, createTriageEvidenceIndex, STRUCTURE_RESULT, candidateWorkId });
+module.exports = Object.freeze({ TriageEvidenceIndexError, createTriageEvidenceIndex, STRUCTURE_RESULT, BDMV_ASSESSMENT_RESULT, candidateWorkId });

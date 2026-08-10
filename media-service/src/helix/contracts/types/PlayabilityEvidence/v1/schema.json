@@ -64,56 +64,130 @@
     "materialResults": {
       "type": "array",
       "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "selectionOrdinal": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "materialKey": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
-          },
-          "bindingRevision": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "probeEvidenceDigest": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
-          },
-          "playable": {
-            "type": "boolean"
-          },
-          "reasonCodes": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "enum": [
-                "probe_not_media",
-                "no_video_stream",
-                "non_positive_duration"
-              ]
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "selectionOrdinal": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "materialKey": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "bindingRevision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "probeEvidenceDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "playable": {
+                "type": "boolean"
+              },
+              "reasonCodes": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "probe_not_media",
+                    "no_video_stream",
+                    "non_positive_duration"
+                  ]
+                },
+                "maxItems": 3
+              },
+              "resultDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
             },
-            "maxItems": 3
+            "required": [
+              "selectionOrdinal",
+              "materialKey",
+              "bindingRevision",
+              "probeEvidenceDigest",
+              "playable",
+              "reasonCodes",
+              "resultDigest"
+            ]
           },
-          "resultDigest": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "inputKind": {
+                "const": "bdmv_container"
+              },
+              "selectionOrdinal": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "materialKey": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "bindingRevision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "bdmvGroupKey": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "scopeDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "probeEvidenceDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "playable": {
+                "type": "boolean"
+              },
+              "reasonCodes": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "probe_not_media",
+                    "no_video_stream",
+                    "non_positive_duration",
+                    "bdmv_not_ready"
+                  ]
+                },
+                "maxItems": 4
+              },
+              "resultDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "inputKind",
+              "selectionOrdinal",
+              "materialKey",
+              "bindingRevision",
+              "bdmvGroupKey",
+              "scopeDigest",
+              "probeEvidenceDigest",
+              "playable",
+              "reasonCodes",
+              "resultDigest"
+            ]
           }
-        },
-        "required": [
-          "selectionOrdinal",
-          "materialKey",
-          "bindingRevision",
-          "probeEvidenceDigest",
-          "playable",
-          "reasonCodes",
-          "resultDigest"
         ]
       },
       "maxItems": 100,

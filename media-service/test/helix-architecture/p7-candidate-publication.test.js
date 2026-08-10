@@ -68,6 +68,7 @@ function candidateDraft() {
     admittedControlProjectionDigest:member.admittedControlProjectionDigest, episodeClaims:member.episodeClaims }];
   const manifestPayload = { preallocatedManifestId:'manifest-1', procurementRunId:'run-1', runBasisDigest:D('run-basis'),
     structureEvidencePayloadDigest:D('structure-evidence'), unitId:unit.unitId, structureKind:'season', memberCount:1,
+    members:manifestMembers,
     membersDigest:canonicalDigest({ schema:'procurement.primary-input-manifest-members@1', items:manifestMembers }), memberSourceDigest:unit.unitDigest };
   const manifestDraftDigest = canonicalDigest(manifestPayload);
   const manifestDraft = { schemaRef:'helix://contracts/types/PrimaryInputManifestDraft/v1', schemaVersion:1, draftId:'manifest-draft-1',

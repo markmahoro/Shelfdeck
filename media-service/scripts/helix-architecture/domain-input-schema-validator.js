@@ -100,6 +100,7 @@ function validateDomainInputSchemas(options) {
       ProcurementTriageRuleSnapshot: ['ruleRef', 'revision', 'ruleSchemaRef', 'ruleDigest', 'authorityDigest'],
       TriageIdentityResolutionInput: ['procurementRunId', 'runBasisDigest', 'structureEvidencePayloadDigest', 'unit', 'inputDigest'],
       TriageManifestBuildInput: ['procurementRunId', 'runBasisDigest', 'selectedFieldMaterialSet', 'unit', 'inputDigest'],
+      BdmvAssessmentInput: ['runId', 'bdmvGroupKey', 'scopeDigest', 'memberSetDigest', 'accessRevision', 'mountScopeId', 'profileHint', 'inputDigest'],
       TriageMaterialProbeBatch: ['procurementRunId', 'runBasisDigest', 'selectionDigest', 'batchOrdinal', 'members', 'batchDigest'],
       TriageStructureInspectionInput: ['selectedFieldMaterialSet', 'probeBatches', 'playabilityPages', 'materialFieldContext', 'observationScopeProjection', 'pageRequest', 'inputDigest'],
       CandidateDeliveryQuery: ['queryContract', 'offerId', 'candidatePackageId', 'packageRevision', 'packageDigest', 'acceptanceBasisDigest', 'queryDigest'],

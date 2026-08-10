@@ -204,6 +204,7 @@ const dtoContracts = {
   SelectedFieldMaterialSet: '',
   TriageIdentityResolutionInput: '',
   TriageManifestBuildInput: '',
+  BdmvAssessmentInput: '',
   TriageMaterialProbeBatch: '',
   TriageStructureInspectionInput: '',
   ProcurementTriageRuleSnapshot: '',
@@ -256,6 +257,7 @@ function buildSchema(name, role, fields) {
   if (name === 'SelectedFieldMaterialSet') return selectedFieldMaterialSetSchema();
   if (name === 'CandidateDraft') return candidateDraftSchema();
   if (name === 'ProcurementTriageRuleSnapshot') return procurementTriageRuleSnapshotSchema();
+  if (name === 'BdmvAssessmentInput') return bdmvAssessmentInputSchema();
   if (name === 'TriageMaterialProbeBatch') return triageMaterialProbeBatchSchema();
   if (name === 'TriageStructureInspectionInput') return triageStructureInspectionInputSchema();
   if (name === 'TriageIdentityResolutionInput') return triageIdentityResolutionInputSchema();
@@ -465,15 +467,20 @@ const identityMetadata = () => object({
     'directory_year', 'filename_season', 'directory_season', 'filename_episode', 'jav_code', 'disc_structure', 'temporary_label'),
   hintValue: text(), evidenceDigest: digest() }), 256), metadataDigest: digest()
 }, ['claimedTitle', 'contentProfileHint', 'sourceHints', 'metadataDigest']);
-const triageUnit = () => object({
-  unitId: digest(), mediaType: mediaType(), contentProfile: profile(), structureKind: structureKind(), displayIdentity: text(),
-  identityMetadata: identityMetadata(), seasonContinuityClaims: arrayOf(seasonContinuityClaim(), 64),
-  seasonContinuityClaimSetDigest: digest(),
-  members: { ...arrayOf(object({ materialKey: digest(), bindingRevision: positiveInteger(), admittedControlRevision: positiveInteger(),
+const triageUnit = () => {
+  const common = {
+    unitId: digest(), mediaType: mediaType(), contentProfile: profile(), structureKind: structureKind(), displayIdentity: text(),
+    identityMetadata: identityMetadata(), seasonContinuityClaims: arrayOf(seasonContinuityClaim(), 64),
+    seasonContinuityClaimSetDigest: digest(), relatedReferences: arrayOf(relatedReference(), 1024), unitDigest: digest()
+  };
+  const members = { ...arrayOf(object({ materialKey: digest(), bindingRevision: positiveInteger(), admittedControlRevision: positiveInteger(),
     admittedControlProjectionDigest: digest(), role: enumText('primary_payload', 'structural_dependency'),
-    episodeClaims: arrayOf(episodeClaim(), 32), memberClaimDigest: digest() }), PROCUREMENT_RUN_MEMBER_LIMIT), minItems: 1 },
-  relatedReferences: arrayOf(relatedReference(), 1024), unitDigest: digest()
-});
+    episodeClaims: arrayOf(episodeClaim(), 32), memberClaimDigest: digest() }), PROCUREMENT_RUN_MEMBER_LIMIT), minItems: 1 };
+  const memberScope = object({ scopeKind: { const: 'bdmv_container' }, procurementRunId: id(), bdmvGroupKey: id(),
+    scopeDigest: digest(), memberSetDigest: digest(), memberCount: positiveInteger(), topologyDigest: digest(),
+    selectedPayloadSetDigest: digest() });
+  return { oneOf: [object({ ...common, members }), object({ ...common, memberScope })] };
+};
 
 function procurementTriageRuleSnapshotSchema() {
   const rulePayload = object({
@@ -490,12 +497,26 @@ function procurementTriageRuleSnapshotSchema() {
     ruleSchemaRef: { const: 'procurement.triage-rule.beta@1' }, rulePayload, ruleDigest: digest(), authorityDigest: digest() });
 }
 
+function bdmvAssessmentInputSchema() {
+  return exactDomainSchema('BdmvAssessmentInput', {
+    runId: id(), bdmvGroupKey: id(), scopeDigest: digest(), memberSetDigest: digest(),
+    accessRevision: positiveInteger(), mountScopeId: id(), profileHint: enumText('movie', 'series', 'jav', 'western_adult', 'mixed'), inputDigest: digest()
+  });
+}
+
 function triageMaterialProbeBatchSchema() {
-  const member = object({ selectionOrdinal: nonNegativeInteger(), materialKey: digest(), bindingRevision: positiveInteger(),
+  const ordinary = object({ selectionOrdinal: nonNegativeInteger(), materialKey: digest(), bindingRevision: positiveInteger(),
     admittedControlRevision: positiveInteger(), admittedControlProjectionDigest: digest(), readHandle: typeRef('PhysicalMaterialReadHandle'),
     mediaProbe: typeRef('MediaProbeEvidence'), memberDigest: digest() });
+  const logicalOrdinary = object({ inputKind:{ const:'material' }, selectionOrdinal: nonNegativeInteger(), materialKey: digest(), bindingRevision: positiveInteger(),
+    admittedControlRevision: positiveInteger(), admittedControlProjectionDigest: digest(), readHandle: typeRef('PhysicalMaterialReadHandle'),
+    mediaProbe: typeRef('MediaProbeEvidence'), memberDigest: digest() });
+  const bdmv = object({ inputKind:{ const:'bdmv_container' }, selectionOrdinal: nonNegativeInteger(), materialKey: digest(),
+    bindingRevision: positiveInteger(), admittedControlRevision: positiveInteger(), admittedControlProjectionDigest: digest(),
+    bdmvGroupKey: id(), scopeDigest: digest(), memberSetDigest: digest(), memberCount: positiveInteger(),
+    bdmvAssessment: typeRef('BdmvAssessmentEvidence'), memberDigest: digest() });
   return exactDomainSchema('TriageMaterialProbeBatch', { procurementRunId: id(), runBasisDigest: digest(), selectionDigest: digest(),
-    batchOrdinal: nonNegativeInteger(), members: { ...arrayOf(member, 100), minItems: 1 }, batchDigest: digest() });
+    batchOrdinal: nonNegativeInteger(), members: { ...arrayOf({ oneOf:[ordinary, logicalOrdinary, bdmv] }, 100), minItems: 1 }, batchDigest: digest() });
 }
 
 function materialFieldContextSchema() {
@@ -507,8 +528,11 @@ function materialFieldContextSchema() {
 }
 
 function triageStructureInspectionInputSchema() {
+  const scope = object({ scopeKind:{ const:'bdmv_container' }, procurementRunId:id(), bdmvGroupKey:id(), scopeDigest:digest(),
+    memberSetDigest:digest(), memberCount:positiveInteger(), topologyDigest:digest(), selectedPayloadSetDigest:digest() });
   return exactDomainSchema('TriageStructureInspectionInput', { selectedFieldMaterialSet: domainRef('SelectedFieldMaterialSet'),
     probeBatches: { ...arrayOf(domainRef('TriageMaterialProbeBatch'), PROCUREMENT_PROBE_PAGE_LIMIT), minItems: 1 },
+    bdmvAssessments: arrayOf(object({ scope, assessment:typeRef('BdmvAssessmentEvidence') }), PROCUREMENT_RUN_PHYSICAL_MEMBER_LIMIT),
     playabilityPages: { ...arrayOf(typeRef('PlayabilityEvidence'), PROCUREMENT_PROBE_PAGE_LIMIT), minItems: 1 }, materialFieldContext: materialFieldContextSchema(),
     observationScopeProjection: object({ projectionRevision: positiveInteger(), scopeDigest: digest(), entriesDigest: digest(),
       entryCount: nonNegativeInteger(), entries: arrayOf(object({ entryOrdinal: nonNegativeInteger(), materialKey: digest(),
@@ -527,7 +551,10 @@ function triageIdentityResolutionInputSchema() {
 function triageManifestBuildInputSchema() {
   return exactDomainSchema('TriageManifestBuildInput', { procurementRunId: id(), runBasisDigest: digest(), triageRuleAuthorityDigest: digest(),
     selectedFieldMaterialSet: domainRef('SelectedFieldMaterialSet'), structureEvidenceId: id(), structureEvidencePayloadDigest: digest(),
-    unit: triageUnit(), preallocatedManifestId: id(), inputDigest: digest() });
+    unit: triageUnit(), candidateMembers: { ...arrayOf(object({ materialKey: digest(), bindingRevision: positiveInteger(),
+      admittedControlRevision: positiveInteger(), admittedControlProjectionDigest: digest(), role: enumText('primary_payload', 'structural_dependency'),
+      episodeClaims: arrayOf(episodeClaim(), 32), memberClaimDigest: digest() }), PROCUREMENT_RUN_PHYSICAL_MEMBER_LIMIT), minItems: 1 },
+    preallocatedManifestId: id(), inputDigest: digest() });
 }
 
 function candidateDraftSchema() {

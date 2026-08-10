@@ -56,7 +56,7 @@ const gates = {
 };
 const findings = [];
 if (p7.status !== 0) findings.push({ code:'P7_PROCUREMENT_FIXTURE_FAILED', output:p7.stdout.slice(-8000), stderr:p7.stderr.slice(-4000) });
-if (tables.length !== 16) findings.push({ code:'P7_PROCUREMENT_TABLE_COUNT_MISMATCH', actual:tables.length });
+if (tables.length !== 17) findings.push({ code:'P7_PROCUREMENT_TABLE_COUNT_MISMATCH', actual:tables.length });
 if (capabilities.length !== 8) findings.push({ code:'P7_PROCUREMENT_CAPABILITY_COUNT_MISMATCH', actual:capabilities.length });
 for (const [name, gate] of Object.entries(gates)) if (!gate.ok) findings.push({ code:'P7_REGRESSION_GATE_FAILED', gate:name });
 const prohibitedActionsRun = [...new Set(Object.values(gates).flatMap((gate) => gate.prohibitedActionsRun))];

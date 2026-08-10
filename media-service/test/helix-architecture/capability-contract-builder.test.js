@@ -13,9 +13,9 @@ const extracted = extractSsotContracts(ssot);
 
 test('builds exactly one immutable eight-file package for each Catalog ref', () => {
   const packages = buildCapabilityPackages(extracted.capabilities);
-  assert.equal(packages.length, 112);
-  assert.equal(new Set(packages.map((item) => item.capabilityRef)).size, 112);
-  assert.equal(new Set(packages.map((item) => item.relativePath)).size, 112);
+  assert.equal(packages.length, 111);
+  assert.equal(new Set(packages.map((item) => item.capabilityRef)).size, 111);
+  assert.equal(new Set(packages.map((item) => item.relativePath)).size, 111);
   for (const item of packages) {
     assert.deepEqual(Object.keys(item.files).sort(), [
       'evidence.schema.json', 'failure.schema.json', 'fence.schema.json', 'inputs.schema.json',
@@ -75,7 +75,7 @@ test('materializes the service-local Western analysis chain without Worker or ne
 
 test('moves only SSOT-declared parameter tokens out of named inputs', () => {
   const packages = buildCapabilityPackages(extracted.capabilities);
-  const observe = packages.find((item) => item.capabilityRef === 'procurement.field.page.observe@1').files;
+  const observe = packages.find((item) => item.capabilityRef === 'procurement.field.observation.page.commit@1').files;
   assert.deepEqual(observe['parameters.schema.json'].properties, {});
   assert.deepEqual(Object.keys(observe['inputs.schema.json'].properties), ['fieldAccessHandle', 'fieldObservationPageRequest']);
 

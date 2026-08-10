@@ -33,52 +33,181 @@
     "members": {
       "type": "array",
       "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "selectionOrdinal": {
-            "type": "integer",
-            "minimum": 0
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "selectionOrdinal": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "materialKey": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "bindingRevision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "admittedControlRevision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "admittedControlProjectionDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "readHandle": {
+                "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1"
+              },
+              "mediaProbe": {
+                "$ref": "helix://contracts/types/MediaProbeEvidence/v1"
+              },
+              "memberDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "selectionOrdinal",
+              "materialKey",
+              "bindingRevision",
+              "admittedControlRevision",
+              "admittedControlProjectionDigest",
+              "readHandle",
+              "mediaProbe",
+              "memberDigest"
+            ]
           },
-          "materialKey": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "inputKind": {
+                "const": "material"
+              },
+              "selectionOrdinal": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "materialKey": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "bindingRevision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "admittedControlRevision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "admittedControlProjectionDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "readHandle": {
+                "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1"
+              },
+              "mediaProbe": {
+                "$ref": "helix://contracts/types/MediaProbeEvidence/v1"
+              },
+              "memberDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "inputKind",
+              "selectionOrdinal",
+              "materialKey",
+              "bindingRevision",
+              "admittedControlRevision",
+              "admittedControlProjectionDigest",
+              "readHandle",
+              "mediaProbe",
+              "memberDigest"
+            ]
           },
-          "bindingRevision": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "admittedControlRevision": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "admittedControlProjectionDigest": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
-          },
-          "readHandle": {
-            "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1"
-          },
-          "mediaProbe": {
-            "$ref": "helix://contracts/types/MediaProbeEvidence/v1"
-          },
-          "memberDigest": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "inputKind": {
+                "const": "bdmv_container"
+              },
+              "selectionOrdinal": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "materialKey": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "bindingRevision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "admittedControlRevision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "admittedControlProjectionDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "bdmvGroupKey": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "scopeDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "memberSetDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "memberCount": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "bdmvAssessment": {
+                "$ref": "helix://contracts/types/BdmvAssessmentEvidence/v1"
+              },
+              "memberDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "inputKind",
+              "selectionOrdinal",
+              "materialKey",
+              "bindingRevision",
+              "admittedControlRevision",
+              "admittedControlProjectionDigest",
+              "bdmvGroupKey",
+              "scopeDigest",
+              "memberSetDigest",
+              "memberCount",
+              "bdmvAssessment",
+              "memberDigest"
+            ]
           }
-        },
-        "required": [
-          "selectionOrdinal",
-          "materialKey",
-          "bindingRevision",
-          "admittedControlRevision",
-          "admittedControlProjectionDigest",
-          "readHandle",
-          "mediaProbe",
-          "memberDigest"
         ]
       },
       "maxItems": 100,

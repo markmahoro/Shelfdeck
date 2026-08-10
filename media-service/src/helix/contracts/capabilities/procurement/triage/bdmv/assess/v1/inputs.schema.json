@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/procurement.triage.bdmv.assess/v1/inputs",
+  "title": "procurement.triage.bdmv.assess@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "bdmvAssessmentInput": {
+      "$ref": "#/$defs/bdmvAssessmentInput"
+    }
+  },
+  "required": [
+    "bdmvAssessmentInput"
+  ],
+  "$defs": {
+    "bdmvAssessmentInput": {
+      "$ref": "helix://contracts/domain-types/BdmvAssessmentInput/v1",
+      "x-helix-typeExpression": "BdmvAssessmentInput"
+    }
+  }
+}

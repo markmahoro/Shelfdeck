@@ -10,13 +10,10 @@
       "prefixItems": [
         {
           "const": "cpu"
-        },
-        {
-          "const": "disk_io"
         }
       ],
-      "minItems": 2,
-      "maxItems": 2
+      "minItems": 1,
+      "maxItems": 1
     },
     "demandDigest": {
       "type": "string",

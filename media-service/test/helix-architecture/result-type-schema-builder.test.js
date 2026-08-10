@@ -43,8 +43,10 @@ test('freezes FA-04 continuity kinds and non-empty Primary Input membership', ()
   assert.equal(schemas.PrimaryInputManifest.properties.members.maxItems, 256);
   assert.equal(schemas.PrimaryInputManifest.properties.members.items.additionalProperties, false);
   assert.equal(schemas.PrimaryInputManifest.properties.members.items.properties.ordinal.minimum, 0);
-  assert.equal(schemas.TriageStructureEvidence.properties.units.items.properties.members.maxItems, 256);
-  assert.equal(schemas.TriageStructureEvidence.properties.unassignedMaterials.maxItems, 256);
+  const triageUnitBranches = schemas.TriageStructureEvidence.properties.units.items.oneOf;
+  assert.equal(triageUnitBranches[0].properties.members.maxItems, 256);
+  assert.equal(triageUnitBranches[1].properties.memberScope.properties.memberCount.minimum, 1);
+  assert.equal(schemas.TriageStructureEvidence.properties.unassignedMaterials.maxItems, 1024);
   for (const embedded of ['RelatedMaterialReference', 'SeasonContinuityClaim']) {
     assert.equal(Object.hasOwn(schemas[embedded].properties, 'schemaRef'), false);
     assert.equal(Object.hasOwn(schemas[embedded].properties, 'schemaVersion'), false);
@@ -148,9 +150,9 @@ test('freezes Handoff A rejection message and Procurement closure helpers', () =
   assert.ok(schemas.ProcurementCandidateRejectionClosureResult.required.includes('closureDigest'));
 });
 
-test('freezes the Field Observation page and commit result canonical byte ceilings', () => {
-  assert.equal(schemas.FieldObservationPage['x-helix-maxCanonicalBytes'], 64 * 1024);
-  assert.equal(schemas.ObservationCommitResult['x-helix-maxCanonicalBytes'], 64 * 1024);
+test('freezes the compact Observation page and commit receipt canonical byte ceilings', () => {
+  assert.equal(schemas.ObservationPageCommitResult['x-helix-maxCanonicalBytes'], 16 * 1024);
+  assert.equal(schemas.ObservationPageCommitReceipt['x-helix-maxCanonicalBytes'], 16 * 1024);
 });
 
 test('freezes WorkspaceMediaHandle around one nested Foundation handle', () => {
