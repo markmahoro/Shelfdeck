@@ -23,6 +23,7 @@
     "test:helix-procurement-exit": "node scripts/helix-p7-exit-audit.js --require-clean",
     "test:helix-libra-front-half": "node scripts/helix-p8-libra-front-half-verify.js",
     "test:helix-libra-front-half-exit": "node scripts/helix-p8-exit-audit.js --require-clean",
+    "test:helix-routing-real": "node scripts/helix-real-routing-e2e.js",
     "build:web": "cd web && npm run build",
     "helix:clean-init": "node scripts/helix-clean-init.js",
     "test:helix-p14-docker-entrypoint": "node scripts/p14-beta-impl-02-docker-retest.js",

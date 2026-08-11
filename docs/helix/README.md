@@ -26,7 +26,9 @@ Intake之后的Routing节点也已通过正式Foundation链接通。Field Policy
 读取Candidate NFO，仍缺Fact时才通过确定性TMDB Integration取得最小Decision Fact。高优先级unknown不会落入catch-all，unresolved
 Subject可从Admin Web一次性手选Shelf且不改长期Policy。“上架进度”保持一行一个Subject。本地fresh-clean E2E中19个direct及4个
 sorting Subject自动resolved，1个Provider not_found先保持unresolved、再手动resolved；Acceptance Spec、Libra Run、Workspace与Arca
-Shelf Entry均为0。当前下一节点精确为Acceptance Spec。
+Shelf Entry均为0。随后真实外部E2E又通过Admin产品入口保存TMDB连接，并让无NFO的`The Shawshank Redemption`经真实TMDB
+ID `278`/年份1994自动命中经典Shelf；真实`Fight Club`的两个同名候选则正确保持ambiguous，系统没有选择第一项。重启未产生重复
+Provider Fact或Decision，媒体Reality不变，Acceptance Spec及生产事实仍为0。当前下一节点精确为Acceptance Spec。
 
 Physical Material不再计算全文件Hash。当前唯一合同读取文件正中间最多262,144 bytes并执行前后stat fence；NAS负责bit rot和底层
 完整性。Artifact、Canonical JSON与事务Evidence digest仍使用SHA-256，这些digest不得作为Physical Material Identity。

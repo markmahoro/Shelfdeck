@@ -2,7 +2,7 @@
 
 Status: Movie Procurement保持`CLOSED FOR MOVIE`；Arca Shelf配置保持`READY FOR LIBRA`；Libra Routing达到`DECISION READY / AWAITING ACCEPTANCE SPEC`，当前Routing Implementation Gate已关闭。
 
-Last updated: 2026-08-11
+Last updated: 2026-08-12
 
 ## Local media test boundary
 
@@ -57,6 +57,11 @@ Field Routing Policy现支持direct与1..64项sorting closed AST，三态`true|f
 deterministic TMDB Evidence命中经典/新片/普通Shelf，1个Provider `not_found`保持unresolved且未命中always，随后通过Admin入口
 一次性选择普通Shelf。共29个Routing Work、5个Fact Event和24个Decision Basis Commit Event全部成功；Acceptance Spec、Libra Run、
 Workspace和Arca Shelf Entry均为0。下一独立节点是Acceptance Spec，不能在其门禁打开前进入Production。
+
+补充的真实外部资格验证已于2026-08-12完成：显式脚本`npm run test:helix-routing-real`要求调用者提供隔离Temp MKV与本机私有
+TMDB credential，经Admin产品入口配置真实Integration，禁止注入fake Provider Adapter。无NFO的`The Shawshank Redemption`由真实
+TMDB唯一解析为ID `278`、年份1994并自动命中经典Shelf；重启后没有重复事实。另一个真实标题`Fight Club`因2个同名候选保持
+`ambiguous/unresolved`，证明系统没有选择搜索结果第一项。该外部脚本不进入默认离线测试套件，也不得把credential写入代码、日志或文档。
 
 ## 0. Completed target — Arca Shelf Configuration Ready for Libra
 

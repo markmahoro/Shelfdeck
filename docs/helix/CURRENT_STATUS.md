@@ -2,7 +2,7 @@
 
 Status: Movie Procurement保持`CLOSED FOR MOVIE`；Arca Shelf配置保持`READY FOR LIBRA`；Libra Routing达到`DECISION READY / AWAITING ACCEPTANCE SPEC`。
 
-Last updated: 2026-08-11
+Last updated: 2026-08-12
 
 ## Local media safety boundary
 
@@ -30,6 +30,18 @@ Decision且不改写Field Policy。
 Provider Adapter只被两个无NFO样本调用。Acceptance Spec、Libra Run、Workspace及Arca Shelf Entry均为0。
 完成态数据库关闭并重启后，24个current Decision逐字保持、Provider调用仍为2、Work/Event/Decision计数均未增加，两个测试Field的
 source Reality digest前后一致；手动Decision只在其前一份Policy Decision仍对应current Policy revision时保持终态，新Policy发布仍可重算。
+
+2026-08-12又完成一条不注入Provider响应的真实外部Routing E2E。测试通过Admin产品入口完成TMDB“测试连接→保存连接”、Shelf、
+Material Field、sorting Policy和Observation配置；隔离MKV被复制为无NFO的`The Shawshank Redemption`，正式TMDB请求唯一解析为
+provider key `278`、`release_year=1994`，随后自动resolved到`real-routing-classics`。链路形成2个Routing Work、2个immutable Plan、
+1个Provider Event/Attempt/Result和1份resolved Decision；关闭并重启产品Composition Root后没有重复Provider Fact或Decision。
+sourceBefore/sourceAfter均为1个文件且Reality digest同为`d56b70d6a888fbb6d914c45c352efdebb8ebdf6b8d2f5c8b2e245bd1b15d3e45`；
+Acceptance Spec、Libra Run、Workspace和Arca Shelf Entry仍全部为0。保留数据库位于
+`C:\Users\markm\AppData\Local\Temp\helix-real-routing-e2e-9IPbqD\data\shelfdeck.db`，完整执行约3.9秒。
+
+同一真实验证还先使用`Fight Club`检验了歧义分支：TMDB当前返回2个无法排除的同名候选，系统持久化
+`provider_identity_ambiguous`并保持Routing unresolved，没有选择第一项，也没有越级命中catch-all。这证明真实Provider的
+unique与ambiguous两条业务路径都遵守SSOT；它不是失败后的人工作弊修复。
 
 机器合同为112 Capability、98 Result family、180 table、43 Canonical Transaction、114 Admin route，unresolved type ref为0；
 Architecture gate、P8 Front-half、完整`npm test`（240 pass、1个显式环境skip、0 fail）及Admin Web production build通过。
