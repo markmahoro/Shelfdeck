@@ -1,6 +1,17 @@
 # ShelfDeck / Helix Documentation Index
 
-Status: Movie Procurement已在`Handoff A Ready`边界封口为`CLOSED FOR MOVIE`。Docker/NAS、Libra/Arca接入和生产均未开始；Series/JAV/Western Adult不属于本次封口。
+Status: Movie Procurement保持`CLOSED FOR MOVIE`。`ARCA SHELF CONFIGURATION READY FOR LIBRA`已完成；下一步Routing Policy尚未开放Implementation Gate，Docker/NAS、Handoff B、On-deck和生产均未开始。
+
+后续本地真实媒体测试的唯一物理范围由用户于2026-08-11固定为
+`C:\Users\markm\AppData\Local\Temp\ShelfDeck-P14-20260723\material-fields`。该目录同时作为测试
+Material Field和Movie Shelf Physical Target Folder；Libra、Arca及后续Movie E2E不得把`Z:\Film`作为运行时输入。用户仅对测试库seed
+追加了只读取材授权：构建器可从两个冻结源目录提取有界8秒片段和复制少量sidecar，但不得在`Z:\Film`写入、移动、重命名或删除。
+
+该根目录现由`media-service/scripts/build-helix-movie-test-library.js`维护22个Movie纵向场景：12个既有
+Procurement/Libra输入形态，加10个Formation高风险E2E场景。受管manifest位于`.shelfdeck-test-library\manifest.json`，
+同时记录Candidate/Related/Input Form、Related替代与清退、精确授权、故障恢复、Target冲突、跨卷、Reality变化、同根二次
+Observation、ISO/DVD和Scope上限预期。Target collision与Reality mutation使用control seed并只允许在manifest指定阶段物化。
+构建器只替换ownership marker声明的`SDT-*`路径，旧P14目录不会被清理。
 
 第一次实施的P0–P13资产继续保留，但此前由大型Coordinator同步闭环得到的Movie Canary只证明低层Capability、Owner事实和
 Handoff A Ready数据形态可工作，不构成`Work Scheduler → Event Runtime → Resource Governor`已经参与的Foundation E2E证据。

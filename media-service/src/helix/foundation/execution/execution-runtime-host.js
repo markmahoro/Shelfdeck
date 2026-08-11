@@ -101,7 +101,8 @@ function createExecutionRuntimeHost(options) {
           plannerVersion: registration.plannerVersion,
         }));
         const published = options.planPublisher.publish(plan);
-        const started = options.workLifecycle.startPlanned(activation.work.work_id, activation.attempt.attempt_id);
+        const started = options.workLifecycle.startPlanned(activation.work.work_id, activation.attempt.attempt_id,
+          plan.diagnosticClassification);
         await reconcileTerminal({ attemptTerminal: ['succeeded', 'failed', 'cancelled'].includes(started.attemptState),
           replayed: started.replayed, attemptId: activation.attempt.attempt_id, attemptState: started.attemptState,
           work: Object.freeze({ ...activation.work, state: started.state }) });

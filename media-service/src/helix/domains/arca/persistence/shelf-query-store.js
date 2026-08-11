@@ -7,6 +7,12 @@ const {
   EVIDENCE_SCHEMA_REF,
   targetDigest,
 } = require('../model/shelf-target-folder-contracts');
+const {
+  buildShelfStandard,
+  validateRuleTemplateRules,
+} = require('../model/rule-template-contracts');
+
+const STANDARD_SCHEMA_REF = 'helix://contracts/types/ShelfStandard/v1';
 
 class ArcaShelfStoreError extends Error {
   constructor(code, message, details = {}) { super(message); this.name = 'ArcaShelfStoreError'; this.code = code; this.details = details; }
@@ -37,6 +43,8 @@ function createShelfQueryStore(options) {
     find_standard: { kind: 'select-one', tableId: 'arca_shelf_standard_revisions', columns: ['shelf_id','revision','rule_template_id','rule_template_revision','standard_schema_ref','standard_json','standard_digest','effective_at_ms'], keyColumns: ['shelf_id','revision'] },
     insert_placement: { kind: 'insert', tableId: 'arca_placement_policy_revisions', columns: ['shelf_id','revision','policy_schema_ref','policy_json','policy_digest','effective_at_ms'] },
     find_placement: { kind: 'select-one', tableId: 'arca_placement_policy_revisions', columns: ['shelf_id','revision','policy_schema_ref','policy_json','policy_digest','effective_at_ms'], keyColumns: ['shelf_id','revision'] },
+    find_rule_template: { kind: 'select-one', tableId: 'arca_rule_templates', columns: ['rule_template_id','status','current_revision'], keyColumns: ['rule_template_id'] },
+    find_rule_template_revision: { kind: 'select-one', tableId: 'arca_rule_template_revisions', columns: ['rule_template_id','revision','rules_schema_ref','rules_json','rules_digest','published_at_ms'], keyColumns: ['rule_template_id','revision'] },
     list_shelf_entries: { kind: 'select-all', tableId: 'arca_shelf_entries', columns: ['shelf_entry_id','status'], keyColumns: ['shelf_id'] },
     insert_deregistration: { kind: 'insert', tableId: 'arca_deregistrations', columns: ['deregistration_id','shelf_id','release_manifest_digest','state','created_at_ms','committed_at_ms'] },
     insert_deregistration_receipt: { kind: 'insert', tableId: 'arca_deregistration_receipts', columns: ['receipt_id','deregistration_id','shelf_id','released_control_set_digest','terminal_fact_digest','committed_at_ms'] },
@@ -69,34 +77,83 @@ function createShelfQueryStore(options) {
     });
   }
   function create(input, context) {
-    exact(input, ['shelfId','name','target','standard','placement'], 'P14_SHELF_CREATE_INPUT');
-    exact(input.target, ['endpointId','rootLocation','mountScopeId','mountScopeRevision'], 'P14_SHELF_TARGET_INPUT');
-    exact(input.standard, ['ruleTemplateId','ruleTemplateRevision','schemaRef','value','digest'], 'P14_SHELF_STANDARD_INPUT');
-    exact(input.placement, ['schemaRef','value','digest'], 'P14_SHELF_PLACEMENT_INPUT');
+    exact(input, ['shelfId','name','target','targetReadiness','ruleTemplateId','expectedTemplateRevision','placement'], 'P14_SHELF_CREATE_INPUT');
     text(input.shelfId, 'shelfId'); text(input.name, 'name'); text(input.target.endpointId, 'target.endpointId'); text(input.target.rootLocation, 'target.rootLocation'); text(input.target.mountScopeId, 'target.mountScopeId');
-    if (!Number.isSafeInteger(input.target.mountScopeRevision) || input.target.mountScopeRevision < 1 ||
-        !Number.isSafeInteger(input.standard.ruleTemplateRevision) || input.standard.ruleTemplateRevision < 1) fail('P14_SHELF_INITIAL_REVISION', 'Shelf initial revisions must be positive integers.');
-    if (input.standard.digest !== canonicalDigest(input.standard.value) || input.placement.digest !== canonicalDigest(input.placement.value)) fail('P14_SHELF_DIGEST_MISMATCH', 'Shelf Standard or Placement digest is invalid.');
+    text(input.ruleTemplateId, 'ruleTemplateId');
+    if (!Number.isSafeInteger(input.expectedTemplateRevision) || input.expectedTemplateRevision < 1) fail('P14_SHELF_INITIAL_REVISION', 'Shelf initial revisions must be positive integers.');
+    validateTargetBundle(input);
+    validatePlacement(input);
     const repo = context.repository(repository.repositoryId);
     if (repo.invoke('find_shelf', { shelf_id: input.shelfId })) fail('P14_SHELF_EXISTS', 'Shelf already exists.');
-    const projectionDigest = canonicalDigest({ schema: 'arca.shelf-routing-target-projection@1', shelfId: input.shelfId, status: 'active', currentStandardRevision: 1, currentStandardDigest: input.standard.digest, routingProjectionRevision: 1 });
+    const template = repo.invoke('find_rule_template', { rule_template_id: input.ruleTemplateId });
+    if (!template) fail('P14_RULE_TEMPLATE_NOT_FOUND', 'Rule Template does not exist.');
+    if (template.status !== 'active' || template.current_revision !== input.expectedTemplateRevision) {
+      fail('P14_RULE_TEMPLATE_BIND_TEMPLATE_CAS', 'Rule Template binding head is stale.');
+    }
+    const templateRevision = repo.invoke('find_rule_template_revision', {
+      rule_template_id: input.ruleTemplateId,
+      revision: input.expectedTemplateRevision,
+    });
+    if (!templateRevision) fail('P14_RULE_TEMPLATE_REVISION_NOT_FOUND', 'Rule Template revision does not exist.');
+    let rules;
+    try { rules = JSON.parse(templateRevision.rules_json); } catch (_error) {
+      fail('P14_RULE_TEMPLATE_REVISION_CORRUPT', 'Rule Template revision is not valid JSON.');
+    }
+    validateRuleTemplateRules(templateRevision.rules_schema_ref, rules, templateRevision.rules_digest);
+    const standard = buildShelfStandard({
+      shelfId: input.shelfId,
+      standardRevision: 1,
+      ruleTemplateId: input.ruleTemplateId,
+      ruleTemplateRevision: input.expectedTemplateRevision,
+      rules,
+    });
+    const projectionDigest = canonicalDigest({ schema: 'arca.shelf-routing-target-projection@1', shelfId: input.shelfId, status: 'active', currentStandardRevision: 1, currentStandardDigest: standard.standardDigest, routingProjectionRevision: 1 });
     repo.invoke('insert_shelf', { shelf_id: input.shelfId, name: input.name, target_endpoint_id: input.target.endpointId, target_root_location: input.target.rootLocation, target_mount_scope_id: input.target.mountScopeId, target_mount_scope_revision: input.target.mountScopeRevision, status: 'active', current_standard_revision: 1, current_placement_revision: 1, routing_projection_revision: 1, routing_projection_digest: projectionDigest, created_at_ms: context.commitTimeMs, updated_at_ms: context.commitTimeMs });
-    repo.invoke('insert_standard', { shelf_id: input.shelfId, revision: 1, rule_template_id: text(input.standard.ruleTemplateId, 'standard.ruleTemplateId'), rule_template_revision: input.standard.ruleTemplateRevision, standard_schema_ref: text(input.standard.schemaRef, 'standard.schemaRef'), standard_json: canonicalJson(input.standard.value), standard_digest: input.standard.digest, effective_at_ms: context.commitTimeMs });
+    repo.invoke('insert_standard', { shelf_id: input.shelfId, revision: 1, rule_template_id: input.ruleTemplateId, rule_template_revision: input.expectedTemplateRevision, standard_schema_ref: STANDARD_SCHEMA_REF, standard_json: canonicalJson(standard), standard_digest: standard.standardDigest, effective_at_ms: context.commitTimeMs });
     repo.invoke('insert_placement', { shelf_id: input.shelfId, revision: 1, policy_schema_ref: text(input.placement.schemaRef, 'placement.schemaRef'), policy_json: canonicalJson(input.placement.value), policy_digest: input.placement.digest, effective_at_ms: context.commitTimeMs });
     return readShelf(repo, input.shelfId);
   }
+  function preflightCreateCommand(request) {
+    if (!request || typeof request.idempotencyKey !== 'string' || !request.idempotencyKey) fail('IDEMPOTENCY_KEY_REQUIRED', 'Shelf create requires idempotencyKey.');
+    const commandContract = 'arca.admin.shelf.create@1';
+    const requestDigest = canonicalDigest({ commandContract, input: request.requestInput });
+    const row = readCommandEvidence((context) => context.repository(commandEvidence.repositoryId).invoke('find_receipt_by_key', {
+      owner_domain: 'arca',
+      command_contract: commandContract,
+      caller_scope: 'admin',
+      idempotency_key: request.idempotencyKey,
+    }));
+    if (row && row.request_digest !== requestDigest) fail('P3_COMMAND_IDEMPOTENCY_CONFLICT', 'Idempotency key already belongs to another Shelf create request.');
+    if (!row) return null;
+    let resultRef;
+    try { resultRef = JSON.parse(row.result_ref_json); } catch (_error) {
+      fail('P3_COMMAND_RECEIPT_CORRUPT', 'Stored Shelf create Result is invalid JSON.');
+    }
+    if (!resultRef || Object.keys(resultRef).length !== 1 ||
+        resultRef.shelfId !== request.requestInput?.shelfId ||
+        canonicalDigest(resultRef) !== row.result_digest ||
+        row.target_id !== request.requestInput?.shelfId) {
+      fail('P3_COMMAND_RECEIPT_CORRUPT', 'Stored Shelf create Result digest or target is invalid.');
+    }
+    const shelf = getShelf(resultRef.shelfId);
+    if (!shelf) fail('P3_COMMAND_RECEIPT_CORRUPT', 'Stored Shelf create Result does not resolve to a Shelf.');
+    return Object.freeze({ shelf, replayed: true });
+  }
   function createShelf(request) {
     if (!request || typeof request.idempotencyKey !== 'string' || !request.idempotencyKey) fail('IDEMPOTENCY_KEY_REQUIRED', 'Shelf create requires idempotencyKey.');
-    const commandContract = 'arca.admin.shelf.create@1'; const requestDigest = canonicalDigest({ commandContract, input: request.input });
+    const commandContract = 'arca.admin.shelf.create@1';
+    const requestDigest = canonicalDigest({ commandContract, input: request.requestInput });
     const keyDigest = canonicalDigest({ commandContract, idempotencyKey: request.idempotencyKey, shelfId: request.input?.shelfId });
     const committed = commandCommit.execute({
       command: { commandReceiptId: 'arca-shelf-receipt-' + keyDigest.slice(0, 32), ownerDomain: 'arca', commandContract, callerScope: 'admin', idempotencyKey: request.idempotencyKey, requestDigest, targetType: 'shelf', targetId: request.input?.shelfId },
       domainParticipant: { participantId: 'arca_shelf_create', owner: 'arca', repositories: [repository], execute: (context) => create(request.input, context) },
       commitMarker: { commitMarker: 'arca-shelf-create-' + keyDigest, scopeType: 'shelf', scopeId: request.input?.shelfId, commitDigest: canonicalDigest({ commandContract, requestDigest }) },
       auditRecords: [{ auditId: 'arca-shelf-audit-' + keyDigest.slice(0, 32), actorType: 'admin', action: 'create_shelf', scopeType: 'shelf', scopeId: request.input?.shelfId, evidenceDigest: requestDigest }],
-      resultEnvelope: (shelf) => ({ resultSchemaRef: 'helix://contracts/application-results/ArcaShelfAdminResult/v1', resultRef: { shelf } }),
+      resultEnvelope: (shelf) => ({ resultSchemaRef: 'helix://contracts/application-results/ArcaShelfAdminResult/v1', resultRef: { shelfId: shelf.shelfId } }),
     });
-    return Object.freeze({ shelf: committed.receipt.resultRef.shelf, replayed: committed.replayed });
+    const shelf = getShelf(committed.receipt.resultRef.shelfId);
+    if (!shelf) fail('P3_COMMAND_RECEIPT_CORRUPT', 'Committed Shelf Result does not resolve to a Shelf.');
+    return Object.freeze({ shelf, replayed: committed.replayed });
   }
 
   function commitMutation(request, operation, apply) {
@@ -111,9 +168,11 @@ function createShelfQueryStore(options) {
       domainParticipant: { participantId: 'arca_shelf_mutation', owner: 'arca', repositories: [repository], execute: (context) => apply(request.input, context) },
       commitMarker: { commitMarker: 'arca-shelf-' + operation + '-' + keyDigest, scopeType: 'shelf', scopeId: request.input?.shelfId, commitDigest: canonicalDigest({ commandContract, requestDigest }) },
       auditRecords: [{ auditId: 'arca-shelf-audit-' + keyDigest.slice(0, 32), actorType: 'admin', action: operation, scopeType: 'shelf', scopeId: request.input?.shelfId, evidenceDigest: requestDigest }],
-      resultEnvelope: (shelf) => ({ resultSchemaRef: 'helix://contracts/application-results/ArcaShelfAdminResult/v1', resultRef: { shelf } }),
+      resultEnvelope: (shelf) => ({ resultSchemaRef: 'helix://contracts/application-results/ArcaShelfAdminResult/v1', resultRef: { shelfId: shelf.shelfId } }),
     });
-    return Object.freeze({ shelf: committed.receipt.resultRef.shelf, replayed: committed.replayed });
+    const shelf = getShelf(committed.receipt.resultRef.shelfId);
+    if (!shelf) fail('P3_COMMAND_RECEIPT_CORRUPT', 'Committed Shelf Result does not resolve to a Shelf.');
+    return Object.freeze({ shelf, replayed: committed.replayed });
   }
 
   function renameShelf(input, context) {
@@ -560,6 +619,7 @@ function createShelfQueryStore(options) {
   return Object.freeze({
     repositoryManifest: Object.freeze({ component: 'ArcaShelfRepository', repositoryId: repository.repositoryId, tableIds: repository.tableIds }),
     createShelf,
+    preflightCreateCommand,
     renameShelf: (request) => commitMutation(request, 'rename', renameShelf),
     reviseStandard: (request) => commitMutation(request, 'revise_standard', reviseStandard),
     previewPlacement,

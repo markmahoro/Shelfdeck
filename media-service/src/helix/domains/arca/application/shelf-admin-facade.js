@@ -1,12 +1,14 @@
 'use strict';
 
 const { createShelfQueryStore } = require('../persistence/shelf-query-store');
+const { createShelfPlacementPolicy } = require('../model/shelf-placement-policy-contracts');
 
 class ArcaShelfAdminApplicationError extends Error { constructor(code, message, details = {}) { super(message); this.name = 'ArcaShelfAdminApplicationError'; this.code = code; this.details = details; } }
 
 function createArcaShelfAdminApplication(options) {
   if (!options?.targetFolderProbe ||
-      typeof options.targetFolderProbe.inspect !== 'function') {
+      typeof options.targetFolderProbe.inspect !== 'function' ||
+      typeof options.targetFolderProbe.inspectRoot !== 'function') {
     throw new TypeError('Arca Shelf application requires the Target Folder probe port.');
   }
   const store = createShelfQueryStore(options);
@@ -21,6 +23,13 @@ function createArcaShelfAdminApplication(options) {
         throw new ArcaShelfAdminApplicationError(
           'ADMIN_SHELF_CONFLICT',
           'Shelf Target Folder或Placement已变化，请刷新后重试。',
+          { reasonCode: error.code },
+        );
+      }
+      if (error.code === 'P14_RULE_TEMPLATE_BIND_TEMPLATE_CAS') {
+        throw new ArcaShelfAdminApplicationError(
+          'ADMIN_SHELF_CONFLICT',
+          'Rule Template revision已变化，请刷新后重试。',
           { reasonCode: error.code },
         );
       }
@@ -69,9 +78,52 @@ function createArcaShelfAdminApplication(options) {
       return Object.freeze({ target: shelf.target, placement: shelf.placement });
     },
     createShelf(body) {
-      if (!body || typeof body !== 'object' || Array.isArray(body)) throw new ArcaShelfAdminApplicationError('ADMIN_SHELF_COMMAND_REJECTED', 'Shelf请求体无效。');
-      const { idempotencyKey, ...input } = body;
-      return invoke(() => store.createShelf({ idempotencyKey, input }));
+      return invoke(() => {
+        if (!body || typeof body !== 'object' || Array.isArray(body) ||
+            JSON.stringify(Object.keys(body).sort()) !== JSON.stringify([
+              'expectedTemplateRevision',
+              'idempotencyKey',
+              'name',
+              'placementPolicy',
+              'ruleTemplateId',
+              'shelfId',
+              'targetRootLocation',
+            ].sort())) {
+          throw new ArcaShelfAdminApplicationError('ADMIN_SHELF_COMMAND_REJECTED', 'Shelf请求体无效。');
+        }
+        const { idempotencyKey } = body;
+        if (typeof idempotencyKey !== 'string' || idempotencyKey.length === 0) {
+          throw new ArcaShelfAdminApplicationError('IDEMPOTENCY_KEY_REQUIRED', 'Shelf创建必须提供幂等键。');
+        }
+        const placement = createShelfPlacementPolicy(body.placementPolicy);
+        const requestInput = Object.freeze({
+          shelfId: body.shelfId,
+          name: body.name,
+          targetRootLocation: body.targetRootLocation,
+          ruleTemplateId: body.ruleTemplateId,
+          expectedTemplateRevision: body.expectedTemplateRevision,
+          placementPolicy: placement.value,
+        });
+        const replay = store.preflightCreateCommand({ idempotencyKey, requestInput });
+        if (replay) return replay;
+        const targetObservation = targetFolderProbe.inspectRoot({
+          shelfId: body.shelfId,
+          rootLocation: body.targetRootLocation,
+        });
+        return store.createShelf({
+          idempotencyKey,
+          requestInput,
+          input: {
+            shelfId: body.shelfId,
+            name: body.name,
+            target: targetObservation.target,
+            targetReadiness: targetObservation.evidence,
+            ruleTemplateId: body.ruleTemplateId,
+            expectedTemplateRevision: body.expectedTemplateRevision,
+            placement,
+          },
+        });
+      });
     },
     renameShelf(shelfId, body) {
       if (!body || typeof body !== 'object' || Array.isArray(body) || body.shelfId !== shelfId) throw new ArcaShelfAdminApplicationError('ADMIN_SHELF_TARGET_MISMATCH', 'URL中的Shelf与请求体目标必须一致。', { pathShelfId: shelfId, bodyShelfId: body?.shelfId });

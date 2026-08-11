@@ -1,8 +1,42 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: Movie Procurement已在`Handoff A Ready`边界完成并封口为`CLOSED FOR MOVIE`；下一业务目标尚未开启，Libra实现不因本次封口自动获得授权。
+Status: Movie Procurement保持`CLOSED FOR MOVIE`；`ARCA SHELF CONFIGURATION READY FOR LIBRA`已完成，当前Implementation Gate关闭。
 
 Last updated: 2026-08-11
+
+## Local media test boundary
+
+用户于2026-08-11固定后续真实媒体测试范围：
+
+- 唯一测试根目录：`C:\Users\markm\AppData\Local\Temp\ShelfDeck-P14-20260723\material-fields`；
+- 同一根目录同时配置为测试Material Field和Movie Shelf Physical Target Folder；
+- 后续Libra、Arca及Movie E2E只能在该隔离根目录内实施，不得将`Z:\Film`配置为Material Field、Shelf、Workspace或Canary输入；用户随后单独授权构建器从`Z:\Film`只读取材，因此仅允许按已冻结的精确路径复制NFO/Artwork并提取有界8秒媒体片段，仍禁止任何源端写入、移动、重命名或删除；
+- 该目录已由`build-helix-movie-test-library.js`重新seed为可重复构建的Movie纵向验收库；正式manifest、受管路径、Reality digest和重建命令保存在`.shelfdeck-test-library`，历史非受管目录保持原样；
+- 任何文件移动、替换、Settlement、On-deck或销毁验证都只能作用于上述已登记测试Scope；越出Scope立即停线。
+
+该决定是本机测试环境与安全合同，不修改Architecture SSOT中Material Field、Shelf Target或Material Control的通用语义。
+
+当前测试库包含12个既有Movie输入场景和10个Formation高风险场景。新增G01–G10分别覆盖existing Related replacement、
+精确Settlement授权、逐成员崩溃恢复、Target collision、跨卷、Handoff后Related Reality变化、同根二次Observation、ISO、DVD以及
+1,025项exclusive Related的complete-or-fail-closed边界。静态输入直接位于Material Field；碰撞与Reality mutation以受digest保护的
+control seed保存，只能在manifest指定阶段物化；跨卷场景明确要求第二个本地filesystem root。每个destructive/fault-injection场景
+必须先重建测试库且不得并发执行。素材和配方存在只代表测试前提完备，产品路径未接线的分支仍必须标为`contract_only|not_implemented`。
+
+## 0. Completed target — Arca Shelf Configuration Ready for Libra
+
+本轮在不进入Handoff B、On-deck或文件副作用的前提下，完成第一座可由Libra公开读取的active Shelf。首次创建Command必须探测唯一
+Shelf Physical Target Folder、读取`system-beta-recommended`的精确active revision、由Arca生成effective Shelf Standard和Placement
+revision 1，并原子发布Shelf Routing Target Projection；Admin Web不得提交自行展开的Standard。
+
+Admin Web“收藏架”从静态Stub改为真实配置页：列出Shelf与Rule Template、创建Shelf、选择推荐Template、配置Target Folder和Movie
+Placement，并展示Movie No-rating及1–5星Standard。系统Template仍包含四组Profile Rule Set且保持只读；M1只展示和消费Movie部分。
+
+验收只使用本机Node.js、临时clean数据库和临时空Target Folder。必须证明Target探测失败不留半成品、创建命令幂等、重启后事实与
+Projection逐字一致、Libra只能通过Arca public projection读取Shelf及Standard、Target目录内容不变。完成状态只能标记为
+`ARCA SHELF CONFIGURATION READY FOR LIBRA`；Libra-owned Field→Shelf Routing Policy属于下一独立目标。
+
+2026-08-11，本目标已通过本地Node.js、临时clean数据库和临时Target Folder完成验收。下一目标仍是Libra-owned
+Field→Shelf Routing Policy及Handoff A Routing Decision/Acceptance Spec；它尚未获得Implementation Gate，不能在本轮顺带实现。
 
 ## 0. Closure — Movie Procurement at Handoff A Ready
 

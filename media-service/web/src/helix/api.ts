@@ -56,8 +56,72 @@ export type ProcurementJourneyResult = {
   };
 };
 
+export type MediaRequirement = {
+  mediaForm: string;
+  videoCodec: string;
+  minimumRasterClass: string;
+  acceptedPrimaryAudioClasses: string[];
+};
+
+export type MovieRuleBranch = {
+  conditionKind: 'no_rating' | 'rating_equals';
+  rating?: number;
+  requirements: {
+    mandatoryMedia: MediaRequirement;
+    space: { maxSizeGiB: number | null; maxSizeBytes: number | null };
+  };
+};
+
+export type ProfileRuleSet = {
+  contentProfile: string;
+  decisionInputKinds: string[];
+  decisionBranches: MovieRuleBranch[];
+  profileRuleSetDigest: string;
+};
+
+export type RuleTemplate = {
+  templateId: string;
+  name: string;
+  ownerKind: 'system' | 'user';
+  status: 'active' | 'archived';
+  currentRevision: number;
+  current: {
+    revision: number;
+    rulesDigest: string;
+    rules: { profileRuleSets: ProfileRuleSet[] };
+  };
+};
+
+export type Shelf = {
+  shelfId: string;
+  name: string;
+  status: 'active' | 'deregistered';
+  target: {
+    endpointId: string;
+    rootLocation: string;
+    mountScopeId: string;
+    mountScopeRevision: number;
+  };
+  currentStandardRevision: number;
+  currentPlacementRevision: number;
+  routingProjection: { revision: number; digest: string };
+  standard: {
+    ruleTemplateId: string;
+    ruleTemplateRevision: number;
+    digest: string;
+    value: { profileRuleSets: ProfileRuleSet[] };
+  };
+  placement: {
+    revision: number;
+    digest: string;
+    value: { folderTemplate: string; collisionPolicy: string };
+  };
+  createdAtMs: number;
+  updatedAtMs: number;
+};
+
 export class AdminApiError extends Error {
-  constructor(readonly status: number, readonly code: string, message: string) {
+  constructor(readonly status: number, readonly code: string, message: string, readonly details: Record<string, JsonValue> = {}) {
     super(message);
     this.name = 'AdminApiError';
   }
@@ -79,8 +143,13 @@ export async function canonicalDigest(value: JsonValue): Promise<string> {
 
 async function responseJson<T>(response: Response): Promise<T> {
   if (response.ok) return response.status === 204 ? undefined as T : response.json() as Promise<T>;
-  const body = await response.json().catch(() => ({})) as { error?: { code?: string; message?: string } };
-  throw new AdminApiError(response.status, body.error?.code || `HTTP_${response.status}`, body.error?.message || '请求未完成。');
+  const body = await response.json().catch(() => ({})) as { error?: { code?: string; message?: string; details?: Record<string, JsonValue> } };
+  throw new AdminApiError(
+    response.status,
+    body.error?.code || `HTTP_${response.status}`,
+    body.error?.message || '请求未完成。',
+    body.error?.details || {},
+  );
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -101,6 +170,18 @@ export const helixAdminApi = {
   },
   listMaterialFields() {
     return request<{ items: MaterialField[] }>('/v1/admin/material-fields');
+  },
+  listShelves() {
+    return request<{ items: Shelf[] }>('/v1/admin/shelves');
+  },
+  listRuleTemplates() {
+    return request<{ items: RuleTemplate[] }>('/v1/admin/rule-templates');
+  },
+  createShelf(body: JsonValue) {
+    return request<{ shelf: Shelf; replayed: boolean }>('/v1/admin/shelves', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
   },
   registerMaterialField(body: JsonValue) {
     return request<{ materialField: MaterialField }>('/v1/admin/material-fields', {
@@ -150,7 +231,11 @@ export async function materialFieldRegistration(input: {
   const policy: ExtractionPolicyValue = {
     includedDirectories: [...input.includedDirectories].sort(),
     excludedDirectories: [...input.excludedDirectories].sort(),
-    allowedExtensions: ['.avi', '.m2ts', '.m4v', '.mkv', '.mov', '.mp4', '.ts', '.wmv'],
+    // A Movie BDMV is one indivisible Procurement scope.  Its Playlist,
+    // ClipInfo and BDMV control files must therefore pass the same Extraction
+    // Policy as the selected M2TS payload; otherwise Run Admission freezes an
+    // incomplete container that can never produce topology evidence.
+    allowedExtensions: ['.avi', '.bdmv', '.clpi', '.m2ts', '.m4v', '.mkv', '.mov', '.mp4', '.mpls', '.ts', '.wmv'],
     minimumSizeBytes: 0,
     excludedMaterialKeys: [],
   };

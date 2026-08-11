@@ -58,18 +58,12 @@ function reviseMovieRating(rules, rating, maxSizeGiB) {
 }
 
 async function createShelf(host, headers) {
-  const standardValue = {
-    profileRuleSets: [{
-      contentProfile: 'movie',
-      mandatoryMedia: [],
-      quality: {},
-      space: {},
-    }],
-  };
   const placementValue = {
     folderTemplate: '{title} ({year})',
     collisionPolicy: 'reject',
   };
+  const targetRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-template-shelf-'));
+  roots.push(targetRoot);
   const response = await host.inject({
     method: 'POST',
     url: '/v1/admin/shelves',
@@ -78,24 +72,10 @@ async function createShelf(host, headers) {
       idempotencyKey: 'template-shelf-create',
       shelfId: 'template-shelf-1',
       name: 'Template Shelf',
-      target: {
-        endpointId: 'template-endpoint-1',
-        rootLocation: 'movies',
-        mountScopeId: 'template-mount-1',
-        mountScopeRevision: 1,
-      },
-      standard: {
-        ruleTemplateId: 'initial-placeholder-template',
-        ruleTemplateRevision: 1,
-        schemaRef: 'helix://fixtures/shelf-standard/v1',
-        value: standardValue,
-        digest: canonicalDigest(standardValue),
-      },
-      placement: {
-        schemaRef: 'helix://fixtures/placement-policy/v1',
-        value: placementValue,
-        digest: canonicalDigest(placementValue),
-      },
+      targetRootLocation: targetRoot,
+      ruleTemplateId: SYSTEM_TEMPLATE_ID,
+      expectedTemplateRevision: 1,
+      placementPolicy: placementValue,
     },
   });
   assert.equal(response.statusCode, 201, response.body);

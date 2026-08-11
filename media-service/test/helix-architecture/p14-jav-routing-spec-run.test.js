@@ -79,7 +79,6 @@ async function createJavShelfAndRouting(host, apiKey, root, fieldId) {
   const cookie = await session(host, apiKey);
   const shelfRoot = path.join(root, 'jav-shelf-target');
   fs.mkdirSync(shelfRoot, { recursive: true });
-  const initialStandard = { profileRuleSets: [] };
   const placement = { folderTemplate: '{title}', collisionPolicy: 'reject' };
   const created = await host.inject({
     method: 'POST',
@@ -89,41 +88,13 @@ async function createJavShelfAndRouting(host, apiKey, root, fieldId) {
       idempotencyKey: 'jav-routing-shelf-create',
       shelfId: 'jav-routing-shelf',
       name: 'JAV Shelf',
-      target: {
-        endpointId: 'jav-routing-shelf-endpoint',
-        rootLocation: shelfRoot,
-        mountScopeId: 'jav-routing-shelf-mount',
-        mountScopeRevision: 1,
-      },
-      standard: {
-        ruleTemplateId: 'jav-routing-initial-template',
-        ruleTemplateRevision: 1,
-        schemaRef: 'helix://fixtures/jav-routing-initial-standard/v1',
-        value: initialStandard,
-        digest: canonicalDigest(initialStandard),
-      },
-      placement: {
-        schemaRef: 'helix://fixtures/jav-routing-placement/v1',
-        value: placement,
-        digest: canonicalDigest(placement),
-      },
+      targetRootLocation: shelfRoot,
+      ruleTemplateId: 'system-beta-recommended',
+      expectedTemplateRevision: 1,
+      placementPolicy: placement,
     },
   });
   assert.equal(created.statusCode, 201, created.body);
-  const bound = await host.inject({
-    method: 'POST',
-    url: '/v1/admin/shelves/jav-routing-shelf/actions/bind-template',
-    headers: { cookie },
-    payload: {
-      idempotencyKey: 'jav-routing-shelf-bind',
-      shelfId: 'jav-routing-shelf',
-      expectedStandardRevision: 1,
-      expectedRoutingProjectionRevision: 1,
-      ruleTemplateId: 'system-beta-recommended',
-      expectedTemplateRevision: 1,
-    },
-  });
-  assert.equal(bound.statusCode, 200, bound.body);
   const expression = {
     nodeKind: 'predicate',
     factKind: 'content_profile',

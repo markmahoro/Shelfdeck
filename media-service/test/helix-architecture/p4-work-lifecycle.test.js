@@ -86,6 +86,21 @@ test('failed Event reports failed Attempt and Domain Owner explicitly fails its 
   assert.deepEqual(read(databasePath, 'SELECT state FROM fx_supporting_works WHERE work_id=?', 'work-1'), { state: 'failed' });
 }));
 
+test('contract-unplannable Work persists its stable Planner diagnostic on the terminal Attempt', () => fixture(({ lifecycle, databasePath }) => {
+  const activation = lifecycle.ensurePlanningAttempt('work-1');
+  const database = new Database(databasePath);
+  database.prepare(`INSERT INTO fx_workflow_plans
+    (plan_id,attempt_id,planner_ref,planner_version,catalog_digest,basis_digest,graph_digest,state,created_at_ms)
+    VALUES (?,?,?,?,?,?,?,?,?)`).run('plan-1', activation.attempt.attempt_id, 'planner@1', 1,
+      'b'.repeat(64), 'a'.repeat(64), 'c'.repeat(64), 'contract_unplannable', 2);
+  database.close();
+  const started = lifecycle.startPlanned('work-1', activation.attempt.attempt_id,
+    'candidate_disposition_scope_unrepresentable');
+  assert.equal(started.attemptState, 'failed');
+  assert.deepEqual(read(databasePath, 'SELECT state,failure_code FROM fx_work_attempts WHERE attempt_id=?', activation.attempt.attempt_id),
+    { state:'failed', failure_code:'candidate_disposition_scope_unrepresentable' });
+}));
+
 test('Owner can request a new bounded Attempt without changing Work identity or Basis', () => fixture(({ lifecycle, databasePath }) => {
   const first = lifecycle.ensurePlanningAttempt('work-1');
   const database = new Database(databasePath);

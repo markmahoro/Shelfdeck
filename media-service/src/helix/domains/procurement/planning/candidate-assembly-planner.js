@@ -26,13 +26,28 @@ function eventNode(options,ref,nodeId,eventId,bindings,dependencies,kinds){const
     effectClass:m.effectClass,resourceDemandSchemaRef:m.resourceDemandSchemaRef,resourceDemand:demand(kinds),approvalRequirementRef:null,authorizationRequirementRef:null,
     fenceSchemaRef:m.fenceSchemaRef,fenceBasis:Object.freeze(fence),retryPolicyRef:p.retryPolicyRef,timeoutPolicyRef:p.timeoutPolicyRef,outputContractRef:m.resultSchemaRef});}
 function evidenceWorkId(snapshot){return stableId('procurement-evidence-work-',{runId:snapshot.run.procurement_run_id,basis:snapshot.run.run_basis_digest});}
+function unplannable(planner,request,catalogDigest,diagnosticClassification){return Object.freeze({
+  schemaRef:'helix://foundation/types/WorkflowPlanDefinition/v1',schemaVersion:1,
+  planId:stableId('candidate-plan-',{attempt:request.workAttemptId}),workAttemptId:request.workAttemptId,
+  ownerDomain:'procurement',plannerContractRef:planner.plannerContractRef,plannerVersion:1,
+  workObjectiveTypeRef:'helix://procurement/work/CandidateAssembly/v1',workObjectiveVersion:1,
+  executionBasisDigest:request.executionBasisDigest,capabilityCatalogDigest:catalogDigest,
+  resolution:'contract_unplannable',diagnosticClassification,nodes:Object.freeze([])});}
 function createCandidateAssemblyPlanner(options){const catalogDigest=executionCatalogDigest(options.registry,options.policyRegistry);return Object.freeze({
   plannerContractRef:'helix://procurement/planners/CandidateAssembly/v1',plannerVersion:1,plan(request){const run=options.triageReader.readRunHeader(request.processId),snapshot=run&&Object.freeze({run}),found=run&&options.evidenceIndex.findCandidate(request.workId,run.procurement_run_id,evidenceWorkId(snapshot));
-    if(!run||!found)return Object.freeze({schemaRef:'helix://foundation/types/WorkflowPlanDefinition/v1',schemaVersion:1,planId:stableId('candidate-plan-',{attempt:request.workAttemptId}),
-      workAttemptId:request.workAttemptId,ownerDomain:'procurement',plannerContractRef:this.plannerContractRef,plannerVersion:1,workObjectiveTypeRef:'helix://procurement/work/CandidateAssembly/v1',
-      workObjectiveVersion:1,executionBasisDigest:request.executionBasisDigest,capabilityCatalogDigest:catalogDigest,resolution:'contract_unplannable',
-      diagnosticClassification:'candidate_structure_unit_unavailable',nodes:Object.freeze([])});
+    if(!run||!found)return unplannable(this,request,catalogDigest,'candidate_structure_unit_unavailable');
     const {structure,unit,ordinal}=found,rule=activeTriageRule(options.triageRuleRegistry);
+    // Related Material is reconstructed from the frozen Observation scope, not
+    // embedded in Structure.  Its exclusive disposition scope nevertheless has
+    // the same closed 1024-member handoff bound.  Detect an unrepresentable
+    // Candidate while planning so it becomes a terminal business Work outcome;
+    // never publish a known-invalid Capability input and fault the global Host.
+    const context=options.candidateContextReader.read({runId:run.procurement_run_id,
+      evidenceWorkId:evidenceWorkId(snapshot),unitId:unit.unitId,workId:request.workId});
+    if(!context)return unplannable(this,request,catalogDigest,'candidate_structure_unit_unavailable');
+    if(context.relatedReferences.length>1024){
+      return unplannable(this,request,catalogDigest,'candidate_disposition_scope_unrepresentable');
+    }
     const identityEvent='candidate-'+String(ordinal).padStart(4,'0')+'-identity-'+canonicalDigest(request.workAttemptId).slice(0,20);
     const manifestEvent='candidate-'+String(ordinal).padStart(4,'0')+'-manifest-'+canonicalDigest(request.workAttemptId).slice(0,20);
     const publishEvent='candidate-'+String(ordinal).padStart(4,'0')+'-publish-'+canonicalDigest(request.workAttemptId).slice(0,20);

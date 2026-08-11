@@ -178,15 +178,26 @@ function createProcurementExecutionRuntime(options) {
   let host;
   const domainReconciler = { async reconcile(request) {
     if (request.ownerDomain !== 'procurement') return null;
-    if(request.processType==='procurement_run'&&request.workAttemptState==='succeeded'){
-      if(request.workKind==='evidence_assessment') evidenceIndex.invalidate(request.workId);
-      runCoordinator.reconcile(request.processId);
-      if(request.workKind==='evidence_assessment'){
-        const structures=workResultReader.read(request.workId).filter((item)=>item.outcomeKind==='succeeded'&&
-          item.resultSchemaRef==='helix://contracts/capabilities/procurement.triage.structure.inspect/v1/result');
-        if(!structures.some((item)=>item.result.cursorOut===null))return {workId:request.workId,disposition:'replan'};
+    if(request.processType==='procurement_run'){
+      if(request.workAttemptState==='succeeded'){
+        if(request.workKind==='evidence_assessment') evidenceIndex.invalidate(request.workId);
+        runCoordinator.reconcile(request.processId);
+        if(request.workKind==='evidence_assessment'){
+          const structures=workResultReader.read(request.workId).filter((item)=>item.outcomeKind==='succeeded'&&
+            item.resultSchemaRef==='helix://contracts/capabilities/procurement.triage.structure.inspect/v1/result');
+          if(!structures.some((item)=>item.result.cursorOut===null))return {workId:request.workId,disposition:'replan'};
+        }
+        return {workId:request.workId,disposition:'succeeded'};
       }
-      return {workId:request.workId,disposition:'succeeded'};
+      if(['failed','cancelled'].includes(request.workAttemptState)){
+        // A terminal Candidate planning outcome is a Process-local fact.  Let
+        // the thin Coordinator record the exact failed Unit and continue its
+        // siblings before Foundation settles this Work; do not leave a running
+        // Work with a terminal Attempt for the fallback sweep to rediscover.
+        runCoordinator.reconcile(request.processId);
+        return {workId:request.workId,disposition:request.workAttemptState};
+      }
+      return null;
     }
     if(request.processType!=='material_field')return null;
     if (request.workAttemptState !== 'succeeded') return { workId: request.workId, disposition: 'failed' };

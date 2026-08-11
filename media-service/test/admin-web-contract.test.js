@@ -39,6 +39,24 @@ test('Material Fields admits background Observation and projects progress toward
   assert.doesNotMatch(admin, /movieRunCoordinator\.advance\(/);
 });
 
+test('Shelves configures a probed Template-derived Movie Standard without exposing caller-owned Standard input', () => {
+  const app = read('web/src/App.tsx');
+  const page = read('web/src/helix/ShelvesPage.tsx');
+  const api = read('web/src/helix/api.ts');
+  assert.match(app, /ShelvesPage/);
+  assert.match(api, /\/v1\/admin\/shelves/);
+  assert.match(api, /\/v1\/admin\/rule-templates/);
+  assert.match(page, /system-beta-recommended/);
+  assert.match(page, /创建收藏架/);
+  assert.match(page, /收藏最终目录/);
+  assert.match(page, /Target probe/);
+  assert.match(page, /未评分/);
+  assert.match(page, /\$\{branch\.rating\}星/);
+  assert.match(page, /不会建立正式收藏，也不会移动、改名或写入任何媒体文件/);
+  assert.doesNotMatch(page, /standard:\s*\{/);
+  assert.match(page, /expectedTemplateRevision/);
+});
+
 test('Formation progress begins after Procurement handoff', () => {
   const model = read('web/src/helix/surface-model.ts');
   const formation = model.split("slug:'formation'")[1].split("slug:'care'")[0];

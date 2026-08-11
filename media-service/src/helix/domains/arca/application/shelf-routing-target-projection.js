@@ -17,12 +17,22 @@ function createShelfRoutingTargetProjection(options) {
   }
   return Object.freeze({
     list() {
-      return Object.freeze(store.listShelves().map(routeProjection));
+      return Object.freeze(store.listShelves()
+        .filter((shelf) => shelf.status === 'active')
+        .map(routeProjection));
     },
     getStandard(shelfId) {
       const shelf = store.getShelf(shelfId);
       if (!shelf) return null;
       const route = routeProjection(shelf);
+      if (shelf.status !== 'active') {
+        return Object.freeze({
+          resultKind: 'unavailable',
+          reasonCode: 'shelf_inactive',
+          shelfId,
+          routingProjection: route,
+        });
+      }
       const standard = shelf.standard.value;
       if (!standard || standard.shelfId !== shelf.shelfId ||
           standard.standardRevision !== shelf.standard.revision ||

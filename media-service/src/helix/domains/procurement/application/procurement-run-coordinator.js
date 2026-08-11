@@ -81,6 +81,7 @@ function createProcurementRunCoordinator(options){
       const units=Array.isArray(evidenceIndex.units)?evidenceIndex.units:structures.flatMap((structure)=>
         (structure.units||[]).map((unit)=>Object.freeze({structure,unit,ordinal:fallbackOrdinal++})));
       const probedWorks=new Map();
+      const probedStatuses=new Map();
       const workAt=(ordinal)=>{if(probedWorks.has(ordinal))return probedWorks.get(ordinal);
         const entry=units[ordinal];
         const definition=entry?candidateWork(snapshot,entry.structure,entry.unit,ordinal):null;
@@ -88,6 +89,7 @@ function createProcurementRunCoordinator(options){
         if(row&&(row.owner_domain!=='procurement'||row.process_type!=='procurement_run'||row.process_id!==runId||row.work_kind!=='candidate_assembly')){
           fail('P7_CANDIDATE_WORK_SCOPE_CORRUPT','Persisted Candidate Work belongs to another Process scope.',{runId,workId:definition.workId});
         }
+        if(row)probedStatuses.set(ordinal,row);
         const present=Boolean(row);probedWorks.set(ordinal,present);return present;};
       const startOrdinal=candidateWorkPrefixLengthByProbe(units.length,workAt);
       const issued=[];let newlyAdmitted=0,deferredReasonCode=null;
@@ -109,7 +111,23 @@ function createProcurementRunCoordinator(options){
       const unitCount=units.length;
       const candidateCount=Number(snapshot.run.candidate_package_revision_head);
       if(candidateCount>unitCount)fail('P7_CANDIDATE_PACKAGE_COUNT_CORRUPT','Run Candidate revision head exceeds its durable Structure Unit count.',{runId,candidateCount,unitCount});
-      if(terminalStructure&&candidateCount===unitCount){
+      const candidateStatuses=units.map((entry,ordinal)=>{
+        const definition=candidateWork(snapshot,entry.structure,entry.unit,ordinal);
+        const status=probedStatuses.get(ordinal)||options.workResultReader.status(definition.workId);
+        const attemptState=status?.latestAttempt?.state||null;
+        const succeeded=status?.state==='succeeded'||attemptState==='succeeded';
+        const diagnostic=status?.latestAttempt?.failure_code||null;
+        const businessFailed=(status?.state==='failed'||attemptState==='failed')&&
+          diagnostic==='candidate_disposition_scope_unrepresentable';
+        return Object.freeze({entry,definition,status,succeeded,businessFailed,diagnostic});
+      });
+      const successfulWorks=candidateStatuses.filter((item)=>item.succeeded);
+      const businessFailedWorks=candidateStatuses.filter((item)=>item.businessFailed);
+      const allCandidateUnitsTerminal=candidateStatuses.every((item)=>item.succeeded||item.businessFailed);
+      if(terminalStructure&&allCandidateUnitsTerminal){
+        if(candidateCount!==successfulWorks.length)fail('P7_CANDIDATE_PACKAGE_COUNT_CORRUPT',
+          'Run Candidate revision head does not match its terminal successful Candidate Works.',
+          {runId,candidateCount,successfulWorks:successfulWorks.length,businessFailedWorks:businessFailedWorks.length});
         if(typeof options.workResultReader.listWorks==='function'){
           const works=options.workResultReader.listWorks({ownerDomain:'procurement',processType:'procurement_run',processId:runId,workKind:'candidate_assembly'});
           candidateWorkPrefixLength(works,unitCount);
@@ -121,6 +139,19 @@ function createProcurementRunCoordinator(options){
         const publishedCandidates=Object.freeze(candidates.map((candidate)=>Object.freeze({
           candidatePackageId:candidate.candidate_package_id,packageDigest:candidate.package_digest,manifestDigest:candidate.manifest_digest})));
         const unassigned=new Map(structures.flatMap((item)=>item.unassignedMaterials||[]).map((item)=>[item.materialKey,item]));
+        const runBasis=typeof options.triageReader.readRunBasis==='function'?options.triageReader.readRunBasis(runId):null;
+        for(const failedWork of businessFailedWorks){
+          const unit=failedWork.entry.unit;
+          const materialKeys=unit.memberScope&&runBasis
+            ? runBasis.members.filter((member)=>member.selection_scope_kind==='bdmv_container'&&
+              member.selection_scope_key===unit.memberScope.bdmvGroupKey).map((member)=>member.material_key)
+            : (unit.members||[]).map((member)=>member.materialKey);
+          const evidenceDigest=canonicalDigest({schema:'procurement.candidate-work-business-failure@1',runId,
+            workId:failedWork.definition.workId,unitId:unit.unitId,unitDigest:unit.unitDigest,
+            diagnosticClassification:failedWork.diagnostic});
+          for(const materialKey of materialKeys)unassigned.set(materialKey,Object.freeze({materialKey,
+            reasonCode:failedWork.diagnostic,evidenceDigest}));
+        }
         const releasedMembers=Object.freeze([...unassigned.values()].sort((a,b)=>Buffer.compare(Buffer.from(a.materialKey),Buffer.from(b.materialKey)))
           .map((item)=>Object.freeze({materialKey:item.materialKey,disposition:'triage_failed',evidenceDigest:item.evidenceDigest})));
         const sealOutcome=publishedCandidates.length===0?'failed':releasedMembers.length?'partial_failure':'completed';

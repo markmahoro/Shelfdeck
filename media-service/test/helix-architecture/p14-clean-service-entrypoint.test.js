@@ -1673,7 +1673,6 @@ test.skip('failed-preparation synchronous product journey is outside the Procure
 
 test('Arca Shelf projection reads use the authenticated public HTTP path and owner-local query repository', async () => {
   const value = fixture();
-  const standardValue = { profileRuleSets: [{ contentProfile: 'movie', mandatoryMedia: [], quality: {}, space: {} }] };
   const placementValue = { folderTemplate: '{title} ({year})', collisionPolicy: 'reject' };
   const physicalShelfRoot = path.join(path.dirname(value.dataDir), 'physical-shelf');
   const physicalSentinel = path.join(physicalShelfRoot, 'movie.mkv');
@@ -1687,9 +1686,9 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
   const nextPhysicalBefore = fs.readFileSync(nextPhysicalSentinel);
   const body = {
     idempotencyKey: 'shelf-http-create-1', shelfId: 'shelf-http-1', name: 'Movies',
-    target: { endpointId: 'shelf-endpoint-1', rootLocation: physicalShelfRoot, mountScopeId: 'shelf-mount-1', mountScopeRevision: 1 },
-    standard: { ruleTemplateId: 'template-http-1', ruleTemplateRevision: 1, schemaRef: 'helix://fixtures/shelf-standard/v1', value: standardValue, digest: canonicalDigest(standardValue) },
-    placement: { schemaRef: 'helix://fixtures/placement-policy/v1', value: placementValue, digest: canonicalDigest(placementValue) },
+    targetRootLocation: physicalShelfRoot,
+    ruleTemplateId: 'system-beta-recommended', expectedTemplateRevision: 1,
+    placementPolicy: placementValue,
   };
   let deregistrationCommand;
   let placementCommand;
@@ -1712,7 +1711,7 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
     assert.equal(conflict.json().error.code, 'ADMIN_SHELF_IDEMPOTENCY_CONFLICT');
     const rejected = await host.inject({ method: 'POST', url: '/v1/admin/shelves', headers: { cookie }, payload: {
       ...body, idempotencyKey: 'shelf-http-create-invalid', shelfId: 'shelf-invalid',
-      standard: { ...body.standard, digest: '0'.repeat(64) },
+      ruleTemplateId: 'missing-template',
     } });
     assert.equal(rejected.statusCode, 400);
     assert.equal(rejected.json().error.code, 'ADMIN_SHELF_COMMAND_REJECTED');
@@ -1762,7 +1761,11 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
         mountScopeId: 'shelf-mount-2',
         mountScopeRevision: 2,
       },
-      placement: { ...body.placement, value: placementValue2, digest: canonicalDigest(placementValue2) },
+      placement: {
+        schemaRef: 'helix://contracts/policies/ArcaShelfPlacementPolicy/v1',
+        value: placementValue2,
+        digest: canonicalDigest(placementValue2),
+      },
     };
     const unavailableTarget = path.join(path.dirname(value.dataDir), 'missing-target');
     const unavailablePreview = await host.inject({
@@ -1833,10 +1836,10 @@ test('Arca Shelf projection reads use the authenticated public HTTP path and own
     assert.deepEqual(
       placementCrashEvidence.prepare('SELECT target_endpoint_id,target_root_location,target_mount_scope_id,target_mount_scope_revision,current_placement_revision FROM arca_shelves WHERE shelf_id=?').get('shelf-http-1'),
       {
-        target_endpoint_id: 'shelf-endpoint-1',
-        target_root_location: physicalShelfRoot,
-        target_mount_scope_id: 'shelf-mount-1',
-        target_mount_scope_revision: 1,
+        target_endpoint_id: created.json().shelf.target.endpointId,
+        target_root_location: created.json().shelf.target.rootLocation,
+        target_mount_scope_id: created.json().shelf.target.mountScopeId,
+        target_mount_scope_revision: created.json().shelf.target.mountScopeRevision,
         current_placement_revision: 1,
       },
     );
@@ -2435,7 +2438,6 @@ test.skip('Libra and Arca consumption are intentionally outside the Procurement 
     const cookie = await session(host);
     const shelfRoot = path.join(path.dirname(value.dataDir), 'movie-handoff-a-shelf');
     fs.mkdirSync(shelfRoot, { recursive: true });
-    const initialStandard = { profileRuleSets: [] };
     const placement = { folderTemplate: '{title}', collisionPolicy: 'reject' };
     const created = await host.inject({
       method: 'POST', url: '/v1/admin/shelves', headers: { cookie },
@@ -2443,41 +2445,13 @@ test.skip('Libra and Arca consumption are intentionally outside the Procurement 
         idempotencyKey: 'movie-handoff-shelf-create',
         shelfId: 'movie-handoff-shelf',
         name: 'Movie Shelf',
-        target: {
-          endpointId: 'movie-handoff-shelf-endpoint',
-          rootLocation: shelfRoot,
-          mountScopeId: 'movie-handoff-shelf-mount',
-          mountScopeRevision: 1,
-        },
-        standard: {
-          ruleTemplateId: 'movie-initial-template',
-          ruleTemplateRevision: 1,
-          schemaRef: 'helix://fixtures/movie-initial-standard/v1',
-          value: initialStandard,
-          digest: canonicalDigest(initialStandard),
-        },
-        placement: {
-          schemaRef: 'helix://fixtures/movie-placement/v1',
-          value: placement,
-          digest: canonicalDigest(placement),
-        },
+        targetRootLocation: shelfRoot,
+        ruleTemplateId: 'system-beta-recommended',
+        expectedTemplateRevision: 1,
+        placementPolicy: placement,
       },
     });
     assert.equal(created.statusCode, 201, created.body);
-    const bound = await host.inject({
-      method: 'POST',
-      url: '/v1/admin/shelves/movie-handoff-shelf/actions/bind-template',
-      headers: { cookie },
-      payload: {
-        idempotencyKey: 'movie-handoff-shelf-bind',
-        shelfId: 'movie-handoff-shelf',
-        expectedStandardRevision: 1,
-        expectedRoutingProjectionRevision: 1,
-        ruleTemplateId: 'system-beta-recommended',
-        expectedTemplateRevision: 1,
-      },
-    });
-    assert.equal(bound.statusCode, 200, bound.body);
     const expression = {
       nodeKind: 'predicate',
       factKind: 'content_profile',

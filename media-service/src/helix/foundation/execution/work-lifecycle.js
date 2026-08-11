@@ -103,7 +103,7 @@ function createWorkLifecycle(options) {
     });
   }
 
-  function startPlanned(workId, attemptId) {
+  function startPlanned(workId, attemptId, diagnosticClassification = null) {
     return execute('work_lifecycle_start_planned', (context) => {
       const works = context.repository('work_lifecycle_works');
       const attempts = context.repository('work_lifecycle_attempts');
@@ -122,7 +122,12 @@ function createWorkLifecycle(options) {
       let attemptState = 'running';
       let failureCode = null;
       if (plan.state === 'no_effect_required') attemptState = 'succeeded';
-      else if (plan.state === 'contract_unplannable') { attemptState = 'failed'; failureCode = 'CONTRACT_UNPLANNABLE'; }
+      else if (plan.state === 'contract_unplannable') {
+        attemptState = 'failed';
+        failureCode = typeof diagnosticClassification === 'string' && diagnosticClassification.length > 0
+          ? diagnosticClassification
+          : 'CONTRACT_UNPLANNABLE';
+      }
       else if (plan.state === 'temporarily_unplannable') attemptState = 'blocked';
       const workState = attemptState === 'blocked' ? 'blocked' : 'running';
       if (attempts.invoke('transition', {

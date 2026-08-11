@@ -4,8 +4,9 @@ const { canonicalDigest } = require('../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../persistence/owner-repository');
 
 function definition(schemaManifest){return createRepositoryDefinition({repositoryId:'work_result_reader',owner:'execution-foundation',schemaManifest,statements:{
-  find_work:{kind:'select-one',tableId:'fx_supporting_works',columns:['work_id','owner_domain','process_type','process_id','work_kind','state'],keyColumns:['work_id']},
+  find_work:{kind:'select-one',tableId:'fx_supporting_works',columns:['work_id','owner_domain','process_type','process_id','work_kind','basis_digest','state'],keyColumns:['work_id']},
   list_process_works:{kind:'select-all',tableId:'fx_supporting_works',columns:['work_id','owner_domain','process_type','process_id','work_kind','state'],keyColumns:['owner_domain','process_type','process_id','work_kind']},
+  list_attempts:{kind:'select-all',tableId:'fx_work_attempts',columns:['attempt_id','work_id','ordinal','state','failure_code'],keyColumns:['work_id'],safeIntegers:true},
   list_events:{kind:'select-all',tableId:'fx_workflow_events',columns:['event_id','work_id','state'],keyColumns:['work_id']},
   find_result:{kind:'select-one',tableId:'fx_event_result_bindings',columns:['result_id','event_id','outcome_kind','result_schema_ref','result_json','result_digest',
     'evidence_schema_ref','evidence_json','evidence_digest'],keyColumns:['event_id']},
@@ -14,7 +15,10 @@ function definition(schemaManifest){return createRepositoryDefinition({repositor
 function createWorkResultReader(options){if(!options?.schemaManifest||!options.unitOfWork)throw new TypeError('Work Result Reader requires Foundation persistence.');
   const repository=definition(options.schemaManifest);return Object.freeze({
     status(workId){return options.unitOfWork.execute([{participantId:'work_status_read',owner:'execution-foundation',repositories:[repository],execute(context){
-      const row=context.repository(repository.repositoryId).invoke('find_work',{work_id:workId});return row?Object.freeze(row):null;
+      const repo=context.repository(repository.repositoryId);const row=repo.invoke('find_work',{work_id:workId});
+      if(!row)return null;
+      const latest=repo.invoke('list_attempts',{work_id:workId}).sort((left,right)=>Number(right.ordinal)-Number(left.ordinal))[0]||null;
+      return Object.freeze({...row,latestAttempt:latest?Object.freeze(latest):null});
     }}]).work_status_read;},
     listWorks(scope){
       if(!scope||typeof scope.ownerDomain!=='string'||typeof scope.processType!=='string'||typeof scope.processId!=='string'||typeof scope.workKind!=='string'){

@@ -82,7 +82,6 @@ async function establishSeriesShelfAndRouting(
   const cookie = await session(host, apiKey);
   const shelfRoot = path.join(root, 'series-shelf');
   fs.mkdirSync(shelfRoot, { recursive: true });
-  const initialStandard = { profileRuleSets: [] };
   const placement = { folderTemplate: '{title}', collisionPolicy: 'reject' };
   const created = await host.inject({
     method: 'POST',
@@ -92,41 +91,13 @@ async function establishSeriesShelfAndRouting(
       idempotencyKey: 'series-handoff-shelf-create',
       shelfId: 'series-handoff-shelf',
       name: 'Series Shelf',
-      target: {
-        endpointId: 'series-handoff-shelf-endpoint',
-        rootLocation: shelfRoot,
-        mountScopeId: 'series-handoff-shelf-mount',
-        mountScopeRevision: 1,
-      },
-      standard: {
-        ruleTemplateId: 'series-initial-template',
-        ruleTemplateRevision: 1,
-        schemaRef: 'helix://fixtures/series-initial-standard/v1',
-        value: initialStandard,
-        digest: canonicalDigest(initialStandard),
-      },
-      placement: {
-        schemaRef: 'helix://fixtures/series-placement/v1',
-        value: placement,
-        digest: canonicalDigest(placement),
-      },
+      targetRootLocation: shelfRoot,
+      ruleTemplateId: 'system-beta-recommended',
+      expectedTemplateRevision: 1,
+      placementPolicy: placement,
     },
   });
   assert.equal(created.statusCode, 201, created.body);
-  const bound = await host.inject({
-    method: 'POST',
-    url: '/v1/admin/shelves/series-handoff-shelf/actions/bind-template',
-    headers: { cookie },
-    payload: {
-      idempotencyKey: 'series-handoff-shelf-bind',
-      shelfId: 'series-handoff-shelf',
-      expectedStandardRevision: 1,
-      expectedRoutingProjectionRevision: 1,
-      ruleTemplateId: 'system-beta-recommended',
-      expectedTemplateRevision: 1,
-    },
-  });
-  assert.equal(bound.statusCode, 200, bound.body);
   const routed = await host.inject({
     method: 'PATCH',
     url: `/v1/admin/routing/material-fields/${fieldId}`,

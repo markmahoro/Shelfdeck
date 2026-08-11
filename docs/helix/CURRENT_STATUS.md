@@ -1,8 +1,36 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Movie Procurement已在`Handoff A Ready`边界正式封口；状态为`CLOSED FOR MOVIE`。Libra尚未接入，Series/JAV/Western Adult Procurement不在本次封口范围内。
+Status: Movie Procurement保持`CLOSED FOR MOVIE`；Arca Shelf配置达到`ARCA SHELF CONFIGURATION READY FOR LIBRA`。
 
 Last updated: 2026-08-11
+
+## Local media safety boundary
+
+- 用户已指定`C:\Users\markm\AppData\Local\Temp\ShelfDeck-P14-20260723\material-fields`为后续唯一真实媒体测试根目录；它同时承担测试Material Field和Movie Shelf Target。
+- `Z:\Film`退出运行时测试Scope：不得作为Material Field、Shelf、Workspace或Canary输入。用户后续仅授权测试库构建器从两个精确Movie目录只读取材；本轮只提取两个8秒片段并复制少量NFO/Artwork，未在源端写入、移动、重命名或删除。
+- 历史记录确认该P14 Sample Library曾包含`film-complete\1917 (2019)`和`film-problem\0.5毫米 (2014)`；当前Movie媒体已被历史E2E消费，`film-complete`为空，`film-problem`仅剩`Thumbs.db`。
+- Movie测试库已扩充为22个场景、1,131个受管regular files、`57,027,472` bytes，受管Reality digest为`966c8fac23f3b99f02fe63566fb93c365e883d8c8ce34ac185eb3a348a098140`。其中12个既有场景保留；G01–G10新增Related替代、精确Settlement授权、逐成员崩溃恢复、Target collision、跨卷、Related Reality变化、同根二次Observation、ISO、真实DVD和1,025项Related的complete-or-fail-closed边界。所有应可播放MKV/MP4/M2TS继续通过bundled ffprobe，G09有界真实VOB为8.108秒；唯一`not_media`仍是M09刻意损坏样本。
+- 测试库manifest已升级为`shelfdeck.movie-test-library-manifest@2`；两份阶段seed受独立size/SHA-256校验，只有manifest指定阶段可以物化。构建器只拥有`ownership.json`列出的`SDT-*`路径并保留历史目录。自动化安全/场景/BDMV/ISO/phase helper测试5/5通过，build末尾完整Reality重验通过。该测试集现在具备后续Libra/Arca高危链路的输入与阶段配方，但产品Planner、Authorization、Effect Recovery或ISO/DVD执行未接线前，不得把“素材存在”宣称为E2E通过。
+
+## 0. Completed implementation — Arca Shelf configuration
+
+Admin Web“收藏架”已从静态Stub替换为真实`ShelvesPage`：可加载active Rule Template、默认选择只读
+`system-beta-recommended`、输入唯一Target Folder、配置Movie Placement，并展示Template、Standard、Placement及Routing Projection。
+Movie No-rating与1–5星Rule Set可见；其余三个Profile仍保存在同一推荐Template中但未开放业务处理。
+
+创建Command现在先完成realpath、目录、读写和安全commit协议探测，从实际filesystem evidence派生endpoint/mount scope，再以精确active
+Template revision构造权威Standard。Shelf、Standard revision 1、Placement revision 1、Routing Projection revision 1、Command Receipt
+和Audit在同一事务中全有或全无；Admin Web/caller不能提交展开Standard。幂等重放先读取durable Receipt，即使Target随后暂时不可访问，
+也不会重新探测或创建第二座Shelf；同key不同请求稳定冲突。
+
+本地验收通过：Web build成功；Shelf定向HTTP/UI/Projection组为26 pass、3 intentional skip；完整服务测试234/234；机器合同保持
+111 Capability、97 Result family、180 table、43 Canonical Transaction、114 routes，aggregate digest仍为
+`76b8114469e10bfeb64f6a822295b03fe0c893f1091c8f41dc18cfd56b49e362`且unresolved type ref为0。临时Target sentinel在创建前后逐字一致；
+关闭并重启服务后Shelf/Template/Standard/Placement/Projection逐字一致，Libra public reader可读取Movie Standard；Shelf Entry、Libra Subject、
+Handoff B、On-deck及媒体文件效果均为0。
+
+该证据只关闭Shelf配置接线，不代表Arca或Movie Milestone完成。Libra-owned Field→Shelf Routing Policy、Handoff A消费、Routing Decision和
+Acceptance Spec仍是下一独立目标，当前Implementation Gate未开放。
 
 ## 0. Closure decision — Movie Procurement
 
