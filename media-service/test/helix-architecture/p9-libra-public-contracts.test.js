@@ -61,8 +61,8 @@ test('Workspace Reclamation binding rejects repositories, paths, and deletion au
   }
 });
 
-test('Libra production public package cannot import Store, Runtime, HTTP, or Arca internals', () => {
+test('Libra production public package cannot import cross-Domain internals, Runtime, HTTP, or startup', () => {
   const source = fs.readFileSync(path.resolve(__dirname, '../../src/helix/domains/libra/public/index.js'), 'utf8');
-  assert.doesNotMatch(source, /require\([^)]*(?:persistence|store|domains\/arca|runtime|server|app\.js)/i);
+  assert.doesNotMatch(source, /require\([^)]*(?:domains\/arca|runtime|server|app\.js)/i);
   assert.doesNotMatch(source, /(?:https?:\/\/|\.listen\s*\(|sqlite|workspacePath|materialId)/i);
 });

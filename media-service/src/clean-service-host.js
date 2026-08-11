@@ -45,17 +45,6 @@ const {
 const { createProcurementAdminApplication } = require('./helix/domains/procurement/public/admin-application');
 const { CandidateDeliveryPort } = require('./helix/domains/procurement/public');
 const {
-  LibraIntakeFacade,
-  ProductDeliveryPort,
-} = require('./helix/domains/libra/public');
-const {
-  createArcaAcceptanceFacade,
-} = require('./helix/domains/arca/public/acceptance');
-const { PerceptionResolutionFacade } = require('./helix/domains/perception/public');
-const {
-  PersonReferenceQueryFacade,
-} = require('./helix/domains/people/public');
-const {
   createCandidateDeliveryService,
 } = require('./helix/domains/procurement/application/candidate-delivery-service');
 const {
@@ -64,43 +53,15 @@ const {
 const {
   createCandidateAcceptanceConsumer,
 } = require('./helix/domains/procurement/application/candidate-acceptance-consumer');
-const { createInboxCoordinator } = require('./helix/foundation/persistence/outbox-inbox');
-const {
-  createIntakeAcceptanceCoordinator,
-} = require('./helix/domains/libra/application/intake-acceptance-coordinator');
-const {
-  createMovieFormationCoordinator,
-} = require('./helix/domains/libra/application/movie-formation-coordinator');
-const {
-  createMovieProductionCoordinator,
-} = require('./helix/domains/libra/application/movie-production-coordinator');
-const {
-  createMovieResponsibilityClosureCoordinator,
-} = require('./helix/domains/libra/application/movie-responsibility-closure-coordinator');
-const {
-  createProductDeliveryReader,
-} = require('./helix/domains/libra/persistence/product-delivery-reader');
-const {
-  createMovieOnDeckCoordinator,
-} = require('./helix/domains/arca/application/movie-ondeck-coordinator');
-const {
-  createOffloadCompletionPort,
-} = require('./helix/domains/arca/public/offload-completion-port');
-const {
-  createPerceptionResolutionApplication,
-} = require('./helix/domains/perception/application/perception-resolution-application');
-const {
-  createPersonReferenceQuery,
-} = require('./helix/domains/people/capabilities/people-reference-lifecycle');
-const {
-  createPeopleStore,
-} = require('./helix/domains/people/persistence/people-store');
+const { createCandidateRejectionConsumer } = require('./helix/domains/procurement/application/candidate-rejection-consumer');
+const { createOutboxDispatcherHost } = require('./helix/foundation/execution/outbox-dispatcher-host');
 const {
   createArcaRuleTemplateAdminApplication,
   createArcaShelfAdminApplication,
 } = require('./helix/domains/arca/public/admin-application');
 const { createShelfRoutingTargetProjection } = require('./helix/domains/arca/public/routing-target-projection');
 const { createLibraRoutingAdminApplication } = require('./helix/domains/libra/public/admin-application');
+const { createFormationQuery } = require('./helix/domains/libra/application/formation-query');
 const { createSessionTokenService } = require('./helix/platform/public/session-token-service');
 const {
   createAdminCredentialRuntime,
@@ -115,27 +76,12 @@ const {
   createCleanFieldObservationEnumerator,
 } = require('./clean-field-observation-enumerator');
 const {
-  createProcurementExecutionRuntime,
+  createHelixExecutionRuntime,
 } = require('./helix/composition/create-procurement-execution-runtime');
 const {
   createMaterialFieldStore,
 } = require('./helix/domains/procurement/persistence/material-field-store');
 const { createCleanMediaProbe } = require('./clean-media-probe');
-const {
-  createCleanProductProductionPort,
-} = require('./clean-product-production-port');
-const {
-  createCleanWorkspaceProductPort,
-} = require('./clean-workspace-product-port');
-const {
-  createCleanWesternAnalysisPort,
-} = require('./clean-western-analysis-port');
-const {
-  createCleanArcaInventoryPort,
-} = require('./clean-arca-inventory-port');
-const {
-  createSynchronousDomainWork,
-} = require('./helix/foundation/execution/synchronous-domain-work');
 const {
   createFieldPageObserver,
 } = require('./helix/domains/procurement/capabilities/field-page-observer');
@@ -1000,370 +946,52 @@ async function createCleanServiceHost(options) {
     candidateDeliveryReader: createCandidateDeliveryReader(constructed.applicationDependencies),
     contractValidator: Object.freeze({ validate(_schemaRef, value) {
       if (!value || typeof value !== 'object') {
-        throw new CleanServiceHostError('CANDIDATE_DELIVERY_CONTRACT_INVALID',
-          'Candidate Delivery contract value is absent.');
+        throw new CleanServiceHostError(
+          'CANDIDATE_DELIVERY_CONTRACT_INVALID',
+          'Candidate Delivery contract value is absent.',
+        );
       }
     } }),
   }));
-  const libraIntakeApplication = createIntakeAcceptanceCoordinator({
-    ...constructed.applicationDependencies,
-    candidateDeliveryPort,
-  });
-  const libraIntake = LibraIntakeFacade({
-    offerCandidate: libraIntakeApplication.offerCandidate,
-  });
   const candidateAcceptance = createCandidateAcceptanceConsumer(constructed.applicationDependencies);
-  const outboxInbox = createInboxCoordinator(constructed.applicationDependencies);
   const arcaRoutingTargets = createShelfRoutingTargetProjection(constructed.applicationDependencies);
-  const perceptionResolutionApplication =
-    createPerceptionResolutionApplication({
-      ...constructed.applicationDependencies,
-      now: options.now,
-      afterResolutionCommit: options.afterPerceptionResolutionCommit,
-    });
-  const perceptionResolution = PerceptionResolutionFacade({
-    resolveDecisionFact:
-      perceptionResolutionApplication.resolveDecisionFact,
-  });
-  const peopleStore = createPeopleStore(
-    constructed.applicationDependencies,
-  );
-  const personReferenceProjectionFacade = PersonReferenceQueryFacade(
-    createPersonReferenceQuery(peopleStore),
-  );
-  const workRuntime = createSynchronousDomainWork(
-    constructed.applicationDependencies,
-  );
   const mediaProbe = options.mediaProbe || createCleanMediaProbe();
-  const workspaceProductPort = createCleanWorkspaceProductPort({
-    ...constructed.applicationDependencies,
-    rootPath: options.workspaceRoot || path.join(options.dataDir, 'workspace'),
-    afterPhysicalEffect: options.afterWorkspacePhysicalEffect,
-    afterCleanupPhysicalEffect: options.afterCleanupPhysicalEffect,
-  });
-  const configuredSearchProviderIdentity = async (request) => {
-    if (request.contentProfile === 'movie' &&
-        platformIntegrations.isTmdbActive()) {
-      return platformIntegrations.searchProviderIdentity(request);
-    }
-    if (request.contentProfile === 'jav' &&
-        platformIntegrations.isActive('adult-provider')) {
-      return platformIntegrations.searchJavProviderIdentity(request);
-    }
-    if (typeof options.searchProviderIdentity === 'function') {
-      return options.searchProviderIdentity(request);
-    }
-    const error = new CleanServiceHostError(
-      'CLEAN_PRODUCT_IDENTITY_PROVIDER_UNAVAILABLE',
-      'The required typed Provider identity search is unavailable.',
-    );
-    throw error;
-  };
-  const configuredFetchProviderMetadata = async (request) => {
-    if (request.metadataFetchIntent?.providerKind === 'tmdb' &&
-        platformIntegrations.isTmdbActive()) {
-      return platformIntegrations.fetchProviderMetadata(request);
-    }
-    if (request.metadataFetchIntent?.providerKind === 'jav' &&
-        platformIntegrations.isActive('adult-provider')) {
-      return platformIntegrations.fetchJavProviderMetadata(request);
-    }
-    if (typeof options.fetchProviderMetadata === 'function') {
-      return options.fetchProviderMetadata(request);
-    }
-    throw new CleanServiceHostError(
-      'CLEAN_PRODUCT_PROVIDER_UNAVAILABLE',
-      'The required typed Product Metadata provider is unavailable.',
-    );
-  };
-  const configuredFetchProviderArtifact = async (request) => {
-    if (request.integrationHandle?.integrationType === 'tmdb' &&
-        platformIntegrations.isTmdbActive()) {
-      return platformIntegrations.fetchProviderArtifact(request);
-    }
-    if (request.integrationHandle?.integrationType === 'jav' &&
-        platformIntegrations.isActive('adult-provider')) {
-      return platformIntegrations.fetchJavProviderArtifact(request);
-    }
-    if (typeof options.fetchProviderArtifact === 'function') {
-      return options.fetchProviderArtifact(request);
-    }
-    throw new CleanServiceHostError(
-      'CLEAN_PRODUCT_ARTIFACT_PROVIDER_UNAVAILABLE',
-      'The required typed Product Artifact provider is unavailable.',
-    );
-  };
-  const rawProductProductionPort = createCleanProductProductionPort({
-    mediaProbe,
-    workspaceProductPort,
-    now: options.now,
-    searchProviderIdentity: configuredSearchProviderIdentity,
-    fetchProviderMetadata: configuredFetchProviderMetadata,
-    fetchProviderArtifact: configuredFetchProviderArtifact,
-  });
-  const productProductionPort = Object.freeze({
-    ...rawProductProductionPort,
-    resolveIntegrationHandle(value) {
-      return platformIntegrations.resolveProductHandle(value) ||
-        rawProductProductionPort.resolveIntegrationHandle(value);
-    },
-  });
-  const westernAnalysisPort =
-    options.westernAnalysisEngine || options.westernModelPack
-      ? createCleanWesternAnalysisPort({
-        workspaceProductPort,
-        engine: options.westernAnalysisEngine,
-        modelPack: options.westernModelPack,
-        now: options.now,
-      })
-      : null;
-  const movieFormationCoordinator = createMovieFormationCoordinator({
-    ...constructed.applicationDependencies,
-    readArcaRoutingTargets: arcaRoutingTargets.list,
-    readArcaShelfStandard: arcaRoutingTargets.getStandard,
-    resolvePerceptionDecisionFact:
-      perceptionResolution.resolveDecisionFact,
-  });
-  const movieProductionCoordinator = createMovieProductionCoordinator({
-    ...constructed.applicationDependencies,
-    workRuntime,
-    productionPort: productProductionPort,
-    workspaceProductPort,
-    westernAnalysisPort,
-    personReferenceProjectionFacade,
-    now: options.now,
-    afterCapabilityResultCommit: options.afterCapabilityResultCommit,
-    afterProductFactsCommit: options.afterProductFactsCommit,
-    afterPackageCommit: options.afterPackageCommit,
-  });
-  const productDeliveryPort = ProductDeliveryPort(
-    createProductDeliveryReader(constructed.applicationDependencies),
-  );
-  const arcaInventoryPort = createCleanArcaInventoryPort({
-    ...constructed.applicationDependencies,
-    workspaceRoot:
-      options.workspaceRoot || path.join(options.dataDir, 'workspace'),
-    afterPhysicalEffect: options.afterArcaInventoryPhysicalEffect,
-  });
-  const movieOnDeckApplication = createMovieOnDeckCoordinator({
-    ...constructed.applicationDependencies,
-    productDeliveryPort,
-    inventoryPort: arcaInventoryPort,
-    afterAttemptAcceptedCas: options.afterAttemptAcceptedCas,
-    afterAcceptedResponsibilityInsert:
-      options.afterAcceptedResponsibilityInsert,
-    afterHandoffBControlTransfer:
-      options.afterHandoffBControlTransfer,
-    afterHandoffBReceiptInsert: options.afterHandoffBReceiptInsert,
-    afterHandoffBOutboxInsert: options.afterHandoffBOutboxInsert,
-    afterHandoffBAccepted: options.afterHandoffBAccepted,
-    afterOnDeckCommit: options.afterOnDeckCommit,
-  });
-  const arcaAcceptance = createArcaAcceptanceFacade({
-    acceptProductOffer: movieOnDeckApplication.acceptProductOffer,
-  });
-  const responsibilityClosure =
-    createMovieResponsibilityClosureCoordinator({
-      ...constructed.applicationDependencies,
-      offloadCompletionPort:
-        createOffloadCompletionPort(constructed.applicationDependencies),
-      workspaceProductPort,
-      now: options.cleanupNow || options.now || Date.now,
-      offloadWakeVisible: options.offloadWakeVisible,
-      afterRunCompletion: options.afterRunCompletion,
-      beforeCleanupAdmission: options.beforeCleanupAdmission,
-      afterCleanupAdmission: options.afterCleanupAdmission,
-      afterCleanupCommit: options.afterCleanupCommit,
-    });
-  const advanceRunProduction = async (libraRunId) => {
-    const production = await movieProductionCoordinator.advance(libraRunId);
-    if (production.stage !== 'handoff_b_offer_open') return production;
-    const arca = arcaAcceptance.acceptProductOffer(
-      production.offerMessage,
-    );
-    let closure;
-    try {
-      closure = responsibilityClosure.advance({
-        libraRunId,
-        onDeckProductPackage:
-          production.productDelivery.onDeckProductPackage,
-      });
-    } catch (error) {
-      if (error.code !== 'P14_CLEANUP_GRACE_ACTIVE') throw error;
-      closure = Object.freeze({
-        stage: 'workspace_cleanup_grace_active',
-        graceDeadlineMs: error.details.graceDeadlineMs,
-      });
-    }
-    return Object.freeze({
-      ...production,
-      offerStage: production.stage,
-      stage: arca.stage,
-      handoffB: arca.handoffB,
-      onDeck: arca.onDeck,
-      responsibilityClosure: closure,
-    });
-  };
-  const advanceProduction = async (formation) => {
-    if (formation.stage !== 'libra_run_active') return null;
-    const libraRunId = formation.libraRunId || formation.libraRun?.libraRunId;
-    if (!libraRunId) {
-      throw new CleanServiceHostError(
-        'CLEAN_MOVIE_RUN_ID_MISSING',
-        'Movie formation did not expose the exact Libra Run identity.',
-      );
-    }
-    if (['series', 'jav'].includes(formation.contentProfile) &&
-        typeof options.searchProviderIdentity !== 'function' &&
-        (formation.contentProfile !== 'jav' ||
-          !platformIntegrations.isActive('adult-provider'))) {
-      return null;
-    }
-    if (formation.contentProfile === 'movie' &&
-        !platformIntegrations.isTmdbActive() &&
-        typeof options.searchProviderIdentity !== 'function') {
-      return null;
-    }
-    if (formation.contentProfile === 'western_adult' &&
-        !westernAnalysisPort) {
-      return null;
-    }
-    return advanceRunProduction(libraRunId);
-  };
-  const handoffOffer = async (offer) => {
-    const accepted = libraIntake.offerCandidate(offer);
-    const message = accepted.acceptedMessage;
-    const dedupKey = 'libra_candidate_accepted:' + message.offerId;
-    const procurementClosure = candidateAcceptance.consume(Object.freeze({
-      messageId: canonicalDigest({
-        schema: 'foundation.outbox-message-id@1', producerDomain: 'libra', dedupKey,
-      }),
-      dedupKey,
-      producerDomain: 'libra',
-      consumerDomain: 'procurement',
-      payloadSchemaRef: message.schemaRef,
-      payloadDigest: canonicalDigest(message),
-      payload: message,
-    }));
-    const acknowledgement = outboxInbox.acknowledge({
-      messageId: canonicalDigest({
-        schema: 'foundation.outbox-message-id@1', producerDomain: 'libra', dedupKey,
-      }),
-      consumerDomain: 'procurement',
-    });
-    const formation = movieFormationCoordinator.advance(accepted.receipt.subjectId);
-    const production = await advanceProduction(formation);
-    return Object.freeze({
-      intake: accepted,
-      procurementClosure,
-      acknowledgement,
-      formation,
-      production,
-    });
-  };
-  const resumeAcceptedHandoff = async (offer) => {
-    const intake = libraIntakeApplication.resumeAcceptedOffer(offer);
-    const completed =
-      responsibilityClosure.findCompletedRun(intake.receipt.subjectId);
-    if (completed) {
-      const delivery = productDeliveryPort.readPackage({
-        queryContract: 'libra.product-delivery@1',
-        readPurpose: 'historical',
-        offerId: completed.package.offerId,
-        onDeckPackageId: completed.package.onDeckPackageId,
-        expectedPackageRevision: completed.package.packageRevision,
-        expectedPackageDigest: completed.package.packageDigest,
-      });
-      if (delivery.resultKind !== 'found') {
-        throw new CleanServiceHostError(
-          'CLEAN_MOVIE_PRODUCT_DELIVERY_MISSING',
-          'Completed Movie Run cannot reconstruct its Product Delivery.',
-        );
-      }
-      const packageValue = delivery.onDeckProductPackage;
-      const messageId = canonicalDigest({
-        schema: 'libra.product-offer-message-id@1',
-        offerId: completed.package.offerId,
-        packageDigest: completed.package.packageDigest,
-      });
-      const offerMessage = Object.freeze({
-        messageKind: 'libra.product-offer.available@1',
-        messageId,
-        offerId: completed.package.offerId,
-        onDeckPackageId: completed.package.onDeckPackageId,
-        packageRevision: completed.package.packageRevision,
-        packageDigest: completed.package.packageDigest,
-        libraRunId: completed.libraRunId,
-        subjectId: packageValue.subjectId,
-        shelfId: packageValue.shelfId,
-        acceptanceSpecId: packageValue.acceptanceSpecRef.id,
-        dedupKey: messageId,
-      });
-      const arca = arcaAcceptance.acceptProductOffer(offerMessage);
-      let closure;
-      try {
-        closure = responsibilityClosure.advance({
-          libraRunId: completed.libraRunId,
-          onDeckProductPackage: packageValue,
-        });
-      } catch (error) {
-        if (error.code !== 'P14_CLEANUP_GRACE_ACTIVE') throw error;
-        closure = Object.freeze({
-          stage: 'workspace_cleanup_grace_active',
-          graceDeadlineMs: error.details.graceDeadlineMs,
-        });
-      }
-      return Object.freeze({
-        intake,
-        formation: Object.freeze({
-          stage: 'libra_run_completed',
-          libraRunId: completed.libraRunId,
-          replayed: true,
-        }),
-        production: Object.freeze({
-          stage: arca.stage,
-          offerStage: 'handoff_b_offer_open',
-          replayed: true,
-          libraRunId: completed.libraRunId,
-          contentProfile:
-            packageValue.productStructureSnapshot.contentProfile,
-          onDeckPackageId: completed.package.onDeckPackageId,
-          packageRevision: completed.package.packageRevision,
-          packageDigest: completed.package.packageDigest,
-          offerId: completed.package.offerId,
-          offerMessage,
-          productDelivery: delivery,
-          handoffB: arca.handoffB,
-          onDeck: arca.onDeck,
-          responsibilityClosure: closure,
-        }),
-      });
-    }
-    const formation = movieFormationCoordinator.advance(intake.receipt.subjectId);
-    return Object.freeze({
-      intake,
-      formation,
-      production: await advanceProduction(formation),
-    });
-  };
   const libraRoutingAdmin = createLibraRoutingAdminApplication({
     ...constructed.applicationDependencies,
     readArcaRoutingTargets: arcaRoutingTargets.list,
   });
+  const formationQuery = createFormationQuery(constructed.applicationDependencies);
   const materialFieldStore = createMaterialFieldStore(
     constructed.applicationDependencies,
   );
   const fieldEnumerator = options.fieldObservationEnumerator || createCleanFieldObservationEnumerator({
     onFingerprintRead: options.onPhysicalMaterialFingerprintRead,
   });
-  const procurementExecution = createProcurementExecutionRuntime({
+  const procurementExecution = createHelixExecutionRuntime({
     ...constructed.applicationDependencies,
     materialFieldStore,
     pageObserverFactory: createFieldPageObserver,
     enumerator: fieldEnumerator,
     mediaProbe,
+    candidateDeliveryPort,
     now: options.now || Date.now,
     onError: options.onExecutionRuntimeError,
+  });
+  const candidateRejection = createCandidateRejectionConsumer(constructed.applicationDependencies);
+  const outboxDispatcherFactory = options.outboxDispatcherFactory || createOutboxDispatcherHost;
+  const outboxDispatcher = outboxDispatcherFactory({
+    ...constructed.applicationDependencies,
+    now: options.now || Date.now,
+    intakeCoordinator: procurementExecution.intakeCoordinator,
+    acceptanceConsumer: candidateAcceptance,
+    rejectionConsumer: candidateRejection,
+    executionRuntimeHost: procurementExecution.host,
+    onError: options.onExecutionRuntimeError,
+  });
+  const executionRuntimeHost = Object.freeze({
+    async start() { const execution=await procurementExecution.host.start(); await outboxDispatcher.start(); return execution; },
+    wake() { const execution=procurementExecution.host.wake(); outboxDispatcher.wake(); return execution; },
+    async stop() { await outboxDispatcher.stop(); return procurementExecution.host.stop(); },
   });
   const facades = createCleanFacades({
     sessionTokens,
@@ -1372,18 +1000,19 @@ async function createCleanServiceHost(options) {
     procurementAdmin: createProcurementAdminApplication({
       ...constructed.applicationDependencies,
       materialFieldStore,
-      executionRuntimeHost: procurementExecution.host,
+      executionRuntimeHost,
     }),
     arcaShelfAdmin,
     arcaRuleTemplateAdmin,
     libraRoutingAdmin,
+    formationQuery,
     platformIntegrationAdmin: platformIntegrations.admin,
     nonce: crypto.randomUUID,
   });
   const application = createHelixApplication({
     facades,
     sessionTokens,
-    executionRuntimeHost: procurementExecution.host,
+    executionRuntimeHost,
   });
   await application.start();
 

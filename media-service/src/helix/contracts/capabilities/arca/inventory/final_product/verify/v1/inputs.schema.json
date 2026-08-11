@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.inventory.final_product.verify/v1/inputs",
+  "title": "arca.inventory.final_product.verify@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "finalBindings": {
+      "$ref": "#/$defs/finalBindings"
+    },
+    "productDispositionManifest": {
+      "$ref": "#/$defs/productDispositionManifest"
+    }
+  },
+  "required": [
+    "finalBindings",
+    "productDispositionManifest"
+  ],
+  "$defs": {
+    "finalBindings": {
+      "$ref": "helix://contracts/domain-types/FinalBindings/v1",
+      "x-helix-typeExpression": "Final bindings"
+    },
+    "productDispositionManifest": {
+      "$ref": "helix://contracts/domain-types/ProductDispositionManifest/v1",
+      "x-helix-typeExpression": "Product/Disposition Manifest"
+    }
+  }
+}

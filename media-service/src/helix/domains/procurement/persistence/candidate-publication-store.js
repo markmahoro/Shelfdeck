@@ -32,13 +32,13 @@ function procurementDefinition(schemaManifest) {
     find_candidate:{ kind:'select-one', tableId:'proc_candidate_packages', columns:['candidate_package_id','package_digest'], keyColumns:['candidate_package_id'] },
     cas_run_head:{ kind:'update', tableId:'proc_procurement_runs', setColumns:['candidate_package_revision_head'], keyColumns:['procurement_run_id'], compareColumns:[{ column:'candidate_package_revision_head', parameter:'expected_head' },{ column:'run_basis_digest', parameter:'expected_run_basis_digest' }] },
     reserve_member:{ kind:'update', tableId:'proc_run_materials', setColumns:['selection_state','candidate_package_id','reservation_updated_at_ms'], keyColumns:['procurement_run_id','material_key'], compareColumns:[{ column:'selection_state', parameter:'expected_selection_state' },{ column:'binding_revision', parameter:'expected_binding_revision' },{ column:'admitted_control_revision', parameter:'expected_control_revision' },{ column:'admitted_control_projection_digest', parameter:'expected_control_digest' }] },
-    insert_package:{ kind:'insert', tableId:'proc_candidate_packages', columns:['candidate_package_id','procurement_run_id','package_revision','field_id','field_access_revision','field_context_digest','media_type','content_profile','material_input_form','structure_kind','display_identity','identity_metadata_schema_ref','identity_metadata_json','identity_metadata_digest','identity_claim_schema_ref','identity_claim_json','identity_claim_digest','structure_evidence_id','structure_evidence_payload_digest','structure_unit_id','structure_unit_digest','triage_rule_ref','triage_rule_revision','triage_rule_authority_digest','primary_input_manifest_id','manifest_digest','related_reference_set_digest','member_control_evidence_set_digest','package_digest','state','published_at_ms'] },
+    insert_package:{ kind:'insert', tableId:'proc_candidate_packages', columns:['candidate_package_id','procurement_run_id','package_revision','field_id','field_access_revision','field_context_digest','media_type','content_profile','material_input_form','structure_kind','display_identity','identity_metadata_schema_ref','identity_metadata_json','identity_metadata_digest','identity_claim_schema_ref','identity_claim_json','identity_claim_digest','structure_evidence_id','structure_evidence_payload_digest','structure_unit_id','structure_unit_digest','triage_rule_ref','triage_rule_revision','triage_rule_authority_digest','primary_input_manifest_id','manifest_digest','related_reference_set_digest','related_disposition_scope_digest','member_control_evidence_set_digest','package_digest','state','published_at_ms'] },
     insert_continuity:{ kind:'insert', tableId:'proc_candidate_season_continuity_claims', columns:['candidate_package_id','claim_kind','claim_namespace','claim_key','claim_digest','evidence_digest'] },
     insert_primary:{ kind:'insert', tableId:'proc_candidate_primary_materials', columns:['candidate_package_id','ordinal','material_key','role','mount_scope_id','inode','size_bytes','fingerprint_algorithm','fingerprint_version','content_fingerprint','binding_revision','admitted_control_revision','admitted_control_projection_digest','member_digest'] },
     insert_episode:{ kind:'insert', tableId:'proc_candidate_primary_material_episode_claims', columns:['candidate_package_id','primary_ordinal','episode_key','season_claim_digest','claim_digest'] },
     insert_related:{ kind:'insert', tableId:'proc_candidate_related_references', columns:['candidate_package_id','reference_id','primary_ordinal','role',
       'material_key','mount_scope_id','inode','size_bytes','fingerprint_algorithm','fingerprint_version','content_fingerprint','endpoint_id','location',
-      'association_evidence_digest','reference_digest'] },
+      'association_kind','disposition_required','association_evidence_digest','disposition_basis_digest','reference_digest'] },
     insert_delivery:{ kind:'insert', tableId:'proc_candidate_deliveries', columns:['offer_id','candidate_package_id','package_revision','package_digest',
       'acceptance_basis_digest','state','handoff_decision_id','handoff_decision_digest','handoff_receipt_id','handoff_receipt_digest',
       'terminal_evidence_digest','offered_at_ms','closed_at_ms'] }
@@ -173,7 +173,8 @@ function createCandidatePublicationStore(options) {
           structure_unit_id:pkg.structureEvidenceRef.unitId, structure_unit_digest:pkg.structureEvidenceRef.unitDigest,
           triage_rule_ref:pkg.triageRule.ruleRef, triage_rule_revision:pkg.triageRule.revision,
           triage_rule_authority_digest:pkg.triageRule.authorityDigest, primary_input_manifest_id:manifest.manifestId,
-          manifest_digest:manifest.manifestDigest, related_reference_set_digest:pkg.relatedReferenceSetDigest,
+           manifest_digest:manifest.manifestDigest, related_reference_set_digest:pkg.relatedReferenceSetDigest,
+           related_disposition_scope_digest:pkg.relatedDispositionScopeDigest,
           member_control_evidence_set_digest:pkg.memberControlEvidenceSetDigest, package_digest:pkg.packageDigest,
           state:'published', published_at_ms:context.commitTimeMs });
         for (const claim of pkg.seasonContinuityClaims) repo.invoke('insert_continuity', { candidate_package_id:pkg.candidatePackageId,
@@ -205,7 +206,9 @@ function createCandidatePublicationStore(options) {
             mount_scope_id:reference.identity.mountScopeId, inode:reference.identity.inode, size_bytes:reference.identity.sizeBytes,
             fingerprint_algorithm:reference.identity.fingerprintAlgorithm, fingerprint_version:reference.identity.fingerprintVersion,
             content_fingerprint:reference.identity.contentFingerprint, endpoint_id:reference.endpointId, location:reference.location,
-            association_evidence_digest:reference.associationEvidenceDigest, reference_digest:reference.referenceDigest });
+             association_kind:reference.associationKind,disposition_required:reference.dispositionRequired?1:0,
+             association_evidence_digest:reference.associationEvidenceDigest,
+             disposition_basis_digest:reference.dispositionBasisDigest, reference_digest:reference.referenceDigest });
         }
         repo.invoke('insert_delivery', { offer_id:publication.offerId, candidate_package_id:pkg.candidatePackageId,
           package_revision:pkg.packageRevision, package_digest:pkg.packageDigest,

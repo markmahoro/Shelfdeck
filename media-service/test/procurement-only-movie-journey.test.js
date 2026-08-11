@@ -52,9 +52,12 @@ async function session(host, apiKey) {
   return response.headers['set-cookie'];
 }
 
-test('one bad Material is released while 65 Movie Candidates publish before Seal and resume across restart', async (t) => {
+test('one bad Material is released while 65 Movie Candidates cross Handoff A through durable Libra Intake Work', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-procurement-only-'));
-  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  t.after(() => {
+    if (process.env.HELIX_KEEP_TEST_DATA === '1') process.stderr.write(`preserved=${root}\n`);
+    else fs.rmSync(root, { recursive: true, force: true });
+  });
   const dataDir = path.join(root, 'data');
   const adminDistDir = path.join(root, 'admin');
   const sourceRoot = path.join(root, 'movie-source');
@@ -180,14 +183,15 @@ test('one bad Material is released while 65 Movie Candidates publish before Seal
     onExecutionRuntimeError(error) { runtimeError=error; },
   });
   try {
-    const deadline=Date.now()+30_000;let candidateCount=0,runState=null,observationState=null;
+    const deadline=Date.now()+Number(process.env.HELIX_TEST_DEADLINE_MS || 60_000);let candidateCount=0,subjectCount=0,runState=null,observationState=null;
     while(Date.now()<deadline){const current=new Database(path.join(dataDir,'shelfdeck.db'),{readonly:true});
       candidateCount=current.prepare('SELECT count(*) count FROM proc_candidate_packages').get().count;
+      subjectCount=current.prepare('SELECT count(*) count FROM libra_subjects').get().count;
       runState=current.prepare('SELECT state FROM proc_procurement_runs').get()?.state||null;
       observationState=current.prepare('SELECT state FROM fx_supporting_works WHERE work_id=?').get(observationWorkId)?.state||null;current.close();
-      if(runtimeError||candidateCount===65&&runState==='sealed'&&observationState==='succeeded')break;
+      if(runtimeError||candidateCount===65&&subjectCount===65&&runState==='sealed'&&observationState==='succeeded')break;
       await new Promise((resolve)=>setTimeout(resolve,25));}
-    assert.ifError(runtimeError);assert.equal(candidateCount,65);assert.equal(runState,'sealed');assert.equal(observationState,'succeeded');
+    assert.ifError(runtimeError);assert.equal(candidateCount,65);assert.equal(subjectCount,65);assert.equal(runState,'sealed');assert.equal(observationState,'succeeded');
     const cookie = await session(host, initialized.adminApiKey);
     const replay = await host.inject({
       method: 'POST',
@@ -201,6 +205,14 @@ test('one bad Material is released while 65 Movie Candidates publish before Seal
     const fields = await host.inject({ method:'GET',url:'/v1/admin/material-fields',headers:{cookie} });
     assert.equal(fields.statusCode,200,fields.body);
     assert.equal(fields.json().items.find((item)=>item.fieldId===accessBasis.fieldId).currentObservationRevision,1);
+    const formation = await host.inject({ method:'GET',url:'/v1/admin/formation',headers:{cookie} });
+    assert.equal(formation.statusCode,200,formation.body);
+    assert.equal(formation.json().summary.subjectCount,65);
+    assert.equal(formation.json().summary.awaitingDestinationCount,65);
+    assert.equal(formation.json().items.length,65);
+    assert.equal(new Set(formation.json().items.map((item)=>item.subjectId)).size,65);
+    const invalidFormationItem=formation.json().items.find((item)=>item.stage!=='awaiting_destination'||item.intakeCount!==1||item.primaryMaterialCount!==1);
+    assert.equal(invalidFormationItem,undefined,JSON.stringify(invalidFormationItem));
     const deregistered=await host.inject({method:'POST',url:`/v1/admin/material-fields/${accessBasis.fieldId}/actions/deregister`,headers:{cookie},payload:{
       idempotencyKey:'procurement-only-deregister',fieldId:accessBasis.fieldId,expectedAccessRevision:1,expectedPolicyRevision:1}});
     assert.equal(deregistered.statusCode,200,deregistered.body);
@@ -219,15 +231,15 @@ test('one bad Material is released while 65 Movie Candidates publish before Seal
   assert.equal(database.prepare("SELECT count(*) count FROM fx_command_receipts WHERE command_contract='helix://procurement/commands/ProcurementRunSeal/v1'").get().count, 1);
   assert.equal(database.prepare("SELECT count(*) count FROM fx_supporting_works WHERE work_kind='candidate_assembly' AND state='succeeded'").get().count, 65);
   assert.equal(database.prepare('SELECT count(*) count FROM proc_candidate_packages').get().count, 65);
-  assert.equal(database.prepare("SELECT count(*) count FROM proc_candidate_deliveries WHERE state='open'").get().count, 65);
-  assert.equal(database.prepare('SELECT count(*) count FROM libra_intake_decisions').get().count, 0);
-  assert.equal(database.prepare('SELECT count(*) count FROM libra_subjects').get().count, 0);
+  assert.equal(database.prepare("SELECT count(*) count FROM proc_candidate_deliveries WHERE state='accepted'").get().count, 65);
+  assert.equal(database.prepare("SELECT count(*) count FROM libra_intake_decisions WHERE decision_kind='accepted_resolution'").get().count, 65);
+  assert.equal(database.prepare('SELECT count(*) count FROM libra_subjects').get().count, 65);
   assert.equal(database.prepare('SELECT count(*) count FROM libra_runs').get().count, 0);
   assert.equal(database.prepare('SELECT count(*) count FROM arca_shelf_entries').get().count, 0);
   assert.ok(database.prepare('SELECT count(*) count FROM fx_event_result_bindings').get().count>preRestartResultCount);
   assert.equal(database.prepare('SELECT count(*) count FROM proc_candidate_packages').get().count, 65);
   assert.equal(database.prepare('SELECT count(*) count FROM proc_procurement_runs').get().count, 1);
-  assert.equal(database.prepare('SELECT count(*) count FROM libra_intake_decisions').get().count, 0);
+  assert.equal(database.prepare('SELECT count(*) count FROM libra_intake_decisions').get().count, 65);
   assert.equal(database.prepare("SELECT status FROM proc_material_fields WHERE field_id=?").get(accessBasis.fieldId).status, 'deregistered');
   database.close();
   for (const sourcePath of sourcePaths) assert.deepEqual(fs.readFileSync(sourcePath), sourceBytes);

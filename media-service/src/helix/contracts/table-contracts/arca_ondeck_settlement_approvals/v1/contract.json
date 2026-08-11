@@ -39,7 +39,7 @@
       },
       {
         "ordinal": 4,
-        "name": "standing_authorization_id",
+        "name": "settlement_member_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -49,8 +49,8 @@
       },
       {
         "ordinal": 5,
-        "name": "standing_authorization_revision",
-        "logicalType": "INTEGER",
+        "name": "source_to_final_mapping_digest",
+        "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -59,7 +59,7 @@
       },
       {
         "ordinal": 6,
-        "name": "actor_or_policy_ref",
+        "name": "final_product_verification_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -69,6 +69,36 @@
       },
       {
         "ordinal": 7,
+        "name": "standing_authorization_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "standing_authorization_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "actor_or_policy_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
         "name": "approved_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -78,7 +108,7 @@
         "nullable": false
       },
       {
-        "ordinal": 8,
+        "ordinal": 11,
         "name": "state",
         "logicalType": "TEXT",
         "enumValues": [
@@ -135,16 +165,17 @@
     },
     "semanticRules": [
       "`UNIQUE(on_deck_run_id,settlement_scope_digest)`",
-      "自动模式可由当前standing authorization派生，已签发Scope不可扩张"
+      "每项member必须分类为`old_primary_input|structural_dependency|exclusive_related_input`并命中同Run Off-load Context、source-to-final mapping及已通过的Final Product Verification",
+      "自动模式只可由当前且显式覆盖全部scope class的standing authorization派生，已签发Scope不可扩张，目录、未来材料、ambiguous/shared Related和未映射成员不得进入"
     ],
     "rawContract": {
-      "columns": "`approval_id PK, on_deck_run_id FK, settlement_scope_digest, standing_authorization_id, standing_authorization_revision, actor_or_policy_ref, approved_at_ms, state`",
-      "constraints": "`UNIQUE(on_deck_run_id,settlement_scope_digest)`；自动模式可由当前standing authorization派生，已签发Scope不可扩张"
+      "columns": "`approval_id PK, on_deck_run_id FK, settlement_scope_digest, settlement_member_set_digest, source_to_final_mapping_digest, final_product_verification_digest, standing_authorization_id, standing_authorization_revision, actor_or_policy_ref, approved_at_ms, state`",
+      "constraints": "`UNIQUE(on_deck_run_id,settlement_scope_digest)`；每项member必须分类为`old_primary_input|structural_dependency|exclusive_related_input`并命中同Run Off-load Context、source-to-final mapping及已通过的Final Product Verification；自动模式只可由当前且显式覆盖全部scope class的standing authorization派生，已签发Scope不可扩张，目录、未来材料、ambiguous/shared Related和未映射成员不得进入"
     },
     "source": {
       "section": "8.5.12",
-      "line": 8877,
-      "lineDigest": "5cbc9ffd7ce5f4c44f861b79ff0c8a6cfa8a090d580f870401be0a08c386ea75"
+      "line": 9025,
+      "lineDigest": "a6584600dddacaf8fd946190b57db0b4c3e324787c6caa02179a4a0761d448b9"
     },
     "foreignKeys": [
       {

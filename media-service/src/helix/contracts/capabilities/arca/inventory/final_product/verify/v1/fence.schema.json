@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "helix://contracts/capabilities/arca.inventory.final_primary.verify/v1/fence",
-  "title": "arca.inventory.final_primary.verify@1 fence",
+  "$id": "helix://contracts/capabilities/arca.inventory.final_product.verify/v1/fence",
+  "title": "arca.inventory.final_product.verify@1 fence",
   "type": "object",
   "additionalProperties": false,
   "properties": {

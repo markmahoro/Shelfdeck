@@ -69,7 +69,7 @@
       },
       {
         "ordinal": 7,
-        "name": "commit_digest",
+        "name": "related_disposition_completion_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -79,6 +79,16 @@
       },
       {
         "ordinal": 8,
+        "name": "commit_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
         "name": "committed_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -123,16 +133,17 @@
     },
     "semanticRules": [
       "`UNIQUE(on_deck_run_id)`",
+      "只有全部Candidate Material Disposition成员均已`carried_forward|replaced_and_settled`且最终承载位于Shelf Target时才可建立",
       "与On-deck Canonical Fact set同事务成立"
     ],
     "rawContract": {
-      "columns": "`receipt_id PK, on_deck_run_id FK, shelf_entry_id FK, inventory_revision, deck_fact_revision, control_revision_set_digest, commit_digest, committed_at_ms`",
-      "constraints": "`UNIQUE(on_deck_run_id)`；与On-deck Canonical Fact set同事务成立"
+      "columns": "`receipt_id PK, on_deck_run_id FK, shelf_entry_id FK, inventory_revision, deck_fact_revision, control_revision_set_digest, related_disposition_completion_digest, commit_digest, committed_at_ms`",
+      "constraints": "`UNIQUE(on_deck_run_id)`；只有全部Candidate Material Disposition成员均已`carried_forward|replaced_and_settled`且最终承载位于Shelf Target时才可建立；与On-deck Canonical Fact set同事务成立"
     },
     "source": {
       "section": "8.5.12",
-      "line": 8886,
-      "lineDigest": "9b60bbe10ab71f5ddfc41c57f1840664428b3dbafee698cfd75395720fae1db0"
+      "line": 9034,
+      "lineDigest": "5217419226d3ef0b359a62ecc5f2f1fd5c0a7b15dc644494cf54759febf8fe29"
     },
     "foreignKeys": [
       {

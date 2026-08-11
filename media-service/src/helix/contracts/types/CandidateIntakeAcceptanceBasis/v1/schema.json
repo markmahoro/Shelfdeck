@@ -52,6 +52,11 @@
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
+    "relatedDispositionScopeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
     "memberControlEvidenceSetDigest": {
       "type": "string",
       "minLength": 1,
@@ -75,6 +80,7 @@
     "primaryInputManifestDigest",
     "seasonContinuityClaimSetDigest",
     "relatedReferenceSetDigest",
+    "relatedDispositionScopeDigest",
     "memberControlEvidenceSetDigest",
     "acceptanceBasisDigest"
   ]

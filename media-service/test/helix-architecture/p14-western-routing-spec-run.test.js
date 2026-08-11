@@ -353,15 +353,15 @@ async function snapshotFiles(locations) {
   })));
 }
 
-test('Western active Run stays before Production without service-local Analysis', () => {
+test('Western Intake stays before Production without the retired Formation path', () => {
   const source = fs.readFileSync(path.resolve(
     __dirname,
     '../../src/clean-service-host.js',
   ), 'utf8');
-  assert.match(
-    source,
-    /formation\.contentProfile === 'western_adult'[\s\S]*?!westernAnalysisPort/,
-  );
+  assert.match(source, /createHelixExecutionRuntime/);
+  assert.doesNotMatch(source, /formation\.contentProfile/);
+  assert.doesNotMatch(source, /westernAnalysisPort/);
+  assert.doesNotMatch(source, /createMovieFormationCoordinator|movie-formation-coordinator/);
   assert.doesNotMatch(
     source,
     /formation\.contentProfile === 'western_adult'[\s\S]{0,240}(fallback|legacy)/i,

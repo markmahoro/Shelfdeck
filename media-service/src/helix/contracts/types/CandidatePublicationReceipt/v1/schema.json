@@ -87,6 +87,11 @@
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
+    "relatedDispositionScopeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
     "memberControlEvidenceSetDigest": {
       "type": "string",
       "minLength": 1,
@@ -124,6 +129,7 @@
     "packageDigest",
     "primaryInputManifestDigest",
     "relatedReferenceSetDigest",
+    "relatedDispositionScopeDigest",
     "memberControlEvidenceSetDigest",
     "acceptanceBasisDigest",
     "offerId",

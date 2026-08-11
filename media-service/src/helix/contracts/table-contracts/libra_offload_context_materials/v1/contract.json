@@ -43,7 +43,8 @@
         "logicalType": "TEXT",
         "enumValues": [
           "original_input",
-          "structural_dependency"
+          "structural_dependency",
+          "related_input"
         ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -52,17 +53,17 @@
       },
       {
         "ordinal": 5,
-        "name": "mount_scope_id",
+        "name": "source_related_reference_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
         "inlineUnique": false,
-        "nullable": false
+        "nullable": true
       },
       {
         "ordinal": 6,
-        "name": "inode",
+        "name": "final_product_material_key",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -72,9 +73,12 @@
       },
       {
         "ordinal": 7,
-        "name": "size_bytes",
-        "logicalType": "INTEGER",
-        "enumValues": [],
+        "name": "disposition_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "carried_forward",
+          "replaced_and_settled"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
         "inlineUnique": false,
@@ -82,7 +86,7 @@
       },
       {
         "ordinal": 8,
-        "name": "fingerprint_algorithm",
+        "name": "mount_scope_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -92,7 +96,7 @@
       },
       {
         "ordinal": 9,
-        "name": "fingerprint_version",
+        "name": "inode",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -102,8 +106,8 @@
       },
       {
         "ordinal": 10,
-        "name": "content_fingerprint",
-        "logicalType": "TEXT",
+        "name": "size_bytes",
+        "logicalType": "INTEGER",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -112,7 +116,7 @@
       },
       {
         "ordinal": 11,
-        "name": "endpoint_id",
+        "name": "fingerprint_algorithm",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -122,7 +126,7 @@
       },
       {
         "ordinal": 12,
-        "name": "location",
+        "name": "fingerprint_version",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -132,8 +136,8 @@
       },
       {
         "ordinal": 13,
-        "name": "binding_revision",
-        "logicalType": "INTEGER",
+        "name": "content_fingerprint",
+        "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -142,7 +146,7 @@
       },
       {
         "ordinal": 14,
-        "name": "binding_evidence_digest",
+        "name": "endpoint_id",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -152,17 +156,7 @@
       },
       {
         "ordinal": 15,
-        "name": "admitted_control_revision",
-        "logicalType": "INTEGER",
-        "enumValues": [],
-        "primaryKeyPart": false,
-        "foreignKeyMarker": false,
-        "inlineUnique": false,
-        "nullable": false
-      },
-      {
-        "ordinal": 16,
-        "name": "admitted_control_projection_digest",
+        "name": "location",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -171,7 +165,57 @@
         "nullable": false
       },
       {
+        "ordinal": 16,
+        "name": "binding_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
         "ordinal": 17,
+        "name": "binding_evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 18,
+        "name": "admitted_control_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 19,
+        "name": "admitted_control_projection_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 20,
+        "name": "derived_authority_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 21,
         "name": "settlement_expectation",
         "logicalType": "TEXT",
         "enumValues": [
@@ -185,7 +229,7 @@
         "nullable": false
       },
       {
-        "ordinal": 18,
+        "ordinal": 22,
         "name": "context_member_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -216,7 +260,15 @@
         "column": "context_role",
         "enumValues": [
           "original_input",
-          "structural_dependency"
+          "structural_dependency",
+          "related_input"
+        ]
+      },
+      {
+        "column": "disposition_kind",
+        "enumValues": [
+          "carried_forward",
+          "replaced_and_settled"
         ]
       },
       {
@@ -248,17 +300,18 @@
     },
     "semanticRules": [
       "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,material_key,context_role)`",
-      "逐列冻结Arca计算Final Inventory Decision所需Reality，不声明最终动作",
-      "按materialKey/contextRole排序并进入offload context digest"
+      "Primary/structural variant要求Control pair并禁止Related fields",
+      "related variant要求source reference/derived authority且Control pair为NULL。每个Run Basis Related必须恰有一row并映射到同Package Product member：carried要求source/final materialKey相同且`replace_or_move`，replaced要求不同且`remove_after_place`",
+      "按materialKey/contextRole排序并进入offload及Related disposition set digest，不构成Arca动作选择或删除授权"
     ],
     "rawContract": {
-      "columns": "`on_deck_package_id FK, ordinal, material_key, context_role(original_input|structural_dependency), mount_scope_id, inode, size_bytes, fingerprint_algorithm, fingerprint_version, content_fingerprint, endpoint_id, location, binding_revision, binding_evidence_digest, admitted_control_revision, admitted_control_projection_digest, settlement_expectation(retain|replace_or_move|remove_after_place), context_member_digest`",
-      "constraints": "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,material_key,context_role)`；逐列冻结Arca计算Final Inventory Decision所需Reality，不声明最终动作；按materialKey/contextRole排序并进入offload context digest"
+      "columns": "`on_deck_package_id FK, ordinal, material_key, context_role(original_input|structural_dependency|related_input), source_related_reference_id NULL, final_product_material_key, disposition_kind(carried_forward|replaced_and_settled), mount_scope_id, inode, size_bytes, fingerprint_algorithm, fingerprint_version, content_fingerprint, endpoint_id, location, binding_revision, binding_evidence_digest, admitted_control_revision NULL, admitted_control_projection_digest NULL, derived_authority_digest NULL, settlement_expectation(retain|replace_or_move|remove_after_place), context_member_digest`",
+      "constraints": "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,material_key,context_role)`；Primary/structural variant要求Control pair并禁止Related fields；related variant要求source reference/derived authority且Control pair为NULL。每个Run Basis Related必须恰有一row并映射到同Package Product member：carried要求source/final materialKey相同且`replace_or_move`，replaced要求不同且`remove_after_place`；按materialKey/contextRole排序并进入offload及Related disposition set digest，不构成Arca动作选择或删除授权"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8854,
-      "lineDigest": "b7b7d948eb334ad035cc2da3e5c4a8a2f4b416b2aaf28cf1be4ef1d2bcf0f09e"
+      "line": 9002,
+      "lineDigest": "4043652219b77c83f755f07ef00564f4bc5e62bed9e64a54fa852d593e54da0f"
     },
     "foreignKeys": [
       {

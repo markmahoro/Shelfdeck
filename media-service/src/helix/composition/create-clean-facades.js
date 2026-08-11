@@ -187,6 +187,12 @@ function createCleanFacades(options) {
     facades.LibraFormationFacade.patch_routing_material_fields_fieldid = async (input) => ({ body: options.libraRoutingAdmin.publish(input.params.fieldId, input.body) });
     facades.LibraFormationFacade.get_routing_material_fields_fieldid_revisions = async (input) => ({ body: options.libraRoutingAdmin.history(input.params.fieldId) });
   }
+  if (options.formationQuery) {
+    facades.PlatformAdminFacade.get_formation = async () => ({ body: options.formationQuery.list() });
+    facades.LibraFormationFacade.get_formation_formationviewid = async (input) => ({
+      body: options.formationQuery.get(input.params.formationViewId),
+    });
+  }
 
   return Object.freeze(Object.fromEntries(
     Object.entries(facades).map(([name, methods]) => [name, Object.freeze(methods)]),

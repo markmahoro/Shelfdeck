@@ -145,11 +145,14 @@ function reconstructRelatedReferences({ basis, scope, candidateMembers, observed
       : extension === '.chapters' || extension === '.xml' ? 'chapter' : 'sidecar';
     const referenceId = canonicalDigest({ schema:'procurement.related-material-reference-id@1', primaryMaterialKey:primaryContext.materialKey,
       role, relatedMaterialKey:identity.materialKey, endpointId:item.endpointId, location:item.location });
+    const associationEvidenceDigest=canonicalDigest({ schema:'procurement.related-scope-association@1', scopeDigest:scope.scopeDigest,
+      observationRevision:Number(observationRevision || scope.observationProjectionRevision || 1), entryDigest:item.entryDigest });
+    const dispositionBasisDigest=canonicalDigest({ schema:'procurement.related-disposition-basis@1', referenceId,
+      primaryMaterialKey:primaryContext.materialKey, role, identity, associationEvidenceDigest });
     const reference = { referenceId, primaryMaterialKey:primaryContext.materialKey, role, identity, endpointId:item.endpointId,
       location:item.location, fingerprintAlgorithm:identity.fingerprintAlgorithm, fingerprintVersion:identity.fingerprintVersion,
-      contentFingerprint:identity.contentFingerprint,
-      associationEvidenceDigest:canonicalDigest({ schema:'procurement.related-scope-association@1', scopeDigest:scope.scopeDigest,
-        observationRevision:Number(observationRevision || scope.observationProjectionRevision || 1), entryDigest:item.entryDigest }) };
+      contentFingerprint:identity.contentFingerprint,associationKind:'exclusive',dispositionRequired:true,
+      associationEvidenceDigest,dispositionBasisDigest };
     result.set(referenceId, { ...reference, referenceDigest:canonicalDigest(reference) });
   }
   return Object.freeze([...result.values()].sort((a,b)=>Buffer.compare(Buffer.from(a.referenceId),Buffer.from(b.referenceId))));

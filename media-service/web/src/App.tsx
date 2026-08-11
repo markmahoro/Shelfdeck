@@ -3,6 +3,7 @@ import { pages } from './helix/surface-model';
 import HelixPage from './helix/HelixPage';
 import MaterialFieldsPage from './helix/MaterialFieldsPage';
 import ShelvesPage from './helix/ShelvesPage';
+import FormationPage from './helix/FormationPage';
 import './helix/helix.css';
 
 export default function App() {
@@ -14,7 +15,7 @@ export default function App() {
       <div className="rail-status"><span className="pulse" aria-hidden="true"/>正常运行<small>本地 Projection</small></div>
     </aside>
     <main id="main" className="helix-main"><Routes>
-      {pages.map((page) => <Route key={page.slug} path={page.path} element={page.slug === 'material-fields' ? <MaterialFieldsPage/> : page.slug === 'shelves' ? <ShelvesPage/> : <HelixPage page={page}/>}/>) }
+      {pages.map((page) => <Route key={page.slug} path={page.path} element={page.slug === 'material-fields' ? <MaterialFieldsPage/> : page.slug === 'shelves' ? <ShelvesPage/> : page.slug === 'formation' ? <FormationPage/> : <HelixPage page={page}/>}/>) }
       <Route path="*" element={<Navigate to="/" replace/>}/>
     </Routes></main>
   </div>;

@@ -935,7 +935,18 @@
             "minLength": 1,
             "pattern": "^[a-f0-9]{64}$"
           },
+          "associationKind": {
+            "const": "exclusive"
+          },
+          "dispositionRequired": {
+            "const": true
+          },
           "associationEvidenceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "dispositionBasisDigest": {
             "type": "string",
             "minLength": 1,
             "pattern": "^[a-f0-9]{64}$"
@@ -956,7 +967,10 @@
           "fingerprintAlgorithm",
           "fingerprintVersion",
           "contentFingerprint",
+          "associationKind",
+          "dispositionRequired",
           "associationEvidenceDigest",
+          "dispositionBasisDigest",
           "referenceDigest"
         ]
       },
@@ -972,6 +986,11 @@
       ]
     },
     "relatedReferenceSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "relatedDispositionScopeDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
@@ -1010,6 +1029,7 @@
     "relatedReferences",
     "materialInputForm",
     "relatedReferenceSetDigest",
+    "relatedDispositionScopeDigest",
     "memberControlEvidenceSetDigest",
     "candidateDraftDigest"
   ]

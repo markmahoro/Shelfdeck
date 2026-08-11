@@ -1,6 +1,0 @@
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "helix://contracts/capabilities/arca.inventory.final_primary.verify/v1/result",
-  "title": "arca.inventory.final_primary.verify@1 succeeded result",
-  "$ref": "helix://contracts/types/FinalPrimaryVerification/v1"
-}

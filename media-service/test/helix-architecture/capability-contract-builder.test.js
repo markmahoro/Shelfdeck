@@ -141,7 +141,7 @@ test('normalizes Catalog prose without inventing parenthetical or slash-split bu
   assert.equal(JSON.stringify(people).includes('/Merge/v1'), false);
 
   const settlement = packages.find((item) => item.capabilityRef === 'arca.ondeck.input_settlement.delete@1').files['inputs.schema.json'];
-  assert.equal(settlement.$defs.oldInputHandleList.type, 'array');
-  assert.equal(settlement.$defs.oldInputHandleList.items.$ref, 'helix://contracts/types/PhysicalMaterialReadHandle/v1');
+  assert.equal(settlement.$defs.oldPrimaryStructuralExclusiveRelatedHandleList.$ref,
+    'helix://contracts/domain-types/OldPrimaryStructuralExclusiveRelatedHandles/v1');
   assert.equal(settlement.$defs.inputSettlementApproval.$ref, 'helix://contracts/types/ApprovalHandle/v1');
 });

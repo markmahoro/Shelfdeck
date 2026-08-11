@@ -7,7 +7,7 @@
     "displayName": "Handoff A Accepted",
     "ownerScope": "libra",
     "commitClass": "responsibility_control_commit",
-    "atomicFactSet": "complete `CandidateDeliverySnapshot@1` + Libra-owned `SubjectContinuityResolutionDecision@1` + `LibraBindingDraft@1` + `AcceptedIntakePayload@1` + global Subject Continuity head CAS + unique extension target Intake head CAS（new Subject只用global CAS）+ immutable Intake Decision/match witness/overlap Evidence + Subject create/extension + accepted continuity/Episode scope + Material Binding及N:M Episode relation + precise Control transfer + `SubjectAndTransferReceipt@1`/commit marker/accepted Outbox；Material Binding的Physical Identity/size/endpoint/location必须逐项复制Snapshot Delivery，不能由materialKey反解或旁读current Field/Provider补值；全部事实全有或全无，Libra不得旁读`proc_*`，Commit Participant不得信任调用者指定Subject或重算Provider事实",
+    "atomicFactSet": "complete `CandidateDeliverySnapshot@1` + Libra-owned `SubjectContinuityResolutionDecision@1` + `LibraBindingDraft@1` + `AcceptedIntakePayload@1` + global Subject Continuity head CAS + unique extension target Intake head CAS（new Subject只用global CAS）+ immutable Intake Decision/match witness/overlap Evidence + Subject create/extension + accepted continuity/Episode scope + Primary `primary_control` Binding、exclusive Related `related_derived` Binding及N:M Episode relation + precise Primary Control transfer + `SubjectAndTransferReceipt@1`/commit marker/accepted Outbox；Related Disposition Scope与两类Binding必须和Primary Control transfer在同一事务全有或全无，但Related不得进入Control revision set；全部Physical Identity/size/endpoint/location逐项复制Snapshot，不能旁读current Field/Provider补值",
     "participants": [
       {
         "participantKind": "domain",
@@ -107,8 +107,8 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 8141,
-      "lineDigest": "afec467069a3c320c20ad0db0c6541c1994126a4ef0b48c9c38f7c5f6161b2a5"
+      "line": 8289,
+      "lineDigest": "14a9b8ffb1fb46d822e7033449c5142dbbb1ab9ff56392c31bd57cb6fae745c2"
     }
   }
 }

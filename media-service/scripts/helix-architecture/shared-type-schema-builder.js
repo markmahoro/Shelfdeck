@@ -153,7 +153,11 @@ const definitions = {
     processType: text(), processId: opaqueId(), basisRef: objectRef(), basisDigest: digestHex(), canonicalFactSetDigest: digestHex(),
     bindingSetDigest: digestHex(), controlScopeDigest: digestHex(),
     expectedControlRevisions: arrayOf(object({ materialKey: digestHex(), revision: nonNegativeInteger() })),
-    receiptContract: text(), eventFenceDigest: digestHex(), receivingDomain: text(), transferPoint: text()
+    receiptContract: object({
+      receiptSchemaRef: text(),
+      controlRevisionSetSchemaRef: text()
+    }, ['receiptSchemaRef', 'controlRevisionSetSchemaRef']),
+    eventFenceDigest: digestHex(), receivingDomain: text(), transferPoint: text()
   }, [
     'handleId', 'operationKind', 'ownerDomain', 'processType', 'processId', 'basisRef', 'basisDigest', 'canonicalFactSetDigest',
     'bindingSetDigest', 'controlScopeDigest', 'expectedControlRevisions', 'receiptContract', 'eventFenceDigest'

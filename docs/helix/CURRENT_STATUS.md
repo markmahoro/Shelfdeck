@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Movie Procurement保持`CLOSED FOR MOVIE`；Arca Shelf配置达到`ARCA SHELF CONFIGURATION READY FOR LIBRA`。
+Status: Movie Procurement保持`CLOSED FOR MOVIE`；Arca Shelf配置保持`READY FOR LIBRA`；Libra Intake Acceptance达到`READY / AWAITING ROUTING`。
 
 Last updated: 2026-08-11
 
@@ -11,6 +11,35 @@ Last updated: 2026-08-11
 - 历史记录确认该P14 Sample Library曾包含`film-complete\1917 (2019)`和`film-problem\0.5毫米 (2014)`；当前Movie媒体已被历史E2E消费，`film-complete`为空，`film-problem`仅剩`Thumbs.db`。
 - Movie测试库已扩充为22个场景、1,131个受管regular files、`57,027,472` bytes，受管Reality digest为`966c8fac23f3b99f02fe63566fb93c365e883d8c8ce34ac185eb3a348a098140`。其中12个既有场景保留；G01–G10新增Related替代、精确Settlement授权、逐成员崩溃恢复、Target collision、跨卷、Related Reality变化、同根二次Observation、ISO、真实DVD和1,025项Related的complete-or-fail-closed边界。所有应可播放MKV/MP4/M2TS继续通过bundled ffprobe，G09有界真实VOB为8.108秒；唯一`not_media`仍是M09刻意损坏样本。
 - 测试库manifest已升级为`shelfdeck.movie-test-library-manifest@2`；两份阶段seed受独立size/SHA-256校验，只有manifest指定阶段可以物化。构建器只拥有`ownership.json`列出的`SDT-*`路径并保留历史目录。自动化安全/场景/BDMV/ISO/phase helper测试5/5通过，build末尾完整Reality重验通过。该测试集现在具备后续Libra/Arca高危链路的输入与阶段配方，但产品Planner、Authorization、Effect Recovery或ISO/DVD执行未接线前，不得把“素材存在”宣称为E2E通过。
+
+## 0. Completed implementation — Libra Intake Acceptance
+
+正式产品路径现以`Outbox Dispatcher → Libra Intake Coordinator → Supporting Work → Planner → Event Runtime → Capability`消费Handoff A
+Offer。Coordinator只签发Work和读取terminal Result；Candidate/Material/Binding/continuity验证、Accepted/Rejected commit均通过既有
+Execution Foundation执行。历史大型Libra Coordinator没有接入，也没有任何同步Capability执行捷径。
+
+Admin Web“上架进度”已接入Formation Projection，并固定一行一个Subject。Intake Accepted后立即出现Subject；当前尚未配置Libra-owned
+Routing Policy，因此19行均处于`awaiting_destination`，没有伪造Shelf、Acceptance Spec、Libra Run或生产进度。
+
+真实隔离Canary使用`C:\Users\markm\AppData\Local\Temp\ShelfDeck-P14-20260723\material-fields`只读运行，临时clean资产保留于
+`C:\Users\markm\AppData\Local\Temp\helix-local-intake-canary-G3TT6r`，数据库为其`data\shelfdeck.db`：
+
+- sourceBefore/sourceAfter均为1,140个regular files，Reality digest均为`c88c2edd7af34585ea312c58248a8b5bcd6b30fdb9d51cbd174f7700e08f5b4e`；
+- 5个Observation Page、1个sealed Procurement Run、19个Candidate、19个accepted Delivery/Intake及19个Subject；所有Subject均为`awaiting_destination`；
+- G08 ISO正确形成`materialInputForm=iso`；G09 DVD正确形成`materialInputForm=dvd`，Manifest含1个primary VOB及4个IFO/BUP结构依赖；
+- 38个Primary Binding和57个Related Binding；G10的1,025项exclusive Related按`candidate_disposition_scope_unrepresentable`业务失败收口，未产生Candidate；
+- `failedEvents=0`、Foundation技术失败Work为0；主动重启后指纹读取仍为1,140次，没有重读或重复Subject/Offer/Intake；
+- Libra Run、Workspace、Handoff B、Arca媒体事实均为0，未产生媒体写入、移动、重命名或删除。
+- 首轮完成态数据库复启暴露Libra Accepted/Rejected writer使用了非Foundation合同的Consumer Set digest公式；已统一为冻结
+  `['procurement']`数组的Canonical digest。修正后全新Canary用时约9.4秒，完成态数据库再启动成功，P8聚合门禁及P3持久化回归通过。
+
+聚焦P7/P8门禁、Web build及完整`npm test`均通过；完整测试为239 pass、1个显式环境skip、0 fail。Procurement/Foundation压力夹具
+以260个Candidate跨过256 open-Work水位，17.5秒收口、最大open Work 33；该夹具暂停Outbox投递以保持专项职责，正式服务仍默认启动
+Outbox Dispatcher，自动消费行为由独立Intake E2E覆盖。机器合同保持111 Capability、97 Result family、180 table、43 Canonical
+Transaction及114 Admin routes。
+
+当前精确边界是`LIBRA INTAKE ACCEPTANCE READY / AWAITING ROUTING`。下一步只能实现Libra-owned Field→Shelf Routing Policy、Routing
+Decision与Acceptance Spec；尚未授权Production Run、Workspace、Handoff B、Arca On-deck、Docker或NAS。
 
 ## 0. Completed implementation — Arca Shelf configuration
 
@@ -164,13 +193,13 @@ Scope、Run、Triage、Candidate或Handoff A合同来绕过自身设计问题；
 | Open business decisions | none |
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains；P7 — Procurement；P8 — Handoff A and Libra front half；P9 — Libra production and delivery；P10 — Handoff B and On-deck；P11 — Arca post-deck；P12 — Product surface；P13 — Operational cutover and E2E-ready package |
-| Current phase | Procurement Foundation合规接线与Handoff A Ready E2E |
-| Current phase status | Foundation与Procurement全链已通过本地conformance、压力fixture、完整回归及真实只读Canary；已`CLOSED FOR DOMAIN ONBOARDING` |
+| Current phase | Libra Intake Acceptance and Formation Projection |
+| Current phase status | Handoff A Offer已通过正式Foundation链被Libra接受；19个Subject在Admin Web按一行一个Subject展示；`READY / AWAITING ROUTING` |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
-| Current allowed work | 本线程本机Node.js实施与临时clean数据库验证；Libra、Docker、NAS部署不在当前计划 |
+| Current allowed work | 当前节点已完成；保持隔离本地Node.js边界。Routing/Production、Docker及NAS尚未开放 |
 | Integration baseline | P13 implementation closure `bd75e7e4`；P12 closure `23e3b930` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-retake` on `codex/helix-first-implementation-retake` |
-| Next action | 保持Foundation状态机、Permit、Result Binding、Reconcile与backpressure合同不变；后续Libra/Arca接入如需改变这些语义，必须返回Design |
+| Next action | 单独打开Libra Field→Shelf Routing Policy、Routing Decision与Acceptance Spec；不得恢复大型Coordinator或越过Foundation执行 |
 
 P9-01已完成：反向实现审计证明的六段连续性缺口已由Architecture Agent在`PBF-13/PBF-13-R1`中闭合，并经实现侧
 只读复审后原样纳入。Run、Material/Episode scope、Workspace、完整Package、Discard/Cleanup及Off-load Reclaimer均具备

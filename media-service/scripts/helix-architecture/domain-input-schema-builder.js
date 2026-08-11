@@ -151,6 +151,8 @@ const dtoContracts = {
   EpisodeDeliveryManifest: 'episodeClaims,deliveryDigest',
   SelectedCandidateSelected: '',
   FinalBindings: 'shelfEntryId,bindings,bindingSetDigest',
+  ProductDispositionManifest: '',
+  OldPrimaryStructuralExclusiveRelatedHandles: '',
   FinalInventoryDecision: 'onDeckRunId,shelfId,members,placementRevision,decisionDigest',
   FinalReality: 'shelfEntryId,inventoryRevision,realityDigest',
   InventoryMetadataArtifactRefs: 'shelfEntryId,inventoryRevision,metadataFactRefs,artifactHandles',
@@ -290,6 +292,8 @@ function buildSchema(name, role, fields) {
   if (name === 'ProductMediaCandidateInput') return productMediaCandidateInputSchema();
   if (name === 'ProductOutputSelectionInput') return productOutputSelectionInputSchema();
   if (name === 'ProductConformanceInputSnapshot') return productConformanceInputSnapshotSchema();
+  if (name === 'ProductDispositionManifest') return productDispositionManifestSchema();
+  if (name === 'OldPrimaryStructuralExclusiveRelatedHandles') return oldPrimaryStructuralExclusiveRelatedHandlesSchema();
   if (name === 'IdentityRequirement') return identityRequirementSchema();
   if (name === 'SelectionCriteria') return selectionCriteriaSchema();
   if (name === 'WorkspaceDeliveryContract') return workspaceDeliveryContractSchema();
@@ -350,7 +354,8 @@ const relatedReference = () => object({
   referenceId: id(), primaryMaterialKey: digest(), role: enumText('nfo', 'poster', 'fanart', 'subtitle', 'external_audio', 'chapter', 'sidecar'),
   identity: typeRef('PhysicalMaterialIdentity'), endpointId: id(), location: text(),
   fingerprintAlgorithm:{const:'middle-256k-sha256'},fingerprintVersion:{const:1},contentFingerprint:digest(),
-  associationEvidenceDigest: digest(), referenceDigest: digest()
+  associationKind:{ const:'exclusive' },dispositionRequired:{ const:true },
+  associationEvidenceDigest:digest(),dispositionBasisDigest:digest(),referenceDigest:digest()
 });
 const seasonContinuityClaim = () => typeRef('SeasonContinuityClaim');
 
@@ -463,6 +468,7 @@ function acceptedIntakePayloadSchema() {
       identityClaimDigest:digest() }),
     candidateVerification: typeRef('CandidateContractVerification'), materialVerification: typeRef('IntakeMaterialVerification'),
     resolutionDecision: domainRef('SubjectContinuityResolutionDecision'), bindingDraft: typeRef('LibraBindingDraft'),
+    relatedDispositionScope: object({ relatedReferenceSetDigest:digest(), relatedDispositionScopeDigest:digest() }),
     controlTransferScope: object({ fieldId: id(), fromOwnerDomain: { const: 'procurement' },
       fromOwnerScopeType: { const: 'material_field' }, fromOwnerScopeId: id(), items: { ...arrayOf(item, PROCUREMENT_RUN_MEMBER_LIMIT), minItems: 1 },
       controlScopeDigest: digest() }), payloadDigest: digest()
@@ -584,7 +590,8 @@ function candidateDraftSchema() {
     identityClaim: typeRef('IdentityClaim'), structureEvidence: object({ evidenceId: id(), payloadDigest: digest(), unit: triageUnit() }),
     primaryInputManifestDraft: typeRef('PrimaryInputManifestDraft'), seasonContinuityClaims: arrayOf(seasonContinuityClaim(), 64),
     seasonContinuityClaimSetDigest: digest(), relatedReferences: arrayOf(relatedReference(), 1024), materialInputForm:enumText('stream_file', 'bdmv', 'dvd', 'iso'),
-    relatedReferenceSetDigest: digest(), memberControlEvidenceSetDigest: digest(), candidateDraftDigest: digest()
+    relatedReferenceSetDigest: digest(), relatedDispositionScopeDigest:digest(),
+    memberControlEvidenceSetDigest: digest(), candidateDraftDigest: digest()
   });
 }
 
@@ -1298,6 +1305,65 @@ function productConformanceInputSnapshotSchema() {
     selectedProducts: { ...arrayOf(selected, 32), minItems: 1 }, productFactSetDigest: digest(),
     artifactVerificationSetDigest: digest(), selectedProductSetDigest: digest(), productSnapshotDigest: digest(), snapshotDigest: digest()
   }), 'x-helix-maxCanonicalBytes': 8 * 1024 * 1024 };
+}
+
+function productDispositionManifestSchema() {
+  const dispositionMember = object({
+    ordinal: nonNegativeInteger(),
+    sourceMaterialKey: digest(),
+    sourceRelatedReferenceId: nullable(id()),
+    finalMaterialKey: digest(),
+    finalRole: enumText('primary_payload', 'structural_dependency', 'related', 'artifact'),
+    dispositionKind: enumText('direct_carried', 'carried_forward', 'replaced_and_settled'),
+    sourceToFinalMappingDigest: digest(),
+    memberDigest: digest(),
+  });
+  return {
+    ...exactDomainSchema('ProductDispositionManifest', {
+      schemaRef: { const: domainTypeId('ProductDispositionManifest') },
+      schemaVersion: { const: 1 },
+      objectId: id(),
+      revision: positiveInteger(),
+      digest: digest(),
+      manifestId: id(),
+      onDeckRunId: id(),
+      productManifestDigest: digest(),
+      relatedDispositionSetDigest: digest(),
+      members: { ...arrayOf(dispositionMember, 4096), minItems: 1 },
+      memberSetDigest: digest(),
+      manifestDigest: digest(),
+    }),
+    'x-helix-maxCanonicalBytes': 8 * 1024 * 1024,
+  };
+}
+
+function oldPrimaryStructuralExclusiveRelatedHandlesSchema() {
+  const member = object({
+    ordinal: nonNegativeInteger(),
+    materialKey: digest(),
+    role: enumText('primary_payload', 'structural_dependency', 'exclusive_related'),
+    sourceRelatedReferenceId: nullable(id()),
+    materialHandle: typeRef('PhysicalMaterialReadHandle'),
+    dispositionMemberRef: id(),
+    sourceToFinalMappingDigest: digest(),
+    finalProductVerificationDigest: digest(),
+    memberDigest: digest(),
+  });
+  return {
+    ...exactDomainSchema('OldPrimaryStructuralExclusiveRelatedHandles', {
+      schemaRef: { const: domainTypeId('OldPrimaryStructuralExclusiveRelatedHandles') },
+      schemaVersion: { const: 1 },
+      objectId: id(),
+      revision: positiveInteger(),
+      digest: digest(),
+      onDeckRunId: id(),
+      approvalScopeDigest: digest(),
+      members: { ...arrayOf(member, 4096), minItems: 1 },
+      memberSetDigest: digest(),
+      handleSetDigest: digest(),
+    }),
+    'x-helix-maxCanonicalBytes': 16 * 1024 * 1024,
+  };
 }
 
 function boundedSnapshotValue(kind) {

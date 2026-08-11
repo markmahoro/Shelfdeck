@@ -211,7 +211,7 @@ test('Libra Routing reads only its exact head and the formal Arca public project
   assert.doesNotMatch(storeSource, /SELECT\s+|MAX\s*\(|ORDER\s+BY[\s\S]*?DESC/i);
 });
 
-test('Movie formation keeps decisions and persistence inside Libra owner-local ports', () => {
+test('legacy Movie formation coordinator remains disconnected while Intake uses the formal execution runtime', () => {
   const source = fs.readFileSync(
     path.join(
       serviceRoot,
@@ -232,10 +232,11 @@ test('Movie formation keeps decisions and persistence inside Libra owner-local p
   assert.match(source, /find_subject:[\s\S]*?keyColumns: \['subject_id'\]/);
   assert.match(source, /find_intake:[\s\S]*?keyColumns: \['intake_decision_id'\]/);
   assert.match(source, /find_spec:[\s\S]*?keyColumns: \['acceptance_spec_id'\]/);
-  assert.match(hostSource, /readArcaRoutingTargets: arcaRoutingTargets\.list/);
-  assert.match(hostSource, /readArcaShelfStandard: arcaRoutingTargets\.getStandard/);
-  assert.match(hostSource, /PerceptionResolutionFacade/);
-  assert.match(hostSource, /resolvePerceptionDecisionFact:[\s\S]*perceptionResolution\.resolveDecisionFact/);
+  assert.doesNotMatch(hostSource, /createMovieFormationCoordinator|movie-formation-coordinator/);
+  assert.doesNotMatch(hostSource, /readArcaShelfStandard/);
+  assert.match(hostSource, /createHelixExecutionRuntime/);
+  assert.match(hostSource, /createFormationQuery/);
+  assert.match(hostSource, /candidateDeliveryPort/);
 });
 
 test('Movie responsibility closure uses only formal Owner-local ports and exact message consumers', () => {

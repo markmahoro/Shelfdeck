@@ -195,6 +195,10 @@ function validateDraft(draft, runBasisMembers) {
         !Number.isSafeInteger(identity.sizeBytes) || identity.sizeBytes < 0 || identity.materialKey !== identityMaterialKey ||
         reference.fingerprintAlgorithm !== identity.fingerprintAlgorithm || reference.fingerprintVersion !== identity.fingerprintVersion ||
         reference.contentFingerprint !== identity.contentFingerprint || reference.referenceId !== referenceId ||
+        reference.associationKind !== 'exclusive' || reference.dispositionRequired !== true ||
+        reference.dispositionBasisDigest !== canonicalDigest({ schema:'procurement.related-disposition-basis@1',
+          referenceId:reference.referenceId,primaryMaterialKey:reference.primaryMaterialKey,role:reference.role,
+          identity:reference.identity,associationEvidenceDigest:reference.associationEvidenceDigest }) ||
         reference.referenceDigest !== canonicalDigest(without(reference, 'referenceDigest'))) {
       fail('P7_CANDIDATE_RELATED_CANONICAL', 'Related References must be sorted, digested, and point into the Unit.');
     }
@@ -219,6 +223,12 @@ function validateDraft(draft, runBasisMembers) {
   if (!same(related, draft.relatedReferences) || draft.relatedReferenceSetDigest !==
       canonicalDigest({ schema:'procurement.related-reference-set@1', items:related })) {
     fail('P7_CANDIDATE_RELATED_DIGEST', 'Related Reference set is not canonical.');
+  }
+  const relatedDispositionItems=related.map((reference)=>({referenceId:reference.referenceId,
+    primaryMaterialKey:reference.primaryMaterialKey,role:reference.role,materialKey:reference.identity.materialKey,
+    dispositionBasisDigest:reference.dispositionBasisDigest}));
+  if(draft.relatedDispositionScopeDigest!==canonicalDigest({schema:'procurement.related-disposition-scope@1',items:relatedDispositionItems})){
+    fail('P7_CANDIDATE_RELATED_DISPOSITION_DIGEST','Related disposition scope is not canonical.');
   }
   const controls = [...unitMembers].sort((a, b) => compareUtf8(a.materialKey, b.materialKey)).map((member) => ({
     materialKey:member.materialKey, admittedControlRevision:member.admittedControlRevision,
@@ -264,6 +274,7 @@ function buildAcceptanceBasis(candidatePackage) {
     primaryInputManifestDigest:candidatePackage.primaryInputManifestRef.manifestDigest,
     seasonContinuityClaimSetDigest:candidatePackage.seasonContinuityClaimSetDigest,
     relatedReferenceSetDigest:candidatePackage.relatedReferenceSetDigest,
+    relatedDispositionScopeDigest:candidatePackage.relatedDispositionScopeDigest,
     memberControlEvidenceSetDigest:candidatePackage.memberControlEvidenceSetDigest, acceptanceBasisDigest:'' };
   value.acceptanceBasisDigest = canonicalDigest(without(value, 'acceptanceBasisDigest'));
   return freeze(value);
@@ -314,6 +325,7 @@ function buildPublication(draft, publishedAtMs, runBasisMembers, packageRevision
     seasonContinuityClaimSetDigest:draft.seasonContinuityClaimSetDigest,
     primaryInputManifestRef:{ manifestId:manifest.manifestId, manifestDigest:manifest.manifestDigest, memberCount:members.length },
     relatedReferences:draft.relatedReferences, relatedReferenceSetDigest:draft.relatedReferenceSetDigest,
+    relatedDispositionScopeDigest:draft.relatedDispositionScopeDigest,
     memberControlEvidenceSetDigest:draft.memberControlEvidenceSetDigest, packageDigest:'' };
   packageValue.packageDigest = canonicalDigest(without(packageValue, 'manifestDigest', 'packageDigest'));
   packageValue.manifestDigest = packageValue.packageDigest;
@@ -334,6 +346,7 @@ function buildPublicationReceipt(publication, draft, committedAtMs) {
     packageRevision:candidatePackage.packageRevision, packageDigest:candidatePackage.packageDigest,
     primaryInputManifestDigest:candidatePackage.primaryInputManifestRef.manifestDigest,
     relatedReferenceSetDigest:candidatePackage.relatedReferenceSetDigest,
+    relatedDispositionScopeDigest:candidatePackage.relatedDispositionScopeDigest,
     memberControlEvidenceSetDigest:candidatePackage.memberControlEvidenceSetDigest,
     acceptanceBasisDigest:publication.acceptanceBasis.acceptanceBasisDigest, offerId:publication.offerId, receiptDigest:'' };
   value.receiptDigest = canonicalDigest(without(value, 'receiptDigest'));

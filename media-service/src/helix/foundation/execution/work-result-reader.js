@@ -6,6 +6,7 @@ const { createRepositoryDefinition } = require('../persistence/owner-repository'
 function definition(schemaManifest){return createRepositoryDefinition({repositoryId:'work_result_reader',owner:'execution-foundation',schemaManifest,statements:{
   find_work:{kind:'select-one',tableId:'fx_supporting_works',columns:['work_id','owner_domain','process_type','process_id','work_kind','basis_digest','state'],keyColumns:['work_id']},
   list_process_works:{kind:'select-all',tableId:'fx_supporting_works',columns:['work_id','owner_domain','process_type','process_id','work_kind','state'],keyColumns:['owner_domain','process_type','process_id','work_kind']},
+  list_owner_works:{kind:'select-all',tableId:'fx_supporting_works',columns:['work_id','owner_domain','process_type','process_id','work_kind','state'],keyColumns:['owner_domain','work_kind']},
   list_attempts:{kind:'select-all',tableId:'fx_work_attempts',columns:['attempt_id','work_id','ordinal','state','failure_code'],keyColumns:['work_id'],safeIntegers:true},
   list_events:{kind:'select-all',tableId:'fx_workflow_events',columns:['event_id','work_id','state'],keyColumns:['work_id']},
   find_result:{kind:'select-one',tableId:'fx_event_result_bindings',columns:['result_id','event_id','outcome_kind','result_schema_ref','result_json','result_digest',
@@ -28,6 +29,15 @@ function createWorkResultReader(options){if(!options?.schemaManifest||!options.u
         return Object.freeze(context.repository(repository.repositoryId).invoke('list_process_works',{owner_domain:scope.ownerDomain,
           process_type:scope.processType,process_id:scope.processId,work_kind:scope.workKind}).map((row)=>Object.freeze(row)));
       }}]).work_scope_read;
+    },
+    listOwnerWorks(scope){
+      if(!scope||typeof scope.ownerDomain!=='string'||typeof scope.workKind!=='string'){
+        throw new TypeError('Work Result Reader listOwnerWorks requires an exact Owner and Work kind.');
+      }
+      return options.unitOfWork.execute([{participantId:'work_owner_scope_read',owner:'execution-foundation',repositories:[repository],execute(context){
+        return Object.freeze(context.repository(repository.repositoryId).invoke('list_owner_works',{
+          owner_domain:scope.ownerDomain,work_kind:scope.workKind}).map((row)=>Object.freeze(row)));
+      }}]).work_owner_scope_read;
     },
     read(workId){return options.unitOfWork.execute([{participantId:'work_result_read',owner:'execution-foundation',repositories:[repository],execute(context){
       const repo=context.repository(repository.repositoryId);return Object.freeze(repo.invoke('list_events',{work_id:workId}).map((event)=>{

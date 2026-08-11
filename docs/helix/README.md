@@ -1,6 +1,6 @@
 # ShelfDeck / Helix Documentation Index
 
-Status: Movie Procurement保持`CLOSED FOR MOVIE`。`ARCA SHELF CONFIGURATION READY FOR LIBRA`已完成；下一步Routing Policy尚未开放Implementation Gate，Docker/NAS、Handoff B、On-deck和生产均未开始。
+Status: Movie Procurement保持`CLOSED FOR MOVIE`。Arca Shelf配置保持`READY FOR LIBRA`；Libra Intake Acceptance达到`READY / AWAITING ROUTING`。下一步Routing Policy尚未开放Implementation Gate，Docker/NAS、Handoff B、On-deck和生产均未开始。
 
 后续本地真实媒体测试的唯一物理范围由用户于2026-08-11固定为
 `C:\Users\markm\AppData\Local\Temp\ShelfDeck-P14-20260723\material-fields`。该目录同时作为测试
@@ -16,6 +16,11 @@ Observation、ISO/DVD和Scope上限预期。Target collision与Reality mutation�
 第一次实施的P0–P13资产继续保留，但此前由大型Coordinator同步闭环得到的Movie Canary只证明低层Capability、Owner事实和
 Handoff A Ready数据形态可工作，不构成`Work Scheduler → Event Runtime → Resource Governor`已经参与的Foundation E2E证据。
 当前唯一活动实施计划见`CURRENT_PLAN.md`。最新`Z:\Film`全库Canary以本机Node.js、全新临时clean数据库和只读源完成，再次验证了`standalone_file|ordinary_directory|bdmv_container`三类Scope、1024物理成员Run上限、`苹果.mkv`独立Candidate、943个Handoff A Ready Offer及源Reality不变。Candidate尾段由281.737秒降至173.523秒，证明整Run重复投影与Coordinator扫描修正有效；Observation与普通Media Probe的本轮耗时变化由用户接受为环境波动。随后全量数据库约束及代表样本复核未发现正确性问题，Movie Procurement因此在Handoff A Ready边界正式封口。完整证据和保留资产记录在`CURRENT_STATUS.md`。
+
+Handoff A之后的第一个Libra节点已经正式接通：Outbox Dispatcher触发薄Intake Coordinator签发Supporting Work，Planner与Event Runtime
+执行Candidate、Material、Binding及continuity验证并原子接受。隔离Movie测试库形成19个accepted Intake和19个Subject；Admin Web
+“上架进度”按一行一个Subject展示，当前全部为`awaiting_destination`。ISO/DVD依赖typed topology而非扩展名猜测；历史大型Libra
+Coordinator不在产品路径中。本轮没有建立Libra Run/Workspace、没有消费Shelf生产资源，也没有产生Handoff B或Arca媒体事实。
 
 Physical Material不再计算全文件Hash。当前唯一合同读取文件正中间最多262,144 bytes并执行前后stat fence；NAS负责bit rot和底层
 完整性。Artifact、Canonical JSON与事务Evidence digest仍使用SHA-256，这些digest不得作为Physical Material Identity。

@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/OldPrimaryStructuralExclusiveRelatedHandles/v1",
+  "title": "OldPrimaryStructuralExclusiveRelatedHandles@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/domain-types/OldPrimaryStructuralExclusiveRelatedHandles/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "objectId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "digest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "onDeckRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "approvalScopeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "members": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ordinal": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "materialKey": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "primary_payload",
+              "structural_dependency",
+              "exclusive_related"
+            ]
+          },
+          "sourceRelatedReferenceId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "materialHandle": {
+            "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1"
+          },
+          "dispositionMemberRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "sourceToFinalMappingDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "finalProductVerificationDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "memberDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "ordinal",
+          "materialKey",
+          "role",
+          "sourceRelatedReferenceId",
+          "materialHandle",
+          "dispositionMemberRef",
+          "sourceToFinalMappingDigest",
+          "finalProductVerificationDigest",
+          "memberDigest"
+        ]
+      },
+      "maxItems": 4096,
+      "minItems": 1
+    },
+    "memberSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "handleSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "objectId",
+    "revision",
+    "digest",
+    "onDeckRunId",
+    "approvalScopeDigest",
+    "members",
+    "memberSetDigest",
+    "handleSetDigest"
+  ],
+  "x-helix-maxCanonicalBytes": 16777216
+}

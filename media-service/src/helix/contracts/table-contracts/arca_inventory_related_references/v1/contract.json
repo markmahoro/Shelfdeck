@@ -59,6 +59,19 @@
       },
       {
         "ordinal": 6,
+        "name": "reference_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "shared_external",
+          "historical_provenance"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
         "name": "material_identity_hint",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -68,7 +81,7 @@
         "nullable": false
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "endpoint_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -78,7 +91,7 @@
         "nullable": false
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "location",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -88,7 +101,7 @@
         "nullable": false
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "checksum_hex",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -109,7 +122,15 @@
     "uniqueConstraints": [],
     "hotIndexes": [],
     "partialUniqueRules": [],
-    "checkRules": [],
+    "checkRules": [
+      {
+        "column": "reference_kind",
+        "enumValues": [
+          "shared_external",
+          "historical_provenance"
+        ]
+      }
+    ],
     "revisionContract": {
       "revisionColumns": [
         "inventory_revision"
@@ -129,16 +150,17 @@
     },
     "semanticRules": [
       "`PK(shelf_entry_id,inventory_revision,reference_id)`",
-      "last-reference计算只使用active Inventory revisions"
+      "只允许无法被单一Candidate独占的shared external reference或已完成处置后的historical provenance",
+      "Movie首次On-deck后的active Inventory不得用本表承载仍位于Material Field的exclusive Related。last-reference计算只使用active Inventory revisions及真正shared reference，不得把本表当作跳过Input Settlement的兼容路径"
     ],
     "rawContract": {
-      "columns": "`shelf_entry_id FK, inventory_revision, reference_id, primary_ordinal, role, material_identity_hint, endpoint_id, location, checksum_hex`",
-      "constraints": "`PK(shelf_entry_id,inventory_revision,reference_id)`；last-reference计算只使用active Inventory revisions"
+      "columns": "`shelf_entry_id FK, inventory_revision, reference_id, primary_ordinal, role, reference_kind(shared_external|historical_provenance), material_identity_hint, endpoint_id, location, checksum_hex`",
+      "constraints": "`PK(shelf_entry_id,inventory_revision,reference_id)`；只允许无法被单一Candidate独占的shared external reference或已完成处置后的historical provenance；Movie首次On-deck后的active Inventory不得用本表承载仍位于Material Field的exclusive Related。last-reference计算只使用active Inventory revisions及真正shared reference，不得把本表当作跳过Input Settlement的兼容路径"
     },
     "source": {
       "section": "8.5.12",
-      "line": 8882,
-      "lineDigest": "1ebb004910adfed305d0022484124571dc61abfd903edc064775d184f9789bda"
+      "line": 9030,
+      "lineDigest": "6604a783a1b7427330bc1bb9da8be0cd348192cc2bd42cc2b63ff2c951da0fa2"
     },
     "foreignKeys": [
       {

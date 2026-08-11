@@ -92,6 +92,16 @@
       },
       {
         "ordinal": 9,
+        "name": "related_disposition_scope_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
         "name": "subject_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -101,7 +111,7 @@
         "nullable": true
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "subject_intake_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -111,7 +121,7 @@
         "nullable": true
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "subject_continuity_head_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -121,7 +131,7 @@
         "nullable": true
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "subject_continuity_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -131,7 +141,7 @@
         "nullable": true
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "subject_episode_scope_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -141,7 +151,7 @@
         "nullable": true
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "accepted_payload_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -151,7 +161,7 @@
         "nullable": true
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "libra_binding_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -161,7 +171,7 @@
         "nullable": true
       },
       {
-        "ordinal": 16,
+        "ordinal": 17,
         "name": "control_revision_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -171,7 +181,7 @@
         "nullable": true
       },
       {
-        "ordinal": 17,
+        "ordinal": 18,
         "name": "rejection_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -181,7 +191,7 @@
         "nullable": true
       },
       {
-        "ordinal": 18,
+        "ordinal": 19,
         "name": "primary_rejection_code",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -191,7 +201,7 @@
         "nullable": true
       },
       {
-        "ordinal": 19,
+        "ordinal": 20,
         "name": "rejection_reason_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -201,7 +211,7 @@
         "nullable": true
       },
       {
-        "ordinal": 20,
+        "ordinal": 21,
         "name": "rejection_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -211,7 +221,7 @@
         "nullable": true
       },
       {
-        "ordinal": 21,
+        "ordinal": 22,
         "name": "receipt_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -221,7 +231,7 @@
         "nullable": false
       },
       {
-        "ordinal": 22,
+        "ordinal": 23,
         "name": "committed_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -244,7 +254,7 @@
     ],
     "hotIndexes": [],
     "partialUniqueRules": [
-      "同一Candidate/Package digest最多一个accepted Receipt的partial unique index，新的Acceptance Basis/Offer可以分别保留rejected Receipt。accepted要求Subject、accepted payload、Binding/Control列全部非NULL且rejection列全NULL，重建`SubjectAndTransferReceipt@1`，其`ReceiptEnvelope.scopeDigest=accepted_payload_digest`，且`control_revision_set_digest`必须由同一Handoff marker的全部Control transfer revision及各自previous revision按8.6.19唯一公式重建"
+      "同一Candidate/Package digest最多一个accepted Receipt的partial unique index，新的Acceptance Basis/Offer可以分别保留rejected Receipt。accepted要求Subject、accepted payload、Binding/Control及Related scope列全部非NULL且rejection列全NULL，重建`SubjectAndTransferReceipt@1`，其`ReceiptEnvelope.scopeDigest=accepted_payload_digest`，且`control_revision_set_digest`只由Primary Control transfer重建，不能包含Related"
     ],
     "checkRules": [
       {
@@ -276,18 +286,18 @@
     },
     "semanticRules": [
       "`UNIQUE(intake_decision_id)`",
-      "同一Candidate/Package digest最多一个accepted Receipt的partial unique index，新的Acceptance Basis/Offer可以分别保留rejected Receipt。accepted要求Subject、accepted payload、Binding/Control列全部非NULL且rejection列全NULL，重建`SubjectAndTransferReceipt@1`，其`ReceiptEnvelope.scopeDigest=accepted_payload_digest`，且`control_revision_set_digest`必须由同一Handoff marker的全部Control transfer revision及各自previous revision按8.6.19唯一公式重建",
-      "rejected要求Subject/accepted/Binding/Control列全NULL、rejection列全非NULL，重建`IntakeRejectionReceipt@1`，其`ReceiptEnvelope.scopeDigest=IntakeRejectionDecision.decisionDigest`。两种Receipt的Snapshot digest均逐字节等于对应Decision",
+      "同一Candidate/Package digest最多一个accepted Receipt的partial unique index，新的Acceptance Basis/Offer可以分别保留rejected Receipt。accepted要求Subject、accepted payload、Binding/Control及Related scope列全部非NULL且rejection列全NULL，重建`SubjectAndTransferReceipt@1`，其`ReceiptEnvelope.scopeDigest=accepted_payload_digest`，且`control_revision_set_digest`只由Primary Control transfer重建，不能包含Related",
+      "rejected要求Subject/accepted/Binding/Control列全NULL、rejection列全非NULL，重建`IntakeRejectionReceipt@1`。两种Receipt的Snapshot digest均逐字节等于对应Decision",
       "相同marker重放不新增Receipt或消息"
     ],
     "rawContract": {
-      "columns": "`receipt_id PK, intake_decision_id FK, outcome(accepted|rejected), offer_id, candidate_package_id, package_revision, package_digest, candidate_delivery_snapshot_digest, subject_id NULL, subject_intake_revision NULL, subject_continuity_head_revision NULL, subject_continuity_set_digest NULL, subject_episode_scope_digest NULL, accepted_payload_digest NULL, libra_binding_set_digest NULL, control_revision_set_digest NULL, rejection_id NULL, primary_rejection_code NULL, rejection_reason_set_digest NULL, rejection_digest NULL, receipt_digest, committed_at_ms`",
-      "constraints": "`UNIQUE(intake_decision_id)`；同一Candidate/Package digest最多一个accepted Receipt的partial unique index，新的Acceptance Basis/Offer可以分别保留rejected Receipt。accepted要求Subject、accepted payload、Binding/Control列全部非NULL且rejection列全NULL，重建`SubjectAndTransferReceipt@1`，其`ReceiptEnvelope.scopeDigest=accepted_payload_digest`，且`control_revision_set_digest`必须由同一Handoff marker的全部Control transfer revision及各自previous revision按8.6.19唯一公式重建；rejected要求Subject/accepted/Binding/Control列全NULL、rejection列全非NULL，重建`IntakeRejectionReceipt@1`，其`ReceiptEnvelope.scopeDigest=IntakeRejectionDecision.decisionDigest`。两种Receipt的Snapshot digest均逐字节等于对应Decision；相同marker重放不新增Receipt或消息"
+      "columns": "`receipt_id PK, intake_decision_id FK, outcome(accepted|rejected), offer_id, candidate_package_id, package_revision, package_digest, candidate_delivery_snapshot_digest, related_disposition_scope_digest, subject_id NULL, subject_intake_revision NULL, subject_continuity_head_revision NULL, subject_continuity_set_digest NULL, subject_episode_scope_digest NULL, accepted_payload_digest NULL, libra_binding_set_digest NULL, control_revision_set_digest NULL, rejection_id NULL, primary_rejection_code NULL, rejection_reason_set_digest NULL, rejection_digest NULL, receipt_digest, committed_at_ms`",
+      "constraints": "`UNIQUE(intake_decision_id)`；同一Candidate/Package digest最多一个accepted Receipt的partial unique index，新的Acceptance Basis/Offer可以分别保留rejected Receipt。accepted要求Subject、accepted payload、Binding/Control及Related scope列全部非NULL且rejection列全NULL，重建`SubjectAndTransferReceipt@1`，其`ReceiptEnvelope.scopeDigest=accepted_payload_digest`，且`control_revision_set_digest`只由Primary Control transfer重建，不能包含Related；rejected要求Subject/accepted/Binding/Control列全NULL、rejection列全非NULL，重建`IntakeRejectionReceipt@1`。两种Receipt的Snapshot digest均逐字节等于对应Decision；相同marker重放不新增Receipt或消息"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8816,
-      "lineDigest": "c25967335613ee9a4bbadbff21c49621a05049b5b2f0e977d01fc0049896727e"
+      "line": 8964,
+      "lineDigest": "0b1a84a593ff64da73bc680f7d44f156cf6541f501032c950ddf613ac28e42a2"
     },
     "foreignKeys": [
       {

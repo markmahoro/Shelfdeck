@@ -120,6 +120,26 @@ export type Shelf = {
   updatedAtMs: number;
 };
 
+export type FormationSubject = {
+  formationViewId: string;
+  subjectId: string;
+  displayIdentity: string;
+  contentProfile: string;
+  structureKind: string;
+  status: string;
+  stage: 'awaiting_destination';
+  stageLabel: string;
+  intakeCount: number;
+  primaryMaterialCount: number;
+  relatedMaterialCount: number;
+  lastAcceptedAtMs: number;
+};
+
+export type FormationSummary = {
+  subjectCount: number;
+  awaitingDestinationCount: number;
+};
+
 export class AdminApiError extends Error {
   constructor(readonly status: number, readonly code: string, message: string, readonly details: Record<string, JsonValue> = {}) {
     super(message);
@@ -176,6 +196,9 @@ export const helixAdminApi = {
   },
   listRuleTemplates() {
     return request<{ items: RuleTemplate[] }>('/v1/admin/rule-templates');
+  },
+  listFormation() {
+    return request<{ items: FormationSubject[]; summary: FormationSummary }>('/v1/admin/formation');
   },
   createShelf(body: JsonValue) {
     return request<{ shelf: Shelf; replayed: boolean }>('/v1/admin/shelves', {

@@ -72,6 +72,16 @@
       },
       {
         "ordinal": 7,
+        "name": "related_disposition_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
         "name": "shelf_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -81,7 +91,7 @@
         "nullable": false
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "standard_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -91,7 +101,7 @@
         "nullable": false
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "placement_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -101,7 +111,7 @@
         "nullable": false
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "acceptance_evidence_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -111,7 +121,7 @@
         "nullable": false
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "rejection_schema_ref",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -121,7 +131,7 @@
         "nullable": true
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "rejection_code",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -131,7 +141,7 @@
         "nullable": true
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "rejection_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -141,7 +151,7 @@
         "nullable": true
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "decision_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -151,7 +161,7 @@
         "nullable": false
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "decided_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -206,19 +216,19 @@
     },
     "semanticRules": [
       "`acceptance_decision_id=SHA-256(JCS({schema:\"arca.acceptance-decision-id@1\",acceptanceAttemptId}))`且`UNIQUE(acceptance_attempt_id)`",
-      "Offer/Package pair逐字节等于Attempt",
-      "accepted要求rejection列全NULL",
+      "Offer/Package/Related disposition set逐字节等于Attempt",
+      "accepted要求rejection列全NULL且证明完整处置义务可履行",
       "rejected固定`rejection_schema_ref=StructuredRejection@1`且code/digest非NULL，并逐项重建`ArcaAcceptanceRejectionDecision@1`",
       "immutable"
     ],
     "rawContract": {
-      "columns": "`acceptance_decision_id PK, acceptance_attempt_id FK, result(accepted|rejected), offer_id, on_deck_package_id, package_digest, shelf_id FK, standard_revision, placement_revision, acceptance_evidence_set_digest, rejection_schema_ref NULL, rejection_code NULL, rejection_digest NULL, decision_digest, decided_at_ms`",
-      "constraints": "`acceptance_decision_id=SHA-256(JCS({schema:\"arca.acceptance-decision-id@1\",acceptanceAttemptId}))`且`UNIQUE(acceptance_attempt_id)`；Offer/Package pair逐字节等于Attempt；accepted要求rejection列全NULL；rejected固定`rejection_schema_ref=StructuredRejection@1`且code/digest非NULL，并逐项重建`ArcaAcceptanceRejectionDecision@1`；immutable"
+      "columns": "`acceptance_decision_id PK, acceptance_attempt_id FK, result(accepted|rejected), offer_id, on_deck_package_id, package_digest, related_disposition_set_digest, shelf_id FK, standard_revision, placement_revision, acceptance_evidence_set_digest, rejection_schema_ref NULL, rejection_code NULL, rejection_digest NULL, decision_digest, decided_at_ms`",
+      "constraints": "`acceptance_decision_id=SHA-256(JCS({schema:\"arca.acceptance-decision-id@1\",acceptanceAttemptId}))`且`UNIQUE(acceptance_attempt_id)`；Offer/Package/Related disposition set逐字节等于Attempt；accepted要求rejection列全NULL且证明完整处置义务可履行；rejected固定`rejection_schema_ref=StructuredRejection@1`且code/digest非NULL，并逐项重建`ArcaAcceptanceRejectionDecision@1`；immutable"
     },
     "source": {
       "section": "8.5.12",
-      "line": 8869,
-      "lineDigest": "75c6f85e8098087ae4f0f9aa8b29d96247bc18432b208c8286747c6696731e70"
+      "line": 9017,
+      "lineDigest": "fdb2ce5541da67e64dd26bfd5bb41324df96693b8ca3ce9fe1504c73b057fd4b"
     },
     "foreignKeys": [
       {

@@ -95,9 +95,14 @@ function reconstruct(rows) {
     const reference = { referenceId:row.reference_id, primaryMaterialKey:primary.material_key, role:row.role, identity,
       endpointId:row.endpoint_id, location:row.location, fingerprintAlgorithm:identity.fingerprintAlgorithm,
       fingerprintVersion:identity.fingerprintVersion, contentFingerprint:identity.contentFingerprint,
-      associationEvidenceDigest:row.association_evidence_digest, referenceDigest:row.reference_digest };
+      associationKind:row.association_kind,dispositionRequired:Number(row.disposition_required)===1,
+      associationEvidenceDigest:row.association_evidence_digest,dispositionBasisDigest:row.disposition_basis_digest,
+      referenceDigest:row.reference_digest };
     if (identity.fingerprintAlgorithm !== 'middle-256k-sha256' || identity.fingerprintVersion !== 1 || identity.materialKey !== materialKey ||
-        row.reference_id !== referenceId ||
+        row.reference_id !== referenceId || reference.associationKind!=='exclusive'||reference.dispositionRequired!==true||
+        reference.dispositionBasisDigest!==canonicalDigest({schema:'procurement.related-disposition-basis@1',
+          referenceId:reference.referenceId,primaryMaterialKey:reference.primaryMaterialKey,role:reference.role,
+          identity:reference.identity,associationEvidenceDigest:reference.associationEvidenceDigest})||
         row.reference_digest !== canonicalDigest(without(reference, 'referenceDigest'))) {
       fail('P8_CANDIDATE_DELIVERY_RELATED', 'Related Reference identity or digest is invalid.');
     }
@@ -105,6 +110,10 @@ function reconstruct(rows) {
   });
   const relatedReferenceSetDigest = canonicalDigest({ schema:'procurement.related-reference-set@1', items:related });
   if (relatedReferenceSetDigest !== pkg.related_reference_set_digest) fail('P8_CANDIDATE_DELIVERY_RELATED_SET', 'Related set digest is invalid.');
+  const relatedDispositionScopeDigest=canonicalDigest({schema:'procurement.related-disposition-scope@1',items:related.map((reference)=>({
+    referenceId:reference.referenceId,primaryMaterialKey:reference.primaryMaterialKey,role:reference.role,
+    materialKey:reference.identity.materialKey,dispositionBasisDigest:reference.dispositionBasisDigest}))});
+  if(relatedDispositionScopeDigest!==pkg.related_disposition_scope_digest)fail('P8_CANDIDATE_DELIVERY_RELATED_DISPOSITION','Related disposition scope digest is invalid.');
   const continuity = [...rows.continuity].map((row) => ({ claimKind:row.claim_kind, claimNamespace:row.claim_namespace,
     claimKey:row.claim_key, claimDigest:row.claim_digest, evidenceDigest:row.evidence_digest }))
     .sort((a, b) => compareUtf8([a.claimKind,a.claimNamespace,a.claimKey].join('\0'), [b.claimKind,b.claimNamespace,b.claimKey].join('\0')));
@@ -122,7 +131,7 @@ function reconstruct(rows) {
       unitId:pkg.structure_unit_id, unitDigest:pkg.structure_unit_digest }, seasonContinuityClaims:continuity,
     seasonContinuityClaimSetDigest:continuityDigest,
     primaryInputManifestRef:{ manifestId:manifest.manifestId, manifestDigest:manifest.manifestDigest, memberCount:manifest.memberCount },
-    relatedReferences:related, relatedReferenceSetDigest, memberControlEvidenceSetDigest:pkg.member_control_evidence_set_digest,
+    relatedReferences:related, relatedReferenceSetDigest,relatedDispositionScopeDigest, memberControlEvidenceSetDigest:pkg.member_control_evidence_set_digest,
     packageDigest:pkg.package_digest };
   if (canonicalDigest(without(candidatePackage, 'manifestDigest', 'packageDigest')) !== candidatePackage.packageDigest) {
     fail('P8_CANDIDATE_DELIVERY_PACKAGE', 'Candidate Package cannot be reconstructed to its published digest.');

@@ -5,10 +5,10 @@
   "ownerScope": "arca",
   "effectClass": "destructive_commit",
   "inputPorts": {
-    "oldInputHandleList": {
-      "schemaRef": "helix://contracts/capabilities/arca.ondeck.input_settlement.delete/v1/inputs#/$defs/oldInputHandleList",
+    "oldPrimaryStructuralExclusiveRelatedHandleList": {
+      "schemaRef": "helix://contracts/capabilities/arca.ondeck.input_settlement.delete/v1/inputs#/$defs/oldPrimaryStructuralExclusiveRelatedHandleList",
       "required": true,
-      "cardinality": "many"
+      "cardinality": "one"
     },
     "inputSettlementApproval": {
       "schemaRef": "helix://contracts/capabilities/arca.ondeck.input_settlement.delete/v1/inputs#/$defs/inputSettlementApproval",
@@ -30,7 +30,7 @@
   },
   "sourceLocator": {
     "section": "8.6.10",
-    "line": 9584,
-    "lineDigest": "e4b8b9a1d92268b0b51a6db2cba10025c17bc38c9ca45f33156b544e9bd300bb"
+    "line": 9732,
+    "lineDigest": "4998e31c811e3d31369e2291dc02b372c5e1ec47c8b31f1beed3eadddcf4fcac"
   }
 }

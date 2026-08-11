@@ -80,7 +80,69 @@
             "type": "string",
             "enum": [
               "primary_payload",
-              "structural_dependency"
+              "structural_dependency",
+              "nfo",
+              "poster",
+              "fanart",
+              "subtitle",
+              "external_audio",
+              "chapter",
+              "sidecar"
+            ]
+          },
+          "authorityKind": {
+            "type": "string",
+            "enum": [
+              "primary_control",
+              "related_derived"
+            ]
+          },
+          "primaryMaterialKey": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourceRelatedReferenceId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "associationEvidenceDigest": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dispositionBasisDigest": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "physicalIdentity": {
@@ -145,6 +207,11 @@
         "required": [
           "materialKey",
           "role",
+          "authorityKind",
+          "primaryMaterialKey",
+          "sourceRelatedReferenceId",
+          "associationEvidenceDigest",
+          "dispositionBasisDigest",
           "physicalIdentity",
           "sizeBytes",
           "endpointId",

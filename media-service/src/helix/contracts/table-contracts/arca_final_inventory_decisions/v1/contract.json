@@ -89,7 +89,7 @@
       },
       {
         "ordinal": 9,
-        "name": "decision_schema_ref",
+        "name": "related_disposition_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -99,6 +99,16 @@
       },
       {
         "ordinal": 10,
+        "name": "decision_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
         "name": "decision_json",
         "logicalType": "TEXT_JSON",
         "enumValues": [],
@@ -108,7 +118,7 @@
         "nullable": false
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "decision_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -118,7 +128,7 @@
         "nullable": false
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "decided_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -174,16 +184,17 @@
       "Decision JSON上限`64 KiB`",
       "`UNIQUE(on_deck_run_id)`",
       "immutable",
+      "必须逐项覆盖Package Product member及全部Related source-to-final mapping，不允许active Shelf Entry依赖Field中的exclusive Related",
       "不保存adopt/replace/relocate动作类型"
     ],
     "rawContract": {
-      "columns": "`final_inventory_decision_id PK, on_deck_run_id FK, shelf_id FK, placement_revision, target_endpoint_id, target_location, product_manifest_digest, offload_context_digest, decision_schema_ref, decision_json, decision_digest, decided_at_ms`",
-      "constraints": "Decision JSON上限`64 KiB`；`UNIQUE(on_deck_run_id)`；immutable；不保存adopt/replace/relocate动作类型"
+      "columns": "`final_inventory_decision_id PK, on_deck_run_id FK, shelf_id FK, placement_revision, target_endpoint_id, target_location, product_manifest_digest, offload_context_digest, related_disposition_set_digest, decision_schema_ref, decision_json, decision_digest, decided_at_ms`",
+      "constraints": "Decision JSON上限`64 KiB`；`UNIQUE(on_deck_run_id)`；immutable；必须逐项覆盖Package Product member及全部Related source-to-final mapping，不允许active Shelf Entry依赖Field中的exclusive Related；不保存adopt/replace/relocate动作类型"
     },
     "source": {
       "section": "8.5.12",
-      "line": 8874,
-      "lineDigest": "81312748ad150bcb27a432f4e9c00e789cdaa6b7fe762da54df4cfedfa04b55f"
+      "line": 9022,
+      "lineDigest": "26b58a349d22e931c184abb065928bd8c38b55e5665fa6b1e4da052b510429a8"
     },
     "foreignKeys": [
       {

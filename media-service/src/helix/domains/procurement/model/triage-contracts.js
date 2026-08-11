@@ -365,7 +365,9 @@ function parentRelativeLocationOf(value) {
 function materialInputFormFromProbe(probe) {
   const topology = probe?.discTopology;
   if (!topology) return 'stream_file';
-  const selectedPlaylist = topology.selectedPlaylist || topology.titleSelectionEvidence?.selectedPlaylist;
+  const selectedPlaylist = typeof topology.selectedPlaylist === 'string'
+    ? topology.selectedPlaylist
+    : topology.selectedPlaylist?.relativeLocation || topology.titleSelectionEvidence?.selectedPlaylist;
   const validTopology = typeof topology.topologyDigest === 'string' && topology.topologyDigest.length > 0 &&
     Number.isSafeInteger(Number(topology.topologyVersion)) && Number(topology.topologyVersion) > 0 &&
     Number.isSafeInteger(Number(topology.titleCount)) && Number(topology.titleCount) > 0 &&
@@ -513,6 +515,64 @@ function bdmvUnitFor(group, topology, contexts, layoutEvidence, fieldContext, pr
     structureKind:value.structureKind, scope:memberScope, materialInputForm:value.materialInputForm, relatedScope:value.relatedScope });
   value.unitDigest = digest(without(value, 'unitDigest'));
   return { kind:'resolved', unit:value, selectedKeys:new Set(topologyMembers.map((member) => member.key)), topologyRoot };
+}
+
+function relativeToSelectionScope(location, root) {
+  const value = normalizeScopeLocation(location);
+  const normalizedRoot = normalizeScopeLocation(root);
+  if (!normalizedRoot || normalizedRoot === '.') return value;
+  if (value === normalizedRoot) return '';
+  return value.startsWith(normalizedRoot + '/') ? value.slice(normalizedRoot.length + 1) : null;
+}
+
+function dvdUnitFor(group, topology, contexts, selectionScope, fieldContext, profileHintSnapshot, projectionRevision = 1) {
+  const root = selectionScope.scopeRootRelativeLocation;
+  const byRelative = new Map(group.map((selected) => {
+    const context = contexts.find((candidate) => candidate.materialKey === selected.materialKey);
+    const relative = relativeToSelectionScope(context?.fieldRelativeLocation, root);
+    return [relative ? relative.toUpperCase() : '', { selected, context }];
+  }).filter(([key]) => key));
+  const resolved = [];
+  for (const topologyMember of topology.members) {
+    const match = byRelative.get(normalizeScopeLocation(topologyMember.relativeLocation).toUpperCase());
+    if (!match) return { kind:'incomplete' };
+    const selected = match.selected;
+    const member = {
+      materialKey:selected.materialKey,
+      bindingRevision:selected.bindingRevision,
+      admittedControlRevision:selected.admittedControlRevision ?? selected.controlSnapshot?.controlRevision,
+      admittedControlProjectionDigest:selected.admittedControlProjectionDigest ?? selected.controlSnapshot?.projectionDigest,
+      role:topologyMember.role,
+      episodeClaims:[],
+    };
+    member.memberClaimDigest = digest(member);
+    resolved.push({ ...match, member });
+  }
+  const primary = resolved.filter((item) => item.member.role === 'primary_payload');
+  if (!primary.length) return { kind:'incomplete' };
+  const primarySelected = primary[0].selected;
+  const primaryContext = primary[0].context;
+  const directoryTitle = directoryTitleFor(primaryContext, 1, selectionScope.scopeDigest);
+  const relatedAnchor = {
+    ...primaryContext,
+    directoryTitle,
+    fieldId:fieldContext.fieldId,
+    fieldRelativeLocation:(root && root !== '.' ? root + '/' : '') + (directoryTitle || 'dvd'),
+    baseName:directoryTitle || primaryContext.baseName,
+  };
+  const relatedScope = relatedScopeFor(relatedAnchor, primarySelected.materialKey, projectionRevision, 'single_movie_directory');
+  const seed = unitFor({
+    ...primarySelected,
+    admittedControlRevision:primarySelected.admittedControlRevision ?? primarySelected.controlSnapshot?.controlRevision,
+    admittedControlProjectionDigest:primarySelected.admittedControlProjectionDigest ?? primarySelected.controlSnapshot?.projectionDigest,
+  }, relatedAnchor, 'movie', 'single', null, [], relatedScope, 'dvd', profileHintSnapshot);
+  const members = resolved.map((item) => item.member).sort((left, right) => compareUtf8(left.materialKey, right.materialKey));
+  const value = { ...seed, members, unitDigest:'' };
+  value.unitId = digest({ schema:'procurement.triage-unit-id@1', mediaType:value.mediaType,
+    contentProfile:value.contentProfile, structureKind:value.structureKind, materialInputForm:value.materialInputForm,
+    relatedScope:value.relatedScope, members:value.members.map(({ materialKey, role, episodeClaims }) => ({ materialKey, role, episodeClaims })) });
+  value.unitDigest = digest(without(value, 'unitDigest'));
+  return { kind:'resolved', unit:value, selectedKeys:new Set(resolved.map((item) => item.selected.materialKey)) };
 }
 
 function conserveUnitBound(unit, unassigned) {
@@ -713,6 +773,39 @@ function inspectStructure(input, rule, options = {}) {
         if (!relative || !built.selectedKeys.has(relative.toUpperCase())) {
           unassigned.push({ materialKey:candidate.materialKey, reasonCode:'disc_non_primary_title', evidenceDigest:topology.topologyDigest });
         }
+      }
+      if (conserveUnitBound(built.unit, unassigned)) units.push(built.unit);
+      continue;
+    }
+    const ordinaryDiscTopology = probe?.mediaProbe?.discTopology;
+    if (ordinaryDiscTopology?.discKind === 'dvd') {
+      const group = selection.members.filter((candidate) => {
+        if (candidate.scopeOrdinal !== selected.scopeOrdinal) return false;
+        return probes.get(candidate.materialKey)?.mediaProbe?.discTopology?.topologyDigest === ordinaryDiscTopology.topologyDigest;
+      }).map((candidate) => {
+        const durableProbe = probes.get(candidate.materialKey);
+        return Object.freeze({ ...candidate,
+          admittedControlRevision:durableProbe.admittedControlRevision,
+          admittedControlProjectionDigest:durableProbe.admittedControlProjectionDigest });
+      });
+      group.forEach((candidate) => processed.add(candidate.materialKey));
+      const groupContexts = group.map((candidate) => contexts.get(candidate.materialKey));
+      const built = dvdUnitFor(group, ordinaryDiscTopology, groupContexts, selectionScope,
+        input.materialFieldContext, profileHintSnapshot, input.observationScopeProjection?.projectionRevision || 1);
+      const primaryKeys = new Set((ordinaryDiscTopology.members || [])
+        .filter((member) => member.role === 'primary_payload')
+        .map((member) => normalizeScopeLocation(member.relativeLocation).toUpperCase()));
+      const playablePrimary = group.filter((candidate) => {
+        const candidateContext = contexts.get(candidate.materialKey);
+        const relative = relativeToSelectionScope(candidateContext?.fieldRelativeLocation, selectionScope.scopeRootRelativeLocation);
+        return relative && primaryKeys.has(relative.toUpperCase());
+      }).every((candidate) => playable.get(candidate.materialKey)?.playable === true);
+      if (built.kind !== 'resolved' || !playablePrimary) {
+        addGroupUnassigned(group, built.kind !== 'resolved' ? 'disc_structure_incomplete' : 'probe_not_media', ordinaryDiscTopology.topologyDigest);
+        continue;
+      }
+      for (const candidate of group) if (!built.selectedKeys.has(candidate.materialKey)) {
+        unassigned.push({ materialKey:candidate.materialKey, reasonCode:'disc_non_primary_title', evidenceDigest:ordinaryDiscTopology.topologyDigest });
       }
       if (conserveUnitBound(built.unit, unassigned)) units.push(built.unit);
       continue;

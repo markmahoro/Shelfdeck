@@ -87,6 +87,11 @@
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
+    "relatedDispositionScopeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
     "subjectId": {
       "type": "string",
       "minLength": 1,
@@ -142,6 +147,7 @@
     "packageRevision",
     "packageDigest",
     "candidateDeliverySnapshotDigest",
+    "relatedDispositionScopeDigest",
     "subjectId",
     "subjectIntakeRevision",
     "subjectContinuityHeadRevision",

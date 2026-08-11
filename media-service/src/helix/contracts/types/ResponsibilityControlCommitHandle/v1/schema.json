@@ -117,8 +117,22 @@
       "maxItems": 1024
     },
     "receiptContract": {
-      "type": "string",
-      "minLength": 1
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "receiptSchemaRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "controlRevisionSetSchemaRef": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "receiptSchemaRef",
+        "controlRevisionSetSchemaRef"
+      ]
     },
     "eventFenceDigest": {
       "type": "string",

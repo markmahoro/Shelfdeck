@@ -189,6 +189,11 @@ function validate(request) {
     payload.delivery.offerId !== decision.offerId ||
     payload.delivery.candidateDeliverySnapshotDigest !==
       snapshot.deliverySnapshotDigest ||
+    !payload.relatedDispositionScope ||
+    payload.relatedDispositionScope.relatedReferenceSetDigest !==
+      snapshot.candidatePackage.relatedReferenceSetDigest ||
+    payload.relatedDispositionScope.relatedDispositionScopeDigest !==
+      snapshot.candidatePackage.relatedDispositionScopeDigest ||
     !target
   )
     fail(
@@ -233,12 +238,17 @@ function validate(request) {
     !request.commitMarker.commitMarker ||
     typeof request.resultBinding.resultId !== "string" ||
     !request.resultBinding.resultId ||
-    (request.resultBinding.eventId !== null &&
-      request.resultBinding.eventId !== undefined)
+    typeof request.resultBinding.eventId !== "string" ||
+    !request.resultBinding.eventId ||
+    typeof request.resultBinding.evidenceSchemaRef !== "string" ||
+    !request.resultBinding.evidenceSchemaRef ||
+    !request.resultBinding.evidence ||
+    typeof request.resultBinding.effectReceiptId !== "string" ||
+    !request.resultBinding.effectReceiptId
   )
     fail(
       "P8_ACCEPTANCE_REQUEST_INVALID",
-      "Synchronous accepted commit requires a Result identity and no Workflow Event identity.",
+      "Accepted commit requires the exact Workflow Event Result identity.",
     );
   return { snapshot, payload, decision, handle, target };
 }
@@ -261,6 +271,7 @@ function receiptFromRow(row, payload) {
     packageRevision: number(row.package_revision),
     packageDigest: row.package_digest,
     candidateDeliverySnapshotDigest: row.candidate_delivery_snapshot_digest,
+    relatedDispositionScopeDigest: row.related_disposition_scope_digest,
     subjectId: row.subject_id,
     subjectIntakeRevision: number(row.subject_intake_revision),
     subjectContinuityHeadRevision: number(row.subject_continuity_head_revision),
@@ -272,6 +283,8 @@ function receiptFromRow(row, payload) {
   };
   if (
     value.scopeDigest !== payload.payloadDigest ||
+    value.relatedDispositionScopeDigest !==
+      payload.relatedDispositionScope.relatedDispositionScopeDigest ||
     canonicalDigest(without(value, "receiptDigest")) !== value.receiptDigest
   )
     fail(
@@ -524,6 +537,8 @@ function createIntakeAcceptanceStore(options) {
             acceptance_basis_digest: payload.delivery.acceptanceBasisDigest,
             candidate_delivery_snapshot_digest:
               decision.candidateDeliverySnapshotDigest,
+            related_disposition_scope_digest:
+              snapshot.candidatePackage.relatedDispositionScopeDigest,
             candidate_delivery_snapshot_schema_ref:
               candidateDeliverySnapshotSchemaRef,
             candidate_delivery_snapshot_json: canonicalJson(snapshot),
@@ -639,6 +654,10 @@ function createIntakeAcceptanceStore(options) {
               subject_id: target,
               material_key: item.materialKey,
               role: item.role,
+              authority_kind:item.authorityKind,
+              primary_material_key:item.primaryMaterialKey,
+              association_evidence_digest:item.associationEvidenceDigest,
+              disposition_basis_digest:item.dispositionBasisDigest,
               mount_scope_id: item.physicalIdentity.mountScopeId,
               inode: item.physicalIdentity.inode,
               fingerprint_algorithm: item.physicalIdentity.fingerprintAlgorithm,
@@ -658,6 +677,7 @@ function createIntakeAcceptanceStore(options) {
               origin_candidate_delivery_snapshot_digest:
                 payload.delivery.candidateDeliverySnapshotDigest,
               origin_related_reference_set_digest: relatedReferenceSetDigest,
+              origin_related_disposition_scope_digest:snapshot.candidatePackage.relatedDispositionScopeDigest,
               current: 1,
             });
             for (const claim of item.episodeClaims)
@@ -774,6 +794,7 @@ function createIntakeAcceptanceStore(options) {
               package_digest: decision.packageDigest,
               candidate_delivery_snapshot_digest:
                 decision.candidateDeliverySnapshotDigest,
+              related_disposition_scope_digest:receipt.relatedDispositionScopeDigest,
               subject_id: target,
               subject_intake_revision: subjectRevision,
               subject_continuity_head_revision: headRevision,
@@ -805,11 +826,11 @@ function createIntakeAcceptanceStore(options) {
             outcome_kind: "succeeded",
             result_schema_ref: RECEIPT_SCHEMA,
             result_json: canonicalJson(receipt),
-            result_digest: receipt.receiptDigest,
-            evidence_schema_ref: DECISION_SCHEMA,
-            evidence_json: canonicalJson(decision),
-            evidence_digest: decision.decisionDigest,
-            effect_receipt_id: receipt.receiptId,
+            result_digest: canonicalDigest(receipt),
+            evidence_schema_ref: binding.evidenceSchemaRef,
+            evidence_json: canonicalJson(binding.evidence),
+            evidence_digest: canonicalDigest(binding.evidence),
+            effect_receipt_id: binding.effectReceiptId,
             committed_at_ms: context.commitTimeMs,
           });
         },
@@ -829,7 +850,7 @@ function createIntakeAcceptanceStore(options) {
             commit_digest: request.commitMarker.commitDigest,
             result_id: binding.resultId,
             result_schema_ref: RECEIPT_SCHEMA,
-            result_digest: receipt.receiptDigest,
+            result_digest: canonicalDigest(receipt),
             committed_at_ms: context.commitTimeMs,
           });
         },

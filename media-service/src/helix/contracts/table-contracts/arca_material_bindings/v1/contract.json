@@ -49,6 +49,49 @@
       },
       {
         "ordinal": 5,
+        "name": "authority_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "product_control",
+          "related_derived"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "primary_material_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 7,
+        "name": "source_related_reference_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 8,
+        "name": "derived_authority_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 9,
         "name": "episode_claims_schema_ref",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -58,7 +101,7 @@
         "nullable": false
       },
       {
-        "ordinal": 6,
+        "ordinal": 10,
         "name": "episode_claims_json",
         "logicalType": "TEXT_JSON",
         "enumValues": [],
@@ -68,7 +111,7 @@
         "nullable": false
       },
       {
-        "ordinal": 7,
+        "ordinal": 11,
         "name": "episode_claim_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -78,7 +121,7 @@
         "nullable": false
       },
       {
-        "ordinal": 8,
+        "ordinal": 12,
         "name": "endpoint_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -88,7 +131,7 @@
         "nullable": false
       },
       {
-        "ordinal": 9,
+        "ordinal": 13,
         "name": "location",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -98,7 +141,7 @@
         "nullable": false
       },
       {
-        "ordinal": 10,
+        "ordinal": 14,
         "name": "binding_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -108,7 +151,7 @@
         "nullable": false
       },
       {
-        "ordinal": 11,
+        "ordinal": 15,
         "name": "health_state",
         "logicalType": "TEXT",
         "enumValues": [
@@ -122,7 +165,7 @@
         "nullable": false
       },
       {
-        "ordinal": 12,
+        "ordinal": 16,
         "name": "evidence_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -132,7 +175,7 @@
         "nullable": false
       },
       {
-        "ordinal": 13,
+        "ordinal": 17,
         "name": "current",
         "logicalType": "INTEGER_BOOLEAN",
         "enumValues": [],
@@ -154,6 +197,13 @@
     "hotIndexes": [],
     "partialUniqueRules": [],
     "checkRules": [
+      {
+        "column": "authority_kind",
+        "enumValues": [
+          "product_control",
+          "related_derived"
+        ]
+      },
       {
         "column": "health_state",
         "enumValues": [
@@ -190,19 +240,19 @@
     },
     "semanticRules": [
       "`PK(owner_object_type,owner_object_id,material_key,role,binding_revision)`",
-      "每个物理Material/role/revision只有一row且每个关系只有一个current row",
-      "Episode JSON固定`helix://contracts/application-types/ArcaMaterialEpisodeClaims/v1`、canonical JCS≤`16 KiB`，schema/json/digest均非NULL并逐字节满足8.6.19公式",
-      "Product Binding从同一`OnDeckProductPackage@1` member完整复制，Series Primary为`1..32`项，single Primary及非Primary/Off-load Context-only Binding为空Set",
-      "`evidence_digest`与`arcaBindingSetDigest`覆盖完整typed Set，禁止只取第一项、复制member row或旁读Libra补值"
+      "每个物理Material/role/revision只有一row且每个关系只有一个current row。`product_control`逐项命中Handoff B Product member及Control transfer，三个Related authority列全NULL",
+      "`related_derived`只用于Off-load Context中仍为原Physical Identity的exclusive Related，必须命中同Package source reference、Primary及derived authority且不声明独立Control。两种variant严格互斥。Episode JSON固定`helix://contracts/application-types/ArcaMaterialEpisodeClaims/v1`、canonical JCS≤`16 KiB`，schema/json/digest均非NULL并逐字节满足8.6.19公式",
+      "Series Primary为`1..32`项，single Primary及非Primary/Off-load Context-only Binding为空Set",
+      "`evidence_digest`与`arcaBindingSetDigest`覆盖完整typed Set和authority variant，禁止只取第一项、复制member row或旁读Libra补值"
     ],
     "rawContract": {
-      "columns": "`owner_object_type, owner_object_id, material_key, role, episode_claims_schema_ref, episode_claims_json, episode_claim_set_digest, endpoint_id, location, binding_revision, health_state, evidence_digest, current`",
-      "constraints": "`PK(owner_object_type,owner_object_id,material_key,role,binding_revision)`；每个物理Material/role/revision只有一row且每个关系只有一个current row；Episode JSON固定`helix://contracts/application-types/ArcaMaterialEpisodeClaims/v1`、canonical JCS≤`16 KiB`，schema/json/digest均非NULL并逐字节满足8.6.19公式；Product Binding从同一`OnDeckProductPackage@1` member完整复制，Series Primary为`1..32`项，single Primary及非Primary/Off-load Context-only Binding为空Set；`evidence_digest`与`arcaBindingSetDigest`覆盖完整typed Set，禁止只取第一项、复制member row或旁读Libra补值"
+      "columns": "`owner_object_type, owner_object_id, material_key, role, authority_kind(product_control|related_derived), primary_material_key NULL, source_related_reference_id NULL, derived_authority_digest NULL, episode_claims_schema_ref, episode_claims_json, episode_claim_set_digest, endpoint_id, location, binding_revision, health_state, evidence_digest, current`",
+      "constraints": "`PK(owner_object_type,owner_object_id,material_key,role,binding_revision)`；每个物理Material/role/revision只有一row且每个关系只有一个current row。`product_control`逐项命中Handoff B Product member及Control transfer，三个Related authority列全NULL；`related_derived`只用于Off-load Context中仍为原Physical Identity的exclusive Related，必须命中同Package source reference、Primary及derived authority且不声明独立Control。两种variant严格互斥。Episode JSON固定`helix://contracts/application-types/ArcaMaterialEpisodeClaims/v1`、canonical JCS≤`16 KiB`，schema/json/digest均非NULL并逐字节满足8.6.19公式；Series Primary为`1..32`项，single Primary及非Primary/Off-load Context-only Binding为空Set；`evidence_digest`与`arcaBindingSetDigest`覆盖完整typed Set和authority variant，禁止只取第一项、复制member row或旁读Libra补值"
     },
     "source": {
       "section": "8.5.12",
-      "line": 8872,
-      "lineDigest": "a2c28d9edc930a5c6a7501242803234adb88d593125dce0b434e4d09ebf35f82"
+      "line": 9020,
+      "lineDigest": "b15ef1fdcf6fbf7e7baad1b659cd136bf6485092d5b039c8c1e3cdd950d937b4"
     },
     "foreignKeys": []
   }

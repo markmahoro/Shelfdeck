@@ -3,6 +3,12 @@
 const catalog = require('../../../contracts/ports/p8-libra-intake-public-contracts.json');
 const productionCatalog = require('../../../contracts/ports/p9-libra-production-public-contracts.json');
 const { packageId } = require('./package.boundary.json');
+const { createIntakeCapabilityPorts } = require('../capabilities/intake-capability-ports');
+const { createIntakeCapabilityRegistrations } = require('../capabilities/intake-capability-registrations');
+const { createIntakeOfferReader } = require('../persistence/intake-offer-reader');
+const { createIntakeDecisionResolver } = require('../application/intake-decision-resolver');
+const { createIntakeProcessCoordinator } = require('../application/intake-process-coordinator');
+const { createEvidencePlanner,createAcceptancePlanner,createRejectionPlanner,createIntakeProjections } = require('../planning/intake-planners');
 
 class LibraPublicFacadeError extends Error {
   constructor(code, message, details = {}) {
@@ -14,7 +20,9 @@ class LibraPublicFacadeError extends Error {
 }
 
 const contract = catalog.facades.find((entry) => entry.packageId === packageId && entry.exportName === 'LibraIntakeFacade');
+const executionContract = catalog.facades.find((entry) => entry.packageId === packageId && entry.exportName === 'LibraExecutionRegistration');
 if (!contract) throw new LibraPublicFacadeError('P8_LIBRA_INTAKE_CONTRACT_MISSING', 'Libra Intake public contract is missing.');
+if (!executionContract) throw new LibraPublicFacadeError('P8_LIBRA_EXECUTION_CONTRACT_MISSING', 'Libra Execution construction contract is missing.');
 const productDeliveryContract = productionCatalog.ports.find((entry) =>
   entry.packageId === packageId && entry.exportName === 'ProductDeliveryPort'
 );
@@ -75,9 +83,37 @@ function bindWorkspaceReclamation(implementation) {
   });
 }
 
+function createExecutionRegistration() {
+  const implementation={
+    createCapabilityRegistration(options) {
+      const offerReader=options.offerReader || createIntakeOfferReader(options);
+      const ports=createIntakeCapabilityPorts({...options,offerReader});
+      return Object.freeze({offerReader,ports,createRegistrations(registrationOptions){return createIntakeCapabilityRegistrations({
+        ...registrationOptions,ports:Object.fromEntries(registrationOptions.enabledCapabilityRefs.map((ref)=>[ref,ports[ref]]))});}});
+    },
+    createProcessServices(options) {
+      const offerReader=options.offerReader || createIntakeOfferReader(options);
+      const decisionResolver=createIntakeDecisionResolver(options);
+      const coordinator=createIntakeProcessCoordinator({...options,offerReader});
+      return Object.freeze({offerReader,decisionResolver,coordinator});
+    },
+    createPlanningRegistration(options) {
+      return Object.freeze({planners:Object.freeze([
+        createEvidencePlanner(options),createAcceptancePlanner(options),createRejectionPlanner(options)
+      ]),bindingProjections:createIntakeProjections(options)});
+    }
+  };
+  const provided=Object.keys(implementation).sort(),expected=[...executionContract.methods].sort();
+  if(JSON.stringify(provided)!==JSON.stringify(expected)||expected.some((method)=>typeof implementation[method]!=='function')){
+    throw new LibraPublicFacadeError('P8_LIBRA_EXECUTION_PORT_SHAPE_MISMATCH','Libra Execution registration does not match its formal construction contract.',{expected,provided});
+  }
+  return Object.freeze(implementation);
+}
+
 module.exports = Object.freeze({
   PACKAGE_ID:packageId,
   LibraIntakeFacade:bind,
   ProductDeliveryPort:bindProductDelivery,
-  WorkspaceReclamationPort:bindWorkspaceReclamation
+  WorkspaceReclamationPort:bindWorkspaceReclamation,
+  LibraExecutionRegistration:createExecutionRegistration
 });

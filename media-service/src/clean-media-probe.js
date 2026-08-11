@@ -3,6 +3,7 @@
 const { spawn } = require('node:child_process');
 const { canonicalDigest } = require('./helix/contracts/canonical-json');
 const { createBdmvTopologyReader } = require('./helix/integrations/bdmv-topology');
+const { createDiscTopologyReader } = require('./helix/integrations/disc-topology');
 
 const MAX_RAW_STDOUT_BYTES = 256 * 1024;
 const MAX_RAW_STDERR_BYTES = 16 * 1024;
@@ -137,6 +138,7 @@ function createCleanMediaProbe(options = {}) {
       'ShelfDeck Service requires its bundled ffprobe artifact for Triage.');
   }
   const topologyReader = options.bdmvTopologyReader || createBdmvTopologyReader(options.bdmv || {});
+  const discTopologyReader = options.discTopologyReader || createDiscTopologyReader({ bdmvTopologyReader:topologyReader });
   return Object.freeze({
     // The Procurement BDMV Assessment Capability receives this typed,
     // read-only topology port from the Composition Root.  It is deliberately
@@ -157,6 +159,7 @@ function createCleanMediaProbe(options = {}) {
         value.payloadDigest = canonicalDigest(without(value, 'payloadDigest'));
         return Object.freeze(value);
       }
+      const detectedTopology = await discTopologyReader.inspect(readHandle.location, readHandle);
       let result;
       try {
         result = await run(binary, readHandle.location);
@@ -172,7 +175,7 @@ function createCleanMediaProbe(options = {}) {
           videoStreams: Object.freeze([]),
           audioStreams: Object.freeze([]),
           subtitleStreams: Object.freeze([]),
-          discTopology: null,
+          discTopology: detectedTopology,
           payloadDigest: '',
         };
         value.payloadDigest = canonicalDigest(without(value, 'payloadDigest'));
@@ -185,8 +188,7 @@ function createCleanMediaProbe(options = {}) {
           throw new CleanMediaProbeError('CLEAN_MEDIA_PROBE_CONTRACT',
             'ffprobe output does not match the bounded typed projection.');
         }
-        const discTopology = await topologyReader.inspect(readHandle.location, readHandle);
-        return evidence(readHandle, parsed, discTopology);
+        return evidence(readHandle, parsed, detectedTopology);
       } catch (error) {
         if (error instanceof CleanMediaProbeError) throw error;
         throw new CleanMediaProbeError('CLEAN_MEDIA_PROBE_CONTRACT',

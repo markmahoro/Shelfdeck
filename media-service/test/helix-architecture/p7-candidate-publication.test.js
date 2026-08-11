@@ -51,9 +51,13 @@ function candidateDraft(options = {}) {
     const reference = { referenceId:'', primaryMaterialKey:materialKey, role:'nfo', identity:referenceIdentity,
       endpointId:'endpoint-1', location:'/field/series'+tag+'-'+String(index).padStart(4,'0')+'.nfo',
       fingerprintAlgorithm:'middle-256k-sha256', fingerprintVersion:1, contentFingerprint:referenceIdentity.contentFingerprint,
-      associationEvidenceDigest:D('reference-evidence'+tag+'-'+index), referenceDigest:'' };
+      associationKind:'exclusive',dispositionRequired:true,
+      associationEvidenceDigest:D('reference-evidence'+tag+'-'+index),dispositionBasisDigest:'',referenceDigest:'' };
     reference.referenceId = canonicalDigest({ schema:'procurement.related-material-reference-id@1', primaryMaterialKey:materialKey,
       role:reference.role, relatedMaterialKey:referenceIdentity.materialKey, endpointId:reference.endpointId, location:reference.location });
+    reference.dispositionBasisDigest=canonicalDigest({schema:'procurement.related-disposition-basis@1',
+      referenceId:reference.referenceId,primaryMaterialKey:reference.primaryMaterialKey,role:reference.role,
+      identity:reference.identity,associationEvidenceDigest:reference.associationEvidenceDigest});
     reference.referenceDigest = canonicalDigest(without(reference, 'referenceDigest'));
     return reference;
   }).sort((left, right) => Buffer.compare(Buffer.from(left.referenceId), Buffer.from(right.referenceId)));
@@ -93,6 +97,9 @@ function candidateDraft(options = {}) {
     structureEvidence:{ evidenceId:'structure-1', payloadDigest:D('structure-evidence'), unit }, primaryInputManifestDraft:manifestDraft,
     seasonContinuityClaims:continuity, seasonContinuityClaimSetDigest:continuityDigest, relatedReferences,
     relatedReferenceSetDigest:canonicalDigest({ schema:'procurement.related-reference-set@1', items:relatedReferences }),
+    relatedDispositionScopeDigest:canonicalDigest({schema:'procurement.related-disposition-scope@1',items:relatedReferences.map((reference)=>({
+      referenceId:reference.referenceId,primaryMaterialKey:reference.primaryMaterialKey,role:reference.role,
+      materialKey:reference.identity.materialKey,dispositionBasisDigest:reference.dispositionBasisDigest}))}),
     memberControlEvidenceSetDigest:canonicalDigest({ schema:'procurement.candidate-member-control-evidence@1',
       items:[{ materialKey, admittedControlRevision:1, admittedControlProjectionDigest:member.admittedControlProjectionDigest }] }),
     candidateDraftDigest:'' };

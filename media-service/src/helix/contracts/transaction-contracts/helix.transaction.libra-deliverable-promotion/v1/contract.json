@@ -7,7 +7,7 @@
     "displayName": "Libra Deliverable Promotion",
     "ownerScope": "libra",
     "commitClass": "responsibility_control_commit",
-    "atomicFactSet": "complete `LibraDeliverablePromotionDecision@1` + active Run/state revision fence + immutable Run Basis/Production Material/Workspace Staging/Product Fact/Artifact/Control fence + 由Run/package revision预派生的稳定`onDeckPackageId` + complete `OnDeckProductPackage@1`及全部relation + direct-original Control assert/new Workspace Product Control acquire及实际post-CAS projection + open Offer + durable bounded `OnDeckProductPackageCommitReceipt@1` Result/commit marker + `LibraProductOfferAvailableMessage@1` Outbox；Package head、全部快照关系、Control、Offer与Result全有或全无，Package publication不改Run state，不允许pending/placeholder Control digest",
+    "atomicFactSet": "complete `LibraDeliverablePromotionDecision@1` + active Run/state revision fence + immutable Run Basis/Production Material/Workspace Staging/Product Fact/Artifact/Control/Related authority fence + 由Run/package revision预派生的稳定`onDeckPackageId` + complete `OnDeckProductPackage@1`、完整source-to-final Related disposition mapping及全部relation + direct-original Control assert/exclusive Related authority assert/new Workspace Product Control acquire及实际post-state projection + open Offer + durable bounded `OnDeckProductPackageCommitReceipt@1` Result/commit marker + `LibraProductOfferAvailableMessage@1` Outbox；任何Run Basis Related遗漏、重复或无successor mapping都禁止Promotion；Package head、全部快照关系、Control、Offer与Result全有或全无",
     "participants": [
       {
         "participantKind": "domain",
@@ -112,8 +112,8 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 8149,
-      "lineDigest": "a641d4180c1a8965412886ab26266a5d06964185b40e2b0fbc3655265b19a15a"
+      "line": 8297,
+      "lineDigest": "15cae5f898cd5f17754b6d6a463d674e7115cf739281b7ad10ca1356eabd9b73"
     }
   }
 }

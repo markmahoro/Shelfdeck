@@ -11,7 +11,11 @@ const { createCleanServiceHost } = require('../src/clean-service-host');
 const { canonicalDigest } = require('../src/helix/contracts/canonical-json');
 
 const secretRoot='procurement-foundation-pressure-secret-20260802';
-const candidatesPerScope=Number(process.env.HELIX_PRESSURE_CANDIDATES_PER_SCOPE||250);
+// Four scopes keep the fixture representative while 65 candidates per scope
+// still crosses the 256 open-Work hard cap.  The former 1,000-candidate
+// default spent most of this focused Foundation test exercising downstream
+// Libra Intake after Offer publication.
+const candidatesPerScope=Number(process.env.HELIX_PRESSURE_CANDIDATES_PER_SCOPE||65);
 const expectedCandidateCount=candidatesPerScope*4;
 
 function mediaProbe(){return Object.freeze({async probe(readHandle){const value={resultKind:'probed',
@@ -19,6 +23,12 @@ function mediaProbe(){return Object.freeze({async probe(readHandle){const value=
     dispositionDefault:true,width:1920,height:1080}],audioStreams:[],subtitleStreams:[],discTopology:null,payloadDigest:''};
   value.payloadDigest=canonicalDigest(Object.fromEntries(Object.entries(value).filter(([key])=>key!=='payloadDigest')));
   return Object.freeze(value);}});}
+
+function suspendedOutboxDispatcher(){return Object.freeze({
+  async start(){return Object.freeze({state:'ready'});},
+  wake(){return Object.freeze({kind:'idle'});},
+  async stop(){return Object.freeze({state:'stopped'});},
+});}
 
 async function authenticate(host,apiKey){const response=await host.inject({method:'POST',url:'/v1/admin/session',
   headers:{'x-api-key':apiKey}});assert.equal(response.statusCode,204,response.body);return response.headers['set-cookie'];}
@@ -38,6 +48,7 @@ test(`${expectedCandidateCount} Candidate demand stays below the hard cap while 
     mountScopeId:'pressure-mount',mountScopeRevision:1,accessSchemaRef:'helix://fixtures/pressure-access/v1'};
   let runtimeError=null;
   const host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,mediaProbe:mediaProbe(),
+    outboxDispatcherFactory:suspendedOutboxDispatcher,
     onExecutionRuntimeError(error){runtimeError=error;}});
   try{
     const cookie=await authenticate(host,initialized.adminApiKey);
@@ -59,7 +70,7 @@ test(`${expectedCandidateCount} Candidate demand stays below the hard cap while 
         evidenceOpen:db.prepare("SELECT count(*) count FROM fx_supporting_works WHERE work_kind='evidence_assessment' AND state!='succeeded'").get().count,
         candidateWorks:db.prepare("SELECT count(*) count FROM fx_supporting_works WHERE work_kind='candidate_assembly'").get().count,
         candidates:db.prepare('SELECT count(*) count FROM proc_candidate_packages').get().count,
-        offers:db.prepare("SELECT count(*) count FROM proc_candidate_deliveries WHERE state='open'").get().count,
+        deliveries:db.prepare('SELECT count(*) count FROM proc_candidate_deliveries').get().count,
         openWorks:db.prepare("SELECT count(*) count FROM fx_supporting_works WHERE state NOT IN ('succeeded','failed','cancelled')").get().count,
         failedWorks:db.prepare("SELECT count(*) count FROM fx_supporting_works WHERE state='failed'").get().count,
         failedEvents:db.prepare("SELECT count(*) count FROM fx_workflow_events WHERE state='failed'").get().count,
@@ -69,7 +80,8 @@ test(`${expectedCandidateCount} Candidate demand stays below the hard cap while 
       if(runtimeError||last.runs===1&&last.sealed===1&&last.candidates===expectedCandidateCount)break;
       await new Promise((resolve)=>setTimeout(resolve,25));
     }
-    assert.ifError(runtimeError);assert.deepEqual(last,{...last,runs:1,sealed:1,candidates:expectedCandidateCount,offers:expectedCandidateCount,failedWorks:0,failedEvents:0});
+    assert.ifError(runtimeError);assert.deepEqual(last,{...last,runs:1,sealed:1,candidates:expectedCandidateCount,
+      deliveries:expectedCandidateCount,failedWorks:0,failedEvents:0});
     assert.ok(last.candidateWorks>256,`candidate demand did not exceed the hard cap: ${JSON.stringify(last)}`);
     assert.equal(sawEarlyOffer,true,JSON.stringify(last));
     assert.ok(maxOpenWorks<=256,`maxOpenWorks=${maxOpenWorks}`);

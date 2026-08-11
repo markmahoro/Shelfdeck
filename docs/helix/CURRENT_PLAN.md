@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: Movie Procurement保持`CLOSED FOR MOVIE`；`ARCA SHELF CONFIGURATION READY FOR LIBRA`已完成，当前Implementation Gate关闭。
+Status: Movie Procurement保持`CLOSED FOR MOVIE`；Arca Shelf配置保持`READY FOR LIBRA`；Libra Intake Acceptance达到`READY / AWAITING ROUTING`，当前Implementation Gate关闭。
 
 Last updated: 2026-08-11
 
@@ -22,6 +22,25 @@ Last updated: 2026-08-11
 control seed保存，只能在manifest指定阶段物化；跨卷场景明确要求第二个本地filesystem root。每个destructive/fault-injection场景
 必须先重建测试库且不得并发执行。素材和配方存在只代表测试前提完备，产品路径未接线的分支仍必须标为`contract_only|not_implemented`。
 
+### Planned Routing test-set extension
+
+Routing节点实施时，测试集必须把主生产链与Sorting专项链分开：现有`test material field → movie test`继续作为direct路径，保证现有
+Subject可以全部进入后续Acceptance Spec/Libra Production；另建不与其物理范围重叠的Sorting专用Material Field及三座拥有唯一Target
+Folder、绑定同一Movie Rule Template的测试Shelf。Sorting happy-path使用真实电影标题及正式Evidence，至少固定以下预期：
+
+| Input | Required Routing Fact | Expected target |
+| --- | --- | --- |
+| `顽主` | `release_year=1989` | 经典电影测试 |
+| `爆弹` | `release_year=2025` | 新片测试 |
+| `0.5毫米` | `release_year=2014` | 普通电影测试（显式最低优先级`always`规则） |
+
+Policy顺序固定为`release_year <= 1999 → 经典电影测试`、`release_year >= 2020 → 新片测试`、`always → 普通电影测试`。
+真实标题只用于用户可读核验，不得作为Routing条件或Provider ID；Routing必须消费带revision/digest的正式Decision Fact。
+
+Sorting专用Field还必须增加两条无NFO边界：一部无NFO但能够通过正式Identity/Provider Evidence确定年份的电影，必须仅补齐Routing所需
+`release_year`后正常命中；另一部无NFO且无法可靠解析Identity/年份的电影，必须保持`Routing Readiness unresolved`，高优先级规则结果为
+`unknown`时不得越级进入catch-all。两者都不得在Routing阶段生成NFO、poster、完整Product Metadata、Libra Run或文件副作用。
+
 ## 0. Completed target — Arca Shelf Configuration Ready for Libra
 
 本轮在不进入Handoff B、On-deck或文件副作用的前提下，完成第一座可由Libra公开读取的active Shelf。首次创建Command必须探测唯一
@@ -37,6 +56,26 @@ Projection逐字一致、Libra只能通过Arca public projection读取Shelf及St
 
 2026-08-11，本目标已通过本地Node.js、临时clean数据库和临时Target Folder完成验收。下一目标仍是Libra-owned
 Field→Shelf Routing Policy及Handoff A Routing Decision/Acceptance Spec；它尚未获得Implementation Gate，不能在本轮顺带实现。
+
+## 0. Completed target — Libra Intake Acceptance and Formation list
+
+本轮只打开Handoff A之后的第一个Libra节点。Procurement发布的Candidate Offer由durable Outbox Dispatcher交给Libra
+Intake Coordinator；Coordinator只签发Supporting Work并读取terminal Work Result。Candidate、Material、Binding及continuity验证均由
+Planner展开为immutable Plan，再由Event Runtime执行正式Intake Capability。Accepted commit在一个原子事务中建立或延续Subject、写入
+Libra Material Binding、接收Receipt和Control连续性，并向Procurement发布accepted结果；拒绝路径保持独立typed Decision和Receipt。
+
+Admin Web“上架进度”已接入真实Formation Projection，固定一行一个Subject。当前节点只显示Intake已经接收、但尚未完成Shelf Routing的
+Subject，因此状态为`awaiting_destination`；页面不会把Work、Event或一次Run展示成独立用户条目。历史大型Libra Coordinator没有进入该
+产品路径，也没有被复用为同步执行捷径。
+
+本地Node.js clean Canary使用唯一隔离测试根完成：1,140个regular files、5个Observation Page、1个sealed Procurement Run、19个
+Candidate/Offer全部被Libra正式接收，形成19个Subject和19个accepted Intake；其中G08/G09分别以正式typed topology形成`iso`与`dvd`
+输入，DVD Manifest包含1个`primary_payload`及4个`structural_dependency`。唯一G10超大Related场景在Procurement按业务合同
+`candidate_disposition_scope_unrepresentable`收口，不产生Candidate，不属于Foundation技术失败。测试主动重启后未重复Observation、
+Candidate、Offer、Intake或Subject；源Reality前后一致，Libra Run/Workspace、Handoff B及Arca媒体事实均为0。
+
+本轮完成状态为`LIBRA INTAKE ACCEPTANCE READY / AWAITING ROUTING`。下一独立目标是Libra-owned Field→Shelf Routing Policy、Routing
+Decision及Acceptance Spec；不得在未显式开放门禁前签发Libra Production Run或产生Workspace/文件副作用。
 
 ## 0. Closure — Movie Procurement at Handoff A Ready
 

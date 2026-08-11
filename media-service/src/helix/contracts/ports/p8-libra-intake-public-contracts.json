@@ -12,6 +12,16 @@
       "inputSchemaRefs": {
         "offerCandidate": "helix://contracts/types/ProcurementCandidateOfferAvailableMessage/v1"
       }
+    },
+    {
+      "exportName": "LibraExecutionRegistration",
+      "packageId": "domains.libra.public",
+      "kind": "foundation-construction-port",
+      "methods": [
+        "createCapabilityRegistration",
+        "createPlanningRegistration",
+        "createProcessServices"
+      ]
     }
   ]
 }

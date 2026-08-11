@@ -39,6 +39,49 @@
       },
       {
         "ordinal": 4,
+        "name": "authority_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "primary_control",
+          "related_derived"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "primary_material_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 6,
+        "name": "association_evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 7,
+        "name": "disposition_basis_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 8,
         "name": "mount_scope_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -48,7 +91,7 @@
         "nullable": false
       },
       {
-        "ordinal": 5,
+        "ordinal": 9,
         "name": "inode",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -58,7 +101,7 @@
         "nullable": false
       },
       {
-        "ordinal": 6,
+        "ordinal": 10,
         "name": "fingerprint_algorithm",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -68,7 +111,7 @@
         "nullable": false
       },
       {
-        "ordinal": 7,
+        "ordinal": 11,
         "name": "fingerprint_version",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -78,7 +121,7 @@
         "nullable": false
       },
       {
-        "ordinal": 8,
+        "ordinal": 12,
         "name": "content_fingerprint",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -88,7 +131,7 @@
         "nullable": false
       },
       {
-        "ordinal": 9,
+        "ordinal": 13,
         "name": "size_bytes",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -98,7 +141,7 @@
         "nullable": false
       },
       {
-        "ordinal": 10,
+        "ordinal": 14,
         "name": "endpoint_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -108,7 +151,7 @@
         "nullable": false
       },
       {
-        "ordinal": 11,
+        "ordinal": 15,
         "name": "location",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -118,7 +161,7 @@
         "nullable": false
       },
       {
-        "ordinal": 12,
+        "ordinal": 16,
         "name": "binding_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -128,7 +171,7 @@
         "nullable": false
       },
       {
-        "ordinal": 13,
+        "ordinal": 17,
         "name": "health_state",
         "logicalType": "TEXT",
         "enumValues": [
@@ -142,7 +185,7 @@
         "nullable": false
       },
       {
-        "ordinal": 14,
+        "ordinal": 18,
         "name": "evidence_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -152,7 +195,7 @@
         "nullable": false
       },
       {
-        "ordinal": 15,
+        "ordinal": 19,
         "name": "origin_intake_decision_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -162,7 +205,7 @@
         "nullable": false
       },
       {
-        "ordinal": 16,
+        "ordinal": 20,
         "name": "origin_offer_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -172,7 +215,7 @@
         "nullable": false
       },
       {
-        "ordinal": 17,
+        "ordinal": 21,
         "name": "origin_candidate_package_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -182,7 +225,7 @@
         "nullable": false
       },
       {
-        "ordinal": 18,
+        "ordinal": 22,
         "name": "origin_package_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -192,7 +235,7 @@
         "nullable": false
       },
       {
-        "ordinal": 19,
+        "ordinal": 23,
         "name": "origin_package_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -202,7 +245,7 @@
         "nullable": false
       },
       {
-        "ordinal": 20,
+        "ordinal": 24,
         "name": "origin_candidate_delivery_snapshot_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -212,7 +255,7 @@
         "nullable": false
       },
       {
-        "ordinal": 21,
+        "ordinal": 25,
         "name": "origin_related_reference_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -222,7 +265,17 @@
         "nullable": false
       },
       {
-        "ordinal": 22,
+        "ordinal": 26,
+        "name": "origin_related_disposition_scope_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 27,
         "name": "current",
         "logicalType": "INTEGER_BOOLEAN",
         "enumValues": [],
@@ -245,6 +298,13 @@
     "hotIndexes": [],
     "partialUniqueRules": [],
     "checkRules": [
+      {
+        "column": "authority_kind",
+        "enumValues": [
+          "primary_control",
+          "related_derived"
+        ]
+      },
       {
         "column": "health_state",
         "enumValues": [
@@ -270,8 +330,7 @@
     "immutability": {
       "immutable": true,
       "rules": [
-        "immutable revision以`PK(subject_id,material_key,binding_revision)`保存",
-        "Handoff A每个Manifest member只建一条Binding并从`LibraBindingDraft@1`逐项复制`CandidatePrimaryMaterialDelivery@1`的Physical Identity、size、endpoint/location与immutable provenance，五项Identity/size字段不得从materialKey反解、从current Field补读或使用默认值"
+        "immutable revision以`PK(subject_id,material_key,binding_revision)`保存"
       ]
     },
     "deletion": {
@@ -282,18 +341,19 @@
       "immutable revision以`PK(subject_id,material_key,binding_revision)`保存",
       "完整Physical Identity必须逐字节满足materialKey公式且size为non-negative safe integer",
       "每个`subject+material+role`只有一个current row",
-      "Handoff A每个Manifest member只建一条Binding并从`LibraBindingDraft@1`逐项复制`CandidatePrimaryMaterialDelivery@1`的Physical Identity、size、endpoint/location与immutable provenance，五项Identity/size字段不得从materialKey反解、从current Field补读或使用默认值",
-      "后续可通过正式historical `CandidateDeliveryPort`重读随单Related References，不旁读Procurement Store",
+      "Handoff A为每个Primary Manifest member建立`primary_control` Binding并逐项复制`CandidatePrimaryMaterialDelivery@1`，同时为每个Related Reference建立`related_derived` Binding并逐项复制同一Delivery Snapshot的exclusive association/disposition basis",
+      "两种variant严格互斥，related variant的Primary/association/disposition列全非NULL且不得携带Control revision",
+      "不得从current Field补读或默认",
       "不能为多Episode复制Binding或把Episode拼入字符串"
     ],
     "rawContract": {
-      "columns": "`subject_id FK, material_key, role, mount_scope_id, inode, fingerprint_algorithm, fingerprint_version, content_fingerprint, size_bytes, endpoint_id, location, binding_revision, health_state, evidence_digest, origin_intake_decision_id FK, origin_offer_id, origin_candidate_package_id, origin_package_revision, origin_package_digest, origin_candidate_delivery_snapshot_digest, origin_related_reference_set_digest, current`",
-      "constraints": "immutable revision以`PK(subject_id,material_key,binding_revision)`保存；完整Physical Identity必须逐字节满足materialKey公式且size为non-negative safe integer；每个`subject+material+role`只有一个current row；Handoff A每个Manifest member只建一条Binding并从`LibraBindingDraft@1`逐项复制`CandidatePrimaryMaterialDelivery@1`的Physical Identity、size、endpoint/location与immutable provenance，五项Identity/size字段不得从materialKey反解、从current Field补读或使用默认值；后续可通过正式historical `CandidateDeliveryPort`重读随单Related References，不旁读Procurement Store；不能为多Episode复制Binding或把Episode拼入字符串"
+      "columns": "`subject_id FK, material_key, role, authority_kind(primary_control|related_derived), primary_material_key NULL, association_evidence_digest NULL, disposition_basis_digest NULL, mount_scope_id, inode, fingerprint_algorithm, fingerprint_version, content_fingerprint, size_bytes, endpoint_id, location, binding_revision, health_state, evidence_digest, origin_intake_decision_id FK, origin_offer_id, origin_candidate_package_id, origin_package_revision, origin_package_digest, origin_candidate_delivery_snapshot_digest, origin_related_reference_set_digest, origin_related_disposition_scope_digest, current`",
+      "constraints": "immutable revision以`PK(subject_id,material_key,binding_revision)`保存；完整Physical Identity必须逐字节满足materialKey公式且size为non-negative safe integer；每个`subject+material+role`只有一个current row；Handoff A为每个Primary Manifest member建立`primary_control` Binding并逐项复制`CandidatePrimaryMaterialDelivery@1`，同时为每个Related Reference建立`related_derived` Binding并逐项复制同一Delivery Snapshot的exclusive association/disposition basis；两种variant严格互斥，related variant的Primary/association/disposition列全非NULL且不得携带Control revision；不得从current Field补读或默认；不能为多Episode复制Binding或把Episode拼入字符串"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8822,
-      "lineDigest": "04665122b5d8ecb8fcffed0cb8ea6e5142826d28cbcd172ea8126bd0a6bfd99d"
+      "line": 8970,
+      "lineDigest": "494c8273af44465e3b5448570c6c78c57a57aa43b2594900dbca4a23c17e4a4c"
     },
     "foreignKeys": [
       {

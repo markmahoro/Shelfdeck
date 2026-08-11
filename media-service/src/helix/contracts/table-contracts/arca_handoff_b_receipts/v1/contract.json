@@ -102,6 +102,16 @@
       },
       {
         "ordinal": 10,
+        "name": "related_disposition_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
         "name": "rejection_code",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -111,7 +121,7 @@
         "nullable": true
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "acceptance_evidence_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -121,7 +131,7 @@
         "nullable": false
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "rejection_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -131,7 +141,7 @@
         "nullable": true
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "receipt_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -141,7 +151,7 @@
         "nullable": false
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "committed_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -193,19 +203,19 @@
     },
     "semanticRules": [
       "`UNIQUE(acceptance_decision_id)`及`UNIQUE(offer_id)`",
-      "Offer/Package pair逐字节等于Decision",
-      "accepted要求Custody/Binding/Control列非NULL、全部rejection列为NULL，receipt digest按`CustodyAndTransferReceipt@1`公式重建",
+      "Offer/Package/Related disposition set逐字节等于Decision",
+      "accepted要求Custody/Binding/Control列非NULL、全部rejection列为NULL，receipt digest按`CustodyAndTransferReceipt@1`公式重建，其中Related set不进入Control digest",
       "rejected要求Custody/Binding/Control列NULL且rejection列非NULL，receipt digest按`RejectionReceipt@1`公式重建",
       "两种终态都必须有receipt digest并作为各自typed Outbox的durable source，相同marker不新增Receipt或相反终态"
     ],
     "rawContract": {
-      "columns": "`receipt_id PK, acceptance_decision_id FK, outcome(accepted|rejected), offer_id, custody_id NULL, on_deck_package_id, package_digest, arca_binding_set_digest NULL, control_revision_set_digest NULL, rejection_code NULL, acceptance_evidence_set_digest, rejection_digest NULL, receipt_digest, committed_at_ms`",
-      "constraints": "`UNIQUE(acceptance_decision_id)`及`UNIQUE(offer_id)`；Offer/Package pair逐字节等于Decision；accepted要求Custody/Binding/Control列非NULL、全部rejection列为NULL，receipt digest按`CustodyAndTransferReceipt@1`公式重建；rejected要求Custody/Binding/Control列NULL且rejection列非NULL，receipt digest按`RejectionReceipt@1`公式重建；两种终态都必须有receipt digest并作为各自typed Outbox的durable source，相同marker不新增Receipt或相反终态"
+      "columns": "`receipt_id PK, acceptance_decision_id FK, outcome(accepted|rejected), offer_id, custody_id NULL, on_deck_package_id, package_digest, arca_binding_set_digest NULL, control_revision_set_digest NULL, related_disposition_set_digest, rejection_code NULL, acceptance_evidence_set_digest, rejection_digest NULL, receipt_digest, committed_at_ms`",
+      "constraints": "`UNIQUE(acceptance_decision_id)`及`UNIQUE(offer_id)`；Offer/Package/Related disposition set逐字节等于Decision；accepted要求Custody/Binding/Control列非NULL、全部rejection列为NULL，receipt digest按`CustodyAndTransferReceipt@1`公式重建，其中Related set不进入Control digest；rejected要求Custody/Binding/Control列NULL且rejection列非NULL，receipt digest按`RejectionReceipt@1`公式重建；两种终态都必须有receipt digest并作为各自typed Outbox的durable source，相同marker不新增Receipt或相反终态"
     },
     "source": {
       "section": "8.5.12",
-      "line": 8871,
-      "lineDigest": "94fa457d6a9a297539cdcab09cd2cb72a795935917f405e5c232b255131e2129"
+      "line": 9019,
+      "lineDigest": "c477065ed9f1cbba0baaa99ec52d4920b52301b2afb96234e221f1f957a10751"
     },
     "foreignKeys": [
       {

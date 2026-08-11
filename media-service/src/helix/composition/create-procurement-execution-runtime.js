@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
+const { computeBoundedMaterialFingerprint } = require('../integrations/bounded-material-fingerprint');
 const { canonicalDigest } = require('../contracts/canonical-json');
 const { createCapabilityContractValidator } = require('../foundation/capability/contract-validator');
 const { createCapabilityRegistry } = require('../foundation/capability/capability-registry');
@@ -28,12 +29,15 @@ const { createReconcileCursorStore } = require('../foundation/execution/reconcil
 const { createDomainReconcileRunner } = require('../foundation/execution/domain-reconcile-runner');
 const { createWorkflowPlanPublisher, executionCatalogDigest } = require('../foundation/execution/workflow-plan');
 const { ProcurementExecutionRegistration } = require('../domains/procurement/public');
+const { LibraExecutionRegistration } = require('../domains/libra/public');
 
 const PROCUREMENT_ENABLED = Object.freeze(['procurement.field.observation.page.commit@1',
   'procurement.triage.playability.inspect@1','procurement.triage.bdmv.assess@1','procurement.triage.structure.inspect@1',
   'procurement.triage.identity_claim.resolve@1','procurement.triage.primary_manifest.build@1','procurement.candidate.publish@1']);
 const SHARED_ENABLED = Object.freeze(['shared.material.media.probe@1']);
-const ENABLED = Object.freeze([...PROCUREMENT_ENABLED, ...SHARED_ENABLED]);
+const LIBRA_ENABLED = Object.freeze(['libra.intake.candidate.verify@1','libra.intake.material.verify@1',
+  'libra.intake.binding.resolve@1','libra.intake.accept.commit@1','libra.intake.rejection.commit@1']);
+const ENABLED = Object.freeze([...PROCUREMENT_ENABLED, ...SHARED_ENABLED, ...LIBRA_ENABLED]);
 
 function collectSchemas(root) {
   const schemas = [];
@@ -70,6 +74,7 @@ function createProcurementExecutionRuntime(options) {
   const contractValidator = createCapabilityContractValidator({ schemas: collectSchemas(contractsRoot) });
   const manifests = Object.fromEntries(ENABLED.map((ref) => [ref, manifest(contractsRoot, ref)]));
   const procurementConstruction = ProcurementExecutionRegistration();
+  const libraConstruction = LibraExecutionRegistration();
   const capabilityRegistration = procurementConstruction.createCapabilityRegistration({ ...options, now });
   const ports = capabilityRegistration.ports;
   const procurementRegistrations = capabilityRegistration.createRegistrations({ enabledCapabilityRefs: PROCUREMENT_ENABLED,
@@ -80,12 +85,18 @@ function createProcurementExecutionRuntime(options) {
     semanticValidator:Object.freeze({ref:manifests[capabilityRef].semanticValidatorRef,
       validateInputs:(context)=>ports[capabilityRef].validateInputs(context),
       validateResult:(context,outcome)=>ports[capabilityRef].validateResult(context,outcome)}) }));
-  const registrations = Object.freeze([...procurementRegistrations,...sharedRegistrations]);
+  const libraCapabilityRegistration=libraConstruction.createCapabilityRegistration({...options,now,
+    computeFingerprint:options.computeFingerprint || computeBoundedMaterialFingerprint});
+  const libraRegistrations=libraCapabilityRegistration.createRegistrations({enabledCapabilityRefs:LIBRA_ENABLED,
+    manifests:Object.fromEntries(LIBRA_ENABLED.map((ref)=>[ref,manifests[ref]]))});
+  const registrations = Object.freeze([...procurementRegistrations,...sharedRegistrations,...libraRegistrations]);
   const registry = createCapabilityRegistry({ registrations, expectedCapabilityRefs: ENABLED });
   const retryPolicies = [
     { ref: 'helix://foundation/retry/pure-observation/v1', effectClass: 'pure_observation', maxFailureAttempts: 3,
       backoffMs: [1000, 5000], retryableFailureClasses: ['integration', 'timeout'] },
     { ref: 'helix://foundation/retry/domain-fact-commit/v1', effectClass: 'domain_fact_commit', maxFailureAttempts: 1,
+      backoffMs: [], retryableFailureClasses: [] },
+    { ref: 'helix://foundation/retry/responsibility-control-commit/v1', effectClass: 'responsibility_control_commit', maxFailureAttempts: 1,
       backoffMs: [], retryableFailureClasses: [] },
   ];
   const timeoutPolicies = [{ ref: 'helix://foundation/timeout/field-observation/v1', timeoutMs: 3_600_000,
@@ -93,9 +104,11 @@ function createProcurementExecutionRuntime(options) {
   const policyRegistry = createExecutionPolicyRegistry({ expectedCapabilityRefs: ENABLED, retryPolicies, timeoutPolicies,
     compensationContracts: [], capabilityBindings: ENABLED.map((capabilityRef) => ({ capabilityRef,
       effectClass: manifests[capabilityRef].effectClass,
-      retryPolicyRef: manifests[capabilityRef].effectClass === 'pure_observation' ? retryPolicies[0].ref : retryPolicies[1].ref,
+      retryPolicyRef: manifests[capabilityRef].effectClass === 'pure_observation' ? retryPolicies[0].ref :
+        manifests[capabilityRef].effectClass === 'responsibility_control_commit' ? retryPolicies[2].ref : retryPolicies[1].ref,
       timeoutPolicyRef: timeoutPolicies[0].ref, compensationContractRefs: [] })) });
   const executionProjectionProvider=Object.freeze({read:({processType,workKind})=>{
+    if(processType==='libra_intake')return Object.freeze({priorityClass:'handoff_acceptance',localPriority:300,priorityRevision:1,supplyRole:'completion'});
     if(processType==='material_field')return Object.freeze({priorityClass:'background_observation',localPriority:0,priorityRevision:1,supplyRole:'expansion'});
     if(workKind==='candidate_assembly')return Object.freeze({priorityClass:'normal_foreground',localPriority:200,priorityRevision:1,supplyRole:'completion'});
     if(workKind==='evidence_assessment')return Object.freeze({priorityClass:'normal_foreground',localPriority:100,priorityRevision:1,supplyRole:'expansion'});
@@ -131,7 +144,12 @@ function createProcurementExecutionRuntime(options) {
   const planningRegistration = procurementConstruction.createPlanningRegistration({ registry, policyRegistry,
     contractValidator, progressReader, triageReader, triageRuleRegistry: triageRegistry, workResultReader,
     evidenceIndex, candidateContextReader, materialFieldStore: options.materialFieldStore, now });
-  const bindingProjectionRegistry = createInputBindingProjectionRegistry({ registrations: planningRegistration.bindingProjections });
+  const libraProcessServices=libraConstruction.createProcessServices({...options,now,workResultReader,
+    offerReader:libraCapabilityRegistration.offerReader});
+  const libraPlanningRegistration=libraConstruction.createPlanningRegistration({registry,policyRegistry,contractValidator,
+    workResultReader,offerReader:libraProcessServices.offerReader,decisionResolver:libraProcessServices.decisionResolver,now});
+  const bindingProjectionRegistry = createInputBindingProjectionRegistry({ registrations:[...planningRegistration.bindingProjections,
+    ...libraPlanningRegistration.bindingProjections] });
   const executionInputProvider = createEventExecutionInputProvider({ schemaManifest: options.schemaManifest,
     unitOfWork: options.unitOfWork, contractValidator, bindingProjectionRegistry, workResultReader });
   const attemptPolicy = createAttemptPolicyController({ registry: policyRegistry, now });
@@ -148,12 +166,14 @@ function createProcurementExecutionRuntime(options) {
     resourceDemandResolver: { resolve: ({ snapshot,inputs }) => {const projection=executionProjectionProvider.read({
       ownerDomain:snapshot.work.owner_domain,processType:snapshot.work.process_type,processId:snapshot.work.process_id,workKind:snapshot.work.work_kind});
       const capability=snapshot.node.capability_ref;let resources=[];
-      if(['procurement.field.observation.page.commit@1','shared.material.media.probe@1','procurement.triage.bdmv.assess@1'].includes(capability)){
+      if(['procurement.field.observation.page.commit@1','shared.material.media.probe@1','procurement.triage.bdmv.assess@1',
+        'libra.intake.material.verify@1'].includes(capability)){
         const mountScopeId=findMountScopeId(inputs);if(!mountScopeId)throw new Error('P4_TYPED_VOLUME_RESOURCE_UNRESOLVED:'+capability);
         validatedVolumeKeys.add(mountScopeId);resources.push({resourceKey:'volume_read:'+mountScopeId,units:1});
       }
       if(capability === 'procurement.triage.bdmv.assess@1') resources.push({resourceKey:'cpu_heavy',units:1});
-      if(['procurement.field.observation.page.commit@1','procurement.candidate.publish@1'].includes(capability)){
+      if(['procurement.field.observation.page.commit@1','procurement.candidate.publish@1','libra.intake.accept.commit@1',
+        'libra.intake.rejection.commit@1'].includes(capability)){
         resources.push({resourceKey:'sqlite_write',units:1});
       }
       if(resources.length===0)resources=[{resourceKey:'cpu_heavy',units:1}];
@@ -162,10 +182,12 @@ function createProcurementExecutionRuntime(options) {
     nextEventAttemptId: () => 'event-attempt-' + randomUUID(), nextExecutionId: () => 'execution-' + randomUUID(),
     nextResultId: () => 'event-result-' + randomUUID(), now });
   const plannerKinds = ['field_observation', 'evidence_assessment', 'candidate_assembly'];
-  const plannerRegistry = createPlannerRegistry({ registrations: planningRegistration.planners.map((planner, index) => ({
+  const libraPlannerKinds=['evidence','acceptance','rejection'];
+  const plannerRegistry = createPlannerRegistry({ registrations: [...planningRegistration.planners.map((planner, index) => ({
     ownerDomain: 'procurement', workKind: plannerKinds[index], plannerContractRef: planner.plannerContractRef,
     plannerVersion: planner.plannerVersion, planner
-  })) });
+  })),...libraPlanningRegistration.planners.map((planner,index)=>({ownerDomain:'libra',workKind:libraPlannerKinds[index],
+    plannerContractRef:planner.plannerContractRef,plannerVersion:planner.plannerVersion,planner}))] });
   const planPublisher = createWorkflowPlanPublisher({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     registry, contractValidator, policyRegistry });
   const workLifecycle = createWorkLifecycle({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
@@ -177,6 +199,13 @@ function createProcurementExecutionRuntime(options) {
     effectReconciler: { reconcile: async () => ({ decision: 'terminal_failure' }) } });
   let host;
   const domainReconciler = { async reconcile(request) {
+    if(request.ownerDomain==='libra'&&request.processType==='libra_intake'){
+      libraProcessServices.coordinator.reconcile(request.processId);
+      if(['acceptance','rejection'].includes(request.workKind)&&request.workAttemptState==='succeeded'){
+        libraProcessServices.coordinator.reconcilePending({ignoreAcceptanceProcessId:request.processId,limit:100});
+      }
+      return {workId:request.workId,disposition:request.workAttemptState};
+    }
     if (request.ownerDomain !== 'procurement') return null;
     if(request.processType==='procurement_run'){
       if(request.workAttemptState==='succeeded'){
@@ -215,10 +244,13 @@ function createProcurementExecutionRuntime(options) {
     ownerDomain:'procurement',reconcilerKey:'active-procurement-runs',
     listPage:({cursor,limit})=>triageReader.listActiveRunPage(cursor,limit),
     reconcile:({procurementRunId})=>runCoordinator.reconcile(procurementRunId),
-  })]});
+  }),Object.freeze({ownerDomain:'libra',reconcilerKey:'pending-intake-offers',
+    listPage:({cursor,limit})=>libraProcessServices.offerReader.listProcessPage(cursor,limit).items.map((item)=>Object.freeze({cursor:item.processId,scope:item})),
+    reconcile:({processId})=>libraProcessServices.coordinator.reconcile(processId)})]});
   host = createExecutionRuntimeHost({ startupRecovery, scheduler, plannerRegistry, planPublisher, workLifecycle,
     eventRuntime, domainReconciler, fallbackReconciler, onError: options.onError,maxInFlightEvents:16 });
-  return Object.freeze({ host, registry, policyRegistry, contractValidator, progressReader, procurementAutomation,triageReader,runCoordinator });
+  return Object.freeze({ host, registry, policyRegistry, contractValidator, progressReader, procurementAutomation,triageReader,runCoordinator,
+    intakeCoordinator:libraProcessServices.coordinator,intakeOfferReader:libraProcessServices.offerReader });
 }
 
-module.exports = Object.freeze({ createProcurementExecutionRuntime });
+module.exports = Object.freeze({ createProcurementExecutionRuntime,createHelixExecutionRuntime:createProcurementExecutionRuntime });

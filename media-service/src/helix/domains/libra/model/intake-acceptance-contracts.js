@@ -35,7 +35,7 @@ function buildLibraBindingDraft(snapshot,decision,producedAtMs){
   if(!Array.isArray(deliveries)||deliveries.length<1||deliveries.length>1024||new Set(deliveries.map((item)=>item.materialKey)).size!==deliveries.length){
     fail('P8_BINDING_DELIVERY_SET','Binding Draft requires the exact non-empty unique Delivery member set.');
   }
-  const bindings=deliveries.map((item)=>{
+  const primaryBindings=deliveries.map((item)=>{
     const episodeClaims=[...item.episodeClaims].sort((a,b)=>utf8Compare(a.episodeKey,b.episodeKey));
     const identity=item.physicalIdentity;
     if(!identity||identity.materialKey!==item.materialKey||identity.fingerprintAlgorithm!=='middle-256k-sha256'||
@@ -44,11 +44,43 @@ function buildLibraBindingDraft(snapshot,decision,producedAtMs){
           inode:identity.inode,sizeBytes:identity.sizeBytes,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,
           contentFingerprint:identity.contentFingerprint})||
         !Number.isSafeInteger(item.sizeBytes)||item.sizeBytes<0)fail('P8_BINDING_IDENTITY_INVALID','Delivery Physical Identity or size is invalid.');
-    const value={materialKey:item.materialKey,role:item.role,physicalIdentity:identity,sizeBytes:item.sizeBytes,
+    const value={materialKey:item.materialKey,role:item.role,authorityKind:'primary_control',primaryMaterialKey:null,
+      sourceRelatedReferenceId:null,associationEvidenceDigest:null,dispositionBasisDigest:null,
+      physicalIdentity:identity,sizeBytes:item.sizeBytes,
       endpointId:item.endpointId,location:item.location,bindingRevision:1,
       locationEvidenceDigest:item.deliveryMemberDigest,episodeClaims};
     return {...value,bindingDigest:canonicalDigest(value)};
-  }).sort((a,b)=>utf8Compare(a.materialKey,b.materialKey));
+  });
+  const primaryKeys=new Set(primaryBindings.map((item)=>item.materialKey));
+  const relatedBindings=(snapshot.candidatePackage.relatedReferences||[]).map((reference)=>{
+    const identity=reference.identity;
+    if(reference.associationKind!=='exclusive'||reference.dispositionRequired!==true||!primaryKeys.has(reference.primaryMaterialKey)||
+        !identity||identity.materialKey!==canonicalDigest({schema:'physical-material-identity@2',mountScopeId:identity.mountScopeId,
+          inode:identity.inode,sizeBytes:identity.sizeBytes,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,
+          contentFingerprint:identity.contentFingerprint})||reference.dispositionBasisDigest!==canonicalDigest({
+          schema:'procurement.related-disposition-basis@1',referenceId:reference.referenceId,
+          primaryMaterialKey:reference.primaryMaterialKey,role:reference.role,identity,
+          associationEvidenceDigest:reference.associationEvidenceDigest})){
+      fail('P8_BINDING_RELATED_INVALID','Related Binding requires an exact exclusive Candidate reference and disposition basis.');
+    }
+    const value={materialKey:identity.materialKey,role:reference.role,authorityKind:'related_derived',
+      primaryMaterialKey:reference.primaryMaterialKey,sourceRelatedReferenceId:reference.referenceId,
+      associationEvidenceDigest:reference.associationEvidenceDigest,dispositionBasisDigest:reference.dispositionBasisDigest,
+      physicalIdentity:identity,sizeBytes:identity.sizeBytes,endpointId:reference.endpointId,location:reference.location,
+      bindingRevision:1,locationEvidenceDigest:reference.referenceDigest,episodeClaims:[]};
+    return {...value,bindingDigest:canonicalDigest(value)};
+  });
+  const bindings=[...primaryBindings,...relatedBindings].sort((a,b)=>utf8Compare(a.authorityKind,b.authorityKind)||utf8Compare(a.materialKey,b.materialKey));
+  if(bindings.length>1024||new Set(bindings.map((item)=>item.authorityKind+'\0'+item.materialKey)).size!==bindings.length){
+    fail('P8_BINDING_SCOPE_TOO_LARGE','Combined Primary and Related Binding scope must be unique and bounded.');
+  }
+  const dispositionScopeDigest=canonicalDigest({schema:'procurement.related-disposition-scope@1',items:relatedBindings
+    .sort((a,b)=>utf8Compare(a.sourceRelatedReferenceId,b.sourceRelatedReferenceId)).map((item)=>({
+      referenceId:item.sourceRelatedReferenceId,primaryMaterialKey:item.primaryMaterialKey,role:item.role,
+      materialKey:item.materialKey,dispositionBasisDigest:item.dispositionBasisDigest}))});
+  if(dispositionScopeDigest!==snapshot.candidatePackage.relatedDispositionScopeDigest){
+    fail('P8_BINDING_RELATED_SCOPE_MISMATCH','Related Binding scope must exactly equal the Candidate disposition scope.');
+  }
   const bindingSetDigest=canonicalDigest({schema:'libra.binding-set@1',subjectRef,
     candidateDeliverySnapshotDigest:snapshot.deliverySnapshotDigest,items:bindings});
   const value={schemaRef:BINDING_SCHEMA,schemaVersion:1,draftId:canonicalDigest({schema:'libra.binding-draft-id@1',
@@ -80,7 +112,9 @@ function buildAcceptedIntakePayload({snapshot,decision,bindingDraft,candidateVer
   const items=[...snapshot.primaryMaterialDeliveries].sort((a,b)=>utf8Compare(a.materialKey,b.materialKey)).map((item)=>({
     materialKey:item.materialKey,expectedControlRevision:item.admittedControlRevision,
     expectedControlProjectionDigest:item.admittedControlProjectionDigest,toOwnerDomain:'libra',toOwnerScopeType:'subject',toOwnerScopeId:target}));
-  if(items.length!==bindingDraft.bindings.length||items.some((item,index)=>item.materialKey!==bindingDraft.bindings[index].materialKey)){
+  const primaryBindings=bindingDraft.bindings.filter((item)=>item.authorityKind==='primary_control')
+    .sort((a,b)=>utf8Compare(a.materialKey,b.materialKey));
+  if(items.length!==primaryBindings.length||items.some((item,index)=>item.materialKey!==primaryBindings[index].materialKey)){
     fail('P8_ACCEPTANCE_SCOPE_MISMATCH','Binding and Control scopes must exactly equal the Delivery member set.');
   }
   const controlTransferScope={fieldId,fromOwnerDomain:'procurement',fromOwnerScopeType:'material_field',fromOwnerScopeId:fieldId,items,
@@ -96,10 +130,13 @@ function buildAcceptedIntakePayload({snapshot,decision,bindingDraft,candidateVer
   const sourceProvenance={fieldId,fieldAccessRevision:Number(snapshot.candidatePackage.materialFieldContextRef.accessRevision),
     fieldContextDigest:snapshot.candidatePackage.materialFieldContextRef.contextDigest,structureKind:snapshot.primaryInputManifest.structureKind,
     contentProfile:snapshot.candidatePackage.contentProfile,materialInputForm,identityClaimDigest:snapshot.candidatePackage.identityClaim.claimDigest};
+  const relatedDispositionScope={relatedReferenceSetDigest:snapshot.candidatePackage.relatedReferenceSetDigest,
+    relatedDispositionScopeDigest:snapshot.candidatePackage.relatedDispositionScopeDigest};
   const value={intakeDecisionId:decision.decisionId,decisionRevision:1,delivery:{offerId:decision.offerId,
     candidatePackageId:decision.candidatePackageId,packageRevision:decision.packageRevision,packageDigest:decision.packageDigest,
     acceptanceBasisDigest:snapshot.acceptanceBasis.acceptanceBasisDigest,candidateDeliverySnapshotDigest:snapshot.deliverySnapshotDigest},
-    sourceProvenance,candidateVerification,materialVerification,resolutionDecision:decision,bindingDraft,controlTransferScope,payloadDigest:''};
+    sourceProvenance,candidateVerification,materialVerification,resolutionDecision:decision,bindingDraft,
+    relatedDispositionScope,controlTransferScope,payloadDigest:''};
   value.payloadDigest=canonicalDigest(without(value,'payloadDigest'));bounded(value,8*1024*1024,'P8_ACCEPTANCE_PAYLOAD_TOO_LARGE');return freeze(value);
 }
 
@@ -114,7 +151,13 @@ function buildSubjectAndTransferReceipt(payload,committed,committedAtMs){
     scopeType:'intake_decision',scopeId:payload.intakeDecisionId,scopeDigest:payload.payloadDigest,effectReceiptRef:null,committedAtMs,
     intakeDecisionId:payload.intakeDecisionId,offerId:payload.delivery.offerId,candidatePackageId:payload.delivery.candidatePackageId,
     packageRevision:payload.delivery.packageRevision,packageDigest:payload.delivery.packageDigest,
-    candidateDeliverySnapshotDigest:payload.delivery.candidateDeliverySnapshotDigest,subjectId:target,
+    candidateDeliverySnapshotDigest:payload.delivery.candidateDeliverySnapshotDigest,
+    relatedDispositionScopeDigest:canonicalDigest({schema:'procurement.related-disposition-scope@1',items:payload.bindingDraft.bindings
+      .filter((item)=>item.authorityKind==='related_derived')
+      .sort((a,b)=>utf8Compare(a.sourceRelatedReferenceId,b.sourceRelatedReferenceId)).map((item)=>({
+        referenceId:item.sourceRelatedReferenceId,primaryMaterialKey:item.primaryMaterialKey,role:item.role,
+        materialKey:item.materialKey,dispositionBasisDigest:item.dispositionBasisDigest}))}),
+    subjectId:target,
     subjectIntakeRevision:committed.subjectIntakeRevision,subjectContinuityHeadRevision:committed.subjectContinuityHeadRevision,
     subjectContinuitySetDigest:committed.subjectContinuitySetDigest,subjectEpisodeScopeDigest:committed.subjectEpisodeScopeDigest,
     libraBindingSetDigest:payload.bindingDraft.bindingSetDigest,controlRevisionSetDigest:committed.controlRevisionSetDigest,receiptDigest:''};

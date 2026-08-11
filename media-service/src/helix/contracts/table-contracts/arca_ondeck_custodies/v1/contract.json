@@ -59,6 +59,16 @@
       },
       {
         "ordinal": 6,
+        "name": "related_disposition_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
         "name": "state",
         "logicalType": "TEXT",
         "enumValues": [
@@ -72,7 +82,7 @@
         "nullable": false
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "accepted_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -123,16 +133,17 @@
     },
     "semanticRules": [
       "`UNIQUE(on_deck_package_id,package_digest)`",
-      "只有Accepted Decision可建立"
+      "只有Accepted Decision可建立",
+      "`control_scope_digest`只覆盖正式Product Control transfer，`related_disposition_set_digest`逐字节冻结Package中全部exclusive Related的source-to-final义务，两者不得合并为一个Control Scope"
     ],
     "rawContract": {
-      "columns": "`custody_id PK, acceptance_decision_id FK, on_deck_package_id, package_digest, control_scope_digest, state, accepted_at_ms`",
-      "constraints": "`UNIQUE(on_deck_package_id,package_digest)`；只有Accepted Decision可建立"
+      "columns": "`custody_id PK, acceptance_decision_id FK, on_deck_package_id, package_digest, control_scope_digest, related_disposition_set_digest, state, accepted_at_ms`",
+      "constraints": "`UNIQUE(on_deck_package_id,package_digest)`；只有Accepted Decision可建立；`control_scope_digest`只覆盖正式Product Control transfer，`related_disposition_set_digest`逐字节冻结Package中全部exclusive Related的source-to-final义务，两者不得合并为一个Control Scope"
     },
     "source": {
       "section": "8.5.12",
-      "line": 8870,
-      "lineDigest": "c676837615735e34b1f5442a9252a84ca4c2faf8ad788419bce55378c635e1bb"
+      "line": 9018,
+      "lineDigest": "b59049ec0e64e65c6573ee3dccc02d4eadcf9f07bbbeb4afb4f2f3e4de18d40c"
     },
     "foreignKeys": [
       {

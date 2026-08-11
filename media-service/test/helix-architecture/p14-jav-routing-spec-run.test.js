@@ -1491,15 +1491,14 @@ test.skip('JAV Libra routing and production are intentionally outside the Movie 
   }
 });
 
-test('clean host keeps JAV before Production without a formal Provider adapter', () => {
+test('clean host admits JAV through formal Intake without mounting the retired Formation path', () => {
   const source = fs.readFileSync(
     path.resolve(__dirname, '../../src/clean-service-host.js'),
     'utf8',
   );
-  assert.match(
-    source,
-    /\['series', 'jav'\]\.includes\(formation\.contentProfile\)[\s\S]*?typeof options\.searchProviderIdentity !== 'function'/,
-  );
+  assert.match(source, /createHelixExecutionRuntime/);
+  assert.doesNotMatch(source, /formation\.contentProfile/);
+  assert.doesNotMatch(source, /createMovieFormationCoordinator|movie-formation-coordinator/);
   assert.doesNotMatch(
     source,
     /formation\.contentProfile === 'jav'[\s\S]{0,240}(fallback|legacy|workspace)/i,

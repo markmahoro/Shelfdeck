@@ -49,6 +49,16 @@
       },
       {
         "ordinal": 5,
+        "name": "related_disposition_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
         "name": "shelf_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -58,7 +68,7 @@
         "nullable": false
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "standard_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -68,7 +78,7 @@
         "nullable": false
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "placement_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -78,7 +88,7 @@
         "nullable": false
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "state",
         "logicalType": "TEXT",
         "enumValues": [
@@ -92,7 +102,7 @@
         "nullable": false
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "created_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -102,7 +112,7 @@
         "nullable": false
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "finished_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -158,18 +168,19 @@
     },
     "semanticRules": [
       "同一Offer至多一个Attempt且相同`package_digest+standard+placement`至多一个active attempt",
+      "Related disposition set必须逐字节等于Package",
       "accepted/rejected只允许从active以Decision事务CAS一次",
       "Supporting Work通过Foundation反向关联",
       "`INDEX(state,created_at_ms)`"
     ],
     "rawContract": {
-      "columns": "`acceptance_attempt_id PK, offer_id, on_deck_package_id, package_digest, shelf_id FK, standard_revision, placement_revision, state(active|accepted|rejected), created_at_ms, finished_at_ms NULL`",
-      "constraints": "同一Offer至多一个Attempt且相同`package_digest+standard+placement`至多一个active attempt；accepted/rejected只允许从active以Decision事务CAS一次；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)`"
+      "columns": "`acceptance_attempt_id PK, offer_id, on_deck_package_id, package_digest, related_disposition_set_digest, shelf_id FK, standard_revision, placement_revision, state(active|accepted|rejected), created_at_ms, finished_at_ms NULL`",
+      "constraints": "同一Offer至多一个Attempt且相同`package_digest+standard+placement`至多一个active attempt；Related disposition set必须逐字节等于Package；accepted/rejected只允许从active以Decision事务CAS一次；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)`"
     },
     "source": {
       "section": "8.5.12",
-      "line": 8867,
-      "lineDigest": "af19a674854f3e2d115dd1b65b79ff6a509c7879b1925266b226963165f3bd88"
+      "line": 9015,
+      "lineDigest": "85631065bfc7dd1279d5ee8ba5deec58cb1c327359abd07c6f01f161833e3eb8"
     },
     "foreignKeys": [
       {

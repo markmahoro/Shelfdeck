@@ -61,7 +61,7 @@ test('persists Subject continuity and Material-to-Episode N:M relations without 
       created_at_ms:at,updated_at_ms:at,terminal_at_ms:null });
     i.invoke('insert_decision',{ intake_decision_id:decisionId,decision_revision:1,decision_kind:'accepted_resolution',offer_id:'offer-1',candidate_package_id:'candidate-1',package_revision:1,
       package_digest:D('package'),acceptance_basis_digest:D('basis'),
-      candidate_delivery_snapshot_digest:candidateDeliverySnapshot.deliverySnapshotDigest,expected_continuity_head_revision:0,
+      candidate_delivery_snapshot_digest:candidateDeliverySnapshot.deliverySnapshotDigest,related_disposition_scope_digest:D('related-disposition'),expected_continuity_head_revision:0,
       candidate_delivery_snapshot_schema_ref:candidateDeliverySnapshot.snapshotContract,candidate_delivery_snapshot_json:canonicalJson(candidateDeliverySnapshot),
       source_field_id:'field-1',source_field_access_revision:1,source_field_context_digest:D('field-context'),candidate_structure_kind:'season',
       candidate_content_profile:'series',candidate_identity_claim_digest:D('identity-claim'),
@@ -78,7 +78,8 @@ test('persists Subject continuity and Material-to-Episode N:M relations without 
       claim_key:claim.claimKey,claim_digest:claim.claimDigest,provenance_kind:claim.provenanceKind,provenance_ref:claim.provenanceRef,accepted_at_ms:at });
     for(const episodeKey of ['S01E01','S01E02'])s.invoke('insert_episode',{ subject_id:subjectId,episode_key:episodeKey,
       first_intake_decision_id:decisionId,source_episode_scope_digest:episodeDigest,accepted_at_ms:at });
-    b.invoke('insert_binding',{ subject_id:subjectId,material_key:materialKey,role:'primary_payload',mount_scope_id:'mount-1',inode:'42',
+    b.invoke('insert_binding',{ subject_id:subjectId,material_key:materialKey,role:'primary_payload',authority_kind:'primary_control',primary_material_key:null,
+      association_evidence_digest:null,disposition_basis_digest:null,mount_scope_id:'mount-1',inode:'42',
       fingerprint_algorithm:'middle-256k-sha256',fingerprint_version:1,content_fingerprint:D('content'),size_bytes:100,endpoint_id:'endpoint-1',location:'/field/show.mkv',
       binding_revision:1,health_state:'active',evidence_digest:D('delivery-member'),current:1 });
     for(const episodeKey of ['S01E01','S01E02'])b.invoke('insert_binding_episode',{ subject_id:subjectId,material_key:materialKey,binding_revision:1,

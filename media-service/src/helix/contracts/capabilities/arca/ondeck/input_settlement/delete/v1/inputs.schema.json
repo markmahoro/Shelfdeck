@@ -5,25 +5,21 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "oldInputHandleList": {
-      "$ref": "#/$defs/oldInputHandleList"
+    "oldPrimaryStructuralExclusiveRelatedHandleList": {
+      "$ref": "#/$defs/oldPrimaryStructuralExclusiveRelatedHandleList"
     },
     "inputSettlementApproval": {
       "$ref": "#/$defs/inputSettlementApproval"
     }
   },
   "required": [
-    "oldInputHandleList",
+    "oldPrimaryStructuralExclusiveRelatedHandleList",
     "inputSettlementApproval"
   ],
   "$defs": {
-    "oldInputHandleList": {
-      "type": "array",
-      "items": {
-        "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1"
-      },
-      "maxItems": 1024,
-      "x-helix-typeExpression": "Old Input handles"
+    "oldPrimaryStructuralExclusiveRelatedHandleList": {
+      "$ref": "helix://contracts/domain-types/OldPrimaryStructuralExclusiveRelatedHandles/v1",
+      "x-helix-typeExpression": "Old Primary/structural/exclusive Related handles"
     },
     "inputSettlementApproval": {
       "$ref": "helix://contracts/types/ApprovalHandle/v1",

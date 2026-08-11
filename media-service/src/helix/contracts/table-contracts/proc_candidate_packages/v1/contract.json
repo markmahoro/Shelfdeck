@@ -295,7 +295,7 @@
       },
       {
         "ordinal": 28,
-        "name": "member_control_evidence_set_digest",
+        "name": "related_disposition_scope_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -305,7 +305,7 @@
       },
       {
         "ordinal": 29,
-        "name": "package_digest",
+        "name": "member_control_evidence_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -315,6 +315,16 @@
       },
       {
         "ordinal": 30,
+        "name": "package_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 31,
         "name": "state",
         "logicalType": "TEXT",
         "enumValues": [
@@ -326,7 +336,7 @@
         "nullable": false
       },
       {
-        "ordinal": 31,
+        "ordinal": 32,
         "name": "published_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -424,7 +434,7 @@
     "immutability": {
       "immutable": true,
       "rules": [
-        "`seasonContinuityClaimSetDigest`由immutable `proc_candidate_season_continuity_claims`、`relatedReferenceSetDigest`由immutable `proc_candidate_related_references`按8.6.18唯一公式重建，不新增opaque JSON或旁读",
+        "`seasonContinuityClaimSetDigest`由immutable `proc_candidate_season_continuity_claims`、Related的set/scope digest均由immutable `proc_candidate_related_references`按8.6.18唯一公式重建，不新增opaque JSON或旁读",
         "published内容immutable"
       ]
     },
@@ -436,19 +446,19 @@
       "Identity Metadata/Claim JSON各≤`16 KiB`",
       "`UNIQUE(procurement_run_id,package_revision)`且revision必须等于Run head CAS后的值",
       "Field Context、Profile/mediaType/structure/Identity/Unit/Rule/Manifest/Control/Related必须与完整CandidateDraft逐项一致",
-      "`seasonContinuityClaimSetDigest`由immutable `proc_candidate_season_continuity_claims`、`relatedReferenceSetDigest`由immutable `proc_candidate_related_references`按8.6.18唯一公式重建，不新增opaque JSON或旁读",
+      "`seasonContinuityClaimSetDigest`由immutable `proc_candidate_season_continuity_claims`、Related的set/scope digest均由immutable `proc_candidate_related_references`按8.6.18唯一公式重建，不新增opaque JSON或旁读",
       "published内容immutable",
       "Publication必须与Manifest、Episode Claim/完整Related relation、对应`proc_run_materials → candidate_delivery`、Offer/Outbox、typed Result/marker同事务成立",
       "`INDEX(state,published_at_ms)`"
     ],
     "rawContract": {
-      "columns": "`candidate_package_id PK, procurement_run_id FK, package_revision, field_id, field_access_revision, field_context_digest, media_type(single|group), content_profile(movie|series|jav|western_adult), material_input_form(stream_file|bdmv|dvd|iso), structure_kind(single|season), display_identity, identity_metadata_schema_ref, identity_metadata_json, identity_metadata_digest, identity_claim_schema_ref, identity_claim_json, identity_claim_digest, structure_evidence_id, structure_evidence_payload_digest, structure_unit_id, structure_unit_digest, triage_rule_ref, triage_rule_revision, triage_rule_authority_digest, primary_input_manifest_id, manifest_digest, related_reference_set_digest, member_control_evidence_set_digest, package_digest, state, published_at_ms`",
-      "constraints": "Identity Metadata/Claim JSON各≤`16 KiB`；`UNIQUE(procurement_run_id,package_revision)`且revision必须等于Run head CAS后的值；Field Context、Profile/mediaType/structure/Identity/Unit/Rule/Manifest/Control/Related必须与完整CandidateDraft逐项一致；`seasonContinuityClaimSetDigest`由immutable `proc_candidate_season_continuity_claims`、`relatedReferenceSetDigest`由immutable `proc_candidate_related_references`按8.6.18唯一公式重建，不新增opaque JSON或旁读；published内容immutable；Publication必须与Manifest、Episode Claim/完整Related relation、对应`proc_run_materials → candidate_delivery`、Offer/Outbox、typed Result/marker同事务成立；`INDEX(state,published_at_ms)`"
+      "columns": "`candidate_package_id PK, procurement_run_id FK, package_revision, field_id, field_access_revision, field_context_digest, media_type(single|group), content_profile(movie|series|jav|western_adult), material_input_form(stream_file|bdmv|dvd|iso), structure_kind(single|season), display_identity, identity_metadata_schema_ref, identity_metadata_json, identity_metadata_digest, identity_claim_schema_ref, identity_claim_json, identity_claim_digest, structure_evidence_id, structure_evidence_payload_digest, structure_unit_id, structure_unit_digest, triage_rule_ref, triage_rule_revision, triage_rule_authority_digest, primary_input_manifest_id, manifest_digest, related_reference_set_digest, related_disposition_scope_digest, member_control_evidence_set_digest, package_digest, state, published_at_ms`",
+      "constraints": "Identity Metadata/Claim JSON各≤`16 KiB`；`UNIQUE(procurement_run_id,package_revision)`且revision必须等于Run head CAS后的值；Field Context、Profile/mediaType/structure/Identity/Unit/Rule/Manifest/Control/Related必须与完整CandidateDraft逐项一致；`seasonContinuityClaimSetDigest`由immutable `proc_candidate_season_continuity_claims`、Related的set/scope digest均由immutable `proc_candidate_related_references`按8.6.18唯一公式重建，不新增opaque JSON或旁读；published内容immutable；Publication必须与Manifest、Episode Claim/完整Related relation、对应`proc_run_materials → candidate_delivery`、Offer/Outbox、typed Result/marker同事务成立；`INDEX(state,published_at_ms)`"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8805,
-      "lineDigest": "15368d72308aff25b3e30d28dda86d08086d109a926c86748f63660f7015493b"
+      "line": 8953,
+      "lineDigest": "699ef0d140952614bc434fb79e10375dac2b8222e72b2089a3e228ef961ed9d3"
     },
     "foreignKeys": [
       {

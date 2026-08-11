@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "arca.inventory.final_product.verify@1",
+  "contractVersion": 1,
+  "ownerScope": "arca",
+  "effectClass": "pure_observation",
+  "inputPorts": {
+    "finalBindings": {
+      "schemaRef": "helix://contracts/capabilities/arca.inventory.final_product.verify/v1/inputs#/$defs/finalBindings",
+      "required": true,
+      "cardinality": "one"
+    },
+    "productDispositionManifest": {
+      "schemaRef": "helix://contracts/capabilities/arca.inventory.final_product.verify/v1/inputs#/$defs/productDispositionManifest",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/arca.inventory.final_product.verify/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/arca.inventory.final_product.verify/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/arca.inventory.final_product.verify/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/arca.inventory.final_product.verify/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/arca.inventory.final_product.verify/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/arca.inventory.final_product.verify/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/arca.inventory.final_product.verify/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.10",
+    "line": 9731,
+    "lineDigest": "cb85df51affc96eab7387fab044d0db5663c9af8a10d7b71b2ed53b5d8dbe951"
+  }
+}

@@ -22,7 +22,7 @@ const without=(value,...fields)=>Object.fromEntries(Object.entries(value).filter
 function snapshot(){
   const candidatePackage={candidatePackageId:'candidate-1',packageRevision:1,packageDigest:D('package'),
     materialFieldContextRef:{fieldId:'field-1',accessRevision:1,contextDigest:D('field-context')},contentProfile:'movie',
-    identityClaim:{claimDigest:D('identity-claim')}};
+    identityClaim:{claimDigest:D('identity-claim')},relatedDispositionScopeDigest:D('related-disposition')};
   const acceptanceBasis={acceptanceBasisDigest:D('basis')};
   const offer={offerId:'offer-1',candidatePackageId:candidatePackage.candidatePackageId,packageRevision:1,
     packageDigest:candidatePackage.packageDigest,acceptanceBasisDigest:acceptanceBasis.acceptanceBasisDigest};
@@ -42,9 +42,12 @@ function request(){
     schemaRef:'helix://contracts/types/DomainFactCommitHandle/v1',schemaVersion:1,handleId:'reject-handle-1',ownerDomain:'libra',
     aggregateType:'intake_decision',aggregateId:decision.intakeDecisionId,factType:'IntakeRejectionDecision',
     factSchemaRef:'helix://contracts/domain-types/IntakeRejectionDecision/v1',expectedRevision:0,payloadDigest:decision.decisionDigest,
-    resultSchemaRef:'helix://contracts/domain-types/IntakeRejectionDecision/v1',commitIdempotencyKey:'reject-offer-1',eventFenceDigest:D('fence')},
+    resultSchemaRef:'helix://contracts/types/IntakeRejectionReceipt/v1',commitIdempotencyKey:'reject-offer-1',eventFenceDigest:D('fence')},
     commitMarker:{commitMarker:'reject-marker-1',commitDigest:D('commit')},
-    resultBinding:{resultId:'reject-result-1',eventId:'reject-event-1'}};
+    resultBinding:{resultId:'reject-result-1',eventId:'reject-event-1',
+      evidenceSchemaRef:'helix://contracts/types/IntakeRejectionReceipt/v1',
+      evidence:{schemaRef:'helix://contracts/types/IntakeRejectionReceipt/v1',schemaVersion:1,evidenceKind:'intake_rejection_commit'},
+      effectReceiptId:'reject-effect-receipt-1'}};
 }
 function fixture(run){
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-intake-rejection-')),databasePath=path.join(root,'shelfdeck.db'); let now=1_700_080_001_000;
@@ -73,7 +76,7 @@ test('normalizes closed rejection reasons by precedence and typed Evidence',()=>
 test('commits Decision, relationized reasons, Receipt, Result, marker and Outbox atomically without Subject or Control writes',()=>fixture(({databasePath,unitOfWork})=>{
   seedEvent(databasePath);const store=createIntakeRejectionStore({schemaManifest,unitOfWork}),input=request();
   assert.deepEqual(store.repositoryManifest.libraTableIds,['libra_handoff_a_receipts','libra_intake_decisions','libra_intake_rejection_reason_evidence']);
-  assert.deepEqual(store.repositoryManifest.foundationTableIds,['fx_commit_markers','fx_event_result_bindings','fx_outbox']);
+  assert.deepEqual(store.repositoryManifest.foundationTableIds,['fx_commit_markers','fx_event_result_bindings','fx_outbox','fx_outbox_deliveries']);
   const committed=store.reject(input);assert.equal(committed.replayed,false);assert.equal(committed.decision.structuredRejection.primaryRejectionCode,'candidate_contract_invalid');
   const replay=store.reject(input);assert.equal(replay.replayed,true);assert.deepEqual(replay.decision,committed.decision);assert.deepEqual(replay.receipt,committed.receipt);
   const db=new Database(databasePath,{readonly:true});
@@ -81,8 +84,9 @@ test('commits Decision, relationized reasons, Receipt, Result, marker and Outbox
   assert.deepEqual(db.prepare('SELECT decision_kind,target_subject_id,expected_continuity_head_revision FROM libra_intake_decisions').get(),
     {decision_kind:'rejected_acceptance',target_subject_id:null,expected_continuity_head_revision:null});
   for(const table of ['libra_subjects','libra_material_bindings','fx_material_control_revisions'])assert.equal(db.prepare(`SELECT COUNT(*) count FROM ${table}`).get().count,0,table);
-  const outbox=db.prepare('SELECT producer_domain,message_kind,dedup_key,payload_schema_ref,payload_json,payload_digest FROM fx_outbox').get();
+  const outbox=db.prepare('SELECT producer_domain,message_kind,dedup_key,consumer_set_digest,payload_schema_ref,payload_json,payload_digest FROM fx_outbox').get();
   assert.equal(outbox.producer_domain,'libra');assert.equal(outbox.message_kind,'libra_candidate_rejected');
+  assert.equal(outbox.consumer_set_digest,canonicalDigest(['procurement']));
   assert.equal(outbox.payload_digest,canonicalDigest(JSON.parse(outbox.payload_json)));db.close();
 }));
 
@@ -90,7 +94,7 @@ test('rolls back the complete rejected transaction when Outbox insert crashes',(
   seedEvent(databasePath);const db=new Database(databasePath);db.exec("CREATE TRIGGER fail_reject_outbox BEFORE INSERT ON fx_outbox BEGIN SELECT RAISE(ABORT,'injected'); END");db.close();
   assert.throws(()=>createIntakeRejectionStore({schemaManifest,unitOfWork}).reject(request()));
   const check=new Database(databasePath,{readonly:true});for(const table of ['libra_intake_decisions','libra_intake_rejection_reason_evidence',
-    'libra_handoff_a_receipts','fx_event_result_bindings','fx_commit_markers','fx_outbox'])assert.equal(check.prepare(`SELECT COUNT(*) count FROM ${table}`).get().count,0,table);check.close();
+    'libra_handoff_a_receipts','fx_event_result_bindings','fx_commit_markers','fx_outbox','fx_outbox_deliveries'])assert.equal(check.prepare(`SELECT COUNT(*) count FROM ${table}`).get().count,0,table);check.close();
 }));
 
 test('Procurement consumes the exact rejected projection atomically and replays from terminal owner rows plus Inbox',()=>fixture(({databasePath,unitOfWork})=>{

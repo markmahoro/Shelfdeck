@@ -133,6 +133,26 @@
     "bindingDraft": {
       "$ref": "helix://contracts/types/LibraBindingDraft/v1"
     },
+    "relatedDispositionScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "relatedReferenceSetDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "relatedDispositionScopeDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "relatedReferenceSetDigest",
+        "relatedDispositionScopeDigest"
+      ]
+    },
     "controlTransferScope": {
       "type": "object",
       "additionalProperties": false,
@@ -227,6 +247,7 @@
     "materialVerification",
     "resolutionDecision",
     "bindingDraft",
+    "relatedDispositionScope",
     "controlTransferScope",
     "payloadDigest"
   ]

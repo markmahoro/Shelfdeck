@@ -162,7 +162,7 @@ test('rejects foreign-key corruption and cross-table guard projection drift', ()
     changed.exec("INSERT INTO arca_shelves(shelf_id,status) VALUES('shelf','active')");
     changed.exec("INSERT INTO arca_shelf_entries(shelf_entry_id,shelf_id,status,current_inventory_revision) VALUES('entry','shelf','active',1)");
     changed.exec("INSERT INTO arca_inventory_representations(shelf_entry_id,revision) VALUES('entry',1)");
-    changed.exec("INSERT INTO arca_inventory_materials(shelf_entry_id,inventory_revision,ordinal,material_key,role,active_guard) VALUES('entry',1,0,'material','primary',0)");
+    changed.exec("INSERT INTO arca_inventory_materials(shelf_entry_id,inventory_revision,ordinal,material_key,role,active_guard) VALUES('entry',1,0,'material','primary_payload',0)");
     changed.close();
     assert.throws(() => open(databasePath), (error) => error.code === 'P3_SQLITE_GUARD_PROJECTION_DRIFT');
   });

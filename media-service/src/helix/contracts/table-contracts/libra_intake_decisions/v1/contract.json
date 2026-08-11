@@ -102,7 +102,7 @@
       },
       {
         "ordinal": 10,
-        "name": "source_field_id",
+        "name": "related_disposition_scope_digest",
         "logicalType": "TEXT",
         "enumValues": [],
         "primaryKeyPart": false,
@@ -112,6 +112,16 @@
       },
       {
         "ordinal": 11,
+        "name": "source_field_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
         "name": "source_field_access_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -121,7 +131,7 @@
         "nullable": false
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "source_field_context_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -131,7 +141,7 @@
         "nullable": false
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "candidate_structure_kind",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -141,7 +151,7 @@
         "nullable": false
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "candidate_content_profile",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -151,7 +161,7 @@
         "nullable": false
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "candidate_identity_claim_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -161,7 +171,7 @@
         "nullable": false
       },
       {
-        "ordinal": 16,
+        "ordinal": 17,
         "name": "expected_continuity_head_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -171,7 +181,7 @@
         "nullable": true
       },
       {
-        "ordinal": 17,
+        "ordinal": 18,
         "name": "expected_continuity_head_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -181,7 +191,7 @@
         "nullable": true
       },
       {
-        "ordinal": 18,
+        "ordinal": 19,
         "name": "committed_continuity_head_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -191,7 +201,7 @@
         "nullable": true
       },
       {
-        "ordinal": 19,
+        "ordinal": 20,
         "name": "candidate_continuity_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -201,7 +211,7 @@
         "nullable": true
       },
       {
-        "ordinal": 20,
+        "ordinal": 21,
         "name": "candidate_episode_scope_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -211,7 +221,7 @@
         "nullable": true
       },
       {
-        "ordinal": 21,
+        "ordinal": 22,
         "name": "match_cardinality",
         "logicalType": "TEXT",
         "enumValues": [
@@ -225,7 +235,7 @@
         "nullable": true
       },
       {
-        "ordinal": 22,
+        "ordinal": 23,
         "name": "matched_subject_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -235,7 +245,7 @@
         "nullable": true
       },
       {
-        "ordinal": 23,
+        "ordinal": 24,
         "name": "episode_overlap_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -245,7 +255,7 @@
         "nullable": true
       },
       {
-        "ordinal": 24,
+        "ordinal": 25,
         "name": "accepted_result",
         "logicalType": "TEXT",
         "enumValues": [
@@ -258,7 +268,7 @@
         "nullable": true
       },
       {
-        "ordinal": 25,
+        "ordinal": 26,
         "name": "target_subject_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -268,7 +278,7 @@
         "nullable": true
       },
       {
-        "ordinal": 26,
+        "ordinal": 27,
         "name": "expected_target_status",
         "logicalType": "TEXT",
         "enumValues": [
@@ -280,7 +290,7 @@
         "nullable": true
       },
       {
-        "ordinal": 27,
+        "ordinal": 28,
         "name": "expected_target_intake_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -290,7 +300,7 @@
         "nullable": true
       },
       {
-        "ordinal": 28,
+        "ordinal": 29,
         "name": "expected_target_continuity_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -300,7 +310,7 @@
         "nullable": true
       },
       {
-        "ordinal": 29,
+        "ordinal": 30,
         "name": "expected_target_episode_scope_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -310,7 +320,7 @@
         "nullable": true
       },
       {
-        "ordinal": 30,
+        "ordinal": 31,
         "name": "committed_target_intake_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -320,7 +330,7 @@
         "nullable": true
       },
       {
-        "ordinal": 31,
+        "ordinal": 32,
         "name": "committed_subject_continuity_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -330,7 +340,7 @@
         "nullable": true
       },
       {
-        "ordinal": 32,
+        "ordinal": 33,
         "name": "committed_subject_episode_scope_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -340,7 +350,7 @@
         "nullable": true
       },
       {
-        "ordinal": 33,
+        "ordinal": 34,
         "name": "accepted_payload_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -350,7 +360,7 @@
         "nullable": true
       },
       {
-        "ordinal": 34,
+        "ordinal": 35,
         "name": "rejection_schema_ref",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -360,7 +370,7 @@
         "nullable": true
       },
       {
-        "ordinal": 35,
+        "ordinal": 36,
         "name": "rejection_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -370,7 +380,7 @@
         "nullable": true
       },
       {
-        "ordinal": 36,
+        "ordinal": 37,
         "name": "primary_rejection_code",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -380,7 +390,7 @@
         "nullable": true
       },
       {
-        "ordinal": 37,
+        "ordinal": 38,
         "name": "rejection_reason_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -390,7 +400,7 @@
         "nullable": true
       },
       {
-        "ordinal": 38,
+        "ordinal": 39,
         "name": "rejection_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -400,7 +410,7 @@
         "nullable": true
       },
       {
-        "ordinal": 39,
+        "ordinal": 40,
         "name": "decision_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -410,7 +420,7 @@
         "nullable": false
       },
       {
-        "ordinal": 40,
+        "ordinal": 41,
         "name": "decided_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -492,7 +502,7 @@
     "semanticRules": [
       "`decision_revision=1`且`UNIQUE(offer_id)`",
       "`intake_decision_id=SHA-256(JCS({schema:\"libra.intake-decision-id@1\",offerId}))`",
-      "common Offer/Package/Acceptance Basis/Snapshot逐项匹配正式Delivery",
+      "common Offer/Package/Acceptance Basis/Snapshot及Related disposition scope逐项匹配正式Delivery",
       "六项source/profile provenance逐项复制Delivery Snapshot并成为Libra-owned immutable事实，不能在Routing时回读Procurement。无法取得完整Snapshot属于Delivery integrity/system failure，不伪造Rejected Decision。`accepted_resolution`要求continuity/match/overlap、accepted result/target、committed Subject digest及accepted payload完整非NULL，全部rejection列为NULL",
       "其`decision_digest`逐字节等于`SubjectContinuityResolutionDecision@1.decisionDigest`。`rejected_acceptance`要求全部continuity/head/match/target/accepted列为NULL，rejection列完整非NULL",
       "其`decision_digest`逐字节等于`IntakeRejectionDecision@1.decisionDigest`。`new_subject`要求target是Libra分配的新ID",
@@ -501,13 +511,13 @@
       "immutable，不接受调用者指定既有Subject或伪造head值"
     ],
     "rawContract": {
-      "columns": "`intake_decision_id PK, decision_revision, decision_kind(accepted_resolution|rejected_acceptance), offer_id, candidate_package_id, package_revision, package_digest, acceptance_basis_digest, candidate_delivery_snapshot_digest, source_field_id, source_field_access_revision, source_field_context_digest, candidate_structure_kind, candidate_content_profile, candidate_identity_claim_digest, expected_continuity_head_revision NULL, expected_continuity_head_digest NULL, committed_continuity_head_revision NULL, candidate_continuity_set_digest NULL, candidate_episode_scope_digest NULL, match_cardinality NULL|none|one|multiple, matched_subject_set_digest NULL, episode_overlap_digest NULL, accepted_result NULL|new_subject|season_extension, target_subject_id NULL, expected_target_status NULL, expected_target_intake_revision NULL, expected_target_continuity_set_digest NULL, expected_target_episode_scope_digest NULL, committed_target_intake_revision NULL, committed_subject_continuity_set_digest NULL, committed_subject_episode_scope_digest NULL, accepted_payload_digest NULL, rejection_schema_ref NULL, rejection_id NULL, primary_rejection_code NULL, rejection_reason_set_digest NULL, rejection_digest NULL, decision_digest, decided_at_ms`",
-      "constraints": "`decision_revision=1`且`UNIQUE(offer_id)`；`intake_decision_id=SHA-256(JCS({schema:\"libra.intake-decision-id@1\",offerId}))`；common Offer/Package/Acceptance Basis/Snapshot逐项匹配正式Delivery；六项source/profile provenance逐项复制Delivery Snapshot并成为Libra-owned immutable事实，不能在Routing时回读Procurement。无法取得完整Snapshot属于Delivery integrity/system failure，不伪造Rejected Decision。`accepted_resolution`要求continuity/match/overlap、accepted result/target、committed Subject digest及accepted payload完整非NULL，全部rejection列为NULL；其`decision_digest`逐字节等于`SubjectContinuityResolutionDecision@1.decisionDigest`。`rejected_acceptance`要求全部continuity/head/match/target/accepted列为NULL，rejection列完整非NULL；其`decision_digest`逐字节等于`IntakeRejectionDecision@1.decisionDigest`。`new_subject`要求target是Libra分配的新ID；`season_extension`要求one match/zero overlap、Candidate与Subject的`structure_kind/content_profile`逐字节相等及完整target CAS。Continuity无匹配、多匹配或Episode overlap仍是`new_subject`，不得成为rejection。同一Candidate/Package digest只允许一个accepted Decision的partial unique index；不同Acceptance Basis的新Offer可以各自保留Rejected Decision，但任何后续Accepted仍受该唯一约束；immutable，不接受调用者指定既有Subject或伪造head值"
+      "columns": "`intake_decision_id PK, decision_revision, decision_kind(accepted_resolution|rejected_acceptance), offer_id, candidate_package_id, package_revision, package_digest, acceptance_basis_digest, candidate_delivery_snapshot_digest, related_disposition_scope_digest, source_field_id, source_field_access_revision, source_field_context_digest, candidate_structure_kind, candidate_content_profile, candidate_identity_claim_digest, expected_continuity_head_revision NULL, expected_continuity_head_digest NULL, committed_continuity_head_revision NULL, candidate_continuity_set_digest NULL, candidate_episode_scope_digest NULL, match_cardinality NULL|none|one|multiple, matched_subject_set_digest NULL, episode_overlap_digest NULL, accepted_result NULL|new_subject|season_extension, target_subject_id NULL, expected_target_status NULL, expected_target_intake_revision NULL, expected_target_continuity_set_digest NULL, expected_target_episode_scope_digest NULL, committed_target_intake_revision NULL, committed_subject_continuity_set_digest NULL, committed_subject_episode_scope_digest NULL, accepted_payload_digest NULL, rejection_schema_ref NULL, rejection_id NULL, primary_rejection_code NULL, rejection_reason_set_digest NULL, rejection_digest NULL, decision_digest, decided_at_ms`",
+      "constraints": "`decision_revision=1`且`UNIQUE(offer_id)`；`intake_decision_id=SHA-256(JCS({schema:\"libra.intake-decision-id@1\",offerId}))`；common Offer/Package/Acceptance Basis/Snapshot及Related disposition scope逐项匹配正式Delivery；六项source/profile provenance逐项复制Delivery Snapshot并成为Libra-owned immutable事实，不能在Routing时回读Procurement。无法取得完整Snapshot属于Delivery integrity/system failure，不伪造Rejected Decision。`accepted_resolution`要求continuity/match/overlap、accepted result/target、committed Subject digest及accepted payload完整非NULL，全部rejection列为NULL；其`decision_digest`逐字节等于`SubjectContinuityResolutionDecision@1.decisionDigest`。`rejected_acceptance`要求全部continuity/head/match/target/accepted列为NULL，rejection列完整非NULL；其`decision_digest`逐字节等于`IntakeRejectionDecision@1.decisionDigest`。`new_subject`要求target是Libra分配的新ID；`season_extension`要求one match/zero overlap、Candidate与Subject的`structure_kind/content_profile`逐字节相等及完整target CAS。Continuity无匹配、多匹配或Episode overlap仍是`new_subject`，不得成为rejection。同一Candidate/Package digest只允许一个accepted Decision的partial unique index；不同Acceptance Basis的新Offer可以各自保留Rejected Decision，但任何后续Accepted仍受该唯一约束；immutable，不接受调用者指定既有Subject或伪造head值"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8812,
-      "lineDigest": "20842a7d1800d693e2ef38876777eec81ba6d1538082337308d524cdde074ff9"
+      "line": 8960,
+      "lineDigest": "6a474057775b5b82af4766209339d3c3b684b93a1c2d62c3879ac70a3bc88b3f"
     },
     "foreignKeys": []
   }

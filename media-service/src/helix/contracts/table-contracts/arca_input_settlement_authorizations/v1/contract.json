@@ -44,7 +44,11 @@
         "ordinal": 4,
         "name": "authorization_scope_kind",
         "logicalType": "TEXT",
-        "enumValues": [],
+        "enumValues": [
+          "old_primary_input",
+          "exclusive_related_input",
+          "old_primary_and_exclusive_related"
+        ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
         "inlineUnique": false,
@@ -108,7 +112,15 @@
         ]
       },
       {
-        "rule": "只授权为精确On-deck Scope派生Approval，不授权目录范围"
+        "column": "authorization_scope_kind",
+        "enumValues": [
+          "old_primary_input",
+          "exclusive_related_input",
+          "old_primary_and_exclusive_related"
+        ]
+      },
+      {
+        "rule": "只授权为精确On-deck Scope派生Approval，不授权目录范围。Authorization revision必须显式覆盖`exclusive_related_input`才可派生该类Approval"
       }
     ],
     "revisionContract": {
@@ -133,16 +145,17 @@
     "semanticRules": [
       "`PK(authorization_id,revision)`",
       "immutable",
-      "只授权为精确On-deck Scope派生Approval，不授权目录范围"
+      "只授权为精确On-deck Scope派生Approval，不授权目录范围。Authorization revision必须显式覆盖`exclusive_related_input`才可派生该类Approval",
+      "合同修订前或scope-kind不含该值的旧revision不得静默扩大"
     ],
     "rawContract": {
-      "columns": "`authorization_id, revision, state(enabled|revoked), authorization_scope_kind, actor_id, authorization_digest, effective_at_ms, revoked_at_ms`",
-      "constraints": "`PK(authorization_id,revision)`；immutable；只授权为精确On-deck Scope派生Approval，不授权目录范围"
+      "columns": "`authorization_id, revision, state(enabled|revoked), authorization_scope_kind(old_primary_input|exclusive_related_input|old_primary_and_exclusive_related), actor_id, authorization_digest, effective_at_ms, revoked_at_ms`",
+      "constraints": "`PK(authorization_id,revision)`；immutable；只授权为精确On-deck Scope派生Approval，不授权目录范围。Authorization revision必须显式覆盖`exclusive_related_input`才可派生该类Approval；合同修订前或scope-kind不含该值的旧revision不得静默扩大"
     },
     "source": {
       "section": "8.5.12",
-      "line": 8875,
-      "lineDigest": "f5152bf12357d5fcfaf6b833ce0d5a6ba8f6ea1775c5463be3fc9c1ae8176d57"
+      "line": 9023,
+      "lineDigest": "06715d8da35774d0d4fae840493b0cc9906428c23c89fb3bab73d3a39af07a65"
     },
     "foreignKeys": []
   }

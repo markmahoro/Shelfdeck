@@ -318,6 +318,14 @@ function createShelfQueryStore(options) {
     if (!resultRef || canonicalDigest(resultRef) !== row.result_digest || row.target_id !== request.input?.shelfId) {
       fail('P3_COMMAND_RECEIPT_CORRUPT', 'Stored Placement command Result digest or target is invalid.');
     }
+    if (operation === 'revise_placement') {
+      if (Object.keys(resultRef).length !== 1 || resultRef.shelfId !== request.input?.shelfId) {
+        fail('P3_COMMAND_RECEIPT_CORRUPT', 'Stored Placement command does not identify the exact Shelf.');
+      }
+      const shelf = getShelf(resultRef.shelfId);
+      if (!shelf) fail('P3_COMMAND_RECEIPT_CORRUPT', 'Stored Placement command does not resolve to a Shelf.');
+      return Object.freeze({ shelf, replayed: true });
+    }
     return Object.freeze({ ...resultRef, replayed: true });
   }
 

@@ -68,7 +68,7 @@ const SUPPORT_COLUMNS = Object.freeze({
 const PARTIAL_UNIQUE = Object.freeze({
   arca_acceptance_attempts: [{ columns: ['package_digest', 'standard_revision', 'placement_revision'], where: '"finished_at_ms" IS NULL' }],
   arca_aftercare_cases: [{ columns: ['care_basis_digest', 'finding_set_digest', 'care_requirement_digest'], where: '"terminal_at_ms" IS NULL' }],
-  arca_inventory_materials: [{ columns: ['material_key'], where: '"role" = \'primary\' AND "active_guard" = 1' }],
+  arca_inventory_materials: [{ columns: ['material_key'], where: '"role" = \'primary_payload\' AND "active_guard" = 1' }],
   arca_offdeck_reservations: [{ columns: ['shelf_entry_id'], where: '"state" = \'active\'' }],
   arca_offdeck_review_candidates: [{ columns: ['shelf_entry_id', 'policy_id', 'policy_revision', 'reason_digest'], where: '"state" = \'open\'' }],
   arca_rule_template_drafts: [{ columns: ['rule_template_id'], where: '1 = 1' }],
@@ -109,6 +109,9 @@ const FOREIGN_KEY_OVERRIDES = Object.freeze({
 });
 
 const TABLE_CHECKS = Object.freeze({
+  proc_candidate_related_references: [
+    '"disposition_required" = 1'
+  ],
   libra_intake_decisions: [
     '("decision_kind" = \'accepted_resolution\' AND "candidate_delivery_snapshot_schema_ref" IS NOT NULL AND ' +
       '"candidate_delivery_snapshot_json" IS NOT NULL AND "decision_identity_evidence_schema_ref" IS NOT NULL AND ' +

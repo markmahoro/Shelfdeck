@@ -72,6 +72,9 @@ function draft(parameters,sourceResults){const identity=sourceResults.find((sour
   const manifest=sourceResults.find((source)=>source.resultSchemaRef.includes('primary_manifest.build')).result;
   const {snapshot,structure,unit,candidateMembers,rule,ordinal}=parameters;
   const relatedReferences=Object.freeze([...(parameters.relatedReferences || [])].sort((a,b)=>Buffer.compare(Buffer.from(a.referenceId),Buffer.from(b.referenceId))));
+  const relatedDispositionItems=Object.freeze(relatedReferences.map((reference)=>Object.freeze({
+    referenceId:reference.referenceId,primaryMaterialKey:reference.primaryMaterialKey,role:reference.role,
+    materialKey:reference.identity.materialKey,dispositionBasisDigest:reference.dispositionBasisDigest})));
   const controls=Object.freeze([...(candidateMembers || unit.members)].sort((a,b)=>Buffer.compare(Buffer.from(a.materialKey),Buffer.from(b.materialKey))).map((member)=>Object.freeze({
     materialKey:member.materialKey,admittedControlRevision:member.admittedControlRevision,admittedControlProjectionDigest:member.admittedControlProjectionDigest})));
   const value={draftId:stableId('candidate-draft-',{runId:snapshot.run.procurement_run_id,unitId:unit.unitId}),draftKind:'procurement_candidate',
@@ -83,6 +86,7 @@ function draft(parameters,sourceResults){const identity=sourceResults.find((sour
     structureEvidence:{evidenceId:structure.evidenceId,payloadDigest:structure.payloadDigest,unit},primaryInputManifestDraft:manifest,
     seasonContinuityClaims:unit.seasonContinuityClaims,seasonContinuityClaimSetDigest:unit.seasonContinuityClaimSetDigest,relatedReferences,
     relatedReferenceSetDigest:canonicalDigest({schema:'procurement.related-reference-set@1',items:relatedReferences}),
+    relatedDispositionScopeDigest:canonicalDigest({schema:'procurement.related-disposition-scope@1',items:relatedDispositionItems}),
     memberControlEvidenceSetDigest:canonicalDigest({schema:'procurement.candidate-member-control-evidence@1',items:controls}),candidateDraftDigest:''};
   value.candidateDraftDigest=canonicalDigest(without(value,'draftDigest','candidateDraftDigest'));value.draftDigest=value.candidateDraftDigest;return Object.freeze(value);}
 function hydrate(parameters,options){

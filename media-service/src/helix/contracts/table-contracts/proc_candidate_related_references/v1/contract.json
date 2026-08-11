@@ -139,6 +139,28 @@
       },
       {
         "ordinal": 14,
+        "name": "association_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "exclusive"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 15,
+        "name": "disposition_required",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 16,
         "name": "association_evidence_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -148,7 +170,17 @@
         "nullable": false
       },
       {
-        "ordinal": 15,
+        "ordinal": 17,
+        "name": "disposition_basis_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 18,
         "name": "reference_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -170,7 +202,13 @@
     "partialUniqueRules": [],
     "checkRules": [
       {
-        "rule": "Physical Identity/materialKey及reference digest均按8.6.18重验，Related不再携带或要求全文件checksum"
+        "column": "association_kind",
+        "enumValues": [
+          "exclusive"
+        ]
+      },
+      {
+        "rule": "`CHECK(disposition_required=1)`"
       }
     ],
     "revisionContract": {
@@ -184,7 +222,7 @@
       "immutable": true,
       "rules": [
         "逐列无损保存一个`RelatedMaterialReference@1`，`primaryMaterialKey`只由该immutable FK目标重建",
-        "published row immutable，Related不进入Material Control"
+        "published row immutable，Related不进入Material Control但其dependent obligation随Handoff连续传播"
       ]
     },
     "deletion": {
@@ -193,19 +231,20 @@
     },
     "semanticRules": [
       "`PK(candidate_package_id,reference_id)`及复合FK`(candidate_package_id,primary_ordinal) → proc_candidate_primary_materials(candidate_package_id,ordinal)`",
+      "`CHECK(disposition_required=1)`",
       "逐列无损保存一个`RelatedMaterialReference@1`，`primaryMaterialKey`只由该immutable FK目标重建",
-      "Physical Identity/materialKey及reference digest均按8.6.18重验，Related不再携带或要求全文件checksum",
-      "published row immutable，Related不进入Material Control",
+      "Physical Identity/materialKey、exclusive association、disposition basis及reference digest均按8.6.18重验",
+      "published row immutable，Related不进入Material Control但其dependent obligation随Handoff连续传播",
       "Candidate关闭、Run封口或Offer关闭不得删除，历史Delivery Snapshot仍从本Owner relation恢复"
     ],
     "rawContract": {
-      "columns": "`candidate_package_id FK, reference_id, primary_ordinal, role, material_key, mount_scope_id, inode, size_bytes, fingerprint_algorithm, fingerprint_version, content_fingerprint, endpoint_id, location, association_evidence_digest, reference_digest`",
-      "constraints": "`PK(candidate_package_id,reference_id)`及复合FK`(candidate_package_id,primary_ordinal) → proc_candidate_primary_materials(candidate_package_id,ordinal)`；逐列无损保存一个`RelatedMaterialReference@1`，`primaryMaterialKey`只由该immutable FK目标重建；Physical Identity/materialKey及reference digest均按8.6.18重验，Related不再携带或要求全文件checksum；published row immutable，Related不进入Material Control；Candidate关闭、Run封口或Offer关闭不得删除，历史Delivery Snapshot仍从本Owner relation恢复"
+      "columns": "`candidate_package_id FK, reference_id, primary_ordinal, role, material_key, mount_scope_id, inode, size_bytes, fingerprint_algorithm, fingerprint_version, content_fingerprint, endpoint_id, location, association_kind(exclusive), disposition_required INTEGER, association_evidence_digest, disposition_basis_digest, reference_digest`",
+      "constraints": "`PK(candidate_package_id,reference_id)`及复合FK`(candidate_package_id,primary_ordinal) → proc_candidate_primary_materials(candidate_package_id,ordinal)`；`CHECK(disposition_required=1)`；逐列无损保存一个`RelatedMaterialReference@1`，`primaryMaterialKey`只由该immutable FK目标重建；Physical Identity/materialKey、exclusive association、disposition basis及reference digest均按8.6.18重验；published row immutable，Related不进入Material Control但其dependent obligation随Handoff连续传播；Candidate关闭、Run封口或Offer关闭不得删除，历史Delivery Snapshot仍从本Owner relation恢复"
     },
     "source": {
       "section": "8.5.11",
-      "line": 8809,
-      "lineDigest": "ff39b49ddcdd8f5213d6467b7495dee5f15f3516342aeedf9cef88d51cab2e14"
+      "line": 8957,
+      "lineDigest": "b717829bfcc8cf0f55269b9c0731b8ee05ccaedb7324deb6a51528959b24b6d9"
     },
     "foreignKeys": [
       {

@@ -31,11 +31,18 @@ function ownerRows() {
     sizeBytes:identity.sizeBytes,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint:identity.contentFingerprint });
   const reference={ referenceId:'',primaryMaterialKey:materialKey,role:'nfo',identity,endpointId:'endpoint-1',location:'/field/movie.nfo',
     fingerprintAlgorithm:identity.fingerprintAlgorithm,fingerprintVersion:identity.fingerprintVersion,
-    contentFingerprint:identity.contentFingerprint,associationEvidenceDigest:D('association'),referenceDigest:'' };
+    contentFingerprint:identity.contentFingerprint,associationKind:'exclusive',dispositionRequired:true,
+    associationEvidenceDigest:D('association'),dispositionBasisDigest:'',referenceDigest:'' };
   reference.referenceId=canonicalDigest({ schema:'procurement.related-material-reference-id@1',primaryMaterialKey:materialKey,
     role:reference.role,relatedMaterialKey:identity.materialKey,endpointId:reference.endpointId,location:reference.location });
+  reference.dispositionBasisDigest=canonicalDigest({schema:'procurement.related-disposition-basis@1',
+    referenceId:reference.referenceId,primaryMaterialKey:reference.primaryMaterialKey,role:reference.role,
+    identity:reference.identity,associationEvidenceDigest:reference.associationEvidenceDigest});
   reference.referenceDigest=canonicalDigest(without(reference,'referenceDigest'));
   const relatedReferenceSetDigest=canonicalDigest({ schema:'procurement.related-reference-set@1',items:[reference] });
+  const relatedDispositionScopeDigest=canonicalDigest({schema:'procurement.related-disposition-scope@1',items:[{
+    referenceId:reference.referenceId,primaryMaterialKey:reference.primaryMaterialKey,role:reference.role,
+    materialKey:reference.identity.materialKey,dispositionBasisDigest:reference.dispositionBasisDigest}]});
   const continuityDigest=canonicalDigest({ schema:'season-continuity-claim-set@1',items:[] });
   const metadata={ claimedTitle:'Movie',contentProfileHint:'movie',sourceHints:[],metadataDigest:D('metadata') };
   const claim={ schemaRef:'helix://contracts/types/IdentityClaim/v1',schemaVersion:1,claimDigest:D('claim') };
@@ -48,7 +55,7 @@ function ownerRows() {
     structureEvidenceRef:{ evidenceId:'structure-1',payloadDigest:D('structure'),unitId:D('unit-id'),unitDigest:D('unit') },
     seasonContinuityClaims:[],seasonContinuityClaimSetDigest:continuityDigest,
     primaryInputManifestRef:{ manifestId:manifest.manifestId,manifestDigest:manifest.manifestDigest,memberCount:1 },
-    relatedReferences:[reference],relatedReferenceSetDigest,memberControlEvidenceSetDigest:D('controls'),packageDigest:'' };
+    relatedReferences:[reference],relatedReferenceSetDigest,relatedDispositionScopeDigest,memberControlEvidenceSetDigest:D('controls'),packageDigest:'' };
   candidatePackage.packageDigest=canonicalDigest(without(candidatePackage,'manifestDigest','packageDigest'));
   candidatePackage.manifestDigest=candidatePackage.packageDigest;
   const basis=buildAcceptanceBasis(candidatePackage); const offer=buildOffer(candidatePackage,basis).message;
@@ -62,7 +69,8 @@ function ownerRows() {
       identity_claim_digest:claim.claimDigest,structure_evidence_id:'structure-1',structure_evidence_payload_digest:D('structure'),
       structure_unit_id:D('unit-id'),structure_unit_digest:D('unit'),triage_rule_ref:'procurement.triage.default',triage_rule_revision:1,
       triage_rule_authority_digest:D('authority'),primary_input_manifest_id:'manifest-1',manifest_digest:manifest.manifestDigest,
-      related_reference_set_digest:relatedReferenceSetDigest,member_control_evidence_set_digest:D('controls'),
+      related_reference_set_digest:relatedReferenceSetDigest,related_disposition_scope_digest:relatedDispositionScopeDigest,
+      member_control_evidence_set_digest:D('controls'),
       package_digest:candidatePackage.packageDigest,state:'published',published_at_ms:100 },
     run:{ procurement_run_id:'run-1',run_basis_digest:D('run') },continuity:[],
     primaries:[{ ordinal:0,material_key:materialKey,role:'primary_payload',mount_scope_id:primaryIdentity.mountScopeId,inode:primaryIdentity.inode,
@@ -73,7 +81,8 @@ function ownerRows() {
       mount_scope_id:identity.mountScopeId,inode:identity.inode,size_bytes:identity.sizeBytes,
       fingerprint_algorithm:identity.fingerprintAlgorithm,fingerprint_version:identity.fingerprintVersion,content_fingerprint:identity.contentFingerprint,
       endpoint_id:reference.endpointId,location:reference.location,
-      association_evidence_digest:reference.associationEvidenceDigest,reference_digest:reference.referenceDigest }],
+      association_kind:'exclusive',disposition_required:1,association_evidence_digest:reference.associationEvidenceDigest,
+      disposition_basis_digest:reference.dispositionBasisDigest,reference_digest:reference.referenceDigest }],
     runMembers:[{ ordinal:0,material_key:materialKey,mount_scope_id:primaryIdentity.mountScopeId,inode:primaryIdentity.inode,
       fingerprint_algorithm:primaryIdentity.fingerprintAlgorithm,fingerprint_version:primaryIdentity.fingerprintVersion,
       content_fingerprint:primaryIdentity.contentFingerprint,size_bytes:primaryIdentity.sizeBytes,binding_revision:1,last_snapshot_digest:D('snapshot'),endpoint_id:'endpoint-1',

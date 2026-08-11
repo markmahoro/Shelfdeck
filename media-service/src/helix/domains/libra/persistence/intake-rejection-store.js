@@ -21,7 +21,7 @@ function fail(code, message, details) { throw new IntakeRejectionStoreError(code
 function without(value, ...fields) { return Object.fromEntries(Object.entries(value).filter(([key]) => !fields.includes(key))); }
 
 const DECISION_COLUMNS = ['intake_decision_id','decision_revision','decision_kind','offer_id','candidate_package_id','package_revision','package_digest',
-  'acceptance_basis_digest','candidate_delivery_snapshot_digest','candidate_delivery_snapshot_schema_ref',
+  'acceptance_basis_digest','candidate_delivery_snapshot_digest','related_disposition_scope_digest','candidate_delivery_snapshot_schema_ref',
   'candidate_delivery_snapshot_json','expected_continuity_head_revision','expected_continuity_head_digest',
   'source_field_id','source_field_access_revision','source_field_context_digest','candidate_structure_kind','candidate_content_profile','candidate_identity_claim_digest',
   'committed_continuity_head_revision','candidate_continuity_set_digest','candidate_episode_scope_digest','match_cardinality',
@@ -30,7 +30,7 @@ const DECISION_COLUMNS = ['intake_decision_id','decision_revision','decision_kin
   'committed_subject_continuity_set_digest','committed_subject_episode_scope_digest','accepted_payload_digest','rejection_schema_ref',
   'rejection_id','primary_rejection_code','rejection_reason_set_digest','rejection_digest','decision_digest','decided_at_ms'];
 const RECEIPT_COLUMNS = ['receipt_id','intake_decision_id','outcome','offer_id','candidate_package_id','package_revision','package_digest',
-  'candidate_delivery_snapshot_digest','subject_id','subject_intake_revision','subject_continuity_head_revision','subject_continuity_set_digest',
+  'candidate_delivery_snapshot_digest','related_disposition_scope_digest','subject_id','subject_intake_revision','subject_continuity_head_revision','subject_continuity_set_digest',
   'subject_episode_scope_digest','accepted_payload_digest','libra_binding_set_digest','control_revision_set_digest','rejection_id',
   'primary_rejection_code','rejection_reason_set_digest','rejection_digest','receipt_digest','committed_at_ms'];
 
@@ -54,7 +54,8 @@ function foundationDefinition(schemaManifest) {
     find_result:{ kind:'select-one', tableId:'fx_event_result_bindings', columns:['result_id','result_schema_ref','result_json','result_digest','evidence_schema_ref','evidence_json','evidence_digest','effect_receipt_id'], keyColumns:['result_id'] },
     insert_result:{ kind:'insert', tableId:'fx_event_result_bindings', columns:['result_id','event_id','outcome_kind','result_schema_ref','result_json','result_digest','evidence_schema_ref','evidence_json','evidence_digest','effect_receipt_id','committed_at_ms'] },
     insert_marker:{ kind:'insert', tableId:'fx_commit_markers', columns:['commit_marker','effect_id','owner_domain','scope_type','scope_id','commit_digest','result_id','result_schema_ref','result_digest','committed_at_ms'] },
-    insert_outbox:{ kind:'insert', tableId:'fx_outbox', columns:['message_id','producer_domain','message_kind','aggregate_type','aggregate_id','aggregate_revision','dedup_key','consumer_set_digest','intended_consumer_count','payload_schema_ref','payload_json','payload_digest','state','available_at_ms','created_at_ms','all_acked_at_ms'] }
+    insert_outbox:{ kind:'insert', tableId:'fx_outbox', columns:['message_id','producer_domain','message_kind','aggregate_type','aggregate_id','aggregate_revision','dedup_key','consumer_set_digest','intended_consumer_count','payload_schema_ref','payload_json','payload_digest','state','available_at_ms','created_at_ms','all_acked_at_ms'] },
+    insert_outbox_delivery:{kind:'insert',tableId:'fx_outbox_deliveries',columns:['message_id','consumer_domain','state','attempt_count','next_attempt_at_ms','acked_at_ms']}
   }});
 }
 
@@ -62,7 +63,7 @@ function validateHandle(handle, decision) {
   if (!handle || handle.schemaRef !== HANDLE_SCHEMA || handle.schemaVersion !== 1 || handle.ownerDomain !== 'libra' ||
       handle.aggregateType !== 'intake_decision' || handle.aggregateId !== decision.intakeDecisionId ||
       handle.factType !== 'IntakeRejectionDecision' || handle.factSchemaRef !== DECISION_SCHEMA || handle.expectedRevision !== 0 ||
-      handle.payloadDigest !== decision.decisionDigest || handle.resultSchemaRef !== DECISION_SCHEMA ||
+      handle.payloadDigest !== decision.decisionDigest || handle.resultSchemaRef !== RECEIPT_SCHEMA ||
       typeof handle.commitIdempotencyKey !== 'string' || !handle.commitIdempotencyKey || !SHA256.test(handle.eventFenceDigest || '')) {
     fail('P8_REJECTION_HANDLE_MISMATCH', 'Commit Handle does not authorize this exact immutable rejection Decision.');
   }
@@ -115,16 +116,18 @@ function createIntakeRejectionStore(options) {
       validateHandle(request.domainFactCommitHandle,decision);
       const markerId=request.commitMarker.commitMarker, commitDigest=request.commitMarker.commitDigest, binding=request.resultBinding;
       if (typeof markerId !== 'string' || !markerId || !SHA256.test(commitDigest || '') || typeof binding.resultId !== 'string' || !binding.resultId ||
-          typeof binding.eventId !== 'string' || !binding.eventId) fail('P8_REJECTION_REQUEST_INVALID', 'Commit Marker and Result binding identities are required.');
+          typeof binding.eventId !== 'string' || !binding.eventId || typeof binding.evidenceSchemaRef !== 'string' || !binding.evidenceSchemaRef ||
+          !binding.evidence || typeof binding.effectReceiptId !== 'string' || !binding.effectReceiptId) fail('P8_REJECTION_REQUEST_INVALID', 'Commit Marker and Result binding identities are required.');
       let receipt, message;
       const preflight={ participantId:'intake_rejection_preflight', owner:'execution-foundation', boundBusinessOwner:'libra', repositories:[foundation], execute(context) {
         const repo=context.repository(foundation.repositoryId), marker=repo.invoke('find_marker',{commit_marker:markerId});
         if (!marker) return;
         if (marker.owner_domain !== 'libra' || marker.scope_type !== 'intake_decision' || marker.scope_id !== decision.intakeDecisionId ||
-            marker.commit_digest !== commitDigest || marker.result_schema_ref !== DECISION_SCHEMA) fail('P8_REJECTION_MARKER_CONFLICT', 'Commit Marker belongs to another fact.');
+            marker.commit_digest !== commitDigest || marker.result_schema_ref !== RECEIPT_SCHEMA) fail('P8_REJECTION_MARKER_CONFLICT', 'Commit Marker belongs to another fact.');
         const result=repo.invoke('find_result',{result_id:marker.result_id});
-        if (!result || result.result_schema_ref !== DECISION_SCHEMA || result.result_digest !== marker.result_digest ||
-            result.result_digest !== decision.decisionDigest || result.evidence_schema_ref !== RECEIPT_SCHEMA) fail('P8_REJECTION_REPLAY_CORRUPT', 'Commit Marker Result is missing or inconsistent.');
+        if (!result || result.result_schema_ref !== RECEIPT_SCHEMA || result.result_digest !== marker.result_digest ||
+            result.evidence_schema_ref !== binding.evidenceSchemaRef || result.evidence_digest !== canonicalDigest(binding.evidence) ||
+            result.effect_receipt_id !== binding.effectReceiptId) fail('P8_REJECTION_REPLAY_CORRUPT', 'Commit Marker Result is missing or inconsistent.');
       }};
       const write={ participantId:'intake_rejection_write', owner:'libra', repositories:[libra], execute(context) {
         const repo=context.repository(libra.repositoryId), existing=repo.invoke('find_offer_decision',{offer_id:decision.offerId});
@@ -146,7 +149,9 @@ function createIntakeRejectionStore(options) {
         repo.invoke('insert_decision',{ intake_decision_id:decision.intakeDecisionId,decision_revision:1,decision_kind:'rejected_acceptance',
           offer_id:decision.offerId,candidate_package_id:decision.candidatePackageId,package_revision:decision.packageRevision,
           package_digest:decision.packageDigest,acceptance_basis_digest:decision.acceptanceBasisDigest,
-          candidate_delivery_snapshot_digest:decision.candidateDeliverySnapshotDigest,candidate_delivery_snapshot_schema_ref:null,
+          candidate_delivery_snapshot_digest:decision.candidateDeliverySnapshotDigest,
+          related_disposition_scope_digest:request.deliverySnapshot.candidatePackage.relatedDispositionScopeDigest,
+          candidate_delivery_snapshot_schema_ref:null,
           candidate_delivery_snapshot_json:null,source_field_id:provenance.sourceFieldId,
           source_field_access_revision:provenance.sourceFieldAccessRevision,source_field_context_digest:provenance.sourceFieldContextDigest,
           candidate_structure_kind:provenance.candidateStructureKind,candidate_content_profile:provenance.candidateContentProfile,
@@ -161,6 +166,7 @@ function createIntakeRejectionStore(options) {
         repo.invoke('insert_receipt',{ receipt_id:receipt.receiptId,intake_decision_id:decision.intakeDecisionId,outcome:'rejected',
           offer_id:decision.offerId,candidate_package_id:decision.candidatePackageId,package_revision:decision.packageRevision,
           package_digest:decision.packageDigest,candidate_delivery_snapshot_digest:decision.candidateDeliverySnapshotDigest,
+          related_disposition_scope_digest:request.deliverySnapshot.candidatePackage.relatedDispositionScopeDigest,
           subject_id:null,subject_intake_revision:null,subject_continuity_head_revision:null,subject_continuity_set_digest:null,
           subject_episode_scope_digest:null,accepted_payload_digest:null,libra_binding_set_digest:null,control_revision_set_digest:null,
           rejection_id:rejection.rejectionId,primary_rejection_code:rejection.primaryRejectionCode,
@@ -171,22 +177,24 @@ function createIntakeRejectionStore(options) {
       }};
       const result={ participantId:'intake_rejection_result', owner:'execution-foundation', boundBusinessOwner:'libra', repositories:[foundation], execute(context) {
         context.repository(foundation.repositoryId).invoke('insert_result',{ result_id:binding.resultId,event_id:binding.eventId,outcome_kind:'succeeded',
-          result_schema_ref:DECISION_SCHEMA,result_json:canonicalJson(decision),result_digest:decision.decisionDigest,evidence_schema_ref:RECEIPT_SCHEMA,
-          evidence_json:canonicalJson(receipt),evidence_digest:receipt.receiptDigest,effect_receipt_id:receipt.receiptId,committed_at_ms:context.commitTimeMs });
+          result_schema_ref:RECEIPT_SCHEMA,result_json:canonicalJson(receipt),result_digest:canonicalDigest(receipt),evidence_schema_ref:binding.evidenceSchemaRef,
+          evidence_json:canonicalJson(binding.evidence),evidence_digest:canonicalDigest(binding.evidence),effect_receipt_id:binding.effectReceiptId,committed_at_ms:context.commitTimeMs });
       }};
       const marker={ participantId:'intake_rejection_marker', owner:'execution-foundation', boundBusinessOwner:'libra', repositories:[foundation], execute(context) {
         context.repository(foundation.repositoryId).invoke('insert_marker',{ commit_marker:markerId,effect_id:request.commitMarker.effectId || null,
           owner_domain:'libra',scope_type:'intake_decision',scope_id:decision.intakeDecisionId,commit_digest:commitDigest,result_id:binding.resultId,
-          result_schema_ref:DECISION_SCHEMA,result_digest:decision.decisionDigest,committed_at_ms:context.commitTimeMs });
+          result_schema_ref:RECEIPT_SCHEMA,result_digest:canonicalDigest(receipt),committed_at_ms:context.commitTimeMs });
       }};
       const outbox={ participantId:'intake_rejection_outbox', owner:'execution-foundation', boundBusinessOwner:'libra', repositories:[foundation], execute(context) {
         const dedupKey='libra_candidate_rejected:' + decision.offerId;
         const messageId=canonicalDigest({schema:'foundation.outbox-message-id@1',producerDomain:'libra',dedupKey});
         context.repository(foundation.repositoryId).invoke('insert_outbox',{ message_id:messageId,producer_domain:'libra',message_kind:'libra_candidate_rejected',
           aggregate_type:'intake_decision',aggregate_id:decision.intakeDecisionId,aggregate_revision:1,dedup_key:dedupKey,
-          consumer_set_digest:canonicalDigest({schema:'foundation.outbox-consumer-set@1',consumers:['procurement']}),intended_consumer_count:1,
+          consumer_set_digest:canonicalDigest(['procurement']),intended_consumer_count:1,
           payload_schema_ref:MESSAGE_SCHEMA,payload_json:canonicalJson(message),payload_digest:canonicalDigest(message),state:'pending',
           available_at_ms:context.commitTimeMs,created_at_ms:context.commitTimeMs,all_acked_at_ms:null });
+        context.repository(foundation.repositoryId).invoke('insert_outbox_delivery',{message_id:messageId,consumer_domain:'procurement',
+          state:'pending',attempt_count:0,next_attempt_at_ms:context.commitTimeMs,acked_at_ms:null});
         return Object.freeze({messageId,dedupKey,message});
       }};
       try {
