@@ -21,6 +21,7 @@ const {
 const {
   buildCanonicalQueryHandle,
   buildDecisionIdentityEvidenceSnapshot,
+  deriveTitleYear,
   parseDecisionIdentityEvidenceSnapshot,
 } = require('../../src/helix/domains/libra/model/decision-identity-evidence-contracts');
 const {
@@ -72,13 +73,14 @@ function fixture(run) {
   }
 }
 
-function acceptedIdentity(title = 'Example Movie') {
+function acceptedIdentity(title = 'Example Movie', year = '2000') {
   const payload = {
     claimKind: 'movie_title',
     mediaType: 'single',
     contentProfile: 'movie',
     claimedTitle: title,
     displayIdentity: title,
+    claimedYear: year,
     identityMetadataDigest: canonicalDigest({ title }),
     structureUnitDigest: canonicalDigest({ structure: 'single' }),
     sourceHints: [{
@@ -134,6 +136,7 @@ function registerRecord(store, {
   title = 'Example Movie',
   rating = null,
   watchedState = null,
+  year = '2000',
 } = {}) {
   store.registerSource({
     perceptionSourceId: 'source-1',
@@ -183,6 +186,11 @@ function registerRecord(store, {
         anchorValue: title,
         confidenceClass: 'strong',
         evidenceDigest: canonicalDigest({ anchor: title }),
+      }, {
+        anchorKind: 'title_year',
+        anchorValue: title + '\0' + year,
+        confidenceClass: 'medium',
+        evidenceDigest: canonicalDigest({ anchor: title, year }),
       }],
     }],
     relations: [],
@@ -225,6 +233,17 @@ test('freezes the accepted claim title as a versioned Libra evidence anchor', ()
     decision_identity_evidence_digest: snapshot.snapshotDigest,
   };
   assert.deepEqual(parseDecisionIdentityEvidenceSnapshot(row), snapshot);
+});
+
+test('derives an explicit terminal folder year without changing Procurement facts', () => {
+  assert.deepEqual(
+    deriveTitleYear('Example Movie (2000)'),
+    { title: 'example movie', year: 2000 },
+  );
+  assert.deepEqual(
+    deriveTitleYear('Example 2000 Cut'),
+    { title: 'example 2000 cut', year: null },
+  );
 });
 
 test('commits and reuses one real not_found Resolution when no record exists', () => {

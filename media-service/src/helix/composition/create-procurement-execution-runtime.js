@@ -30,6 +30,7 @@ const { createDomainReconcileRunner } = require('../foundation/execution/domain-
 const { createWorkflowPlanPublisher, executionCatalogDigest } = require('../foundation/execution/workflow-plan');
 const { ProcurementExecutionRegistration } = require('../domains/procurement/public');
 const { LibraExecutionRegistration } = require('../domains/libra/public');
+const { PerceptionExecutionRegistration } = require('../domains/perception/public');
 
 const PROCUREMENT_ENABLED = Object.freeze(['procurement.field.observation.page.commit@1',
   'procurement.triage.playability.inspect@1','procurement.triage.bdmv.assess@1','procurement.triage.structure.inspect@1',
@@ -38,7 +39,9 @@ const SHARED_ENABLED = Object.freeze(['shared.material.media.probe@1']);
 const LIBRA_ENABLED = Object.freeze(['libra.intake.candidate.verify@1','libra.intake.material.verify@1',
   'libra.intake.binding.resolve@1','libra.intake.accept.commit@1','libra.intake.rejection.commit@1',
   'libra.routing.fact.observe@1','libra.decision_basis.commit@1']);
-const ENABLED = Object.freeze([...PROCUREMENT_ENABLED, ...SHARED_ENABLED, ...LIBRA_ENABLED]);
+const PERCEPTION_ENABLED = Object.freeze(['perception.source.acquire@1','perception.record.normalize@1','perception.record.commit@1',
+  'perception.dedup.resolve@1','perception.resolution.commit@1']);
+const ENABLED = Object.freeze([...PROCUREMENT_ENABLED, ...SHARED_ENABLED, ...LIBRA_ENABLED, ...PERCEPTION_ENABLED]);
 
 function collectSchemas(root) {
   const schemas = [];
@@ -82,8 +85,15 @@ function createProcurementExecutionRuntime(options) {
   const manifests = Object.fromEntries(ENABLED.map((ref) => [ref, manifest(contractsRoot, ref)]));
   const procurementConstruction = ProcurementExecutionRegistration();
   const libraConstruction = LibraExecutionRegistration();
+  const perceptionConstruction = PerceptionExecutionRegistration();
+  const perceptionOptions=Object.freeze({...options,
+    acquirePerceptionProvider:options.acquirePerceptionProvider||(async()=>{throw new Error('Perception Provider adapter is unavailable.');}),
+    readPerceptionObservation:options.readPerceptionObservation||(async()=>{throw new Error('Perception Observation reader is unavailable.');}),
+    targetProjectionReader:options.targetProjectionReader||(()=>null),readDoubanSourceConfiguration:options.readDoubanSourceConfiguration||(()=>null),
+    resolvePerceptionIntegrationHandle:options.resolvePerceptionIntegrationHandle||(()=>undefined)});
   const libraOptions = Object.freeze({ ...options,
     readArcaRoutingTargets: options.readArcaRoutingTargets || (() => Object.freeze([])),
+    readArcaShelfStandard: options.readArcaShelfStandard || (() => null),
     readRelatedNfo: options.readRelatedNfo || (async () => { throw new Error('Routing NFO adapter is unavailable.'); }),
     observeRoutingProvider: options.observeRoutingProvider || (async () => { throw new Error('Routing Provider adapter is unavailable.'); }),
     resolveRoutingIntegrationHandle: options.resolveRoutingIntegrationHandle || (() => undefined) });
@@ -101,7 +111,9 @@ function createProcurementExecutionRuntime(options) {
     computeFingerprint:options.computeFingerprint || computeBoundedMaterialFingerprint});
   const libraRegistrations=libraCapabilityRegistration.createRegistrations({enabledCapabilityRefs:LIBRA_ENABLED,
     manifests:Object.fromEntries(LIBRA_ENABLED.map((ref)=>[ref,manifests[ref]]))});
-  const registrations = Object.freeze([...procurementRegistrations,...sharedRegistrations,...libraRegistrations]);
+  const perceptionCapabilityRegistration=perceptionConstruction.createCapabilityRegistration({...perceptionOptions,now});
+  const perceptionRegistrations=perceptionCapabilityRegistration.createRegistrations({manifests:Object.fromEntries(PERCEPTION_ENABLED.map((ref)=>[ref,manifests[ref]]))});
+  const registrations = Object.freeze([...procurementRegistrations,...sharedRegistrations,...libraRegistrations,...perceptionRegistrations]);
   const registry = createCapabilityRegistry({ registrations, expectedCapabilityRefs: ENABLED });
   const retryPolicies = [
     { ref: 'helix://foundation/retry/pure-observation/v1', effectClass: 'pure_observation', maxFailureAttempts: 3,
@@ -122,6 +134,7 @@ function createProcurementExecutionRuntime(options) {
   const executionProjectionProvider=Object.freeze({read:({processType,workKind})=>{
     if(processType==='libra_intake')return Object.freeze({priorityClass:'handoff_acceptance',localPriority:300,priorityRevision:1,supplyRole:'completion'});
     if(processType==='libra_routing')return Object.freeze({priorityClass:'normal_foreground',localPriority:250,priorityRevision:1,supplyRole:'completion'});
+    if(processType==='perception_acquisition'||processType==='perception_resolution')return Object.freeze({priorityClass:'normal_foreground',localPriority:240,priorityRevision:1,supplyRole:'completion'});
     if(processType==='material_field')return Object.freeze({priorityClass:'background_observation',localPriority:0,priorityRevision:1,supplyRole:'expansion'});
     if(workKind==='candidate_assembly')return Object.freeze({priorityClass:'normal_foreground',localPriority:200,priorityRevision:1,supplyRole:'completion'});
     if(workKind==='evidence_assessment')return Object.freeze({priorityClass:'normal_foreground',localPriority:100,priorityRevision:1,supplyRole:'expansion'});
@@ -158,13 +171,19 @@ function createProcurementExecutionRuntime(options) {
   const planningRegistration = procurementConstruction.createPlanningRegistration({ registry, policyRegistry,
     contractValidator, progressReader, triageReader, triageRuleRegistry: triageRegistry, workResultReader,
     evidenceIndex, candidateContextReader, materialFieldStore: options.materialFieldStore, now });
+  let perceptionProcessServices;
   const libraProcessServices=libraConstruction.createProcessServices({...libraOptions,now,workResultReader,
-    offerReader:libraCapabilityRegistration.offerReader});
+    offerReader:libraCapabilityRegistration.offerReader,readArcaShelfStandard:libraOptions.readArcaShelfStandard,
+    resolvePerceptionRating:(subjectId)=>perceptionProcessServices?.resolveDecisionFact({targetType:'subject',targetId:subjectId})||Object.freeze({kind:'pending'})});
   const libraPlanningRegistration=libraConstruction.createPlanningRegistration({registry,policyRegistry,contractValidator,
     workResultReader,offerReader:libraProcessServices.offerReader,decisionResolver:libraProcessServices.decisionResolver,
-    contextReader:libraProcessServices.routingContextReader,resolveRoutingIntegrationHandle:libraOptions.resolveRoutingIntegrationHandle,now});
+    contextReader:libraProcessServices.routingContextReader,acceptanceSpecContextReader:libraProcessServices.acceptanceSpecContextReader,
+    resolveRoutingIntegrationHandle:libraOptions.resolveRoutingIntegrationHandle,now});
+  perceptionProcessServices=perceptionConstruction.createProcessServices({...perceptionOptions,now,workResultReader});
+  const perceptionPlanningRegistration=perceptionConstruction.createPlanningRegistration({registry,policyRegistry,contractValidator,
+    workResultReader,processServices:perceptionProcessServices,resolvePerceptionIntegrationHandle:options.resolvePerceptionIntegrationHandle,now});
   const bindingProjectionRegistry = createInputBindingProjectionRegistry({ registrations:[...planningRegistration.bindingProjections,
-    ...libraPlanningRegistration.bindingProjections] });
+    ...libraPlanningRegistration.bindingProjections,...perceptionPlanningRegistration.bindingProjections] });
   const executionInputProvider = createEventExecutionInputProvider({ schemaManifest: options.schemaManifest,
     unitOfWork: options.unitOfWork, contractValidator, bindingProjectionRegistry, workResultReader });
   const attemptPolicy = createAttemptPolicyController({ registry: policyRegistry, now });
@@ -192,22 +211,29 @@ function createProcurementExecutionRuntime(options) {
         else if(integrationId){validatedIntegrationKeys.add(integrationId);resources.push({resourceKey:'integration:'+integrationId,units:1});}
         else throw new Error('P4_TYPED_ROUTING_RESOURCE_UNRESOLVED');
       }
+      if(capability==='perception.source.acquire@1'){
+        const integrationId=findIntegrationId(inputs);if(!integrationId)throw new Error('P4_TYPED_PERCEPTION_RESOURCE_UNRESOLVED');
+        validatedIntegrationKeys.add(integrationId);resources.push({resourceKey:'integration:'+integrationId,units:1});
+      }
       if(capability === 'procurement.triage.bdmv.assess@1') resources.push({resourceKey:'cpu_heavy',units:1});
       if(['procurement.field.observation.page.commit@1','procurement.candidate.publish@1','libra.intake.accept.commit@1',
         'libra.intake.rejection.commit@1','libra.decision_basis.commit@1'].includes(capability)){
         resources.push({resourceKey:'sqlite_write',units:1});
       }
+      if(['perception.record.commit@1','perception.resolution.commit@1'].includes(capability))resources.push({resourceKey:'sqlite_write',units:1});
       if(resources.length===0)resources=[{resourceKey:'cpu_heavy',units:1}];
       return {eventId:snapshot.event.event_id,queueClass:projection.priorityClass,localPriority:projection.localPriority,
         priorityRevision:projection.priorityRevision,resources}; } },
     nextEventAttemptId: () => 'event-attempt-' + randomUUID(), nextExecutionId: () => 'execution-' + randomUUID(),
     nextResultId: () => 'event-result-' + randomUUID(), now });
   const plannerKinds = ['field_observation', 'evidence_assessment', 'candidate_assembly'];
-  const libraPlannerKinds=['evidence','acceptance','rejection','routing_nfo_facts','routing_provider_facts','routing_basis'];
+  const libraPlannerKinds=['evidence','acceptance','rejection','routing_nfo_facts','routing_provider_facts','routing_basis','acceptance_spec_basis'];
+  const perceptionPlannerKinds=['acquisition_page','resolution'];
   const plannerRegistry = createPlannerRegistry({ registrations: [...planningRegistration.planners.map((planner, index) => ({
     ownerDomain: 'procurement', workKind: plannerKinds[index], plannerContractRef: planner.plannerContractRef,
     plannerVersion: planner.plannerVersion, planner
   })),...libraPlanningRegistration.planners.map((planner,index)=>({ownerDomain:'libra',workKind:libraPlannerKinds[index],
+    plannerContractRef:planner.plannerContractRef,plannerVersion:planner.plannerVersion,planner})),...perceptionPlanningRegistration.planners.map((planner,index)=>({ownerDomain:'perception',workKind:perceptionPlannerKinds[index],
     plannerContractRef:planner.plannerContractRef,plannerVersion:planner.plannerVersion,planner}))] });
   const planPublisher = createWorkflowPlanPublisher({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     registry, contractValidator, policyRegistry });
@@ -232,7 +258,33 @@ function createProcurementExecutionRuntime(options) {
       return {workId:request.workId,disposition:request.workAttemptState};
     }
     if(request.ownerDomain==='libra'&&request.processType==='libra_routing'){
-      if(request.workAttemptState==='succeeded')libraProcessServices.routingCoordinator.reconcile(request.processId);
+      if(request.workAttemptState==='succeeded'){
+        const routing=libraProcessServices.routingCoordinator.reconcile(request.processId);
+        if(routing.kind==='terminal'&&routing.decision?.result==='resolved')libraProcessServices.acceptanceSpecCoordinator.reconcile(request.processId);
+      }
+      return {workId:request.workId,disposition:request.workAttemptState};
+    }
+    if(request.ownerDomain==='libra'&&request.processType==='libra_acceptance_spec'){
+      if(request.workAttemptState==='succeeded')libraProcessServices.acceptanceSpecCoordinator.reconcile(request.processId);
+      return {workId:request.workId,disposition:request.workAttemptState};
+    }
+    if(request.ownerDomain==='perception'&&request.processType==='perception_acquisition'){
+      if(request.workAttemptState==='succeeded'){
+        const acquisition=perceptionProcessServices.reconcileAcquisition(request.processId);
+        const context=perceptionProcessServices.acquisitionContext(request.processId);
+        if(acquisition.kind==='terminal'&&context?.scope?.mode==='direct'){
+          const target=context.scope.target;
+          perceptionProcessServices.ensureResolution(target.targetType,target.targetId);
+          if(target.targetType==='subject')libraProcessServices.acceptanceSpecCoordinator.reconcile(target.targetId);
+        }
+      }
+      return {workId:request.workId,disposition:request.workAttemptState};
+    }
+    if(request.ownerDomain==='perception'&&request.processType==='perception_resolution'){
+      if(request.workAttemptState==='succeeded'){
+        perceptionProcessServices.reconcileResolution(request.processId);
+        if(request.processId.startsWith('subject:'))libraProcessServices.acceptanceSpecCoordinator.reconcile(request.processId.slice('subject:'.length));
+      }
       return {workId:request.workId,disposition:request.workAttemptState};
     }
     if (request.ownerDomain !== 'procurement') return null;
@@ -277,12 +329,28 @@ function createProcurementExecutionRuntime(options) {
     listPage:({cursor,limit})=>libraProcessServices.offerReader.listProcessPage(cursor,limit).items.map((item)=>Object.freeze({cursor:item.processId,scope:item})),
     reconcile:({processId})=>libraProcessServices.coordinator.reconcile(processId)}),Object.freeze({ownerDomain:'libra',reconcilerKey:'active-routing-subjects',
     listPage:({cursor,limit})=>libraProcessServices.routingContextReader.listActiveSubjectPage(cursor,limit).items.map((item)=>Object.freeze({cursor:item.subjectId,scope:item})),
-    reconcile:({subjectId})=>libraProcessServices.routingCoordinator.reconcile(subjectId)})]});
+    reconcile:({subjectId})=>libraProcessServices.routingCoordinator.reconcile(subjectId)}),Object.freeze({ownerDomain:'perception',reconcilerKey:'active-acquisitions',
+    listPage:({cursor,limit})=>perceptionProcessServices.listAcquisitions().filter((item)=>item.state==='active')
+      .sort((a,b)=>a.perceptionAcquisitionId.localeCompare(b.perceptionAcquisitionId)).filter((item)=>cursor===null||item.perceptionAcquisitionId>cursor)
+      .slice(0,limit).map((item)=>Object.freeze({cursor:item.perceptionAcquisitionId,scope:item})),
+    reconcile:({perceptionAcquisitionId})=>perceptionProcessServices.reconcileAcquisition(perceptionAcquisitionId)}),Object.freeze({
+      ownerDomain:'perception',reconcilerKey:'active-subject-rating-resolutions',
+      listPage:({cursor,limit})=>libraProcessServices.routingContextReader.listActiveSubjectPage(cursor,limit).items
+        .map((item)=>Object.freeze({cursor:item.subjectId,scope:item})),
+      reconcile:({subjectId})=>perceptionProcessServices.ensureResolution('subject',subjectId),
+    }),Object.freeze({
+      ownerDomain:'libra',reconcilerKey:'active-acceptance-spec-subjects',
+      listPage:({cursor,limit})=>libraProcessServices.routingContextReader.listActiveSubjectPage(cursor,limit).items
+        .map((item)=>Object.freeze({cursor:item.subjectId,scope:item})),
+      reconcile:({subjectId})=>libraProcessServices.acceptanceSpecCoordinator.reconcile(subjectId),
+    })]});
   host = createExecutionRuntimeHost({ startupRecovery, scheduler, plannerRegistry, planPublisher, workLifecycle,
     eventRuntime, domainReconciler, fallbackReconciler, onError: options.onError,maxInFlightEvents:16 });
   return Object.freeze({ host, registry, policyRegistry, contractValidator, progressReader, procurementAutomation,triageReader,runCoordinator,
     intakeCoordinator:libraProcessServices.coordinator,intakeOfferReader:libraProcessServices.offerReader,
-    routingCoordinator:libraProcessServices.routingCoordinator,routingContextReader:libraProcessServices.routingContextReader });
+    routingCoordinator:libraProcessServices.routingCoordinator,routingContextReader:libraProcessServices.routingContextReader,
+    acceptanceSpecCoordinator:libraProcessServices.acceptanceSpecCoordinator,
+    perception:perceptionProcessServices });
 }
 
 module.exports = Object.freeze({ createProcurementExecutionRuntime,createHelixExecutionRuntime:createProcurementExecutionRuntime });

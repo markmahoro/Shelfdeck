@@ -17,7 +17,7 @@
     "8.6.19"
   ],
   "sourcePath": "docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md",
-  "sourceDocumentDigest": "809674b2f1e15aa90b9eb9abbbb0087744c9a2ec6e46e92396d09fdee3c56f39",
+  "sourceDocumentDigest": "6e8d31d02a74bf769e849915f14b8f7adb530d3477d6aa04aa971ed4ad4d222b",
   "counts": {
     "capabilities": 112,
     "resultFamilies": 98,
@@ -25,12 +25,12 @@
     "transactions": 43
   },
   "categoryDigests": {
-    "capabilities": "663202ffefc9b4dc918cb313d26b3bdde7c5723901e8cef424aa24596c756160",
-    "resultFamilies": "32f6ae0ad09f04b94c3e4f44450abb8dd5bf8bb5b72e309c586539e4fc82c9fe",
-    "tables": "4ff20016aa5955cc363d60f8199ed567f2c75d37ee3f4945cf0d3b979b19f848",
-    "transactions": "fc73032a68602e122d265dfe4959ab9818c2f040fbf86a71bec2cb477c047e9c"
+    "capabilities": "c066b3017898580fcc0d2b9262f9a1624175e37dfdbdeb58aaa247178eae955b",
+    "resultFamilies": "f6feb4bab8a6ab063f7882dc69814a2504385dacb91dbf2638efec9112027ab6",
+    "tables": "418dc56b31e795a3a04a275288720f95a56b5564d66802ad58306bc363286927",
+    "transactions": "bbedc8457d4a6566ad59188c476169c1567e7f14e79d637ccfb7c240e3b63763"
   },
-  "aggregateDigest": "a077822db3fbb776a9e2fc3ce9ec8268d5611a16296848457fa32acbd9282c5a",
+  "aggregateDigest": "e252239d73ebafa856199898facb88b342f981b3cc2e5f682b378dfbc1b42121",
   "entryFiles": [
     "ssot-source-map/capabilities-001-056.json",
     "ssot-source-map/capabilities-057-112.json",

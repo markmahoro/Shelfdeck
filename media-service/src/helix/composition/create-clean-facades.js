@@ -198,6 +198,21 @@ function createCleanFacades(options) {
       body: options.routingManualSelection.choose(input.params.subjectId, input.body),
     });
   }
+  if (options.perceptionAdmin) {
+    facades.PerceptionAdminFacade.post_perception_records = async (input) => ({ status:202, body:options.perceptionAdmin.createRecord(input.body) });
+    facades.PerceptionAdminFacade.get_perception_records = async (input) => ({ body:options.perceptionAdmin.listRecords(input.query || {}) });
+    facades.PerceptionAdminFacade.get_perception_acquisitions = async () => ({ body:{ items:options.perceptionAdmin.listAcquisitions() } });
+    facades.PerceptionAdminFacade.post_perception_actions_sync = async (input) => ({ status:202, body:options.perceptionAdmin.requestAcquisition(input.body) });
+    facades.PerceptionAdminFacade.get_perception_sync_state = async () => ({ body:options.perceptionAdmin.syncState() });
+  }
+  if (options.arcaCollectionQuery) {
+    facades.ArcaCollectionFacade.get_collection = async () => ({ body:options.arcaCollectionQuery.list() });
+    facades.ArcaCollectionFacade.get_collection_shelfentryid = async (input) => {
+      const item=options.arcaCollectionQuery.get(input.params.shelfEntryId);
+      if(!item){const error=new Error('Shelf Entry was not found.');error.code='ARCA_SHELF_ENTRY_NOT_FOUND';throw error;}
+      return {body:item};
+    };
+  }
 
   return Object.freeze(Object.fromEntries(
     Object.entries(facades).map(([name, methods]) => [name, Object.freeze(methods)]),

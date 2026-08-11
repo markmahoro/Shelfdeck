@@ -14,6 +14,8 @@ function createOutboxDispatcherHost(options){const repo=repository(options.schem
     statements:{read_head:{kind:'select-one',tableId:'libra_subject_continuity_heads',columns:['head_id'],keyColumns:['head_id']}}});
   const libraRoutingSignalRepository=createRepositoryDefinition({repositoryId:'libra_routing_policy_signal',owner:'libra',readOnly:true,schemaManifest:options.schemaManifest,
     statements:{find_head:{kind:'select-one',tableId:'libra_field_routing_heads',columns:['field_id','current_routing_policy_id','current_policy_revision'],keyColumns:['field_id']}}});
+  const perceptionWakeRepository=createRepositoryDefinition({repositoryId:'perception_wake_signal',owner:'perception',readOnly:true,schemaManifest:options.schemaManifest,
+    statements:{find_source:{kind:'select-one',tableId:'perception_sources',columns:['perception_source_id','config_revision'],keyColumns:['perception_source_id']}}});
   let state='created',timer=null,running=null;
   function due(){return options.unitOfWork.execute([{participantId:'outbox_dispatcher_due',owner:'execution-foundation',repositories:[repo],execute(context){
     const r=context.repository(repo.repositoryId);return r.invoke('list_due',{}).filter((item)=>item.state!=='acked'&&Number(item.next_attempt_at_ms)<=now()).slice(0,100)
@@ -48,6 +50,15 @@ function createOutboxDispatcherHost(options){const repo=repository(options.schem
         }}});
       inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'libra'});
       options.routingCoordinator.reconcileField(payload.fieldId,100);options.executionRuntimeHost.wake();return;
+    }
+    if(item.message.message_kind.startsWith('perception.')&&item.delivery.consumer_domain==='perception'){
+      const resultDigest=canonicalDigest({schema:'perception.internal-wake-consumption@1',messageKind:item.message.message_kind,
+        aggregateId:payload.aggregateId,aggregateRevision:payload.aggregateRevision,factDigest:payload.factDigest});
+      inbox.consume({message:{messageId:item.message.message_id,dedupKey:item.message.dedup_key,consumerDomain:'perception'},resultDigest,
+        domainParticipant:{participantId:'perception_internal_wake_receipt',owner:'perception',repositories:[perceptionWakeRepository],execute:()=>payload}});
+      inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'perception'});
+      if(item.message.message_kind==='perception.records.committed')options.perceptionCoordinator?.reconcileAcquisition(payload.aggregateId);
+      options.executionRuntimeHost.wake();return;
     }
     throw new Error('No Outbox consumer is registered for '+item.message.message_kind+' -> '+item.delivery.consumer_domain);
   }

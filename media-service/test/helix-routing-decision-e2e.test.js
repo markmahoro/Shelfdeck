@@ -84,7 +84,7 @@ function sourceReality(roots) {
   return canonicalDigest({ schema: 'helix.routing-e2e-source-reality@1', entries });
 }
 
-test('direct and sorting Routing Decisions use formal Work/Event execution and stop before Acceptance Spec', async (t) => {
+test('direct and sorting Routing Decisions continue through no-rating Acceptance Spec without a Libra Run', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-routing-decision-'));
   t.after(() => {
     if (process.env.HELIX_KEEP_TEST_DATA === '1') process.stderr.write(`preserved=${root}\n`);
@@ -184,8 +184,8 @@ test('direct and sorting Routing Decisions use formal Work/Event execution and s
       assert.equal(database.prepare("SELECT count(*) count FROM libra_routing_decisions WHERE decision='unresolved'").get().count, 1);
       assert.equal(database.prepare("SELECT count(*) count FROM fx_supporting_works WHERE process_type='libra_routing' AND state='succeeded'").get().count, 29);
       assert.equal(database.prepare("SELECT count(*) count FROM fx_workflow_events WHERE capability_ref='libra.routing.fact.observe@1' AND state='succeeded'").get().count, 5);
-      assert.equal(database.prepare("SELECT count(*) count FROM fx_workflow_events WHERE capability_ref='libra.decision_basis.commit@1' AND state='succeeded'").get().count, 24);
-      assert.equal(database.prepare('SELECT count(*) count FROM libra_acceptance_specs').get().count, 0);
+      assert.equal(database.prepare("SELECT count(*) count FROM fx_workflow_events WHERE capability_ref='libra.decision_basis.commit@1' AND state='succeeded'").get().count, 48);
+      assert.equal(database.prepare('SELECT count(*) count FROM libra_acceptance_specs').get().count, 24);
       assert.equal(database.prepare('SELECT count(*) count FROM libra_runs').get().count, 0);
       assert.equal(database.prepare('SELECT count(*) count FROM libra_workspaces').get().count, 0);
       assert.equal(database.prepare('SELECT count(*) count FROM arca_shelf_entries').get().count, 0);

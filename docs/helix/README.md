@@ -1,11 +1,11 @@
 # ShelfDeck / Helix Documentation Index
 
-Status: Movie Procurement保持`CLOSED FOR MOVIE`。Arca Shelf配置保持`READY FOR LIBRA`；Libra Routing达到`DECISION READY / AWAITING ACCEPTANCE SPEC`。Docker/NAS、Acceptance Spec、Handoff B、On-deck和生产均未开始。
+Status: Movie Procurement保持`CLOSED FOR MOVIE`。Arca Shelf配置保持`READY FOR LIBRA`；Libra达到`ACCEPTANCE SPEC READY / AWAITING LIBRA RUN`。Docker/NAS、Libra Run、Handoff B、On-deck和生产均未开始。
 
-后续本地真实媒体测试的唯一物理范围由用户于2026-08-11固定为
-`C:\Users\markm\AppData\Local\Temp\ShelfDeck-P14-20260723\material-fields`。该目录同时作为测试
-Material Field和Movie Shelf Physical Target Folder；Libra、Arca及后续Movie E2E不得把`Z:\Film`作为运行时输入。用户仅对测试库seed
-追加了只读取材授权：构建器可从两个冻结源目录提取有界8秒片段和复制少量sidecar，但不得在`Z:\Film`写入、移动、重命名或删除。
+后续本地真实媒体测试的可重复构建主库由用户于2026-08-11固定为
+`C:\Users\markm\AppData\Local\Temp\ShelfDeck-P14-20260723\material-fields`。destructive Formation只允许作用于该库或
+由它生成的独立系统Temp副本；Libra、Arca及后续Movie E2E不得把`Z:\Film`作为运行时输入。用户只对明确的测试取材步骤追加
+只读授权；不得在`Z:\Film`写入、移动、重命名或删除。
 
 该根目录现由`media-service/scripts/build-helix-movie-test-library.js`维护22个Movie纵向场景：12个既有
 Procurement/Libra输入形态，加10个Formation高风险E2E场景。受管manifest位于`.shelfdeck-test-library\manifest.json`，
@@ -28,7 +28,14 @@ Subject可从Admin Web一次性手选Shelf且不改长期Policy。“上架进�
 sorting Subject自动resolved，1个Provider not_found先保持unresolved、再手动resolved；Acceptance Spec、Libra Run、Workspace与Arca
 Shelf Entry均为0。随后真实外部E2E又通过Admin产品入口保存TMDB连接，并让无NFO的`The Shawshank Redemption`经真实TMDB
 ID `278`/年份1994自动命中经典Shelf；真实`Fight Club`的两个同名候选则正确保持ambiguous，系统没有选择第一项。重启未产生重复
-Provider Fact或Decision，媒体Reality不变，Acceptance Spec及生产事实仍为0。当前下一节点精确为Acceptance Spec。
+Provider Fact或Decision，媒体Reality不变。
+
+Routing之后的User Perception与Acceptance Spec节点也已闭合。真实Douban同步通过正式Integration和Foundation链覆盖104页、形成1546条
+immutable Record；评分日志在“系统设置”中作为只读Tab分页展示，上架进度Subject和我的收藏Shelf Entry使用共享1–5星控件，Candidate
+始终不可见。两部匿名隔离媒体的不同真实星级分别形成不同Requirements digest；No-rating和本地1–5星矩阵由自动化补齐。改分追加
+Correction及新Spec revision，不覆盖旧事实；重启和相同idempotency key重放不重复Record、Resolution或Spec。当前机器合同为
+112 Capability、98 Result family、180 table、43 Canonical Transaction、114 Admin route加public health共115 route。Libra Run、
+Workspace、Product Package、Handoff B与Arca媒体事实仍为0；下一节点精确为Libra Run Admission。
 
 Physical Material不再计算全文件Hash。当前唯一合同读取文件正中间最多262,144 bytes并执行前后stat fence；NAS负责bit rot和底层
 完整性。Artifact、Canonical JSON与事务Evidence digest仍使用SHA-256，这些digest不得作为Physical Material Identity。

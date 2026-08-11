@@ -6,13 +6,15 @@ const catalog = require('../../src/helix/contracts/ports/p6-horizontal-domain-pu
 const perception = require('../../src/helix/domains/perception/public');
 const people = require('../../src/helix/domains/people/public');
 
-test('P6 publishes exactly four Owner-scoped horizontal Domain Facades', () => {
+test('P6 publishes exactly four Owner-scoped horizontal Domain Facades plus one construction registration', () => {
   assert.equal(catalog.schemaVersion, 1);
   assert.equal(catalog.contractVersion, 1);
-  assert.deepEqual(catalog.facades.map((item) => item.exportName).sort(), [
+  assert.deepEqual(catalog.facades.filter((item) => item.kind !== 'construction').map((item) => item.exportName).sort(), [
     'PeopleCommandFacade', 'PerceptionCommandFacade', 'PerceptionResolutionFacade', 'PersonReferenceQueryFacade'
   ]);
-  assert.deepEqual(Object.keys(perception).sort(), ['PACKAGE_ID', 'PerceptionCommandFacade', 'PerceptionResolutionFacade']);
+  assert.deepEqual(catalog.facades.filter((item) => item.kind === 'construction').map((item) => item.exportName),
+    ['PerceptionExecutionRegistration']);
+  assert.deepEqual(Object.keys(perception).sort(), ['PACKAGE_ID', 'PerceptionCommandFacade', 'PerceptionExecutionRegistration', 'PerceptionResolutionFacade']);
   assert.deepEqual(Object.keys(people).sort(), ['PACKAGE_ID', 'PeopleCommandFacade', 'PersonReferenceQueryFacade']);
   assert.equal(catalog.facades.every((item) => item.owner === 'perception' || item.owner === 'people'), true);
   assert.equal(catalog.prohibitedAuthority.includes('media_cast_write'), true);

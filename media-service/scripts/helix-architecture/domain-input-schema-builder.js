@@ -677,6 +677,12 @@ function decisionInputSetSchema() {
     },
     additionalProperties: false,
   };
+  const decisionFact = {
+    oneOf: [
+      routingFact,
+      typeRef('PerceptionResolutionRevision'),
+    ],
+  };
   const queryResult = typeRef('VersionedQueryResult');
   const routingDecision = object({
     routingDecisionId: id(), subjectId: id(), decisionRevision: positiveInteger(), assessmentId: id(), decisionBasisId: id(),
@@ -718,7 +724,7 @@ function decisionInputSetSchema() {
       expectedDecisionHead: decisionHead, readiness, routingAuthoritySnapshot: nullable(routingAuthority),
       shelfRoutingTargets: arrayOf(shelfRoutingTarget, 128), routingDecision: nullable(routingDecision),
       shelfStandardProjection: nullable(shelfStandardProjection), productScope: nullable(productScope),
-      decisionFacts: arrayOf(routingFact, 128), queryResults: arrayOf(queryResult, 128), queryResultSetDigest: digest(),
+      decisionFacts: arrayOf(decisionFact, 128), queryResults: arrayOf(queryResult, 128), queryResultSetDigest: digest(),
       routingInputDigest: nullable(digest()), specInputDigest: nullable(digest()), inputSetDigest: digest(),
     }),
     'x-helix-maxCanonicalBytes': 1024 * 1024,

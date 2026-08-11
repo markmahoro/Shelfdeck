@@ -142,6 +142,60 @@ export type FormationSubject = {
   routingDecisionDigest: string | null;
   routingDecisionHeadRevision: number | null;
   routingDecisionHeadDigest: string | null;
+  acceptanceSpecId: string | null;
+  acceptanceSpecRevision: number | null;
+  acceptanceSpecDigest: string | null;
+  acceptanceSpecPublishedAtMs: number | null;
+};
+
+export type PerceptionRecord = {
+  perceptionId: string;
+  sourceKind: string;
+  recordKind: 'observation' | 'correction' | 'retraction';
+  rating: number | null;
+  watchedState: boolean | null;
+  observedTitle: string;
+  observedAtMs: number;
+  committedAtMs: number;
+  targetType: 'subject' | 'shelf_entry' | null;
+  targetId: string | null;
+  resolutionStatus: 'matched' | 'unmatched' | 'ambiguous' | 'superseded';
+  current: boolean;
+  sourceRecordKey: string;
+  sourceRecordRevision: number;
+  provenanceDigest: string;
+  recordDigest: string;
+};
+
+export type CollectionEntry = {
+  shelfEntryId: string;
+  shelfId: string;
+  shelfName: string;
+  structureKind: string;
+  status: string;
+  canonicalIdentityRevision: number;
+  canonicalIdentityKey: string;
+  provider: string;
+  providerKey: string;
+  identityKind: string;
+  identityDigest: string;
+  displayIdentity: string;
+  currentInventoryRevision: number;
+  currentDeckFactRevision: number;
+  createdAtMs: number;
+  terminalAtMs: number;
+};
+
+export type IntegrationState = {
+  kind: string;
+  supported: boolean;
+  configured: boolean;
+  state: string;
+  configRevision: number;
+  endpoint: string | null;
+  configDigest: string | null;
+  capabilityCodes: string[];
+  lastTestSummary: { identityProviderKey?: string; checkedAtMs?: number } | null;
 };
 
 export type FormationSummary = {
@@ -218,6 +272,38 @@ export const helixAdminApi = {
   },
   listFormation() {
     return request<{ items: FormationSubject[]; summary: FormationSummary }>('/v1/admin/formation');
+  },
+  listCollection() {
+    return request<{ items: CollectionEntry[] }>('/v1/admin/collection');
+  },
+  listPerceptionRecords(filters: { cursor?: string; limit?: number; sourceKind?: string; rating?: number; resolutionStatus?: string; targetType?: string; targetId?: string } = {}) {
+    const query = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => { if (value !== undefined && value !== '') query.set(key, String(value)); });
+    return request<{ items: PerceptionRecord[]; nextCursor: string | null; currentRating?: { state:'ready'|'pending'; rating:number|null; sourceKind:string|null; expectedRevision:number; resolutionStatus?:string; resolutionRevision?:number } }>(`/v1/admin/perception/records${query.size ? `?${query}` : ''}`);
+  },
+  rate(targetType: 'subject' | 'shelf_entry', targetId: string, expectedRevision: number, rating: number) {
+    return request<{ operationRef: string; state: string; expectedResultRevision: number }>('/v1/admin/perception/records', {
+      method:'POST', body:JSON.stringify({ targetType, targetId, expectedRevision, rating,
+        idempotencyKey:`rating:${targetType}:${targetId}:${expectedRevision + 1}:${rating}:${crypto.randomUUID()}` }),
+    });
+  },
+  getIntegration(kind: string) {
+    return request<IntegrationState>(`/v1/admin/settings/integrations/${encodeURIComponent(kind)}`);
+  },
+  testIntegration(kind: string, body: JsonValue) {
+    return request<{ connectionProofId: string; identityProviderKey: string; expiresAtMs: number }>(`/v1/admin/settings/integrations/${encodeURIComponent(kind)}/actions/test`, { method:'POST', body:JSON.stringify(body) });
+  },
+  configureIntegration(kind: string, body: JsonValue) {
+    return request<IntegrationState>(`/v1/admin/settings/integrations/${encodeURIComponent(kind)}`, { method:'PATCH', body:JSON.stringify(body) });
+  },
+  disconnectIntegration(kind: string, body: JsonValue) {
+    return request<IntegrationState>(`/v1/admin/settings/integrations/${encodeURIComponent(kind)}/actions/disconnect`, { method:'POST', body:JSON.stringify(body) });
+  },
+  syncDouban() {
+    return request<{ operationRef: string; state: string }>('/v1/admin/perception/actions/sync', { method:'POST', body:JSON.stringify({ idempotencyKey:`douban-sync:${new Date().toISOString()}` }) });
+  },
+  getPerceptionSyncState() {
+    return request<{ latest: JsonValue | null; activeCount: number }>('/v1/admin/perception/sync-state');
   },
   getRoutingPolicy(fieldId: string) {
     return request<{ policy: RoutingPolicy | null }>(`/v1/admin/routing/material-fields/${encodeURIComponent(fieldId)}`);

@@ -63,7 +63,7 @@ function fixture() {
   return { root, dataDir, adminDistDir, initialized };
 }
 
-function response(status, body, contentType = 'application/json') {
+function response(status, body, contentType = 'application/json', responseUrl = '') {
   const bytes = Buffer.isBuffer(body)
     ? Buffer.from(body)
     : Buffer.from(
@@ -76,6 +76,7 @@ function response(status, body, contentType = 'application/json') {
   return Object.freeze({
     ok: status >= 200 && status <= 299,
     status,
+    url: responseUrl,
     headers: Object.freeze({
       get(name) {
         if (String(name).toLowerCase() === 'content-length') {
@@ -131,6 +132,7 @@ function providerFetch(state) {
       ),
     });
     if (url.host === 'movie.douban.com') {
+      if (state.hangDouban === true) return new Promise(() => {});
       if (headers.cookie !== secrets.douban) {
         return response(401, 'denied', 'text/plain');
       }
@@ -141,6 +143,7 @@ function providerFetch(state) {
         '">User</a>' +
         '<a href="/subject/1292052/">Movie</a>',
         'text/html',
+        state.doubanResponseUrl || url.toString(),
       );
     }
     if (url.host === 'api.theporndb.net') {
@@ -1065,7 +1068,7 @@ test('H1.2 JAV Product handles and artifact URLs fail closed before foreign tran
   }
 });
 
-test('H1.2 Douban observations are fenced to the configured user before transport and after response', async () => {
+test('H1.2 Douban observations are fenced to the configured user before transport and by the final response URL', async () => {
   const value = fixture();
   const state = { calls: [] };
   const fetchImpl = providerFetch(state);
@@ -1098,7 +1101,8 @@ test('H1.2 Douban observations are fenced to the configured user before transpor
     );
     assert.equal(state.calls.length, before);
 
-    state.doubanResponseUser = 'other-user';
+    state.doubanResponseUrl =
+      'https://movie.douban.com/people/other-user/collect?start=0';
     await assert.rejects(
       () => opened.services.executeProvider('douban', {
         operationId: 'perception.source.acquire@1',
@@ -1113,6 +1117,44 @@ test('H1.2 Douban observations are fenced to the configured user before transpor
       }),
       (error) => error.code === 'P5_PROVIDER_TRANSPORT_FAILED',
     );
+  } finally {
+    opened.kernel.close();
+  }
+});
+
+test('H1.2 Douban observation transport has a referenced hard deadline', async () => {
+  const value = fixture();
+  const state = { calls: [] };
+  const fetchImpl = providerFetch(state);
+  const host = await createCleanServiceHost({
+    dataDir: value.dataDir,
+    adminDistDir: value.adminDistDir,
+    secretRoot,
+    integrationFetch: fetchImpl,
+    now: () => 1_900_000_000_000,
+  });
+  const cookie = await session(host, value.initialized.adminApiKey);
+  await configure(host, cookie, 'douban', '-timeout');
+  await host.close();
+  const opened = openServices(value, fetchImpl);
+  try {
+    state.hangDouban = true;
+    const startedAt = Date.now();
+    await assert.rejects(
+      () => opened.services.executeProvider('douban', {
+        operationId: 'perception.source.acquire@1',
+        effectClass: 'pure_observation',
+        idempotencyKey: 'douban-hard-deadline',
+        timeoutMs: 25,
+        input: {
+          sourceRef: ref('perception-source', 'test-user'),
+          cursor: null,
+          limit: 20,
+        },
+      }),
+      (error) => error.code === 'P5_PROVIDER_TRANSPORT_FAILED',
+    );
+    assert.ok(Date.now() - startedAt < 1_000);
   } finally {
     opened.kernel.close();
   }

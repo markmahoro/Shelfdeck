@@ -32,9 +32,13 @@ function recordDefinition(schemaManifest) {
     insert_record: { kind: 'insert', tableId: 'perception_records', columns: ['perception_id','perception_source_id','perception_acquisition_id','acquisition_commit_receipt_id','record_kind','source_kind','source_record_key','source_record_revision','source_record_digest','normalization_rule_ref','rating','watched_state','observed_title','provenance_ref','provenance_digest','record_digest','observed_at_ms','committed_at_ms'] },
     find_record: { kind: 'select-one', tableId: 'perception_records', columns: ['perception_id','perception_source_id','perception_acquisition_id','acquisition_commit_receipt_id','record_kind','source_kind','source_record_key','source_record_revision','source_record_digest','normalization_rule_ref','rating','watched_state','observed_title','provenance_ref','provenance_digest','record_digest','observed_at_ms','committed_at_ms'], keyColumns: ['perception_id'] },
     find_record_identity: { kind: 'select-one', tableId: 'perception_records', columns: ['perception_id'], keyColumns: ['perception_source_id','source_record_key','source_record_revision','source_record_digest'] },
+    find_records_by_source_key: { kind: 'select-all', tableId: 'perception_records', columns: ['perception_id','perception_source_id','perception_acquisition_id','acquisition_commit_receipt_id','record_kind','source_kind','source_record_key','source_record_revision','source_record_digest','normalization_rule_ref','rating','watched_state','observed_title','provenance_ref','provenance_digest','record_digest','observed_at_ms','committed_at_ms'], keyColumns: ['perception_source_id','source_record_key'] },
+    list_records: { kind: 'select-all', tableId: 'perception_records', columns: ['perception_id','perception_source_id','perception_acquisition_id','acquisition_commit_receipt_id','record_kind','source_kind','source_record_key','source_record_revision','source_record_digest','normalization_rule_ref','rating','watched_state','observed_title','provenance_ref','provenance_digest','record_digest','observed_at_ms','committed_at_ms'], keyColumns: [] },
+    list_acquisitions: { kind: 'select-all', tableId: 'perception_acquisitions', columns: ['perception_acquisition_id','perception_source_id','source_config_revision','scope_schema_ref','scope_json','scope_digest','initial_cursor_revision','initial_cursor_value','state','created_at_ms','terminal_at_ms'], keyColumns: [] },
     insert_anchor: { kind: 'insert', tableId: 'perception_identity_anchors', columns: ['perception_id','anchor_kind','anchor_value','confidence_class','evidence_digest'] },
     find_anchors: { kind: 'select-all', tableId: 'perception_identity_anchors', columns: ['perception_id','anchor_kind','anchor_value','confidence_class','evidence_digest'], keyColumns: ['perception_id'] },
     find_anchors_by_kind: { kind: 'select-all', tableId: 'perception_identity_anchors', columns: ['perception_id','anchor_kind','anchor_value','confidence_class','evidence_digest'], keyColumns: ['anchor_kind'] },
+    list_anchors: { kind: 'select-all', tableId: 'perception_identity_anchors', columns: ['perception_id','anchor_kind','anchor_value','confidence_class','evidence_digest'], keyColumns: [] },
     insert_relation: { kind: 'insert', tableId: 'perception_record_relations', columns: ['relation_id','relation_kind','source_perception_id','target_perception_id','rule_revision','evidence_digest','committed_at_ms'] },
     find_relation: { kind: 'select-one', tableId: 'perception_record_relations', columns: ['relation_id','relation_kind','source_perception_id','target_perception_id','rule_revision','evidence_digest','committed_at_ms'], keyColumns: ['relation_kind','source_perception_id','target_perception_id'] },
     list_relations: { kind: 'select-all', tableId: 'perception_record_relations', columns: ['relation_id','relation_kind','source_perception_id','target_perception_id','rule_revision','evidence_digest','committed_at_ms'], keyColumns: [] }
@@ -47,7 +51,9 @@ function resolutionDefinition(schemaManifest) {
     find_resolution: { kind: 'select-one', tableId: 'perception_resolution_revisions', columns: ['resolution_id','query_contract','query_schema_ref','query_input_digest','fact_kind','revision','record_set_digest','rule_revision','rule_digest','result_kind','winning_perception_id','reason_code','result_schema_ref','result_json','result_digest','resolved_at_ms'], keyColumns: ['resolution_id'] },
     insert_head: { kind: 'insert', tableId: 'perception_resolution_heads', columns: ['query_contract','query_input_digest','current_resolution_id','current_revision','updated_at_ms'] },
     find_head: { kind: 'select-one', tableId: 'perception_resolution_heads', columns: ['query_contract','query_input_digest','current_resolution_id','current_revision','updated_at_ms'], keyColumns: ['query_contract','query_input_digest'] },
-    advance_head: { kind: 'update', tableId: 'perception_resolution_heads', setColumns: ['current_resolution_id','current_revision','updated_at_ms'], keyColumns: ['query_contract','query_input_digest'], compareColumns: [{ column: 'current_revision', parameter: 'expected_current_revision' }] }
+    advance_head: { kind: 'update', tableId: 'perception_resolution_heads', setColumns: ['current_resolution_id','current_revision','updated_at_ms'], keyColumns: ['query_contract','query_input_digest'], compareColumns: [{ column: 'current_revision', parameter: 'expected_current_revision' }] },
+    list_heads: { kind: 'select-all', tableId: 'perception_resolution_heads', columns: ['query_contract','query_input_digest','current_resolution_id','current_revision','updated_at_ms'], keyColumns: [] },
+    list_resolutions: { kind: 'select-all', tableId: 'perception_resolution_revisions', columns: ['resolution_id','query_contract','query_schema_ref','query_input_digest','fact_kind','revision','record_set_digest','rule_revision','rule_digest','result_kind','winning_perception_id','reason_code','result_schema_ref','result_json','result_digest','resolved_at_ms'], keyColumns: [] }
   }});
 }
 
@@ -91,6 +97,9 @@ function createPerceptionStore(options) {
         repo.invoke('insert_acquisition', acquisitionRow(item)); return item; });
     },
     getAcquisition(id) { return execute([records], (context) => mapAcquisition(context.repository(records.repositoryId).invoke('find_acquisition', { perception_acquisition_id: id }))); },
+    getCursor(sourceId, revision) { return execute([records], (context) => { const row=context.repository(records.repositoryId).invoke('find_cursor',{perception_source_id:sourceId,revision});
+      return row?createCursor({perceptionSourceId:row.perception_source_id,revision:row.revision,perceptionAcquisitionId:row.perception_acquisition_id,
+        cursorIn:row.cursor_in,cursorOut:row.cursor_out,observationPageDigest:row.observation_page_digest,hasMore:Boolean(row.has_more),committedAtMs:row.committed_at_ms}):null; }); },
     commitPage(input) {
       exact(input, ['acquisitionCommitReceiptId','perceptionAcquisitionId','perceptionSourceId','pageOrdinal','expectedCursorRevision','cursorIn','cursorOut','observationPageDigest','hasMore','commitMarker','records','relations'], 'P6_PERCEPTION_PAGE_INPUT');
       if (!Array.isArray(input.records) || !Array.isArray(input.relations) || input.records.length > 4096 || input.relations.length > 4096) fail('P6_PERCEPTION_PAGE_BOUND', 'Page fact sets must be bounded arrays.');
@@ -107,6 +116,52 @@ function createPerceptionStore(options) {
     },
     getCommit(id) { return execute([records], (context) => mapCommit(context.repository(records.repositoryId).invoke('find_commit', { acquisition_commit_receipt_id: id }))); },
     getRecord(id) { return execute([records], (context) => mapRecord(context.repository(records.repositoryId), id)); },
+    listAcquisitions() { return execute([records], (context) => context.repository(records.repositoryId).invoke('list_acquisitions').map(mapAcquisition)
+      .sort((left,right)=>right.createdAtMs-left.createdAtMs||left.perceptionAcquisitionId.localeCompare(right.perceptionAcquisitionId))); },
+    listRecords(query = {}) { return execute([records,resolutions], (context) => {
+      const repo=context.repository(records.repositoryId),resolutionRepo=context.repository(resolutions.repositoryId);
+      const anchors=repo.invoke('list_anchors'),relations=repo.invoke('list_relations');
+      const currentResolutionIds=new Set(resolutionRepo.invoke('list_heads').map((row)=>row.current_resolution_id));
+      const winning=new Set(resolutionRepo.invoke('list_resolutions').filter((row)=>currentResolutionIds.has(row.resolution_id)&&row.result_kind==='found'&&row.winning_perception_id)
+        .map((row)=>row.winning_perception_id));
+      const superseded=new Set(relations.filter((row)=>['supersedes','retracts'].includes(row.relation_kind)).map((row)=>row.target_perception_id));
+      const currentRows=repo.invoke('list_records').filter((row)=>!superseded.has(row.perception_id));
+      const anchorRank=new Map([['provider_identity',1],['subject_id',2],['shelf_entry_id',2],['title_year',3]]),groups=new Map();
+      for(const row of currentRows){const owned=anchors.filter((anchor)=>anchor.perception_id===row.perception_id&&anchorRank.has(anchor.anchor_kind))
+        .sort((left,right)=>anchorRank.get(left.anchor_kind)-anchorRank.get(right.anchor_kind)||left.anchor_kind.localeCompare(right.anchor_kind));
+        if(owned.length===0||row.rating===null)continue;const rank=anchorRank.get(owned[0].anchor_kind);
+        for(const anchor of owned.filter((item)=>anchorRank.get(item.anchor_kind)===rank)){const key=anchor.anchor_kind+'\0'+anchor.anchor_value;
+          if(!groups.has(key))groups.set(key,[]);groups.get(key).push({id:row.perception_id,rating:row.rating});}}
+      const ambiguous=new Set();for(const group of groups.values())if(new Set(group.map((item)=>item.rating)).size>1)group.forEach((item)=>ambiguous.add(item.id));
+      const limit=Math.min(200,Math.max(1,Number(query.limit)||50));
+      let values=repo.invoke('list_records').map((row)=>mapRecord(repo,row.perception_id)).map((record)=>{
+        const owned=anchors.filter((anchor)=>anchor.perception_id===record.perceptionId);
+        const target=owned.find((anchor)=>['subject_id','shelf_entry_id'].includes(anchor.anchor_kind));
+        const status=superseded.has(record.perceptionId)?'superseded':winning.has(record.perceptionId)?'matched':ambiguous.has(record.perceptionId)?'ambiguous':'unmatched';
+        return Object.freeze({perceptionId:record.perceptionId,sourceKind:record.sourceKind,recordKind:record.recordKind,
+          rating:record.rating,watchedState:record.watchedState,observedTitle:record.observedTitle,observedAtMs:record.observedAtMs,
+          committedAtMs:record.committedAtMs,targetType:target?.anchor_kind==='subject_id'?'subject':target?.anchor_kind==='shelf_entry_id'?'shelf_entry':null,
+          targetId:target?.anchor_value||null,resolutionStatus:status,current:status!=='superseded',sourceRecordKey:record.sourceRecordKey,
+          sourceRecordRevision:record.sourceRecordRevision,provenanceDigest:record.provenanceDigest,recordDigest:record.recordDigest});
+      }).filter((item)=>!query.sourceKind||item.sourceKind===query.sourceKind)
+        .filter((item)=>query.rating===undefined||query.rating===null||item.rating===Number(query.rating))
+        .filter((item)=>!query.resolutionStatus||item.resolutionStatus===query.resolutionStatus)
+        .filter((item)=>!query.targetType||item.targetType===query.targetType)
+        .filter((item)=>!query.targetId||item.targetId===query.targetId)
+        .sort((left,right)=>right.committedAtMs-left.committedAtMs||left.perceptionId.localeCompare(right.perceptionId));
+      if(query.cursor){const separator=String(query.cursor).indexOf(':');const at=Number(String(query.cursor).slice(0,separator));const id=String(query.cursor).slice(separator+1);
+        values=values.filter((item)=>item.committedAtMs<at||item.committedAtMs===at&&item.perceptionId>id);}
+      const items=values.slice(0,limit),last=items.at(-1),nextCursor=values.length>limit&&last?last.committedAtMs+':'+last.perceptionId:null;
+      return Object.freeze({items:Object.freeze(items),nextCursor});
+    }); },
+    findCurrentTargetRating(targetType,targetId) { return execute([records], (context) => {
+      const repo=context.repository(records.repositoryId),anchorKind=targetType==='subject'?'subject_id':targetType==='shelf_entry'?'shelf_entry_id':null;
+      if(!anchorKind)return null;const ids=new Set(repo.invoke('find_anchors_by_kind',{anchor_kind:anchorKind}).filter((row)=>row.anchor_value===targetId).map((row)=>row.perception_id));
+      const terminal=new Set(repo.invoke('list_relations').filter((row)=>['supersedes','retracts'].includes(row.relation_kind)).map((row)=>row.target_perception_id));
+      const candidates=[...ids].filter((id)=>!terminal.has(id)).map((id)=>mapRecord(repo,id)).filter((item)=>item.rating!==null)
+        .sort((left,right)=>right.committedAtMs-left.committedAtMs||left.perceptionId.localeCompare(right.perceptionId));
+      return candidates[0]||null;
+    }); },
     readResolutionCandidates(query, ruleSnapshot) { return execute([records], (context) => {
       const repo=context.repository(records.repositoryId); const ids=new Set();
       for(const clause of ruleSnapshot.candidateRetrievalClauses){
@@ -286,6 +341,51 @@ function pageInputFromDraft(repo, handle, draft) {
       sourcePerceptionId:relation.sourceDraftId, targetPerceptionId:target.perception_id,
       ruleRevision:relation.ruleRevision, evidenceDigest:relation.evidenceDigest };
   });
+  const explicitSources = new Set(relations.map((relation) => relation.sourcePerceptionId));
+  const terminalTargets = new Set(repo.invoke('list_relations')
+    .filter((relation) => ['supersedes','retracts'].includes(relation.relation_kind))
+    .map((relation) => relation.target_perception_id));
+  for (const item of draft.records) {
+    if (explicitSources.has(item.draftId)) continue;
+    const exactRecord = repo.invoke('find_record_identity', {
+      perception_source_id:draft.source.sourceId,
+      source_record_key:item.sourceRecordKey,
+      source_record_revision:item.sourceRecordRevision,
+      source_record_digest:item.sourceRecordDigest
+    });
+    if (exactRecord) continue;
+    const prior = repo.invoke('find_records_by_source_key', {
+      perception_source_id:draft.source.sourceId,
+      source_record_key:item.sourceRecordKey
+    }).filter((record) => !terminalTargets.has(record.perception_id))
+      .sort((left,right) => right.committed_at_ms-left.committed_at_ms || right.perception_id.localeCompare(left.perception_id))[0];
+    if (!prior) continue;
+    const evidenceDigest = canonicalDigest({
+      rule:'same-source-record-key-new-revision',
+      perceptionSourceId:draft.source.sourceId,
+      sourceRecordKey:item.sourceRecordKey,
+      priorPerceptionId:prior.perception_id,
+      priorSourceRecordRevision:prior.source_record_revision,
+      priorSourceRecordDigest:prior.source_record_digest,
+      nextPerceptionId:item.draftId,
+      nextSourceRecordRevision:item.sourceRecordRevision,
+      nextSourceRecordDigest:item.sourceRecordDigest
+    });
+    relations.push({
+      relationId:'relation-' + canonicalDigest({
+        relationKind:'supersedes',
+        sourcePerceptionId:item.draftId,
+        targetPerceptionId:prior.perception_id,
+        ruleRevision:1,
+        evidenceDigest
+      }),
+      relationKind:'supersedes',
+      sourcePerceptionId:item.draftId,
+      targetPerceptionId:prior.perception_id,
+      ruleRevision:1,
+      evidenceDigest
+    });
+  }
   return { acquisitionCommitReceiptId:handle.handleId, perceptionAcquisitionId:draft.perceptionAcquisitionId,
     perceptionSourceId:draft.source.sourceId, pageOrdinal:draft.cursorTransition.pageOrdinal,
     expectedCursorRevision:draft.cursorTransition.expectedCursorRevision, cursorIn:draft.cursorTransition.cursorIn,

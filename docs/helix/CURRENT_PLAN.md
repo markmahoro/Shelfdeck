@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: Movie Procurement保持`CLOSED FOR MOVIE`；Arca Shelf配置保持`READY FOR LIBRA`；Libra Routing达到`DECISION READY / AWAITING ACCEPTANCE SPEC`，当前Routing Implementation Gate已关闭。
+Status: Movie Procurement保持`CLOSED FOR MOVIE`；Arca Shelf配置保持`READY FOR LIBRA`；Libra达到`ACCEPTANCE SPEC READY / AWAITING LIBRA RUN`，当前Acceptance Spec Implementation Gate已关闭。
 
 Last updated: 2026-08-12
 
@@ -8,9 +8,9 @@ Last updated: 2026-08-12
 
 用户于2026-08-11固定后续真实媒体测试范围：
 
-- 唯一测试根目录：`C:\Users\markm\AppData\Local\Temp\ShelfDeck-P14-20260723\material-fields`；
-- 同一根目录同时配置为测试Material Field和Movie Shelf Physical Target Folder；
-- 后续Libra、Arca及Movie E2E只能在该隔离根目录内实施，不得将`Z:\Film`配置为Material Field、Shelf、Workspace或Canary输入；用户随后单独授权构建器从`Z:\Film`只读取材，因此仅允许按已冻结的精确路径复制NFO/Artwork并提取有界8秒媒体片段，仍禁止任何源端写入、移动、重命名或删除；
+- 可重复构建的主测试库：`C:\Users\markm\AppData\Local\Temp\ShelfDeck-P14-20260723\material-fields`；
+- destructive Formation场景仍只允许在该主测试库或由它生成的独立系统Temp副本中执行；Material Field与Shelf Target必须明确配置到本轮隔离副本；
+- 后续Libra、Arca及Movie E2E只能在隔离临时目录内实施，不得将`Z:\Film`配置为Material Field、Shelf、Workspace或Canary输入；用户随后分别授权测试库seed和真实Perception E2E从`Z:\Film`只读取材。本轮真实Perception E2E只复制两部有界普通媒体到新的Temp Field，复制前后逐项验证源size/mtime/ctime不变；仍禁止任何源端写入、移动、重命名或删除；
 - 该目录已由`build-helix-movie-test-library.js`重新seed为可重复构建的Movie纵向验收库；正式manifest、受管路径、Reality digest和重建命令保存在`.shelfdeck-test-library`，历史非受管目录保持原样；
 - 任何文件移动、替换、Settlement、On-deck或销毁验证都只能作用于上述已登记测试Scope；越出Scope立即停线。
 
@@ -40,6 +40,33 @@ Policy顺序固定为`release_year <= 1999 → 经典电影测试`、`release_ye
 Sorting专用Field还必须增加两条无NFO边界：一部无NFO但能够通过正式Identity/Provider Evidence确定年份的电影，必须仅补齐Routing所需
 `release_year`后正常命中；另一部无NFO且无法可靠解析Identity/年份的电影，必须保持`Routing Readiness unresolved`，高优先级规则结果为
 `unknown`时不得越级进入catch-all。两者都不得在Routing阶段生成NFO、poster、完整Product Metadata、Libra Run或文件副作用。
+
+## 0. Completed target — User Perception and Acceptance Spec Ready
+
+本轮从resolved Routing Decision继续接通User Perception和immutable Acceptance Spec。评分只允许以Handoff A Accepted后的Subject或
+Arca Shelf Entry为目标；Candidate仍是内部对象。用户评分与真实Douban同步统一经过`Acquisition Work → Normalize/Commit Event →
+Resolution Work → Resolution Commit Event`，HTTP只签发Work并返回`202`。改分追加Correction/Supersedes Record，不修改旧Record。
+
+Admin Web保持九个一级页面：“上架进度”按Subject提供1–5星控件，“我的收藏”按Shelf Entry提供同一控件；“系统设置”内部增加
+`连接与集成|评分日志`Tab。评分日志是可分页、可筛选的只读Projection，不提供评分、修改或同步动作，也不展示Candidate。
+
+Acceptance Spec链路固定为`Routing resolved → Perception Resolution terminal → Spec Preparation Work → Decision Basis Commit Event →
+Acceptance Spec Publication Event`。Decision Basis冻结Shelf Standard、Routing Decision和Perception Resolution revision/digest；
+`not_found`形成No-rating Spec，1–5星按Movie Rule Set形成不同Requirements。新评分只追加下一份合法Spec revision，不覆盖旧Spec，
+本轮不创建Libra Run或Workspace。
+
+真实本地E2E使用当前代码生成的fresh Routing事实和临时clean数据库，通过Admin产品入口测试/保存真实Douban连接并完成全部分页：
+1546条Douban Record、104个Provider Acquisition Page，约107秒完成；Admin评分日志以16页读取1546个唯一Record。两部匿名普通媒体
+从`Z:\Film`只读复制到隔离Field后，完成Procurement、Intake与direct Routing；匿名Subject `d76cdad1c520`和`62800f9c2a3f`
+分别命中两个不同真实星级，形成两个不同Acceptance Requirements digest。直接评分及Correction又证明同一Subject的Spec revision
+`1 → 2 → 3`且三份历史均保留。重启与相同sync idempotency key重放没有增加Acquisition、Work、Record、Resolution或Spec。
+
+最终数据库保留于`C:\Users\markm\AppData\Local\Temp\helix-routing-decision-0bAMhK\data\shelfdeck.db`。当前机器合同为
+112 Capability、98 Result family、180 table、43 Canonical Transaction、114 Admin route加1条public health（总计115 route）。
+`failedWorks=0`、`failedEvents=0`；Libra Run、Workspace、Product Package、Handoff B/Arca Receipt及Shelf Entry全部为0。
+
+下一独立节点只能是Libra Run Admission；若它要求改变已冻结的Perception Resolution、Spec、Execution Foundation或Procurement合同，
+必须先返回Design，不得恢复旧`movie-formation-coordinator`捷径。
 
 ## 0. Completed target — Libra Routing Decision Ready
 

@@ -20,6 +20,14 @@
       "authority": ["single_kind_found_or_not_found_resolution"]
     },
     {
+      "exportName": "PerceptionExecutionRegistration",
+      "packageId": "domains.perception.public",
+      "owner": "perception",
+      "kind": "construction",
+      "methods": ["createCapabilityRegistration", "createProcessServices", "createPlanningRegistration"],
+      "authority": ["composition_root_only_execution_construction"]
+    },
+    {
       "exportName": "PeopleCommandFacade",
       "packageId": "domains.people.public",
       "owner": "people",

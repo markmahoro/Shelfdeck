@@ -2,7 +2,7 @@
 
 Status: ShelfDeck / Helix architecture SSOT; Levels 0–10 accepted; final full-document audit and post-baseline `PBF-01`–`PBF-23`（含各自已记录的bounded revisions）closed; implementation not authorized by this document.
 
-Last updated: 2026-08-11
+Last updated: 2026-08-12
 
 ## Document purpose
 
@@ -19,6 +19,35 @@ Mirex、Kairox Classic、历代Helix文档、现有实现和此前对话只作�
 
 被取代的旧Helix合同保存在`docs/helix/archive/`，只作为历史证据，不再
 与本文竞争架构优先级。本文当前仍处于Design阶段，不授权代码实施、数据迁移、E2E或生产部署。
+
+### User Perception and Acceptance Spec product amendment (2026-08-12)
+
+The first user-visible rating target is a Libra Subject after Handoff A Accepted; after On-deck Commit, an active
+Arca Shelf Entry is also a valid target. Candidate and Candidate Package remain internal and have no rating action or
+public ID. `POST /v1/admin/perception/records` accepts only a closed `subject|shelf_entry` target, expected Perception
+revision, integer 1–5 rating and idempotency key. The service freezes the Identity Anchor through the owning Domain's
+public Projection and signs an Acquisition Work; HTTP does not write a Record synchronously. Corrections append an
+immutable Record with an explicit supersedes relation. Beta exposes no rating deletion.
+
+Douban synchronization traverses the configured account's complete collection pages and freezes bounded source
+records containing Douban Subject ID, original rating/scale, normalized 1–5 rating, title/year, available anchors,
+source revision and payload/provenance digests. Transport, authentication, HTML, source-identity, bound and schema
+failures are technical failures, never `not_found`. Resolution strength is exact Provider Identity, then exact
+Subject/Shelf Entry Anchor, then normalized title+year; same-tier conflict remains ambiguous/not_found. All Acquire,
+Normalize, Record Commit, Resolve and Resolution Commit operations use the accepted Work/Plan/Event Runtime chain.
+
+`GET /v1/admin/perception/records` adds a read-only cursor-paged history Projection, including current, superseded,
+unmatched and ambiguous Douban records. It is shown as the `评分日志` Tab inside Settings and performs no rating,
+sync or Resolution side effect. Rating controls remain contextual on Formation Subject and Collection Shelf Entry.
+There are still exactly nine top-level pages.
+
+Libra Acceptance Spec Preparation waits for a terminal User Perception Resolution, freezes its revision/digest with
+the current Routing Decision and Shelf Standard, commits the Decision Basis through Execution Foundation and publishes
+one immutable Acceptance Spec. A formal `not_found` selects the No-rating rule. A later rating never patches the
+published Spec or interrupts downstream work; it is eligible only for a later lawful Spec evaluation. This amendment
+adds no Capability, Result family, table, Canonical Transaction, Domain, Store, Business Object or Handoff. It adds one
+Admin method+path, making the active inventory 112 Capability, 98 Result family, 180 tables, 43 Canonical Transactions,
+114 Admin routes and one public health route.
 
 ### Libra Routing fact observation amendment (2026-08-11)
 
@@ -1696,6 +1725,12 @@ Perception Acquisition表示User Perception从一个感知来源主动取得、�
 Process。外部同步拥有perceptionAcquisitionId、来源范围、游标/时间窗口与采集结论；用户即时评分
 可以作为无需长流程的单条Acquisition。
 
+用户第一次可以直接评分的媒体对象是Handoff A Accepted后已经成立的Libra Subject；Arca On-deck Commit
+建立Shelf Entry后，用户也可以在正式收藏入口对该Shelf Entry评分。Candidate/Candidate Package仍是内部
+交接对象，不成为用户评分目标，也不得在Admin Web暴露其ID。两种入口都只向User Perception提交Intent：
+服务端必须分别通过Libra或Arca公开Projection冻结当前`subject|shelf_entry` Identity Anchor，客户端不能
+自行构造、补写或修改跨Domain身份事实。
+
 一次Acquisition可以产生零到多个immutable Perception Record。它负责来源内去重与写入，不负责
 把记录绑定成Canonical Content Identity，也不命令任何消费者重新决策。具体同步周期、失败恢复和
 资源限制属于Level 6。
@@ -1708,6 +1743,12 @@ subjectId或shelfEntryId等Identity Anchor，但这些Anchor都不是User Percep
 
 同一现实内容可以存在多条Record。修改、撤销或纠错通过追加新Record以及supersedes/retracts关系
 表达，不原地覆盖历史。来源优先级和匹配算法属于Level 5。
+
+用户1–5星评分的后续修改必须追加一条新的immutable Record并显式`supersedes`先前current Record；Beta
+不提供清除评分，因此普通产品入口不生成`retracts`。外部Douban同步冻结账号完整收藏分页中每条来源记录的
+Douban Subject ID、原始评分/量表、规范化1–5星、title/year、可用Identity Anchor、来源revision以及
+payload/provenance digest；页面确实提供观看事实时可以同时冻结watched信息。重复同步相同来源revision不得
+制造重复Record，无法唯一关联到Subject/Shelf Entry的记录仍作为合法unmatched/ambiguous历史保留。
 
 #### 3.6.4 Perception Decision Fact Resolution
 
@@ -1724,6 +1765,10 @@ kind以及内部如何去重都不对消费者可见。例如`rating`查询不�
 而返回found。User Perception不返回pending，不主动向消费者推送变化或中断消费者流程，也不因记录
 变化直接创建Libra Run、Aftercare Case或Off-deck Case。消费者是否以及何时重新查询，只能由消费者
 自己的业务流程决定。
+
+Resolution匹配强度固定为：相同Provider Identity优先；其次是确定的Subject/Shelf Entry Anchor；再次是
+规范化`title+year`。同一强度存在多个无法消歧的目标时返回`not_found`并在User Perception内部保留
+`ambiguous`解析状态，不能随意选择第一项。`not_found`是正式Resolution，不表示技术错误或仍在等待。
 
 ### 3.7 People Management Domain Model
 
@@ -3475,6 +3520,12 @@ User Perception不是On-deck准入条件。适用Profile Rule Set声明`rating`�
 中对应contentProfile的No-rating Rule并形成确定Acceptance Spec。Identity、Metadata、Structure和
 Inventory Requirement在所有分支中仍必须满足；No-rating只改变媒体与空间要求：
 
+Acceptance Spec Decision Basis必须冻结目标Shelf Standard revision/digest、当前Routing Decision、精确
+Perception Resolution revision/digest与Product Scope。Perception尚未形成当前Resolution时，Libra只能等待
+User Perception自己的Resolution Work terminal，不能跨域读取Record或同步执行Resolver；正式`not_found`
+Resolution到达后必须选择No-rating分支而不是继续保持unresolved。已发布Acceptance Spec immutable；新评分
+只使未来一次合法Spec评估使用新的Resolution，不PATCH历史Spec，也不直接中断尚未建立的后续Libra Run。
+
 | contentProfile | No-rating Mandatory Media Requirements | Space Requirement |
 | --- | --- | --- |
 | movie | `mediaForm=stream_file`；不强制HEVC、4K或高质量主音轨 | 不设置评分档位`maxSizeGB` |
@@ -3690,6 +3741,12 @@ Beta不要求Candidate在首次Spec Resolution前已经具有TMDB等强Identity�
 规范名称等弱Identity Anchor返回best-effort `found`，但该结果不能被Libra、Arca或Triage解释为身份
 已经确认。Level 5不为此新增独立的Libra Product Identity Resolution Process，也不采用“先开
 provisional Run、Metadata完成后默认重开”的流程。
+
+Libra在Handoff A Accepted时形成Decision Identity Evidence：优先采用`IdentityClaim.claimedYear`；若
+`claimedYear`缺失，但`claimedTitle`以唯一、显式的括号年份`(YYYY)|[YYYY]|（YYYY）|【YYYY】`结尾，
+Libra可以在自己的版本化Mapping中把尾部年份分离为`title_year` Anchor。该规则不得识别标题中部的四位数字、
+不得回写Procurement Claim，也不得把弱名称/年份Evidence解释为Provider Identity。User Perception查询和
+Admin评分目标Projection必须使用同一Mapping revision，避免同一Subject形成两套名称年份语义。
 
 #### 5.6.4 Spec只描述产品，不泄漏决策过程
 
@@ -5847,6 +5904,12 @@ Perception Acquisition可以由用户输入、外部集成同步、配置的周�
 取得Procurement Material Field。`perceptionAcquisitionId`从Process创建到terminal保持稳定，Provider分页、
 重启和Event Attempt不得把一页临时结果伪造成新的Acquisition。
 
+产品HTTP入口只验证评分Intent、冻结Owner公开Projection并签发Acquisition Supporting Work，返回
+`202 operationRef`后唤醒Execution Runtime；HTTP调用栈不得同步直写Record/Resolution表。外部同步与直接输入
+都经Planner形成immutable Plan，所有Acquire/Normalize/Commit及Resolve/Commit Capability调用均具有
+Event、Attempt、Permit与typed Result。启动恢复和可丢失wake signal不得制造重复Provider请求结果、Record或
+Resolution。
+
 每页严格按以下三段执行：
 
 ~~~text
@@ -5929,6 +5992,15 @@ Snapshot不完整、Rule不可执行或digest不匹配时必须以稳定contract
 任一digest变化都必须形成新Resolution revision后才能返回新的found/not_found。Resolution preparation是
 User Perception Owner内行为，不向消费者暴露Record集合，不创建跨域Handoff，也不允许HTTP GET以读取为名
 触发该提交链。
+
+豆瓣Adapter必须覆盖配置账号的全部收藏分页，并只把有界字段投影写入Observation。HTML结构、登录态、网络、
+传输上限、JSON/typed schema或来源身份验证失败均为技术失败并按Foundation重试；不得伪装为`not_found`、
+空账号或业务未匹配。Secret只通过IntegrationHandle消费，不进入Plan、Result、Record日志或Admin Projection。
+配置账号身份由已验证Integration revision、精确请求路径及同源最终响应URL共同冻结；不得要求第三方HTML正文
+重复显示用户主页链接。Provider Acquisition terminal后，精确Subject/Shelf Entry Signal只用于加速；
+User Perception还必须通过Libra/Arca公开Target Projection按持久cursor有界扫描active评分目标并重做Resolution，
+默认复用Foundation每30秒、每批最多100项或5秒的fallback合同。扫描不得读取跨Owner Repository；相同
+`queryInputDigest + recordSetDigest + ruleDigest`必须no-op，不能为未变化目标追加Resolution revision。
 
 #### 6.8.3 People Management Processes
 
@@ -12372,6 +12444,9 @@ deregistered记录，但不计入当前Own和概览指标。列表支持按Shelf
 - 上架、Aftercare和Off-deck历史履历；
 - “立即检查健康”“加入退出收藏审阅”“直接退出收藏”等符合当前状态的动作。
 
+active Shelf Entry详情提供User Perception拥有的1–5星评分控件；提交时只发送`shelf_entry`目标、
+expected Perception revision、星级与idempotency key，Identity Anchor由服务端通过Arca公开Projection冻结。
+
 收藏详情不提供“重新跑Metadata”“执行下一步”“指定转码”“选择Flow”或Task retry。需要改善时由Aftercare
 依据当前Standard决定；用户只表达Outcome、感知或退出Intent。
 
@@ -12397,6 +12472,9 @@ exclusive Related。
 - waiting Input Settlement Approval：`确认处理旧输入文件`；
 - frozen Libra Run：`放弃本次处理并重新入库`；
 - 已识别Subject：记录评分或已看状态。
+
+Subject行的1–5星评分控件必须展示当前评分来源以及Acquisition仍在处理的状态；提交时只发送`subject`目标、
+expected Perception revision、星级与idempotency key，不能显示或回传Candidate Package ID。
 
 该页没有创建Task、选择Gate、手工执行Event、Pause或通用Retry。`加快上架`不影响尚未建立Libra Run的
 Candidate/Subject，也不传给Arca Off-load。
@@ -12455,7 +12533,7 @@ Work被清理后，尚未处理的Candidate仍可继续审阅。
 
 #### 9.4.10 系统设置
 
-系统设置使用六个二级区域：
+系统设置使用六个二级区域；第一个区域内部包含`连接与集成`和只读`评分日志`两个Tab：
 
 1. `连接与Provider`：Emby、TMDB、Douban、MoviePilot、成人Provider；
 2. `工作区与内部资料`：生产工作区、Aftercare工作区与内部Artifact空间；
@@ -12463,6 +12541,11 @@ Work被清理后，尚未处理的Candidate仍可继续审阅。
 4. `自动运营`：全自动Readiness、Input Settlement standing Authorization及相关说明；
 5. `安全`：Admin访问、API credential和Secret状态；
 6. `高级诊断`：Domain Process、Work/Event、Resource、Effect、Outbox、日志与数据完整性只读视图。
+
+`评分日志`使用User Perception只读Projection展示全部immutable用户评分与Douban记录，包含current、
+superseded、unmatched和ambiguous状态，并支持cursor分页以及来源、星级、匹配状态和目标类型筛选。该Tab
+不提供评分、修改、清除或同步按钮；评分仍在Subject/Shelf Entry上下文完成，Douban同步动作只位于
+`连接与集成`。本调整不增加一级页面。
 
 普通设置不展示FFmpeg/FFprobe路径、Task priority、Gate、Capability allow-list、queue limit、retry/cooldown、
 SQLite write capacity、poll interval、resource key或内部Control容量。不存在通用`config.json`编辑器。
@@ -12946,6 +13029,7 @@ Envelope，随后每个Scope独立原子创建Authorization/Case；一项stale�
 
 ~~~text
 POST /v1/admin/perception/records
+GET  /v1/admin/perception/records
 GET  /v1/admin/perception/acquisitions
 POST /v1/admin/perception/actions/sync
 GET  /v1/admin/perception/sync-state
@@ -12966,6 +13050,13 @@ POST      /v1/admin/people/actions/dismiss-candidate
 只释放People Management引用和受控Artifact，不修改Arca Media-Cast Fact。Merge保留来源历史和Correlation。
 `dismiss-candidate`携带candidate kind/id与expected revision，只把当前open Candidate终结为dismissed；它不
 注册/合并Person，也不删除Evidence历史。
+
+`POST /perception/records`的closed body固定为
+`{targetType:subject|shelf_entry,targetId,expectedRevision,rating:1..5,idempotencyKey}`；服务端通过对应Owner
+公开Projection冻结Identity Anchor，返回`202 operationRef`。改分追加带`supersedes`关系的新Record，不修改或
+删除旧Record，本期不提供清除评分。`GET /perception/records`无副作用，使用cursor pagination并允许按
+`sourceKind,rating,resolutionStatus,targetType`筛选，返回包括未匹配Douban记录在内的全部immutable历史；它是
+设置中`评分日志`的唯一内容来源，不触发同步、Resolution或消费者重算。
 
 为消除两个直接注册入口的歧义，`POST /v1/admin/people`是唯一direct Person Registration入口并提交
 `DirectPersonRegistrationDecision`；`actions/register`只接受`operation=accept_candidate`。Candidate接受请求必须携带`candidateKind,candidateId,
@@ -14369,7 +14460,7 @@ Beta Release Candidate不等于授权部署生产。生产部署、真实媒体�
 | 10.7 | Level 6业务健康、Level 9普通/Advanced边界 | preserved |
 | 10.8 | Level 5/6 Authorization、Level 8 typed Secret与Material safety | preserved |
 | 10.9 | 模块化单体、Physical File Source与Emby External Provider边界 | preserved |
-| 10.10 | 九条旅程、当前111 Capability、180 tables、43 Canonical Transactions、114 Admin routes、1 public health route及clean-cut门禁 | preserved after bounded final-audit closure、`PBF-02`–`PBF-23`及顶部active amendments（含各节记录的bounded revisions） |
+| 10.10 | 九条旅程、当前112 Capability、180 tables、43 Canonical Transactions、114 Admin routes、1 public health route及clean-cut门禁 | preserved after bounded final-audit closure、`PBF-02`–`PBF-23`及顶部active amendments（含各节记录的bounded revisions） |
 
 #### 10.11.2 前序Level 10 reservation覆盖审计
 

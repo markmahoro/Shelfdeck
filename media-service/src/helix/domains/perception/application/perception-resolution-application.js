@@ -46,24 +46,23 @@ function buildRuleSnapshot() {
     ruleContract: 'perception-resolution-beta',
     ruleVersion: 1,
     supportedFactKinds: ['rating', 'watched'],
-    candidateRetrievalClauses: [{
-      anchorKind: 'title',
-      lookupMode: 'normalized_exact',
-      normalizationProfileRef: 'unicode_nfkc_casefold',
-      maxCandidates: 256,
-    }],
-    anchorMatchers: [{
-      anchorKind: 'title',
-      matchMode: 'normalized_exact',
-      normalizationProfileRef: 'unicode_nfkc_casefold',
-      strengthRank: 1,
-      minConfidenceClass: 'medium',
-    }],
+    candidateRetrievalClauses: [
+      { anchorKind: 'provider_identity', lookupMode: 'exact', maxCandidates: 256 },
+      { anchorKind: 'subject_id', lookupMode: 'exact', maxCandidates: 256 },
+      { anchorKind: 'shelf_entry_id', lookupMode: 'exact', maxCandidates: 256 },
+      { anchorKind: 'title_year', lookupMode: 'normalized_exact', normalizationProfileRef: 'unicode_nfkc_casefold', maxCandidates: 256 },
+    ],
+    anchorMatchers: [
+      { anchorKind: 'provider_identity', matchMode: 'exact', strengthRank: 1, minConfidenceClass: 'strong' },
+      { anchorKind: 'subject_id', matchMode: 'exact', strengthRank: 2, minConfidenceClass: 'exact' },
+      { anchorKind: 'shelf_entry_id', matchMode: 'exact', strengthRank: 2, minConfidenceClass: 'exact' },
+      { anchorKind: 'title_year', matchMode: 'normalized_exact', normalizationProfileRef: 'unicode_nfkc_casefold', strengthRank: 3, minConfidenceClass: 'medium' },
+    ],
     winnerOrder:
       'strongest_anchor_then_value_consensus_then_perception_id',
     equalStrengthConflict: 'not_found',
     duplicateProofMatchers: [{
-      anchorKind: 'title',
+      anchorKind: 'provider_identity',
       matchMode: 'exact',
       minConfidenceClass: 'medium',
       requireSameAnchorValue: true,

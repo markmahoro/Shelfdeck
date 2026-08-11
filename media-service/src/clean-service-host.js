@@ -60,9 +60,13 @@ const {
   createArcaShelfAdminApplication,
 } = require('./helix/domains/arca/public/admin-application');
 const { createShelfRoutingTargetProjection } = require('./helix/domains/arca/public/routing-target-projection');
+const { createArcaCollectionQuery } = require('./helix/domains/arca/application/collection-query');
 const { createLibraRoutingAdminApplication } = require('./helix/domains/libra/public/admin-application');
 const { createFormationQuery } = require('./helix/domains/libra/application/formation-query');
 const { createRoutingManualSelectionService } = require('./helix/domains/libra/application/routing-manual-selection-service');
+const {
+  deriveTitleYear,
+} = require('./helix/domains/libra/model/decision-identity-evidence-contracts');
 const { createSessionTokenService } = require('./helix/platform/public/session-token-service');
 const {
   createAdminCredentialRuntime,
@@ -713,6 +717,26 @@ function createPlatformIntegrationServices(options) {
         input,
       });
     },
+    resolvePerceptionHandle(source) {
+      if (!source || source.sourceKind !== 'douban') return undefined;
+      return handleFor('douban', 'perception.source.acquire@1');
+    },
+    readDoubanSourceConfiguration() {
+      const snapshot = runtimeFor('douban')?.readCurrent();
+      const sourceId = snapshot?.integration?.config?.lastTestSummary?.identityProviderKey;
+      if (!snapshot || snapshot.integration.state !== 'active' || !sourceId) return null;
+      return Object.freeze({ sourceId, integrationId:snapshot.integration.integrationId,
+        configRevision:snapshot.integration.configRevision });
+    },
+    async acquirePerceptionProvider(request) {
+      return this.executeProvider('douban', { operationId:'perception.source.acquire@1', effectClass:'pure_observation',
+        idempotencyKey:request.idempotencyKey, timeoutMs:request.timeoutMs, input:request.input });
+    },
+    async readPerceptionObservation(reference) {
+      const adapter = adapters.get('douban');
+      if (!adapter?.observationReader?.read) throw new CleanServiceHostError('PLATFORM_INTEGRATION_RESPONSE_INVALID', 'Douban Observation reader is unavailable.');
+      return adapter.observationReader.read(reference);
+    },
   });
 }
 
@@ -772,6 +796,9 @@ function errorResponse(error, correlationId) {
     error.code === 'ADMIN_SHELF_CONFLICT'
   ) status = 409;
   else if (error.code === 'ADMIN_RULE_TEMPLATE_NOT_FOUND') status = 404;
+  else if (error.code === 'ARCA_SHELF_ENTRY_NOT_FOUND' || error.code === 'PERCEPTION_TARGET_NOT_FOUND') status = 404;
+  else if (error.code === 'PERCEPTION_RATING_COMMAND_INVALID' || error.code === 'PERCEPTION_ACQUISITION_COMMAND_INVALID' || error.code === 'PERCEPTION_DOUBAN_NOT_CONFIGURED') status = 400;
+  else if (error.code === 'PERCEPTION_RATING_REVISION_CONFLICT' || error.code === 'PERCEPTION_SOURCE_REVISION_CONFLICT') status = 409;
   else if (
     error.code === 'ADMIN_RULE_TEMPLATE_COMMAND_REJECTED' ||
     error.code === 'ADMIN_RULE_TEMPLATE_TARGET_MISMATCH'
@@ -849,7 +876,7 @@ function createRuntime(options) {
   if (!fs.existsSync(path.join(options.adminDistDir, 'index.html'))) {
     findings.push('ADMIN_WEB_BUILD_MISSING');
   }
-  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 114) {
+  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 115) {
     findings.push('ROUTE_INVENTORY_INCOMPLETE');
   }
   if (uiManifest.status !== 'active' || uiManifest.entries.length !== 18) {
@@ -985,11 +1012,13 @@ async function createCleanServiceHost(options) {
   }));
   const candidateAcceptance = createCandidateAcceptanceConsumer(constructed.applicationDependencies);
   const arcaRoutingTargets = createShelfRoutingTargetProjection(constructed.applicationDependencies);
+  const arcaCollectionQuery = createArcaCollectionQuery(constructed.applicationDependencies);
   const mediaProbe = options.mediaProbe || createCleanMediaProbe();
   let routingExecution = null;
   const libraRoutingAdmin = createLibraRoutingAdminApplication({
     ...constructed.applicationDependencies,
     readArcaRoutingTargets: arcaRoutingTargets.list,
+    readArcaShelfStandard: arcaRoutingTargets.getStandard,
     onPolicyPublished(policy) { routingExecution?.routingCoordinator.reconcileField(policy.fieldId, 100); routingExecution?.host.wake(); },
   });
   const formationQuery = createFormationQuery(constructed.applicationDependencies);
@@ -1007,9 +1036,30 @@ async function createCleanServiceHost(options) {
     mediaProbe,
     candidateDeliveryPort,
     readArcaRoutingTargets: arcaRoutingTargets.list,
+    readArcaShelfStandard: arcaRoutingTargets.getStandard,
     readRelatedNfo: options.readRelatedNfo || readBoundedRoutingNfo,
     observeRoutingProvider: options.routingProviderObservation || platformIntegrations.observeRoutingProvider,
     resolveRoutingIntegrationHandle: options.routingIntegrationHandleResolver || platformIntegrations.resolveRoutingHandle,
+    resolvePerceptionIntegrationHandle: options.perceptionIntegrationHandleResolver || platformIntegrations.resolvePerceptionHandle,
+    acquirePerceptionProvider: options.perceptionProviderAcquisition || ((request) => platformIntegrations.acquirePerceptionProvider(request)),
+    readPerceptionObservation: options.perceptionObservationReader || ((reference) => platformIntegrations.readPerceptionObservation(reference)),
+    readDoubanSourceConfiguration: options.readDoubanSourceConfiguration || platformIntegrations.readDoubanSourceConfiguration,
+    targetProjectionReader: options.perceptionTargetProjectionReader || ((targetType, targetId) => {
+      if (targetType === 'shelf_entry') return arcaCollectionQuery.targetProjection(targetId);
+      if (targetType !== 'subject') return null;
+      const context = routingExecution?.routingContextReader.read(targetId);
+      if (!context) return null;
+      const claim = context.deliverySnapshot?.candidatePackage?.identityClaim || {};
+      const derivedIdentity = deriveTitleYear(
+        claim.claimedTitle || claim.displayTitle || targetId,
+        Number.isSafeInteger(claim.claimedYear) ? claim.claimedYear : null,
+      );
+      const title = derivedIdentity.title;
+      const year = derivedIdentity.year;
+      const body = { targetType:'subject', targetId, targetRevision:context.subject.intakeRevision,
+        title, year, providerIdentity:null, subjectSnapshotDigest:context.subject.snapshotDigest };
+      return Object.freeze({ ...body, targetDigest:canonicalDigest(body) });
+    }),
     now: options.now || Date.now,
     onError: options.onExecutionRuntimeError,
   });
@@ -1027,6 +1077,7 @@ async function createCleanServiceHost(options) {
     acceptanceConsumer: candidateAcceptance,
     rejectionConsumer: candidateRejection,
     routingCoordinator: procurementExecution.routingCoordinator,
+    perceptionCoordinator: procurementExecution.perception,
     executionRuntimeHost: procurementExecution.host,
     onError: options.onExecutionRuntimeError,
   });
@@ -1034,6 +1085,15 @@ async function createCleanServiceHost(options) {
     async start() { const execution=await procurementExecution.host.start(); await outboxDispatcher.start(); return execution; },
     wake() { const execution=procurementExecution.host.wake(); outboxDispatcher.wake(); return execution; },
     async stop() { await outboxDispatcher.stop(); return procurementExecution.host.stop(); },
+  });
+  const perceptionAdmin = Object.freeze({
+    createRecord(body) { const result=procurementExecution.perception.createRecord(body); executionRuntimeHost.wake(); return result; },
+    listRecords(query) { const result=procurementExecution.perception.listRecords(query);
+      if(!query?.targetType||!query?.targetId)return result;
+      return Object.freeze({...result,currentRating:procurementExecution.perception.readCurrentRating(query.targetType,query.targetId)}); },
+    listAcquisitions() { return procurementExecution.perception.listAcquisitions(); },
+    requestAcquisition(body) { const result=procurementExecution.perception.requestAcquisition(body); executionRuntimeHost.wake(); return result; },
+    syncState() { const items=procurementExecution.perception.listAcquisitions();return Object.freeze({latest:items[0]||null,activeCount:items.filter((item)=>item.state==='active').length}); },
   });
   const facades = createCleanFacades({
     sessionTokens,
@@ -1048,8 +1108,10 @@ async function createCleanServiceHost(options) {
     arcaRuleTemplateAdmin,
     libraRoutingAdmin,
     formationQuery,
+    arcaCollectionQuery,
     routingManualSelection,
     platformIntegrationAdmin: platformIntegrations.admin,
+    perceptionAdmin,
     nonce: crypto.randomUUID,
   });
   const application = createHelixApplication({

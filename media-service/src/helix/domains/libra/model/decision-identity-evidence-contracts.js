@@ -46,6 +46,22 @@ function normalizeTitle(value) {
   return value.normalize('NFKC').toLowerCase().trim().replace(/\s+/g, ' ');
 }
 
+function deriveTitleYear(claimedTitle, claimedYear = null) {
+  const normalized = normalizeTitle(claimedTitle);
+  const explicitYear = Number(claimedYear);
+  if (Number.isSafeInteger(explicitYear) && explicitYear >= 1800 &&
+      explicitYear <= 2199) {
+    return freeze({ title: normalized, year: explicitYear });
+  }
+  const match = normalized.match(
+    /^(.*\S)\s*[\(\[（【]((?:18|19|20|21)\d{2})[\)\]）】]\s*$/,
+  );
+  if (!match || !match[1].trim()) {
+    return freeze({ title: normalized, year: null });
+  }
+  return freeze({ title: match[1].trim(), year: Number(match[2]) });
+}
+
 function validateDigest(value, field) {
   if (typeof value !== 'string' || !/^[a-f0-9]{64}$/.test(value)) {
     fail('LIBRA_DECISION_IDENTITY_DIGEST_INVALID',
@@ -79,7 +95,11 @@ function validateSnapshotSource(snapshot, intakeDecision) {
 function buildDecisionIdentityEvidenceSnapshot(deliverySnapshot, intakeDecision) {
   const { candidatePackage, identityClaim } =
     validateSnapshotSource(deliverySnapshot, intakeDecision);
-  const anchorValue = normalizeTitle(identityClaim.claimedTitle);
+  const derivedIdentity = deriveTitleYear(
+    identityClaim.claimedTitle,
+    identityClaim.claimedYear || null,
+  );
+  const anchorValue = derivedIdentity.title;
   const evidenceBody = {
     anchorKind: 'title',
     anchorValue,
@@ -94,6 +114,23 @@ function buildDecisionIdentityEvidenceSnapshot(deliverySnapshot, intakeDecision)
     ...evidenceBody,
     evidenceDigest: canonicalDigest(evidenceBody),
   })];
+  if (derivedIdentity.year) {
+    const titleYearBody = {
+      anchorKind: 'title_year',
+      anchorValue: anchorValue + '\0' + derivedIdentity.year,
+      confidenceClass: 'medium',
+      mappingRef: MAPPING_REF,
+      normalizationProfileRef: NORMALIZATION_REF,
+      sourceClaimId: identityClaim.draftId,
+      sourceClaimDigest: identityClaim.claimDigest,
+      sourceValue: identityClaim.claimedTitle + '\0' +
+        derivedIdentity.year,
+    };
+    identityEvidence.push(Object.freeze({
+      ...titleYearBody,
+      evidenceDigest: canonicalDigest(titleYearBody),
+    }));
+  }
   const body = {
     schemaRef: SNAPSHOT_SCHEMA,
     schemaVersion: 1,
@@ -150,10 +187,13 @@ function parseDecisionIdentityEvidenceSnapshot(row) {
       value.identityEvidence.length < 1 ||
       value.identityEvidence.length > 16 ||
       value.identityEvidence.some((item) =>
-        item.anchorKind !== 'title' ||
+        !['title', 'title_year'].includes(item.anchorKind) ||
         item.mappingRef !== MAPPING_REF ||
         item.normalizationProfileRef !== NORMALIZATION_REF ||
-        item.anchorValue !== normalizeTitle(item.sourceValue) ||
+        item.anchorValue !== (item.anchorKind === 'title'
+          ? normalizeTitle(item.sourceValue)
+          : normalizeTitle(item.sourceValue.split('\0')[0]) + '\0' +
+            item.sourceValue.split('\0')[1]) ||
         item.evidenceDigest !== canonicalDigest(without(item, 'evidenceDigest'))) ||
       value.snapshotDigest !== canonicalDigest(without(value, 'snapshotDigest')) ||
       row.decision_identity_evidence_digest !== value.snapshotDigest ||
@@ -230,6 +270,7 @@ module.exports = Object.freeze({
   buildCanonicalQueryHandle,
   buildDecisionIdentityEvidenceSnapshot,
   buildPerceptionResolutionQuery,
+  deriveTitleYear,
   normalizeTitle,
   parseDecisionIdentityEvidenceSnapshot,
 });

@@ -125,6 +125,6 @@ test('Capability runtime sources contain no fallback, historical flow routing, S
     { source: 'composition', allow: ['node:fs', 'node:os', 'node:path', 'node:crypto'] },
     { source: 'domains.*.model', allow: ['node:path'] },
     { source: 'domains.*.planning', allow: ['node:path'] },
-    { source: 'integrations', allow: ['node:crypto', 'node:fs'] }
+    { source: 'integrations', allow: ['node:crypto', 'node:fs', 'cheerio'] }
   ]);
 });

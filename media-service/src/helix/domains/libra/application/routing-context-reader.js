@@ -40,8 +40,12 @@ function createRoutingContextReader(options) {
       ], keyColumns: ['subject_id', 'decision_revision'] },
       list_decisions: { kind: 'select-all', tableId: 'libra_routing_decisions', columns: [
         'routing_decision_id', 'subject_id', 'decision_revision', 'decision', 'shelf_id', 'unresolved_reason_code',
-        'routing_authority_kind', 'routing_policy_id', 'routing_policy_revision', 'manual_selection_digest', 'decision_digest', 'decided_at_ms'
+        'assessment_id', 'routing_authority_kind', 'routing_policy_id', 'routing_policy_revision', 'manual_selection_digest',
+        'routing_input_digest', 'shelf_priority_set_digest', 'decision_digest', 'decided_at_ms'
       ], keyColumns: ['subject_id'] },
+      find_assessment: { kind: 'select-one', tableId: 'libra_routing_assessments', columns: [
+        'routing_assessment_id', 'decision_basis_id'
+      ], keyColumns: ['routing_assessment_id'] },
       list_active_subjects: { kind: 'select-all', tableId: 'libra_subjects', columns: [
         'subject_id', 'routing_anchor_intake_decision_id'
       ], keyColumns: ['status'] },
@@ -53,6 +57,7 @@ function createRoutingContextReader(options) {
       const repo = context.repository(repository.repositoryId);
       const subject = repo.invoke('find_subject', { subject_id: subjectId });
       if (!subject) return null;
+      const decisions = Object.freeze(repo.invoke('list_decisions', { subject_id: subjectId }));
       return Object.freeze({
         subject,
         intake: repo.invoke('find_intake', { intake_decision_id: subject.routing_anchor_intake_decision_id }),
@@ -60,7 +65,11 @@ function createRoutingContextReader(options) {
           subject_id: subjectId, revision: number(subject.current_identity_revision),
         }),
         head: repo.invoke('find_head', { subject_id: subjectId }),
-        decisions: Object.freeze(repo.invoke('list_decisions', { subject_id: subjectId })),
+        decisions,
+        assessmentBasisById: Object.freeze(Object.fromEntries(decisions.map((decision) => {
+          const assessment = repo.invoke('find_assessment', { routing_assessment_id: decision.assessment_id });
+          return [decision.assessment_id, assessment?.decision_basis_id || null];
+        }))),
       });
     } }]).libra_routing_context_read;
   }
@@ -238,6 +247,18 @@ function createRoutingContextReader(options) {
       routingPolicyRevision: number(policyRow.routing_policy_revision) }) : null });
   }
 
+  function currentRoutingDecision(subjectId) {
+    const context=read(subjectId),row=context?.currentDecision;
+    if(!row)return null;
+    const value={routingDecisionId:row.routing_decision_id,subjectId:row.subject_id,decisionRevision:number(row.decision_revision),assessmentId:row.assessment_id,
+      decisionBasisId:context.rows.assessmentBasisById[row.assessment_id],routingAuthorityKind:row.routing_authority_kind,routingPolicyId:row.routing_policy_id,
+      routingPolicyRevision:row.routing_policy_revision===null?null:number(row.routing_policy_revision),manualSelectionDigest:row.manual_selection_digest,
+      routingInputDigest:row.routing_input_digest,shelfPrioritySetDigest:row.shelf_priority_set_digest,result:row.decision,targetShelfId:row.shelf_id,
+      unresolvedReasonCode:row.unresolved_reason_code,decisionDigest:row.decision_digest};
+    if(canonicalDigest(Object.fromEntries(Object.entries(value).filter(([key])=>key!=='decisionDigest')))!==value.decisionDigest)throw new Error('Routing Decision digest is corrupt.');
+    return Object.freeze(value);
+  }
+
   function listActiveSubjectPage(cursor = null, limit = 100, fieldId = null) {
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw new TypeError('Routing Subject page limit must be 1..100.');
     const values = options.unitOfWork.execute([{ participantId: 'libra_routing_subject_page', owner: 'libra', repositories: [repository], execute(context) {
@@ -253,7 +274,7 @@ function createRoutingContextReader(options) {
     return Object.freeze({ items, nextCursor: start + limit < values.length ? items.at(-1).subjectId : null });
   }
 
-  return Object.freeze({ read, currentState, requiredExternalFactKinds, factObservationIntent, nfoReadHandle, buildInputSet,
+  return Object.freeze({ read, currentState, currentRoutingDecision, requiredExternalFactKinds, factObservationIntent, nfoReadHandle, buildInputSet,
     listActiveSubjectPage, normalizeTitle: normalize, policies });
 }
 

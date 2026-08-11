@@ -233,7 +233,8 @@ test('legacy Movie formation coordinator remains disconnected while Intake uses 
   assert.match(source, /find_intake:[\s\S]*?keyColumns: \['intake_decision_id'\]/);
   assert.match(source, /find_spec:[\s\S]*?keyColumns: \['acceptance_spec_id'\]/);
   assert.doesNotMatch(hostSource, /createMovieFormationCoordinator|movie-formation-coordinator/);
-  assert.doesNotMatch(hostSource, /readArcaShelfStandard/);
+  assert.doesNotMatch(hostSource, /domains\/arca\/(?:persistence|application\/shelf-store)/);
+  assert.match(hostSource, /readArcaShelfStandard: arcaRoutingTargets\.getStandard/);
   assert.match(hostSource, /createHelixExecutionRuntime/);
   assert.match(hostSource, /createFormationQuery/);
   assert.match(hostSource, /candidateDeliveryPort/);
@@ -320,7 +321,7 @@ test('clean host serves public health and Admin UI, then requires API key or Htt
     secretRoot,
   });
   try {
-    assert.equal(host.routeCount, 114);
+    assert.equal(host.routeCount, 115);
     const health = await host.inject({ method: 'GET', url: '/v1/health' });
     assert.equal(health.statusCode, 200);
     assert.deepEqual(Object.keys(health.json()).sort(), ['generation', 'normalSupplyAllowed', 'status']);

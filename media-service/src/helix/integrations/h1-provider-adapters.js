@@ -1,5 +1,7 @@
 'use strict';
 
+const cheerio = require('cheerio');
+
 const {
   canonicalJson,
   createProviderArtifactAdapter,
@@ -128,6 +130,7 @@ async function fetchBytes(fetchImpl, url, init, maximum) {
   return Object.freeze({
     bytes,
     contentType: String(response.headers?.get?.('content-type') || ''),
+    responseUrl: String(response.url || url),
     statusCode: response.status,
   });
 }
@@ -416,6 +419,22 @@ function createProtocolTransport(profile, options) {
   const fetchImpl = options.fetchImpl || globalThis.fetch;
   const runtime = options.runtime;
   const now = options.now || Date.now;
+  const observationPayloads = new Map();
+  const MAX_PENDING_OBSERVATIONS = 200;
+
+  function rememberObservation(reference, observation) {
+    if (observationPayloads.size >= MAX_PENDING_OBSERVATIONS) {
+      fail(PROVIDER_ERROR, 'Provider observation reader exceeded its bounded in-flight set.');
+    }
+    observationPayloads.set(reference.digest, observation);
+  }
+
+  function readObservation(reference) {
+    const value = observationPayloads.get(reference?.digest);
+    if (!value) fail(PROVIDER_ERROR, 'Provider observation reference is absent or already consumed.');
+    observationPayloads.delete(reference.digest);
+    return value;
+  }
 
   function current(request) {
     const snapshot = runtime.readCurrent();
@@ -525,34 +544,92 @@ function createProtocolTransport(profile, options) {
       signal: AbortSignal.timeout(request.timeoutMs),
     }, TEXT_LIMIT);
     const text = page.bytes.toString('utf8');
-    if (!text.includes(
-      '/people/' + encodeURIComponent(configuredUserId),
-    )) {
+    let responseUrl;
+    try {
+      responseUrl = new URL(page.responseUrl);
+    } catch (_error) {
+      page.bytes.fill(0);
+      fail(PROVIDER_ERROR, 'Douban response URL is invalid.');
+    }
+    const expectedPath = '/people/' + encodeURIComponent(configuredUserId) +
+      '/collect';
+    if (responseUrl.origin !== new URL(state.endpoint).origin ||
+        responseUrl.pathname.replace(/\/+$/, '') !== expectedPath) {
       page.bytes.fill(0);
       fail(
         PROVIDER_ERROR,
         'Douban response belongs to a foreign source identity.',
       );
     }
-    const ids = [...text.matchAll(/\/subject\/([0-9]+)\//g)]
-      .map((match) => match[1])
-      .filter((value, index, values) =>
-        values.indexOf(value) === index)
-      .slice(0, request.input.limit)
-      .sort();
+    let parsed;
+    try {
+      parsed = cheerio.load(text);
+    } catch (_error) {
+      page.bytes.fill(0);
+      fail(PROVIDER_ERROR, 'Douban response HTML cannot be parsed.');
+    }
+    const observations = [];
+    const seen = new Set();
+    parsed('li.item, div.item, a[href*="/subject/"]').each((_index, element) => {
+      if (observations.length >= request.input.limit) return false;
+      const item = parsed(element);
+      const link = item.is('a[href*="/subject/"]') ? item : item.find('a[href*="/subject/"]').first();
+      const match = String(link.attr('href') || '').match(/\/subject\/([0-9]+)\//);
+      if (!match || seen.has(match[1])) return undefined;
+      const providerKey = match[1];
+      seen.add(providerKey);
+      const ratingClass = item.find('[class*="rating"][class*="-t"]').toArray()
+        .map((node) => String(parsed(node).attr('class') || '').match(/(?:^|\s)rating([1-5])-t(?:\s|$)/))
+        .find(Boolean);
+      const rating = ratingClass ? Number(ratingClass[1]) : null;
+      const title = String(item.find('.title em').first().text() || link.attr('title') || link.text())
+        .normalize('NFKC').replace(/\s+/g, ' ').trim();
+      if (!title) {
+        fail(PROVIDER_ERROR, 'Douban interest title is absent.');
+      }
+      const descriptiveText = item.find('.intro').text() + ' ' + item.find('.title').text();
+      const year = Number(descriptiveText.match(/(?:18|19|20|21)\d{2}/)?.[0] || 0) || null;
+      const entries = [
+        { key: 'doubanSubjectId', value: providerKey },
+        { key: 'rating', value: rating },
+        { key: 'ratingScale', value: 'douban_1_5' },
+        { key: 'title', value: title },
+        { key: 'watched', value: true },
+        { key: 'year', value: year },
+      ];
+      const payloadBody = { schemaRef: 'helix://contracts/types/DoubanInterestObservation/v1', schemaVersion: 1,
+        recordKind: 'perception-observation-inline-payload', entries };
+      const inlinePayload = Object.freeze({ ...payloadBody, recordDigest: digest(canonicalJson(payloadBody)) });
+      const sourceRecordDigest = digest(canonicalJson({ providerKey, rating, title, year, watched: true }));
+      const sourceRecordRevision = Number(BigInt('0x' + sourceRecordDigest.slice(0, 12))) + 1;
+      const observedAtMs = now();
+      const observation = Object.freeze({ observationId: 'douban-observation-' + sourceRecordDigest.slice(0, 40),
+        sourceRecordKey: 'douban:' + providerKey, sourceRecordRevision, sourceRecordDigest, observedAtMs,
+        payloadSchemaRef: inlinePayload.schemaRef, payloadDigest: digest(canonicalJson(inlinePayload)), inlinePayload,
+        provenanceDigest: digest(canonicalJson({ source: 'douban_collect', configuredUserId, providerKey,
+          sourceRecordRevision, sourceRecordDigest })) });
+      const reference = frozenRef('douban_interest_observation', providerKey, sourceRecordRevision, observation);
+      rememberObservation(reference, observation);
+      observations.push(Object.freeze({ reference, providerKey }));
+      return undefined;
+    });
+    const nextHref = parsed('.paginator .next a[href]').first().attr('href');
+    let nextCursor = null;
+    if (nextHref) {
+      try {
+        const candidate = new URL(nextHref, state.endpoint).searchParams.get('start');
+        if (candidate !== null && Number.isSafeInteger(Number(candidate)) && Number(candidate) > cursor) nextCursor = String(Number(candidate));
+      } catch (_error) {
+        page.bytes.fill(0);
+        fail(PROVIDER_ERROR, 'Douban pagination cursor is invalid.');
+      }
+    }
     const pageDigest = digest(page.bytes);
     page.bytes.fill(0);
-    const refs = ids.map((id) => frozenRef(
-      'douban_interest',
-      id,
-      1,
-      { id, pageDigest },
-    ));
+    const refs = observations.map((item) => item.reference);
     return protocolResponse({
       resultRefs: refs,
-      nextCursor: refs.length === request.input.limit
-        ? String(cursor + refs.length)
-        : null,
+      nextCursor,
     });
   }
 
@@ -777,6 +854,7 @@ function createProtocolTransport(profile, options) {
   }
 
   return Object.freeze({
+    readObservation,
     async execute(request) {
       const state = current(request);
       if (request.operationId ===
@@ -851,7 +929,6 @@ function createProviderAdapter(kind, options) {
                 () => reject(new Error('provider timeout')),
                 timeoutMs,
               );
-              timer.unref?.();
             }),
           ]);
         } finally {
@@ -866,6 +943,7 @@ function createProviderAdapter(kind, options) {
     ...testAdapter,
     artifactPort: createProviderArtifactAdapter(common),
     observationPort: createProviderObservationAdapter(common),
+    observationReader: Object.freeze({ read: (reference) => transport.readObservation(reference) }),
     profile,
     requestPort: createProviderRequestAdapter(common),
   });

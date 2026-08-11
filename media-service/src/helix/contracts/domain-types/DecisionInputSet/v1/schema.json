@@ -2394,96 +2394,103 @@
     "decisionFacts": {
       "type": "array",
       "items": {
-        "type": "object",
-        "minProperties": 6,
-        "required": [
-          "factKind",
-          "sourceObjectId",
-          "sourceRevision",
-          "schemaRef",
-          "factDigest"
-        ],
-        "properties": {
-          "factKind": {
-            "type": "string",
-            "enum": [
-              "content_profile",
-              "structure_kind",
-              "material_field",
-              "release_year",
-              "region",
-              "genre",
-              "resolved_provider_identity"
-            ]
-          },
-          "sourceObjectId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256
-          },
-          "sourceRevision": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "schemaRef": {
-            "type": "string",
-            "minLength": 1
-          },
-          "factDigest": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
-          },
-          "value": {},
-          "fieldId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256
-          },
-          "year": {
-            "type": "integer",
-            "minimum": 1870,
-            "maximum": 3000
-          },
-          "countryCodes": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "minLength": 1
+        "oneOf": [
+          {
+            "type": "object",
+            "minProperties": 6,
+            "required": [
+              "factKind",
+              "sourceObjectId",
+              "sourceRevision",
+              "schemaRef",
+              "factDigest"
+            ],
+            "properties": {
+              "factKind": {
+                "type": "string",
+                "enum": [
+                  "content_profile",
+                  "structure_kind",
+                  "material_field",
+                  "release_year",
+                  "region",
+                  "genre",
+                  "resolved_provider_identity"
+                ]
+              },
+              "sourceObjectId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "sourceRevision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "schemaRef": {
+                "type": "string",
+                "minLength": 1
+              },
+              "factDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "value": {},
+              "fieldId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "year": {
+                "type": "integer",
+                "minimum": 1870,
+                "maximum": 3000
+              },
+              "countryCodes": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "maxItems": 128
+              },
+              "genreCodes": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "maxItems": 128
+              },
+              "provider": {
+                "type": "string",
+                "minLength": 1
+              },
+              "namespace": {
+                "type": "string",
+                "minLength": 1
+              },
+              "providerKey": {
+                "type": "string",
+                "minLength": 1
+              },
+              "identityRevision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "identityDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
             },
-            "maxItems": 128
+            "additionalProperties": false
           },
-          "genreCodes": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "minLength": 1
-            },
-            "maxItems": 128
-          },
-          "provider": {
-            "type": "string",
-            "minLength": 1
-          },
-          "namespace": {
-            "type": "string",
-            "minLength": 1
-          },
-          "providerKey": {
-            "type": "string",
-            "minLength": 1
-          },
-          "identityRevision": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "identityDigest": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
+          {
+            "$ref": "helix://contracts/types/PerceptionResolutionRevision/v1"
           }
-        },
-        "additionalProperties": false
+        ]
       },
       "maxItems": 128
     },

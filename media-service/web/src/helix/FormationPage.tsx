@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { AdminApiError, helixAdminApi, type FormationSubject, type FormationSummary, type Shelf } from './api';
+import RatingControl from './RatingControl';
 
 type SessionState = 'checking' | 'required' | 'ready';
 
@@ -98,7 +99,7 @@ export default function FormationPage() {
       <div className="source-registry-heading"><div><p className="eyebrow">Activity Ledger</p><h2 id="formation-title">收藏主体</h2></div><span>{items.length} 条</span></div>
       {items.length === 0 ? <div className="source-empty"><strong>还没有被 Libra 接收的 Candidate</strong><p>Procurement Offer 会由后台 Intake Work 验证；正式接收后才会出现在这里。</p></div> :
         <div className="formation-table-wrap"><table className="formation-table">
-          <thead><tr><th scope="col">Subject</th><th scope="col">Routing</th><th scope="col">输入</th><th scope="col">Decision</th><th scope="col">最近接收</th></tr></thead>
+          <thead><tr><th scope="col">Subject</th><th scope="col">Routing</th><th scope="col">我的评分</th><th scope="col">输入</th><th scope="col">Decision / Spec</th><th scope="col">最近接收</th></tr></thead>
           <tbody>{items.map((item) => <tr key={item.subjectId}>
             <td><strong>{item.displayIdentity}</strong><code>{item.subjectId}</code><small>{item.contentProfile} · {item.structureKind}</small></td>
             <td><span className={`formation-stage ${item.routingState}`}>{item.stageLabel}</span>
@@ -108,8 +109,10 @@ export default function FormationPage() {
                 onChange={(event) => setManualTargets((current) => ({ ...current, [item.subjectId]: event.target.value }))}>{shelves.map((shelf) => <option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name}</option>)}</select>
                 <button type="button" onClick={() => void chooseShelf(item)} disabled={loading}>选择收藏架</button></div>}
             </td>
+            <td><RatingControl targetType="subject" targetId={item.subjectId} label={item.displayIdentity}/></td>
             <td><b>{item.primaryMaterialCount}</b> Primary<small>{item.relatedMaterialCount} Related</small></td>
-            <td>{item.routingDecisionRevision ? `r${item.routingDecisionRevision}` : '准备中'}<small>{item.routingPolicyMode || '—'} {item.routingPolicyRevision ? `· policy r${item.routingPolicyRevision}` : ''}</small></td>
+            <td>{item.routingDecisionRevision ? `Routing r${item.routingDecisionRevision}` : '准备中'}<small>{item.routingPolicyMode || '—'} {item.routingPolicyRevision ? `· policy r${item.routingPolicyRevision}` : ''}</small>
+              <small>{item.acceptanceSpecRevision ? `Acceptance Spec r${item.acceptanceSpecRevision}` : item.routingState==='resolved'?'正在准备 Acceptance Spec':'—'}</small></td>
             <td>{formatAcceptedAt(item.lastAcceptedAtMs)}</td>
           </tr>)}</tbody>
         </table></div>}

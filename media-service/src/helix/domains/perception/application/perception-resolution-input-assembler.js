@@ -50,7 +50,7 @@ function validateRule(rule,factKind){
     fail('P6_PERCEPTION_RULE_SNAPSHOT_INVALID','Resolution Rule Snapshot is incomplete, unsupported, or has a mismatched digest.');
   }
   const ranks=rule.anchorMatchers.map((item)=>item.strengthRank);
-  if(ranks.some((rank)=>!Number.isSafeInteger(rank)||rank<1)||new Set(ranks).size!==ranks.length) fail('P6_PERCEPTION_RULE_STRENGTH_INVALID','Anchor matcher strength ranks must be unique positive integers.');
+  if(ranks.some((rank)=>!Number.isSafeInteger(rank)||rank<1)||new Set(rule.anchorMatchers.map((item)=>item.anchorKind)).size!==rule.anchorMatchers.length) fail('P6_PERCEPTION_RULE_STRENGTH_INVALID','Anchor matchers require unique kinds and positive strength ranks.');
   for(const item of [...rule.candidateRetrievalClauses,...rule.anchorMatchers]){
     const fuzzy=item.lookupMode==='bounded_fuzzy'||item.matchMode==='fuzzy';
     if(fuzzy !== Object.hasOwn(item,'threshold') || fuzzy && (typeof item.threshold!=='number'||item.threshold<0||item.threshold>1)) fail('P6_PERCEPTION_RULE_THRESHOLD_INVALID','Only fuzzy clauses require a bounded threshold.');

@@ -14,6 +14,9 @@ const { createRoutingCapabilityRegistrations, EFFECTS: ROUTING_EFFECTS } = requi
 const { createRoutingContextReader } = require('../application/routing-context-reader');
 const { createRoutingProcessCoordinator } = require('../application/routing-process-coordinator');
 const { createFactPlanner, createBasisPlanner, createRoutingProjections } = require('../planning/routing-planners');
+const { createAcceptanceSpecContextReader } = require('../application/acceptance-spec-context-reader');
+const { createAcceptanceSpecCoordinator } = require('../application/acceptance-spec-coordinator');
+const { createAcceptanceSpecPlanner, createAcceptanceSpecProjections } = require('../planning/acceptance-spec-planner');
 
 class LibraPublicFacadeError extends Error {
   constructor(code, message, details = {}) {
@@ -112,13 +115,17 @@ function createExecutionRegistration() {
       const coordinator=createIntakeProcessCoordinator({...options,offerReader});
       const routingContextReader=createRoutingContextReader(options);
       const routingCoordinator=createRoutingProcessCoordinator({...options,contextReader:routingContextReader});
-      return Object.freeze({offerReader,decisionResolver,coordinator,routingContextReader,routingCoordinator});
+      const acceptanceSpecContextReader=createAcceptanceSpecContextReader({...options,routingContextReader});
+      const acceptanceSpecCoordinator=createAcceptanceSpecCoordinator({...options,contextReader:acceptanceSpecContextReader});
+      return Object.freeze({offerReader,decisionResolver,coordinator,routingContextReader,routingCoordinator,acceptanceSpecContextReader,acceptanceSpecCoordinator});
     },
     createPlanningRegistration(options) {
       return Object.freeze({planners:Object.freeze([
         createEvidencePlanner(options),createAcceptancePlanner(options),createRejectionPlanner(options),
-        createFactPlanner(options,'related_nfo'),createFactPlanner(options,'provider'),createBasisPlanner(options)
-      ]),bindingProjections:Object.freeze([...createIntakeProjections(options),...createRoutingProjections(options)])});
+        createFactPlanner(options,'related_nfo'),createFactPlanner(options,'provider'),createBasisPlanner(options),
+        createAcceptanceSpecPlanner({...options,contextReader:options.acceptanceSpecContextReader})
+      ]),bindingProjections:Object.freeze([...createIntakeProjections(options),...createRoutingProjections(options),
+        ...createAcceptanceSpecProjections({...options,contextReader:options.acceptanceSpecContextReader})])});
     }
   };
   const provided=Object.keys(implementation).sort(),expected=[...executionContract.methods].sort();

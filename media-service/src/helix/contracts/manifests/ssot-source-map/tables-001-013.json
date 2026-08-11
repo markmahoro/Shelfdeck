@@ -12,7 +12,7 @@
       "constraintsContract": "`PK(field_id,field_observation_work_id,page_ordinal,entry_ordinal)`；每页/Entry只允许一次写入，历史行append-only且永久保留；`UNIQUE(field_id,observation_id,entry_ordinal)`及`UNIQUE(field_id,observation_id,material_observation_id)`；Entry Identity/size/path/stat/fingerprint逐字节复制Observation事实；`INDEX(field_id,field_observation_work_id,observation_revision,relative_location)`、`INDEX(field_id,field_observation_work_id,material_key)`、`INDEX(field_id,field_observation_work_id,page_ordinal,entry_ordinal)`；不保存媒体Profile、BDMV语义、Primary/Related角色或Layout Result JSON`",
       "source": {
         "section": "8.5.10",
-        "line": 8950,
+        "line": 9022,
         "lineDigest": "51cd83a04736a62256f5531e871652b59b85ed66a4ca28d9178050dd37f0935e"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "`UNIQUE(owner_domain,command_contract,caller_scope,idempotency_key)`；同key不同request digest拒绝；Result JSON上限`16 KiB`且只含typed ref；与Owner修改同事务",
       "source": {
         "section": "8.5.10",
-        "line": 8951,
+        "line": 9023,
         "lineDigest": "65b28623e605bfebb3d1f2cfa85be9094d04cbd42636b58ffd5a418dc5121ad9"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "`UNIQUE(owner_domain,idempotency_key)`；`INDEX(owner_domain,state,priority_class,created_at_ms,work_id)`",
       "source": {
         "section": "8.5.10",
-        "line": 8952,
+        "line": 9024,
         "lineDigest": "1b3b12693bb082449223011fe595fb847378c9c59b9c1da6a4287a117f101eb7"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "`UNIQUE(work_id,ordinal)`；同一Work至多一个`ready|running|blocked` attempt的partial unique index",
       "source": {
         "section": "8.5.10",
-        "line": 8953,
+        "line": 9025,
         "lineDigest": "590c519812115490ed7e526e59b5648c8477ea21eb0921aa2725ee5418169617"
       }
     },
@@ -56,7 +56,7 @@
       "constraintsContract": "`UNIQUE(attempt_id)`；Plan发布后禁止更新Graph字段",
       "source": {
         "section": "8.5.10",
-        "line": 8954,
+        "line": 9026,
         "lineDigest": "a6e5705c23a89a42b4fac68ca26061032b762286b554fb894d0114c069cccc30"
       }
     },
@@ -67,7 +67,7 @@
       "constraintsContract": "`PK(plan_id,node_id)`；所有JSON分别受`16 KiB`上限；`INDEX(capability_ref,contract_version)`",
       "source": {
         "section": "8.5.10",
-        "line": 8955,
+        "line": 9027,
         "lineDigest": "d284a64607e1bb3596c1671a8b1caf80fc2397281263e5fd88a743f02c1c8db8"
       }
     },
@@ -78,7 +78,7 @@
       "constraintsContract": "`PK(plan_id,from_node_id,to_node_id)`；两个node均FK到同一Plan；DAG validator digest与Plan同时提交",
       "source": {
         "section": "8.5.10",
-        "line": 8956,
+        "line": 9028,
         "lineDigest": "093dcd5f05c688d5aadd096c0f23bdbb9abb34770b6d744d648b5ece98f2efdc"
       }
     },
@@ -89,7 +89,7 @@
       "constraintsContract": "`UNIQUE(plan_id,node_id)`；`INDEX(state,priority_class,COALESCE(retry_at_ms,ready_at_ms),event_id)`；成功Event不可回退；current progress pointer显式FK",
       "source": {
         "section": "8.5.10",
-        "line": 8957,
+        "line": 9029,
         "lineDigest": "83b0e6dfb2a6878be3e4df2e6aa3a3ec2f425950df361e9bf94338fdb9a55787"
       }
     },
@@ -100,7 +100,7 @@
       "constraintsContract": "`UNIQUE(event_id,ordinal)`；同一Event至多一个`executing` attempt；Permit/lease不持久化，资源等待与持有只由timing Evidence表达；deferred/fence evidence留在Attempt而非伪terminal Result",
       "source": {
         "section": "8.5.10",
-        "line": 8958,
+        "line": 9030,
         "lineDigest": "0097660ac702afb40272a6ec5b7b7d4a44f5cf2f463e647316776ca6b1637ce7"
       }
     },
@@ -111,7 +111,7 @@
       "constraintsContract": "`PK(event_id,revision)`；`UNIQUE(event_attempt_id,source_sequence)` when sequence exists；只保留current及有界bucket history；数值必须满足non-negative/finite check",
       "source": {
         "section": "8.5.10",
-        "line": 8959,
+        "line": 9031,
         "lineDigest": "8ca810eab68cf80cac99a48abdd4e126346134f1153aec0fc8ba8b5828e5d734"
       }
     },
@@ -122,7 +122,7 @@
       "constraintsContract": "`PK(owner_domain,reconciler_key)`；revision从1递增；opaque cursor为不超过`4 KiB`的bounded string或NULL；只保存Foundation调度位置，不保存或解释Domain Fact；每页Scope全部完成幂等reconcile后才CAS推进，崩溃前未推进时允许整页重放",
       "source": {
         "section": "8.5.10",
-        "line": 8960,
+        "line": 9032,
         "lineDigest": "8b4ed53d56e4b0879527ed42f72fee93c248c3302f5b98dddcd1603a833048bb"
       }
     },
@@ -133,7 +133,7 @@
       "constraintsContract": "terminal Event至多一个current result：`UNIQUE(event_id)`；两个JSON的UTF-8 JCS bytes各自≤`65,536`，大Payload必须只含typed handle；`result_digest=SHA-256(JCS(result_json解析后的完整typed Result，包含其中所有领域内digest字段))`，领域对象内部排除自身计算的digest不是Foundation storage digest；Observation Page Commit的`result_schema_ref`固定为`ObservationPageCommitResult@1`，`evidence_schema_ref`只保存同一批次的compact envelope与digest，不保存文件明细；文件明细唯一来源是Procurement-owned `proc_field_observation_entries`",
       "source": {
         "section": "8.5.10",
-        "line": 8961,
+        "line": 9033,
         "lineDigest": "fba19c97abea623d69b0009e0f14a7d262db7e7c9e4ef850b6acc97cd3bf5786"
       }
     },
@@ -144,7 +144,7 @@
       "constraintsContract": "`UNIQUE(effect_class,idempotency_key)`；`INDEX(state,updated_at_ms,effect_id)`供Effect Reconcile",
       "source": {
         "section": "8.5.10",
-        "line": 8962,
+        "line": 9034,
         "lineDigest": "ab2bd36a36914142370c9e85292a017d085b0de7ba78dbc338bef61890079e80"
       }
     }

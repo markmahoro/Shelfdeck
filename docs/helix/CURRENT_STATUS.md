@@ -1,16 +1,47 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Movie Procurement保持`CLOSED FOR MOVIE`；Arca Shelf配置保持`READY FOR LIBRA`；Libra Routing达到`DECISION READY / AWAITING ACCEPTANCE SPEC`。
+Status: Movie Procurement保持`CLOSED FOR MOVIE`；Arca Shelf配置保持`READY FOR LIBRA`；Libra达到`ACCEPTANCE SPEC READY / AWAITING LIBRA RUN`。
 
 Last updated: 2026-08-12
 
 ## Local media safety boundary
 
-- 用户已指定`C:\Users\markm\AppData\Local\Temp\ShelfDeck-P14-20260723\material-fields`为后续唯一真实媒体测试根目录；它同时承担测试Material Field和Movie Shelf Target。
-- `Z:\Film`退出运行时测试Scope：不得作为Material Field、Shelf、Workspace或Canary输入。用户后续仅授权测试库构建器从两个精确Movie目录只读取材；本轮只提取两个8秒片段并复制少量NFO/Artwork，未在源端写入、移动、重命名或删除。
+- 用户已指定`C:\Users\markm\AppData\Local\Temp\ShelfDeck-P14-20260723\material-fields`为可重复构建的主测试库；destructive Formation只允许作用于该库或由它生成的独立系统Temp副本，Material Field与Shelf Target必须明确指向本轮隔离副本。
+- `Z:\Film`退出运行时测试Scope：不得作为Material Field、Shelf、Workspace或Canary输入。用户后续分别授权测试库构建器和真实Perception E2E只读取材；真实Perception E2E只复制两部匿名普通媒体到新的系统Temp Field，复制前后源size/mtime/ctime不变，未在源端写入、移动、重命名或删除。
 - 历史记录确认该P14 Sample Library曾包含`film-complete\1917 (2019)`和`film-problem\0.5毫米 (2014)`；当前Movie媒体已被历史E2E消费，`film-complete`为空，`film-problem`仅剩`Thumbs.db`。
 - Movie测试库已扩充为22个场景、1,131个受管regular files、`57,027,472` bytes，受管Reality digest为`966c8fac23f3b99f02fe63566fb93c365e883d8c8ce34ac185eb3a348a098140`。其中12个既有场景保留；G01–G10新增Related替代、精确Settlement授权、逐成员崩溃恢复、Target collision、跨卷、Related Reality变化、同根二次Observation、ISO、真实DVD和1,025项Related的complete-or-fail-closed边界。所有应可播放MKV/MP4/M2TS继续通过bundled ffprobe，G09有界真实VOB为8.108秒；唯一`not_media`仍是M09刻意损坏样本。
 - 测试库manifest已升级为`shelfdeck.movie-test-library-manifest@2`；两份阶段seed受独立size/SHA-256校验，只有manifest指定阶段可以物化。构建器只拥有`ownership.json`列出的`SDT-*`路径并保留历史目录。自动化安全/场景/BDMV/ISO/phase helper测试5/5通过，build末尾完整Reality重验通过。该测试集现在具备后续Libra/Arca高危链路的输入与阶段配方，但产品Planner、Authorization、Effect Recovery或ISO/DVD执行未接线前，不得把“素材存在”宣称为E2E通过。
+
+## 0. Completed implementation — User Perception and Acceptance Spec
+
+User Perception产品链已经装入唯一Composition Root。真实Douban Adapter以已验证Integration revision、精确用户收藏路径和同源最终响应URL
+冻结来源，覆盖全部分页；网络、登录、HTML、传输和typed schema错误保持技术失败。Provider硬超时使用referenced deadline，不允许悬挂
+Promise永久占据Event。所有Record、Correction/Supersedes关系和Resolution均为Owner-owned immutable事实。
+
+Libra只通过User Perception公开Facade读取`found(rating=1..5)|not_found` Resolution。显式`claimedYear`优先；缺失时，Libra自己的
+Decision Identity Mapping只允许从标题尾部括号年份分离`title_year` Anchor，不修改Procurement Claim。Provider Acquisition完成后的
+精确signal只加速；active Subject评分Resolution还由Foundation 30秒/100项持久cursor fallback有界发现，不跨Owner读取Repository。
+
+Acceptance Spec Coordinator只签发Work、读取terminal Resolution并收口Spec。Spec Decision Basis冻结Shelf Standard、Routing Decision与
+Perception Resolution；No-rating和1–5星均可形成完整Spec。直接评分和改分E2E证明同一Subject按`1 → 2 → 3`追加Spec revision，旧Spec
+保持immutable；不存在同步Capability捷径，也没有引用旧`movie-formation-coordinator`。
+
+真实本地E2E资产为`C:\Users\markm\AppData\Local\Temp\helix-routing-decision-0bAMhK\data\shelfdeck.db`：
+
+- 真实Douban同步形成1546条Record，其中1483条含评分；104个Provider Page Work约107秒收口，Rating Log以16页读取1546个唯一Record；
+- 两部隔离普通媒体通过产品Procurement、Intake和direct Routing形成两个Subject；两个不同真实星级均`found(source=douban)`，其Acceptance Requirements digest不同；
+- 一次本地直接评分及一次Correction使一名匿名Subject保留3份Spec revision；最终Resolution为4份found、24份not_found，Acceptance Spec共28份；
+- Perception链共有134 Work、134 immutable Plan、372 Event/Attempt/Result/Resource Timing，`failedWorks=0`、`failedEvents=0`；
+- 重启后相同sync idempotency key重放保持1个Acquisition、104个Provider Work、1546个Douban Record、28个Resolution revision和28份Spec，不重复外部结果；
+- Libra Run、Workspace、Product Package、Arca Handoff B Receipt和Shelf Entry全部为0。
+
+Admin Web生产构建和评分/Acceptance聚焦回归通过。机器合同为112 Capability、98 Result family、180 table、43 Canonical Transaction、
+114 Admin route加1条public health（总计115 route）；SSOT source-map digest为
+`e252239d73ebafa856199898facb88b342f981b3cc2e5f682b378dfbc1b42121`，完整合同aggregate digest为
+`36c18e4af1e977cfc3cf9c7f60fb76b45d98435b3bac8e8bb4fd6cd3890abc16`。完整服务测试243 pass、1个显式环境skip、0 fail；
+Architecture fixture 998 pass、7 skip、0 fail，P8 Front-half和Admin Web production build通过。E2E数据库`integrity_check=ok`，
+两份隔离媒体的size/mtime/ctime与durable Observation逐项一致。当前精确状态为
+`LIBRA ACCEPTANCE SPEC READY / AWAITING LIBRA RUN`。
 
 ## 0. Completed implementation — Libra Routing Assessment
 
