@@ -38,7 +38,7 @@ test('Registry closes exactly all 112 frozen Capability refs with deterministic 
   const expected = catalog.map((manifest) => manifest.capabilityRef);
   const first = createCapabilityRegistry({ registrations: catalog.map((manifest) => registration(manifest)), expectedCapabilityRefs: expected });
   const second = createCapabilityRegistry({ registrations: [...catalog].reverse().map((manifest) => registration(manifest)), expectedCapabilityRefs: expected });
-  assert.equal(first.size, 111);
+  assert.equal(first.size, 112);
   assert.deepEqual(first.snapshot, second.snapshot);
   assert.equal(first.snapshot.every((entry) => /^[0-9a-f]{64}$/.test(entry.contractDigest)), true);
 });

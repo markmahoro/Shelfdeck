@@ -159,6 +159,7 @@ const dtoContracts = {
   InventoryRevision: 'shelfEntryId,inventoryRevision,inventoryDigest',
   KnownBindings: 'shelfEntryId,bindings,bindingSetDigest',
   LibraDeliverablePromotionDecision: '',
+  RoutingFactObservationIntent: '',
   MetadataFetchIntent: '',
   WesternAnalysisVariant: '',
   LibraMediaCastSourceBasisMetadataObservationWesternMatch: '',
@@ -268,6 +269,8 @@ function buildSchema(name, role, fields) {
   if (name === 'DirectPersonRegistrationDecision') return directPersonRegistrationDecisionSchema();
   if (name === 'PeopleReferenceMaintenanceDecision') return peopleReferenceMaintenanceDecisionSchema();
   if (name === 'PersonReferenceProjection') return personReferenceProjectionSchema();
+  if (name === 'DecisionInputSet') return decisionInputSetSchema();
+  if (name === 'RoutingFactObservationIntent') return routingFactObservationIntentSchema();
   if (name === 'MetadataFetchIntent') return metadataFetchIntentSchema();
   if (name === 'LibraMediaCastSourceBasisMetadataObservationWesternMatch') return libraMediaCastSourceBasisSchema(name);
   if (name === 'LibraProductMetadataSourceBasisMetadataObservationWesternAnalysis') return libraProductMetadataSourceBasisSchema(name);
@@ -607,6 +610,121 @@ function exactDomainSchema(name, properties, required = Object.keys(properties),
   };
 }
 
+function decisionInputSetSchema() {
+  const nullableText = nullable(text());
+  const routingProvenance = object({
+    candidatePackageId: id(), sourceFieldId: id(), sourceFieldAccessRevision: positiveInteger(),
+    sourceFieldContextDigest: digest(), candidateIdentityClaimDigest: digest(),
+    decisionIdentityEvidenceSchemaRef: text(), decisionIdentityEvidenceSourceId: id(),
+    decisionIdentityEvidenceRevision: positiveInteger(), decisionIdentityEvidenceDigest: digest(),
+  }, ['candidatePackageId', 'sourceFieldId', 'sourceFieldAccessRevision', 'sourceFieldContextDigest', 'candidateIdentityClaimDigest']);
+  const subjectSnapshot = object({
+    subjectId: id(), status: { const: 'active' }, intakeRevision: positiveInteger(),
+    structureKind: enumText('single', 'season'), contentProfile: profile(), routingAnchorIntakeDecisionId: id(),
+    routingProvenance, currentIdentityRevision: nullable(positiveInteger()), currentIdentityDigest: nullable(digest()),
+    continuitySetDigest: digest(), episodeScopeDigest: digest(), snapshotDigest: digest(),
+  });
+  const decisionHead = object({
+    subjectId: id(), headState: enumText('absent', 'present'), headRevision: nonNegativeInteger(),
+    headDigest: nullable(digest()), currentRoutingDecisionId: nullableText,
+    currentDecisionBasisId: nullableText, currentAcceptanceSpecId: nullableText, snapshotDigest: digest(),
+  });
+  const readiness = object({ result: enumText('ready', 'unresolved'), reasonCode: text() }, ['result']);
+  function routingMatchExpression(depth = 1) {
+    const leaf = [
+      object({ nodeKind: { const: 'always' } }),
+      object({ nodeKind: { const: 'predicate' },
+        factKind: enumText('content_profile', 'structure_kind', 'material_field', 'release_year', 'region', 'genre', 'resolved_provider_identity'),
+        operator: enumText('eq', 'one_of', 'gte', 'lte', 'exists'), expectedValue: {} }),
+    ];
+    if (depth >= 4) return { oneOf: leaf };
+    const child = routingMatchExpression(depth + 1);
+    return { oneOf: [...leaf,
+      object({ nodeKind: enumText('all', 'any'), children: { ...arrayOf(child, 16), minItems: 1 } }),
+      object({ nodeKind: { const: 'not' }, child }),
+    ] };
+  }
+  const policyTarget = object({
+    shelfId: id(), rank: positiveInteger(), matchExpression: routingMatchExpression(), matchRuleDigest: digest(),
+  });
+  const policy = object({
+    routingPolicyId: id(), revision: positiveInteger(), fieldId: id(), mode: enumText('direct', 'sorting'),
+    targets: { ...arrayOf(policyTarget, 64), minItems: 1 }, policyDigest: digest(),
+  });
+  const manualIntent = object({
+    subjectId: id(), targetShelfId: id(), expectedDecisionHead: object({ revision: nonNegativeInteger(), digest: digest() }),
+    actorId: id(), idempotencyKey: id(), requestDigest: digest(),
+  });
+  const routingAuthority = {
+    oneOf: [
+      object({ authorityKind: { const: 'policy' }, policy, authorityDigest: digest() }),
+      object({ authorityKind: { const: 'manual_selection' }, manualIntent, authorityDigest: digest() }),
+    ],
+  };
+  const shelfRoutingTarget = object({
+    shelfId: id(), status: enumText('active', 'deregistering', 'deregistered'), routingProjectionRevision: positiveInteger(),
+    currentStandardRevision: nullable(positiveInteger()), currentStandardDigest: nullable(digest()), projectionDigest: digest(),
+  });
+  const routingFact = {
+    type: 'object', minProperties: 6,
+    required: ['factKind', 'sourceObjectId', 'sourceRevision', 'schemaRef', 'factDigest'],
+    properties: {
+      factKind: enumText('content_profile', 'structure_kind', 'material_field', 'release_year', 'region', 'genre', 'resolved_provider_identity'),
+      sourceObjectId: id(), sourceRevision: positiveInteger(), schemaRef: text(), factDigest: digest(),
+      value: {}, fieldId: id(), year: { type: 'integer', minimum: 1870, maximum: 3000 },
+      countryCodes: arrayOf(text(), 128), genreCodes: arrayOf(text(), 128),
+      provider: text(), namespace: text(), providerKey: text(), identityRevision: positiveInteger(), identityDigest: digest(),
+    },
+    additionalProperties: false,
+  };
+  const queryResult = typeRef('VersionedQueryResult');
+  const routingDecision = object({
+    routingDecisionId: id(), subjectId: id(), decisionRevision: positiveInteger(), assessmentId: id(), decisionBasisId: id(),
+    routingAuthorityKind: enumText('policy', 'manual_selection'), routingPolicyId: nullable(id()),
+    routingPolicyRevision: nullable(positiveInteger()), manualSelectionDigest: nullable(digest()), routingInputDigest: digest(),
+    shelfPrioritySetDigest: digest(), result: enumText('resolved', 'unresolved'), targetShelfId: nullable(id()),
+    unresolvedReasonCode: nullable(text()), decisionDigest: digest(),
+  });
+  const productScope = object({
+    subjectId: id(), scopeKind: enumText('single', 'episode_manifest'), subjectIntakeRevision: positiveInteger(),
+    episodeKeys: arrayOf(text(), 1024), scopeDigest: digest(),
+  });
+  const requirements = object({
+    identity: object({ identityKind: enumText('tmdb_movie', 'tmdb_series_season', 'jav_code', 'internal_identity'),
+      requiredProvider: nullable(text()), requireSeasonNumber: bool() }, ['identityKind', 'requireSeasonNumber']),
+    structure: object({ structureKind: enumText('single', 'season'), primaryModel: enumText('single_primary', 'episode_primary'),
+      requireOnePrimaryPerEpisode: bool() }),
+    metadata: object({ requiredFieldCodes: arrayOf(text(), 128), requiredArtifactKinds: arrayOf(text(), 128),
+      requireRenderableSidecar: bool(), requireDecodableImages: bool() }),
+    mandatoryMedia: object({ mediaForm: enumText('any', 'stream_file'), videoCodec: enumText('any', 'hevc'),
+      container: enumText('any', 'matroska'), fileExtension: enumText('any', 'mkv'), minimumRasterClass: enumText('none', '4k'),
+      acceptedPrimaryAudioClasses: arrayOf(text(), 128), forbidSystemUpscaleFor4k: bool() }),
+    space: object({ unit: enumText('product', 'episode'), maxSizeGiB: nullable({ type: 'number', exclusiveMinimum: 0 }),
+      maxSizeBytes: nullable(positiveInteger()) }),
+    inventory: object({ requireDomainBinding: bool(), requireChecksum: bool(), requiredMaterializedArtifactKinds: arrayOf(text(), 128),
+      layoutModel: enumText('single', 'season_episode') }),
+  });
+  const decisionBranch = object({ conditionKind: enumText('no_rating', 'rating_equals'), rating: { type: 'integer', minimum: 1, maximum: 5 },
+    requirements }, ['conditionKind', 'requirements']);
+  const profileRule = object({ contentProfile: profile(), decisionInputKinds: arrayOf(enumText('rating'), 1), baseRequirements: requirements,
+    decisionBranches: arrayOf(decisionBranch, 6), profileRuleSetDigest: digest() });
+  const shelfStandard = object({ shelfId: id(), standardRevision: positiveInteger(), ruleTemplateId: id(),
+    ruleTemplateRevision: positiveInteger(), profileRuleSets: { ...arrayOf(profileRule, 4), minItems: 1 }, standardDigest: digest() });
+  const shelfStandardProjection = object({ shelfId: id(), status: { const: 'active' }, routingProjectionRevision: positiveInteger(),
+    projectionDigest: digest(), standard: shelfStandard, projectionResultDigest: digest() });
+  return {
+    ...exactDomainSchema('DecisionInputSet', {
+      decisionInputSetId: id(), basisKind: enumText('routing', 'acceptance_spec'), subjectSnapshot,
+      expectedDecisionHead: decisionHead, readiness, routingAuthoritySnapshot: nullable(routingAuthority),
+      shelfRoutingTargets: arrayOf(shelfRoutingTarget, 128), routingDecision: nullable(routingDecision),
+      shelfStandardProjection: nullable(shelfStandardProjection), productScope: nullable(productScope),
+      decisionFacts: arrayOf(routingFact, 128), queryResults: arrayOf(queryResult, 128), queryResultSetDigest: digest(),
+      routingInputDigest: nullable(digest()), specInputDigest: nullable(digest()), inputSetDigest: digest(),
+    }),
+    'x-helix-maxCanonicalBytes': 1024 * 1024,
+  };
+}
+
 function perceptionResolutionQuerySchema() {
   return exactDomainSchema('PerceptionResolutionQuery', {
     queryContract: text(), queryVersion: positiveInteger(), querySchemaRef: text(),
@@ -756,6 +874,45 @@ function metadataFetchIntentSchema() {
         resolvedProviderIdentity: domainRef('ResolvedProviderIdentity'), integrationId: id(), configRevision: positiveInteger() },
         [...Object.keys(common), 'providerKind', 'resolvedProviderIdentity', 'integrationId', 'configRevision'])
     ] };
+}
+
+function routingFactObservationIntentSchema() {
+  const requestedFactKinds = {
+    ...arrayOf(enumText('release_year', 'region', 'genre', 'resolved_provider_identity'), 4),
+    minItems: 1,
+    uniqueItems: true,
+    'x-helix-canonicalOrder': 'UTF-8(value)',
+  };
+  const identityClaim = typeRef('IdentityClaim');
+  const common = {
+    intentId: id(), subjectId: id(), routingAnchorIntakeDecisionId: id(), routingAnchorDigest: digest(),
+    contentProfile: { const: 'movie' }, identityClaim, requestedFactKinds,
+    sourceKind: enumText('related_nfo', 'provider'), intentDigest: digest(),
+  };
+  const providerAnchor = object({
+    provider: { const: 'tmdb' }, namespace: { const: 'tmdb_movie' }, providerKey: text({ maxLength: 128 }),
+  });
+  return {
+    $schema: DRAFT,
+    $id: domainTypeId('RoutingFactObservationIntent'),
+    title: 'RoutingFactObservationIntent@1',
+    'x-helix-ssotRefs': ['5.1.3', '5.4.3', '8.6.5', '8.6.18'],
+    'x-helix-role': 'accepted-business-dto',
+    'x-helix-maxCanonicalBytes': 16 * 1024,
+    oneOf: [
+      object({
+        ...common, sourceKind: { const: 'related_nfo' }, relatedReferenceId: id(),
+        relatedReferenceDigest: digest(), expectedPhysicalIdentityDigest: digest(),
+      }, [...Object.keys(common), 'relatedReferenceId', 'relatedReferenceDigest', 'expectedPhysicalIdentityDigest']),
+      object({
+        ...common, sourceKind: { const: 'provider' }, integrationId: id(), configRevision: positiveInteger(),
+        providerKind: { const: 'tmdb' }, candidateDisplayTitle: text({ maxLength: 1024 }),
+        yearHint: nullable({ type: 'integer', minimum: 1870, maximum: 3000 }),
+        strongProviderAnchor: nullable(providerAnchor),
+      }, [...Object.keys(common), 'integrationId', 'configRevision', 'providerKind', 'candidateDisplayTitle',
+        'yearHint', 'strongProviderAnchor']),
+    ],
+  };
 }
 
 function westernAnalysisVariantSchema() {

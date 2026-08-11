@@ -1,10 +1,13 @@
 'use strict';
 
 const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
 const test=require('node:test');
 const {canonicalDigest}=require('../../src/helix/contracts/canonical-json');
 const {buildDecisionBasisRevision,buildDecisionInputSet,decisionHeadDigest,inputSnapshotRows}=require('../../src/helix/domains/libra/model/decision-front-half-contracts');
 const {buildRoutingDecision,evaluateRoutingExpression,resolveRoutingAssessment}=require('../../src/helix/domains/libra/model/routing-contracts');
+const {parseNfo,parseProvider,providerCandidateSelection}=require('../../src/helix/domains/libra/capabilities/routing-capability-ports');
 const {buildProductScope,resolveAcceptanceSpec}=require('../../src/helix/domains/libra/model/acceptance-spec-contracts');
 
 const D='a'.repeat(64);
@@ -72,6 +75,64 @@ test('uses closed three-valued AST semantics',()=>{
   const expression={nodeKind:'all',children:[{nodeKind:'predicate',factKind:'content_profile',operator:'eq',expectedValue:'movie'},
     {nodeKind:'predicate',factKind:'release_year',operator:'gte',expectedValue:2000}].sort((a,b)=>canonicalDigest(a).localeCompare(canonicalDigest(b)))};
   assert.equal(evaluateRoutingExpression(expression,[routingFact('content_profile','movie')]),'unknown');
+});
+
+function typedRoutingFact(kind,body){return signed({factKind:kind,sourceObjectId:'source-1',sourceRevision:1,schemaRef:'RoutingDecisionFact@1',...body},'factDigest');}
+function predicate(factKind,operator,expectedValue){return {nodeKind:'predicate',factKind,operator,expectedValue};}
+
+test('evaluates the complete Routing Fact operator vocabulary without coercion',()=>{
+  const year=typedRoutingFact('release_year',{year:2014});
+  assert.equal(evaluateRoutingExpression(predicate('release_year','eq',2014),[year]),'true');
+  assert.equal(evaluateRoutingExpression(predicate('release_year','one_of',[1989,2014]),[year]),'true');
+  assert.equal(evaluateRoutingExpression(predicate('release_year','gte',2020),[year]),'false');
+  assert.equal(evaluateRoutingExpression(predicate('release_year','lte',2014),[year]),'true');
+  assert.equal(evaluateRoutingExpression(predicate('release_year','exists',true),[year]),'true');
+
+  const region=typedRoutingFact('region',{countryCodes:['CN','JP']});
+  assert.equal(evaluateRoutingExpression(predicate('region','eq',['JP','CN']),[region]),'true');
+  assert.equal(evaluateRoutingExpression(predicate('region','one_of',['US','JP']),[region]),'true');
+  assert.equal(evaluateRoutingExpression(predicate('region','one_of',['US']),[region]),'false');
+
+  const identityValue={provider:'tmdb',namespace:'tmdb_movie',providerKey:'123',identityRevision:1};
+  identityValue.identityDigest=canonicalDigest(identityValue);
+  const identity=typedRoutingFact('resolved_provider_identity',identityValue);
+  assert.equal(evaluateRoutingExpression(predicate('resolved_provider_identity','eq',identityValue),[identity]),'true');
+  assert.equal(evaluateRoutingExpression(predicate('resolved_provider_identity','one_of',[identityValue]),[identity]),'true');
+  assert.equal(evaluateRoutingExpression(predicate('release_year','exists',false),[]),'unknown');
+  assert.equal(evaluateRoutingExpression(predicate('release_year','eq',2014),[year,year]),'unknown');
+});
+
+function observationIntent(sourceKind,requestedFactKinds){return {intentId:'intent-1',intentDigest:D,subjectId:'subject-1',sourceKind,
+  relatedReferenceId:sourceKind==='related_nfo'?'related-1':null,candidateDisplayTitle:'0.5毫米',yearHint:null,strongProviderAnchor:null,
+  requestedFactKinds};}
+
+test('classifies bounded NFO Routing observations as observed, absent, or ambiguous',()=>{
+  const handle={location:'C:/fixture/movie.nfo',bindingRevision:7};
+  const observed=parseNfo(observationIntent('related_nfo',['release_year','region','genre','resolved_provider_identity']),
+    '<movie><year>1989</year><countrycode>CN</countrycode><genre>Drama</genre><tmdbid>42</tmdbid></movie>',handle);
+  assert.equal(observed.result,'observed');
+  assert.deepEqual(observed.facts.map((fact)=>fact.factKind),['release_year','region','genre','resolved_provider_identity']);
+  assert.equal(parseNfo(observationIntent('related_nfo',['release_year']),'<movie><title>Unknown</title></movie>',handle).result,'not_found');
+  assert.equal(parseNfo(observationIntent('related_nfo',['release_year']),'<movie><year>1989</year><releasedate>2025-01-01</releasedate></movie>',handle).result,'ambiguous');
+  assert.throws(()=>parseNfo(observationIntent('related_nfo',['release_year']),'not xml',handle),(error)=>error.code==='LIBRA_ROUTING_NFO_PROTOCOL');
+});
+
+test('accepts only a unique deterministic Provider match and keeps protocol failures technical',()=>{
+  const intent=observationIntent('provider',['release_year','resolved_provider_identity']);
+  const handle={integrationId:'tmdb-test',configRevision:3};
+  const unique=[{providerKey:'100',title:'0.5毫米',originalTitle:'0.5 mm',releaseYear:2014,regionCodes:['JP'],genreCodes:['drama']}];
+  const observed=parseProvider(intent,unique,handle);
+  assert.equal(observed.result,'observed');assert.equal(observed.candidateMatchCount,1);
+  assert.equal(parseProvider(intent,[],handle).result,'not_found');
+  const ambiguous=[...unique,{...unique[0],providerKey:'101'}];
+  assert.equal(parseProvider(intent,ambiguous,handle).result,'ambiguous');
+  assert.throws(()=>providerCandidateSelection(intent,[unique[0],unique[0]]),(error)=>error.code==='LIBRA_ROUTING_PROVIDER_PROTOCOL');
+});
+
+test('keeps the Routing Process Coordinator outside planning and execution infrastructure',()=>{
+  const source=fs.readFileSync(path.join(__dirname,'../../src/helix/domains/libra/application/routing-process-coordinator.js'),'utf8');
+  for(const forbidden of ['/capabilities/','/planning/','event-runtime','resource-governor','executor-dispatcher','capability-registry'])
+    assert.equal(source.includes(forbidden),false,'Routing Coordinator imports forbidden execution concern: '+forbidden);
 });
 
 function requirements(){return {identity:{identityKind:'tmdb_movie',requiredProvider:'tmdb',requireSeasonNumber:false},

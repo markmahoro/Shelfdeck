@@ -28,6 +28,7 @@ function libraDefinitions(schemaManifest){
       {column:'head_revision',parameter:'expected_head_revision'},{column:'head_digest',parameter:'expected_head_digest'},{column:'current_routing_decision_id',parameter:'expected_routing_id',nullSafe:true},
       {column:'current_decision_basis_id',parameter:'expected_basis_id',nullSafe:true},{column:'current_acceptance_spec_id',parameter:'expected_spec_id',nullSafe:true}]},
     list_basis:{kind:'select-all',tableId:'libra_decision_basis_revisions',columns:BASIS_COLUMNS,keyColumns:['subject_id']},
+    find_basis:{kind:'select-one',tableId:'libra_decision_basis_revisions',columns:BASIS_COLUMNS,keyColumns:['decision_basis_id']},
     find_semantic:{kind:'select-one',tableId:'libra_decision_basis_revisions',columns:BASIS_COLUMNS,keyColumns:['subject_id','basis_kind','input_set_digest']},
     find_inputs:{kind:'select-all',tableId:'libra_decision_basis_inputs',columns:INPUT_COLUMNS,keyColumns:['decision_basis_id']},
     insert_basis:{kind:'insert',tableId:'libra_decision_basis_revisions',columns:BASIS_COLUMNS},
@@ -40,8 +41,8 @@ function libraDefinitions(schemaManifest){
   return facts;
 }
 function foundationDefinitions(schemaManifest){return createRepositoryDefinition({repositoryId:'libra_decision_basis_foundation',owner:'execution-foundation',schemaManifest,statements:{
-  find_marker:{kind:'select-one',tableId:'fx_commit_markers',columns:['commit_marker','owner_domain','scope_type','scope_id','commit_digest','result_id','result_schema_ref','result_digest'],keyColumns:['commit_marker']},
-  find_result:{kind:'select-one',tableId:'fx_event_result_bindings',columns:['result_id','result_json','result_digest'],keyColumns:['result_id']},
+  find_marker:{kind:'select-one',tableId:'fx_commit_markers',columns:['commit_marker','effect_id','owner_domain','scope_type','scope_id','commit_digest','result_id','result_schema_ref','result_digest','committed_at_ms'],keyColumns:['commit_marker']},
+  find_result:{kind:'select-one',tableId:'fx_event_result_bindings',columns:['result_id','result_json','result_digest','evidence_schema_ref','evidence_json','evidence_digest','effect_receipt_id'],keyColumns:['result_id']},
   insert_result:{kind:'insert',tableId:'fx_event_result_bindings',columns:['result_id','event_id','outcome_kind','result_schema_ref','result_json','result_digest','evidence_schema_ref','evidence_json','evidence_digest','effect_receipt_id','committed_at_ms']},
   insert_marker:{kind:'insert',tableId:'fx_commit_markers',columns:['commit_marker','effect_id','owner_domain','scope_type','scope_id','commit_digest','result_id','result_schema_ref','result_digest','committed_at_ms']},
   find_receipt:{kind:'select-one',tableId:'fx_command_receipts',columns:['command_receipt_id','request_digest','target_id','result_digest'],keyColumns:['owner_domain','command_contract','caller_scope','idempotency_key']},
@@ -110,11 +111,22 @@ function reconstructInputSet(repo,basis){
 function createDecisionBasisStore(options){
   if(!options||!options.schemaManifest||!options.unitOfWork)fail('P8_DECISION_BASIS_DEPENDENCIES','Schema manifest and Unit of Work are required.');
   const libra=libraDefinitions(options.schemaManifest),foundation=foundationDefinitions(options.schemaManifest);
-  return Object.freeze({repositoryManifest:Object.freeze({libraTableIds:libra.tableIds,foundationTableIds:foundation.tableIds}),commit(request){
-    const set=buildDecisionInputSet(request?.decisionInputSet);validateHandle(request?.domainFactCommitHandle,set);const marker=request.commitMarker,resultId=request.resultId;
-    if(typeof marker!=='string'||!marker||typeof resultId!=='string'||!resultId)fail('P8_DECISION_BASIS_IDENTITY','Commit marker and Result identity are required.');let result,replayed=false;
+  return Object.freeze({repositoryManifest:Object.freeze({libraTableIds:libra.tableIds,foundationTableIds:foundation.tableIds}),
+    readInputSet(decisionBasisId){
+      if(typeof decisionBasisId!=='string'||!decisionBasisId)fail('P8_DECISION_BASIS_IDENTITY','Decision Basis identity is required.');
+      return options.unitOfWork.execute([{participantId:'decision_basis_read',owner:'libra',repositories:[libra],execute(context){
+        const repo=context.repository(libra.repositoryId),row=repo.invoke('find_basis',{decision_basis_id:decisionBasisId});
+        if(!row)return null;return Object.freeze({basis:Object.freeze({...basisFromRow(row,null),commitMarker:null}),inputSet:reconstructInputSet(repo,row)});
+      }}]).decision_basis_read;
+    },commit(request){
+    const set=buildDecisionInputSet(request?.decisionInputSet);validateHandle(request?.domainFactCommitHandle,set);
+    const markerContract=typeof request.commitMarker==='string'?{commitMarker:request.commitMarker,effectId:null,commitDigest:request.domainFactCommitHandle.payloadDigest}:request.commitMarker;
+    const marker=markerContract?.commitMarker,resultId=request.resultId;
+    if(typeof marker!=='string'||!marker||typeof resultId!=='string'||!resultId||
+        (markerContract.effectId!==null&&markerContract.effectId!==undefined&&(typeof markerContract.effectId!=='string'||!markerContract.effectId))||
+        typeof markerContract.commitDigest!=='string'||!markerContract.commitDigest)fail('P8_DECISION_BASIS_IDENTITY','Commit marker and Result identity are required.');let result,replayed=false;
     const preflight={participantId:'decision_basis_preflight',owner:'execution-foundation',boundBusinessOwner:'libra',repositories:[foundation],execute(context){const repo=context.repository(foundation.repositoryId),found=repo.invoke('find_marker',{commit_marker:marker});if(!found)return;
-      if(found.owner_domain!=='libra'||found.scope_type!=='subject_decision_basis'||found.commit_digest!==request.domainFactCommitHandle.payloadDigest||found.result_schema_ref!==RESULT_SCHEMA)fail('P8_DECISION_BASIS_MARKER_CONFLICT','Commit marker belongs to another Basis.');const stored=repo.invoke('find_result',{result_id:found.result_id});if(!stored||stored.result_digest!==found.result_digest)fail('P8_DECISION_BASIS_REPLAY_CORRUPT','Stored Basis Result is absent.');result=JSON.parse(stored.result_json);if(canonicalDigest(result)!==found.result_digest)fail('P8_DECISION_BASIS_REPLAY_CORRUPT','Stored Basis Result is corrupt.');throw new Replay(result);}};
+      if(found.owner_domain!=='libra'||found.scope_type!=='subject_decision_basis'||found.effect_id!==(markerContract.effectId??null)||found.commit_digest!==markerContract.commitDigest||found.result_schema_ref!==RESULT_SCHEMA)fail('P8_DECISION_BASIS_MARKER_CONFLICT','Commit marker belongs to another Basis.');const stored=repo.invoke('find_result',{result_id:found.result_id});if(!stored||stored.result_digest!==found.result_digest)fail('P8_DECISION_BASIS_REPLAY_CORRUPT','Stored Basis Result is absent.');result=JSON.parse(stored.result_json);if(canonicalDigest(result)!==found.result_digest)fail('P8_DECISION_BASIS_REPLAY_CORRUPT','Stored Basis Result is corrupt.');throw new Replay(result);}};
     const domain={participantId:'decision_basis_domain',owner:'libra',repositories:[libra],execute(context){const repo=context.repository(libra.repositoryId);
       const semantic=repo.invoke('find_semantic',{subject_id:set.subjectSnapshot.subjectId,basis_kind:set.basisKind,input_set_digest:set.inputSetDigest});
       if(semantic){const reconstructed=reconstructInputSet(repo,semantic);if(canonicalJson(reconstructed)!==canonicalJson(set))fail('P8_DECISION_BASIS_INPUT_INTEGRITY','Semantic replay input differs from stored Owner rows.');result=basisFromRow(semantic,marker);replayed=true;return;}
@@ -138,13 +150,16 @@ function createDecisionBasisStore(options){
       else if(repo.invoke('advance_head',{head_revision:nextRevision,head_digest:nextDigest,current_routing_decision_id:nextRouting,current_decision_basis_id:result.decisionBasisId,current_acceptance_spec_id:null,updated_at_ms:context.commitTimeMs,
         subject_id:result.subjectId,expected_head_revision:expected.headRevision,expected_head_digest:expected.headDigest,expected_routing_id:expected.currentRoutingDecisionId,expected_basis_id:expected.currentDecisionBasisId,expected_spec_id:expected.currentAcceptanceSpecId}).changes!==1)fail('P8_DECISION_HEAD_CAS','Decision head CAS failed.');
     }};
-    const finish={participantId:'decision_basis_foundation',owner:'execution-foundation',boundBusinessOwner:'libra',repositories:[foundation],execute(context){const repo=context.repository(foundation.repositoryId),resultDigest=canonicalDigest(result);
-      repo.invoke('insert_result',{result_id:resultId,event_id:null,outcome_kind:'succeeded',result_schema_ref:RESULT_SCHEMA,result_json:canonicalJson(result),result_digest:resultDigest,evidence_schema_ref:null,evidence_json:null,evidence_digest:null,effect_receipt_id:null,committed_at_ms:context.commitTimeMs});
+    const finish={participantId:'decision_basis_foundation',owner:'execution-foundation',boundBusinessOwner:'libra',repositories:[foundation],execute(context){const repo=context.repository(foundation.repositoryId),resultDigest=canonicalDigest(result),
+      evidence=typeof request.evidenceFactory==='function'?request.evidenceFactory(result):request.evidence||null;
+      repo.invoke('insert_result',{result_id:resultId,event_id:request.eventId||null,outcome_kind:'succeeded',result_schema_ref:RESULT_SCHEMA,result_json:canonicalJson(result),result_digest:resultDigest,
+        evidence_schema_ref:evidence?request.evidenceSchemaRef:null,evidence_json:evidence?canonicalJson(evidence):null,evidence_digest:evidence?canonicalDigest(evidence):null,
+        effect_receipt_id:request.effectReceiptId||null,committed_at_ms:context.commitTimeMs});
       if(set.routingAuthoritySnapshot?.authorityKind==='manual_selection'){const intent=set.routingAuthoritySnapshot.manualIntent,receiptId=canonicalDigest({schema:'foundation.command-receipt-id@1',ownerDomain:'libra',commandContract:'libra.select-shelf@1',callerScope:intent.actorId,idempotencyKey:intent.idempotencyKey});
         const found=repo.invoke('find_receipt',{owner_domain:'libra',command_contract:'libra.select-shelf@1',caller_scope:intent.actorId,idempotency_key:intent.idempotencyKey});if(found){if(found.request_digest!==intent.requestDigest||found.target_id!==result.decisionBasisId)fail('P8_DECISION_MANUAL_REPLAY_CONFLICT','Manual selection idempotency key conflicts.');}
         else repo.invoke('insert_receipt',{command_receipt_id:receiptId,owner_domain:'libra',command_contract:'libra.select-shelf@1',caller_scope:intent.actorId,idempotency_key:intent.idempotencyKey,request_digest:intent.requestDigest,
           target_type:'decision_basis',target_id:result.decisionBasisId,result_schema_ref:RESULT_SCHEMA,result_ref_json:canonicalJson(result),result_digest:resultDigest,committed_at_ms:context.commitTimeMs});}
-      repo.invoke('insert_marker',{commit_marker:marker,effect_id:null,owner_domain:'libra',scope_type:'subject_decision_basis',scope_id:result.decisionBasisId,commit_digest:request.domainFactCommitHandle.payloadDigest,
+      repo.invoke('insert_marker',{commit_marker:marker,effect_id:markerContract.effectId??null,owner_domain:'libra',scope_type:'subject_decision_basis',scope_id:result.decisionBasisId,commit_digest:markerContract.commitDigest,
         result_id:resultId,result_schema_ref:RESULT_SCHEMA,result_digest:resultDigest,committed_at_ms:context.commitTimeMs});}};
     try{options.unitOfWork.execute([preflight,domain,finish]);}catch(error){if(error instanceof Replay)return Object.freeze({result:error.result,replayed:true});throw error;}return Object.freeze({result,replayed});
   }});

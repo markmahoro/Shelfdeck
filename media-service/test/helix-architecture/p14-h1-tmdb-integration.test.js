@@ -1372,9 +1372,9 @@ test('H1.1 source and route inventory prove no production fixture or scope expan
   const guard = require('../../scripts/p14-h1-change-scope-guard');
   assert.deepEqual(guard.routeImplementationStatus().counts, {
     total: 114,
-    real: 42,
+    real: 43,
     workerBeta404: 6,
-    unavailable503: 66,
+    unavailable503: 65,
   });
   // H1.1 is a closed historical construction phase. Its dedicated guard fixture
   // verifies the frozen seam; the live worktree is now governed by CURRENT_PLAN.

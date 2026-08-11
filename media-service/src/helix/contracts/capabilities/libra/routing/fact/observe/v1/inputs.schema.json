@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.routing.fact.observe/v1/inputs",
+  "title": "libra.routing.fact.observe@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "routingFactObservationIntent": {
+      "$ref": "#/$defs/routingFactObservationIntent"
+    },
+    "physicalMaterialReadHandleOrIntegrationHandle": {
+      "$ref": "#/$defs/physicalMaterialReadHandleOrIntegrationHandle"
+    }
+  },
+  "required": [
+    "routingFactObservationIntent",
+    "physicalMaterialReadHandleOrIntegrationHandle"
+  ],
+  "$defs": {
+    "routingFactObservationIntent": {
+      "$ref": "helix://contracts/domain-types/RoutingFactObservationIntent/v1",
+      "x-helix-typeExpression": "RoutingFactObservationIntent"
+    },
+    "physicalMaterialReadHandleOrIntegrationHandle": {
+      "oneOf": [
+        {
+          "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1"
+        },
+        {
+          "$ref": "helix://contracts/types/IntegrationHandle/v1"
+        }
+      ],
+      "x-helix-typeExpression": "(PhysicalMaterialReadHandle \\| IntegrationHandle)"
+    }
+  }
+}

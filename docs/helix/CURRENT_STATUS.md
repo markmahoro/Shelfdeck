@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Movie Procurement保持`CLOSED FOR MOVIE`；Arca Shelf配置保持`READY FOR LIBRA`；Libra Intake Acceptance达到`READY / AWAITING ROUTING`。
+Status: Movie Procurement保持`CLOSED FOR MOVIE`；Arca Shelf配置保持`READY FOR LIBRA`；Libra Routing达到`DECISION READY / AWAITING ACCEPTANCE SPEC`。
 
 Last updated: 2026-08-11
 
@@ -11,6 +11,29 @@ Last updated: 2026-08-11
 - 历史记录确认该P14 Sample Library曾包含`film-complete\1917 (2019)`和`film-problem\0.5毫米 (2014)`；当前Movie媒体已被历史E2E消费，`film-complete`为空，`film-problem`仅剩`Thumbs.db`。
 - Movie测试库已扩充为22个场景、1,131个受管regular files、`57,027,472` bytes，受管Reality digest为`966c8fac23f3b99f02fe63566fb93c365e883d8c8ce34ac185eb3a348a098140`。其中12个既有场景保留；G01–G10新增Related替代、精确Settlement授权、逐成员崩溃恢复、Target collision、跨卷、Related Reality变化、同根二次Observation、ISO、真实DVD和1,025项Related的complete-or-fail-closed边界。所有应可播放MKV/MP4/M2TS继续通过bundled ffprobe，G09有界真实VOB为8.108秒；唯一`not_media`仍是M09刻意损坏样本。
 - 测试库manifest已升级为`shelfdeck.movie-test-library-manifest@2`；两份阶段seed受独立size/SHA-256校验，只有manifest指定阶段可以物化。构建器只拥有`ownership.json`列出的`SDT-*`路径并保留历史目录。自动化安全/场景/BDMV/ISO/phase helper测试5/5通过，build末尾完整Reality重验通过。该测试集现在具备后续Libra/Arca高危链路的输入与阶段配方，但产品Planner、Authorization、Effect Recovery或ISO/DVD执行未接线前，不得把“素材存在”宣称为E2E通过。
+
+## 0. Completed implementation — Libra Routing Assessment
+
+正式产品路径现从Intake Accepted Subject签发Routing Preparation Work。Planner只发布immutable Plan；NFO/TMDB Fact Observation及
+Decision Basis Commit都由Event Runtime、Attempt、Permit和Result Binding推进。新增的`libra.routing.fact.observe@1`只获取Policy实际
+声明的`release_year|region|genre|resolved_provider_identity`，NFO缺项后才允许下一份Provider Work；技术错误保持技术失败，Provider
+`not_found|ambiguous`不会被伪装为匹配。薄Routing Coordinator不执行Capability，也不复用大型Formation Coordinator捷径。
+
+Admin Web“文件来源”已支持direct/sorting Policy的typed规则编辑、组合条件、rank调整、预览、CAS发布和revision历史；“上架进度”保持一行一个Subject并展示Routing状态、
+命中规则、目标Shelf、缺失/冲突Fact及Decision revision/digest。只有当前unresolved Subject显示一次性“选择收藏架”，幂等重放返回同一
+Decision且不改写Field Policy。
+
+本地Node.js、临时clean数据库、产品Composition Root E2E通过：direct Field的19个Subject全部resolved到`movie test`；sorting Field
+包含5个Subject，其中4个分别通过NFO或deterministic TMDB Evidence命中经典电影测试、新片测试和普通电影测试，1个Provider
+`not_found`保持unresolved且没有越级命中always，随后通过Admin产品入口手动resolved。最终24个Subject均有resolved current Decision，
+历史中保留1份immutable unresolved Decision；29个Routing Work、5个Fact Observation Event、24个Decision Basis Commit Event全部成功。
+Provider Adapter只被两个无NFO样本调用。Acceptance Spec、Libra Run、Workspace及Arca Shelf Entry均为0。
+完成态数据库关闭并重启后，24个current Decision逐字保持、Provider调用仍为2、Work/Event/Decision计数均未增加，两个测试Field的
+source Reality digest前后一致；手动Decision只在其前一份Policy Decision仍对应current Policy revision时保持终态，新Policy发布仍可重算。
+
+机器合同为112 Capability、98 Result family、180 table、43 Canonical Transaction、114 Admin route，unresolved type ref为0；
+Architecture gate、P8 Front-half、完整`npm test`（240 pass、1个显式环境skip、0 fail）及Admin Web production build通过。
+当前精确边界为`LIBRA ROUTING DECISION READY / AWAITING ACCEPTANCE SPEC`；下一步只能实现Acceptance Spec，不得提前创建Run或Workspace。
 
 ## 0. Completed implementation — Libra Intake Acceptance
 
@@ -193,13 +216,13 @@ Scope、Run、Triage、Candidate或Handoff A合同来绕过自身设计问题；
 | Open business decisions | none |
 | Implementation program | clean-cut Master Plan accepted as direction |
 | Completed phases | P0 — implementation gap audit；P1 — Clean Skeleton and Architecture Guards；P2 — Contract and Schema Baseline；P3 — Persistence and Atomic Foundation；P4 — Execution and Recovery Foundation；P5 — Platform and Integrations；P6 — Horizontal Domains；P7 — Procurement；P8 — Handoff A and Libra front half；P9 — Libra production and delivery；P10 — Handoff B and On-deck；P11 — Arca post-deck；P12 — Product surface；P13 — Operational cutover and E2E-ready package |
-| Current phase | Libra Intake Acceptance and Formation Projection |
-| Current phase status | Handoff A Offer已通过正式Foundation链被Libra接受；19个Subject在Admin Web按一行一个Subject展示；`READY / AWAITING ROUTING` |
+| Current phase | Libra Routing Assessment and Decision |
+| Current phase status | direct/sorting/manual均通过正式Foundation链；24个测试Subject current Decision resolved；`DECISION READY / AWAITING ACCEPTANCE SPEC` |
 | Implementation Gate | standing Local Implementation open for P2–P13；external actions excluded |
-| Current allowed work | 当前节点已完成；保持隔离本地Node.js边界。Routing/Production、Docker及NAS尚未开放 |
+| Current allowed work | 当前节点已完成；保持隔离本地Node.js边界。Acceptance Spec/Production、Docker及NAS尚未开放 |
 | Integration baseline | P13 implementation closure `bd75e7e4`；P12 closure `23e3b930` |
 | Phase worktree | `E:\my_project\emby_third_party-helix-retake` on `codex/helix-first-implementation-retake` |
-| Next action | 单独打开Libra Field→Shelf Routing Policy、Routing Decision与Acceptance Spec；不得恢复大型Coordinator或越过Foundation执行 |
+| Next action | 单独打开Libra Acceptance Spec节点；不得恢复大型Coordinator、创建Production Run或越过Foundation执行 |
 
 P9-01已完成：反向实现审计证明的六段连续性缺口已由Architecture Agent在`PBF-13/PBF-13-R1`中闭合，并经实现侧
 只读复审后原样纳入。Run、Material/Episode scope、Workspace、完整Package、Discard/Cleanup及Off-load Reclaimer均具备

@@ -62,6 +62,7 @@ const {
 const { createShelfRoutingTargetProjection } = require('./helix/domains/arca/public/routing-target-projection');
 const { createLibraRoutingAdminApplication } = require('./helix/domains/libra/public/admin-application');
 const { createFormationQuery } = require('./helix/domains/libra/application/formation-query');
+const { createRoutingManualSelectionService } = require('./helix/domains/libra/application/routing-manual-selection-service');
 const { createSessionTokenService } = require('./helix/platform/public/session-token-service');
 const {
   createAdminCredentialRuntime,
@@ -569,6 +570,14 @@ function createPlatformIntegrationServices(options) {
     isTmdbActive: tmdbRuntime.isTmdbActive,
     providerAdapters: adapters,
     providerRuntimes: runtimes,
+    resolveRoutingHandle(intent) {
+      if (!intent || intent.providerKind !== 'tmdb') return undefined;
+      return handleFor('tmdb', 'libra.routing.fact.observe@1');
+    },
+    async observeRoutingProvider({ intent, integrationHandle }) {
+      return tmdbAdapter.observationPort.execute({ operationId: 'libra.routing.fact.observe@1', integrationHandle,
+        input: { contentProfile: intent.contentProfile, title: intent.candidateDisplayTitle, yearHint: intent.yearHint }, timeoutMs: 10_000 });
+    },
     async searchProviderIdentity(request) {
       const handle = handleFor(
         'tmdb',
@@ -705,6 +714,27 @@ function createPlatformIntegrationServices(options) {
       });
     },
   });
+}
+
+async function readBoundedRoutingNfo(handle) {
+  if (!handle || typeof handle.location !== 'string') throw new CleanServiceHostError('LIBRA_ROUTING_NFO_HANDLE_INVALID', 'Routing NFO Read Handle is invalid.');
+  const opened = await fs.promises.open(handle.location, 'r');
+  try {
+    const before = await opened.stat({ bigint: true });
+    if (!before.isFile() || before.size > 256n * 1024n || Number(before.size) !== Number(handle.expectedSizeBytes)) {
+      throw new CleanServiceHostError('LIBRA_ROUTING_NFO_BOUND', 'Routing NFO must be one bounded regular file.');
+    }
+    const buffer = Buffer.alloc(Number(before.size));
+    const read = await opened.read(buffer, 0, buffer.length, 0);
+    if (read.bytesRead !== buffer.length) throw new CleanServiceHostError('LIBRA_ROUTING_NFO_SHORT_READ', 'Routing NFO changed during bounded read.');
+    const after = await opened.stat({ bigint: true });
+    if (before.ino !== after.ino || before.size !== after.size || before.mtimeNs !== after.mtimeNs || before.ctimeNs !== after.ctimeNs) {
+      throw new CleanServiceHostError('LIBRA_ROUTING_NFO_STAT_FENCE', 'Routing NFO changed during bounded read.');
+    }
+    return buffer.toString('utf8');
+  } finally {
+    await opened.close();
+  }
 }
 
 function cookieValue(header, name) {
@@ -956,9 +986,11 @@ async function createCleanServiceHost(options) {
   const candidateAcceptance = createCandidateAcceptanceConsumer(constructed.applicationDependencies);
   const arcaRoutingTargets = createShelfRoutingTargetProjection(constructed.applicationDependencies);
   const mediaProbe = options.mediaProbe || createCleanMediaProbe();
+  let routingExecution = null;
   const libraRoutingAdmin = createLibraRoutingAdminApplication({
     ...constructed.applicationDependencies,
     readArcaRoutingTargets: arcaRoutingTargets.list,
+    onPolicyPublished(policy) { routingExecution?.routingCoordinator.reconcileField(policy.fieldId, 100); routingExecution?.host.wake(); },
   });
   const formationQuery = createFormationQuery(constructed.applicationDependencies);
   const materialFieldStore = createMaterialFieldStore(
@@ -974,8 +1006,17 @@ async function createCleanServiceHost(options) {
     enumerator: fieldEnumerator,
     mediaProbe,
     candidateDeliveryPort,
+    readArcaRoutingTargets: arcaRoutingTargets.list,
+    readRelatedNfo: options.readRelatedNfo || readBoundedRoutingNfo,
+    observeRoutingProvider: options.routingProviderObservation || platformIntegrations.observeRoutingProvider,
+    resolveRoutingIntegrationHandle: options.routingIntegrationHandleResolver || platformIntegrations.resolveRoutingHandle,
     now: options.now || Date.now,
     onError: options.onExecutionRuntimeError,
+  });
+  routingExecution = procurementExecution;
+  const routingManualSelection = createRoutingManualSelectionService({
+    ...constructed.applicationDependencies,
+    contextReader: procurementExecution.routingContextReader,
   });
   const candidateRejection = createCandidateRejectionConsumer(constructed.applicationDependencies);
   const outboxDispatcherFactory = options.outboxDispatcherFactory || createOutboxDispatcherHost;
@@ -985,6 +1026,7 @@ async function createCleanServiceHost(options) {
     intakeCoordinator: procurementExecution.intakeCoordinator,
     acceptanceConsumer: candidateAcceptance,
     rejectionConsumer: candidateRejection,
+    routingCoordinator: procurementExecution.routingCoordinator,
     executionRuntimeHost: procurementExecution.host,
     onError: options.onExecutionRuntimeError,
   });
@@ -1006,6 +1048,7 @@ async function createCleanServiceHost(options) {
     arcaRuleTemplateAdmin,
     libraRoutingAdmin,
     formationQuery,
+    routingManualSelection,
     platformIntegrationAdmin: platformIntegrations.admin,
     nonce: crypto.randomUUID,
   });

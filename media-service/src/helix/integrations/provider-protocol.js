@@ -192,6 +192,14 @@ function validateInput(kind, input, digest) {
     if (!Number.isSafeInteger(input.limit) || input.limit < 1 || input.limit > 50) fail('P5_PROVIDER_LIMIT', 'Provider person limit is invalid.');
     return Object.freeze({ personHintRef: typedRef(input.personHintRef, 'personHintRef'), limit: input.limit });
   }
+  if (kind === 'routing-fact-observation') {
+    exact(input, ['contentProfile', 'title', 'yearHint'], 'P5_PROVIDER_INPUT_SHAPE');
+    if (input.contentProfile !== 'movie' || typeof input.title !== 'string' || !input.title.trim() || input.title.length > 512 ||
+        (input.yearHint !== null && (!Number.isSafeInteger(input.yearHint) || input.yearHint < 1800 || input.yearHint > 9999))) {
+      fail('P5_PROVIDER_ROUTING_INPUT', 'Routing Fact observation input is invalid.');
+    }
+    return Object.freeze({ contentProfile: input.contentProfile, title: input.title.trim(), yearHint: input.yearHint });
+  }
   if (kind === 'product-identity') {
     exact(input, ['productIdentityRef', 'locale'], 'P5_PROVIDER_INPUT_SHAPE');
     return Object.freeze({ productIdentityRef: typedRef(input.productIdentityRef, 'productIdentityRef'), locale: token(input.locale, 'locale') });
@@ -379,6 +387,27 @@ function validateResult(kind, value, request, digest) {
     validateAcquisitionJobSnapshot(value, request, digest);
   } else if (kind === 'external-material-snapshot') {
     validateExternalMaterialSnapshot(value, request, digest);
+  } else if (kind === 'routing-candidate-list') {
+    if (!Array.isArray(value) || value.length > 20) fail('P5_PROVIDER_ROUTING_RESULT_BOUND', 'Routing candidate list is invalid.');
+    const providerKeys = new Set();
+    value.forEach((candidate, index) => {
+      exact(candidate, ['providerKey', 'title', 'originalTitle', 'releaseYear', 'regionCodes', 'genreCodes'], 'P5_PROVIDER_ROUTING_RESULT_SHAPE');
+      if (typeof candidate.providerKey !== 'string' || !/^\d+$/.test(candidate.providerKey) || providerKeys.has(candidate.providerKey) ||
+          typeof candidate.title !== 'string' || candidate.title.length > 512 ||
+          typeof candidate.originalTitle !== 'string' || candidate.originalTitle.length > 512 ||
+          (candidate.releaseYear !== null && (!Number.isSafeInteger(candidate.releaseYear) || candidate.releaseYear < 1800 || candidate.releaseYear > 9999)) ||
+          !Array.isArray(candidate.regionCodes) || candidate.regionCodes.length > 32 ||
+          !Array.isArray(candidate.genreCodes) || candidate.genreCodes.length > 64) {
+        fail('P5_PROVIDER_ROUTING_RESULT', 'Routing candidate is invalid.', { index });
+      }
+      candidate.regionCodes.forEach((item) => {
+        if (typeof item !== 'string' || !/^[A-Z]{2}$/.test(item)) fail('P5_PROVIDER_ROUTING_REGION', 'Routing region code is invalid.', { index });
+      });
+      candidate.genreCodes.forEach((item) => token(item, 'routingCandidate.genreCodes.' + index));
+      requireSortedUnique(candidate.regionCodes, (item) => item, 'P5_PROVIDER_ROUTING_REGION_ORDER');
+      requireSortedUnique(candidate.genreCodes, (item) => item, 'P5_PROVIDER_ROUTING_GENRE_ORDER');
+      providerKeys.add(candidate.providerKey);
+    });
   } else fail('P5_PROVIDER_RESULT_KIND', 'Provider result kind is unsupported.');
   return freezeClone(value);
 }

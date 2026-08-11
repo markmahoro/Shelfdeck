@@ -113,7 +113,7 @@ function auditP8Exit(options) {
   const evidence = { baselineCommit:P8_BASELINE, auditedCommit:git(repositoryRoot, ['rev-parse','HEAD']), approvedArchitectureCommit:APPROVED_ARCHITECTURE_COMMIT,
     approvedSsotBlobDigest:sha256(Buffer.from(approvedSsot)), ssotAggregateDigest:sourceMap.aggregateDigest, contractAggregateDigest:contractBaseline.aggregateDigest,
     changedFileCount:changedFiles.length, changedPathClasses:classes, authorizedSsotCommitCount:ssotCommits.length,
-    capabilityCount:112, resultFamilyCount:97, tableCount:schemaManifest.tables.length, transactionCount:transactionInventory.targetCount,
+    capabilityCount:112, resultFamilyCount:98, tableCount:schemaManifest.tables.length, transactionCount:transactionInventory.targetCount,
     libraTableCount:libraTables.length, libraFrontHalfCapabilityCount:7, prohibitedActionsRun:[] };
   return { ok:findings.length === 0, scope:'P8_EXIT_AUDIT_LOCAL_LIBRA_FRONT_HALF_ONLY', evidence, evidenceDigest:digestValue(evidence), findings };
 }

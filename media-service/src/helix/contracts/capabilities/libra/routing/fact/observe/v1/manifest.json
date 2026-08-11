@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "libra.routing.fact.observe@1",
+  "contractVersion": 1,
+  "ownerScope": "libra",
+  "effectClass": "pure_observation",
+  "inputPorts": {
+    "routingFactObservationIntent": {
+      "schemaRef": "helix://contracts/capabilities/libra.routing.fact.observe/v1/inputs#/$defs/routingFactObservationIntent",
+      "required": true,
+      "cardinality": "one"
+    },
+    "physicalMaterialReadHandleOrIntegrationHandle": {
+      "schemaRef": "helix://contracts/capabilities/libra.routing.fact.observe/v1/inputs#/$defs/physicalMaterialReadHandleOrIntegrationHandle",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/libra.routing.fact.observe/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/libra.routing.fact.observe/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/libra.routing.fact.observe/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/libra.routing.fact.observe/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/libra.routing.fact.observe/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/libra.routing.fact.observe/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/libra.routing.fact.observe/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.5",
+    "line": 9427,
+    "lineDigest": "25bb31e81e97181b40cf52697c8292cc2abe1a507850a6edc7d44754a922eb90"
+  }
+}

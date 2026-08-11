@@ -3,9 +3,11 @@
   "$id": "helix://contracts/types/DecisionBasisRevision/v1",
   "title": "DecisionBasisRevision@1",
   "x-helix-ssotRefs": [
+    "6.4.7.1",
     "8.6.19"
   ],
   "x-helix-envelopeRef": "helix://contracts/types/DomainFactEnvelope/v1",
+  "x-helix-maxCanonicalBytes": 16384,
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -55,10 +57,65 @@
       "type": "integer",
       "minimum": 0
     },
+    "decisionBasisId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
     "subjectId": {
       "type": "string",
       "minLength": 1,
       "maxLength": 256
+    },
+    "basisKind": {
+      "type": "string",
+      "enum": [
+        "routing",
+        "acceptance_spec"
+      ]
+    },
+    "basisRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "expectedHeadRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "expectedHeadSnapshotDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "readiness": {
+      "type": "string",
+      "enum": [
+        "ready",
+        "unresolved"
+      ]
+    },
+    "unresolvedReasonCode": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "routingDecisionId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "queryResultSetDigest": {
       "type": "string",
@@ -66,11 +123,47 @@
       "pattern": "^[a-f0-9]{64}$"
     },
     "routingInputDigest": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "specInputDigest": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "productScopeDigest": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "inputSetDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
-    "specInputDigest": {
+    "basisDigest": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
@@ -88,9 +181,20 @@
     "factDigest",
     "commitMarker",
     "committedAtMs",
+    "decisionBasisId",
     "subjectId",
+    "basisKind",
+    "basisRevision",
+    "expectedHeadRevision",
+    "expectedHeadSnapshotDigest",
+    "readiness",
+    "unresolvedReasonCode",
+    "routingDecisionId",
     "queryResultSetDigest",
     "routingInputDigest",
-    "specInputDigest"
+    "specInputDigest",
+    "productScopeDigest",
+    "inputSetDigest",
+    "basisDigest"
   ]
 }

@@ -12,12 +12,12 @@
     "8.6.19",
     "8.9.5"
   ],
-  "targetCount": 97,
+  "targetCount": 98,
   "entryFiles": [
     "result-family-inventory/entries-001-024.json",
     "result-family-inventory/entries-025-048.json",
     "result-family-inventory/entries-049-072.json",
     "result-family-inventory/entries-073-096.json",
-    "result-family-inventory/entries-097-097.json"
+    "result-family-inventory/entries-097-098.json"
   ]
 }

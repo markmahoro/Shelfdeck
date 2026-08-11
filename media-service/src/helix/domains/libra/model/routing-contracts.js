@@ -8,8 +8,46 @@ function fail(code,message,details){throw new LibraDecisionContractError(code,me
 function without(value,...fields){return Object.fromEntries(Object.entries(value).filter(([key])=>!fields.includes(key)));}
 function digestValid(value){return typeof value==='string'&&/^[a-f0-9]{64}$/.test(value);}
 function factValues(facts,kind){return facts.filter((fact)=>fact.factKind===kind);}
-function scalarFact(fact){if(fact.factKind==='material_field')return fact.fieldId;if(fact.factKind==='release_year')return fact.year;return fact.value;}
+function scalarFact(fact){
+  if(fact.factKind==='material_field')return fact.fieldId;
+  if(fact.factKind==='release_year')return fact.year;
+  if(fact.factKind==='region')return fact.countryCodes;
+  if(fact.factKind==='genre')return fact.genreCodes;
+  if(fact.factKind==='resolved_provider_identity')return Object.freeze({provider:fact.provider,namespace:fact.namespace,
+    providerKey:fact.providerKey,identityRevision:fact.identityRevision,identityDigest:fact.identityDigest});
+  return fact.value;
+}
 function expressionDigest(expression){return canonicalDigest(expression);}
+
+function validatePredicateContract(expression){
+  const scalarKinds=new Set(['content_profile','structure_kind','material_field']);
+  const setKinds=new Set(['region','genre']);
+  const allowed=expression.factKind==='release_year'?new Set(['eq','one_of','gte','lte','exists']):
+    scalarKinds.has(expression.factKind)||setKinds.has(expression.factKind)||expression.factKind==='resolved_provider_identity'?
+      new Set(['eq','one_of','exists']):new Set();
+  if(!allowed.has(expression.operator))fail('P8_ROUTING_PREDICATE_OPERATOR','Routing operator is not valid for this Fact kind.');
+  if(expression.operator==='exists'){
+    if(typeof expression.expectedValue!=='boolean')fail('P8_ROUTING_PREDICATE_VALUE','exists requires a boolean expected value.');
+    return;
+  }
+  if(expression.operator==='one_of'&&(!Array.isArray(expression.expectedValue)||expression.expectedValue.length<1||expression.expectedValue.length>64))
+    fail('P8_ROUTING_PREDICATE_VALUE','one_of requires 1..64 expected values.');
+  if(expression.factKind==='release_year'){
+    const values=expression.operator==='one_of'?expression.expectedValue:[expression.expectedValue];
+    if(values.some((value)=>!Number.isSafeInteger(value)||value<1870||value>3000))fail('P8_ROUTING_PREDICATE_VALUE','release_year requires bounded integers.');
+  }else if(scalarKinds.has(expression.factKind)){
+    const values=expression.operator==='one_of'?expression.expectedValue:[expression.expectedValue];
+    if(values.some((value)=>typeof value!=='string'||!value))fail('P8_ROUTING_PREDICATE_VALUE','Scalar Routing Facts require text values.');
+  }else if(setKinds.has(expression.factKind)){
+    if(!Array.isArray(expression.expectedValue)||expression.expectedValue.length<1||expression.expectedValue.some((value)=>typeof value!=='string'||!value))
+      fail('P8_ROUTING_PREDICATE_VALUE','Set Routing Facts require a non-empty text set.');
+  }else if(expression.factKind==='resolved_provider_identity'){
+    const values=expression.operator==='one_of'?expression.expectedValue:[expression.expectedValue];
+    if(values.some((value)=>!value||typeof value!=='object'||Array.isArray(value)||typeof value.provider!=='string'||
+      typeof value.namespace!=='string'||typeof value.providerKey!=='string'||!Number.isSafeInteger(value.identityRevision)||
+      typeof value.identityDigest!=='string'))fail('P8_ROUTING_PREDICATE_VALUE','Provider identity expected value is invalid.');
+  }
+}
 
 function validateExpression(expression,state={depth:1,count:{value:0}}){
   if(!expression||typeof expression!=='object'||Array.isArray(expression)||state.depth>4||state.count.value>=64)fail('P8_ROUTING_EXPRESSION_BOUND','Routing expression exceeds the closed AST bound.');
@@ -18,6 +56,7 @@ function validateExpression(expression,state={depth:1,count:{value:0}}){
   if(expression.nodeKind==='predicate'){
     if(!['content_profile','structure_kind','material_field','release_year','region','genre','resolved_provider_identity'].includes(expression.factKind)||
         !['eq','one_of','gte','lte','exists'].includes(expression.operator)||!Object.hasOwn(expression,'expectedValue'))fail('P8_ROUTING_PREDICATE','Routing predicate is outside the closed vocabulary.');
+    validatePredicateContract(expression);
   }else if(expression.nodeKind==='all'||expression.nodeKind==='any'){
     if(!Array.isArray(expression.children)||expression.children.length<1||expression.children.length>16)fail('P8_ROUTING_EXPRESSION_CHILDREN','all/any requires 1..16 children.');
     expression.children.forEach((child)=>validateExpression(child,{depth:state.depth+1,count:state.count}));
@@ -30,6 +69,12 @@ function evaluatePredicate(expression,facts){
   const candidates=factValues(facts,expression.factKind);if(candidates.length!==1)return 'unknown';const actual=scalarFact(candidates[0]);
   if(expression.operator==='exists')return (actual!==null&&actual!==undefined)===(expression.expectedValue===true)?'true':'false';
   if(actual===null||actual===undefined)return 'unknown';
+  if(['region','genre'].includes(expression.factKind)){
+    if(!Array.isArray(actual)||!Array.isArray(expression.expectedValue))return 'unknown';
+    const left=[...actual].sort(utf8Compare),right=[...expression.expectedValue].sort(utf8Compare);
+    if(expression.operator==='eq')return JSON.stringify(left)===JSON.stringify(right)?'true':'false';
+    return right.some((item)=>left.includes(item))?'true':'false';
+  }
   if(expression.operator==='eq')return JSON.stringify(actual)===JSON.stringify(expression.expectedValue)?'true':'false';
   if(expression.operator==='one_of')return Array.isArray(expression.expectedValue)&&expression.expectedValue.some((item)=>JSON.stringify(item)===JSON.stringify(actual))?'true':'false';
   if(typeof actual!=='number'||typeof expression.expectedValue!=='number')return 'unknown';

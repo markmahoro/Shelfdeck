@@ -64,10 +64,14 @@ function createLibraRoutingAdminApplication(options) {
       ));
     },
     publish(fieldId, body) {
-      return invoke(() => store.publish(
+      return invoke(() => {
+        const result = store.publish(
         command(fieldId, body),
         options.readArcaRoutingTargets(),
-      ));
+        );
+        options.onPolicyPublished?.(result.policy);
+        return result;
+      });
     },
   });
 }

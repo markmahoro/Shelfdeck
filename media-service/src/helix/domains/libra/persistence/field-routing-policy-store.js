@@ -96,9 +96,22 @@ function validateFacts(facts) {
       text(fact.fieldId, path + '.fieldId');
     } else if (fact.factKind === 'release_year') {
       exact(fact, ['factKind', 'year'], 'P14_ROUTING_FACT', path);
-      if (!Number.isSafeInteger(fact.year) || fact.year < 1800 || fact.year > 9999) {
+      if (!Number.isSafeInteger(fact.year) || fact.year < 1870 || fact.year > 3000) {
         fail('P14_ROUTING_FACT', 'Preview release year is invalid.', { path });
       }
+    } else if (fact.factKind === 'region') {
+      exact(fact, ['factKind', 'countryCodes'], 'P14_ROUTING_FACT', path);
+      if (!Array.isArray(fact.countryCodes) || fact.countryCodes.length < 1 || fact.countryCodes.length > 64 ||
+          fact.countryCodes.some((value) => typeof value !== 'string')) fail('P14_ROUTING_FACT', 'Preview region Fact is invalid.', { path });
+    } else if (fact.factKind === 'genre') {
+      exact(fact, ['factKind', 'genreCodes'], 'P14_ROUTING_FACT', path);
+      if (!Array.isArray(fact.genreCodes) || fact.genreCodes.length < 1 || fact.genreCodes.length > 64 ||
+          fact.genreCodes.some((value) => typeof value !== 'string')) fail('P14_ROUTING_FACT', 'Preview genre Fact is invalid.', { path });
+    } else if (fact.factKind === 'resolved_provider_identity') {
+      exact(fact, ['factKind', 'provider', 'namespace', 'providerKey', 'identityRevision', 'identityDigest'], 'P14_ROUTING_FACT', path);
+      text(fact.provider, path + '.provider'); text(fact.namespace, path + '.namespace'); text(fact.providerKey, path + '.providerKey');
+      revision(fact.identityRevision, path + '.identityRevision', 1);
+      if (!DIGEST.test(fact.identityDigest)) fail('P14_ROUTING_FACT', 'Preview Provider identity digest is invalid.', { path });
     } else {
       exact(fact, ['factKind', 'value'], 'P14_ROUTING_FACT', path);
       if (!['string', 'number', 'boolean'].includes(typeof fact.value)) {
@@ -473,7 +486,7 @@ function createFieldRoutingPolicyStore(options) {
         policyRevision: prepared.nextRevision,
         policyDigest: prepared.policyDigest,
       },
-      intendedConsumers: ['read-model'],
+      intendedConsumers: ['libra'],
     };
     const committed = commandCommit.execute({
       command: {

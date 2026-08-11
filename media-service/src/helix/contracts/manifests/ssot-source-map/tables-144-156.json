@@ -12,7 +12,7 @@
       "constraintsContract": "一次Acquisition只属于一个Source/config revision；Scope JSON上限`16 KiB`；`UNIQUE(perception_source_id) WHERE state='active'`；`initial_cursor_revision=0`只是“创建时不存在cursor row”的逻辑CAS sentinel，不是FK pointer；Process历史不覆盖",
       "source": {
         "section": "8.5.13",
-        "line": 9069,
+        "line": 9111,
         "lineDigest": "d4bfdbe0156ddb39ce060728f319fffe67e356241e77aed250f6fbb046790f3b"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "`PK(perception_source_id,revision)`；revision从1递增且不重置；Source current pointer显式复合FK引用；仅Source从未同步时expected revision为0，配置/scope不兼容的后续Acquisition可令`cursor_in=null`但仍CAS当前非零revision；不覆盖历史",
       "source": {
         "section": "8.5.13",
-        "line": 9070,
+        "line": 9112,
         "lineDigest": "d904ca3d03d48f36f837049824d373257b78c8abafb50cbbd529238ab700d8bb"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "`UNIQUE(perception_acquisition_id,page_ordinal)`、`UNIQUE(commit_marker)`；Result JSON上限`64 KiB`且保存不含自digest字段的原始`perceptionIds/insertedCount/duplicateCount` typed result，`result_digest=SHA-256(JCS(result_json))`并与Event Result相同；与Record、Relation、cursor head、marker、Event Result和Outbox同事务",
       "source": {
         "section": "8.5.13",
-        "line": 9071,
+        "line": 9113,
         "lineDigest": "fcfc7197ff64ee5d93a4cc71259da5b8142c3c10d80f1432849322ae26b9d9da"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "immutable；`record_digest`覆盖Record标量与按键排序的Identity Anchor set；`UNIQUE(perception_source_id,source_record_key,source_record_revision,source_record_digest)`；Canonical rating非空时`CHECK integer 1..5`且`0`禁止，`watched_state`只允许`NULL|0|1`；CommitParticipant要求correction/retraction在同页各有匹配的outgoing `supersedes/retracts` relation；`INDEX(source_kind,source_record_key,committed_at_ms)`",
       "source": {
         "section": "8.5.13",
-        "line": 9072,
+        "line": 9114,
         "lineDigest": "8e303ca99674a3ca75bf36adb6174757f17d8bca03407b94cbe84c5014dbfcbb"
       }
     },
@@ -56,7 +56,7 @@
       "constraintsContract": "`PK(perception_id,anchor_kind,anchor_value)`；结构化Anchor不可退化为字符串数组；`INDEX(anchor_kind,anchor_value)`",
       "source": {
         "section": "8.5.13",
-        "line": 9073,
+        "line": 9115,
         "lineDigest": "5ba8fa35d17ba37da2917305f2d5a594609c85a4fc1975275b094524c6aa8352"
       }
     },
@@ -67,7 +67,7 @@
       "constraintsContract": "immutable；source不得等于target；`UNIQUE(relation_kind,source_perception_id,target_perception_id)`；`duplicate_of`使用规范化pair，`supersedes|retracts`保持方向性",
       "source": {
         "section": "8.5.13",
-        "line": 9074,
+        "line": 9116,
         "lineDigest": "0ad399b268cd03ae3b531454bc9ae2b22e060b9e7987c882e71c99f580ce6481"
       }
     },
@@ -78,7 +78,7 @@
       "constraintsContract": "`UNIQUE(query_contract,query_input_digest,revision,resolution_id)`供head精确复合FK；`winning_perception_id`显式FK；found必须有winner且reason为NULL，not_found必须无winner并具有`no_matching_record|requested_fact_absent|strongest_value_conflict`之一；`result_json`保存完整typed `PerceptionResolutionRevision`且≤`16 KiB`，digest使用统一JCS basis；current pointer/index按query digest",
       "source": {
         "section": "8.5.13",
-        "line": 9075,
+        "line": 9117,
         "lineDigest": "f98a2d972824490f42e6689ac062318b46d0ef72ac2d5a24d9c4f8ab16096adf"
       }
     },
@@ -89,7 +89,7 @@
       "constraintsContract": "`PK(query_contract,query_input_digest)`；四列显式复合FK引用同一`perception_resolution_revisions(query_contract,query_input_digest,revision,resolution_id)`；head CAS与新revision/typed result在同一Resolution Commit事务；Resolution Facade只读head，不在热路径计算`MAX(revision)`",
       "source": {
         "section": "8.5.13",
-        "line": 9076,
+        "line": 9118,
         "lineDigest": "370fe0fe0d9cc2ac7afc1ee52ccfbbd77aae3f429732328708c53ed707821c38"
       }
     },
@@ -100,7 +100,7 @@
       "constraintsContract": "`current_revision`显式复合FK引用`people_person_revisions`；nullable Preference/Reference pointer分别显式复合FK引用对应revision表；`current_reference_revision IS NULL`表示尚无Reference revision，Commit逻辑expected `0`映射为“期望不存在”而不是存储revision 0；两个Projection checkpoint字段均`NOT NULL`，`CHECK(current_reference_projection_revision>=1)`且digest为64位lowercase hex；Person成立时以revision `1`和无Reference语义payload的digest初始化；与child表的循环FK均`DEFERRABLE INITIALLY DEFERRED`；`INDEX(status,person_id)`",
       "source": {
         "section": "8.5.13",
-        "line": 9077,
+        "line": 9119,
         "lineDigest": "298821032aa54b23e61d203ae67007da4ef42079464bcde370ceccf897f6e2b3"
       }
     },
@@ -111,7 +111,7 @@
       "constraintsContract": "`PK(person_id,revision)`；immutable；direct Registration保存完整Direct Decision ID/digest且Candidate列全NULL；Candidate acceptance保存Acceptance Decision ID/digest及精确Candidate revision/payload；CHECK禁止两种来源混合；Person是全局Registry，不持久化媒体`content_scope`",
       "source": {
         "section": "8.5.13",
-        "line": 9078,
+        "line": 9120,
         "lineDigest": "ed43b3ad2a8d964927a2e3cc2f2bb006969c4a222f556470c21d7ef8dd576b33"
       }
     },
@@ -122,7 +122,7 @@
       "constraintsContract": "`PK(person_id,revision,alias_normalized)`；`FOREIGN KEY(person_id,revision)`引用精确Person revision；`INDEX(alias_normalized)`",
       "source": {
         "section": "8.5.13",
-        "line": 9079,
+        "line": 9121,
         "lineDigest": "bd43e6bd7b8f61d3edeb1afd1af2b94acccb8ba986a1cb2a3493948cf2997a51"
       }
     },
@@ -133,7 +133,7 @@
       "constraintsContract": "`PK(person_id,revision,provider,namespace,provider_key)`；`FOREIGN KEY(person_id,revision)`引用精确Person revision；stable identity active unique",
       "source": {
         "section": "8.5.13",
-        "line": 9080,
+        "line": 9122,
         "lineDigest": "5d4f81f5886e3419c2a126e26572983be1a51a54e63e5483797cbd2f7bc76734"
       }
     },
@@ -144,7 +144,7 @@
       "constraintsContract": "`PK(person_id,revision)`；level枚举`-2..2`；current pointer由`people_persons.current_preference_revision`维护，禁止热路径`MAX(revision)`",
       "source": {
         "section": "8.5.13",
-        "line": 9081,
+        "line": 9123,
         "lineDigest": "b4a09dbb667fe1048ff44b6f98529e82d1c3abd77d084d0d35760f75275c0977"
       }
     }

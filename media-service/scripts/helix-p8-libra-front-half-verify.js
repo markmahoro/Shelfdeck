@@ -15,13 +15,14 @@ function manifests(){const root=path.join(serviceRoot,'src','helix','contracts',
 
 const p8Files=fs.readdirSync(testRoot).filter((name)=>/^p8-.*\.test\.js$/.test(name)).sort().map((name)=>path.join('test','helix-architecture',name));
 const fixtures=spawn(['--test',...p8Files]),libraFrontHalfRefs=new Set(['libra.decision.query.resolve@1','libra.decision_basis.commit@1','libra.intake.candidate.verify@1',
-  'libra.intake.material.verify@1','libra.intake.binding.resolve@1','libra.intake.accept.commit@1','libra.intake.rejection.commit@1']);
+  'libra.intake.material.verify@1','libra.intake.binding.resolve@1','libra.intake.accept.commit@1','libra.intake.rejection.commit@1',
+  'libra.routing.fact.observe@1']);
 const registered=manifests().filter((item)=>libraFrontHalfRefs.has(item.capabilityRef)).sort((a,b)=>a.capabilityRef.localeCompare(b.capabilityRef));
 // Keep the routine harness bounded; the phase Exit Audit runs the heavier
 // P4-P7 aggregates once, while Architecture and Persistence protect every run.
 const regressions={architecture:gate('scripts/helix-architecture-verify.js'),persistence:gate('scripts/helix-p3-persistence-verify.js')};
 const findings=[];if(fixtures.status!==0)findings.push({code:'P8_FIXTURE_FAILED',stdout:fixtures.stdout.slice(-10000),stderr:fixtures.stderr.slice(-4000)});
-if(registered.length!==7)findings.push({code:'P8_CAPABILITY_COUNT_MISMATCH',actual:registered.length});for(const [name,value] of Object.entries(regressions))if(!value.ok)findings.push({code:'P8_REGRESSION_GATE_FAILED',gate:name});
+if(registered.length!==8)findings.push({code:'P8_CAPABILITY_COUNT_MISMATCH',actual:registered.length});for(const [name,value] of Object.entries(regressions))if(!value.ok)findings.push({code:'P8_REGRESSION_GATE_FAILED',gate:name});
 const prohibitedActionsRun=[...new Set(Object.values(regressions).flatMap((value)=>value.prohibitedActionsRun))];if(prohibitedActionsRun.length)findings.push({code:'P8_PROHIBITED_ACTION_REPORTED',actions:prohibitedActionsRun});
 const result={ok:findings.length===0,scope:'P8_LOCAL_ISOLATED_LIBRA_FRONT_HALF',libraFrontHalf:{fixtureFileCount:p8Files.length,fixturesOk:fixtures.status===0,
   capabilityCount:registered.length,capabilities:registered.map(({capabilityRef,effectClass,packageDigest})=>({capabilityRef,effectClass,packageDigest}))},regressions,prohibitedActionsRun,findings};

@@ -553,6 +553,7 @@ const contracts = {
   VersionedQueryResult: ['EvidenceEnvelope', 'providerDomain,queryContract,queryVersion,inputDigest,resultKind,resultRevision,resultDigest,expiresAtMs'],
   ResolvedProductIdentity: ['EvidenceEnvelope', 'subjectId,structureKind,contentProfile,identityKind,providerIdentities,providerIdentitySetDigest,exactSeasonContinuityClaims,exactSeasonContinuitySetDigest,displayIdentity,identityDigest'],
   MetadataObservation: ['EvidenceEnvelope', 'identityDigest,contentProfile,descriptiveFacts,providerIdentitySet,peopleHints,artifactHints'],
+  RoutingFactObservation: [null, 'observationId,intentId,subjectId,sourceKind,sourceRef,result,reasonCode?,facts,candidateMatchCount,evidenceDigest,observationDigest'],
   DecisionBasisRevision: ['DomainFactEnvelope', 'subjectId,queryResultSetDigest,routingInputDigest,specInputDigest'],
   FrameArtifactSet: ['ManifestEnvelope', 'libraRunId,workspaceId,sourceMaterialDigest,samplingPlanDigest,outputTargetDigest,frameCount,frameMemberSetDigest,frameSetArtifactHandle'],
   WesternAnalysisResult: ['EvidenceEnvelope', 'libraRunId,runExecutionBasisDigest,frameArtifactSetDigest,embeddingSetDigest,clusterSetDigest,analysisSpecDigest,analysisVariantRef,resultArtifactHandle,resultDigest'],
@@ -627,6 +628,8 @@ special['OnDeckCommitResult.offloadCompletionFact'] = ref('OffloadCompletionFact
 function buildResultTypeSchema(name, [base, fieldList]) {
   if (name === 'ArtifactManifestVerification') return artifactManifestVerificationSchema();
   if (name === 'MetadataObservation') return metadataObservationSchema();
+  if (name === 'RoutingFactObservation') return routingFactObservationSchema();
+  if (name === 'DecisionBasisRevision') return decisionBasisRevisionSchema();
   if (name === 'FrameArtifactSet') return frameArtifactSetSchema();
   if (name === 'WesternAnalysisResult') return westernAnalysisResultSchema();
   if (name === 'ProductMetadataDraft') return productMetadataDraftSchema();
@@ -763,6 +766,58 @@ function metadataObservationSchema() {
     descriptiveFacts: boundedRecord('descriptive-facts'), providerIdentitySet: providerIdentitySetRecord(),
     peopleHints: arrayOf(snapshot('people-hint'), 1024), artifactHints: emptyArtifactHints()
   }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
+}
+
+function routingFactObservationSchema() {
+  const common = {
+    sourceObjectId: id(), sourceRevision: positiveInteger(), schemaRef: { const: 'RoutingDecisionFact@1' },
+    factDigest: digest(),
+  };
+  const fact = {
+    oneOf: [
+      object({ ...common, factKind: { const: 'release_year' }, year: { type: 'integer', minimum: 1870, maximum: 3000 } }),
+      object({ ...common, factKind: { const: 'region' }, countryCodes: {
+        ...arrayOf(text({ pattern: '^[A-Z]{2}$' }), 32), minItems: 1, uniqueItems: true,
+        'x-helix-canonicalOrder': 'UTF-8(value)',
+      } }),
+      object({ ...common, factKind: { const: 'genre' }, genreCodes: {
+        ...arrayOf(text({ maxLength: 128 }), 64), minItems: 1, uniqueItems: true,
+        'x-helix-canonicalOrder': 'UTF-8(value)',
+      } }),
+      object({ ...common, factKind: { const: 'resolved_provider_identity' }, provider: { const: 'tmdb' },
+        namespace: { const: 'tmdb_movie' }, providerKey: text({ maxLength: 128 }),
+        identityRevision: positiveInteger(), identityDigest: digest() }),
+    ],
+  };
+  const shared = {
+    schemaRef: { const: typeId('RoutingFactObservation') }, schemaVersion: { const: 1 },
+    observationId: id(), intentId: id(), subjectId: id(), sourceKind: enumText('related_nfo', 'provider'),
+    sourceRef: text({ maxLength: 2048 }), candidateMatchCount: nonNegativeInteger(), evidenceDigest: digest(),
+    observationDigest: digest(),
+  };
+  return {
+    $schema: DRAFT, $id: typeId('RoutingFactObservation'), title: 'RoutingFactObservation@1',
+    'x-helix-ssotRefs': ['5.1.3', '5.4.3', '8.6.5', '8.6.19'],
+    'x-helix-maxCanonicalBytes': 64 * 1024,
+    oneOf: [
+      object({ ...shared, result: { const: 'observed' }, reasonCode: { type: 'null' },
+        facts: { ...arrayOf(fact, 4), minItems: 1, uniqueItems: true } }),
+      object({ ...shared, result: { const: 'not_found' }, reasonCode: enumText('requested_fact_absent', 'provider_no_match'),
+        facts: { type: 'array', maxItems: 0 } }),
+      object({ ...shared, result: { const: 'ambiguous' }, reasonCode: enumText('provider_identity_ambiguous', 'source_fact_conflicting'),
+        facts: { type: 'array', maxItems: 0 }, candidateMatchCount: { type: 'integer', minimum: 2 } }),
+    ],
+  };
+}
+
+function decisionBasisRevisionSchema() {
+  return resultSchema('DecisionBasisRevision', 'DomainFactEnvelope', {
+    decisionBasisId: id(), subjectId: id(), basisKind: enumText('routing', 'acceptance_spec'),
+    basisRevision: positiveInteger(), expectedHeadRevision: nonNegativeInteger(), expectedHeadSnapshotDigest: digest(),
+    readiness: enumText('ready', 'unresolved'), unresolvedReasonCode: nullable(text()),
+    routingDecisionId: nullable(id()), queryResultSetDigest: digest(), routingInputDigest: nullable(digest()),
+    specInputDigest: nullable(digest()), productScopeDigest: nullable(digest()), inputSetDigest: digest(), basisDigest: digest(),
+  }, { 'x-helix-maxCanonicalBytes': 16 * 1024 });
 }
 
 function frameArtifactSetSchema() {

@@ -36,7 +36,8 @@ const PROCUREMENT_ENABLED = Object.freeze(['procurement.field.observation.page.c
   'procurement.triage.identity_claim.resolve@1','procurement.triage.primary_manifest.build@1','procurement.candidate.publish@1']);
 const SHARED_ENABLED = Object.freeze(['shared.material.media.probe@1']);
 const LIBRA_ENABLED = Object.freeze(['libra.intake.candidate.verify@1','libra.intake.material.verify@1',
-  'libra.intake.binding.resolve@1','libra.intake.accept.commit@1','libra.intake.rejection.commit@1']);
+  'libra.intake.binding.resolve@1','libra.intake.accept.commit@1','libra.intake.rejection.commit@1',
+  'libra.routing.fact.observe@1','libra.decision_basis.commit@1']);
 const ENABLED = Object.freeze([...PROCUREMENT_ENABLED, ...SHARED_ENABLED, ...LIBRA_ENABLED]);
 
 function collectSchemas(root) {
@@ -67,6 +68,12 @@ function findMountScopeId(value,seen=new Set()){
   for(const child of Array.isArray(value)?value:Object.values(value)){const found=findMountScopeId(child,seen);if(found)return found;}
   return null;
 }
+function findIntegrationId(value,seen=new Set()){
+  if(!value||typeof value!=='object'||seen.has(value))return null;seen.add(value);
+  if(typeof value.integrationId==='string'&&value.integrationId&&typeof value.allowedOperation==='string')return value.integrationId;
+  for(const child of Array.isArray(value)?value:Object.values(value)){const found=findIntegrationId(child,seen);if(found)return found;}
+  return null;
+}
 
 function createProcurementExecutionRuntime(options) {
   const contractsRoot = options.contractsRoot || path.resolve(__dirname, '../contracts');
@@ -75,6 +82,11 @@ function createProcurementExecutionRuntime(options) {
   const manifests = Object.fromEntries(ENABLED.map((ref) => [ref, manifest(contractsRoot, ref)]));
   const procurementConstruction = ProcurementExecutionRegistration();
   const libraConstruction = LibraExecutionRegistration();
+  const libraOptions = Object.freeze({ ...options,
+    readArcaRoutingTargets: options.readArcaRoutingTargets || (() => Object.freeze([])),
+    readRelatedNfo: options.readRelatedNfo || (async () => { throw new Error('Routing NFO adapter is unavailable.'); }),
+    observeRoutingProvider: options.observeRoutingProvider || (async () => { throw new Error('Routing Provider adapter is unavailable.'); }),
+    resolveRoutingIntegrationHandle: options.resolveRoutingIntegrationHandle || (() => undefined) });
   const capabilityRegistration = procurementConstruction.createCapabilityRegistration({ ...options, now });
   const ports = capabilityRegistration.ports;
   const procurementRegistrations = capabilityRegistration.createRegistrations({ enabledCapabilityRefs: PROCUREMENT_ENABLED,
@@ -85,7 +97,7 @@ function createProcurementExecutionRuntime(options) {
     semanticValidator:Object.freeze({ref:manifests[capabilityRef].semanticValidatorRef,
       validateInputs:(context)=>ports[capabilityRef].validateInputs(context),
       validateResult:(context,outcome)=>ports[capabilityRef].validateResult(context,outcome)}) }));
-  const libraCapabilityRegistration=libraConstruction.createCapabilityRegistration({...options,now,
+  const libraCapabilityRegistration=libraConstruction.createCapabilityRegistration({...libraOptions,now,
     computeFingerprint:options.computeFingerprint || computeBoundedMaterialFingerprint});
   const libraRegistrations=libraCapabilityRegistration.createRegistrations({enabledCapabilityRefs:LIBRA_ENABLED,
     manifests:Object.fromEntries(LIBRA_ENABLED.map((ref)=>[ref,manifests[ref]]))});
@@ -109,6 +121,7 @@ function createProcurementExecutionRuntime(options) {
       timeoutPolicyRef: timeoutPolicies[0].ref, compensationContractRefs: [] })) });
   const executionProjectionProvider=Object.freeze({read:({processType,workKind})=>{
     if(processType==='libra_intake')return Object.freeze({priorityClass:'handoff_acceptance',localPriority:300,priorityRevision:1,supplyRole:'completion'});
+    if(processType==='libra_routing')return Object.freeze({priorityClass:'normal_foreground',localPriority:250,priorityRevision:1,supplyRole:'completion'});
     if(processType==='material_field')return Object.freeze({priorityClass:'background_observation',localPriority:0,priorityRevision:1,supplyRole:'expansion'});
     if(workKind==='candidate_assembly')return Object.freeze({priorityClass:'normal_foreground',localPriority:200,priorityRevision:1,supplyRole:'completion'});
     if(workKind==='evidence_assessment')return Object.freeze({priorityClass:'normal_foreground',localPriority:100,priorityRevision:1,supplyRole:'expansion'});
@@ -122,11 +135,12 @@ function createProcurementExecutionRuntime(options) {
     priorityProjectionProvider: executionProjectionProvider });
   const mapper = createResourceProfileMapper({ profileKey: 'default', profileRevision: 1,
     logicalCpu: Math.max(1, os.cpus().length), integrations: [], volumes: [], encoders: [], aiDevices: [], workers: [] });
-  const validatedVolumeKeys=new Set();
+  const validatedVolumeKeys=new Set(),validatedIntegrationKeys=new Set();
   const activeMapper=Object.freeze({profileKey:mapper.profileKey,profileRevision:mapper.profileRevision,capacityFor(resourceKey){
     if(resourceKey.startsWith('volume_read:'))return validatedVolumeKeys.has(resourceKey.slice('volume_read:'.length))?2:0;
     if(resourceKey.startsWith('volume_write:'))return validatedVolumeKeys.has(resourceKey.slice('volume_write:'.length))?1:0;
     if(resourceKey.startsWith('volume_mutation:'))return validatedVolumeKeys.has(resourceKey.slice('volume_mutation:'.length))?1:0;
+    if(resourceKey.startsWith('integration:'))return validatedIntegrationKeys.has(resourceKey.slice('integration:'.length))?4:0;
     return mapper.capacityFor(resourceKey);
   }});
   const governor = createResourceGovernor({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
@@ -144,10 +158,11 @@ function createProcurementExecutionRuntime(options) {
   const planningRegistration = procurementConstruction.createPlanningRegistration({ registry, policyRegistry,
     contractValidator, progressReader, triageReader, triageRuleRegistry: triageRegistry, workResultReader,
     evidenceIndex, candidateContextReader, materialFieldStore: options.materialFieldStore, now });
-  const libraProcessServices=libraConstruction.createProcessServices({...options,now,workResultReader,
+  const libraProcessServices=libraConstruction.createProcessServices({...libraOptions,now,workResultReader,
     offerReader:libraCapabilityRegistration.offerReader});
   const libraPlanningRegistration=libraConstruction.createPlanningRegistration({registry,policyRegistry,contractValidator,
-    workResultReader,offerReader:libraProcessServices.offerReader,decisionResolver:libraProcessServices.decisionResolver,now});
+    workResultReader,offerReader:libraProcessServices.offerReader,decisionResolver:libraProcessServices.decisionResolver,
+    contextReader:libraProcessServices.routingContextReader,resolveRoutingIntegrationHandle:libraOptions.resolveRoutingIntegrationHandle,now});
   const bindingProjectionRegistry = createInputBindingProjectionRegistry({ registrations:[...planningRegistration.bindingProjections,
     ...libraPlanningRegistration.bindingProjections] });
   const executionInputProvider = createEventExecutionInputProvider({ schemaManifest: options.schemaManifest,
@@ -171,9 +186,15 @@ function createProcurementExecutionRuntime(options) {
         const mountScopeId=findMountScopeId(inputs);if(!mountScopeId)throw new Error('P4_TYPED_VOLUME_RESOURCE_UNRESOLVED:'+capability);
         validatedVolumeKeys.add(mountScopeId);resources.push({resourceKey:'volume_read:'+mountScopeId,units:1});
       }
+      if(capability==='libra.routing.fact.observe@1'){
+        const mountScopeId=findMountScopeId(inputs),integrationId=findIntegrationId(inputs);
+        if(mountScopeId){validatedVolumeKeys.add(mountScopeId);resources.push({resourceKey:'volume_read:'+mountScopeId,units:1});}
+        else if(integrationId){validatedIntegrationKeys.add(integrationId);resources.push({resourceKey:'integration:'+integrationId,units:1});}
+        else throw new Error('P4_TYPED_ROUTING_RESOURCE_UNRESOLVED');
+      }
       if(capability === 'procurement.triage.bdmv.assess@1') resources.push({resourceKey:'cpu_heavy',units:1});
       if(['procurement.field.observation.page.commit@1','procurement.candidate.publish@1','libra.intake.accept.commit@1',
-        'libra.intake.rejection.commit@1'].includes(capability)){
+        'libra.intake.rejection.commit@1','libra.decision_basis.commit@1'].includes(capability)){
         resources.push({resourceKey:'sqlite_write',units:1});
       }
       if(resources.length===0)resources=[{resourceKey:'cpu_heavy',units:1}];
@@ -182,7 +203,7 @@ function createProcurementExecutionRuntime(options) {
     nextEventAttemptId: () => 'event-attempt-' + randomUUID(), nextExecutionId: () => 'execution-' + randomUUID(),
     nextResultId: () => 'event-result-' + randomUUID(), now });
   const plannerKinds = ['field_observation', 'evidence_assessment', 'candidate_assembly'];
-  const libraPlannerKinds=['evidence','acceptance','rejection'];
+  const libraPlannerKinds=['evidence','acceptance','rejection','routing_nfo_facts','routing_provider_facts','routing_basis'];
   const plannerRegistry = createPlannerRegistry({ registrations: [...planningRegistration.planners.map((planner, index) => ({
     ownerDomain: 'procurement', workKind: plannerKinds[index], plannerContractRef: planner.plannerContractRef,
     plannerVersion: planner.plannerVersion, planner
@@ -200,10 +221,18 @@ function createProcurementExecutionRuntime(options) {
   let host;
   const domainReconciler = { async reconcile(request) {
     if(request.ownerDomain==='libra'&&request.processType==='libra_intake'){
-      libraProcessServices.coordinator.reconcile(request.processId);
+      const intake=libraProcessServices.coordinator.reconcile(request.processId);
       if(['acceptance','rejection'].includes(request.workKind)&&request.workAttemptState==='succeeded'){
         libraProcessServices.coordinator.reconcilePending({ignoreAcceptanceProcessId:request.processId,limit:100});
       }
+      if(request.workKind==='acceptance'&&request.workAttemptState==='succeeded'){
+        const receipt=workResultReader.read(request.workId).find((item)=>item.outcomeKind==='succeeded'&&item.result?.subjectId)?.result;
+        if(receipt?.subjectId)libraProcessServices.routingCoordinator.reconcile(receipt.subjectId);
+      }
+      return {workId:request.workId,disposition:request.workAttemptState};
+    }
+    if(request.ownerDomain==='libra'&&request.processType==='libra_routing'){
+      if(request.workAttemptState==='succeeded')libraProcessServices.routingCoordinator.reconcile(request.processId);
       return {workId:request.workId,disposition:request.workAttemptState};
     }
     if (request.ownerDomain !== 'procurement') return null;
@@ -246,11 +275,14 @@ function createProcurementExecutionRuntime(options) {
     reconcile:({procurementRunId})=>runCoordinator.reconcile(procurementRunId),
   }),Object.freeze({ownerDomain:'libra',reconcilerKey:'pending-intake-offers',
     listPage:({cursor,limit})=>libraProcessServices.offerReader.listProcessPage(cursor,limit).items.map((item)=>Object.freeze({cursor:item.processId,scope:item})),
-    reconcile:({processId})=>libraProcessServices.coordinator.reconcile(processId)})]});
+    reconcile:({processId})=>libraProcessServices.coordinator.reconcile(processId)}),Object.freeze({ownerDomain:'libra',reconcilerKey:'active-routing-subjects',
+    listPage:({cursor,limit})=>libraProcessServices.routingContextReader.listActiveSubjectPage(cursor,limit).items.map((item)=>Object.freeze({cursor:item.subjectId,scope:item})),
+    reconcile:({subjectId})=>libraProcessServices.routingCoordinator.reconcile(subjectId)})]});
   host = createExecutionRuntimeHost({ startupRecovery, scheduler, plannerRegistry, planPublisher, workLifecycle,
     eventRuntime, domainReconciler, fallbackReconciler, onError: options.onError,maxInFlightEvents:16 });
   return Object.freeze({ host, registry, policyRegistry, contractValidator, progressReader, procurementAutomation,triageReader,runCoordinator,
-    intakeCoordinator:libraProcessServices.coordinator,intakeOfferReader:libraProcessServices.offerReader });
+    intakeCoordinator:libraProcessServices.coordinator,intakeOfferReader:libraProcessServices.offerReader,
+    routingCoordinator:libraProcessServices.routingCoordinator,routingContextReader:libraProcessServices.routingContextReader });
 }
 
 module.exports = Object.freeze({ createProcurementExecutionRuntime,createHelixExecutionRuntime:createProcurementExecutionRuntime });

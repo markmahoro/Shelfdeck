@@ -232,7 +232,7 @@ const PROFILES = Object.freeze([
     }),
     identityNamespaces: Object.freeze(['tmdb_movie']),
     artifactKinds: Object.freeze(['poster', 'fanart']),
-    extraOperations: Object.freeze(['shared.integration.search@1']),
+    extraOperations: Object.freeze(['shared.integration.search@1', 'libra.routing.fact.observe@1']),
   }),
   profile({
     kind: 'douban',

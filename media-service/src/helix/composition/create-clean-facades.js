@@ -193,6 +193,11 @@ function createCleanFacades(options) {
       body: options.formationQuery.get(input.params.formationViewId),
     });
   }
+  if (options.routingManualSelection) {
+    facades.LibraFormationFacade.post_formation_subjects_subjectid_actions_choose_shelf = async (input) => ({
+      body: options.routingManualSelection.choose(input.params.subjectId, input.body),
+    });
+  }
 
   return Object.freeze(Object.fromEntries(
     Object.entries(facades).map(([name, methods]) => [name, Object.freeze(methods)]),

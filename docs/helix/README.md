@@ -1,6 +1,6 @@
 # ShelfDeck / Helix Documentation Index
 
-Status: Movie Procurement保持`CLOSED FOR MOVIE`。Arca Shelf配置保持`READY FOR LIBRA`；Libra Intake Acceptance达到`READY / AWAITING ROUTING`。下一步Routing Policy尚未开放Implementation Gate，Docker/NAS、Handoff B、On-deck和生产均未开始。
+Status: Movie Procurement保持`CLOSED FOR MOVIE`。Arca Shelf配置保持`READY FOR LIBRA`；Libra Routing达到`DECISION READY / AWAITING ACCEPTANCE SPEC`。Docker/NAS、Acceptance Spec、Handoff B、On-deck和生产均未开始。
 
 后续本地真实媒体测试的唯一物理范围由用户于2026-08-11固定为
 `C:\Users\markm\AppData\Local\Temp\ShelfDeck-P14-20260723\material-fields`。该目录同时作为测试
@@ -21,6 +21,12 @@ Handoff A之后的第一个Libra节点已经正式接通：Outbox Dispatcher触�
 执行Candidate、Material、Binding及continuity验证并原子接受。隔离Movie测试库形成19个accepted Intake和19个Subject；Admin Web
 “上架进度”按一行一个Subject展示，当前全部为`awaiting_destination`。ISO/DVD依赖typed topology而非扩展名猜测；历史大型Libra
 Coordinator不在产品路径中。本轮没有建立Libra Run/Workspace、没有消费Shelf生产资源，也没有产生Handoff B或Arca媒体事实。
+
+Intake之后的Routing节点也已通过正式Foundation链接通。Field Policy支持direct与closed-AST sorting；Fact Observation只按Policy需要
+读取Candidate NFO，仍缺Fact时才通过确定性TMDB Integration取得最小Decision Fact。高优先级unknown不会落入catch-all，unresolved
+Subject可从Admin Web一次性手选Shelf且不改长期Policy。“上架进度”保持一行一个Subject。本地fresh-clean E2E中19个direct及4个
+sorting Subject自动resolved，1个Provider not_found先保持unresolved、再手动resolved；Acceptance Spec、Libra Run、Workspace与Arca
+Shelf Entry均为0。当前下一节点精确为Acceptance Spec。
 
 Physical Material不再计算全文件Hash。当前唯一合同读取文件正中间最多262,144 bytes并执行前后stat fence；NAS负责bit rot和底层
 完整性。Artifact、Canonical JSON与事务Evidence digest仍使用SHA-256，这些digest不得作为Physical Material Identity。

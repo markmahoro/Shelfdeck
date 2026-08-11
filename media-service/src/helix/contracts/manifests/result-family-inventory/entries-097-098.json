@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "manifestId": "helix.inventory.result-families",
+  "entries": [
+    {
+      "id": "WorkspaceMaterialHandle",
+      "version": 1,
+      "owner": "contracts",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.18"
+      ],
+      "sourceLocator": {
+        "section": "8.6.18",
+        "line": 10055,
+        "lineDigest": "e96824ae7225dd5742c762c5ab7a0e1dcba8f492b2536c61b7de03408e3965ff"
+      },
+      "targetLocator": {
+        "path": "types/WorkspaceMaterialHandle/v1/schema.json"
+      },
+      "contract": {
+        "resultKind": "direct-handle-result",
+        "schemaId": "helix://contracts/types/WorkspaceMaterialHandle/v1",
+        "schemaPath": "types/WorkspaceMaterialHandle/v1/schema.json",
+        "producedBy": [
+          "libra.workspace.material.import@1"
+        ],
+        "sourceSection": "8.6.18"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "fae44dd4ed9f0cb5669dab2a7231b5f556ba647d7ebda1ab457668b648673003"
+      }
+    },
+    {
+      "id": "WorkspaceMediaHandle",
+      "version": 1,
+      "owner": "contracts",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.19"
+      ],
+      "sourceLocator": {
+        "section": "8.6.19",
+        "line": 10524,
+        "lineDigest": "0c3a161441afc0e9a4d33c4dcb67a4f0865c4e26fd8df1313526b236b141a1f0"
+      },
+      "targetLocator": {
+        "path": "types/WorkspaceMediaHandle/v1/schema.json"
+      },
+      "contract": {
+        "resultKind": "nominal-result",
+        "schemaId": "helix://contracts/types/WorkspaceMediaHandle/v1",
+        "schemaPath": "types/WorkspaceMediaHandle/v1/schema.json",
+        "producedBy": [
+          "libra.media.remux@1",
+          "libra.media.transcode@1",
+          "arca.aftercare.media.remux@1",
+          "arca.aftercare.media.transcode@1"
+        ],
+        "sourceSection": "8.6.19"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "d9aa439cccbc228cb825bb8c953e0142d722b77c23b5a911a4703106600f09f7"
+      }
+    }
+  ]
+}

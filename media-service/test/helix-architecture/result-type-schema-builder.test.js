@@ -7,7 +7,7 @@ const { buildResultTypeSchemas } = require('../../scripts/helix-architecture/res
 const schemas = buildResultTypeSchemas();
 
 test('builds the complete Catalog Result graph and bounded Candidate publication receipt', () => {
-  assert.equal(Object.keys(schemas).length, 101);
+  assert.equal(Object.keys(schemas).length, 102);
   assert.equal(schemas.CandidatePackage.properties.relatedReferences.items.$ref,
     'helix://contracts/types/RelatedMaterialReference/v1');
   assert.ok(schemas.CandidatePublicationReceipt.required.includes('candidateDraftDigest'));

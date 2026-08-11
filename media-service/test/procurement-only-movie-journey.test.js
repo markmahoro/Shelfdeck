@@ -208,10 +208,10 @@ test('one bad Material is released while 65 Movie Candidates cross Handoff A thr
     const formation = await host.inject({ method:'GET',url:'/v1/admin/formation',headers:{cookie} });
     assert.equal(formation.statusCode,200,formation.body);
     assert.equal(formation.json().summary.subjectCount,65);
-    assert.equal(formation.json().summary.awaitingDestinationCount,65);
+    assert.equal(formation.json().summary.preparingCount,65);
     assert.equal(formation.json().items.length,65);
     assert.equal(new Set(formation.json().items.map((item)=>item.subjectId)).size,65);
-    const invalidFormationItem=formation.json().items.find((item)=>item.stage!=='awaiting_destination'||item.intakeCount!==1||item.primaryMaterialCount!==1);
+    const invalidFormationItem=formation.json().items.find((item)=>item.stage!=='routing_preparing'||item.intakeCount!==1||item.primaryMaterialCount!==1);
     assert.equal(invalidFormationItem,undefined,JSON.stringify(invalidFormationItem));
     const deregistered=await host.inject({method:'POST',url:`/v1/admin/material-fields/${accessBasis.fieldId}/actions/deregister`,headers:{cookie},payload:{
       idempotencyKey:'procurement-only-deregister',fieldId:accessBasis.fieldId,expectedAccessRevision:1,expectedPolicyRevision:1}});

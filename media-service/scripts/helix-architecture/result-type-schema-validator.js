@@ -54,8 +54,8 @@ function validateResultTypeSchemas(options) {
   const nominalOutputs = new Set(sourceEntries.filter((entry) => entry.kind === 'nominal-result').map((entry) => entry.id));
   const directOutputs = new Set(sourceEntries.filter((entry) => entry.kind === 'direct-handle-result').map((entry) => entry.id));
   const outcomeOutputs = new Set(sourceEntries.filter((entry) => entry.kind === 'outcome-envelope').map((entry) => entry.id));
-  if (sourceEntries.length !== 97 || nominalOutputs.size !== 87 || directOutputs.size !== 9 || outcomeOutputs.size !== 1) {
-    findings.push(finding('RESULT_SOURCE_COUNT_DRIFT', 'SSOT result source map must remain 87 nominal + 9 direct + 1 Outcome.'));
+  if (sourceEntries.length !== 98 || nominalOutputs.size !== 87 || directOutputs.size !== 10 || outcomeOutputs.size !== 1) {
+    findings.push(finding('RESULT_SOURCE_COUNT_DRIFT', 'SSOT result source map must remain 87 nominal + 10 direct + 1 Outcome.'));
   }
 
   const sharedRegistry = readJson(path.join(contractsRoot, 'shared-type-registry.json'), findings);

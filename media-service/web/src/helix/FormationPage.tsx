@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { AdminApiError, helixAdminApi, type FormationSubject, type FormationSummary } from './api';
+import { AdminApiError, helixAdminApi, type FormationSubject, type FormationSummary, type Shelf } from './api';
 
 type SessionState = 'checking' | 'required' | 'ready';
 
@@ -15,7 +15,9 @@ export default function FormationPage() {
   const [session, setSession] = useState<SessionState>('checking');
   const [apiKey, setApiKey] = useState('');
   const [items, setItems] = useState<FormationSubject[]>([]);
-  const [summary, setSummary] = useState<FormationSummary>({ subjectCount: 0, awaitingDestinationCount: 0 });
+  const [summary, setSummary] = useState<FormationSummary>({ subjectCount: 0, preparingCount: 0, unresolvedCount: 0, resolvedCount: 0 });
+  const [shelves, setShelves] = useState<Shelf[]>([]);
+  const [manualTargets, setManualTargets] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -23,9 +25,10 @@ export default function FormationPage() {
     setLoading(true);
     setError('');
     try {
-      const result = await helixAdminApi.listFormation();
+      const [result, shelfResult] = await Promise.all([helixAdminApi.listFormation(), helixAdminApi.listShelves()]);
       setItems(result.items);
       setSummary(result.summary);
+      setShelves(shelfResult.items.filter((item) => item.status === 'active'));
       setSession('ready');
     } catch (cause) {
       if (cause instanceof AdminApiError && cause.status === 401) setSession('required');
@@ -49,6 +52,14 @@ export default function FormationPage() {
       setError(cause instanceof Error ? cause.message : '管理凭据验证失败。');
       setLoading(false);
     }
+  }
+
+  async function chooseShelf(item: FormationSubject) {
+    const target = manualTargets[item.subjectId] || shelves[0]?.shelfId;
+    if (!target) { setError('没有可用的活动收藏架。'); return; }
+    setLoading(true); setError('');
+    try { await helixAdminApi.chooseShelf(item, target); await load(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : '一次性收藏架选择失败。'); setLoading(false); }
   }
 
   if (session === 'checking') {
@@ -77,8 +88,8 @@ export default function FormationPage() {
 
     <div className="source-facts" aria-label="上架进度摘要">
       <div><span>已接收 Subject</span><strong>{summary.subjectCount}</strong><small>一 Subject 一行</small></div>
-      <div><span>等待目的地</span><strong>{summary.awaitingDestinationCount}</strong><small>尚未进入 Routing</small></div>
-      <div><span>当前节点</span><strong>Intake</strong><small>未建立 Libra Run</small></div>
+      <div><span>已确定目的地</span><strong>{summary.resolvedCount}</strong><small>immutable Routing Decision</small></div>
+      <div><span>待处理 / 未解决</span><strong>{summary.preparingCount} / {summary.unresolvedCount}</strong><small>不会误入 catch-all</small></div>
     </div>
 
     {error && <p className="form-error" role="alert">{error}</p>}
@@ -87,12 +98,18 @@ export default function FormationPage() {
       <div className="source-registry-heading"><div><p className="eyebrow">Activity Ledger</p><h2 id="formation-title">收藏主体</h2></div><span>{items.length} 条</span></div>
       {items.length === 0 ? <div className="source-empty"><strong>还没有被 Libra 接收的 Candidate</strong><p>Procurement Offer 会由后台 Intake Work 验证；正式接收后才会出现在这里。</p></div> :
         <div className="formation-table-wrap"><table className="formation-table">
-          <thead><tr><th scope="col">Subject</th><th scope="col">阶段</th><th scope="col">输入</th><th scope="col">接收次数</th><th scope="col">最近接收</th></tr></thead>
+          <thead><tr><th scope="col">Subject</th><th scope="col">Routing</th><th scope="col">输入</th><th scope="col">Decision</th><th scope="col">最近接收</th></tr></thead>
           <tbody>{items.map((item) => <tr key={item.subjectId}>
             <td><strong>{item.displayIdentity}</strong><code>{item.subjectId}</code><small>{item.contentProfile} · {item.structureKind}</small></td>
-            <td><span className="formation-stage">{item.stageLabel}</span></td>
+            <td><span className={`formation-stage ${item.routingState}`}>{item.stageLabel}</span>
+              {item.targetShelfId && <small>{shelves.find((shelf) => shelf.shelfId === item.targetShelfId)?.name || item.targetShelfId}</small>}
+              {item.unresolvedReasonCode && <small>{item.unresolvedReasonCode}</small>}
+              {item.routingState === 'unresolved' && <div className="manual-shelf"><select aria-label={`${item.displayIdentity}的一次性收藏架`} value={manualTargets[item.subjectId] || shelves[0]?.shelfId || ''}
+                onChange={(event) => setManualTargets((current) => ({ ...current, [item.subjectId]: event.target.value }))}>{shelves.map((shelf) => <option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name}</option>)}</select>
+                <button type="button" onClick={() => void chooseShelf(item)} disabled={loading}>选择收藏架</button></div>}
+            </td>
             <td><b>{item.primaryMaterialCount}</b> Primary<small>{item.relatedMaterialCount} Related</small></td>
-            <td>{item.intakeCount}</td>
+            <td>{item.routingDecisionRevision ? `r${item.routingDecisionRevision}` : '准备中'}<small>{item.routingPolicyMode || '—'} {item.routingPolicyRevision ? `· policy r${item.routingPolicyRevision}` : ''}</small></td>
             <td>{formatAcceptedAt(item.lastAcceptedAtMs)}</td>
           </tr>)}</tbody>
         </table></div>}

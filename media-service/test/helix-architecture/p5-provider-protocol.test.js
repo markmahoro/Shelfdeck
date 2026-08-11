@@ -113,6 +113,7 @@ const inputs = Object.freeze({
   'shared.integration.availability.observe@1': Object.freeze({}),
   'perception.source.acquire@1': Object.freeze({ sourceRef: ref('perception-source'), cursor: null, limit: 20 }),
   'people.registration_evidence.observe@1': Object.freeze({ personHintRef: ref('person-hint'), limit: 10 }),
+  'libra.routing.fact.observe@1': Object.freeze({ contentProfile: 'movie', title: 'Chungking Express', yearHint: 1994 }),
   'libra.product_metadata.fetch@1': Object.freeze({ productIdentityRef: ref('product-identity'), locale: 'zh-CN' }),
   'libra.external_material.search@1': Object.freeze({ acquisitionQuery: acquisitionQuery(), limit: 25 }),
   'libra.external_material.acquire.observe@1': Object.freeze({ externalJobReceipt: jobReceipt(), phase: 'download' }),
@@ -155,6 +156,10 @@ function resultFor(operation, request) {
       providerObservationRevision: 2, outputSnapshot: outputSnapshot() };
     return Object.freeze({ ...value, snapshotDigest: digest(canonicalJson(value)) });
   }
+  if (operation.resultKind === 'routing-candidate-list') return Object.freeze([Object.freeze({
+    providerKey: '11104', title: 'Chungking Express', originalTitle: '重慶森林', releaseYear: 1994,
+    regionCodes: Object.freeze(['HK']), genreCodes: Object.freeze(['18', '35'])
+  })]);
   return Object.freeze({ externalJobReceipt: Object.freeze({
     schemaRef: 'helix://contracts/types/ExternalJobReceipt/v1', schemaVersion: 1,
     receiptId: 'receipt-1', integrationId: request.integrationHandle.integrationId, externalJobId: 'job-1',
@@ -205,7 +210,7 @@ function fixture(operation, overrides = {}) {
   };
 }
 
-test('operation catalog exactly traces all ten IntegrationHandle Capability contracts and their Effect Classes', () => {
+test('operation catalog exactly traces all eleven IntegrationHandle Capability contracts and their Effect Classes', () => {
   const manifestRoot = path.resolve(__dirname, '../../src/helix/contracts/capabilities');
   const manifests = [];
   (function walk(root) {

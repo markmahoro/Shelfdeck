@@ -127,18 +127,37 @@ export type FormationSubject = {
   contentProfile: string;
   structureKind: string;
   status: string;
-  stage: 'awaiting_destination';
+  stage: 'routing_preparing' | 'routing_unresolved' | 'routing_resolved';
   stageLabel: string;
   intakeCount: number;
   primaryMaterialCount: number;
   relatedMaterialCount: number;
   lastAcceptedAtMs: number;
+  routingState: 'preparing' | 'unresolved' | 'resolved';
+  routingPolicyMode: 'direct' | 'sorting' | null;
+  routingPolicyRevision: number | null;
+  targetShelfId: string | null;
+  unresolvedReasonCode: string | null;
+  routingDecisionRevision: number | null;
+  routingDecisionDigest: string | null;
+  routingDecisionHeadRevision: number | null;
+  routingDecisionHeadDigest: string | null;
 };
 
 export type FormationSummary = {
   subjectCount: number;
-  awaitingDestinationCount: number;
+  preparingCount: number;
+  unresolvedCount: number;
+  resolvedCount: number;
 };
+
+export type RoutingExpression =
+  | { nodeKind: 'always' }
+  | { nodeKind: 'predicate'; factKind: string; operator: 'eq' | 'one_of' | 'gte' | 'lte' | 'exists'; expectedValue: JsonValue }
+  | { nodeKind: 'all' | 'any'; children: RoutingExpression[] }
+  | { nodeKind: 'not'; child: RoutingExpression };
+export type RoutingPolicy = { routingPolicyId: string; revision: number; fieldId: string; mode: 'direct' | 'sorting';
+  targets: { shelfId: string; rank: number; matchExpression: RoutingExpression; matchRuleDigest: string }[]; policyDigest: string };
 
 export class AdminApiError extends Error {
   constructor(readonly status: number, readonly code: string, message: string, readonly details: Record<string, JsonValue> = {}) {
@@ -199,6 +218,27 @@ export const helixAdminApi = {
   },
   listFormation() {
     return request<{ items: FormationSubject[]; summary: FormationSummary }>('/v1/admin/formation');
+  },
+  getRoutingPolicy(fieldId: string) {
+    return request<{ policy: RoutingPolicy | null }>(`/v1/admin/routing/material-fields/${encodeURIComponent(fieldId)}`);
+  },
+  listRoutingPolicyRevisions(fieldId: string) {
+    return request<{ items: RoutingPolicy[] }>(`/v1/admin/routing/material-fields/${encodeURIComponent(fieldId)}/revisions`);
+  },
+  previewRoutingPolicy(fieldId: string, body: JsonValue) {
+    return request<{ result: string; targetShelfId: string | null; unresolvedReasonCode: string | null; previewDigest: string }>(
+      `/v1/admin/routing/material-fields/${encodeURIComponent(fieldId)}/actions/preview`, { method: 'POST', body: JSON.stringify(body) });
+  },
+  publishRoutingPolicy(fieldId: string, body: JsonValue) {
+    return request<{ policy: RoutingPolicy; replayed: boolean }>(`/v1/admin/routing/material-fields/${encodeURIComponent(fieldId)}`,
+      { method: 'PATCH', body: JSON.stringify(body) });
+  },
+  chooseShelf(subject: FormationSubject, targetShelfId: string) {
+    return request<{ decision: JsonValue; replayed: boolean }>(`/v1/admin/formation/subjects/${encodeURIComponent(subject.subjectId)}/actions/choose-shelf`, {
+      method: 'POST', body: JSON.stringify({ targetShelfId,
+        expectedDecisionHead: { revision: subject.routingDecisionHeadRevision, digest: subject.routingDecisionHeadDigest },
+        idempotencyKey: `choose-shelf:${subject.subjectId}:${subject.routingDecisionDigest}:${targetShelfId}` }),
+    });
   },
   createShelf(body: JsonValue) {
     return request<{ shelf: Shelf; replayed: boolean }>('/v1/admin/shelves', {

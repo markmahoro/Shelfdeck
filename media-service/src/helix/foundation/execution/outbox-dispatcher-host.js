@@ -12,6 +12,8 @@ function repository(schemaManifest){return createRepositoryDefinition({repositor
 function createOutboxDispatcherHost(options){const repo=repository(options.schemaManifest),inbox=createInboxCoordinator(options),now=options.now||Date.now;
   const libraReceiptRepository=createRepositoryDefinition({repositoryId:'libra_intake_delivery_receipt',owner:'libra',schemaManifest:options.schemaManifest,
     statements:{read_head:{kind:'select-one',tableId:'libra_subject_continuity_heads',columns:['head_id'],keyColumns:['head_id']}}});
+  const libraRoutingSignalRepository=createRepositoryDefinition({repositoryId:'libra_routing_policy_signal',owner:'libra',readOnly:true,schemaManifest:options.schemaManifest,
+    statements:{find_head:{kind:'select-one',tableId:'libra_field_routing_heads',columns:['field_id','current_routing_policy_id','current_policy_revision'],keyColumns:['field_id']}}});
   let state='created',timer=null,running=null;
   function due(){return options.unitOfWork.execute([{participantId:'outbox_dispatcher_due',owner:'execution-foundation',repositories:[repo],execute(context){
     const r=context.repository(repo.repositoryId);return r.invoke('list_due',{}).filter((item)=>item.state!=='acked'&&Number(item.next_attempt_at_ms)<=now()).slice(0,100)
@@ -33,6 +35,19 @@ function createOutboxDispatcherHost(options){const repo=repository(options.schem
     }
     if(item.message.message_kind==='libra_candidate_rejected'&&item.delivery.consumer_domain==='procurement'){
       options.rejectionConsumer.consume(envelope(item,payload));inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'procurement'});return;
+    }
+    if(item.message.message_kind==='field_routing_policy_published'&&item.delivery.consumer_domain==='libra'){
+      const resultDigest=canonicalDigest({schema:'libra.routing-policy-signal-consumption@1',fieldId:payload.fieldId,
+        routingPolicyId:payload.routingPolicyId,policyRevision:payload.policyRevision,policyDigest:payload.policyDigest});
+      inbox.consume({message:{messageId:item.message.message_id,dedupKey:item.message.dedup_key,consumerDomain:'libra'},resultDigest,
+        domainParticipant:{participantId:'libra_routing_policy_signal_receipt',owner:'libra',repositories:[libraRoutingSignalRepository],execute(context){
+          const head=context.repository(libraRoutingSignalRepository.repositoryId).invoke('find_head',{field_id:payload.fieldId});
+          if(!head||head.current_routing_policy_id!==payload.routingPolicyId||Number(head.current_policy_revision)<Number(payload.policyRevision))
+            throw new Error('Routing Policy signal is ahead of the durable Libra head.');
+          return {fieldId:payload.fieldId,policyRevision:Number(payload.policyRevision)};
+        }}});
+      inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'libra'});
+      options.routingCoordinator.reconcileField(payload.fieldId,100);options.executionRuntimeHost.wake();return;
     }
     throw new Error('No Outbox consumer is registered for '+item.message.message_kind+' -> '+item.delivery.consumer_domain);
   }

@@ -12,7 +12,7 @@
       "constraintsContract": "`commit_marker`全局唯一；Event驱动的`domain_fact_commit|responsibility_control_commit`其result字段必填并与对应`fx_event_result_bindings`同事务写入；唯一例外是非Event的Procurement Run Admission，其result字段为NULL，完整`ProcurementControlReceipt`由同事务`fx_command_receipts`承载并以marker scope/digest交叉验证；不能更新或删除",
       "source": {
         "section": "8.5.10",
-        "line": 8921,
+        "line": 8963,
         "lineDigest": "56b133ab904024a736896f6d0e985d7c4105e535fa2315f25a1885385d893195"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "payload上限`16 KiB`且只含ID/revision/digest；`UNIQUE(producer_domain,dedup_key)`；`INDEX(state,available_at_ms,message_id)`",
       "source": {
         "section": "8.5.10",
-        "line": 8922,
+        "line": 8964,
         "lineDigest": "897caa669f444e1875bd964da8bf826848339c4e55ae1632f4e5b2d4b8959019"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "`PK(message_id,consumer_domain)`；publish事务冻结全部intended consumer；`INDEX(state,next_attempt_at_ms,message_id)`",
       "source": {
         "section": "8.5.10",
-        "line": 8923,
+        "line": 8965,
         "lineDigest": "3c0f05667ac3ef0cac1ec5cfa7ae12eb440275bf8dc205e502314945ac622a25"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "`PK(consumer_domain,message_id)`及`UNIQUE(consumer_domain,dedup_key)`",
       "source": {
         "section": "8.5.10",
-        "line": 8924,
+        "line": 8966,
         "lineDigest": "527618bc281f62a92990c7e87107ab9bdbf4af46c15173608baeac69a928b2c7"
       }
     },
@@ -56,7 +56,7 @@
       "constraintsContract": "`PK(event_id,resource_key)`；一个Event/resource最多一个有效waiter；`INDEX(resource_key,state,queue_class,local_priority,enqueued_at_ms)`",
       "source": {
         "section": "8.5.10",
-        "line": 8925,
+        "line": 8967,
         "lineDigest": "474029052cb5c6a25572058f9d2d843e1eac1218c3ac45d521316ad38dadaec2"
       }
     },
@@ -67,7 +67,7 @@
       "constraintsContract": "`PK(event_attempt_id,resource_key)`；只记录Evidence，不恢复内存Permit；`INDEX(resource_key,acquired_at_ms)`供p50/p95/p99",
       "source": {
         "section": "8.5.10",
-        "line": 8926,
+        "line": 8968,
         "lineDigest": "82c98c804d8d410fe0e79bd69b0001eb75f577e5dd392f00d7c204460c329464"
       }
     },
@@ -78,7 +78,7 @@
       "constraintsContract": "`INDEX(state,opened_at_ms)`；只允许Control Plane写入",
       "source": {
         "section": "8.5.10",
-        "line": 8927,
+        "line": 8969,
         "lineDigest": "d5937bd2976f592c828882ddfaf9278c6fa19bde915a814627c949fd4419fa1e"
       }
     },
@@ -89,7 +89,7 @@
       "constraintsContract": "`UNIQUE(mount_scope_id,inode,size_bytes,fingerprint_algorithm,fingerprint_version,content_fingerprint)`；一项Identity只有一行current Control且Identity列write-once，Control row不得物理删除；controlled必须有完整owner，released必须三个owner列均NULL；首次acquire revision=1，transfer/release必须CAS并递增`control_revision`；从未存在row与released row都可投影uncontrolled，但revision分别为0和当前正整数",
       "source": {
         "section": "8.5.10",
-        "line": 8928,
+        "line": 8970,
         "lineDigest": "dd4a23cb15cf44980d62c6854c1f8335776ad66004d228430fc2d650714d9cbe"
       }
     },
@@ -100,7 +100,7 @@
       "constraintsContract": "`PK(material_key,revision)`；append-only；current row每次变化必须与对应revision同事务成立。任一正整数historical revision的post-state `MaterialControlProjectionSnapshot@1`必须仅由该revision row重建：`resultKind=available,controlRevision=revision`；to-owner完整则`controlState=controlled`并使用to scope，`regionProjection`按`procurement|libra|arca → procurement|production|finished_goods`映射；to-owner全NULL则`controlState=uncontrolled,regionProjection=uncontrolled`且无owner；`evidenceDigest/projectionDigest`严格使用8.6.18公式。不得读取后来current owner冒充historical post-state，也不新增projection JSON/digest列",
       "source": {
         "section": "8.5.10",
-        "line": 8929,
+        "line": 8971,
         "lineDigest": "81cd50aa78ff9f7a66134cb2e090c8c36390de0aa4fe80c615d200c9eb712db8"
       }
     },
@@ -111,7 +111,7 @@
       "constraintsContract": "`UNIQUE(owner_domain,process_type,process_id,workspace_id)`；`rowMutability=cas_lifecycle`且只允许Workspace Admission插入active，随后由Owner Cleanup全部member completed事务以expected active CAS一次为reclaimed；active时reclaimed time为NULL，terminal时非NULL且不得恢复active；`INDEX(owner_domain,state,reclaim_after_ms)`",
       "source": {
         "section": "8.5.10",
-        "line": 8930,
+        "line": 8972,
         "lineDigest": "497fd4f9f8b46ca0c6b4407f5c94dc1ee1498ac25bd12ac79dbeeff1682f5167"
       }
     },
@@ -122,7 +122,7 @@
       "constraintsContract": "`PK(workspace_id,material_handle_id)`；`UNIQUE(workspace_id,relative_path)`；`rowMutability=cas_lifecycle`且只允许幂等filesystem cleanup effect以expected Handle fence执行一次`active→reclaimed`，三个reclaimed列在active时全NULL、terminal时全非NULL且write-once；`handle_schema_ref=WorkspaceMaterialHandle@1`、canonical JSON≤`4 KiB`、`handle_digest=SHA-256(JCS(handle_json typed value))`，全部热列与Handle逐字段一致，`fence_digest=handle_json.fenceDigest`；同一inode的hard-link location允许共享materialKey但必须是不同Handle/relative path；endpoint/mount/root handle必须等于Workspace Registry/root snapshot；完整Physical Identity由Workspace write effect在同一Effect commit按实际文件stat与中段最多256 KiB fingerprint形成，系统生成Artifact的完整digest只允许从原写入流形成且不参与`material_key`；路径必须通过containment validator；只有bytes关闭、fingerprint/stat/containment及独立Artifact digest完成且完整Handle row与Effect receipt同事务durable后Executor才能返回该Handle。Domain Cleanup Commit只读取该terminal row/Evidence并收口Libra Reference/Control，不再次删除bytes或改写本row",
       "source": {
         "section": "8.5.10",
-        "line": 8931,
+        "line": 8973,
         "lineDigest": "0ea5b08b92c1a316574217d8c1e8b9efd7a014fa998c9e00a21b3cf3a6e63002"
       }
     },
@@ -133,7 +133,7 @@
       "constraintsContract": "`UNIQUE(owner_domain,owner_scope_type,owner_scope_id,digest_algorithm,digest_hex,artifact_kind)`；`INDEX(state,created_at_ms)`",
       "source": {
         "section": "8.5.10",
-        "line": 8932,
+        "line": 8974,
         "lineDigest": "99a7fb4d399af349671c18320bd97c02f67b848e8fcb6b8a34769f950ab9eebf"
       }
     },
@@ -144,7 +144,7 @@
       "constraintsContract": "`PK(artifact_handle_id,consumer_domain,consumer_scope_type,consumer_scope_id,reference_kind,reference_revision)`；GC只处理无active reference Artifact",
       "source": {
         "section": "8.5.10",
-        "line": 8933,
+        "line": 8975,
         "lineDigest": "78787f3ac7052b2b3d8024e78b21a426cf0b74cee321911424bf6067b995c01e"
       }
     }

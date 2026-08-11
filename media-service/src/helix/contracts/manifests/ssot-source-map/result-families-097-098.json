@@ -3,8 +3,20 @@
   "mapId": "helix.ssot-contract-source-map",
   "category": "resultFamilies",
   "startOrdinal": 97,
-  "endOrdinal": 97,
+  "endOrdinal": 98,
   "entries": [
+    {
+      "id": "WorkspaceMaterialHandle",
+      "kind": "direct-handle-result",
+      "producedBy": [
+        "libra.workspace.material.import@1"
+      ],
+      "source": {
+        "section": "8.6.18",
+        "line": 10055,
+        "lineDigest": "e96824ae7225dd5742c762c5ab7a0e1dcba8f492b2536c61b7de03408e3965ff"
+      }
+    },
     {
       "id": "WorkspaceMediaHandle",
       "kind": "nominal-result",
@@ -16,7 +28,7 @@
       ],
       "source": {
         "section": "8.6.19",
-        "line": 10479,
+        "line": 10524,
         "lineDigest": "0c3a161441afc0e9a4d33c4dcb67a4f0865c4e26fd8df1313526b236b141a1f0"
       }
     }

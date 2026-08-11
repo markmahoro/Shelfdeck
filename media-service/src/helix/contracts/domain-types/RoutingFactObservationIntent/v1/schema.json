@@ -1,0 +1,231 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/RoutingFactObservationIntent/v1",
+  "title": "RoutingFactObservationIntent@1",
+  "x-helix-ssotRefs": [
+    "5.1.3",
+    "5.4.3",
+    "8.6.5",
+    "8.6.18"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "x-helix-maxCanonicalBytes": 16384,
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "intentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "subjectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "routingAnchorIntakeDecisionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "routingAnchorDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "contentProfile": {
+          "const": "movie"
+        },
+        "identityClaim": {
+          "$ref": "helix://contracts/types/IdentityClaim/v1"
+        },
+        "requestedFactKinds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "release_year",
+              "region",
+              "genre",
+              "resolved_provider_identity"
+            ]
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "uniqueItems": true,
+          "x-helix-canonicalOrder": "UTF-8(value)"
+        },
+        "sourceKind": {
+          "const": "related_nfo"
+        },
+        "intentDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "relatedReferenceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "relatedReferenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "expectedPhysicalIdentityDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "intentId",
+        "subjectId",
+        "routingAnchorIntakeDecisionId",
+        "routingAnchorDigest",
+        "contentProfile",
+        "identityClaim",
+        "requestedFactKinds",
+        "sourceKind",
+        "intentDigest",
+        "relatedReferenceId",
+        "relatedReferenceDigest",
+        "expectedPhysicalIdentityDigest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "intentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "subjectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "routingAnchorIntakeDecisionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "routingAnchorDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "contentProfile": {
+          "const": "movie"
+        },
+        "identityClaim": {
+          "$ref": "helix://contracts/types/IdentityClaim/v1"
+        },
+        "requestedFactKinds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "release_year",
+              "region",
+              "genre",
+              "resolved_provider_identity"
+            ]
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "uniqueItems": true,
+          "x-helix-canonicalOrder": "UTF-8(value)"
+        },
+        "sourceKind": {
+          "const": "provider"
+        },
+        "intentDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "integrationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "configRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "providerKind": {
+          "const": "tmdb"
+        },
+        "candidateDisplayTitle": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "yearHint": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1870,
+              "maximum": 3000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "strongProviderAnchor": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "provider": {
+                  "const": "tmdb"
+                },
+                "namespace": {
+                  "const": "tmdb_movie"
+                },
+                "providerKey": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "required": [
+                "provider",
+                "namespace",
+                "providerKey"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "intentId",
+        "subjectId",
+        "routingAnchorIntakeDecisionId",
+        "routingAnchorDigest",
+        "contentProfile",
+        "identityClaim",
+        "requestedFactKinds",
+        "sourceKind",
+        "intentDigest",
+        "integrationId",
+        "configRevision",
+        "providerKind",
+        "candidateDisplayTitle",
+        "yearHint",
+        "strongProviderAnchor"
+      ]
+    }
+  ]
+}

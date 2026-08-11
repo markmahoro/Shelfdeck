@@ -9,6 +9,11 @@ const { createIntakeOfferReader } = require('../persistence/intake-offer-reader'
 const { createIntakeDecisionResolver } = require('../application/intake-decision-resolver');
 const { createIntakeProcessCoordinator } = require('../application/intake-process-coordinator');
 const { createEvidencePlanner,createAcceptancePlanner,createRejectionPlanner,createIntakeProjections } = require('../planning/intake-planners');
+const { createRoutingCapabilityPorts } = require('../capabilities/routing-capability-ports');
+const { createRoutingCapabilityRegistrations, EFFECTS: ROUTING_EFFECTS } = require('../capabilities/routing-capability-registrations');
+const { createRoutingContextReader } = require('../application/routing-context-reader');
+const { createRoutingProcessCoordinator } = require('../application/routing-process-coordinator');
+const { createFactPlanner, createBasisPlanner, createRoutingProjections } = require('../planning/routing-planners');
 
 class LibraPublicFacadeError extends Error {
   constructor(code, message, details = {}) {
@@ -87,20 +92,33 @@ function createExecutionRegistration() {
   const implementation={
     createCapabilityRegistration(options) {
       const offerReader=options.offerReader || createIntakeOfferReader(options);
-      const ports=createIntakeCapabilityPorts({...options,offerReader});
-      return Object.freeze({offerReader,ports,createRegistrations(registrationOptions){return createIntakeCapabilityRegistrations({
-        ...registrationOptions,ports:Object.fromEntries(registrationOptions.enabledCapabilityRefs.map((ref)=>[ref,ports[ref]]))});}});
+      const intakePorts=createIntakeCapabilityPorts({...options,offerReader});
+      const routingPorts=createRoutingCapabilityPorts(options);
+      const ports=Object.freeze({...intakePorts,...routingPorts});
+      return Object.freeze({offerReader,ports,createRegistrations(registrationOptions){
+        const routingRefs=registrationOptions.enabledCapabilityRefs.filter((ref)=>ROUTING_EFFECTS[ref]);
+        const intakeRefs=registrationOptions.enabledCapabilityRefs.filter((ref)=>!ROUTING_EFFECTS[ref]);
+        return Object.freeze([
+          ...createIntakeCapabilityRegistrations({...registrationOptions,enabledCapabilityRefs:intakeRefs,
+            ports:Object.fromEntries(intakeRefs.map((ref)=>[ref,ports[ref]]))}),
+          ...createRoutingCapabilityRegistrations({...registrationOptions,enabledCapabilityRefs:routingRefs,
+            ports:Object.fromEntries(routingRefs.map((ref)=>[ref,ports[ref]]))}),
+        ]);
+      }});
     },
     createProcessServices(options) {
       const offerReader=options.offerReader || createIntakeOfferReader(options);
       const decisionResolver=createIntakeDecisionResolver(options);
       const coordinator=createIntakeProcessCoordinator({...options,offerReader});
-      return Object.freeze({offerReader,decisionResolver,coordinator});
+      const routingContextReader=createRoutingContextReader(options);
+      const routingCoordinator=createRoutingProcessCoordinator({...options,contextReader:routingContextReader});
+      return Object.freeze({offerReader,decisionResolver,coordinator,routingContextReader,routingCoordinator});
     },
     createPlanningRegistration(options) {
       return Object.freeze({planners:Object.freeze([
-        createEvidencePlanner(options),createAcceptancePlanner(options),createRejectionPlanner(options)
-      ]),bindingProjections:createIntakeProjections(options)});
+        createEvidencePlanner(options),createAcceptancePlanner(options),createRejectionPlanner(options),
+        createFactPlanner(options,'related_nfo'),createFactPlanner(options,'provider'),createBasisPlanner(options)
+      ]),bindingProjections:Object.freeze([...createIntakeProjections(options),...createRoutingProjections(options)])});
     }
   };
   const provided=Object.keys(implementation).sort(),expected=[...executionContract.methods].sort();

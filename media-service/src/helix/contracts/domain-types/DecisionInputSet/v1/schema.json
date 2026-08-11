@@ -3,49 +3,2425 @@
   "$id": "helix://contracts/domain-types/DecisionInputSet/v1",
   "title": "DecisionInputSet@1",
   "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
     "8.6.20"
   ],
   "x-helix-role": "accepted-business-dto",
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "schemaRef": {
-      "const": "helix://contracts/domain-types/DecisionInputSet/v1"
-    },
-    "schemaVersion": {
-      "const": 1
-    },
-    "objectId": {
+    "decisionInputSetId": {
       "type": "string",
       "minLength": 1,
       "maxLength": 256
     },
-    "revision": {
-      "type": "integer",
-      "minimum": 1
-    },
-    "digest": {
+    "basisKind": {
       "type": "string",
-      "minLength": 1,
-      "pattern": "^[a-f0-9]{64}$"
+      "enum": [
+        "routing",
+        "acceptance_spec"
+      ]
     },
-    "subjectId": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 256
+    "subjectSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "subjectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "status": {
+          "const": "active"
+        },
+        "intakeRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "structureKind": {
+          "type": "string",
+          "enum": [
+            "single",
+            "season"
+          ]
+        },
+        "contentProfile": {
+          "type": "string",
+          "enum": [
+            "movie",
+            "series",
+            "jav",
+            "western_adult"
+          ]
+        },
+        "routingAnchorIntakeDecisionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "routingProvenance": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "candidatePackageId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "sourceFieldId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "sourceFieldAccessRevision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "sourceFieldContextDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "candidateIdentityClaimDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "decisionIdentityEvidenceSchemaRef": {
+              "type": "string",
+              "minLength": 1
+            },
+            "decisionIdentityEvidenceSourceId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "decisionIdentityEvidenceRevision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "decisionIdentityEvidenceDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "candidatePackageId",
+            "sourceFieldId",
+            "sourceFieldAccessRevision",
+            "sourceFieldContextDigest",
+            "candidateIdentityClaimDigest"
+          ]
+        },
+        "currentIdentityRevision": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "currentIdentityDigest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "continuitySetDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "episodeScopeDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "snapshotDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "subjectId",
+        "status",
+        "intakeRevision",
+        "structureKind",
+        "contentProfile",
+        "routingAnchorIntakeDecisionId",
+        "routingProvenance",
+        "currentIdentityRevision",
+        "currentIdentityDigest",
+        "continuitySetDigest",
+        "episodeScopeDigest",
+        "snapshotDigest"
+      ]
     },
-    "inputs": {
+    "expectedDecisionHead": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "subjectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "headState": {
+          "type": "string",
+          "enum": [
+            "absent",
+            "present"
+          ]
+        },
+        "headRevision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "headDigest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "currentRoutingDecisionId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "currentDecisionBasisId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "currentAcceptanceSpecId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "snapshotDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "subjectId",
+        "headState",
+        "headRevision",
+        "headDigest",
+        "currentRoutingDecisionId",
+        "currentDecisionBasisId",
+        "currentAcceptanceSpecId",
+        "snapshotDigest"
+      ]
+    },
+    "readiness": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "result": {
+          "type": "string",
+          "enum": [
+            "ready",
+            "unresolved"
+          ]
+        },
+        "reasonCode": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "result"
+      ]
+    },
+    "routingAuthoritySnapshot": {
+      "anyOf": [
+        {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "authorityKind": {
+                  "const": "policy"
+                },
+                "policy": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "routingPolicyId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "revision": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "fieldId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "direct",
+                        "sorting"
+                      ]
+                    },
+                    "targets": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "shelfId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 256
+                          },
+                          "rank": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "matchExpression": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "properties": {
+                                  "nodeKind": {
+                                    "const": "always"
+                                  }
+                                },
+                                "required": [
+                                  "nodeKind"
+                                ]
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "properties": {
+                                  "nodeKind": {
+                                    "const": "predicate"
+                                  },
+                                  "factKind": {
+                                    "type": "string",
+                                    "enum": [
+                                      "content_profile",
+                                      "structure_kind",
+                                      "material_field",
+                                      "release_year",
+                                      "region",
+                                      "genre",
+                                      "resolved_provider_identity"
+                                    ]
+                                  },
+                                  "operator": {
+                                    "type": "string",
+                                    "enum": [
+                                      "eq",
+                                      "one_of",
+                                      "gte",
+                                      "lte",
+                                      "exists"
+                                    ]
+                                  },
+                                  "expectedValue": {}
+                                },
+                                "required": [
+                                  "nodeKind",
+                                  "factKind",
+                                  "operator",
+                                  "expectedValue"
+                                ]
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "properties": {
+                                  "nodeKind": {
+                                    "type": "string",
+                                    "enum": [
+                                      "all",
+                                      "any"
+                                    ]
+                                  },
+                                  "children": {
+                                    "type": "array",
+                                    "items": {
+                                      "oneOf": [
+                                        {
+                                          "type": "object",
+                                          "additionalProperties": false,
+                                          "properties": {
+                                            "nodeKind": {
+                                              "const": "always"
+                                            }
+                                          },
+                                          "required": [
+                                            "nodeKind"
+                                          ]
+                                        },
+                                        {
+                                          "type": "object",
+                                          "additionalProperties": false,
+                                          "properties": {
+                                            "nodeKind": {
+                                              "const": "predicate"
+                                            },
+                                            "factKind": {
+                                              "type": "string",
+                                              "enum": [
+                                                "content_profile",
+                                                "structure_kind",
+                                                "material_field",
+                                                "release_year",
+                                                "region",
+                                                "genre",
+                                                "resolved_provider_identity"
+                                              ]
+                                            },
+                                            "operator": {
+                                              "type": "string",
+                                              "enum": [
+                                                "eq",
+                                                "one_of",
+                                                "gte",
+                                                "lte",
+                                                "exists"
+                                              ]
+                                            },
+                                            "expectedValue": {}
+                                          },
+                                          "required": [
+                                            "nodeKind",
+                                            "factKind",
+                                            "operator",
+                                            "expectedValue"
+                                          ]
+                                        },
+                                        {
+                                          "type": "object",
+                                          "additionalProperties": false,
+                                          "properties": {
+                                            "nodeKind": {
+                                              "type": "string",
+                                              "enum": [
+                                                "all",
+                                                "any"
+                                              ]
+                                            },
+                                            "children": {
+                                              "type": "array",
+                                              "items": {
+                                                "oneOf": [
+                                                  {
+                                                    "type": "object",
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                      "nodeKind": {
+                                                        "const": "always"
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "nodeKind"
+                                                    ]
+                                                  },
+                                                  {
+                                                    "type": "object",
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                      "nodeKind": {
+                                                        "const": "predicate"
+                                                      },
+                                                      "factKind": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                          "content_profile",
+                                                          "structure_kind",
+                                                          "material_field",
+                                                          "release_year",
+                                                          "region",
+                                                          "genre",
+                                                          "resolved_provider_identity"
+                                                        ]
+                                                      },
+                                                      "operator": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                          "eq",
+                                                          "one_of",
+                                                          "gte",
+                                                          "lte",
+                                                          "exists"
+                                                        ]
+                                                      },
+                                                      "expectedValue": {}
+                                                    },
+                                                    "required": [
+                                                      "nodeKind",
+                                                      "factKind",
+                                                      "operator",
+                                                      "expectedValue"
+                                                    ]
+                                                  },
+                                                  {
+                                                    "type": "object",
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                      "nodeKind": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                          "all",
+                                                          "any"
+                                                        ]
+                                                      },
+                                                      "children": {
+                                                        "type": "array",
+                                                        "items": {
+                                                          "oneOf": [
+                                                            {
+                                                              "type": "object",
+                                                              "additionalProperties": false,
+                                                              "properties": {
+                                                                "nodeKind": {
+                                                                  "const": "always"
+                                                                }
+                                                              },
+                                                              "required": [
+                                                                "nodeKind"
+                                                              ]
+                                                            },
+                                                            {
+                                                              "type": "object",
+                                                              "additionalProperties": false,
+                                                              "properties": {
+                                                                "nodeKind": {
+                                                                  "const": "predicate"
+                                                                },
+                                                                "factKind": {
+                                                                  "type": "string",
+                                                                  "enum": [
+                                                                    "content_profile",
+                                                                    "structure_kind",
+                                                                    "material_field",
+                                                                    "release_year",
+                                                                    "region",
+                                                                    "genre",
+                                                                    "resolved_provider_identity"
+                                                                  ]
+                                                                },
+                                                                "operator": {
+                                                                  "type": "string",
+                                                                  "enum": [
+                                                                    "eq",
+                                                                    "one_of",
+                                                                    "gte",
+                                                                    "lte",
+                                                                    "exists"
+                                                                  ]
+                                                                },
+                                                                "expectedValue": {}
+                                                              },
+                                                              "required": [
+                                                                "nodeKind",
+                                                                "factKind",
+                                                                "operator",
+                                                                "expectedValue"
+                                                              ]
+                                                            }
+                                                          ]
+                                                        },
+                                                        "maxItems": 16,
+                                                        "minItems": 1
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "nodeKind",
+                                                      "children"
+                                                    ]
+                                                  },
+                                                  {
+                                                    "type": "object",
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                      "nodeKind": {
+                                                        "const": "not"
+                                                      },
+                                                      "child": {
+                                                        "oneOf": [
+                                                          {
+                                                            "type": "object",
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                              "nodeKind": {
+                                                                "const": "always"
+                                                              }
+                                                            },
+                                                            "required": [
+                                                              "nodeKind"
+                                                            ]
+                                                          },
+                                                          {
+                                                            "type": "object",
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                              "nodeKind": {
+                                                                "const": "predicate"
+                                                              },
+                                                              "factKind": {
+                                                                "type": "string",
+                                                                "enum": [
+                                                                  "content_profile",
+                                                                  "structure_kind",
+                                                                  "material_field",
+                                                                  "release_year",
+                                                                  "region",
+                                                                  "genre",
+                                                                  "resolved_provider_identity"
+                                                                ]
+                                                              },
+                                                              "operator": {
+                                                                "type": "string",
+                                                                "enum": [
+                                                                  "eq",
+                                                                  "one_of",
+                                                                  "gte",
+                                                                  "lte",
+                                                                  "exists"
+                                                                ]
+                                                              },
+                                                              "expectedValue": {}
+                                                            },
+                                                            "required": [
+                                                              "nodeKind",
+                                                              "factKind",
+                                                              "operator",
+                                                              "expectedValue"
+                                                            ]
+                                                          }
+                                                        ]
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "nodeKind",
+                                                      "child"
+                                                    ]
+                                                  }
+                                                ]
+                                              },
+                                              "maxItems": 16,
+                                              "minItems": 1
+                                            }
+                                          },
+                                          "required": [
+                                            "nodeKind",
+                                            "children"
+                                          ]
+                                        },
+                                        {
+                                          "type": "object",
+                                          "additionalProperties": false,
+                                          "properties": {
+                                            "nodeKind": {
+                                              "const": "not"
+                                            },
+                                            "child": {
+                                              "oneOf": [
+                                                {
+                                                  "type": "object",
+                                                  "additionalProperties": false,
+                                                  "properties": {
+                                                    "nodeKind": {
+                                                      "const": "always"
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "nodeKind"
+                                                  ]
+                                                },
+                                                {
+                                                  "type": "object",
+                                                  "additionalProperties": false,
+                                                  "properties": {
+                                                    "nodeKind": {
+                                                      "const": "predicate"
+                                                    },
+                                                    "factKind": {
+                                                      "type": "string",
+                                                      "enum": [
+                                                        "content_profile",
+                                                        "structure_kind",
+                                                        "material_field",
+                                                        "release_year",
+                                                        "region",
+                                                        "genre",
+                                                        "resolved_provider_identity"
+                                                      ]
+                                                    },
+                                                    "operator": {
+                                                      "type": "string",
+                                                      "enum": [
+                                                        "eq",
+                                                        "one_of",
+                                                        "gte",
+                                                        "lte",
+                                                        "exists"
+                                                      ]
+                                                    },
+                                                    "expectedValue": {}
+                                                  },
+                                                  "required": [
+                                                    "nodeKind",
+                                                    "factKind",
+                                                    "operator",
+                                                    "expectedValue"
+                                                  ]
+                                                },
+                                                {
+                                                  "type": "object",
+                                                  "additionalProperties": false,
+                                                  "properties": {
+                                                    "nodeKind": {
+                                                      "type": "string",
+                                                      "enum": [
+                                                        "all",
+                                                        "any"
+                                                      ]
+                                                    },
+                                                    "children": {
+                                                      "type": "array",
+                                                      "items": {
+                                                        "oneOf": [
+                                                          {
+                                                            "type": "object",
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                              "nodeKind": {
+                                                                "const": "always"
+                                                              }
+                                                            },
+                                                            "required": [
+                                                              "nodeKind"
+                                                            ]
+                                                          },
+                                                          {
+                                                            "type": "object",
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                              "nodeKind": {
+                                                                "const": "predicate"
+                                                              },
+                                                              "factKind": {
+                                                                "type": "string",
+                                                                "enum": [
+                                                                  "content_profile",
+                                                                  "structure_kind",
+                                                                  "material_field",
+                                                                  "release_year",
+                                                                  "region",
+                                                                  "genre",
+                                                                  "resolved_provider_identity"
+                                                                ]
+                                                              },
+                                                              "operator": {
+                                                                "type": "string",
+                                                                "enum": [
+                                                                  "eq",
+                                                                  "one_of",
+                                                                  "gte",
+                                                                  "lte",
+                                                                  "exists"
+                                                                ]
+                                                              },
+                                                              "expectedValue": {}
+                                                            },
+                                                            "required": [
+                                                              "nodeKind",
+                                                              "factKind",
+                                                              "operator",
+                                                              "expectedValue"
+                                                            ]
+                                                          }
+                                                        ]
+                                                      },
+                                                      "maxItems": 16,
+                                                      "minItems": 1
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "nodeKind",
+                                                    "children"
+                                                  ]
+                                                },
+                                                {
+                                                  "type": "object",
+                                                  "additionalProperties": false,
+                                                  "properties": {
+                                                    "nodeKind": {
+                                                      "const": "not"
+                                                    },
+                                                    "child": {
+                                                      "oneOf": [
+                                                        {
+                                                          "type": "object",
+                                                          "additionalProperties": false,
+                                                          "properties": {
+                                                            "nodeKind": {
+                                                              "const": "always"
+                                                            }
+                                                          },
+                                                          "required": [
+                                                            "nodeKind"
+                                                          ]
+                                                        },
+                                                        {
+                                                          "type": "object",
+                                                          "additionalProperties": false,
+                                                          "properties": {
+                                                            "nodeKind": {
+                                                              "const": "predicate"
+                                                            },
+                                                            "factKind": {
+                                                              "type": "string",
+                                                              "enum": [
+                                                                "content_profile",
+                                                                "structure_kind",
+                                                                "material_field",
+                                                                "release_year",
+                                                                "region",
+                                                                "genre",
+                                                                "resolved_provider_identity"
+                                                              ]
+                                                            },
+                                                            "operator": {
+                                                              "type": "string",
+                                                              "enum": [
+                                                                "eq",
+                                                                "one_of",
+                                                                "gte",
+                                                                "lte",
+                                                                "exists"
+                                                              ]
+                                                            },
+                                                            "expectedValue": {}
+                                                          },
+                                                          "required": [
+                                                            "nodeKind",
+                                                            "factKind",
+                                                            "operator",
+                                                            "expectedValue"
+                                                          ]
+                                                        }
+                                                      ]
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "nodeKind",
+                                                    "child"
+                                                  ]
+                                                }
+                                              ]
+                                            }
+                                          },
+                                          "required": [
+                                            "nodeKind",
+                                            "child"
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    "maxItems": 16,
+                                    "minItems": 1
+                                  }
+                                },
+                                "required": [
+                                  "nodeKind",
+                                  "children"
+                                ]
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "properties": {
+                                  "nodeKind": {
+                                    "const": "not"
+                                  },
+                                  "child": {
+                                    "oneOf": [
+                                      {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "nodeKind": {
+                                            "const": "always"
+                                          }
+                                        },
+                                        "required": [
+                                          "nodeKind"
+                                        ]
+                                      },
+                                      {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "nodeKind": {
+                                            "const": "predicate"
+                                          },
+                                          "factKind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "content_profile",
+                                              "structure_kind",
+                                              "material_field",
+                                              "release_year",
+                                              "region",
+                                              "genre",
+                                              "resolved_provider_identity"
+                                            ]
+                                          },
+                                          "operator": {
+                                            "type": "string",
+                                            "enum": [
+                                              "eq",
+                                              "one_of",
+                                              "gte",
+                                              "lte",
+                                              "exists"
+                                            ]
+                                          },
+                                          "expectedValue": {}
+                                        },
+                                        "required": [
+                                          "nodeKind",
+                                          "factKind",
+                                          "operator",
+                                          "expectedValue"
+                                        ]
+                                      },
+                                      {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "nodeKind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "all",
+                                              "any"
+                                            ]
+                                          },
+                                          "children": {
+                                            "type": "array",
+                                            "items": {
+                                              "oneOf": [
+                                                {
+                                                  "type": "object",
+                                                  "additionalProperties": false,
+                                                  "properties": {
+                                                    "nodeKind": {
+                                                      "const": "always"
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "nodeKind"
+                                                  ]
+                                                },
+                                                {
+                                                  "type": "object",
+                                                  "additionalProperties": false,
+                                                  "properties": {
+                                                    "nodeKind": {
+                                                      "const": "predicate"
+                                                    },
+                                                    "factKind": {
+                                                      "type": "string",
+                                                      "enum": [
+                                                        "content_profile",
+                                                        "structure_kind",
+                                                        "material_field",
+                                                        "release_year",
+                                                        "region",
+                                                        "genre",
+                                                        "resolved_provider_identity"
+                                                      ]
+                                                    },
+                                                    "operator": {
+                                                      "type": "string",
+                                                      "enum": [
+                                                        "eq",
+                                                        "one_of",
+                                                        "gte",
+                                                        "lte",
+                                                        "exists"
+                                                      ]
+                                                    },
+                                                    "expectedValue": {}
+                                                  },
+                                                  "required": [
+                                                    "nodeKind",
+                                                    "factKind",
+                                                    "operator",
+                                                    "expectedValue"
+                                                  ]
+                                                },
+                                                {
+                                                  "type": "object",
+                                                  "additionalProperties": false,
+                                                  "properties": {
+                                                    "nodeKind": {
+                                                      "type": "string",
+                                                      "enum": [
+                                                        "all",
+                                                        "any"
+                                                      ]
+                                                    },
+                                                    "children": {
+                                                      "type": "array",
+                                                      "items": {
+                                                        "oneOf": [
+                                                          {
+                                                            "type": "object",
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                              "nodeKind": {
+                                                                "const": "always"
+                                                              }
+                                                            },
+                                                            "required": [
+                                                              "nodeKind"
+                                                            ]
+                                                          },
+                                                          {
+                                                            "type": "object",
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                              "nodeKind": {
+                                                                "const": "predicate"
+                                                              },
+                                                              "factKind": {
+                                                                "type": "string",
+                                                                "enum": [
+                                                                  "content_profile",
+                                                                  "structure_kind",
+                                                                  "material_field",
+                                                                  "release_year",
+                                                                  "region",
+                                                                  "genre",
+                                                                  "resolved_provider_identity"
+                                                                ]
+                                                              },
+                                                              "operator": {
+                                                                "type": "string",
+                                                                "enum": [
+                                                                  "eq",
+                                                                  "one_of",
+                                                                  "gte",
+                                                                  "lte",
+                                                                  "exists"
+                                                                ]
+                                                              },
+                                                              "expectedValue": {}
+                                                            },
+                                                            "required": [
+                                                              "nodeKind",
+                                                              "factKind",
+                                                              "operator",
+                                                              "expectedValue"
+                                                            ]
+                                                          }
+                                                        ]
+                                                      },
+                                                      "maxItems": 16,
+                                                      "minItems": 1
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "nodeKind",
+                                                    "children"
+                                                  ]
+                                                },
+                                                {
+                                                  "type": "object",
+                                                  "additionalProperties": false,
+                                                  "properties": {
+                                                    "nodeKind": {
+                                                      "const": "not"
+                                                    },
+                                                    "child": {
+                                                      "oneOf": [
+                                                        {
+                                                          "type": "object",
+                                                          "additionalProperties": false,
+                                                          "properties": {
+                                                            "nodeKind": {
+                                                              "const": "always"
+                                                            }
+                                                          },
+                                                          "required": [
+                                                            "nodeKind"
+                                                          ]
+                                                        },
+                                                        {
+                                                          "type": "object",
+                                                          "additionalProperties": false,
+                                                          "properties": {
+                                                            "nodeKind": {
+                                                              "const": "predicate"
+                                                            },
+                                                            "factKind": {
+                                                              "type": "string",
+                                                              "enum": [
+                                                                "content_profile",
+                                                                "structure_kind",
+                                                                "material_field",
+                                                                "release_year",
+                                                                "region",
+                                                                "genre",
+                                                                "resolved_provider_identity"
+                                                              ]
+                                                            },
+                                                            "operator": {
+                                                              "type": "string",
+                                                              "enum": [
+                                                                "eq",
+                                                                "one_of",
+                                                                "gte",
+                                                                "lte",
+                                                                "exists"
+                                                              ]
+                                                            },
+                                                            "expectedValue": {}
+                                                          },
+                                                          "required": [
+                                                            "nodeKind",
+                                                            "factKind",
+                                                            "operator",
+                                                            "expectedValue"
+                                                          ]
+                                                        }
+                                                      ]
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "nodeKind",
+                                                    "child"
+                                                  ]
+                                                }
+                                              ]
+                                            },
+                                            "maxItems": 16,
+                                            "minItems": 1
+                                          }
+                                        },
+                                        "required": [
+                                          "nodeKind",
+                                          "children"
+                                        ]
+                                      },
+                                      {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "nodeKind": {
+                                            "const": "not"
+                                          },
+                                          "child": {
+                                            "oneOf": [
+                                              {
+                                                "type": "object",
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                  "nodeKind": {
+                                                    "const": "always"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "nodeKind"
+                                                ]
+                                              },
+                                              {
+                                                "type": "object",
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                  "nodeKind": {
+                                                    "const": "predicate"
+                                                  },
+                                                  "factKind": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                      "content_profile",
+                                                      "structure_kind",
+                                                      "material_field",
+                                                      "release_year",
+                                                      "region",
+                                                      "genre",
+                                                      "resolved_provider_identity"
+                                                    ]
+                                                  },
+                                                  "operator": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                      "eq",
+                                                      "one_of",
+                                                      "gte",
+                                                      "lte",
+                                                      "exists"
+                                                    ]
+                                                  },
+                                                  "expectedValue": {}
+                                                },
+                                                "required": [
+                                                  "nodeKind",
+                                                  "factKind",
+                                                  "operator",
+                                                  "expectedValue"
+                                                ]
+                                              },
+                                              {
+                                                "type": "object",
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                  "nodeKind": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                      "all",
+                                                      "any"
+                                                    ]
+                                                  },
+                                                  "children": {
+                                                    "type": "array",
+                                                    "items": {
+                                                      "oneOf": [
+                                                        {
+                                                          "type": "object",
+                                                          "additionalProperties": false,
+                                                          "properties": {
+                                                            "nodeKind": {
+                                                              "const": "always"
+                                                            }
+                                                          },
+                                                          "required": [
+                                                            "nodeKind"
+                                                          ]
+                                                        },
+                                                        {
+                                                          "type": "object",
+                                                          "additionalProperties": false,
+                                                          "properties": {
+                                                            "nodeKind": {
+                                                              "const": "predicate"
+                                                            },
+                                                            "factKind": {
+                                                              "type": "string",
+                                                              "enum": [
+                                                                "content_profile",
+                                                                "structure_kind",
+                                                                "material_field",
+                                                                "release_year",
+                                                                "region",
+                                                                "genre",
+                                                                "resolved_provider_identity"
+                                                              ]
+                                                            },
+                                                            "operator": {
+                                                              "type": "string",
+                                                              "enum": [
+                                                                "eq",
+                                                                "one_of",
+                                                                "gte",
+                                                                "lte",
+                                                                "exists"
+                                                              ]
+                                                            },
+                                                            "expectedValue": {}
+                                                          },
+                                                          "required": [
+                                                            "nodeKind",
+                                                            "factKind",
+                                                            "operator",
+                                                            "expectedValue"
+                                                          ]
+                                                        }
+                                                      ]
+                                                    },
+                                                    "maxItems": 16,
+                                                    "minItems": 1
+                                                  }
+                                                },
+                                                "required": [
+                                                  "nodeKind",
+                                                  "children"
+                                                ]
+                                              },
+                                              {
+                                                "type": "object",
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                  "nodeKind": {
+                                                    "const": "not"
+                                                  },
+                                                  "child": {
+                                                    "oneOf": [
+                                                      {
+                                                        "type": "object",
+                                                        "additionalProperties": false,
+                                                        "properties": {
+                                                          "nodeKind": {
+                                                            "const": "always"
+                                                          }
+                                                        },
+                                                        "required": [
+                                                          "nodeKind"
+                                                        ]
+                                                      },
+                                                      {
+                                                        "type": "object",
+                                                        "additionalProperties": false,
+                                                        "properties": {
+                                                          "nodeKind": {
+                                                            "const": "predicate"
+                                                          },
+                                                          "factKind": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                              "content_profile",
+                                                              "structure_kind",
+                                                              "material_field",
+                                                              "release_year",
+                                                              "region",
+                                                              "genre",
+                                                              "resolved_provider_identity"
+                                                            ]
+                                                          },
+                                                          "operator": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                              "eq",
+                                                              "one_of",
+                                                              "gte",
+                                                              "lte",
+                                                              "exists"
+                                                            ]
+                                                          },
+                                                          "expectedValue": {}
+                                                        },
+                                                        "required": [
+                                                          "nodeKind",
+                                                          "factKind",
+                                                          "operator",
+                                                          "expectedValue"
+                                                        ]
+                                                      }
+                                                    ]
+                                                  }
+                                                },
+                                                "required": [
+                                                  "nodeKind",
+                                                  "child"
+                                                ]
+                                              }
+                                            ]
+                                          }
+                                        },
+                                        "required": [
+                                          "nodeKind",
+                                          "child"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "nodeKind",
+                                  "child"
+                                ]
+                              }
+                            ]
+                          },
+                          "matchRuleDigest": {
+                            "type": "string",
+                            "minLength": 1,
+                            "pattern": "^[a-f0-9]{64}$"
+                          }
+                        },
+                        "required": [
+                          "shelfId",
+                          "rank",
+                          "matchExpression",
+                          "matchRuleDigest"
+                        ]
+                      },
+                      "maxItems": 64,
+                      "minItems": 1
+                    },
+                    "policyDigest": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "routingPolicyId",
+                    "revision",
+                    "fieldId",
+                    "mode",
+                    "targets",
+                    "policyDigest"
+                  ]
+                },
+                "authorityDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "required": [
+                "authorityKind",
+                "policy",
+                "authorityDigest"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "authorityKind": {
+                  "const": "manual_selection"
+                },
+                "manualIntent": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "subjectId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "targetShelfId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "expectedDecisionHead": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "revision": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "digest": {
+                          "type": "string",
+                          "minLength": 1,
+                          "pattern": "^[a-f0-9]{64}$"
+                        }
+                      },
+                      "required": [
+                        "revision",
+                        "digest"
+                      ]
+                    },
+                    "actorId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "idempotencyKey": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "requestDigest": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "subjectId",
+                    "targetShelfId",
+                    "expectedDecisionHead",
+                    "actorId",
+                    "idempotencyKey",
+                    "requestDigest"
+                  ]
+                },
+                "authorityDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "required": [
+                "authorityKind",
+                "manualIntent",
+                "authorityDigest"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "shelfRoutingTargets": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "objectId": {
+          "shelfId": {
             "type": "string",
             "minLength": 1,
             "maxLength": 256
           },
-          "revision": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "deregistering",
+              "deregistered"
+            ]
+          },
+          "routingProjectionRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "currentStandardRevision": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "currentStandardDigest": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "projectionDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "shelfId",
+          "status",
+          "routingProjectionRevision",
+          "currentStandardRevision",
+          "currentStandardDigest",
+          "projectionDigest"
+        ]
+      },
+      "maxItems": 128
+    },
+    "routingDecision": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "routingDecisionId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "subjectId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "decisionRevision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "assessmentId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "decisionBasisId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "routingAuthorityKind": {
+              "type": "string",
+              "enum": [
+                "policy",
+                "manual_selection"
+              ]
+            },
+            "routingPolicyId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "routingPolicyRevision": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "manualSelectionDigest": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "routingInputDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "shelfPrioritySetDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "result": {
+              "type": "string",
+              "enum": [
+                "resolved",
+                "unresolved"
+              ]
+            },
+            "targetShelfId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "unresolvedReasonCode": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "decisionDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "routingDecisionId",
+            "subjectId",
+            "decisionRevision",
+            "assessmentId",
+            "decisionBasisId",
+            "routingAuthorityKind",
+            "routingPolicyId",
+            "routingPolicyRevision",
+            "manualSelectionDigest",
+            "routingInputDigest",
+            "shelfPrioritySetDigest",
+            "result",
+            "targetShelfId",
+            "unresolvedReasonCode",
+            "decisionDigest"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "shelfStandardProjection": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "shelfId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "status": {
+              "const": "active"
+            },
+            "routingProjectionRevision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "projectionDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "standard": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "shelfId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "standardRevision": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "ruleTemplateId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "ruleTemplateRevision": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "profileRuleSets": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "contentProfile": {
+                        "type": "string",
+                        "enum": [
+                          "movie",
+                          "series",
+                          "jav",
+                          "western_adult"
+                        ]
+                      },
+                      "decisionInputKinds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "rating"
+                          ]
+                        },
+                        "maxItems": 1
+                      },
+                      "baseRequirements": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "identity": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "identityKind": {
+                                "type": "string",
+                                "enum": [
+                                  "tmdb_movie",
+                                  "tmdb_series_season",
+                                  "jav_code",
+                                  "internal_identity"
+                                ]
+                              },
+                              "requiredProvider": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "minLength": 1
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "requireSeasonNumber": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "identityKind",
+                              "requireSeasonNumber"
+                            ]
+                          },
+                          "structure": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "structureKind": {
+                                "type": "string",
+                                "enum": [
+                                  "single",
+                                  "season"
+                                ]
+                              },
+                              "primaryModel": {
+                                "type": "string",
+                                "enum": [
+                                  "single_primary",
+                                  "episode_primary"
+                                ]
+                              },
+                              "requireOnePrimaryPerEpisode": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "structureKind",
+                              "primaryModel",
+                              "requireOnePrimaryPerEpisode"
+                            ]
+                          },
+                          "metadata": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "requiredFieldCodes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "maxItems": 128
+                              },
+                              "requiredArtifactKinds": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "maxItems": 128
+                              },
+                              "requireRenderableSidecar": {
+                                "type": "boolean"
+                              },
+                              "requireDecodableImages": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "requiredFieldCodes",
+                              "requiredArtifactKinds",
+                              "requireRenderableSidecar",
+                              "requireDecodableImages"
+                            ]
+                          },
+                          "mandatoryMedia": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "mediaForm": {
+                                "type": "string",
+                                "enum": [
+                                  "any",
+                                  "stream_file"
+                                ]
+                              },
+                              "videoCodec": {
+                                "type": "string",
+                                "enum": [
+                                  "any",
+                                  "hevc"
+                                ]
+                              },
+                              "container": {
+                                "type": "string",
+                                "enum": [
+                                  "any",
+                                  "matroska"
+                                ]
+                              },
+                              "fileExtension": {
+                                "type": "string",
+                                "enum": [
+                                  "any",
+                                  "mkv"
+                                ]
+                              },
+                              "minimumRasterClass": {
+                                "type": "string",
+                                "enum": [
+                                  "none",
+                                  "4k"
+                                ]
+                              },
+                              "acceptedPrimaryAudioClasses": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "maxItems": 128
+                              },
+                              "forbidSystemUpscaleFor4k": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "mediaForm",
+                              "videoCodec",
+                              "container",
+                              "fileExtension",
+                              "minimumRasterClass",
+                              "acceptedPrimaryAudioClasses",
+                              "forbidSystemUpscaleFor4k"
+                            ]
+                          },
+                          "space": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "unit": {
+                                "type": "string",
+                                "enum": [
+                                  "product",
+                                  "episode"
+                                ]
+                              },
+                              "maxSizeGiB": {
+                                "anyOf": [
+                                  {
+                                    "type": "number",
+                                    "exclusiveMinimum": 0
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "maxSizeBytes": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 1
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "unit",
+                              "maxSizeGiB",
+                              "maxSizeBytes"
+                            ]
+                          },
+                          "inventory": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "requireDomainBinding": {
+                                "type": "boolean"
+                              },
+                              "requireChecksum": {
+                                "type": "boolean"
+                              },
+                              "requiredMaterializedArtifactKinds": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "maxItems": 128
+                              },
+                              "layoutModel": {
+                                "type": "string",
+                                "enum": [
+                                  "single",
+                                  "season_episode"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "requireDomainBinding",
+                              "requireChecksum",
+                              "requiredMaterializedArtifactKinds",
+                              "layoutModel"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "identity",
+                          "structure",
+                          "metadata",
+                          "mandatoryMedia",
+                          "space",
+                          "inventory"
+                        ]
+                      },
+                      "decisionBranches": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "conditionKind": {
+                              "type": "string",
+                              "enum": [
+                                "no_rating",
+                                "rating_equals"
+                              ]
+                            },
+                            "rating": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 5
+                            },
+                            "requirements": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "properties": {
+                                "identity": {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "identityKind": {
+                                      "type": "string",
+                                      "enum": [
+                                        "tmdb_movie",
+                                        "tmdb_series_season",
+                                        "jav_code",
+                                        "internal_identity"
+                                      ]
+                                    },
+                                    "requiredProvider": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "minLength": 1
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "requireSeasonNumber": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": [
+                                    "identityKind",
+                                    "requireSeasonNumber"
+                                  ]
+                                },
+                                "structure": {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "structureKind": {
+                                      "type": "string",
+                                      "enum": [
+                                        "single",
+                                        "season"
+                                      ]
+                                    },
+                                    "primaryModel": {
+                                      "type": "string",
+                                      "enum": [
+                                        "single_primary",
+                                        "episode_primary"
+                                      ]
+                                    },
+                                    "requireOnePrimaryPerEpisode": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": [
+                                    "structureKind",
+                                    "primaryModel",
+                                    "requireOnePrimaryPerEpisode"
+                                  ]
+                                },
+                                "metadata": {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "requiredFieldCodes": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "maxItems": 128
+                                    },
+                                    "requiredArtifactKinds": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "maxItems": 128
+                                    },
+                                    "requireRenderableSidecar": {
+                                      "type": "boolean"
+                                    },
+                                    "requireDecodableImages": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": [
+                                    "requiredFieldCodes",
+                                    "requiredArtifactKinds",
+                                    "requireRenderableSidecar",
+                                    "requireDecodableImages"
+                                  ]
+                                },
+                                "mandatoryMedia": {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "mediaForm": {
+                                      "type": "string",
+                                      "enum": [
+                                        "any",
+                                        "stream_file"
+                                      ]
+                                    },
+                                    "videoCodec": {
+                                      "type": "string",
+                                      "enum": [
+                                        "any",
+                                        "hevc"
+                                      ]
+                                    },
+                                    "container": {
+                                      "type": "string",
+                                      "enum": [
+                                        "any",
+                                        "matroska"
+                                      ]
+                                    },
+                                    "fileExtension": {
+                                      "type": "string",
+                                      "enum": [
+                                        "any",
+                                        "mkv"
+                                      ]
+                                    },
+                                    "minimumRasterClass": {
+                                      "type": "string",
+                                      "enum": [
+                                        "none",
+                                        "4k"
+                                      ]
+                                    },
+                                    "acceptedPrimaryAudioClasses": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "maxItems": 128
+                                    },
+                                    "forbidSystemUpscaleFor4k": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": [
+                                    "mediaForm",
+                                    "videoCodec",
+                                    "container",
+                                    "fileExtension",
+                                    "minimumRasterClass",
+                                    "acceptedPrimaryAudioClasses",
+                                    "forbidSystemUpscaleFor4k"
+                                  ]
+                                },
+                                "space": {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "unit": {
+                                      "type": "string",
+                                      "enum": [
+                                        "product",
+                                        "episode"
+                                      ]
+                                    },
+                                    "maxSizeGiB": {
+                                      "anyOf": [
+                                        {
+                                          "type": "number",
+                                          "exclusiveMinimum": 0
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "maxSizeBytes": {
+                                      "anyOf": [
+                                        {
+                                          "type": "integer",
+                                          "minimum": 1
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "unit",
+                                    "maxSizeGiB",
+                                    "maxSizeBytes"
+                                  ]
+                                },
+                                "inventory": {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "requireDomainBinding": {
+                                      "type": "boolean"
+                                    },
+                                    "requireChecksum": {
+                                      "type": "boolean"
+                                    },
+                                    "requiredMaterializedArtifactKinds": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "maxItems": 128
+                                    },
+                                    "layoutModel": {
+                                      "type": "string",
+                                      "enum": [
+                                        "single",
+                                        "season_episode"
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "requireDomainBinding",
+                                    "requireChecksum",
+                                    "requiredMaterializedArtifactKinds",
+                                    "layoutModel"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "identity",
+                                "structure",
+                                "metadata",
+                                "mandatoryMedia",
+                                "space",
+                                "inventory"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "conditionKind",
+                            "requirements"
+                          ]
+                        },
+                        "maxItems": 6
+                      },
+                      "profileRuleSetDigest": {
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "^[a-f0-9]{64}$"
+                      }
+                    },
+                    "required": [
+                      "contentProfile",
+                      "decisionInputKinds",
+                      "baseRequirements",
+                      "decisionBranches",
+                      "profileRuleSetDigest"
+                    ]
+                  },
+                  "maxItems": 4,
+                  "minItems": 1
+                },
+                "standardDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "required": [
+                "shelfId",
+                "standardRevision",
+                "ruleTemplateId",
+                "ruleTemplateRevision",
+                "profileRuleSets",
+                "standardDigest"
+              ]
+            },
+            "projectionResultDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "shelfId",
+            "status",
+            "routingProjectionRevision",
+            "projectionDigest",
+            "standard",
+            "projectionResultDigest"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "productScope": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "subjectId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "scopeKind": {
+              "type": "string",
+              "enum": [
+                "single",
+                "episode_manifest"
+              ]
+            },
+            "subjectIntakeRevision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "episodeKeys": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "maxItems": 1024
+            },
+            "scopeDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "subjectId",
+            "scopeKind",
+            "subjectIntakeRevision",
+            "episodeKeys",
+            "scopeDigest"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "decisionFacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "minProperties": 6,
+        "required": [
+          "factKind",
+          "sourceObjectId",
+          "sourceRevision",
+          "schemaRef",
+          "factDigest"
+        ],
+        "properties": {
+          "factKind": {
+            "type": "string",
+            "enum": [
+              "content_profile",
+              "structure_kind",
+              "material_field",
+              "release_year",
+              "region",
+              "genre",
+              "resolved_provider_identity"
+            ]
+          },
+          "sourceObjectId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "sourceRevision": {
             "type": "integer",
             "minimum": 1
           },
@@ -53,24 +2429,99 @@
             "type": "string",
             "minLength": 1
           },
-          "digest": {
+          "factDigest": {
             "type": "string",
             "minLength": 1,
             "pattern": "^[a-f0-9]{64}$"
           },
-          "objectKind": {
-            "const": "decision-input"
+          "value": {},
+          "fieldId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "year": {
+            "type": "integer",
+            "minimum": 1870,
+            "maximum": 3000
+          },
+          "countryCodes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "maxItems": 128
+          },
+          "genreCodes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "maxItems": 128
+          },
+          "provider": {
+            "type": "string",
+            "minLength": 1
+          },
+          "namespace": {
+            "type": "string",
+            "minLength": 1
+          },
+          "providerKey": {
+            "type": "string",
+            "minLength": 1
+          },
+          "identityRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "identityDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
           }
         },
-        "required": [
-          "objectId",
-          "revision",
-          "schemaRef",
-          "digest",
-          "objectKind"
-        ]
+        "additionalProperties": false
       },
-      "maxItems": 256
+      "maxItems": 128
+    },
+    "queryResults": {
+      "type": "array",
+      "items": {
+        "$ref": "helix://contracts/types/VersionedQueryResult/v1"
+      },
+      "maxItems": 128
+    },
+    "queryResultSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "routingInputDigest": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "specInputDigest": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "inputSetDigest": {
       "type": "string",
@@ -79,13 +2530,22 @@
     }
   },
   "required": [
-    "schemaRef",
-    "schemaVersion",
-    "objectId",
-    "revision",
-    "digest",
-    "subjectId",
-    "inputs",
+    "decisionInputSetId",
+    "basisKind",
+    "subjectSnapshot",
+    "expectedDecisionHead",
+    "readiness",
+    "routingAuthoritySnapshot",
+    "shelfRoutingTargets",
+    "routingDecision",
+    "shelfStandardProjection",
+    "productScope",
+    "decisionFacts",
+    "queryResults",
+    "queryResultSetDigest",
+    "routingInputDigest",
+    "specInputDigest",
     "inputSetDigest"
-  ]
+  ],
+  "x-helix-maxCanonicalBytes": 1048576
 }

@@ -1,0 +1,451 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/RoutingFactObservation/v1",
+  "title": "RoutingFactObservation@1",
+  "x-helix-ssotRefs": [
+    "5.1.3",
+    "5.4.3",
+    "8.6.5",
+    "8.6.19"
+  ],
+  "x-helix-maxCanonicalBytes": 65536,
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "const": "helix://contracts/types/RoutingFactObservation/v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "observationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "intentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "subjectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "sourceKind": {
+          "type": "string",
+          "enum": [
+            "related_nfo",
+            "provider"
+          ]
+        },
+        "sourceRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        },
+        "candidateMatchCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "evidenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "observationDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "result": {
+          "const": "observed"
+        },
+        "reasonCode": {
+          "type": "null"
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "sourceObjectId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "sourceRevision": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "schemaRef": {
+                    "const": "RoutingDecisionFact@1"
+                  },
+                  "factDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "factKind": {
+                    "const": "release_year"
+                  },
+                  "year": {
+                    "type": "integer",
+                    "minimum": 1870,
+                    "maximum": 3000
+                  }
+                },
+                "required": [
+                  "sourceObjectId",
+                  "sourceRevision",
+                  "schemaRef",
+                  "factDigest",
+                  "factKind",
+                  "year"
+                ]
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "sourceObjectId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "sourceRevision": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "schemaRef": {
+                    "const": "RoutingDecisionFact@1"
+                  },
+                  "factDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "factKind": {
+                    "const": "region"
+                  },
+                  "countryCodes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "^[A-Z]{2}$"
+                    },
+                    "maxItems": 32,
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "x-helix-canonicalOrder": "UTF-8(value)"
+                  }
+                },
+                "required": [
+                  "sourceObjectId",
+                  "sourceRevision",
+                  "schemaRef",
+                  "factDigest",
+                  "factKind",
+                  "countryCodes"
+                ]
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "sourceObjectId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "sourceRevision": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "schemaRef": {
+                    "const": "RoutingDecisionFact@1"
+                  },
+                  "factDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "factKind": {
+                    "const": "genre"
+                  },
+                  "genreCodes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "maxItems": 64,
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "x-helix-canonicalOrder": "UTF-8(value)"
+                  }
+                },
+                "required": [
+                  "sourceObjectId",
+                  "sourceRevision",
+                  "schemaRef",
+                  "factDigest",
+                  "factKind",
+                  "genreCodes"
+                ]
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "sourceObjectId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "sourceRevision": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "schemaRef": {
+                    "const": "RoutingDecisionFact@1"
+                  },
+                  "factDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "factKind": {
+                    "const": "resolved_provider_identity"
+                  },
+                  "provider": {
+                    "const": "tmdb"
+                  },
+                  "namespace": {
+                    "const": "tmdb_movie"
+                  },
+                  "providerKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "identityRevision": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "identityDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "sourceObjectId",
+                  "sourceRevision",
+                  "schemaRef",
+                  "factDigest",
+                  "factKind",
+                  "provider",
+                  "namespace",
+                  "providerKey",
+                  "identityRevision",
+                  "identityDigest"
+                ]
+              }
+            ]
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "observationId",
+        "intentId",
+        "subjectId",
+        "sourceKind",
+        "sourceRef",
+        "candidateMatchCount",
+        "evidenceDigest",
+        "observationDigest",
+        "result",
+        "reasonCode",
+        "facts"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "const": "helix://contracts/types/RoutingFactObservation/v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "observationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "intentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "subjectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "sourceKind": {
+          "type": "string",
+          "enum": [
+            "related_nfo",
+            "provider"
+          ]
+        },
+        "sourceRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        },
+        "candidateMatchCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "evidenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "observationDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "result": {
+          "const": "not_found"
+        },
+        "reasonCode": {
+          "type": "string",
+          "enum": [
+            "requested_fact_absent",
+            "provider_no_match"
+          ]
+        },
+        "facts": {
+          "type": "array",
+          "maxItems": 0
+        }
+      },
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "observationId",
+        "intentId",
+        "subjectId",
+        "sourceKind",
+        "sourceRef",
+        "candidateMatchCount",
+        "evidenceDigest",
+        "observationDigest",
+        "result",
+        "reasonCode",
+        "facts"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "const": "helix://contracts/types/RoutingFactObservation/v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "observationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "intentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "subjectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "sourceKind": {
+          "type": "string",
+          "enum": [
+            "related_nfo",
+            "provider"
+          ]
+        },
+        "sourceRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        },
+        "candidateMatchCount": {
+          "type": "integer",
+          "minimum": 2
+        },
+        "evidenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "observationDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "result": {
+          "const": "ambiguous"
+        },
+        "reasonCode": {
+          "type": "string",
+          "enum": [
+            "provider_identity_ambiguous",
+            "source_fact_conflicting"
+          ]
+        },
+        "facts": {
+          "type": "array",
+          "maxItems": 0
+        }
+      },
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "observationId",
+        "intentId",
+        "subjectId",
+        "sourceKind",
+        "sourceRef",
+        "candidateMatchCount",
+        "evidenceDigest",
+        "observationDigest",
+        "result",
+        "reasonCode",
+        "facts"
+      ]
+    }
+  ]
+}

@@ -8,6 +8,7 @@ const {
 
 const SUPPORTED_OPERATIONS = new Set([
   'shared.integration.search@1',
+  'libra.routing.fact.observe@1',
   'libra.product_metadata.fetch@1',
   'libra.product_artifact.acquire@1',
 ]);
@@ -162,7 +163,7 @@ const SEARCH_RESULT_FIELDS = Object.freeze([
   'vote_count',
 ]);
 
-function validateSearchResponse(value) {
+function validateSearchResponse(value, allowEmpty = false) {
   allowed(
     value,
     ['results'],
@@ -170,7 +171,7 @@ function validateSearchResponse(value) {
     'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID',
   );
   if (!Array.isArray(value.results) ||
-      value.results.length < 1 ||
+      (!allowEmpty && value.results.length < 1) ||
       value.results.length > 20) {
     fail(
       'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID',
@@ -704,6 +705,26 @@ function createTmdbProviderAdapter(options) {
           integrationId: snapshot.integrationId,
           configRevision: snapshot.configRevision,
         });
+      }
+
+      if (request.operationId === 'libra.routing.fact.observe@1') {
+        exact(request.input, ['contentProfile', 'title', 'yearHint'], 'PLATFORM_TMDB_ROUTING_SHAPE');
+        if (request.input.contentProfile !== 'movie' || typeof request.input.title !== 'string' ||
+            !request.input.title.trim() || request.input.title.length > 512 ||
+            (request.input.yearHint !== null && (!Number.isSafeInteger(request.input.yearHint) || request.input.yearHint < 1800 || request.input.yearHint > 9999))) {
+          fail('PLATFORM_TMDB_ROUTING_INVALID', 'TMDB Routing observation input is invalid.');
+        }
+        const result = await fetchJson(snapshot.endpoint, snapshot.secretKind, secretBytes, '/search/movie', {
+          timeoutMs: timeout(request.timeoutMs), query: { query: request.input.title.trim(), include_adult: 'false',
+            language: 'en-US', page: 1, ...(request.input.yearHint === null ? {} : { year: request.input.yearHint }) },
+        });
+        validateSearchResponse(result, true);
+        return Object.freeze(result.results.map((item) => Object.freeze({
+          providerKey: String(item.id), title: item.title || '', originalTitle: item.original_title || '',
+          releaseYear: typeof item.release_date === 'string' && /^\d{4}/.test(item.release_date) ? Number(item.release_date.slice(0, 4)) : null,
+          regionCodes: Object.freeze(Array.isArray(item.origin_country) ? [...new Set(item.origin_country.filter((value) => typeof value === 'string'))].sort() : []),
+          genreCodes: Object.freeze(Array.isArray(item.genre_ids) ? [...new Set(item.genre_ids.filter(Number.isSafeInteger).map(String))].sort() : []),
+        })));
       }
 
       if (request.operationId === 'libra.product_metadata.fetch@1') {

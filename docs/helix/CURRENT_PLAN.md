@@ -1,6 +1,6 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: Movie Procurement保持`CLOSED FOR MOVIE`；Arca Shelf配置保持`READY FOR LIBRA`；Libra Intake Acceptance达到`READY / AWAITING ROUTING`，当前Implementation Gate关闭。
+Status: Movie Procurement保持`CLOSED FOR MOVIE`；Arca Shelf配置保持`READY FOR LIBRA`；Libra Routing达到`DECISION READY / AWAITING ACCEPTANCE SPEC`，当前Routing Implementation Gate已关闭。
 
 Last updated: 2026-08-11
 
@@ -22,9 +22,9 @@ Last updated: 2026-08-11
 control seed保存，只能在manifest指定阶段物化；跨卷场景明确要求第二个本地filesystem root。每个destructive/fault-injection场景
 必须先重建测试库且不得并发执行。素材和配方存在只代表测试前提完备，产品路径未接线的分支仍必须标为`contract_only|not_implemented`。
 
-### Planned Routing test-set extension
+### Completed Routing test-set extension
 
-Routing节点实施时，测试集必须把主生产链与Sorting专项链分开：现有`test material field → movie test`继续作为direct路径，保证现有
+Routing节点测试集已把主生产链与Sorting专项链分开：现有`test material field → movie test`继续作为direct路径，保证现有
 Subject可以全部进入后续Acceptance Spec/Libra Production；另建不与其物理范围重叠的Sorting专用Material Field及三座拥有唯一Target
 Folder、绑定同一Movie Rule Template的测试Shelf。Sorting happy-path使用真实电影标题及正式Evidence，至少固定以下预期：
 
@@ -40,6 +40,23 @@ Policy顺序固定为`release_year <= 1999 → 经典电影测试`、`release_ye
 Sorting专用Field还必须增加两条无NFO边界：一部无NFO但能够通过正式Identity/Provider Evidence确定年份的电影，必须仅补齐Routing所需
 `release_year`后正常命中；另一部无NFO且无法可靠解析Identity/年份的电影，必须保持`Routing Readiness unresolved`，高优先级规则结果为
 `unknown`时不得越级进入catch-all。两者都不得在Routing阶段生成NFO、poster、完整Product Metadata、Libra Run或文件副作用。
+
+## 0. Completed target — Libra Routing Decision Ready
+
+本轮在Intake Accepted Subject之后接通正式`Routing Coordinator → Supporting Work → immutable Plan → Event Runtime → Capability`
+路径。新增`libra.routing.fact.observe@1`只按当前Field Policy实际引用的Fact观察精确NFO或确定性TMDB测试Integration；NFO与Provider
+是两个独立Work，不在Capability内部隐藏fallback。Coordinator只签发Work、读取terminal Result、调用pure Resolver及提交Owner事实，
+未导入Capability实现、Dispatcher、Event Runtime或Resource Governor；历史大型`movie-formation-coordinator`的Routing捷径未进入产品路径。
+
+Field Routing Policy现支持direct与1..64项sorting closed AST，三态`true|false|unknown`严格阻止高优先级unknown越级命中catch-all；
+一次性手动选Shelf只为当前unresolved Subject形成immutable Decision，不修改长期Policy。Admin Web“文件来源”可预览/发布Policy，
+按Fact类型提供Operator和值编辑、组合条件及rank上移/下移，不向普通用户暴露AST JSON；“上架进度”仍一行一个Subject，并展示准备
+事实、unresolved/resolved、Policy revision、目标Shelf与Decision digest。
+
+本机fresh-clean产品Composition Root E2E形成24个Subject：direct Field的19个全部命中`movie test`；sorting Field的4个按NFO或
+deterministic TMDB Evidence命中经典/新片/普通Shelf，1个Provider `not_found`保持unresolved且未命中always，随后通过Admin入口
+一次性选择普通Shelf。共29个Routing Work、5个Fact Event和24个Decision Basis Commit Event全部成功；Acceptance Spec、Libra Run、
+Workspace和Arca Shelf Entry均为0。下一独立节点是Acceptance Spec，不能在其门禁打开前进入Production。
 
 ## 0. Completed target — Arca Shelf Configuration Ready for Libra
 

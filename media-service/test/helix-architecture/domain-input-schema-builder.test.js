@@ -6,10 +6,10 @@ const { buildDomainInputSchemas } = require('../../scripts/helix-architecture/do
 
 const schemas = buildDomainInputSchemas();
 
-test('builds exactly the 111 formal domain input contracts', () => {
-  assert.equal(Object.keys(schemas).length, 111);
+test('builds exactly the 112 formal domain input contracts', () => {
+  assert.equal(Object.keys(schemas).length, 112);
   assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'bounded-contract').length, 23);
-  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'accepted-business-dto').length, 88);
+  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'accepted-business-dto').length, 89);
 });
 
 test('materializes the exact service-local Western analysis construction inputs', () => {

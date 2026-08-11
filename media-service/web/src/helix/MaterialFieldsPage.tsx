@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { AdminApiError, helixAdminApi, materialFieldRegistration, type MaterialField, type ProcurementJourneyResult } from './api';
+import { AdminApiError, helixAdminApi, materialFieldRegistration, type MaterialField, type ProcurementJourneyResult, type Shelf } from './api';
+import RoutingPolicyPanel from './RoutingPolicyPanel';
 
 type SessionState = 'checking' | 'required' | 'ready';
 
@@ -25,6 +26,7 @@ export default function MaterialFieldsPage() {
   const [session, setSession] = useState<SessionState>('checking');
   const [apiKey, setApiKey] = useState('');
   const [fields, setFields] = useState<MaterialField[]>([]);
+  const [shelves, setShelves] = useState<Shelf[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
@@ -42,8 +44,9 @@ export default function MaterialFieldsPage() {
     setLoading(true);
     setError('');
     try {
-      const result = await helixAdminApi.listMaterialFields();
+      const [result, shelfResult] = await Promise.all([helixAdminApi.listMaterialFields(), helixAdminApi.listShelves()]);
       setFields(result.items);
+      setShelves(shelfResult.items);
       setSession('ready');
       if (result.items.length === 0) setShowCreate(true);
     } catch (cause) {
@@ -222,6 +225,7 @@ export default function MaterialFieldsPage() {
           {field.procurementStatus.candidatePackage?.candidatePackageId && <code>{field.procurementStatus.candidatePackage.candidatePackageId}</code>}
           {field.procurementStatus.candidatePackage?.displayIdentity && <span>{field.procurementStatus.candidatePackage.displayIdentity}</span>}
         </div>}
+        {field.status === 'active' && <RoutingPolicyPanel field={field} shelves={shelves} />}
         <details><summary>技术标识</summary><code>{field.fieldId}</code><code>{field.access.endpointId}</code><code>{field.access.mountScopeId}</code></details>
       </article>)}
     </div>
