@@ -36,6 +36,7 @@ function promotion(){
     productMaterialManifest:{manifestId:'product-materials-1',manifestRole:'product_delivery',scopeKind:'single',members:[{
       materialKey:h('material'),role:'primary_payload',controlOperation:'acquire_workspace_product',
       workspaceReferenceId:'ref-1',workspaceMaterialHandle:{handleId:'handle-1'},
+      sourceRelatedReferenceId:null,derivedAuthorityDigest:null,
       expectedControlRevision:null,expectedControlProjectionDigest:null,
       committedControlRevision:1,committedControlProjectionDigest:h('committed-control'),
       episodeClaims:EMPTY_EPISODE_CLAIMS,episodeClaimSetDigest:EMPTY_EPISODE_CLAIM_SET_DIGEST
@@ -46,6 +47,7 @@ function promotion(){
       acceptanceSpecRecordDigest:h('spec'),productConformanceEvidenceId:'conformance-1',
       productConformanceEvidenceDigest:h('conformance'),evaluatedRequirementSetDigest:h('requirements'),
       productSnapshotDigest:h('product-snapshot'),unmetRequirementCount:0,attestedAtMs:NOW,attestationDigest:''},
+    relatedAuthorityAssertions:[],relatedDispositionSetDigest:d({schema:'libra.related-disposition-set@1',items:[]}),
     controlCommitScope:{items:[{controlOperation:'acquire_workspace_product',materialKey:h('material'),expectedControlState:'absent',
       toOwnerDomain:'libra',toOwnerScopeType:'on_deck_package',toOwnerScopeId:packageId}],
       controlScopeDigest:h('control-scope')},onDeckPackageId:packageId,packageRevision:1,offerId:''};

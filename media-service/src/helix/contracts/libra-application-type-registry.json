@@ -123,7 +123,7 @@
       "relativePath": "application-types/LibraRunExecutionBasis/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "d965621d919b538577cbb3349113283288aae0e5417ccc6e5080354fb3f8313d"
+        "value": "5ac6864920f81117c4060c48724c0123303d90aa465ce9e3a20d72da80be678b"
       },
       "ssotRefs": [
         "8.6.21"
@@ -138,7 +138,7 @@
       "relativePath": "application-types/LibraRunExecutionBasisRecord/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "30709037dcd29a462546a4fc91c8728226b41cc2f74a4947712e8d38c7b3eacb"
+        "value": "0d7fcb8b9986ce8864bcbe34a48ddd5b894b331d172ce4b5480471c90891641c"
       },
       "ssotRefs": [
         "8.6.21"
@@ -367,7 +367,7 @@
       "relativePath": "application-types/ProductionMaterialManifest/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "ef9cbfacd8abb552862ac11ee2fe51775bfdef354d52cc18cd0a781ebaed4a49"
+        "value": "85ab6bd0c78066350e5e66bcaefab8bf9d8cc304c64d90ebdb52064301505deb"
       },
       "ssotRefs": [
         "8.6.21"
@@ -382,7 +382,7 @@
       "relativePath": "application-types/ProductionMaterialOutputRequirement/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "5cfe080728a5ba15595ea833317072309635b918d20e6a8a733e1a15b701c3ee"
+        "value": "10086b1ba509e0cb8a7bf7986a941df5c7101145757f9786fafbb92308b0d844"
       },
       "ssotRefs": [
         "8.6.21"

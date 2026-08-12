@@ -277,7 +277,7 @@ function outputRequirement() {
         recordDigest: digest(), productScopeDigest: digest() }),
       manifestRole: { type: 'string', enum: ['run_input', 'product_delivery'] }, materialKey: digest(),
       materialRole: { type: 'string', enum: ['primary_payload', 'structural_dependency', 'metadata_sidecar',
-        'poster', 'fanart', 'subtitle', 'external_audio', 'chapter'] },
+        'poster', 'fanart', 'subtitle', 'external_audio', 'chapter', 'sidecar'] },
       applicationScope: object({ kind: { type: 'string', enum: ['product_scope', 'episode_subset', 'production_support'] },
         episodeKeys: { type: 'array', items: text(), maxItems: 32, uniqueItems: true }, scopeDigest: digest() }),
       acceptanceRequirementSetDigest: digest(), outputRequirementDigest: digest()
@@ -292,6 +292,11 @@ function productionMaterialManifest() {
 }
 
 function runExecutionBasis() {
+  const relatedDispositionItem = object({
+    referenceId: id(), primaryMaterialKey: digest(),
+    role: { type: 'string', enum: ['nfo', 'poster', 'fanart', 'subtitle', 'external_audio', 'chapter', 'sidecar'] },
+    materialKey: digest(), associationEvidenceDigest: digest(), dispositionBasisDigest: digest()
+  });
   return {
     $schema: DRAFT, $id: typeId('LibraRunExecutionBasis'), title: 'LibraRunExecutionBasis@1',
     'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 8 * 1024 * 1024,
@@ -302,7 +307,10 @@ function runExecutionBasis() {
       acceptanceSpec: object({ acceptanceSpecId: id(), specRevision: positive(), specDigest: digest(), recordDigest: digest(),
         productScopeDigest: digest(), shelfId: id() }),
       shelfProjection: object({ routingProjectionRevision: positive(), projectionDigest: digest(), standardRevision: positive(), standardDigest: digest() }),
-      productionMaterialManifest: { $ref: typeId('ProductionMaterialManifest') }, executionBasisDigest: digest()
+      productionMaterialManifest: { $ref: typeId('ProductionMaterialManifest') },
+      relatedDispositionScope: object({ relatedReferenceSetDigest: digest(), relatedDispositionScopeDigest: digest(),
+        items: { type:'array', items:relatedDispositionItem, maxItems:1024 } }),
+      executionBasisDigest: digest()
     })
   };
 }

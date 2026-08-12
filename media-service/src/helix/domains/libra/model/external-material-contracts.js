@@ -62,14 +62,18 @@ function buildAcquisitionQuery(value) {
     fail('P9_EXTERNAL_QUERY_INPUT', 'Query requires exact Product Identity and Run execution context.');
   const anchors = identityAnchors(identity), episodes = structure.episodeClaims.map((item) => item.episodeKey), terms=[];
   for (const anchor of anchors) terms.push({ termKind:'provider_key', value:anchor.providerKey });
-  if (identity.title) terms.push({ termKind:'title', value:identity.title });
+  const displayTitle = identity.title || identity.displayIdentity?.entries
+    ?.find((item) => item.key === 'title')?.value || null;
+  if (typeof displayTitle === 'string' && displayTitle.trim()) {
+    terms.push({ termKind:'title', value:displayTitle.trim() });
+  }
   if (structure.structureKind === 'season') terms.push({ termKind:'season', value:String(anchors[0].seasonNumber) });
   const dedup=[]; for (const item of terms) if (!dedup.some((existing) => existing.termKind === item.termKind && existing.value === item.value)) dedup.push(item);
   const queryTerms=dedup.slice(0,32).map((item,ordinal)=>freeze({ ordinal,...item,
     termDigest:canonicalDigest({schema:'libra.external-acquisition-query-term@1',termKind:item.termKind,value:item.value}) }));
   const hardConstraints={requiredStructureKind:structure.structureKind,requiredEpisodeKeys:episodes};
   const common={libraRunId:text(context.libraRunId,'libraRunId'),runExecutionBasisDigest:digest(context.runExecutionBasisDigest,'runExecutionBasisDigest'),
-    resolvedIdentityDigest:digest(identity.resolvedIdentityDigest || identity.digest,'resolvedIdentityDigest'),productStructureDigest:structure.structureDigest,
+    resolvedIdentityDigest:digest(identity.resolvedIdentityDigest || identity.identityDigest || identity.digest,'resolvedIdentityDigest'),productStructureDigest:structure.structureDigest,
     structureKind:structure.structureKind,contentProfile:identity.contentProfile,providerIdentityAnchors:anchors,requestedEpisodeKeys:episodes,queryTerms,hardConstraints};
   const queryDigest=canonicalDigest({schema:'libra.external-acquisition-query@1',...common});
   const result={schemaRef:'helix://contracts/types/AcquisitionQuery/v1',schemaVersion:1,
@@ -155,7 +159,15 @@ function buildStableEvidence(value) {
     fail('P9_EXTERNAL_STABILITY_FENCE','Stability observation escaped the frozen external Handle.');
   const quietWindowMs=integer(value.quietWindowMs,'quietWindowMs',1);
   if(quietWindowMs>86400000||current.observedAtMs-current.newestMutationAtMs<quietWindowMs)fail('P9_EXTERNAL_STABILITY_DEFERRED','External Material is not stable yet.');
-  const handle=buildExternalMaterialHandle({acquisitionObservation:{outputSnapshot:current,providerObservationRevision:revision},productStructure:value.productStructure});
+  const episodeClaims=[...new Map(source.outputSnapshot.members.flatMap((item)=>item.episodeClaims)
+    .map((item)=>[item.episodeKey,item])).values()].sort((left,right)=>compare(left.episodeKey,right.episodeKey));
+  const derivedStructure={objectId:'external-scope-'+source.handleId,revision:1,subjectId:'external-scope-'+source.handleId,
+    structureKind:source.structureKind,episodeClaims};
+  derivedStructure.structureDigest=canonicalDigest({schema:'libra.product-structure@1',subjectId:derivedStructure.subjectId,
+    structureKind:derivedStructure.structureKind,episodeClaims});
+  derivedStructure.digest=derivedStructure.structureDigest;
+  const handle=buildExternalMaterialHandle({acquisitionObservation:{outputSnapshot:current,providerObservationRevision:revision},
+    productStructure:value.productStructure||derivedStructure});
   const basisDigest=canonicalDigest({schema:'libra.external-material-stability-basis@1',sourceExternalMaterialHandleId:source.handleId,
     currentSnapshotDigest:current.snapshotDigest,quietWindowMs});
   const result={schemaRef:'helix://contracts/types/StableExternalMaterialEvidence/v1',schemaVersion:1,
@@ -172,7 +184,7 @@ function verifyIdentity(value) {
     fail('P9_EXTERNAL_IDENTITY_EVIDENCE','Stable Evidence integrity is invalid.');
   const observed=handle.outputSnapshot.identityAnchors||[],expected=identityAnchors(resolved),tuple=(item)=>[item.provider,item.namespace,item.providerKey,item.seasonNumber].join('\0');
   const matched=observed.some((item)=>expected.some((candidate)=>tuple(item)===tuple(candidate))),reasonCodes=matched?[]:[observed.length?'identity_mismatch':'identity_anchor_missing'];
-  const expectedIdentityDigest=digest(resolved.resolvedIdentityDigest||resolved.digest,'expectedIdentityDigest');
+  const expectedIdentityDigest=digest(resolved.resolvedIdentityDigest||resolved.identityDigest||resolved.digest,'expectedIdentityDigest');
   const observedIdentityDigest=canonicalDigest({schema:'libra.external-observed-identity@1',identityAnchors:observed,
     observedTitle:handle.outputSnapshot.observedTitle??null,releaseYear:handle.outputSnapshot.releaseYear??null});
   const basisDigest=canonicalDigest({schema:'libra.external-identity-verification-basis@1',stableDigest:stable.stableDigest,expectedIdentityDigest,observedIdentityDigest});
@@ -228,5 +240,31 @@ function buildWorkspaceDeliveryContracts(value) {
   }));
 }
 
+function buildImportedWorkspaceMediaHandle(value) {
+  const contract=value?.workspaceDeliveryContract,handle=value?.workspaceMaterialHandle;
+  if(!contract||!handle||handle.workspaceId!==contract.workspaceId||handle.relativePath!==contract.targetRelativePath||
+      handle.ownerDomain!=='libra'||handle.processId!==contract.libraRunId)
+    fail('P9_EXTERNAL_IMPORTED_MEDIA_FENCE','Imported Workspace media does not match its frozen delivery contract.');
+  const eventId=text(value.producingEventId,'producingEventId'),idempotencyKey=text(value.idempotencyKey,'idempotencyKey');
+  const effectId=canonicalDigest(['workspace_write',idempotencyKey]);
+  const effectReceiptDigest=canonicalDigest({schema:'libra.external-import-effect-evidence@1',effectId,
+    contractDigest:contract.digest,workspaceMaterialHandleDigest:canonicalDigest(handle)});
+  const sourceMaterialHandleDigest=canonicalDigest({schema:'libra.external-import-source@1',
+    stableExternalMaterialHandleId:contract.stableExternalMaterialHandleId,externalMemberId:contract.externalMemberId,
+    verifiedPackageDigest:contract.verifiedPackageDigest});
+  const result={schemaRef:'helix://contracts/types/WorkspaceMediaHandle/v1',schemaVersion:1,workspaceMediaHandleId:'',
+    sourceMaterialHandleDigest,workspaceMaterialHandle:handle,workspaceMaterialHandleDigest:canonicalDigest(handle),
+    outputTargetId:contract.contractId,outputTargetDigest:contract.digest,producingEventId:eventId,
+    productionIntentKind:'external_import',productionIntentDigest:contract.digest,executionDeviceRef:null,
+    effectReceiptRef:{effectId,effectReceiptId:canonicalDigest({schema:'libra.external-import-effect-receipt-id@1',effectId}),
+      effectReceiptDigest}};
+  result.workspaceMediaHandleId=canonicalDigest({schema:'libra.workspace-media-handle-id@1',sourceMaterialHandleDigest,
+    workspaceMaterialHandleId:handle.handleId,outputTargetId:result.outputTargetId,producingEventId:eventId,
+    productionIntentDigest:result.productionIntentDigest,executionDeviceRefOrNull:null});
+  result.resultDigest=canonicalDigest(result);
+  return bounded(result,16*1024,'P9_EXTERNAL_IMPORTED_MEDIA_SIZE');
+}
+
 module.exports=Object.freeze({ExternalMaterialContractError,buildAcquisitionQuery,assertCandidates,buildSelectionCriteria,selectCandidate,
-  buildAcquisitionObservation,buildExternalMaterialHandle,buildStableEvidence,verifyIdentity,verifyPackage,buildWorkspaceDeliveryContracts});
+  buildAcquisitionObservation,buildExternalMaterialHandle,buildStableEvidence,verifyIdentity,verifyPackage,buildWorkspaceDeliveryContracts,
+  buildImportedWorkspaceMediaHandle});

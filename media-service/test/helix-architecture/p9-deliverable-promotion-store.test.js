@@ -209,6 +209,8 @@ function fixtureValue() {
     },
     workspaceReferenceId: null,
     workspaceMaterialHandle: null,
+    sourceRelatedReferenceId: null,
+    derivedAuthorityDigest: null,
     admittedControlRevision: 1,
     admittedControlProjectionDigest: control.projectionDigest,
     bindingEvidenceDigest: D('binding'),
@@ -254,6 +256,9 @@ function fixtureValue() {
     ordinal: 0,
     materialKey: physical.materialKey,
     contextRole: 'original_input',
+    sourceRelatedReferenceId: null,
+    finalProductMaterialKey: null,
+    dispositionKind: null,
     physicalIdentity: physical,
     endpointId: 'endpoint-1',
     location: 'movie.mkv',
@@ -261,6 +266,7 @@ function fixtureValue() {
     bindingEvidenceDigest: D('binding'),
     admittedControlRevision: 1,
     admittedControlProjectionDigest: control.projectionDigest,
+    derivedAuthorityDigest: null,
     settlementExpectation: 'retain',
   };
   offloadMember.memberDigest = canonicalDigest(offloadMember);
@@ -371,6 +377,8 @@ function fixtureValue() {
     },
     productMaterialManifest,
     offloadContextManifest,
+    relatedAuthorityAssertions: [],
+    relatedDispositionSetDigest: canonicalDigest({ schema:'libra.related-disposition-set@1', items:[] }),
     productionProvenance: provenance,
     productionAttestation: attestation,
     controlCommitScope,
@@ -415,7 +423,10 @@ function fixtureValue() {
     bindingSetDigest: productMaterialManifest.memberSetDigest,
     controlScopeDigest: controlCommitScope.controlScopeDigest,
     expectedControlRevisions: [{ materialKey: physical.materialKey, revision: 1 }],
-    receiptContract: RESULT_SCHEMA,
+    receiptContract: {
+      receiptSchemaRef: RESULT_SCHEMA,
+      controlRevisionSetSchemaRef: 'libra.product-control-revision-set@1',
+    },
     eventFenceDigest: D('promotion-event-fence'),
   };
   return { control, decision, handle, physical };
@@ -550,7 +561,10 @@ function seed(databasePath, value) {
        recovery_policy_digest,recovery_attempt_ordinal,created_at_ms)
       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
       'run-1', 'subject-1', 1, 'spec-1', 'run-materials-1',
-      'libra.run-execution-basis@1', '{}', D('run-basis'), D('run-scope'),
+      'libra.run-execution-basis@1', canonicalJson({ executionBasisDigest:D('run-basis'), relatedDispositionScope:{
+        relatedReferenceSetDigest:canonicalDigest({ schema:'procurement.related-reference-set@1', items:[] }),
+        relatedDispositionScopeDigest:canonicalDigest({ schema:'procurement.related-disposition-scope@1', items:[] }), items:[] } }),
+      D('run-basis'), D('run-scope'),
       'active', 1, D('run-state'), 0, 'normal', D('priority'),
       'libra.default-recovery@1', D('recovery'), 0, 1,
     );
@@ -617,7 +631,11 @@ function request(value) {
     transactionId: 'helix.transaction.libra-deliverable-promotion',
     decision: value.decision,
     controlCommitHandle: value.handle,
-    commitMarker: 'promotion-marker-1',
+    commitMarker: {
+      commitMarker: 'promotion-marker-1',
+      effectId: D('promotion-effect'),
+      commitDigest: value.decision.decisionDigest,
+    },
     resultId: 'promotion-result-1',
   };
 }

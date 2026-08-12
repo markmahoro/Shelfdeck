@@ -274,7 +274,10 @@ function controlHandle(operationKind, ownerDomain, changes, suffix, extra = {}) 
     basisDigest: digest('basis/' + suffix), canonicalFactSetDigest: digest('facts/' + suffix),
     bindingSetDigest: digest('bindings/' + suffix), controlScopeDigest: controlScopeDigest(changes),
     expectedControlRevisions: changes.map((change) => ({ materialKey: change.identity.materialKey, revision: change.expectedRevision })),
-    receiptContract: 'helix://fixtures/ControlReceipt/v1', eventFenceDigest: digest('fence/' + suffix), ...extra
+    receiptContract: {
+      receiptSchemaRef: 'helix://fixtures/ControlReceipt/v1',
+      controlRevisionSetSchemaRef: 'fixtures.control-revision-set@1'
+    }, eventFenceDigest: digest('fence/' + suffix), ...extra
   };
 }
 

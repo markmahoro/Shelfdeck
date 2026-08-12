@@ -47,6 +47,7 @@ function createExecutionRuntimeHost(options) {
   async function reconcileTerminal(aggregation) {
     if (!aggregation?.attemptTerminal || aggregation.replayed) return;
     const disposition = await options.domainReconciler.reconcile(Object.freeze({
+      reconcilePhase: 'attempt_terminal',
       ownerDomain: aggregation.work.owner_domain,
       processType: aggregation.work.process_type,
       processId: aggregation.work.process_id,
@@ -56,7 +57,20 @@ function createExecutionRuntimeHost(options) {
       workAttemptId: aggregation.attemptId,
       workAttemptState: aggregation.attemptState,
     }));
-    if (disposition) options.workLifecycle.settleWork(disposition);
+    if (!disposition) return;
+    const settled = options.workLifecycle.settleWork(disposition);
+    if (!['succeeded', 'failed', 'cancelled'].includes(settled.state)) return;
+    await options.domainReconciler.reconcile(Object.freeze({
+      reconcilePhase: 'work_terminal',
+      ownerDomain: aggregation.work.owner_domain,
+      processType: aggregation.work.process_type,
+      processId: aggregation.work.process_id,
+      workKind: aggregation.work.work_kind,
+      workId: aggregation.work.work_id,
+      workState: settled.state,
+      workAttemptId: aggregation.attemptId,
+      workAttemptState: aggregation.attemptState,
+    }));
   }
 
   async function withWorkLeaseHeartbeat(lease, operation) {

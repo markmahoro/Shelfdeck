@@ -33,7 +33,8 @@ function mediaEvidence(raw, handle, nowMs) {
     ...(raw.resultKind === 'not_media' ? { reasonCode:'probe_not_media' } : {
       container:raw.container || 'unknown', durationMs:Number(raw.durationMs || 0),
     }),
-    sizeBytes:Number(raw.sizeBytes ?? handle.expectedSizeBytes),
+    sizeBytes:Number(raw.sizeBytes ?? handle.sizeBytes ??
+      handle.physicalIdentity?.sizeBytes ?? handle.expectedSizeBytes),
     videoStreams:Object.freeze((raw.videoStreams || []).map((stream) => {
       const width = Number(stream.codedWidth || stream.width || 1), height = Number(stream.codedHeight || stream.height || 1);
       const rotation = Number(stream.rotation || 0), rotated = Math.abs(rotation) % 180 === 90;

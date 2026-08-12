@@ -171,3 +171,14 @@ test('reads one exact P9 MediaExecutionDeviceSnapshot without current/latest fal
   const stale={...query,expectedProbeRevision:2};stale.queryDigest=canonicalDigest({deviceId:stale.deviceId,expectedProbeRevision:2});
   assert.equal(service.readDeviceSnapshot(stale).reasonCode,'device_probe_changed');
 });
+
+test('lists only bounded ready device refs without applying Planner preference',()=>{
+  const {service}=fixture();seed(service);
+  service.publishDevice({deviceId:'cpu-1',deviceKind:'software_cpu',stableDeviceKey:'cpu-1',revision:1,availability:'available',enabled:true,
+    validatedConcurrentSlots:1,capability:{supportedVideoCodecs:['hevc'],supportedRateControlModes:['two_pass_abr','strict_abr']},
+    probeResult:'passed',probedAtMs:1});
+  const query={queryContract:'platform.compute-ready-device-refs@1',limit:64};query.queryDigest=canonicalDigest(query);
+  const result=service.listReadyDeviceRefs(query);
+  assert.equal(result.resultKind,'available');assert.deepEqual(result.items.map((item)=>item.deviceClass),['nvidia_nvenc','software_cpu']);
+  assert.ok(result.items.every((item)=>item.refDigest===canonicalDigest(Object.fromEntries(Object.entries(item).filter(([key])=>key!=='refDigest')))));
+});

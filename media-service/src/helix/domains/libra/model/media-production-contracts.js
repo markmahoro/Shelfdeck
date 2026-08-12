@@ -26,6 +26,14 @@ const limited = (value, maximum, code) => {
   return freeze(value);
 };
 
+const LIBRA_MEDIA_PLANNING_POLICY = freeze({
+  schemaRef:'LibraMediaPlanningPolicy@1', revision:1,
+  ordinaryDeviceOrder:Object.freeze(['nvidia_nvenc','intel_qsv','amd_vaapi','remote_worker']),
+  cpuPolicy:'backup_only', sizeBudgetRevision:1,
+  strategyLadder:Object.freeze(['controlled_vbr','device_cbr','cpu_two_pass_abr','cpu_strict_abr'])
+});
+const LIBRA_MEDIA_PLANNING_POLICY_DIGEST = canonicalDigest(LIBRA_MEDIA_PLANNING_POLICY);
+
 function buildMediaRequirement(spec) {
   if (!spec || spec.schemaRef !== 'libra.acceptance-spec@1' || spec.schemaVersion !== 1 ||
       !['movie', 'series', 'jav', 'western_adult'].includes(spec.contentProfile) || !['single', 'season'].includes(spec.structureKind))
@@ -85,17 +93,60 @@ function finalizeProductionIntent(value) {
   return limited(value, 16 * 1024, 'P9_MEDIA_INTENT_SIZE');
 }
 
+function buildProductionSourceScopeReference(value) {
+  const scopeKind=value?.scopeKind;
+  if(!['stream_file','bdmv','dvd','iso'].includes(scopeKind))fail('P9_MEDIA_SOURCE_SCOPE_KIND','Production source scope kind is invalid.');
+  const memberCount=integer(value.memberCount,'memberCount',1);
+  if(memberCount>1024||(scopeKind==='stream_file'||scopeKind==='iso')&&memberCount!==1)
+    fail('P9_MEDIA_SOURCE_SCOPE_MEMBERS','Production source scope member count is invalid.');
+  const result={schemaRef:'ProductionSourceScopeReference@1',schemaVersion:1,libraRunId:text(value.libraRunId,'libraRunId'),
+    scopeKind,scopeId:text(value.scopeId,'scopeId'),scopeDigest:digest(value.scopeDigest,'scopeDigest'),
+    memberSetDigest:digest(value.memberSetDigest,'memberSetDigest'),memberCount,
+    selectedPayloadSetDigest:digest(value.selectedPayloadSetDigest,'selectedPayloadSetDigest')};
+  result.sourceReferenceDigest=canonicalDigest(result);
+  return limited(result,16*1024,'P9_MEDIA_SOURCE_SCOPE_SIZE');
+}
+
+function deriveTargetSizeBudget(value) {
+  const maxSizeBytes=integer(value?.maxSizeBytes,'maxSizeBytes',1),durationMs=integer(value?.durationMs,'durationMs',1);
+  const containerReserveBytes=Math.max(16*1024*1024,Math.ceil(maxSizeBytes*0.02));
+  const audioStreams=Array.isArray(value.audioStreams)?value.audioStreams:[],subtitleStreams=Array.isArray(value.subtitleStreams)?value.subtitleStreams:[];
+  const audioBitrateBps=audioStreams.reduce((sum,item)=>sum+(Number.isSafeInteger(item.bitRateBps)&&item.bitRateBps>0?
+    item.bitRateBps:(['truehd','truehd_atmos','dts_hd_ma','dts_x'].includes(item.normalizedAudioClass)?8000000:1536000)),0);
+  const subtitleBitrateBps=subtitleStreams.length*64000;
+  const nonVideoBitrateBps=audioBitrateBps+subtitleBitrateBps;
+  const durationSeconds=durationMs/1000;
+  const targetVideoBitrateBps=Math.floor(((maxSizeBytes-containerReserveBytes)*8/durationSeconds)-nonVideoBitrateBps);
+  return freeze({sizeBudgetRevision:1,maxSizeBytes,containerReserveBytes,nonVideoBitrateBps,targetVideoBitrateBps,
+    feasible:targetVideoBitrateBps>=100000,budgetDigest:canonicalDigest({schema:'libra.target-size-budget@1',maxSizeBytes,
+      containerReserveBytes,nonVideoBitrateBps,targetVideoBitrateBps})});
+}
+
+function deriveRetryTargetVideoBitrate(value) {
+  const previousTarget=integer(value?.previousTargetVideoBitrateBps,'previousTargetVideoBitrateBps',1),
+    maxSizeBytes=integer(value?.maxSizeBytes,'maxSizeBytes',1),actualSizeBytes=integer(value?.actualSizeBytes,'actualSizeBytes',1);
+  return Math.floor(previousTarget*maxSizeBytes/actualSizeBytes*0.98);
+}
+
 function buildEncodeIntent(value) {
   const mode = value?.rateControlMode;
-  if (!['target_size','quality_bound'].includes(mode)) fail('P9_MEDIA_RATE_CONTROL', 'Encode rate-control mode is invalid.');
-  const targetVideoBitrateBps = mode === 'target_size' ? integer(value.targetVideoBitrateBps, 'targetVideoBitrateBps', 1) : null;
+  if (!['target_size','quality_bound','two_pass_abr','strict_abr'].includes(mode)) fail('P9_MEDIA_RATE_CONTROL', 'Encode rate-control mode is invalid.');
+  const bitrateMode=['target_size','two_pass_abr','strict_abr'].includes(mode);
+  const targetVideoBitrateBps = bitrateMode ? integer(value.targetVideoBitrateBps, 'targetVideoBitrateBps', 1) : null;
   const qualityBound = mode === 'quality_bound' ? integer(value.qualityBound, 'qualityBound') : null;
   if (qualityBound !== null && qualityBound > 63) fail('P9_MEDIA_RATE_CONTROL', 'Encode quality bound is invalid.');
-  return finalizeProductionIntent({ intentId:'', revision:integer(value.revision, 'revision', 1), schemaRef:'EncodeIntent@1',
+  const strategyOrdinal=integer(value.strategyOrdinal,'strategyOrdinal',1);
+  if(strategyOrdinal===1&&value.previousIntentDigest!==undefined)fail('P9_MEDIA_PREVIOUS_INTENT','The first Encode Intent cannot reference a previous Intent.');
+  if(strategyOrdinal>1)digest(value.previousIntentDigest,'previousIntentDigest');
+  const result={ intentId:'', revision:integer(value.revision, 'revision', 1), schemaRef:'EncodeIntent@1',
     libraRunId:text(value.libraRunId, 'libraRunId'), sourceHandleDigest:digest(value.sourceHandleDigest, 'sourceHandleDigest'),
-    mediaRequirementDigest:digest(value.mediaRequirementDigest, 'mediaRequirementDigest'), outputContainer:'matroska', outputExtension:'mkv',
+    mediaRequirementDigest:digest(value.mediaRequirementDigest, 'mediaRequirementDigest'),planningPolicyRef:'LibraMediaPlanningPolicy@1',
+    planningPolicyRevision:1,planningPolicyDigest:LIBRA_MEDIA_PLANNING_POLICY_DIGEST,strategyOrdinal,sizeBudgetRevision:1,
+    outputContainer:'matroska', outputExtension:'mkv',
     video:{codec:'hevc',rateControlMode:mode,targetVideoBitrateBps,qualityBound,preserveRaster:true,forbidUpscale:true},
-    audio:{mode:'copy'},subtitle:{mode:'copy'},deviceClass:text(value.deviceClass, 'deviceClass') });
+    audio:{mode:'copy'},subtitle:{mode:'copy'},deviceClass:text(value.deviceClass, 'deviceClass') };
+  if(strategyOrdinal>1)result.previousIntentDigest=value.previousIntentDigest;
+  return finalizeProductionIntent(result);
 }
 
 function buildRemuxIntent(value) {
@@ -303,6 +354,8 @@ function selectProductOutput(value) {
   return limited(result,16*1024,'P9_SELECTED_OUTPUT_SIZE');
 }
 
-module.exports=Object.freeze({MediaProductionContractError,buildMediaRequirement,buildEncodeIntent,buildRemuxIntent,buildTranscodeInputVerification,
+module.exports=Object.freeze({MediaProductionContractError,LIBRA_MEDIA_PLANNING_POLICY,LIBRA_MEDIA_PLANNING_POLICY_DIGEST,
+  buildMediaRequirement,buildProductionSourceScopeReference,deriveTargetSizeBudget,deriveRetryTargetVideoBitrate,
+  buildEncodeIntent,buildRemuxIntent,buildTranscodeInputVerification,
   buildWorkspaceMediaOutputTarget,buildWorkspaceMediaHandle,buildProductMediaCandidateInput,buildProductMediaVerification,
   buildProductOutputSelectionInput,selectProductOutput,assertExactMediaRequirement,assertProbeEvidence});

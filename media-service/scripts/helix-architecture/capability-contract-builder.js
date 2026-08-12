@@ -263,6 +263,7 @@ function approvalAuthorization(capabilityRef) {
 
 function resourceKinds(capability) {
   if (capability.id === 'procurement.field.observation.page.commit@1') return ['volume_read', 'sqlite_write'];
+  if (capability.id === 'libra.product_package.publish@1') return ['sqlite_write'];
   // BDMV assessment is the first triage capability whose atomic effect needs
   // both source-volume I/O and bounded media parsing CPU.  Keep the demand
   // dimensions explicit in the contract; the runtime resolver later expands

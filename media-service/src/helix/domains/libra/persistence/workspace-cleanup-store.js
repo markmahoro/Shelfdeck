@@ -1010,7 +1010,10 @@ function createWorkspaceCleanupStore(options) {
           revision: member.expectedControlRevision,
         }],
         controlScopeDigest: controlScope,
-        receiptContract: 'WorkspaceCleanupCommitReceipt@1',
+        receiptContract: Object.freeze({
+          receiptSchemaRef: 'helix://contracts/types/WorkspaceCleanupCommitReceipt/v1',
+          controlRevisionSetSchemaRef: 'libra.workspace-cleanup-released-control-set@1',
+        }),
         eventFenceDigest: decision.decisionDigest,
       };
       releaseParticipant = createMaterialControlParticipant({

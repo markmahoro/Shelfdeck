@@ -186,6 +186,7 @@ const dtoContracts = {
   ArtifactManifest: '',
   ArtifactConformanceVerificationSnapshot: '',
   ProductInventoryConformanceSnapshot: '',
+  ProductionSourceScopeReference: '',
   WorkspaceMediaOutputTarget: '',
   WorkspaceArtifactOutputTarget: '',
   ProductMediaCandidateInput: '',
@@ -290,6 +291,7 @@ function buildSchema(name, role, fields) {
   if (name === 'ArtifactManifest') return artifactManifestSchema();
   if (name === 'ArtifactConformanceVerificationSnapshot') return artifactConformanceVerificationSnapshotSchema();
   if (name === 'ProductInventoryConformanceSnapshot') return productInventoryConformanceSnapshotSchema();
+  if (name === 'ProductionSourceScopeReference') return productionSourceScopeReferenceSchema();
   if (name === 'WorkspaceMediaOutputTarget') return workspaceMediaOutputTargetSchema();
   if (name === 'WorkspaceArtifactOutputTarget') return workspaceArtifactOutputTargetSchema();
   if (name === 'ProductMediaCandidateInput') return productMediaCandidateInputSchema();
@@ -1016,7 +1018,7 @@ function onDeckPersonEvidenceProjectionItemSchema() {
 
 function libraDeliverablePromotionDecisionSchema() {
   const episodeClaim = object({ episodeKey: text(), seasonClaimDigest: digest(), claimDigest: digest() });
-  const typedFactValue = object({ schemaRef: text(), recordDigest: digest(), entries: arrayOf(object({ key: text(), valueDigest: digest() }), 256) });
+  const typedFactValue = { oneOf:[typeRef('ResolvedProductIdentity'),typeRef('MediaCastFact'),typeRef('ProductMetadataFact')] };
   const productFactItem = object({ productFactId: id(), factKind: enumText('resolved_identity', 'media_cast', 'product_metadata', 'media_conformance'),
     factRevision: positiveInteger(), schemaRef: text(), factValue: typedFactValue, factDigest: digest(), evidenceDigest: digest(), referenceDigest: digest() });
   const productFactManifest = object({ manifestId: id(), manifestRevision: positiveInteger(), libraRunId: id(),
@@ -1025,16 +1027,21 @@ function libraDeliverablePromotionDecisionSchema() {
     requirementDigest: digest(), materializationState: enumText('workspace_only', 'included_product'), referenceDigest: digest() });
   const artifactManifest = object({ manifestId: id(), manifestRevision: positiveInteger(), libraRunId: id(),
     items: arrayOf(artifactItem, 256), artifactSetDigest: digest(), manifestDigest: digest() });
-  const offloadMember = object({ ordinal: nonNegativeInteger(), materialKey: digest(), contextRole: enumText('original_input', 'structural_dependency'),
-    physicalIdentity: typeRef('PhysicalMaterialIdentity'), location: text(), bindingRevision: positiveInteger(), bindingEvidenceDigest: digest(),
-    admittedControlRevision: positiveInteger(), admittedControlProjectionDigest: digest(),
+  const offloadMember = object({ ordinal: nonNegativeInteger(), materialKey: digest(),
+    contextRole: enumText('original_input', 'structural_dependency', 'related_input'),
+    sourceRelatedReferenceId: nullable(id()), finalProductMaterialKey:digest(),
+    dispositionKind:enumText('carried_forward', 'replaced_and_settled'),
+    physicalIdentity: typeRef('PhysicalMaterialIdentity'), endpointId:id(), location: text(),
+    bindingRevision: positiveInteger(), bindingEvidenceDigest: digest(),
+    admittedControlRevision: nullable(positiveInteger()), admittedControlProjectionDigest: nullable(digest()),
+    derivedAuthorityDigest:nullable(digest()),
     settlementExpectation: enumText('retain', 'replace_or_move', 'remove_after_place'), memberDigest: digest() });
   const offloadManifest = object({ manifestId: id(), manifestRevision: positiveInteger(), libraRunId: id(),
     members: arrayOf(offloadMember, 1024), memberSetDigest: digest(), manifestDigest: digest() });
   const workspaceReference = object({ referenceId: id(), workspaceId: id(), libraRunId: id(), materialHandleId: id(), materialKey: digest(),
     workspaceMaterialHandle: typeRef('WorkspaceMaterialHandle'), workspaceHandleDigest: digest(), referenceRevision: positiveInteger(),
     state: { const: 'product_staging' }, episodeClaims: arrayOf(episodeClaim, 32), episodeScopeDigest: digest(),
-    productVerificationRef: object({ id: id(), digest: digest() }), previousReferenceRevision: positiveInteger(),
+    productVerificationRef: applicationRef('WorkspaceProductVerificationSnapshot'), previousReferenceRevision: nullable(positiveInteger()),
     committedWorkspaceRevision: positiveInteger(), referenceDigest: digest() });
   const assertControl = object({ controlOperation: { const: 'assert_existing_input' }, materialKey: digest(),
     expectedControlRevision: positiveInteger(), expectedControlProjectionDigest: digest(), ownerDomain: { const: 'libra' },
@@ -1056,7 +1063,11 @@ function libraDeliverablePromotionDecisionSchema() {
       structuralDependencyCount: nonNegativeInteger(), productStructureDigest: digest() }),
     productFactManifest, artifactManifest,
     mediaCastSnapshot: object({ mediaCastFactId: id(), mediaCastFactRevision: positiveInteger(), schemaRef: text(), factValue: typedFactValue,
-      factDigest: digest(), evidenceDigest: digest(), relations: arrayOf(object({ relationId: id(), displayName: text(), role: text(), relationDigest: digest() }), 4096),
+      factDigest: digest(), evidenceDigest: digest(), relations: arrayOf(object({ relationId: id(), personId: nullable(id()),
+        displayName: text(), displayNameNormalized: text(), role: text(), source: text(),
+        providerIdentities: arrayOf(object({ provider:text({maxLength:128}), namespace:text({maxLength:256}),
+          providerKey:text({maxLength:2048}) }), 128), originEvidenceDigest: digest(),
+        confidenceClass: text(), relationDigest: digest() }), 4096),
       relationsDigest: digest() }),
     productMaterialManifest:domainRef('ProductionMaterialManifest'), offloadContextManifest: offloadManifest,
     productionProvenance: object({ libraRunId: id(), runExecutionBasisDigest: digest(), acceptanceSpecRecordDigest: digest(),
@@ -1064,8 +1075,14 @@ function libraDeliverablePromotionDecisionSchema() {
       productVerificationRefs: arrayOf(object({ verificationId: id(), verificationDigest: digest() }), 256),
       externalRealityObservationRefs: arrayOf(object({ evidenceId: id(), evidenceDigest: digest() }), 256), provenanceDigest: digest() }),
     productionAttestation: object({ attestationId: id(), libraRunId: id(), onDeckPackageId: id(), acceptanceSpecId: id(),
-      productConformanceEvidenceId: id(), productConformanceEvidenceDigest: digest(), unmetRequirementCount: { const: 0 },
+      acceptanceSpecRecordDigest:digest(), productConformanceEvidenceId: id(), productConformanceEvidenceDigest: digest(),
+      evaluatedRequirementSetDigest:digest(), productSnapshotDigest:digest(), unmetRequirementCount: { const: 0 },
       attestedAtMs: nonNegativeInteger(), attestationDigest: digest() }),
+    relatedDispositionSetDigest:digest(),
+    relatedAuthorityAssertions:arrayOf(object({sourceRelatedReferenceId:id(),primaryMaterialKey:digest(),role:text(),
+      sourceMaterialKey:digest(),finalProductMaterialKey:digest(),associationEvidenceDigest:digest(),
+      dispositionBasisDigest:digest(),bindingRevision:positiveInteger(),bindingEvidenceDigest:digest(),
+      dispositionKind:enumText('carried_forward','replaced_and_settled'),derivedAuthorityDigest:digest(),assertionDigest:digest()}),1024),
     controlCommitScope: object({ items: { ...arrayOf({ oneOf: [assertControl, acquireControl] }, 1024), minItems: 1 }, controlScopeDigest: digest() }),
     onDeckPackageId: id(), packageRevision: positiveInteger(), packageDigest: digest(), offerId: id(), decisionDigest: digest()
   };
@@ -1133,7 +1150,8 @@ function acceptanceSpecValueSchema() {
   return object({ schemaRef: { const: 'libra.acceptance-spec@1' }, schemaVersion: { const: 1 },
     draftId: id(), draftKind: text(), basisDigest: digest(), draftDigest: digest(), producedAtMs: nonNegativeInteger(),
     subjectId: id(), targetShelfId: id(), contentProfile: contentProfile(), structureKind: acceptanceStructureKind(),
-    productScope: object({ scopeKind: enumText('product', 'season'), episodeKeys: arrayOf(text(), 32768), scopeDigest: digest() }),
+    productScope: object({ subjectId: id(), scopeKind: enumText('single', 'episode_manifest'),
+      subjectIntakeRevision: positiveInteger(), episodeKeys: arrayOf(text(), 1024), scopeDigest: digest() }),
     shelfRoutingProjectionRevision: positiveInteger(), shelfProjectionDigest: digest(), shelfStandardRevision: positiveInteger(),
     shelfStandardDigest: digest(), decisionBasisId: id(), decisionBasisDigest: digest(), requirements: acceptanceRequirementSetSchema(),
     specDigest: digest(), acceptanceSpecId: id(), specRevision: positiveInteger(), recordDigest: digest(), publishedAtMs: nonNegativeInteger() });
@@ -1156,14 +1174,23 @@ function encodeIntentSchema() {
   const videoBase = { codec: { const: 'hevc' }, preserveRaster: { const: true }, forbidUpscale: { const: true } };
   const video = { oneOf: [
     object({ ...videoBase, rateControlMode: { const: 'target_size' }, targetVideoBitrateBps: positiveInteger(), qualityBound: { type: 'null' } }),
+    object({ ...videoBase, rateControlMode: { const: 'two_pass_abr' }, targetVideoBitrateBps: positiveInteger(), qualityBound: { type: 'null' } }),
+    object({ ...videoBase, rateControlMode: { const: 'strict_abr' }, targetVideoBitrateBps: positiveInteger(), qualityBound: { type: 'null' } }),
     object({ ...videoBase, rateControlMode: { const: 'quality_bound' }, targetVideoBitrateBps: { type: 'null' },
       qualityBound: { type: 'integer', minimum: 0, maximum: 63 } })
   ] };
-  return { ...exactDomainSchema('EncodeIntent', { intentId: id(), revision: positiveInteger(), schemaRef: { const: 'EncodeIntent@1' }, libraRunId: id(),
-    sourceHandleDigest: digest(), mediaRequirementDigest: digest(), outputContainer: { const: 'matroska' },
+  const properties = { intentId: id(), revision: positiveInteger(), schemaRef: { const: 'EncodeIntent@1' }, libraRunId: id(),
+    sourceHandleDigest: digest(), mediaRequirementDigest: digest(), planningPolicyRef: { const: 'LibraMediaPlanningPolicy@1' },
+    planningPolicyRevision: positiveInteger(), planningPolicyDigest: digest(), strategyOrdinal: positiveInteger(), sizeBudgetRevision: positiveInteger(),
     outputExtension: { const: 'mkv' }, video, audio: object({ mode: { const: 'copy' } }),
-    subtitle: object({ mode: { const: 'copy' } }), deviceClass: deviceClass(), intentDigest: digest()
-  }, undefined, { 'x-helix-role': 'bounded-contract' }), 'x-helix-maxCanonicalBytes': 16 * 1024 };
+    outputContainer: { const: 'matroska' }, subtitle: object({ mode: { const: 'copy' } }), deviceClass: deviceClass(),
+    previousIntentDigest: nullable(digest()), intentDigest: digest()
+  };
+  const required = Object.keys(properties).filter((field) => field !== 'previousIntentDigest');
+  return { ...exactDomainSchema('EncodeIntent', properties, required, { 'x-helix-role': 'bounded-contract', allOf:[
+    { if:{properties:{strategyOrdinal:{const:1}},required:['strategyOrdinal']},then:{not:{required:['previousIntentDigest']}} },
+    { if:{properties:{strategyOrdinal:{minimum:2}},required:['strategyOrdinal']},then:{required:['previousIntentDigest'],properties:{previousIntentDigest:digest()}} }
+  ] }), 'x-helix-maxCanonicalBytes': 16 * 1024 };
 }
 
 function remuxIntentSchema() {
@@ -1250,7 +1277,7 @@ function candidateDeliveryOriginRefSchema() {
 
 function productionMaterialMemberSchema(manifestRole) {
   const properties = { ordinal: nonNegativeInteger(), materialKey: digest(),
-    role: enumText('primary_payload', 'structural_dependency', 'metadata_sidecar', 'poster', 'fanart', 'subtitle', 'external_audio', 'chapter'),
+    role: enumText('primary_payload', 'structural_dependency', 'metadata_sidecar', 'poster', 'fanart', 'subtitle', 'external_audio', 'chapter', 'sidecar'),
     physicalIdentity: typeRef('PhysicalMaterialIdentity'), sizeBytes:nonNegativeInteger(), location:productionMaterialLocationSchema(),
     bindingKind: enumText('libra_material_binding', 'workspace_material_reference'), bindingRevision: positiveInteger(),
     originCandidateDeliveryRef:nullable(candidateDeliveryOriginRefSchema()), workspaceReferenceId:nullable(id()),
@@ -1259,9 +1286,10 @@ function productionMaterialMemberSchema(manifestRole) {
     bindingEvidenceDigest: digest(), episodeClaims: arrayOf(episodeClaimSchema(), 32), episodeClaimSetDigest: digest(),
     outputRequirementDigest: digest(), memberDigest: digest() };
   if (manifestRole === 'product_delivery') Object.assign(properties, {
-    controlOperation:enumText('assert_existing_input', 'acquire_workspace_product'),
+    sourceRelatedReferenceId:nullable(id()),derivedAuthorityDigest:nullable(digest()),
+    controlOperation:enumText('assert_existing_input', 'assert_related_input', 'acquire_workspace_product'),
     expectedControlRevision:nullable(nonNegativeInteger()), expectedControlProjectionDigest:nullable(digest()),
-    committedControlRevision:positiveInteger(), committedControlProjectionDigest:digest()
+    committedControlRevision:nullable(positiveInteger()), committedControlProjectionDigest:nullable(digest())
   });
   return object(properties, Object.keys(properties), {
     allOf: [{
@@ -1328,10 +1356,20 @@ function productInventoryConformanceSnapshotSchema() {
     productMaterialManifest: domainRef('ProductionMaterialManifest'), artifactManifest: domainRef('ArtifactManifest'), inventoryDigest: digest() });
 }
 
+function productionSourceScopeReferenceSchema() {
+  return { ...exactDomainSchema('ProductionSourceScopeReference', {
+    schemaRef: { const: 'ProductionSourceScopeReference@1' }, schemaVersion: { const: 1 },
+    libraRunId: id(), scopeKind: enumText('stream_file', 'bdmv', 'dvd', 'iso'), scopeId: id(),
+    scopeDigest: digest(), memberSetDigest: digest(), memberCount: { type:'integer', minimum:1, maximum:1024 },
+    selectedPayloadSetDigest: digest(), sourceReferenceDigest: digest()
+  }, undefined, { 'x-helix-role':'bounded-contract' }), 'x-helix-maxCanonicalBytes': 16 * 1024 };
+}
+
 function mediaExecutionDeviceSnapshotSchema() {
   const workerRef = object({ workerId: id(), workerRevision: positiveInteger(), capabilityDigest: digest() });
   const capabilityPayload = object({ supportedVideoCodecs: { ...arrayOf(text(), 64), minItems: 1 },
-    supportedRateControlModes: { ...arrayOf(enumText('target_size', 'quality_bound'), 2), minItems: 1 } });
+    supportedRateControlModes: { ...arrayOf(enumText('target_size', 'quality_bound', 'two_pass_abr', 'strict_abr'), 4), minItems: 1 },
+    validatedConcurrentSlots: { type: 'integer', minimum: 1, maximum: 1024 } });
   return { ...exactDomainSchema('MediaExecutionDeviceSnapshot', { deviceId: id(), deviceClass: deviceClass(),
     probeRevision: positiveInteger(), capabilitySchemaRef: text(), capabilityPayload, capabilityDigest: digest(),
     enabled: { const: true }, state: { const: 'ready' }, workerRef: nullable(workerRef), snapshotDigest: digest() }),

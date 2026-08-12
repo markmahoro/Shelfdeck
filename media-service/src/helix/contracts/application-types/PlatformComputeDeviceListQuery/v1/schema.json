@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/PlatformComputeDeviceListQuery/v1",
+  "title": "PlatformComputeDeviceListQuery@1",
+  "x-helix-ssotRefs": [
+    "8.3.8",
+    "8.6.18"
+  ],
+  "x-helix-maxCanonicalBytes": 4096,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "queryContract": {
+      "const": "platform.compute-ready-device-refs@1"
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 64
+    },
+    "queryDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "queryContract",
+    "limit",
+    "queryDigest"
+  ]
+}

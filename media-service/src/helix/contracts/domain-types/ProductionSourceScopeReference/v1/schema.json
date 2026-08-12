@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/ProductionSourceScopeReference/v1",
+  "title": "ProductionSourceScopeReference@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "bounded-contract",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "ProductionSourceScopeReference@1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "scopeKind": {
+      "type": "string",
+      "enum": [
+        "stream_file",
+        "bdmv",
+        "dvd",
+        "iso"
+      ]
+    },
+    "scopeId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "scopeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "memberSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "memberCount": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1024
+    },
+    "selectedPayloadSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "sourceReferenceDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "libraRunId",
+    "scopeKind",
+    "scopeId",
+    "scopeDigest",
+    "memberSetDigest",
+    "memberCount",
+    "selectedPayloadSetDigest",
+    "sourceReferenceDigest"
+  ],
+  "x-helix-maxCanonicalBytes": 16384
+}

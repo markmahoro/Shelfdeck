@@ -195,7 +195,10 @@ function controlRequest(change) {
       basisDigest: digest('basis'), canonicalFactSetDigest: digest('facts'), bindingSetDigest: digest('bindings'),
       controlScopeDigest: controlScopeDigest([change]),
       expectedControlRevisions: [{ materialKey: change.identity.materialKey, revision: change.expectedRevision }],
-      receiptContract: 'helix://contracts/types/TestControlReceipt/v1', eventFenceDigest: digest('control-fence')
+      receiptContract: {
+        receiptSchemaRef: 'helix://contracts/types/TestControlReceipt/v1',
+        controlRevisionSetSchemaRef: 'test.control-revision-set@1'
+      }, eventFenceDigest: digest('control-fence')
     }
   };
 }

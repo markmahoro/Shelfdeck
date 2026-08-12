@@ -5,8 +5,72 @@
   "kind": "application-type-registry",
   "owner": "platform-settings",
   "status": "active",
-  "targetCount": 5,
+  "targetCount": 9,
   "entries": [
+    {
+      "id": "PlatformComputeDeviceListQuery",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/PlatformComputeDeviceListQuery/v1",
+      "relativePath": "application-types/PlatformComputeDeviceListQuery/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "733d230f02b0f55f496a091fe20bc529cbba2f4bfd4ebd19aca214ee4cb2abd9"
+      },
+      "ssotRefs": [
+        "8.3.8",
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "PlatformComputeDeviceQuery",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/PlatformComputeDeviceQuery/v1",
+      "relativePath": "application-types/PlatformComputeDeviceQuery/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "96879089c7b3b505c65f04ac09a2b4a0bd498cb74e367e5bd66d809e0480976f"
+      },
+      "ssotRefs": [
+        "8.3.8",
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "PlatformComputeDeviceReadResult",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/PlatformComputeDeviceReadResult/v1",
+      "relativePath": "application-types/PlatformComputeDeviceReadResult/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "72dc4e694cd4d6a0f0f06e879ec4a24d1e7f0744ca6873279c7502ecc5c5e54c"
+      },
+      "ssotRefs": [
+        "8.3.8",
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "PlatformComputeDeviceRefSet",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/PlatformComputeDeviceRefSet/v1",
+      "relativePath": "application-types/PlatformComputeDeviceRefSet/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "ae4671aa08e2f57f1a7e6f44342b60d1144b75a79087e01c341971376155d22a"
+      },
+      "ssotRefs": [
+        "8.3.8",
+        "8.6.18"
+      ]
+    },
     {
       "id": "PlatformWorkspaceRootQuery",
       "version": 1,

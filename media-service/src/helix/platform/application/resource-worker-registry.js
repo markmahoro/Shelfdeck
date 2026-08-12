@@ -164,7 +164,26 @@ function createResourceWorkerRegistry(options) {
         capabilityDigest:item.capabilityDigest,enabled:true,state:'ready',workerRef:null};
       snapshot.snapshotDigest=options.digest(canonical(snapshot));freeze(snapshot);
     }
-    const result={queryDigest:query.queryDigest,resultKind,snapshot:snapshot??null,reasonCode:reasonCode??null};
+    const result={queryDigest:query.queryDigest,resultKind};
+    if(snapshot)result.snapshot=snapshot;else result.reasonCode=reasonCode;
+    result.resultDigest=options.digest(canonical(result));return freeze(result);
+  }
+
+  function listReadyDeviceRefs(query) {
+    exact(query, ['limit', 'queryContract', 'queryDigest'], 'P9_COMPUTE_DEVICE_LIST_QUERY_SHAPE');
+    if(query.queryContract!=='platform.compute-ready-device-refs@1')fail('P9_COMPUTE_DEVICE_LIST_QUERY_CONTRACT','Compute Device list query contract is invalid.');
+    positive(query.limit,'limit',64);
+    const queryValue={queryContract:query.queryContract,limit:query.limit};
+    if(options.digest(canonical(queryValue))!==query.queryDigest)fail('P9_COMPUTE_DEVICE_LIST_QUERY_DIGEST','Compute Device list query digest is invalid.');
+    const items=[];
+    for(const item of options.repository.listDevices()){
+      if(!item.enabled||item.state!=='ready'||item.probeResult!=='passed'||options.digest(canonical(item.capability))!==item.capabilityDigest)continue;
+      const ref={deviceId:item.deviceId,deviceClass:item.deviceKind,probeRevision:item.revision,capabilityDigest:item.capabilityDigest};
+      ref.refDigest=options.digest(canonical(ref));items.push(ref);
+    }
+    items.sort((left,right)=>Buffer.from(left.deviceClass).compare(Buffer.from(right.deviceClass))||
+      Buffer.from(left.deviceId).compare(Buffer.from(right.deviceId)));
+    const result={queryDigest:query.queryDigest,resultKind:'available',items:items.slice(0,query.limit)};
     result.resultDigest=options.digest(canonical(result));return freeze(result);
   }
 
@@ -186,7 +205,7 @@ function createResourceWorkerRegistry(options) {
   }
 
   return freeze({ publishProfile, publishOperatingPolicy, publishDevice, publishWorker, queryResourceProfile, queryDevice,
-    readDeviceSnapshot, resolveWorkerHandle });
+    listReadyDeviceRefs, readDeviceSnapshot, resolveWorkerHandle });
 }
 
 function deviceProjection(item) {

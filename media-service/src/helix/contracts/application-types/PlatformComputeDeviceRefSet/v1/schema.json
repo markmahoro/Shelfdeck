@@ -1,0 +1,237 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/PlatformComputeDeviceRefSet/v1",
+  "title": "PlatformComputeDeviceRefSet@1",
+  "x-helix-ssotRefs": [
+    "8.3.8",
+    "8.6.18"
+  ],
+  "x-helix-maxCanonicalBytes": 16384,
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "queryDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "resultDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "resultKind": {
+          "const": "available"
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "deviceId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "deviceClass": {
+                "type": "string",
+                "enum": [
+                  "software_cpu",
+                  "intel_qsv",
+                  "nvidia_nvenc",
+                  "amd_vaapi",
+                  "remote_worker"
+                ]
+              },
+              "probeRevision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "capabilityDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "refDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "deviceId",
+              "deviceClass",
+              "probeRevision",
+              "capabilityDigest",
+              "refDigest"
+            ]
+          }
+        }
+      },
+      "required": [
+        "queryDigest",
+        "resultDigest",
+        "resultKind",
+        "items"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "queryDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "resultDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "resultKind": {
+          "const": "unavailable"
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 0,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "deviceId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "deviceClass": {
+                "type": "string",
+                "enum": [
+                  "software_cpu",
+                  "intel_qsv",
+                  "nvidia_nvenc",
+                  "amd_vaapi",
+                  "remote_worker"
+                ]
+              },
+              "probeRevision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "capabilityDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "refDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "deviceId",
+              "deviceClass",
+              "probeRevision",
+              "capabilityDigest",
+              "refDigest"
+            ]
+          }
+        },
+        "reasonCode": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "queryDigest",
+        "resultDigest",
+        "resultKind",
+        "items",
+        "reasonCode"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "queryDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "resultDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "resultKind": {
+          "const": "integrity_error"
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 0,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "deviceId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "deviceClass": {
+                "type": "string",
+                "enum": [
+                  "software_cpu",
+                  "intel_qsv",
+                  "nvidia_nvenc",
+                  "amd_vaapi",
+                  "remote_worker"
+                ]
+              },
+              "probeRevision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "capabilityDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "refDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "deviceId",
+              "deviceClass",
+              "probeRevision",
+              "capabilityDigest",
+              "refDigest"
+            ]
+          }
+        },
+        "reasonCode": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "queryDigest",
+        "resultDigest",
+        "resultKind",
+        "items",
+        "reasonCode"
+      ]
+    }
+  ]
+}

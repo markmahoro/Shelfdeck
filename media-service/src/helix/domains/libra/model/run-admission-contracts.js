@@ -64,7 +64,13 @@ function buildOutputRequirement({ acceptanceSpec, manifestRole, materialKey, mat
   if (Object.keys(requirements).length !== requirementKeys.length || requirementKeys.some((key) => !Object.hasOwn(requirements, key)))
     fail('P9_RUN_REQUIREMENTS', 'Acceptance Spec must contain exactly six Requirement classes.');
   const productEpisodeKeys = sortedUniqueText(productScope.episodeKeys, 'acceptanceSpec.productScope.episodeKeys');
-  if (productScope.scopeDigest !== spec.productScopeDigest) fail('P9_RUN_PRODUCT_SCOPE', 'Acceptance Spec Product Scope digest is inconsistent.');
+  const productScopeDigest = digest(productScope.scopeDigest,
+    'acceptanceSpec.productScope.scopeDigest');
+  if (spec.productScopeDigest !== undefined &&
+      productScopeDigest !== spec.productScopeDigest) {
+    fail('P9_RUN_PRODUCT_SCOPE',
+      'Acceptance Spec Product Scope digest is inconsistent.');
+  }
   let kind;
   let scopedEpisodeKeys = [];
   if (materialRole === 'primary_payload') {
@@ -80,7 +86,7 @@ function buildOutputRequirement({ acceptanceSpec, manifestRole, materialKey, mat
     if (episodeKeys.length) fail('P9_RUN_REQUIREMENT_SCOPE', 'Structural material cannot claim Episodes.');
     kind = 'production_support';
   } else {
-    if (!['metadata_sidecar', 'poster', 'fanart', 'subtitle', 'external_audio', 'chapter'].includes(materialRole) || manifestRole !== 'product_delivery')
+    if (!['metadata_sidecar', 'poster', 'fanart', 'subtitle', 'external_audio', 'chapter', 'sidecar'].includes(materialRole) || manifestRole !== 'product_delivery')
       fail('P9_RUN_REQUIREMENT_ROLE', 'Material role is outside the closed requirement mapping.');
     kind = 'product_scope';
   }
@@ -88,11 +94,11 @@ function buildOutputRequirement({ acceptanceSpec, manifestRole, materialKey, mat
     acceptanceSpecId: text(spec.acceptanceSpecId, 'acceptanceSpecId'),
     specRevision: integer(spec.specRevision, 1, 'specRevision'),
     specDigest: digest(spec.specDigest, 'specDigest'), recordDigest: digest(spec.recordDigest, 'recordDigest'),
-    productScopeDigest: digest(spec.productScopeDigest, 'productScopeDigest')
+    productScopeDigest
   };
   const applicationScope = { kind, episodeKeys: scopedEpisodeKeys,
     scopeDigest: canonicalDigest({ schema: 'libra.production-material-requirement-scope@1',
-      productScopeDigest: spec.productScopeDigest, kind, episodeKeys: scopedEpisodeKeys }) };
+      productScopeDigest, kind, episodeKeys: scopedEpisodeKeys }) };
   const requirement = { acceptanceSpecRef, manifestRole, materialKey, materialRole, applicationScope,
     acceptanceRequirementSetDigest: canonicalDigest({ schema: 'libra.acceptance-requirement-set@1', requirements }) };
   requirement.outputRequirementDigest = canonicalDigest(requirement);
@@ -185,6 +191,35 @@ function buildRunExecutionBasis(value) {
   const spec = object(value.acceptanceSpec, 'P9_RUN_SPEC');
   const shelf = object(value.shelfProjection, 'P9_RUN_SHELF');
   const manifest = buildProductionMaterialManifest(value.productionMaterialManifest, spec);
+  const relatedInput = object(value.relatedDispositionScope, 'P9_RUN_RELATED_SCOPE');
+  if (!Array.isArray(relatedInput.items) || relatedInput.items.length > 1024)
+    fail('P9_RUN_RELATED_SCOPE', 'Related Disposition Scope must contain 0..1024 items.');
+  const relatedItems = relatedInput.items.map((item) => {
+    object(item, 'P9_RUN_RELATED_SCOPE_ITEM');
+    const normalized = {
+      referenceId:text(item.referenceId, 'related.referenceId'),
+      primaryMaterialKey:digest(item.primaryMaterialKey, 'related.primaryMaterialKey'),
+      role:text(item.role, 'related.role'), materialKey:digest(item.materialKey, 'related.materialKey'),
+      associationEvidenceDigest:digest(item.associationEvidenceDigest, 'related.associationEvidenceDigest'),
+      dispositionBasisDigest:digest(item.dispositionBasisDigest, 'related.dispositionBasisDigest')
+    };
+    if (!['nfo', 'poster', 'fanart', 'subtitle', 'external_audio', 'chapter', 'sidecar'].includes(normalized.role)) {
+      fail('P9_RUN_RELATED_SCOPE_ITEM', 'Related Disposition item is invalid.');
+    }
+    return Object.freeze(normalized);
+  });
+  const orderedRelated = [...relatedItems].sort((a,b)=>utf8Compare(a.referenceId,b.referenceId));
+  if (canonicalJson(orderedRelated) !== canonicalJson(relatedItems) ||
+      orderedRelated.some((item,index)=>index>0&&item.referenceId===orderedRelated[index-1].referenceId))
+    fail('P9_RUN_RELATED_SCOPE_ORDER', 'Related references must be unique and UTF-8 ordered.');
+  const relatedDispositionScope = Object.freeze({
+    relatedReferenceSetDigest:digest(relatedInput.relatedReferenceSetDigest, 'relatedReferenceSetDigest'),
+    relatedDispositionScopeDigest:digest(relatedInput.relatedDispositionScopeDigest, 'relatedDispositionScopeDigest'),
+    items:orderedRelated
+  });
+  if (relatedDispositionScope.relatedDispositionScopeDigest !== canonicalDigest({
+    schema:'procurement.related-disposition-scope@1', items:orderedRelated.map(({ associationEvidenceDigest, ...item })=>item)
+  })) fail('P9_RUN_RELATED_SCOPE_DIGEST', 'Related Disposition Scope digest is invalid.');
   if ((subject.structureKind === 'single') !== (manifest.scopeKind === 'single')) fail('P9_RUN_SCOPE_KIND', 'Subject and manifest scope disagree.');
   const basis = {
     subjectSnapshot: { subjectId: text(subject.subjectId, 'subjectId'), intakeRevision: integer(subject.intakeRevision, 1, 'intakeRevision'),
@@ -197,7 +232,7 @@ function buildRunExecutionBasis(value) {
     shelfProjection: { routingProjectionRevision: integer(shelf.routingProjectionRevision, 1, 'routingProjectionRevision'),
       projectionDigest: digest(shelf.projectionDigest, 'projectionDigest'), standardRevision: integer(shelf.standardRevision, 1, 'standardRevision'),
       standardDigest: digest(shelf.standardDigest, 'standardDigest') },
-    productionMaterialManifest: manifest
+    productionMaterialManifest: manifest, relatedDispositionScope
   };
   basis.executionBasisDigest = canonicalDigest(basis);
   if (value.executionBasisDigest !== undefined && value.executionBasisDigest !== basis.executionBasisDigest)

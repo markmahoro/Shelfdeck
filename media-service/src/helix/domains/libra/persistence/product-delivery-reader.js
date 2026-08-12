@@ -78,6 +78,7 @@ function definition(schemaManifest) {
           'artifact_manifest_id', 'artifact_manifest_digest',
           'media_cast_fact_id', 'media_cast_fact_digest',
           'offload_context_manifest_id', 'offload_context_digest',
+          'related_disposition_set_digest',
           'production_provenance_schema_ref', 'production_provenance_json',
           'production_provenance_digest', 'attestation_schema_ref', 'attestation_json',
           'attestation_digest', 'package_digest', 'published_at_ms',
@@ -90,6 +91,7 @@ function definition(schemaManifest) {
         tableId: 'libra_product_package_materials',
         columns: [
           'on_deck_package_id', 'ordinal', 'material_handle_id', 'material_key', 'role',
+          'source_related_reference_id','derived_authority_digest',
           'mount_scope_id', 'inode', 'fingerprint_algorithm', 'fingerprint_version', 'content_fingerprint',
           'location_kind', 'endpoint_id', 'location', 'root_handle_ref', 'relative_path',
           'binding_kind', 'binding_revision', 'binding_evidence_digest',
@@ -151,9 +153,11 @@ function definition(schemaManifest) {
         tableId: 'libra_offload_context_materials',
         columns: [
           'on_deck_package_id', 'ordinal', 'material_key', 'context_role',
+          'source_related_reference_id','final_product_material_key','disposition_kind',
           'mount_scope_id', 'inode', 'size_bytes', 'fingerprint_algorithm', 'fingerprint_version', 'content_fingerprint',
           'endpoint_id', 'location', 'binding_revision', 'binding_evidence_digest',
           'admitted_control_revision', 'admitted_control_projection_digest',
+          'derived_authority_digest',
           'settlement_expectation', 'context_member_digest',
         ],
         keyColumns: ['on_deck_package_id'],
@@ -164,7 +168,8 @@ function definition(schemaManifest) {
         tableId: 'libra_runs',
         columns: [
           'libra_run_id', 'state', 'state_revision', 'state_digest',
-          'acceptance_spec_id', 'package_revision_head',
+          'subject_id', 'acceptance_spec_id', 'package_revision_head',
+          'execution_basis_record_json', 'execution_basis_digest',
         ],
         keyColumns: ['libra_run_id'],
         safeIntegers: true,
@@ -207,6 +212,8 @@ function material(row, claims) {
     ordinal: number(row.ordinal),
     materialKey: row.material_key,
     role: row.role,
+    sourceRelatedReferenceId:row.source_related_reference_id,
+    derivedAuthorityDigest:row.derived_authority_digest,
     physicalIdentity: physical(row),
     sizeBytes: number(row.size_bytes),
     location: {
@@ -233,9 +240,70 @@ function material(row, claims) {
     controlOperation: row.control_operation,
     expectedControlRevision: nullableNumber(row.expected_control_revision),
     expectedControlProjectionDigest: row.expected_control_projection_digest,
-    committedControlRevision: number(row.committed_control_revision),
+    committedControlRevision: nullableNumber(row.committed_control_revision),
     committedControlProjectionDigest: row.committed_control_projection_digest,
   };
+}
+
+function assertRelatedDisposition(row, run, members, offloadMembers) {
+  if (!run) fail('P9_PRODUCT_DELIVERY_RUN_MISSING', 'Product Delivery Run is missing.');
+  const basis = parse(run.execution_basis_record_json, 'P9_PRODUCT_DELIVERY_RUN_BASIS');
+  if (basis.executionBasisDigest !== run.execution_basis_digest ||
+      !basis.relatedDispositionScope || !Array.isArray(basis.relatedDispositionScope.items)) {
+    fail('P9_PRODUCT_DELIVERY_RELATED_BASIS', 'Product Delivery Related Run Basis is corrupt.');
+  }
+  const relatedMembers = members.filter((item) => item.controlOperation === 'assert_related_input');
+  const relatedOffload = offloadMembers.filter((item) => item.contextRole === 'related_input');
+  const assertions = basis.relatedDispositionScope.items.map((scope) => {
+    const member = relatedMembers.find((item) => item.sourceRelatedReferenceId === scope.referenceId);
+    const offload = relatedOffload.find((item) => item.sourceRelatedReferenceId === scope.referenceId);
+    if (!member || !offload || offload.materialKey !== scope.materialKey ||
+        member.materialKey !== offload.finalProductMaterialKey ||
+        member.derivedAuthorityDigest !== offload.derivedAuthorityDigest ||
+        !['carried_forward', 'replaced_and_settled'].includes(offload.dispositionKind)) {
+      fail('P9_PRODUCT_DELIVERY_RELATED_MAPPING',
+        'Product Delivery Related scope does not match Product and Off-load rows.');
+    }
+    const derivedAuthorityDigest = canonicalDigest({
+      schema: 'libra.related-derived-authority@1',
+      subjectId: run.subject_id,
+      sourceRelatedReferenceId: scope.referenceId,
+      primaryMaterialKey: scope.primaryMaterialKey,
+      role: scope.role,
+      sourceMaterialKey: scope.materialKey,
+      associationEvidenceDigest: scope.associationEvidenceDigest,
+      dispositionBasisDigest: scope.dispositionBasisDigest,
+      bindingRevision: offload.bindingRevision,
+      bindingEvidenceDigest: offload.bindingEvidenceDigest,
+    });
+    if (derivedAuthorityDigest !== member.derivedAuthorityDigest ||
+        (offload.dispositionKind === 'carried_forward') !==
+          (scope.materialKey === member.materialKey)) {
+      fail('P9_PRODUCT_DELIVERY_RELATED_AUTHORITY',
+        'Product Delivery Related derived authority is invalid.');
+    }
+    const assertion = {
+      sourceRelatedReferenceId: scope.referenceId,
+      primaryMaterialKey: scope.primaryMaterialKey,
+      role: scope.role,
+      sourceMaterialKey: scope.materialKey,
+      finalProductMaterialKey: member.materialKey,
+      associationEvidenceDigest: scope.associationEvidenceDigest,
+      dispositionBasisDigest: scope.dispositionBasisDigest,
+      bindingRevision: offload.bindingRevision,
+      bindingEvidenceDigest: offload.bindingEvidenceDigest,
+      dispositionKind: offload.dispositionKind,
+      derivedAuthorityDigest,
+    };
+    assertion.assertionDigest = canonicalDigest(assertion);
+    return assertion;
+  }).sort((left, right) => utf8(left.sourceRelatedReferenceId, right.sourceRelatedReferenceId));
+  if (assertions.length !== relatedMembers.length || assertions.length !== relatedOffload.length ||
+      canonicalDigest({ schema: 'libra.related-disposition-set@1', items: assertions }) !==
+        row.related_disposition_set_digest) {
+    fail('P9_PRODUCT_DELIVERY_RELATED_SET',
+      'Product Delivery Related disposition set is incomplete or corrupt.');
+  }
 }
 
 function reconstruct(repo, row) {
@@ -367,13 +435,17 @@ function reconstruct(repo, row) {
       ordinal: number(item.ordinal),
       materialKey: item.material_key,
       contextRole: item.context_role,
+      sourceRelatedReferenceId:item.source_related_reference_id,
+      finalProductMaterialKey:item.final_product_material_key,
+      dispositionKind:item.disposition_kind,
       physicalIdentity: physical(item),
       endpointId: item.endpoint_id,
       location: item.location,
       bindingRevision: number(item.binding_revision),
       bindingEvidenceDigest: item.binding_evidence_digest,
-      admittedControlRevision: number(item.admitted_control_revision),
+      admittedControlRevision: nullableNumber(item.admitted_control_revision),
       admittedControlProjectionDigest: item.admitted_control_projection_digest,
+      derivedAuthorityDigest:item.derived_authority_digest,
       settlementExpectation: item.settlement_expectation,
       memberDigest: item.context_member_digest,
     }));
@@ -385,6 +457,8 @@ function reconstruct(repo, row) {
     memberSetDigest: canonicalDigest({ schema: 'libra.offload-context-members@1', items: offloadMembers }),
   };
   offloadContextManifest.manifestDigest = canonicalDigest(offloadContextManifest);
+  const run = repo.invoke('find_run', { libra_run_id: row.libra_run_id });
+  assertRelatedDisposition(row, run, members, offloadMembers);
   const resolvedIdentitySnapshot = resolved ? Object.fromEntries(
     Object.entries(resolved).filter(([name]) =>
       !['factKind', 'referenceDigest'].includes(name)),

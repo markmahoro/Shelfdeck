@@ -59,12 +59,17 @@ function foundationRepository(schemaManifest) {
 }
 function validateControlHandle(handle, basis) {
   const set = basis.selectedFieldMaterialSet;
+  const receiptContract = Object.freeze({
+    receiptSchemaRef: RESULT_SCHEMA,
+    controlRevisionSetSchemaRef: 'procurement.control-revision-set@1',
+  });
   if (!handle || handle.schemaRef !== 'helix://contracts/types/ResponsibilityControlCommitHandle/v1' || handle.schemaVersion !== 1 ||
       handle.operationKind !== 'acquire' || handle.ownerDomain !== 'procurement' || handle.processType !== 'procurement_run' ||
       handle.processId !== basis.procurementRunId || !handle.basisRef || handle.basisRef.objectType !== 'procurement_run_execution_basis' ||
       handle.basisRef.objectId !== basis.procurementRunId || handle.basisRef.revision !== 1 || handle.basisRef.digest !== basis.basisDigest ||
       handle.basisDigest !== basis.basisDigest || handle.controlScopeDigest !== set.selectionDigest ||
-      handle.bindingSetDigest !== set.selectionDigest || handle.receiptContract !== RESULT_SCHEMA ||
+      handle.bindingSetDigest !== set.selectionDigest ||
+      canonicalJson(handle.receiptContract) !== canonicalJson(receiptContract) ||
       !Array.isArray(handle.expectedControlRevisions) || handle.expectedControlRevisions.length !== set.members.length ||
       canonicalJson(handle.expectedControlRevisions) !== canonicalJson(set.members.map((member) => ({ materialKey:member.materialKey, revision:member.controlSnapshot.controlRevision })))) {
     fail('P7_RUN_ADMISSION_HANDLE_MISMATCH', 'Control Handle does not authorize this exact Run Basis and Selection.');

@@ -6,9 +6,9 @@ const { buildDomainInputSchemas } = require('../../scripts/helix-architecture/do
 
 const schemas = buildDomainInputSchemas();
 
-test('builds exactly the 112 formal domain input contracts', () => {
-  assert.equal(Object.keys(schemas).length, 112);
-  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'bounded-contract').length, 23);
+test('builds exactly the 113 formal domain input contracts', () => {
+  assert.equal(Object.keys(schemas).length, 113);
+  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'bounded-contract').length, 24);
   assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'accepted-business-dto').length, 89);
 });
 
@@ -118,9 +118,14 @@ test('legacy bounded inputs stay generic while media intents are exact and typed
   assert.equal(schemas.EncodeIntent.properties.typedParameters, undefined);
   assert.equal(schemas.EncodeIntent.properties.schemaRef.const, 'EncodeIntent@1');
   assert.equal(schemas.EncodeIntent.properties.intentDigest.pattern, '^[a-f0-9]{64}$');
-  assert.equal(schemas.EncodeIntent.properties.video.oneOf.length, 2);
+  assert.equal(schemas.EncodeIntent.properties.video.oneOf.length, 4);
   assert.equal(schemas.EncodeIntent.properties.video.oneOf[0].properties.rateControlMode.const, 'target_size');
-  assert.equal(schemas.EncodeIntent.properties.video.oneOf[1].properties.rateControlMode.const, 'quality_bound');
+  assert.equal(schemas.EncodeIntent.properties.video.oneOf[1].properties.rateControlMode.const, 'two_pass_abr');
+  assert.equal(schemas.EncodeIntent.properties.video.oneOf[2].properties.rateControlMode.const, 'strict_abr');
+  assert.equal(schemas.EncodeIntent.properties.video.oneOf[3].properties.rateControlMode.const, 'quality_bound');
+  assert.equal(schemas.EncodeIntent.properties.planningPolicyRef.const, 'LibraMediaPlanningPolicy@1');
+  assert.equal(schemas.EncodeIntent.properties.sizeBudgetRevision.minimum, 1);
+  assert.equal(schemas.ProductionSourceScopeReference.properties.scopeKind.enum.includes('bdmv'), true);
   assert.equal(schemas.RemuxIntent.properties.streamPolicy.const, 'copy_all_supported');
   assert.equal(schemas.RemuxIntent.properties.schemaRef.const, 'RemuxIntent@1');
   assert.equal(schemas.MediaRequirement.properties.schemaRef.const, 'MediaRequirement@1');
@@ -160,7 +165,8 @@ test('conserves complete run-input and product-delivery Production Material memb
   const runInput = { manifestId:'run-manifest', manifestRole:'run_input', manifestRevision:1, libraRunId:'run-1', scopeKind:'single',
     members:[common], memberSetDigest:'4'.repeat(64), episodeScopeDigest:'5'.repeat(64), manifestDigest:'6'.repeat(64) };
   const productDelivery = { ...runInput, manifestId:'product-manifest', manifestRole:'product_delivery',
-    members:[{ ...common, controlOperation:'assert_existing_input', expectedControlRevision:1,
+    members:[{ ...common, sourceRelatedReferenceId:null, derivedAuthorityDigest:null,
+      controlOperation:'assert_existing_input', expectedControlRevision:1,
       expectedControlProjectionDigest:'7'.repeat(64), committedControlRevision:2, committedControlProjectionDigest:'8'.repeat(64) }] };
   const [runSchema, deliverySchema] = schemas.ProductionMaterialManifest.oneOf;
   assert.deepEqual(Object.keys(runInput).sort(), [...runSchema.required].sort());

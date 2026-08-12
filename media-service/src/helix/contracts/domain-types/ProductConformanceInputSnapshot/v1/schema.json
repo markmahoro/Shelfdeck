@@ -89,12 +89,21 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
+            "subjectId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
             "scopeKind": {
               "type": "string",
               "enum": [
-                "product",
-                "season"
+                "single",
+                "episode_manifest"
               ]
+            },
+            "subjectIntakeRevision": {
+              "type": "integer",
+              "minimum": 1
             },
             "episodeKeys": {
               "type": "array",
@@ -102,7 +111,7 @@
                 "type": "string",
                 "minLength": 1
               },
-              "maxItems": 32768
+              "maxItems": 1024
             },
             "scopeDigest": {
               "type": "string",
@@ -111,7 +120,9 @@
             }
           },
           "required": [
+            "subjectId",
             "scopeKind",
+            "subjectIntakeRevision",
             "episodeKeys",
             "scopeDigest"
           ]

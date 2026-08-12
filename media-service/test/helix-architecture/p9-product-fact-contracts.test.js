@@ -64,20 +64,22 @@ function observation(intent, options = {}) {
   const resultId = options.resultId || `result-${intent.sourcePriority}`;
   return { ownerDomain:'libra', processType:'libra_run', processId:'run-1', workKind:'product_metadata_observation',
     workState:'succeeded', capabilityRef:'libra.product_metadata.fetch@1',
-    resultSchemaRef:result.schemaRef, result, resultId, resultDigest:canonicalDigest(result),
-    evidenceDigest:result.payloadDigest, inputBindingDigest:canonicalDigest(intent),
+    resultSchemaRef:'helix://contracts/capabilities/libra.product_metadata.fetch/v1/result', result, resultId, resultDigest:canonicalDigest(result),
+    evidence:result, evidenceDigest:canonicalDigest(result), inputBindings:intent, inputBindingDigest:canonicalDigest(intent),
     workId:`work-${intent.sourcePriority}`, attemptId:`attempt-${intent.sourcePriority}`,
     planId:`plan-${intent.sourcePriority}`, eventId:`event-${intent.sourcePriority}` };
 }
 
 function exactChain({suffix,capabilityRef,result,inputBindings,processId='run-1'}) {
+  const evidence = result?.payloadDigest ? result : {evidenceId:`evidence-${suffix}`,evidenceKind:'fixture',producerRef:capabilityRef,
+    basisDigest:canonicalDigest(inputBindings),payloadDigest:canonicalDigest(result),observedAtMs:1};
   return {workId:`work-${suffix}`,attemptId:`attempt-${suffix}`,planId:`plan-${suffix}`,eventId:`event-${suffix}`,
     resultId:`result-${suffix}`,ownerDomain:'libra',processType:'libra_run',processId,workState:'succeeded',
     attemptState:'succeeded',planState:'planned',eventState:'succeeded',eventOwnerDomain:'libra',
     attemptWorkId:`work-${suffix}`,planAttemptId:`attempt-${suffix}`,eventWorkId:`work-${suffix}`,
     eventAttemptId:`attempt-${suffix}`,eventPlanId:`plan-${suffix}`,eventResultId:`result-${suffix}`,
-    nodeCapabilityRef:capabilityRef,capabilityRef,resultSchemaRef:result.schemaRef,result,
-    resultDigest:canonicalDigest(result),evidenceDigest:result.payloadDigest||null,inputBindings,
+    nodeCapabilityRef:capabilityRef,capabilityRef,resultSchemaRef:'helix://contracts/capabilities/'+capabilityRef.replace('@1','/v1/result'),result,
+    resultDigest:canonicalDigest(result),evidence,evidenceDigest:canonicalDigest(evidence),inputBindings,
     inputBindingDigest:canonicalDigest(inputBindings)};
 }
 
@@ -112,7 +114,8 @@ test('selects only exact durable observation chains and collapses semantic repla
   const divergentResult={ ...earlier.result, payloadDigest:d('changed') };
   assert.throws(() => selectMetadataObservations({ intents:sourceIntents,
     results:[later, { ...earlier, result:divergentResult, resultDigest:canonicalDigest(divergentResult),
-      evidenceDigest:divergentResult.payloadDigest }] }), (error) => error.code === 'P9_METADATA_OBSERVATION_CONFLICT');
+      evidence:divergentResult,evidenceDigest:canonicalDigest(divergentResult) }] }),
+    (error) => error.code === 'P9_METADATA_OBSERVATION_CONFLICT');
   assert.throws(() => selectMetadataObservations({ intents:sourceIntents, results:[{ ...later, ownerDomain:'people' }] }),
     (error) => error.code === 'P9_METADATA_OBSERVATION_CHAIN');
   const foreignProvider = observation(sourceIntents[1]);
@@ -150,24 +153,26 @@ test('builds a closed observation basis and NFO-first complete metadata draft', 
   const nfo = observation(sourceIntents[0], { entries:[{ key:'title', value:'Local title' }] });
   const tmdb = observation(sourceIntents[1], { entries:[{ key:'title', value:'Provider title' }, { key:'plot', value:'Plot' }] });
   const basis = buildMetadataObservationBasis({ intents:sourceIntents, results:[tmdb,nfo], factKind:'product_metadata', expectedRevision:0 });
+  const productFactId=canonicalDigest({schema:'libra.product-fact-id@1',libraRunId:'run-1',
+    factKind:'product_metadata',factRevision:1});
   assert.equal(basis.sourceBasisKind, 'metadata_observation');
   assert.deepEqual(basis.observationSet.sourcePrecedence.map((item) => item.sourcePriority), [0,1]);
   assert.equal(basis.selection.items[0].resultId, 'result-0');
-  assert.equal(basis.productFactId, canonicalDigest({schema:'libra.product-fact-id@1',libraRunId:'run-1',
-    factKind:'product_metadata',factRevision:1}));
+  assert.equal(Object.hasOwn(basis,'productFactId'),false);
   assert.equal(basis.selection.items[0].sourceReferenceDigest, canonicalDigest({schema:'libra.product-fact-source-ref@1',
-    productFactId:basis.productFactId,ordinal:0,sourceBasisKind:'metadata_observation',workId:'work-0',attemptId:'attempt-0',
+    productFactId,ordinal:0,sourceBasisKind:'metadata_observation',workId:'work-0',attemptId:'attempt-0',
     planId:'plan-0',eventId:'event-0',resultId:'result-0',capabilityRef:'libra.product_metadata.fetch@1',
-    resultSchemaRef:'helix://contracts/types/MetadataObservation/v1',resultDigest:nfo.resultDigest,sourceRef:'ref-nfo',
+    resultSchemaRef:'helix://contracts/capabilities/libra.product_metadata.fetch/v1/result',resultDigest:nfo.resultDigest,sourceRef:'ref-nfo',
     sourceOrder:0,evidenceId:'evidence-0',evidenceDigest:nfo.result.payloadDigest,inputBindingDigest:nfo.inputBindingDigest}));
   const chains=[nfo,tmdb].map((item,index)=>({...item,inputBindings:sourceIntents[index],attemptWorkId:item.workId,
     planAttemptId:item.attemptId,eventWorkId:item.workId,eventAttemptId:item.attemptId,eventPlanId:item.planId,
     eventResultId:item.resultId,attemptState:'succeeded',planState:'planned',eventState:'succeeded',eventOwnerDomain:'libra',
     nodeCapabilityRef:item.capabilityRef}));
-  const sourceRefs=buildProductFactSourceRefs({sourceBasis:basis,foundationChains:chains});
+  const sourceRefs=buildProductFactSourceRefs({sourceBasis:basis,foundationChains:chains,productFactId});
   assert.equal(sourceRefs.length,2);
   assert.equal(sourceRefs[0].referenceDigest,basis.selection.items[0].sourceReferenceDigest);
-  assert.throws(()=>buildProductFactSourceRefs({sourceBasis:basis,foundationChains:[{...chains[0],eventPlanId:'other'},chains[1]]}),
+  assert.throws(()=>buildProductFactSourceRefs({sourceBasis:basis,
+    foundationChains:[{...chains[0],eventPlanId:'other'},chains[1]],productFactId}),
     (error)=>error.code==='P9_PRODUCT_FACT_SOURCE_CHAIN');
   const built = buildProductMetadataDraft({ sourceBasis:basis, requiredFields:['title','plot'], producedAtMs:100,
     providerIdentities:[], artifactRequirements:[] });
@@ -298,13 +303,14 @@ test('verifies artifact handles without embedding bytes or reading a second owne
   const result=buildArtifactManifestVerification({requirement,artifactHandles:[handle],verifiedAtMs:20});
   const inputBindings={artifactHandleList:[handle],artifactRequirement:requirement};
   const binding={workId:'work-verify',attemptId:'attempt-verify',planId:'plan-verify',eventId:'event-verify',resultId:'result-verify',
-    capabilityRef:'shared.artifact.manifest.verify@1',resultSchemaRef:result.schemaRef,result,
+    capabilityRef:'shared.artifact.manifest.verify@1',
+    resultSchemaRef:'helix://contracts/capabilities/shared.artifact.manifest.verify/v1/result',result,
     resultDigest:canonicalDigest(result),inputBindings,inputBindingDigest:canonicalDigest(inputBindings),ownerDomain:'libra',
     processType:'libra_run',processId:'run-1',workState:'succeeded',attemptState:'succeeded',planState:'planned',eventState:'succeeded',
     eventOwnerDomain:'libra',attemptWorkId:'work-verify',planAttemptId:'attempt-verify',eventWorkId:'work-verify',
     eventAttemptId:'attempt-verify',eventPlanId:'plan-verify',eventResultId:'result-verify',nodeCapabilityRef:'shared.artifact.manifest.verify@1'};
   const ref={workId:binding.workId,attemptId:binding.attemptId,planId:binding.planId,eventId:binding.eventId,resultId:binding.resultId,
-    capabilityRef:binding.capabilityRef,resultSchemaRef:binding.resultSchemaRef,resultDigest:binding.resultDigest,
+    capabilityRef:binding.capabilityRef,resultSchemaRef:'helix://contracts/types/ArtifactManifestVerification/v1',resultDigest:binding.resultDigest,
     inputBindingDigest:binding.inputBindingDigest};
   const item={ordinal:0,artifactHandleId:snapshot.artifactHandleId,artifactKind:snapshot.artifactKind,
     artifactRevision:snapshot.referenceRevision,artifactDigest:snapshot.digestHex,requirementId:requirement.requirementId,

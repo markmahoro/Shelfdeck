@@ -145,12 +145,16 @@ function createCleanMediaProbe(options = {}) {
     // not embedded in MediaProbeEvidence or stream payloads.
     bdmvTopologyReader: topologyReader,
     async probe(readHandle) {
-      if (!readHandle || typeof readHandle.location !== 'string' || !readHandle.identity) {
+      const workspace = readHandle?.schemaRef === 'helix://contracts/types/WorkspaceMaterialHandle/v1';
+      const location = workspace && typeof options.workspaceMaterialLocationResolver === 'function'
+        ? options.workspaceMaterialLocationResolver(readHandle) : readHandle?.location;
+      const identity = workspace ? readHandle?.physicalIdentity : readHandle?.identity;
+      if (!readHandle || typeof location !== 'string' || !identity) {
         throw new CleanMediaProbeError('CLEAN_MEDIA_PROBE_INPUT',
-          'Media Probe requires an immutable Field read handle.');
+          'Media Probe requires an immutable Physical or Workspace Material read handle.');
       }
-      if (isBdmvStructuralLocation(readHandle.location)) {
-        const topology = await topologyReader.inspect(bdmvTopologyLocation(readHandle.location));
+      if (isBdmvStructuralLocation(location)) {
+        const topology = await topologyReader.inspect(bdmvTopologyLocation(location));
         const value = {
           resultKind:'not_media', sourceHandleDigest:canonicalDigest(readHandle), durationMs:0,
           videoStreams:Object.freeze([]), audioStreams:Object.freeze([]), subtitleStreams:Object.freeze([]),
@@ -159,10 +163,10 @@ function createCleanMediaProbe(options = {}) {
         value.payloadDigest = canonicalDigest(without(value, 'payloadDigest'));
         return Object.freeze(value);
       }
-      const detectedTopology = await discTopologyReader.inspect(readHandle.location, readHandle);
+      const detectedTopology = await discTopologyReader.inspect(location, readHandle);
       let result;
       try {
-        result = await run(binary, readHandle.location);
+        result = await run(binary, location);
       } catch (error) {
         throw new CleanMediaProbeError('CLEAN_MEDIA_PROBE_EXECUTION',
           'Bundled ffprobe could not be executed.', { cause: error.code || 'EXECUTION_FAILED' });

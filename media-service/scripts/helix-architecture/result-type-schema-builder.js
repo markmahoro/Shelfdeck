@@ -87,6 +87,18 @@ function emptyArtifactHints() {
   return arrayOf(snapshot('artifact-hint'), 0);
 }
 
+function metadataPeopleHints() {
+  return arrayOf(object({
+    displayName: text({ maxLength: 1024 }),
+    role: text({ maxLength: 256 }),
+    providerIdentities: arrayOf(object({
+      provider: text({ maxLength: 128 }),
+      namespace: text({ maxLength: 128 }),
+      providerKey: text({ maxLength: 512 }),
+    }), 16),
+  }), 64);
+}
+
 function snapshot(kind) {
   return object({ objectId: id(), revision: positiveInteger(), schemaRef: text(), snapshotDigest: digest(), objectKind: { const: kind } });
 }
@@ -348,7 +360,7 @@ const special = {
   'MetadataObservation.contentProfile': enumText('movie', 'series', 'jav', 'western_adult'),
   'MetadataObservation.descriptiveFacts': boundedRecord('descriptive-facts'),
   'MetadataObservation.providerIdentitySet': providerIdentitySetRecord(),
-  'MetadataObservation.peopleHints': arrayOf(snapshot('people-hint'), 1024),
+  'MetadataObservation.peopleHints': metadataPeopleHints(),
   'MetadataObservation.artifactHints': emptyArtifactHints(),
   'WesternAnalysisResult.resultArtifactHandle': ref('ArtifactHandle'),
   'ArtifactAcquisitionResult.resultKind': enumText('acquired', 'not_available'),
@@ -410,7 +422,7 @@ const special = {
     materialKey: id(),
     role: enumText(
       'primary_payload', 'metadata_sidecar', 'poster', 'fanart',
-      'structural_dependency', 'subtitle', 'external_audio', 'chapter',
+      'structural_dependency', 'subtitle', 'external_audio', 'chapter', 'sidecar',
     ),
     endpointId: id(),
     location: text({ maxLength: 4096 }),
@@ -764,7 +776,7 @@ function metadataObservationSchema() {
     fetchIntentDigest: digest(), sourceKind: enumText('related_nfo', 'provider'), sourceRef: text(),
     sourcePriority: nonNegativeInteger(), identityDigest: digest(), contentProfile: enumText('movie', 'series', 'jav'),
     descriptiveFacts: boundedRecord('descriptive-facts'), providerIdentitySet: providerIdentitySetRecord(),
-    peopleHints: arrayOf(snapshot('people-hint'), 1024), artifactHints: emptyArtifactHints()
+    peopleHints: metadataPeopleHints(), artifactHints: emptyArtifactHints()
   }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
 }
 
@@ -928,10 +940,13 @@ function onDeckProductPackageSchema() {
   });
   const offloadMember = object({
     ordinal: nonNegativeInteger(), materialKey: digest(),
-    contextRole: enumText('original_input', 'structural_dependency'),
+    contextRole: enumText('original_input', 'structural_dependency', 'related_input'),
+    sourceRelatedReferenceId:nullable(id()), finalProductMaterialKey:digest(),
+    dispositionKind:enumText('carried_forward','replaced_and_settled'),
     physicalIdentity: ref('PhysicalMaterialIdentity'), endpointId: id(), location: text(),
     bindingRevision: positiveInteger(), bindingEvidenceDigest: digest(),
-    admittedControlRevision: positiveInteger(), admittedControlProjectionDigest: digest(),
+    admittedControlRevision: nullable(positiveInteger()), admittedControlProjectionDigest: nullable(digest()),
+    derivedAuthorityDigest:nullable(digest()),
     settlementExpectation: enumText('retain', 'replace_or_move', 'remove_after_place'),
     memberDigest: digest()
   });
@@ -1004,7 +1019,7 @@ function onDeckProductPackageCommitReceiptSchema() {
     onDeckPackageId: id(), packageRevision: positiveInteger(), packageDigest: digest(), offerId: id(), libraRunId: id(),
     verifiedRunStateRevision: positiveInteger(), verifiedRunStateDigest: digest(), productMaterialManifestDigest: digest(),
     productFactSetDigest: digest(), productFactManifestDigest: digest(), artifactManifestDigest: digest(),
-    offloadContextDigest: digest(), controlRevisionSetDigest: digest(), receiptDigest: digest()
+    offloadContextDigest: digest(), relatedDispositionSetDigest:digest(), controlRevisionSetDigest: digest(), receiptDigest: digest()
   };
   return { $schema: DRAFT, $id: typeId('OnDeckProductPackageCommitReceipt'), title: 'OnDeckProductPackageCommitReceipt@1',
     'x-helix-ssotRefs': ['8.6.19', '8.6.21'], 'x-helix-envelopeRef': typeId('ReceiptEnvelope'),

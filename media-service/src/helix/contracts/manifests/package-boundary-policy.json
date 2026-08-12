@@ -36,7 +36,7 @@
     },
     {
       "source": "integrations",
-      "allow": ["node:crypto", "node:fs", "cheerio"]
+      "allow": ["node:crypto", "node:fs", "node:path", "cheerio"]
     }
   ],
   "externalDomainImport": "domains/{owner}/public/index.js",

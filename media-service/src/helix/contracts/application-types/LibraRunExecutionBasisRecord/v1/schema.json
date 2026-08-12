@@ -134,6 +134,82 @@
         "standardDigest"
       ]
     },
+    "relatedDispositionScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "relatedReferenceSetDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "relatedDispositionScopeDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "referenceId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "primaryMaterialKey": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "nfo",
+                  "poster",
+                  "fanart",
+                  "subtitle",
+                  "external_audio",
+                  "chapter",
+                  "sidecar"
+                ]
+              },
+              "materialKey": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "associationEvidenceDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "dispositionBasisDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "referenceId",
+              "primaryMaterialKey",
+              "role",
+              "materialKey",
+              "associationEvidenceDigest",
+              "dispositionBasisDigest"
+            ]
+          },
+          "maxItems": 1024
+        }
+      },
+      "required": [
+        "relatedReferenceSetDigest",
+        "relatedDispositionScopeDigest",
+        "items"
+      ]
+    },
     "executionBasisDigest": {
       "type": "string",
       "minLength": 1,
@@ -182,6 +258,7 @@
     "decisionHeadSnapshot",
     "acceptanceSpec",
     "shelfProjection",
+    "relatedDispositionScope",
     "executionBasisDigest",
     "productionMaterialManifestRef"
   ]

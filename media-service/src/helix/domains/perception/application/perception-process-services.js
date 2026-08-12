@@ -11,6 +11,7 @@ const ACQUISITION_RESULT = 'helix://contracts/types/PerceptionRecordCommitResult
 const RESOLUTION_RESULT = 'helix://contracts/types/PerceptionResolutionRevision/v1';
 
 function stable(prefix,value){return prefix+canonicalDigest(value).slice(0,40);}
+function directSourceId(targetType,targetId){return stable('perception-direct-source-',{targetType,targetId});}
 function freeze(value){return Array.isArray(value)?Object.freeze(value.map(freeze)):value&&typeof value==='object'?Object.freeze(Object.fromEntries(Object.entries(value).map(([k,v])=>[k,freeze(v)]))):value;}
 function definition(kind,processType,processId,basisDigest,outputContractRef){return Object.freeze({schemaRef:'helix://foundation/types/SupportingWorkDefinition/v1',schemaVersion:1,
   workId:stable('perception-'+kind+'-work-',{processType,processId,basisDigest}),ownerDomain:'perception',processType,processId,workKind:kind,
@@ -60,7 +61,7 @@ function createPerceptionProcessServices(options){
       sourceRecordDigest:canonicalDigest({recordKey,revision,rating:command.rating,targetDigest:snapshot.targetDigest}),
       supersedes:current?{sourceRecordKey:current.sourceRecordKey,sourceRecordRevision:current.sourceRecordRevision,sourceRecordDigest:current.sourceRecordDigest}:null},idempotencyKey:command.idempotencyKey});
     const acquisitionId=stable('perception-direct-acquisition-',{idempotencyKey:command.idempotencyKey,targetType:command.targetType,targetId:command.targetId});
-    start({acquisitionId,sourceId:'shelfdeck-direct',sourceKind:'shelfdeck_direct',integrationId:'shelfdeck-direct-input',configRevision:1,scope});
+    start({acquisitionId,sourceId:directSourceId(command.targetType,command.targetId),sourceKind:'shelfdeck_direct',integrationId:'shelfdeck-direct-input',configRevision:1,scope});
     const operation=reconcileAcquisition(acquisitionId);return freeze({operationRef:acquisitionId,state:'accepted',targetType:command.targetType,targetId:command.targetId,expectedResultRevision:revision,workId:operation.workId});}
   function requestAcquisition(command){const config=options.readDoubanSourceConfiguration?.();if(!config)throw Object.assign(new Error('Douban integration is not configured.'),{code:'PERCEPTION_DOUBAN_NOT_CONFIGURED'});
     const idempotencyKey=command?.idempotencyKey;if(typeof idempotencyKey!=='string'||!idempotencyKey)throw Object.assign(new Error('Douban sync requires idempotencyKey.'),{code:'PERCEPTION_ACQUISITION_COMMAND_INVALID'});
@@ -84,4 +85,4 @@ function createPerceptionProcessServices(options){
     readCurrentRating,listRecords:(query)=>store.listRecords(query),listAcquisitions:()=>store.listAcquisitions()});
 }
 
-module.exports=Object.freeze({createPerceptionProcessServices,queryFor,queryHandle});
+module.exports=Object.freeze({createPerceptionProcessServices,queryFor,queryHandle,directSourceId});

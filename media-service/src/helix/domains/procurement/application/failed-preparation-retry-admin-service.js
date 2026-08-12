@@ -373,7 +373,11 @@ function controlHandle(newRunBasis) {
         revision: member.controlSnapshot.controlRevision,
       })),
     ),
-    receiptContract: 'helix://contracts/types/ProcurementControlReceipt/v1',
+    receiptContract: Object.freeze({
+      receiptSchemaRef:
+        'helix://contracts/types/ProcurementControlReceipt/v1',
+      controlRevisionSetSchemaRef: 'procurement.control-revision-set@1',
+    }),
     eventFenceDigest: canonicalDigest({
       schema: 'procurement.retry-control-event-fence@1',
       procurementRunId: newRunBasis.procurementRunId,

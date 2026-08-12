@@ -63,6 +63,12 @@ export default function FormationPage() {
     catch (cause) { setError(cause instanceof Error ? cause.message : '一次性收藏架选择失败。'); setLoading(false); }
   }
 
+  async function setExpedited(item: FormationSubject, expedited: boolean) {
+    setLoading(true); setError('');
+    try { await helixAdminApi.setRunExpedited(item, expedited); await load(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : '上架优先级修改失败。'); setLoading(false); }
+  }
+
   if (session === 'checking') {
     return <section className="source-page source-page-loading" aria-live="polite">正在读取上架进度…</section>;
   }
@@ -112,7 +118,13 @@ export default function FormationPage() {
             <td><RatingControl targetType="subject" targetId={item.subjectId} label={item.displayIdentity}/></td>
             <td><b>{item.primaryMaterialCount}</b> Primary<small>{item.relatedMaterialCount} Related</small></td>
             <td>{item.routingDecisionRevision ? `Routing r${item.routingDecisionRevision}` : '准备中'}<small>{item.routingPolicyMode || '—'} {item.routingPolicyRevision ? `· policy r${item.routingPolicyRevision}` : ''}</small>
-              <small>{item.acceptanceSpecRevision ? `Acceptance Spec r${item.acceptanceSpecRevision}` : item.routingState==='resolved'?'正在准备 Acceptance Spec':'—'}</small></td>
+              <small>{item.acceptanceSpecRevision ? `Acceptance Spec r${item.acceptanceSpecRevision}` : item.routingState==='resolved'?'正在准备 Acceptance Spec':'—'}</small>
+              {item.currentRun && <small>Libra Run · {item.productionStage} · {item.currentRun.priorityClass === 'expedited' ? '加急' : '普通'}</small>}
+              {item.handoffB && <small>Handoff B Offer · open</small>}
+              {item.currentRun?.state === 'active' && !item.handoffB && <button className="surface-action" type="button"
+                onClick={() => void setExpedited(item, item.currentRun?.priorityClass !== 'expedited')} disabled={loading}>
+                {item.currentRun.priorityClass === 'expedited' ? '取消加快' : '加快上架'}
+              </button>}</td>
             <td>{formatAcceptedAt(item.lastAcceptedAtMs)}</td>
           </tr>)}</tbody>
         </table></div>}

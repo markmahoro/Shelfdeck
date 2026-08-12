@@ -38,8 +38,25 @@
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
-    "outputContainer": {
-      "const": "matroska"
+    "planningPolicyRef": {
+      "const": "LibraMediaPlanningPolicy@1"
+    },
+    "planningPolicyRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "planningPolicyDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "strategyOrdinal": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "sizeBudgetRevision": {
+      "type": "integer",
+      "minimum": 1
     },
     "outputExtension": {
       "const": "mkv"
@@ -61,6 +78,72 @@
             },
             "rateControlMode": {
               "const": "target_size"
+            },
+            "targetVideoBitrateBps": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "qualityBound": {
+              "type": "null"
+            }
+          },
+          "required": [
+            "codec",
+            "preserveRaster",
+            "forbidUpscale",
+            "rateControlMode",
+            "targetVideoBitrateBps",
+            "qualityBound"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "codec": {
+              "const": "hevc"
+            },
+            "preserveRaster": {
+              "const": true
+            },
+            "forbidUpscale": {
+              "const": true
+            },
+            "rateControlMode": {
+              "const": "two_pass_abr"
+            },
+            "targetVideoBitrateBps": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "qualityBound": {
+              "type": "null"
+            }
+          },
+          "required": [
+            "codec",
+            "preserveRaster",
+            "forbidUpscale",
+            "rateControlMode",
+            "targetVideoBitrateBps",
+            "qualityBound"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "codec": {
+              "const": "hevc"
+            },
+            "preserveRaster": {
+              "const": true
+            },
+            "forbidUpscale": {
+              "const": true
+            },
+            "rateControlMode": {
+              "const": "strict_abr"
             },
             "targetVideoBitrateBps": {
               "type": "integer",
@@ -127,6 +210,9 @@
         "mode"
       ]
     },
+    "outputContainer": {
+      "const": "matroska"
+    },
     "subtitle": {
       "type": "object",
       "additionalProperties": false,
@@ -149,6 +235,18 @@
         "remote_worker"
       ]
     },
+    "previousIntentDigest": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "intentDigest": {
       "type": "string",
       "minLength": 1,
@@ -162,13 +260,63 @@
     "libraRunId",
     "sourceHandleDigest",
     "mediaRequirementDigest",
-    "outputContainer",
+    "planningPolicyRef",
+    "planningPolicyRevision",
+    "planningPolicyDigest",
+    "strategyOrdinal",
+    "sizeBudgetRevision",
     "outputExtension",
     "video",
     "audio",
+    "outputContainer",
     "subtitle",
     "deviceClass",
     "intentDigest"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "strategyOrdinal": {
+            "const": 1
+          }
+        },
+        "required": [
+          "strategyOrdinal"
+        ]
+      },
+      "then": {
+        "not": {
+          "required": [
+            "previousIntentDigest"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "strategyOrdinal": {
+            "minimum": 2
+          }
+        },
+        "required": [
+          "strategyOrdinal"
+        ]
+      },
+      "then": {
+        "required": [
+          "previousIntentDigest"
+        ],
+        "properties": {
+          "previousIntentDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        }
+      }
+    }
   ],
   "x-helix-maxCanonicalBytes": 16384
 }

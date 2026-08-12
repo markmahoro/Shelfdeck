@@ -71,6 +71,23 @@ function assertPromotionDecision(value){
   const members=value.productMaterialManifest?.members;
   if(!Array.isArray(members)||new Set(members.map((item)=>item.materialKey)).size!==members.length)
     fail('P9_PROMOTION_DUPLICATE','Promotion Product members must have unique material keys.');
+  const assertions=value.relatedAuthorityAssertions;
+  if(!Array.isArray(assertions)||assertions.length>1024||
+      assertions.some((item,index)=>index>0&&Buffer.compare(Buffer.from(assertions[index-1].sourceRelatedReferenceId),
+        Buffer.from(item.sourceRelatedReferenceId))>=0)||
+      assertions.some((item)=>item.assertionDigest!==canonicalDigest(without(item,'assertionDigest')))||
+      value.relatedDispositionSetDigest!==canonicalDigest({schema:'libra.related-disposition-set@1',items:assertions}))
+    fail('P9_PROMOTION_RELATED_SCOPE','Promotion Related authority set is incomplete, unordered, or invalid.');
+  const relatedMembers=members.filter((item)=>item.controlOperation==='assert_related_input');
+  const relatedOffload=(value.offloadContextManifest?.members||[]).filter((item)=>item.contextRole==='related_input');
+  if(relatedMembers.length!==assertions.length||relatedOffload.length!==assertions.length||assertions.some((assertion)=>{
+    const member=relatedMembers.find((item)=>item.sourceRelatedReferenceId===assertion.sourceRelatedReferenceId);
+    const offload=relatedOffload.find((item)=>item.sourceRelatedReferenceId===assertion.sourceRelatedReferenceId);
+    return !member||!offload||member.materialKey!==assertion.finalProductMaterialKey||
+      member.derivedAuthorityDigest!==assertion.derivedAuthorityDigest||offload.materialKey!==assertion.sourceMaterialKey||
+      offload.finalProductMaterialKey!==assertion.finalProductMaterialKey||offload.dispositionKind!==assertion.dispositionKind||
+      offload.derivedAuthorityDigest!==assertion.derivedAuthorityDigest;
+  })) fail('P9_PROMOTION_RELATED_MAPPING','Related assertions must match Product and Off-load mappings one-for-one.');
   const emptyClaims=Object.freeze([]),
     emptyClaimSetDigest=canonicalDigest({schema:'libra.production-material-episode-claims@1',items:emptyClaims}),
     emptyEpisodeScopeDigest=canonicalDigest({schema:'libra.production-episode-scope@1',items:emptyClaims});
@@ -97,7 +114,6 @@ function assertPromotionDecision(value){
     if(refs.length!==0||workspaceMembers.length!==0)
       fail('P9_PROMOTION_RUN','Direct-original Promotion cannot carry Workspace Product members.');
   }else if(!value.workspaceRef||
-      value.libraRunRef.libraRunId!==value.workspaceRef.libraRunId||
       refs.some((item)=>item.libraRunId!==value.libraRunRef.libraRunId||item.workspaceId!==value.workspaceRef.workspaceId)){
     fail('P9_PROMOTION_RUN','Promotion inputs cross a Run or Workspace boundary.');
   }
@@ -150,14 +166,16 @@ function buildPromotionCommit(value){
     productFactSetDigest:decision.productFactManifest.factSetDigest,
     productFactManifestDigest:decision.productFactManifest.manifestDigest,
     artifactManifestDigest:decision.artifactManifest.manifestDigest,
-    offloadContextDigest:decision.offloadContextManifest.manifestDigest,controlRevisionSetDigest};
+    offloadContextDigest:decision.offloadContextManifest.manifestDigest,
+    relatedDispositionSetDigest:decision.relatedDispositionSetDigest,controlRevisionSetDigest};
   receipt.receiptDigest=canonicalDigest(receipt);
   const messageId=canonicalDigest({schema:'libra.product-offer-message-id@1',offerId:decision.offerId,
     packageDigest:decision.packageDigest});
   const outbox={messageKind:'libra.product-offer.available@1',messageId,offerId:decision.offerId,
     onDeckPackageId:decision.onDeckPackageId,packageRevision:decision.packageRevision,
     packageDigest:decision.packageDigest,libraRunId:decision.libraRunRef.libraRunId,subjectId,shelfId,
-    acceptanceSpecId:decision.acceptanceSpecRef.acceptanceSpecId,dedupKey:messageId};
+    acceptanceSpecId:decision.acceptanceSpecRef.acceptanceSpecId,
+    relatedDispositionSetDigest:decision.relatedDispositionSetDigest,dedupKey:messageId};
   return freeze({package:packageValue,receipt,outbox,controlCommits,controlRevisionSetDigest});
 }
 

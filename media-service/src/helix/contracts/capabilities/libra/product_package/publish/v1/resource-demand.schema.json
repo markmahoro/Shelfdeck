@@ -9,7 +9,7 @@
       "type": "array",
       "prefixItems": [
         {
-          "const": "cpu"
+          "const": "sqlite_write"
         }
       ],
       "minItems": 1,

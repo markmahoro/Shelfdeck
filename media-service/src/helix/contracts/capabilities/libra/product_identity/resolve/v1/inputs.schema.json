@@ -13,12 +13,16 @@
     },
     "productStructure": {
       "$ref": "#/$defs/productStructure"
+    },
+    "domainFactCommitHandle": {
+      "$ref": "#/$defs/domainFactCommitHandle"
     }
   },
   "required": [
     "identityClaim",
     "decisionEvidence",
-    "productStructure"
+    "productStructure",
+    "domainFactCommitHandle"
   ],
   "$defs": {
     "identityClaim": {
@@ -32,6 +36,10 @@
     "productStructure": {
       "$ref": "helix://contracts/domain-types/ProductStructure/v1",
       "x-helix-typeExpression": "ProductStructure"
+    },
+    "domainFactCommitHandle": {
+      "$ref": "helix://contracts/types/DomainFactCommitHandle/v1",
+      "x-helix-typeExpression": "DomainFactCommitHandle"
     }
   }
 }

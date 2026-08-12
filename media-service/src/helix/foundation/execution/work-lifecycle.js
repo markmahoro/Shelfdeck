@@ -50,7 +50,9 @@ function definitions(schemaManifest) {
     } }),
     events: createRepositoryDefinition({ repositoryId: 'work_lifecycle_events', owner: 'execution-foundation', schemaManifest, statements: {
       list_work: { kind: 'select-all', tableId: 'fx_workflow_events', columns: ['event_id', 'work_id', 'state', 'result_id'], keyColumns: ['work_id'] },
-      find: { kind: 'select-one', tableId: 'fx_workflow_events', columns: ['event_id', 'work_id', 'state', 'result_id'], keyColumns: ['event_id'] }
+      find: { kind: 'select-one', tableId: 'fx_workflow_events', columns: ['event_id', 'work_id', 'state', 'result_id'], keyColumns: ['event_id'] },
+      transition: { kind: 'update', tableId: 'fx_workflow_events', setColumns: ['state'], keyColumns: ['event_id'],
+        compareColumns: [{ column: 'state', parameter: 'expected_state' }] }
     } }),
   });
 }
@@ -227,7 +229,53 @@ function createWorkLifecycle(options) {
     });
   }
 
-  return Object.freeze({ aggregate, aggregateEvent, ensurePlanningAttempt, pendingOwnerReconciliations,
+  function cancelProcess(request) {
+    if (!request || typeof request.ownerDomain !== 'string' || !request.ownerDomain ||
+        typeof request.processType !== 'string' || !request.processType ||
+        typeof request.processId !== 'string' || !request.processId ||
+        typeof request.reasonCode !== 'string' || !request.reasonCode) {
+      fail('P4_WORK_CANCELLATION_SCOPE_INVALID', 'Process Work cancellation requires an exact Owner scope and reason.');
+    }
+    return execute('work_lifecycle_cancel_process', (context) => {
+      const works = context.repository('work_lifecycle_works');
+      const attempts = context.repository('work_lifecycle_attempts');
+      const events = context.repository('work_lifecycle_events');
+      const selected = works.invoke('list', {}).filter((work) => work.owner_domain === request.ownerDomain &&
+        work.process_type === request.processType && work.process_id === request.processId &&
+        !['succeeded', 'failed', 'cancelled'].includes(work.state));
+      let cancelledWorks = 0; let drainingWorks = 0; let cancelledEvents = 0;
+      for (const work of selected) {
+        const workAttempts = attempts.invoke('list', { work_id: work.work_id });
+        const activeAttempt = [...workAttempts].sort((left, right) => right.ordinal - left.ordinal)
+          .find((attempt) => ['ready', 'running', 'blocked'].includes(attempt.state));
+        const workEvents = events.invoke('list_work', { work_id: work.work_id });
+        const executing = workEvents.some((event) => event.state === 'executing');
+        for (const event of workEvents.filter((item) =>
+          ['pending', 'ready', 'waiting_for_resource', 'waiting_for_external', 'waiting_for_approval'].includes(item.state))) {
+          if (events.invoke('transition', { event_id:event.event_id, state:'cancelled', expected_state:event.state }).changes !== 1) {
+            fail('P4_WORK_CANCELLATION_EVENT_CAS', 'Event changed during Process Work cancellation.', { eventId:event.event_id });
+          }
+          cancelledEvents += 1;
+        }
+        if (executing) { drainingWorks += 1; continue; }
+        if (activeAttempt && attempts.invoke('transition', { attempt_id:activeAttempt.attempt_id, state:'cancelled',
+          started_at_ms:activeAttempt.started_at_ms, finished_at_ms:context.commitTimeMs, failure_code:request.reasonCode,
+          expected_state:activeAttempt.state }).changes !== 1) {
+          fail('P4_WORK_CANCELLATION_ATTEMPT_CAS', 'Work Attempt changed during Process Work cancellation.',
+            { attemptId:activeAttempt.attempt_id });
+        }
+        if (works.invoke('transition', { work_id:work.work_id, state:'cancelled', updated_at_ms:context.commitTimeMs,
+          expected_state:work.state }).changes !== 1) {
+          fail('P4_WORK_CANCELLATION_WORK_CAS', 'Work changed during Process Work cancellation.', { workId:work.work_id });
+        }
+        cancelledWorks += 1;
+      }
+      return Object.freeze({ownerDomain:request.ownerDomain,processType:request.processType,processId:request.processId,
+        reasonCode:request.reasonCode,selectedWorks:selected.length,cancelledWorks,drainingWorks,cancelledEvents});
+    });
+  }
+
+  return Object.freeze({ aggregate, aggregateEvent, cancelProcess, ensurePlanningAttempt, pendingOwnerReconciliations,
     settleWork, startPlanned });
 }
 

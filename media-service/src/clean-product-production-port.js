@@ -22,10 +22,6 @@ function fail(code, message, details) {
   throw new CleanProductProductionPortError(code, message, details);
 }
 
-function bytesDigest(bytes) {
-  return crypto.createHash('sha256').update(bytes).digest('hex');
-}
-
 function normalizedLocation(value) {
   if (typeof value !== 'string' || !value) {
     fail('CLEAN_PRODUCT_LOCATION_INVALID', 'A frozen material location is required.');
@@ -74,6 +70,14 @@ function createCleanProductProductionPort(options = {}) {
       fail('CLEAN_PRODUCT_INTEGRATION_HANDLE_INPUT',
         'Integration Handle requires one exact Provider operation.');
     }
+    if (typeof options.resolveProductIntegrationHandle === 'function') {
+      const resolved = options.resolveProductIntegrationHandle(value);
+      if (!resolved) {
+        fail('CLEAN_PRODUCT_INTEGRATION_UNAVAILABLE',
+          'The requested Product integration is not active.');
+      }
+      return resolved;
+    }
     const basis = {
       schemaRef: 'helix://contracts/types/IntegrationHandle/v1',
       schemaVersion: 1,
@@ -103,21 +107,19 @@ function createCleanProductProductionPort(options = {}) {
   function exactPhysicalReality(value) {
     const location = normalizedLocation(value.location);
     const bounded = computeBoundedMaterialFingerprintSync(location);
-    const bytes = fs.readFileSync(location);
     const stat = bounded.stat;
-    const digestHex = bytesDigest(bytes);
     if (bounded.contentFingerprint !== value.physicalIdentity.contentFingerprint ||
         bounded.fingerprintAlgorithm !== value.physicalIdentity.fingerprintAlgorithm ||
         bounded.fingerprintVersion !== value.physicalIdentity.fingerprintVersion ||
         Number(stat.size) !== value.physicalIdentity.sizeBytes ||
-        bytes.length !== value.sizeBytes ||
+        Number(stat.size) !== value.sizeBytes ||
         String(stat.ino) !== value.physicalIdentity.inode) {
       fail('CLEAN_PRODUCT_REALITY_MISMATCH',
         'Physical material no longer matches the immutable Libra Run input.', {
           materialKey: value.physicalIdentity.materialKey,
         });
     }
-    return Object.freeze({ location, bytes, stat, digestHex });
+    return Object.freeze({ location, stat });
   }
 
   function issuePhysicalReadHandle(value) {
@@ -168,11 +170,23 @@ function createCleanProductProductionPort(options = {}) {
         'Related NFO must bind the exact primary Run input.');
     }
     const location = normalizedLocation(value.reference.location);
-    const bytes = fs.readFileSync(location);
-    if (bytesDigest(bytes) !== value.reference.checksumHex ||
-        value.reference.checksumAlgorithm !== 'sha256') {
+    const identity = value.reference.identity;
+    const bounded = computeBoundedMaterialFingerprintSync(location);
+    if (!identity || bounded.contentFingerprint !== identity.contentFingerprint ||
+        bounded.fingerprintAlgorithm !== identity.fingerprintAlgorithm ||
+        bounded.fingerprintVersion !== identity.fingerprintVersion ||
+        Number(bounded.stat.size) !== identity.sizeBytes ||
+        String(bounded.stat.ino) !== identity.inode || identity.sizeBytes > 256 * 1024) {
       fail('CLEAN_PRODUCT_NFO_REALITY_MISMATCH',
         'Related NFO bytes do not match the immutable Handoff A reference.');
+    }
+    const before = fs.statSync(location, { bigint:true });
+    const bytes = fs.readFileSync(location);
+    const after = fs.statSync(location, { bigint:true });
+    if (before.ino !== after.ino || before.size !== after.size ||
+        before.mtimeNs !== after.mtimeNs || before.ctimeNs !== after.ctimeNs) {
+      fail('CLEAN_PRODUCT_NFO_STAT_FENCE',
+        'Related NFO changed during its bounded read.');
     }
     const xml = bytes.toString('utf8');
     const entries = [];
@@ -379,6 +393,7 @@ function createCleanProductProductionPort(options = {}) {
           bytes: response.bytes,
         });
       },
+      runtimeEffectAuthority: request.runtimeEffectAuthority,
     });
     if (outcome.resultKind === 'not_available') {
       return Object.freeze({
@@ -477,6 +492,7 @@ function createCleanProductProductionPort(options = {}) {
         revision: 1,
         digest: draft.draftDigest,
       },
+      runtimeEffectAuthority: request.runtimeEffectAuthority,
     });
     return materialized.artifactHandle;
   }

@@ -16,6 +16,7 @@ const {
   buildRunLifecycleDecision,
   buildRunLifecycleResult,
   evidenceMeta,
+  RECOVERY_OFFSETS,
 } = require("../model/run-lifecycle-contracts");
 
 const RESULT_SCHEMA =
@@ -263,6 +264,7 @@ function libraDefinition(schemaManifest) {
           "subject_id",
           "material_key",
           "role",
+          "authority_kind",
           "mount_scope_id",
           "inode",
           "fingerprint_algorithm",
@@ -513,11 +515,39 @@ function foundationDefinition(schemaManifest) {
         ],
         keyColumns: ["work_id"],
       },
+      list_works: {
+        kind: "select-all",
+        tableId: "fx_supporting_works",
+        columns: [
+          "work_id",
+          "owner_domain",
+          "process_type",
+          "process_id",
+          "priority_class",
+          "state",
+        ],
+        keyColumns: [],
+      },
+      update_work_priority: {
+        kind: "update",
+        tableId: "fx_supporting_works",
+        setColumns: ["priority_class", "updated_at_ms"],
+        keyColumns: ["work_id"],
+        compareColumns: [
+          { column: "priority_class", parameter: "expected_priority_class" },
+        ],
+      },
       find_plan: {
         kind: "select-one",
         tableId: "fx_workflow_plans",
         columns: ["plan_id", "basis_digest", "graph_digest", "state"],
         keyColumns: ["plan_id"],
+      },
+      list_plans: {
+        kind: "select-all",
+        tableId: "fx_workflow_plans",
+        columns: ["plan_id", "basis_digest", "graph_digest", "state"],
+        keyColumns: [],
       },
       find_event: {
         kind: "select-one",
@@ -531,6 +561,29 @@ function foundationDefinition(schemaManifest) {
           "state",
         ],
         keyColumns: ["event_id"],
+      },
+      list_events: {
+        kind: "select-all",
+        tableId: "fx_workflow_events",
+        columns: [
+          "event_id",
+          "plan_id",
+          "work_id",
+          "owner_domain",
+          "capability_ref",
+          "priority_class",
+          "state",
+        ],
+        keyColumns: [],
+      },
+      update_event_priority: {
+        kind: "update",
+        tableId: "fx_workflow_events",
+        setColumns: ["priority_class"],
+        keyColumns: ["event_id"],
+        compareColumns: [
+          { column: "priority_class", parameter: "expected_priority_class" },
+        ],
       },
       list_attempts: {
         kind: "select-all",
@@ -859,7 +912,8 @@ function currentSkeleton(repo, run) {
   const bindings = repo
     .invoke("list_bindings", { subject_id: run.subject_id })
     .filter(
-      (row) => number(row.current) === 1 && row.health_state === "active",
+      (row) => number(row.current) === 1 && row.health_state === "active" &&
+        row.authority_kind === "primary_control",
     );
   if (!bindings.length)
     return {
@@ -972,6 +1026,197 @@ function currentSnapshot(snapshot, controls) {
   });
 }
 
+function decisionHeadSnapshot(subjectId, row) {
+  if (!row) {
+    const absent = {
+      subjectId,
+      headState: "absent",
+      headRevision: 0,
+      currentRoutingDecisionId: null,
+      currentDecisionBasisId: null,
+      currentAcceptanceSpecId: null,
+    };
+    absent.snapshotDigest = canonicalDigest({
+      schema: "libra.subject-decision-head-snapshot@1",
+      ...absent,
+    });
+    return absent;
+  }
+  const headDigest = canonicalDigest({
+    schema: "libra.subject-decision-head@1",
+    subjectId: row.subject_id,
+    headRevision: number(row.head_revision),
+    currentRoutingDecisionId: row.current_routing_decision_id,
+    currentDecisionBasisId: row.current_decision_basis_id,
+    currentAcceptanceSpecId: row.current_acceptance_spec_id,
+  });
+  if (headDigest !== row.head_digest)
+    fail(
+      "P9_RUN_LIFECYCLE_INTEGRITY",
+      "Current Decision Head digest is invalid.",
+    );
+  const snapshot = {
+    subjectId: row.subject_id,
+    headState: "present",
+    headRevision: number(row.head_revision),
+    headDigest: row.head_digest,
+    currentRoutingDecisionId: row.current_routing_decision_id,
+    currentDecisionBasisId: row.current_decision_basis_id,
+    currentAcceptanceSpecId: row.current_acceptance_spec_id,
+  };
+  snapshot.snapshotDigest = canonicalDigest({
+    schema: "libra.subject-decision-head-snapshot@1",
+    ...snapshot,
+  });
+  return snapshot;
+}
+
+function normalizeControlReadiness(skeleton, controls) {
+  if (!skeleton || skeleton.reason || skeleton.integrity) return skeleton;
+  const byKey = new Map(controls.map((item) => [item.materialKey, item]));
+  const unavailable = skeleton.bindings.some((row) => {
+    const control = byKey.get(row.material_key);
+    return !control || control.resultKind !== "available" ||
+      control.controlState !== "controlled" || control.ownerDomain !== "libra" ||
+      control.ownerScopeType !== "subject" ||
+      control.ownerScopeId !== skeleton.subject.subject_id;
+  });
+  return unavailable
+    ? { ...skeleton, reason: "material_control_unavailable" }
+    : skeleton;
+}
+
+function recoveryPolicy() {
+  const value = {
+    policyRef: "libra.run-recovery.beta@1",
+    policyRevision: 1,
+    assessmentOffsetsMs: RECOVERY_OFFSETS,
+    maxRecoveryAssessments: 5,
+    heavyPermitAllowed: false,
+    frozenAutoResumeAllowed: false,
+  };
+  value.policyDigest = canonicalDigest(value);
+  return value;
+}
+
+function dimensionProjection(value, dimension) {
+  if (!value) return null;
+  if (dimension === "acceptance_spec") return value.acceptanceSpecRef;
+  if (dimension === "product_scope") return value.productScopeDigest;
+  if (dimension === "material_binding") return value.members.map((item) => ({
+    materialKey: item.materialKey,
+    role: item.role,
+    physicalIdentity: item.physicalIdentity,
+    sizeBytes: item.sizeBytes,
+    bindingRevision: item.bindingRevision,
+    bindingEvidenceDigest: item.bindingEvidenceDigest,
+    episodeClaimSetDigest: item.episodeClaimSetDigest,
+  }));
+  if (dimension === "material_control") return value.members.map((item) => ({
+    materialKey: item.materialKey,
+    controlRevision: item.controlRevision,
+    controlProjectionDigest: item.controlProjectionDigest,
+  }));
+  return value.members.map((item) => ({
+    materialKey: item.materialKey,
+    outputRequirementDigest: item.outputRequirementDigest,
+  }));
+}
+
+function buildFreshnessAssessment(run, original, skeletonValue, controls, assessedAtMs) {
+  const skeleton = normalizeControlReadiness(skeletonValue, controls);
+  if (skeleton.integrity)
+    fail("P9_RUN_LIFECYCLE_INTEGRITY", skeleton.integrity);
+  const policy = recoveryPolicy();
+  if (run.state === "suspended" &&
+      (run.recovery_policy_ref !== policy.policyRef ||
+       run.recovery_policy_digest !== policy.policyDigest)) {
+    fail("P9_RUN_RECOVERY_POLICY", "Persisted recovery policy is invalid.");
+  }
+  const attemptOrdinal = run.state === "suspended"
+    ? number(run.recovery_attempt_ordinal || 0) + 1
+    : 0;
+  const dueAtMs = run.state === "suspended"
+    ? number(run.suspension_started_at_ms) + RECOVERY_OFFSETS[attemptOrdinal - 1]
+    : null;
+  if (run.state === "suspended" && assessedAtMs < dueAtMs) {
+    return Object.freeze({
+      kind: "not_due",
+      libraRunId: run.libra_run_id,
+      dueAtMs,
+      attemptOrdinal,
+    });
+  }
+  const current = skeleton.reason ? null : currentSnapshot(skeleton, controls);
+  const readiness = current ? "ready" : "unresolved";
+  const comparison = !current
+    ? "unresolved"
+    : original.comparableBasisDigest === current.comparableBasisDigest
+      ? "same" : "changed";
+  const dimensions = [
+    "acceptance_spec",
+    "product_scope",
+    "material_binding",
+    "material_control",
+    "output_requirement",
+  ];
+  const dimensionResults = dimensions.map((dimension) => {
+    const before = dimensionProjection(original, dimension);
+    const after = dimensionProjection(current, dimension);
+    const result = !current ? "unresolved"
+      : canonicalJson(before) === canonicalJson(after) ? "same" : "changed";
+    return {
+      dimension,
+      result,
+      evidenceDigest: canonicalDigest({
+        schema: "libra.run-freshness-dimension-evidence@1",
+        dimension,
+        result,
+        original: before,
+        current: after,
+        unresolvedReason: skeleton.reason || null,
+      }),
+    };
+  });
+  const currentDecisionHead = decisionHeadSnapshot(run.subject_id, skeleton.head);
+  const assessment = {
+    libraRunId: run.libra_run_id,
+    expectedState: {
+      state: run.state,
+      stateRevision: number(run.state_revision),
+      stateDigest: run.state_digest,
+    },
+    assessmentKind: run.state === "active"
+      ? "active_checkpoint" : "suspension_recovery",
+    recoveryPolicy: policy,
+    recoveryEpisode: run.state === "active"
+      ? { attemptOrdinal: 0 }
+      : {
+          startedAtMs: number(run.suspension_started_at_ms),
+          attemptOrdinal,
+          dueAtMs,
+        },
+    assessedAtMs,
+    currentDecisionHead,
+    originalBasis: original,
+    readiness,
+    unresolvedReasonCodes: current ? [] : [skeleton.reason],
+    dimensionResults,
+    comparison,
+  };
+  if (current) assessment.currentBasis = current;
+  assessment.assessmentId = canonicalDigest({
+    schema: "libra.run-freshness-assessment-id@1",
+    libraRunId: run.libra_run_id,
+    expectedStateRevision: number(run.state_revision),
+    assessmentKind: assessment.assessmentKind,
+    attemptOrdinal,
+    currentDecisionHeadDigest: currentDecisionHead.snapshotDigest,
+  });
+  assessment.assessmentDigest = canonicalDigest(assessment);
+  return Object.freeze({ kind: "assessment", assessment: Object.freeze(assessment) });
+}
+
 function assertAssessment(decision, original, current, skeleton) {
   const evidence = decision.transitionEvidence;
   if (!evidence.assessmentId) return;
@@ -980,38 +1225,9 @@ function assertAssessment(decision, original, current, skeleton) {
       "P9_RUN_LIFECYCLE_ASSESSMENT",
       "Original Comparable Basis differs from Owner rows.",
     );
-  const row = skeleton.head,
-    head = evidence.currentDecisionHead,
-    headDigest =
-      row &&
-      canonicalDigest({
-        schema: "libra.subject-decision-head@1",
-        subjectId: row.subject_id,
-        headRevision: number(row.head_revision),
-        currentRoutingDecisionId: row.current_routing_decision_id,
-        currentDecisionBasisId: row.current_decision_basis_id,
-        currentAcceptanceSpecId: row.current_acceptance_spec_id,
-      }),
-    snapshot = row && {
-      subjectId: row.subject_id,
-      headState: "present",
-      headRevision: number(row.head_revision),
-      headDigest: row.head_digest,
-      currentRoutingDecisionId: row.current_routing_decision_id,
-      currentDecisionBasisId: row.current_decision_basis_id,
-      currentAcceptanceSpecId: row.current_acceptance_spec_id,
-    };
-  if (row && headDigest !== row.head_digest)
-    fail(
-      "P9_RUN_LIFECYCLE_INTEGRITY",
-      "Current Decision Head digest is invalid.",
-    );
-  if (snapshot)
-    snapshot.snapshotDigest = canonicalDigest({
-      schema: "libra.subject-decision-head-snapshot@1",
-      ...snapshot,
-    });
-  if (!row || canonicalJson(head) !== canonicalJson(snapshot))
+  const head = evidence.currentDecisionHead,
+    snapshot = decisionHeadSnapshot(original.subjectId, skeleton.head);
+  if (canonicalJson(head) !== canonicalJson(snapshot))
     fail(
       "P9_RUN_LIFECYCLE_ASSESSMENT",
       "Current Decision Head differs from Owner row.",
@@ -1222,6 +1438,216 @@ function createRunLifecycleStore(options) {
       foundationTableIds: foundation.tableIds,
       controlHistoryTableIds: history.tableIds,
     }),
+    assess(request) {
+      const libraRunId = request?.libraRunId,
+        assessedAtMs = request?.assessedAtMs;
+      if (typeof libraRunId !== "string" || !libraRunId ||
+          !Number.isSafeInteger(assessedAtMs) || assessedAtMs < 0)
+        fail(
+          "P9_RUN_LIFECYCLE_ASSESSMENT_INPUT",
+          "Run identity and non-negative assessment time are required.",
+        );
+      let run, admissionHead, original, skeleton, controls = [], controlKeys = [];
+      const read = {
+        participantId: "run_freshness_read",
+        owner: "libra",
+        repositories: [libra],
+        execute(context) {
+          const repo = context.repository(libra.repositoryId);
+          run = repo.invoke("find_run", { libra_run_id: libraRunId });
+          if (!run) return;
+          if (!["active", "suspended"].includes(run.state))
+            fail(
+              "P9_RUN_LIFECYCLE_ILLEGAL_STATE",
+              "Freshness may only assess an active or suspended Run.",
+            );
+          original = originalSnapshot(repo, run);
+          skeleton = currentSkeleton(repo, run);
+          admissionHead = repo.invoke("find_head", { subject_id: run.subject_id });
+          if (!admissionHead)
+            fail(
+              "P9_RUN_LIFECYCLE_HEAD",
+              "Run admission head is absent during Freshness assessment.",
+            );
+          controlKeys = [...new Set(skeleton?.keys || [])].sort(utf8);
+        },
+      };
+      const authority = {
+        participantId: "run_freshness_control_read",
+        owner: "material-control-authority",
+        boundBusinessOwner: "libra",
+        repositories: [history],
+        execute(context) {
+          if (!run) return;
+          const repo = context.repository(history.repositoryId);
+          controls = controlKeys.map((key) => currentControl(
+            key,
+            repo.invoke("find_current", { material_key: key }),
+          ));
+          assertHistoricalControls(repo, original, run);
+        },
+      };
+      options.unitOfWork.execute([read, authority]);
+      if (!run) return Object.freeze({ kind: "not_found", libraRunId });
+      const built = buildFreshnessAssessment(
+        run,
+        original,
+        skeleton,
+        controls,
+        assessedAtMs,
+      );
+      if (built.kind === "not_due") return built;
+      return Object.freeze({
+        ...built,
+        admissionHead: Object.freeze({
+          headRevision: number(admissionHead.head_revision),
+          activeScopeSetDigest: admissionHead.active_scope_set_digest,
+        }),
+        latestFreshnessAssessmentId: run.latest_freshness_assessment_id,
+      });
+    },
+    buildTerminalEvidence(request) {
+      const libraRunId = request?.libraRunId,
+        workId = request?.workId,
+        blockerKind = request?.blockerKind,
+        assessedAtMs = request?.assessedAtMs;
+      if (typeof libraRunId !== "string" || !libraRunId ||
+          typeof workId !== "string" || !workId ||
+          !["capability_exhausted", "integration_exhausted",
+            "product_unachievable"].includes(blockerKind) ||
+          !Number.isSafeInteger(assessedAtMs) || assessedAtMs < 0)
+        fail(
+          "P9_RUN_TERMINAL_EVIDENCE_INPUT",
+          "Terminal Evidence requires exact Run, Work, blocker, and time.",
+        );
+      if (typeof options.resolveRetryPolicyDigest !== "function")
+        fail(
+          "P9_RUN_LIFECYCLE_TERMINAL_POLICY",
+          "Terminal Evidence requires the immutable Retry Policy resolver.",
+        );
+      let run, admissionHead, blockedWorks;
+      const owner = {
+        participantId: "run_terminal_owner_read",
+        owner: "libra",
+        repositories: [libra],
+        execute(context) {
+          const repo = context.repository(libra.repositoryId);
+          run = repo.invoke("find_run", { libra_run_id: libraRunId });
+          if (!run) return;
+          if (run.state !== "active")
+            fail(
+              "P9_RUN_LIFECYCLE_ILLEGAL_STATE",
+              "Terminal Evidence may only freeze an active Run.",
+            );
+          admissionHead = repo.invoke("find_head", { subject_id: run.subject_id });
+          if (!admissionHead)
+            fail("P9_RUN_LIFECYCLE_HEAD", "Run admission head is absent.");
+        },
+      };
+      const execution = {
+        participantId: "run_terminal_execution_read",
+        owner: "execution-foundation",
+        boundBusinessOwner: "libra",
+        repositories: [foundation],
+        execute(context) {
+          if (!run) return;
+          const repo = context.repository(foundation.repositoryId),
+            work = repo.invoke("find_work", { work_id: workId });
+          if (!work || work.owner_domain !== "libra" ||
+              work.process_type !== "libra_run" ||
+              work.process_id !== libraRunId || work.state !== "failed")
+            fail(
+              "P9_RUN_LIFECYCLE_TERMINAL",
+              "Terminal blocker is not a failed Work owned by the Run.",
+            );
+          const plans = new Map(repo.invoke("list_plans", {})
+            .map((item) => [item.plan_id, item]));
+          const events = repo.invoke("list_events", {}).filter((item) =>
+            item.work_id === workId && item.owner_domain === "libra" &&
+            item.state === "failed");
+          if (!events.length)
+            fail(
+              "P9_RUN_LIFECYCLE_TERMINAL",
+              "Failed Work has no terminal failed Event.",
+            );
+          blockedWorks = events.map((event) => {
+            const plan = plans.get(event.plan_id),
+              attempts = repo.invoke("list_attempts", { event_id: event.event_id })
+                .sort((a, b) => number(a.ordinal) - number(b.ordinal)),
+              attempt = attempts.at(-1);
+            if (!plan || plan.state !== "planned" ||
+                plan.basis_digest !== work.basis_digest || !attempt ||
+                attempts.some((item, ordinal) =>
+                  number(item.ordinal) !== ordinal || item.state !== "completed") ||
+                attempt.outcome_kind !== "failed" ||
+                !attempt.failure_class || !attempt.failure_code ||
+                !attempt.evidence_digest)
+              fail(
+                "P9_RUN_LIFECYCLE_TERMINAL",
+                "Failed Work execution history is incomplete.",
+                { eventId: event.event_id },
+              );
+            const member = {
+              workId,
+              planId: event.plan_id,
+              workBasisDigest: work.basis_digest,
+              terminalEventId: event.event_id,
+              capabilityRef: event.capability_ref,
+              failureClass: attempt.failure_class,
+              failureCode: attempt.failure_code,
+              attemptCount: attempts.length,
+              retryPolicyDigest: options.resolveRetryPolicyDigest(
+                event.capability_ref,
+              ),
+              terminalEvidenceDigest: attempt.evidence_digest,
+            };
+            member.memberDigest = canonicalDigest({
+              schema: "libra.run-terminal-blocker-member@1",
+              ...member,
+            });
+            return member;
+          }).sort((a, b) => utf8(a.workId, b.workId) ||
+            utf8(a.terminalEventId, b.terminalEventId));
+        },
+      };
+      options.unitOfWork.execute([owner, execution]);
+      if (!run) return Object.freeze({ kind: "not_found", libraRunId });
+      const evidence = {
+        libraRunId,
+        executionBasisDigest: run.execution_basis_digest,
+        blockerKind,
+        blockedWorks,
+        assessedAtMs,
+      };
+      evidence.blockerSetDigest = canonicalDigest({
+        schema: "libra.run-terminal-blocker-set@1",
+        libraRunId,
+        executionBasisDigest: evidence.executionBasisDigest,
+        blockerKind,
+        items: blockedWorks,
+      });
+      evidence.evidenceId = canonicalDigest({
+        schema: "libra.run-terminal-delivery-evidence-id@1",
+        libraRunId,
+        executionBasisDigest: evidence.executionBasisDigest,
+        blockerKind,
+        blockerSetDigest: evidence.blockerSetDigest,
+        assessedAtMs,
+      });
+      evidence.evidenceDigest = canonicalDigest(evidence);
+      return Object.freeze({
+        kind: "terminal_evidence",
+        evidence: Object.freeze(evidence),
+        run: Object.freeze({
+          stateRevision: number(run.state_revision),
+          stateDigest: run.state_digest,
+        }),
+        admissionHead: Object.freeze({
+          headRevision: number(admissionHead.head_revision),
+          activeScopeSetDigest: admissionHead.active_scope_set_digest,
+        }),
+      });
+    },
     transition(request) {
       const decision = buildRunLifecycleDecision(request?.decision),
         marker = request?.commitMarker,
@@ -1355,6 +1781,7 @@ function createRunLifecycleStore(options) {
           )
             fail("P9_RUN_LIFECYCLE_HEAD", "Run admission head CAS is stale.");
           if (skeleton) {
+            skeleton = normalizeControlReadiness(skeleton, controls);
             const current = currentSnapshot(skeleton, controls);
             assertAssessment(decision, original, current, skeleton);
           }
@@ -1577,6 +2004,44 @@ function createRunLifecycleStore(options) {
             run,
             options.resolveRetryPolicyDigest,
           );
+          if (decision.transitionKind === "set_priority") {
+            const queueClass = decision.newPriority.priorityClass === "expedited"
+              ? "expedited_formation"
+              : "normal_foreground";
+            const works = repo.invoke("list_works", {}).filter((work) =>
+              work.owner_domain === "libra" &&
+              work.process_type === "libra_run" &&
+              work.process_id === decision.libraRunId &&
+              !["succeeded", "failed", "cancelled"].includes(work.state));
+            const workIds = new Set(works.map((work) => work.work_id));
+            for (const work of works) {
+              if (work.priority_class === queueClass) continue;
+              if (repo.invoke("update_work_priority", {
+                work_id: work.work_id,
+                priority_class: queueClass,
+                updated_at_ms: context.commitTimeMs,
+                expected_priority_class: work.priority_class,
+              }).changes !== 1) {
+                fail("P9_RUN_PRIORITY_WORK_CAS",
+                  "Supporting Work priority changed during Run reprioritization.");
+              }
+            }
+            const events = repo.invoke("list_events", {}).filter((event) =>
+              workIds.has(event.work_id) &&
+              !["executing", "succeeded", "skipped", "failed", "cancelled"]
+                .includes(event.state));
+            for (const event of events) {
+              if (event.priority_class === queueClass) continue;
+              if (repo.invoke("update_event_priority", {
+                event_id: event.event_id,
+                priority_class: queueClass,
+                expected_priority_class: event.priority_class,
+              }).changes !== 1) {
+                fail("P9_RUN_PRIORITY_EVENT_CAS",
+                  "Workflow Event priority changed during Run reprioritization.");
+              }
+            }
+          }
           if (decision.transitionKind === "complete") {
             const message = decision.transitionEvidence,
               existing = repo.invoke("find_inbox", {

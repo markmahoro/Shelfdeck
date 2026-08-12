@@ -40,7 +40,7 @@ function definition(schemaManifest) {
           'libra_run_id', 'subject_id', 'acceptance_spec_id',
           'run_material_manifest_id', 'execution_basis_record_json',
           'execution_basis_digest', 'run_scope_digest', 'state',
-          'state_revision', 'state_digest', 'package_revision_head', 'created_at_ms',
+          'state_revision', 'state_digest', 'package_revision_head', 'priority_class', 'priority_intent_digest', 'created_at_ms',
         ],
         keyColumns: ['libra_run_id'],
         safeIntegers: true,
@@ -59,11 +59,26 @@ function definition(schemaManifest) {
         kind: 'select-one',
         tableId: 'libra_acceptance_specs',
         columns: [
-          'acceptance_spec_id', 'subject_id', 'shelf_id', 'spec_revision',
+          'acceptance_spec_id', 'subject_id', 'shelf_id', 'decision_basis_id', 'spec_revision',
           'spec_schema_ref', 'spec_json', 'spec_digest', 'record_digest',
           'structure_kind', 'content_profile',
         ],
         keyColumns: ['acceptance_spec_id'],
+        safeIntegers: true,
+      },
+      find_decision_basis: {
+        kind: 'select-one',
+        tableId: 'libra_decision_basis_revisions',
+        columns: ['decision_basis_id', 'subject_id', 'basis_revision', 'input_set_digest', 'basis_digest'],
+        keyColumns: ['decision_basis_id'],
+        safeIntegers: true,
+      },
+      list_decision_basis_inputs: {
+        kind: 'select-all',
+        tableId: 'libra_decision_basis_inputs',
+        columns: ['decision_basis_id', 'input_ordinal', 'input_kind', 'input_schema_ref', 'input_object_id',
+          'input_revision', 'input_digest', 'input_json'],
+        keyColumns: ['decision_basis_id'],
         safeIntegers: true,
       },
       find_manifest: {
@@ -171,10 +186,25 @@ function definition(schemaManifest) {
           'reference_revision', 'reference_state', 'episode_claims_json',
           'episode_scope_digest', 'product_verification_schema_ref',
           'product_verification_id', 'product_verification_json',
-          'product_verification_digest', 'committed_workspace_revision',
+          'product_verification_digest', 'previous_reference_revision',
+          'committed_workspace_revision',
           'reference_digest',
         ],
         keyColumns: ['workspace_id'],
+        safeIntegers: true,
+      },
+      list_bindings: {
+        kind: 'select-all',
+        tableId: 'libra_material_bindings',
+        columns: [
+          'subject_id', 'material_key', 'role', 'authority_kind',
+          'primary_material_key', 'association_evidence_digest',
+          'disposition_basis_digest', 'mount_scope_id', 'inode',
+          'fingerprint_algorithm', 'fingerprint_version',
+          'content_fingerprint', 'size_bytes', 'endpoint_id', 'location',
+          'binding_revision', 'health_state', 'evidence_digest', 'current',
+        ],
+        keyColumns: ['subject_id'],
         safeIntegers: true,
       },
     },
@@ -222,13 +252,13 @@ function createMovieProductionReader(options) {
     execute: body,
   }]).libra_movie_production_read;
 
-  function readRun(libraRunId) {
+  function readRunInternal(libraRunId, requireActive) {
     return exact((context) => {
       const repo = context.repository(repository.repositoryId);
       const run = repo.invoke('find_run', { libra_run_id: libraRunId });
-      if (!run || run.state !== 'active') {
+      if (!run || (requireActive && run.state !== 'active')) {
         fail('P14_MOVIE_PRODUCTION_RUN_UNAVAILABLE',
-          'The exact active Libra Run is unavailable.');
+          requireActive ? 'The exact active Libra Run is unavailable.' : 'The immutable Libra Run is unavailable.');
       }
       const revision = repo.invoke('find_run_revision', {
         libra_run_id: libraRunId,
@@ -246,7 +276,7 @@ function createMovieProductionReader(options) {
       const claims = repo.invoke('list_claims', {
         run_material_manifest_id: run.run_material_manifest_id,
       });
-      if (!revision || revision.state !== 'active' ||
+      if (!revision || revision.state !== run.state ||
           revision.execution_basis_digest !== run.execution_basis_digest ||
           revision.run_scope_digest !== run.run_scope_digest ||
           !specRow || specRow.subject_id !== run.subject_id ||
@@ -257,11 +287,14 @@ function createMovieProductionReader(options) {
           members.length < 1 || members.length > 1024 ||
           members.some((member, ordinal) =>
             Number(member.ordinal) !== ordinal ||
-            member.role !== 'primary_payload')) {
+            !['primary_payload', 'structural_dependency'].includes(member.role))) {
         fail('P14_MOVIE_PRODUCTION_RUN_DRIFT',
           'Run, Spec, Manifest, or active revision continuity drifted.');
       }
       const spec = parse(specRow.spec_json, 'P14_MOVIE_PRODUCTION_SPEC_JSON');
+      const executionBasisRecord=parse(run.execution_basis_record_json,'P14_MOVIE_PRODUCTION_RUN_BASIS_JSON');
+      if(executionBasisRecord.executionBasisDigest!==run.execution_basis_digest||!executionBasisRecord.relatedDispositionScope)
+        fail('P14_MOVIE_PRODUCTION_RUN_BASIS_DRIFT','Run Execution Basis record is incomplete.');
       if (spec.schemaRef !== 'libra.acceptance-spec@1' ||
           spec.acceptanceSpecId !== specRow.acceptance_spec_id ||
           spec.recordDigest !== specRow.record_digest ||
@@ -270,18 +303,20 @@ function createMovieProductionReader(options) {
         fail('P14_MOVIE_PRODUCTION_SPEC_DRIFT',
           'Acceptance Spec is not the exact immutable Product contract.');
       }
+      const primaryMembers = members.filter((member) =>
+        member.role === 'primary_payload');
       const isMovie = spec.contentProfile === 'movie' &&
         spec.structureKind === 'single' &&
         manifest.scope_kind === 'single' &&
-        members.length === 1;
+        primaryMembers.length >= 1;
       const isJav = spec.contentProfile === 'jav' &&
         spec.structureKind === 'single' &&
         manifest.scope_kind === 'single' &&
-        members.length === 1;
+        primaryMembers.length >= 1;
       const isWestern = spec.contentProfile === 'western_adult' &&
         spec.structureKind === 'single' &&
         manifest.scope_kind === 'single' &&
-        members.length === 1;
+        primaryMembers.length >= 1;
       const isSeries = spec.contentProfile === 'series' &&
         spec.structureKind === 'season' &&
         manifest.scope_kind === 'episode_delivery';
@@ -291,6 +326,9 @@ function createMovieProductionReader(options) {
       }
       const relatedById = new Map();
       let candidateIdentityClaim = null;
+      let candidatePackage = null;
+      let candidatePrimaryInputManifest = null;
+      let materialInputForm = null;
       const mappedMembers = members.map((member) => {
         const memberClaims = claims
           .filter((claim) =>
@@ -350,6 +388,24 @@ function createMovieProductionReader(options) {
             'Run members disagree on the accepted Candidate identity.');
         }
         candidateIdentityClaim = identityClaim;
+        if (candidatePackage &&
+            canonicalJson(candidatePackage) !== canonicalJson(delivery.candidatePackage)) {
+          fail('P14_MOVIE_PRODUCTION_HANDOFF_DRIFT',
+            'Run members disagree on the accepted Candidate Package.');
+        }
+        candidatePackage = delivery.candidatePackage;
+        if (candidatePrimaryInputManifest && canonicalJson(candidatePrimaryInputManifest) !==
+            canonicalJson(delivery.primaryInputManifest)) {
+          fail('P14_MOVIE_PRODUCTION_HANDOFF_DRIFT',
+            'Run members disagree on the accepted Primary Input Manifest.');
+        }
+        candidatePrimaryInputManifest = delivery.primaryInputManifest;
+        if (materialInputForm !== null &&
+            materialInputForm !== delivery.materialInputForm) {
+          fail('P14_MOVIE_PRODUCTION_HANDOFF_DRIFT',
+            'Run members disagree on the accepted material input form.');
+        }
+        materialInputForm = delivery.materialInputForm;
         const primary = delivery.primaryMaterialDeliveries.find((item) =>
           item.materialKey === member.material_key);
         const acceptedEpisodeClaims = (primary?.episodeClaims || [])
@@ -366,7 +422,8 @@ function createMovieProductionReader(options) {
             Buffer.from(left.episodeKey),
             Buffer.from(right.episodeKey),
           ));
-        if (!primary || primary.location !== member.location ||
+        if (!primary || primary.role !== member.role ||
+            primary.location !== member.location ||
             primary.endpointId !== member.endpoint_id ||
             primary.sizeBytes !== Number(member.size_bytes) ||
             canonicalJson(acceptedEpisodeClaims) !== canonicalJson(memberClaims)) {
@@ -397,6 +454,7 @@ function createMovieProductionReader(options) {
           admittedControlProjectionDigest:
             member.admitted_control_projection_digest,
           outputRequirementDigest: member.output_requirement_digest,
+          memberDigest: member.member_digest,
           episodeClaims: Object.freeze(memberClaims),
           episodeClaimSetDigest: member.episode_claim_set_digest,
           originCandidateDeliveryRef: Object.freeze({
@@ -434,6 +492,52 @@ function createMovieProductionReader(options) {
           Buffer.from(left.referenceId),
           Buffer.from(right.referenceId),
         ));
+      const relatedBindings = repo.invoke('list_bindings', {
+        subject_id: run.subject_id,
+      }).filter((row) => Number(row.current) === 1 &&
+        row.health_state === 'active' &&
+        row.authority_kind === 'related_derived')
+        .sort((left, right) => Buffer.compare(
+          Buffer.from(left.material_key),
+          Buffer.from(right.material_key),
+        ));
+      if (relatedBindings.length !== related.length) {
+        fail('P14_MOVIE_PRODUCTION_RELATED_BINDING_DRIFT',
+          'Current Related authority does not cover the frozen Run scope.');
+      }
+      const mappedRelatedBindings = related.map((reference) => {
+        const row = relatedBindings.find((candidate) =>
+          candidate.material_key === reference.identity.materialKey &&
+          candidate.primary_material_key === reference.primaryMaterialKey &&
+          candidate.role === reference.role);
+        if (!row || row.association_evidence_digest !==
+              reference.associationEvidenceDigest ||
+            row.disposition_basis_digest !== reference.dispositionBasisDigest) {
+          fail('P14_MOVIE_PRODUCTION_RELATED_BINDING_DRIFT',
+            'Related authority differs from the frozen Candidate reference.');
+        }
+        return Object.freeze({
+          subjectId: row.subject_id,
+          materialKey: row.material_key,
+          role: row.role,
+          authorityKind: row.authority_kind,
+          primaryMaterialKey: row.primary_material_key,
+          associationEvidenceDigest: row.association_evidence_digest,
+          dispositionBasisDigest: row.disposition_basis_digest,
+          physicalIdentity: physicalIdentity(row),
+          endpointId: row.endpoint_id,
+          location: row.location,
+          bindingRevision: Number(row.binding_revision),
+          bindingEvidenceDigest: row.evidence_digest,
+        });
+      });
+      const frozenRelated=related.map((item)=>({referenceId:item.referenceId,primaryMaterialKey:item.primaryMaterialKey,
+        role:item.role,materialKey:item.identity.materialKey,associationEvidenceDigest:item.associationEvidenceDigest,
+        dispositionBasisDigest:item.dispositionBasisDigest}));
+      if(canonicalJson(frozenRelated)!==canonicalJson(executionBasisRecord.relatedDispositionScope.items)||
+          executionBasisRecord.relatedDispositionScope.relatedReferenceSetDigest!==candidatePackage.relatedReferenceSetDigest||
+          executionBasisRecord.relatedDispositionScope.relatedDispositionScopeDigest!==candidatePackage.relatedDispositionScopeDigest)
+        fail('P14_MOVIE_PRODUCTION_RELATED_DRIFT','Related references differ from the frozen Run Basis.');
       return Object.freeze({
         run: Object.freeze({
           libraRunId: run.libra_run_id,
@@ -441,16 +545,23 @@ function createMovieProductionReader(options) {
           acceptanceSpecId: run.acceptance_spec_id,
           executionBasisDigest: run.execution_basis_digest,
           runScopeDigest: run.run_scope_digest,
+          state: run.state,
           stateRevision: Number(run.state_revision),
           stateDigest: run.state_digest,
           packageRevisionHead: Number(run.package_revision_head),
+          priorityClass: run.priority_class,
+          priorityIntentDigest: run.priority_intent_digest,
           createdAtMs: Number(run.created_at_ms),
           runMaterialManifestId: run.run_material_manifest_id,
           runMaterialManifestDigest: manifest.manifest_digest,
         }),
         spec: Object.freeze(spec),
+        decisionBasisId: specRow.decision_basis_id,
         members: Object.freeze(mappedMembers),
         candidateIdentityClaim: Object.freeze(candidateIdentityClaim),
+        candidatePackage: Object.freeze(candidatePackage),
+        candidatePrimaryInputManifest: Object.freeze(candidatePrimaryInputManifest),
+        materialInputForm,
         episodeClaims: Object.freeze([...episodeClaims.values()].sort(
           (left, right) => Buffer.compare(
             Buffer.from(left.episodeKey),
@@ -458,9 +569,13 @@ function createMovieProductionReader(options) {
           ),
         )),
         relatedReferences: Object.freeze(related),
+        relatedBindings: Object.freeze(mappedRelatedBindings),
+        relatedDispositionScope:executionBasisRecord.relatedDispositionScope,
       });
     });
   }
+  function readRun(libraRunId) { return readRunInternal(libraRunId, true); }
+  function readRunSnapshot(libraRunId) { return readRunInternal(libraRunId, false); }
 
   function readFact(libraRunId, factKind, factRevision = 1) {
     return exact((context) => {
@@ -484,6 +599,28 @@ function createMovieProductionReader(options) {
         factDigest: row.fact_digest,
         evidenceDigest: row.evidence_digest,
       });
+    });
+  }
+
+  function readDecisionEvidence(decisionBasisId) {
+    return exact((context) => {
+      const repo = context.repository(repository.repositoryId);
+      const basis = repo.invoke('find_decision_basis', { decision_basis_id:decisionBasisId });
+      if (!basis) return null;
+      const inputs = repo.invoke('list_decision_basis_inputs', { decision_basis_id:decisionBasisId })
+        .sort((left, right) => Number(left.input_ordinal) - Number(right.input_ordinal));
+      const values = inputs.map((row) => parse(row.input_json, 'P14_MOVIE_DECISION_INPUT_JSON'));
+      const decisionFacts = values.filter((_value, index) =>
+        ['routing_fact', 'decision_fact'].includes(inputs[index].input_kind));
+      const queryResults = values.filter((_value, index) => inputs[index].input_kind === 'query_result');
+      const body = { schemaRef:'helix://contracts/domain-types/DecisionEvidence/v1', schemaVersion:1,
+        objectId:basis.decision_basis_id, revision:Number(basis.basis_revision), subjectId:basis.subject_id,
+        queryResults:Object.freeze(queryResults), routingInputDigest:canonicalDigest({
+          schema:'libra.product-routing-evidence@1', decisionBasisId:basis.decision_basis_id,
+          decisionFacts:decisionFacts.map((item) => item.factDigest || item.recordDigest || canonicalDigest(item)),
+        }), specInputDigest:basis.input_set_digest };
+      return Object.freeze({ decisionEvidence:Object.freeze({ ...body, digest:basis.basis_digest }),
+        decisionFacts:Object.freeze(decisionFacts) });
     });
   }
 
@@ -528,6 +665,9 @@ function createMovieProductionReader(options) {
           )
           : null,
         productVerificationDigest: item.product_verification_digest,
+        previousReferenceRevision: item.previous_reference_revision === null
+          ? null
+          : Number(item.previous_reference_revision),
         committedWorkspaceRevision: Number(item.committed_workspace_revision),
         referenceDigest: item.reference_digest,
       }));
@@ -637,9 +777,11 @@ function createMovieProductionReader(options) {
   }
 
   return Object.freeze({
+    readDecisionEvidence,
     readFact,
     readPublishedDeliveryRef,
     readRun,
+    readRunSnapshot,
     readWorkspace,
     readWorkspaceRevision,
   });

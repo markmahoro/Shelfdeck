@@ -53,16 +53,24 @@
             "type": "string",
             "enum": [
               "target_size",
-              "quality_bound"
+              "quality_bound",
+              "two_pass_abr",
+              "strict_abr"
             ]
           },
-          "maxItems": 2,
+          "maxItems": 4,
           "minItems": 1
+        },
+        "validatedConcurrentSlots": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1024
         }
       },
       "required": [
         "supportedVideoCodecs",
-        "supportedRateControlModes"
+        "supportedRateControlModes",
+        "validatedConcurrentSlots"
       ]
     },
     "capabilityDigest": {

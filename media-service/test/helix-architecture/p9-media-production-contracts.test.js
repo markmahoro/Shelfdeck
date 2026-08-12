@@ -39,7 +39,7 @@ function device(){const value={deviceId:'device-1',deviceClass:'nvidia_nvenc',pr
   capabilityPayload:{supportedVideoCodecs:['hevc'],supportedRateControlModes:['quality_bound']},capabilityDigest:'',enabled:true,state:'ready'};
   value.capabilityDigest=canonicalDigest(value.capabilityPayload);value.snapshotDigest=canonicalDigest(value);return value;}
 function encodeIntent(handle,requirement){return media.buildEncodeIntent({revision:1,libraRunId:'run-1',sourceHandleDigest:canonicalDigest(handle),
-  mediaRequirementDigest:requirement.requirementDigest,rateControlMode:'quality_bound',qualityBound:20,deviceClass:'nvidia_nvenc'});}
+  mediaRequirementDigest:requirement.requirementDigest,rateControlMode:'quality_bound',qualityBound:20,deviceClass:'nvidia_nvenc',strategyOrdinal:1});}
 
 test('compiles exact media requirements and mutually exclusive production intents',()=>{
   const handle=source(),requirement=media.buildMediaRequirement(spec()),encoded=encodeIntent(handle,requirement),remuxed=media.buildRemuxIntent({revision:1,
@@ -49,10 +49,29 @@ test('compiles exact media requirements and mutually exclusive production intent
   valid('helix://contracts/domain-types/RemuxIntent/v1',remuxed);
   assert.equal(requirement.schemaRef,'MediaRequirement@1');assert.equal(requirement.schemaVersion,undefined);
   assert.equal(encoded.schemaRef,'EncodeIntent@1');assert.equal(encoded.video.targetVideoBitrateBps,null);
+  assert.equal(encoded.planningPolicyRef,'LibraMediaPlanningPolicy@1');assert.equal(encoded.strategyOrdinal,1);
   assert.equal(remuxed.schemaRef,'RemuxIntent@1');assert.equal(remuxed.video,undefined);
   assert.throws(()=>media.buildEncodeIntent({revision:1,libraRunId:'run-1',sourceHandleDigest:canonicalDigest(handle),
-    mediaRequirementDigest:requirement.requirementDigest,rateControlMode:'quality_bound',qualityBound:64,deviceClass:'nvidia_nvenc'}),
+    mediaRequirementDigest:requirement.requirementDigest,rateControlMode:'quality_bound',qualityBound:64,deviceClass:'nvidia_nvenc',strategyOrdinal:1}),
   (error)=>error.code==='P9_MEDIA_RATE_CONTROL');
+});
+
+test('derives a conservative size budget and freezes retry attempts as new intents',()=>{
+  const handle=source(),requirement=media.buildMediaRequirement(spec());
+  const planningLimit=14*1073741824,budget=media.deriveTargetSizeBudget({maxSizeBytes:planningLimit,durationMs:7_200_000,
+    audioStreams:[{normalizedAudioClass:'truehd'}],subtitleStreams:[{}]});
+  assert.equal(budget.containerReserveBytes,Math.ceil(planningLimit*0.02));
+  assert.equal(budget.feasible,true);assert.ok(budget.targetVideoBitrateBps>=100000);
+  const first=media.buildEncodeIntent({revision:1,libraRunId:'run-1',sourceHandleDigest:canonicalDigest(handle),
+    mediaRequirementDigest:requirement.requirementDigest,rateControlMode:'target_size',targetVideoBitrateBps:budget.targetVideoBitrateBps,
+    deviceClass:'nvidia_nvenc',strategyOrdinal:1});
+  const retryBitrate=media.deriveRetryTargetVideoBitrate({previousTargetVideoBitrateBps:budget.targetVideoBitrateBps,
+    maxSizeBytes:requirement.space.maxSizeBytes,actualSizeBytes:requirement.space.maxSizeBytes*2});
+  const retry=media.buildEncodeIntent({revision:2,libraRunId:'run-1',sourceHandleDigest:canonicalDigest(handle),
+    mediaRequirementDigest:requirement.requirementDigest,rateControlMode:'target_size',targetVideoBitrateBps:retryBitrate,
+    deviceClass:'nvidia_nvenc',strategyOrdinal:2,previousIntentDigest:first.intentDigest});
+  valid('helix://contracts/domain-types/EncodeIntent/v1',first);valid('helix://contracts/domain-types/EncodeIntent/v1',retry);
+  assert.notEqual(first.intentDigest,retry.intentDigest);assert.equal(retry.previousIntentDigest,first.intentDigest);
 });
 
 test('freezes transcode verification from the exact probe, intent, and device snapshot',()=>{

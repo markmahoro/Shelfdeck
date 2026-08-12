@@ -64,6 +64,7 @@ const { createArcaCollectionQuery } = require('./helix/domains/arca/application/
 const { createLibraRoutingAdminApplication } = require('./helix/domains/libra/public/admin-application');
 const { createFormationQuery } = require('./helix/domains/libra/application/formation-query');
 const { createRoutingManualSelectionService } = require('./helix/domains/libra/application/routing-manual-selection-service');
+const { createLibraRunAdminService } = require('./helix/domains/libra/application/libra-run-admin-service');
 const {
   deriveTitleYear,
 } = require('./helix/domains/libra/model/decision-identity-evidence-contracts');
@@ -87,6 +88,18 @@ const {
   createMaterialFieldStore,
 } = require('./helix/domains/procurement/persistence/material-field-store');
 const { createCleanMediaProbe } = require('./clean-media-probe');
+const {
+  createCleanWorkspaceProductPort,
+} = require('./clean-workspace-product-port');
+const {
+  createCleanProductProductionPort,
+} = require('./clean-product-production-port');
+const {
+  createCleanMediaProductionEffectPort,
+} = require('./clean-media-production-effect-port');
+const {
+  createCleanComputeDeviceRuntime,
+} = require('./clean-compute-device-runtime');
 const {
   createFieldPageObserver,
 } = require('./helix/domains/procurement/capabilities/field-page-observer');
@@ -451,6 +464,9 @@ function createPlatformIntegrationServices(options) {
           runtime,
           fetchImpl: options.fetchImpl,
           now: options.now,
+          moviePilotSavePath: options.moviePilotSavePath,
+          moviePilotDownloadRoots: options.moviePilotDownloadRoots,
+          moviePilotDownloadMappings: options.moviePilotDownloadMappings,
         });
     const admin = createIntegrationAdminApplication({
       profile,
@@ -577,6 +593,13 @@ function createPlatformIntegrationServices(options) {
     resolveRoutingHandle(intent) {
       if (!intent || intent.providerKind !== 'tmdb') return undefined;
       return handleFor('tmdb', 'libra.routing.fact.observe@1');
+    },
+    resolveExternalMaterialHandle(request) {
+      if (!request || typeof request.operationId !== 'string' ||
+          !request.operationId.startsWith('libra.external_material.')) {
+        return undefined;
+      }
+      return handleFor('moviepilot', request.operationId);
     },
     async observeRoutingProvider({ intent, integrationHandle }) {
       return tmdbAdapter.observationPort.execute({ operationId: 'libra.routing.fact.observe@1', integrationHandle,
@@ -986,6 +1009,9 @@ async function createCleanServiceHost(options) {
     secretRoot: options.secretRoot,
     now: options.now || Date.now,
     fetchImpl: options.integrationFetch,
+    moviePilotSavePath: options.moviePilotSavePath,
+    moviePilotDownloadRoots: options.moviePilotDownloadRoots,
+    moviePilotDownloadMappings: options.moviePilotDownloadMappings,
     beforeIntegrationPlatformCommit:
       options.beforeIntegrationPlatformCommit,
     afterIntegrationPlatformCommit:
@@ -1013,7 +1039,43 @@ async function createCleanServiceHost(options) {
   const candidateAcceptance = createCandidateAcceptanceConsumer(constructed.applicationDependencies);
   const arcaRoutingTargets = createShelfRoutingTargetProjection(constructed.applicationDependencies);
   const arcaCollectionQuery = createArcaCollectionQuery(constructed.applicationDependencies);
-  const mediaProbe = options.mediaProbe || createCleanMediaProbe();
+  const workspaceProductPort = options.workspaceProductPort ||
+    createCleanWorkspaceProductPort({
+      ...constructed.applicationDependencies,
+      rootPath: options.libraWorkspaceRoot ||
+        path.join(options.dataDir, 'workspaces', 'libra'),
+      externalMaterialRoots: options.externalMaterialRoots ||
+        options.moviePilotDownloadRoots || [],
+      now: options.now || Date.now,
+    });
+  const mediaProbe = options.mediaProbe || createCleanMediaProbe({
+    workspaceMaterialLocationResolver: (handle) => workspaceProductPort.resolveMaterialLocation(handle),
+  });
+  const productProductionPort = options.productProductionPort ||
+    createCleanProductProductionPort({
+      mediaProbe,
+      workspaceProductPort,
+      now: options.now || Date.now,
+      fetchProviderMetadata: (request) =>
+        (options.productProviderMetadataFetch || platformIntegrations.fetchProviderMetadata)(request),
+      fetchProviderArtifact: (request) =>
+        (options.productProviderArtifactFetch || platformIntegrations.fetchProviderArtifact)(request),
+      searchProviderIdentity: (request) =>
+        platformIntegrations.searchProviderIdentity(request),
+      resolveProductIntegrationHandle: (request) =>
+        (options.productIntegrationHandleResolver || platformIntegrations.resolveProductHandle)(request),
+    });
+  const mediaEffectPort = options.mediaProductionEffectPort ||
+    createCleanMediaProductionEffectPort({
+      workspaceProductPort,
+      ffmpegPath: options.ffmpegPath,
+    });
+  const platformComputeRuntime = options.platformComputeRuntime || (options.mediaProbe ? undefined :
+    await createCleanComputeDeviceRuntime({
+      ...constructed.applicationDependencies,
+      ffmpegPath: options.ffmpegPath,
+      now: options.now || Date.now,
+    }));
   let routingExecution = null;
   const libraRoutingAdmin = createLibraRoutingAdminApplication({
     ...constructed.applicationDependencies,
@@ -1040,6 +1102,10 @@ async function createCleanServiceHost(options) {
     readRelatedNfo: options.readRelatedNfo || readBoundedRoutingNfo,
     observeRoutingProvider: options.routingProviderObservation || platformIntegrations.observeRoutingProvider,
     resolveRoutingIntegrationHandle: options.routingIntegrationHandleResolver || platformIntegrations.resolveRoutingHandle,
+    resolveExternalMaterialIntegrationHandle: options.externalMaterialIntegrationHandleResolver ||
+      platformIntegrations.resolveExternalMaterialHandle,
+    executeExternalProvider: options.externalMaterialProviderExecution ||
+      ((request) => platformIntegrations.executeProvider('moviepilot', request)),
     resolvePerceptionIntegrationHandle: options.perceptionIntegrationHandleResolver || platformIntegrations.resolvePerceptionHandle,
     acquirePerceptionProvider: options.perceptionProviderAcquisition || ((request) => platformIntegrations.acquirePerceptionProvider(request)),
     readPerceptionObservation: options.perceptionObservationReader || ((reference) => platformIntegrations.readPerceptionObservation(reference)),
@@ -1060,6 +1126,10 @@ async function createCleanServiceHost(options) {
         title, year, providerIdentity:null, subjectSnapshotDigest:context.subject.snapshotDigest };
       return Object.freeze({ ...body, targetDigest:canonicalDigest(body) });
     }),
+    workspaceProductPort,
+    productProductionPort,
+    mediaEffectPort,
+    platformComputeRuntime,
     now: options.now || Date.now,
     onError: options.onExecutionRuntimeError,
   });
@@ -1079,12 +1149,19 @@ async function createCleanServiceHost(options) {
     routingCoordinator: procurementExecution.routingCoordinator,
     perceptionCoordinator: procurementExecution.perception,
     executionRuntimeHost: procurementExecution.host,
+    deferredDeliveryKeys: ['libra.product-offer.available@1->arca'],
     onError: options.onExecutionRuntimeError,
   });
   const executionRuntimeHost = Object.freeze({
     async start() { const execution=await procurementExecution.host.start(); await outboxDispatcher.start(); return execution; },
     wake() { const execution=procurementExecution.host.wake(); outboxDispatcher.wake(); return execution; },
     async stop() { await outboxDispatcher.stop(); return procurementExecution.host.stop(); },
+  });
+  const libraRunAdmin = createLibraRunAdminService({
+    ...constructed.applicationDependencies,
+    libraRunExecutionProjection: procurementExecution.libraRunExecutionProjection,
+    wake: () => executionRuntimeHost.wake(),
+    now: options.now || Date.now,
   });
   const perceptionAdmin = Object.freeze({
     createRecord(body) { const result=procurementExecution.perception.createRecord(body); executionRuntimeHost.wake(); return result; },
@@ -1110,6 +1187,7 @@ async function createCleanServiceHost(options) {
     formationQuery,
     arcaCollectionQuery,
     routingManualSelection,
+    libraRunAdmin,
     platformIntegrationAdmin: platformIntegrations.admin,
     perceptionAdmin,
     nonce: crypto.randomUUID,
@@ -1149,6 +1227,11 @@ async function createCleanServiceHost(options) {
             correlationId,
           });
         } catch (error) {
+          options.onRequestError?.(error, Object.freeze({
+            method: request.method,
+            path: request.url.split('?')[0],
+            correlationId,
+          }));
           response = errorResponse(error, correlationId);
         }
         if (response.sessionToken) reply.header('set-cookie', sessionCookie(response.sessionToken));

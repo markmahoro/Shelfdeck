@@ -152,6 +152,8 @@ test('formal server dependency graph reaches only the clean Helix root', () => {
         relative === 'src/clean-shelf-target-folder-probe.js' ||
         relative === 'src/clean-field-observation-enumerator.js' ||
         relative === 'src/clean-media-probe.js' ||
+        relative === 'src/clean-compute-device-runtime.js' ||
+        relative === 'src/clean-media-production-effect-port.js' ||
         relative === 'src/clean-layout-observer.js' ||
         relative === 'src/clean-product-production-port.js' ||
         relative === 'src/clean-workspace-product-port.js' ||

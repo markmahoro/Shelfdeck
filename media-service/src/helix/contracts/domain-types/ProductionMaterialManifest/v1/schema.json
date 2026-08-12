@@ -61,7 +61,8 @@
                   "fanart",
                   "subtitle",
                   "external_audio",
-                  "chapter"
+                  "chapter",
+                  "sidecar"
                 ]
               },
               "physicalIdentity": {
@@ -420,7 +421,8 @@
                   "fanart",
                   "subtitle",
                   "external_audio",
-                  "chapter"
+                  "chapter",
+                  "sidecar"
                 ]
               },
               "physicalIdentity": {
@@ -650,10 +652,35 @@
                 "minLength": 1,
                 "pattern": "^[a-f0-9]{64}$"
               },
+              "sourceRelatedReferenceId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "derivedAuthorityDigest": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "controlOperation": {
                 "type": "string",
                 "enum": [
                   "assert_existing_input",
+                  "assert_related_input",
                   "acquire_workspace_product"
                 ]
               },
@@ -681,13 +708,27 @@
                 ]
               },
               "committedControlRevision": {
-                "type": "integer",
-                "minimum": 1
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               },
               "committedControlProjectionDigest": {
-                "type": "string",
-                "minLength": 1,
-                "pattern": "^[a-f0-9]{64}$"
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             },
             "required": [
@@ -709,6 +750,8 @@
               "episodeClaimSetDigest",
               "outputRequirementDigest",
               "memberDigest",
+              "sourceRelatedReferenceId",
+              "derivedAuthorityDigest",
               "controlOperation",
               "expectedControlRevision",
               "expectedControlProjectionDigest",

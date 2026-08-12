@@ -32,8 +32,8 @@ function fixture(factKind='media_cast'){const intent=buildMetadataFetchIntent({l
     providerIdentitySet:{schemaRef:'helix://contracts/records/provider-identity-set/v1',schemaVersion:1,recordKind:'provider-identity-set',
       recordDigest:d('providers'),entries:[providerIdentity]},peopleHints:[],artifactHints:[]};
   const selected={ownerDomain:'libra',processType:'libra_run',processId:'run-1',workKind:'product_metadata_observation',workState:'succeeded',
-    capabilityRef:'libra.product_metadata.fetch@1',resultSchemaRef:result.schemaRef,result,resultId:'result-source',resultDigest:canonicalDigest(result),
-    evidenceDigest:result.payloadDigest,inputBindingDigest:canonicalDigest(intent),workId:'work-source',attemptId:'attempt-source',planId:'plan-source',eventId:'event-source'};
+    capabilityRef:'libra.product_metadata.fetch@1',resultSchemaRef:'helix://contracts/capabilities/libra.product_metadata.fetch/v1/result',result,resultId:'result-source',resultDigest:canonicalDigest(result),
+    evidence:result,evidenceDigest:canonicalDigest(result),inputBindings:intent,inputBindingDigest:canonicalDigest(intent),workId:'work-source',attemptId:'attempt-source',planId:'plan-source',eventId:'event-source'};
   const basis=buildMetadataObservationBasis({intents:[intent],results:[selected],factKind,expectedRevision:0});
   const draft=buildMediaCastDraft({subjectId:'subject-1',sourceBasis:basis,relations:[],producedAtMs:1});
   const payload={schema:'libra.media-cast-fact-commit-payload@1',sourceBasis:basis,mediaCastDraft:draft};
@@ -54,7 +54,7 @@ function metadataFixture(mediaCastFactRef=null){const source=fixture('product_me
   const inputBindings={artifactHandleList:[handle],artifactRequirement:requirement},resultDigest=canonicalDigest(verification),
     inputBindingDigest=canonicalDigest(inputBindings);
   const verificationResultRef={workId:'work-verify',attemptId:'attempt-verify',planId:'plan-verify',eventId:'event-verify',resultId:'result-verify',
-    capabilityRef:'shared.artifact.manifest.verify@1',resultSchemaRef:verification.schemaRef,resultDigest,inputBindingDigest};
+    capabilityRef:'shared.artifact.manifest.verify@1',resultSchemaRef:'helix://contracts/types/ArtifactManifestVerification/v1',resultDigest,inputBindingDigest};
   const item={ordinal:0,artifactHandleId:handle.artifactHandleId,artifactKind:handle.artifactKind,artifactRevision:handle.referenceRevision,
     artifactDigest:handle.digestHex,requirementId:requirement.requirementId,requirementRevision:requirement.revision,
     requirementSchemaRef:requirement.schemaRef,requirementDigest:requirement.requirementDigest,verificationEvidenceId:verification.verificationId,
@@ -79,7 +79,10 @@ test('registers exact Product Fact variants and writes reconstructable Libra Own
     find_attempt:{attempt_id:'attempt-source',work_id:'work-source',state:'succeeded'},find_plan:{plan_id:'plan-source',attempt_id:'attempt-source',state:'planned'},
     find_event:{event_id:'event-source',plan_id:'plan-source',node_id:'node-source',work_id:'work-source',attempt_id:'attempt-source',owner_domain:'libra',capability_ref:'libra.product_metadata.fetch@1',state:'succeeded',result_id:'result-source'},
     find_node:{plan_id:'plan-source',node_id:'node-source',capability_ref:'libra.product_metadata.fetch@1',input_bindings_json:JSON.stringify(value.intent)},
-    find_result:{result_id:'result-source',event_id:'event-source',result_schema_ref:value.result.schemaRef,result_json:JSON.stringify(value.result),result_digest:canonicalDigest(value.result),evidence_digest:value.result.payloadDigest}};
+    list_event_attempts:[{event_attempt_id:'event-execution-source',event_id:'event-source',ordinal:1,
+      input_snapshot_digest:canonicalDigest(value.intent),state:'completed',outcome_kind:'succeeded'}],
+    find_result:{result_id:'result-source',event_id:'event-source',result_schema_ref:'helix://contracts/capabilities/libra.product_metadata.fetch/v1/result',result_json:JSON.stringify(value.result),result_digest:canonicalDigest(value.result),
+      evidence_schema_ref:'helix://contracts/types/MetadataObservation/v1',evidence_json:JSON.stringify(value.result),evidence_digest:canonicalDigest(value.result)}};
     assert.ok(parameters);return rows[statement];}};
   const owner={invoke(statement,parameters){if(statement==='find_run')return {libra_run_id:'run-1',subject_id:'subject-1',state:'active',state_revision:1,state_digest:d('state')};
     if(statement==='find_fact')return undefined;if(statement==='insert_fact'){inserted.facts.push(parameters);return {changes:1};}
@@ -110,14 +113,23 @@ test('persists Product Metadata only after the explicit Requirement, Artifact, P
     Object.values(parameters).includes('attempt-verify')||Object.values(parameters).includes('plan-verify')||Object.values(parameters).includes('event-verify');
     const rows=verify?verifyRows:sourceRows;if(statement==='find_work')return rows.work;if(statement==='find_attempt')return rows.attempt;
     if(statement==='find_plan')return rows.plan;if(statement==='find_event')return rows.event;
+    if(statement==='list_event_attempts')return [{event_attempt_id:verify?'event-execution-verify':'event-execution-source',
+      event_id:verify?'event-verify':'event-source',ordinal:1,input_snapshot_digest:canonicalDigest(verify?value.inputBindings:value.intent),
+      state:'completed',outcome_kind:'succeeded'}];
     if(statement==='find_node')return verify?{plan_id:'plan-verify',node_id:'node-verify',capability_ref:'shared.artifact.manifest.verify@1',input_bindings_json:JSON.stringify(value.inputBindings)}:
       {plan_id:'plan-source',node_id:'node-source',capability_ref:'libra.product_metadata.fetch@1',input_bindings_json:JSON.stringify(value.intent)};
-    if(statement==='find_result')return verify?{result_id:'result-verify',event_id:'event-verify',result_schema_ref:value.verification.schemaRef,
-      result_json:JSON.stringify(value.verification),result_digest:canonicalDigest(value.verification),evidence_digest:value.verification.verificationDigest}:
-      {result_id:'result-source',event_id:'event-source',result_schema_ref:value.result.schemaRef,result_json:JSON.stringify(value.result),
-        result_digest:canonicalDigest(value.result),evidence_digest:value.result.payloadDigest};
-    if(statement==='find_artifact')return {artifact_handle_id:'artifact-1',artifact_kind:'poster',digest_algorithm:'sha256',
-      digest_hex:value.artifactHandle.digestHex,reference_revision:1,state:'active'};throw new Error(statement);}};
+    if(statement==='find_result'){const verificationEvidence={evidenceId:value.verification.verificationId,evidenceKind:'artifact_verification',producerRef:'shared.artifact.manifest.verify@1',
+      basisDigest:value.verification.basisDigest||value.verification.verificationDigest,payloadDigest:canonicalDigest(value.verification),observedAtMs:3};return verify?{result_id:'result-verify',event_id:'event-verify',result_schema_ref:'helix://contracts/capabilities/shared.artifact.manifest.verify/v1/result',
+      result_json:JSON.stringify(value.verification),result_digest:canonicalDigest(value.verification),evidence_schema_ref:'helix://contracts/test/evidence/v1',evidence_json:JSON.stringify(verificationEvidence),evidence_digest:canonicalDigest(verificationEvidence)}:
+      {result_id:'result-source',event_id:'event-source',result_schema_ref:'helix://contracts/capabilities/libra.product_metadata.fetch/v1/result',result_json:JSON.stringify(value.result),
+        result_digest:canonicalDigest(value.result),evidence_schema_ref:'helix://contracts/types/MetadataObservation/v1',evidence_json:JSON.stringify(value.result),evidence_digest:canonicalDigest(value.result)};}
+    if(statement==='find_artifact')return {artifact_handle_id:value.artifactHandle.artifactHandleId,
+      artifact_kind:value.artifactHandle.artifactKind,owner_domain:value.artifactHandle.ownerDomain,
+      owner_scope_type:value.artifactHandle.ownerScope.scopeType,owner_scope_id:value.artifactHandle.ownerScope.scopeId,
+      storage_ref:value.artifactHandle.storageRef,digest_algorithm:value.artifactHandle.digestAlgorithm,
+      digest_hex:value.artifactHandle.digestHex,size_bytes:value.artifactHandle.sizeBytes,
+      media_type:value.artifactHandle.mediaType,provenance_ref:JSON.stringify(value.artifactHandle.provenanceRef),
+      reference_revision:value.artifactHandle.referenceRevision,state:'active'};throw new Error(statement);}};
   const owner={invoke(statement,parameters){if(statement==='find_run')return {libra_run_id:'run-1',subject_id:'subject-1',state:'active',state_revision:1,state_digest:d('state')};
     if(statement==='find_fact')return undefined;if(statement==='find_fact_by_id')return {product_fact_id:mediaFact.factId,libra_run_id:'run-1',fact_kind:'media_cast',
       fact_revision:mediaFact.revision,schema_ref:mediaFact.schemaRef,fact_json:JSON.stringify(mediaFact),fact_digest:mediaFact.factDigest,
@@ -151,8 +163,11 @@ function seedProductDatabase(kernel,value){kernel.runPrimitive(({prepare})=>{
     prepare('INSERT INTO fx_workflow_plans(plan_id,attempt_id,planner_ref,planner_version,catalog_digest,basis_digest,graph_digest,state,created_at_ms) VALUES(?,?,?,?,?,?,?,?,?)').run(`plan-${item.suffix}`,`attempt-${item.suffix}`,'libra.planner',1,d('catalog'),d(`plan-basis-${item.suffix}`),d(`graph-${item.suffix}`),'planned',1);
     prepare('INSERT INTO fx_plan_nodes(plan_id,node_id,capability_ref,contract_version,input_binding_schema_ref,input_bindings_json,parameters_json,when_json,fence_basis_json,resource_demand_json) VALUES(?,?,?,?,?,?,?,?,?,?)').run(`plan-${item.suffix}`,`node-${item.suffix}`,item.capability,1,'helix://contracts/test/input/v1',JSON.stringify(item.input),'{}','{}','{}','{}');
     prepare('INSERT INTO fx_workflow_events(event_id,plan_id,node_id,work_id,attempt_id,owner_domain,capability_ref,contract_version,state,priority_class,ready_at_ms,result_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)').run(`event-${item.suffix}`,`plan-${item.suffix}`,`node-${item.suffix}`,`work-${item.suffix}`,`attempt-${item.suffix}`,'libra',item.capability,1,item.state==='succeeded'?'succeeded':'executing','normal',1,item.result?'result-source':null);
+    if(item.result)prepare('INSERT INTO fx_event_attempts(event_attempt_id,event_id,ordinal,executor_ref,executor_version,input_snapshot_schema_ref,input_snapshot_digest,fence_snapshot_digest,state,outcome_kind,retry_after_ms,failure_class,failure_code,evidence_digest,started_at_ms,finished_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+      .run(`event-execution-${item.suffix}`,`event-${item.suffix}`,1,'test-executor',1,'helix://contracts/test/input/v1',
+        canonicalDigest(item.input),d(`fence-${item.suffix}`),'completed','succeeded',null,null,null,d(`attempt-evidence-${item.suffix}`),1,2);
   }
-  prepare('INSERT INTO fx_event_result_bindings(result_id,event_id,outcome_kind,result_schema_ref,result_json,result_digest,evidence_schema_ref,evidence_json,evidence_digest,committed_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?)').run('result-source','event-source','succeeded',value.result.schemaRef,JSON.stringify(value.result),canonicalDigest(value.result),'helix://contracts/test/evidence/v1','{}',value.result.payloadDigest,2);
+  prepare('INSERT INTO fx_event_result_bindings(result_id,event_id,outcome_kind,result_schema_ref,result_json,result_digest,evidence_schema_ref,evidence_json,evidence_digest,committed_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?)').run('result-source','event-source','succeeded','helix://contracts/capabilities/libra.product_metadata.fetch/v1/result',JSON.stringify(value.result),canonicalDigest(value.result),'helix://contracts/types/MetadataObservation/v1',JSON.stringify(value.result),canonicalDigest(value.result),2);
 });}
 
 function coordinator(unitOfWork){return createDomainCommitCoordinator({schemaManifest,unitOfWork,

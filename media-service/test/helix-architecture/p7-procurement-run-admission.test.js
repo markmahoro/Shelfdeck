@@ -85,7 +85,8 @@ function handle(runBasis) { const memberValue=runBasis.selectedFieldMaterialSet.
   basisDigest:runBasis.basisDigest,canonicalFactSetDigest:runBasis.basisDigest,bindingSetDigest:runBasis.selectedFieldMaterialSet.selectionDigest,
   controlScopeDigest:runBasis.selectedFieldMaterialSet.selectionDigest,
   expectedControlRevisions:[{materialKey:memberValue.materialKey,revision:memberValue.controlSnapshot.controlRevision}],
-  receiptContract:'helix://contracts/types/ProcurementControlReceipt/v1',eventFenceDigest:D('fence')}; }
+  receiptContract:{receiptSchemaRef:'helix://contracts/types/ProcurementControlReceipt/v1',
+    controlRevisionSetSchemaRef:'procurement.control-revision-set@1'},eventFenceDigest:D('fence')}; }
 function seed(database, material, control) {
   const transaction=database.transaction(()=>{
     database.prepare('INSERT INTO proc_material_fields(field_id,name,status,extraction_policy_id,extraction_policy_revision,current_access_revision,current_profile_hint_revision,current_observation_revision,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?)').run('field-1','Field','active','policy-1',1,1,1,null,1,1);

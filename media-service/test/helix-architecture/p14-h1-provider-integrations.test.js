@@ -240,13 +240,18 @@ function providerFetch(state) {
         return response(200, []);
       }
       if (url.pathname === '/api/v1/search/title') {
-        return response(200, [{
-          id: 'torrent-1',
-          title: 'Movie',
-        }]);
+        return response(200, { success:true, data:[{
+          meta_info: { name:'Movie', year:'2024' },
+          media_info: { title:'Movie', year:'2024', tmdb_id:100 },
+          torrent_info: {
+            title: 'Movie.2024.1080p',
+            enclosure: 'https://tracker.test/download/torrent-1',
+            size: 1024,
+          },
+        }] });
       }
       if (url.pathname === '/api/v1/download/add') {
-        return response(200, { data: { id: 'job-1' } });
+        return response(200, { success:true, data:{ download_id:'job-1' } });
       }
     }
     if (url.host === 'emby.test') {

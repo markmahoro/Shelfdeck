@@ -38,7 +38,17 @@ const PROCUREMENT_ENABLED = Object.freeze(['procurement.field.observation.page.c
 const SHARED_ENABLED = Object.freeze(['shared.material.media.probe@1']);
 const LIBRA_ENABLED = Object.freeze(['libra.intake.candidate.verify@1','libra.intake.material.verify@1',
   'libra.intake.binding.resolve@1','libra.intake.accept.commit@1','libra.intake.rejection.commit@1',
-  'libra.routing.fact.observe@1','libra.decision_basis.commit@1']);
+  'libra.routing.fact.observe@1','libra.decision_basis.commit@1','libra.product_identity.resolve@1',
+  'libra.product_metadata.fetch@1','libra.product_artifact.acquire@1','libra.product_sidecar.render@1',
+  'shared.artifact.manifest.verify@1','libra.media_cast.resolve@1','libra.media_cast.commit@1',
+  'libra.product_metadata.commit@1','libra.transcode.input.verify@1','libra.media.remux@1',
+  'libra.media.transcode@1','libra.product_media.verify@1','libra.product_output.select@1',
+  'libra.product.conformance.verify@1','libra.product_package.publish@1',
+  'libra.external_material.query.prepare@1','libra.external_material.search@1',
+  'libra.external_material.candidate.select@1','libra.external_material.acquire.request@1',
+  'libra.external_material.acquire.observe@1','libra.external_material.output.resolve@1',
+  'libra.external_material.stability.observe@1','libra.external_material.identity.verify@1',
+  'libra.external_material.package.verify@1','libra.workspace.material.import@1']);
 const PERCEPTION_ENABLED = Object.freeze(['perception.source.acquire@1','perception.record.normalize@1','perception.record.commit@1',
   'perception.dedup.resolve@1','perception.resolution.commit@1']);
 const ENABLED = Object.freeze([...PROCUREMENT_ENABLED, ...SHARED_ENABLED, ...LIBRA_ENABLED, ...PERCEPTION_ENABLED]);
@@ -81,6 +91,7 @@ function findIntegrationId(value,seen=new Set()){
 function createProcurementExecutionRuntime(options) {
   const contractsRoot = options.contractsRoot || path.resolve(__dirname, '../contracts');
   const now = options.now || Date.now;
+  const workResultReader = createWorkResultReader(options);
   const contractValidator = createCapabilityContractValidator({ schemas: collectSchemas(contractsRoot) });
   const manifests = Object.fromEntries(ENABLED.map((ref) => [ref, manifest(contractsRoot, ref)]));
   const procurementConstruction = ProcurementExecutionRegistration();
@@ -96,7 +107,12 @@ function createProcurementExecutionRuntime(options) {
     readArcaShelfStandard: options.readArcaShelfStandard || (() => null),
     readRelatedNfo: options.readRelatedNfo || (async () => { throw new Error('Routing NFO adapter is unavailable.'); }),
     observeRoutingProvider: options.observeRoutingProvider || (async () => { throw new Error('Routing Provider adapter is unavailable.'); }),
-    resolveRoutingIntegrationHandle: options.resolveRoutingIntegrationHandle || (() => undefined) });
+    resolveRoutingIntegrationHandle: options.resolveRoutingIntegrationHandle || (() => undefined),
+    resolveExternalMaterialIntegrationHandle: options.resolveExternalMaterialIntegrationHandle || (() => undefined),
+    executeExternalProvider: options.executeExternalProvider ||
+      (async () => { throw new Error('External Material Provider adapter is unavailable.'); }),
+    productProductionPort: options.productProductionPort,
+    mediaEffectPort: options.mediaEffectPort });
   const capabilityRegistration = procurementConstruction.createCapabilityRegistration({ ...options, now });
   const ports = capabilityRegistration.ports;
   const procurementRegistrations = capabilityRegistration.createRegistrations({ enabledCapabilityRefs: PROCUREMENT_ENABLED,
@@ -107,7 +123,7 @@ function createProcurementExecutionRuntime(options) {
     semanticValidator:Object.freeze({ref:manifests[capabilityRef].semanticValidatorRef,
       validateInputs:(context)=>ports[capabilityRef].validateInputs(context),
       validateResult:(context,outcome)=>ports[capabilityRef].validateResult(context,outcome)}) }));
-  const libraCapabilityRegistration=libraConstruction.createCapabilityRegistration({...libraOptions,now,
+  const libraCapabilityRegistration=libraConstruction.createCapabilityRegistration({...libraOptions,now,workResultReader,
     computeFingerprint:options.computeFingerprint || computeBoundedMaterialFingerprint});
   const libraRegistrations=libraCapabilityRegistration.createRegistrations({enabledCapabilityRefs:LIBRA_ENABLED,
     manifests:Object.fromEntries(LIBRA_ENABLED.map((ref)=>[ref,manifests[ref]]))});
@@ -122,6 +138,10 @@ function createProcurementExecutionRuntime(options) {
       backoffMs: [], retryableFailureClasses: [] },
     { ref: 'helix://foundation/retry/responsibility-control-commit/v1', effectClass: 'responsibility_control_commit', maxFailureAttempts: 1,
       backoffMs: [], retryableFailureClasses: [] },
+    { ref: 'helix://foundation/retry/workspace-write/v1', effectClass: 'workspace_write', maxFailureAttempts: 1,
+      backoffMs: [], retryableFailureClasses: [] },
+    { ref: 'helix://foundation/retry/external-request/v1', effectClass: 'external_request', maxFailureAttempts: 1,
+      backoffMs: [], retryableFailureClasses: [] },
   ];
   const timeoutPolicies = [{ ref: 'helix://foundation/timeout/field-observation/v1', timeoutMs: 3_600_000,
     minObservationCadenceMs: null, maxObservationElapsedMs: null, maxObservationCount: null }];
@@ -129,9 +149,17 @@ function createProcurementExecutionRuntime(options) {
     compensationContracts: [], capabilityBindings: ENABLED.map((capabilityRef) => ({ capabilityRef,
       effectClass: manifests[capabilityRef].effectClass,
       retryPolicyRef: manifests[capabilityRef].effectClass === 'pure_observation' ? retryPolicies[0].ref :
-        manifests[capabilityRef].effectClass === 'responsibility_control_commit' ? retryPolicies[2].ref : retryPolicies[1].ref,
+          manifests[capabilityRef].effectClass === 'responsibility_control_commit' ? retryPolicies[2].ref :
+          manifests[capabilityRef].effectClass === 'workspace_write' ? retryPolicies[3].ref :
+            manifests[capabilityRef].effectClass === 'external_request' ? retryPolicies[4].ref : retryPolicies[1].ref,
       timeoutPolicyRef: timeoutPolicies[0].ref, compensationContractRefs: [] })) });
-  const executionProjectionProvider=Object.freeze({read:({processType,workKind})=>{
+  let libraProcessServices;
+  const executionProjectionProvider=Object.freeze({read:({processType,processId,workKind})=>{
+    if(processType==='libra_run'){
+      if(!libraProcessServices?.libraRunExecutionProjection)
+        throw new Error('Libra Run Execution Projection is unavailable.');
+      return libraProcessServices.libraRunExecutionProjection.read({processId,workKind});
+    }
     if(processType==='libra_intake')return Object.freeze({priorityClass:'handoff_acceptance',localPriority:300,priorityRevision:1,supplyRole:'completion'});
     if(processType==='libra_routing')return Object.freeze({priorityClass:'normal_foreground',localPriority:250,priorityRevision:1,supplyRole:'completion'});
     if(processType==='perception_acquisition'||processType==='perception_resolution')return Object.freeze({priorityClass:'normal_foreground',localPriority:240,priorityRevision:1,supplyRole:'completion'});
@@ -148,12 +176,16 @@ function createProcurementExecutionRuntime(options) {
     priorityProjectionProvider: executionProjectionProvider });
   const mapper = createResourceProfileMapper({ profileKey: 'default', profileRevision: 1,
     logicalCpu: Math.max(1, os.cpus().length), integrations: [], volumes: [], encoders: [], aiDevices: [], workers: [] });
-  const validatedVolumeKeys=new Set(),validatedIntegrationKeys=new Set();
+  const validatedVolumeKeys=new Set(),validatedIntegrationKeys=new Set(),validatedEncoderSlots=new Map();
   const activeMapper=Object.freeze({profileKey:mapper.profileKey,profileRevision:mapper.profileRevision,capacityFor(resourceKey){
     if(resourceKey.startsWith('volume_read:'))return validatedVolumeKeys.has(resourceKey.slice('volume_read:'.length))?2:0;
     if(resourceKey.startsWith('volume_write:'))return validatedVolumeKeys.has(resourceKey.slice('volume_write:'.length))?1:0;
     if(resourceKey.startsWith('volume_mutation:'))return validatedVolumeKeys.has(resourceKey.slice('volume_mutation:'.length))?1:0;
     if(resourceKey.startsWith('integration:'))return validatedIntegrationKeys.has(resourceKey.slice('integration:'.length))?4:0;
+    if(resourceKey.startsWith('encoder:')){
+      const slots=validatedEncoderSlots.get(resourceKey.slice('encoder:'.length))||0;
+      return slots<1?0:(mapper.profileKey==='full'?Math.min(2,slots):1);
+    }
     return mapper.capacityFor(resourceKey);
   }});
   const governor = createResourceGovernor({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
@@ -164,7 +196,6 @@ function createProcurementExecutionRuntime(options) {
     { verify: async ({ receipt }) => ({ verified: true, evidenceDigest: receipt.verificationEvidenceDigest }) }]));
   const effectJournal = createEffectJournal({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     now, realityVerifiers });
-  const workResultReader = createWorkResultReader(options);
   const processServices = procurementConstruction.createProcessServices({ ...options, now, workResultReader });
   const { triageReader, triageRuleRegistry: triageRegistry, progressReader, procurementAutomation, runCoordinator,
     evidenceIndex, candidateContextReader } = processServices;
@@ -172,13 +203,23 @@ function createProcurementExecutionRuntime(options) {
     contractValidator, progressReader, triageReader, triageRuleRegistry: triageRegistry, workResultReader,
     evidenceIndex, candidateContextReader, materialFieldStore: options.materialFieldStore, now });
   let perceptionProcessServices;
-  const libraProcessServices=libraConstruction.createProcessServices({...libraOptions,now,workResultReader,
+  const workLifecycle = createWorkLifecycle({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
+    nextWorkAttemptId: (workId, ordinal) => workId + ':attempt:' + ordinal });
+  libraProcessServices=libraConstruction.createProcessServices({...libraOptions,now,workResultReader,
+    cancelProcessWorks:(scope)=>workLifecycle.cancelProcess(scope),
+    resolveRetryPolicyDigest:(capabilityRef)=>canonicalDigest(
+      policyRegistry.retryFor(capabilityRef,manifests[capabilityRef].effectClass)),
+    movieProductionReader:libraCapabilityRegistration.movieProductionReader,
     offerReader:libraCapabilityRegistration.offerReader,readArcaShelfStandard:libraOptions.readArcaShelfStandard,
     resolvePerceptionRating:(subjectId)=>perceptionProcessServices?.resolveDecisionFact({targetType:'subject',targetId:subjectId})||Object.freeze({kind:'pending'})});
   const libraPlanningRegistration=libraConstruction.createPlanningRegistration({registry,policyRegistry,contractValidator,
     workResultReader,offerReader:libraProcessServices.offerReader,decisionResolver:libraProcessServices.decisionResolver,
     contextReader:libraProcessServices.routingContextReader,acceptanceSpecContextReader:libraProcessServices.acceptanceSpecContextReader,
-    resolveRoutingIntegrationHandle:libraOptions.resolveRoutingIntegrationHandle,now});
+    resolveRoutingIntegrationHandle:libraOptions.resolveRoutingIntegrationHandle,
+    resolveExternalMaterialIntegrationHandle:libraOptions.resolveExternalMaterialIntegrationHandle,
+    movieProductionReader:libraProcessServices.movieProductionReader,routingContextReader:libraProcessServices.routingContextReader,
+    productProductionPort:libraOptions.productProductionPort,workspaceProductPort:libraOptions.workspaceProductPort,
+    platformComputeRuntime:libraOptions.platformComputeRuntime,now});
   perceptionProcessServices=perceptionConstruction.createProcessServices({...perceptionOptions,now,workResultReader});
   const perceptionPlanningRegistration=perceptionConstruction.createPlanningRegistration({registry,policyRegistry,contractValidator,
     workResultReader,processServices:perceptionProcessServices,resolvePerceptionIntegrationHandle:options.resolvePerceptionIntegrationHandle,now});
@@ -211,13 +252,74 @@ function createProcurementExecutionRuntime(options) {
         else if(integrationId){validatedIntegrationKeys.add(integrationId);resources.push({resourceKey:'integration:'+integrationId,units:1});}
         else throw new Error('P4_TYPED_ROUTING_RESOURCE_UNRESOLVED');
       }
+      if(capability==='libra.product_metadata.fetch@1'){
+        const mountScopeId=findMountScopeId(inputs),integrationId=findIntegrationId(inputs);
+        if(mountScopeId){validatedVolumeKeys.add(mountScopeId);resources.push({resourceKey:'volume_read:'+mountScopeId,units:1});}
+        else if(integrationId){validatedIntegrationKeys.add(integrationId);resources.push({resourceKey:'integration:'+integrationId,units:1});}
+        else throw new Error('P4_TYPED_PRODUCT_METADATA_RESOURCE_UNRESOLVED');
+      }
+      if(capability==='libra.product_artifact.acquire@1'){
+        const integrationId=findIntegrationId(inputs),workspaceRoot=libraOptions.workspaceProductPort.rootSnapshot();
+        if(!integrationId)throw new Error('P4_TYPED_PRODUCT_ARTIFACT_INTEGRATION_UNRESOLVED');
+        validatedIntegrationKeys.add(integrationId);validatedVolumeKeys.add(workspaceRoot.mountScopeId);
+        resources.push({resourceKey:'integration:'+integrationId,units:1},{resourceKey:'volume_write:'+workspaceRoot.mountScopeId,units:1},
+          {resourceKey:'sqlite_write',units:1});
+      }
+      if(capability==='libra.product_sidecar.render@1'){
+        const workspaceRoot=libraOptions.workspaceProductPort.rootSnapshot();validatedVolumeKeys.add(workspaceRoot.mountScopeId);
+        resources.push({resourceKey:'volume_write:'+workspaceRoot.mountScopeId,units:1},{resourceKey:'sqlite_write',units:1});
+      }
+      if(capability==='shared.artifact.manifest.verify@1'){
+        const workspaceRoot=libraOptions.workspaceProductPort.rootSnapshot();validatedVolumeKeys.add(workspaceRoot.mountScopeId);
+        resources.push({resourceKey:'volume_read:'+workspaceRoot.mountScopeId,units:1});
+      }
+      if(capability==='libra.transcode.input.verify@1'||capability==='libra.product_media.verify@1'){
+        const mountScopeId=findMountScopeId(inputs);if(!mountScopeId)throw new Error('P4_TYPED_MEDIA_VOLUME_UNRESOLVED:'+capability);
+        validatedVolumeKeys.add(mountScopeId);resources.push({resourceKey:'volume_read:'+mountScopeId,units:1});
+      }
+      if(capability==='libra.media.remux@1'){
+        const sourceRef=inputs.productionSourceScopeReference,workspaceRoot=libraOptions.workspaceProductPort.rootSnapshot();
+        const sourceSnapshot=sourceRef?.libraRunId?libraProcessServices.movieProductionReader.readRunSnapshot(sourceRef.libraRunId):null;
+        const sourceMounts=[...new Set((sourceSnapshot?.members||[]).map((item)=>item.physicalIdentity?.mountScopeId).filter(Boolean))].sort();
+        if(!sourceMounts.length)throw new Error('P4_TYPED_REMUX_SOURCE_UNRESOLVED');
+        sourceMounts.forEach((item)=>validatedVolumeKeys.add(item));validatedVolumeKeys.add(workspaceRoot.mountScopeId);
+        resources.push(...sourceMounts.map((item)=>({resourceKey:'volume_read:'+item,units:1})),
+          {resourceKey:'volume_write:'+workspaceRoot.mountScopeId,units:1});
+      }
+      if(capability==='libra.media.transcode@1'){
+        const sourceMount=findMountScopeId(inputs),workspaceRoot=libraOptions.workspaceProductPort.rootSnapshot();
+        const device=inputs.mediaExecutionDeviceSnapshot;
+        const slots=device?.capabilityPayload?.validatedConcurrentSlots;
+        if(!sourceMount||!device?.deviceId||!Number.isSafeInteger(slots)||slots<1)
+          throw new Error('P4_TYPED_TRANSCODE_RESOURCE_UNRESOLVED');
+        validatedEncoderSlots.set(device.deviceId,slots);
+        validatedVolumeKeys.add(sourceMount);validatedVolumeKeys.add(workspaceRoot.mountScopeId);
+        resources.push({resourceKey:'volume_read:'+sourceMount,units:1},{resourceKey:'volume_write:'+workspaceRoot.mountScopeId,units:1},
+          {resourceKey:'encoder:'+device.deviceId,units:1});
+        if(device.deviceClass==='software_cpu')resources.push({resourceKey:'cpu_heavy',units:1});
+      }
       if(capability==='perception.source.acquire@1'){
         const integrationId=findIntegrationId(inputs);if(!integrationId)throw new Error('P4_TYPED_PERCEPTION_RESOURCE_UNRESOLVED');
         validatedIntegrationKeys.add(integrationId);resources.push({resourceKey:'integration:'+integrationId,units:1});
       }
+      if(['libra.external_material.search@1','libra.external_material.acquire.request@1',
+        'libra.external_material.acquire.observe@1','libra.external_material.stability.observe@1'].includes(capability)){
+        const integrationId=findIntegrationId(inputs);if(!integrationId)throw new Error('P4_TYPED_EXTERNAL_INTEGRATION_UNRESOLVED');
+        validatedIntegrationKeys.add(integrationId);resources.push({resourceKey:'integration:'+integrationId,units:1});
+      }
+      if(capability==='libra.workspace.material.import@1'){
+        const integrationId=inputs.namedInputs?.stableEvidence
+            ?.stableExternalMaterialHandle?.integrationId,
+          workspaceRoot=libraOptions.workspaceProductPort.rootSnapshot();
+        if(!integrationId)throw new Error('P4_TYPED_EXTERNAL_IMPORT_SOURCE_UNRESOLVED');
+        validatedIntegrationKeys.add(integrationId);validatedVolumeKeys.add(workspaceRoot.mountScopeId);
+        resources.push({resourceKey:'integration:'+integrationId,units:1},
+          {resourceKey:'volume_write:'+workspaceRoot.mountScopeId,units:1});
+      }
       if(capability === 'procurement.triage.bdmv.assess@1') resources.push({resourceKey:'cpu_heavy',units:1});
       if(['procurement.field.observation.page.commit@1','procurement.candidate.publish@1','libra.intake.accept.commit@1',
-        'libra.intake.rejection.commit@1','libra.decision_basis.commit@1'].includes(capability)){
+        'libra.intake.rejection.commit@1','libra.decision_basis.commit@1','libra.product_identity.resolve@1',
+        'libra.media_cast.commit@1','libra.product_metadata.commit@1','libra.product_package.publish@1'].includes(capability)){
         resources.push({resourceKey:'sqlite_write',units:1});
       }
       if(['perception.record.commit@1','perception.resolution.commit@1'].includes(capability))resources.push({resourceKey:'sqlite_write',units:1});
@@ -227,7 +329,9 @@ function createProcurementExecutionRuntime(options) {
     nextEventAttemptId: () => 'event-attempt-' + randomUUID(), nextExecutionId: () => 'execution-' + randomUUID(),
     nextResultId: () => 'event-result-' + randomUUID(), now });
   const plannerKinds = ['field_observation', 'evidence_assessment', 'candidate_assembly'];
-  const libraPlannerKinds=['evidence','acceptance','rejection','routing_nfo_facts','routing_provider_facts','routing_basis','acceptance_spec_basis'];
+  const libraPlannerKinds=['evidence','acceptance','rejection','routing_nfo_facts','routing_provider_facts','routing_basis','acceptance_spec_basis',
+    'product_identity','product_metadata_observation','artifact_production','product_fact_assembly','workspace_media_production',
+    'product_conformance','deliverable_promotion'];
   const perceptionPlannerKinds=['acquisition_page','resolution'];
   const plannerRegistry = createPlannerRegistry({ registrations: [...planningRegistration.planners.map((planner, index) => ({
     ownerDomain: 'procurement', workKind: plannerKinds[index], plannerContractRef: planner.plannerContractRef,
@@ -237,15 +341,41 @@ function createProcurementExecutionRuntime(options) {
     plannerContractRef:planner.plannerContractRef,plannerVersion:planner.plannerVersion,planner}))] });
   const planPublisher = createWorkflowPlanPublisher({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     registry, contractValidator, policyRegistry });
-  const workLifecycle = createWorkLifecycle({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
-    nextWorkAttemptId: (workId, ordinal) => workId + ':attempt:' + ordinal });
   const catalogDigest = executionCatalogDigest(registry, policyRegistry);
   const startupRecovery = createStartupRecovery({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     registry, policyRegistry, integrityVerifier: { verify: () => ({ ok: true }) },
     catalogVerifier: { verify: (plan) => plan.catalog_digest === catalogDigest },
     effectReconciler: { reconcile: async () => ({ decision: 'terminal_failure' }) } });
   let host;
+  function reconcileLibraRun(libraRunId) {
+    const result = libraProcessServices.libraRunCoordinator.reconcile(libraRunId);
+    if (result?.kind !== 'replacement_required') return result;
+    const replacement = libraProcessServices.libraRunCreator.replace(
+      result.subjectId,
+      libraRunId,
+    );
+    if (replacement.libraRunId)
+      return libraProcessServices.libraRunCoordinator.reconcile(
+        replacement.libraRunId,
+      );
+    return replacement;
+  }
   const domainReconciler = { async reconcile(request) {
+    if(request.reconcilePhase==='attempt_terminal'){
+      if(request.ownerDomain==='procurement'&&request.processType==='procurement_run'&&
+          request.workKind==='evidence_assessment'&&request.workAttemptState==='succeeded'){
+        const structures=workResultReader.read(request.workId).filter((item)=>item.outcomeKind==='succeeded'&&
+          item.resultSchemaRef==='helix://contracts/capabilities/procurement.triage.structure.inspect/v1/result');
+        if(!structures.some((item)=>item.result.cursorOut===null))return {workId:request.workId,disposition:'replan'};
+      }
+      if(request.ownerDomain==='procurement'&&request.processType==='material_field'){
+        if(request.workAttemptState!=='succeeded')return {workId:request.workId,disposition:'failed'};
+        const progress=progressReader.read(request.workId);
+        if(!progress.completed)return {workId:request.workId,disposition:'replan'};
+      }
+      return {workId:request.workId,disposition:request.workAttemptState};
+    }
+    if(request.reconcilePhase!=='work_terminal')return null;
     if(request.ownerDomain==='libra'&&request.processType==='libra_intake'){
       const intake=libraProcessServices.coordinator.reconcile(request.processId);
       if(['acceptance','rejection'].includes(request.workKind)&&request.workAttemptState==='succeeded'){
@@ -265,7 +395,18 @@ function createProcurementExecutionRuntime(options) {
       return {workId:request.workId,disposition:request.workAttemptState};
     }
     if(request.ownerDomain==='libra'&&request.processType==='libra_acceptance_spec'){
-      if(request.workAttemptState==='succeeded')libraProcessServices.acceptanceSpecCoordinator.reconcile(request.processId);
+      if(request.workAttemptState==='succeeded'){
+        const spec=libraProcessServices.acceptanceSpecCoordinator.reconcile(request.processId);
+        if(spec.kind==='terminal'){
+          const run=libraProcessServices.libraRunCreator.reconcile(request.processId);
+          if(run.libraRunId)libraProcessServices.libraRunCoordinator.reconcile(run.libraRunId);
+        }
+      }
+      return {workId:request.workId,disposition:request.workAttemptState};
+    }
+    if(request.ownerDomain==='libra'&&request.processType==='libra_run'){
+      if(['succeeded','failed','cancelled'].includes(request.workAttemptState))
+        reconcileLibraRun(request.processId);
       return {workId:request.workId,disposition:request.workAttemptState};
     }
     if(request.ownerDomain==='perception'&&request.processType==='perception_acquisition'){
@@ -283,7 +424,15 @@ function createProcurementExecutionRuntime(options) {
     if(request.ownerDomain==='perception'&&request.processType==='perception_resolution'){
       if(request.workAttemptState==='succeeded'){
         perceptionProcessServices.reconcileResolution(request.processId);
-        if(request.processId.startsWith('subject:'))libraProcessServices.acceptanceSpecCoordinator.reconcile(request.processId.slice('subject:'.length));
+        if(request.processId.startsWith('subject:')){
+          const subjectId=request.processId.slice('subject:'.length);
+          // A direct rating can arrive while the preceding no-rating
+          // Resolution Work is still running. Reconcile the just-finished
+          // revision, then immediately issue the next basis revision before
+          // asking Libra to evaluate its Acceptance Spec.
+          perceptionProcessServices.ensureResolution('subject',subjectId);
+          libraProcessServices.acceptanceSpecCoordinator.reconcile(subjectId);
+        }
       }
       return {workId:request.workId,disposition:request.workAttemptState};
     }
@@ -310,9 +459,8 @@ function createProcurementExecutionRuntime(options) {
       return null;
     }
     if(request.processType!=='material_field')return null;
-    if (request.workAttemptState !== 'succeeded') return { workId: request.workId, disposition: 'failed' };
+    if (request.workState !== 'succeeded') return null;
     const progress = progressReader.read(request.workId);
-    if (!progress.completed) return { workId: request.workId, disposition: 'replan' };
     const field = options.materialFieldStore.getMaterialField(request.processId);
     const created=procurementAutomation.reconcileFromObservation(Object.freeze({ state:'succeeded', fieldId:request.processId,
       accessRevision:field.currentAccessRevision, terminalObservationRevision:progress.expectedObservationRevision,
@@ -343,6 +491,12 @@ function createProcurementExecutionRuntime(options) {
       listPage:({cursor,limit})=>libraProcessServices.routingContextReader.listActiveSubjectPage(cursor,limit).items
         .map((item)=>Object.freeze({cursor:item.subjectId,scope:item})),
       reconcile:({subjectId})=>libraProcessServices.acceptanceSpecCoordinator.reconcile(subjectId),
+    }),Object.freeze({
+      ownerDomain:'libra',reconcilerKey:'ready-libra-runs',
+      listPage:({cursor,limit})=>libraProcessServices.libraRunContextReader.listReadySubjectPage(cursor,limit).items
+        .map((item)=>Object.freeze({cursor:item.subjectId,scope:item})),
+      reconcile:({subjectId})=>{const run=libraProcessServices.libraRunCreator.reconcile(subjectId);
+        return run.libraRunId?reconcileLibraRun(run.libraRunId):run;},
     })]});
   host = createExecutionRuntimeHost({ startupRecovery, scheduler, plannerRegistry, planPublisher, workLifecycle,
     eventRuntime, domainReconciler, fallbackReconciler, onError: options.onError,maxInFlightEvents:16 });
@@ -350,6 +504,9 @@ function createProcurementExecutionRuntime(options) {
     intakeCoordinator:libraProcessServices.coordinator,intakeOfferReader:libraProcessServices.offerReader,
     routingCoordinator:libraProcessServices.routingCoordinator,routingContextReader:libraProcessServices.routingContextReader,
     acceptanceSpecCoordinator:libraProcessServices.acceptanceSpecCoordinator,
+    libraRunCreator:libraProcessServices.libraRunCreator,libraRunContextReader:libraProcessServices.libraRunContextReader,
+    libraRunCoordinator:libraProcessServices.libraRunCoordinator,movieProductionReader:libraProcessServices.movieProductionReader,
+    libraRunExecutionProjection:libraProcessServices.libraRunExecutionProjection,
     perception:perceptionProcessServices });
 }
 

@@ -146,6 +146,9 @@ export type FormationSubject = {
   acceptanceSpecRevision: number | null;
   acceptanceSpecDigest: string | null;
   acceptanceSpecPublishedAtMs: number | null;
+  productionStage: 'awaiting_libra_run' | 'production' | 'suspended' | 'frozen' | 'handoff_b_ready' | null;
+  currentRun: { libraRunId:string; state:string; stateRevision:number; stateDigest:string; priorityClass:'normal'|'expedited'; packageRevisionHead:number } | null;
+  handoffB: { onDeckPackageId:string; offerId:string; packageRevision:number; packageDigest:string; state:string } | null;
 };
 
 export type PerceptionRecord = {
@@ -325,6 +328,20 @@ export const helixAdminApi = {
         expectedDecisionHead: { revision: subject.routingDecisionHeadRevision, digest: subject.routingDecisionHeadDigest },
         idempotencyKey: `choose-shelf:${subject.subjectId}:${subject.routingDecisionDigest}:${targetShelfId}` }),
     });
+  },
+  setRunExpedited(subject: FormationSubject, expedited: boolean) {
+    if (!subject.currentRun) throw new Error('当前 Subject 没有可操作的 Libra Run。');
+    const run = subject.currentRun;
+    const action = expedited ? 'expedite' : 'cancel-expedite';
+    return request<{ libraRunId:string; stateRevision:number; stateDigest:string; priorityClass:'normal'|'expedited'; replayed:boolean }>(
+      `/v1/admin/formation/runs/${encodeURIComponent(run.libraRunId)}/actions/${action}`, {
+        method:'POST',
+        body:JSON.stringify({
+          expectedRunStateRevision:run.stateRevision,
+          expectedRunStateDigest:run.stateDigest,
+          idempotencyKey:`${action}:${run.libraRunId}:${run.stateRevision}:${crypto.randomUUID()}`,
+        }),
+      });
   },
   createShelf(body: JsonValue) {
     return request<{ shelf: Shelf; replayed: boolean }>('/v1/admin/shelves', {

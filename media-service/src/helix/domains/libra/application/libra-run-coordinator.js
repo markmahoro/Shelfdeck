@@ -1,0 +1,419 @@
+'use strict';
+
+const { canonicalDigest } = require('../../../contracts/canonical-json');
+const { createWorkAdmission } = require('../../../foundation/execution/work-admission');
+const { createWorkspaceAdmissionStore } = require('../persistence/workspace-admission-store');
+const { buildSpaceAdmissionRequest, buildWorkspaceAdmissionDecision, requiredFreeBytes, workspaceId } =
+  require('../model/workspace-admission-contracts');
+const { directMediaSelectionWork, remuxMediaSelectionWork, sourceMediaObservationWork,
+  transcodeMediaSelectionWork } = require('../planning/media-production-work');
+const { createProductStagingService } = require('./product-staging-service');
+const { productConformanceWork, deliverablePromotionWork } =
+  require('../planning/product-delivery-work');
+const {
+  externalAcquireVerificationWork,
+  externalImportSelectionWork,
+  externalSearchSelectionWork,
+} = require('../planning/external-material-work');
+const {
+  identityCommitWork,
+  identityObservationWork,
+} = require('../planning/product-identity-work');
+const {
+  metadataObservationWork,
+  nextMetadataStage,
+} = require('../planning/product-metadata-work');
+
+const LIMITS=Object.freeze({globalOpenWorks:256,ownerOpenWorks:256,openEvents:256});
+const ARTIFACT_RESULT='helix://contracts/capabilities/shared.artifact.manifest.verify/v1/result';
+const PRODUCT_METADATA_RESULT='helix://contracts/capabilities/libra.product_metadata.commit/v1/result';
+function stable(prefix,value){return prefix+canonicalDigest(value).slice(0,40);}
+function priority(snapshot) { return snapshot.run.priorityClass === 'expedited'
+  ? 'expedited_formation' : 'normal_foreground'; }
+function artifactWork(snapshot,workspace) {
+  const basis={libraRunId:snapshot.run.libraRunId,executionBasisDigest:snapshot.run.executionBasisDigest,
+    workspaceId:workspace.workspaceId,
+    artifactRequirementDigest:canonicalDigest({schema:'libra.artifact-requirement-set@1',
+      items:snapshot.spec.requirements.metadata.requiredArtifactKinds})};
+  return Object.freeze({schemaRef:'helix://foundation/types/SupportingWorkDefinition/v1',schemaVersion:1,
+    workId:stable('libra-artifact-production-work-',basis),ownerDomain:'libra',processType:'libra_run',
+    processId:snapshot.run.libraRunId,workKind:'artifact_production',
+    workObjectiveTypeRef:'helix://libra/work/artifact-production/v1',workObjectiveVersion:1,
+    executionBasisId:stable('libra-artifact-production-basis-',basis),executionBasisDigest:snapshot.run.executionBasisDigest,
+    dependencyRefs:Object.freeze([]),priorityClass:priority(snapshot),priorityRevision:snapshot.run.priorityRevision||1,
+    capabilityCatalogScope:'libra',
+    workspaceMaterialScope:Object.freeze([]),idempotencyKey:stable('libra-artifact-production-key-',basis),
+    concurrencyScope:snapshot.run.libraRunId+'/artifact-production',outputContractRef:ARTIFACT_RESULT});
+}
+function productFactWork(snapshot,workspace,artifact) {
+  const basis={libraRunId:snapshot.run.libraRunId,executionBasisDigest:snapshot.run.executionBasisDigest,
+    workspaceId:workspace.workspaceId,artifactWorkId:artifact.workId};
+  const artifactDependency=Object.freeze({ownerDomain:'libra',objectType:'supporting_work',objectId:artifact.workId,
+    revision:1,digest:artifact.executionBasisDigest});
+  return Object.freeze({schemaRef:'helix://foundation/types/SupportingWorkDefinition/v1',schemaVersion:1,
+    workId:stable('libra-product-fact-work-',basis),ownerDomain:'libra',processType:'libra_run',
+    processId:snapshot.run.libraRunId,workKind:'product_fact_assembly',
+    workObjectiveTypeRef:'helix://libra/work/product-fact-assembly/v1',workObjectiveVersion:1,
+    executionBasisId:stable('libra-product-fact-basis-',basis),executionBasisDigest:snapshot.run.executionBasisDigest,
+    dependencyRefs:Object.freeze([artifactDependency]),priorityClass:priority(snapshot),
+    priorityRevision:snapshot.run.priorityRevision||1,
+    capabilityCatalogScope:'libra',workspaceMaterialScope:Object.freeze([]),
+    idempotencyKey:stable('libra-product-fact-key-',basis),concurrencyScope:snapshot.run.libraRunId+'/product-fact',
+    outputContractRef:PRODUCT_METADATA_RESULT});
+}
+
+function createLibraRunCoordinator(options){
+  if(!options?.movieProductionReader||!options.workResultReader||!options.workspaceProductPort)
+    throw new TypeError('Libra Run Coordinator requires Owner facts, Foundation results, and Workspace projection.');
+  const workspaceAdmission=createWorkspaceAdmissionStore(options);
+  const productStaging=options.productStagingService||createProductStagingService(options);
+  const admission=createWorkAdmission({schemaManifest:options.schemaManifest,unitOfWork:options.unitOfWork,limits:LIMITS,
+    eligibilityProvider:{check:(request)=>Object.freeze({eligible:request.ownerDomain==='libra'&&request.processType==='libra_run',
+      basisDigest:request.executionBasisDigest,reasonCode:'LIBRA_RUN_BASIS_STALE'})}});
+  function submit(work){return admission.replay(work)||admission.submit(work);}
+  function selectedOutput(work) {
+    const selections=options.workResultReader.read(work.workId).filter((item)=>item.outcomeKind==='succeeded'&&
+      item.capabilityRef==='libra.product_output.select@1');
+    if(selections.length!==1)throw new Error('Terminal media selection Work lacks one durable Selection Result.');
+    return selections[0].result;
+  }
+  function workSucceeded(status) {
+    return status?.state === 'succeeded';
+  }
+  function workFailed(status) {
+    return status?.state === 'failed' || status?.state === 'cancelled';
+  }
+  function terminalWork(snapshot, work, status, blockerKind='capability_exhausted') {
+    const failed = status?.state === 'failed';
+    if (failed && options.libraRunLifecycleService) {
+      return options.libraRunLifecycleService.freezeFailedWork(
+        snapshot.run.libraRunId,
+        work.workId,
+        blockerKind,
+      );
+    }
+    return Object.freeze({
+      kind: 'work_cancelled',
+      libraRunId: snapshot.run.libraRunId,
+      workId: work.workId,
+      reasonCode: status?.latestAttempt?.failure_code || 'work_cancelled',
+    });
+  }
+  function externalResult(work, capabilityRef) {
+    const values = options.workResultReader.read(work.workId).filter((item) =>
+      item.outcomeKind === 'succeeded' && item.capabilityRef === capabilityRef);
+    if (values.length !== 1) {
+      throw new Error('Terminal External Material Work lacks one durable ' +
+        capabilityRef + ' Result.');
+    }
+    return values[0].result;
+  }
+  function mediaVerification(work) {
+    const values = options.workResultReader.read(work.workId).filter((item) =>
+      item.outcomeKind === 'succeeded' &&
+      item.capabilityRef === 'libra.product_media.verify@1');
+    if (values.length !== 1) {
+      throw new Error('Terminal media selection Work lacks one durable Product Media Verification.');
+    }
+    return values[0].result;
+  }
+  function requiresExternalSource(work) {
+    const reasons = new Set(mediaVerification(work).reasonCodes || []);
+    return reasons.has('minimum_raster_unmet') ||
+      reasons.has('system_upscale_forbidden') ||
+      reasons.has('primary_audio_unmet');
+  }
+  function ensureExternalSelection(snapshot, workspace) {
+    const integrationHandle = options.resolveExternalMaterialIntegrationHandle?.({
+      operationId: 'libra.external_material.search@1',
+    });
+    if (!integrationHandle || integrationHandle.integrationType !== 'moviepilot' ||
+        integrationHandle.allowedOperation !== 'libra.external_material.search@1') {
+      return Object.freeze({
+        kind: 'waiting_external_integration',
+        phase: 'external_search_selection',
+        reasonCode: 'moviepilot_integration_unavailable',
+        libraRunId: snapshot.run.libraRunId,
+        workspaceId: workspace.workspaceId,
+      });
+    }
+    const search = externalSearchSelectionWork(snapshot);
+    const searchSubmitted = submit(search);
+    const searchStatus = options.workResultReader.status(search.workId);
+    if (!workSucceeded(searchStatus)) {
+      if (workFailed(searchStatus)) return terminalWork(
+        snapshot, search, searchStatus, 'integration_exhausted');
+      return Object.freeze({ kind:'pending', phase:'external_search_selection',
+        libraRunId:snapshot.run.libraRunId, workId:search.workId,
+        replayed:searchSubmitted.replayed, workspaceId:workspace.workspaceId });
+    }
+    const selectedCandidate = externalResult(search,
+      'libra.external_material.candidate.select@1');
+    if (selectedCandidate.result !== 'selected') return Object.freeze({
+      kind: 'external_material_unavailable',
+      phase: 'external_search_selection',
+      reasonCode: selectedCandidate.selectionReasonCode,
+      libraRunId: snapshot.run.libraRunId,
+      workId: search.workId,
+      workspaceId: workspace.workspaceId,
+    });
+
+    const acquire = externalAcquireVerificationWork(snapshot);
+    const acquireSubmitted = submit(acquire);
+    const acquireStatus = options.workResultReader.status(acquire.workId);
+    if (!workSucceeded(acquireStatus)) {
+      if (workFailed(acquireStatus)) return terminalWork(
+        snapshot, acquire, acquireStatus, 'integration_exhausted');
+      return Object.freeze({ kind:'pending', phase:'external_acquire_verification',
+        libraRunId:snapshot.run.libraRunId, workId:acquire.workId,
+        replayed:acquireSubmitted.replayed, workspaceId:workspace.workspaceId });
+    }
+    const verified = externalResult(acquire,
+      'libra.external_material.package.verify@1');
+    if (verified.result !== 'passed') return Object.freeze({
+      kind: 'external_material_rejected',
+      phase: 'external_acquire_verification',
+      reasonCodes: verified.reasonCodes,
+      libraRunId: snapshot.run.libraRunId,
+      workId: acquire.workId,
+      workspaceId: workspace.workspaceId,
+    });
+
+    const imported = externalImportSelectionWork(snapshot);
+    const importSubmitted = submit(imported);
+    const importStatus = options.workResultReader.status(imported.workId);
+    if (!workSucceeded(importStatus)) {
+      if (workFailed(importStatus)) return terminalWork(
+        snapshot, imported, importStatus, 'integration_exhausted');
+      return Object.freeze({ kind:'pending', phase:'external_import_selection',
+        libraRunId:snapshot.run.libraRunId, workId:imported.workId,
+        replayed:importSubmitted.replayed, workspaceId:workspace.workspaceId });
+    }
+    const selection = selectedOutput(imported);
+    if (selection.result !== 'selected') return Object.freeze({
+      kind: 'external_material_rejected',
+      phase: 'external_import_selection',
+      reasonCodes: selection.reasonCodes,
+      libraRunId: snapshot.run.libraRunId,
+      workId: imported.workId,
+      workspaceId: workspace.workspaceId,
+    });
+    return ensureDelivery(snapshot, workspace, imported);
+  }
+  function ensureTranscodeSelection(snapshot,workspace,context) {
+    for(let ordinal=1;ordinal<=64;ordinal+=1){
+      const work=transcodeMediaSelectionWork(snapshot,ordinal),submitted=submit(work),status=options.workResultReader.status(work.workId);
+      if(workSucceeded(status)){
+        const selection=selectedOutput(work);
+        if(selection.result==='selected')return ensureDelivery(snapshot,workspace,work);
+        if(requiresExternalSource(work))return ensureExternalSelection(snapshot,workspace);
+        continue;
+      }
+      if(workFailed(status)){
+        const reasonCode=status?.latestAttempt?.failure_code||'transcode_work_failed';
+        if(['media_device_strategies_exhausted','media_size_budget_infeasible'].includes(reasonCode))
+          return ensureExternalSelection(snapshot,workspace);
+        return terminalWork(snapshot,work,status);
+      }
+      return Object.freeze({kind:'pending',phase:'workspace_media_transcode_selection',libraRunId:snapshot.run.libraRunId,
+        workId:work.workId,replayed:submitted.replayed,transcodeStrategyOrdinal:ordinal,
+        workspaceId:workspace.workspaceId,workspaceRevision:workspace.currentRevision});
+    }
+    return ensureExternalSelection(snapshot,workspace);
+  }
+  function ensureWorkspace(snapshot) {
+    const id=workspaceId(snapshot.run.libraRunId),existing=options.movieProductionReader.readWorkspace(id);
+    if(existing)return existing;
+    const root=options.workspaceProductPort.rootSnapshot();
+    const inputPrimaryTotalBytes=snapshot.members.reduce((total,item)=>total+item.sizeBytes,0);
+    const request=buildSpaceAdmissionRequest({workspaceId:id,libraRunId:snapshot.run.libraRunId,
+      executionBasisDigest:snapshot.run.executionBasisDigest,rootId:root.rootId,rootSnapshotDigest:root.snapshotDigest,
+      inputPrimaryTotalBytes,requiredFreeBytes:requiredFreeBytes(inputPrimaryTotalBytes)});
+    const observedAtMs=(options.now||Date.now)(),evidence=options.workspaceProductPort.observeSpace({...request,
+      requiredBytes:request.requiredFreeBytes,observedAtMs});
+    const decision=buildWorkspaceAdmissionDecision({libraRunRef:{libraRunId:snapshot.run.libraRunId,
+      stateRevision:snapshot.run.stateRevision,stateDigest:snapshot.run.stateDigest,
+      executionBasisDigest:snapshot.run.executionBasisDigest},workspaceId:id,platformWorkspaceRootSnapshot:root,
+      spaceAdmissionEvidence:evidence});
+    workspaceAdmission.admit({decision,commitMarker:stable('libra-workspace-admission-marker-',{workspaceId:id,
+      decisionDigest:decision.decisionDigest}),resultId:stable('libra-workspace-admission-result-',{workspaceId:id,
+      decisionDigest:decision.decisionDigest})});
+    const admitted=options.movieProductionReader.readWorkspace(id);
+    if(!admitted)throw new Error('Admitted Libra Workspace cannot be reconstructed.');
+    return admitted;
+  }
+  function ensureDelivery(snapshot,workspace,selectedMediaWork){
+    productStaging.ensure(snapshot,Object.freeze({workId:selectedMediaWork.workId,workspaceId:workspace.workspaceId}));
+    const conformance=productConformanceWork(snapshot,selectedMediaWork),conformanceSubmitted=submit(conformance),
+      conformanceStatus=options.workResultReader.status(conformance.workId);
+    if(!workSucceeded(conformanceStatus)){
+      if(workFailed(conformanceStatus))return terminalWork(snapshot,conformance,conformanceStatus);
+      return Object.freeze({kind:'pending',phase:'product_conformance',libraRunId:snapshot.run.libraRunId,
+        workId:conformance.workId,replayed:conformanceSubmitted.replayed,workspaceId:workspace.workspaceId});
+    }
+    const conformanceResults=options.workResultReader.read(conformance.workId).filter((item)=>item.outcomeKind==='succeeded'&&
+      item.capabilityRef==='libra.product.conformance.verify@1');
+    if(conformanceResults.length!==1)throw new Error('Terminal Product Conformance Work lacks one durable Evidence Result.');
+    const evidence=conformanceResults[0].result;
+    if(evidence.result!=='passed')return Object.freeze({kind:'product_conformance_failed',libraRunId:snapshot.run.libraRunId,
+      workId:conformance.workId,verificationId:evidence.verificationId,reasonCodes:evidence.reasonCodes,
+      unmetRequirementCodes:evidence.unmetRequirementCodes,workspaceId:workspace.workspaceId});
+    const promotion=deliverablePromotionWork(snapshot,selectedMediaWork,conformance,evidence),
+      promotionSubmitted=submit(promotion),promotionStatus=options.workResultReader.status(promotion.workId);
+    if(!workSucceeded(promotionStatus)){
+      if(workFailed(promotionStatus))return terminalWork(snapshot,promotion,promotionStatus);
+      return Object.freeze({kind:'pending',phase:'deliverable_promotion',libraRunId:snapshot.run.libraRunId,
+        workId:promotion.workId,replayed:promotionSubmitted.replayed,verificationId:evidence.verificationId,
+        workspaceId:workspace.workspaceId});
+    }
+    const receipts=options.workResultReader.read(promotion.workId).filter((item)=>item.outcomeKind==='succeeded'&&
+      item.capabilityRef==='libra.product_package.publish@1');
+    if(receipts.length!==1||receipts[0].result?.receiptKind!=='libra_product_package_published'||!receipts[0].result.offerId)
+      throw new Error('Terminal Deliverable Promotion Work lacks one open Handoff B Offer receipt.');
+    const receipt=receipts[0].result;
+    return Object.freeze({kind:'handoff_b_offer_open',libraRunId:snapshot.run.libraRunId,workId:promotion.workId,
+      conformanceWorkId:conformance.workId,verificationId:evidence.verificationId,onDeckPackageId:receipt.onDeckPackageId,
+      packageRevision:receipt.packageRevision,packageDigest:receipt.packageDigest,offerId:receipt.offerId,
+      workspaceId:workspace.workspaceId});
+  }
+  function reconcile(libraRunId){
+    const lifecycle = options.libraRunLifecycleService?.reconcile(libraRunId);
+    if (lifecycle && lifecycle.kind !== 'ready') {
+      if (['freshness_confirmed', 'resume'].includes(lifecycle.kind)) {
+        return reconcile(libraRunId);
+      }
+      return Object.freeze({
+        ...lifecycle,
+        phase: lifecycle.kind === 'replacement_required'
+          ? 'replacement_required' : 'run_lifecycle',
+      });
+    }
+    let snapshot;
+    try { snapshot=typeof options.movieProductionReader.readRunSnapshot==='function'
+      ?options.movieProductionReader.readRunSnapshot(libraRunId):options.movieProductionReader.readRun(libraRunId); }
+    catch(error){if(error?.code==='P14_MOVIE_PRODUCTION_RUN_UNAVAILABLE')return Object.freeze({kind:'not_found',libraRunId});throw error;}
+    if(snapshot.run.state!=='active')return Object.freeze({kind:'terminal',libraRunId,state:snapshot.run.state});
+    const identity=options.movieProductionReader.readFact(libraRunId,'resolved_identity',1);
+    let committed=identity;
+    if(!committed){
+      const observationWork=identityObservationWork(snapshot),observationSubmitted=submit(observationWork),
+        observationStatus=options.workResultReader.status(observationWork.workId);
+      if(!workSucceeded(observationStatus)){
+        if(workFailed(observationStatus))return terminalWork(snapshot,observationWork,observationStatus,'integration_exhausted');
+        return Object.freeze({kind:'pending',phase:'product_identity_observation',libraRunId,
+          workId:observationWork.workId,replayed:observationSubmitted.replayed});
+      }
+      const observationResult=options.workResultReader.read(observationWork.workId).find((item)=>item.outcomeKind==='succeeded'&&
+        item.capabilityRef==='libra.routing.fact.observe@1');
+      if(!observationResult)throw new Error('Terminal Product Identity Observation Work lacks its durable Result.');
+      const providerFacts=observationResult.result?.result==='observed'
+        ?observationResult.result.facts.filter((item)=>item.factKind==='resolved_provider_identity'):[];
+      if(providerFacts.length!==1)return Object.freeze({kind:'waiting_product_identity',phase:'product_identity_observation',
+        libraRunId,workId:observationWork.workId,observationId:observationResult.result?.observationId||null,
+        reasonCode:observationResult.result?.reasonCode||'provider_identity_ambiguous',
+        observationResult:observationResult.result?.result||'ambiguous'});
+      const work=identityCommitWork(snapshot,{workId:observationWork.workId,resultDigest:observationResult.resultDigest}),
+        submitted=submit(work),status=options.workResultReader.status(work.workId);
+      if(!workSucceeded(status)){
+        if(workFailed(status))return terminalWork(snapshot,work,status,'product_unachievable');
+        return Object.freeze({kind:'pending',phase:'product_identity_commit',libraRunId,
+          workId:work.workId,replayed:submitted.replayed,observationWorkId:observationWork.workId});
+      }
+      const result=options.workResultReader.read(work.workId).find((item)=>item.outcomeKind==='succeeded'&&
+        item.capabilityRef==='libra.product_identity.resolve@1');
+      committed=options.movieProductionReader.readFact(libraRunId,'resolved_identity',1);
+      if(!result||!committed||result.result.identityDigest!==committed.factValue.identityDigest)
+        throw new Error('Terminal Product Identity Work did not atomically publish its Product Fact.');
+    }
+    const metadataStage=nextMetadataStage(options,snapshot,committed);
+    if(metadataStage.kind==='unavailable'||metadataStage.kind==='unresolved')return Object.freeze({
+      kind:metadataStage.kind==='unavailable'?'waiting_external_integration':'product_metadata_unresolved',
+      phase:'product_metadata_observation',libraRunId,reasonCode:metadataStage.reasonCode,
+      missingFields:metadataStage.missingFields});
+    if(metadataStage.kind==='source'){
+      const work=metadataObservationWork(snapshot,metadataStage.source),submitted=submit(work),
+        status=options.workResultReader.status(work.workId);
+      if(!workSucceeded(status)){
+        if(workFailed(status))return terminalWork(snapshot,work,status,
+          metadataStage.source.kind==='provider'?'integration_exhausted':'product_unachievable');
+        return Object.freeze({kind:'pending',phase:'product_metadata_observation',libraRunId,
+          workId:work.workId,replayed:submitted.replayed,identityDigest:committed.factValue.identityDigest,
+          sourceKind:metadataStage.source.kind,sourcePriority:metadataStage.source.intent.sourcePriority});
+      }
+      options.wake?.();
+      return Object.freeze({kind:'pending',phase:'product_metadata_source_committed',libraRunId,
+        workId:work.workId,sourceKind:metadataStage.source.kind,
+        sourcePriority:metadataStage.source.intent.sourcePriority});
+    }
+    if(metadataStage.kind!=='ready')throw new Error('Product Metadata stage is invalid.');
+    const workspace=ensureWorkspace(snapshot);
+    const artifact=artifactWork(snapshot,workspace),artifactSubmitted=submit(artifact),artifactStatus=options.workResultReader.status(artifact.workId);
+    if(!workSucceeded(artifactStatus)){
+      if(workFailed(artifactStatus))return terminalWork(snapshot,artifact,artifactStatus);
+      return Object.freeze({kind:'pending',phase:'artifact_production',libraRunId,workId:artifact.workId,
+        replayed:artifactSubmitted.replayed,identityDigest:committed.factValue.identityDigest,
+        workspaceId:workspace.workspaceId,workspaceRevision:workspace.currentRevision});
+    }
+    const artifactResults=options.workResultReader.read(artifact.workId).filter((item)=>item.outcomeKind==='succeeded'&&
+      item.capabilityRef==='shared.artifact.manifest.verify@1');
+    const expected=snapshot.spec.requirements.metadata.requiredArtifactKinds.length;
+    if(artifactResults.length!==expected||artifactResults.some((item)=>item.result?.result!=='passed'))
+      throw new Error('Terminal Artifact Work does not cover every mandatory Artifact Requirement.');
+    const facts=productFactWork(snapshot,workspace,artifact),factsSubmitted=submit(facts),factsStatus=options.workResultReader.status(facts.workId);
+    if(!workSucceeded(factsStatus)){
+      if(workFailed(factsStatus))return terminalWork(snapshot,facts,factsStatus);
+      return Object.freeze({kind:'pending',phase:'product_fact_assembly',libraRunId,workId:facts.workId,
+        replayed:factsSubmitted.replayed,identityDigest:committed.factValue.identityDigest,
+        workspaceId:workspace.workspaceId,workspaceRevision:workspace.currentRevision});
+    }
+    const mediaCast=options.movieProductionReader.readFact(libraRunId,'media_cast',1);
+    const productMetadata=options.movieProductionReader.readFact(libraRunId,'product_metadata',1);
+    const factResults=options.workResultReader.read(facts.workId).filter((item)=>item.outcomeKind==='succeeded');
+    if(!mediaCast||!productMetadata||!factResults.some((item)=>item.capabilityRef==='libra.media_cast.commit@1')||
+        !factResults.some((item)=>item.capabilityRef==='libra.product_metadata.commit@1'))
+      throw new Error('Terminal Product Fact Work did not atomically publish the required Facts.');
+    const sourceMedia=sourceMediaObservationWork(snapshot),sourceSubmitted=submit(sourceMedia),sourceStatus=options.workResultReader.status(sourceMedia.workId);
+    if(!workSucceeded(sourceStatus)){
+      if(workFailed(sourceStatus))return terminalWork(snapshot,sourceMedia,sourceStatus);
+      return Object.freeze({kind:'pending',phase:'workspace_media_source_observation',libraRunId,
+        workId:sourceMedia.workId,replayed:sourceSubmitted.replayed,workspaceId:workspace.workspaceId,
+        workspaceRevision:workspace.currentRevision});
+    }
+    const sourceResults=options.workResultReader.read(sourceMedia.workId).filter((item)=>item.outcomeKind==='succeeded'&&
+      item.capabilityRef==='shared.material.media.probe@1');
+    if(sourceResults.length!==1)throw new Error('Terminal source media Observation Work lacks one durable Probe Result.');
+    if(snapshot.materialInputForm!=='stream_file'){
+      const remux=remuxMediaSelectionWork(snapshot),remuxSubmitted=submit(remux),remuxStatus=options.workResultReader.status(remux.workId);
+      if(!workSucceeded(remuxStatus)){
+        if(workFailed(remuxStatus))return terminalWork(snapshot,remux,remuxStatus);
+        return Object.freeze({kind:'pending',phase:'workspace_media_remux_selection',libraRunId,
+          workId:remux.workId,replayed:remuxSubmitted.replayed,materialInputForm:snapshot.materialInputForm,
+          workspaceId:workspace.workspaceId,workspaceRevision:workspace.currentRevision});
+      }
+      const selection=selectedOutput(remux);
+      if(selection.result!=='selected')return requiresExternalSource(remux)
+        ?ensureExternalSelection(snapshot,workspace)
+        :ensureTranscodeSelection(snapshot,workspace,
+          {sourceWorkId:sourceMedia.workId,priorSelectionWorkId:remux.workId});
+      return ensureDelivery(snapshot,workspace,remux);
+    }
+    const direct=directMediaSelectionWork(snapshot),directSubmitted=submit(direct),directStatus=options.workResultReader.status(direct.workId);
+    if(!workSucceeded(directStatus)){
+      if(workFailed(directStatus))return terminalWork(snapshot,direct,directStatus);
+      return Object.freeze({kind:'pending',phase:'workspace_media_direct_selection',libraRunId,
+        workId:direct.workId,replayed:directSubmitted.replayed,workspaceId:workspace.workspaceId,
+        workspaceRevision:workspace.currentRevision});
+    }
+    const selection=selectedOutput(direct);
+    if(selection.result!=='selected')return requiresExternalSource(direct)
+      ?ensureExternalSelection(snapshot,workspace)
+      :ensureTranscodeSelection(snapshot,workspace,
+        {sourceWorkId:sourceMedia.workId,priorSelectionWorkId:direct.workId});
+    return ensureDelivery(snapshot,workspace,direct);
+  }
+  return Object.freeze({reconcile});
+}
+
+module.exports=Object.freeze({createLibraRunCoordinator,identityObservationWork,identityCommitWork,metadataObservationWork,artifactWork,productFactWork,
+  sourceMediaObservationWork,directMediaSelectionWork,remuxMediaSelectionWork,transcodeMediaSelectionWork,
+  externalSearchSelectionWork,externalAcquireVerificationWork,externalImportSelectionWork});

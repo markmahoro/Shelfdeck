@@ -82,7 +82,10 @@ function handle(operationKind, ownerDomain, changes, overrides = {}) {
     bindingSetDigest: digest('bindings'),
     controlScopeDigest: overrides.controlScopeDigest || controlScopeDigest(changes),
     expectedControlRevisions: changes.map((change) => ({ materialKey: change.identity.materialKey, revision: change.expectedRevision })),
-    receiptContract: 'helix://contracts/types/TestControlReceipt/v1',
+    receiptContract: {
+      receiptSchemaRef: 'helix://contracts/types/TestControlReceipt/v1',
+      controlRevisionSetSchemaRef: 'test.control-revision-set@1'
+    },
     eventFenceDigest: digest('fence'),
     ...(operationKind === 'transfer' ? { receivingDomain: overrides.receivingDomain, transferPoint: overrides.transferPoint || 'handoff-b-accepted' } : {})
   };

@@ -84,7 +84,7 @@ function sourceReality(roots) {
   return canonicalDigest({ schema: 'helix.routing-e2e-source-reality@1', entries });
 }
 
-test('direct and sorting Routing Decisions continue through no-rating Acceptance Spec without a Libra Run', async (t) => {
+test('direct and sorting Routing Decisions continue through Acceptance Spec and admit resource-free Libra Runs', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-routing-decision-'));
   t.after(() => {
     if (process.env.HELIX_KEEP_TEST_DATA === '1') process.stderr.write(`preserved=${root}\n`);
@@ -113,7 +113,8 @@ test('direct and sorting Routing Decisions continue through no-rating Acceptance
     onExecutionRuntimeError(error) { runtimeError = error; }, routingIntegrationHandleResolver: () => routingHandle(),
     routingProviderObservation: async ({ intent, integrationHandle }) => {
       assert.equal(integrationHandle.allowedOperation, 'libra.routing.fact.observe@1');
-      providerCalls.push(intent.candidateDisplayTitle);
+      providerCalls.push(Object.freeze({ title:intent.candidateDisplayTitle,
+        requestedFactKinds:Object.freeze([...(intent.requestedFactKinds || [])]) }));
       if (intent.candidateDisplayTitle === '0.5毫米 Provider') return Object.freeze([Object.freeze({
         providerKey: '100500', title: intent.candidateDisplayTitle, originalTitle: intent.candidateDisplayTitle,
         releaseYear: 2014, regionCodes: Object.freeze(['JP']), genreCodes: Object.freeze(['18']) })]);
@@ -155,7 +156,8 @@ test('direct and sorting Routing Decisions continue through no-rating Acceptance
     const unresolved = formation.items.find((item) => item.routingState === 'unresolved');
     assert.equal(unresolved.displayIdentity, '无NFO且无法解析的测试标题');
     assert.equal(unresolved.unresolvedReasonCode, 'higher_priority_rule_unknown');
-    assert.deepEqual(providerCalls.sort(), ['0.5毫米 Provider', '无NFO且无法解析的测试标题'].sort());
+    assert.deepEqual(providerCalls.filter((item)=>item.requestedFactKinds.includes('release_year'))
+      .map((item)=>item.title).sort(), ['0.5毫米 Provider', '无NFO且无法解析的测试标题'].sort());
 
     const manual = await host.inject({ method: 'POST', url: `/v1/admin/formation/subjects/${unresolved.subjectId}/actions/choose-shelf`,
       headers: { cookie }, payload: { targetShelfId: 'general',
@@ -175,7 +177,8 @@ test('direct and sorting Routing Decisions continue through no-rating Acceptance
     const recovered = await host.inject({ method: 'GET', url: '/v1/admin/formation', headers: { cookie } });
     assert.equal(recovered.statusCode, 200, recovered.body);
     assert.deepEqual(recovered.json().summary, { subjectCount: 24, preparingCount: 0, unresolvedCount: 0, resolvedCount: 24 });
-    assert.deepEqual(providerCalls.sort(), ['0.5毫米 Provider', '无NFO且无法解析的测试标题'].sort());
+    assert.deepEqual(providerCalls.filter((item)=>item.requestedFactKinds.includes('release_year'))
+      .map((item)=>item.title).sort(), ['0.5毫米 Provider', '无NFO且无法解析的测试标题'].sort());
     assert.equal(sourceReality([directRoot, sortingRoot]), sourceBefore);
 
     const database = new Database(path.join(dataDir, 'shelfdeck.db'), { readonly: true });
@@ -183,11 +186,13 @@ test('direct and sorting Routing Decisions continue through no-rating Acceptance
       assert.equal(database.prepare("SELECT count(*) count FROM libra_routing_decisions WHERE decision='resolved'").get().count, 24);
       assert.equal(database.prepare("SELECT count(*) count FROM libra_routing_decisions WHERE decision='unresolved'").get().count, 1);
       assert.equal(database.prepare("SELECT count(*) count FROM fx_supporting_works WHERE process_type='libra_routing' AND state='succeeded'").get().count, 29);
-      assert.equal(database.prepare("SELECT count(*) count FROM fx_workflow_events WHERE capability_ref='libra.routing.fact.observe@1' AND state='succeeded'").get().count, 5);
-      assert.equal(database.prepare("SELECT count(*) count FROM fx_workflow_events WHERE capability_ref='libra.decision_basis.commit@1' AND state='succeeded'").get().count, 48);
-      assert.equal(database.prepare('SELECT count(*) count FROM libra_acceptance_specs').get().count, 24);
-      assert.equal(database.prepare('SELECT count(*) count FROM libra_runs').get().count, 0);
+      assert.equal(database.prepare("SELECT count(*) count FROM fx_workflow_events event JOIN fx_supporting_works work ON work.work_id=event.work_id WHERE work.process_type='libra_routing' AND event.capability_ref='libra.routing.fact.observe@1' AND event.state='succeeded'").get().count, 5);
+      assert.equal(database.prepare("SELECT count(*) count FROM fx_workflow_events event JOIN fx_supporting_works work ON work.work_id=event.work_id WHERE work.process_type='libra_routing' AND event.capability_ref='libra.decision_basis.commit@1' AND event.state='succeeded'").get().count, 24);
+      assert.equal(database.prepare('SELECT count(*) count FROM libra_acceptance_specs').get().count, 25);
+      assert.equal(database.prepare("SELECT count(*) count FROM (SELECT subject_id,spec_digest FROM libra_acceptance_specs GROUP BY subject_id,spec_digest)").get().count, 24);
+      assert.equal(database.prepare('SELECT count(*) count FROM libra_runs').get().count, 24);
       assert.equal(database.prepare('SELECT count(*) count FROM libra_workspaces').get().count, 0);
+      assert.equal(database.prepare('SELECT count(*) count FROM libra_product_packages').get().count, 0);
       assert.equal(database.prepare('SELECT count(*) count FROM arca_shelf_entries').get().count, 0);
     } finally { database.close(); }
   } finally { await host.close(); }

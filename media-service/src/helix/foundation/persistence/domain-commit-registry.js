@@ -366,6 +366,9 @@ function createDomainCommitCoordinator(options) {
             result_digest: canonicalDigest(typedResult),
             committed_at_ms: context.commitTimeMs
           });
+          return Object.freeze({ commitMarker:commitMarkerId,
+            effectId:request.commitMarker.effectId || null, commitDigest,
+            committedAtMs:context.commitTimeMs });
         }
       });
       participants.push(...postMarkerParticipants);
@@ -381,13 +384,15 @@ function createDomainCommitCoordinator(options) {
           controlResult: results.material_control,
           outboxResult: results.domain_commit_outbox,
           commitMarker: commitMarkerId, typedResult: results[domainParticipant.participantId], typedEvidence: binding.evidence,
-          resultBinding: results.domain_commit_result
+          resultBinding: results.domain_commit_result, commitMarkerRecord:results.domain_commit_marker
         });
       } catch (error) {
         if (error instanceof DomainCommitReplay) return Object.freeze({
           replayed: true, domainResult: error.marker.typedResult, controlResult: undefined, outboxResult: undefined,
           commitMarker: error.marker.commit_marker, typedResult: error.marker.typedResult, typedEvidence: error.marker.typedEvidence,
-          resultBinding: Object.freeze({ resultId: error.marker.result_id, resultSchemaRef: error.marker.result_schema_ref, resultDigest: error.marker.result_digest })
+          resultBinding: Object.freeze({ resultId: error.marker.result_id, resultSchemaRef: error.marker.result_schema_ref, resultDigest: error.marker.result_digest }),
+          commitMarkerRecord:Object.freeze({commitMarker:error.marker.commit_marker,effectId:error.marker.effect_id,
+            commitDigest:error.marker.commit_digest,committedAtMs:error.marker.committed_at_ms})
         });
         throw error;
       }

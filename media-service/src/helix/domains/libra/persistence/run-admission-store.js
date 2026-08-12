@@ -137,6 +137,10 @@ function libraDefinition(schemaManifest) {
           "subject_id",
           "material_key",
           "role",
+          "authority_kind",
+          "primary_material_key",
+          "association_evidence_digest",
+          "disposition_basis_digest",
           "mount_scope_id",
           "inode",
           "fingerprint_algorithm",
@@ -155,6 +159,7 @@ function libraDefinition(schemaManifest) {
           "origin_package_digest",
           "origin_candidate_delivery_snapshot_digest",
           "origin_related_reference_set_digest",
+          "origin_related_disposition_scope_digest",
           "current",
         ],
         keyColumns: ["subject_id"],
@@ -601,7 +606,9 @@ function assertOwnerRows(repo, decision, controls) {
   const bindings = repo
       .invoke("list_bindings", { subject_id: decision.subjectId })
       .filter((row) => number(row.current) === 1),
-    byKey = new Map(bindings.map((row) => [row.material_key, row])),
+    controlledBindings=bindings.filter((row)=>row.authority_kind==='primary_control'),
+    relatedBindings=bindings.filter((row)=>row.authority_kind==='related_derived'),
+    byKey = new Map(controlledBindings.map((row) => [row.material_key, row])),
     claims = repo.invoke("list_binding_claims", {
       subject_id: decision.subjectId,
     });
@@ -683,6 +690,18 @@ function assertOwnerRows(repo, decision, controls) {
         { materialKey: member.materialKey },
       );
   }
+  if(controlledBindings.length!==basis.productionMaterialManifest.members.length)
+    fail('P9_RUN_BINDING_SCOPE','Run Manifest must exactly cover current Primary/Structural Bindings.');
+  const relatedItems=relatedBindings.map((row)=>({
+    referenceId:canonicalDigest({schema:'procurement.related-material-reference-id@1',primaryMaterialKey:row.primary_material_key,
+      role:row.role,relatedMaterialKey:row.material_key,endpointId:row.endpoint_id,location:row.location}),
+    primaryMaterialKey:row.primary_material_key,role:row.role,materialKey:row.material_key,
+    associationEvidenceDigest:row.association_evidence_digest,dispositionBasisDigest:row.disposition_basis_digest
+  })).sort((a,b)=>Buffer.from(a.referenceId).compare(Buffer.from(b.referenceId)));
+  if(canonicalJson(relatedItems)!==canonicalJson(basis.relatedDispositionScope.items)||
+      relatedBindings.some((row)=>row.origin_related_reference_set_digest!==basis.relatedDispositionScope.relatedReferenceSetDigest||
+        row.origin_related_disposition_scope_digest!==basis.relatedDispositionScope.relatedDispositionScopeDigest))
+    fail('P9_RUN_RELATED_SCOPE_STALE','Run Related Disposition Scope differs from current immutable Related Bindings.');
   return spec;
 }
 

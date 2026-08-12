@@ -68,6 +68,10 @@ Acceptance Spec Publication Event`。Decision Basis冻结Shelf Standard、Routin
 下一独立节点只能是Libra Run Admission；若它要求改变已冻结的Perception Resolution、Spec、Execution Foundation或Procurement合同，
 必须先返回Design，不得恢复旧`movie-formation-coordinator`捷径。
 
+Libra Run Admission至Handoff B Ready的已确认验收场景基线固定在
+`docs/helix/acceptance/LIBRA_HANDOFF_B_READY_SCENARIOS.md`；后续实施和封口必须逐项回填该文档的35个逻辑场景，
+不得只以一条happy path产生Offer代替产品、Freshness、Related与crash-window验收。
+
 ## 0. Completed target — Libra Routing Decision Ready
 
 本轮在Intake Accepted Subject之后接通正式`Routing Coordinator → Supporting Work → immutable Plan → Event Runtime → Capability`

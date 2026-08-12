@@ -120,6 +120,11 @@
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
+    "relatedDispositionSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
     "controlRevisionSetDigest": {
       "type": "string",
       "minLength": 1,
@@ -154,6 +159,7 @@
     "productFactManifestDigest",
     "artifactManifestDigest",
     "offloadContextDigest",
+    "relatedDispositionSetDigest",
     "controlRevisionSetDigest",
     "receiptDigest"
   ]

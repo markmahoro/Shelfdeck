@@ -545,7 +545,32 @@
                 "type": "string",
                 "enum": [
                   "original_input",
-                  "structural_dependency"
+                  "structural_dependency",
+                  "related_input"
+                ]
+              },
+              "sourceRelatedReferenceId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "finalProductMaterialKey": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "dispositionKind": {
+                "type": "string",
+                "enum": [
+                  "carried_forward",
+                  "replaced_and_settled"
                 ]
               },
               "physicalIdentity": {
@@ -570,13 +595,39 @@
                 "pattern": "^[a-f0-9]{64}$"
               },
               "admittedControlRevision": {
-                "type": "integer",
-                "minimum": 1
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               },
               "admittedControlProjectionDigest": {
-                "type": "string",
-                "minLength": 1,
-                "pattern": "^[a-f0-9]{64}$"
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "derivedAuthorityDigest": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               },
               "settlementExpectation": {
                 "type": "string",
@@ -596,6 +647,9 @@
               "ordinal",
               "materialKey",
               "contextRole",
+              "sourceRelatedReferenceId",
+              "finalProductMaterialKey",
+              "dispositionKind",
               "physicalIdentity",
               "endpointId",
               "location",
@@ -603,6 +657,7 @@
               "bindingEvidenceDigest",
               "admittedControlRevision",
               "admittedControlProjectionDigest",
+              "derivedAuthorityDigest",
               "settlementExpectation",
               "memberDigest"
             ]

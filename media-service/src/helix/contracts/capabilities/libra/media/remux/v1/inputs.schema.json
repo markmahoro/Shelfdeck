@@ -5,8 +5,8 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "materialHandle": {
-      "$ref": "#/$defs/materialHandle"
+    "productionSourceScopeReference": {
+      "$ref": "#/$defs/productionSourceScopeReference"
     },
     "remuxIntent": {
       "$ref": "#/$defs/remuxIntent"
@@ -16,24 +16,14 @@
     }
   },
   "required": [
-    "materialHandle",
+    "productionSourceScopeReference",
     "remuxIntent",
     "workspaceMediaOutputTarget"
   ],
   "$defs": {
-    "materialHandle": {
-      "oneOf": [
-        {
-          "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1"
-        },
-        {
-          "$ref": "helix://contracts/types/WorkspaceMaterialHandle/v1"
-        },
-        {
-          "$ref": "helix://contracts/types/ArtifactHandle/v1"
-        }
-      ],
-      "x-helix-typeExpression": "Material handle"
+    "productionSourceScopeReference": {
+      "$ref": "helix://contracts/domain-types/ProductionSourceScopeReference/v1",
+      "x-helix-typeExpression": "ProductionSourceScopeReference"
     },
     "remuxIntent": {
       "$ref": "helix://contracts/domain-types/RemuxIntent/v1",

@@ -5,10 +5,10 @@ const path = require('node:path');
 const test = require('node:test');
 const { buildPlatformApplicationSchemas, schemaDigest, typeId } = require('../../scripts/helix-architecture/platform-application-schema-builder');
 const root = path.resolve(__dirname, '../../src/helix/contracts');
-test('materializes all pathless Platform Workspace runtime schemas reproducibly', () => {
+test('materializes all pathless Platform Workspace and Compute runtime schemas reproducibly', () => {
   const schemas = buildPlatformApplicationSchemas();
   const registry = JSON.parse(fs.readFileSync(path.join(root, 'platform-application-type-registry.json'), 'utf8'));
-  assert.equal(registry.targetCount, 5);
+  assert.equal(registry.targetCount, 9);
   for (const [name, schema] of Object.entries(schemas)) {
     const stored = JSON.parse(fs.readFileSync(path.join(root, 'application-types', name, 'v1/schema.json'), 'utf8'));
     assert.deepEqual(stored, schema);

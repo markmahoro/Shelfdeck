@@ -54,11 +54,13 @@ test('Execution Runtime Host plans Work, delegates Event execution, aggregates t
       aggregateEvent() { calls.push('aggregate'); return { attemptTerminal: true, workTerminal: false, replayed: false,
         attemptId: 'attempt-1', attemptState: 'succeeded', work: { work_id: 'work-1', owner_domain: 'procurement',
           process_type: 'procurement_run', process_id: 'run-1', state: 'running' } }; },
-      settleWork(request) { calls.push('settle:' + request.disposition); },
+      settleWork(request) { calls.push('settle:' + request.disposition);
+        return { workId: request.workId, state: request.disposition, replayed: false }; },
     },
     eventRuntime: { async run() { calls.push('event-runtime'); return { kind: 'succeeded' }; } },
-    domainReconciler: { async reconcile(request) { calls.push('reconcile:' + request.processId);
-      return { workId: request.workId, disposition: 'succeeded' }; } },
+    domainReconciler: { async reconcile(request) { calls.push('reconcile:' + request.reconcilePhase + ':' + request.workState);
+      return request.reconcilePhase === 'attempt_terminal'
+        ? { workId: request.workId, disposition: 'succeeded' } : null; } },
     fallbackReconciler:{async start(){},async stop(){}},
   });
   const started = await host.start();
@@ -67,7 +69,46 @@ test('Execution Runtime Host plans Work, delegates Event execution, aggregates t
   await host.stop();
   assert.deepEqual(calls, [
     'recover', 'lease:work', 'activate', 'planner:work-1', 'publish:plan-1', 'start', 'release:work',
-    'lease:event', 'event-runtime', 'aggregate', 'reconcile:run-1', 'settle:succeeded',
+    'lease:event', 'event-runtime', 'aggregate', 'reconcile:attempt_terminal:running', 'settle:succeeded',
+    'reconcile:work_terminal:succeeded',
+  ]);
+});
+
+test('Execution Runtime Host persists terminal Work before notifying its exact Domain Process scope', async () => {
+  let eventAvailable=true;
+  let persistedState='running';
+  const observations=[];
+  const host=createExecutionRuntimeHost({
+    tickIntervalMs:60000,maxActionsPerTick:4,
+    startupRecovery:{recover:async()=>({state:'ready',normalSupplyAllowed:true})},
+    scheduler:{acquire({targetType}){
+      if(targetType==='work'||!eventAvailable)return {kind:'idle'};
+      eventAvailable=false;
+      return {kind:'leased',lease:{targetType:'event',targetId:'event-terminal',leaseId:'lease-terminal'}};
+    },release(){}},
+    plannerRegistry:{resolve(){}},planPublisher:{publish(){}},
+    workLifecycle:{
+      ensurePlanningAttempt(){},startPlanned(){},
+      aggregateEvent(){return {attemptTerminal:true,workTerminal:false,replayed:false,attemptId:'attempt-terminal',
+        attemptState:'succeeded',work:{work_id:'work-terminal',owner_domain:'libra',process_type:'libra_run',
+          process_id:'run-terminal',work_kind:'product_identity',state:'running'}};},
+      settleWork(request){persistedState=request.disposition;
+        return {workId:request.workId,state:persistedState,replayed:false};},
+    },
+    eventRuntime:{async run(){return {kind:'succeeded'};}},
+    domainReconciler:{async reconcile(request){
+      observations.push({phase:request.reconcilePhase,reported:request.workState,persisted:persistedState});
+      return request.reconcilePhase==='attempt_terminal'
+        ? {workId:request.workId,disposition:'succeeded'} : null;
+    }},
+    fallbackReconciler:{async start(){},async stop(){}},
+  });
+  await host.start();
+  await new Promise((resolve)=>setImmediate(resolve));
+  await host.stop();
+  assert.deepEqual(observations,[
+    {phase:'attempt_terminal',reported:'running',persisted:'running'},
+    {phase:'work_terminal',reported:'succeeded',persisted:'succeeded'},
   ]);
 });
 

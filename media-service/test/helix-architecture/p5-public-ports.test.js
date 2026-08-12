@@ -12,8 +12,8 @@ const catalog = require('../../src/helix/contracts/ports/p5-public-port-contract
 
 const EFFECT_CLASSES = new Set(['pure_observation', 'workspace_write', 'external_request', 'material_commit', 'destructive_commit']);
 const PLATFORM_EXPORTS = [
-  'AdminCredentialRevisionQueryPort', 'ComputeDeviceQueryPort',
-  'IntegrationHandleResolverPort', 'IntegrationQueryPort', 'MountScopeResolverPort',
+  'AdminCredentialRevisionQueryPort', 'IntegrationHandleResolverPort', 'IntegrationQueryPort', 'MountScopeResolverPort',
+  'PlatformComputeRuntimePort',
   'PlatformWorkspaceRuntimePort', 'ResourceProfileQueryPort', 'SecretLeaseResolverPort', 'WorkerHandleResolverPort'
 ];
 const INTEGRATION_EXPORTS = [
@@ -35,7 +35,8 @@ test('P5 nominal port catalog is exact, typed, bounded, fenced, and owner-declar
     const methods = contract.methods || [{ name: contract.method, inputSchemaRef: contract.inputSchemaRef, outputSchemaRef: contract.outputSchemaRef }];
     assert.ok(methods.length >= 1 && methods.length <= 2);
     for (const method of methods) {
-      assert.ok(['query', 'resolve', 'execute', 'resolveWorkspaceRoot', 'assessWorkspaceSpace'].includes(method.name));
+      assert.ok(['query', 'resolve', 'execute', 'resolveWorkspaceRoot', 'assessWorkspaceSpace',
+        'listReadyDeviceRefs', 'readDeviceSnapshot'].includes(method.name));
       assert.match(method.inputSchemaRef, /^helix:\/\/contracts\/(ports|application-types)\/.+\/v1(\/input)?$/);
       assert.match(method.outputSchemaRef, /^helix:\/\/contracts\/(ports|application-types)\/.+\/v1(\/output)?$/);
     }
@@ -63,10 +64,14 @@ test('Platform and Integration entry points export only nominal factories plus p
   const workspacePort = platformPublic.PlatformWorkspaceRuntimePort({
     resolveWorkspaceRoot: (input) => input, assessWorkspaceSpace: (input) => input
   });
+  const computePort = platformPublic.PlatformComputeRuntimePort({
+    listReadyDeviceRefs: (input) => input, readDeviceSnapshot: (input) => input
+  });
   assert.deepEqual(platformPort.resolve({ scope: 'scope-1' }), { scope: 'scope-1' });
   assert.deepEqual(integrationPort.execute({ handle: 'handle-1' }), { handle: 'handle-1' });
   assert.deepEqual(artifactPort.query({ artifactHandleId: 'artifact-1' }), { artifactHandleId: 'artifact-1' });
   assert.deepEqual(workspacePort.assessWorkspaceSpace({ workspaceId: 'workspace-1' }), { workspaceId: 'workspace-1' });
+  assert.deepEqual(computePort.listReadyDeviceRefs({ limit: 16 }), { limit: 16 });
   assert.equal(Object.isFrozen(platformPort), true);
   assert.equal(Object.isFrozen(integrationPort), true);
 });

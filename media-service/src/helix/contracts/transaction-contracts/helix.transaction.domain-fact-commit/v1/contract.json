@@ -7,7 +7,7 @@
     "displayName": "Domain Fact Commit",
     "ownerScope": "polymorphic-domain-owner",
     "commitClass": "domain_fact_commit",
-    "atomicFactSet": "Owner-defined Canonical/Process Fact + revision fence + commit marker + durable typed result + contract-declared Outbox；其Libra `media_cast|product_metadata` closed variants还必须包含current Run/fact revision fence、完整typed commit payload、immutable Product Fact revision与精确closed Source Basis Result references（Metadata Observation或Western Analysis/Normalize/Match），两种variant均`outboxRequired=false`且Fact、Source refs、Result与marker全有或全无；variant精确表集只由本节后文PBF-14 machine matrix展开，不形成额外顶层Commit行",
+    "atomicFactSet": "Owner-defined Canonical/Process Fact + revision fence + commit marker + durable typed result + contract-declared Outbox；其Libra `resolved_identity|media_cast|product_metadata` closed variants还必须包含current Run/fact revision fence、完整typed commit payload、immutable Product Fact revision与精确closed Source Basis Result references。`resolved_identity`还必须在同一事务追加Subject级Product Identity revision、CAS推进`current_identity_revision`，并关系化Series exact continuity claims；三个variant均`outboxRequired=false`且Owner Fact、Source refs、Result与marker全有或全无；variant精确表集只由本节后文PBF-14 machine matrix展开，不形成额外顶层Commit行",
     "participants": [
       {
         "participantKind": "domain",
@@ -71,6 +71,7 @@
           "fx_workflow_plans",
           "fx_plan_nodes",
           "fx_workflow_events",
+          "fx_event_attempts",
           "fx_event_result_bindings",
           "fx_commit_markers"
         ],
@@ -137,6 +138,7 @@
           "fx_workflow_plans",
           "fx_plan_nodes",
           "fx_workflow_events",
+          "fx_event_attempts",
           "fx_event_result_bindings",
           "fx_commit_markers",
           "fx_artifact_registry"
@@ -175,6 +177,9 @@
             "owner": "libra",
             "access": "write",
             "tables": [
+              "libra_subjects",
+              "libra_product_identity_revisions",
+              "libra_subject_season_continuity_claims",
               "libra_product_fact_revisions",
               "libra_product_fact_source_refs"
             ]
@@ -190,6 +195,9 @@
           }
         ],
         "writeTables": [
+          "libra_subjects",
+          "libra_product_identity_revisions",
+          "libra_subject_season_continuity_claims",
           "libra_product_fact_revisions",
           "libra_product_fact_source_refs",
           "fx_event_result_bindings",
@@ -197,6 +205,9 @@
         ],
         "readTables": [
           "libra_runs",
+          "libra_subjects",
+          "libra_product_identity_revisions",
+          "libra_subject_season_continuity_claims",
           "libra_product_fact_revisions",
           "libra_product_fact_source_refs",
           "fx_supporting_works",
@@ -204,6 +215,7 @@
           "fx_workflow_plans",
           "fx_plan_nodes",
           "fx_workflow_events",
+          "fx_event_attempts",
           "fx_event_result_bindings",
           "fx_commit_markers"
         ],
@@ -220,7 +232,7 @@
           "commitMarkerRequired": true,
           "outboxRequired": false
         },
-        "rollbackInvariant": "Resolved Identity revision, complete Source refs, durable typed Result, and commit marker are all present or all absent; selector, Run, revision, source-basis, Result, schema, digest, or fence failure leaves zero writes and no Outbox row.",
+        "rollbackInvariant": "Run Product Fact, Subject Identity revision/current pointer, complete exact continuity claims, Source refs, durable typed Result, and commit marker are all present or all absent; selector, Run, Subject, revision, source-basis, Result, schema, digest, or fence failure leaves zero writes and no Outbox row.",
         "crashFixtures": [
           {
             "fixtureId": "libra-product-fact-variants",
@@ -273,8 +285,8 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 8380,
-      "lineDigest": "7c3563b6a5643763363662c069f9cb132d67c9cab9271cf91111bc02deff1493"
+      "line": 8413,
+      "lineDigest": "540a8baf06b3cdd5b1ee8bda961e97781d0bc722037eacac4dc6c8aaff08ebf5"
     }
   }
 }

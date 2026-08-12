@@ -191,28 +191,18 @@
             "pattern": "^[a-f0-9]{64}$"
           },
           "productVerificationRef": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "id": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 256
-              },
-              "digest": {
-                "type": "string",
-                "minLength": 1,
-                "pattern": "^[a-f0-9]{64}$"
-              }
-            },
-            "required": [
-              "id",
-              "digest"
-            ]
+            "$ref": "helix://contracts/application-types/WorkspaceProductVerificationSnapshot/v1"
           },
           "previousReferenceRevision": {
-            "type": "integer",
-            "minimum": 1
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "committedWorkspaceRevision": {
             "type": "integer",
@@ -282,46 +272,16 @@
           "minLength": 1
         },
         "factValue": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "schemaRef": {
-              "type": "string",
-              "minLength": 1
+          "oneOf": [
+            {
+              "$ref": "helix://contracts/types/ResolvedProductIdentity/v1"
             },
-            "recordDigest": {
-              "type": "string",
-              "minLength": 1,
-              "pattern": "^[a-f0-9]{64}$"
+            {
+              "$ref": "helix://contracts/types/MediaCastFact/v1"
             },
-            "entries": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "key": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "valueDigest": {
-                    "type": "string",
-                    "minLength": 1,
-                    "pattern": "^[a-f0-9]{64}$"
-                  }
-                },
-                "required": [
-                  "key",
-                  "valueDigest"
-                ]
-              },
-              "maxItems": 256
+            {
+              "$ref": "helix://contracts/types/ProductMetadataFact/v1"
             }
-          },
-          "required": [
-            "schemaRef",
-            "recordDigest",
-            "entries"
           ]
         },
         "factDigest": {
@@ -445,46 +405,16 @@
                 "minLength": 1
               },
               "factValue": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "schemaRef": {
-                    "type": "string",
-                    "minLength": 1
+                "oneOf": [
+                  {
+                    "$ref": "helix://contracts/types/ResolvedProductIdentity/v1"
                   },
-                  "recordDigest": {
-                    "type": "string",
-                    "minLength": 1,
-                    "pattern": "^[a-f0-9]{64}$"
+                  {
+                    "$ref": "helix://contracts/types/MediaCastFact/v1"
                   },
-                  "entries": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "properties": {
-                        "key": {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        "valueDigest": {
-                          "type": "string",
-                          "minLength": 1,
-                          "pattern": "^[a-f0-9]{64}$"
-                        }
-                      },
-                      "required": [
-                        "key",
-                        "valueDigest"
-                      ]
-                    },
-                    "maxItems": 256
+                  {
+                    "$ref": "helix://contracts/types/ProductMetadataFact/v1"
                   }
-                },
-                "required": [
-                  "schemaRef",
-                  "recordDigest",
-                  "entries"
                 ]
               },
               "factDigest": {
@@ -647,46 +577,16 @@
           "minLength": 1
         },
         "factValue": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "schemaRef": {
-              "type": "string",
-              "minLength": 1
+          "oneOf": [
+            {
+              "$ref": "helix://contracts/types/ResolvedProductIdentity/v1"
             },
-            "recordDigest": {
-              "type": "string",
-              "minLength": 1,
-              "pattern": "^[a-f0-9]{64}$"
+            {
+              "$ref": "helix://contracts/types/MediaCastFact/v1"
             },
-            "entries": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "key": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "valueDigest": {
-                    "type": "string",
-                    "minLength": 1,
-                    "pattern": "^[a-f0-9]{64}$"
-                  }
-                },
-                "required": [
-                  "key",
-                  "valueDigest"
-                ]
-              },
-              "maxItems": 256
+            {
+              "$ref": "helix://contracts/types/ProductMetadataFact/v1"
             }
-          },
-          "required": [
-            "schemaRef",
-            "recordDigest",
-            "entries"
           ]
         },
         "factDigest": {
@@ -710,11 +610,70 @@
                 "minLength": 1,
                 "maxLength": 256
               },
+              "personId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "displayName": {
                 "type": "string",
                 "minLength": 1
               },
+              "displayNameNormalized": {
+                "type": "string",
+                "minLength": 1
+              },
               "role": {
+                "type": "string",
+                "minLength": 1
+              },
+              "source": {
+                "type": "string",
+                "minLength": 1
+              },
+              "providerIdentities": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "provider": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "namespace": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "providerKey": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2048
+                    }
+                  },
+                  "required": [
+                    "provider",
+                    "namespace",
+                    "providerKey"
+                  ]
+                },
+                "maxItems": 128
+              },
+              "originEvidenceDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "confidenceClass": {
                 "type": "string",
                 "minLength": 1
               },
@@ -726,8 +685,14 @@
             },
             "required": [
               "relationId",
+              "personId",
               "displayName",
+              "displayNameNormalized",
               "role",
+              "source",
+              "providerIdentities",
+              "originEvidenceDigest",
+              "confidenceClass",
               "relationDigest"
             ]
           },
@@ -790,11 +755,41 @@
                 "type": "string",
                 "enum": [
                   "original_input",
-                  "structural_dependency"
+                  "structural_dependency",
+                  "related_input"
+                ]
+              },
+              "sourceRelatedReferenceId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "finalProductMaterialKey": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "dispositionKind": {
+                "type": "string",
+                "enum": [
+                  "carried_forward",
+                  "replaced_and_settled"
                 ]
               },
               "physicalIdentity": {
                 "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
+              },
+              "endpointId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
               },
               "location": {
                 "type": "string",
@@ -810,13 +805,39 @@
                 "pattern": "^[a-f0-9]{64}$"
               },
               "admittedControlRevision": {
-                "type": "integer",
-                "minimum": 1
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               },
               "admittedControlProjectionDigest": {
-                "type": "string",
-                "minLength": 1,
-                "pattern": "^[a-f0-9]{64}$"
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "derivedAuthorityDigest": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               },
               "settlementExpectation": {
                 "type": "string",
@@ -836,12 +857,17 @@
               "ordinal",
               "materialKey",
               "contextRole",
+              "sourceRelatedReferenceId",
+              "finalProductMaterialKey",
+              "dispositionKind",
               "physicalIdentity",
+              "endpointId",
               "location",
               "bindingRevision",
               "bindingEvidenceDigest",
               "admittedControlRevision",
               "admittedControlProjectionDigest",
+              "derivedAuthorityDigest",
               "settlementExpectation",
               "memberDigest"
             ]
@@ -1004,12 +1030,27 @@
           "minLength": 1,
           "maxLength": 256
         },
+        "acceptanceSpecRecordDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
         "productConformanceEvidenceId": {
           "type": "string",
           "minLength": 1,
           "maxLength": 256
         },
         "productConformanceEvidenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "evaluatedRequirementSetDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "productSnapshotDigest": {
           "type": "string",
           "minLength": 1,
           "pattern": "^[a-f0-9]{64}$"
@@ -1032,12 +1073,104 @@
         "libraRunId",
         "onDeckPackageId",
         "acceptanceSpecId",
+        "acceptanceSpecRecordDigest",
         "productConformanceEvidenceId",
         "productConformanceEvidenceDigest",
+        "evaluatedRequirementSetDigest",
+        "productSnapshotDigest",
         "unmetRequirementCount",
         "attestedAtMs",
         "attestationDigest"
       ]
+    },
+    "relatedDispositionSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "relatedAuthorityAssertions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sourceRelatedReferenceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "primaryMaterialKey": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "role": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sourceMaterialKey": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "finalProductMaterialKey": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "associationEvidenceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "dispositionBasisDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "bindingRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "bindingEvidenceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "dispositionKind": {
+            "type": "string",
+            "enum": [
+              "carried_forward",
+              "replaced_and_settled"
+            ]
+          },
+          "derivedAuthorityDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "assertionDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "sourceRelatedReferenceId",
+          "primaryMaterialKey",
+          "role",
+          "sourceMaterialKey",
+          "finalProductMaterialKey",
+          "associationEvidenceDigest",
+          "dispositionBasisDigest",
+          "bindingRevision",
+          "bindingEvidenceDigest",
+          "dispositionKind",
+          "derivedAuthorityDigest",
+          "assertionDigest"
+        ]
+      },
+      "maxItems": 1024
     },
     "controlCommitScope": {
       "type": "object",
@@ -1183,6 +1316,8 @@
     "offloadContextManifest",
     "productionProvenance",
     "productionAttestation",
+    "relatedDispositionSetDigest",
+    "relatedAuthorityAssertions",
     "controlCommitScope",
     "onDeckPackageId",
     "packageRevision",

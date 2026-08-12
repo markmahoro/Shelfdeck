@@ -198,6 +198,17 @@ function createCleanFacades(options) {
       body: options.routingManualSelection.choose(input.params.subjectId, input.body),
     });
   }
+  if (options.libraRunAdmin) {
+    facades.LibraFormationFacade.post_formation_runs_librarunid_actions_expedite = async (input) => ({
+      body: options.libraRunAdmin.expedite(input.params.libraRunId, input.body),
+    });
+    facades.LibraFormationFacade.post_formation_runs_librarunid_actions_cancel_expedite = async (input) => ({
+      body: options.libraRunAdmin.cancelExpedite(input.params.libraRunId, input.body),
+    });
+    facades.LibraFormationFacade.post_formation_runs_librarunid_actions_discard = async (input) => ({
+      body: options.libraRunAdmin.discard(input.params.libraRunId, input.body),
+    });
+  }
   if (options.perceptionAdmin) {
     facades.PerceptionAdminFacade.post_perception_records = async (input) => ({ status:202, body:options.perceptionAdmin.createRecord(input.body) });
     facades.PerceptionAdminFacade.get_perception_records = async (input) => ({ body:options.perceptionAdmin.listRecords(input.query || {}) });

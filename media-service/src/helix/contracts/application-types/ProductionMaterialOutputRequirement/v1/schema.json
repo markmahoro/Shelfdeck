@@ -68,7 +68,8 @@
         "fanart",
         "subtitle",
         "external_audio",
-        "chapter"
+        "chapter",
+        "sidecar"
       ]
     },
     "applicationScope": {

@@ -9,6 +9,11 @@ const {
 } = require('../../src/helix/domains/libra/model/run-admission-contracts');
 
 const D = (value) => canonicalDigest({ value });
+const EMPTY_RELATED_SCOPE = Object.freeze({
+  relatedReferenceSetDigest: canonicalDigest({ schema:'procurement.related-reference-set@1', items:[] }),
+  relatedDispositionScopeDigest: canonicalDigest({ schema:'procurement.related-disposition-scope@1', items:[] }),
+  items: Object.freeze([]),
+});
 function identity(inode, content) {
   const physicalIdentity = { mountScopeId: 'mount-1', inode, sizeBytes: 100, fingerprintAlgorithm: 'middle-256k-sha256', fingerprintVersion: 1, contentFingerprint: D(content) };
   const materialKey = canonicalDigest({ schema: 'physical-material-identity@2', ...physicalIdentity });
@@ -47,7 +52,8 @@ function basisFor({ subjectId = 'subject-1', headRevision = 0, structureKind = '
       currentRoutingDecisionId: 'routing-1', currentDecisionBasisId: 'basis-1', currentAcceptanceSpecId: 'spec-1', snapshotDigest: D('head-snapshot') },
     acceptanceSpec: spec,
     shelfProjection: { routingProjectionRevision: 1, projectionDigest: D('projection'), standardRevision: 1, standardDigest: D('standard') },
-    productionMaterialManifest: manifest
+    productionMaterialManifest: manifest,
+    relatedDispositionScope: EMPTY_RELATED_SCOPE
   });
 }
 

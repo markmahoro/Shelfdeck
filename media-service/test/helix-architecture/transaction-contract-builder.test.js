@@ -149,6 +149,15 @@ test('models polymorphic Domain Fact ownership without generic SQL authority', (
   }
   assert.ok(contract.variants.find((variant) => variant.variantId === 'libra_product_metadata_fact@1')
     .readTables.includes('fx_artifact_registry'));
+  const identity = contract.variants.find((variant) => variant.variantId === 'libra_resolved_identity_fact@1');
+  assert.deepEqual(identity.writeTables, [
+    'libra_subjects', 'libra_product_identity_revisions', 'libra_subject_season_continuity_claims',
+    'libra_product_fact_revisions', 'libra_product_fact_source_refs',
+    'fx_event_result_bindings', 'fx_commit_markers',
+  ]);
+  for (const table of ['libra_runs', 'libra_subjects', 'libra_product_identity_revisions',
+    'libra_subject_season_continuity_claims', 'libra_product_fact_revisions',
+    'libra_product_fact_source_refs']) assert.ok(identity.readTables.includes(table), table);
 });
 
 test('freezes the Perception page as one typed-result transaction and keeps its Outbox internal', () => {

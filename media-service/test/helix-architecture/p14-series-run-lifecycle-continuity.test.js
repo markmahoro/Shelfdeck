@@ -199,17 +199,19 @@ function fixture(run) {
   ).run(subjectId, 4, headDigest, null, 'series-basis', spec.acceptanceSpecId, 1);
   db.prepare(
     `INSERT INTO libra_material_bindings
-       (subject_id,material_key,role,mount_scope_id,inode,fingerprint_algorithm,
+       (subject_id,material_key,role,authority_kind,primary_material_key,
+        association_evidence_digest,disposition_basis_digest,mount_scope_id,inode,fingerprint_algorithm,
         fingerprint_version,content_fingerprint,size_bytes,endpoint_id,location,binding_revision,health_state,
         evidence_digest,origin_intake_decision_id,origin_offer_id,
         origin_candidate_package_id,origin_package_revision,origin_package_digest,
-        origin_candidate_delivery_snapshot_digest,origin_related_reference_set_digest,current)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
-  ).run(subjectId, materialKey, 'primary_payload', identity.mountScopeId,
+        origin_candidate_delivery_snapshot_digest,origin_related_reference_set_digest,
+        origin_related_disposition_scope_digest,current)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+  ).run(subjectId, materialKey, 'primary_payload', 'primary_control', null, null, null, identity.mountScopeId,
     identity.inode, identity.fingerprintAlgorithm, identity.fingerprintVersion, identity.contentFingerprint, 100,
     'series-endpoint', '/library/series.mkv', 1, 'active', D('binding'),
     'series-intake', 'series-offer', 'series-candidate', 1, D('package'),
-    D('delivery'), D('related'), 1);
+    D('delivery'), D('related'), null, 1);
   for (const claim of [...episodeClaims].reverse()) {
     db.prepare(
       `INSERT INTO libra_material_binding_episode_claims
@@ -309,6 +311,11 @@ function fixture(run) {
       standardDigest: D('standard'),
     },
     productionMaterialManifest: manifest,
+    relatedDispositionScope: {
+      relatedReferenceSetDigest: canonicalDigest({ schema:'procurement.related-reference-set@1', items:[] }),
+      relatedDispositionScopeDigest: canonicalDigest({ schema:'procurement.related-disposition-scope@1', items:[] }),
+      items: [],
+    },
   });
   const admission = buildRunAdmissionDecision({
     admissionKind: 'initial',

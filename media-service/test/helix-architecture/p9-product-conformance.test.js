@@ -24,7 +24,8 @@ const valid=(ref,value)=>schemaValidator.validate(ref,value);
 function acceptanceSpec() {
   return { schemaRef:'libra.acceptance-spec@1', schemaVersion:1, draftId:'draft-1', draftKind:'acceptance_spec',
     basisDigest:D('basis'), draftDigest:D('draft'), producedAtMs:1, subjectId:'subject-1', targetShelfId:'shelf-1',
-    contentProfile:'movie', structureKind:'single', productScope:{scopeKind:'product',episodeKeys:[],scopeDigest:D('scope')},
+    contentProfile:'movie', structureKind:'single', productScope:{scopeKind:'single',subjectId:'subject-1',subjectIntakeRevision:1,
+      episodeKeys:[],scopeDigest:D('scope')},
     shelfRoutingProjectionRevision:1,shelfProjectionDigest:D('shelf-projection'),shelfStandardRevision:1,
     shelfStandardDigest:D('standard'),decisionBasisId:'decision-1',decisionBasisDigest:D('decision'),
     requirements:{identity:{identityKind:'internal_identity',requiredProvider:null,requireSeasonNumber:false},
@@ -76,7 +77,8 @@ function productMaterialManifest() {
     bindingKind:'libra_material_binding',bindingRevision:1,bindingEvidenceDigest:D('binding'),originCandidateDeliveryRef:{intakeDecisionId:'intake-1',
       offerId:'offer-1',candidatePackageId:'candidate-1',packageRevision:1,packageDigest:D('candidate'),candidateDeliverySnapshotDigest:D('delivery'),
       relatedReferenceSetDigest:D('related')},workspaceReferenceId:null,workspaceMaterialHandle:null,admittedControlRevision:1,
-    admittedControlProjectionDigest:D('admitted-control'),outputRequirementDigest:D('output-requirement'),episodeClaims:[],
+    admittedControlProjectionDigest:D('admitted-control'),sourceRelatedReferenceId:null,derivedAuthorityDigest:null,
+    outputRequirementDigest:D('output-requirement'),episodeClaims:[],
     episodeClaimSetDigest:canonicalDigest({schema:'libra.production-material-episode-claims@1',items:[]}),controlOperation:'assert_existing_input',
     expectedControlRevision:1,expectedControlProjectionDigest:D('expected-control'),committedControlRevision:2,
     committedControlProjectionDigest:D('committed-control')}, 'memberDigest');

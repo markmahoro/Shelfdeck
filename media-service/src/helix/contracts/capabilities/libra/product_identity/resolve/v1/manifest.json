@@ -3,7 +3,7 @@
   "capabilityRef": "libra.product_identity.resolve@1",
   "contractVersion": 1,
   "ownerScope": "libra",
-  "effectClass": "pure_observation",
+  "effectClass": "domain_fact_commit",
   "inputPorts": {
     "identityClaim": {
       "schemaRef": "helix://contracts/capabilities/libra.product_identity.resolve/v1/inputs#/$defs/identityClaim",
@@ -17,6 +17,11 @@
     },
     "productStructure": {
       "schemaRef": "helix://contracts/capabilities/libra.product_identity.resolve/v1/inputs#/$defs/productStructure",
+      "required": true,
+      "cardinality": "one"
+    },
+    "domainFactCommitHandle": {
+      "schemaRef": "helix://contracts/capabilities/libra.product_identity.resolve/v1/inputs#/$defs/domainFactCommitHandle",
       "required": true,
       "cardinality": "one"
     }
@@ -34,7 +39,7 @@
   },
   "sourceLocator": {
     "section": "8.6.5",
-    "line": 9501,
-    "lineDigest": "6dce1265b0101081f5902721342d86b96e19ad4165b69dd8ef7b9cf241da261f"
+    "line": 9540,
+    "lineDigest": "9887ddf20ca5c3dcfad278590b44b72fefe5bd7686dfaaecc0bd13b9f56de203"
   }
 }

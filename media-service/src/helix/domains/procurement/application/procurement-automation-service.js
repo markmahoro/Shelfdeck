@@ -624,7 +624,10 @@ function controlHandle(runBasis) {
         revision: member.controlSnapshot.controlRevision,
       })),
     ),
-    receiptContract: RESULT_SCHEMA,
+    receiptContract: Object.freeze({
+      receiptSchemaRef: RESULT_SCHEMA,
+      controlRevisionSetSchemaRef: 'procurement.control-revision-set@1',
+    }),
     eventFenceDigest: canonicalDigest({
       schema: 'procurement.run-admission-control-event-fence@1',
       procurementRunId: runBasis.procurementRunId,

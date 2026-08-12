@@ -216,7 +216,16 @@ function assertHandle(handle, changes, authorizedScopeDigest) {
       changes.length === 0 || changes.length > 1024) {
     fail('P3_CONTROL_INVALID_HANDLE', 'Responsibility Control Commit Handle is invalid.');
   }
-  for (const field of ['handleId', 'ownerDomain', 'processType', 'processId', 'receiptContract', 'eventFenceDigest']) text(handle[field], field);
+  for (const field of ['handleId', 'ownerDomain', 'processType', 'processId', 'eventFenceDigest']) text(handle[field], field);
+  if (!handle.receiptContract ||
+      Object.keys(handle.receiptContract).length !== 2) {
+    fail('P3_CONTROL_INVALID_RECEIPT_CONTRACT',
+      'Control Handle requires one closed Receipt reconstruction contract.');
+  }
+  text(handle.receiptContract.receiptSchemaRef,
+    'receiptContract.receiptSchemaRef');
+  text(handle.receiptContract.controlRevisionSetSchemaRef,
+    'receiptContract.controlRevisionSetSchemaRef');
   for (const field of ['basisDigest', 'canonicalFactSetDigest', 'bindingSetDigest', 'controlScopeDigest', 'eventFenceDigest']) sha(handle[field], field);
   if (!handle.basisRef || !Number.isSafeInteger(handle.basisRef.revision) || handle.basisRef.revision < 1) fail(
     'P3_CONTROL_INVALID_BASIS_REF', 'Control Handle requires a revisioned Basis reference.'

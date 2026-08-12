@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const { canonicalDigest, canonicalJson } = require('./helix/contracts/canonical-json');
 const { createRepositoryDefinition } = require('./helix/foundation/persistence/owner-repository');
 const { fingerprintBuffer } = require('./helix/integrations/bounded-material-fingerprint');
@@ -29,7 +30,13 @@ function relative(value) {
 }
 
 function digestBytes(bytes) {
-  return require('node:crypto').createHash('sha256').update(bytes).digest('hex');
+  return crypto.createHash('sha256').update(bytes).digest('hex');
+}
+
+async function digestFile(location) {
+  const hash = crypto.createHash('sha256');
+  for await (const chunk of fs.createReadStream(location)) hash.update(chunk);
+  return hash.digest('hex');
 }
 
 const ARTIFACT_KINDS = Object.freeze([
@@ -80,7 +87,7 @@ function definitions(schemaManifest) {
           kind: 'select-one',
           tableId: 'fx_effect_journal',
           columns: [
-            'effect_id', 'effect_class', 'idempotency_key', 'intent_digest', 'state',
+            'effect_id', 'event_attempt_id', 'effect_class', 'idempotency_key', 'intent_digest', 'state',
             'external_receipt_ref', 'output_digest', 'verified_at_ms', 'updated_at_ms',
           ],
           keyColumns: ['effect_class', 'idempotency_key'],
@@ -253,6 +260,8 @@ function createCleanWorkspaceProductPort(options) {
   }
   const repositories = definitions(options.schemaManifest);
   const absoluteRoot = path.resolve(options.rootPath);
+  const externalMaterialRoots = Object.freeze([...(options.externalMaterialRoots || [])]
+    .map((item) => path.resolve(item)));
   const rootId = 'service-libra-production-workspace';
   const endpointId = 'service-local-workspace';
   const mountScopeId = canonicalDigest({
@@ -473,8 +482,37 @@ function createCleanWorkspaceProductPort(options) {
     );
   }
 
+  function runtimeEffectAuthority(request) {
+    const authority = request?.runtimeEffectAuthority;
+    if (authority === undefined) return null;
+    if (!authority || authority.effectClass !== 'workspace_write' ||
+        typeof authority.eventAttemptId !== 'string' || !authority.eventAttemptId ||
+        typeof authority.idempotencyKey !== 'string' || !authority.idempotencyKey) {
+      fail('CLEAN_WORKSPACE_RUNTIME_EFFECT_AUTHORITY_INVALID',
+        'Runtime-managed Workspace effects require the exact Event Attempt authority.');
+    }
+    const effect = execute(
+      'clean_workspace_runtime_effect_read',
+      'execution-foundation',
+      repositories.foundation,
+      (context) => context.repository(
+        repositories.foundation.repositoryId,
+      ).invoke('find_effect', {
+        effect_class: authority.effectClass,
+        idempotency_key: authority.idempotencyKey,
+      }),
+    );
+    if (!effect || effect.event_attempt_id !== authority.eventAttemptId ||
+        effect.state !== 'intended') {
+      fail('CLEAN_WORKSPACE_RUNTIME_EFFECT_AUTHORITY_MISSING',
+        'Workspace effect is not bound to the active Event Attempt intent.');
+    }
+    return Object.freeze({ authority:Object.freeze({ ...authority }), effect:Object.freeze(effect) });
+  }
+
   function materializeArtifact(request) {
     const identity = artifactEffectIdentity(request);
+    const runtimeAuthority = runtimeEffectAuthority(request);
     const bytes = Buffer.isBuffer(request?.bytes)
       ? request.bytes
       : Buffer.from(request?.bytes || '');
@@ -483,12 +521,14 @@ function createCleanWorkspaceProductPort(options) {
         'Workspace Artifact output bytes are required.');
     }
     const digestHex = digestBytes(bytes);
-    const prior = recordIntent(
-      identity.effectClass,
-      identity.effectId,
-      identity.idempotencyKey,
-      identity.intentDigest,
-    );
+    const prior = runtimeAuthority
+      ? Object.freeze({ replayed:false, state:'intended', outputDigest:null, externalReceiptRef:null })
+      : recordIntent(
+        identity.effectClass,
+        identity.effectId,
+        identity.idempotencyKey,
+        identity.intentDigest,
+      );
     if (prior.state === 'committed') {
       if (prior.outputDigest !== digestHex ||
           !exactReality(identity.target, digestHex, bytes.length)) {
@@ -523,9 +563,6 @@ function createCleanWorkspaceProductPort(options) {
     const inode = stat.ino.toString();
     const bounded = fingerprintBuffer(bytes);
     const physicalIdentity = Object.freeze({
-      schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v2',
-      schemaVersion: 2,
-      materialKey: '',
       mountScopeId,
       inode,
       sizeBytes: bytes.length,
@@ -538,7 +575,6 @@ function createCleanWorkspaceProductPort(options) {
       fingerprintAlgorithm:bounded.fingerprintAlgorithm, fingerprintVersion:bounded.fingerprintVersion,
       contentFingerprint:bounded.contentFingerprint,
     });
-    const materialIdentity = Object.freeze({ ...physicalIdentity, materialKey });
     const handleId = canonicalDigest({
       schema: 'foundation.workspace-material-handle-id@1',
       workspaceId: request.workspaceId,
@@ -555,7 +591,7 @@ function createCleanWorkspaceProductPort(options) {
       processId: request.libraRunId,
       endpointId,
       materialKey,
-      physicalIdentity: materialIdentity,
+      physicalIdentity,
       rootHandleRef,
       relativePath: identity.relativePath,
       digestAlgorithm: 'sha256',
@@ -572,7 +608,7 @@ function createCleanWorkspaceProductPort(options) {
       processId: request.libraRunId,
       endpointId,
       materialKey,
-      physicalIdentity: materialIdentity,
+      physicalIdentity,
       rootHandleRef,
       relativePath: identity.relativePath,
       digestAlgorithm: 'sha256',
@@ -619,12 +655,18 @@ function createCleanWorkspaceProductPort(options) {
       repositories.foundation,
       (context) => {
         const repo = context.repository(repositories.foundation.repositoryId);
-        const effect = repo.invoke('find_effect', {
-          effect_class: identity.effectClass,
-          idempotency_key: identity.idempotencyKey,
-        });
-        if (!effect || effect.effect_id !== identity.effectId ||
-            effect.intent_digest !== identity.intentDigest) {
+        const effect = runtimeAuthority
+          ? repo.invoke('find_effect', {
+            effect_class: runtimeAuthority.authority.effectClass,
+            idempotency_key: runtimeAuthority.authority.idempotencyKey,
+          })
+          : repo.invoke('find_effect', {
+            effect_class: identity.effectClass,
+            idempotency_key: identity.idempotencyKey,
+          });
+        if (!effect || (runtimeAuthority
+          ? effect.event_attempt_id !== runtimeAuthority.authority.eventAttemptId || effect.state !== 'intended'
+          : effect.effect_id !== identity.effectId || effect.intent_digest !== identity.intentDigest)) {
           fail('CLEAN_WORKSPACE_EFFECT_MISSING',
             'Workspace Artifact intent is absent.');
         }
@@ -635,7 +677,7 @@ function createCleanWorkspaceProductPort(options) {
         const existingArtifact = repo.invoke('find_artifact', {
           artifact_handle_id: artifactHandleId,
         });
-        if (effect.state === 'committed') {
+        if (!runtimeAuthority && effect.state === 'committed') {
           const storedMaterial = mapMaterial(existingMaterial);
           const storedArtifact = mapArtifact(existingArtifact);
           if (canonicalJson(storedMaterial) !==
@@ -653,9 +695,25 @@ function createCleanWorkspaceProductPort(options) {
           });
         }
         if (effect.state !== 'intended' ||
-            existingMaterial || existingArtifact) {
+            (existingMaterial && !existingArtifact) || (!existingMaterial && existingArtifact)) {
           fail('CLEAN_WORKSPACE_EFFECT_STATE_CONFLICT',
             'Workspace Artifact effect state is inconsistent.');
+        }
+        if (existingMaterial && existingArtifact) {
+          const storedMaterial = mapMaterial(existingMaterial);
+          const storedArtifact = mapArtifact(existingArtifact);
+          if (canonicalJson(storedMaterial) !== canonicalJson(workspaceMaterialHandle) ||
+              canonicalJson(storedArtifact) !== canonicalJson(artifactHandle)) {
+            fail('CLEAN_WORKSPACE_EFFECT_REPLAY_CORRUPT',
+              'Workspace Artifact rows cannot reconstruct the same handles.');
+          }
+          return Object.freeze({
+            replayed: true,
+            effectId: runtimeAuthority ? effect.effect_id : identity.effectId,
+            intentDigest: runtimeAuthority ? effect.intent_digest : identity.intentDigest,
+            workspaceMaterialHandle: storedMaterial,
+            artifactHandle: storedArtifact,
+          });
         }
         repo.invoke('insert_material', {
           workspace_id: request.workspaceId,
@@ -698,7 +756,7 @@ function createCleanWorkspaceProductPort(options) {
           state: 'active',
           created_at_ms: context.commitTimeMs,
         });
-        if (repo.invoke('commit_effect', {
+        if (!runtimeAuthority && repo.invoke('commit_effect', {
           state: 'committed',
           external_receipt_ref: artifactHandle.storageRef,
           output_digest: digestHex,
@@ -713,8 +771,8 @@ function createCleanWorkspaceProductPort(options) {
         }
         return Object.freeze({
           replayed: false,
-          effectId: identity.effectId,
-          intentDigest: identity.intentDigest,
+          effectId: runtimeAuthority ? effect.effect_id : identity.effectId,
+          intentDigest: runtimeAuthority ? effect.intent_digest : identity.intentDigest,
           workspaceMaterialHandle,
           artifactHandle,
         });
@@ -895,6 +953,31 @@ function createCleanWorkspaceProductPort(options) {
         !target.startsWith(workspaceRoot + path.sep)) {
       fail('CLEAN_WORKSPACE_PATH_ESCAPE',
         'Provider Artifact escaped its controlled Workspace root.');
+    }
+    const runtimeAuthority = runtimeEffectAuthority(request);
+    if (runtimeAuthority) {
+      const outcome = await request.acquireBytes();
+      if (outcome?.resultKind === 'not_available') {
+        if (typeof outcome.reasonCode !== 'string' || !outcome.reasonCode) {
+          fail('CLEAN_WORKSPACE_ACQUIRE_BYTES',
+            'Unavailable Provider Artifact lacks a reason code.');
+        }
+        return Object.freeze({ resultKind:'not_available', reasonCode:outcome.reasonCode });
+      }
+      if (outcome?.resultKind !== 'acquired' ||
+          !Buffer.isBuffer(outcome.bytes) || !outcome.bytes.length) {
+        fail('CLEAN_WORKSPACE_ACQUIRE_BYTES',
+          'Provider Artifact acquisition returned no bytes.');
+      }
+      return Object.freeze({
+        resultKind:'acquired',
+        materialized:materializeArtifact({
+          ...request,
+          relativePath,
+          bytes:outcome.bytes,
+          provenanceRef:request.provenanceRef,
+        }),
+      });
     }
     const prior = recordIntent(
       effectClass,
@@ -1328,15 +1411,221 @@ function createCleanWorkspaceProductPort(options) {
     });
   }
 
+  async function materializeMedia(request) {
+    const root = ensureRoot();
+    const relativePath = relative(request?.relativePath);
+    if (typeof request?.libraRunId !== 'string' || !request.libraRunId ||
+        typeof request.workspaceId !== 'string' || !request.workspaceId ||
+        typeof request.intentDigest !== 'string' || !/^[a-f0-9]{64}$/.test(request.intentDigest) ||
+        typeof request.idempotencyKey !== 'string' || !request.idempotencyKey ||
+        typeof request.produce !== 'function') {
+      fail('CLEAN_WORKSPACE_MEDIA_INPUT', 'Workspace media Effect input is incomplete.');
+    }
+    const effectClass = 'libra_workspace_media_materialize';
+    const effectId = canonicalDigest({ schema:'foundation.effect-id@1', effectClass,
+      idempotencyKey:request.idempotencyKey });
+    const intent = { schema:'libra.workspace-media-materialize-intent@1', libraRunId:request.libraRunId,
+      workspaceId:request.workspaceId, rootSnapshotDigest:root.snapshotDigest, relativePath,
+      productionIntentDigest:request.intentDigest };
+    const journalIntentDigest = canonicalDigest(intent);
+    const target = path.resolve(absoluteRoot, request.workspaceId, ...relativePath.split('/'));
+    const workspaceRoot = path.resolve(absoluteRoot, request.workspaceId);
+    if (target !== workspaceRoot && !target.startsWith(workspaceRoot + path.sep)) {
+      fail('CLEAN_WORKSPACE_PATH_ESCAPE', 'Workspace media output escaped its controlled root.');
+    }
+    const prior = recordIntent(effectClass, effectId, request.idempotencyKey, journalIntentDigest);
+    fs.mkdirSync(path.dirname(target), { recursive:true });
+    if (prior.state !== 'committed' && !fs.existsSync(target)) {
+      const temporary = target + '.partial-' + effectId.slice(0, 16);
+      await request.produce(temporary);
+      if (!fs.existsSync(temporary) || !fs.statSync(temporary).isFile()) {
+        fail('CLEAN_WORKSPACE_MEDIA_OUTPUT_MISSING', 'Media Effect did not produce its bounded target.');
+      }
+      fs.renameSync(temporary, target);
+      if (typeof options.afterPhysicalEffect === 'function') options.afterPhysicalEffect(Object.freeze({
+        effectId, target, intentDigest:journalIntentDigest,
+      }));
+    }
+    if (!fs.existsSync(target) || !fs.statSync(target).isFile()) {
+      fail('CLEAN_WORKSPACE_MEDIA_REALITY_DRIFT', 'Workspace media output is absent.');
+    }
+    const stat = fs.statSync(target, { bigint:true });
+    const sizeBytes = Number(stat.size);
+    if (!Number.isSafeInteger(sizeBytes)) fail('CLEAN_WORKSPACE_MEDIA_SIZE', 'Workspace media output is too large.');
+    const digestHex = await digestFile(target);
+    if (prior.state === 'committed' && prior.outputDigest !== digestHex) {
+      fail('CLEAN_WORKSPACE_MEDIA_REALITY_DRIFT', 'Committed Workspace media bytes drifted.');
+    }
+    const bounded = require('./helix/integrations/bounded-material-fingerprint')
+      .computeBoundedMaterialFingerprintSync(target);
+    const physicalIdentity = Object.freeze({
+      mountScopeId, inode:String(stat.ino), sizeBytes,
+      fingerprintAlgorithm:bounded.fingerprintAlgorithm, fingerprintVersion:bounded.fingerprintVersion,
+      contentFingerprint:bounded.contentFingerprint,
+    });
+    const materialKey = canonicalDigest({ schema:'physical-material-identity@2', mountScopeId,
+      inode:physicalIdentity.inode, sizeBytes, fingerprintAlgorithm:bounded.fingerprintAlgorithm,
+      fingerprintVersion:bounded.fingerprintVersion, contentFingerprint:bounded.contentFingerprint });
+    const handleId = canonicalDigest({ schema:'foundation.workspace-material-handle-id@1',
+      workspaceId:request.workspaceId, materialKey, relativePath, referenceRevision:1 });
+    const handleBasis = { schemaRef:'helix://contracts/types/WorkspaceMaterialHandle/v1', schemaVersion:1,
+      handleId, workspaceId:request.workspaceId, ownerDomain:'libra', processId:request.libraRunId,
+      endpointId, materialKey, physicalIdentity, rootHandleRef, relativePath,
+      digestAlgorithm:'sha256', digestHex, sizeBytes, referenceRevision:1,
+      accessScope:'workspace_material_read' };
+    const workspaceMaterialHandle = Object.freeze({ ...handleBasis,
+      fenceDigest:canonicalDigest({ schema:'foundation.workspace-material-handle-fence@1',
+        handleId, workspaceId:request.workspaceId, ownerDomain:'libra', processId:request.libraRunId,
+        endpointId, materialKey, physicalIdentity, rootHandleRef, relativePath,
+        digestAlgorithm:'sha256', digestHex, sizeBytes, referenceRevision:1,
+        accessScope:'workspace_material_read' }) });
+    const committed = execute('clean_workspace_media_effect_commit', 'execution-foundation', repositories.foundation, (context) => {
+      const repo = context.repository(repositories.foundation.repositoryId);
+      const effect = repo.invoke('find_effect', { effect_class:effectClass, idempotency_key:request.idempotencyKey });
+      if (!effect || effect.effect_id !== effectId || effect.intent_digest !== journalIntentDigest) {
+        fail('CLEAN_WORKSPACE_MEDIA_JOURNAL', 'Workspace media Effect journal is absent.');
+      }
+      const existing = repo.invoke('find_material', { workspace_id:request.workspaceId, material_handle_id:handleId });
+      if (effect.state === 'committed') {
+        const stored = mapMaterial(existing);
+        if (canonicalJson(stored) !== canonicalJson(workspaceMaterialHandle)) {
+          fail('CLEAN_WORKSPACE_MEDIA_REPLAY_CORRUPT', 'Committed media Handle cannot be reconstructed.');
+        }
+        return Object.freeze({ replayed:true, workspaceMaterialHandle:stored });
+      }
+      if (effect.state !== 'intended' || existing) {
+        fail('CLEAN_WORKSPACE_MEDIA_STATE_CONFLICT', 'Workspace media Effect state conflicts.');
+      }
+      repo.invoke('insert_material', { workspace_id:request.workspaceId, material_handle_id:handleId,
+        material_key:materialKey, endpoint_id:endpointId, mount_scope_id:mountScopeId, inode:physicalIdentity.inode,
+        fingerprint_algorithm:bounded.fingerprintAlgorithm, fingerprint_version:bounded.fingerprintVersion,
+        content_fingerprint:bounded.contentFingerprint, relative_path:relativePath, digest_algorithm:'sha256',
+        digest_hex:digestHex, size_bytes:sizeBytes, reference_revision:1, owner_domain:'libra',
+        process_id:request.libraRunId, root_handle_ref:rootHandleRef, access_scope:'workspace_material_read',
+        handle_schema_ref:workspaceMaterialHandle.schemaRef, handle_json:canonicalJson(workspaceMaterialHandle),
+        handle_digest:canonicalDigest(workspaceMaterialHandle), fence_digest:workspaceMaterialHandle.fenceDigest,
+        state:'active' });
+      if (repo.invoke('commit_effect', { state:'committed', external_receipt_ref:'workspace://'+request.workspaceId+'/'+relativePath,
+        output_digest:digestHex, verified_at_ms:context.commitTimeMs, updated_at_ms:context.commitTimeMs,
+        effect_id:effectId, expected_state:'intended', expected_intent_digest:journalIntentDigest }).changes !== 1) {
+        fail('CLEAN_WORKSPACE_MEDIA_CAS', 'Workspace media Effect journal CAS failed.');
+      }
+      return Object.freeze({ replayed:false, workspaceMaterialHandle });
+    });
+    const receipt = { effectId, effectReceiptId:stableMediaReceipt(effectId),
+      effectScopeDigest:request.effectScopeDigest, outputTargetId:request.outputTargetId,
+      outputTargetDigest:request.outputTargetDigest, workspaceMaterialHandle:committed.workspaceMaterialHandle,
+      effectReceiptDigest:'' };
+    receipt.effectReceiptDigest = canonicalDigest(Object.fromEntries(Object.entries(receipt).filter(([key]) => key !== 'effectReceiptDigest')));
+    return Object.freeze(receipt);
+  }
+
+  async function importExternalMaterial(request) {
+    const stable = request?.stableEvidence;
+    const verified = request?.verifiedExternalPackage;
+    const contract = request?.workspaceDeliveryContract;
+    const externalHandle = stable?.stableExternalMaterialHandle;
+    if (!externalHandle || verified?.result !== 'passed' || !contract ||
+        contract.libraRunId === undefined ||
+        contract.stableExternalMaterialHandleId !== externalHandle.handleId ||
+        contract.verifiedPackageDigest !== canonicalDigest(verified) ||
+        !verified.verifiedMemberIds.includes(contract.externalMemberId)) {
+      fail('CLEAN_WORKSPACE_EXTERNAL_IMPORT_FENCE',
+        'External Workspace import does not bind one verified member and Run.');
+    }
+    const member = externalHandle.outputSnapshot.members.find((item) =>
+      item.externalMemberId === contract.externalMemberId);
+    if (!member || member.relativePath.includes('\\')) {
+      fail('CLEAN_WORKSPACE_EXTERNAL_IMPORT_MEMBER',
+        'External Workspace import member is absent or not canonical.');
+    }
+    const location = path.resolve(externalHandle.location);
+    let source = location;
+    if (!fs.existsSync(source) || !fs.statSync(source).isFile()) {
+      source = path.resolve(location, ...relative(member.relativePath).split('/'));
+    }
+    const allowed = externalMaterialRoots.some((root) =>
+      source === root || source.startsWith(root + path.sep));
+    if (!allowed || !fs.existsSync(source) || !fs.statSync(source).isFile()) {
+      fail('CLEAN_WORKSPACE_EXTERNAL_IMPORT_CONTAINMENT',
+        'External Workspace import source is outside the configured isolation roots.');
+    }
+    const sourceStat = fs.statSync(source);
+    if (sourceStat.size !== member.sizeBytes || await digestFile(source) !== member.checksumHex) {
+      fail('CLEAN_WORKSPACE_EXTERNAL_IMPORT_IDENTITY',
+        'External Workspace import source differs from its verified Provider snapshot.');
+    }
+    const effectScopeDigest = canonicalDigest({
+      schema: 'libra.external-workspace-import-scope@1',
+      contractId: contract.contractId,
+      contractDigest: contract.digest,
+      stableExternalMaterialHandleId: externalHandle.handleId,
+      externalMemberId: member.externalMemberId,
+    });
+    const receipt = await materializeMedia({
+      libraRunId: contract.libraRunId,
+      workspaceId: contract.workspaceId,
+      relativePath: contract.targetRelativePath,
+      intentDigest: contract.digest,
+      idempotencyKey: request.idempotencyKey,
+      effectScopeDigest,
+      outputTargetId: contract.contractId,
+      outputTargetDigest: contract.digest,
+      produce: (temporary) => fs.promises.copyFile(source, temporary),
+    });
+    if (receipt.workspaceMaterialHandle.sizeBytes !== member.sizeBytes ||
+        receipt.workspaceMaterialHandle.digestHex !== member.checksumHex) {
+      fail('CLEAN_WORKSPACE_EXTERNAL_IMPORT_RESULT',
+        'Imported Workspace material does not preserve the verified external member.');
+    }
+    return receipt.workspaceMaterialHandle;
+  }
+
+  function stableMediaReceipt(effectId) {
+    return 'libra-workspace-media-receipt-' + effectId.slice(0, 40);
+  }
+
+  function resolveMaterialLocation(handle) {
+    const root = ensureRoot();
+    if (!handle || handle.schemaRef !== 'helix://contracts/types/WorkspaceMaterialHandle/v1' ||
+        handle.schemaVersion !== 1 || handle.ownerDomain !== 'libra' || handle.rootHandleRef !== root.rootHandleRef ||
+        typeof handle.workspaceId !== 'string' || typeof handle.handleId !== 'string' || typeof handle.relativePath !== 'string') {
+      fail('CLEAN_WORKSPACE_MEDIA_HANDLE_INVALID', 'Workspace media read requires an exact typed Material Handle.');
+    }
+    const stored = execute('clean_workspace_media_read_handle', 'execution-foundation', repositories.foundation, (context) =>
+      mapMaterial(context.repository(repositories.foundation.repositoryId).invoke('find_material', {
+        workspace_id:handle.workspaceId, material_handle_id:handle.handleId,
+      })));
+    if (!stored || canonicalJson(stored) !== canonicalJson(handle)) {
+      fail('CLEAN_WORKSPACE_MEDIA_HANDLE_STALE', 'Workspace media Handle is absent or no longer exact.');
+    }
+    const target = path.resolve(absoluteRoot, handle.workspaceId, ...relative(handle.relativePath).split('/'));
+    const workspaceRoot = path.resolve(absoluteRoot, handle.workspaceId);
+    if (!target.startsWith(workspaceRoot + path.sep) || !fs.existsSync(target) || !fs.statSync(target).isFile()) {
+      fail('CLEAN_WORKSPACE_MEDIA_REALITY_DRIFT', 'Workspace media Reality is absent or escaped its root.');
+    }
+    const bounded = require('./helix/integrations/bounded-material-fingerprint').computeBoundedMaterialFingerprintSync(target);
+    if (bounded.contentFingerprint !== handle.physicalIdentity.contentFingerprint ||
+        bounded.fingerprintAlgorithm !== handle.physicalIdentity.fingerprintAlgorithm ||
+        bounded.fingerprintVersion !== handle.physicalIdentity.fingerprintVersion ||
+        Number(bounded.stat.size) !== handle.sizeBytes || String(bounded.stat.ino) !== handle.physicalIdentity.inode) {
+      fail('CLEAN_WORKSPACE_MEDIA_REALITY_DRIFT', 'Workspace media Reality no longer matches its bounded identity.');
+    }
+    return target;
+  }
+
   return Object.freeze({
     acquireArtifact,
     rootPath: absoluteRoot,
     rootSnapshot: ensureRoot,
     materializeArtifact,
+    materializeMedia,
+    importExternalMaterial,
     openFrameCompositeSink,
     recoverMaterializedArtifact,
     readArtifactBytes,
     readMaterializedArtifact,
+    resolveMaterialLocation,
     observeSpace,
     reclaimMaterial,
   });

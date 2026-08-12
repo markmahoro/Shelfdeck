@@ -116,8 +116,12 @@ function validateDomainInputSchemas(options) {
       WorkspaceCleanupEffectIntent: ['intentId', 'cleanupScopeId', 'workspaceId', 'materialHandleId', 'intentDigest'],
       WorkspaceCleanupCommitDecision: ['decisionId', 'cleanupScopeId', 'workspaceId', 'materialHandleId', 'decisionDigest'],
       MediaExecutionDeviceSnapshot: ['deviceId', 'probeRevision', 'capabilityDigest', 'snapshotDigest'],
-      EncodeIntent: ['intentId', 'revision', 'schemaRef', 'libraRunId', 'sourceHandleDigest', 'mediaRequirementDigest', 'intentDigest'],
+      EncodeIntent: ['intentId', 'revision', 'schemaRef', 'libraRunId', 'sourceHandleDigest', 'mediaRequirementDigest',
+        'planningPolicyRef', 'planningPolicyRevision', 'planningPolicyDigest', 'strategyOrdinal', 'sizeBudgetRevision',
+        'intentDigest'],
       RemuxIntent: ['intentId', 'revision', 'schemaRef', 'libraRunId', 'sourceHandleDigest', 'mediaRequirementDigest', 'intentDigest'],
+      ProductionSourceScopeReference: ['schemaRef', 'schemaVersion', 'libraRunId', 'scopeKind', 'scopeId', 'scopeDigest',
+        'memberSetDigest', 'memberCount', 'selectedPayloadSetDigest', 'sourceReferenceDigest'],
       MediaRequirement: ['requirementId', 'revision', 'schemaRef', 'acceptanceSpecId', 'acceptanceSpecRecordDigest', 'requirementDigest'],
       SamplingPlan: ['contractId', 'revision', 'schemaRef', 'intervalMs', 'maxFrames', 'frameProfileDigest', 'typedParameters', 'digest'],
       FaceModelRef: ['contractId', 'revision', 'schemaRef', 'mode', 'modelId', 'modelRevision', 'modelDigest', 'runtimeKind',
@@ -165,7 +169,7 @@ function validateDomainInputSchemas(options) {
     }
     const exactBoundedContracts = new Set(['AnalysisSpec', 'ArtifactRequirement', 'ClusterParameters', 'EncodeIntent',
       'FaceModelRef', 'MediaRequirement', 'RemuxIntent', 'SamplingPlan', 'IdentityRequirement', 'SelectionCriteria',
-      'WorkspaceDeliveryContract']);
+      'WorkspaceDeliveryContract', 'ProductionSourceScopeReference']);
     if (schema['x-helix-role'] === 'bounded-contract' && !exactBoundedContracts.has(entry.id) && !(schema.required || []).includes('typedParameters')) findings.push(finding(
       'UNBOUNDED_INTENT_PARAMETERS', 'Bounded intent/requirement contracts require typedParameters.', { entryId: entry.id }
     ));

@@ -734,7 +734,10 @@ function createOnDeckStore(options) {
           materialKey: item.identity.materialKey,
           revision: item.expectedRevision,
         }))),
-      receiptContract: 'OnDeckCommitReceipt@1',
+      receiptContract: Object.freeze({
+        receiptSchemaRef: 'helix://contracts/types/OnDeckCommitReceipt/v1',
+        controlRevisionSetSchemaRef: 'arca.on-deck-committed-control-set@1',
+      }),
       eventFenceDigest: canonicalDigest({
         schema: 'arca.on-deck-commit-event-fence@1',
         onDeckRunId: request.onDeckRunId,

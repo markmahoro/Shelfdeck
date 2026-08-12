@@ -10,6 +10,8 @@ function repository(schemaManifest){return createRepositoryDefinition({repositor
     'payload_schema_ref','payload_json','payload_digest','state','available_at_ms','created_at_ms'],keyColumns:['message_id'],safeIntegers:true}
 }});}
 function createOutboxDispatcherHost(options){const repo=repository(options.schemaManifest),inbox=createInboxCoordinator(options),now=options.now||Date.now;
+  const deferredDeliveryKeys=new Set(options.deferredDeliveryKeys||[]);
+  if([...deferredDeliveryKeys].some((item)=>typeof item!=='string'||!item.includes('->')))throw new TypeError('Deferred Outbox delivery keys are invalid.');
   const libraReceiptRepository=createRepositoryDefinition({repositoryId:'libra_intake_delivery_receipt',owner:'libra',schemaManifest:options.schemaManifest,
     statements:{read_head:{kind:'select-one',tableId:'libra_subject_continuity_heads',columns:['head_id'],keyColumns:['head_id']}}});
   const libraRoutingSignalRepository=createRepositoryDefinition({repositoryId:'libra_routing_policy_signal',owner:'libra',readOnly:true,schemaManifest:options.schemaManifest,
@@ -18,8 +20,9 @@ function createOutboxDispatcherHost(options){const repo=repository(options.schem
     statements:{find_source:{kind:'select-one',tableId:'perception_sources',columns:['perception_source_id','config_revision'],keyColumns:['perception_source_id']}}});
   let state='created',timer=null,running=null;
   function due(){return options.unitOfWork.execute([{participantId:'outbox_dispatcher_due',owner:'execution-foundation',repositories:[repo],execute(context){
-    const r=context.repository(repo.repositoryId);return r.invoke('list_due',{}).filter((item)=>item.state!=='acked'&&Number(item.next_attempt_at_ms)<=now()).slice(0,100)
-      .map((delivery)=>Object.freeze({delivery,message:r.invoke('find_message',{message_id:delivery.message_id})}));}}]).outbox_dispatcher_due;}
+    const r=context.repository(repo.repositoryId);return r.invoke('list_due',{}).filter((item)=>item.state!=='acked'&&Number(item.next_attempt_at_ms)<=now())
+      .map((delivery)=>Object.freeze({delivery,message:r.invoke('find_message',{message_id:delivery.message_id})}))
+      .filter((item)=>!deferredDeliveryKeys.has(item.message.message_kind+'->'+item.delivery.consumer_domain)).slice(0,100);}}]).outbox_dispatcher_due;}
   function envelope(item,payload){return Object.freeze({messageId:item.message.message_id,dedupKey:item.message.dedup_key,producerDomain:item.message.producer_domain,
     consumerDomain:item.delivery.consumer_domain,payloadSchemaRef:item.message.payload_schema_ref,payloadDigest:item.message.payload_digest,payload});}
   async function deliver(item){let payload;try{payload=JSON.parse(item.message.payload_json);}catch{throw new Error('Outbox payload JSON is corrupt.');}

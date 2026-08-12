@@ -176,37 +176,54 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "objectId": {
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "role": {
             "type": "string",
             "minLength": 1,
             "maxLength": 256
           },
-          "revision": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "schemaRef": {
-            "type": "string",
-            "minLength": 1
-          },
-          "snapshotDigest": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[a-f0-9]{64}$"
-          },
-          "objectKind": {
-            "const": "people-hint"
+          "providerIdentities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "provider": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "namespace": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "providerKey": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 512
+                }
+              },
+              "required": [
+                "provider",
+                "namespace",
+                "providerKey"
+              ]
+            },
+            "maxItems": 16
           }
         },
         "required": [
-          "objectId",
-          "revision",
-          "schemaRef",
-          "snapshotDigest",
-          "objectKind"
+          "displayName",
+          "role",
+          "providerIdentities"
         ]
       },
-      "maxItems": 1024
+      "maxItems": 64
     },
     "artifactHints": {
       "type": "array",

@@ -60,7 +60,7 @@ function libraDefinition(schemaManifest) {
         tableId: 'libra_runs',
         columns: [
           'libra_run_id', 'subject_id', 'acceptance_spec_id', 'run_material_manifest_id',
-          'execution_basis_digest', 'run_scope_digest', 'state', 'state_revision',
+          'execution_basis_record_json', 'execution_basis_digest', 'run_scope_digest', 'state', 'state_revision',
           'state_digest', 'package_revision_head',
         ],
         keyColumns: ['libra_run_id'],
@@ -131,6 +131,13 @@ function libraDefinition(schemaManifest) {
         keyColumns: ['workspace_id', 'reference_id', 'reference_revision'],
         safeIntegers: true,
       },
+      list_bindings: {
+        kind:'select-all', tableId:'libra_material_bindings', safeIntegers:true,
+        columns:['subject_id','material_key','role','authority_kind','primary_material_key','association_evidence_digest',
+          'disposition_basis_digest','mount_scope_id','inode','fingerprint_algorithm','fingerprint_version','content_fingerprint',
+          'size_bytes','endpoint_id','location','binding_revision','health_state','evidence_digest','current'],
+        keyColumns:['subject_id'],
+      },
       find_fact: {
         kind: 'select-one',
         tableId: 'libra_product_fact_revisions',
@@ -162,6 +169,7 @@ function libraDefinition(schemaManifest) {
           'artifact_manifest_id', 'artifact_manifest_digest',
           'media_cast_fact_id', 'media_cast_fact_digest',
           'offload_context_manifest_id', 'offload_context_digest',
+          'related_disposition_set_digest',
           'production_provenance_schema_ref', 'production_provenance_json',
           'production_provenance_digest', 'attestation_schema_ref', 'attestation_json',
           'attestation_digest', 'promotion_decision_digest', 'package_digest',
@@ -173,6 +181,7 @@ function libraDefinition(schemaManifest) {
         tableId: 'libra_product_package_materials',
         columns: [
           'on_deck_package_id', 'ordinal', 'material_handle_id', 'material_key', 'role',
+          'source_related_reference_id', 'derived_authority_digest',
           'mount_scope_id', 'inode', 'fingerprint_algorithm', 'fingerprint_version', 'content_fingerprint',
           'location_kind', 'endpoint_id', 'location', 'root_handle_ref', 'relative_path',
           'binding_kind', 'binding_revision', 'binding_evidence_digest',
@@ -217,9 +226,11 @@ function libraDefinition(schemaManifest) {
         tableId: 'libra_offload_context_materials',
         columns: [
           'on_deck_package_id', 'ordinal', 'material_key', 'context_role',
+          'source_related_reference_id', 'final_product_material_key', 'disposition_kind',
           'mount_scope_id', 'inode', 'size_bytes', 'fingerprint_algorithm', 'fingerprint_version', 'content_fingerprint',
           'endpoint_id', 'location', 'binding_revision', 'binding_evidence_digest',
           'admitted_control_revision', 'admitted_control_projection_digest',
+          'derived_authority_digest',
           'settlement_expectation', 'context_member_digest',
         ],
       },
@@ -353,6 +364,30 @@ function assertLibraSnapshot(repo, decision) {
       runManifest.manifest_digest !== decision.runMaterialManifestRef.manifestDigest) {
     fail('P9_PROMOTION_RUN_MANIFEST', 'Run Material Manifest continuity is invalid.');
   }
+  const basis=parse(run.execution_basis_record_json,'P9_PROMOTION_RUN_BASIS_CORRUPT');
+  if(basis.executionBasisDigest!==run.execution_basis_digest||!basis.relatedDispositionScope||
+      canonicalJson(basis.relatedDispositionScope.items)!==canonicalJson(decision.relatedAuthorityAssertions.map((item)=>({
+        referenceId:item.sourceRelatedReferenceId,primaryMaterialKey:item.primaryMaterialKey,role:item.role,
+        materialKey:item.sourceMaterialKey,associationEvidenceDigest:item.associationEvidenceDigest,
+        dispositionBasisDigest:item.dispositionBasisDigest})))){
+    fail('P9_PROMOTION_RELATED_BASIS','Promotion Related assertions do not cover the frozen Run Basis.');
+  }
+  const bindingRows=repo.invoke('list_bindings',{subject_id:run.subject_id})
+    .filter((row)=>Number(row.current)===1&&row.health_state==='active'&&row.authority_kind==='related_derived');
+  if(bindingRows.length!==decision.relatedAuthorityAssertions.length)fail('P9_PROMOTION_RELATED_BINDING','Related Binding count changed.');
+  for(const assertion of decision.relatedAuthorityAssertions){
+    const row=bindingRows.find((candidate)=>candidate.material_key===assertion.sourceMaterialKey&&
+      candidate.primary_material_key===assertion.primaryMaterialKey&&candidate.role===assertion.role);
+    const derived=row&&canonicalDigest({schema:'libra.related-derived-authority@1',subjectId:run.subject_id,
+      sourceRelatedReferenceId:assertion.sourceRelatedReferenceId,primaryMaterialKey:assertion.primaryMaterialKey,
+      role:assertion.role,sourceMaterialKey:assertion.sourceMaterialKey,
+      associationEvidenceDigest:row.association_evidence_digest,dispositionBasisDigest:row.disposition_basis_digest,
+      bindingRevision:Number(row.binding_revision),bindingEvidenceDigest:row.evidence_digest});
+    if(!row||row.association_evidence_digest!==assertion.associationEvidenceDigest||
+      row.disposition_basis_digest!==assertion.dispositionBasisDigest||Number(row.binding_revision)!==assertion.bindingRevision||
+      row.evidence_digest!==assertion.bindingEvidenceDigest||derived!==assertion.derivedAuthorityDigest)
+      fail('P9_PROMOTION_RELATED_BINDING','Related assertion differs from the immutable Libra Binding.');
+  }
   if (decision.workspaceRef === null) {
     if (decision.productStagingReferences.length !== 0) {
       fail('P9_PROMOTION_WORKSPACE_SCOPE', 'Direct-original Promotion cannot carry staging references.');
@@ -440,6 +475,8 @@ function materialRow(packageId, member) {
     material_handle_id: workspace?.handleId || member.physicalIdentity.materialKey,
     material_key: member.materialKey,
     role: member.role,
+    source_related_reference_id: member.sourceRelatedReferenceId ?? null,
+    derived_authority_digest: member.derivedAuthorityDigest ?? null,
     mount_scope_id: member.physicalIdentity.mountScopeId,
     inode: member.physicalIdentity.inode,
     fingerprint_algorithm: member.physicalIdentity.fingerprintAlgorithm,
@@ -470,10 +507,10 @@ function materialRow(packageId, member) {
     digest_hex: workspace?.digestHex || member.physicalIdentity.contentFingerprint,
     size_bytes: member.sizeBytes,
     control_operation: member.controlOperation,
-    expected_control_revision: member.expectedControlRevision,
-    expected_control_projection_digest: member.expectedControlProjectionDigest,
-    committed_control_revision: member.committedControlRevision,
-    committed_control_projection_digest: member.committedControlProjectionDigest,
+    expected_control_revision: member.expectedControlRevision ?? null,
+    expected_control_projection_digest: member.expectedControlProjectionDigest ?? null,
+    committed_control_revision: member.committedControlRevision ?? null,
+    committed_control_projection_digest: member.committedControlProjectionDigest ?? null,
     member_digest: member.memberDigest,
   };
 }
@@ -510,6 +547,7 @@ function writePackage(repo, commit, decision, snapshot) {
     media_cast_fact_digest: decision.mediaCastSnapshot.factDigest,
     offload_context_manifest_id: decision.offloadContextManifest.manifestId,
     offload_context_digest: decision.offloadContextManifest.manifestDigest,
+    related_disposition_set_digest: decision.relatedDispositionSetDigest,
     production_provenance_schema_ref: 'libra.production-provenance@1',
     production_provenance_json: canonicalJson(decision.productionProvenance),
     production_provenance_digest: decision.productionProvenance.provenanceDigest,
@@ -560,6 +598,9 @@ function writePackage(repo, commit, decision, snapshot) {
     ordinal: item.ordinal,
     material_key: item.materialKey,
     context_role: item.contextRole,
+    source_related_reference_id: item.sourceRelatedReferenceId ?? null,
+    final_product_material_key: item.finalProductMaterialKey ?? null,
+    disposition_kind: item.dispositionKind ?? null,
     mount_scope_id: item.physicalIdentity.mountScopeId,
     inode: item.physicalIdentity.inode,
     size_bytes: item.physicalIdentity.sizeBytes,
@@ -570,8 +611,9 @@ function writePackage(repo, commit, decision, snapshot) {
     location: item.location,
     binding_revision: item.bindingRevision,
     binding_evidence_digest: item.bindingEvidenceDigest,
-    admitted_control_revision: item.admittedControlRevision,
-    admitted_control_projection_digest: item.admittedControlProjectionDigest,
+    admitted_control_revision: item.admittedControlRevision ?? null,
+    admitted_control_projection_digest: item.admittedControlProjectionDigest ?? null,
+    derived_authority_digest: item.derivedAuthorityDigest ?? null,
     settlement_expectation: item.settlementExpectation,
     context_member_digest: item.memberDigest,
   }));
@@ -596,8 +638,13 @@ function createDeliverablePromotionStore(options) {
   function publish(request) {
     const decision = assertPromotionDecision(request?.decision);
     if (request.transactionId !== TRANSACTION_ID ||
-        typeof request.commitMarker !== 'string' || !request.commitMarker ||
-        typeof request.resultId !== 'string' || !request.resultId) {
+        !request.commitMarker || typeof request.commitMarker !== 'object' || Array.isArray(request.commitMarker) ||
+        typeof request.commitMarker.commitMarker !== 'string' || !request.commitMarker.commitMarker ||
+        typeof request.commitMarker.effectId !== 'string' || !request.commitMarker.effectId ||
+        request.commitMarker.commitDigest !== decision.decisionDigest ||
+        typeof request.resultId !== 'string' || !request.resultId ||
+        (request.eventId !== undefined && (typeof request.eventId !== 'string' || !request.eventId)) ||
+        (request.effectReceiptId !== undefined && (typeof request.effectReceiptId !== 'string' || !request.effectReceiptId))) {
       fail('P9_PROMOTION_REQUEST', 'Promotion request is incomplete.');
     }
     let snapshot;
@@ -609,7 +656,7 @@ function createDeliverablePromotionStore(options) {
       boundBusinessOwner: 'libra',
       repositories: [foundation],
       execute(context) {
-        assertReplay(context.repository(foundation.repositoryId), request.commitMarker, decision);
+        assertReplay(context.repository(foundation.repositoryId), request.commitMarker.commitMarker, decision);
       },
     };
     const prepare = {
@@ -664,7 +711,7 @@ function createDeliverablePromotionStore(options) {
       handle: request.controlCommitHandle,
       changes: controlChanges,
       authorizedScopeDigest: decision.controlCommitScope.controlScopeDigest,
-      commitMarker: request.commitMarker,
+      commitMarker: request.commitMarker.commitMarker,
     });
     const scopeByKey = new Map(decision.controlCommitScope.items.map((item) => [item.materialKey, item]));
     const control = Object.freeze({
@@ -707,24 +754,24 @@ function createDeliverablePromotionStore(options) {
         const receiptDigest = canonicalDigest(commit.receipt);
         repo.invoke('insert_result', {
           result_id: request.resultId,
-          event_id: null,
+          event_id: request.eventId || null,
           outcome_kind: 'succeeded',
           result_schema_ref: RESULT_SCHEMA,
           result_json: receiptJson,
           result_digest: receiptDigest,
           evidence_schema_ref: 'helix://contracts/domain-types/LibraDeliverablePromotionDecision/v1',
           evidence_json: canonicalJson(decision),
-          evidence_digest: decision.decisionDigest,
-          effect_receipt_id: null,
+          evidence_digest: canonicalDigest(decision),
+          effect_receipt_id: request.effectReceiptId || null,
           committed_at_ms: context.commitTimeMs,
         });
         repo.invoke('insert_marker', {
-          commit_marker: request.commitMarker,
-          effect_id: null,
+          commit_marker: request.commitMarker.commitMarker,
+          effect_id: request.commitMarker.effectId,
           owner_domain: 'libra',
           scope_type: 'on_deck_package',
           scope_id: decision.onDeckPackageId,
-          commit_digest: decision.decisionDigest,
+          commit_digest: request.commitMarker.commitDigest,
           result_id: request.resultId,
           result_schema_ref: RESULT_SCHEMA,
           result_digest: receiptDigest,
