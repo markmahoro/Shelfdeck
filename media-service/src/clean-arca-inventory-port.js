@@ -93,6 +93,7 @@ function createCleanArcaInventoryPort(options) {
   }
   const foundation = foundationDefinition(options.schemaManifest);
   const workspaceRoot = path.resolve(options.workspaceRoot);
+  const statfsSync = options.statfsSync || fs.statfsSync;
 
   function execute(participantId, body) {
     return options.unitOfWork.execute([{
@@ -129,28 +130,12 @@ function createCleanArcaInventoryPort(options) {
     return source;
   }
 
-  function targetName(member, primaryBase) {
-    if (member.role === 'primary_payload') {
-      return path.basename(sourcePath(member));
-    }
-    const extensions = {
-      metadata_sidecar: '.nfo',
-      poster: '.jpg',
-      fanart: '.jpg',
-      subtitle: '.srt',
-      external_audio: '.mka',
-      chapter: '.xml',
-    };
-    const extension = extensions[member.role] ||
-      path.extname(sourcePath(member)) || '.bin';
-    const suffixes = {
-      poster: '-poster',
-      fanart: '-fanart',
-      subtitle: '',
-      external_audio: '-audio',
-      chapter: '-chapters',
-    };
-    return primaryBase + (suffixes[member.role] || '') + extension;
+  function targetName(member) {
+    // Libra has already frozen every Product member and its intended artifact
+    // name. Arca establishes the containing Shelf directory; it must not
+    // collapse historical Related files and newly produced artifacts merely
+    // because they share a semantic role.
+    return path.basename(sourcePath(member));
   }
 
   function observe(source, member) {
@@ -178,7 +163,7 @@ function createCleanArcaInventoryPort(options) {
         contentFingerprint:bounded.contentFingerprint }) });
   }
 
-  function buildPlan(request) {
+  function resolveTargetLocation(request) {
     const targetRoot = path.resolve(request?.shelf?.target?.rootLocation || '');
     const shelf = request?.shelf;
     const packageValue = request?.onDeckProductPackage;
@@ -198,32 +183,42 @@ function createCleanArcaInventoryPort(options) {
       identityFact.canonicalTitle || packageValue.onDeckPackageId;
     const placement = shelf.placement?.value || {};
     const folderTemplate = placement.folderTemplate || '{title}';
-    if (folderTemplate !== '{title}') {
+    if (!['{title}', '{title} ({year})'].includes(folderTemplate)) {
       fail('CLEAN_ARCA_PLACEMENT_TEMPLATE_UNSUPPORTED',
-        'Beta Movie Inventory supports only the frozen title folder template.');
+        'Beta Movie Inventory received an unsupported frozen folder template.');
     }
-    const folder = safeSegment(title);
+    const year = identityFact.year || identityFact.releaseYear ||
+      identityFact.release_year || null;
+    const renderedFolder = folderTemplate === '{title} ({year})' &&
+      Number.isSafeInteger(Number(year))
+      ? `${title} (${Number(year)})`
+      : title;
+    const folder = safeSegment(renderedFolder);
     const targetDirectory = path.resolve(targetRoot, folder);
     if (!contained(targetRoot, targetDirectory)) {
       fail('CLEAN_ARCA_TARGET_ESCAPE',
         'Final Inventory directory escaped the Shelf Target.');
     }
+    return Object.freeze({ targetRoot, targetDirectory });
+  }
+
+  function buildPlan(request) {
+    const { targetRoot, targetDirectory } = resolveTargetLocation(request);
+    const shelf = request.shelf;
+    const packageValue = request.onDeckProductPackage;
     const primary = packageValue.productMaterialManifest.members
       .find((member) => member.role === 'primary_payload');
     if (!primary) {
       fail('CLEAN_ARCA_PRIMARY_MISSING',
         'Product Material Manifest has no primary payload.');
     }
-    const primaryBase = safeSegment(
-      path.basename(sourcePath(primary), path.extname(sourcePath(primary))),
-    );
     const contentProfile =
       packageValue.productStructureSnapshot?.structureKind === 'season'
         ? 'series'
         : 'movie';
     const plans = packageValue.productMaterialManifest.members.map((member) => {
       const source = sourcePath(member);
-      const name = safeSegment(targetName(member, primaryBase));
+      const name = safeSegment(targetName(member));
       const target = path.resolve(targetDirectory, name);
       if (!contained(targetRoot, target)) {
         fail('CLEAN_ARCA_TARGET_ESCAPE',
@@ -313,7 +308,7 @@ function createCleanArcaInventoryPort(options) {
 
   function assess(request) {
     const built = buildPlan(request);
-    const statistics = fs.statfsSync(built.targetRoot, { bigint: true });
+    const statistics = statfsSync(built.targetRoot, { bigint: true });
     const available = statistics.bavail * statistics.bsize;
     const availableBytes = available > BigInt(Number.MAX_SAFE_INTEGER)
       ? Number.MAX_SAFE_INTEGER
@@ -371,8 +366,6 @@ function createCleanArcaInventoryPort(options) {
     return Object.freeze({
       ...basis,
       payloadDigest: canonicalDigest(basis),
-      outcome: availableBytes >= requiredBytes ? 'passed' : 'failed',
-      targetLocation: built.targetDirectory,
     });
   }
 
@@ -627,7 +620,350 @@ function createCleanArcaInventoryPort(options) {
     });
   }
 
-  return Object.freeze({ assess, prepare, materialize });
+  function slotHandle(request) {
+    const built = buildPlan(request);
+    const decision = request?.finalInventoryDecision;
+    const expected = prepare(request);
+    if (!decision || canonicalJson(decision) !== canonicalJson(expected)) {
+      fail('CLEAN_ARCA_FINAL_DECISION_DRIFT',
+        'Target slot does not match the immutable Final Inventory Decision.');
+    }
+    const suffix = canonicalDigest({
+      schema: 'arca.inventory-stage-slot@1',
+      onDeckRunId: request.onDeckRunId,
+      finalInventoryDecisionDigest: decision.decisionDigest,
+    }).slice(0, 16);
+    const slotDirectory = built.targetDirectory + '.shelfdeck-stage-' + suffix;
+    if (!contained(built.targetRoot, slotDirectory) ||
+        slotDirectory === built.targetDirectory) {
+      fail('CLEAN_ARCA_TARGET_ESCAPE',
+        'Target staging slot escaped the Shelf target.');
+    }
+    const base = {
+      schemaRef: 'helix://contracts/types/TargetCommitSlotHandle/v1',
+      schemaVersion: 1,
+      slotId: canonicalDigest({
+        schema: 'arca.target-commit-slot-id@1',
+        onDeckRunId: request.onDeckRunId,
+        targetEndpointId: request.shelf.target.endpointId,
+        targetLocation: built.targetDirectory,
+        finalInventoryDecisionDigest: decision.decisionDigest,
+      }),
+      onDeckRunId: request.onDeckRunId,
+      targetEndpointId: request.shelf.target.endpointId,
+      targetDirectory: built.targetDirectory,
+      slotDirectory,
+      finalInventoryDecisionDigest: decision.decisionDigest,
+      transactionRevision: 1,
+    };
+    return Object.freeze({
+      ...base,
+      containmentDigest: canonicalDigest({
+        schema: 'arca.target-slot-containment@1',
+        targetRoot: built.targetRoot,
+        targetDirectory: built.targetDirectory,
+        slotDirectory,
+      }),
+    });
+  }
+
+  function prepareSlot(request) {
+    const handle = slotHandle(request);
+    if (fs.existsSync(handle.targetDirectory)) {
+      fail('CLEAN_ARCA_TARGET_OCCUPIED',
+        'Final Inventory target already exists before placement switch.');
+    }
+    if (fs.existsSync(handle.slotDirectory) &&
+        !fs.statSync(handle.slotDirectory).isDirectory()) {
+      fail('CLEAN_ARCA_STAGE_SLOT_INVALID',
+        'Target staging slot is not a directory.');
+    }
+    fs.mkdirSync(handle.slotDirectory, { recursive: true });
+    return handle;
+  }
+
+  function stage(request) {
+    const built = buildPlan(request);
+    const handle = slotHandle(request);
+    if (!request?.targetCommitSlotHandle ||
+        canonicalJson(request.targetCommitSlotHandle) !== canonicalJson(handle)) {
+      fail('CLEAN_ARCA_STAGE_SLOT_DRIFT',
+        'Product staging received a stale Target Commit Slot.');
+    }
+    prepareSlot(request);
+    const stagedMembers = [];
+    for (const plan of built.plans) {
+      const target = path.resolve(handle.slotDirectory, plan.name);
+      if (!contained(handle.slotDirectory, target)) {
+        fail('CLEAN_ARCA_TARGET_ESCAPE',
+          'Staged Inventory member escaped the Target Commit Slot.');
+      }
+      const existing = fs.existsSync(target)
+        ? computeBoundedMaterialFingerprintSync(target)
+        : null;
+      const exact = existing && Number(existing.stat.size) === plan.sizeBytes &&
+        existing.contentFingerprint === plan.contentFingerprint;
+      if (existing && !exact) {
+        fail('CLEAN_ARCA_STAGE_CONFLICT',
+          'Target Commit Slot contains conflicting staged bytes.');
+      }
+      if (!exact) {
+        const temporary = target + '.tmp-' +
+          canonicalDigest({ run:request.onDeckRunId, key:plan.member.materialKey })
+            .slice(0, 16);
+        if (fs.existsSync(temporary)) fs.rmSync(temporary, { force:true });
+        fs.copyFileSync(plan.source, temporary, fs.constants.COPYFILE_EXCL);
+        const observed = computeBoundedMaterialFingerprintSync(temporary);
+        if (Number(observed.stat.size) !== plan.sizeBytes ||
+            observed.contentFingerprint !== plan.contentFingerprint) {
+          fs.rmSync(temporary, { force:true });
+          fail('CLEAN_ARCA_STAGE_COPY_VERIFY',
+            'Staged Inventory bytes failed verification.');
+        }
+        fs.renameSync(temporary, target);
+      }
+      const observed = computeBoundedMaterialFingerprintSync(target);
+      const identityBase = {
+        schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v2',
+        schemaVersion: 2,
+        mountScopeId: request.shelf.target.mountScopeId,
+        inode: observed.stat.ino.toString(),
+        sizeBytes: Number(observed.stat.size),
+        fingerprintAlgorithm: observed.fingerprintAlgorithm,
+        fingerprintVersion: observed.fingerprintVersion,
+        contentFingerprint: observed.contentFingerprint,
+      };
+      const materialKey = canonicalDigest({
+        schema: 'physical-material-identity@2',
+        mountScopeId: identityBase.mountScopeId,
+        inode: identityBase.inode,
+        sizeBytes: identityBase.sizeBytes,
+        fingerprintAlgorithm: identityBase.fingerprintAlgorithm,
+        fingerprintVersion: identityBase.fingerprintVersion,
+        contentFingerprint: identityBase.contentFingerprint,
+      });
+      stagedMembers.push(Object.freeze({
+        sourceMaterialKey: plan.member.materialKey,
+        materialKey,
+        role: plan.member.role,
+        endpointId: request.shelf.target.endpointId,
+        location: plan.target,
+        bindingRevision: 1,
+        digestHex: plan.digestHex,
+        sizeBytes: plan.sizeBytes,
+        episodeClaims: plan.episodeClaims,
+      }));
+    }
+    stagedMembers.sort((left, right) =>
+      Buffer.compare(Buffer.from(left.sourceMaterialKey),
+        Buffer.from(right.sourceMaterialKey)));
+    const membersDigest = canonicalDigest({
+      schema: 'arca.staged-inventory-members@1',
+      items: stagedMembers,
+    });
+    const base = {
+      schemaRef: 'helix://contracts/types/StagedInventoryManifest/v1',
+      schemaVersion: 1,
+      manifestId: canonicalDigest({
+        schema: 'arca.staged-inventory-manifest-id@1',
+        onDeckRunId: request.onDeckRunId,
+      }),
+      manifestKind: 'staged_inventory',
+      ownerDomain: 'arca',
+      memberCount: stagedMembers.length,
+      membersDigest,
+      publishedAtMs: Number.isSafeInteger(request.observedAtMs)
+        ? request.observedAtMs : 0,
+      targetCommitSlotId: handle.slotId,
+      stagedMembers: Object.freeze(stagedMembers),
+      sourceProductManifestDigest:
+        request.onDeckProductPackage.productMaterialManifest.manifestDigest,
+    };
+    return Object.freeze({ ...base, manifestDigest:canonicalDigest(base) });
+  }
+
+  function verifyStaged(request) {
+    const manifest = request?.stagedInventoryManifest;
+    const handle = slotHandle(request);
+    if (!manifest || manifest.targetCommitSlotId !== handle.slotId ||
+        manifest.sourceProductManifestDigest !==
+          request.onDeckProductPackage.productMaterialManifest.manifestDigest) {
+      fail('CLEAN_ARCA_STAGED_MANIFEST_DRIFT',
+        'Staged Inventory Manifest is stale.');
+    }
+    const observed = manifest.stagedMembers.map((member) => {
+      const finalLocation = path.resolve(member.location);
+      if (!contained(handle.targetDirectory, finalLocation)) {
+        fail('CLEAN_ARCA_STAGE_SLOT_ESCAPE',
+          'Staged member final binding escaped the frozen target.');
+      }
+      const location = path.resolve(handle.slotDirectory,
+        path.basename(finalLocation));
+      const fingerprint = computeBoundedMaterialFingerprintSync(location);
+      if (Number(fingerprint.stat.size) !== member.sizeBytes ||
+          fingerprint.contentFingerprint !==
+            request.onDeckProductPackage.productMaterialManifest.members.find(
+              (item) => item.materialKey === member.sourceMaterialKey,
+            )?.physicalIdentity.contentFingerprint) {
+        fail('CLEAN_ARCA_STAGED_REALITY_DRIFT',
+          'Staged member bytes drifted before placement.');
+      }
+      return member;
+    });
+    const basisDigest = canonicalDigest({ manifest, observed });
+    return Object.freeze({
+      schemaRef: 'helix://contracts/types/StagedInventoryVerification/v1',
+      schemaVersion: 1,
+      verificationId: canonicalDigest({
+        schema: 'arca.staged-verification-id@1',
+        onDeckRunId: request.onDeckRunId,
+        basisDigest,
+      }),
+      verificationKind: 'staged_inventory',
+      basisDigest,
+      result: 'passed',
+      reasonCodes: Object.freeze([]),
+      evidenceRefs: Object.freeze([manifest.manifestId]),
+      verifiedAtMs: Number.isSafeInteger(request.observedAtMs)
+        ? request.observedAtMs : 0,
+      stagedInventoryManifestDigest: manifest.manifestDigest,
+      finalInventoryDecisionDigest:
+        request.finalInventoryDecision.decisionDigest,
+    });
+  }
+
+  function switchPlacement(request) {
+    const handle = slotHandle(request);
+    const verification = request?.stagedInventoryVerification;
+    if (!verification || verification.result !== 'passed' ||
+        verification.finalInventoryDecisionDigest !==
+          request.finalInventoryDecision.decisionDigest) {
+      fail('CLEAN_ARCA_PLACEMENT_UNVERIFIED',
+        'Placement switch requires exact passed staging verification.');
+    }
+    if (fs.existsSync(handle.targetDirectory)) {
+      if (fs.existsSync(handle.slotDirectory)) {
+        fail('CLEAN_ARCA_TARGET_OCCUPIED',
+          'Final target and staging slot both exist during replay.');
+      }
+    } else {
+      if (!fs.existsSync(handle.slotDirectory) ||
+          !fs.statSync(handle.slotDirectory).isDirectory()) {
+        fail('CLEAN_ARCA_STAGE_SLOT_MISSING',
+          'Verified staging slot disappeared before placement.');
+      }
+      fs.renameSync(handle.slotDirectory, handle.targetDirectory);
+    }
+    const base = {
+      schemaRef: 'helix://contracts/types/PlacementSwitchReceipt/v1',
+      schemaVersion: 1,
+      receiptId: canonicalDigest({
+        schema: 'arca.placement-switch-receipt-id@1',
+        onDeckRunId: request.onDeckRunId,
+      }),
+      receiptKind: 'placement_switched',
+      ownerDomain: 'arca',
+      scopeType: 'on_deck_run',
+      scopeId: request.onDeckRunId,
+      scopeDigest: canonicalDigest({ handle, verification }),
+      effectReceiptRef: null,
+      committedAtMs: Number.isSafeInteger(request.observedAtMs)
+        ? request.observedAtMs : 0,
+      targetCommitSlotId: handle.slotId,
+      finalBindingSetDigest: request.targetBindings.bindingSetDigest,
+      replacedInputSetDigest: request.replacedInputSetDigest,
+      transactionRevision: 1,
+    };
+    return Object.freeze(base);
+  }
+
+  function readFinal(request) {
+    const built = buildPlan({ ...request, replayCommitted:true });
+    if (!fs.existsSync(built.targetDirectory) ||
+        !fs.statSync(built.targetDirectory).isDirectory()) {
+      fail('CLEAN_ARCA_FINAL_REALITY_MISSING',
+        'Final Inventory target is absent after placement.');
+    }
+    const members = built.plans.map((plan) => {
+      const observed = computeBoundedMaterialFingerprintSync(plan.target);
+      if (Number(observed.stat.size) !== plan.sizeBytes ||
+          observed.contentFingerprint !== plan.contentFingerprint) {
+        fail('CLEAN_ARCA_FINAL_REALITY_DRIFT',
+          'Final Inventory member drifted after placement.');
+      }
+      const identityBase = {schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,
+        mountScopeId:request.shelf.target.mountScopeId,inode:observed.stat.ino.toString(),sizeBytes:Number(observed.stat.size),
+        fingerprintAlgorithm:observed.fingerprintAlgorithm,fingerprintVersion:observed.fingerprintVersion,
+        contentFingerprint:observed.contentFingerprint};
+      const materialKey=canonicalDigest({schema:'physical-material-identity@2',mountScopeId:identityBase.mountScopeId,inode:identityBase.inode,
+        sizeBytes:identityBase.sizeBytes,fingerprintAlgorithm:identityBase.fingerprintAlgorithm,fingerprintVersion:identityBase.fingerprintVersion,
+        contentFingerprint:identityBase.contentFingerprint});
+      return Object.freeze({
+        sourceMaterialKey: plan.member.materialKey,
+        materialKey,
+        physicalIdentity:Object.freeze({...identityBase,materialKey}),
+        role: plan.member.role,
+        endpointId:request.shelf.target.endpointId,
+        location: plan.target,
+        bindingRevision:1,
+        digestHex:plan.digestHex,
+        sizeBytes: plan.sizeBytes,
+        contentFingerprint: observed.contentFingerprint,
+        episodeClaims:plan.episodeClaims,
+      });
+    });
+    members.sort((left,right)=>Buffer.compare(Buffer.from(left.sourceMaterialKey),Buffer.from(right.sourceMaterialKey)));
+    const stagedMembers=members.map((item)=>Object.freeze({sourceMaterialKey:item.sourceMaterialKey,materialKey:item.materialKey,role:item.role,
+      endpointId:item.endpointId,location:item.location,bindingRevision:1,digestHex:item.digestHex,sizeBytes:item.sizeBytes,episodeClaims:item.episodeClaims}));
+    const membersDigest=canonicalDigest({schema:'arca.staged-inventory-members@1',items:stagedMembers}),manifestBase={
+      schemaRef:'helix://contracts/types/StagedInventoryManifest/v1',schemaVersion:1,
+      manifestId:canonicalDigest({schema:'arca.staged-inventory-manifest-id@1',onDeckRunId:request.onDeckRunId}),manifestKind:'staged_inventory',
+      ownerDomain:'arca',memberCount:stagedMembers.length,membersDigest,publishedAtMs:Number.isSafeInteger(request.observedAtMs)?request.observedAtMs:0,
+      targetCommitSlotId:slotHandle(request).slotId,stagedMembers:Object.freeze(stagedMembers),sourceProductManifestDigest:request.onDeckProductPackage.productMaterialManifest.manifestDigest};
+    const manifest=Object.freeze({...manifestBase,manifestDigest:canonicalDigest(manifestBase)});
+    return Object.freeze({
+      targetDirectory: built.targetDirectory,
+      members: Object.freeze(members),
+      manifest,
+      realityDigest: canonicalDigest({
+        schema: 'arca.final-inventory-reality@1',
+        targetDirectory: built.targetDirectory,
+        members,
+      }),
+    });
+  }
+
+  function settleInput(request) {
+    const handle = request?.materialHandle;
+    if (!handle || handle.schemaRef !==
+        'helix://contracts/types/PhysicalMaterialReadHandle/v1' ||
+        handle.ownerDomain !== 'arca' ||
+        handle.ownerScope?.scopeType !== 'on_deck_custody') {
+      fail('CLEAN_ARCA_SETTLEMENT_HANDLE_INVALID',
+        'Input settlement requires the exact Arca custody read handle.');
+    }
+    const source = path.resolve(handle.location);
+    if (!fs.existsSync(source)) {
+      return Object.freeze({ materialKey:handle.identity.materialKey,
+        preDeleteIdentityDigest:canonicalDigest(handle.identity), absent:true });
+    }
+    const observed = computeBoundedMaterialFingerprintSync(source);
+    if (Number(observed.stat.size) !== handle.expectedSizeBytes ||
+        observed.contentFingerprint !== handle.identity.contentFingerprint) {
+      fail('CLEAN_ARCA_SETTLEMENT_REALITY_DRIFT',
+        'Settlement source drifted from the approved Material identity.');
+    }
+    fs.rmSync(source, { force:false });
+    if (fs.existsSync(source)) {
+      fail('CLEAN_ARCA_SETTLEMENT_DELETE_FAILED',
+        'Approved settlement source still exists after deletion.');
+    }
+    return Object.freeze({ materialKey:handle.identity.materialKey,
+      preDeleteIdentityDigest:canonicalDigest(handle.identity), absent:true });
+  }
+
+  return Object.freeze({ assess, resolveTargetLocation, prepare, materialize, slotHandle, prepareSlot,
+    stage, verifyStaged, switchPlacement, readFinal, settleInput });
 }
 
 module.exports = Object.freeze({

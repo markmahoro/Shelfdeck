@@ -59,11 +59,17 @@ const {
 const { createCandidateRejectionConsumer } = require('./helix/domains/procurement/application/candidate-rejection-consumer');
 const { createOutboxDispatcherHost } = require('./helix/foundation/execution/outbox-dispatcher-host');
 const {
+  createHandoffBOutcomeConsumer,
+} = require('./helix/domains/libra/application/handoff-b-outcome-consumer');
+const {
   createArcaRuleTemplateAdminApplication,
   createArcaShelfAdminApplication,
 } = require('./helix/domains/arca/public/admin-application');
 const { createShelfRoutingTargetProjection } = require('./helix/domains/arca/public/routing-target-projection');
 const { createArcaCollectionQuery } = require('./helix/domains/arca/application/collection-query');
+const { ProductDeliveryPort } = require('./helix/domains/libra/public');
+const { createProductDeliveryReader } = require('./helix/domains/libra/persistence/product-delivery-reader');
+const { createCleanArcaInventoryPort } = require('./clean-arca-inventory-port');
 const { createLibraRoutingAdminApplication } = require('./helix/domains/libra/public/admin-application');
 const { createFormationQuery } = require('./helix/domains/libra/application/formation-query');
 const { createRoutingManualSelectionService } = require('./helix/domains/libra/application/routing-manual-selection-service');
@@ -937,7 +943,7 @@ function createRuntime(options) {
   if (!fs.existsSync(path.join(options.adminDistDir, 'index.html'))) {
     findings.push('ADMIN_WEB_BUILD_MISSING');
   }
-  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 115) {
+  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 116) {
     findings.push('ROUTE_INVENTORY_INCOMPLETE');
   }
   if (uiManifest.status !== 'active' || uiManifest.entries.length !== 18) {
@@ -1096,7 +1102,28 @@ async function createCleanServiceHost(options) {
   }));
   const candidateAcceptance = createCandidateAcceptanceConsumer(constructed.applicationDependencies);
   const arcaRoutingTargets = createShelfRoutingTargetProjection(constructed.applicationDependencies);
-  const arcaCollectionQuery = createArcaCollectionQuery(constructed.applicationDependencies);
+  const arcaCollectionQuery = createArcaCollectionQuery({
+    ...constructed.applicationDependencies,
+    posterReader: options.arcaPosterReader || ((reference) => {
+      const root = path.resolve(reference.shelfTargetRoot);
+      const target = path.resolve(reference.location);
+      if (target !== root && !target.startsWith(root + path.sep)) {
+        throw new Error('Shelf Entry poster escaped its Shelf Target.');
+      }
+      const before = fs.statSync(target);
+      if (!before.isFile() || before.size !== reference.sizeBytes || before.size > 16 * 1024 * 1024) {
+        throw new Error('Shelf Entry poster violates its bounded Inventory read contract.');
+      }
+      const bytes = fs.readFileSync(target);
+      const after = fs.statSync(target);
+      if (after.size !== before.size || after.mtimeMs !== before.mtimeMs || bytes.length !== before.size) {
+        throw new Error('Shelf Entry poster changed during its bounded read.');
+      }
+      const extension = path.extname(target).toLowerCase();
+      const contentType = extension === '.png' ? 'image/png' : extension === '.webp' ? 'image/webp' : 'image/jpeg';
+      return Object.freeze({ contentType, bytes });
+    }),
+  });
   const workspaceProductPort = options.workspaceProductPort ||
     createCleanWorkspaceProductPort({
       ...constructed.applicationDependencies,
@@ -1111,6 +1138,16 @@ async function createCleanServiceHost(options) {
       afterMediaEffectCommit: options.workspaceAfterMediaEffectCommit,
       afterCleanupPhysicalEffect: options.workspaceAfterCleanupPhysicalEffect,
     });
+  const productDeliveryPort = ProductDeliveryPort(createProductDeliveryReader(
+    constructed.applicationDependencies,
+  ));
+  const arcaInventoryPort = options.arcaInventoryPort || createCleanArcaInventoryPort({
+    ...constructed.applicationDependencies,
+    workspaceRoot: workspaceProductPort.rootPath,
+    now: options.now || Date.now,
+    statfsSync: options.arcaStatfsSync,
+    afterPhysicalEffect: options.arcaAfterPhysicalEffect,
+  });
   const mediaProbe = options.mediaProbe || createCleanMediaProbe({
     workspaceMaterialLocationResolver: (handle) => workspaceProductPort.resolveMaterialLocation(handle),
   });
@@ -1192,6 +1229,8 @@ async function createCleanServiceHost(options) {
     productProductionPort,
     mediaEffectPort,
     platformComputeRuntime,
+    productDeliveryPort,
+    inventoryPort: arcaInventoryPort,
     now: options.now || Date.now,
     onError: options.onExecutionRuntimeError,
   });
@@ -1201,6 +1240,11 @@ async function createCleanServiceHost(options) {
     contextReader: procurementExecution.routingContextReader,
   });
   const candidateRejection = createCandidateRejectionConsumer(constructed.applicationDependencies);
+  const handoffBOutcomeConsumer = createHandoffBOutcomeConsumer({
+    ...constructed.applicationDependencies,
+    libraRunExecutionProjection:
+      procurementExecution.libraRunExecutionProjection,
+  });
   const outboxDispatcherFactory = options.outboxDispatcherFactory || createOutboxDispatcherHost;
   const outboxDispatcher = outboxDispatcherFactory({
     ...constructed.applicationDependencies,
@@ -1210,8 +1254,10 @@ async function createCleanServiceHost(options) {
     rejectionConsumer: candidateRejection,
     routingCoordinator: procurementExecution.routingCoordinator,
     perceptionCoordinator: procurementExecution.perception,
+    arcaCoordinator: procurementExecution.arcaCoordinator,
+    handoffBOutcomeConsumer,
+    deferredDeliveryKeys: options.deferredDeliveryKeys || [],
     executionRuntimeHost: procurementExecution.host,
-    deferredDeliveryKeys: ['libra.product-offer.available@1->arca'],
     onError: options.onExecutionRuntimeError,
   });
   const executionRuntimeHost = Object.freeze({
@@ -1300,6 +1346,7 @@ async function createCleanServiceHost(options) {
         }
         if (response.sessionToken) reply.header('set-cookie', sessionCookie(response.sessionToken));
         if (response.clearSession) reply.header('set-cookie', clearSessionCookie());
+        if (response.contentType) reply.type(response.contentType);
         reply.code(response.status);
         return response.status === 204 ? reply.send() : response.body;
       },

@@ -183,10 +183,15 @@ export type CollectionEntry = {
   identityKind: string;
   identityDigest: string;
   displayIdentity: string;
+  year: number | null;
+  overview: string | null;
+  genres: string[];
+  people: { personId: string; displayName: string; role: string }[];
+  hasPoster: boolean;
   currentInventoryRevision: number;
   currentDeckFactRevision: number;
   createdAtMs: number;
-  terminalAtMs: number;
+  terminalAtMs: number | null;
 };
 
 export type IntegrationState = {
@@ -289,6 +294,9 @@ export const helixAdminApi = {
   },
   listCollection() {
     return request<{ items: CollectionEntry[] }>('/v1/admin/collection');
+  },
+  collectionPosterUrl(shelfEntryId: string) {
+    return `/v1/admin/collection/${encodeURIComponent(shelfEntryId)}/poster`;
   },
   listPerceptionRecords(filters: { cursor?: string; limit?: number; sourceKind?: string; rating?: number; resolutionStatus?: string; targetType?: string; targetId?: string } = {}) {
     const query = new URLSearchParams();

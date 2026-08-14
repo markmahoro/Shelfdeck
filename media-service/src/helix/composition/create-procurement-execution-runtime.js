@@ -32,6 +32,7 @@ const { createWorkflowPlanPublisher, executionCatalogDigest } = require('../foun
 const { ProcurementExecutionRegistration } = require('../domains/procurement/public');
 const { LibraExecutionRegistration } = require('../domains/libra/public');
 const { PerceptionExecutionRegistration } = require('../domains/perception/public');
+const { ArcaExecutionRegistration } = require('../domains/arca/public');
 
 const PROCUREMENT_ENABLED = Object.freeze(['procurement.field.observation.page.commit@1',
   'procurement.triage.playability.inspect@1','procurement.triage.bdmv.assess@1','procurement.triage.structure.inspect@1',
@@ -52,7 +53,13 @@ const LIBRA_ENABLED = Object.freeze(['libra.intake.candidate.verify@1','libra.in
   'libra.external_material.package.verify@1','libra.workspace.material.import@1']);
 const PERCEPTION_ENABLED = Object.freeze(['perception.source.acquire@1','perception.record.normalize@1','perception.record.commit@1',
   'perception.dedup.resolve@1','perception.resolution.commit@1']);
-const ENABLED = Object.freeze([...PROCUREMENT_ENABLED, ...SHARED_ENABLED, ...LIBRA_ENABLED, ...PERCEPTION_ENABLED]);
+const ARCA_ENABLED = Object.freeze(['arca.acceptance.identity.verify@1','arca.acceptance.metadata.verify@1',
+  'arca.acceptance.structure.verify@1','arca.acceptance.mandatory_media.verify@1','arca.acceptance.space.verify@1',
+  'arca.acceptance.inventory_feasibility.observe@1','arca.acceptance.accept.commit@1','arca.acceptance.rejection.commit@1',
+  'arca.inventory.target_slot.prepare@1','arca.inventory.product.stage@1','arca.inventory.staged.verify@1',
+  'arca.inventory.final_product.verify@1','arca.inventory.placement.switch@1','arca.ondeck.input_settlement.delete@1',
+  'arca.ondeck.fulfillment.verify@1','arca.ondeck.commit@1']);
+const ENABLED = Object.freeze([...PROCUREMENT_ENABLED, ...SHARED_ENABLED, ...LIBRA_ENABLED, ...PERCEPTION_ENABLED,...ARCA_ENABLED]);
 
 function collectSchemas(root) {
   const schemas = [];
@@ -106,6 +113,7 @@ function createProcurementExecutionRuntime(options) {
   const procurementConstruction = ProcurementExecutionRegistration();
   const libraConstruction = LibraExecutionRegistration();
   const perceptionConstruction = PerceptionExecutionRegistration();
+  const arcaConstruction = ArcaExecutionRegistration();
   const perceptionOptions=Object.freeze({...options,
     acquirePerceptionProvider:options.acquirePerceptionProvider||(async()=>{throw new Error('Perception Provider adapter is unavailable.');}),
     readPerceptionObservation:options.readPerceptionObservation||(async()=>{throw new Error('Perception Observation reader is unavailable.');}),
@@ -139,7 +147,10 @@ function createProcurementExecutionRuntime(options) {
     manifests:Object.fromEntries(LIBRA_ENABLED.map((ref)=>[ref,manifests[ref]]))});
   const perceptionCapabilityRegistration=perceptionConstruction.createCapabilityRegistration({...perceptionOptions,now});
   const perceptionRegistrations=perceptionCapabilityRegistration.createRegistrations({manifests:Object.fromEntries(PERCEPTION_ENABLED.map((ref)=>[ref,manifests[ref]]))});
-  const registrations = Object.freeze([...procurementRegistrations,...sharedRegistrations,...libraRegistrations,...perceptionRegistrations]);
+  const arcaCapabilityRegistration=arcaConstruction.createCapabilityRegistration({...options,now,workResultReader});
+  const arcaRegistrations=arcaCapabilityRegistration.createRegistrations({enabledCapabilityRefs:ARCA_ENABLED,
+    manifests:Object.fromEntries(ARCA_ENABLED.map((ref)=>[ref,manifests[ref]]))});
+  const registrations = Object.freeze([...procurementRegistrations,...sharedRegistrations,...libraRegistrations,...perceptionRegistrations,...arcaRegistrations]);
   const registry = createCapabilityRegistry({ registrations, expectedCapabilityRefs: ENABLED });
   const retryPolicies = [
     { ref: 'helix://foundation/retry/pure-observation/v1', effectClass: 'pure_observation', maxFailureAttempts: 3,
@@ -151,6 +162,10 @@ function createProcurementExecutionRuntime(options) {
     { ref: 'helix://foundation/retry/workspace-write/v1', effectClass: 'workspace_write', maxFailureAttempts: 1,
       backoffMs: [], retryableFailureClasses: [] },
     { ref: 'helix://foundation/retry/external-request/v1', effectClass: 'external_request', maxFailureAttempts: 1,
+      backoffMs: [], retryableFailureClasses: [] },
+    { ref: 'helix://foundation/retry/material-commit/v1', effectClass: 'material_commit', maxFailureAttempts: 1,
+      backoffMs: [], retryableFailureClasses: [] },
+    { ref: 'helix://foundation/retry/destructive-commit/v1', effectClass: 'destructive_commit', maxFailureAttempts: 1,
       backoffMs: [], retryableFailureClasses: [] },
   ];
   const timeoutPolicies = [
@@ -173,7 +188,9 @@ function createProcurementExecutionRuntime(options) {
       retryPolicyRef: manifests[capabilityRef].effectClass === 'pure_observation' ? retryPolicies[0].ref :
           manifests[capabilityRef].effectClass === 'responsibility_control_commit' ? retryPolicies[2].ref :
           manifests[capabilityRef].effectClass === 'workspace_write' ? retryPolicies[3].ref :
-            manifests[capabilityRef].effectClass === 'external_request' ? retryPolicies[4].ref : retryPolicies[1].ref,
+          manifests[capabilityRef].effectClass === 'external_request' ? retryPolicies[4].ref :
+          manifests[capabilityRef].effectClass === 'material_commit' ? retryPolicies[5].ref :
+          manifests[capabilityRef].effectClass === 'destructive_commit' ? retryPolicies[6].ref : retryPolicies[1].ref,
       timeoutPolicyRef: timeoutPolicyFor(capabilityRef), compensationContractRefs: [] })) });
   let libraProcessServices;
   const executionProjectionProvider=Object.freeze({read:({processType,processId,workKind})=>{
@@ -185,6 +202,8 @@ function createProcurementExecutionRuntime(options) {
     if(processType==='libra_intake')return Object.freeze({priorityClass:'handoff_acceptance',localPriority:300,priorityRevision:1,supplyRole:'completion'});
     if(processType==='libra_routing')return Object.freeze({priorityClass:'normal_foreground',localPriority:250,priorityRevision:1,supplyRole:'completion'});
     if(processType==='perception_acquisition'||processType==='perception_resolution')return Object.freeze({priorityClass:'normal_foreground',localPriority:240,priorityRevision:1,supplyRole:'completion'});
+    if(processType==='arca_acceptance')return Object.freeze({priorityClass:'handoff_acceptance',localPriority:400,priorityRevision:1,supplyRole:'completion'});
+    if(processType==='arca_ondeck_run')return Object.freeze({priorityClass:'normal_foreground',localPriority:300,priorityRevision:1,supplyRole:'completion'});
     if(processType==='material_field')return Object.freeze({priorityClass:'background_observation',localPriority:0,priorityRevision:1,supplyRole:'expansion'});
     if(workKind==='candidate_assembly')return Object.freeze({priorityClass:'normal_foreground',localPriority:200,priorityRevision:1,supplyRole:'completion'});
     if(workKind==='evidence_assessment')return Object.freeze({priorityClass:'normal_foreground',localPriority:100,priorityRevision:1,supplyRole:'expansion'});
@@ -275,8 +294,13 @@ function createProcurementExecutionRuntime(options) {
   perceptionProcessServices=perceptionConstruction.createProcessServices({...perceptionOptions,now,workResultReader});
   const perceptionPlanningRegistration=perceptionConstruction.createPlanningRegistration({registry,policyRegistry,contractValidator,
     workResultReader,processServices:perceptionProcessServices,resolvePerceptionIntegrationHandle:options.resolvePerceptionIntegrationHandle,now});
+  const arcaProcessServices=arcaConstruction.createProcessServices({...options,now,workResultReader,
+    contextReader:arcaCapabilityRegistration.contextReader});
+  const arcaPlanningRegistration=arcaConstruction.createPlanningRegistration({...options,registry,policyRegistry,contractValidator,workResultReader,
+    contextReader:arcaProcessServices.contextReader,now});
   const bindingProjectionRegistry = createInputBindingProjectionRegistry({ registrations:[...planningRegistration.bindingProjections,
-    ...libraPlanningRegistration.bindingProjections,...perceptionPlanningRegistration.bindingProjections] });
+    ...libraPlanningRegistration.bindingProjections,...perceptionPlanningRegistration.bindingProjections,
+    ...arcaPlanningRegistration.bindingProjections] });
   const executionInputProvider = createEventExecutionInputProvider({ schemaManifest: options.schemaManifest,
     unitOfWork: options.unitOfWork, contractValidator, bindingProjectionRegistry, workResultReader });
   const attemptPolicy = createAttemptPolicyController({ registry: policyRegistry, now });
@@ -378,6 +402,27 @@ function createProcurementExecutionRuntime(options) {
           {resourceKey:'volume_write:'+workspaceRoot.mountScopeId,units:1},
           {resourceKey:'sqlite_write',units:1});
       }
+      if(capability.startsWith('arca.')){
+        const refs=workResultReader.readBindings(snapshot.work.work_id).flatMap((item)=>item.inputBindings?.bindings||[])
+          .find((item)=>Array.isArray(item.parameters?.dependencyRefs))?.parameters.dependencyRefs||[];
+        const arcaContext=snapshot.work.process_type==='arca_ondeck_run'
+          ?arcaProcessServices.contextReader.readAccepted(snapshot.work.process_id,refs)
+          :arcaProcessServices.contextReader.readOffer(refs);
+        const targetMount=arcaContext.shelf.target.mountScopeId;
+        validatedVolumeKeys.add(targetMount);
+        if(['arca.acceptance.inventory_feasibility.observe@1','arca.inventory.target_slot.prepare@1',
+          'arca.inventory.product.stage@1'].includes(capability))resources.push({resourceKey:'volume_write:'+targetMount,units:1});
+        if(['arca.inventory.staged.verify@1','arca.inventory.final_product.verify@1',
+          'arca.ondeck.fulfillment.verify@1'].includes(capability))resources.push({resourceKey:'volume_read:'+targetMount,units:1});
+        if(capability==='arca.inventory.placement.switch@1')resources.push({resourceKey:'volume_mutation:'+targetMount,units:1});
+        if(capability==='arca.ondeck.input_settlement.delete@1'){
+          const sourceMounts=[...new Set([...(arcaContext.packageValue.productMaterialManifest?.members||[]),
+            ...(arcaContext.packageValue.offloadContextManifest?.members||[])].map((item)=>item.physicalIdentity?.mountScopeId).filter(Boolean))];
+          sourceMounts.forEach((item)=>{validatedVolumeKeys.add(item);resources.push({resourceKey:'volume_mutation:'+item,units:1});});
+        }
+        if(['arca.acceptance.accept.commit@1','arca.acceptance.rejection.commit@1','arca.ondeck.commit@1'].includes(capability))
+          resources.push({resourceKey:'sqlite_write',units:1});
+      }
       if(capability === 'procurement.triage.bdmv.assess@1') resources.push({resourceKey:'cpu_heavy',units:1});
       if(['procurement.field.observation.page.commit@1','procurement.candidate.publish@1','libra.intake.accept.commit@1',
         'libra.intake.rejection.commit@1','libra.decision_basis.commit@1','libra.product_identity.resolve@1',
@@ -395,11 +440,13 @@ function createProcurementExecutionRuntime(options) {
     'product_identity','product_metadata_observation','artifact_production','product_fact_assembly','workspace_media_production',
     'product_conformance','deliverable_promotion'];
   const perceptionPlannerKinds=['acquisition_page','resolution'];
+  const arcaPlannerKinds=['acceptance_assessment','acceptance_commit','acceptance_rejection','on_deck_execution'];
   const plannerRegistry = createPlannerRegistry({ registrations: [...planningRegistration.planners.map((planner, index) => ({
     ownerDomain: 'procurement', workKind: plannerKinds[index], plannerContractRef: planner.plannerContractRef,
     plannerVersion: planner.plannerVersion, planner
   })),...libraPlanningRegistration.planners.map((planner,index)=>({ownerDomain:'libra',workKind:libraPlannerKinds[index],
     plannerContractRef:planner.plannerContractRef,plannerVersion:planner.plannerVersion,planner})),...perceptionPlanningRegistration.planners.map((planner,index)=>({ownerDomain:'perception',workKind:perceptionPlannerKinds[index],
+    plannerContractRef:planner.plannerContractRef,plannerVersion:planner.plannerVersion,planner})),...arcaPlanningRegistration.planners.map((planner,index)=>({ownerDomain:'arca',workKind:arcaPlannerKinds[index],
     plannerContractRef:planner.plannerContractRef,plannerVersion:planner.plannerVersion,planner}))] });
   const planPublisher = createWorkflowPlanPublisher({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     registry, contractValidator, policyRegistry });
@@ -469,6 +516,14 @@ function createProcurementExecutionRuntime(options) {
     if(request.ownerDomain==='libra'&&request.processType==='libra_run'){
       if(['succeeded','failed','cancelled'].includes(request.workAttemptState))
         reconcileLibraRun(request.processId);
+      return {workId:request.workId,disposition:request.workAttemptState};
+    }
+    if(request.ownerDomain==='arca'&&request.processType==='arca_acceptance'){
+      if(request.workAttemptState==='succeeded')arcaProcessServices.coordinator.reconcileAcceptance(request.processId);
+      return {workId:request.workId,disposition:request.workAttemptState};
+    }
+    if(request.ownerDomain==='arca'&&request.processType==='arca_ondeck_run'){
+      if(request.workAttemptState==='succeeded')arcaProcessServices.coordinator.reconcileOnDeck(request.processId);
       return {workId:request.workId,disposition:request.workAttemptState};
     }
     if(request.ownerDomain==='perception'&&request.processType==='perception_acquisition'){
@@ -569,6 +624,7 @@ function createProcurementExecutionRuntime(options) {
     libraRunCreator:libraProcessServices.libraRunCreator,libraRunContextReader:libraProcessServices.libraRunContextReader,
     libraRunCoordinator:libraProcessServices.libraRunCoordinator,movieProductionReader:libraProcessServices.movieProductionReader,
     libraRunExecutionProjection:libraProcessServices.libraRunExecutionProjection,
+    arcaCoordinator:arcaProcessServices.coordinator,arcaContextReader:arcaProcessServices.contextReader,
     perception:perceptionProcessServices });
 }
 

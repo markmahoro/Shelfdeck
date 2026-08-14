@@ -31,6 +31,15 @@ test('clean product Composition Root has no legacy Libra coordinator execution p
   assert.match(composition, /libraRunCoordinator\.reconcile/);
 });
 
+test('Arca On-deck Coordinator remains a Work issuer and terminal Result reconciler', () => {
+  const value = source('src/helix/domains/arca/application/on-deck-process-coordinator.js');
+  assert.doesNotMatch(value, /capability-registrations|capability-ports|capability-dispatcher/);
+  assert.doesNotMatch(value, /event-runtime|resource-governor|executeCapability|dispatch\s*\(/);
+  assert.doesNotMatch(value, /filesystem|ffmpeg|clean-arca-inventory-port/);
+  assert.match(value, /createWorkAdmission/);
+  assert.match(value, /workResultReader/);
+});
+
 test('Run Discard admin command cannot carry a caller-authored material or path scope', () => {
   const service = source('src/helix/domains/libra/application/libra-run-admin-service.js');
   assert.match(service, /buildRunDiscardCommand/);

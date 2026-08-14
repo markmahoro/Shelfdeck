@@ -1365,7 +1365,8 @@ test('H1.1 encrypted envelope fails closed for wrong root, tamper, and missing l
     `${stored.locator.split(':')[1]}.json`,
   );
   const envelope = JSON.parse(fs.readFileSync(file, 'utf8'));
-  envelope.ciphertext = `${envelope.ciphertext.slice(0, -1)}A`;
+  const replacement = envelope.ciphertext.endsWith('A') ? 'B' : 'A';
+  envelope.ciphertext = envelope.ciphertext.slice(0, -1) + replacement;
   fs.writeFileSync(file, JSON.stringify(envelope));
   assert.throws(
     () => store.read(stored.locator, expectedScope),
@@ -1407,8 +1408,8 @@ test('H1.1 source and route inventory prove no production fixture or scope expan
   assert.doesNotMatch(hostSource, /formation\.contentProfile/);
   const guard = require('../../scripts/p14-h1-change-scope-guard');
   assert.deepEqual(guard.routeImplementationStatus().counts, {
-    total: 115,
-    real: 53,
+    total: 116,
+    real: 54,
     workerBeta404: 6,
     unavailable503: 56,
   });

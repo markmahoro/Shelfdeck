@@ -323,7 +323,7 @@ test('clean host serves public health and Admin UI, then requires API key or Htt
     secretRoot,
   });
   try {
-    assert.equal(host.routeCount, 115);
+    assert.equal(host.routeCount, 116);
     const health = await host.inject({ method: 'GET', url: '/v1/health' });
     assert.equal(health.statusCode, 200);
     assert.deepEqual(Object.keys(health.json()).sort(), ['generation', 'normalSupplyAllowed', 'status']);
@@ -2311,7 +2311,7 @@ test('Windows and Docker artifacts select the service-only clean entrypoint', ()
   assert.doesNotMatch(windows, /media-worker|face-service|19110|ollama/i);
 });
 
-test.skip('Libra and Arca consumption are intentionally outside the Procurement Handoff A Ready milestone', async () => {
+test.skip('Libra Handoff B is accepted and committed through the Arca execution path', async () => {
   const value = fixture();
   const sourceRoot = path.join(path.dirname(value.dataDir), 'movie-handoff-a-source');
   fs.mkdirSync(sourceRoot, { recursive: true });

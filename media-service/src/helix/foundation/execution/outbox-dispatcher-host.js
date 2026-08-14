@@ -13,14 +13,15 @@ function createOutboxDispatcherHost(options){const repo=repository(options.schem
   const deferredDeliveryKeys=new Set(options.deferredDeliveryKeys||[]);
   if([...deferredDeliveryKeys].some((item)=>typeof item!=='string'||!item.includes('->')))throw new TypeError('Deferred Outbox delivery keys are invalid.');
   const libraReceiptRepository=createRepositoryDefinition({repositoryId:'libra_intake_delivery_receipt',owner:'libra',schemaManifest:options.schemaManifest,
-    statements:{read_head:{kind:'select-one',tableId:'libra_subject_continuity_heads',columns:['head_id'],keyColumns:['head_id']}}});
+    statements:{read_head:{kind:'select-one',tableId:'libra_subject_continuity_heads',columns:['head_id'],keyColumns:['head_id']},
+      read_product_package:{kind:'select-one',tableId:'libra_product_packages',columns:['on_deck_package_id','package_digest'],keyColumns:['on_deck_package_id']}}});
   const libraRoutingSignalRepository=createRepositoryDefinition({repositoryId:'libra_routing_policy_signal',owner:'libra',readOnly:true,schemaManifest:options.schemaManifest,
     statements:{find_head:{kind:'select-one',tableId:'libra_field_routing_heads',columns:['field_id','current_routing_policy_id','current_policy_revision'],keyColumns:['field_id']}}});
   const perceptionWakeRepository=createRepositoryDefinition({repositoryId:'perception_wake_signal',owner:'perception',readOnly:true,schemaManifest:options.schemaManifest,
     statements:{find_source:{kind:'select-one',tableId:'perception_sources',columns:['perception_source_id','config_revision'],keyColumns:['perception_source_id']}}});
   let state='created',timer=null,running=null;
   function due(){return options.unitOfWork.execute([{participantId:'outbox_dispatcher_due',owner:'execution-foundation',repositories:[repo],execute(context){
-    const r=context.repository(repo.repositoryId);return r.invoke('list_due',{}).filter((item)=>item.state!=='acked'&&Number(item.next_attempt_at_ms)<=now())
+    const r=context.repository(repo.repositoryId);return r.invoke('list_due',{}).filter((item)=>['pending','failed'].includes(item.state)&&Number(item.next_attempt_at_ms)<=now())
       .map((delivery)=>Object.freeze({delivery,message:r.invoke('find_message',{message_id:delivery.message_id})}))
       .filter((item)=>!deferredDeliveryKeys.has(item.message.message_kind+'->'+item.delivery.consumer_domain)).slice(0,100);}}]).outbox_dispatcher_due;}
   function envelope(item,payload){return Object.freeze({messageId:item.message.message_id,dedupKey:item.message.dedup_key,producerDomain:item.message.producer_domain,
@@ -34,6 +35,34 @@ function createOutboxDispatcherHost(options){const repo=repository(options.schem
         domainParticipant:{participantId:'libra_intake_offer_admission_receipt',owner:'libra',repositories:[libraReceiptRepository],
           execute:()=>({processId:admitted.processId,workId:admitted.work.workId})}});
       inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'libra'});options.executionRuntimeHost.wake();return;
+    }
+    if(item.message.message_kind==='libra.product-offer.available@1'&&item.delivery.consumer_domain==='arca'){
+      const admitted=options.arcaCoordinator.admitOffer(payload);
+      inbox.recordDeliveryAttempt({messageId:item.message.message_id,consumerDomain:'arca',delivered:true,nextAttemptAtMs:now()});
+      options.executionRuntimeHost.wake();return;
+    }
+    if(item.message.message_kind==='arca.product.accepted@1'&&item.delivery.consumer_domain==='libra'){
+      options.handoffBOutcomeConsumer.consumeAccepted(envelope(item,payload));
+      inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'libra'});
+      options.executionRuntimeHost.wake();return;
+    }
+    if(item.message.message_kind==='arca_product_rejected'&&item.delivery.consumer_domain==='libra'){
+      options.handoffBOutcomeConsumer.consumeRejected(envelope(item,payload));
+      inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'libra'});
+      options.executionRuntimeHost.wake();return;
+    }
+    if(item.message.message_kind==='arca.offload.completed@1'&&item.delivery.consumer_domain==='libra'){
+      const resultDigest=canonicalDigest({schema:'libra.offload-completion-wake-consumption@1',messageId:payload.messageId,
+        onDeckPackageId:payload.onDeckPackageId,packageDigest:payload.packageDigest,
+        completionDigest:payload.offloadCompletionFact?.completionDigest});
+      inbox.consume({message:{messageId:item.message.message_id,dedupKey:item.message.dedup_key,consumerDomain:'libra'},resultDigest,
+        domainParticipant:{participantId:'libra_offload_completion_wake_receipt',owner:'libra',repositories:[libraReceiptRepository],execute(context){
+          const pkg=context.repository(libraReceiptRepository.repositoryId).invoke('read_product_package',{on_deck_package_id:payload.onDeckPackageId});
+          if(!pkg||pkg.package_digest!==payload.packageDigest)throw new Error('Off-load Completion wake does not match its Libra Product Package.');
+          return {onDeckPackageId:payload.onDeckPackageId,completionDigest:payload.offloadCompletionFact?.completionDigest};
+        }}});
+      inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'libra'});
+      options.executionRuntimeHost.wake();return;
     }
     if(item.message.message_kind==='libra_candidate_accepted'&&item.delivery.consumer_domain==='procurement'){
       options.acceptanceConsumer.consume(envelope(item,payload));inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'procurement'});return;

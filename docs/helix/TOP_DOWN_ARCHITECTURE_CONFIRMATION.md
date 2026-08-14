@@ -46,8 +46,9 @@ the current Routing Decision and Shelf Standard, commits the Decision Basis thro
 one immutable Acceptance Spec. A formal `not_found` selects the No-rating rule. A later rating never patches the
 published Spec or interrupts downstream work; it is eligible only for a later lawful Spec evaluation. This amendment
 adds no Capability, Result family, table, Canonical Transaction, Domain, Store, Business Object or Handoff. It adds one
-Admin method+path, making the active inventory 112 Capability, 98 Result family, 180 tables, 43 Canonical Transactions,
-114 Admin routes and one public health route.
+Admin method+path. The later Arca Collection poster projection adds one additional authenticated read route, making
+the current active inventory 112 Capability, 98 Result family, 180 tables, 43 Canonical Transactions, 115 Admin
+routes and one public health route.
 
 ### Libra Routing fact observation amendment (2026-08-11)
 
@@ -312,6 +313,62 @@ Resource Governor, Effect Classes or the rule that Material Control is unique fo
 Workspace production and Arca Stage/Switch/Settlement capabilities remain the execution means; their typed inputs,
 derived Related authority and completion proofs must be widened to carry this invariant without adding a synchronous
 execution shortcut.
+
+### Arca Acceptance and On-deck execution amendment (2026-08-14)
+
+An open Handoff B Offer is only a durable wake source. Arca consumes it through two distinct Domain Process Roots and
+the common Execution Foundation; receipt of an HTTP request or Outbox signal never executes the full formation chain
+in the caller stack.
+
+`Acceptance Attempt` independently verifies the immutable On-deck Product Package against the current Shelf,
+Standard and Placement revisions. Its Domain Coordinator may issue Work and interpret terminal Work Results, but
+Identity, Structure, Metadata, Mandatory Media, Space and Inventory Feasibility checks, together with the terminal
+Accepted or Rejected commit, are Event Runtime Capability invocations. Accepted commit atomically consumes the exact
+Handoff B Offer, transfers Product and disposition responsibility to Arca, establishes On-deck Material Custody, one
+immutable Final Inventory Decision and one unique On-deck Run. Rejected commit establishes only the immutable
+rejection Decision/Receipt and Handoff B Rejected message. Acceptance never creates Shelf Entry or Deck Fact.
+
+`On-deck Run` owns the fixed Off-load transaction:
+
+```text
+Target Commit Slot Prepare
+  → Product Stage
+  → Staged Verify
+  → Final Product Verify
+  → Placement Switch
+  → exact Input Settlement
+  → Fulfillment Verify
+  → On-deck Commit
+```
+
+The On-deck Coordinator only issues Supporting Work, reads terminal typed Results and requests Arca-owned canonical
+transactions. It cannot import filesystem adapters, Capability implementations, the Dispatcher, Event Runtime or
+Resource Governor. The immutable Planner may use compact Owner Scope References, but each physical effect remains an
+independent Event with an Attempt, complete Permit bundle, Effect Journal evidence and typed Result. Waiting for a
+Permit, process restart or a lost wake signal cannot authorize a hidden fallback or duplicate a file effect.
+
+Input Settlement is ordered after verified final placement and before On-deck Commit. It is limited to exact members
+covered by the current Run-local Approval and immutable Product disposition mapping. A directory, shared material,
+ambiguous Related item or future material can never be inferred into the destructive scope. If an input already is
+the exact verified final Shelf location, placement and settlement are a typed no-op; current Control and Finished
+Goods projection still exclude it from Procurement. Any unresolved disposition keeps the Run in Arca and blocks
+Shelf Entry creation.
+
+On-deck Commit is the single canonical transaction that establishes Canonical Content Identity, the current
+Inventory Representation and member relations, Shelf Entry, Deck Fact, On-deck Commit Receipt and Off-load Completion
+Fact. The Off-load Completion signal only accelerates Libra's independent Workspace Reclaimer. Acceptance or
+physical staging success alone cannot be shown to the user as an owned collection item.
+
+The Admin Collection surface is an Arca-owned projection of active Shelf Entries. It may expose current Product
+Metadata, Media-Cast, Inventory and Poster carried by the current Inventory revision, but cannot read Libra current
+tables or call a Provider to repair presentation. The authenticated poster read is a side-effect-free bounded read of
+the exact current Inventory poster, protected by Inventory revision, digest and target containment fences. Missing
+poster produces a presentation fallback, not a mutation or Aftercare action.
+
+The authenticated poster read adds one Admin method+path and does not add a Capability, Result family, table,
+Canonical Transaction, Domain, Store, Business Object or Handoff. The active product inventory is therefore 112
+Capability contracts, 98 Catalog Result families, 180 tables, 43 Canonical Transactions, 115 Admin routes and one
+public health route.
 
 ## SSOT authority boundary
 
@@ -6538,6 +6595,13 @@ Domain Work Issuer至少声明：
 - 适用的Approval或Authorization reference；
 - 幂等键、并发Scope与完成后返回给Domain Owner的Output Contract。
 
+Work Admission必须把通过合同验证的完整`SupportingWorkDefinition@1`作为有界immutable Definition持久化，
+并以schema ref与JCS digest封存；`fx_supporting_works`中的Owner、Process、Work Kind、Basis、Priority等热列
+只是该Definition的可索引投影，不是它的替代品。Scheduler租赁Work后，Planner必须从这份durable Definition
+恢复Objective、全部`dependencyRefs`、`workspaceMaterialScope`、Capability Catalog scope与Output Contract；
+进程重启或wake signal丢失不得依赖Issuer在内存中重新补齐这些引用。Definition JSON上限为`256 KiB`，
+超过上限必须在Admission时以`invalid_contract`拒绝，禁止静默截断、旁路查询或由Domain Planner反查猜测。
+
 Definition不得携带预选Capability、Executor、设备、`flowKind`、线程数或路径式动作脚本。用户请求也不能
 直接构造Definition；它必须先由Level 6 Domain Process Owner解释成合法业务工作。
 
@@ -9091,7 +9155,7 @@ Run/Retry引用核对；任一失败即拒绝可写启动。
 | --- | --- | --- |
 | `proc_field_observation_entries` | `field_id FK, field_observation_work_id FK, observation_id FK, observation_revision, page_ordinal, entry_ordinal, material_observation_id, material_key, mount_scope_id, inode, size_bytes, fingerprint_algorithm, fingerprint_version, content_fingerprint, endpoint_id, access_revision, mount_scope_revision, current_location, relative_location, mtime_ns, ctime_ns, fingerprint_verified_at_ms, observed_at_ms, containment_digest, reality_digest, provenance_digest, snapshot_digest, entry_digest` | `PK(field_id,field_observation_work_id,page_ordinal,entry_ordinal)`；每页/Entry只允许一次写入，历史行append-only且永久保留；`UNIQUE(field_id,observation_id,entry_ordinal)`及`UNIQUE(field_id,observation_id,material_observation_id)`；Entry Identity/size/path/stat/fingerprint逐字节复制Observation事实；`INDEX(field_id,field_observation_work_id,observation_revision,relative_location)`、`INDEX(field_id,field_observation_work_id,material_key)`、`INDEX(field_id,field_observation_work_id,page_ordinal,entry_ordinal)`；不保存媒体Profile、BDMV语义、Primary/Related角色或Layout Result JSON` |
 | `fx_command_receipts` | `command_receipt_id PK, owner_domain, command_contract, caller_scope, idempotency_key, request_digest, target_type, target_id, result_schema_ref, result_ref_json, result_digest, committed_at_ms` | `UNIQUE(owner_domain,command_contract,caller_scope,idempotency_key)`；同key不同request digest拒绝；Result JSON上限`16 KiB`且只含typed ref；与Owner修改同事务 |
-| `fx_supporting_works` | `work_id PK, owner_domain, process_type, process_id, work_kind, basis_digest, priority_class, state, idempotency_key, created_at_ms, updated_at_ms` | `UNIQUE(owner_domain,idempotency_key)`；`INDEX(owner_domain,state,priority_class,created_at_ms,work_id)` |
+| `fx_supporting_works` | `work_id PK, owner_domain, process_type, process_id, work_kind, basis_digest, priority_class, definition_schema_ref, definition_json, definition_digest, state, idempotency_key, created_at_ms, updated_at_ms` | `definition_schema_ref=helix://foundation/types/SupportingWorkDefinition/v1`；`definition_json`是Admission验证后的完整immutable Definition且UTF-8 JCS bytes≤`256 KiB`；`definition_digest=SHA-256(JCS(definition_json解析值))`；热列必须逐字段等于Definition投影；状态变化不得改写Definition三列；`UNIQUE(owner_domain,idempotency_key)`；`INDEX(owner_domain,state,priority_class,created_at_ms,work_id)` |
 | `fx_work_attempts` | `attempt_id PK, work_id FK, ordinal, basis_digest, state, started_at_ms, finished_at_ms, failure_code` | `UNIQUE(work_id,ordinal)`；同一Work至多一个`ready|running|blocked` attempt的partial unique index |
 | `fx_workflow_plans` | `plan_id PK, attempt_id FK, planner_ref, planner_version, catalog_digest, basis_digest, graph_digest, state, created_at_ms` | `UNIQUE(attempt_id)`；Plan发布后禁止更新Graph字段 |
 | `fx_plan_nodes` | `plan_id FK, node_id, capability_ref, contract_version, input_binding_schema_ref, input_bindings_json, parameter_schema_ref, parameters_json, when_schema_ref, when_json, effect_class, fence_schema_ref, fence_basis_json, resource_demand_schema_ref, resource_demand_json` | `PK(plan_id,node_id)`；所有JSON分别受`16 KiB`上限；`INDEX(capability_ref,contract_version)` |
@@ -9950,7 +10014,7 @@ Event仍受hard timeout、shutdown isolation与重启幂等合同约束；timeou
 | `arca.acceptance.identity.verify@1` | `Package identity + Shelf Standard → AcceptanceCheck` | `pure_observation` |
 | `arca.acceptance.structure.verify@1` | `Product Manifest + Structure Requirement → AcceptanceCheck` | `pure_observation` |
 | `arca.acceptance.metadata.verify@1` | `Product Metadata/Artifact + Metadata Requirement → AcceptanceCheck` | `pure_observation` |
-| `arca.acceptance.mandatory_media.verify@1` | `Product media evidence + Mandatory Requirement → AcceptanceCheck` | `pure_observation` |
+| `arca.acceptance.mandatory_media.verify@1` | `On-deck Product Package + Mandatory Requirement → AcceptanceCheck` | `pure_observation` |
 | `arca.acceptance.space.verify@1` | `Product Manifest + Space Requirement → AcceptanceCheck` | `pure_observation` |
 | `arca.acceptance.inventory_feasibility.observe@1` | `Off-load Context + Placement Policy + target Endpoint → InventoryFeasibilityEvidence` | `pure_observation` |
 | `arca.acceptance.rejection.commit@1` | `ArcaAcceptanceRejectionDecision + DomainFactCommitHandle → RejectionReceipt` | `domain_fact_commit` |
@@ -10298,7 +10362,7 @@ Executor只能返回以下discriminated union，且每个variant都`additionalPr
 | `TriageManifestBuildInput` | `procurementRunId,runBasisDigest,triageRuleAuthorityDigest,structureEvidenceId,structureEvidencePayloadDigest,unit(TriageUnitSnapshot),candidateMembers[{materialKey,role,physicalIdentity,sizeBytes,bindingRevision,admittedControlRevision,admittedControlProjectionDigest,episodeClaims,memberClaimDigest}],preallocatedManifestId,inputDigest`；`candidateMembers`是Candidate Context按当前Unit/Scope从immutable Run member rows形成的精确局部Projection，必须与Unit成员逐项相等且为Run Selection非空子集；不得把整个Run的`SelectedFieldMaterialSet`复制给每个Candidate Event；BDMV `memberScope`由Candidate Context解析为最终候选成员；`inputDigest=SHA-256(JCS(完整value excluding inputDigest))`，Publication transaction仍逐成员重验Run Basis，禁止只凭selectionDigest声称subset成立 |
 | `CandidateDraft` | `DraftEnvelope + candidatePackageId,procurementRunId,runBasisDigest,triageRule{ruleRef,revision,authorityDigest},materialFieldContextRef{fieldId,accessRevision,contextDigest},mediaType,contentProfile,materialInputForm(stream_file|bdmv|dvd|iso),displayIdentity,identityMetadata(TriageIdentityMetadata),identityClaim(IdentityClaim),structureEvidence{evidenceId,payloadDigest,unit(TriageUnitSnapshot)},primaryInputManifestDraft(PrimaryInputManifestDraft，含最终候选成员明细),seasonContinuityClaims[SeasonContinuityClaim],seasonContinuityClaimSetDigest,relatedReferences[RelatedMaterialReference],relatedReferenceSetDigest,relatedDispositionScopeDigest,memberControlEvidenceSetDigest,candidateDraftDigest`；四处mediaType/contentProfile/Unit/Claim必须一致，Manifest Draft必须引用同一Unit；普通Unit使用Unit members，BDMV Unit使用Candidate Context重建后的primary/structural members，不能把完整Scope成员集塞回Structure或Plan；Season continuity及其set digest与Related必须分别与Unit逐项相等；每项Related必须通过完整Physical Identity/reference/disposition basis校验且primaryMaterialKey命中Manifest member；`relatedReferenceSetDigest=SHA-256(JCS({schema:"procurement.related-reference-set@1",items:relatedReferences按referenceId排序}))`；`relatedDispositionScopeDigest=SHA-256(JCS({schema:"procurement.related-disposition-scope@1",items:relatedReferences按referenceId排序映射为{referenceId,primaryMaterialKey,role,materialKey:identity.materialKey,dispositionBasisDigest}}))`；`memberControlEvidenceSetDigest=SHA-256(JCS({schema:"procurement.candidate-member-control-evidence@1",items:[{materialKey,admittedControlRevision,admittedControlProjectionDigest}]按materialKey排序}))`；`candidateDraftDigest=SHA-256(JCS(完整value excluding DraftEnvelope.draftDigest and candidateDraftDigest))`且`DraftEnvelope.draftDigest=candidateDraftDigest`；完整typed input由当前Plan binding提供，CommitParticipant不得旁读Run/Event/Provider补值；Draft不携带`expectedPackageRevision|packageRevision|offerId|acceptanceBasisDigest|subjectId`，兄弟Candidate的实际提交顺序只能由Publication transaction决定 |
 | `CandidateIntakeAcceptanceBasis` | `handoffContractRef(helix://handoffs/procurement-to-libra/v1),acceptanceOwnerDomain(libra),targetContext(libra_intake),candidatePackageId,packageRevision,packageDigest,primaryInputManifestDigest,seasonContinuityClaimSetDigest,relatedReferenceSetDigest,relatedDispositionScopeDigest,memberControlEvidenceSetDigest,acceptanceBasisDigest`；只由Candidate Publication Commit在final `CandidatePackage@1`形成后从这些精确字段派生，其中`primaryInputManifestDigest=CandidatePackage.primaryInputManifestRef.manifestDigest`，其余同名ID/revision/digest逐字段相等；`acceptanceBasisDigest=SHA-256(JCS(完整value excluding acceptanceBasisDigest))`；它不包含Libra current Subject/episode-overlap/Control row，不能由调用者、Provider或Store旁读补值，也不能退化为`packageDigest` |
-| `ProcurementCandidateOfferAvailableMessage` | `messageKind(procurement_candidate_offer_available),offerId,candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest,acceptanceOwnerDomain(libra),targetContext(libra_intake)`；`offerId=SHA-256(JCS({schema:"procurement.handoff-a-offer-id@1",handoffContractRef:"helix://handoffs/procurement-to-libra/v1",candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest}))`；Outbox固定`producer_domain=procurement,aggregate_type=candidate_package,aggregate_id=candidatePackageId,aggregate_revision=packageRevision,payload_schema_ref=ProcurementCandidateOfferAvailableMessage@1,intended consumers=[libra],intended_consumer_count=1`，`consumer_set_digest=SHA-256(JCS({schema:"foundation.outbox-consumer-set@1",consumers:["libra"]}))`，`dedup_key=procurement_candidate_offer_available:{offerId}`，`message_id=SHA-256(JCS({schema:"foundation.outbox-message-id@1",producerDomain:"procurement",dedupKey}))`；payload只含上述typed字段、JCS bytes≤`16 KiB`，`payload_digest=SHA-256(JCS(完整typed payload))`；该消息只唤醒Libra Intake并引用Deliverable，不授权Procurement形成Acceptance Decision |
+| `ProcurementCandidateOfferAvailableMessage` | `messageKind(procurement_candidate_offer_available),offerId,candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest,acceptanceOwnerDomain(libra),targetContext(libra_intake)`；`offerId=SHA-256(JCS({schema:"procurement.handoff-a-offer-id@1",handoffContractRef:"helix://handoffs/procurement-to-libra/v1",candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest}))`；Outbox固定`producer_domain=procurement,aggregate_type=candidate_package,aggregate_id=candidatePackageId,aggregate_revision=packageRevision,payload_schema_ref=ProcurementCandidateOfferAvailableMessage@1,intended consumers=[libra],intended_consumer_count=1`，`consumer_set_digest=SHA-256(JCS(["libra"]))`，`dedup_key=procurement_candidate_offer_available:{offerId}`，`message_id=SHA-256(JCS({schema:"foundation.outbox-message-id@1",producerDomain:"procurement",dedupKey}))`；payload只含上述typed字段、JCS bytes≤`16 KiB`，`payload_digest=SHA-256(JCS(完整typed payload))`；该消息只唤醒Libra Intake并引用Deliverable，不授权Procurement形成Acceptance Decision |
 | `CandidateDeliveryQuery` | `queryContract(procurement.candidate-delivery@1),offerId,candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest,queryDigest`；全部字段逐项来自typed Offer；`queryDigest=SHA-256(JCS(完整value excluding queryDigest))`；完整value≤`16 KiB` |
 | `CandidatePrimaryMaterialDelivery` | `ordinal,materialKey,role(primary_payload|structural_dependency),physicalIdentity{mountScopeId,inode,sizeBytes,fingerprintAlgorithm(middle-256k-sha256),fingerprintVersion(1),contentFingerprint},sizeBytes,bindingRevision,admittedControlRevision,admittedControlProjectionDigest,endpointId,location,lastSnapshotDigest,realityDigest,provenanceDigest,manifestMemberDigest,episodeClaims[{episodeKey,seasonClaimDigest,claimDigest}],deliveryMemberDigest`；前半逐项等于final Manifest member和immutable Candidate relation；Physical Identity/size还必须逐字节等于同Run immutable `proc_run_materials` Basis row，满足`PhysicalMaterialIdentity@2`的materialKey公式且size为non-negative safe integer；Location/Reality/Provenance同样只来自该Run Basis row；Episode按episodeKey排序；`deliveryMemberDigest=SHA-256(JCS(完整value excluding deliveryMemberDigest))`；单项JCS bytes≤`8 KiB` |
 | `CandidateDeliverySnapshot` | `snapshotContract(procurement.candidate-delivery@1),materialInputForm(stream_file|bdmv|dvd|iso),offer(ProcurementCandidateOfferAvailableMessage),acceptanceBasis(CandidateIntakeAcceptanceBasis),candidatePackage(CandidatePackage),primaryInputManifest(PrimaryInputManifest),primaryMaterialDeliveries[CandidatePrimaryMaterialDelivery],deliveryMemberSetDigest,relatedDispositionScopeDigest,deliverySnapshotDigest`；四个头的Offer/Package/revision/digest必须逐项一致；Material Delivery与Manifest按ordinal一一对应、数量`1..1024`且不得额外或缺失成员；每项Physical Identity/size必须由immutable `proc_candidate_primary_materials`与对应`proc_run_materials`逐字段交叉验证后输出，任一缺失/不一致均为integrity failure；Candidate Package的全部Related Reference必须只由immutable `proc_candidate_related_references`逐列重建，并逐项重验Physical Identity、exclusive association、disposition basis、reference/set/scope digest；`deliveryMemberSetDigest=SHA-256(JCS({schema:"procurement.candidate-delivery-members@1",items:primaryMaterialDeliveries}))`，`deliverySnapshotDigest=SHA-256(JCS(完整value excluding deliverySnapshotDigest))`；完整JCS bytes≤`8 MiB`，不是Event Result或Outbox payload；Candidate/Run/Offer关闭后relation仍保留并返回同一Snapshot digest；任何Owner row不一致是integrity failure而不是用current row、Foundation Result或Provider修补 |
@@ -10309,10 +10373,10 @@ Executor只能返回以下discriminated union，且每个variant都`additionalPr
 | `LibraCandidateAcceptedMessage` | `messageKind(libra_candidate_accepted),offerId,candidatePackageId,packageRevision,packageDigest,intakeDecisionId,subjectId,subjectIntakeRevision,receiptId,receiptDigest`；Outbox固定`producer_domain=libra,aggregate_type=intake_decision,aggregate_id=intakeDecisionId,aggregate_revision=1,payload_schema_ref=LibraCandidateAcceptedMessage@1,intended consumers=[procurement]`，dedup key为`libra_candidate_accepted:{offerId}`；payload≤`16 KiB`且digest覆盖完整typed value；只通知Procurement收口Delivery Reservation，不允许其改写Libra事实 |
 | `IntakeStructuredRejection` | Handoff A专用富拒绝事实：`rejectionId,handoffKind(procurement_to_libra),offerId,deliverableId,deliverableRevision,deliverableDigest,decisionBasisDigest,observedSnapshotDigest,reasonCodes[],primaryRejectionCode,reasons[{reasonCode,evidenceRefs[{evidenceSchemaRef,evidenceId,evidenceDigest}],reasonDigest}],rejectionReasonSetDigest,rejectionDigest,decidedAtMs`；reasons为`1..32`项、每项Evidence为`1..32`项；reasonCodes去重且与reasons一一对应，顺序使用Handoff A closed precedence，`primaryRejectionCode=reasonCodes[0]`；每项Evidence按`evidenceSchemaRef,evidenceId,evidenceDigest`的UTF-8 bytes升序且唯一；`reasonDigest=SHA-256(JCS({schema:"handoff-a-rejection-reason@1",reasonCode,evidenceRefs}))`；`rejectionReasonSetDigest=SHA-256(JCS({schema:"handoff-a-rejection-reason-set@1",items:reasons}))`；`rejectionId=SHA-256(JCS({schema:"handoff-a-rejection-id@1",offerId,deliverableId,deliverableRevision,deliverableDigest,decisionBasisDigest,rejectionReasonSetDigest}))`；`rejectionDigest=SHA-256(JCS(完整value excluding rejectionDigest))`，完整value≤`64 KiB` |
 | `IntakeRejectionDecision` | `intakeDecisionId,decisionRevision(1),offerId,candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest,candidateDeliverySnapshotDigest,structuredRejection(IntakeStructuredRejection),decisionDigest`；`intakeDecisionId=SHA-256(JCS({schema:"libra.intake-decision-id@1",offerId}))`；Intake Structured Rejection固定`deliverableId=candidatePackageId,deliverableRevision=packageRevision,deliverableDigest=packageDigest,decisionBasisDigest=acceptanceBasisDigest,observedSnapshotDigest=candidateDeliverySnapshotDigest`；`decisionDigest=SHA-256(JCS(完整value excluding decisionDigest))`；它只由`IntakeAcceptanceCoordinator`在取得完整Delivery Snapshot且正式Verification失败后形成，不含Subject、Continuity head、Binding或Control事实；Snapshot无法重建或digest失真属于system integrity failure而非business rejection |
-| `LibraCandidateRejectedMessage` | `messageKind(libra_candidate_rejected),offerId,candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest,intakeDecisionId,decisionDigest,rejectionId,reasonCodes[],primaryRejectionCode,rejectionReasonSetDigest,rejectionDigest,receiptId,receiptDigest`；reason数组与Decision完全一致；Outbox固定`producer_domain=libra,aggregate_type=intake_decision,aggregate_id=intakeDecisionId,aggregate_revision=1,payload_schema_ref=LibraCandidateRejectedMessage@1,intended consumers=[procurement],intended_consumer_count=1`，`consumer_set_digest=SHA-256(JCS({schema:"foundation.outbox-consumer-set@1",consumers:["procurement"]}))`，`dedup_key=libra_candidate_rejected:{offerId}`，`message_id=SHA-256(JCS({schema:"foundation.outbox-message-id@1",producerDomain:"libra",dedupKey}))`；payload JCS bytes≤`16 KiB`且`payload_digest=SHA-256(JCS(完整typed payload))`；只授权Procurement收口对应Delivery Reservation，不授权其改写Libra Decision |
+| `LibraCandidateRejectedMessage` | `messageKind(libra_candidate_rejected),offerId,candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest,intakeDecisionId,decisionDigest,rejectionId,reasonCodes[],primaryRejectionCode,rejectionReasonSetDigest,rejectionDigest,receiptId,receiptDigest`；reason数组与Decision完全一致；Outbox固定`producer_domain=libra,aggregate_type=intake_decision,aggregate_id=intakeDecisionId,aggregate_revision=1,payload_schema_ref=LibraCandidateRejectedMessage@1,intended consumers=[procurement],intended_consumer_count=1`，`consumer_set_digest=SHA-256(JCS(["procurement"]))`，`dedup_key=libra_candidate_rejected:{offerId}`，`message_id=SHA-256(JCS({schema:"foundation.outbox-message-id@1",producerDomain:"libra",dedupKey}))`；payload JCS bytes≤`16 KiB`且`payload_digest=SHA-256(JCS(完整typed payload))`；只授权Procurement收口对应Delivery Reservation，不授权其改写Libra Decision |
 | `StructuredRejection` | Handoff B通用拒绝事实：`handoffKind(libra_to_arca),offerId,deliverableId,rejectionCode,acceptanceEvidenceSetDigest,rejectionDigest`；`deliverableId=onDeckPackageId`，`offerId=SHA-256(JCS({schema:"libra.product-offer-id@1",onDeckPackageId,packageDigest}))`且逐字节等于Libra发布值；`rejectionCode`只能取5.7.3 closed set；`acceptanceEvidenceSetDigest=SHA-256(JCS({schema:"arca.acceptance-evidence-set@1",acceptanceAttemptId,offerId,onDeckPackageId,packageDigest,shelfId,standardRevision,placementRevision,items:[{checkKind,checkRevision,result,evidenceDigest}]按checkKind UTF-8 bytes升序、再按checkRevision升序}))`，items精确覆盖Decision实际消费的全部`arca_acceptance_checks`且非空；`rejectionDigest=SHA-256(JCS(完整value excluding rejectionDigest))`，完整value≤`16 KiB` |
 | `ArcaAcceptanceRejectionDecision` | `acceptanceDecisionId,acceptanceAttemptId,offerId,onDeckPackageId,packageDigest,shelfId,standardRevision,placementRevision,structuredRejection(StructuredRejection),decisionDigest,decidedAtMs`；`acceptanceDecisionId=SHA-256(JCS({schema:"arca.acceptance-decision-id@1",acceptanceAttemptId}))`；Offer/Package与Structured Rejection的Offer/Deliverable/Evidence set逐项匹配Decision和Attempt；`decisionDigest=SHA-256(JCS(完整value excluding decisionDigest))`；只由Arca Acceptance Owner在完整Acceptance Basis与业务Evidence成立后形成，不含Custody、Binding、Control或On-deck Run事实 |
-| `ArcaProductRejectedMessage` | `messageKind(arca_product_rejected),offerId,onDeckPackageId,packageDigest,acceptanceAttemptId,acceptanceDecisionId,decisionDigest,rejectionCode,acceptanceEvidenceSetDigest,rejectionDigest,receiptId,receiptDigest`；Outbox固定`producer_domain=arca,aggregate_type=acceptance_decision,aggregate_id=acceptanceDecisionId,aggregate_revision=1,payload_schema_ref=ArcaProductRejectedMessage@1,intended consumers=[libra],intended_consumer_count=1`，`consumer_set_digest=SHA-256(JCS({schema:"foundation.outbox-consumer-set@1",consumers:["libra"]}))`，`dedup_key=arca_product_rejected:{offerId}`，`message_id=SHA-256(JCS({schema:"foundation.outbox-message-id@1",producerDomain:"arca",dedupKey}))`；payload JCS bytes≤`16 KiB`且`payload_digest=SHA-256(JCS(完整typed payload))`；只授权Libra关闭对应Package Delivery，不授权其改写Arca Decision |
+| `ArcaProductRejectedMessage` | `messageKind(arca_product_rejected),offerId,onDeckPackageId,packageDigest,acceptanceAttemptId,acceptanceDecisionId,decisionDigest,rejectionCode,acceptanceEvidenceSetDigest,rejectionDigest,receiptId,receiptDigest`；Outbox固定`producer_domain=arca,aggregate_type=acceptance_decision,aggregate_id=acceptanceDecisionId,aggregate_revision=1,payload_schema_ref=ArcaProductRejectedMessage@1,intended consumers=[libra],intended_consumer_count=1`，`consumer_set_digest=SHA-256(JCS(["libra"]))`，`dedup_key=arca_product_rejected:{offerId}`，`message_id=SHA-256(JCS({schema:"foundation.outbox-message-id@1",producerDomain:"arca",dedupKey}))`；payload JCS bytes≤`16 KiB`且`payload_digest=SHA-256(JCS(完整typed payload))`；只授权Libra关闭对应Package Delivery，不授权其改写Arca Decision |
 | `LibraProductRejectionClosureResult` | `offerId,onDeckPackageId,packageDigest,terminalDeliveryState(rejected),arcaAcceptanceDecisionId,arcaAcceptanceDecisionDigest,rejectionDigest,handoffReceiptId,handoffReceiptDigest,closureDigest`；`closureDigest=SHA-256(JCS(完整value excluding closureDigest))`；它是Libra application transaction result而非Capability Result family，必须由immutable Product Package和`libra_delivery_receipts`逐列重建 |
 | `ProcurementCandidateAcceptanceClosureResult` | `offerId,candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest,terminalDeliveryState(accepted),transferredMaterialCount,transferredMaterialSetDigest,relatedDispositionScopeDigest,handoffReceiptDigest,closureDigest`；transferred成员恰好是该Candidate全部非空Primary Reservation，按materialKey UTF-8 bytes升序；`transferredMaterialSetDigest=SHA-256(JCS({schema:"procurement.handoff-a-accepted-transferred-material-set@1",items:[{materialKey,terminalDisposition:"handoff_accepted",terminalEvidenceDigest:handoffReceiptDigest}]}))`；Related scope逐字节等于Package/Receipt，证明dependent obligation已由Libra接收而不伪造Related Control；`closureDigest=SHA-256(JCS(完整value excluding closureDigest))`；它是Procurement application transaction result而非新增Capability Result family，必须可由Delivery与Run member terminal rows重建 |
 | `ProcurementCandidateRejectionClosureResult` | `offerId,candidatePackageId,packageRevision,packageDigest,acceptanceBasisDigest,terminalDeliveryState(rejected),releasedMaterialCount,releasedMaterialSetDigest,rejectionReceiptDigest,closureDigest`；released成员恰好是该Candidate全部非空Reservation，按materialKey UTF-8 bytes升序；`releasedMaterialSetDigest=SHA-256(JCS({schema:"procurement.handoff-a-rejected-released-material-set@1",items:[{materialKey,terminalDisposition:"handoff_rejected",terminalEvidenceDigest:rejectionReceiptDigest}]}))`；`closureDigest=SHA-256(JCS(完整value excluding closureDigest))`；它是Procurement application transaction result而非新增Capability Result family，必须可由Delivery与Run member terminal rows重建 |
@@ -13119,11 +13183,14 @@ GET        /v1/admin/rule-templates/:templateId/revisions
 
 GET        /v1/admin/collection
 GET        /v1/admin/collection/:shelfEntryId
+GET        /v1/admin/collection/:shelfEntryId/poster
 ~~~
 
 System Template的draft/publish/archive操作返回稳定`SYSTEM_TEMPLATE_IMMUTABLE`。User Template的publish必须
 携带current draft revision与preview digest并以新immutable revision生效；仍被Shelf绑定的Template不得archive。
-Collection查询默认只返回active Deck Fact；历史通过显式filter取得。没有DELETE Shelf/Shelf Entry、直接修改Canonical Identity或写Inventory路径接口。
+Collection查询默认只返回active Deck Fact；poster读取只允许当前Inventory revision内经过digest与target containment
+验证的poster Material，并以ETag支持缓存；缺失poster返回稳定not found且不触发Artifact生产或Aftercare。历史
+通过显式filter取得。没有DELETE Shelf/Shelf Entry、直接修改Canonical Identity或写Inventory路径接口。
 Shelf Placement PATCH必须携带最近一次preview digest；对非空Shelf发布后只形成新的Placement/Aftercare依据，
 不得由HTTP handler直接移动文件。
 
@@ -14488,7 +14555,7 @@ Effect contract与Safety Watermark，无法证明时保持服务停止并向前�
 | Layer | Required evidence |
 | --- | --- |
 | Static architecture | import/owner/repository/schema/capability/API禁止依赖全部通过 |
-| Contract and schema | 当前active inventory：112 Capability、98 Catalog Result family、180 table、43 Canonical Transaction、114 Admin route、1 public health route及nominal handle/transaction DTO验证；正文中的历史计数只保留为有日期的closure证据，不得覆盖顶部active amendments |
+| Contract and schema | 当前active inventory：112 Capability、98 Catalog Result family、180 table、43 Canonical Transaction、115 Admin route、1 public health route及nominal handle/transaction DTO验证；正文中的历史计数只保留为有日期的closure证据，不得覆盖顶部active amendments |
 | Transaction fixture | Level 8全部Handoff、Control、Discard、Cleanup、On-deck、Aftercare、Off-deck、People、Progress、Platform crash-window |
 | Domain integration | 五Domain Process、两次Handoff、Query/Signal、Policy/Spec/Acceptance闭环 |
 | Foundation integration | Work/Plan/Event、Effect recovery、Permit、Retry、Timeout、Breaker、Progress |
@@ -14610,7 +14677,7 @@ Beta Release Candidate不等于授权部署生产。生产部署、真实媒体�
 | 10.7 | Level 6业务健康、Level 9普通/Advanced边界 | preserved |
 | 10.8 | Level 5/6 Authorization、Level 8 typed Secret与Material safety | preserved |
 | 10.9 | 模块化单体、Physical File Source与Emby External Provider边界 | preserved |
-| 10.10 | 九条旅程、当前112 Capability、180 tables、43 Canonical Transactions、114 Admin routes、1 public health route及clean-cut门禁 | preserved after bounded final-audit closure、`PBF-02`–`PBF-23`及顶部active amendments（含各节记录的bounded revisions） |
+| 10.10 | 九条旅程、当前112 Capability、180 tables、43 Canonical Transactions、115 Admin routes、1 public health route及clean-cut门禁 | preserved after bounded final-audit closure、`PBF-02`–`PBF-23`及顶部active amendments（含各节记录的bounded revisions） |
 
 #### 10.11.2 前序Level 10 reservation覆盖审计
 

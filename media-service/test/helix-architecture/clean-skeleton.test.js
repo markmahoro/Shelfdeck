@@ -50,7 +50,7 @@ test('each Domain exposes one frozen public package identity', () => {
   const expectedExports = {
     procurement: ['PACKAGE_ID', 'CandidateDeliveryPort', 'ProcurementCommandFacade', 'ProcurementExecutionRegistration', 'ProcurementQueryFacade'],
     libra: ['PACKAGE_ID', 'LibraExecutionRegistration', 'LibraIntakeFacade', 'ProductDeliveryPort', 'WorkspaceReclamationPort'],
-    arca: ['PACKAGE_ID'],
+    arca: ['PACKAGE_ID', 'ArcaExecutionRegistration'],
     perception: ['PACKAGE_ID', 'PerceptionCommandFacade', 'PerceptionExecutionRegistration', 'PerceptionResolutionFacade'],
     people: ['PACKAGE_ID', 'PeopleCommandFacade', 'PersonReferenceQueryFacade']
   };
@@ -96,7 +96,7 @@ test('composition root import is side-effect free and factory requires exact cle
     facades,
     sessionTokens:{ authenticate:() => ({}), verifyApiKey:() => ({}) },
   });
-  assert.equal(app.routeCount, 115);
+  assert.equal(app.routeCount, 116);
   assert.deepEqual(await app.start(), { state:'ready', normalSupplyAllowed:true });
   assert.equal(app.readiness().generation, 'helix-clean-v1');
   await assert.rejects(app.start(), (error) => error.code === 'HELIX_LIFECYCLE_CONFLICT');

@@ -1,6 +1,6 @@
 # ShelfDeck / Helix Documentation Index
 
-Status: Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra已正式封口为`MOVIE LIBRA CLOSED AT HANDOFF B READY`。下一节点为Arca Acceptance；Handoff B尚未消费，Arca On-deck、Shelf Entry、Docker/NAS和生产部署均未开始。
+Status: Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry与Deck Fact接线。“我的收藏”已由Arca Shelf Entry海报墙呈现。下一节点为Arca Post-deck Aftercare；Off-deck、Docker/NAS与生产部署均未开始。
 
 后续本地真实媒体测试的可重复构建主库由用户于2026-08-11固定为
 `C:\Users\markm\AppData\Local\Temp\ShelfDeck-P14-20260723\material-fields`。destructive Formation只允许作用于该库或
@@ -34,7 +34,7 @@ Routing之后的User Perception与Acceptance Spec节点也已闭合。真实Doub
 immutable Record；评分日志在“系统设置”中作为只读Tab分页展示，上架进度Subject和我的收藏Shelf Entry使用共享1–5星控件，Candidate
 始终不可见。两部匿名隔离媒体的不同真实星级分别形成不同Requirements digest；No-rating和本地1–5星矩阵由自动化补齐。改分追加
 Correction及新Spec revision，不覆盖旧事实；重启和相同idempotency key重放不重复Record、Resolution或Spec。当前机器合同为
-112 Capability、98 Result family、180 table、43 Canonical Transaction、114 Admin route加public health共115 route。Libra Run、
+112 Capability、98 Result family、180 table、43 Canonical Transaction、115 Admin route加public health共116 route。Libra Run、
 Acceptance Spec之后的Libra Run至Handoff B Offer链已经接通。隔离P14真实字节、20 Subject并行、评分/Spec replacement、加急继承、暂停恢复、
 空间不足以及R02/R04–R06崩溃窗口均通过正式Composition Root；加入D10后的P14完整回归为13/13 PASS、451.569秒，默认服务测试为
 245 pass、14个显式环境skip、0 fail，合同计数保持112/98/180/43/115。D09/R09进一步以真实Profile 8/7 DV字节证明：GPU完整pipeline合法时仅走NVENC；GPU保持ready但当前source pipeline被Evidence拒绝时，零GPU媒体Effect并建立独立CPU Work/Plan/Event/Intent，最终形成SDR BT.709 limited、yuv420p、无DOVI且三点可解码的HEVC输出。成功场景形成自包含Package和open未消费Offer，

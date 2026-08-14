@@ -5,6 +5,16 @@ const test = require('node:test');
 const { createExecutionRuntimeHost } = require('../../src/helix/foundation/execution/execution-runtime-host');
 const { createPlannerRegistry } = require('../../src/helix/foundation/execution/planner-registry');
 
+function withDefinition(work) {
+  return Object.freeze({ ...work, definition:Object.freeze({
+    workObjectiveTypeRef:'helix://test/work/' + work.work_kind + '/v1', workObjectiveVersion:1,
+    executionBasisId:work.process_id + ':basis', dependencyRefs:Object.freeze([]), priorityRevision:1,
+    capabilityCatalogScope:work.owner_domain, workspaceMaterialScope:Object.freeze([]),
+    concurrencyScope:work.process_type + '/' + work.process_id + '/' + work.work_kind,
+    outputContractRef:'helix://test/results/' + work.work_kind + '/v1',
+  }) });
+}
+
 test('Planner Registry resolves one typed pure Planner per Owner Work kind', () => {
   const planner = Object.freeze({ plan() {} });
   const registry = createPlannerRegistry({ registrations: [{
@@ -47,9 +57,9 @@ test('Execution Runtime Host plans Work, delegates Event execution, aggregates t
     plannerRegistry: { resolve() { return { plannerContractRef: 'planner@1', plannerVersion: 1, planner }; } },
     planPublisher: { publish(plan) { calls.push('publish:' + plan.planId); return plan; } },
     workLifecycle: {
-      ensurePlanningAttempt() { calls.push('activate'); return { work: { work_id: 'work-1', owner_domain: 'procurement',
+      ensurePlanningAttempt() { calls.push('activate'); return { work: withDefinition({ work_id: 'work-1', owner_domain: 'procurement',
         process_type: 'procurement_run', process_id: 'run-1', work_kind: 'evidence_assessment', basis_digest: 'a'.repeat(64),
-        priority_class: 'normal_foreground' }, attempt: { attempt_id: 'attempt-1' } }; },
+        priority_class: 'normal_foreground' }), attempt: { attempt_id: 'attempt-1' } }; },
       startPlanned() { calls.push('start'); return { state: 'running', attemptState: 'running', replayed: false }; },
       aggregateEvent() { calls.push('aggregate'); return { attemptTerminal: true, workTerminal: false, replayed: false,
         attemptId: 'attempt-1', attemptState: 'succeeded', work: { work_id: 'work-1', owner_domain: 'procurement',
@@ -136,8 +146,8 @@ test('Execution Runtime Host renews a Work lease while an asynchronous Planner i
     } }; } },
     planPublisher: { publish(plan) { return plan; } },
     workLifecycle: {
-      ensurePlanningAttempt() { return { work: { work_id: 'work-long', owner_domain: 'procurement', process_type: 'procurement_run',
-        process_id: 'run-long', work_kind: 'evidence_assessment', basis_digest: 'a'.repeat(64), priority_class: 'normal_foreground' }, attempt: { attempt_id: 'attempt-long' } }; },
+      ensurePlanningAttempt() { return { work: withDefinition({ work_id: 'work-long', owner_domain: 'procurement', process_type: 'procurement_run',
+        process_id: 'run-long', work_kind: 'evidence_assessment', basis_digest: 'a'.repeat(64), priority_class: 'normal_foreground' }), attempt: { attempt_id: 'attempt-long' } }; },
       startPlanned() { return { state: 'running', attemptState: 'running', replayed: false }; },
       aggregateEvent() { return { attemptTerminal: false, workTerminal: false, replayed: false }; },
       settleWork() {},
@@ -237,9 +247,9 @@ test('planner throw stays Work-local and does not fault the Runtime Host', async
     planPublisher: { publish() {} },
     workLifecycle: {
       ensurePlanningAttempt() {
-        return { work: { work_id: 'work-boom', owner_domain: 'libra', process_type: 'libra_run',
+        return { work: withDefinition({ work_id: 'work-boom', owner_domain: 'libra', process_type: 'libra_run',
           process_id: 'run-boom', work_kind: 'artifact_production', basis_digest: 'a'.repeat(64),
-          priority_class: 'normal_foreground' }, attempt: { attempt_id: 'attempt-boom' } };
+          priority_class: 'normal_foreground' }), attempt: { attempt_id: 'attempt-boom' } };
       },
       startPlanned() {},
       aggregateEvent() { return { attemptTerminal: false, workTerminal: false, replayed: false }; },

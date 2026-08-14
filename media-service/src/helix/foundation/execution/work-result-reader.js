@@ -45,6 +45,14 @@ function createWorkResultReader(options){if(!options?.schemaManifest||!options.u
           owner_domain:scope.ownerDomain,work_kind:scope.workKind}).map((row)=>Object.freeze(row)));
       }}]).work_owner_scope_read;
     },
+    readBindings(workId){return options.unitOfWork.execute([{participantId:'work_bindings_read',owner:'execution-foundation',repositories:[repository],execute(context){
+      const repo=context.repository(repository.repositoryId),events=repo.invoke('list_events',{work_id:workId});
+      return Object.freeze(events.map((event)=>{const node=repo.invoke('find_node',{plan_id:event.plan_id,node_id:event.node_id});
+        if(!node||node.capability_ref!==event.capability_ref)throw new Error('Persisted Event Plan node is absent or corrupt.');
+        let inputBindings;try{inputBindings=JSON.parse(node.input_bindings_json);}catch{throw new Error('Persisted Event input bindings JSON is corrupt.');}
+        return Object.freeze({eventId:event.event_id,capabilityRef:event.capability_ref,inputBindings:Object.freeze(inputBindings)});
+      }));
+    }}]).work_bindings_read;},
     read(workId){return options.unitOfWork.execute([{participantId:'work_result_read',owner:'execution-foundation',repositories:[repository],execute(context){
       const repo=context.repository(repository.repositoryId);return Object.freeze(repo.invoke('list_events',{work_id:workId}).map((event)=>{
         const node=repo.invoke('find_node',{plan_id:event.plan_id,node_id:event.node_id});

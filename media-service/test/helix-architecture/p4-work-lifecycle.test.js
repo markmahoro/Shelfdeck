@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -14,16 +15,37 @@ const generated = path.resolve(__dirname, '../../src/helix/foundation/persistenc
 const schemaDdl = fs.readFileSync(path.join(generated, 'clean-schema.sql'), 'utf8');
 const schemaManifest = JSON.parse(fs.readFileSync(path.join(generated, 'clean-schema.manifest.json'), 'utf8'));
 
+function canonical(value) {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value && typeof value === 'object') return Object.keys(value).sort().reduce((result, key) => {
+    result[key] = canonical(value[key]); return result;
+  }, {});
+  return value;
+}
+
 function fixture(run) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-work-lifecycle-'));
   const databasePath = path.join(root, 'shelfdeck.db');
   const kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest, now: () => 1700000000000 });
   const unitOfWork = createSqliteUnitOfWork({ kernel });
   const database = new Database(databasePath);
+  const definition = {
+    schemaRef: 'helix://foundation/types/SupportingWorkDefinition/v1', schemaVersion: 1,
+    workId: 'work-1', ownerDomain: 'procurement', processType: 'procurement_run', processId: 'run-1',
+    workKind: 'evidence_assessment', workObjectiveTypeRef: 'helix://procurement/work/EvidenceAssessment/v1',
+    workObjectiveVersion: 1, executionBasisId: 'run-1', executionBasisDigest: 'a'.repeat(64),
+    dependencyRefs: [{ ownerDomain:'procurement', objectType:'procurement_run', objectId:'run-1', revision:1,
+      digest:'b'.repeat(64) }], priorityClass: 'normal_foreground', priorityRevision: 1,
+    capabilityCatalogScope: 'procurement', workspaceMaterialScope: [], idempotencyKey: 'key-1',
+    concurrencyScope: 'run-1/evidence', outputContractRef: 'helix://procurement/results/EvidenceAssessment/v1',
+  };
+  const definitionJson = JSON.stringify(canonical(definition));
+  const definitionDigest = crypto.createHash('sha256').update(definitionJson).digest('hex');
   database.prepare(`INSERT INTO fx_supporting_works
-    (work_id,owner_domain,process_type,process_id,work_kind,basis_digest,priority_class,state,idempotency_key,created_at_ms,updated_at_ms)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run('work-1', 'procurement', 'procurement_run', 'run-1', 'evidence_assessment',
-    'a'.repeat(64), 'normal_foreground', 'admitted', 'key-1', 1, 1);
+    (work_id,owner_domain,process_type,process_id,work_kind,basis_digest,priority_class,definition_schema_ref,
+     definition_json,definition_digest,state,idempotency_key,created_at_ms,updated_at_ms)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run('work-1', 'procurement', 'procurement_run', 'run-1', 'evidence_assessment',
+    'a'.repeat(64), 'normal_foreground', definition.schemaRef, definitionJson, definitionDigest, 'admitted', 'key-1', 1, 1);
   database.close();
   let ids = 0;
   const lifecycle = createWorkLifecycle({ schemaManifest, unitOfWork, nextWorkAttemptId: () => 'attempt-' + (++ids) });
@@ -42,6 +64,8 @@ test('activation creates one ready Work Attempt and replay never replans under a
   assert.equal(first.replayed, false);
   assert.equal(second.replayed, true);
   assert.equal(second.attempt.attempt_id, first.attempt.attempt_id);
+  assert.deepEqual(first.work.definition.dependencyRefs, [{ ownerDomain:'procurement', objectType:'procurement_run',
+    objectId:'run-1', revision:1, digest:'b'.repeat(64) }]);
   assert.deepEqual(read(databasePath, 'SELECT state FROM fx_supporting_works WHERE work_id=?', 'work-1'), { state: 'ready' });
   assert.deepEqual(read(databasePath, 'SELECT COUNT(*) count FROM fx_work_attempts WHERE work_id=?', 'work-1'), { count: 1 });
 }));

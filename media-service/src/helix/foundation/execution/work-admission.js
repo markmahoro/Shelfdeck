@@ -58,7 +58,7 @@ function repositories(schemaManifest) {
         list_owner: { kind: 'select-all', tableId: 'fx_supporting_works', columns: ['work_id', 'state'], keyColumns: ['owner_domain'] },
         insert: { kind: 'insert', tableId: 'fx_supporting_works', columns: [
           'work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'basis_digest', 'priority_class', 'state',
-          'idempotency_key', 'created_at_ms', 'updated_at_ms'
+          'definition_schema_ref', 'definition_json', 'definition_digest', 'idempotency_key', 'created_at_ms', 'updated_at_ms'
         ] }
       }
     }),
@@ -142,6 +142,10 @@ function createWorkAdmission(options) {
         return Object.freeze({ kind: 'invalid_contract', reasonCode: eligibility && eligibility.reasonCode || 'PROCESS_OR_BASIS_NOT_ELIGIBLE' });
       }
       const requestDigest = digest(canonicalJson(definition));
+      const definitionJson = canonicalJson(definition);
+      if (Buffer.byteLength(definitionJson, 'utf8') > 256 * 1024) {
+        return Object.freeze({ kind: 'invalid_contract', reasonCode: 'P4_WORK_DEFINITION_TOO_LARGE' });
+      }
       const callerScope = definition.ownerDomain + ':' + definition.concurrencyScope;
       try {
         const results = options.unitOfWork.execute([{
@@ -185,6 +189,7 @@ function createWorkAdmission(options) {
               work_id: definition.workId, owner_domain: definition.ownerDomain, process_type: definition.processType,
               process_id: definition.processId, work_kind: definition.workKind, basis_digest: definition.executionBasisDigest,
               priority_class: definition.priorityClass, state: 'admitted', idempotency_key: definition.idempotencyKey,
+              definition_schema_ref: definition.schemaRef, definition_json: definitionJson, definition_digest: requestDigest,
               created_at_ms: context.commitTimeMs, updated_at_ms: context.commitTimeMs
             });
             receipts.invoke('insert', {

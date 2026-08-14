@@ -1,8 +1,30 @@
 # ShelfDeck Clean Helix Master Plan
 
-Status: Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra正式封口为`MOVIE LIBRA CLOSED AT HANDOFF B READY`；下一业务边界为Arca Acceptance。Handoff B Offer仍为open且未消费，Arca On-deck尚未开始。
+Status: Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra保持`MOVIE LIBRA CLOSED AT HANDOFF B READY`；Movie Arca已经接通Handoff B Acceptance、On-deck、Shelf Entry与Deck Fact。下一独立节点为Arca Post-deck Aftercare；本轮不含Off-deck或生产部署。
 
 Last updated: 2026-08-14
+
+## 0. Completed target — Movie Arca at Shelf Entry and Deck Fact
+
+Arca现以`Handoff B Outbox → Acceptance Attempt → Supporting Work → immutable Plan → Event Runtime → Capability`
+独立验证Package、Shelf Standard/Placement、Identity、Structure、Metadata、Mandatory Media、空间与Inventory可行性。
+Accepted commit原子消费Offer、取得Product Control并建立On-deck Custody、Final Inventory Decision和On-deck Run；
+Rejected commit只形成immutable rejection Decision/Receipt并回告Libra，不建立Arca Control、Shelf Entry或Deck Fact。
+
+On-deck固定链通过独立Event完成Target Slot、Stage、Staged Verify、Final Verify、Placement Switch、精确Input
+Settlement、Fulfillment Verify与On-deck Commit。只有最后的On-deck Commit原子建立Canonical Content Identity、
+Inventory Representation、Shelf Entry、Deck Fact、Off-load Completion和typed Result/Outbox。Coordinator只签发Work、
+读取terminal Result和请求Arca-owned transaction，不执行文件Capability或Foundation Runtime。
+
+Admin Web“我的收藏”已成为active Shelf Entry的海报墙：卡片只来自Arca Collection Projection，点击后展示Metadata、
+Media-Cast、Inventory/Deck revision及Shelf Entry评分入口。海报读取是带Inventory revision/digest/containment fence的
+authenticated GET；缺海报只显示fallback，不触发Provider、Aftercare或文件写入。
+
+fresh-clean正向与空间不足拒绝E2E都已通过，并分别在完成后重启验证无重复Acceptance、On-deck、文件效果、
+Shelf Entry、Deck Fact或Outbox消费。当前机器合同为112 Capability、98 Result family、180 table、43 Canonical
+Transaction、115 Admin route加1条public health（总计116 route）。本节点不实现Aftercare、Off-deck、Shelf
+Deregistration或NAS部署；这些仍是后续独立边界。完整服务回归为245 pass、16个显式环境skip、0 fail，
+Helix Architecture gate与Admin Web production build均通过。
 
 ## 0. Closed target — Movie Libra at Handoff B Ready
 

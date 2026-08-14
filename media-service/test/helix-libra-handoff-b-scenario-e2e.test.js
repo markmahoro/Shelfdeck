@@ -30,6 +30,7 @@ function response(status, body) {
   const bytes = Buffer.from(JSON.stringify(body), 'utf8');
   let delivered = false;
   return Object.freeze({
+    deferredDeliveryKeys:Object.freeze(['libra.product-offer.available@1->arca']),
     ok: status >= 200 && status <= 299,
     status,
     url: '',
@@ -111,6 +112,10 @@ function productHandle(intent, operationId, artifactKind = null) {
 
 function productOptions(metadataCalls = null, metadataGate = null) {
   return Object.freeze({
+    // These scenarios deliberately stop at an open Handoff B Offer. Arca has
+    // its own product-path E2E below and must not make the Libra-only matrix
+    // timing or assertions depend on downstream consumption.
+    deferredDeliveryKeys:Object.freeze(['libra.product-offer.available@1->arca']),
     routingIntegrationHandleResolver: () => routingHandle(),
     routingProviderObservation: async ({ intent }) => Object.freeze([Object.freeze({
       providerKey:'990001', title:intent.candidateDisplayTitle,
@@ -655,6 +660,202 @@ test('P14 real bytes cover the Libra main production paths through open Handoff 
   assert.ok(calls.some((item) => item.path === '/api/v1/download/add' && item.method === 'POST'));
   assert.deepEqual(reality(SOURCE_ROOT), sourceBefore);
   t.diagnostic('Libra main-path evidence: ' + JSON.stringify(evidence));
+});
+
+test('P14 one-movie product path accepts Handoff B and atomically establishes an Arca Shelf Entry', {
+  skip:SOURCE_ROOT === null ? 'Set HELIX_LIBRA_HANDOFF_B_E2E_ROOT to the isolated P14 Material Field.' : false,
+  timeout:240_000,
+}, async (t) => {
+  const fixturePrefix = 'SDT-M01-Standalone-H264 (2008)';
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-arca-ondeck-'));
+  const dataDir = path.join(root, 'data');
+  const admin = path.join(root, 'admin');
+  const source = path.join(root, 'material-field');
+  const shelf = path.join(root, 'shelf');
+  [admin, source, shelf].forEach((directory) => fs.mkdirSync(directory, { recursive:true }));
+  fs.writeFileSync(path.join(admin, 'index.html'), '<div id="root"></div>');
+  const sourceItems = fs.readdirSync(SOURCE_ROOT, { withFileTypes:true })
+    .filter((item) => item.isFile() && item.name.startsWith(fixturePrefix));
+  assert.ok(sourceItems.some((item) => item.name.endsWith('.mkv')));
+  assert.ok(sourceItems.some((item) => item.name.endsWith('-poster.jpg')));
+  for (const item of sourceItems) fs.copyFileSync(path.join(SOURCE_ROOT, item.name), path.join(source, item.name));
+  const sourceBefore = reality(source);
+  const initialized = initializeCleanData({ dataDir, confirmation:'INITIALIZE_HELIX_CLEAN_V1', secretRoot:SECRET });
+  let runtimeError = null;
+  const hostOptions = Object.freeze({ dataDir, adminDistDir:admin, secretRoot:SECRET,
+    libraWorkspaceRoot:path.join(root, 'libra-workspaces'), ...productOptions(),
+    deferredDeliveryKeys:Object.freeze([]),
+    onExecutionRuntimeError(error) { runtimeError = error; if (process.env.HELIX_TEST_LOG_RUNTIME_ERROR === '1') console.error(error); },
+  });
+  let host = await createCleanServiceHost(hostOptions);
+  t.after(async () => {
+    await host.close();
+    if (process.env.HELIX_KEEP_TEST_ASSETS !== '1') fs.rmSync(root, { recursive:true, force:true, maxRetries:5, retryDelay:100 });
+  });
+  const cookie = await session(host, initialized.adminApiKey);
+  await createShelf(host, cookie, shelf);
+  await createField(host, cookie, 'arca-ondeck-field', source);
+  await observe(host, cookie, 'arca-ondeck-field');
+  await waitFor(host, cookie, (items) => items.some((item) => String(item.displayIdentity || '').includes('SDT-M01')));
+  await route(host, cookie, 'arca-ondeck-field');
+  const databasePath = path.join(dataDir, 'shelfdeck.db');
+  const terminal = await waitDatabase(databasePath, (database) => {
+    const entryCount = Number(database.prepare('SELECT count(*) count FROM arca_shelf_entries').get().count);
+    const failedWorks = Number(database.prepare("SELECT count(*) count FROM fx_supporting_works WHERE owner_domain='arca' AND state='failed'").get().count);
+    const failedEvents = Number(database.prepare("SELECT count(*) count FROM fx_workflow_events WHERE owner_domain='arca' AND state='failed'").get().count);
+    const completedRuns = Number(database.prepare("SELECT count(*) count FROM libra_runs WHERE state='completed'").get().count);
+    const acceptedAcked = Number(database.prepare("SELECT count(*) count FROM fx_outbox WHERE message_kind='arca.product.accepted@1' AND state='fully_acked'").get().count);
+    return failedWorks || failedEvents ||
+      (entryCount === 1 && completedRuns === 1 && acceptedAcked === 1)
+      ? { entryCount, failedWorks, failedEvents, completedRuns, acceptedAcked }
+      : null;
+  }, 180_000);
+  assert.deepEqual(terminal, {
+    entryCount:1,
+    failedWorks:0,
+    failedEvents:0,
+    completedRuns:1,
+    acceptedAcked:1,
+  });
+  assert.ifError(runtimeError);
+
+  const database = new Database(databasePath, { readonly:true });
+  let entryId;
+  try {
+    const one = (table) => Number(database.prepare(`SELECT count(*) count FROM ${table}`).get().count);
+    assert.equal(one('arca_acceptance_attempts'), 1);
+    assert.equal(one('arca_acceptance_decisions'), 1);
+    assert.equal(one('arca_ondeck_custodies'), 1);
+    assert.equal(one('arca_ondeck_runs'), 1);
+    assert.equal(one('arca_shelf_entries'), 1);
+    assert.equal(one('arca_inventory_representations'), 1);
+    assert.equal(one('arca_deck_fact_revisions'), 1);
+    assert.equal(one('arca_offload_completions'), 1);
+    assert.equal(one('libra_delivery_receipts'), 1);
+    assert.equal(Number(database.prepare("SELECT count(*) count FROM fx_supporting_works WHERE owner_domain='arca' AND state!='succeeded'").get().count), 0);
+    assert.equal(Number(database.prepare("SELECT count(*) count FROM fx_workflow_events WHERE owner_domain='arca' AND state!='succeeded'").get().count), 0);
+    const capabilityCounts = Object.fromEntries(database.prepare("SELECT capability_ref,count(*) count FROM fx_workflow_events WHERE owner_domain='arca' GROUP BY capability_ref").all()
+      .map((row) => [row.capability_ref, Number(row.count)]));
+    for (const capability of [
+      'arca.acceptance.identity.verify@1','arca.acceptance.metadata.verify@1','arca.acceptance.structure.verify@1',
+      'arca.acceptance.mandatory_media.verify@1','arca.acceptance.space.verify@1','arca.acceptance.inventory_feasibility.observe@1',
+      'arca.acceptance.accept.commit@1','arca.inventory.target_slot.prepare@1','arca.inventory.product.stage@1',
+      'arca.inventory.staged.verify@1','arca.inventory.final_product.verify@1','arca.inventory.placement.switch@1',
+      'arca.ondeck.fulfillment.verify@1','arca.ondeck.commit@1',
+    ]) assert.equal(capabilityCounts[capability], 1, capability);
+    entryId = database.prepare('SELECT shelf_entry_id FROM arca_shelf_entries').get().shelf_entry_id;
+  } finally { database.close(); }
+
+  const collection = await host.inject({ method:'GET', url:'/v1/admin/collection', headers:{ cookie } });
+  assert.equal(collection.statusCode, 200, collection.body);
+  assert.equal(collection.json().items.length, 1);
+  assert.match(collection.json().items[0].displayIdentity,
+    /SDT-M01|Scenario Movie|Big Buck Bunny/);
+  assert.equal(collection.json().items[0].hasPoster, true);
+  const poster = await host.inject({ method:'GET', url:'/v1/admin/collection/' + entryId + '/poster', headers:{ cookie } });
+  assert.equal(poster.statusCode, 200, poster.body);
+  assert.match(String(poster.headers['content-type'] || ''), /^image\//);
+  assert.deepEqual(reality(source), sourceBefore);
+  assert.equal(fs.readdirSync(shelf).some((item) => item.startsWith('.shelfdeck-stage-')), false);
+
+  await host.close();
+  host = await createCleanServiceHost(hostOptions);
+  await pause(1_500);
+  assert.ifError(runtimeError);
+  const restarted = new Database(databasePath, { readonly:true });
+  try {
+    assert.equal(restarted.prepare('SELECT count(*) count FROM arca_shelf_entries').get().count, 1);
+    assert.equal(restarted.prepare('SELECT count(*) count FROM arca_ondeck_runs').get().count, 1);
+    assert.equal(restarted.prepare('SELECT count(*) count FROM arca_ondeck_commit_receipts').get().count, 1);
+    assert.equal(restarted.prepare('SELECT count(*) count FROM arca_offload_completions').get().count, 1);
+  } finally { restarted.close(); }
+});
+
+test('P14 insufficient Shelf space rejects Handoff B without Arca custody, Control, or Shelf Entry', {
+  skip:SOURCE_ROOT === null ? 'Set HELIX_LIBRA_HANDOFF_B_E2E_ROOT to the isolated P14 Material Field.' : false,
+  timeout:240_000,
+}, async (t) => {
+  const fixturePrefix = 'SDT-M01-Standalone-H264 (2008)';
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-arca-rejection-'));
+  const dataDir = path.join(root, 'data');
+  const admin = path.join(root, 'admin');
+  const source = path.join(root, 'material-field');
+  const shelf = path.join(root, 'shelf');
+  [admin, source, shelf].forEach((directory) => fs.mkdirSync(directory, { recursive:true }));
+  fs.writeFileSync(path.join(admin, 'index.html'), '<div id="root"></div>');
+  for (const item of fs.readdirSync(SOURCE_ROOT, { withFileTypes:true })
+    .filter((entry) => entry.isFile() && entry.name.startsWith(fixturePrefix))) {
+    fs.copyFileSync(path.join(SOURCE_ROOT, item.name), path.join(source, item.name));
+  }
+  const sourceBefore = reality(source);
+  const initialized = initializeCleanData({ dataDir, confirmation:'INITIALIZE_HELIX_CLEAN_V1', secretRoot:SECRET });
+  let runtimeError = null;
+  const hostOptions = Object.freeze({
+    dataDir,
+    adminDistDir:admin,
+    secretRoot:SECRET,
+    libraWorkspaceRoot:path.join(root, 'libra-workspaces'),
+    ...productOptions(),
+    deferredDeliveryKeys:Object.freeze([]),
+    arcaStatfsSync:() => Object.freeze({ bavail:0n, bsize:4096n }),
+    onExecutionRuntimeError(error) {
+      runtimeError = error;
+      if (process.env.HELIX_TEST_LOG_RUNTIME_ERROR === '1') console.error(error);
+    },
+  });
+  let host = await createCleanServiceHost(hostOptions);
+  t.after(async () => {
+    await host.close();
+    if (process.env.HELIX_KEEP_TEST_ASSETS !== '1') fs.rmSync(root, { recursive:true, force:true, maxRetries:5, retryDelay:100 });
+  });
+  const cookie = await session(host, initialized.adminApiKey);
+  await createShelf(host, cookie, shelf);
+  await createField(host, cookie, 'arca-rejection-field', source);
+  await observe(host, cookie, 'arca-rejection-field');
+  await waitFor(host, cookie, (items) => items.some((item) => String(item.displayIdentity || '').includes('SDT-M01')));
+  await route(host, cookie, 'arca-rejection-field');
+  const databasePath = path.join(dataDir, 'shelfdeck.db');
+  const terminal = await waitDatabase(databasePath, (database) => {
+    const receipt = database.prepare("SELECT result,rejection_digest,closure_digest FROM libra_delivery_receipts WHERE result='rejected'").get();
+    const rejectedAcked = Number(database.prepare("SELECT count(*) count FROM fx_outbox WHERE message_kind='arca_product_rejected' AND state='fully_acked'").get().count);
+    const failedWorks = Number(database.prepare("SELECT count(*) count FROM fx_supporting_works WHERE owner_domain='arca' AND state='failed'").get().count);
+    const failedEvents = Number(database.prepare("SELECT count(*) count FROM fx_workflow_events WHERE owner_domain='arca' AND state='failed'").get().count);
+    return failedWorks || failedEvents || (receipt && rejectedAcked === 1)
+      ? { receipt, rejectedAcked, failedWorks, failedEvents }
+      : null;
+  }, 180_000);
+  assert.equal(terminal.receipt?.result, 'rejected');
+  assert.ok(terminal.receipt?.rejection_digest);
+  assert.ok(terminal.receipt?.closure_digest);
+  assert.equal(terminal.rejectedAcked, 1);
+  assert.equal(terminal.failedWorks, 0);
+  assert.equal(terminal.failedEvents, 0);
+  assert.ifError(runtimeError);
+  const database = new Database(databasePath, { readonly:true });
+  try {
+    const count = (table) => Number(database.prepare(`SELECT count(*) count FROM ${table}`).get().count);
+    assert.equal(count('arca_acceptance_attempts'), 1);
+    assert.equal(count('arca_acceptance_decisions'), 1);
+    assert.equal(count('arca_ondeck_custodies'), 0);
+    assert.equal(count('arca_ondeck_runs'), 0);
+    assert.equal(count('arca_shelf_entries'), 0);
+    assert.equal(count('arca_deck_fact_revisions'), 0);
+    assert.equal(database.prepare("SELECT state FROM libra_runs").get().state, 'active');
+    assert.equal(Number(database.prepare("SELECT count(*) count FROM fx_material_controls WHERE owner_domain='arca'").get().count), 0);
+  } finally { database.close(); }
+  assert.deepEqual(reality(source), sourceBefore);
+  assert.deepEqual(fs.readdirSync(shelf), []);
+  await host.close();
+  host = await createCleanServiceHost(hostOptions);
+  await pause(1_500);
+  assert.ifError(runtimeError);
+  const restarted = new Database(databasePath, { readonly:true });
+  try {
+    assert.equal(restarted.prepare("SELECT count(*) count FROM libra_delivery_receipts WHERE result='rejected'").get().count, 1);
+    assert.equal(restarted.prepare("SELECT count(*) count FROM fx_outbox WHERE message_kind='arca_product_rejected' AND state='fully_acked'").get().count, 1);
+    assert.equal(restarted.prepare('SELECT count(*) count FROM arca_ondeck_runs').get().count, 0);
+    assert.equal(restarted.prepare('SELECT count(*) count FROM arca_shelf_entries').get().count, 0);
+  } finally { restarted.close(); }
 });
 
 test('P14 restart and lost wake continue legal Libra Runs to open Handoff B Offers', {

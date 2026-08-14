@@ -1,8 +1,33 @@
 # ShelfDeck Clean Helix Current Status
 
-Status: Movie Procurement保持`CLOSED FOR MOVIE`；Movie Libra已正式封口为`MOVIE LIBRA CLOSED AT HANDOFF B READY`。Handoff B Offer保持open且未消费；下一业务节点是Arca Acceptance，Arca On-deck与Shelf Entry尚未开始。
+Status: Movie Procurement与Movie Libra封口保持有效；Movie Arca已完成Handoff B Acceptance、On-deck、Shelf Entry及Deck Fact产品接线。下一业务节点是Arca Post-deck Aftercare；Off-deck、Shelf Deregistration与生产部署尚未开始。
 
 Last updated: 2026-08-14
+
+## 0. Completed implementation — Arca Acceptance, On-deck and Collection
+
+- 产品链已接通`Handoff B Outbox → Acceptance Attempt → Acceptance Work/Plan/Event → On-deck Work/Plan/Event →
+  On-deck Commit`。Acceptance的Identity、Structure、Metadata、Mandatory Media、Space和Inventory Feasibility均为独立
+  Capability调用；On-deck的Target Slot、Stage、Verify、Switch、Input Settlement、Fulfillment与Commit同样经过Execution
+  Foundation。Coordinator没有文件适配器、Dispatcher、Event Runtime或Resource Governor执行捷径。
+- fresh-clean正向E2E形成1份accepted Handoff B Receipt、1份Custody、1个completed On-deck Run、1个Shelf Entry、
+  1版Inventory与1版Deck Fact。最终Inventory含7个物理材料角色：1个`primary_payload`、2个
+  `metadata_sidecar`、2个`poster`、1个`fanart`和1个`subtitle`；Shelf Target存在对应媒体与sidecar。Libra Run
+  terminal，Off-load Completion已形成；完成后重启没有重复Work、Event、文件效果、Entry、Deck Fact或Outbox消费。
+- 空间不足fresh-clean E2E通过注入的正式`statfs` Evidence形成Handoff B Rejected。该路径只有Arca rejection
+  Decision/Receipt和Libra rejected Delivery Receipt；Arca Custody、Control、On-deck Run、Shelf Entry、Deck Fact均为0，
+  Shelf Target保持空，Libra继续拥有返工责任。重启后仍只有一份rejection closure。
+- “我的收藏”已由Stub替换为Arca Shelf Entry海报墙。点击卡片展示标题、年份、类型、简介、演职人员、Shelf、
+  Inventory/Deck revision与评分控件；Poster通过authenticated、side-effect-free的Inventory fenced route读取。空状态、
+  海报卡片、详情Dialog、评分和Escape关闭的聚焦测试2/2通过，Admin Web全部组件测试5/5及production build通过。
+- Arca正向与空间不足拒绝产品E2E合计2/2通过；User Perception回归3/3通过，并确认On-deck后的新评分只追加
+  Perception与Acceptance Spec历史，不倒流或重开已完成的Libra Run。完整`media-service npm test`为245 pass、
+  16个显式环境skip、0 fail。Helix Architecture gate通过，P2 aggregate为
+  `1342dae74a59a1fb8f89f7e1ef98f30e1961fb6615f69138ff65ff8a9ef24a1f`，manifest aggregate为
+  `7a849ba1876e4baf6a4435a09cd17555a376eb80db3b2fa7a98b6f49e01bc3a9`。
+- 本轮只使用P14隔离Material Field、系统Temp数据库/Workspace/Shelf Target；没有访问`Z:\Film`，没有Docker、NAS、
+  Post-deck效果或生产部署。当前机器合同为112 Capability、98 Result family、180 table、43 Canonical Transaction、
+  115 Admin route加1条public health（总计116 route）。
 
 ## Local media safety boundary
 

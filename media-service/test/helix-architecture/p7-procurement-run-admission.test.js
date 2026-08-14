@@ -87,6 +87,19 @@ function handle(runBasis) { const memberValue=runBasis.selectedFieldMaterialSet.
   expectedControlRevisions:[{materialKey:memberValue.materialKey,revision:memberValue.controlSnapshot.controlRevision}],
   receiptContract:{receiptSchemaRef:'helix://contracts/types/ProcurementControlReceipt/v1',
     controlRevisionSetSchemaRef:'procurement.control-revision-set@1'},eventFenceDigest:D('fence')}; }
+function insertWork(database,{workId,processType,processId,workKind,basisDigest,state}) {
+  const definition={schemaRef:'helix://foundation/types/SupportingWorkDefinition/v1',schemaVersion:1,workId,ownerDomain:'procurement',
+    processType,processId,workKind,workObjectiveTypeRef:'helix://procurement/work/'+workKind+'/v1',workObjectiveVersion:1,
+    executionBasisId:processId+':basis',executionBasisDigest:basisDigest,dependencyRefs:[],priorityClass:'normal',priorityRevision:1,
+    capabilityCatalogScope:'procurement',workspaceMaterialScope:[],idempotencyKey:workId,concurrencyScope:processType+'/'+processId+'/'+workKind,
+    outputContractRef:'helix://procurement/results/'+workKind+'/v1'};
+  const definitionJson=JSON.stringify(definition),definitionDigest=canonicalDigest(definition);
+  database.prepare(`INSERT INTO fx_supporting_works
+    (work_id,owner_domain,process_type,process_id,work_kind,basis_digest,priority_class,definition_schema_ref,definition_json,
+     definition_digest,state,idempotency_key,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+    .run(workId,'procurement',processType,processId,workKind,basisDigest,'normal',definition.schemaRef,definitionJson,
+      definitionDigest,state,workId,1,1);
+}
 function seed(database, material, control) {
   const transaction=database.transaction(()=>{
     database.prepare('INSERT INTO proc_material_fields(field_id,name,status,extraction_policy_id,extraction_policy_revision,current_access_revision,current_profile_hint_revision,current_observation_revision,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?)').run('field-1','Field','active','policy-1',1,1,1,null,1,1);
@@ -94,8 +107,8 @@ function seed(database, material, control) {
       .run('field-1',1,'mixed','helix://contracts/application-types/MaterialFieldProfileHintSnapshot/v1',PROFILE_HINT.hintDigest,1,'fixture');
     database.prepare('INSERT INTO proc_extraction_policy_revisions VALUES(?,?,?,?,?,?)').run('policy-1',1,'helix://contracts/domain-types/ExtractionPolicy/v1','{}',D('policy'),1);
     database.prepare('INSERT INTO proc_field_access_revisions VALUES(?,?,?,?,?,?,?,?,?)').run('field-1',1,'endpoint-1','/field','mount-1',1,'field-access@1',D('access'),1);
-    database.prepare('INSERT INTO fx_supporting_works VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('observation-work-1','procurement','field_observation','field-1','observe',D('work'),'normal','succeeded','observation-work-1',1,1);
-    database.prepare('INSERT INTO fx_supporting_works VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('run-work-1','procurement','procurement_run','run-1','admit',D('run-work'),'normal','running','run-work-1',1,1);
+    insertWork(database,{workId:'observation-work-1',processType:'field_observation',processId:'field-1',workKind:'observe',basisDigest:D('work'),state:'succeeded'});
+    insertWork(database,{workId:'run-work-1',processType:'procurement_run',processId:'run-1',workKind:'admit',basisDigest:D('run-work'),state:'running'});
     database.prepare('INSERT INTO fx_work_attempts VALUES(?,?,?,?,?,?,?,?)').run('run-attempt-1','run-work-1',0,D('attempt'),'running',1,null,null);
     database.prepare('INSERT INTO fx_workflow_plans VALUES(?,?,?,?,?,?,?,?,?)').run('run-plan-1','run-attempt-1','procurement-planner',1,D('catalog'),D('plan-basis'),D('graph'),'planned',1);
     database.prepare('INSERT INTO fx_plan_nodes VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run('run-plan-1','admit','procurement.material.control.acquire@1',1,'input@1','{}','parameters@1','{}','when@1','{}','responsibility_control_commit','fence@1','{}','resource@1','{}');

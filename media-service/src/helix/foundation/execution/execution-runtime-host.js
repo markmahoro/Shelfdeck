@@ -101,6 +101,7 @@ function createExecutionRuntimeHost(options) {
       return await withWorkLeaseHeartbeat(scheduled.lease, async () => {
         const activation = options.workLifecycle.ensurePlanningAttempt(scheduled.lease.targetId);
         const registration = options.plannerRegistry.resolve(activation.work.owner_domain, activation.work.work_kind);
+        const definition = activation.work.definition;
         const plan = await registration.planner.plan(Object.freeze({
           workId: activation.work.work_id,
           workAttemptId: activation.attempt.attempt_id,
@@ -111,6 +112,16 @@ function createExecutionRuntimeHost(options) {
           executionBasisDigest: activation.work.basis_digest,
           priorityClass: activation.work.priority_class,
           idempotencyKey: activation.work.idempotency_key,
+          workObjectiveTypeRef: definition.workObjectiveTypeRef,
+          workObjectiveVersion: definition.workObjectiveVersion,
+          executionBasisId: definition.executionBasisId,
+          dependencyRefs: definition.dependencyRefs,
+          priorityRevision: definition.priorityRevision,
+          capabilityCatalogScope: definition.capabilityCatalogScope,
+          workspaceMaterialScope: definition.workspaceMaterialScope,
+          concurrencyScope: definition.concurrencyScope,
+          outputContractRef: definition.outputContractRef,
+          approvalOrAuthorizationRef: definition.approvalOrAuthorizationRef || null,
           plannerContractRef: registration.plannerContractRef,
           plannerVersion: registration.plannerVersion,
         }));

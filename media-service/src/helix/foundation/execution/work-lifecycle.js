@@ -1,6 +1,8 @@
 'use strict';
 
+const { digest } = require('../persistence/ddl-compiler');
 const { createRepositoryDefinition } = require('../persistence/owner-repository');
+const { validateSupportingWorkDefinition } = require('./runtime-contracts');
 
 const TERMINAL_EVENTS = new Set(['succeeded', 'skipped', 'failed', 'cancelled']);
 
@@ -17,16 +19,55 @@ function fail(code, message, details) {
   throw new WorkLifecycleError(code, message, details);
 }
 
+function canonical(value) {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value && typeof value === 'object') return Object.keys(value).sort().reduce((result, key) => {
+    result[key] = canonical(value[key]); return result;
+  }, {});
+  return value;
+}
+
+function materializeWork(row) {
+  if (!row || row.definition_schema_ref !== 'helix://foundation/types/SupportingWorkDefinition/v1' ||
+      typeof row.definition_json !== 'string' || typeof row.definition_digest !== 'string') {
+    fail('P4_WORK_DEFINITION_FACT_MISSING', 'Supporting Work is missing its durable immutable Definition.', { workId: row?.work_id });
+  }
+  let raw;
+  try { raw = JSON.parse(row.definition_json); } catch (_error) {
+    fail('P4_WORK_DEFINITION_CORRUPT', 'Supporting Work Definition is invalid JSON.', { workId: row.work_id });
+  }
+  const canonicalJson = JSON.stringify(canonical(raw));
+  if (digest(canonicalJson) !== row.definition_digest || Buffer.byteLength(canonicalJson, 'utf8') > 256 * 1024) {
+    fail('P4_WORK_DEFINITION_CORRUPT', 'Supporting Work Definition digest or size fence is invalid.', { workId: row.work_id });
+  }
+  let definition;
+  try { definition = validateSupportingWorkDefinition(raw); } catch (error) {
+    fail('P4_WORK_DEFINITION_CORRUPT', 'Supporting Work Definition no longer satisfies its nominal contract.', {
+      workId: row.work_id, causeCode: error.code,
+    });
+  }
+  const hotProjection = {
+    work_id: definition.workId, owner_domain: definition.ownerDomain, process_type: definition.processType,
+    process_id: definition.processId, work_kind: definition.workKind, basis_digest: definition.executionBasisDigest,
+    priority_class: definition.priorityClass, idempotency_key: definition.idempotencyKey,
+  };
+  for (const [column, expected] of Object.entries(hotProjection)) {
+    if (row[column] !== expected) fail('P4_WORK_DEFINITION_PROJECTION_DRIFT',
+      'Supporting Work hot projection differs from its immutable Definition.', { workId: row.work_id, column });
+  }
+  return Object.freeze({ ...row, definition });
+}
+
 function definitions(schemaManifest) {
   return Object.freeze({
     works: createRepositoryDefinition({ repositoryId: 'work_lifecycle_works', owner: 'execution-foundation', schemaManifest, statements: {
       find: { kind: 'select-one', tableId: 'fx_supporting_works', columns: [
         'work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'basis_digest', 'priority_class', 'state',
-        'idempotency_key'
+        'definition_schema_ref', 'definition_json', 'definition_digest', 'idempotency_key'
       ], keyColumns: ['work_id'] },
       list: { kind: 'select-all', tableId: 'fx_supporting_works', columns: [
         'work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'basis_digest', 'priority_class', 'state',
-        'idempotency_key'
+        'definition_schema_ref', 'definition_json', 'definition_digest', 'idempotency_key'
       ], keyColumns: [] },
       transition: { kind: 'update', tableId: 'fx_supporting_works', setColumns: ['state', 'updated_at_ms'], keyColumns: ['work_id'],
         compareColumns: [{ column: 'state', parameter: 'expected_state' }] }
@@ -73,7 +114,8 @@ function createWorkLifecycle(options) {
     return execute('work_lifecycle_ensure_attempt', (context) => {
       const works = context.repository('work_lifecycle_works');
       const attempts = context.repository('work_lifecycle_attempts');
-      const work = works.invoke('find', { work_id: workId });
+      const storedWork = works.invoke('find', { work_id: workId });
+      const work = storedWork ? materializeWork(storedWork) : null;
       if (!work || !['admitted', 'ready'].includes(work.state)) {
         fail('P4_WORK_NOT_PLANNABLE', 'Scheduler lease no longer identifies an admitted or ready Work.', { workId });
       }

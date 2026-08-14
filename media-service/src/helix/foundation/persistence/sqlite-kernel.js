@@ -1,6 +1,7 @@
 'use strict';
 
 const { digest } = require('./ddl-compiler');
+const { canonicalJson } = require('../../contracts/canonical-json');
 
 const IDENTIFIER = /^[a-z][a-z0-9_]*$/;
 const SCHEMA_NAME = 'shelfdeck';
@@ -149,7 +150,7 @@ function assertMessageConsistency(database) {
     } catch (error) {
       fail('P3_SQLITE_OUTBOX_PAYLOAD_DRIFT', 'Outbox payload is not valid JSON.', { messageId: message.message_id });
     }
-    const canonicalPayload = JSON.stringify(payload, Object.keys(payload).sort());
+    const canonicalPayload = canonicalJson(payload);
     const allAcked = deliveries.length > 0 && deliveries.every((delivery) => delivery.state === 'acked');
     if (deliveries.length !== message.intended_consumer_count ||
         digest(JSON.stringify(consumers)) !== message.consumer_set_digest ||

@@ -56,6 +56,16 @@ function createLibraRunCreator(options){
     const eligible=context.runs.filter((run)=>['active','suspended','frozen'].includes(run.state));
     if(eligible.length>1)throw new Error('Subject has more than one commit-eligible Libra Run.');
     const current=eligible[0]||null;
+    const completed=context.runs.filter((run)=>run.state==='completed');
+    if(current&&context.acceptedDeliveryRunIds?.includes(current.libra_run_id)){
+      return Object.freeze({kind:'delivered',subjectId,libraRunId:current.libra_run_id,
+        acceptanceSpecId:current.acceptance_spec_id,executionBasisDigest:current.execution_basis_digest});
+    }
+    if(!current&&context.subject.structure_kind==='single'&&completed.length>0){
+      const delivered=completed.sort((left,right)=>Number(right.state_revision)-Number(left.state_revision))[0];
+      return Object.freeze({kind:'completed',subjectId,libraRunId:delivered.libra_run_id,
+        acceptanceSpecId:delivered.acceptance_spec_id,executionBasisDigest:delivered.execution_basis_digest});
+    }
     if(forceReplacementOf&&current?.libra_run_id!==forceReplacementOf)
       throw new Error('Forced replacement no longer targets the current commit-eligible Libra Run.');
     if(current?.state==='frozen')return Object.freeze({kind:'frozen',subjectId,libraRunId:current.libra_run_id});

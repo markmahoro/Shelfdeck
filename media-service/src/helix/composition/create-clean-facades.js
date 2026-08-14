@@ -223,6 +223,11 @@ function createCleanFacades(options) {
       if(!item){const error=new Error('Shelf Entry was not found.');error.code='ARCA_SHELF_ENTRY_NOT_FOUND';throw error;}
       return {body:item};
     };
+    facades.ArcaCollectionFacade.get_collection_shelfentryid_poster = async (input) => {
+      const value=options.arcaCollectionQuery.getPoster(input.params.shelfEntryId);
+      if(!value){const error=new Error('Shelf Entry poster was not found.');error.code='ARCA_SHELF_ENTRY_POSTER_NOT_FOUND';throw error;}
+      return {body:value.bytes,contentType:value.contentType};
+    };
   }
 
   return Object.freeze(Object.fromEntries(

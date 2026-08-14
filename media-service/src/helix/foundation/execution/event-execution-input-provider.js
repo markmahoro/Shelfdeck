@@ -32,6 +32,11 @@ function createEventExecutionInputProvider(options) {
 
   function resolveBindings(snapshot, bindingSet) {
     const namedInputs = {};
+    const ownerScope = Object.freeze({
+      ownerDomain: snapshot.work.owner_domain,
+      processType: snapshot.work.process_type,
+      processId: snapshot.work.process_id,
+    });
     function readResult(eventId, resultSchemaRef) {
       const row = options.unitOfWork.execute([{
         participantId: 'event_input_result_read', owner: 'execution-foundation', repositories: [repository], execute(context) {
@@ -69,6 +74,7 @@ function createEventExecutionInputProvider(options) {
         const projection = options.bindingProjectionRegistry.resolve(binding.projectionRef);
         namedInputs[binding.portName] = projection.project(Object.freeze({
           sourceResults: Object.freeze(sources), parameters: Object.freeze(binding.parameters),
+          ownerScope,
           targetEventId: snapshot.event.event_id,
         }));
         continue;
@@ -90,6 +96,7 @@ function createEventExecutionInputProvider(options) {
         const projection = options.bindingProjectionRegistry.resolve(binding.projectionRef);
         namedInputs[binding.portName] = projection.project(Object.freeze({
           sourceResults: Object.freeze(sources), parameters: Object.freeze(binding.parameters),
+          ownerScope,
           sourceWorkId: binding.sourceWorkId, targetEventId: snapshot.event.event_id,
         }));
         continue;
@@ -106,7 +113,7 @@ function createEventExecutionInputProvider(options) {
         }
         const projection=options.bindingProjectionRegistry.resolve(binding.projectionRef);
         namedInputs[binding.portName]=projection.project(Object.freeze({parameters:Object.freeze(binding.parameters),
-          ownerScope:Object.freeze({ownerDomain:binding.ownerDomain,processType:binding.processType,processId:binding.processId}),
+          ownerScope,
           targetEventId:snapshot.event.event_id}));
         continue;
       }
@@ -118,6 +125,7 @@ function createEventExecutionInputProvider(options) {
         const projection = options.bindingProjectionRegistry.resolve(binding.projectionRef);
         namedInputs[binding.portName] = projection.project(Object.freeze({
           sourceResult: Object.freeze(result), parameters: Object.freeze(binding.parameters),
+          ownerScope,
           sourceEventId: binding.eventId, targetEventId: snapshot.event.event_id,
         }));
       } else namedInputs[binding.portName] = result;

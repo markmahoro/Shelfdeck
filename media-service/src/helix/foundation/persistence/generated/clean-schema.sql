@@ -1095,11 +1095,16 @@ CREATE TABLE "fx_supporting_works" (
   "work_kind" TEXT,
   "basis_digest" TEXT CHECK (length("basis_digest") = 64 AND "basis_digest" NOT GLOB '*[^0-9a-f]*'),
   "priority_class" TEXT,
+  "definition_schema_ref" TEXT,
+  "definition_json" TEXT,
+  "definition_digest" TEXT CHECK (length("definition_digest") = 64 AND "definition_digest" NOT GLOB '*[^0-9a-f]*'),
   "state" TEXT CHECK ("state" IN ('admitted', 'ready', 'running', 'blocked', 'succeeded', 'failed', 'cancelled')),
   "idempotency_key" TEXT,
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
   "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
-  UNIQUE ("owner_domain", "idempotency_key")
+  UNIQUE ("owner_domain", "idempotency_key"),
+  CHECK (json_valid("definition_json")),
+  CHECK (length(CAST("definition_json" AS BLOB)) <= 262144)
 );
 CREATE INDEX "idx_fx_supporting_works_hot_01" ON "fx_supporting_works" ("owner_domain", "state", "priority_class", "created_at_ms", "work_id");
 

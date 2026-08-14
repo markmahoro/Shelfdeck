@@ -7,7 +7,6 @@ const {
 const {
   createRepositoryDefinition,
 } = require('../../../foundation/persistence/owner-repository');
-const { digest } = require('../../../foundation/persistence/ddl-compiler');
 const {
   controlScopeDigest,
   createMaterialControlParticipant,
@@ -47,7 +46,7 @@ function stable(schema, value) {
 }
 
 function outboxPayloadDigest(value) {
-  return digest(JSON.stringify(value, Object.keys(value).sort()));
+  return canonicalDigest(value);
 }
 
 function arcaDefinition(schemaManifest) {
@@ -591,7 +590,7 @@ function createOnDeckStore(options) {
       (item, ordinal) => Object.freeze({
         ordinal,
         materialKey: item.materialKey,
-        role: item.role === 'primary_payload' ? 'primary' : item.role,
+        role: item.role,
         episodeClaims: item.episodeClaims,
         endpointId: item.endpointId,
         location: item.location,
@@ -601,9 +600,15 @@ function createOnDeckStore(options) {
       }),
     ));
     const oldMaterials = new Map();
+    const controlledProductMembers =
+      packageValue.productMaterialManifest.members.filter((member) =>
+        member.controlOperation !== 'assert_related_input');
+    const controlledOffloadMembers =
+      packageValue.offloadContextManifest.members.filter((member) =>
+        member.contextRole !== 'related_input');
     for (const member of [
-      ...packageValue.productMaterialManifest.members,
-      ...packageValue.offloadContextManifest.members,
+      ...controlledProductMembers,
+      ...controlledOffloadMembers,
     ]) {
       if (!oldMaterials.has(member.materialKey)) {
         oldMaterials.set(member.materialKey, member);
@@ -873,7 +878,7 @@ function createOnDeckStore(options) {
             binding_revision: 1,
             digest_hex: item.digestHex,
             size_bytes: item.sizeBytes,
-            active_guard: item.role === 'primary' ? 1 : 0,
+            active_guard: item.role === 'primary_payload' ? 1 : 0,
           });
         });
         packageValue.productFactManifest.items.forEach((item) => {

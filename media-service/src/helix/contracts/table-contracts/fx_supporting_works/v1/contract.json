@@ -79,6 +79,36 @@
       },
       {
         "ordinal": 8,
+        "name": "definition_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "definition_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "definition_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
         "name": "state",
         "logicalType": "TEXT",
         "enumValues": [
@@ -96,7 +126,7 @@
         "nullable": false
       },
       {
-        "ordinal": 9,
+        "ordinal": 12,
         "name": "idempotency_key",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -106,7 +136,7 @@
         "nullable": false
       },
       {
-        "ordinal": 10,
+        "ordinal": 13,
         "name": "created_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -116,7 +146,7 @@
         "nullable": false
       },
       {
-        "ordinal": 11,
+        "ordinal": 14,
         "name": "updated_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -166,27 +196,42 @@
       "pointerTargets": [],
       "pointerRules": []
     },
-    "jsonContracts": [],
+    "jsonContracts": [
+      {
+        "column": "definition_json",
+        "schemaRefColumn": "definition_schema_ref",
+        "maxBytes": 262144,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      }
+    ],
     "immutability": {
       "immutable": false,
-      "rules": []
+      "rules": [
+        "`definition_json`是Admission验证后的完整immutable Definition且UTF-8 JCS bytes≤`256 KiB`"
+      ]
     },
     "deletion": {
       "foreignKeyPolicy": "ON DELETE RESTRICT",
       "rules": []
     },
     "semanticRules": [
+      "`definition_schema_ref=helix://foundation/types/SupportingWorkDefinition/v1`",
+      "`definition_json`是Admission验证后的完整immutable Definition且UTF-8 JCS bytes≤`256 KiB`",
+      "`definition_digest=SHA-256(JCS(definition_json解析值))`",
+      "热列必须逐字段等于Definition投影",
+      "状态变化不得改写Definition三列",
       "`UNIQUE(owner_domain,idempotency_key)`",
       "`INDEX(owner_domain,state,priority_class,created_at_ms,work_id)`"
     ],
     "rawContract": {
-      "columns": "`work_id PK, owner_domain, process_type, process_id, work_kind, basis_digest, priority_class, state, idempotency_key, created_at_ms, updated_at_ms`",
-      "constraints": "`UNIQUE(owner_domain,idempotency_key)`；`INDEX(owner_domain,state,priority_class,created_at_ms,work_id)`"
+      "columns": "`work_id PK, owner_domain, process_type, process_id, work_kind, basis_digest, priority_class, definition_schema_ref, definition_json, definition_digest, state, idempotency_key, created_at_ms, updated_at_ms`",
+      "constraints": "`definition_schema_ref=helix://foundation/types/SupportingWorkDefinition/v1`；`definition_json`是Admission验证后的完整immutable Definition且UTF-8 JCS bytes≤`256 KiB`；`definition_digest=SHA-256(JCS(definition_json解析值))`；热列必须逐字段等于Definition投影；状态变化不得改写Definition三列；`UNIQUE(owner_domain,idempotency_key)`；`INDEX(owner_domain,state,priority_class,created_at_ms,work_id)`"
     },
     "source": {
       "section": "8.5.10",
-      "line": 9094,
-      "lineDigest": "1b3b12693bb082449223011fe595fb847378c9c59b9c1da6a4287a117f101eb7"
+      "line": 9158,
+      "lineDigest": "9cfb52d754af71b0b9dd460b9d15a9576e29f1c7a577de058ae81d312226ba97"
     },
     "foreignKeys": []
   }

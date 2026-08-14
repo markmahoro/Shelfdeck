@@ -26,6 +26,10 @@ function createLibraRunContextReader(options) {
         'active_scope_set_digest'],keyColumns:['subject_id']},
       list_runs:{kind:'select-all',tableId:'libra_runs',safeIntegers:true,columns:['libra_run_id','subject_id','acceptance_spec_id','state',
         'state_revision','state_digest','execution_basis_digest','run_scope_digest','priority_class','priority_intent_digest'],keyColumns:['subject_id']},
+      list_run_packages:{kind:'select-all',tableId:'libra_product_packages',safeIntegers:true,columns:['libra_run_id','offer_id'],
+        keyColumns:['libra_run_id']},
+      find_delivery_receipt:{kind:'select-one',tableId:'libra_delivery_receipts',safeIntegers:true,columns:['offer_id','result'],
+        keyColumns:['offer_id']},
       page_active_subjects:{kind:'select-page-after',tableId:'libra_subjects',keyColumn:'subject_id',fixedKeyColumns:['status'],maxItems:100,
         columns:['subject_id','status']},
     }
@@ -46,11 +50,18 @@ function createLibraRunContextReader(options) {
       .sort((a,b)=>Buffer.from(a.material_key).compare(Buffer.from(b.material_key)));
     const claims=repo.invoke('list_binding_claims',{subject_id:subjectId});
     const runHead=repo.invoke('find_run_head',{subject_id:subjectId}),runs=repo.invoke('list_runs',{subject_id:subjectId});
+    const acceptedDeliveryRunIds=[];
+    for(const run of runs.filter((item)=>['active','suspended','frozen'].includes(item.state))){
+      const accepted=repo.invoke('list_run_packages',{libra_run_id:run.libra_run_id}).some((pkg)=>
+        repo.invoke('find_delivery_receipt',{offer_id:pkg.offer_id})?.result==='accepted');
+      if(accepted)acceptedDeliveryRunIds.push(run.libra_run_id);
+    }
     return Object.freeze({kind:'ready',subject:Object.freeze(subject),decisionHead:Object.freeze(head),spec:Object.freeze({...spec,
       shelfId:specRow.shelf_id,productScopeDigest:specRow.product_scope_digest}),shelfProjection:Object.freeze({
         routingProjectionRevision:Number(specRow.shelf_routing_projection_revision),projectionDigest:specRow.shelf_projection_digest,
         standardRevision:Number(specRow.shelf_standard_revision),standardDigest:specRow.shelf_standard_digest}),bindings:Object.freeze(bindings),
-      claims:Object.freeze(claims),runHead:runHead?Object.freeze(runHead):null,runs:Object.freeze(runs)});
+      claims:Object.freeze(claims),runHead:runHead?Object.freeze(runHead):null,runs:Object.freeze(runs),
+      acceptedDeliveryRunIds:Object.freeze(acceptedDeliveryRunIds)});
   });}
   function headSnapshot(subjectId,row){return row?Object.freeze({headState:'present',headRevision:Number(row.head_revision),
     activeScopeSetDigest:row.active_scope_set_digest}):Object.freeze({headState:'absent',headRevision:0,

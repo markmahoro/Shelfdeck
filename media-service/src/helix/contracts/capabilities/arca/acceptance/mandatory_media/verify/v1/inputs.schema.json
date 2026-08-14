@@ -5,21 +5,21 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "productMediaEvidence": {
-      "$ref": "#/$defs/productMediaEvidence"
+    "onDeckProductPackage": {
+      "$ref": "#/$defs/onDeckProductPackage"
     },
     "mandatoryRequirement": {
       "$ref": "#/$defs/mandatoryRequirement"
     }
   },
   "required": [
-    "productMediaEvidence",
+    "onDeckProductPackage",
     "mandatoryRequirement"
   ],
   "$defs": {
-    "productMediaEvidence": {
-      "$ref": "helix://contracts/types/ProductMediaVerification/v1",
-      "x-helix-typeExpression": "Product media evidence"
+    "onDeckProductPackage": {
+      "$ref": "helix://contracts/types/OnDeckProductPackage/v1",
+      "x-helix-typeExpression": "On-deck Product Package"
     },
     "mandatoryRequirement": {
       "$ref": "helix://contracts/domain-types/MandatoryRequirement/v1",

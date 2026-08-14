@@ -22,6 +22,7 @@ const PARTIAL_UNIQUE_EXCLUDED_TABLES = new Set(['libra_workspaces', 'libra_works
 // explicit lifecycle CAS transitions. A prose occurrence of "immutable" must
 // not turn the whole relation into an append-only table.
 const MUTABLE_LIFECYCLE_TABLES = new Set([
+  'fx_supporting_works',
   'fx_workspace_registry',
   'fx_workspace_materials',
   'proc_procurement_runs',
@@ -272,6 +273,7 @@ const JSON_SCHEMA_COLUMN_OVERRIDES = Object.freeze({
   'libra_product_fact_revisions.fact_json': 'schema_ref'
 });
 const JSON_LIMIT_OVERRIDES = Object.freeze({
+  'fx_supporting_works.definition_json': 256 * 1024,
   'fx_event_result_bindings.result_json': 64 * 1024,
   'fx_event_result_bindings.evidence_json': 64 * 1024,
   'people_registration_candidates.candidate_json': 16 * 1024,
